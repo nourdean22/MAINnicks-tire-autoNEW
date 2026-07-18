@@ -1,11 +1,15 @@
 /**
  * Creative Compiler 2.0 — Milestone 13 acceptance campaign (deterministic).
  *
- * Runs the directive's high-risk subject (a car battery / diagnostic scanner —
- * the exact class that shipped garbled "FTD913"/"Nixs" defects in reel 690001)
- * through EVERY compiler stage M3-M12 and asserts each gate behaves. This proves
- * the compiler chain works TOGETHER without spending a credit. The LIVE paid
- * render (real pixels + a live QA verdict) is the operator's final validation.
+ * Two complementary batteries. (1) Per-stage gate checks that each compiler stage
+ * behaves on a subject-appropriate fixture (the battery GENOME for the truth/
+ * critic stages; the tire-pressure SAMPLE — a known preflight-clean full brief —
+ * for the render-facing stages). (2) A SINGLE coherent battery brief carried
+ * end-to-end through the render-facing stages (M10 preflight → M8 conditioning →
+ * M12 workspace), self-validated against preflight — the true single-subject
+ * chain (audit: the per-stage checks alone use mixed fixtures). Together they
+ * prove the compiler chain works without spending a credit; the LIVE paid render
+ * (real pixels + a live QA verdict) was the operator's final validation.
  */
 import { describe, it, expect } from "vitest";
 import { lockCreativeThesis, serializeThesisForPrompt } from "../client/src/lib/creativeThesis";
@@ -103,5 +107,35 @@ describe("CC2 acceptance campaign — battery subject, full chain", () => {
     const outcome = orchestratePostQa(findings);
     expect(outcome.publishGate).toBe("needs_paid_repair");
     expect(outcome.repairPlan.paidRegenerations).toBe(1);
+  });
+
+  it("SINGLE-BRIEF chain: ONE coherent battery brief flows through preflight (M10), conditioning (M8), and the workspace (M12)", () => {
+    // Cloned from the known preflight-clean sample, then re-subjected to the SAME
+    // battery mechanic truth the M3 thesis locks — so one subject runs the whole
+    // render-facing chain (audit: the per-stage checks used mixed fixtures).
+    const b = structuredClone(SAMPLE_REEL_BRIEFS[0]);
+    b.topic = "The battery that quietly died over a hot Cleveland summer";
+    b.mechanicTruth = GENOME.mechanicTruth;
+    b.driverConfusion = GENOME.driverTension;
+    b.clevelandAngle = GENOME.clevelandAngle;
+    b.campaignKeyword = "BATTERY";
+    b.storyboardBeats = [
+      { beatNumber: 1, startSecond: 0, endSecond: 4, visual: "Extreme macro of a car battery terminal rimed with frost, cold blue light, breath-fog drifting past", motion: "slow push-in onto the terminal", onScreenText: "Your battery has been dying since July", purpose: "scroll-stop", audioCue: "low hum", safeZoneNotes: "terminal centered" },
+      { beatNumber: 2, startSecond: 4, endSecond: 9, visual: "Cutaway of the battery cell, internal plates sluggish and dim in the cold", motion: "slow morph into the cell interior", onScreenText: "Summer heat quietly wore it down", purpose: "the mechanic truth", audioCue: "soft whoosh", safeZoneNotes: "cell in middle band" },
+      { beatNumber: 3, startSecond: 9, endSecond: 14, visual: "The battery as a slowly draining hourglass, sand falling faster as frost spreads", motion: "hold, sand accelerating", onScreenText: "The first cold snap is what finally exposes it", purpose: "the metaphor", audioCue: "sand hiss", safeZoneNotes: "hourglass centered" },
+      { beatNumber: 4, startSecond: 14, endSecond: 18, visual: "The frosted battery beside a warm-lit healthy one, the cold one dim, the healthy one steady", motion: "slow pan between the two", onScreenText: "A seasonal check catches it early", purpose: "why it matters", audioCue: "two soft ticks", safeZoneNotes: "both in middle band" },
+      { beatNumber: 5, startSecond: 18, endSecond: 21, visual: "Pull back from the terminal to mirror the opening push-in as frost keeps spreading", motion: "pull-back loop seam", onScreenText: "DM BATTERY for a seasonal check", purpose: "CTA + loop", audioCue: "hum fades", safeZoneNotes: "CTA middle band" },
+    ];
+    b.captionHooks = ["Your battery has been dying since July.", "The cold didn't kill it — summer did."];
+    b.selectedCaption = "Summer heat quietly wears a battery down; the first hard cold snap is what finally exposes it. Send this to someone whose car cranked slow this morning. DM BATTERY for a seasonal check.";
+
+    // self-validating fixture: if the battery beats trip a gate this fails loudly
+    expect(runReelPreflight(b).status).toBe("pass");
+    const withHero = { ...b, visualWorld: { style: "safe" as const, heroFrameUrl: "https://x/h.jpg", framePrompt: "fp", lockedInvariants: "operator-approved reference frame locked" } };
+    expect(resolveConditioningMode(withHero)).toBe("hero_image");
+    const w = buildDraftWorkspace(b);
+    expect(w.truth.mechanicTruth).toBe(GENOME.mechanicTruth); // same battery truth the M3 thesis locks
+    expect(w.execution.beats[0].intent.toLowerCase()).toContain("battery");
+    expect(w.generation[0].prompt).toContain("Subject:");
   });
 });
