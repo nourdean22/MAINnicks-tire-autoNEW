@@ -682,11 +682,27 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
   const stuck = await d
     .select()
     .from(reelJobs)
-    .where(and(inArray(reelJobs.status, ["generating", "assembling", "repair_rendering"]), lt(reelJobs.updatedAt, cutoff)));
+    .where(and(inArray(reelJobs.status, ["generating", "assembling", "repair_rendering", "publishing"]), lt(reelJobs.updatedAt, cutoff)));
 
   let recovered = 0;
   for (const job of stuck) {
     const attempts = job.attempts ?? 0;
+    // A stuck "publishing" claim is AMBIGUOUS: the Meta call may have succeeded
+    // before the process died, so re-queueing it could double-post a live reel.
+    // Park it for operator reconciliation instead of auto-retrying (audit: a
+    // thrown publish left the job wedged and nothing swept it).
+    if (job.status === "publishing") {
+      const res = await d
+        .update(reelJobs)
+        .set({ status: "publish_ambiguous", error: `publish claim stuck >${Math.round(STUCK_JOB_MS / 60_000)}m — reconcile with Meta before any retry (the post may be LIVE)` })
+        .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      const moved = (res as unknown as { affectedRows?: number })?.affectedRows ?? 0;
+      if (moved === 1) {
+        recovered++;
+        log.error("stuck PUBLISHING claim parked as publish_ambiguous — verify on Instagram before retrying", { jobId: job.id });
+      }
+      continue;
+    }
     const requeue = job.status === "assembling" ? "assets_ready" : job.status === "repair_rendering" ? "repair_queued" : "queued";
     const nextStatus = attempts >= MAX_ATTEMPTS ? "failed" : requeue;
     if (nextStatus === "failed") await releaseFailedJobReservation(job.payload, job.id);

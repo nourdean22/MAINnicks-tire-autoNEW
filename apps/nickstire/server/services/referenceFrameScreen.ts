@@ -74,8 +74,12 @@ export async function screenReferenceFrame(imageUrl: string): Promise<ReferenceF
       automotivePlausible: p.automotivePlausible === true,
       compositionOk: p.compositionOk === true,
       conditioningSuitable: p.conditioningSuitable === true,
-      defects: p.defects ?? [],
-      confidence: Math.max(0, Math.min(1, Number(p.confidence ?? 0))),
+      defects: Array.isArray(p.defects) ? p.defects : [],
+      // A NON-NUMERIC confidence ("high", null, {}) coerces to NaN, and
+      // `NaN < 0.35` is FALSE — which let a malformed screen slip past the
+      // threshold. Normalize a non-finite value to the sentinel -1 so it fails
+      // every comparison the verdict makes (audit: fail-open for NaN).
+      confidence: Number.isFinite(Number(p.confidence)) ? Math.max(0, Math.min(1, Number(p.confidence))) : -1,
     };
   } catch (err) {
     log.warn("reference-frame screen unavailable — null (never a fabricated pass)", { err: err instanceof Error ? err.message.slice(0, 140) : String(err) });
@@ -109,9 +113,12 @@ export function referenceFrameVerdict(
   if (!obs.automotivePlausible) reasons.push("not automotively plausible");
   if (!obs.compositionOk) reasons.push("composition unsuitable for an anchor");
   if (!obs.conditioningSuitable) reasons.push("unsuitable as a conditioning anchor");
-  // Low screen confidence is not a positive clearance — an anchor poisons every
-  // beat, so a near-zero-confidence observation (incl. the empty-object case) is
-  // refused rather than accepted by default.
-  if (obs.confidence < 0.35) reasons.push(`screen confidence too low (${obs.confidence.toFixed(2)})`);
+  // An anchor poisons every beat, so it needs a POSITIVE clearance: a nonempty
+  // observed subject and a finite, sufficient confidence. Non-finite (malformed
+  // "high"/null/object → sentinel -1) and low confidence both refuse.
+  if (!obs.observedSubject || !obs.observedSubject.trim()) reasons.push("screen returned no observed subject — nothing was actually described");
+  if (!Number.isFinite(obs.confidence) || obs.confidence < 0.35) {
+    reasons.push(`screen confidence missing/malformed or too low (${obs.confidence})`);
+  }
   return { accept: reasons.length === 0, reasons };
 }

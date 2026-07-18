@@ -62,6 +62,19 @@ export interface RenderedQaVerdict {
   contactSheetPath?: string;
   evaluatedAt: string;
   critic: "vision" | "skipped";
+  /**
+   * Whether the critic ACTUALLY evaluated. A provider outage/timeout/parse
+   * failure yields "unavailable" — a NON-evaluation whose decision/findings are
+   * shaped like a clean pass and must NEVER be read as an approval. Only
+   * "completed" may satisfy a publish gate (audit: skipped-as-approved).
+   */
+  qaState: "completed" | "unavailable";
+  /** Findings the critic emitted with an out-of-registry code (dropped from
+   *  `findings`). >0 means the evidence is INCOMPLETE — never a clean pass. */
+  droppedUnknownCodes?: number;
+  /** Set by selectiveRepair when the media is re-rendered — the verdict no
+   *  longer describes the current mp4. */
+  staleAfterRepair?: boolean;
 }
 
 function runFfmpeg(args: string[]): Promise<void> {
@@ -169,11 +182,15 @@ const VERDICT_SCHEMA = {
 export function clampVerdict(raw: unknown, framesEvaluated: number, critic: "vision" | "skipped"): RenderedQaVerdict {
   const obj = (raw ?? {}) as { decision?: string; findings?: unknown[] };
   const findings: RenderedFinding[] = [];
+  let droppedUnknownCodes = 0;
   for (const f of Array.isArray(obj.findings) ? obj.findings : []) {
     const rec = f as { beatNumber?: unknown; code?: unknown; description?: unknown; preserve?: unknown; change?: unknown };
     const code = String(rec.code ?? "");
     if (!(code in RENDERED_DEFECT_CODES)) {
-      log.warn("critic emitted unknown defect code — dropped", { code });
+      // Dropped from `findings` (severity is registry-owned), but COUNTED — a
+      // dropped serious defect must not silently become a clean pass.
+      droppedUnknownCodes++;
+      log.warn("critic emitted unknown defect code — dropped from findings, counted as incomplete evidence", { code });
       continue;
     }
     findings.push({
@@ -192,6 +209,10 @@ export function clampVerdict(raw: unknown, framesEvaluated: number, critic: "vis
     framesEvaluated,
     evaluatedAt: new Date().toISOString(),
     critic,
+    // A skipped critic did not evaluate anything — mark it explicitly so no
+    // consumer can mistake its approve-shaped payload for a real pass.
+    qaState: critic === "skipped" ? "unavailable" : "completed",
+    droppedUnknownCodes,
   };
 }
 
