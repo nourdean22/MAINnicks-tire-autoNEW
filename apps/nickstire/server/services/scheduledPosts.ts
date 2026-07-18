@@ -4,6 +4,34 @@ import { publishToSocial } from "./socialPublish";
 const log = createLogger("services:scheduledPosts");
 
 /**
+ * scheduled_posts.status is varchar(16) and MySQL runs with STRICT_TRANS_TABLES,
+ * so an over-length value is REJECTED (the write errors, the row is not updated)
+ * rather than truncated. That rules out the names the inventory table uses for
+ * the same concepts — "published_partial" and "publish_ambiguous" are both 17
+ * characters. Shipping those would have made a partial publish throw, then made
+ * the catch throw while recording the failure, wedging the row in "publishing"
+ * permanently.
+ *
+ * These fit. Widening the column to match social_content_inventory's varchar(32)
+ * and unifying the vocabulary is deliberately deferred: the migration ledger is
+ * currently known-drifted (nine hand-applied migrations invisible to drizzle), and
+ * the agreed order is to establish a safe schema baseline before adding schema.
+ */
+const STATUS = {
+  pending: "pending",
+  publishing: "publishing", // 10
+  posted: "posted",
+  partial: "partial", // 7  — == inventory's "published_partial"
+  ambiguous: "ambiguous", // 9  — == reel_jobs' "publish_ambiguous"
+  failed: "failed",
+} as const;
+
+/** Guard the invariant at module load rather than discovering it in production. */
+for (const v of Object.values(STATUS)) {
+  if (v.length > 16) throw new Error(`scheduled_posts.status value "${v}" exceeds varchar(16)`);
+}
+
+/**
  * Fire all due scheduled posts (status='pending' AND scheduledAt<=now) through
  * the shared publish path, marking each posted/failed. Only ever publishes rows
  * the owner EXPLICITLY scheduled via the admin UI — deferred execution of an
@@ -22,12 +50,31 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
     const due = await database
       .select()
       .from(scheduledPosts)
-      .where(and(eq(scheduledPosts.status, "pending"), lte(scheduledPosts.scheduledAt, new Date())))
+      .where(and(eq(scheduledPosts.status, STATUS.pending), lte(scheduledPosts.scheduledAt, new Date())))
       .limit(10);
 
+    const { affectedRowCount } = await import("../lib/db-affected");
+
     let posted = 0;
+    let partial = 0;
     let failed = 0;
+    let skipped = 0;
     for (const row of due) {
+      // CLAIM BEFORE PUBLISHING. The select above and the status write below used
+      // to be separated by an irreversible external call with nothing in between,
+      // so two scheduler instances that read the same pending row would both post
+      // it. The pending -> publishing compare-and-set makes the claim atomic: the
+      // loser sees 0 affected rows and skips. Same pattern as the reel path.
+      const claim = await database
+        .update(scheduledPosts)
+        .set({ status: STATUS.publishing })
+        .where(and(eq(scheduledPosts.id, row.id), eq(scheduledPosts.status, STATUS.pending)));
+      if (affectedRowCount(claim) === 0) {
+        skipped++;
+        log.warn("scheduled post already claimed by another runner — skipping", { id: row.id });
+        continue;
+      }
+
       try {
         const { results, igPostId } = await publishToSocial({
           platforms: row.platforms,
@@ -36,30 +83,52 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
           imageUrls: row.imageUrls ?? undefined,
           videoUrl: row.videoUrl ?? undefined,
         });
-        const allFailed = results.length > 0 && results.every((r) => !r.success);
-        if (allFailed) {
+        const succeeded = results.filter((r) => r.success);
+        const failures = results.filter((r) => !r.success);
+        const failureDetail = failures.map((r) => `${r.platform}: ${r.error}`).join("; ").slice(0, 500);
+
+        if (succeeded.length === 0) {
           failed++;
           await database
             .update(scheduledPosts)
-            .set({ status: "failed", error: results.map((r) => `${r.platform}: ${r.error}`).join("; ").slice(0, 500) })
+            .set({ status: STATUS.failed, error: failureDetail })
             .where(eq(scheduledPosts.id, row.id));
+        } else if (failures.length > 0) {
+          // PARTIAL, not posted. This branch did not exist: any single success
+          // marked the whole row "posted", so a Facebook success alongside an
+          // Instagram failure was recorded as a clean publish and the missing
+          // platform was invisible. The immediate-publish route already had
+          // published_partial; the scheduler silently disagreed with it.
+          partial++;
+          await database
+            .update(scheduledPosts)
+            .set({ status: STATUS.partial, postedAt: new Date(), igPostId: igPostId ?? null, error: failureDetail })
+            .where(eq(scheduledPosts.id, row.id));
+          log.warn("scheduled post published to SOME platforms only", { id: row.id, ok: succeeded.map((r) => r.platform), failed: failureDetail });
         } else {
           posted++;
           await database
             .update(scheduledPosts)
-            .set({ status: "posted", postedAt: new Date(), igPostId: igPostId ?? null })
+            .set({ status: STATUS.posted, postedAt: new Date(), igPostId: igPostId ?? null })
             .where(eq(scheduledPosts.id, row.id));
         }
       } catch (err) {
+        // A throw is NOT proof nothing was posted — the call may have reached Meta
+        // before dying. Park it for reconciliation rather than releasing the claim
+        // back to "pending", which would invite a duplicate on the next tick.
         failed++;
-        log.error("scheduled post failed", { id: row.id, err });
+        log.error("scheduled post threw mid-publish — parking as ambiguous (may be LIVE)", { id: row.id, err });
         await database
           .update(scheduledPosts)
-          .set({ status: "failed", error: (err instanceof Error ? err.message : String(err)).slice(0, 500) })
+          .set({
+            status: STATUS.ambiguous,
+            error: `threw mid-publish, reconcile with Meta before retrying (may be LIVE): ${(err instanceof Error ? err.message : String(err)).slice(0, 400)}`,
+          })
           .where(eq(scheduledPosts.id, row.id));
       }
     }
-    return { recordsProcessed: posted + failed, details: `${posted} posted, ${failed} failed of ${due.length} due` };
+    const detail = `${posted} posted, ${partial} partial, ${failed} failed, ${skipped} claimed-elsewhere of ${due.length} due`;
+    return { recordsProcessed: posted + partial + failed, details: detail };
   } catch (err) {
     log.error("runScheduledPosts failed (scheduled_posts table missing? migration 0071 not applied yet?)", err);
     return { recordsProcessed: 0, details: "error (see logs)" };

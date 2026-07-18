@@ -99,6 +99,6 @@ describe("verifyApprovalRecord", () => {
     approvalRows.push({ briefHash: computeBriefHash(briefJson), mediaHash: sha(IMG_A) });
     const d = (await dbTyped())!;
     const res = await verifyApprovalRecord(d, { inventoryId: "x", version: 1, briefJson, mediaUrls: ["https://cdn/a.jpg"] });
-    expect(res).toEqual({ ok: true });
+    expect(res).toMatchObject({ ok: true });
   });
 });

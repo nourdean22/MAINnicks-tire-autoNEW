@@ -83,11 +83,33 @@ export async function createApprovalRecord(
   return { approvalId, briefHash, mediaHash, expiresAt };
 }
 
+/**
+ * On success this returns the hashes it just computed.
+ *
+ * It used to return a bare `{ ok: true }`, discarding both digests — so every
+ * caller that needed the current media hash (to bind an operator override, say)
+ * had to recompute it, and each hand-rolled copy was free to drift. One of them
+ * did: the schedule path hashed the URL *string* while approval had stored a
+ * hash of the video BYTES, so the two could never match. Handing the computed
+ * values back removes the reason to duplicate.
+ */
 export type ApprovalVerification =
-  | { ok: true }
+  | { ok: true; briefHash: string; mediaHash: string; expiresAt: Date | null }
   | { ok: false; reason: "no_record" }
   | { ok: false; reason: "expired" }
   | { ok: false; reason: "brief_mismatch" | "media_mismatch" };
+
+/** Operator-facing explanation for a failed verification. */
+export function describeApprovalFailure(reason: Exclude<ApprovalVerification, { ok: true }>["reason"]): string {
+  switch (reason) {
+    case "no_record":
+      return "No active approval record found for this version.";
+    case "expired":
+      return "Approval EXPIRED - re-approve this content before publishing (approvals authorize for a limited window).";
+    default:
+      return "Integrity breach: current brief or media hash does not match approved values.";
+  }
+}
 
 /**
  * Recompute hashes for the CURRENT row state and compare against the approval
@@ -112,7 +134,9 @@ export async function verifyApprovalRecord(
   if (approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now()) {
     return { ok: false, reason: "expired" };
   }
-  if (computeBriefHash(args.briefJson) !== approval.briefHash) return { ok: false, reason: "brief_mismatch" };
-  if ((await computeMediaHash(args.mediaUrls)) !== approval.mediaHash) return { ok: false, reason: "media_mismatch" };
-  return { ok: true };
+  const briefHash = computeBriefHash(args.briefJson);
+  if (briefHash !== approval.briefHash) return { ok: false, reason: "brief_mismatch" };
+  const mediaHash = await computeMediaHash(args.mediaUrls);
+  if (mediaHash !== approval.mediaHash) return { ok: false, reason: "media_mismatch" };
+  return { ok: true, briefHash, mediaHash, expiresAt: approval.expiresAt ? new Date(approval.expiresAt) : null };
 }

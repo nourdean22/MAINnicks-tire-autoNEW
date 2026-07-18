@@ -918,59 +918,31 @@ Keep it under 200 characters.`;
               });
             }
 
-            const approvals = await database
-              .select()
-              .from(socialContentApprovals)
-              .where(and(eq(socialContentApprovals.inventoryId, draft.id), eq(socialContentApprovals.version, draft.version - 1)))
-              .limit(1);
-            if (approvals.length === 0) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "No active approval record found for this version of the Reel.",
+            // Approval integrity AND the rendered-QA quality decision, in one
+            // authority shared with schedulePost. This block used to hand-roll
+            // the hash comparison (and schedulePost's copy had drifted to hashing
+            // the URL string), and neither door consulted the quality gate at all
+            // — so an approved reel with unavailable, stale or repair-required QA
+            // published from the Queue with that state never surfaced.
+            const { authorizeReelPublish, ReelNotPublishableError } = await import("../services/reelPublishAuthority");
+            let authorization;
+            try {
+              authorization = await authorizeReelPublish(database, {
+                draft: { id: draft.id, version: draft.version, briefJson: draft.briefJson },
+                videoUrl: approvedVideoUrl,
               });
-            }
-
-            const approval = approvals[0];
-            const { createHash } = await import("crypto");
-            const currentBriefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
-            
-            let currentMediaHash = "";
-            if (approvedVideoUrl.startsWith("mock://")) {
-              currentMediaHash = "mocked_media_hash_32chars_long_hash";
-            } else {
-              const response = await fetch(approvedVideoUrl);
-              if (!response.ok) {
-                throw new TRPCError({
-                  code: "BAD_REQUEST",
-                  message: `Failed to download video for publishing: HTTP ${response.status}`,
-                });
+            } catch (err) {
+              if (err instanceof ReelNotPublishableError) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
               }
-              const buffer = Buffer.from(await response.arrayBuffer());
-              currentMediaHash = createHash("sha256").update(buffer).digest("hex");
+              throw err;
             }
 
-            if (approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now()) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "Approval EXPIRED - re-approve this content before publishing (approvals authorize for a limited window).",
-              });
-            }
-            if (currentBriefHash !== approval.briefHash || currentMediaHash !== approval.mediaHash) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "Integrity breach: Current brief or media hash does not match approved values.",
-              });
-            }
-
-            // Integrity confirmed against the approved version — capture the
-            // exact binding so an optional operator override can be consumed at
-            // the publish CAS below (brief+media hashes already proven current).
-            pendingOverride = {
-              inventoryId: draft.id,
-              assetVersion: draft.version - 1,
-              currentContentHash: currentMediaHash,
-              currentBriefHash,
-            };
+            // Integrity confirmed against the approved version — carry the exact
+            // binding so an optional operator override can be consumed at the
+            // publish CAS below. An override still lets an operator ship over
+            // ADVISORY findings; it never bypasses a hard gate.
+            pendingOverride = authorization.overrideBinding;
 
             publishCaption = approvedCaption;
             publishVideoUrl = approvedVideoUrl;
@@ -1215,35 +1187,25 @@ Keep it under 200 characters.`;
               });
             }
 
-            const approvals = await database
-              .select()
-              .from(socialContentApprovals)
-              .where(and(eq(socialContentApprovals.inventoryId, draft.id), eq(socialContentApprovals.version, draft.version - 1)))
-              .limit(1);
-            if (approvals.length === 0) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "No active approval record found for this version of the Reel.",
+            // Same authority as publishPost. This block previously hashed the
+            // media URL *string* and compared it to an approval that stores a
+            // hash of the video BYTES — a comparison that can never succeed, so
+            // scheduling an approved reel always failed "Integrity breach". It
+            // also never consulted the quality gate, which matters more here than
+            // at the Queue: this row fires later from cron with NO operator
+            // present, so an unresolved QA state would go out unattended.
+            const { authorizeReelPublish, ReelNotPublishableError } = await import("../services/reelPublishAuthority");
+            try {
+              const authorization = await authorizeReelPublish(database, {
+                draft: { id: draft.id, version: draft.version, briefJson: draft.briefJson },
+                videoUrl: approvedVideoUrl,
               });
-            }
-
-            const approval = approvals[0];
-            const { createHash } = await import("crypto");
-            const currentBriefHash = createHash("sha256").update(draft.briefJson || "").digest("hex");
-            const currentMediaHash = createHash("sha256").update(approvedVideoUrl).digest("hex");
-
-            if (approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now()) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "Approval EXPIRED - re-approve this content before publishing (approvals authorize for a limited window).",
-              });
-            }
-            scheduledApprovalExpiresAt = approval.expiresAt ? new Date(approval.expiresAt) : null;
-            if (currentBriefHash !== approval.briefHash || currentMediaHash !== approval.mediaHash) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "Integrity breach: Current brief or media hash does not match approved values.",
-              });
+              scheduledApprovalExpiresAt = authorization.approvalExpiresAt;
+            } catch (err) {
+              if (err instanceof ReelNotPublishableError) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+              }
+              throw err;
             }
 
             publishCaption = approvedCaption;

@@ -36,12 +36,12 @@ describe("verifyApprovalRecord expiry", () => {
 
   it("a live approval within TTL passes hash verification", async () => {
     const verdict = await verifyApprovalRecord(dbWithApproval({ ...baseApproval, expiresAt: new Date(Date.now() + 3600_000) }), args);
-    expect(verdict).toEqual({ ok: true });
+    expect(verdict).toMatchObject({ ok: true });
   });
 
   it("legacy pre-0087 rows (null expiry) remain valid for backward compatibility", async () => {
     const verdict = await verifyApprovalRecord(dbWithApproval({ ...baseApproval, expiresAt: null }), args);
-    expect(verdict).toEqual({ ok: true });
+    expect(verdict).toMatchObject({ ok: true });
   });
 
   it("hash mismatches still refuse independent of expiry", async () => {
