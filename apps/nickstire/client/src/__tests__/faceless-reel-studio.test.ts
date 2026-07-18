@@ -24,6 +24,7 @@ import {
   compileProviderScene,
   transformToProviderSafeScene,
   resolveConditioningMode,
+  runReelPreflight,
   validateBeatCount,
   validateReelLengthTarget,
   validateMutedFirstClarity,
@@ -415,6 +416,31 @@ describe("transformToProviderSafeScene", () => {
 
 // Milestone 8: the compiler must pick ONE continuity strategy — never emit
 // "start from the shared hero frame" AND "continue from the previous clip".
+// Milestone 10: one deterministic gate before any paid generation.
+describe("runReelPreflight", () => {
+  it("passes a valid sample brief (warnings allowed, zero blocks)", () => {
+    const r = runReelPreflight(sample());
+    expect(r.status).toBe("pass");
+    expect(r.blocking).toEqual([]);
+  });
+
+  it("BLOCKS a beat that depends on rendered text (no spend reserved)", () => {
+    const b = structuredClone(sample());
+    b.storyboardBeats[0].visual = "a diagnostic scanner screen displays the fault reading";
+    const r = runReelPreflight(b);
+    expect(r.status).toBe("block");
+    expect(r.blocking.some((f) => f.category === "production")).toBe(true);
+  });
+
+  it("BLOCKS an invalid beat structure", () => {
+    const b = structuredClone(sample());
+    b.storyboardBeats = [b.storyboardBeats[0]];
+    const r = runReelPreflight(b);
+    expect(r.status).toBe("block");
+    expect(r.blocking.some((f) => f.category === "structural")).toBe(true);
+  });
+});
+
 describe("conditioning-aware compiler", () => {
   it("resolveConditioningMode: hero_image with a hero frame, text_only without", () => {
     expect(resolveConditioningMode({ visualWorld: undefined })).toBe("text_only");
