@@ -951,6 +951,33 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-17",
+      "deferredScope": [
+        "the full intent->scene TRANSFORMATION (zero-lettering rewrites) is M6",
+        "enforce sceneStatus=corrected/blocked in a deterministic preflight (M10)"
+      ],
+      "capabilityId": "provider-scene-compile-boundary",
+      "name": "Creative Compiler 2.0 M5: beat intent vs provider-safe scene (compile-boundary guard)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "compileProviderScene + buildHiggsfieldReelPromptPack uses the compiled scene as Subject + per-beat sceneStatus/sceneFindings",
+        "tests": [
+          "client/src/__tests__/faceless-reel-studio.test.ts (41, +4): clean beat passes through, text/hands beats get a provider-safe corrective clause, pack exposes per-beat sceneStatus",
+          "server/goldenCampaign + reelQualityGate + reelDirector + visualWorld green (no regression)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "the compile runs on ALL paths incl. the autonomous cron path, but is only integration_verified (no live render observed) — exposure capped at operator_only until a live-verified render. M5 corrects/annotates; it does not yet TRANSFORM intent into a rewritten scene (M6) nor BLOCK a flagged beat at preflight (M10).",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {
