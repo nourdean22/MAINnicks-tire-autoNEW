@@ -256,6 +256,23 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     }
 
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
+
+    // Durable attempt record BEFORE the irreversible call. The CAS claim above
+    // stops two runners racing, but it does not survive a process death: killed
+    // between Meta accepting and the DB update, nothing would record that an
+    // attempt happened at all. Refusing to publish unrecorded is the point — an
+    // unrecorded publish is the ambiguity this exists to remove.
+    const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../../services/publishAttemptLedger");
+    const attemptId = await recordPublishAttempt({
+      jobId: job.id, platforms: ["instagram"], mediaUrl: videoUrl,
+    });
+    if (!attemptId) {
+      await d.update(reelJobs).set({ status: "assembled" })
+        .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      log.error(`daily reel: could not record a publish attempt for job ${job.id} — HOLDING rather than publishing unrecorded`);
+      return { recordsProcessed: 0, details: "held: publish-attempt ledger unavailable; index not advanced" };
+    }
+
     let outcome;
     try {
       outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
@@ -264,6 +281,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // "assembled" (that risks a double-publish); park it for reconciliation
       // and fail the cron run loudly.
       const msg = pubErr instanceof Error ? pubErr.message : String(pubErr);
+      await recordPublishOutcome(attemptId, OUTCOME.ambiguous, { error: msg });
       await d.update(reelJobs)
         .set({ status: "publish_ambiguous", error: `publish threw: ${msg.slice(0, 300)}` })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
@@ -271,6 +289,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       throw pubErr;
     }
     const ig = outcome.results.find((r) => r.platform === "instagram");
+    await recordPublishOutcome(attemptId, ig?.success ? OUTCOME.confirmed : OUTCOME.failed, {
+      igPostId: ig?.postId ?? null, error: ig?.success ? null : (ig?.error ?? "unknown"), platformResults: outcome.results,
+    });
     if (!ig?.success) {
       // Cleanly-returned failure: Meta explicitly did not accept it, so the
       // claim is safe to release for a later retry.

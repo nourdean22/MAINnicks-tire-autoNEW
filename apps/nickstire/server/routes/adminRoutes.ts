@@ -374,6 +374,26 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  /**
+   * Publishes that may or may not be live — an attempt with no recorded outcome.
+   *
+   * This is what `publish_ambiguous` gets reconciled AGAINST. A process killed
+   * between Meta accepting a post and the database being updated leaves exactly
+   * this shape, and without it no operator can tell a lost publish from a lost
+   * response except by checking Instagram by hand.
+   */
+  app.get("/api/admin/publish-attempts/open", requireAdminApiKey, async (req, res) => {
+    try {
+      const mins = Number(req.query?.olderThanMinutes);
+      const { findUnreconciledAttempts } = await import("../services/publishAttemptLedger");
+      const open = await findUnreconciledAttempts(Number.isFinite(mins) && mins >= 0 ? mins : 15);
+      res.json({ count: open.length, attempts: open });
+    } catch (err) {
+      serverLog.error("publish-attempts/open failed", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.get("/api/admin/flags", requireAdminApiKey, async (_req, res) => {
     const { getAllFlags } = await import("../services/featureFlags");
     res.json(await getAllFlags());
