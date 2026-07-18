@@ -445,7 +445,15 @@ export async function generateReelBriefAI(
       {
         role: "user",
         content:
-          "Run the full process internally — ground the fact, ideate the concepts, score them, pick the single winner — then OUTPUT ONLY the winning reel as one JSON object matching the provided schema (contiguous storyboard beats, caption, hashtags). No prose, no markdown." +
+          // The user turn used to say "ideate the concepts, score them, pick the
+          // single winner" UNCONDITIONALLY — the exact instruction the locked-
+          // thesis system directive forbids. Two contradictory orders in one
+          // call is a coin flip, not a lock: the model could re-ideate and the
+          // no-re-ideation guarantee held only by luck. When a thesis is locked
+          // the user turn now asks for EXECUTION only.
+          (input.thesis
+            ? `The winning concept is ALREADY LOCKED (conceptId "${input.thesis.conceptId}"). Do not ideate or re-score. Ground the fact, then develop ONLY the execution of that locked concept — then OUTPUT ONLY the reel as one JSON object matching the provided schema (contiguous storyboard beats, caption, hashtags). No prose, no markdown.`
+            : "Run the full process internally — ground the fact, ideate the concepts, score them, pick the single winner — then OUTPUT ONLY the winning reel as one JSON object matching the provided schema (contiguous storyboard beats, caption, hashtags). No prose, no markdown.") +
           feedback +
           shareCta,
       },

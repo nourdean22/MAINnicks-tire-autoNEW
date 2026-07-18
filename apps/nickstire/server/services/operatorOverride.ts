@@ -183,6 +183,45 @@ export async function consumeOverrideForPublish(
   return { ok: true, overrideId: ov.id, acceptedFindingIds: JSON.parse(ov.acceptedFindingIds) as string[] };
 }
 
+/**
+ * Return a consumed override to "active" when the publish it authorized never
+ * happened (publishToSocial threw before anything went live).
+ *
+ * Why this exists: consumption is deliberately BEFORE the external call — that
+ * ordering is what makes it exactly-once. But it also meant a transport error
+ * BURNED the operator's acceptance: the draft rolled back to its prior status
+ * and was publishable again, while the override that authorized it was gone, so
+ * the retry silently lost the operator's decision and re-blocked. Restoring it
+ * keeps the override's lifecycle symmetric with the inventory-status rollback
+ * that runs in the same catch.
+ *
+ * The CAS (consumed -> active) means this can never resurrect an override that
+ * was revoked, expired, or invalidated in the meantime, and the hash binding is
+ * untouched — a re-render still invalidates it on the next attempt. expiresAt is
+ * NOT extended: a failed publish does not buy more time.
+ *
+ * Caveat, deliberate: a throw is not proof nothing was posted. The caller
+ * already restores the inventory status on the same signal, so both artifacts
+ * make the same assumption; the reel path parks `publish_ambiguous` instead
+ * precisely because there the post may be live.
+ */
+export async function releaseConsumedOverride(database: DB, overrideId: string): Promise<boolean> {
+  const { affectedRowCount } = await import("../lib/db-affected");
+  try {
+    const res = await database
+      .update(operatorQualityOverrides)
+      .set({ state: "active", consumedAt: null })
+      .where(and(eq(operatorQualityOverrides.id, overrideId), eq(operatorQualityOverrides.state, "consumed")));
+    const restored = affectedRowCount(res) === 1;
+    log.warn(restored ? "override released after a failed publish — operator acceptance preserved" : "override release found nothing to restore", { overrideId });
+    return restored;
+  } catch (err) {
+    // Never let bookkeeping mask the publish error the caller is rethrowing.
+    log.warn("override release failed — operator may need to re-accept", { overrideId, err: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+    return false;
+  }
+}
+
 /** Revoke an active override (operator changed their mind before publish). */
 export async function revokeOperatorOverride(database: DB, overrideId: string): Promise<boolean> {
   const { affectedRowCount } = await import("../lib/db-affected");

@@ -1079,10 +1079,14 @@ Keep it under 200 characters.`;
       // approval exactly as before. The override NEVER weakened a hard gate — all
       // of them (approval existence/expiry, hash match, kill switch, cadence,
       // claim safety) ran above, unchanged.
+      // Held so a failed publish can hand the operator's acceptance back rather
+      // than burning it (see releaseConsumedOverride).
+      let consumedOverrideId: string | undefined;
       if (pendingOverride) {
         const { consumeOverrideForPublish } = await import("../services/operatorOverride");
         const consumed = await consumeOverrideForPublish(database, pendingOverride);
         if (consumed.ok) {
+          consumedOverrideId = consumed.overrideId;
           const { recordAuditEvent, getActivePolicy } = await import("../services/autonomyControl");
           let policyVersion = 0;
           try { policyVersion = (await getActivePolicy()).version; } catch { /* degraded policy loader — audit still records */ }
@@ -1110,6 +1114,13 @@ Keep it under 200 characters.`;
         // The claim must not outlive a throw, or the draft wedges in "publishing"
         // and every later attempt hits the CONFLICT guard above.
         await setInventoryStatus(observedStatus ?? "failed", err instanceof Error ? err.message : String(err));
+        // Nothing went live, so the operator's override was spent on nothing —
+        // give it back on the same signal that rolls the draft back, or the
+        // retry loses their decision and re-blocks on the finding they accepted.
+        if (consumedOverrideId) {
+          const { releaseConsumedOverride } = await import("../services/operatorOverride");
+          await releaseConsumedOverride(database, consumedOverrideId);
+        }
         throw err;
       }
 
@@ -1119,6 +1130,11 @@ Keep it under 200 characters.`;
 
       if (succeeded.length === 0) {
         await setInventoryStatus("failed", failureDetail);
+        // Every platform rejected it — same rule as the throw path above.
+        if (consumedOverrideId) {
+          const { releaseConsumedOverride } = await import("../services/operatorOverride");
+          await releaseConsumedOverride(database, consumedOverrideId);
+        }
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Publish failed: ${failureDetail}`,
