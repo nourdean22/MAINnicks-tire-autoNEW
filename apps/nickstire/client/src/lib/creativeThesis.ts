@@ -25,6 +25,11 @@ export const CreativeThesisSchema = z.object({
   thesisId: z.string().min(1),
   /** the tournament winner / genome the thesis descends from — PROTECTED */
   conceptId: z.string(),
+  /** the approved campaign objective + creative territory — the two intent axes
+   *  the thesis was dropping (audit); carried so the generator develops within
+   *  the approved frame instead of re-choosing it. Defaulted for back-compat. */
+  objective: z.string().default(""),
+  creativeTerritory: z.string().default(""),
   premise: z.string(),
   /** the core teaching fact — PROTECTED, never restated as a different fact */
   mechanicTruth: z.string(),
@@ -76,6 +81,8 @@ export function lockCreativeThesis(
     version: CREATIVE_THESIS_VERSION,
     thesisId: opts.thesisId,
     conceptId: opts.conceptId,
+    objective: genome.objective,
+    creativeTerritory: genome.creativeTerritory,
     premise: genome.audienceMoment,
     mechanicTruth: genome.mechanicTruth,
     customerTension: genome.driverTension,
@@ -105,6 +112,8 @@ export function lockCreativeThesis(
 export function serializeThesisForPrompt(t: CreativeThesis): string {
   const lines: Array<string | false> = [
     `CREATIVE THESIS (LOCKED — this is ONE execution of an already-approved campaign concept; DEVELOP it, do NOT invent a new concept or a different mechanic truth):`,
+    !!t.objective && `Campaign objective [PRESERVE — do not re-choose]: ${t.objective}`,
+    !!t.creativeTerritory && `Creative territory [PRESERVE]: ${t.creativeTerritory}`,
     !!t.premise && `Premise: ${t.premise}`,
     `Mechanic truth [PRESERVE — do not restate as a different fact]: ${t.mechanicTruth}`,
     !!t.customerTension && `Customer tension: ${t.customerTension}`,
