@@ -342,6 +342,33 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  /**
+   * Rebuild a reel's master from its surviving source clips — the free recovery
+   * path for a job whose assembled mp4 was lost to ephemeral disk while the clips
+   * (provider-hosted) survived.
+   *
+   * Deliberately NOT called "repair": it produces a different file with a different
+   * hash, so the prior QA verdict and approval are invalidated by the service. The
+   * job returns to "assembled" needing fresh QA before it can publish.
+   */
+  app.post("/api/admin/reel-jobs/reassemble", requireAdminApiKey, express.json({ limit: "4kb" }), async (req, res) => {
+    const jobId = Number(req.body?.jobId);
+    if (!Number.isInteger(jobId) || jobId <= 0) {
+      res.status(400).json({ error: "jobId required (positive int)" });
+      return;
+    }
+    try {
+      const { reassembleFromClips } = await import("../services/reelReassemble");
+      const result = await reassembleFromClips(jobId);
+      // A refusal is a 409, not a 500: the job is in a state that does not permit
+      // re-assembly, which is an answer rather than a fault.
+      res.status(result.ok ? 200 : 409).json(result);
+    } catch (err) {
+      serverLog.error("reel reassemble failed", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.get("/api/admin/flags", requireAdminApiKey, async (_req, res) => {
     const { getAllFlags } = await import("../services/featureFlags");
     res.json(await getAllFlags());
