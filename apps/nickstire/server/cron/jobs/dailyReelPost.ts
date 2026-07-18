@@ -217,29 +217,21 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       log.warn("reel caption claim-check skipped", { err: err instanceof Error ? err.message : String(err) });
     }
 
-    // Autonomous publish must clear the SAME rendered-QA gate the operator/canary
-    // path enforces — never auto-post an assembled reel with a rendered defect.
-    // A real non-"proceed" verdict HOLDS the reel (index not advanced, retries a
-    // fresh brief tomorrow). A QA infra failure (null verdict / throw) proceeds
-    // with a loud warn rather than blocking the daily reel on flaky extraction —
-    // full "pause on unknown QA" is the larger persisted-decision-record work.
-    if (process.env.RENDERED_QA_ENABLED === "true") {
-      try {
-        const { runRenderedQaOnJob } = await import("../../services/renderedQa");
-        const { orchestratePostQa } = await import("../../services/postQaOrchestrator");
-        const verdict = await runRenderedQaOnJob(job.id);
-        if (verdict) {
-          const gate = orchestratePostQa(verdict.findings).publishGate;
-          if (gate !== "proceed") {
-            log.warn(`daily reel: rendered-QA gate '${gate}' — HOLDING job ${job.id}, not publishing`, { findings: verdict.findings.length });
-            return { recordsProcessed: 0, details: `held by rendered-QA gate (${gate}); index not advanced` };
-          }
-        } else {
-          log.warn(`daily reel: rendered QA could not run for job ${job.id} — publishing without a fresh gate`);
-        }
-      } catch (err) {
-        log.warn(`daily reel: rendered-QA gate check errored for job ${job.id} — publishing without gate`, { err: err instanceof Error ? err.message : String(err) });
+    // Autonomous publish must clear the CONSOLIDATED rendered-QA gate — the same
+    // evaluateReelPublishGate every reel door uses. A real non-"proceed" verdict
+    // HOLDS the reel (index not advanced, retries a fresh brief tomorrow). A QA
+    // infra failure proceeds with a loud warn rather than blocking the daily reel
+    // on flaky extraction (the upstream compiler + preflight already gate defects).
+    try {
+      const { evaluateReelPublishGate } = await import("../../services/qualityGate");
+      const g = await evaluateReelPublishGate(job.id);
+      if (!g.allowed) {
+        log.warn(`daily reel: publish gate '${g.gate}' — HOLDING job ${job.id}, not publishing`, { findings: g.findings.length, reason: g.reason });
+        return { recordsProcessed: 0, details: `held by rendered-QA gate (${g.gate}); index not advanced` };
       }
+      if (g.source === "unavailable") log.warn(`daily reel: rendered QA unavailable for job ${job.id} — publishing on upstream gates`);
+    } catch (err) {
+      log.warn(`daily reel: publish gate check errored for job ${job.id} — publishing without gate`, { err: err instanceof Error ? err.message : String(err) });
     }
 
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
