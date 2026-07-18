@@ -446,6 +446,12 @@ export interface HiggsfieldBeatPrompt {
   negativePrompt: string;
   styleKit: string;
   safeZoneGuidance: string;
+  /** Milestone 5: per-beat provider-scene compile status. "corrected" means a
+   *  text/faceless risk was detected in the beat and a deterministic corrective
+   *  clause was applied to the provider Subject. Consumed by M10's preflight. */
+  sceneStatus?: "clean" | "corrected";
+  /** the reasons a correction was applied (empty when clean) */
+  sceneFindings?: string[];
 }
 
 export const VISUAL_WORLD_STYLES = ["safe", "bold", "experimental"] as const;
@@ -903,6 +909,43 @@ export function facelessCleanSceneDirective(motionLens: string): string {
   return GRAPHICAL_DISPLAY_LENSES.has(motionLens) ? FACELESS_CLEAN_SCENE_DIRECTIVE_GRAPHICAL : FACELESS_CLEAN_SCENE_DIRECTIVE;
 }
 
+export interface ProviderSceneCompilation {
+  /** what Seedance renders — the beat's creative intent made provider-safe */
+  scene: string;
+  status: "clean" | "corrected";
+  /** reasons a correction was applied (empty when clean) */
+  findings: string[];
+}
+
+/**
+ * Milestone 5: separate a beat's CREATIVE INTENT (visual + motion — what the shot
+ * means) from the PROVIDER SCENE (what Seedance renders). The in-frame-text and
+ * faceless validators run HERE, at the compile boundary, so EVERY path that
+ * builds the prompt pack — including the ungated autonomous cron path
+ * (dailyReelPost, which never calls runSafetyChecks) — gets per-beat provider
+ * safety, not only paths that gate the brief. When a risk is detected, a
+ * deterministic corrective clause steers the generator away from it even for a
+ * beat that slipped the brief-level gate. The full intent->scene TRANSFORMATION
+ * (zero-lettering rewrites) is Milestone 6; M5 establishes the seam + the guard.
+ */
+export function compileProviderScene(visual: string, motion: string): ProviderSceneCompilation {
+  const design = `${visual}\n${motion}`;
+  const findings: string[] = [];
+  const text = validateNoInFrameText([design]);
+  if (!text.ok && text.reason) findings.push(text.reason);
+  const faceless = validateFacelessSubject([design]);
+  if (!faceless.ok && faceless.reason) findings.push(faceless.reason);
+  if (findings.length === 0) return { scene: visual, status: "clean", findings: [] };
+  const corrections: string[] = [];
+  if (!text.ok) corrections.push("every screen, gauge, or display is dark, off, or angled away and shows NO readable text, numbers, or logos");
+  if (!faceless.ok) corrections.push("no people, faces, hands, gloves, or arms; the object moves on its own");
+  return {
+    scene: `${visual} [provider-safe: ${corrections.join("; ")}]`,
+    status: "corrected",
+    findings,
+  };
+}
+
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
@@ -918,11 +961,15 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
     const actionCompleteBySec = Number((trimDurationSec - settleSec).toFixed(1));
     const prev = i > 0 ? beats[i - 1] : null;
     const isLast = i === beats.length - 1;
+    // Milestone 5: the provider Subject is a COMPILED provider-safe scene, not
+    // the raw creative-intent visual — validated + corrected at the compile
+    // boundary so this holds on every path, including the ungated cron path.
+    const providerScene = compileProviderScene(b.visual, b.motion);
     return {
       beatNumber: b.beatNumber,
       prompt: [
         `Vertical 9:16 cinematic clip. Generate a four-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
-        `Subject: ${b.visual}`,
+        `Subject: ${providerScene.scene}`,
         `Character energy: ${character.label} - ${character.essence}`,
         `Motion: ${b.motion}`,
         `Style: ${lens.label} - ${lens.essence}`,
@@ -946,6 +993,8 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
         `human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, ${lens.avoid}`,
       styleKit: `${lens.label} + ${REEL_ARCHETYPES[brief.archetype].label}`,
       safeZoneGuidance: b.safeZoneNotes || "Keep critical visuals out of the top 12% / bottom 20% IG UI zones.",
+      sceneStatus: providerScene.status,
+      sceneFindings: providerScene.findings,
     };
   });
 }

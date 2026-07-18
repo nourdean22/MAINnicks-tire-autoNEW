@@ -21,6 +21,7 @@ import {
   validateFacelessSubject,
   validateNoInFrameText,
   facelessCleanSceneDirective,
+  compileProviderScene,
   validateBeatCount,
   validateReelLengthTarget,
   validateMutedFirstClarity,
@@ -330,6 +331,40 @@ describe("prompt engine", () => {
     expect(p).toContain("PRESSURE");
     expect(p).toContain("brake squeal");
     expect(p).toContain("diagnostic HUD");
+  });
+});
+
+// Milestone 5: separate creative intent from the provider-safe scene at the
+// compile boundary (the 3.4 fix), so even the ungated cron path is guarded.
+describe("compileProviderScene", () => {
+  it("passes a clean beat through unchanged", () => {
+    const c = compileProviderScene("extreme macro of worn tire tread", "slow push in");
+    expect(c.status).toBe("clean");
+    expect(c.scene).toBe("extreme macro of worn tire tread");
+    expect(c.findings).toEqual([]);
+  });
+
+  it("corrects a text-dependent beat with a provider-safe clause", () => {
+    const c = compileProviderScene("a diagnostic scanner screen displays the fault reading", "hold");
+    expect(c.status).toBe("corrected");
+    expect(c.scene).toContain("provider-safe:");
+    expect(c.scene).toContain("dark, off, or angled away");
+    expect(c.findings.length).toBeGreaterThan(0);
+  });
+
+  it("corrects a beat that casts gloved hands", () => {
+    const c = compileProviderScene("gloved hands lift the rotor into frame", "tilt up");
+    expect(c.status).toBe("corrected");
+    expect(c.scene).toContain("no people, faces, hands");
+  });
+
+  it("the pack exposes per-beat sceneStatus and keeps a clean sample's Subject intact", () => {
+    const pack = buildHiggsfieldReelPromptPack(sample());
+    for (const p of pack) {
+      expect(p.sceneStatus).toBe("clean"); // sample beats are clean → no correction
+      expect(p.prompt).toContain("Subject:");
+      expect(p.prompt).not.toContain("provider-safe:");
+    }
   });
 });
 
