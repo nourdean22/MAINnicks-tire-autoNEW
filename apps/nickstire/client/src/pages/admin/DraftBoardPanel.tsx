@@ -4,8 +4,6 @@ import { toast } from "sonner";
 import { Loader2, Kanban, Calendar as CalendarIcon, Filter, Search, Sparkles, RefreshCw } from "lucide-react";
 import DraftCard from "@/components/admin/DraftCard";
 import PublishDrawer from "@/components/admin/PublishDrawer";
-import { SAMPLE_BRIEFS } from "@/lib/igCarouselStudioSamples";
-import { SAMPLE_REEL_BRIEFS } from "@/lib/facelessReelStudioSamples";
 
 export default function DraftBoardPanel() {
   const [view, setView] = useState<"board" | "calendar">("board");
@@ -79,24 +77,18 @@ export default function DraftBoardPanel() {
       creativeTerritory: r.archetype || "",
     }));
 
-    // Inject sample seeds if sheets return empty, so the workspace is never blank
-    const sampleCarousels = normCarousels.length === 0 ? SAMPLE_BRIEFS.map(b => ({
-      ...b,
-      contentType: "carousel" as const,
-      status: "needs_review",
-      isSample: true,
-    })) : [];
-
-    const sampleReels = normReels.length === 0 ? SAMPLE_REEL_BRIEFS.map(b => ({
-      ...b,
-      contentType: "reel" as const,
-      status: "needs_review",
-      isSample: true,
-      boostScore: b.qualityScore || 0,
-      creativeTerritory: b.archetype || "",
-    })) : [];
-
-    return [...normCarousels, ...normReels, ...sampleCarousels, ...sampleReels];
+    // NO SAMPLE INJECTION. This board previously seeded SAMPLE_BRIEFS and
+    // SAMPLE_REEL_BRIEFS whenever the real lists came back empty, "so the
+    // workspace is never blank" — but it stamped them status "needs_review",
+    // so fabricated drafts appeared as items awaiting the operator's review.
+    // `isSample: true` was set and then never rendered anywhere, leaving them
+    // visually indistinguishable from real work: an operator could review, edit
+    // or attempt to publish content that does not exist.
+    //
+    // An empty board is a true statement about the business. The empty state
+    // below already says it well and points at the studios. A blank workspace is
+    // better than a populated lie.
+    return [...normCarousels, ...normReels];
   }, [carousels, reels]);
 
   // Apply Search and Filters
