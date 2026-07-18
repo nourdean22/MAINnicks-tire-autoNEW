@@ -310,7 +310,18 @@ export async function runRenderedQaOnJob(jobId: number): Promise<RenderedQaVerdi
       ? job.mp4Url
       : path.join(process.cwd(), "data", job.mp4Url.replace(/^https?:\/\/[^/]+\//, ""));
     const frames = await extractReelFrames(mp4Path, beats);
-    const sheet = await buildContactSheet(frames, path.join(path.dirname(frames[0].path), "contact-sheet.jpg")).catch(() => undefined);
+    // The contact sheet is the EVIDENCE behind a decision that gates a publish,
+    // so it has to outlive the decision. It used to be written beside the
+    // extracted frames — a scratch directory — while contactSheetPath was
+    // persisted on the job forever: the moment temp was swept, the audit trail
+    // pointed at a file that no longer existed and nobody could review why a
+    // reel was approved or held. Writing it beside the mp4 gives it the same
+    // lifecycle as the asset it describes (and it is servable, since
+    // data/generated is what /generated/* maps to).
+    const sheet = await buildContactSheet(
+      frames,
+      path.join(path.dirname(mp4Path), `reel-${jobId}-contact-sheet.jpg`),
+    ).catch(() => undefined);
     const verdict = await evaluateRenderedReel({ frames, brief: payload });
     verdict.contactSheetPath = sheet;
     payload.renderedQa = verdict;
