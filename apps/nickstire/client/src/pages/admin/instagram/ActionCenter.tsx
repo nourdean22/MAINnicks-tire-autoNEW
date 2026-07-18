@@ -26,6 +26,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 /** Ordered most-recoverable to least, matching the server's classifier. */
 const RECOVERABILITY_LABEL: Record<string, { label: string; tone: string; hint: string }> = {
@@ -63,6 +64,10 @@ const ACTION_ICON: Record<string, typeof Wrench> = {
 
 export default function ActionCenter() {
   const [busyJob, setBusyJob] = useState<number | null>(null);
+  /** Reconciliation verdict for one attempt, awaiting the operator's call. */
+  const [checked, setChecked] = useState<Record<string, any>>({});
+  const [discarding, setDiscarding] = useState<number | null>(null);
+  const [discardReason, setDiscardReason] = useState("");
 
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, {
     // Probing artifact reachability costs real HTTP calls, so do not hammer it.
@@ -92,6 +97,36 @@ export default function ActionCenter() {
     onSettled: () => setBusyJob(null),
   });
 
+  const checkAmbiguous = trpc.contentAdmin.checkAmbiguousPublish.useMutation({
+    onSuccess: (v: any) => {
+      setChecked((prev) => ({ ...prev, [v.attemptId]: v }));
+      if (v.status === "resolved_published") toast.success("It IS live on Instagram", { description: v.detail });
+      else if (v.status === "resolved_not_published") toast.success("It never reached Instagram", { description: v.detail });
+      else if (v.status === "cannot_check") toast.error("Could not check", { description: v.detail });
+      else toast.warning("Needs your eyes", { description: v.detail });
+    },
+    onError: (err) => toast.error("Check failed", { description: err.message }),
+  });
+
+  const resolveAmbiguous = trpc.contentAdmin.resolveAmbiguousPublish.useMutation({
+    onSuccess: (r: any) => {
+      toast.success("Reconciled", { description: r.detail });
+      attention.refetch();
+      openAttempts.refetch();
+    },
+    onError: (err) => toast.error("Could not reconcile", { description: err.message }),
+  });
+
+  const discardJob = trpc.contentAdmin.discardReelJob.useMutation({
+    onSuccess: () => {
+      toast.success("Job closed");
+      setDiscarding(null);
+      setDiscardReason("");
+      attention.refetch();
+    },
+    onError: (err) => toast.error("Could not close", { description: err.message }),
+  });
+
   const jobs = attention.data?.jobs ?? [];
   const stuckCount = jobs.length;
   const openCount = openAttempts.data?.count ?? 0;
@@ -114,14 +149,98 @@ export default function ActionCenter() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
-            {(openAttempts.data?.attempts ?? []).map((a: any) => (
-              <div key={a.attemptId} className="text-xs flex items-center gap-2 font-mono">
-                <Clock className="h-3 w-3 text-muted-foreground flex-none" />
-                <span>job {a.jobId ?? "—"}</span>
-                <span className="text-muted-foreground">· {a.ageMinutes}m ago</span>
-                <span className="text-muted-foreground">· {(a.platforms ?? []).join(", ")}</span>
-              </div>
-            ))}
+            {(openAttempts.data?.attempts ?? []).map((a: any) => {
+              const v = checked[a.attemptId];
+              return (
+                <div key={a.attemptId} className="rounded border border-amber-500/20 bg-background/40 p-2 space-y-2">
+                  <div className="text-xs flex items-center gap-2 font-mono flex-wrap">
+                    <Clock className="h-3 w-3 text-muted-foreground flex-none" />
+                    <span>job {a.jobId ?? "—"}</span>
+                    <span className="text-muted-foreground">· {a.ageMinutes}m ago</span>
+                    <span className="text-muted-foreground">· {(a.platforms ?? []).join(", ")}</span>
+                  </div>
+
+                  {!v ? (
+                    <Button
+                      size="sm" variant="outline" className="text-xs"
+                      disabled={checkAmbiguous.isPending}
+                      onClick={() => checkAmbiguous.mutate({ attemptId: a.attemptId, jobId: a.jobId ?? undefined })}
+                    >
+                      {checkAmbiguous.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <HelpCircle className="h-3 w-3 mr-1" />}
+                      Ask Instagram what happened
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[11px] leading-relaxed">{v.detail}</p>
+
+                      {/* A confident verdict still needs a tap. Marking a publish
+                          live is irreversible for that reel, and marking it dead
+                          authorises a retry that could double-post. */}
+                      {v.status === "resolved_published" && a.jobId && (
+                        <Button
+                          size="sm" className="text-xs bg-green-600 hover:bg-green-700 text-white"
+                          disabled={resolveAmbiguous.isPending}
+                          onClick={() => resolveAmbiguous.mutate({
+                            jobId: a.jobId, attemptId: a.attemptId, decision: "published", igPostId: v.igPostId,
+                          })}
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm it is live — do not retry
+                        </Button>
+                      )}
+
+                      {v.status === "resolved_not_published" && a.jobId && (
+                        <Button
+                          size="sm" variant="outline" className="text-xs"
+                          disabled={resolveAmbiguous.isPending}
+                          onClick={() => resolveAmbiguous.mutate({
+                            jobId: a.jobId, attemptId: a.attemptId, decision: "not_published",
+                          })}
+                        >
+                          <RefreshCw className="h-3 w-3 mr-1" /> Release it for a retry
+                        </Button>
+                      )}
+
+                      {v.status === "needs_operator" && (
+                        <div className="space-y-1">
+                          {(v.candidates ?? []).map((c: any) => (
+                            <div key={c.igPostId} className="rounded border border-border/50 p-2 space-y-1">
+                              <p className="text-[11px] text-muted-foreground">{c.reasoning}</p>
+                              <p className="text-[11px] font-mono break-all">{c.caption || "(no caption)"}</p>
+                              <div className="flex gap-2 flex-wrap">
+                                {c.permalink && (
+                                  <a href={c.permalink} target="_blank" rel="noreferrer"
+                                     className="text-[11px] text-primary underline">Open on Instagram</a>
+                                )}
+                                {a.jobId && (
+                                  <button
+                                    className="text-[11px] text-green-600 underline"
+                                    disabled={resolveAmbiguous.isPending}
+                                    onClick={() => resolveAmbiguous.mutate({
+                                      jobId: a.jobId, attemptId: a.attemptId, decision: "published",
+                                      igPostId: c.igPostId, operatorNote: "matched by operator",
+                                    })}
+                                  >This is the one — mark it live</button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {a.jobId && (
+                            <button
+                              className="text-[11px] text-muted-foreground underline"
+                              disabled={resolveAmbiguous.isPending}
+                              onClick={() => resolveAmbiguous.mutate({
+                                jobId: a.jobId, attemptId: a.attemptId, decision: "not_published",
+                                operatorNote: "operator confirmed none of the candidates match",
+                              })}
+                            >None of these — it never posted</button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -192,7 +311,8 @@ export default function ActionCenter() {
                       // Only the two actions that are actually wired are enabled.
                       // A button that cannot do anything is worse than no button —
                       // that is the whole reason this tab exists.
-                      const wired = a.id === "reassemble" || a.id === "rerun_qa";
+                      const wired = a.id === "reassemble" || a.id === "rerun_qa"
+                        || a.id === "discard" || a.id === "archive_unrecoverable";
                       return (
                         <Button
                           key={a.id}
@@ -201,6 +321,14 @@ export default function ActionCenter() {
                           disabled={!wired || busy}
                           title={wired ? a.detail : `${a.detail}\n\n(not yet available from the admin)`}
                           onClick={() => {
+                            // Closing a job is terminal, so it takes a second tap
+                            // with a reason. window.confirm is suppressed in the
+                            // standalone iOS PWA, so the confirm lives in the DOM.
+                            if (a.id === "discard" || a.id === "archive_unrecoverable") {
+                              setDiscarding(job.jobId);
+                              setDiscardReason("");
+                              return;
+                            }
                             setBusyJob(job.jobId);
                             if (a.id === "reassemble") reassemble.mutate({ jobId: job.jobId });
                             else if (a.id === "rerun_qa") rerunQa.mutate({ jobId: job.jobId });
@@ -214,6 +342,37 @@ export default function ActionCenter() {
                       );
                     })}
                   </div>
+
+                  {discarding === job.jobId && (
+                    <div className="rounded border border-destructive/30 bg-destructive/5 p-2 space-y-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Closing reel {job.jobId} is final. It will not publish and will not be retried.
+                      </p>
+                      <Input
+                        value={discardReason}
+                        onChange={(e) => setDiscardReason(e.target.value)}
+                        placeholder="Why is this being closed? (recorded)"
+                        className="h-8 text-xs"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm" variant="destructive" className="text-xs"
+                          disabled={discardReason.trim().length < 4 || discardJob.isPending}
+                          onClick={() => discardJob.mutate({
+                            jobId: job.jobId,
+                            reason: discardReason.trim(),
+                            mode: job.recoverability === "unrecoverable" ? "archive" : "discard",
+                          })}
+                        >
+                          {discardJob.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                          Close it
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-xs" onClick={() => setDiscarding(null)}>
+                          Keep it
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {(job.actions ?? []).some((a: any) => a.newAssetIdentity) && (
                     <p className="text-[11px] text-muted-foreground/70 flex items-start gap-1 pt-1">

@@ -2250,4 +2250,94 @@ export const contentAdminRouter = router({
       const attempts = await findUnreconciledAttempts(input.olderThanMinutes ?? 15);
       return { count: attempts.length, attempts };
     }),
+  /** Ask META what happened to an open publish attempt. Read-only: it returns a
+   *  verdict or candidates, and never changes anything on its own. */
+  checkAmbiguousPublish: adminProcedure
+    .input(z.object({ attemptId: z.string().min(1), jobId: z.number().int().positive().optional() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const { autonomyAuditEvents, reelJobs } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [attempt] = await d.select().from(autonomyAuditEvents).where(eq(autonomyAuditEvents.id, input.attemptId)).limit(1);
+      if (!attempt) throw new TRPCError({ code: "NOT_FOUND", message: "That publish attempt is not in the ledger." });
+
+      let ctx: { jobId?: number | null } = {};
+      try { ctx = JSON.parse(attempt.contextJson ?? "{}"); } catch { /* timing-only match */ }
+      const jobId = input.jobId ?? ctx.jobId ?? null;
+
+      // The caption is the strongest signal, so recover it from the job when we can.
+      let expectedCaption: string | null = null;
+      if (jobId) {
+        const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, Number(jobId))).limit(1);
+        if (job?.payload) {
+          try { expectedCaption = (JSON.parse(job.payload) as { selectedCaption?: string }).selectedCaption ?? null; } catch { /* fall back to timing */ }
+        }
+      }
+
+      const { reconcileAttempt } = await import("../services/publishReconciler");
+      const verdict = await reconcileAttempt({
+        attemptId: input.attemptId,
+        attemptedAt: new Date(attempt.occurredAt),
+        expectedCaption,
+      });
+      return { ...verdict, jobId, attemptId: input.attemptId };
+    }),
+
+  /** Apply a reconciliation decision. Separate from the CHECK on purpose: the
+   *  operator sees the evidence first, and a wrong call here either drops a reel
+   *  or double-posts to a live audience. */
+  resolveAmbiguousPublish: adminProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      attemptId: z.string().min(1),
+      decision: z.enum(["published", "not_published"]),
+      igPostId: z.string().max(64).optional(),
+      operatorNote: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (input.decision === "published" && !input.igPostId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Marking a publish live requires the Instagram post id it went out as." });
+      }
+      const { applyReconciliation } = await import("../services/publishReconciler");
+      const res = await applyReconciliation(input);
+      if (!res.ok) throw new TRPCError({ code: "BAD_REQUEST", message: res.detail });
+      return res;
+    }),
+
+  /** Close out a reel job that cannot be recovered. Terminal and deliberate: it
+   *  existed on NO transport before, so a dead job could only be left to sit. */
+  discardReelJob: adminProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      reason: z.string().min(1).max(300),
+      /** archive keeps the record legible for audit; discard is a plain close. */
+      mode: z.enum(["archive", "discard"]).default("discard"),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { eq, and, inArray } = await import("drizzle-orm");
+      const { affectedRowCount } = await import("../lib/db-affected");
+
+      // A posted job is history and a publishing/ambiguous one may be LIVE —
+      // neither may be closed here. Ambiguity is resolved by reconciling, not by
+      // discarding the evidence.
+      const CLOSEABLE = ["assembled", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "failed"];
+      const res = await d
+        .update(reelJobs)
+        .set({ status: "failed", error: `${input.mode === "archive" ? "archived" : "discarded"} by operator: ${input.reason}`.slice(0, 500) })
+        .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, CLOSEABLE)));
+      if (affectedRowCount(res) !== 1) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This job cannot be closed from here — it has already published, or it may be live and needs reconciling first.",
+        });
+      }
+      return { ok: true, jobId: input.jobId, mode: input.mode };
+    }),
 });
