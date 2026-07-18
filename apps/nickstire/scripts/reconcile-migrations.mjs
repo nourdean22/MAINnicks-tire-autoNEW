@@ -39,13 +39,21 @@
  *   node scripts/reconcile-migrations.mjs --env <path>      # explicit .env
  *
  * EXIT CODES
- *   0  report produced (--report), or ledgers agree (--strict)
- *   1  --strict only: drift or schema mismatch found
+ *   0  report produced (--report), or no BLOCKING drift (--strict)
+ *   1  --strict only: a migration this database has no record of, a file missing
+ *      from the journal, or a journal entry with no file
  *   2  could not inspect (no DATABASE_URL, DB unreachable, no drizzle dir)
  *
- * Default mode is --report ON PURPOSE. Production currently has nine unrecorded
- * migrations; a tool that exits 1 on every ordinary build teaches everyone to ignore it.
- * Switch CI to --strict only once the baseline is repaired.
+ * --strict fails only on UNAMBIGUOUS problems. RECORDED_BUT_SCHEMA_MISMATCH is
+ * advisory: a migration already applied is compared against TODAY's schema, and a
+ * later migration may legitimately have changed the same object, so that mismatch
+ * is expected and permanent. Gating on it would make the check permanently red,
+ * which teaches everyone to ignore it.
+ *
+ * Baseline applied 2026-07-18: the nine hand-applied migrations 0082-0090 were
+ * recorded in __drizzle_migrations after being verified UNRECORDED_BUT_EXACT_MATCH
+ * (schema correct, ledger wrong). Backup: __drizzle_migrations_bak_20260718 plus a
+ * JSON dump. --strict has exited 0 against production since.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -76,7 +84,29 @@ const STATE = {
   UNRECORDED_AND_ABSENT: "UNRECORDED_AND_ABSENT",
   UNKNOWN_UNSUPPORTED_DDL: "UNKNOWN_UNSUPPORTED_DDL",
 };
-/** Only these mean "nothing to do". Everything else needs a human. */
+/**
+ * States that make --strict FAIL.
+ *
+ * Deliberately NOT including RECORDED_BUT_SCHEMA_MISMATCH. A migration this
+ * database already ran is compared against the schema as it stands TODAY, and a
+ * LATER migration is free to have changed the same object — 0003 created
+ * leads.source with four enum values and later migrations grew it to ten, so that
+ * comparison mismatches forever and correctly so. Answering "is this recorded
+ * migration still reflected?" needs the cumulative schema, which a per-migration
+ * diff cannot compute. Reporting it as advisory is honest; failing a build on it
+ * would be the tool crying wolf about its own blind spot, and a permanently red
+ * gate teaches everyone to ignore it.
+ *
+ * What DOES fail: an UNRECORDED migration (the database does not know about DDL
+ * that exists), a file missing from the journal (a fresh env would skip it), and
+ * a journal entry with no file (a fresh env would crash). Those are unambiguous.
+ */
+const BLOCKING_STATES = new Set([
+  STATE.UNRECORDED_BUT_EXACT_MATCH,
+  STATE.UNRECORDED_AND_PARTIAL_MATCH,
+  STATE.UNRECORDED_AND_ABSENT,
+]);
+/** Only this needs nothing at all; the rest are reported. */
 const CLEAN_STATES = new Set([STATE.RECORDED_AND_MATCHED]);
 
 /* ── read-only enforcement ───────────────────────────────────────────────────── */
@@ -486,6 +516,7 @@ async function main() {
   const byState = {};
   for (const r of rows) byState[r.state] = (byState[r.state] || 0) + 1;
   const notClean = rows.filter((r) => !CLEAN_STATES.has(r.state));
+  const blocking = rows.filter((r) => BLOCKING_STATES.has(r.state));
   const fileNotJournaled = rows.filter((r) => !r.journaled).map((r) => r.tag);
   const journaledNoFile = [...journalTags].filter((t) => !migrations.some((m) => m.tag === t));
 
@@ -525,12 +556,23 @@ async function main() {
     console.log(
       "\n  UNRECORDED_BUT_EXACT_MATCH = hand-applied and correct. The schema is right; only the\n" +
       "  ledger is wrong. These are baseline candidates — but marking them applied is a REVIEWED\n" +
-      "  production change and is deliberately not implemented here. Never replay their DDL.\n",
+      "  production change and is deliberately not implemented here. Never replay their DDL.\n" +
+      "\n  RECORDED_BUT_SCHEMA_MISMATCH is ADVISORY, not a failure. A migration the database\n" +
+      "  already ran is compared against TODAY's schema, and a LATER migration may legitimately\n" +
+      "  have changed the same object (0003 created leads.source with 4 enum values; later\n" +
+      "  migrations grew it to 10). Judging that needs the cumulative schema, which a\n" +
+      "  per-migration diff cannot compute — so it is reported, never gated on.\n",
     );
-    console.log(notClean.length ? `✗ ${notClean.length} migration(s) are not RECORDED_AND_MATCHED\n` : "✓ every migration is recorded and schema-matched\n");
+    console.log(
+      blocking.length
+        ? `✗ ${blocking.length} BLOCKING: migration(s) exist that this database has no record of\n`
+        : `✓ no blocking drift (${notClean.length} advisory mismatch(es) reported above)\n`,
+    );
   }
 
-  if (strict && notClean.length) process.exitCode = 1;
+  // Only unambiguous problems fail a build: DDL the database does not know about,
+  // a file the journal would skip, or a journal entry with no file.
+  if (strict && (blocking.length || fileNotJournaled.length || journaledNoFile.length)) process.exitCode = 1;
 }
 
 main().catch((err) => { console.error(err); process.exit(2); });
