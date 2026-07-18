@@ -409,9 +409,28 @@ describe("transformToProviderSafeScene", () => {
     expect(out).not.toContain("11.8V");
   });
 
+  it("neutralizes descriptive label nouns that still instruct lettering (embossed lettering / amber tag / diagnostic label)", () => {
+    expect(transformToProviderSafeScene("close-up of embossed lettering on the panel")).not.toMatch(/lettering/i);
+    expect(transformToProviderSafeScene("an amber tag hangs from the mirror")).not.toMatch(/\btag\b/i);
+    expect(transformToProviderSafeScene("a diagnostic label on the fuse box")).not.toMatch(/\blabel\b/i);
+    // a legitimate object description WITHOUT a text-noun is untouched
+    expect(transformToProviderSafeScene("an amber warning glow fills the cabin")).toContain("amber warning glow");
+  });
+
   it("leaves a wordless physical description untouched", () => {
     const clean = "extreme macro push into worn tire tread on wet asphalt";
     expect(transformToProviderSafeScene(clean)).toBe(clean);
+  });
+});
+
+describe("provider-safe Motion compile (motion is a provider-facing field too)", () => {
+  it("neutralizes a renderable token placed in the Motion field, not just Subject", () => {
+    const brief = structuredClone(sample());
+    brief.storyboardBeats[0].motion = "the FTD913 badge slowly rotates toward camera";
+    const pack = buildHiggsfieldReelPromptPack(brief);
+    const motionLine = pack[0].prompt.split("\n").find((l) => l.startsWith("Motion:")) ?? "";
+    expect(motionLine).not.toContain("FTD913");
+    expect(motionLine).toContain("rotates"); // the motion verb survives
   });
 });
 
@@ -437,6 +456,20 @@ describe("buildDraftWorkspace", () => {
     const withHero = { ...sample(), visualWorld: { style: "safe" as const, heroFrameUrl: "https://img.test/hero.jpg", framePrompt: "fp", lockedInvariants: "operator-approved reference frame locked" } };
     const w = buildDraftWorkspace(withHero);
     expect(w.execution.conditioningMode).toBe("hero_image");
+  });
+
+  it("shows the PERSISTED prompt pack (generationSource=persisted) so it can't drift from what was generated", () => {
+    const frozen = buildHiggsfieldReelPromptPack(sample());
+    // simulate a compiler change since enqueue: the persisted pack differs from a live recompile
+    const persistedPack = frozen.map((p) => ({ ...p, prompt: `${p.prompt}\n[FROZEN AT ENQUEUE]` }));
+    const w = buildDraftWorkspace({ ...sample(), promptPack: persistedPack });
+    expect(w.generationSource).toBe("persisted");
+    expect(w.generation[0].prompt).toContain("[FROZEN AT ENQUEUE]");
+  });
+
+  it("falls back to a recompiled preview (generationSource=recompiled_preview) when no persisted pack exists", () => {
+    const w = buildDraftWorkspace(sample());
+    expect(w.generationSource).toBe("recompiled_preview");
   });
 });
 

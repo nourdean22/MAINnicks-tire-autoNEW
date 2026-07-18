@@ -899,6 +899,11 @@ export interface DraftWorkspaceView {
   };
   preflight: PreflightReport;
   generation: Array<{ beatNumber: number; prompt: string; negativePrompt: string }>;
+  /** "persisted" = the exact frozen pack the worker sent to the provider;
+   *  "recompiled_preview" = re-derived live (an un-enqueued draft, or the
+   *  persisted pack is absent) — may differ from a past render after a compiler
+   *  change. Never label a live recompile as the exact generation input. */
+  generationSource: "persisted" | "recompiled_preview";
 }
 
 /**
@@ -909,7 +914,14 @@ export interface DraftWorkspaceView {
  * compiler functions, so the view can never drift from what will be generated.
  */
 export function buildDraftWorkspace(brief: ReelBrief): DraftWorkspaceView {
-  const pack = buildHiggsfieldReelPromptPack(brief);
+  // Prefer the PERSISTED prompt pack the worker actually sent to the provider.
+  // Recompiling here would show prompts that DIFFER from what was generated if
+  // the compiler changed between enqueue and review — so an operator would
+  // review one prompt while Higgsfield received another (audit finding).
+  const recompiled = buildHiggsfieldReelPromptPack(brief);
+  const persisted = brief.promptPack;
+  const usePersisted = Array.isArray(persisted) && persisted.length === recompiled.length && persisted.length > 0;
+  const pack = usePersisted ? persisted! : recompiled;
   const subjectOf = (prompt: string) => prompt.split("\n").find((l) => l.startsWith("Subject:"))?.replace(/^Subject:\s*/, "") ?? "";
   return {
     truth: {
@@ -937,6 +949,7 @@ export function buildDraftWorkspace(brief: ReelBrief): DraftWorkspaceView {
     },
     preflight: runReelPreflight(brief),
     generation: pack.map((p) => ({ beatNumber: p.beatNumber, prompt: p.prompt, negativePrompt: p.negativePrompt })),
+    generationSource: usePersisted ? "persisted" : "recompiled_preview",
   };
 }
 
@@ -1073,6 +1086,12 @@ export function transformToProviderSafeScene(visual: string): string {
     .replace(/\b\d+(?:\.\d+)?\s?(?:v|volts?|psi|mm|%|percent|degrees?)\b/gi, "")
     // bare alphanumeric codes (FTD913, DOT1234) -> removed
     .replace(/\b(?=[A-Za-z]*\d)(?=\d*[A-Za-z])[A-Za-z0-9]{4,}\b/g, "")
+    // descriptive renderable-text/label nouns (unquoted, no digits) that still
+    // positively instruct lettering/labels the model would try to render —
+    // "embossed lettering", "amber tag", "diagnostic label" — neutralized to an
+    // unmarked surface. Kept tight (adjective + text-noun) so legitimate object
+    // descriptions are untouched (audit: residual label nouns survived removal).
+    .replace(/\b(?:embossed|raised|printed|stamped|engraved|etched|painted|glowing|illuminated|amber|digital|diagnostic|warning|status|LED|LCD)\s+(?:letter(?:s|ing)?|text|labels?|tags?|readouts?|displays?|screens?|signage|writing|numbers?|digits?|characters?|markings?)\b/gi, "unmarked surface")
     // tidy the gaps left behind
     .replace(/\s+([,.;])/g, "$1")
     .replace(/\s{2,}/g, " ")
@@ -1141,7 +1160,11 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
         `Vertical 9:16 cinematic clip. Generate a four-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
         `Subject: ${providerScene.scene}`,
         `Character energy: ${character.label} - ${character.essence}`,
-        `Motion: ${b.motion}`,
+        // Motion is a provider-facing field too — run it through the SAME
+        // token/label neutralization as Subject so a code/label/logo placed in
+        // motion (e.g. "the FTD913 badge rotates") cannot bypass the zero-
+        // lettering transform (audit: motion emitted raw).
+        `Motion: ${transformToProviderSafeScene(b.motion)}`,
         `Style: ${lens.label} - ${lens.essence}`,
         `Style grammar: ${lens.grammar}`,
         continuity,
