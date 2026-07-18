@@ -19,7 +19,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { desc, sql, gte, and, eq } from "drizzle-orm";
+import { desc, sql, gte, and, eq, isNotNull } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { checkReviewReply, buildReplyPromptRules, hasBlockingFindings } from "@shared/reviewReplyQa";
 import { IG_ARCHETYPES } from "@shared/const";
@@ -216,10 +216,65 @@ export const instagramAdminRouter = router({
       log.warn("Failed to compute top archetype from ig_autopost_log, using fallback", err);
     }
 
+    // The posting window is DERIVED or it is absent. It used to be the literal
+    // string "Tuesdays at 4:30 PM", returned beside genuinely computed fields, so
+    // the HQ presented a hardcoded guess as performance-derived guidance. The data
+    // to compute it honestly is right there — instagram_analytics carries
+    // dayOfWeek, hourOfDay and engagementRate — but the sample is small, so a
+    // minimum is enforced rather than reading a trend into three posts.
+    // Aggregated by DAY OF WEEK only, never day+hour. With ~29 timed posts spread
+    // over 7x24 = 168 day/hour slots, the winning slot is a sample of ONE — the
+    // first version of this computed exactly that and would have called a single
+    // post at 6% engagement the "optimal window". Replacing a hardcoded guess with
+    // a computed one is not an improvement. Seven day-buckets is the coarsest
+    // grouping that still answers the question, and the winning bucket must itself
+    // clear a minimum before anything is claimed.
+    const MIN_POSTS_IN_WINNING_BUCKET = 3;
+    let optimalPostingWindow: string | null = null;
+    let postingWindowBasis: string;
+    try {
+      const database = await db();
+      if (!database) throw new Error("no database");
+      const { instagramAnalytics } = await import("../../drizzle/schema");
+      const rows = await database
+        .select({
+          dayOfWeek: instagramAnalytics.dayOfWeek,
+          avgEngagement: sql<number>`AVG(${instagramAnalytics.engagementRate})`.as("avgEngagement"),
+          n: sql<number>`COUNT(*)`.as("n"),
+        })
+        .from(instagramAnalytics)
+        .where(and(isNotNull(instagramAnalytics.dayOfWeek), isNotNull(instagramAnalytics.engagementRate)))
+        .groupBy(instagramAnalytics.dayOfWeek)
+        .orderBy(sql`avgEngagement DESC`)
+        .limit(1);
+
+      const best = rows[0];
+      const bucketN = Number(best?.n ?? 0);
+      if (!best || best.dayOfWeek === null) {
+        postingWindowBasis = "no posts with both a recorded day and engagement";
+      } else if (bucketN < MIN_POSTS_IN_WINNING_BUCKET) {
+        postingWindowBasis = `not enough data yet — the best day has only ${bucketN} post(s), need ${MIN_POSTS_IN_WINNING_BUCKET}`;
+      } else {
+        const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const day = DAYS[Number(best.dayOfWeek)] ?? `day ${best.dayOfWeek}`;
+        optimalPostingWindow = `${day}s`;
+        postingWindowBasis = `highest average engagement, ${bucketN} post(s) on that day`;
+      }
+    } catch (err) {
+      log.warn("Failed to compute the posting window from instagram_analytics", err);
+      postingWindowBasis = "could not be computed (analytics unavailable)";
+    }
+
     return {
       topArchetypeLast30Days: topArchetype,
-      optimalPostingWindow: "Tuesdays at 4:30 PM",
-      topicsToAvoid: ["generic holiday posts", "long text captions without images"],
+      optimalPostingWindow,
+      /** Why the window says what it says — so the UI never implies more than it knows. */
+      postingWindowBasis,
+      // Previously two hardcoded tips presented as findings. Deriving this needs
+      // theme-to-engagement analysis the pipeline does not do yet, and inventing
+      // guidance is worse than admitting the gap.
+      topicsToAvoid: [] as string[],
+      topicsToAvoidBasis: "not derived yet — needs theme-level engagement analysis",
       recentWinners: topPosts.map(p => ({
         id: p.postId,
         caption: p.caption?.substring(0, 50) + "..."
