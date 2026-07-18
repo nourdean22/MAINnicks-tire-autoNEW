@@ -1139,6 +1139,32 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "operator",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "React presentation layer with progressive disclosure (this is the data contract it renders)",
+        "add Strategy + full Concept tournament (raw pitches, judge scores) sections when the genome is joined"
+      ],
+      "capabilityId": "draft-workspace",
+      "name": "Creative Compiler 2.0 M12: operator-facing draft workspace (data model + endpoint)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "buildDraftWorkspace assembles Truth/Concepts/Execution(intent-vs-scene)/Preflight/Generation from the brief + compiler functions; content.draftWorkspace(jobId) tRPC query serves it",
+        "tests": [
+          "client/src/__tests__/faceless-reel-studio.test.ts (55, +2): surfaces truth/execution/preflight/prompts, intent-vs-provider-scene split (M6 neutralization visible), hero_image mode when a visual world is attached"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "data model + endpoint only; the React presentation UI (progressive disclosure) is not built. integration_verified (no operator has driven it live).",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {

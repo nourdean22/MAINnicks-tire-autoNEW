@@ -478,6 +478,24 @@ export const contentAdminRouter = router({
       return { ...verdict, automation: outcome.verdict, repairPlan: outcome.repairPlan, publishGate: outcome.publishGate };
     }),
 
+  /** M12: the operator-facing draft workspace for a reel job — the compiler's
+   *  own output made inspectable (Truth, Concepts, Execution intent-vs-scene,
+   *  Preflight verdict, exact compiled prompts). Read-only; derived from the
+   *  persisted brief so it can never drift from what will be generated. */
+  draftWorkspace: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
+      if (!job?.payload) throw new TRPCError({ code: "NOT_FOUND", message: "Reel job or its brief not found" });
+      const { buildDraftWorkspace } = await import("../../client/src/lib/facelessReelStudio");
+      return buildDraftWorkspace(JSON.parse(job.payload));
+    }),
+
   /** Selective repair: regenerate EXACTLY one failing beat (from the QA
    *  verdict's preserve/change instruction or an explicit one), replace only
    *  that clip in a BACKGROUND worker (no provider call on the request
