@@ -1086,6 +1086,33 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "memory checks (hook/metaphor/hero-composition over-similarity) into the same preflight",
+        "surface the preflight report + warnings in the draft workspace (M12)"
+      ],
+      "capabilityId": "deterministic-preflight",
+      "name": "Creative Compiler 2.0 M10: deterministic pre-spend preflight gate",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "runReelPreflight aggregates structural/truth/production checks + per-beat sceneStatus; wired into enqueueReelJob BEFORE the spend boundary + governor reservation",
+        "tests": [
+          "client/src/__tests__/faceless-reel-studio.test.ts (53, +3): passes a valid sample, BLOCKS a text-dependent beat and an invalid structure with zero spend",
+          "server/__tests__/approval-integrity.test.ts (5): E2E enqueue->publish still passes (keyword format warns, not blocks); instagramAdmin + goldenCampaign green"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "gates EVERY enqueue path incl. cron before spend, but integration_verified only (no live block observed in prod); memory/over-similarity checks not yet folded in",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {

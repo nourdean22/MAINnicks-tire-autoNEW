@@ -822,6 +822,72 @@ export function calculateReelQualityScore(brief: ReelBrief, minScore: number = S
   return { overall: score, gate, reasoning, parts, passing };
 }
 
+// ─── Deterministic preflight (Creative Compiler 2.0 Milestone 10) ──────
+
+export interface PreflightFinding {
+  category: "structural" | "production" | "truth" | "memory";
+  severity: "block" | "warn";
+  message: string;
+}
+export interface PreflightReport {
+  status: "pass" | "block";
+  findings: PreflightFinding[];
+  blocking: PreflightFinding[];
+}
+
+/**
+ * ONE deterministic gate run BEFORE any paid generation. It unifies the
+ * structural / production / truth checks that were scattered across validators
+ * plus the M5/M6 per-beat provider-scene status, and returns a single verdict.
+ * A "block" finding means a predictable defect the render would inherit — do not
+ * reserve paid generation until this passes. "warn" is advisory (e.g. the
+ * compiler auto-corrected a beat scene). Pure + synchronous — no LLM, no spend.
+ */
+export function runReelPreflight(brief: ReelBrief): PreflightReport {
+  const findings: PreflightFinding[] = [];
+  const push = (category: PreflightFinding["category"], severity: PreflightFinding["severity"], message: string) =>
+    findings.push({ category, severity, message });
+
+  // Structural
+  const beatCount = validateBeatCount(brief.storyboardBeats);
+  if (!beatCount.ok) push("structural", "block", beatCount.reason ?? "beat structure invalid");
+  const length = validateReelLengthTarget(brief.storyboardBeats);
+  if (!length.ok) push("structural", "block", length.reason ?? "reel length out of band");
+  if (!validateMutedFirstClarity(brief.storyboardBeats).ok) push("structural", "warn", "a beat is missing muted-first on-screen text");
+  // Keyword FORMAT is a caption/CTA concern, not a render-blocking defect — a
+  // warning, not a pre-spend block (it never garbles the generated video).
+  const kw = validateCampaignKeyword(brief.campaignKeyword);
+  if (!kw.ok) push("structural", "warn", kw.reason ?? "campaign keyword should be a single ALL-CAPS word");
+
+  // Truth
+  if (!validateSourceGrounding(brief).ok) push("truth", "warn", "no verified proof source for the mechanic truth");
+
+  // Production + truth: claim safety, faceless, in-frame-text (over the design)
+  for (const f of runReelSafety(brief)) push(f.category, f.severity, f.message);
+
+  // Production: per-beat provider-scene status (M5/M6) — the compiler corrected a
+  // beat that carried a renderable token / faceless risk.
+  for (const p of buildHiggsfieldReelPromptPack(brief)) {
+    if (p.sceneStatus === "corrected") push("production", "warn", `beat ${p.beatNumber}: provider scene auto-corrected (${(p.sceneFindings ?? []).join("; ")})`);
+  }
+
+  const blocking = findings.filter((f) => f.severity === "block");
+  return { status: blocking.length ? "block" : "pass", findings, blocking };
+}
+
+/** Map runSafetyChecks findings into preflight categories. */
+function runReelSafety(brief: ReelBrief): PreflightFinding[] {
+  const report = runSafetyChecks(brief);
+  return report.findings.map((f) => {
+    const production = f.rule === "no-in-frame-text" || f.rule === "no-human-face";
+    return {
+      category: production ? "production" as const : "truth" as const,
+      severity: f.severity === "block" ? "block" as const : "warn" as const,
+      message: `${f.rule}: ${f.match}`,
+    };
+  });
+}
+
 // ─── Repetition / content-memory checks (manual import in V1) ──────
 
 export function buildRepetitionChecks(

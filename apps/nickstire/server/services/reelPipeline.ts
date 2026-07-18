@@ -128,6 +128,20 @@ export async function enqueueReelJob(
   if (!d) throw new Error("DB not available");
   const { reelJobs } = await import("../../drizzle/schema");
 
+  // M10: deterministic preflight — do NOT reserve paid generation for a brief
+  // with a predictable defect. Runs BEFORE the spend boundary + governor
+  // reservation below, so a blocked brief costs nothing. Same block conditions
+  // as the quality gate (structure, claim-safety, faceless, in-frame-text), now
+  // enforced on EVERY enqueue path incl. the previously-ungated cron path.
+  {
+    const { runReelPreflight } = await import("../../client/src/lib/facelessReelStudio");
+    const pre = runReelPreflight(brief as never);
+    if (pre.status === "block") {
+      log.warn("reel preflight BLOCKED enqueue — no spend reserved", { blocking: pre.blocking });
+      throw new Error(`Reel preflight blocked (${pre.blocking.length}): ${pre.blocking.map((f) => f.message).join("; ")}`);
+    }
+  }
+
   // THE authoritative policy boundary for render spend (#815 review P1: the
   // router-only check let cron + service callers bypass kill switches and
   // budget). Every caller — admin Studio, Campaign Package, daily cron,
