@@ -283,7 +283,7 @@ export async function releaseFailedJobReservation(payloadJson: string | null, jo
   }
 }
 
-export async function processNextReelJob(): Promise<{
+export async function processNextReelJob(scopeJobId?: number): Promise<{
   processed: boolean;
   jobId?: number;
   status?: string;
@@ -298,10 +298,16 @@ export async function processNextReelJob(): Promise<{
   const { reelJobs } = await import("../../drizzle/schema");
   const { eq, and, asc } = await import("drizzle-orm");
 
+  // scopeJobId pins the worker to ONE job (the operator canary passes it so it
+  // can never claim + spend credits on an unrelated older queued row). The cron
+  // calls with no arg → queue-wide FIFO as before.
+  const where = scopeJobId
+    ? and(eq(reelJobs.status, "queued"), eq(reelJobs.id, scopeJobId))
+    : eq(reelJobs.status, "queued");
   const rows = await d
     .select()
     .from(reelJobs)
-    .where(eq(reelJobs.status, "queued"))
+    .where(where)
     .orderBy(asc(reelJobs.createdAt))
     .limit(1);
   if (!rows.length) return { processed: false };
@@ -502,7 +508,7 @@ export async function processNextReelJob(): Promise<{
  * SAFETY: same REEL_GENERATION_ENABLED kill-switch as the gen stage — a hard
  * no-op until the operator arms the pipeline.
  */
-export async function processNextAssemblyJob(): Promise<{
+export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
   processed: boolean;
   jobId?: number;
   status?: string;
@@ -517,10 +523,14 @@ export async function processNextAssemblyJob(): Promise<{
   const { reelJobs, socialContentInventory } = await import("../../drizzle/schema");
   const { eq, and, asc } = await import("drizzle-orm");
 
+  // scopeJobId pins assembly to ONE job (see processNextReelJob).
+  const where = scopeJobId
+    ? and(eq(reelJobs.status, "assets_ready"), eq(reelJobs.id, scopeJobId))
+    : eq(reelJobs.status, "assets_ready");
   const rows = await d
     .select()
     .from(reelJobs)
-    .where(eq(reelJobs.status, "assets_ready"))
+    .where(where)
     .orderBy(asc(reelJobs.createdAt))
     .limit(1);
   if (!rows.length) return { processed: false };

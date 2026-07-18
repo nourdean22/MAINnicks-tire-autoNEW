@@ -22,6 +22,22 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("reel-draft-prep");
 
+/**
+ * Thrown ONLY when every generation attempt produced a brief the deterministic
+ * M10 preflight blocked. Callers (e.g. the daily cron) may deliberately skip on
+ * THIS error — but must let any other failure (provider outage, parse error,
+ * auth, timeout, DB) propagate, so a broken generator can't masquerade as a
+ * normal "no reel today" idle result.
+ */
+export class PreflightExhaustedError extends Error {
+  readonly rejected: string[][];
+  constructor(message: string, rejected: string[][]) {
+    super(message);
+    this.name = "PreflightExhaustedError";
+    this.rejected = rejected;
+  }
+}
+
 type ReelBrief = Awaited<ReturnType<typeof generateReelBriefAI>>["brief"];
 
 export interface PreparedReelBrief {
@@ -57,8 +73,9 @@ export async function prepareCleanReelBrief(
     log.warn(`reel brief preflight BLOCKED (attempt ${attempt}/${maxAttempts}) — regenerating`, { blocking });
   }
 
-  throw new Error(
+  throw new PreflightExhaustedError(
     `reel brief preflight blocked on all ${maxAttempts} attempts: ` +
       rejected.map((b, i) => `#${i + 1}[${b.join("; ")}]`).join(" "),
+    rejected,
   );
 }
