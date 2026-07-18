@@ -1059,6 +1059,33 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "full DraftCritique field-patch protocol (critic returns patches, not the whole object) — M9 uses the archaeology's minimum-interim guard",
+        "check the critic output against a locked CreativeThesis via thesisPreservationViolations when input.thesis is present"
+      ],
+      "capabilityId": "critic-truth-preservation",
+      "name": "Creative Compiler 2.0 M9: critic cannot silently replace campaign truth (3.3)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "applyCriticPreservingTruth restores mechanicTruth/winningConceptId/concepts/sourceNotes/usefulAbsurdity from the pre-critic brief; one-line rebind of `parsed` so the assembly is untouched",
+        "tests": [
+          "server/reelBriefPreserve.test.ts (4): restores every protected field, keeps the critic's non-protected improvements, no-op when the critic left truth alone, gap-fill when initial empty",
+          "reelDirector + goldenCampaign green (no regression)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "minimum-interim guard (restore protected fields) not the full DraftCritique field-patch protocol; runs in the operator genome->reel + autonomous brief-gen path but integration_verified only",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {

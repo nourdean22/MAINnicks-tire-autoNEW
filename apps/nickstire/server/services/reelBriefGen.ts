@@ -320,6 +320,39 @@ export async function resolveSourceProvenance(
 }
 
 /** Generate a ready-to-review ReelBrief from the Studio's master prompt. */
+/** Milestone 9: the campaign TRUTH the critic/rewriter must never silently
+ *  replace. The critic improves voice / compliance / Cleveland accuracy / flow /
+ *  faceless-safety — it does NOT get to swap the winner, the mechanic fact, the
+ *  evidence, or the metaphor (issue 3.3). */
+export const PROTECTED_BRIEF_FIELDS = ["mechanicTruth", "winningConceptId", "concepts", "sourceNotes", "usefulAbsurdity"] as const;
+
+function isEmptyVal(v: unknown): boolean {
+  return v == null || v === "" || (Array.isArray(v) && v.length === 0);
+}
+
+/**
+ * Merge the critic's rewrite onto the pre-critic brief, PRESERVING the protected
+ * campaign-truth fields from the initial generation. A protected field the
+ * initial gen actually produced is restored (the critic cannot change it); a
+ * protected field the initial gen left empty falls back to the critic's value
+ * (robustness — filling a gap is generation, not editing). Returns the effective
+ * parsed object plus the list of protected fields the critic tried to change.
+ */
+export function applyCriticPreservingTruth(
+  initialParsed: Record<string, unknown>,
+  criticParsed: Record<string, unknown>,
+): { effective: Record<string, unknown>; preserved: string[] } {
+  const effective: Record<string, unknown> = { ...criticParsed };
+  const preserved: string[] = [];
+  for (const f of PROTECTED_BRIEF_FIELDS) {
+    const initialVal = initialParsed[f];
+    if (isEmptyVal(initialVal)) continue;
+    if (JSON.stringify(criticParsed[f]) !== JSON.stringify(initialVal)) preserved.push(f);
+    effective[f] = initialVal;
+  }
+  return { effective, preserved };
+}
+
 export async function generateReelBriefAI(
   input: GenerateReelBriefInput,
 ): Promise<{ brief: ReelBrief; rawModel: string }> {
@@ -450,7 +483,15 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
   if (typeof refinedContent !== "string" || !refinedContent.trim()) {
     throw new Error("Critic LLM returned no content");
   }
-  const parsed = parseReelJson(refinedContent);
+  // M9: the critic re-emits the WHOLE brief, so it can silently swap the winner,
+  // the mechanic fact, or the evidence (3.3). Merge its rewrite onto the initial
+  // brief but RESTORE the protected campaign truth — the assembly below then uses
+  // `parsed` unchanged (critic's improvements for copy/flow, initial's truth).
+  const criticParsed = parseReelJson(refinedContent);
+  const { effective: parsed, preserved } = applyCriticPreservingTruth(initialParsed, criticParsed);
+  if (preserved.length) {
+    log.warn("critic rewrote protected campaign truth — restored pre-critic values (M9)", { preserved });
+  }
   const kw = coerceKeyword(str(parsed.campaignKeyword));
 
   const storyboardBeats: StoryboardBeat[] = (Array.isArray(parsed.storyboardBeats) ? parsed.storyboardBeats : [])
