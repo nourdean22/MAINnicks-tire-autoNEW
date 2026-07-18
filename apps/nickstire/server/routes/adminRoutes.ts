@@ -81,6 +81,138 @@ export function registerAdminRoutes(app: Express): void {
     }
   });
 
+  // ─── Reel Creative-Compiler canary (admin · headless full-chain drive) ──
+  // POST /api/admin/reel-canary  · body: { action, jobId?, topic?, force? }
+  // Drives ONE reel through the shipped Creative Compiler 2.0 chain on PROD
+  // (prod Higgsfield session — never a local generation script, which would
+  // rotate + strand prod's refresh token), with the M11 rendered-QA gate
+  // ENFORCED before publish (the tRPC canary skips it). Curl-able with
+  // ADMIN_API_KEY so it runs without an authed browser session. Actions:
+  //   start   → generate brief (compiler) + autonomous visual world (image
+  //             conditioning anchor) + prompt pack; enqueueReelJob runs the
+  //             M10 preflight + spend/governor gates (throws on block).
+  //   advance → pump ONE bounded render slice (recover + gen + assemble)
+  //             under the HTTP timeout; call until status assembled/failed.
+  //   qa      → runRenderedQaOnJob + orchestratePostQa → the M11 publish gate.
+  //   publish → refuses unless the M11 gate returns "proceed" (or force=true,
+  //             audited); posts through the ONE gated door (publishToSocial,
+  //             itself REEL_PUBLISH_ENABLED-gated). Returns igPostId+permalink.
+  app.post("/api/admin/reel-canary", requireAdminApiKey, express.json({ limit: "16kb" }), async (req, res) => {
+    const action = String(req.body?.action || "");
+    const jobId = Number(req.body?.jobId);
+    const needsJob = () => {
+      if (!Number.isInteger(jobId) || jobId <= 0) { res.status(400).json({ error: "jobId required (positive int)" }); return false; }
+      return true;
+    };
+    try {
+      if (action === "start") {
+        const topic = (typeof req.body?.topic === "string" && req.body.topic.trim())
+          || "The pothole that has been quietly eating Cleveland tires all winter";
+        const { generateReelBriefAI } = await import("../services/reelBriefGen");
+        const { attachAutonomousVisualWorld } = await import("../services/visualWorld");
+        const { buildHiggsfieldReelPromptPack, resolveConditioningMode } = await import("../../client/src/lib/facelessReelStudio");
+        const { enqueueReelJob } = await import("../services/reelPipeline");
+
+        const { brief } = await generateReelBriefAI({ topic });
+        brief.id = `canary-${Date.now()}`;
+        await attachAutonomousVisualWorld(brief);
+        brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
+        const conditioningMode = resolveConditioningMode(brief);
+        const { jobId: newJobId } = await enqueueReelJob(brief, "admin");
+        res.json({
+          ok: true, action, jobId: newJobId, conditioningMode,
+          topic: brief.topic,
+          hook: brief.captionHooks?.[0] ?? brief.mechanicTruth ?? null,
+          caption: brief.selectedCaption ?? null,
+          beats: Array.isArray(brief.storyboardBeats) ? brief.storyboardBeats.length : null,
+        });
+        return;
+      }
+
+      if (action === "advance") {
+        if (!needsJob()) return;
+        const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs } = await import("../services/reelPipeline");
+        const { getDb } = await import("../db");
+        const { reelJobs } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const d = await getDb();
+        if (!d) { res.status(503).json({ error: "DB unavailable" }); return; }
+        const readJob = async () => (await d.select().from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1))[0];
+        const TERMINAL = new Set(["assembled", "posted", "failed"]);
+        const deadline = Date.now() + 100_000; // stay well under the edge timeout
+        let job = await readJob();
+        while (job && !TERMINAL.has(job.status) && Date.now() < deadline) {
+          await recoverStuckReelJobs().catch(() => {});
+          await processNextReelJob().catch(() => {});
+          await processNextAssemblyJob().catch(() => {});
+          await new Promise((r) => setTimeout(r, 2500));
+          job = await readJob();
+        }
+        res.json({ ok: true, action, jobId, status: job?.status ?? "unknown", error: job?.error ?? null, mp4Url: job?.mp4Url ?? null });
+        return;
+      }
+
+      if (action === "qa") {
+        if (!needsJob()) return;
+        const { runRenderedQaOnJob } = await import("../services/renderedQa");
+        const verdict = await runRenderedQaOnJob(jobId);
+        if (!verdict) { res.status(400).json({ error: "Rendered QA could not run (job missing, no mp4, or frame extraction failed) — see server logs" }); return; }
+        const { orchestratePostQa } = await import("../services/postQaOrchestrator");
+        const outcome = orchestratePostQa(verdict.findings);
+        res.json({
+          ok: true, action, jobId,
+          decision: verdict.decision, critic: verdict.critic, framesEvaluated: verdict.framesEvaluated,
+          findings: verdict.findings,
+          automation: outcome.verdict, publishGate: outcome.publishGate, repairPlan: outcome.repairPlan,
+        });
+        return;
+      }
+
+      if (action === "publish") {
+        if (!needsJob()) return;
+        const force = req.body?.force === true;
+        const { getDb } = await import("../db");
+        const { reelJobs } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const d = await getDb();
+        if (!d) { res.status(503).json({ error: "DB unavailable" }); return; }
+        const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1);
+        if (!job) { res.status(404).json({ error: "job not found" }); return; }
+        if (job.status !== "assembled") { res.status(409).json({ error: `job not assembled (status=${job.status})` }); return; }
+        if (!job.mp4Url) { res.status(409).json({ error: "job has no mp4Url" }); return; }
+
+        // M11 gate ENFORCED at publish: re-run rendered QA and refuse a
+        // non-"proceed" gate unless the operator explicitly forces (audited).
+        const { runRenderedQaOnJob } = await import("../services/renderedQa");
+        const { orchestratePostQa } = await import("../services/postQaOrchestrator");
+        const verdict = await runRenderedQaOnJob(jobId);
+        const publishGate = verdict ? orchestratePostQa(verdict.findings).publishGate : "unknown";
+        if (publishGate !== "proceed" && !force) {
+          res.status(412).json({ error: "M11 publish gate did not return proceed", publishGate, findings: verdict?.findings ?? [], hint: "pass force=true to override (audited)" });
+          return;
+        }
+
+        const { publishToSocial } = await import("../services/socialPublish");
+        const { getInstagramPermalink } = await import("../services/metaSocial");
+        const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl: job.mp4Url, caption: job.caption || "" });
+        const ig = Array.isArray(outcome.results)
+          ? outcome.results.find((r: { platform: string; success?: boolean; postId?: string; error?: string }) => r.platform === "instagram")
+          : undefined;
+        if (!ig?.success) { res.status(502).json({ error: ig?.error ?? "publish failed", publishGate }); return; }
+        let permalink: string | null = null;
+        try { if (ig.postId) permalink = await getInstagramPermalink(ig.postId); } catch { /* permalink best-effort */ }
+        await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, jobId));
+        res.json({ ok: true, action, jobId, igPostId: ig.postId ?? null, permalink, publishGate, forced: publishGate !== "proceed" });
+        return;
+      }
+
+      res.status(400).json({ error: "unknown action", allowed: ["start", "advance", "qa", "publish"] });
+    } catch (err) {
+      serverLog.error("[Admin] reel-canary error", { action, error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err), action });
+    }
+  });
+
   // ─── Photo Assess (admin manual trigger · Wave AZ) ──
   // POST /api/admin/photo-assess  · body: { phone, photoUrl, skipSmsSend? }
   // Manual fire-button for testing the photo-damage MMS pipeline OR
