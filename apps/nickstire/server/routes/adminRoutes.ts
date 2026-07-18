@@ -146,8 +146,9 @@ export function registerAdminRoutes(app: Express): void {
         let job = await readJob();
         while (job && !TERMINAL.has(job.status) && Date.now() < deadline) {
           await recoverStuckReelJobs().catch(() => {});
-          await processNextReelJob().catch(() => {});
-          await processNextAssemblyJob().catch(() => {});
+          // job-scoped: never claim/spend on an unrelated older queued row.
+          await processNextReelJob(jobId).catch(() => {});
+          await processNextAssemblyJob(jobId).catch(() => {});
           await new Promise((r) => setTimeout(r, 2500));
           job = await readJob();
         }
@@ -195,13 +196,26 @@ export function registerAdminRoutes(app: Express): void {
           return;
         }
 
+        // Atomic claim assembled -> publishing BEFORE the external Meta call, so
+        // two concurrent/retried publishes can't both post (mirrors the
+        // affectedRows-guarded CAS the pipeline stages use). The loser 409s.
+        const { and } = await import("drizzle-orm");
+        const claim = await d.update(reelJobs).set({ status: "publishing" }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "assembled")));
+        const claimed = (claim[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
+        if (claimed !== 1) { res.status(409).json({ error: "job is already being published or is no longer assembled" }); return; }
+
         const { publishToSocial } = await import("../services/socialPublish");
         const { getInstagramPermalink } = await import("../services/metaSocial");
         const outcome = await publishToSocial({ platforms: ["instagram"], videoUrl: job.mp4Url, caption: job.caption || "" });
         const ig = Array.isArray(outcome.results)
           ? outcome.results.find((r: { platform: string; success?: boolean; postId?: string; error?: string }) => r.platform === "instagram")
           : undefined;
-        if (!ig?.success) { res.status(502).json({ error: ig?.error ?? "publish failed", publishGate }); return; }
+        if (!ig?.success) {
+          // release the claim so a retry can re-attempt (publishing -> assembled)
+          await d.update(reelJobs).set({ status: "assembled" }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
+          res.status(502).json({ error: ig?.error ?? "publish failed", publishGate });
+          return;
+        }
         let permalink: string | null = null;
         try { if (ig.postId) permalink = await getInstagramPermalink(ig.postId); } catch { /* permalink best-effort */ }
         await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, jobId));

@@ -12,7 +12,7 @@ const attachMock = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("./services/reelBriefGen", () => ({ generateReelBriefAI: genMock }));
 vi.mock("./services/visualWorld", () => ({ attachAutonomousVisualWorld: attachMock }));
 
-import { prepareCleanReelBrief } from "./services/reelDraftPrep";
+import { prepareCleanReelBrief, PreflightExhaustedError } from "./services/reelDraftPrep";
 
 function blockingBrief() {
   const b = structuredClone(SAMPLE_REEL_BRIEFS[0]);
@@ -48,9 +48,13 @@ describe("prepareCleanReelBrief", () => {
     expect(attachMock).toHaveBeenCalledTimes(1);
   });
 
-  it("throws after exhausting attempts when every brief blocks", async () => {
+  it("throws a typed PreflightExhaustedError after exhausting attempts (so the daily cron can distinguish it from an outage)", async () => {
     genMock.mockResolvedValue({ brief: blockingBrief(), rawModel: "m" });
-    await expect(prepareCleanReelBrief({ topic: "t" }, { maxAttempts: 2 })).rejects.toThrow(/preflight blocked on all 2 attempts/);
+    let caught: unknown;
+    try { await prepareCleanReelBrief({ topic: "t" }, { maxAttempts: 2 }); } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(PreflightExhaustedError);
+    expect((caught as PreflightExhaustedError).message).toMatch(/preflight blocked on all 2 attempts/);
+    expect((caught as PreflightExhaustedError).rejected.length).toBe(2);
     expect(genMock).toHaveBeenCalledTimes(2);
     expect(attachMock).not.toHaveBeenCalled();
   });

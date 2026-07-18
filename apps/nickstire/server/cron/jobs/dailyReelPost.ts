@@ -22,7 +22,7 @@ import { eq } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
 import { shopSettings, reelJobs } from "../../../drizzle/schema";
 import { BUSINESS } from "@shared/business";
-import { prepareCleanReelBrief } from "../../services/reelDraftPrep";
+import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
 
@@ -168,9 +168,16 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     try {
       prepared = await prepareCleanReelBrief({ topic }, { maxAttempts: 3 });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.warn("daily reel: no clean brief after retries — skipping today", { err: msg });
-      return { recordsProcessed: 0, details: `no clean brief (preflight blocked all attempts): ${msg}` };
+      if (err instanceof PreflightExhaustedError) {
+        // Deliberate benign skip: every candidate deterministically preflight-
+        // blocked. No reel today; retries fresh tomorrow.
+        log.warn("daily reel: all briefs preflight-blocked — skipping today", { err: err.message });
+        return { recordsProcessed: 0, details: `skipped — all briefs preflight-blocked: ${err.message}` };
+      }
+      // Any OTHER failure (provider outage, parse/auth error, timeout, DB) is a
+      // real generator fault — do NOT swallow it as a normal idle tick. Rethrow
+      // so the cron run fails loudly and monitoring alerts.
+      throw err;
     }
     const { brief } = prepared;
     brief.id = briefId;
@@ -208,6 +215,31 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       }
     } catch (err) {
       log.warn("reel caption claim-check skipped", { err: err instanceof Error ? err.message : String(err) });
+    }
+
+    // Autonomous publish must clear the SAME rendered-QA gate the operator/canary
+    // path enforces — never auto-post an assembled reel with a rendered defect.
+    // A real non-"proceed" verdict HOLDS the reel (index not advanced, retries a
+    // fresh brief tomorrow). A QA infra failure (null verdict / throw) proceeds
+    // with a loud warn rather than blocking the daily reel on flaky extraction —
+    // full "pause on unknown QA" is the larger persisted-decision-record work.
+    if (process.env.RENDERED_QA_ENABLED === "true") {
+      try {
+        const { runRenderedQaOnJob } = await import("../../services/renderedQa");
+        const { orchestratePostQa } = await import("../../services/postQaOrchestrator");
+        const verdict = await runRenderedQaOnJob(job.id);
+        if (verdict) {
+          const gate = orchestratePostQa(verdict.findings).publishGate;
+          if (gate !== "proceed") {
+            log.warn(`daily reel: rendered-QA gate '${gate}' — HOLDING job ${job.id}, not publishing`, { findings: verdict.findings.length });
+            return { recordsProcessed: 0, details: `held by rendered-QA gate (${gate}); index not advanced` };
+          }
+        } else {
+          log.warn(`daily reel: rendered QA could not run for job ${job.id} — publishing without a fresh gate`);
+        }
+      } catch (err) {
+        log.warn(`daily reel: rendered-QA gate check errored for job ${job.id} — publishing without gate`, { err: err instanceof Error ? err.message : String(err) });
+      }
     }
 
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);

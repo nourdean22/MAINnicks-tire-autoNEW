@@ -72,6 +72,12 @@ describe("reel pipeline — generation kill switch", () => {
     process.env.REEL_GENERATION_ENABLED = "1";
     await expect(recoverStuckReelJobs()).resolves.toEqual({ recovered: 0 });
   });
+
+  it("the scoped (scopeJobId) worker overloads still honor the kill switch (no DB touched)", async () => {
+    delete process.env.REEL_GENERATION_ENABLED;
+    await expect(processNextReelJob(999)).resolves.toEqual({ processed: false });
+    await expect(processNextAssemblyJob(999)).resolves.toEqual({ processed: false });
+  });
 });
 
 describe("reel pipeline — withTimeout", () => {
