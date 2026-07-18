@@ -195,19 +195,29 @@ export async function storagePut(
  */
 export async function storageGetStream(
   relKey: string,
-): Promise<{ body: NodeJS.ReadableStream; contentType?: string; contentLength?: number } | null> {
+  /** Raw HTTP Range header, passed through to the store so a partial request
+   *  transfers only the bytes asked for. */
+  range?: string,
+): Promise<{
+  body: NodeJS.ReadableStream;
+  contentType?: string;
+  contentLength?: number;
+  /** Present only for a satisfied range request — the store's ContentRange. */
+  contentRange?: string;
+} | null> {
   const bucket = process.env.S3_BUCKET;
   if (!bucket) return null;
   const key = normalizeKey(relKey);
   try {
     const { GetObjectCommand } = await import("@aws-sdk/client-s3");
     const s3 = await getS3Client();
-    const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key, ...(range ? { Range: range } : {}) }));
     if (!res.Body) return null;
     return {
       body: res.Body as unknown as NodeJS.ReadableStream,
       contentType: res.ContentType,
       contentLength: typeof res.ContentLength === "number" ? res.ContentLength : undefined,
+      contentRange: res.ContentRange,
     };
   } catch (err) {
     const name = (err as { name?: string })?.name;

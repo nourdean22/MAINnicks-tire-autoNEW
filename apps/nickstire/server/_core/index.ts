@@ -163,9 +163,21 @@ async function startServer() {
     try {
       const key = decodeURIComponent(req.params[0] as string);
       const { storageGetStream } = await import("../storage");
-      const obj = await storageGetStream(key);
+      // Forward the Range header. Without it a ranged request was answered with a
+      // full-body 200: players cannot seek, and every request pays full egress on
+      // a 15-30MB master. express.static handled ranges; this proxy replaced it,
+      // so the capability had to be restored explicitly. (Observed live: a
+      // "bytes=0-1023" request returned all 15,543,845 bytes.)
+      const range = typeof req.headers.range === "string" ? req.headers.range : undefined;
+      const obj = await storageGetStream(key, range);
       if (obj) {
         if (obj.contentType) res.type(obj.contentType);
+        // Advertise range support even on a full response, so clients know to ask.
+        res.setHeader("Accept-Ranges", "bytes");
+        if (obj.contentRange) {
+          res.status(206);
+          res.setHeader("Content-Range", obj.contentRange);
+        }
         if (obj.contentLength !== undefined) res.setHeader("Content-Length", String(obj.contentLength));
         // Immutable: a given key's bytes never change (new renders get new keys).
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
@@ -1172,6 +1184,21 @@ ${urls.join("\n")}
     const prerenderedDir = candidates.find(d => fs.existsSync(d)) || candidates[0];
     app.use(createPrerenderMiddleware(prerenderedDir));
   }
+
+  // An unmatched /api/* path must 404 — it must NEVER reach the SPA fallback.
+  //
+  // Registered here, after every API route and before the SPA, because both Vite
+  // and serveStatic end in app.use("*") and will happily answer any leftover path
+  // with index.html. Measured live: GET on a POST-only admin route, a typo'd
+  // admin path, and /api/nope-not-real all returned 200 text/html. A monitor or a
+  // script probing a renamed endpoint reads that as SUCCESS.
+  //
+  // This is the same defect already fixed one layer up for /generated ("misses
+  // fell through to the SPA catch-all and answered 200 text/html, hiding media
+  // loss from every monitor") — the fix simply never generalised to /api.
+  app.use("/api", (req, res) => {
+    res.status(404).json({ error: "Not found", path: req.originalUrl.slice(0, 200), method: req.method });
+  });
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
