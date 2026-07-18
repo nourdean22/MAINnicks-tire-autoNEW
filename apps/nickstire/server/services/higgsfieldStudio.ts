@@ -359,6 +359,22 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    // KILL the CLI child on timeout. Seedance is a single blocking call with no
+    // resumable request-id (unlike Veo), so a caller that merely stops awaiting a
+    // hung run leaves an ORPHAN paid job running — and a retry beside it is what
+    // doubles the spend. Killing the process means any retry is a clean fresh
+    // attempt, never an overlap.
+    const CLI_TIMEOUT_MS = Math.max(60_000, Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000);
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { child.kill("SIGKILL"); } catch { /* already exited */ }
+      cleanupStartImage();
+      void persistRotatedCredentialsThenCleanup(tempCredsFile);
+      reject(new Error(`Higgsfield CLI timed out after ${CLI_TIMEOUT_MS}ms — process killed to avoid an orphan paid job`));
+    }, CLI_TIMEOUT_MS);
 
     child.stdout.on("data", (data) => {
       stdout += data.toString();
@@ -369,11 +385,17 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
     });
 
     child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       cleanupStartImage();
       reject(err);
     });
 
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       cleanupStartImage();
       void persistRotatedCredentialsThenCleanup(tempCredsFile);
       if (code !== 0) {
