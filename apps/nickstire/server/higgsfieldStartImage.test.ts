@@ -75,18 +75,54 @@ describe("materializeStartImage — the download is untrusted input", () => {
     await expect(materializeStartImage("https://cdn.example/hero.png")).resolves.toBeNull();
   });
 
+  // Every class below was CONFIRMED reachable through the previous string-matching
+  // guard; the IPv4-mapped loopback was proven against a live local listener. The
+  // ::ffff:0: form is the one a fix that special-cases only "::ffff:" would miss.
   it.each([
     ["loopback", "http://127.0.0.1/hero.png"],
     ["metadata endpoint", "http://169.254.169.254/latest/meta-data/hero.png"],
     ["private range", "http://10.0.0.5/hero.png"],
     ["private range (172.16)", "http://172.16.4.4/hero.png"],
+    ["private range (192.168)", "http://192.168.1.1/hero.png"],
     ["localhost", "http://localhost:8080/hero.png"],
     ["non-http scheme", "file:///etc/passwd"],
+    // --- classes the old guard let through ---
+    ["IPv4-mapped loopback", "http://[::ffff:127.0.0.1]/hero.png"],
+    ["IPv4-mapped metadata", "http://[::ffff:169.254.169.254]/hero.png"],
+    ["IPv4-mapped private", "http://[::ffff:10.0.0.5]/hero.png"],
+    ["IPv4-mapped docker bridge", "http://[::ffff:172.17.0.1]/hero.png"],
+    ["IPv4-translated ::ffff:0:", "http://[::ffff:0:127.0.0.1]/hero.png"],
+    ["6to4 embedding loopback", "http://[2002:7f00:1::]/hero.png"],
+    ["trailing-dot localhost", "http://localhost./hero.png"],
+    ["trailing-dot internal", "http://metadata.google.internal./hero.png"],
+    ["CGNAT 100.64/10", "http://100.64.0.1/hero.png"],
+    ["0.0.0.0/8 beyond the literal", "http://0.1.2.3/hero.png"],
+    ["unspecified IPv6", "http://[::]/hero.png"],
+    ["IPv6 loopback", "http://[::1]/hero.png"],
+    ["unique-local IPv6", "http://[fd00::1]/hero.png"],
+    ["link-local IPv6", "http://[fe80::1]/hero.png"],
+    ["NAT64 64:ff9b::/96", "http://[64:ff9b::7f00:1]/hero.png"],
+    ["Teredo 2001::/32", "http://[2001:0:4136:e378::1]/hero.png"],
+    ["multicast", "http://224.0.0.1/hero.png"],
+    ["broadcast", "http://255.255.255.255/hero.png"],
   ])("refuses a non-public host: %s", async (_label, url) => {
     const fetchSpy = vi.fn(async () => okImage(PNG));
     vi.stubGlobal("fetch", fetchSpy);
     await expect(materializeStartImage(url)).resolves.toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled(); // refused BEFORE any request left the box
+  });
+
+  it.each([
+    ["public IPv4", "http://8.8.8.8/hero.png"],
+    ["IPv4-mapped PUBLIC address stays allowed", "http://[::ffff:8.8.8.8]/hero.png"],
+    ["public IPv6 global unicast", "http://[2606:4700::1111]/hero.png"],
+    ["ordinary hostname", "https://cdn.example.com/hero.png"],
+  ])("ALLOWS %s — the guard must not break real fetches", async (_l, url) => {
+    vi.stubGlobal("fetch", vi.fn(async () => okImage(PNG)));
+    const p = await materializeStartImage(url);
+    expect(p).toMatch(/\.png$/);
+    const fs = await import("fs");
+    fs.unlinkSync(p!);
   });
 
   it("re-validates each redirect hop — a public URL cannot bounce into the private network", async () => {

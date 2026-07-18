@@ -4,6 +4,7 @@ import path from "path";
 import os from "os";
 import { createLogger } from "../lib/logger";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
+import { isIP } from "node:net";
 
 const log = createLogger("services:higgsfield-studio");
 
@@ -308,22 +309,123 @@ const START_IMAGE_MAX_REDIRECTS = 3;
  * path to an outbound request. Literal-IP and metadata-host checks are the cheap
  * half of SSRF defence; a DNS-rebind still needs network egress rules.
  */
+/** Dotted-quad -> uint32. Only called after net.isIP() has confirmed the form. */
+function ipv4ToInt(ip: string): number {
+  return ip.split(".").reduce((acc, o) => acc * 256 + Number(o), 0) >>> 0;
+}
+
+/**
+ * Refuse every IPv4 block that is not globally routable.
+ *
+ * Written as explicit CIDRs rather than string prefixes because the old
+ * `/^127\./`-style tests were the defect: they matched text, so any alternate
+ * encoding of the same address slipped past. These compare numbers.
+ */
+function assertPublicIPv4(ip: string): void {
+  const n = ipv4ToInt(ip);
+  const inBlock = (base: string, bits: number) => {
+    const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+    return (n & mask) >>> 0 === (ipv4ToInt(base) & mask) >>> 0;
+  };
+  const BLOCKED: Array<[string, number, string]> = [
+    ["0.0.0.0", 8, "this-network"], // covers 0.1.2.3, not just the literal 0.0.0.0
+    ["10.0.0.0", 8, "private"],
+    ["100.64.0.0", 10, "carrier-grade NAT"],
+    ["127.0.0.0", 8, "loopback"],
+    ["169.254.0.0", 16, "link-local (incl. 169.254.169.254 cloud metadata)"],
+    ["172.16.0.0", 12, "private"],
+    ["192.0.0.0", 24, "IETF protocol assignments"],
+    ["192.0.2.0", 24, "TEST-NET-1"],
+    ["192.88.99.0", 24, "6to4 relay anycast"],
+    ["192.168.0.0", 16, "private"],
+    ["198.18.0.0", 15, "benchmarking"],
+    ["198.51.100.0", 24, "TEST-NET-2"],
+    ["203.0.113.0", 24, "TEST-NET-3"],
+    ["224.0.0.0", 4, "multicast"],
+    ["240.0.0.0", 4, "reserved (incl. 255.255.255.255 broadcast)"],
+  ];
+  for (const [base, bits, label] of BLOCKED) {
+    if (inBlock(base, bits)) throw new Error(`refusing non-public host ${ip} (${label})`);
+  }
+}
+
+/**
+ * Pull out an IPv4 address embedded in an IPv6 literal, if any.
+ * Covers ::ffff:a.b.c.d and its hex form, ::ffff:0:a.b.c.d (IPv4-translated), and
+ * 2002::/16 (6to4). Each of these reaches an IPv4 destination, so the IPv4 rules
+ * are what must decide — a fix that special-cases only `::ffff:` is incomplete.
+ */
+function embeddedIPv4(ip: string): string | null {
+  const hex = ip.toLowerCase();
+  const dotted = hex.match(/::ffff:(?:0:)?(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) return dotted[1];
+  const asHex = hex.match(/^::ffff:(?:0:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (asHex) {
+    const hi = parseInt(asHex[1], 16), lo = parseInt(asHex[2], 16);
+    return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join(".");
+  }
+  const sixToFour = hex.match(/^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4}):/);
+  if (sixToFour) {
+    const hi = parseInt(sixToFour[1], 16), lo = parseInt(sixToFour[2], 16);
+    return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join(".");
+  }
+  return null;
+}
+
+/**
+ * ALLOWLIST for IPv6: only global unicast (2000::/3) may be fetched, minus Teredo
+ * (2001::/32), which tunnels to an obfuscated IPv4 endpoint.
+ *
+ * Allowlisting matters more than the specific exclusions — loopback (::1), the
+ * unspecified address (::), unique-local (fc00::/7), link-local (fe80::/10) and
+ * NAT64 (64:ff9b::/96) all fall outside 2000::/3 and are refused without needing
+ * their own rule. A range nobody thought of fails closed by default.
+ */
+function assertPublicIPv6(ip: string): void {
+  const first = ip.toLowerCase().split(":")[0];
+  const head = first === "" ? 0 : parseInt(first, 16); // "::1" -> leading empty group
+  if (head < 0x2000 || head > 0x3fff) {
+    throw new Error(`refusing non-public host ${ip} (not global unicast 2000::/3)`);
+  }
+  if (/^2001:0{0,3}:/.test(ip.toLowerCase())) {
+    throw new Error(`refusing non-public host ${ip} (Teredo tunnel 2001::/32)`);
+  }
+}
+
 function assertFetchableImageHost(u: URL): void {
   if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error(`refusing scheme ${u.protocol}`);
-  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (
-    host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") ||
-    host === "::1" || host === "0.0.0.0" ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    /^169\.254\./.test(host) ||          // link-local — includes the 169.254.169.254 metadata endpoint
-    /^(fc|fd)[0-9a-f]{2}:/i.test(host) || // unique-local IPv6
-    /^fe80:/i.test(host)                  // link-local IPv6
-  ) {
+
+  // Strip one trailing FQDN-root dot BEFORE the name checks. "localhost." and
+  // "metadata.google.internal." resolve perfectly well while failing an equality
+  // or endsWith test — a bypass the previous string matching missed.
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) {
     throw new Error(`refusing non-public host ${host}`);
   }
+
+  // Classify IP literals by PARSING them, not by matching their text. The previous
+  // eleven regexes tested the host string, so every IPv4-mapped IPv6 form walked
+  // straight through: the URL parser rewrites ::ffff:127.0.0.1 to ::ffff:7f00:1
+  // before any /^127\./ test can see it. Loopback, all RFC1918 ranges, and the
+  // 169.254.169.254 metadata endpoint the old comment claimed to cover were all
+  // reachable in mapped form, along with ::ffff:0:<v4>, CGNAT 100.64/10, 0.0.0.0/8
+  // beyond the literal string, NAT64 and the unspecified address.
+  const kind = isIP(host);
+  if (kind === 4) {
+    assertPublicIPv4(host);
+  } else if (kind === 6) {
+    const embedded = embeddedIPv4(host);
+    // A tunnelled/mapped address must be judged on the IPv4 it actually reaches,
+    // so ::ffff:8.8.8.8 stays allowed while ::ffff:127.0.0.1 does not.
+    if (embedded) assertPublicIPv4(embedded);
+    else assertPublicIPv6(host);
+  }
+
+  // NOTE, deliberately not overstated: this validates the LITERAL host. A DNS name
+  // that resolves into private space is not caught here — that needs resolution-time
+  // checking or network egress rules. Each redirect hop is re-validated, which
+  // closes the redirect-to-private path but not DNS rebinding.
 }
 
 /** Identify by CONTENT, not by the URL's extension — the filename is attacker- or
