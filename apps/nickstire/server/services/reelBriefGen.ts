@@ -405,6 +405,12 @@ export async function generateReelBriefAI(
     // exact concept instead of the flattened sourceDetail blob that dropped
     // mechanicTruth / audienceMoment / driverTension entirely.
     systemPrompt = `${serializeThesisForPrompt(input.thesis)}\n\n${systemPrompt}`;
+    // The winner is ALREADY chosen. Override the base prompt's ideate-and-pick-a-
+    // winner instruction (audit: downstream re-ideation even with a thesis): the
+    // model must treat the thesis as the winning concept and produce ONE execution
+    // of it, not invent a fresh winner. The concepts[]/winningConceptId fields
+    // must DESCRIBE the thesis concept.
+    systemPrompt += `\n\nCONCEPT IS LOCKED — a winning concept is already approved (the CREATIVE THESIS above, conceptId "${input.thesis.conceptId}"). Do NOT ideate or score new concepts and do NOT pick a different winner. Set winningConceptId to "${input.thesis.conceptId}" and make concepts a single entry describing THIS thesis concept. Develop only the EXECUTION (beats, captions, voiceover) of the locked mechanic truth, visual metaphor, and desired action.`;
   }
 
   // Phase 5.4 + 3.3: feed what's performed back into generation + push a DM-share CTA.
