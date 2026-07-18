@@ -23,6 +23,7 @@ import {
   facelessCleanSceneDirective,
   compileProviderScene,
   transformToProviderSafeScene,
+  resolveConditioningMode,
   validateBeatCount,
   validateReelLengthTarget,
   validateMutedFirstClarity,
@@ -409,6 +410,30 @@ describe("transformToProviderSafeScene", () => {
   it("leaves a wordless physical description untouched", () => {
     const clean = "extreme macro push into worn tire tread on wet asphalt";
     expect(transformToProviderSafeScene(clean)).toBe(clean);
+  });
+});
+
+// Milestone 8: the compiler must pick ONE continuity strategy — never emit
+// "start from the shared hero frame" AND "continue from the previous clip".
+describe("conditioning-aware compiler", () => {
+  it("resolveConditioningMode: hero_image with a hero frame, text_only without", () => {
+    expect(resolveConditioningMode({ visualWorld: undefined })).toBe("text_only");
+    expect(resolveConditioningMode({ visualWorld: { style: "safe", heroFrameUrl: "https://x/h.jpg", framePrompt: "", lockedInvariants: "" } })).toBe("hero_image");
+  });
+
+  it("text_only mode keeps the previous-shot continuity", () => {
+    const pack = buildHiggsfieldReelPromptPack(sample());
+    expect(pack[0].conditioningMode).toBe("text_only");
+    expect(pack[1].prompt).toContain("previous shot ended on");
+    expect(pack[1].prompt).not.toContain("SHARED hero identity");
+  });
+
+  it("hero_image mode drops the previous-shot continuity (no contradiction) and shares one identity", () => {
+    const withHero = { ...sample(), visualWorld: { style: "safe" as const, heroFrameUrl: "https://img.test/hero.jpg", framePrompt: "fp", lockedInvariants: "operator-approved reference frame locked" } };
+    const pack = buildHiggsfieldReelPromptPack(withHero);
+    expect(pack[0].conditioningMode).toBe("hero_image");
+    for (const p of pack) expect(p.prompt).not.toContain("previous shot ended on");
+    expect(pack[1].prompt).toContain("SHARED hero identity");
   });
 });
 

@@ -452,6 +452,8 @@ export interface HiggsfieldBeatPrompt {
   sceneStatus?: "clean" | "corrected";
   /** the reasons a correction was applied (empty when clean) */
   sceneFindings?: string[];
+  /** Milestone 8: the conditioning strategy these prompts were compiled for. */
+  conditioningMode?: ConditioningMode;
 }
 
 export const VISUAL_WORLD_STYLES = ["safe", "bold", "experimental"] as const;
@@ -981,11 +983,26 @@ export function compileProviderScene(visual: string, motion: string): ProviderSc
   };
 }
 
+/**
+ * Milestone 8: which conditioning strategy the beats are compiled for. A reel
+ * with an attached hero frame shares ONE identity anchor across all beats
+ * (hero_image); without one, each clip is generated independently (text_only).
+ * The compiler must not emit both strategies at once — "start from the shared
+ * hero frame" and "continue from the previous clip's ending" are different
+ * continuities. (previous_frame / fallback are reserved for future modes.)
+ */
+export type ConditioningMode = "hero_image" | "text_only";
+
+export function resolveConditioningMode(brief: Pick<ReelBrief, "visualWorld">): ConditioningMode {
+  return brief.visualWorld?.heroFrameUrl ? "hero_image" : "text_only";
+}
+
 export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatPrompt[] {
   const lens = MOTION_LENSES[brief.motionLens];
   const character = OBJECT_CHARACTERS[brief.objectCharacter];
   const continuity = buildReelContinuityBlock(brief);
   const beats = brief.storyboardBeats;
+  const conditioningMode = resolveConditioningMode(brief);
   return beats.map((b, i) => {
     // Source clips are ALWAYS 4s (Seedance fixed duration); assembly trims each
     // beat to its storyboard length. The prompt must speak the renderer TRUTH:
@@ -1012,9 +1029,19 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
         continuity,
         // Transition intent: source clips are fixed-length; the story action must
         // land inside the clip, and adjacent shots must hand off composition.
+        // M8: conditioning-aware continuity. In hero_image mode EVERY beat is
+        // generated from the SAME identity anchor, so we must NOT tell it to
+        // continue from the previous clip's final frame (the Section-14
+        // contradiction) — we tell it to keep the shared identity and compose
+        // this beat fresh. In text_only mode there is no shared frame, so the
+        // aspirational "continue from the previous shot" guidance stands.
         prev
-          ? `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${transformToProviderSafeScene(prev.visual)})`
-          : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`,
+          ? (conditioningMode === "hero_image"
+              ? `Opening frame: keep the SHARED hero identity from the visual world (same geometry, materials, damage location, and palette as every beat); compose THIS beat's scene, camera, and action fresh from that anchor — do NOT continue from the previous clip's final frame.`
+              : `Opening frame: continue directly from the previous shot - the hero object in the same state and position it settled in (previous shot ended on: ${transformToProviderSafeScene(prev.visual)})`)
+          : (conditioningMode === "hero_image"
+              ? `Opening frame: establish the hero identity every later beat will share - clear, unbranded, wordless; strongest possible first frame.`
+              : `Opening frame: strongest possible first frame - the hero object clearly readable at a glance.`),
         `Timing: complete the primary action by ${actionCompleteBySec} seconds; keep every frame after that visually stable${isLast ? ", settled on a frame that echoes the opening shot for a seamless loop" : ", ready for a match cut into the next shot"}.`,
         facelessCleanSceneDirective(brief.motionLens),
         `Leave the top 12% and bottom 20% of frame clear for IG UI; key action center-frame.`,
@@ -1030,6 +1057,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
       safeZoneGuidance: b.safeZoneNotes || "Keep critical visuals out of the top 12% / bottom 20% IG UI zones.",
       sceneStatus: providerScene.status,
       sceneFindings: providerScene.findings,
+      conditioningMode,
     };
   });
 }
