@@ -54,7 +54,7 @@ export async function evaluateReelPublishGate(jobId: number): Promise<ReelPublis
   if (!d) return result("unavailable", false, "unavailable", "no database — cannot read a quality decision; refusing to publish unscored");
 
   const { reelJobs } = await import("../../drizzle/schema");
-  const { eq } = await import("drizzle-orm");
+  const { eq, and, gte } = await import("drizzle-orm");
   const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1);
   if (!job) return result("unavailable", false, "unavailable", `reel job ${jobId} not found — no quality evidence`);
 
@@ -105,8 +105,37 @@ export async function evaluateReelPublishGate(jobId: number): Promise<ReelPublis
   } catch { /* policy unavailable → conservative default cap */ }
   const audioDecision = (payload.audioQa as { decision?: string } | undefined)?.decision === "repair" ? "repair" : "approve";
 
+  // decideAutomation has always had PAUSE_MISSING_EVIDENCE and PAUSE_PROVIDER_DOWN
+  // branches, but NO caller ever passed either input — they defaulted to
+  // "evidence present, provider healthy", so both safety nets were unreachable
+  // code. They are armed here from signals the gate can actually observe.
+
+  // A verdict that judged ZERO frames is shaped like evidence and contains none.
+  // (A skipped critic is already held above; this catches a completed run that
+  //  had nothing to look at — e.g. frame extraction produced no stills.)
+  const missingEvidence = !Number.isFinite(Number(verdict.framesEvaluated)) || Number(verdict.framesEvaluated) <= 0;
+
+  // Only consulted when the outcome would SPEND money on a paid re-render. If the
+  // generation provider has been failing, queueing another paid repair burns
+  // budget on a call that will fail too — pause for an operator instead.
+  let providerHealthy = true;
+  try {
+    const { sql } = await import("drizzle-orm");
+    const since = new Date(Date.now() - 60 * 60 * 1000);
+    const [row] = await d
+      .select({ n: sql<number>`count(*)` })
+      .from(reelJobs)
+      .where(and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, since)));
+    // Three failed jobs inside an hour is a provider problem, not bad luck — the
+    // pipeline posts at most twice a day, so this is never normal volume.
+    providerHealthy = Number(row?.n ?? 0) < 3;
+  } catch {
+    // Unknown health must not manufacture a pause on its own; the repair-cap and
+    // the findings gate still apply.
+  }
+
   const { orchestratePostQa } = await import("./postQaOrchestrator");
-  const outcome = orchestratePostQa(verdict.findings, { repairAttempts, maxRepairAttempts, audioDecision });
+  const outcome = orchestratePostQa(verdict.findings, { repairAttempts, maxRepairAttempts, audioDecision, missingEvidence, providerHealthy });
   return result(
     outcome.publishGate,
     outcome.publishGate === "proceed",
