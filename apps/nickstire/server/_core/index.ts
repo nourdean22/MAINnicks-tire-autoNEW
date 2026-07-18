@@ -169,6 +169,24 @@ async function startServer() {
         if (obj.contentLength !== undefined) res.setHeader("Content-Length", String(obj.contentLength));
         // Immutable: a given key's bytes never change (new renders get new keys).
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        // A Node stream with no 'error' listener escalates to uncaughtException,
+        // which this process handles by EXITING — so a bucket connection reset
+        // partway through a 30MB master would take the whole server down. Meta
+        // fetches every published video through here, so that is a live crash
+        // vector, not a theoretical one. Headers are already sent by then, so the
+        // only honest response is to destroy the socket and let the client retry.
+        obj.body.on("error", (err: unknown) => {
+          serverLog.warn("/generated stream failed mid-transfer", {
+            key: req.params[0],
+            err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+          });
+          res.destroy();
+        });
+        // Stop pulling from the store if the client goes away — otherwise an
+        // abandoned download keeps streaming bytes we pay to read.
+        res.on("close", () => {
+          if (!res.writableEnded) (obj.body as unknown as { destroy?: () => void }).destroy?.();
+        });
         obj.body.pipe(res);
         return;
       }

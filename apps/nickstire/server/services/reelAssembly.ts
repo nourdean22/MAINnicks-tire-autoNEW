@@ -793,13 +793,43 @@ export async function assembleReel(
       // Best-effort EVIDENCE, not a hard block — the dead-air gate above is
       // the render-integrity guard; a loudness/peak finding is a repair signal
       // for the approve gate, logged loudly, never a silent pass.
+      // The verdict is PERSISTED, not just logged. It used to be computed here and
+      // thrown away, so payload.audioQa never existed on any row — which meant the
+      // publish gate's audio check could never be satisfied by any job. Evidence
+      // that only reaches the log cannot gate anything.
+      let audioQa: Record<string, unknown>;
       try {
         const { runAudioQa } = await import("./audioQa");
         const aqa = await runAudioQa(outPath);
         if (aqa.decision === "repair") log.warn("audio QA flagged findings (evidence for approve gate)", { jobId, findings: aqa.findings, lufs: aqa.integratedLufs, tp: aqa.truePeakDb, ch: aqa.channels });
         else log.info("audio QA passed", { jobId, lufs: aqa.integratedLufs, tp: aqa.truePeakDb, ch: aqa.channels });
+        audioQa = { ...aqa, qaState: "completed", evaluatedAt: new Date().toISOString() };
       } catch (e) {
+        // An audio QA that could not RUN is recorded as unavailable — never as a
+        // pass. The gate distinguishes the two; a missing key would read as
+        // "never evaluated" and hold, which is the same safe direction but gives
+        // the operator no reason.
         log.warn("audio QA hook failed (render unaffected)", { jobId, e: e instanceof Error ? e.message : String(e) });
+        audioQa = { decision: "approve", qaState: "unavailable", error: e instanceof Error ? e.message.slice(0, 200) : String(e), evaluatedAt: new Date().toISOString() };
+      }
+      try {
+        const { db } = await import("../lib/db-helper");
+        const d = await db();
+        if (d) {
+          const { reelJobs } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const numericJobId = Number(jobId);
+          if (Number.isInteger(numericJobId)) {
+            const [row] = await d.select().from(reelJobs).where(eq(reelJobs.id, numericJobId)).limit(1);
+            if (row) {
+              const payload = JSON.parse(row.payload ?? "{}");
+              payload.audioQa = audioQa;
+              await d.update(reelJobs).set({ payload: JSON.stringify(payload) }).where(eq(reelJobs.id, numericJobId));
+            }
+          }
+        }
+      } catch (e) {
+        log.warn("could not persist audio QA verdict — publish gate will treat audio as unevaluated", { jobId, e: e instanceof Error ? e.message : String(e) });
       }
     }
 

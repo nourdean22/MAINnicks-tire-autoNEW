@@ -303,13 +303,40 @@ export async function runRenderedQaOnJob(jobId: number): Promise<RenderedQaVerdi
     }
     const payload = JSON.parse(job.payload ?? "{}");
     const beats: Array<{ beatNumber: number; startSecond: number; endSecond: number }> = payload.storyboardBeats ?? [];
-    // /generated/* URLs are served FROM data/generated on disk — the old
-    // mapping dropped the data/ prefix, so the QA hook silently failed on
-    // EVERY prod assembly (found live retriggering 660002's verdict).
-    const mp4Path = job.mp4Url.startsWith("/") || /^[A-Za-z]:/.test(job.mp4Url)
+    // Resolving the master to a LOCAL path was safe only while data/generated was
+    // the store. Since durable object storage landed the bytes may live solely in
+    // the bucket, and ffmpeg would spawn against a path that was never written —
+    // extraction throws, the verdict comes back unavailable, and (post wave H)
+    // that is a permanent publish HOLD. So: use the local file when it really
+    // exists, otherwise FETCH the master and work on a temp copy.
+    const localGuess = job.mp4Url.startsWith("/") || /^[A-Za-z]:/.test(job.mp4Url)
       ? job.mp4Url
       : path.join(process.cwd(), "data", job.mp4Url.replace(/^https?:\/\/[^/]+\//, ""));
-    const frames = await extractReelFrames(mp4Path, beats);
+
+    let mp4Path = localGuess;
+    let tempMp4: string | null = null;
+    const localExists = await fs.access(localGuess).then(() => true).catch(() => false);
+    if (!localExists) {
+      const src = job.mp4Url;
+      if (!/^https?:\/\//i.test(src)) throw new Error(`master not on disk and mp4Url is not fetchable: ${src}`);
+      const res = await fetch(src, { signal: AbortSignal.timeout(120_000) });
+      if (!res.ok) throw new Error(`could not fetch master for QA: HTTP ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (!buf.byteLength) throw new Error("fetched master was empty");
+      tempMp4 = path.join(os.tmpdir(), `qa-${jobId}-${Date.now()}.mp4`);
+      await fs.writeFile(tempMp4, buf);
+      mp4Path = tempMp4;
+      log.info("rendered QA: master fetched from object storage for analysis", { jobId, bytes: buf.byteLength });
+    }
+
+    let frames;
+    try {
+      frames = await extractReelFrames(mp4Path, beats);
+    } finally {
+      // The frames are already written elsewhere by extractReelFrames; the temp
+      // master itself is large and must not accumulate in tmp across runs.
+      if (tempMp4) void fs.unlink(tempMp4).catch(() => {});
+    }
     // The contact sheet is the EVIDENCE behind a decision that gates a publish,
     // so it has to outlive the decision. It used to be written beside the
     // extracted frames — a scratch directory — while contactSheetPath was
@@ -318,10 +345,27 @@ export async function runRenderedQaOnJob(jobId: number): Promise<RenderedQaVerdi
     // reel was approved or held. Writing it beside the mp4 gives it the same
     // lifecycle as the asset it describes (and it is servable, since
     // data/generated is what /generated/* maps to).
-    const sheet = await buildContactSheet(
-      frames,
-      path.join(path.dirname(mp4Path), `reel-${jobId}-contact-sheet.jpg`),
-    ).catch(() => undefined);
+    // The contact sheet is the EVIDENCE behind a decision that gates a publish, so
+    // it must outlive the decision. Writing it beside mp4Path was right when that
+    // was the durable master; now mp4Path may be a TEMP copy fetched for analysis,
+    // so it is built locally and then pushed through the same durable store the
+    // master uses. contactSheetPath holds the resulting stable URL.
+    const sheet = await (async () => {
+      try {
+        const localSheet = path.join(os.tmpdir(), `reel-${jobId}-contact-sheet.jpg`);
+        await buildContactSheet(frames, localSheet);
+        const bytes = await fs.readFile(localSheet);
+        void fs.unlink(localSheet).catch(() => {});
+        const { storagePut } = await import("../storage");
+        const put = await storagePut(`qa/reel-${jobId}-contact-sheet.jpg`, bytes, "image/jpeg");
+        return put.url;
+      } catch (err) {
+        log.warn("contact sheet unavailable — verdict still stands on the frames", {
+          jobId, err: err instanceof Error ? err.message.slice(0, 140) : String(err),
+        });
+        return undefined;
+      }
+    })();
     const verdict = await evaluateRenderedReel({ frames, brief: payload });
     verdict.contactSheetPath = sheet;
     payload.renderedQa = verdict;
