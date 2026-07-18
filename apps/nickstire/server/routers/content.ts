@@ -2181,5 +2181,73 @@ export const contentAdminRouter = router({
         .where(eq(socialContentInventory.id, input.id));
       return { success: true };
     }),
-});
+  /* ─── Reel Action Center ───────────────────────────────────────────────────
+   * These three exist as REST routes behind requireAdminApiKey, which compares a
+   * Bearer header and NEVER looks at a session cookie — so the operator's browser
+   * could not reach them at all, and the only way to run them was curl with the
+   * admin key. Everything here is the operator's own daily work, so it belongs on
+   * a session-authenticated transport. The REST routes stay for headless/cron use.
+   * ------------------------------------------------------------------------- */
 
+  /** Every non-terminal reel job, with the SPECIFIC reason it stopped and only
+   *  the actions its surviving artifacts can support. */
+  reelJobsNeedingAttention: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { inArray, desc } = await import("drizzle-orm");
+    const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering"];
+    const rows = await d.select().from(reelJobs).where(inArray(reelJobs.status, ATTENTION)).orderBy(desc(reelJobs.id)).limit(50);
+
+    const { assessReelJob } = await import("../services/reelRecoverability");
+    const { evaluateReelPublishGate } = await import("../services/qualityGate");
+
+    const jobs = await Promise.all(
+      rows.map(async (job: typeof rows[number]) => {
+        // runIfMissing:false — a LIST must never trigger paid vision QA.
+        let gateReason: string | undefined;
+        if (job.status === "assembled") {
+          try {
+            const g = await evaluateReelPublishGate(job.id, { runIfMissing: false });
+            if (!g.allowed) gateReason = `${g.gate}: ${g.reason}`;
+          } catch (err) {
+            gateReason = `quality gate could not be evaluated: ${err instanceof Error ? err.message.slice(0, 160) : String(err)}`;
+          }
+        }
+        return assessReelJob(job, { gateReason });
+      }),
+    );
+    return {
+      count: jobs.length,
+      unrecoverable: jobs.filter((j) => j.recoverability === "brief_only" || j.recoverability === "unrecoverable").length,
+      jobs,
+    };
+  }),
+
+  /** Rebuild a lost master from surviving source clips. Free — no generation
+   *  spend. NOT a repair: it produces a different file, so the service drops the
+   *  stale QA verdict and the job returns to "assembled" needing fresh QA. */
+  reassembleReelFromClips: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const { reassembleFromClips } = await import("../services/reelReassemble");
+      const result = await reassembleFromClips(input.jobId);
+      if (!result.ok) {
+        // A refusal is an ANSWER about the job's state, not a server fault.
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.reason });
+      }
+      return result;
+    }),
+
+  /** Publishes that may or may not be live — an attempt with no recorded
+   *  outcome. This is what a publish_ambiguous job gets reconciled against. */
+  openPublishAttempts: adminProcedure
+    .input(z.object({ olderThanMinutes: z.number().int().min(0).max(10080).optional() }))
+    .query(async ({ input }) => {
+      const { findUnreconciledAttempts } = await import("../services/publishAttemptLedger");
+      const attempts = await findUnreconciledAttempts(input.olderThanMinutes ?? 15);
+      return { count: attempts.length, attempts };
+    }),
+});

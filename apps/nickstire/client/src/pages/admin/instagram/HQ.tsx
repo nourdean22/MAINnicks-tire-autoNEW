@@ -73,13 +73,13 @@ export function HQ({ onNavigate }: HQProps) {
         </Card>
 
         {/* Pipeline Health Card */}
-        <PipelineHealthCard />
+        <PipelineHealthCard onNavigate={onNavigate} />
       </div>
     </div>
   );
 }
 
-function PipelineHealthCard() {
+function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const { data: health, isLoading } = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, {
     refetchInterval: 5000,
   });
@@ -156,13 +156,24 @@ function PipelineHealthCard() {
               </div>
             </div>
 
-            <div className="p-4 rounded border bg-card">
+            {/* Was a dead count. Telling the operator something is stuck and giving
+                no way to look at it is the pattern that let three reels sit for 32
+                hours — the number is now the door into the Actions tab. */}
+            <button
+              type="button"
+              onClick={() => onNavigate?.("actions")}
+              disabled={!onNavigate}
+              className="p-4 rounded border bg-card text-left transition-colors enabled:hover:bg-accent/50 enabled:cursor-pointer"
+            >
               <div className="text-sm font-medium text-muted-foreground mb-1">Failed Jobs</div>
               <div className="flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${health.failedJobs === 0 ? "bg-green-500" : "bg-destructive"}`} />
                 <span>{health.failedJobs} stuck/failed job{health.failedJobs === 1 ? "" : "s"}</span>
               </div>
-            </div>
+              {health.failedJobs > 0 && onNavigate && (
+                <span className="text-[11px] text-primary mt-1 inline-block">Open the Action Center →</span>
+              )}
+            </button>
           </div>
         ) : (
           <div className="text-sm text-muted-foreground">Failed to load pipeline health.</div>
