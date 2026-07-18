@@ -677,6 +677,11 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
 
   const { reelJobs } = await import("../../drizzle/schema");
   const { eq, and, lt, inArray } = await import("drizzle-orm");
+  // Read write-results through the canonical helper. Drizzle's mysql2 driver
+  // resolves .update() to [ResultSetHeader, FieldPacket[]], so reading
+  // .affectedRows straight off the result yields undefined -> 0 -> the
+  // publish_ambiguous alarm and the recovered counter were both dead.
+  const { affectedRowCount } = await import("../lib/db-affected");
 
   const cutoff = new Date(Date.now() - STUCK_JOB_MS);
   const stuck = await d
@@ -696,7 +701,7 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
         .update(reelJobs)
         .set({ status: "publish_ambiguous", error: `publish claim stuck >${Math.round(STUCK_JOB_MS / 60_000)}m — reconcile with Meta before any retry (the post may be LIVE)` })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
-      const moved = (res as unknown as { affectedRows?: number })?.affectedRows ?? 0;
+      const moved = affectedRowCount(res);
       if (moved === 1) {
         recovered++;
         log.error("stuck PUBLISHING claim parked as publish_ambiguous — verify on Instagram before retrying", { jobId: job.id });
@@ -713,10 +718,7 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
         error: `recovered from stuck '${job.status}' (no progress >${Math.round(STUCK_JOB_MS / 60_000)}m)`,
       })
       .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, job.status)));
-    const flipped =
-      (res as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows ??
-      (res as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ??
-      0;
+    const flipped = affectedRowCount(res);
     if (flipped === 1) {
       recovered++;
       log.warn("recovered stuck reel job", { jobId: job.id, from: job.status, to: nextStatus, attempts });

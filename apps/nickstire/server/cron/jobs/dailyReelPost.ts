@@ -229,9 +229,18 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         log.warn(`daily reel: publish gate '${g.gate}' — HOLDING job ${job.id}, not publishing`, { findings: g.findings.length, reason: g.reason });
         return { recordsProcessed: 0, details: `held by rendered-QA gate (${g.gate}); index not advanced` };
       }
-      if (g.source === "unavailable") log.warn(`daily reel: rendered QA unavailable for job ${job.id} — publishing on upstream gates`);
     } catch (err) {
-      log.warn(`daily reel: publish gate check errored for job ${job.id} — publishing without gate`, { err: err instanceof Error ? err.message : String(err) });
+      // This catch used to log "publishing without gate" and fall through — the
+      // exact fail-open this whole arc exists to remove, sitting in the
+      // autonomous door. A transient DB error during the gate read would publish
+      // a reel with NO quality decision computed at all.
+      //
+      // An error evaluating the gate is not a passing gate. Hold; the reel is a
+      // day late instead of unscored, and the index is deliberately not advanced
+      // so tomorrow's tick retries this same job.
+      const detail = err instanceof Error ? err.message : String(err);
+      log.error(`daily reel: publish gate ERRORED for job ${job.id} — HOLDING (an unreadable gate is not an open gate)`, { err: detail });
+      return { recordsProcessed: 0, details: `held: publish gate could not be evaluated (${detail.slice(0, 120)}); index not advanced` };
     }
 
     // EXACTLY-ONCE: claim assembled -> publishing BEFORE the external Meta call,
@@ -239,8 +248,8 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // the CAS simply reports that another run owns it.
     const claimRes = await d.update(reelJobs).set({ status: "publishing" })
       .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "assembled")));
-    const claimed = (claimRes as unknown as Array<{ affectedRows?: number }>)?.[0]?.affectedRows
-      ?? (claimRes as unknown as { affectedRows?: number })?.affectedRows ?? 0;
+    const { affectedRowCount } = await import("../../lib/db-affected");
+    const claimed = affectedRowCount(claimRes);
     if (claimed !== 1) {
       log.warn(`daily reel: publish already claimed by another run (job ${job.id})`);
       return { recordsProcessed: 0, details: `publish already claimed by another run (job ${job.id})` };
