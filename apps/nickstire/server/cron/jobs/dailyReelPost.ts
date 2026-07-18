@@ -22,10 +22,8 @@ import { eq } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
 import { shopSettings, reelJobs } from "../../../drizzle/schema";
 import { BUSINESS } from "@shared/business";
-import { generateReelBriefAI } from "../../services/reelBriefGen";
+import { prepareCleanReelBrief } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
-import { attachAutonomousVisualWorld } from "../../services/visualWorld";
-import { buildHiggsfieldReelPromptPack } from "../../../client/src/lib/facelessReelStudio";
 import { publishToSocial } from "../../services/socialPublish";
 
 const log = createLogger("cron:daily-reel-post");
@@ -161,21 +159,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const topic = manifestCaption.split("\n")[0] || manifestCaption;
 
     log.info(`Generating fresh dynamic storyboard brief for topic: "${topic}"`);
-    const { brief } = await generateReelBriefAI({ topic });
-    
-    // Set unique briefId, attach an autonomous visual-world anchor (flag-gated
-    // REEL_AUTO_VISUAL_WORLD, default OFF — no-op + zero cost until enabled),
-    // then build the prompt pack so beats carry its locked invariants.
+    // Regenerate on a preflight block: generateReelBriefAI is non-deterministic
+    // and a brief that trips the M10 preflight (in-frame-text / free-claim) would
+    // otherwise silently cost the day's reel (this cron generates once). The
+    // helper retries and only attaches the visual-world anchor (flag-gated
+    // REEL_AUTO_VISUAL_WORLD) + builds the prompt pack for a brief that passed.
+    let prepared;
+    try {
+      prepared = await prepareCleanReelBrief({ topic }, { maxAttempts: 3 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn("daily reel: no clean brief after retries — skipping today", { err: msg });
+      return { recordsProcessed: 0, details: `no clean brief (preflight blocked all attempts): ${msg}` };
+    }
+    const { brief } = prepared;
     brief.id = briefId;
-    await attachAutonomousVisualWorld(brief);
-    brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
 
-    // Enqueue background generation. With the anchor flag on, this cron reel
-    // now carries a hero-frame continuity anchor (locked invariants in every
-    // beat + optional --start-image); with it off it renders text-only exactly
-    // as before.
     const { jobId } = await enqueueReelJob(brief, "cron");
-    log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId}`);
+    log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId} (brief attempt ${prepared.attempts})`);
     return { recordsProcessed: 0, details: `Enqueued new dynamic reel job (ID: ${jobId}) for today` };
   }
 

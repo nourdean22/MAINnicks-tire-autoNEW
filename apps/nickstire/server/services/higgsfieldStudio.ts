@@ -288,19 +288,66 @@ export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string
   return args;
 }
 
+/**
+ * The Higgsfield CLI's `--start-image` accepts a media UUID or an EXISTING FILE
+ * PATH — NOT a public URL. Verified live 2026-07-18: a cloudfront hero-frame URL
+ * hard-failed the CLI with *"Media \"…\" is neither a UUID nor an existing file
+ * path."* Download the remote hero frame to a temp file so the CLI can read it
+ * locally. Returns the temp path, or null on ANY failure — the caller falls back
+ * to text-only, because a conditioning-anchor download failure must never kill
+ * an otherwise-fine render.
+ */
+export async function materializeStartImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength === 0) throw new Error("empty image body");
+    const ext = (url.match(/\.(jpe?g|png|webp)(?=[?#]|$)/i)?.[1] ?? "png").toLowerCase();
+    const file = path.join(os.tmpdir(), `hf-start-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`);
+    await fs.promises.writeFile(file, buf);
+    return file;
+  } catch (err) {
+    log.warn("start-image download failed; rendering text-only", { url, err: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
 export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string; startImageUrl?: string }): Promise<string> {
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;
   const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = await getSpawnEnv();
 
-  const conditioned = !!startImageUrl && process.env.REEL_IMAGE_CONDITIONING === "true";
+  // --start-image needs a UUID or a LOCAL FILE PATH. If conditioning is on and we
+  // were handed a remote image URL, download it to a temp file first; on failure,
+  // effectiveStartImage stays undefined and the clip renders text-only.
+  const wantConditioning =
+    !!startImageUrl &&
+    process.env.REEL_IMAGE_CONDITIONING === "true" &&
+    /^https?:\/\//i.test(startImageUrl) &&
+    /\.(jpe?g|png|webp)([?#]|$)/i.test(startImageUrl);
+  let localStartImage: string | null = null;
+  let effectiveStartImage = startImageUrl;
+  if (wantConditioning) {
+    localStartImage = await materializeStartImage(startImageUrl!);
+    effectiveStartImage = localStartImage ?? undefined;
+  }
+  const cleanupStartImage = () => {
+    if (localStartImage) {
+      const f = localStartImage;
+      localStartImage = null;
+      void fs.promises.unlink(f).catch(() => {});
+    }
+  };
+
+  const conditioned = !!effectiveStartImage && process.env.REEL_IMAGE_CONDITIONING === "true";
   log.info("Generating Reel clip video via Higgsfield (seedance1_5)...", { prompt, imageConditioned: conditioned });
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(
       binPath,
-      buildSeedanceArgs(prompt, { startImageUrl }),
+      buildSeedanceArgs(prompt, { startImageUrl: effectiveStartImage }),
       {
         env: {
           ...env,
@@ -321,7 +368,13 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
       stderr += data.toString();
     });
 
+    child.on("error", (err) => {
+      cleanupStartImage();
+      reject(err);
+    });
+
     child.on("close", (code) => {
+      cleanupStartImage();
       void persistRotatedCredentialsThenCleanup(tempCredsFile);
       if (code !== 0) {
         reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
