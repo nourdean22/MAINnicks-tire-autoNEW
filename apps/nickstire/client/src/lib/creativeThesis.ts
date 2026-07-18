@@ -52,8 +52,16 @@ export const CreativeThesisSchema = z.object({
 });
 export type CreativeThesis = z.infer<typeof CreativeThesisSchema>;
 
-/** Field VALUES no downstream call may replace once the thesis is locked. */
-export const THESIS_PROTECTED_FIELDS = ["conceptId", "mechanicTruth", "visualMetaphor", "desiredAction"] as const;
+/**
+ * Field VALUES no downstream call may replace once the thesis is locked.
+ *
+ * `objective` and `creativeTerritory` were added to the thesis as the STRATEGIC
+ * axes the concept tournament selects on, but were left out of this list — so a
+ * critic rewrite could swap the campaign objective or the territory out from
+ * under a locked concept and `applyCriticPreservingTruth` would wave it through.
+ * A thesis whose objective can change is not locked; they are protected now.
+ */
+export const THESIS_PROTECTED_FIELDS = ["conceptId", "mechanicTruth", "visualMetaphor", "desiredAction", "objective", "creativeTerritory"] as const;
 export type ThesisProtectedField = (typeof THESIS_PROTECTED_FIELDS)[number];
 
 /** Executional fields a downstream director may legitimately shape. */

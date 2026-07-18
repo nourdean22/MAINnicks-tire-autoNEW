@@ -297,18 +297,107 @@ export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string
  * to text-only, because a conditioning-anchor download failure must never kill
  * an otherwise-fine render.
  */
+/** 20 MB. A 1080x1920 hero frame is ~1-3 MB; anything past this is not a frame. */
+const START_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
+const START_IMAGE_MAX_REDIRECTS = 3;
+
+/**
+ * Reject anything that resolves to the deploy's own network before we fetch it.
+ * The hero URL is OUR generated frame today, but it arrives via the job payload
+ * — DB-held JSON that several writers touch — so it is untrusted input on the
+ * path to an outbound request. Literal-IP and metadata-host checks are the cheap
+ * half of SSRF defence; a DNS-rebind still needs network egress rules.
+ */
+function assertFetchableImageHost(u: URL): void {
+  if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error(`refusing scheme ${u.protocol}`);
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") ||
+    host === "::1" || host === "0.0.0.0" ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    /^169\.254\./.test(host) ||          // link-local — includes the 169.254.169.254 metadata endpoint
+    /^(fc|fd)[0-9a-f]{2}:/i.test(host) || // unique-local IPv6
+    /^fe80:/i.test(host)                  // link-local IPv6
+  ) {
+    throw new Error(`refusing non-public host ${host}`);
+  }
+}
+
+/** Identify by CONTENT, not by the URL's extension — the filename is attacker- or
+ *  CDN-controlled and the CLI acts on the bytes. */
+function sniffImageExt(buf: Buffer): "jpg" | "png" | "webp" | null {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "jpg";
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
+  if (buf.length >= 12 && buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WEBP") return "webp";
+  return null;
+}
+
+/**
+ * Download a remote hero frame to a local temp file for `--start-image`.
+ *
+ * Hardened after the second-pass audit: the original followed redirects
+ * anywhere, read the body unbounded into memory, and named the temp file from
+ * the URL's extension without ever looking at the bytes. Now each redirect hop
+ * is re-validated against the host rules, the read is capped at
+ * START_IMAGE_MAX_BYTES, and the extension comes from the magic bytes — a
+ * non-image body is refused rather than handed to the generator.
+ *
+ * Every failure returns null (the caller renders text-only). Conditioning is an
+ * enhancement, so a bad frame must degrade the reel, never break it.
+ */
 export async function materializeStartImage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    let current = new URL(url);
+    let res: Response | undefined;
+    for (let hop = 0; hop <= START_IMAGE_MAX_REDIRECTS; hop++) {
+      assertFetchableImageHost(current);
+      res = await fetch(current, { signal: AbortSignal.timeout(20_000), redirect: "manual" });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) throw new Error(`redirect ${res.status} without location`);
+        current = new URL(loc, current); // resolved, then re-checked at the top of the next hop
+        continue;
+      }
+      break;
+    }
+    if (!res) throw new Error("no response");
+    if (res.status >= 300 && res.status < 400) throw new Error(`too many redirects (>${START_IMAGE_MAX_REDIRECTS})`);
     if (!res.ok) throw new Error(`fetch ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
+
+    const declared = Number(res.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > START_IMAGE_MAX_BYTES) {
+      throw new Error(`image too large (${declared} bytes declared)`);
+    }
+    // Read incrementally: content-length is a hint, not a guarantee, so the cap
+    // has to hold against a body that just keeps coming.
+    const chunks: Buffer[] = [];
+    let total = 0;
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("no response body");
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > START_IMAGE_MAX_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw new Error(`image exceeded ${START_IMAGE_MAX_BYTES} bytes`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+    const buf = Buffer.concat(chunks);
     if (buf.byteLength === 0) throw new Error("empty image body");
-    const ext = (url.match(/\.(jpe?g|png|webp)(?=[?#]|$)/i)?.[1] ?? "png").toLowerCase();
+
+    const ext = sniffImageExt(buf);
+    if (!ext) throw new Error("body is not a JPEG/PNG/WebP image");
+
     const file = path.join(os.tmpdir(), `hf-start-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`);
     await fs.promises.writeFile(file, buf);
     return file;
   } catch (err) {
-    log.warn("start-image download failed; rendering text-only", { url, err: err instanceof Error ? err.message : String(err) });
+    log.warn("start-image download refused/failed; rendering text-only", { url, err: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }

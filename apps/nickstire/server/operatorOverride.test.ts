@@ -11,6 +11,7 @@ import {
   createOperatorOverride,
   consumeOverrideForPublish,
   revokeOperatorOverride,
+  releaseConsumedOverride,
 } from "./services/operatorOverride";
 
 // Minimal fake of the drizzle surface the service touches. select().limit()
@@ -162,5 +163,29 @@ describe("revokeOperatorOverride", () => {
     const ok = await revokeOperatorOverride(db, "ovr_1");
     expect(ok).toBe(true);
     expect(state.updated.some((u) => u.state === "revoked")).toBe(true);
+  });
+});
+
+describe("releaseConsumedOverride (a failed publish must not burn the acceptance)", () => {
+  it("returns a consumed override to active and clears consumedAt", async () => {
+    const { db, state } = makeDb();
+    state.updateAffected = 1;
+    const restored = await releaseConsumedOverride(db, "ovr_1");
+    expect(restored).toBe(true);
+    expect(state.updated).toHaveLength(1);
+    expect(state.updated[0].state).toBe("active");
+    expect(state.updated[0].consumedAt).toBeNull();
+  });
+
+  it("restores nothing when the override is no longer consumed (revoked/expired won the CAS)", async () => {
+    const { db, state } = makeDb();
+    state.updateAffected = 0; // the consumed->active CAS matched no row
+    expect(await releaseConsumedOverride(db, "ovr_1")).toBe(false);
+  });
+
+  it("never throws — bookkeeping must not mask the publish error being rethrown", async () => {
+    const broken = { update: () => ({ set: () => ({ where: async () => { throw new Error("db gone"); } }) }) };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await releaseConsumedOverride(broken as any, "ovr_1")).toBe(false);
   });
 });
