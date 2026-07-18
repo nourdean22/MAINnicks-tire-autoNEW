@@ -222,6 +222,50 @@ export async function releaseConsumedOverride(database: DB, overrideId: string):
   }
 }
 
+/**
+ * Is there an ACTIVE override bound to exactly this media, without consuming it?
+ *
+ * The publish authority needs to know an override exists BEFORE it decides to
+ * refuse; consumption still happens later, at the publish CAS, so a check that
+ * never reaches an external call cannot burn the operator's acceptance. Splitting
+ * look-up from consume is what makes the override honourable at gate time and
+ * exactly-once at publish time.
+ *
+ * Same binding rules as consumeOverrideForPublish: newest active first, exact
+ * content+brief hash match, expiry enforced. A mismatch returns false rather than
+ * mutating state — deciding an override is stale is the consuming path's job.
+ */
+export async function hasActiveOverride(
+  database: DB,
+  args: { inventoryId: string; assetVersion: number; currentContentHash: string; currentBriefHash: string; now?: () => number },
+): Promise<{ present: boolean; acceptedFindingIds: string[] }> {
+  const now = args.now ? args.now() : Date.now();
+  try {
+    const rows = await database
+      .select()
+      .from(operatorQualityOverrides)
+      .where(and(
+        eq(operatorQualityOverrides.inventoryId, args.inventoryId),
+        eq(operatorQualityOverrides.assetVersion, args.assetVersion),
+        eq(operatorQualityOverrides.state, "active"),
+      ))
+      .orderBy(desc(operatorQualityOverrides.createdAt))
+      .limit(1);
+    if (!rows.length) return { present: false, acceptedFindingIds: [] };
+    const ov = rows[0];
+    if (new Date(ov.expiresAt).getTime() < now) return { present: false, acceptedFindingIds: [] };
+    if (ov.contentHash !== args.currentContentHash || ov.briefHash !== args.currentBriefHash) {
+      return { present: false, acceptedFindingIds: [] };
+    }
+    return { present: true, acceptedFindingIds: JSON.parse(ov.acceptedFindingIds) as string[] };
+  } catch (err) {
+    // Table pending / query error => behave as if there is no override. Failing
+    // closed here means the gate holds, which is the safe direction.
+    log.warn("override lookup failed — treating as none", { err: err instanceof Error ? err.message.slice(0, 120) : String(err) });
+    return { present: false, acceptedFindingIds: [] };
+  }
+}
+
 /** Revoke an active override (operator changed their mind before publish). */
 export async function revokeOperatorOverride(database: DB, overrideId: string): Promise<boolean> {
   const { affectedRowCount } = await import("../lib/db-affected");

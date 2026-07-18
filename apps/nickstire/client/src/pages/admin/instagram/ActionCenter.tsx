@@ -130,11 +130,27 @@ export default function ActionCenter() {
   const jobs = attention.data?.jobs ?? [];
   const stuckCount = jobs.length;
   const openCount = openAttempts.data?.count ?? 0;
+  const openUnknown = openAttempts.isError;
 
   return (
     <div className="space-y-4">
       {/* Ambiguous publishes lead: a post that may or may not be live is the only
           thing here that can cost the business twice if acted on blindly. */}
+      {openUnknown && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              Could not check for ambiguous publishes
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {openAttempts.error?.message ?? "The check failed."} Treat this as unknown, not clear —
+              a publish may be open and unreconciled.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
       {openCount > 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardHeader className="pb-3">
@@ -155,7 +171,7 @@ export default function ActionCenter() {
                 <div key={a.attemptId} className="rounded border border-amber-500/20 bg-background/40 p-2 space-y-2">
                   <div className="text-xs flex items-center gap-2 font-mono flex-wrap">
                     <Clock className="h-3 w-3 text-muted-foreground flex-none" />
-                    <span>job {a.jobId ?? "—"}</span>
+                    <span>{a.kind === "scheduled_post" ? "scheduled" : "reel"} {a.jobId ?? a.scheduledPostId ?? "—"}</span>
                     <span className="text-muted-foreground">· {a.ageMinutes}m ago</span>
                     <span className="text-muted-foreground">· {(a.platforms ?? []).join(", ")}</span>
                   </div>
@@ -176,24 +192,26 @@ export default function ActionCenter() {
                       {/* A confident verdict still needs a tap. Marking a publish
                           live is irreversible for that reel, and marking it dead
                           authorises a retry that could double-post. */}
-                      {v.status === "resolved_published" && a.jobId && (
+                      {v.status === "resolved_published" && (a.jobId ?? a.scheduledPostId) && (
                         <Button
                           size="sm" className="text-xs bg-green-600 hover:bg-green-700 text-white"
                           disabled={resolveAmbiguous.isPending}
                           onClick={() => resolveAmbiguous.mutate({
-                            jobId: a.jobId, attemptId: a.attemptId, decision: "published", igPostId: v.igPostId,
+                            kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
+                            attemptId: a.attemptId, decision: "published", igPostId: v.igPostId,
                           })}
                         >
                           <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm it is live — do not retry
                         </Button>
                       )}
 
-                      {v.status === "resolved_not_published" && a.jobId && (
+                      {v.status === "resolved_not_published" && (a.jobId ?? a.scheduledPostId) && (
                         <Button
                           size="sm" variant="outline" className="text-xs"
                           disabled={resolveAmbiguous.isPending}
                           onClick={() => resolveAmbiguous.mutate({
-                            jobId: a.jobId, attemptId: a.attemptId, decision: "not_published",
+                            kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
+                            attemptId: a.attemptId, decision: "not_published",
                           })}
                         >
                           <RefreshCw className="h-3 w-3 mr-1" /> Release it for a retry
@@ -211,12 +229,13 @@ export default function ActionCenter() {
                                   <a href={c.permalink} target="_blank" rel="noreferrer"
                                      className="text-[11px] text-primary underline">Open on Instagram</a>
                                 )}
-                                {a.jobId && (
+                                {(a.jobId ?? a.scheduledPostId) && (
                                   <button
                                     className="text-[11px] text-green-600 underline"
                                     disabled={resolveAmbiguous.isPending}
                                     onClick={() => resolveAmbiguous.mutate({
-                                      jobId: a.jobId, attemptId: a.attemptId, decision: "published",
+                                      kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
+                                      attemptId: a.attemptId, decision: "published",
                                       igPostId: c.igPostId, operatorNote: "matched by operator",
                                     })}
                                   >This is the one — mark it live</button>
@@ -224,12 +243,13 @@ export default function ActionCenter() {
                               </div>
                             </div>
                           ))}
-                          {a.jobId && (
+                          {(a.jobId ?? a.scheduledPostId) && (
                             <button
                               className="text-[11px] text-muted-foreground underline"
                               disabled={resolveAmbiguous.isPending}
                               onClick={() => resolveAmbiguous.mutate({
-                                jobId: a.jobId, attemptId: a.attemptId, decision: "not_published",
+                                kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
+                                attemptId: a.attemptId, decision: "not_published",
                                 operatorNote: "operator confirmed none of the candidates match",
                               })}
                             >None of these — it never posted</button>
@@ -267,6 +287,19 @@ export default function ActionCenter() {
           {attention.isLoading ? (
             <div className="flex items-center justify-center py-10 text-muted-foreground text-sm gap-2">
               <Loader2 className="h-4 w-4 animate-spin" /> Checking what survived…
+            </div>
+          ) : attention.isError ? (
+            /* UNKNOWN IS NOT ZERO. Falling through to the empty state on a failed
+               query would tell the operator everything is fine at the exact moment
+               the system cannot see. */
+            <div className="text-center py-10 space-y-2">
+              <AlertTriangle className="h-10 w-10 text-amber-500/60 mx-auto" />
+              <p className="text-sm font-medium">Unable to determine system state</p>
+              <p className="text-xs text-muted-foreground/80 max-w-sm mx-auto">
+                {attention.error?.message ?? "The check failed."} This is NOT an all-clear —
+                there may be held or stuck reels that cannot be listed right now.
+              </p>
+              <Button size="sm" variant="outline" onClick={() => attention.refetch()}>Try again</Button>
             </div>
           ) : stuckCount === 0 ? (
             <div className="text-center py-10 space-y-2">

@@ -1,3 +1,4 @@
+import type { DB } from "../db";
 /**
  * What can actually still be done with a stuck reel job — and what it would cost.
  *
@@ -284,4 +285,42 @@ export async function probeUrl(url: string | null | undefined, timeoutMs = 10_00
   } catch {
     return { url, reachable: false };
   }
+}
+
+/**
+ * The ONE definition of "a reel job needs attention", so every screen agrees.
+ *
+ * HQ counted `status = "failed"` (61 rows in prod, going back to a leaked API key
+ * months ago) while the Action Center listed only non-terminal states and excluded
+ * failed entirely. HQ said 61, the Action Center said "nothing is stuck", and an
+ * operator seeing two screens disagree stops trusting both.
+ *
+ * `failed` IS actionable — it can be regenerated or closed — but only while it is
+ * still relevant. An ancient failure is history, not a task, so it is scoped to a
+ * window rather than counted forever.
+ */
+export const ATTENTION_STATUSES = [
+  "assembled", "publishing", "publish_ambiguous",
+  "queued", "generating", "assets_ready", "assembling", "repair_rendering",
+] as const;
+
+/** Failures older than this are history, not a to-do. */
+export const FAILED_ATTENTION_DAYS = 14;
+
+/** Rows every attention surface should consider, newest first. */
+export async function selectReelJobsNeedingAttention(database: DB, limit = 50) {
+  const { reelJobs } = await import("../../drizzle/schema");
+  const { inArray, desc, and, eq, gte, or } = await import("drizzle-orm");
+  const cutoff = new Date(Date.now() - FAILED_ATTENTION_DAYS * 24 * 60 * 60 * 1000);
+  return database
+    .select()
+    .from(reelJobs)
+    .where(
+      or(
+        inArray(reelJobs.status, [...ATTENTION_STATUSES]),
+        and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, cutoff)),
+      ),
+    )
+    .orderBy(desc(reelJobs.id))
+    .limit(limit);
 }

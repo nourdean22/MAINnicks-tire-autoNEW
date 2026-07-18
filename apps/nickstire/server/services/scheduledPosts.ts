@@ -85,7 +85,10 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
       // is unavailable: release the claim and leave the row pending rather than
       // publish unrecorded.
       const attemptId = await recordPublishAttempt({
-        inventoryId: null, platforms: row.platforms, mediaUrl: row.videoUrl ?? row.imageUrl ?? null,
+        kind: "scheduled_post",
+        scheduledPostId: row.id,
+        platforms: row.platforms,
+        mediaUrl: row.videoUrl ?? row.imageUrl ?? null,
       });
       if (!attemptId) {
         await database.update(scheduledPosts).set({ status: STATUS.pending })

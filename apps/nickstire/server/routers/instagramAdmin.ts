@@ -99,12 +99,23 @@ export const instagramAdminRouter = router({
     const meta = await getMetaSocialStatus();
 
     const database = await db();
-    let failedJobs = 0;
+    // Counts EXACTLY what the Action Center lists. This used to be every reel job
+    // with status "failed" — 61 in prod, most from a leaked API key months ago —
+    // while the Action Center showed none of them. Two screens disagreeing by 61
+    // is how an operator learns to ignore both.
+    let failedJobs: number | null = 0;
     if (database) {
-      const { reelJobs } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const result = await database.select().from(reelJobs).where(eq(reelJobs.status, "failed"));
-      failedJobs = result.length;
+      try {
+        const { selectReelJobsNeedingAttention } = await import("../services/reelRecoverability");
+        failedJobs = (await selectReelJobsNeedingAttention(database, 200)).length;
+      } catch (err) {
+        // null = UNKNOWN. Never 0 — "we could not look" must not render as
+        // "everything is fine".
+        log.warn("could not count reel jobs needing attention", err);
+        failedJobs = null;
+      }
+    } else {
+      failedJobs = null;
     }
 
     return {
