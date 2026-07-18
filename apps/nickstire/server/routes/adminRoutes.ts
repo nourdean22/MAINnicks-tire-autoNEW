@@ -283,6 +283,65 @@ export function registerAdminRoutes(app: Express): void {
   });
 
   // ─── Feature Flag REST API (admin key auth) ────────
+  /**
+   * Every reel job that is stuck, held, or ambiguous — with the SPECIFIC reason
+   * and only the actions its surviving artifacts actually support.
+   *
+   * This exists because three reels sat in status "assembled" for two days and
+   * nothing surfaced them. The gates added in #883/#885/#887 correctly refuse to
+   * publish unscored media, but a hold nobody can see is indistinguishable from a
+   * system that quietly stopped working.
+   *
+   * Actions come from MEASURED artifact reachability, never from status: all three
+   * of those jobs had a populated mp4Url and a 404 behind it, so an action list
+   * built on status would have offered Repair and Publish on empty jobs.
+   */
+  app.get("/api/admin/reel-jobs/attention", requireAdminApiKey, async (_req, res) => {
+    try {
+      const { db } = await import("../lib/db-helper");
+      const d = await db();
+      if (!d) { res.status(503).json({ error: "no database" }); return; }
+
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { inArray, desc } = await import("drizzle-orm");
+      // Non-terminal states only. "posted" is done; "failed" is already legible.
+      const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering"];
+      const rows = await d.select().from(reelJobs).where(inArray(reelJobs.status, ATTENTION)).orderBy(desc(reelJobs.id)).limit(50);
+
+      const { assessReelJob } = await import("../services/reelRecoverability");
+      const { evaluateReelPublishGate } = await import("../services/qualityGate");
+
+      const jobs = await Promise.all(
+        rows.map(async (job: typeof rows[number]) => {
+          // Only ask the gate about jobs far enough along to have a verdict;
+          // asking about a queued job would report "unavailable" and read as a
+          // defect rather than as "not there yet".
+          let gateReason: string | undefined;
+          if (job.status === "assembled") {
+            try {
+              const g = await evaluateReelPublishGate(job.id);
+              if (!g.allowed) gateReason = `${g.gate}: ${g.reason}`;
+            } catch (err) {
+              gateReason = `quality gate could not be evaluated: ${err instanceof Error ? err.message.slice(0, 160) : String(err)}`;
+            }
+          }
+          return assessReelJob(job, { gateReason });
+        }),
+      );
+
+      res.json({
+        count: jobs.length,
+        // Surfaced explicitly so the operator can see at a glance how much of the
+        // backlog is unrecoverable rather than merely blocked.
+        unrecoverable: jobs.filter((j) => j.recoverability === "brief_only" || j.recoverability === "unrecoverable").length,
+        jobs,
+      });
+    } catch (err) {
+      serverLog.error("reel-jobs/attention failed", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.get("/api/admin/flags", requireAdminApiKey, async (_req, res) => {
     const { getAllFlags } = await import("../services/featureFlags");
     res.json(await getAllFlags());
