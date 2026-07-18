@@ -155,10 +155,15 @@ async function startServer() {
   // Object storage is now tried FIRST, with local disk kept as a transitional
   // fallback for anything written before the bucket existed. The URL shape is
   // unchanged on purpose, so rows already storing these URLs stay valid.
-  app.get("/generated/:name", async (req, res, next) => {
+  // Wildcard, NOT ":name" — an object key may contain slashes ("reels/x.mp4"),
+  // and a named param stops at the first one, so prefixed keys silently fell
+  // through to a 404. Caught by fetching a real stored object over HTTP; the
+  // storage-layer round trip passed because it never went through this route.
+  app.get(/^\/generated\/(.+)$/, async (req, res, next) => {
     try {
+      const key = decodeURIComponent(req.params[0] as string);
       const { storageGetStream } = await import("../storage");
-      const obj = await storageGetStream(req.params.name);
+      const obj = await storageGetStream(key);
       if (obj) {
         if (obj.contentType) res.type(obj.contentType);
         if (obj.contentLength !== undefined) res.setHeader("Content-Length", String(obj.contentLength));
