@@ -1165,6 +1165,32 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "operator",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "the LIVE paid render (real pixels + a live vision-QA verdict) — needs the Higgsfield session + credits, an operator-gated spend",
+        "enable REEL_IMAGE_CONDITIONING + REEL_AUTO_VISUAL_WORLD after a paid --start-image verification"
+      ],
+      "capabilityId": "cc2-acceptance-campaign",
+      "name": "Creative Compiler 2.0 M13: deterministic full-chain acceptance (battery subject)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "server/cc2AcceptanceCampaign.test.ts runs the 690001 defect class through M3-M12 end-to-end; docs/execution/creative-compiler/CC2-FINAL-REPORT.md",
+        "tests": [
+          "server/cc2AcceptanceCampaign.test.ts (7): thesis preserves truth, critic cannot swap it, FTD913+logo neutralized, preflight blocks diagnostic-screen beat + passes clean, hero-frame continuity has no contradiction, workspace intent-vs-scene, pixel defect -> needs_operator_override"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "the LIVE paid render (Section 26 real pixels + live QA verdict) has NOT run — needs the Higgsfield session + credits (operator-gated spend). The compiler CHAIN is proven deterministically; the PIXELS are not.",
+          "source": "docs/execution/creative-compiler/CC2-FINAL-REPORT.md"
+        }
+      ]
     }
   ],
   "axes": {
