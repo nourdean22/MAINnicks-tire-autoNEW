@@ -887,8 +887,8 @@
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "0089_operator_quality_overrides migration is hand-applied and AWAITS operator authorization (writes to prod DB); until then createQualityOverride errors and the publish consume is a deploy-safe no-op",
+          "severity": "P2",
+          "description": "0089_operator_quality_overrides APPLIED to prod 2026-07-18 (17 cols verified) — the override store is LIVE: createQualityOverride works and the publish consume is active. Not yet exercised end-to-end on a real REPAIR-verdict publish.",
           "source": "scripts/apply-0089-operator-overrides.mts"
         },
         {
@@ -975,6 +975,33 @@
         {
           "severity": "P2",
           "description": "the compile runs on ALL paths incl. the autonomous cron path, but is only integration_verified (no live render observed) — exposure capped at operator_only until a live-verified render. M5 corrects/annotates; it does not yet TRANSFORM intent into a rewritten scene (M6) nor BLOCK a flagged beat at preflight (M10).",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "LLM-grade scene rewrites (Section 11 examples) beyond deterministic token removal",
+        "BLOCK a still-risky beat at preflight (M10) rather than only neutralize"
+      ],
+      "capabilityId": "zero-generated-lettering",
+      "name": "Creative Compiler 2.0 M6: deterministic zero-generated-lettering transform (690001 corpus)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "operator_only",
+      "evidence": {
+        "codeCommit": "transformToProviderSafeScene (brand/logo/quoted-label/reading/code removal) applied at Subject + prev-reference + continuity heroAnchor",
+        "tests": [
+          "client/src/__tests__/faceless-reel-studio.test.ts (47, +6): FTD913 code, 'MAX PRESS 44 PSI' quoted label, Nick's logo, 11.8V reading all neutralized; possessive apostrophe preserved (regression); wordless beat passes through",
+          "goldenCampaign + reelQualityGate + reelDirector + visualWorld + creativeGenome green (no regression)"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "deterministic REMOVAL + directive, not full LLM scene rewrite; runs on all paths incl. cron but integration_verified only (no live render observed) so exposure capped at operator_only",
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
