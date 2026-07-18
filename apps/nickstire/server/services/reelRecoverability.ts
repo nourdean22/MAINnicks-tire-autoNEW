@@ -189,6 +189,86 @@ export function classifyRecoverability(input: RecoverabilityInput): RecoveryAsse
   };
 }
 
+/** A reel job as the assessor needs it — the columns, nothing more. */
+export interface AssessableJob {
+  id: number;
+  status: string;
+  payload: string | null;
+  mp4Url: string | null;
+  clipUrlsJson: string | null;
+  voUrl: string | null;
+  musicUrl: string | null;
+  error: string | null;
+  updatedAt: Date | string | null;
+}
+
+export interface JobAssessment extends RecoveryAssessment {
+  jobId: number;
+  status: string;
+  /** Why the pipeline stopped here, in the operator's words — not a status code. */
+  holdReason: string;
+  lastError: string | null;
+  stalledHours: number | null;
+}
+
+/**
+ * Assess a single job by PROBING its artifacts, then classifying.
+ *
+ * Every URL is fetched (HEAD) rather than trusted, because a recorded URL only
+ * proves the pipeline once wrote one. The three jobs that prompted this all had a
+ * populated mp4Url and no file behind it.
+ */
+export async function assessReelJob(
+  job: AssessableJob,
+  opts: { gateReason?: string } = {},
+): Promise<JobAssessment> {
+  let clipUrls: string[] = [];
+  try {
+    const parsed = JSON.parse(job.clipUrlsJson ?? "[]");
+    if (Array.isArray(parsed)) clipUrls = parsed.filter((u): u is string => typeof u === "string");
+  } catch {
+    // A corrupt clip list means we cannot claim clips survive — treated as none,
+    // which is the conservative direction (offers regeneration, not re-assembly).
+  }
+
+  let hasBrief = false;
+  try {
+    const p = JSON.parse(job.payload ?? "{}") as { storyboardBeats?: unknown };
+    hasBrief = Array.isArray(p.storyboardBeats) && p.storyboardBeats.length > 0;
+  } catch { /* unparseable payload => no usable brief */ }
+
+  const [master, ...clips] = await Promise.all([
+    probeUrl(job.mp4Url),
+    ...clipUrls.map((u) => probeUrl(u)),
+  ]);
+  const [voiceover, music] = await Promise.all([probeUrl(job.voUrl), probeUrl(job.musicUrl)]);
+
+  const assessment = classifyRecoverability({
+    status: job.status,
+    master,
+    clips,
+    voiceover,
+    music,
+    hasBrief,
+  });
+
+  const updatedAt = job.updatedAt ? new Date(job.updatedAt).getTime() : null;
+  const stalledHours = updatedAt ? Math.round(((Date.now() - updatedAt) / 3_600_000) * 10) / 10 : null;
+
+  return {
+    ...assessment,
+    jobId: job.id,
+    status: job.status,
+    // The gate reason is the SPECIFIC answer to "why is this not published"; the
+    // recoverability explanation answers "what can still be done about it". A
+    // hold the operator cannot read the reason for is indistinguishable from the
+    // system having quietly stopped.
+    holdReason: opts.gateReason || assessment.explanation,
+    lastError: job.error,
+    stalledHours,
+  };
+}
+
 /**
  * HEAD a URL to see whether it still resolves.
  *
