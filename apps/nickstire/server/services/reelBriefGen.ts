@@ -331,26 +331,38 @@ function isEmptyVal(v: unknown): boolean {
 }
 
 /**
- * Merge the critic's rewrite onto the pre-critic brief, PRESERVING the protected
- * campaign-truth fields from the initial generation. A protected field the
- * initial gen actually produced is restored (the critic cannot change it); a
- * protected field the initial gen left empty falls back to the critic's value
- * (robustness — filling a gap is generation, not editing). Returns the effective
- * parsed object plus the list of protected fields the critic tried to change.
+ * Reconcile the critic's rewrite with the pre-critic brief, protecting the
+ * campaign-truth fields from the initial generation.
+ *
+ * If the critic changed a NON-EMPTY protected TRUTH field, its beats, voiceover
+ * and captions were composed around a DIFFERENT truth than the one we must keep —
+ * restoring only the truth STRING would leave the execution describing the wrong
+ * thing (e.g. battery truth stapled onto brake-focused beats, review-audit P1).
+ * So the whole critic rewrite is REJECTED and the internally-coherent initial
+ * brief is used: coherence outranks the critic's copy/flow polish.
+ *
+ * If the critic left every protected truth field intact (only empty gaps filled,
+ * or nothing changed), its improvements are accepted as-is. A protected field the
+ * initial gen left EMPTY is a gap-fill, not an edit, and does not trigger
+ * rejection. Returns the effective object, the protected fields the critic tried
+ * to change, and whether the critic rewrite was rejected wholesale.
  */
 export function applyCriticPreservingTruth(
   initialParsed: Record<string, unknown>,
   criticParsed: Record<string, unknown>,
-): { effective: Record<string, unknown>; preserved: string[] } {
-  const effective: Record<string, unknown> = { ...criticParsed };
+): { effective: Record<string, unknown>; preserved: string[]; rejectedCritic: boolean } {
   const preserved: string[] = [];
   for (const f of PROTECTED_BRIEF_FIELDS) {
     const initialVal = initialParsed[f];
-    if (isEmptyVal(initialVal)) continue;
+    if (isEmptyVal(initialVal)) continue; // empty initial → critic may gap-fill
     if (JSON.stringify(criticParsed[f]) !== JSON.stringify(initialVal)) preserved.push(f);
-    effective[f] = initialVal;
   }
-  return { effective, preserved };
+  if (preserved.length > 0) {
+    // Critic hijacked a protected truth field → discard its whole rewrite.
+    return { effective: { ...initialParsed }, preserved, rejectedCritic: true };
+  }
+  // Critic honored the truth → accept its copy/flow improvements verbatim.
+  return { effective: { ...criticParsed }, preserved, rejectedCritic: false };
 }
 
 export async function generateReelBriefAI(
@@ -488,9 +500,9 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
   // brief but RESTORE the protected campaign truth — the assembly below then uses
   // `parsed` unchanged (critic's improvements for copy/flow, initial's truth).
   const criticParsed = parseReelJson(refinedContent);
-  const { effective: parsed, preserved } = applyCriticPreservingTruth(initialParsed, criticParsed);
-  if (preserved.length) {
-    log.warn("critic rewrote protected campaign truth — restored pre-critic values (M9)", { preserved });
+  const { effective: parsed, preserved, rejectedCritic } = applyCriticPreservingTruth(initialParsed, criticParsed);
+  if (rejectedCritic) {
+    log.warn("critic rewrote protected campaign truth — REJECTED the whole critic rewrite, kept the coherent pre-critic brief (M9)", { changed: preserved });
   }
   const kw = coerceKeyword(str(parsed.campaignKeyword));
 
