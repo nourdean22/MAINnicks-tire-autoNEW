@@ -28,8 +28,9 @@ const critic = {
 };
 
 describe("applyCriticPreservingTruth", () => {
-  it("restores every protected field from the initial generation", () => {
-    const { effective, preserved } = applyCriticPreservingTruth(initial, critic);
+  it("REJECTS the whole critic rewrite when it hijacked a protected truth field (falls back to the coherent initial brief)", () => {
+    const { effective, preserved, rejectedCritic } = applyCriticPreservingTruth(initial, critic);
+    expect(rejectedCritic).toBe(true);
     expect(effective.mechanicTruth).toBe(initial.mechanicTruth);
     expect(effective.winningConceptId).toBe("c-battery-1");
     expect(effective.concepts).toEqual(initial.concepts);
@@ -38,13 +39,15 @@ describe("applyCriticPreservingTruth", () => {
     expect([...preserved].sort()).toEqual([...PROTECTED_BRIEF_FIELDS].sort());
   });
 
-  it("keeps the critic's improvements to NON-protected fields", () => {
+  it("DROPS the critic's non-protected copy too when it changed a protected truth field (coherence over polish)", () => {
+    // the critic's caption/angle were composed around a hijacked truth; a
+    // field-level restore would leave incoherent execution, so reject wholesale.
     const { effective } = applyCriticPreservingTruth(initial, critic);
-    expect(effective.selectedCaption).toBe("critic improved caption");
-    expect(effective.clevelandAngle).toBe("Euclid Ave winters, fact-checked");
+    expect(effective.selectedCaption).toBe("initial caption");
+    expect(effective.clevelandAngle).toBe("Euclid Ave winters");
   });
 
-  it("reports no preservation when the critic left the truth alone", () => {
+  it("keeps the critic's non-protected improvements when it left the truth intact", () => {
     const honest = {
       ...critic,
       mechanicTruth: initial.mechanicTruth,
@@ -53,12 +56,26 @@ describe("applyCriticPreservingTruth", () => {
       sourceNotes: initial.sourceNotes,
       usefulAbsurdity: initial.usefulAbsurdity,
     };
-    expect(applyCriticPreservingTruth(initial, honest).preserved).toEqual([]);
+    const { effective, preserved, rejectedCritic } = applyCriticPreservingTruth(initial, honest);
+    expect(rejectedCritic).toBe(false);
+    expect(preserved).toEqual([]);
+    expect(effective.selectedCaption).toBe("critic improved caption");
+    expect(effective.clevelandAngle).toBe("Euclid Ave winters, fact-checked");
   });
 
-  it("falls back to the critic's value when the initial gen left a field EMPTY (gap-fill, not edit)", () => {
-    const { effective, preserved } = applyCriticPreservingTruth({ ...initial, winningConceptId: "" }, critic);
-    expect(effective.winningConceptId).toBe("c-HIJACKED"); // initial empty → critic's value used
+  it("fills a gap from the critic when the initial left a protected field EMPTY and the critic honored the rest (no rejection)", () => {
+    const honestExceptGap = {
+      ...critic,
+      mechanicTruth: initial.mechanicTruth,
+      concepts: initial.concepts,
+      sourceNotes: initial.sourceNotes,
+      usefulAbsurdity: initial.usefulAbsurdity,
+      // winningConceptId stays "c-HIJACKED", but initial's is empty → gap-fill, not an edit
+    };
+    const { effective, preserved, rejectedCritic } = applyCriticPreservingTruth({ ...initial, winningConceptId: "" }, honestExceptGap);
+    expect(rejectedCritic).toBe(false);
+    expect(effective.winningConceptId).toBe("c-HIJACKED");
     expect(preserved).not.toContain("winningConceptId");
+    expect(effective.selectedCaption).toBe("critic improved caption");
   });
 });

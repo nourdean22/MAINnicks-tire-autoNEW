@@ -42,6 +42,11 @@ describe("referenceFrameVerdict (the pure anchor gate)", () => {
     expect(referenceFrameVerdict({ ...CLEAN, conditioningSuitable: false }).accept).toBe(false);
   });
 
+  it("REJECTS bad composition and low screen confidence (an anchor needs a positive clearance)", () => {
+    expect(referenceFrameVerdict({ ...CLEAN, compositionOk: false }).accept).toBe(false);
+    expect(referenceFrameVerdict({ ...CLEAN, confidence: 0.2 }).accept).toBe(false);
+  });
+
   it("collects every reason, not just the first", () => {
     const v = referenceFrameVerdict({ ...CLEAN, hasGeneratedText: true, hasHumanOrHands: true });
     expect(v.reasons.length).toBe(2);
@@ -67,6 +72,19 @@ describe("screenReferenceFrame (mocked vision)", () => {
     const out = await screenReferenceFrame("data:image/jpeg;base64,AAAA");
     expect(out?.hasGeneratedText).toBe(true);
     expect(out?.conditioningSuitable).toBe(false);
+  });
+
+  it("FAILS CLOSED on a partial/empty vision response (missing safety fields are not defaulted safe)", async () => {
+    // An empty JSON object from the model must NOT parse into a clean anchor —
+    // the positive-safety booleans require an explicit true (audit fail-open P2).
+    vi.doMock("./_core/llm", () => ({ invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: "{}" } }] }) }));
+    vi.resetModules();
+    const { screenReferenceFrame, referenceFrameVerdict: verdict } = await import("./services/referenceFrameScreen");
+    const out = await screenReferenceFrame("data:image/jpeg;base64,AAAA");
+    expect(out?.automotivePlausible).toBe(false);
+    expect(out?.conditioningSuitable).toBe(false);
+    expect(out?.compositionOk).toBe(false);
+    expect(verdict(out).accept).toBe(false);
   });
 
   it("returns null (never a fabricated pass) when the model fails", async () => {

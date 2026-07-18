@@ -67,9 +67,13 @@ export async function screenReferenceFrame(imageUrl: string): Promise<ReferenceF
       hasGeneratedText: !!p.hasGeneratedText,
       hasFakeLogo: !!p.hasFakeLogo,
       hasHumanOrHands: !!p.hasHumanOrHands,
-      automotivePlausible: p.automotivePlausible !== false,
-      compositionOk: p.compositionOk !== false,
-      conditioningSuitable: p.conditioningSuitable !== false,
+      // Fail CLOSED: a positive-safety field must be EXPLICITLY true. A missing/
+      // malformed field (undefined) → false → the verdict rejects the anchor.
+      // (Previously `!== false` defaulted a missing field to true, so an empty or
+      // partial analysis object silently passed as a clean anchor — audit P2.)
+      automotivePlausible: p.automotivePlausible === true,
+      compositionOk: p.compositionOk === true,
+      conditioningSuitable: p.conditioningSuitable === true,
       defects: p.defects ?? [],
       confidence: Math.max(0, Math.min(1, Number(p.confidence ?? 0))),
     };
@@ -103,6 +107,11 @@ export function referenceFrameVerdict(
   if (obs.hasFakeLogo) reasons.push("fake or mis-spelled logo in the anchor");
   if (obs.hasHumanOrHands) reasons.push("human/hands in the anchor (faceless violation)");
   if (!obs.automotivePlausible) reasons.push("not automotively plausible");
+  if (!obs.compositionOk) reasons.push("composition unsuitable for an anchor");
   if (!obs.conditioningSuitable) reasons.push("unsuitable as a conditioning anchor");
+  // Low screen confidence is not a positive clearance — an anchor poisons every
+  // beat, so a near-zero-confidence observation (incl. the empty-object case) is
+  // refused rather than accepted by default.
+  if (obs.confidence < 0.35) reasons.push(`screen confidence too low (${obs.confidence.toFixed(2)})`);
   return { accept: reasons.length === 0, reasons };
 }
