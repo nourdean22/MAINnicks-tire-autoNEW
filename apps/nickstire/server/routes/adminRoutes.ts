@@ -108,19 +108,22 @@ export function registerAdminRoutes(app: Express): void {
       if (action === "start") {
         const topic = (typeof req.body?.topic === "string" && req.body.topic.trim())
           || "The pothole that has been quietly eating Cleveland tires all winter";
-        const { generateReelBriefAI } = await import("../services/reelBriefGen");
-        const { attachAutonomousVisualWorld } = await import("../services/visualWorld");
-        const { buildHiggsfieldReelPromptPack, resolveConditioningMode } = await import("../../client/src/lib/facelessReelStudio");
+        const maxAttempts = Number.isInteger(req.body?.maxAttempts)
+          ? Math.min(6, Math.max(1, req.body.maxAttempts))
+          : 4;
+        const { prepareCleanReelBrief } = await import("../services/reelDraftPrep");
+        const { resolveConditioningMode } = await import("../../client/src/lib/facelessReelStudio");
         const { enqueueReelJob } = await import("../services/reelPipeline");
 
-        const { brief } = await generateReelBriefAI({ topic });
+        // Regenerates internally on an M10 preflight block (in-frame-text /
+        // free-claim), so callers no longer loop start themselves.
+        const { brief, attempts, rejectedForPreflight } = await prepareCleanReelBrief({ topic }, { maxAttempts });
         brief.id = `canary-${Date.now()}`;
-        await attachAutonomousVisualWorld(brief);
-        brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
         const conditioningMode = resolveConditioningMode(brief);
         const { jobId: newJobId } = await enqueueReelJob(brief, "admin");
         res.json({
-          ok: true, action, jobId: newJobId, conditioningMode,
+          ok: true, action, jobId: newJobId, conditioningMode, attempts,
+          preflightRejections: rejectedForPreflight.length,
           topic: brief.topic,
           hook: brief.captionHooks?.[0] ?? brief.mechanicTruth ?? null,
           caption: brief.selectedCaption ?? null,
