@@ -176,6 +176,18 @@ export async function attachAutonomousVisualWorld(brief: ReelBrief): Promise<Ree
       log.warn("autonomous visual world skipped — no candidate frame", { briefId: brief.id });
       return brief;
     }
+    // M7: if the frame WILL be used as an image-conditioning anchor, screen the
+    // ACTUAL pixels first — a defective anchor (garbled text / fake logo / hands)
+    // propagates to every beat (audit #11). Only screen when conditioning is on
+    // (a paid vision call); a failed/unavailable screen falls back to text-only.
+    if (process.env.REEL_IMAGE_CONDITIONING === "true") {
+      const { screenReferenceFrame, referenceFrameVerdict } = await import("./referenceFrameScreen");
+      const verdict = referenceFrameVerdict(await screenReferenceFrame(candidate.url), { requireScreen: true });
+      if (!verdict.accept) {
+        log.warn("autonomous visual world rejected — defective anchor; reel proceeds text-only", { briefId: brief.id, reasons: verdict.reasons });
+        return brief;
+      }
+    }
     brief.visualWorld = visualWorldFromCandidate(candidate);
     log.info("autonomous visual world attached", { briefId: brief.id, style: candidate.style });
     return brief;

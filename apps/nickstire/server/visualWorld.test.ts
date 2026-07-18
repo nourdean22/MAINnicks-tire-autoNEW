@@ -132,9 +132,45 @@ describe("generateReferenceFrames", () => {
 // default OFF (zero cost until enabled), non-fatal on failure.
 describe("attachAutonomousVisualWorld", () => {
   const prevFlag = process.env.REEL_AUTO_VISUAL_WORLD;
+  const prevCond = process.env.REEL_IMAGE_CONDITIONING;
   afterEach(() => {
     if (prevFlag === undefined) delete process.env.REEL_AUTO_VISUAL_WORLD;
     else process.env.REEL_AUTO_VISUAL_WORLD = prevFlag;
+    if (prevCond === undefined) delete process.env.REEL_IMAGE_CONDITIONING;
+    else process.env.REEL_IMAGE_CONDITIONING = prevCond;
+    vi.doUnmock("./services/referenceFrameScreen");
+  });
+
+  it("M7: with image conditioning ON, a REJECTED anchor screen falls back to text-only", async () => {
+    process.env.REEL_AUTO_VISUAL_WORLD = "true";
+    process.env.REEL_IMAGE_CONDITIONING = "true";
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateCarouselSlideImage: vi.fn().mockResolvedValue("https://img.test/safe.jpg") }));
+    vi.doMock("./services/referenceFrameScreen", () => ({
+      screenReferenceFrame: vi.fn().mockResolvedValue({ hasGeneratedText: true }),
+      referenceFrameVerdict: vi.fn().mockReturnValue({ accept: false, reasons: ["generated text in the anchor"] }),
+    }));
+    vi.resetModules();
+    const { attachAutonomousVisualWorld } = await import("./services/visualWorld");
+    const b = structuredClone(brief);
+    delete b.visualWorld;
+    const out = await attachAutonomousVisualWorld(b);
+    expect(out.visualWorld).toBeUndefined(); // defective anchor rejected → text-only
+  });
+
+  it("M7: with image conditioning ON, an ACCEPTED anchor screen attaches the world", async () => {
+    process.env.REEL_AUTO_VISUAL_WORLD = "true";
+    process.env.REEL_IMAGE_CONDITIONING = "true";
+    vi.doMock("./services/higgsfieldStudio", () => ({ generateCarouselSlideImage: vi.fn().mockResolvedValue("https://img.test/safe.jpg") }));
+    vi.doMock("./services/referenceFrameScreen", () => ({
+      screenReferenceFrame: vi.fn().mockResolvedValue({ conditioningSuitable: true }),
+      referenceFrameVerdict: vi.fn().mockReturnValue({ accept: true, reasons: [] }),
+    }));
+    vi.resetModules();
+    const { attachAutonomousVisualWorld } = await import("./services/visualWorld");
+    const b = structuredClone(brief);
+    delete b.visualWorld;
+    const out = await attachAutonomousVisualWorld(b);
+    expect(out.visualWorld?.style).toBe("safe");
   });
 
   it("is a no-op with zero generation calls when the flag is OFF", async () => {

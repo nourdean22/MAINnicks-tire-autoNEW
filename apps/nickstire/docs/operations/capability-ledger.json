@@ -1005,6 +1005,33 @@
           "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
         }
       ]
+    },
+    {
+      "owner": "system",
+      "lastVerifiedAt": "2026-07-18",
+      "deferredScope": [
+        "operator-facing surfacing of the screen verdict in Studio (M12)",
+        "screen the operator-selected frame + rank candidates by screen score"
+      ],
+      "capabilityId": "pregeneration-visual-bible",
+      "name": "Creative Compiler 2.0 M7: pre-generation anchor screen (defect-audit before conditioning)",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "referenceFrameScreen.ts (screenReferenceFrame vision QA + referenceFrameVerdict gate) wired into attachAutonomousVisualWorld, screening only when REEL_IMAGE_CONDITIONING is on",
+        "tests": [
+          "server/referenceFrameScreen.test.ts (9): verdict rejects generated-text/fake-logo/hands/unsuitable, null-screen conservative; screenReferenceFrame parses + returns null on failure",
+          "server/visualWorld.test.ts (14, +2): a rejected anchor screen falls back to text-only; an accepted screen attaches the world"
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "gates only the AUTONOMOUS anchor and only when REEL_IMAGE_CONDITIONING is on (both flags OFF in prod, so effectively disabled); the operator Studio path does not yet surface the screen verdict (M12). Not exercised on a live paid vision call.",
+          "source": "docs/execution/creative-compiler/PIPELINE-ARCHAEOLOGY.md"
+        }
+      ]
     }
   ],
   "axes": {
