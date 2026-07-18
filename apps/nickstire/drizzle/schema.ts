@@ -1,4 +1,4 @@
-import { int, tinyint, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
+import { int, tinyint, bigint, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -3139,7 +3139,13 @@ export const reelJobs = mysqlTable("reel_jobs", {
   id: int("id").autoincrement().primaryKey(),
   briefId: varchar("briefId", { length: 64 }).notNull(),
   /** Full ReelBrief as JSON (the generation input). */
-  payload: text("payload").notNull(),
+  // MEDIUMTEXT (16MB), not TEXT (64KB): the Creative Compiler 2.0 prompt pack
+  // repeats the locked visual-continuity invariants + continuity block per beat,
+  // pushing the serialized brief past 64KB on richer briefs. A TEXT column threw
+  // "Data too long" and intermittently failed enqueue (leaking a governor
+  // reservation). Widened after the live-render drive hit it at ~70KB (job
+  // 720002 chain). See drizzle/0090_reel_jobs_payload_mediumtext.sql.
+  payload: mediumtext("payload").notNull(),
   /** queued | generating | assets_ready | assembling | uploading | publishing | posted | failed */
   status: varchar("status", { length: 20 }).default("queued").notNull(),
   /** JSON array of re-hosted source clip URLs, one per storyboard beat. */

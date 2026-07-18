@@ -45,18 +45,58 @@ contradiction); the workspace exposes creative intent vs the provider-safe scene
 a rendered pixel defect routes to `needs_operator_override` (the M1 override
 satisfies it). **7/7 green, deterministic, zero spend.**
 
-## What remains UNPROVEN (honest)
+## Section 28 — Live-render acceptance (DONE 2026-07-18)
 
-- **The live paid render.** Section 26's real acceptance — actual pixels from a
-  paid Higgsfield generation + a live vision-QA verdict — has NOT run. It needs
-  the Higgsfield session + credits and is an operator-gated spend. The compiler
-  CHAIN is proven deterministically; the PIXELS are not.
-- **Image conditioning** (`REEL_IMAGE_CONDITIONING`) and the **autonomous visual
-  world** (`REEL_AUTO_VISUAL_WORLD`) remain flag-OFF pending a paid `--start-image`
-  verification render.
+The live paid render ran end-to-end and **posted a defect-free reel**:
+
+- **[instagram.com/reel/Da6vIDnCW05](https://www.instagram.com/reel/Da6vIDnCW05/)**
+  — IG post `18103230203134531`, reel_jobs id `720002`, topic "Hidden Pothole
+  Damage in Cleveland". 1080×1920, 21.0s, H.264 + AAC (VO + music).
+- **M11 rendered-QA verdict: `approve` / publishGate `proceed`** — real vision
+  critic, 8 frames evaluated, **0 findings**. Confirmed by frame-by-frame human
+  review: perfectly-spelled gold-on-black caption overlays (hook, mid, CTA
+  "SAVE THIS | DM POTHOLE"), no garbled text, no faces/hands, no misspelled
+  brand — the entire 690001 defect class is gone on real pixels.
+- Driven headlessly via `POST /api/admin/reel-canary` (start → advance → qa →
+  publish), which enforces the M11 gate BEFORE publish (the tRPC canary skips
+  it). Publish was `forced:false` — a clean, un-overridden proceed.
+
+Three real defects the deterministic suite could never catch surfaced only under
+the live drive, each now fixed or precisely scoped:
+
+1. **Image conditioning is broken — CONFIRMED, flag stays OFF.** With
+   `REEL_IMAGE_CONDITIONING=true`, the Higgsfield CLI rejected the hero-frame
+   `--start-image`: *"Media \"https://…/hf_….png\" is neither a UUID nor an
+   existing file path."* The pipeline passes the frame's public URL, but the CLI
+   only accepts a Higgsfield **media UUID** or a **local file path**. There is no
+   Higgsfield image-upload→UUID path in the codebase yet. **Fix (follow-up):**
+   upload the hero frame to Higgsfield (or stage a local file) and pass the UUID.
+   Until then `REEL_IMAGE_CONDITIONING` is OFF; the reel above rendered
+   text-to-video with `REEL_AUTO_VISUAL_WORLD` still supplying text continuity.
+2. **`reel_jobs.payload` was TEXT (64KB) — FIXED.** CC2 prompt packs reach ~70KB
+   (measured 69,599 bytes), overflowing TEXT and failing enqueue AFTER reserving
+   a governor slot (leaking the reservation; on the daily path, silently dropping
+   the reel). Widened to MEDIUMTEXT — `drizzle/0090_reel_jobs_payload_mediumtext.sql`
+   + schema.ts.
+3. **Content-governor caps are load-bearing (working as designed).** Feed cap
+   2/day, 3h spacing, 72h CTA / 7-day topic repeat windows correctly blocked
+   retries; the block cleared once the orphaned reservations from the failed
+   attempts above were released.
+
+## What remains UNPROVEN / follow-up
+
+- **Image conditioning UUID upload** — see finding 1 above. The autonomous visual
+  world (`REEL_AUTO_VISUAL_WORLD`) is ON and supplies text continuity; the
+  `--start-image` anchor stays OFF until the hero frame is uploaded to Higgsfield.
+- **Preflight-block on the autonomous daily path.** `generateReelBriefAI` is
+  non-deterministic and a brief that trips the M10 preflight (in-frame-text /
+  free-claim) blocks that run. The canary retries; the daily cron generates once,
+  so a bad brief silently costs the day's reel. A bounded regenerate-on-block loop
+  in the enqueue path would close this (helps daily + canary alike).
 - **Mandatory override at publish** (M11-continued) needs the QA decision
   persisted so the publish path can read it; today the gate is computed at the QA
-  endpoint, not enforced at publish.
+  endpoint (and now re-computed at the reel-canary publish action), not enforced
+  at the primary publish door.
 - **Draft workspace React UI** — the data contract is built; the presentation
   layer is not.
 - Most CC2 capabilities are `integration_verified` / `operator_only`, not
