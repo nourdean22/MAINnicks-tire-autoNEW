@@ -25,6 +25,7 @@ import {
   transformToProviderSafeScene,
   resolveConditioningMode,
   runReelPreflight,
+  buildDraftWorkspace,
   validateBeatCount,
   validateReelLengthTarget,
   validateMutedFirstClarity,
@@ -416,6 +417,29 @@ describe("transformToProviderSafeScene", () => {
 
 // Milestone 8: the compiler must pick ONE continuity strategy — never emit
 // "start from the shared hero frame" AND "continue from the previous clip".
+// Milestone 12: the operator-facing draft workspace, derived from the brief.
+describe("buildDraftWorkspace", () => {
+  it("surfaces truth, execution (intent vs provider scene), preflight, and prompts", () => {
+    const w = buildDraftWorkspace(sample());
+    expect(w.truth.mechanicTruth).toBe(sample().mechanicTruth);
+    expect(w.truth.evidence.length).toBeGreaterThanOrEqual(0);
+    expect(w.execution.conditioningMode).toBe("text_only"); // sample has no visual world
+    expect(w.execution.beats.length).toBe(sample().storyboardBeats.length);
+    // creative intent is the raw visual; the provider scene is the compiled Subject
+    expect(w.execution.beats[0].intent).toBe(sample().storyboardBeats[0].visual);
+    expect(w.execution.beats[0].providerScene).not.toContain("MAX PRESS 44 PSI"); // M6 neutralized in the scene
+    expect(w.preflight.status).toBe("pass");
+    expect(w.generation.length).toBe(sample().storyboardBeats.length);
+    expect(w.generation[0].prompt).toContain("Subject:");
+  });
+
+  it("reports hero_image mode + no scene leak when a visual world is attached", () => {
+    const withHero = { ...sample(), visualWorld: { style: "safe" as const, heroFrameUrl: "https://img.test/hero.jpg", framePrompt: "fp", lockedInvariants: "operator-approved reference frame locked" } };
+    const w = buildDraftWorkspace(withHero);
+    expect(w.execution.conditioningMode).toBe("hero_image");
+  });
+});
+
 // Milestone 10: one deterministic gate before any paid generation.
 describe("runReelPreflight", () => {
   it("passes a valid sample brief (warnings allowed, zero blocks)", () => {

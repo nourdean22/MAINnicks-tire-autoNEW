@@ -888,6 +888,58 @@ function runReelSafety(brief: ReelBrief): PreflightFinding[] {
   });
 }
 
+// ─── Draft workspace (Creative Compiler 2.0 Milestone 12) ──────
+
+export interface DraftWorkspaceView {
+  truth: { topic: string; mechanicTruth: string; driverConfusion: string; clevelandAngle: string; evidence: string[] };
+  concepts: { count: number; winningConceptId: string | null; usefulAbsurdity: string };
+  execution: {
+    conditioningMode: ConditioningMode;
+    beats: Array<{ beatNumber: number; intent: string; onScreenText: string; providerScene: string; sceneStatus: "clean" | "corrected"; sceneFindings: string[] }>;
+  };
+  preflight: PreflightReport;
+  generation: Array<{ beatNumber: number; prompt: string; negativePrompt: string }>;
+}
+
+/**
+ * Assemble the operator-facing draft workspace (Section 23): the compiler's own
+ * output made inspectable — Truth, Concepts, Execution (creative INTENT vs the
+ * provider-safe SCENE the generator actually gets), the deterministic Preflight
+ * verdict, and the exact compiled prompts. Pure — derived from the brief + the
+ * compiler functions, so the view can never drift from what will be generated.
+ */
+export function buildDraftWorkspace(brief: ReelBrief): DraftWorkspaceView {
+  const pack = buildHiggsfieldReelPromptPack(brief);
+  const subjectOf = (prompt: string) => prompt.split("\n").find((l) => l.startsWith("Subject:"))?.replace(/^Subject:\s*/, "") ?? "";
+  return {
+    truth: {
+      topic: brief.topic,
+      mechanicTruth: brief.mechanicTruth,
+      driverConfusion: brief.driverConfusion,
+      clevelandAngle: brief.clevelandAngle,
+      evidence: brief.sourceNotes.filter((s) => s.kind === "proof").map((s) => s.label),
+    },
+    concepts: {
+      count: brief.concepts.length,
+      winningConceptId: brief.winningConceptId ?? null,
+      usefulAbsurdity: brief.usefulAbsurdity,
+    },
+    execution: {
+      conditioningMode: resolveConditioningMode(brief),
+      beats: brief.storyboardBeats.map((b, i) => ({
+        beatNumber: b.beatNumber,
+        intent: b.visual,
+        onScreenText: b.onScreenText,
+        providerScene: subjectOf(pack[i]?.prompt ?? ""),
+        sceneStatus: pack[i]?.sceneStatus ?? "clean",
+        sceneFindings: pack[i]?.sceneFindings ?? [],
+      })),
+    },
+    preflight: runReelPreflight(brief),
+    generation: pack.map((p) => ({ beatNumber: p.beatNumber, prompt: p.prompt, negativePrompt: p.negativePrompt })),
+  };
+}
+
 // ─── Repetition / content-memory checks (manual import in V1) ──────
 
 export function buildRepetitionChecks(
