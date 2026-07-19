@@ -54,8 +54,8 @@ const TOPBAR_ACTIONS: TopbarAction[] = [
 ];
 
 const ROLE_SECTIONS: Record<AdminRole, readonly AdminSection[]> = {
-  owner: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
-  manager: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
+  owner: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
+  manager: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
   front_desk: ["overview", "customers", "leads", "tireOrders", "voiceReceptionist", "callTrackingView"],
   tech: ["overview", "customers", "tireOrders"],
   accountant: ["overview", "revenue", "memberships", "opsHub", "trafficFunnel"],
@@ -75,7 +75,7 @@ const ROLE_SECTIONS: Record<AdminRole, readonly AdminSection[]> = {
  */
 function getBadgeCount(id: string, stats: any, counts: AdminActionableCounts, opsTotal: number): number {
   if (id === "overview") return counts.total + opsTotal;
-  if (id === "growth") return opsTotal;
+  if (id === "instagram") return opsTotal;
   if (id === "leads") return counts.newLeads;
   if (id === "tireOrders") return stats?.tires?.new ?? 0;
   if (id === "memberships") return stats?.memberships?.warning ?? 0;
