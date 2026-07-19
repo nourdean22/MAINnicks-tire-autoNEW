@@ -188,7 +188,10 @@ export async function authorize(action: AutonomyActionContext, campaignId?: stri
 export async function assertAllowed(action: AutonomyActionContext, campaignId?: string | null): Promise<PolicyDecision> {
   const decision = await authorize(action, campaignId);
   if (decision.decision === "DENY") {
-    throw new Error(`Blocked by autonomy policy v${decision.policyVersion}: ${decision.reasoningCodes.join(", ")}`);
+    // Same refusal as enforceAtBoundary's, so it carries the same type. Two
+    // ways to say no that only one of them could be recognised from is how a
+    // classifier ends up silently covering half its cases.
+    throw new AutonomyDenial(decision.reasoningCodes, decision.policyVersion, "unspecified");
   }
   return decision;
 }
@@ -259,6 +262,42 @@ export interface BoundaryActorContext {
  * - Policy infrastructure failure: operator paths proceed LOUD (break-glass
  *   posture, warn-logged); cron/autonomous paths FAIL CLOSED.
  */
+/**
+ * The policy said NO. A refusal, not a breakage.
+ *
+ * That distinction is the entire point of the operator action log: "the system
+ * keeps refusing because I hit the daily cap" and "the system keeps breaking"
+ * demand completely different responses, and only one of them is a bug.
+ *
+ * It used to throw a plain Error, so the only way to recognise it was to regex
+ * its message — and content.ts's regex (/preflight blocked|governor|budget|
+ * spend|cap|cooldown/i) matched NONE of the words in "Blocked by autonomy policy
+ * v3: kill_switch_all". Every kill-switch and operating-mode denial was
+ * therefore recorded as a FAILURE, which is the exact defect #914 removed from
+ * this codebase and which came back through a different door.
+ *
+ * A type cannot be matched by accident and cannot drift when a message is
+ * reworded. Mirrors GovernorDenial in contentGovernor.ts, deliberately: two
+ * refusal sources with one shape.
+ */
+export class AutonomyDenial extends Error {
+  constructor(
+    public readonly codes: string[],
+    public readonly policyVersion: number,
+    /** Absent when the caller did not identify an actor (assertAllowed). */
+    public readonly actorType?: string,
+  ) {
+    // The message PREFIX is load-bearing: three existing call sites in
+    // content.ts match on startsWith("Blocked by autonomy policy"). Keeping it
+    // byte-identical means adding the type breaks nothing while it is adopted.
+    super(
+      `Blocked by autonomy policy v${policyVersion}: ${codes.join(", ")}`
+      + (actorType ? ` (actor: ${actorType})` : ""),
+    );
+    this.name = "AutonomyDenial";
+  }
+}
+
 export async function enforceAtBoundary(
   action: AutonomyActionContext,
   actor: BoundaryActorContext,
@@ -289,9 +328,7 @@ export async function enforceAtBoundary(
     campaignId,
   });
   if (outcome === "blocked") {
-    throw new Error(
-      `Blocked by autonomy policy v${decision.policyVersion}: ${decision.reasoningCodes.join(", ")} (actor: ${actor.type})`,
-    );
+    throw new AutonomyDenial(decision.reasoningCodes, decision.policyVersion, actor.type);
   }
 }
 

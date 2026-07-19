@@ -98,11 +98,34 @@ describe("the evidence chain", () => {
     expect(chain[1].what).toMatch(/carousel/);
   });
 
-  it("survives an unreadable chain instead of losing the run", async () => {
+  /**
+   * CHANGED DELIBERATELY. This previously asserted that an unreadable chain was
+   * REPLACED by a fresh single-entry one — which turns a recoverable corruption
+   * into permanent loss, silently, at exactly the moment someone would want to
+   * inspect what went wrong.
+   *
+   * The run must still advance (its other columns are independent facts), but
+   * the bytes we could not parse are left exactly as they are. Dropping one new
+   * evidence entry loses less than destroying every old one.
+   */
+  it("PRESERVES an unreadable chain rather than overwriting it", async () => {
     row = { ...row, evidenceJson: "{not json" };
-    const ok = await advanceContentRun("run_1", { evidence: { at: "t2", what: "recovered" } });
+    const ok = await advanceContentRun("run_1", {
+      stage: RUN_STAGE.qa,
+      evidence: { at: "t2", what: "recovered" },
+    });
+    // The advance still succeeds — the stage is a separate fact from the chain.
     expect(ok).toBe(true);
-    expect(JSON.parse(String(updates[0].evidenceJson))).toHaveLength(1);
+    expect(updates[0].stage).toBe(RUN_STAGE.qa);
+    // ...and it does NOT touch evidenceJson, so the corrupt value survives for
+    // inspection instead of being replaced by a one-line chain.
+    expect(updates[0].evidenceJson).toBeUndefined();
+  });
+
+  it("still records other columns when the chain cannot be read", async () => {
+    row = { ...row, evidenceJson: "[[[", costCents: 100 };
+    await advanceContentRun("run_1", { addCostCents: 50 });
+    expect(updates[0].costCents).toBe(150);
   });
 });
 
