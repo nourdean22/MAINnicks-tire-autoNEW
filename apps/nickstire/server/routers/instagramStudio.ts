@@ -19,6 +19,7 @@ import {
 } from "../services/instagramStudio";
 import { captionClaimBlockers, publishToSocial } from "../services/socialPublish";
 import { IG_CAPTION_MAX } from "./instagramAdmin";
+import type { AutonomyPolicy } from "../../client/src/lib/autonomyPolicy";
 
 const sourceSchema = z.object({
   type: z.enum(INSTAGRAM_SOURCE_TYPES),
@@ -154,6 +155,75 @@ function assertPublishable(draft: InstagramStudioDraft): void {
   }
 }
 
+/**
+ * The static path's policy boundary — the same one the reel path has had since
+ * #815 (reelPipeline.ts:172), applied to the format the operator uses most.
+ *
+ * Static posts previously reached the model and the renderer with NO kill-switch
+ * check, NO operating-mode check, NO budget accounting and NO audit event. The
+ * emergency stop therefore did not stop everything, and the daily spend the
+ * Control tab displays did not count a single static generation.
+ *
+ * Actor is always `operator` here: every procedure in this router is an
+ * adminProcedure, driven by a tap. That matters — enforceAtBoundary lets an
+ * operator proceed LOUDLY when policy storage is unreachable, while automated
+ * actors fail closed. Claiming to be cron would silently lock the operator out
+ * of their own studio during an outage.
+ */
+async function enforceStudioBoundary(
+  type: "generate_campaign" | "enqueue_render",
+  format: string,
+  operatorId?: string | number | null,
+): Promise<void> {
+  /**
+   * The Studio's formats and the POLICY's formats are different vocabularies,
+   * and the policy is the one with the permission rules attached. Mapped
+   * explicitly and type-checked against the policy's own key set, because a
+   * cast here silently disables format permissions: an unrecognised key matches
+   * no rule, so `ad` — the only format that can spend paid media — would sail
+   * past the paidAd permission entirely.
+   */
+  const POLICY_FORMAT = {
+    post: "photo",
+    photo: "photo",
+    carousel: "carousel",
+    story: "story",
+    ad: "paidAd",
+    reel: "reel",
+  } satisfies Record<string, keyof AutonomyPolicy["formatPermissions"]>;
+  const policyFormat = (POLICY_FORMAT as Record<string, keyof AutonomyPolicy["formatPermissions"]>)[format];
+  if (!policyFormat) {
+    // An unmapped format must not proceed ungoverned. Failing here is loud and
+    // fixable; passing an unknown key would be silent and permanent.
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Format "${format}" has no autonomy-policy equivalent, so it cannot be governed. Add it to POLICY_FORMAT before using it.`,
+    });
+  }
+
+  const { enforceAtBoundary } = await import("../services/autonomyControl");
+  const { COST_ESTIMATES_USD } = await import("../services/generationLedger");
+  const { dailySpendUsd } = await import("../services/generationLedger");
+
+  // A budget check that cannot read today's spend must not invent a zero — that
+  // would report the day as untouched and let every limit pass. Left undefined,
+  // the policy engine treats the counter as unmeasured rather than as empty.
+  const spendToday = await dailySpendUsd();
+
+  await enforceAtBoundary(
+    {
+      type,
+      format: policyFormat,
+      platform: "instagram",
+      estimatedCostUsd: type === "generate_campaign"
+        ? COST_ESTIMATES_USD.gemini_brief
+        : COST_ESTIMATES_USD.gpt_image_2,
+      ...(spendToday !== null ? { today: { generationCostUsd: spendToday } } : {}),
+    },
+    { type: "operator", id: String(operatorId ?? "admin") },
+  );
+}
+
 async function loadInventoryDraft(id: string) {
   const database = await dbTyped();
   if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -174,6 +244,22 @@ export const instagramStudioRouter = router({
       operatorDirection: z.string().trim().max(2000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      /**
+       * THE STATIC PATH HAD NO GATE AT ALL.
+       *
+       * reelPipeline.ts:172 and selectiveRepair.ts:131 both pass through
+       * enforceAtBoundary, so the reel path honours the kill switch, the
+       * operating mode, the daily generation budget, and writes an audit event.
+       * Static posts — the format the operator uses most — reached the model and
+       * the renderer with none of that.
+       *
+       * That is not a missing nicety. It means the emergency stop did not stop
+       * everything: an operator who hit the kill switch would still have been
+       * able to spend on posts, and the daily budget the Control tab shows would
+       * not have counted a single one of them. A limit that covers one of two
+       * paths is not a limit, it is a description of one path.
+       */
+      await enforceStudioBoundary("generate_campaign", input.format, ctx.user?.id);
       const draft = await generateInstagramStudioDraft(input);
       // Open a content run so the four separate operator actions
       // (generate -> evaluate -> render -> stage) become ONE traceable thing.
@@ -225,7 +311,12 @@ export const instagramStudioRouter = router({
 
   render: adminProcedure
     .input(draftSchema.extend({ runId: z.string().max(64).optional() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Rendering is the step that actually spends on images, so it carries its
+      // own gate rather than trusting that generate ran one — the Queue can
+      // re-render a stored draft without generate ever being called in this
+      // session, and a gate you can reach around is not a gate.
+      await enforceStudioBoundary("enqueue_render", input.format, ctx.user?.id);
       const evaluated = {
         ...input,
         quality: evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() }),
