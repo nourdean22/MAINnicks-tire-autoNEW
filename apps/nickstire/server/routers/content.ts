@@ -2487,4 +2487,40 @@ export const contentAdminRouter = router({
 
       return { ok: true, supersededJobId: input.jobId, newJobId };
     }),
+  /** What happened to one request, start to finish — the run's own story. */
+  getContentRun: adminProcedure
+    .input(z.object({ runId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const { getContentRun } = await import("../services/contentRun");
+      const run = await getContentRun(input.runId);
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "No such content run." });
+      return run;
+    }),
+
+  /** Recent runs — the operator's own history of what they asked for. */
+  recentContentRuns: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).optional() }).optional())
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) return { runs: [] };
+      const { contentRuns } = await import("../../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      const rows = await d.select().from(contentRuns).orderBy(desc(contentRuns.createdAt)).limit(input?.limit ?? 20);
+      return {
+        runs: rows.map((r: typeof rows[number]) => ({
+          id: r.id,
+          createdAt: r.createdAt,
+          requestedFormat: r.requestedFormat,
+          chosenFormat: r.chosenFormat,
+          stage: r.stage,
+          implementationState: r.implementationState,
+          operationalState: r.operationalState,
+          costCents: r.costCents,
+          inventoryId: r.inventoryId,
+          // Stated once, server-side, so no screen re-derives it and gets it wrong.
+          isProvenPublished: r.operationalState === "published",
+        })),
+      };
+    }),
 });

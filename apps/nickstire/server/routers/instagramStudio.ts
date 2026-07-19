@@ -173,7 +173,34 @@ export const instagramStudioRouter = router({
       objective: z.enum(INSTAGRAM_OBJECTIVES),
       operatorDirection: z.string().trim().max(2000).optional(),
     }))
-    .mutation(async ({ input }) => generateInstagramStudioDraft(input)),
+    .mutation(async ({ input, ctx }) => {
+      const draft = await generateInstagramStudioDraft(input);
+      // Open a content run so the four separate operator actions
+      // (generate -> evaluate -> render -> stage) become ONE traceable thing.
+      // Recording is additive and MUST NOT be able to break generation: the draft
+      // is already made and paid for by the time we get here, so a null runId
+      // degrades to today's behaviour rather than losing the work.
+      const { createContentRun, advanceContentRun, RUN_STAGE, IMPLEMENTATION_STATE } =
+        await import("../services/contentRun");
+      const runId = await createContentRun({
+        requestedBy: String(ctx.user?.id ?? ""),
+        requestSource: "operator",
+        requestedTopic: input.operatorDirection ?? null,
+        requestedFormat: input.format,
+      });
+      if (runId) {
+        await advanceContentRun(runId, {
+          stage: RUN_STAGE.generating,
+          implementationState: IMPLEMENTATION_STATE.pending,
+          chosenFormat: input.format,
+          formatReason: "Operator chose this format directly.",
+          objective: input.objective,
+          thesis: draft.topic,
+          evidence: { at: new Date().toISOString(), what: `draft generated: "${draft.headline}"` },
+        });
+      }
+      return { ...draft, runId };
+    }),
 
   evaluate: adminProcedure
     .input(draftSchema)
@@ -183,18 +210,31 @@ export const instagramStudioRouter = router({
     })),
 
   render: adminProcedure
-    .input(draftSchema)
+    .input(draftSchema.extend({ runId: z.string().max(64).optional() }))
     .mutation(async ({ input }) => {
       const evaluated = {
         ...input,
         quality: evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() }),
       };
       const imageUrls = await renderInstagramStudioAssets(evaluated);
+      if (input.runId) {
+        const { advanceContentRun, RUN_STAGE, IMPLEMENTATION_STATE } = await import("../services/contentRun");
+        await advanceContentRun(input.runId, {
+          stage: RUN_STAGE.qa,
+          // BUILT, not proven. The media exists; nothing has published it.
+          implementationState: IMPLEMENTATION_STATE.built,
+          evidence: {
+            at: new Date().toISOString(),
+            what: `${imageUrls.length} asset(s) rendered`,
+            proof: imageUrls[0] ?? null,
+          },
+        });
+      }
       return { ...evaluated, imageUrls };
     }),
 
   stage: adminProcedure
-    .input(draftSchema)
+    .input(draftSchema.extend({ runId: z.string().max(64).optional() }))
     .mutation(async ({ input }) => {
       if (input.format === "reel") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Reels must use the verified ReelBrief pipeline." });
@@ -234,6 +274,18 @@ export const instagramStudioRouter = router({
           updatedAt: new Date(),
         },
       });
+
+      // LINK the inventory row to the run. This is the join that lets the run
+      // answer "what happened to the thing I asked for at 9am" — without it the
+      // run knows a draft was made but not which queue item it became.
+      if (input.runId) {
+        const { advanceContentRun, RUN_STAGE } = await import("../services/contentRun");
+        await advanceContentRun(input.runId, {
+          stage: RUN_STAGE.awaiting_approval,
+          inventoryId: id,
+          evidence: { at: new Date().toISOString(), what: `staged to the queue as ${id}` },
+        });
+      }
       return { id, status: "needs_review" as const, quality };
     }),
 
