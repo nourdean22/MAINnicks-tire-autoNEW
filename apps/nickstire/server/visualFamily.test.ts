@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import {
   VISUAL_FAMILIES, getVisualFamily, resolveFamilyForSubject, renderFamilyCardHtml,
+  familyFromArtDirection,
   FEED_W, FEED_H, STORY_W, STORY_H, STORY_SAFE_TOP, STORY_SAFE_BOTTOM,
 } from "./services/visualFamily";
 
@@ -141,5 +142,34 @@ describe("long copy does not break the card", () => {
 
   it("wraps rather than clipping an unbroken string", () => {
     expect(card({ headline: "B".repeat(90) })).toContain("word-break:break-word");
+  });
+});
+
+describe("artDirection finally reaches the renderer", () => {
+  it("routes weather and road language to the hazard family", () => {
+    expect(familyFromArtDirection("Snowy Cleveland street, salt spray, dim winter light")).toBe("road_hazard");
+    expect(familyFromArtDirection("A deep pothole on a wet road")).toBe("road_hazard");
+  });
+
+  it("routes offer language to the seasonal family", () => {
+    expect(familyFromArtDirection("Bold promo card announcing a winter tire special")).toBe("seasonal_offer");
+  });
+
+  it("uses the evidence family ONLY when a photo actually exists", () => {
+    const direction = "Macro close-up of worn tread showing the wear bar";
+    expect(familyFromArtDirection(direction, true)).toBe("mechanic_evidence");
+    // Same words, no photo — must not pick a family that cannot be honoured.
+    expect(familyFromArtDirection(direction, false)).not.toBe("mechanic_evidence");
+  });
+
+  it("falls back rather than failing on empty or unrecognised direction", () => {
+    expect(familyFromArtDirection("")).toBe("seasonal_offer");
+    expect(familyFromArtDirection(null)).toBe("seasonal_offer");
+    expect(familyFromArtDirection("something entirely unrelated")).toBe("seasonal_offer");
+  });
+
+  it("is deterministic — no model call, so the same words always pick the same family", () => {
+    const d = "Snowy road with salt";
+    expect(familyFromArtDirection(d)).toBe(familyFromArtDirection(d));
   });
 });
