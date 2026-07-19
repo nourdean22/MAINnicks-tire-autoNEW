@@ -16,6 +16,32 @@ import { desc, gte, like, or, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:public");
+
+/**
+ * The MAKE, and nothing else — for public-facing copy.
+ *
+ * `invoices.vehicleInfo` arrives from the shop management system in forms like
+ * "2016 LINCOLN MKZ AWD", "2022 BMW * X3 SUV 4X4", "2014 DODGE * CARAVAN
+ * -GRAND CARAVAN". Published whole, that is a specific car; published as its
+ * make it is a brand.
+ *
+ * Exported so it can be tested directly, and so any future public surface that
+ * wants to mention a vehicle has an obvious right answer sitting next to the
+ * wrong one. Anything it cannot parse degrades to "vehicle" — never to the raw
+ * string, because the failure mode of a fallback here is the leak itself.
+ */
+export function vehicleMake(vehicleInfo: string | null | undefined): string {
+  const raw = String(vehicleInfo ?? "").trim();
+  if (!raw) return "vehicle";
+  const make = raw
+    .replace(/^\s*(19|20)\d{2}\s*/, "") // leading model year
+    .replace(/[*]/g, " ")
+    .trim()
+    .split(/[\s,]+/)[0];
+  if (!make || !/^[A-Za-z][A-Za-z-]{1,}$/.test(make)) return "vehicle";
+  // Title case: the source is SHOUTING and the ticker is prose.
+  return make.charAt(0).toUpperCase() + make.slice(1).toLowerCase();
+}
 export const weatherRouter = router({
   current: publicProcedure.query(async () => {
     return cached("weather:current", 600, async () => {
@@ -214,11 +240,23 @@ export const activityRouter = router({
 
       for (const j of recentJobs) {
         const ago = Math.max(1, Math.round((Date.now() - new Date(j.invoiceDate).getTime()) / 60000));
-        const vehicle = j.vehicleInfo || "a vehicle";
+        // MAKE ONLY — never the full vehicle string.
+        //
+        // This published `invoices.vehicleInfo` verbatim on a PUBLIC endpoint:
+        // "A 2016 LINCOLN MKZ AWD just got front struts completed", stamped with
+        // how many minutes ago. Year + model + trim + drivetrain + an exact
+        // service + a timestamp, inside one shop's catchment, describes one car
+        // closely enough that a neighbour could name the owner.
+        //
+        // The booking branch twelve lines above already anonymises to "Someone
+        // in {neighborhood}" — the completed-jobs branch simply never got the
+        // same treatment. The ticker's job is to show the shop is busy and does
+        // real work, and the make alone carries that ("a Lincoln", "a BMW")
+        // while dropping the part that identifies.
         const service = j.serviceDescription?.split(",")[0]?.trim() || "service";
         items.push({
           type: "completed",
-          message: `A ${vehicle} just got ${service.toLowerCase()} completed`,
+          message: `A ${vehicleMake(j.vehicleInfo)} just got ${service.toLowerCase()} completed`,
           minutesAgo: ago,
         });
       }
