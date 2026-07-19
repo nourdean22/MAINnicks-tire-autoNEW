@@ -4,10 +4,12 @@
  * what is reserved, what was decided, and what the last renders look like.
  * Sections that depend on 0086 show "unavailable" honestly instead of zeros.
  */
+import { useState } from "react";
 import { Loader2, ShieldAlert, ShieldCheck, Gauge, CalendarClock, ScrollText, Film, Power, Compass } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 
@@ -29,6 +31,19 @@ function SwitchRow({ label, on, scope, busy, onToggle }: { label: string; on: bo
 export default function AutonomyCommandCenter() {
   const center = trpc.contentAdmin.getCommandCenter.useQuery(undefined, { refetchInterval: 30_000 });
   const shadow = trpc.contentAdmin.getShadowPlan.useQuery(undefined, { staleTime: 300_000 });
+  /** Limit being edited, and its pending value. One at a time, on purpose. */
+  const [editingLimit, setEditingLimit] = useState<string | null>(null);
+  const [limitDraft, setLimitDraft] = useState<string>("");
+
+  const publishPolicy = trpc.contentAdmin.publishAutonomyPolicy.useMutation({
+    onSuccess: () => {
+      toast.success("Policy updated", { description: "Published as a new version — the previous one stays in history." });
+      setEditingLimit(null);
+      center.refetch();
+    },
+    onError: (err) => toast.error("Policy not changed", { description: err.message }),
+  });
+
   const killSwitch = trpc.contentAdmin.setAutonomyKillSwitch.useMutation({
     onSuccess: (r) => {
       toast.success(`Kill switch updated — policy v${r.version} published`);
@@ -83,11 +98,72 @@ export default function AutonomyCommandCenter() {
             ) : (
               <p className="text-sm text-muted-foreground">Spend ledger unavailable (0086 pending) — coarse fallback governs the budget check.</p>
             )}
-            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-              <span>Feed cap: {s.policy.limits.maxFeedPostsPerDay}/day</span>
-              <span>Stories: {s.policy.limits.maxStoriesPerDay}/day</span>
-              <span>Spacing: {s.policy.limits.minimumFeedSpacingHours}h</span>
-              <span>Repairs: {s.policy.limits.maxRepairAttemptsPerAsset}/asset</span>
+            {/* EDITABLE. These were display-only while publishAutonomyPolicy sat
+                with zero callers — so the operator could SEE a spend cap stop
+                their work and had no way to change it from the phone they run
+                the business on. The generation budget is listed FIRST because it
+                is the one that actually blocks production. */}
+            <div className="space-y-1">
+              {([
+                ["maxGenerationCostPerDayUsd", "Generation budget", "$/day", 0, 200],
+                ["maxGenerationCostPerCampaignUsd", "Per campaign", "$", 0, 100],
+                ["maxFeedPostsPerDay", "Feed posts", "/day", 0, 10],
+                ["maxStoriesPerDay", "Stories", "/day", 0, 20],
+                ["minimumFeedSpacingHours", "Spacing", "h", 0, 48],
+                ["maxRepairAttemptsPerAsset", "Repairs", "/asset", 0, 10],
+              ] as const).map(([key, label, unit, min, max]) => {
+                const current = (s.policy.limits as Record<string, number>)[key];
+                if (current === undefined) return null;
+                const isEditing = editingLimit === key;
+                return (
+                  <div key={key} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">{label}</span>
+                    {!isEditing ? (
+                      <button
+                        type="button"
+                        className="font-mono tabular-nums underline decoration-dotted underline-offset-2 hover:text-primary"
+                        onClick={() => { setEditingLimit(key); setLimitDraft(String(current)); }}
+                        title="Tap to change — publishes a new policy version"
+                      >
+                        {current}{unit}
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <Input
+                          value={limitDraft}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLimitDraft(e.target.value)}
+                          inputMode="decimal"
+                          className="h-7 w-20 text-xs font-mono"
+                          aria-label={`${label} (${unit})`}
+                        />
+                        <Button
+                          size="sm" className="h-7 text-[11px]"
+                          disabled={publishPolicy.isPending || !Number.isFinite(Number(limitDraft)) || Number(limitDraft) < min || Number(limitDraft) > max}
+                          onClick={() => {
+                            // Publish the WHOLE policy with one limit changed —
+                            // publishPolicyVersion is versioned and audited, so
+                            // this is reversible by publishing the prior version.
+                            const next = {
+                              ...s.policy,
+                              limits: { ...s.policy.limits, [key]: Number(limitDraft) },
+                            };
+                            delete (next as Record<string, unknown>).source;
+                            publishPolicy.mutate({ policy: next, note: `${label} ${current}${unit} -> ${limitDraft}${unit}` });
+                          }}
+                        >
+                          {publishPolicy.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setEditingLimit(null)}>
+                          Cancel
+                        </Button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="text-[11px] text-muted-foreground/70 pt-1">
+                Each change publishes a new policy version. The previous version stays in history, so any change is reversible.
+              </p>
             </div>
           </CardContent>
         </Card>
