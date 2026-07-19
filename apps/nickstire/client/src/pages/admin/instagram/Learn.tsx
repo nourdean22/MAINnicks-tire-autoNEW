@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { BarChart, Loader2, RefreshCw, Sparkles, TrendingUp, Trophy } from "lucide-react";
+import { AlertTriangle, BarChart, DollarSign, Loader2, RefreshCw, Sparkles, TrendingUp, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,16 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
   const analytics = trpc.instagramAdmin.getAnalytics.useQuery();
   const report = trpc.instagramAdmin.getPerformanceReport.useQuery();
   const diagnostics = trpc.instagramStudio.diagnostics.useQuery();
+  // Money, not attention. Every other metric on this screen measures who LOOKED.
+  const revenue = trpc.contentAdmin.contentRevenue.useQuery({ days: 90 });
 
   const refresh = async () => {
-    await Promise.all([analytics.refetch(), report.refetch(), diagnostics.refetch()]);
+    await Promise.all([analytics.refetch(), report.refetch(), diagnostics.refetch(), revenue.refetch()]);
     toast.success("Live Instagram intelligence refreshed");
   };
+
+  const money = (cents: number) =>
+    `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const metrics = useMemo(() => {
     const posts = analytics.data?.topPosts ?? [];
@@ -24,7 +29,10 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
     const engagement = posts.length ? posts.reduce((sum, post) => sum + Number(post.engagementRate || 0), 0) / posts.length : null;
     const failed = Number(diagnostics.data?.counts?.failed ?? 0) + Number(diagnostics.data?.counts?.rejected ?? 0);
     const ready = Number(diagnostics.data?.counts?.ready ?? 0);
-    const queueHealth = failed > 0 ? "Attention" : ready > 0 ? "Ready" : "No backlog";
+    // "No backlog" is a CLAIM. If the query failed there are no counts to read,
+    // and printing the all-clear would tell the operator the queue is clean when
+    // what actually happened is that nobody looked.
+    const queueHealth = !diagnostics.data ? "Unknown" : failed > 0 ? "Attention" : ready > 0 ? "Ready" : "No backlog";
     return { quality, engagement, queueHealth };
   }, [analytics.data, diagnostics.data]);
 
@@ -53,6 +61,83 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
         <Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="mr-2 h-4 w-4" /> Refresh live data</Button>
       </div>
 
+      {/*
+        WHAT IT EARNED, ABOVE WHAT IT REACHED.
+        Deliberately first. Everything below measures ATTENTION, and a reel with
+        18,000 views and no bookings used to look identical to a carousel with 400
+        views and six paid repairs.
+      */}
+      <Card className="border-primary/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" /> What content earned · last 90 days</CardTitle>
+          <CardDescription>
+            Paid invoices traced back to the content run that produced the lead. Only PAID counts, and an
+            invoice two runs both claim is counted for neither.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {revenue.isLoading ? (
+            <p className="text-sm text-muted-foreground">Checking…</p>
+          ) : revenue.isError ? (
+            // NOT zero. A failed query rendered as "earned nothing" reads as a
+            // verdict on the content when it is a verdict on the query.
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <span>Could not read attribution — this is <strong>unknown</strong>, not zero. {revenue.error?.message}</span>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-3">
+                <StatCard label="Revenue traced to content" value={money(revenue.data?.totals.verifiedRevenueCents ?? 0)} trend="neutral" icon={<DollarSign className="h-4 w-4" />} />
+                <StatCard
+                  label="Cost to generate"
+                  // An unrecorded cost is not a free one, and the two must not
+                  // print identically beside a revenue figure.
+                  value={(revenue.data?.totals.generationCostCents ?? 0) === 0 && (revenue.data?.runs.length ?? 0) > 0
+                    ? "Unmeasured"
+                    : money(revenue.data?.totals.generationCostCents ?? 0)}
+                  trend="neutral"
+                  icon={<BarChart className="h-4 w-4" />}
+                />
+                <StatCard label="Leads with no tracking" value={String(revenue.data?.totals.unattributedLeadCount ?? 0)} trend="neutral" icon={<AlertTriangle className="h-4 w-4" />} />
+              </div>
+
+              {(revenue.data?.runs.length ?? 0) === 0 ? (
+                <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  No lead in this window carried a content run id, so nothing can be attributed yet. Posts
+                  staged from the Studio now rewrite the shop links in their caption to carry one — this
+                  fills in as those posts publish and produce leads.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {revenue.data!.runs.slice(0, 8).map((run) => (
+                    <div key={run.runId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-mono text-xs">{run.runId}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {run.leadCount} lead{run.leadCount === 1 ? "" : "s"} · {run.uniquelyLinkedPaidInvoices} paid invoice{run.uniquelyLinkedPaidInvoices === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold tabular-nums">{money(run.verifiedRevenueCents)}</p>
+                        {run.generationCostCents > 0 && (
+                          <p className="text-xs text-muted-foreground tabular-nums">cost {money(run.generationCostCents)}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Stated, never implied. A number without its limits invites over-reading. */}
+              <ul className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
+                {(revenue.data?.limitations ?? []).map((limit) => <li key={limit}>· {limit}</li>)}
+              </ul>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Avg content score" value={metrics.quality == null ? "No data" : String(metrics.quality)} trend="neutral" icon={<Sparkles className="h-4 w-4" />} />
         <StatCard label="Avg engagement" value={metrics.engagement == null ? "No data" : `${metrics.engagement.toFixed(2)}%`} trend="neutral" icon={<BarChart className="h-4 w-4" />} />
@@ -63,7 +148,14 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
         <Card>
           <CardHeader><CardTitle>Top measured posts</CardTitle><CardDescription>Ordered by the analytics pipeline’s recorded engagement rate.</CardDescription></CardHeader>
           <CardContent className="space-y-4">
-            {winners.length === 0 ? (
+            {analytics.isError ? (
+              // "No posts are available yet" asserts a fact about Instagram. When
+              // the query failed, the honest statement is that we could not ask.
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <span>Could not load measured posts — this is <strong>unknown</strong>, not empty. {analytics.error?.message}</span>
+              </div>
+            ) : winners.length === 0 ? (
               <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">No measured Instagram posts are available yet. Sync the feed from HQ after publishing.</div>
             ) : winners.map((winner) => (
               <div key={winner.postId} className="rounded-xl border bg-muted/20 p-4">
