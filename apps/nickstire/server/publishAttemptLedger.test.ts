@@ -91,9 +91,48 @@ describe("findUnreconciledAttempts", () => {
     expect(open[0].ageMinutes).toBeGreaterThanOrEqual(29);
   });
 
-  it("excludes an attempt whose outcome was recorded", async () => {
-    rows = { attempts: [attempt("pub_1", 30)], outcomes: [{ codes: "pub_1" }] };
+  it.each(["CONFIRMED", "FAILED"])("excludes an attempt RESOLVED as %s", async (decision) => {
+    rows = { attempts: [attempt("pub_1", 30)], outcomes: [{ codes: "pub_1", decision }] };
     expect(await findUnreconciledAttempts()).toHaveLength(0);
+  });
+
+  /**
+   * THE DEFECT THIS TEST USED TO LOCK IN.
+   *
+   * It previously asserted that ANY outcome row closes an attempt
+   * (`outcomes: [{ codes: "pub_1" }]`, no decision at all) — so AMBIGUOUS, the
+   * outcome meaning "we do not know whether this went live", closed the attempt
+   * exactly as CONFIRMED did. The one state this function exists to surface was
+   * the one it hid, and the test said that was correct.
+   *
+   * Four live writers produce AMBIGUOUS, all in the catch of a real Meta call.
+   * With the attempt closed, openPublishAttempts returned 0, the Action Center's
+   * reconcile card never rendered, and resolveAmbiguousPublish — which takes an
+   * attemptId whose only source is that list — became unreachable for the exact
+   * state it was built for.
+   */
+  it("KEEPS an attempt whose outcome was AMBIGUOUS — that is the whole point of this list", async () => {
+    rows = { attempts: [attempt("pub_1", 30)], outcomes: [{ codes: "pub_1", decision: "AMBIGUOUS" }] };
+    const open = await findUnreconciledAttempts();
+    expect(open).toHaveLength(1);
+    expect(open[0].attemptId).toBe("pub_1");
+  });
+
+  it("does not let the OPENING record close its own attempt", async () => {
+    // ATTEMPTED is the opening entry, not an outcome.
+    rows = { attempts: [attempt("pub_1", 30)], outcomes: [{ codes: "pub_1", decision: "ATTEMPTED" }] };
+    expect(await findUnreconciledAttempts()).toHaveLength(1);
+  });
+
+  it("keeps an attempt whose outcome decision is missing or unrecognised", async () => {
+    // Allowlist, not denylist: an outcome value added later stays OPEN until
+    // someone decides it closes an attempt. Being nagged about a resolved
+    // publish is a nuisance; hiding one that may be live is the failure this
+    // ledger exists to prevent.
+    for (const decision of [null, "", "SOMETHING_NEW"]) {
+      rows = { attempts: [attempt("pub_1", 30)], outcomes: [{ codes: "pub_1", decision }] };
+      expect(await findUnreconciledAttempts()).toHaveLength(1);
+    }
   });
 
   it("KEEPS a row whose context is unreadable — an unparseable attempt is still open", async () => {
