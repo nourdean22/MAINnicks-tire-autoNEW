@@ -2230,9 +2230,13 @@ export const contentAdminRouter = router({
    *  stale QA verdict and the job returns to "assembled" needing fresh QA. */
   reassembleReelFromClips: adminProcedure
     .input(z.object({ jobId: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { reassembleFromClips } = await import("../services/reelReassemble");
-      const result = await reassembleFromClips(input.jobId);
+      const { withOperatorAction } = await import("../services/operatorActionLog");
+      const result = await withOperatorAction(
+        { action: "reassemble", operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: false },
+        () => reassembleFromClips(input.jobId),
+      );
       if (!result.ok) {
         // A refusal is an ANSWER about the job's state, not a server fault.
         throw new TRPCError({ code: "BAD_REQUEST", message: result.reason });
@@ -2299,12 +2303,17 @@ export const contentAdminRouter = router({
       igPostId: z.string().max(64).optional(),
       operatorNote: z.string().max(500).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       if (input.decision === "published" && !input.igPostId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Marking a publish live requires the Instagram post id it went out as." });
       }
       const { applyReconciliation } = await import("../services/publishReconciler");
-      const res = await applyReconciliation(input);
+      const { withOperatorAction } = await import("../services/operatorActionLog");
+      const res = await withOperatorAction(
+        { action: `reconcile_${input.decision}`, operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: false,
+          detail: { kind: input.kind, attemptId: input.attemptId } },
+        () => applyReconciliation(input),
+      );
       if (!res.ok) throw new TRPCError({ code: "BAD_REQUEST", message: res.detail });
       return res;
     }),
@@ -2318,7 +2327,7 @@ export const contentAdminRouter = router({
       /** archive keeps the record legible for audit; discard is a plain close. */
       mode: z.enum(["archive", "discard"]).default("discard"),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { getDb } = await import("../db");
       const d = await getDb();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
@@ -2329,17 +2338,20 @@ export const contentAdminRouter = router({
       // A posted job is history and a publishing/ambiguous one may be LIVE —
       // neither may be closed here. Ambiguity is resolved by reconciling, not by
       // discarding the evidence.
+      const { recordOperatorAction, ACTION_OUTCOME } = await import("../services/operatorActionLog");
       const CLOSEABLE = ["assembled", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "failed"];
       const res = await d
         .update(reelJobs)
         .set({ status: "failed", error: `${input.mode === "archive" ? "archived" : "discarded"} by operator: ${input.reason}`.slice(0, 500) })
         .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, CLOSEABLE)));
       if (affectedRowCount(res) !== 1) {
+        void recordOperatorAction({ action: "discard", outcome: ACTION_OUTCOME.refused, operatorId: ctx.user?.id ?? null, jobId: input.jobId, detail: { reason: input.reason } });
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This job cannot be closed from here — it has already published, or it may be live and needs reconciling first.",
         });
       }
+      void recordOperatorAction({ action: "discard", outcome: ACTION_OUTCOME.ok, operatorId: ctx.user?.id ?? null, jobId: input.jobId, detail: { reason: input.reason, mode: input.mode } });
       return { ok: true, jobId: input.jobId, mode: input.mode };
     }),
   /**
@@ -2391,4 +2403,75 @@ export const contentAdminRouter = router({
 
     return { heldReels, openPublishes, total: heldReels + openPublishes, unknown };
   }),
+  /**
+   * Regenerate a dead reel from its surviving brief. This is a NEW PAID JOB, not
+   * a repair — different media, new hashes, its own QA and approval.
+   *
+   * Routed through enqueueReelJob ON PURPOSE: that is where the M10 defect
+   * preflight and the spend/governor gates live (daily cap, cooldowns, budget).
+   * Calling the generator directly would quietly bypass the operator's own spend
+   * limits, which is precisely the failure an "operator convenience" button
+   * invites.
+   */
+  regenerateReelFromBrief: adminProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      /** Typed acknowledgement that this spends generation budget. */
+      confirmSpend: z.literal(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { eq, and, inArray } = await import("drizzle-orm");
+      const { affectedRowCount } = await import("../lib/db-affected");
+
+      const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: `Reel job ${input.jobId} not found` });
+      // A job that may be live must be reconciled, never regenerated — that is how
+      // the same content gets posted twice.
+      if (job.status === "publishing" || job.status === "publish_ambiguous" || job.status === "posted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This job has published or may be live. Reconcile it before regenerating, or you risk posting the same reel twice.",
+        });
+      }
+
+      let brief: Record<string, unknown>;
+      try { brief = JSON.parse(job.payload ?? "{}"); } catch {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This job's brief is unreadable — there is nothing to regenerate from." });
+      }
+      const beats = brief.storyboardBeats;
+      if (!Array.isArray(beats) || !beats.length) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This job has no storyboard beats — nothing to regenerate from." });
+      }
+
+      // Stale judgements about the DEAD media must not travel to the new job.
+      delete (brief as Record<string, unknown>).renderedQa;
+      delete (brief as Record<string, unknown>).audioQa;
+
+      const { enqueueReelJob } = await import("../services/reelPipeline");
+      const { withOperatorAction } = await import("../services/operatorActionLog");
+      const { jobId: newJobId } = await withOperatorAction(
+        { action: "regenerate", operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: true },
+        () => enqueueReelJob(brief as never, "admin"),
+      );
+
+      // Close the old one so it stops appearing as work. Best-effort: the new job
+      // already exists and the spend is committed, so a failure here must not
+      // surface as "regeneration failed".
+      try {
+        const closeable = ["assembled", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "failed"];
+        const res = await d.update(reelJobs)
+          .set({ status: "failed", error: `superseded by regenerated job ${newJobId} (operator ${ctx.user?.id ?? "?"})`.slice(0, 500) })
+          .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, closeable)));
+        if (affectedRowCount(res) !== 1) log.warn("regenerate: old job not closed (state changed under us)", { jobId: input.jobId });
+      } catch (err) {
+        log.warn("regenerate: could not close the superseded job", err);
+      }
+
+      return { ok: true, supersededJobId: input.jobId, newJobId };
+    }),
 });
