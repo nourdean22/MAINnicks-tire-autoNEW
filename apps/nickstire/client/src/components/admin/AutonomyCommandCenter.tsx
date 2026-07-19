@@ -167,6 +167,31 @@ export default function AutonomyCommandCenter() {
           {!shadow.data ? (
             <p className="text-sm text-muted-foreground">{shadow.isLoading ? "Planning..." : "Plan unavailable."}</p>
           ) : (
+            <>
+            {/* The planner could never choose a FORM until now — every moment
+                mapped to reel+carousel. It shows its confidence and which inputs
+                were missing, so a thin recommendation reads as thin. */}
+            {(shadow.data as any).format && (
+              <div className="mb-3 rounded-md border border-primary/30 bg-primary/5 p-3 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground">Suggested format today</span>
+                  <span className="font-semibold capitalize">{(shadow.data as any).format.format}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                    (shadow.data as any).format.confidence === "high" ? "border-green-500/40 text-green-600"
+                      : (shadow.data as any).format.confidence === "moderate" ? "border-amber-500/40 text-amber-600"
+                      : "border-muted-foreground/40 text-muted-foreground"
+                  }`}>
+                    {(shadow.data as any).format.confidence} confidence
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{(shadow.data as any).format.reason}</p>
+                {(shadow.data as any).format.signalsMissing?.length > 0 && (
+                  <p className="text-[11px] text-amber-600/80">
+                    Missing signals: {(shadow.data as any).format.signalsMissing.join(", ")} — this is a weaker call than it looks.
+                  </p>
+                )}
+              </div>
+            )}
             <ul className="space-y-2 text-sm">
               {shadow.data.recommendations.map((o) => (
                 <li key={o.id} className="rounded-md border border-border/40 p-2">
@@ -181,6 +206,7 @@ export default function AutonomyCommandCenter() {
                 </li>
               ))}
             </ul>
+            </>
           )}
         </CardContent>
       </Card>

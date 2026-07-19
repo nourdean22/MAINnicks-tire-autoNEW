@@ -316,7 +316,56 @@ export const contentAdminRouter = router({
    *  Structurally incapable of generating, reserving, or publishing. */
   getShadowPlan: adminProcedure.query(async () => {
     const { generateShadowPlan } = await import("../services/shadowPlanner");
-    return generateShadowPlan();
+    const plan = await generateShadowPlan();
+
+    // The planner picks WHAT to talk about; it has never been able to pick a
+    // FORM — its own comment concedes every moment maps to reel+carousel. The
+    // format decision is a separate pure module, composed HERE at the boundary
+    // rather than imported into either planner: I/O belongs at the edge, and the
+    // format planner's purity scan forbids database imports on purpose.
+    const { decideContentFormat, emptyFormatSignals } = await import("../services/contentFormatPlanner");
+    const signals = emptyFormatSignals();
+
+    try {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (d) {
+        const { socialContentInventory, reelJobs } = await import("../../drizzle/schema");
+        const { desc, eq, and, gte, inArray, sql } = await import("drizzle-orm");
+
+        // Format fatigue: what did we actually publish, most recent first.
+        const recent = await d
+          .select({ contentType: socialContentInventory.contentType })
+          .from(socialContentInventory)
+          .where(eq(socialContentInventory.status, "posted"))
+          .orderBy(desc(socialContentInventory.updatedAt))
+          .limit(6);
+        signals.recentFormats = {
+          available: true,
+          values: recent.map((r: typeof recent[number]) =>
+            (r.contentType === "post" ? "single" : String(r.contentType)) as never),
+        };
+
+        // Footage on hand: clips from reels whose assets survived. This is what
+        // makes a reel FREE instead of a paid generation.
+        const withClips = await d
+          .select({ n: sql<number>`COUNT(*)`.as("n") })
+          .from(reelJobs)
+          .where(and(inArray(reelJobs.status, ["assembled", "assets_ready"]), gte(reelJobs.updatedAt, new Date(Date.now() - 30 * 864e5))));
+        signals.mediaOnHand = { available: true, clipCount: Number(withClips[0]?.n ?? 0) * 6, photoCount: 0 };
+      }
+    } catch (err) {
+      // A signal we could not read stays UNAVAILABLE — never a silent zero.
+      // decideContentFormat grades its own confidence down accordingly and says
+      // which inputs were missing.
+      log.warn("format signals partially unavailable", err);
+    }
+
+    const top = plan.recommendations[0];
+    if (top?.objective) signals.objective = { available: true, value: top.objective as never };
+
+    const format = decideContentFormat(signals);
+    return { ...plan, format };
   }),
 
   /** Operator command center: governing policy + its SOURCE (storage vs
