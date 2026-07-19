@@ -1,8 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  AlertTriangle, CalendarClock, CheckCircle2, Clock3, Edit3, ExternalLink,
-  Image as ImageIcon, Loader2, RefreshCw, Send, ShieldCheck, Trash2, X,
-} from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, Edit3, ExternalLink, Film, Image as ImageIcon, Loader2, RefreshCw, Send, ShieldCheck, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,14 +67,18 @@ export default function QueueV2() {
   }, [list.data, search, status]);
 
   if (showLegacy) {
-    return <div className="space-y-4"><Button variant="outline" onClick={() => setShowLegacy(false)}><X className="mr-2 h-4 w-4" /> Close legacy/Reel queue</Button><LegacyQueue /></div>;
+    return <div className="space-y-4"><Button variant="outline" onClick={() => setShowLegacy(false)}><X className="mr-2 h-4 w-4" /> Back to the publishing queue</Button><LegacyQueue /></div>;
   }
 
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div><h3 className="text-2xl font-bold">Publishing Queue</h3><p className="mt-1 text-sm text-muted-foreground">Review the exact media and copy, then approve, schedule, or publish. Nothing leaves the app without an explicit action.</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => setShowLegacy(true)}>Reels & legacy drafts</Button><Button variant="outline" onClick={() => Promise.all([list.refetch(), diagnostics.refetch()])} disabled={list.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${list.isFetching ? "animate-spin" : ""}`} /> Refresh</Button></div>
+        <div className="flex gap-2">{/* Was "Reels & legacy drafts". Reels are the primary content type and
+              the one the operator just rendered — filing them under a word that
+              means "deprecated, do not use" is the interface lying about its own
+              architecture. */}
+          <Button variant="outline" onClick={() => setShowLegacy(true)}><Film className="mr-2 h-4 w-4" /> Reels</Button><Button variant="outline" onClick={() => Promise.all([list.refetch(), diagnostics.refetch()])} disabled={list.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${list.isFetching ? "animate-spin" : ""}`} /> Refresh</Button></div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

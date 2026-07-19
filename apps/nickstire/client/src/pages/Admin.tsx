@@ -62,8 +62,20 @@ const ROLE_SECTIONS: Record<AdminRole, readonly AdminSection[]> = {
   viewer: ["overview", "intelligence", "opsHub"],
 };
 
-function getBadgeCount(id: string, stats: any, counts: AdminActionableCounts): number {
-  if (id === "overview") return counts.total;
+/**
+ * `ops` is the publishing side of the business — held reels, ambiguous publishes.
+ * It was absent from this function entirely, which is the mechanical reason three
+ * reels could sit blocked for 32 hours with a silent sidebar: the badge pipeline
+ * was built around the SALES funnel (bookings/leads/callbacks) and the publishing
+ * system grew later without ever joining it.
+ *
+ * It lands on BOTH "overview" and "growth": overview is where the operator starts,
+ * growth is where Instagram lives, and a signal that only appears once you have
+ * already navigated to the right place is not a signal.
+ */
+function getBadgeCount(id: string, stats: any, counts: AdminActionableCounts, opsTotal: number): number {
+  if (id === "overview") return counts.total + opsTotal;
+  if (id === "growth") return opsTotal;
   if (id === "leads") return counts.newLeads;
   if (id === "tireOrders") return stats?.tires?.new ?? 0;
   if (id === "memberships") return stats?.memberships?.warning ?? 0;
@@ -103,6 +115,16 @@ export default function Admin() {
     leads: bundle?.leads,
     callbacks: bundle?.callbacks,
   });
+  // Count-only, cheap by construction — see contentAdmin.operationsSignal. It
+  // must never call the artifact-probing query: this runs on every page load.
+  const { data: opsSignal } = trpc.contentAdmin.operationsSignal.useQuery(undefined, {
+    enabled: isAdmin,
+    refetchInterval: 120_000,
+    staleTime: 90_000,
+    refetchIntervalInBackground: false,
+  });
+  const opsTotal = opsSignal?.total ?? 0;
+
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
   const allowedSections = ROLE_SECTIONS[adminRole];
   const visibleGroups = useMemo(
@@ -171,7 +193,7 @@ export default function Admin() {
           <nav className="flex-1 py-4 px-2 space-y-5 overflow-y-auto" aria-label="Admin sections">
             {visibleGroups.map((group) => <div key={group.label || "_flat"}>{group.label && <div className="admin-sidebar-group-label">{group.label}</div>}<div className="space-y-0.5 mt-0.5">{group.items.map((item) => {
               const isActive = section === item.id;
-              const badge = getBadgeCount(item.id, stats, actionableCounts);
+              const badge = getBadgeCount(item.id, stats, actionableCounts, opsTotal);
               return <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }} aria-current={isActive ? "page" : undefined} className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}><span className={`shrink-0 ${isActive ? "text-primary" : "text-foreground/45"}`}>{item.icon}</span><span className="flex-1 text-left truncate">{item.label}</span>{badge > 0 && <span className="shrink-0 text-[10px] font-semibold tabular-nums min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/12 text-destructive flex items-center justify-center">{badge > 99 ? "99+" : badge}</span>}</button>;
             })}</div></div>)}
           </nav>

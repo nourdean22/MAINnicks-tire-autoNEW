@@ -272,7 +272,8 @@ export default function DraftBoardPanel() {
           <Sparkles className="w-12 h-12 text-foreground/20 mx-auto" />
           <p className="font-bold text-base text-foreground/40 tracking-wider">NO CONTENT DRAFTS YET</p>
           <p className="text-foreground/30 text-xs max-w-sm mx-auto leading-relaxed">
-            Generate a carousel or reel in the respective studios and save it as a draft to begin your publishing schedule.
+            Generate a carousel or reel in Studio and save it as a draft to begin your publishing schedule.
+            This board is for planning and editing — approving and publishing happen in the Queue tab.
           </p>
         </div>
       ) : view === "board" ? (
