@@ -114,6 +114,28 @@ export function classifyRecoverability(input: RecoverabilityInput): RecoveryAsse
     .filter((a) => a.url && !a.reachable)
     .map((a) => a.url as string);
 
+  /**
+   * `input.status` was accepted by this function and never read — a parameter
+   * that looked like a guard and guarded nothing.
+   *
+   * It matters most in the branch below that this function reaches FIRST for an
+   * in-flight job: thirty seconds into `generating` there is no master and no
+   * clips, which is indistinguishable from total media loss by reachability
+   * alone. The old code fell to `hasBrief` and offered "Spend and regenerate"
+   * on a job that was actively rendering.
+   *
+   * Reachability answers "what survives". Only status answers "is anyone still
+   * working on it", and paying again is only safe when the answer is no.
+   */
+  const inFlight = !isRegenerable(input.status);
+  const withoutRegenerate = (actions: RecoveryAction[]) =>
+    // REGENERATE.id, not a re-typed literal — the union caught "regenerate" as a
+    // value that cannot occur, which would have filtered nothing at all.
+    inFlight ? actions.filter((a) => a.id !== REGENERATE.id) : actions;
+  const inFlightNote = inFlight
+    ? " This job is still in flight, so regenerating is withheld — paying again would run two renders of the same brief, and the running one cannot be cancelled."
+    : "";
+
   if (input.master.url && input.master.reachable) {
     return {
       recoverability: "master_available",
@@ -134,7 +156,7 @@ export function classifyRecoverability(input: RecoverabilityInput): RecoveryAsse
       recoverability: "clips_available_master_missing",
       explanation:
         "The master is gone but every source clip survives, so the reel can be re-assembled without paying to generate again.",
-      actions: [
+      actions: withoutRegenerate([
         {
           id: "reassemble",
           label: "Re-assemble from surviving clips",
@@ -146,7 +168,7 @@ export function classifyRecoverability(input: RecoverabilityInput): RecoveryAsse
         },
         REGENERATE,
         DISCARD,
-      ],
+      ]),
       danglingUrls: dangling,
     };
   }
@@ -154,8 +176,8 @@ export function classifyRecoverability(input: RecoverabilityInput): RecoveryAsse
   if (input.providerResumeId) {
     return {
       recoverability: "provider_resume_available",
-      explanation: "Local media is gone, but the provider still holds a resumable job for this reel.",
-      actions: [
+      explanation: "Local media is gone, but the provider still holds a resumable job for this reel." + inFlightNote,
+      actions: withoutRegenerate([
         {
           id: "resume_generation",
           label: "Resume from the provider",
@@ -165,7 +187,7 @@ export function classifyRecoverability(input: RecoverabilityInput): RecoveryAsse
         },
         REGENERATE,
         DISCARD,
-      ],
+      ]),
       danglingUrls: dangling,
     };
   }
@@ -174,10 +196,14 @@ export function classifyRecoverability(input: RecoverabilityInput): RecoveryAsse
     return {
       recoverability: "brief_only",
       explanation:
-        clipsPresent
-          ? "Some clips are missing and the master is gone, so nothing can be re-assembled. Only the brief survives."
-          : "All media for this job is gone. Only the brief survives.",
-      actions: [REGENERATE, ARCHIVE, DISCARD],
+        (inFlight
+          // Absence of media on an in-flight job is a NORMAL mid-render state, and
+          // describing it as loss is what made "regenerate" look like the fix.
+          ? "This job is still working. No media has been written yet, which is expected while it runs."
+          : clipsPresent
+            ? "Some clips are missing and the master is gone, so nothing can be re-assembled. Only the brief survives."
+            : "All media for this job is gone. Only the brief survives.") + inFlightNote,
+      actions: withoutRegenerate([REGENERATE, ARCHIVE, DISCARD]),
       danglingUrls: dangling,
     };
   }
@@ -306,6 +332,33 @@ export const ATTENTION_STATUSES = [
 
 /** Failures older than this are history, not a to-do. */
 export const FAILED_ATTENTION_DAYS = 14;
+
+/**
+ * Statuses where NO WORKER IS TOUCHING THE JOB, so paying to regenerate it is safe.
+ *
+ * This is an ALLOWLIST on purpose. The previous guard was a three-status denylist
+ * (publishing / publish_ambiguous / posted), which let regenerate fire on a job
+ * that was mid-render. Two things went wrong at once:
+ *
+ *   1. The operator paid twice for the same brief — the running worker keeps its
+ *      provider spend, and a second job starts from scratch.
+ *   2. The "closed" job came back. Nothing can cancel a worker already in flight,
+ *      and its writebacks were unconditional on status, so it would set itself to
+ *      `assets_ready`, walk on to `assembled`, and be CAS-claimed and PUBLISHED by
+ *      the daily cron — from the job the operator had been told was superseded.
+ *
+ * A denylist has to predict every unsafe state. An allowlist only has to know the
+ * safe ones, and a status added later is excluded by default rather than included
+ * by omission — which is the difference that caused this.
+ *
+ * `assembled` is safe: rendering has finished, nothing is running, and the job is
+ * waiting on the operator. Wanting a different reel is exactly the legitimate case.
+ */
+export const REGENERABLE_STATUSES = ["failed", "assembled", "archived", "rejected"] as const;
+
+export function isRegenerable(status: string | null | undefined): boolean {
+  return (REGENERABLE_STATUSES as readonly string[]).includes(String(status ?? ""));
+}
 
 /** Rows every attention surface should consider, newest first. */
 export async function selectReelJobsNeedingAttention(database: DB, limit = 50) {

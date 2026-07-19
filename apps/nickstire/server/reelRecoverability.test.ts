@@ -116,3 +116,72 @@ describe("dangling URL reporting", () => {
     expect(a.danglingUrls).toEqual([]);
   });
 });
+
+/**
+ * `status` was accepted by classifyRecoverability and never read — a parameter
+ * that looked like a guard and guarded nothing.
+ *
+ * The harm was concrete: thirty seconds into `generating` a job has no master and
+ * no clips, which by reachability alone is indistinguishable from total media
+ * loss. The classifier fell through to `hasBrief` and offered "Spend and
+ * regenerate" on a job that was actively rendering — so one tap bought a second
+ * render of the same brief, and the superseded job kept running, wrote itself
+ * back to assets_ready -> assembled, and was published by the daily cron.
+ */
+describe("an in-flight job is never offered a second paid render", () => {
+  const IN_FLIGHT = ["queued", "generating", "assets_ready", "assembling", "repair_rendering"];
+
+  it.each(IN_FLIGHT)("withholds regenerate while the job is '%s'", (status) => {
+    // The exact mid-render shape: brief present, nothing written yet.
+    const a = classifyRecoverability(base({ status, master: none, clips: [] }));
+    expect(ids(a)).not.toContain("regenerate_new_job");
+  });
+
+  it("says WHY, so the missing button is not read as a broken screen", () => {
+    const a = classifyRecoverability(base({ status: "generating" }));
+    expect(a.explanation).toMatch(/still working|in flight/i);
+    expect(a.explanation).toMatch(/cannot be cancelled/i);
+  });
+
+  it("does not describe a normal mid-render job as lost media", () => {
+    const a = classifyRecoverability(base({ status: "generating" }));
+    expect(a.explanation).not.toMatch(/all media for this job is gone/i);
+  });
+
+  it.each(IN_FLIGHT)("still offers the FREE actions while '%s' — only spending is withheld", (status) => {
+    const a = classifyRecoverability(base({ status, clips: [up("c1"), up("c2")], master: down("m") }));
+    expect(ids(a)).toContain("reassemble");
+    expect(ids(a)).toContain("discard");
+  });
+
+  it("withholds regenerate even when the provider holds a resumable job", () => {
+    const a = classifyRecoverability(base({ status: "generating", providerResumeId: "hf_123" }));
+    expect(ids(a)).toContain("resume_generation");
+    expect(ids(a)).not.toContain("regenerate_new_job");
+  });
+
+  it.each(["failed", "assembled", "archived", "rejected"])("OFFERS regenerate once the job is settled ('%s')", (status) => {
+    const a = classifyRecoverability(base({ status }));
+    expect(ids(a)).toContain("regenerate_new_job");
+  });
+});
+
+describe("REGENERABLE_STATUSES is an allowlist, and that is the point", () => {
+  it("treats an UNKNOWN future status as in-flight, not as safe to spend on", async () => {
+    // The defect this replaces was a three-status denylist: any status added
+    // later was permitted by omission. Under an allowlist a new status is
+    // withheld until someone decides it is safe — the failure direction that
+    // costs nothing instead of the one that pays twice.
+    const { isRegenerable } = await import("./services/reelRecoverability");
+    expect(isRegenerable("some_status_invented_next_year")).toBe(false);
+    expect(isRegenerable(null)).toBe(false);
+    expect(isRegenerable(undefined)).toBe(false);
+  });
+
+  it("never permits regenerating a job that may be live", async () => {
+    const { isRegenerable } = await import("./services/reelRecoverability");
+    for (const s of ["publishing", "publish_ambiguous", "posted"]) {
+      expect(isRegenerable(s)).toBe(false);
+    }
+  });
+});

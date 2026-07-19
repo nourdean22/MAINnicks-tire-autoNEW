@@ -2447,15 +2447,33 @@ export const contentAdminRouter = router({
       unknown = true;
     }
 
+    // Kept so the overlap can be removed from the total below. A job sitting in
+    // `publishing` is in ATTENTION_STATUSES *and* has an unreconciled attempt, so
+    // summing the two counts blind reports one problem as two and inflates the
+    // badge — the operator taps expecting two things to fix and finds one.
+    let overlappingJobIds = new Set<number>();
     try {
       const { findUnreconciledAttempts } = await import("../services/publishAttemptLedger");
-      openPublishes = (await findUnreconciledAttempts(15)).length;
+      const attempts = await findUnreconciledAttempts(15);
+      openPublishes = attempts.length;
+      overlappingJobIds = new Set(
+        attempts.map((a: { jobId?: number | null }) => a.jobId).filter((id): id is number => typeof id === "number"),
+      );
     } catch (err) {
       log.warn("operationsSignal: could not count open publish attempts", err);
       unknown = true;
     }
 
-    return { heldReels, openPublishes, total: heldReels + openPublishes, unknown };
+    // Only subtract when BOTH counts are real. If either failed, the overlap is
+    // itself unknown and a "correction" would be arithmetic on a guess.
+    const overlap = unknown ? 0 : Math.min(overlappingJobIds.size, heldReels, openPublishes);
+
+    return {
+      heldReels,
+      openPublishes,
+      total: heldReels + openPublishes - overlap,
+      unknown,
+    };
   }),
   /**
    * Regenerate a dead reel from its surviving brief. This is a NEW PAID JOB, not
@@ -2484,12 +2502,20 @@ export const contentAdminRouter = router({
 
       const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
       if (!job) throw new TRPCError({ code: "NOT_FOUND", message: `Reel job ${input.jobId} not found` });
-      // A job that may be live must be reconciled, never regenerated — that is how
-      // the same content gets posted twice.
-      if (job.status === "publishing" || job.status === "publish_ambiguous" || job.status === "posted") {
+
+      // ALLOWLIST, not denylist. The old guard named three unsafe statuses and let
+      // everything else through, which permitted regenerating a job that was
+      // mid-render: the operator paid twice, and the "closed" job kept running,
+      // wrote itself back to assets_ready -> assembled, and got published by the
+      // daily cron from under the supersede. See REGENERABLE_STATUSES.
+      const { REGENERABLE_STATUSES, isRegenerable } = await import("../services/reelRecoverability");
+      if (!isRegenerable(job.status)) {
+        const mayBeLive = job.status === "publishing" || job.status === "publish_ambiguous" || job.status === "posted";
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "This job has published or may be live. Reconcile it before regenerating, or you risk posting the same reel twice.",
+          message: mayBeLive
+            ? "This job has published or may be live. Reconcile it before regenerating, or you risk posting the same reel twice."
+            : `This job is still in flight (${job.status}). Regenerating now would pay for a second render of the same brief while the first keeps running — and the running one cannot be cancelled. Wait for it to finish or fail, then regenerate.`,
         });
       }
 
@@ -2502,9 +2528,32 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "This job has no storyboard beats — nothing to regenerate from." });
       }
 
-      // Stale judgements about the DEAD media must not travel to the new job.
-      delete (brief as Record<string, unknown>).renderedQa;
-      delete (brief as Record<string, unknown>).audioQa;
+      /**
+       * A brief describes WHAT TO MAKE. Everything a previous run accumulated
+       * while trying to make it is execution state, and carrying it into a fresh
+       * paid job is not a copy — it is a corruption.
+       *
+       * Each of these was measured to cause a specific harm:
+       *   renderedQa / audioQa      stale verdicts about media that no longer
+       *                             exists, read as judgements of the NEW render
+       *   repairQueue               qualityGate.ts:121 counts its length as the
+       *                             job's repair attempts, so a brand-new job is
+       *                             born already at its repair cap
+       *   mp4History                selectiveRepair's record of supplanted
+       *                             renders belonging to a different job
+       *   contentReservationId      the OLD job's reservation. reelPipeline.ts:200
+       *                             only overwrites it when a new reservation is
+       *                             taken, so otherwise this job would later
+       *                             RELEASE a reservation it does not own
+       *                             (reelPipeline.ts:296-300)
+       *
+       * Listed explicitly rather than whitelisted because the brief's own field
+       * set is open — a new creative field must reach the new job by default, and
+       * a new piece of execution state must be added here deliberately.
+       */
+      for (const stale of ["renderedQa", "audioQa", "repairQueue", "mp4History", "contentReservationId"]) {
+        delete (brief as Record<string, unknown>)[stale];
+      }
 
       const { enqueueReelJob } = await import("../services/reelPipeline");
       const { withOperatorAction } = await import("../services/operatorActionLog");
@@ -2525,13 +2574,27 @@ export const contentAdminRouter = router({
       // already exists and the spend is committed, so a failure here must not
       // surface as "regeneration failed".
       try {
-        const closeable = ["assembled", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "failed"];
+        // The SAME allowlist the entry guard used. The old close list included
+        // queued/generating/assembling/repair_rendering — statuses this mutation
+        // can no longer be reached with, and which it could not have closed
+        // anyway: marking a row `failed` does not stop the worker holding it.
         const res = await d.update(reelJobs)
           .set({ status: "failed", error: `superseded by regenerated job ${newJobId} (operator ${ctx.user?.id ?? "?"})`.slice(0, 500) })
-          .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, closeable)));
+          .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, [...REGENERABLE_STATUSES])));
         if (affectedRowCount(res) !== 1) log.warn("regenerate: old job not closed (state changed under us)", { jobId: input.jobId });
       } catch (err) {
         log.warn("regenerate: could not close the superseded job", err);
+      }
+
+      // Closing a job by hand skipped the release the pipeline does on its own
+      // failures (reelPipeline.ts:648, :713), so every regenerate stranded the old
+      // job's content reservation — the topic stayed locked against a job that
+      // will never run again. Best-effort and last: the new job already exists.
+      try {
+        const { releaseFailedJobReservation } = await import("../services/reelPipeline");
+        await releaseFailedJobReservation(job.payload, job.id);
+      } catch (err) {
+        log.warn("regenerate: could not release the superseded job's reservation", err);
       }
 
       return { ok: true, supersededJobId: input.jobId, newJobId };
