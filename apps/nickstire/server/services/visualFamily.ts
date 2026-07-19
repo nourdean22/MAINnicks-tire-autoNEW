@@ -105,13 +105,22 @@ export const VISUAL_FAMILIES: Record<string, VisualFamily> = {
     label: "Cleveland road hazard",
     when: "Weather or road conditions — potholes, salt, a freeze warning. Urgent without looking like a cheap emergency graphic.",
     subject: "optional",
-    bg: "linear-gradient(200deg,#1b1407 0%,#0d0a05 60%,#070604 100%)",
-    motif: "background:repeating-linear-gradient(90deg,transparent 0 120px,rgba(253,185,19,.08) 120px 128px);",
-    scrim: "linear-gradient(to top,rgba(7,6,4,.92) 0%,rgba(7,6,4,.60) 48%,transparent 100%)",
+    // REBUILT ON OPERATOR FEEDBACK (2026-07-19). The first version was the only
+    // family with a TOP anchor, an OUTLINE cta and an ORANGE accent, and it was
+    // the only one of three the operator rejected — while both accepted renders
+    // were the same centre-anchored, solid-gold composition. The signal was
+    // about STRUCTURE, not subject matter, so the structure changed: centre
+    // anchor and a solid gold CTA to match what works. Urgency now comes from a
+    // colder, higher-contrast ground and a tighter motif rather than from a
+    // different layout — a hazard post should read as the same brand under worse
+    // weather, not as a different publisher.
+    bg: "radial-gradient(circle at 26% 12%,#20303a 0,#0b1116 52%,#05080a 100%)",
+    motif: "background:repeating-linear-gradient(115deg,transparent 0 34px,rgba(253,185,19,.06) 34px 36px);",
+    scrim: "linear-gradient(to top,rgba(5,8,10,.92) 0%,rgba(5,8,10,.58) 50%,rgba(5,8,10,.24) 100%)",
     headlineColor: "#ffffff",
-    accent: "#FF8A1E",
-    anchor: "top",
-    ctaStyle: "outline",
+    accent: "#FDB913",
+    anchor: "center",
+    ctaStyle: "solid",
   },
 };
 
