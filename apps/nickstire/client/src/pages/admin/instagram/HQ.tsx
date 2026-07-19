@@ -150,10 +150,31 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
 
             <div className="p-4 rounded border bg-card">
               <div className="text-sm font-medium text-muted-foreground mb-1">Meta API</div>
+              {/*
+                THREE STATES, NEVER TWO. This rendered green off `connected`,
+                which is presence-only — credentials set, an IG id exists. A
+                REVOKED or expired token leaves all of that true, so the card
+                said "Connected" while every publish failed at the Graph call.
+                `live` is Meta's own answer; `null` means we could not ask, which
+                is its own state and must not borrow either of the other two.
+              */}
               <div className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full ${health.meta.connected ? "bg-green-500" : "bg-red-500"}`} />
-                <span>{health.meta.connected ? "Connected" : "Disconnected"}</span>
+                <div className={`h-2 w-2 rounded-full ${
+                  !health.meta.connected ? "bg-red-500"
+                    : health.meta.live === true ? "bg-green-500"
+                    : health.meta.live === false ? "bg-red-500"
+                    : "bg-amber-500"
+                }`} />
+                <span>{
+                  !health.meta.connected ? "Not configured"
+                    : health.meta.live === true ? "Connected"
+                    : health.meta.live === false ? "Rejected by Meta"
+                    : "Unverified"
+                }</span>
               </div>
+              {health.meta.live !== true && health.meta.liveError && (
+                <p className="mt-1 text-xs text-muted-foreground">{health.meta.liveError}</p>
+              )}
             </div>
 
             {/* Was a dead count. Telling the operator something is stuck and giving
