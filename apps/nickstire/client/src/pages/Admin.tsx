@@ -73,8 +73,25 @@ const ROLE_SECTIONS: Record<AdminRole, readonly AdminSection[]> = {
  * growth is where Instagram lives, and a signal that only appears once you have
  * already navigated to the right place is not a signal.
  */
-function getBadgeCount(id: string, stats: any, counts: AdminActionableCounts, opsTotal: number): number {
-  if (id === "overview") return counts.total + opsTotal;
+/**
+ * `null` means WE COULD NOT COUNT — it is not zero, and it must not render as a
+ * missing badge.
+ *
+ * operationsSignal returns `unknown: true` when a count failed, and its own
+ * docblock says: "Callers must render that as 'unable to determine', never as
+ * zero: a failed query showing 0 is a green light the system never gave." This
+ * function is that only caller, and it used to do `opsSignal?.total ?? 0` —
+ * so a database the sidebar could not reach looked exactly like a clean shop.
+ * Three reels once sat held for 32 hours behind a silent sidebar; this is the
+ * same silence arriving by a different route.
+ */
+function getBadgeCount(
+  id: string,
+  stats: any,
+  counts: AdminActionableCounts,
+  opsTotal: number | null,
+): number | null {
+  if (id === "overview") return opsTotal === null ? null : counts.total + opsTotal;
   if (id === "instagram") return opsTotal;
   if (id === "leads") return counts.newLeads;
   if (id === "tireOrders") return stats?.tires?.new ?? 0;
@@ -117,13 +134,18 @@ export default function Admin() {
   });
   // Count-only, cheap by construction — see contentAdmin.operationsSignal. It
   // must never call the artifact-probing query: this runs on every page load.
-  const { data: opsSignal } = trpc.contentAdmin.operationsSignal.useQuery(undefined, {
+  const { data: opsSignal, isError: opsFailed } = trpc.contentAdmin.operationsSignal.useQuery(undefined, {
     enabled: isAdmin,
     refetchInterval: 120_000,
     staleTime: 90_000,
     refetchIntervalInBackground: false,
   });
-  const opsTotal = opsSignal?.total ?? 0;
+  // Three states, not two: a number, "still loading", and "we could not tell".
+  // Only the first is a count. `undefined` while the first fetch is in flight is
+  // genuinely nothing-to-show; a transport error or a server-side `unknown` is a
+  // fact the operator needs, so it becomes null and renders as "?".
+  const opsTotal: number | null =
+    opsFailed || opsSignal?.unknown ? null : (opsSignal?.total ?? 0);
 
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
   const allowedSections = ROLE_SECTIONS[adminRole];
@@ -194,7 +216,7 @@ export default function Admin() {
             {visibleGroups.map((group) => <div key={group.label || "_flat"}>{group.label && <div className="admin-sidebar-group-label">{group.label}</div>}<div className="space-y-0.5 mt-0.5">{group.items.map((item) => {
               const isActive = section === item.id;
               const badge = getBadgeCount(item.id, stats, actionableCounts, opsTotal);
-              return <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }} aria-current={isActive ? "page" : undefined} className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}><span className={`shrink-0 ${isActive ? "text-primary" : "text-foreground/45"}`}>{item.icon}</span><span className="flex-1 text-left truncate">{item.label}</span>{badge > 0 && <span className="shrink-0 text-[10px] font-semibold tabular-nums min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/12 text-destructive flex items-center justify-center">{badge > 99 ? "99+" : badge}</span>}</button>;
+              return <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }} aria-current={isActive ? "page" : undefined} className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}><span className={`shrink-0 ${isActive ? "text-primary" : "text-foreground/45"}`}>{item.icon}</span><span className="flex-1 text-left truncate">{item.label}</span>{badge === null ? <span className="shrink-0 text-[10px] font-semibold min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-amber-600 flex items-center justify-center" title="Could not read outstanding work — this is unknown, not zero" aria-label="outstanding work unknown">?</span> : badge > 0 ? <span className="shrink-0 text-[10px] font-semibold tabular-nums min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/12 text-destructive flex items-center justify-center">{badge > 99 ? "99+" : badge}</span> : null}</button>;
             })}</div></div>)}
           </nav>
           <div className="px-3 py-3 border-t border-sidebar-border shrink-0 space-y-2"><div className="px-2"><p className="text-[12px] font-medium text-foreground truncate">{user.name || "Admin"}</p><p className="text-[10px] text-muted-foreground/70">{adminRole.replace("_", " ")}</p></div><Link href="/" className="px-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"><ArrowLeft className="w-3 h-3" />Back to site</Link></div>

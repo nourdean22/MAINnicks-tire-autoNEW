@@ -20,7 +20,27 @@ describe("admin shell operator-truth contract", () => {
 
   it("uses canonical non-overlapping actionable counts", () => {
     expect(adminSource).toContain("getAdminActionableCounts");
-    expect(adminSource).toContain('if (id === "overview") return counts.total');
+    // Asserted as intent, not as one exact line: overview's badge must be built
+    // from the canonical counts helper rather than a locally re-derived sum.
+    expect(adminSource).toMatch(/if \(id === "overview"\)[\s\S]{0,80}counts\.total/);
+  });
+
+  /**
+   * operationsSignal returns `unknown: true` when a count could not be read, and
+   * its docblock instructs callers to render that as "unable to determine, never
+   * as zero". Admin.tsx is its ONLY caller and used to do `?? 0`, so a database
+   * the sidebar could not reach looked exactly like a shop with nothing pending.
+   * Three reels once sat held for 32 hours behind a silent sidebar — this is the
+   * same silence arriving by a different route.
+   */
+  it("never renders an unreadable ops count as a clean sidebar", () => {
+    // `?? 0` on the total is fine ONCE GUARDED — it then only covers the first
+    // in-flight fetch, where there is genuinely nothing to show yet. What must
+    // never happen is reaching it while the signal says unknown, so the contract
+    // is that the guard precedes the fallback on the same expression.
+    expect(adminSource).toMatch(/opsFailed \|\| opsSignal\?\.unknown \? null :/);
+    // And the unknown state must reach the eye, not just the variable.
+    expect(adminSource).toMatch(/badge === null/);
   });
 
   it("surfaces unavailable and degraded data before section content", () => {
