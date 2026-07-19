@@ -76,6 +76,19 @@ export default function ActionCenter() {
     refetchInterval: 60_000,
   });
   const openAttempts = trpc.contentAdmin.openPublishAttempts.useQuery({ olderThanMinutes: 15 });
+  /** Queue rows claiming "awaiting review" whose job is dead. Read-only. */
+  const queueTruth = trpc.contentAdmin.queueTruthReport.useQuery(undefined, { staleTime: 120_000 });
+
+  const applyQueueTruth = trpc.contentAdmin.applyQueueTruth.useMutation({
+    onSuccess: (r: any) => {
+      toast.success(`${r.updated} queue item(s) corrected`, {
+        description: `${r.regenerable} of them failed for an environmental reason and can be regenerated.`,
+      });
+      queueTruth.refetch();
+      attention.refetch();
+    },
+    onError: (err) => toast.error("Could not correct the queue", { description: err.message }),
+  });
 
   const reassemble = trpc.contentAdmin.reassembleReelFromClips.useMutation({
     onSuccess: (r: any) => {
@@ -149,6 +162,47 @@ export default function ActionCenter() {
     <div className="space-y-4">
       {/* Ambiguous publishes lead: a post that may or may not be live is the only
           thing here that can cost the business twice if acted on blindly. */}
+      {/* A queue that shows dead work as reviewable is worse than an empty one:
+          an empty queue prompts you to make something, a full one says the
+          bottleneck is your review time. */}
+      {(queueTruth.data?.misreported ?? 0) > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              {queueTruth.data!.misreported} queue item(s) say "awaiting review" but cannot publish
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Their generation job failed and no media exists, so nothing about them is reviewable.
+              {queueTruth.data!.regenerable > 0 && (
+                <> <strong>{queueTruth.data!.regenerable}</strong> failed for an environmental reason
+                (key, quota or session) — those briefs are intact and can be regenerated.</>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {queueTruth.data!.rows.slice(0, 8).map((r: any) => (
+                <div key={r.inventoryId} className="text-[11px] font-mono text-muted-foreground truncate">
+                  {r.inventoryId}{r.regenerable ? " · regenerable" : ""}
+                </div>
+              ))}
+              {queueTruth.data!.rows.length > 8 && (
+                <div className="text-[11px] text-muted-foreground/70">…and {queueTruth.data!.rows.length - 8} more</div>
+              )}
+            </div>
+            <Button
+              size="sm" variant="destructive" className="text-xs"
+              disabled={applyQueueTruth.isPending}
+              onClick={() => applyQueueTruth.mutate({ confirm: true })}
+            >
+              {applyQueueTruth.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+              Mark these failed so the queue tells the truth
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {openUnknown && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardHeader className="pb-2">
