@@ -4040,4 +4040,44 @@ export const integrationTokens = mysqlTable("integration_tokens", {
 
 export type IntegrationToken = typeof integrationTokens.$inferSelect;
 
+/**
+ * ONE durable parent for a single "make me something" request.
+ *
+ * References the existing identities rather than replacing them — inventory,
+ * reel jobs and approvals keep their gates, hashes and provenance untouched.
+ * What this adds is the two things nothing else holds: the DECISION AND ITS
+ * REASON, and the two-state model (what was built vs what was PROVEN).
+ */
+export const contentRuns = mysqlTable("content_runs", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 
+  requestedBy: varchar("requestedBy", { length: 64 }),
+  /** operator | planner | cron — who asked. */
+  requestSource: varchar("requestSource", { length: 32 }).default("operator").notNull(),
+  requestedTopic: text("requestedTopic"),
+  /** NULL = "choose for me". */
+  requestedFormat: varchar("requestedFormat", { length: 32 }),
+
+  chosenFormat: varchar("chosenFormat", { length: 32 }),
+  /** WHY this format. An operator who cannot see the reason cannot correct it. */
+  formatReason: varchar("formatReason", { length: 1000 }),
+  objective: varchar("objective", { length: 64 }),
+  thesis: text("thesis"),
+
+  inventoryId: varchar("inventoryId", { length: 64 }),
+  reelJobId: int("reelJobId"),
+  approvalId: varchar("approvalId", { length: 64 }),
+
+  stage: varchar("stage", { length: 32 }).default("requested").notNull(),
+
+  /** What was BUILT. Never conflate with operationalState. */
+  implementationState: varchar("implementationState", { length: 32 }).default("pending").notNull(),
+  /** What was PROVEN in production. A green build is not a proven outcome. */
+  operationalState: varchar("operationalState", { length: 32 }).default("unproven").notNull(),
+
+  evidenceJson: mediumtext("evidenceJson"),
+  costCents: int("costCents").default(0).notNull(),
+  failureReason: varchar("failureReason", { length: 1000 }),
+});
