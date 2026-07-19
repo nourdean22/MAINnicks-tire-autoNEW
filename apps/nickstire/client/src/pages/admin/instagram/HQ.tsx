@@ -32,31 +32,61 @@ export function HQ({ onNavigate }: HQProps) {
               <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
             ) : brief ? (
               <div className="space-y-4">
+                {/*
+                  Both of these are NULLABLE, and both used to render their
+                  absence as confidence: the archetype printed a hardcoded
+                  "proof" and the window printed nothing at all — a blank line
+                  under a confident label. The server already returns a basis
+                  string for each; the UI simply threw them away.
+                */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <span className="text-sm font-medium text-muted-foreground">Top Archetype (30d)</span>
-                    <p className="text-lg font-semibold capitalize">{brief.topArchetypeLast30Days}</p>
+                    <p className={`text-lg font-semibold ${brief.topArchetypeLast30Days ? "capitalize" : "text-muted-foreground"}`}>
+                      {brief.topArchetypeLast30Days ?? "Not enough data"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{brief.topArchetypeBasis}</p>
                   </div>
                   <div>
                     <span className="text-sm font-medium text-muted-foreground">Optimal Posting Window</span>
-                    <p className="text-lg font-semibold">{brief.optimalPostingWindow}</p>
+                    <p className={`text-lg font-semibold ${brief.optimalPostingWindow ? "" : "text-muted-foreground"}`}>
+                      {brief.optimalPostingWindow ?? "Not enough data"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{brief.postingWindowBasis}</p>
                   </div>
                 </div>
-                
-                <Alert variant="destructive" className="mt-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Topics to Avoid</AlertTitle>
-                  <AlertDescription>
-                    <ul className="list-disc pl-4 mt-2">
-                      {brief.topicsToAvoid.map((topic, i) => (
-                        <li key={i}>{topic}</li>
-                      ))}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
+
+                {/*
+                  A red destructive alert fired on EVERY load with an empty list
+                  inside it. topicsToAvoid is hardcoded to [] server-side (the
+                  derivation does not exist yet), so this was a permanent alarm
+                  that never had anything to say — and an alarm that is always on
+                  is one the operator learns to look past, including on the day
+                  it means something.
+                */}
+                {brief.topicsToAvoid.length > 0 ? (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Topics to Avoid</AlertTitle>
+                    <AlertDescription>
+                      <ul className="list-disc pl-4 mt-2">
+                        {brief.topicsToAvoid.map((topic, i) => (
+                          <li key={i}>{topic}</li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <p className="mt-4 text-xs text-muted-foreground">
+                    Topics to avoid: {brief.topicsToAvoidBasis}
+                  </p>
+                )}
 
                 <div>
-                  <h4 className="font-medium mt-4 mb-2">Recent Winners</h4>
+                  {/* Labelled from the query that produces it: getTopPosts applies
+                      no date filter, so these are all-time, not recent. */}
+                  <h4 className="font-medium mt-4 mb-2">Top Posts</h4>
+                  <p className="mb-2 text-xs text-muted-foreground">{brief.recentWinnersBasis}</p>
                   <div className="grid gap-2">
                     {brief.recentWinners.map((w, i) => (
                       <div key={i} className="text-sm p-2 bg-muted rounded border">

@@ -233,9 +233,22 @@ export const instagramAdminRouter = router({
     const { getTopPosts } = await import("../pipelines/instagram-data");
     const topPosts = await getTopPosts({ limit: 5 });
 
-    // Compute best-performing archetype from the last 30 days of posted content.
-    // Falls back to "proof" (highest base rate at 50%) if no data exists yet.
-    let topArchetype = "proof";
+    /**
+     * The best-performing archetype of the last 30 days, or NOTHING.
+     *
+     * This defaulted to the literal string "proof" and returned it as
+     * `topArchetypeLast30Days` — so an empty table, or a database that could not
+     * be read at all, produced a confident 30-day performance finding that was
+     * really a hardcoded guess. The shop has published 8 things in its life, so
+     * the empty case is the NORMAL one: this field has almost certainly never
+     * shown anything but the default.
+     *
+     * The fix is the pattern already used by the posting window twelve lines
+     * below — a nullable value plus a basis string saying why. That one was made
+     * honest and this one, in the same function, was not.
+     */
+    let topArchetype: string | null = null;
+    let topArchetypeBasis = "no posted content in the last 30 days";
     try {
       const database = await db();
       if (database) {
@@ -258,10 +271,15 @@ export const instagramAdminRouter = router({
           .limit(1);
         if (rows.length > 0 && rows[0].archetype) {
           topArchetype = rows[0].archetype;
+          topArchetypeBasis = "highest average score across posts in the last 30 days";
         }
+      } else {
+        topArchetypeBasis = "could not be computed (database unavailable)";
       }
     } catch (err) {
-      log.warn("Failed to compute top archetype from ig_autopost_log, using fallback", err);
+      // A failed read is not a finding. It used to leave "proof" standing.
+      topArchetypeBasis = "could not be computed (analytics unavailable)";
+      log.warn("Failed to compute top archetype from ig_autopost_log", err);
     }
 
     // The posting window is DERIVED or it is absent. It used to be the literal
@@ -315,6 +333,8 @@ export const instagramAdminRouter = router({
 
     return {
       topArchetypeLast30Days: topArchetype,
+      /** Why the archetype says what it says — null means we have no finding. */
+      topArchetypeBasis,
       optimalPostingWindow,
       /** Why the window says what it says — so the UI never implies more than it knows. */
       postingWindowBasis,
@@ -323,10 +343,25 @@ export const instagramAdminRouter = router({
       // guidance is worse than admitting the gap.
       topicsToAvoid: [] as string[],
       topicsToAvoidBasis: "not derived yet — needs theme-level engagement analysis",
-      recentWinners: topPosts.map(p => ({
-        id: p.postId,
-        caption: p.caption?.substring(0, 50) + "..."
-      }))
+      /**
+       * ALL-TIME top posts by engagement rate — getTopPosts applies no date
+       * filter (instagram-data.ts:450). Labelled accordingly rather than as
+       * "recent", because on an account with 8 posts ever "recent winners" and
+       * "every post we have" are the same list wearing a more flattering name.
+       *
+       * The ellipsis is appended only when something was ACTUALLY cut: the old
+       * `caption?.substring(0, 50) + "..."` rendered a captionless post as the
+       * literal string "..." and a 40-character caption as one that looked
+       * truncated.
+       */
+      recentWinnersBasis: "all-time top posts by engagement rate — not restricted to a recent window",
+      recentWinners: topPosts.map(p => {
+        const caption = p.caption ?? "";
+        return {
+          id: p.postId,
+          caption: caption ? caption.slice(0, 50) + (caption.length > 50 ? "..." : "") : "No caption recorded",
+        };
+      })
     };
   }),
 
