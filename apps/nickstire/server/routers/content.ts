@@ -2232,10 +2232,14 @@ export const contentAdminRouter = router({
     .input(z.object({ jobId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const { reassembleFromClips } = await import("../services/reelReassemble");
-      const { withOperatorAction } = await import("../services/operatorActionLog");
+      const { withOperatorAction, ACTION_OUTCOME } = await import("../services/operatorActionLog");
       const result = await withOperatorAction(
         { action: "reassemble", operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: false },
         () => reassembleFromClips(input.jobId),
+        // reassembleFromClips ANSWERS with { ok: false, reason } rather than
+        // throwing, because a job in the wrong state is an answer, not a fault.
+        // Without this the log recorded every refused re-assembly as a success.
+        { outcomeOfResult: (r) => (r.ok ? ACTION_OUTCOME.ok : ACTION_OUTCOME.refused) },
       );
       if (!result.ok) {
         // A refusal is an ANSWER about the job's state, not a server fault.
@@ -2308,11 +2312,12 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Marking a publish live requires the Instagram post id it went out as." });
       }
       const { applyReconciliation } = await import("../services/publishReconciler");
-      const { withOperatorAction } = await import("../services/operatorActionLog");
+      const { withOperatorAction, ACTION_OUTCOME } = await import("../services/operatorActionLog");
       const res = await withOperatorAction(
         { action: `reconcile_${input.decision}`, operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: false,
           detail: { kind: input.kind, attemptId: input.attemptId } },
         () => applyReconciliation(input),
+        { outcomeOfResult: (r) => (r.ok ? ACTION_OUTCOME.ok : ACTION_OUTCOME.refused) },
       );
       if (!res.ok) throw new TRPCError({ code: "BAD_REQUEST", message: res.detail });
       return res;
@@ -2345,13 +2350,13 @@ export const contentAdminRouter = router({
         .set({ status: "failed", error: `${input.mode === "archive" ? "archived" : "discarded"} by operator: ${input.reason}`.slice(0, 500) })
         .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, CLOSEABLE)));
       if (affectedRowCount(res) !== 1) {
-        void recordOperatorAction({ action: "discard", outcome: ACTION_OUTCOME.refused, operatorId: ctx.user?.id ?? null, jobId: input.jobId, detail: { reason: input.reason } });
+        await recordOperatorAction({ action: "discard", outcome: ACTION_OUTCOME.refused, operatorId: ctx.user?.id ?? null, jobId: input.jobId, detail: { reason: input.reason } });
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This job cannot be closed from here — it has already published, or it may be live and needs reconciling first.",
         });
       }
-      void recordOperatorAction({ action: "discard", outcome: ACTION_OUTCOME.ok, operatorId: ctx.user?.id ?? null, jobId: input.jobId, detail: { reason: input.reason, mode: input.mode } });
+      await recordOperatorAction({ action: "discard", outcome: ACTION_OUTCOME.ok, operatorId: ctx.user?.id ?? null, jobId: input.jobId, detail: { reason: input.reason, mode: input.mode } });
       return { ok: true, jobId: input.jobId, mode: input.mode };
     }),
   /**
@@ -2457,6 +2462,14 @@ export const contentAdminRouter = router({
       const { jobId: newJobId } = await withOperatorAction(
         { action: "regenerate", operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: true },
         () => enqueueReelJob(brief as never, "admin"),
+        {
+          // enqueueReelJob throws a plain Error when the M10 preflight or the
+          // spend governor says no. That is the system REFUSING, not breaking,
+          // and it is the most important refusal to count correctly — it is how
+          // "we keep hitting the daily cap" becomes visible instead of looking
+          // like a broken regenerate button.
+          isRefusal: (err) => err instanceof Error && /preflight blocked|governor|budget|spend|cap|cooldown/i.test(err.message),
+        },
       );
 
       // Close the old one so it stops appearing as work. Best-effort: the new job
