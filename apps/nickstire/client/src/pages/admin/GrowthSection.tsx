@@ -13,14 +13,14 @@
  * rows; the actual Google reply is always pasted by the owner in the
  * GBP app, then confirmed here with "Mark posted".
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   TrendingUp, MapPin, Star, MessageCircleQuestion, Camera, Building2,
   Swords, Copy, Check, Loader2, AlertTriangle, CheckCircle2,
   RefreshCw, Lock, Instagram, Activity,
 } from "lucide-react";
-import { InstagramAdmin } from "./instagram/InstagramAdmin";
 import { Section, Panel } from "./shared";
+import { navigateToAdminSection } from "./shared/navigation";
 import { TabBar } from "./shared/table";
 import { trpc } from "@/lib/trpc";
 import { GBP_QA_SEEDS } from "@/lib/gbpQaSeeds";
@@ -36,6 +36,21 @@ import { RANK_KEYWORDS } from "@/lib/localRankKeywords";
 
 type GrowthTab = "local" | "reviews" | "qa" | "photos" | "entity" | "competitors" | "instagram";
 
+/** One-time forward for the retired ?growthTab=instagram deep-link. */
+function InstagramMoved() {
+  useEffect(() => {
+    const timer = setTimeout(() => navigateToAdminSection("instagram"), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <div className="text-center py-16 space-y-2">
+      <Instagram className="w-10 h-10 text-pink-400/50 mx-auto" />
+      <p className="text-sm font-medium">Instagram has its own section now</p>
+      <p className="text-xs text-muted-foreground">Taking you there…</p>
+    </div>
+  );
+}
+
 const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
   { id: "local", label: "Local Growth", icon: <MapPin className="w-3.5 h-3.5" /> },
   { id: "reviews", label: "Review Replies", icon: <Star className="w-3.5 h-3.5" /> },
@@ -43,7 +58,6 @@ const GROWTH_TABS: { id: GrowthTab; label: string; icon: React.ReactNode }[] = [
   { id: "photos", label: "Photo Queue", icon: <Camera className="w-3.5 h-3.5" /> },
   { id: "entity", label: "Entity / Brand", icon: <Building2 className="w-3.5 h-3.5" /> },
   { id: "competitors", label: "Competitors", icon: <Swords className="w-3.5 h-3.5" /> },
-  { id: "instagram", label: "Instagram", icon: <Instagram className="w-3.5 h-3.5" /> },
 ];
 
 type Mode = "read-only" | "copy-only" | "manual" | "db-only";
@@ -119,7 +133,11 @@ export default function GrowthSection() {
         {tab === "photos" && <PhotoQueueTab />}
         {tab === "entity" && <EntityTab />}
         {tab === "competitors" && <CompetitorsTab />}
-        {tab === "instagram" && <InstagramAdmin />}
+        {/* Instagram MOVED to its own top-level section (registry id "instagram").
+            Rendering it here as well would put one surface in two places — the
+            duplication disease this pass exists to remove. Anyone arriving via the
+            old ?growthTab=instagram deep-link is forwarded once to the real door. */}
+        {tab === "instagram" && <InstagramMoved />}
       </div>
     </Section>
   );

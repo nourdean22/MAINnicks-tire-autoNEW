@@ -256,8 +256,8 @@ function Router() {
             {/* 2026-07-11 · was ?tab=instagram — not a registry id OR alias,
                 so both studio buttons landed on Overview. The Instagram
                 studio lives at growth → inner tab "instagram". */}
-            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=growth&growthTab=instagram" />}</Route>
-            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=growth&growthTab=instagram" />}</Route>
+            <Route path={"/admin/ig-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
+            <Route path={"/admin/reel-studio"}>{() => <Redirect to="/admin?tab=instagram" />}</Route>
             <Route path={"/admin/ad-studio"} component={AdminAdStudio} />
             {/* City-specific landing pages for local SEO */}
             <Route path={"/cleveland-auto-repair"} component={CityPage} />

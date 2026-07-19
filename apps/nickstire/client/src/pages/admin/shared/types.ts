@@ -21,7 +21,11 @@ export type AdminSection =
   | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
-  | "opsHub" | "growth" | "intelligence";
+  | "opsHub" | "growth" | "intelligence" | "instagram";
+// 2026-07-19 · `instagram` promoted OUT of growth. It was the 7th pill inside the
+// Growth section, three navigation levels from the front door (Growth > Instagram
+// > Actions), while being the surface that autonomously spends money and posts to
+// a live audience. A system that publishes on its own belongs at the top level.
 // 2026-06-10 · `growth` added — operator surface for the PR #50 local-growth
 // systems (GBP Q&A / photo queue / entity / competitors / armed-state /
 // reviews health) + the PR #51 social studios. Read/copy/manual only.

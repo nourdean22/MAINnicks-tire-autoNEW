@@ -1,8 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect } from "react";
-import {
-  LayoutDashboard, UserCheck, Send, DollarSign, PhoneCall, Settings, Disc,
-  ClipboardList, TrendingUp, Shield, Brain, Sparkles, Images, Clapperboard, Megaphone,
-} from "lucide-react";
+import { Brain, Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, PhoneCall, Send, Settings, Shield, Sparkles, TrendingUp, UserCheck } from "lucide-react";
 import type { AdminSection, NavGroup } from "./shared/types";
 import type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
@@ -21,6 +18,7 @@ export interface RegistrySection {
 
 // Lazy-load sections relative to this file's position (client/src/pages/admin/)
 const OverviewSection = lazy(() => import("./OverviewSection"));
+const InstagramSection = lazy(() => import("./instagram/InstagramAdmin").then((m) => ({ default: m.InstagramAdmin })));
 const LeadsSection = lazy(() => import("./LeadsSection"));
 const ContentSection = lazy(() => import("./ContentSection"));
 const CustomersSection = lazy(() => import("./CustomersSection"));
@@ -94,6 +92,20 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: GrowthSection,
     aliases: ["gbp", "local", "localseo", "social"],
     keywords: ["marketing", "growth", "seo", "local", "reviews", "replies"],
+    group: "Operations",
+    showInSidebar: true,
+  },
+  {
+    // Promoted out of Growth's 7th inner pill. Instagram autonomously generates,
+    // spends and publishes to a live audience; burying the only surface that can
+    // stop it three levels deep (Growth > Instagram > Actions) meant a held
+    // publish had nowhere to announce itself. It carries the ops badge.
+    id: "instagram",
+    label: "Instagram",
+    icon: <Instagram className="w-4 h-4 text-pink-400" />,
+    component: InstagramSection,
+    aliases: ["ig", "instagram", "reels", "reel", "igstudio", "ig-studio", "actions", "actioncenter", "publishing"],
+    keywords: ["instagram", "ig", "reel", "post", "publish", "caption", "story", "carousel", "actions", "stuck", "held"],
     group: "Operations",
     showInSidebar: true,
   },
