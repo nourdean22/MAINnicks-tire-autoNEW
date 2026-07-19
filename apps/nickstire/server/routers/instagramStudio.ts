@@ -202,8 +202,22 @@ export const instagramStudioRouter = router({
       return { ...draft, runId };
     }),
 
+  /**
+   * `runId` is extended here for the same reason render and stage extend it, and
+   * its absence was a silent severing of the whole spine.
+   *
+   * draftSchema is a plain z.object, so it STRIPS unknown keys. The client holds
+   * the draft as one state object and replaces it wholesale with whatever this
+   * mutation returns — so an operator who tapped "Re-check quality" before
+   * rendering lost the runId, and every later call passed a draft without one.
+   * render and stage then skipped advanceContentRun entirely, and the run sat at
+   * stage `generating` forever, never learning which queue item it became.
+   *
+   * Whether the traceability spine worked depended on whether the operator
+   * happened to press an optional button. That is not a spine.
+   */
   evaluate: adminProcedure
-    .input(draftSchema)
+    .input(draftSchema.extend({ runId: z.string().max(64).optional() }))
     .mutation(async ({ input }) => ({
       ...input,
       quality: evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() }),
@@ -219,13 +233,21 @@ export const instagramStudioRouter = router({
       const imageUrls = await renderInstagramStudioAssets(evaluated);
       if (input.runId) {
         const { advanceContentRun, RUN_STAGE, IMPLEMENTATION_STATE } = await import("../services/contentRun");
+        const { COST_ESTIMATES_USD } = await import("../services/generationLedger");
+        // `costCents` had no writer anywhere, so contentRevenue's cost column was
+        // structurally zero for every run — and a revenue figure sitting beside a
+        // zero cost reads as pure profit. The per-image estimate is the same one
+        // the spend governor budgets against, so the two agree by construction
+        // rather than by two people remembering the same number.
+        const costCents = Math.round(imageUrls.length * COST_ESTIMATES_USD.gpt_image_2 * 100);
         await advanceContentRun(input.runId, {
           stage: RUN_STAGE.qa,
           // BUILT, not proven. The media exists; nothing has published it.
           implementationState: IMPLEMENTATION_STATE.built,
+          addCostCents: costCents,
           evidence: {
             at: new Date().toISOString(),
-            what: `${imageUrls.length} asset(s) rendered`,
+            what: `${imageUrls.length} asset(s) rendered (est. $${(costCents / 100).toFixed(2)})`,
             proof: imageUrls[0] ?? null,
           },
         });
@@ -242,7 +264,27 @@ export const instagramStudioRouter = router({
       const database = await dbTyped();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const quality = evaluateInstagramDraft({ ...evalArgs(input), recentConceptKeys: await recentKeysSafe() });
-      const draft = { ...input, quality };
+
+      /**
+       * Make the caption's existing shop links measurable BEFORE the row is
+       * written, so what gets approved is exactly what gets published.
+       *
+       * This is the step that was missing: buildTrackedUrl had zero callers, so
+       * no published link ever carried a run id, so leads.utmContent never
+       * contained one, so the revenue report could only ever be empty — and an
+       * empty report reads as "this content earned nothing" rather than "nothing
+       * was ever measurable".
+       */
+      let caption = input.caption;
+      let tracking: { rewritten: number; trackedUrls: string[] } = { rewritten: 0, trackedUrls: [] };
+      if (input.runId) {
+        const { applyTrackingToCaption } = await import("../services/contentRunAttribution");
+        const applied = applyTrackingToCaption({ caption: input.caption, runId: input.runId });
+        caption = applied.caption;
+        tracking = { rewritten: applied.rewritten, trackedUrls: applied.trackedUrls };
+      }
+
+      const draft = { ...input, caption, quality };
       assertPublishable(draft);
       const id = input.id.startsWith("ig_") ? input.id : `ig_${randomUUID()}`;
       const contentType = input.format === "post" || input.format === "ad" ? "post" : input.format;
@@ -253,7 +295,7 @@ export const instagramStudioRouter = router({
         topic: input.topic.slice(0, 128),
         seriesName: "instagram_studio_v2",
         hookCategory: input.objective,
-        hookText: input.caption,
+        hookText: caption,
         bodyText: input.subheadline,
         visualStyle: "nick_grit_v2",
         persona: "nick",
@@ -264,7 +306,7 @@ export const instagramStudioRouter = router({
         version: 1,
       }).onDuplicateKeyUpdate({
         set: {
-          hookText: input.caption,
+          hookText: caption,
           bodyText: input.subheadline,
           scoreOverall: quality.overall,
           status: "pending",
@@ -283,10 +325,20 @@ export const instagramStudioRouter = router({
         await advanceContentRun(input.runId, {
           stage: RUN_STAGE.awaiting_approval,
           inventoryId: id,
-          evidence: { at: new Date().toISOString(), what: `staged to the queue as ${id}` },
+          evidence: {
+            at: new Date().toISOString(),
+            // Whether this post can ever be attributed is recorded AT STAGE TIME,
+            // because that is the last moment it could have been changed. A run
+            // that later shows no revenue must be distinguishable from a run that
+            // was never measurable in the first place.
+            what: tracking.rewritten > 0
+              ? `staged to the queue as ${id}; ${tracking.rewritten} caption link(s) now carry this run's tracking`
+              : `staged to the queue as ${id}; NO trackable link in the caption, so this post cannot be attributed to revenue`,
+            proof: tracking.trackedUrls[0] ?? null,
+          },
         });
       }
-      return { id, status: "needs_review" as const, quality };
+      return { id, status: "needs_review" as const, quality, trackedLinks: tracking.rewritten };
     }),
 
   list: adminProcedure

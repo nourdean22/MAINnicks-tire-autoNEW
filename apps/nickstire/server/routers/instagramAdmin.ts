@@ -1076,7 +1076,7 @@ Keep it under 200 characters.`;
           message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption before publishing.`,
         });
       }
-      const setInventoryStatus = async (status: string, errorMessage?: string) => {
+      const setInventoryStatus = async (status: string, errorMessage?: string, proof?: string | null) => {
         if (!input.inventoryId) return;
         const { socialContentInventory } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
@@ -1088,6 +1088,38 @@ Keep it under 200 characters.`;
             ...(errorMessage !== undefined ? { errorMessage: errorMessage.slice(0, 500) } : {}),
           })
           .where(eq(socialContentInventory.id, input.inventoryId));
+
+        /**
+         * Close the content run from the ONE place inventory status actually
+         * changes, rather than at each of the three call sites below — a rule
+         * applied in one place cannot be applied inconsistently in three.
+         *
+         * `operationalState` — the half of the two-state model that records what
+         * was PROVEN — previously had no writer anywhere, so every run stalled at
+         * "we built it" and could never answer "did it go live".
+         *
+         * Best-effort by construction: the post is already live by the time this
+         * runs, and a bookkeeping failure must never be reported to the operator
+         * as a publish failure.
+         */
+        if (status === "published" || status === "published_partial") {
+          try {
+            const { markContentRunPublishedByInventory } = await import("../services/contentRun");
+            await markContentRunPublishedByInventory(input.inventoryId, {
+              // No post id means we cannot PROVE it — that lands as `attempted`,
+              // never `published`. Same distinction the attempt ledger draws.
+              proof: proof ?? null,
+              what: status === "published_partial"
+                ? `published to some platforms only: ${errorMessage ?? "partial"}`
+                : "published to Instagram",
+            });
+          } catch (err) {
+            log.warn("publish succeeded but the content run could not be closed", {
+              inventoryId: input.inventoryId,
+              err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+            });
+          }
+        }
       };
 
       // Claim the row BEFORE the irreversible external call — the last gate that can
@@ -1220,14 +1252,14 @@ Keep it under 200 characters.`;
         // At least one platform is LIVE and at least one is not. Recording this as
         // "published" is what let the Queue's onSuccess toast report success for a
         // post that never reached Instagram — so this throws instead.
-        await setInventoryStatus("published_partial", failureDetail);
+        await setInventoryStatus("published_partial", failureDetail, igPostId ?? null);
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Partially published — LIVE on ${succeeded.map((r) => r.platform).join(", ")}; FAILED on ${failureDetail}. Do NOT retry: re-publishing would duplicate the live post. Post the failed platform manually.`,
         });
       }
 
-      await setInventoryStatus("published");
+      await setInventoryStatus("published", undefined, igPostId ?? null);
 
       return { success: true, results, postId: igPostId };
     }),

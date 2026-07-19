@@ -177,6 +177,67 @@ export async function advanceContentRun(
 }
 
 /**
+ * Close the loop from the PUBLISH side, where the run id is not in hand.
+ *
+ * `operationalState` — the half of the two-state model that records what was
+ * PROVEN in production — had no writer at all. Every run stopped at
+ * `implementationState: built`, so a screen asking "did the thing I requested
+ * this morning actually go live" could only ever answer "we made it".
+ *
+ * The publish paths do not carry a runId; they carry the inventory row the run
+ * produced. `inventoryId` is the join, written at stage time, and this is the
+ * reverse lookup — so the publisher does not need to know content runs exist
+ * beyond calling this once.
+ *
+ * `proof` is REQUIRED by advanceContentRun for `published`, and that guard is
+ * the whole point: the strongest state in the system must never be settable by
+ * assertion. A publish with no post id is an `attempted`, not a `published` —
+ * the same distinction the publish-attempt ledger draws, for the same reason.
+ */
+export async function markContentRunPublishedByInventory(
+  inventoryId: string,
+  args: { proof: string | null; what?: string },
+): Promise<boolean> {
+  if (!inventoryId) return false;
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return false;
+    const { contentRuns } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+    const [row] = await d
+      .select({ id: contentRuns.id })
+      .from(contentRuns)
+      .where(eq(contentRuns.inventoryId, inventoryId))
+      .orderBy(desc(contentRuns.createdAt))
+      .limit(1);
+    // No run behind this row is NORMAL — inventory predates content runs, and
+    // plenty of rows are staged by paths that never opened one. Not an error.
+    if (!row) return false;
+
+    return await advanceContentRun(row.id, {
+      // `done` means the run reached the end of its journey. Whether that journey
+      // ENDED WELL is operationalState's job, not the stage's — a publish with no
+      // post id is equally "done" and decidedly not "published".
+      stage: RUN_STAGE.done,
+      operationalState: args.proof ? OPERATIONAL_STATE.published : OPERATIONAL_STATE.attempted,
+      evidence: {
+        at: new Date().toISOString(),
+        what: args.what ?? (args.proof ? "published to Instagram" : "publish attempted; no post id returned"),
+        proof: args.proof,
+      },
+    });
+  } catch (err) {
+    // Recording must never be able to fail a publish that already happened.
+    log.warn("could not close the content run for a published inventory row", {
+      inventoryId,
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return false;
+  }
+}
+
+/**
  * The operator-facing summary: what did I ask for, what did it decide, where is
  * it, and can I trust that it actually happened.
  */
