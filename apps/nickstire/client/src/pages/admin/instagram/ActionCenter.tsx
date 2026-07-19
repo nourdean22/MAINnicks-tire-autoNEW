@@ -78,6 +78,12 @@ export default function ActionCenter() {
   const openAttempts = trpc.contentAdmin.openPublishAttempts.useQuery({ olderThanMinutes: 15 });
   /** Queue rows claiming "awaiting review" whose job is dead. Read-only. */
   const queueTruth = trpc.contentAdmin.queueTruthReport.useQuery(undefined, { staleTime: 120_000 });
+  // The run trail. content_runs has been WRITTEN all along and read by nothing —
+  // getContentRun and recentContentRuns both shipped with zero client callers, so
+  // the question the whole two-state model exists to answer ("what happened to the
+  // thing I asked for this morning?") had no screen that could answer it.
+  const runs = trpc.contentAdmin.recentContentRuns.useQuery({ limit: 15 }, { staleTime: 60_000 });
+  type RunTrailRow = NonNullable<typeof runs.data>["runs"][number];
 
   const applyQueueTruth = trpc.contentAdmin.applyQueueTruth.useMutation({
     onSuccess: (r: any) => {
@@ -514,6 +520,71 @@ export default function ActionCenter() {
                 </div>
               );
             })
+          )}
+        </CardContent>
+      </Card>
+
+      {/*
+        WHAT HAPPENED TO WHAT I ASKED FOR.
+        Two states per run, never merged: implementationState is what was BUILT,
+        operationalState is what was PROVEN in production. A run can be "built"
+        and not "published" — that gap is the entire point, and collapsing it into
+        one green check is what this model was created to prevent.
+      */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" /> Run trail
+          </CardTitle>
+          <CardDescription>
+            Every "make me something" request, and how far it actually got. Built is not published.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {runs.isLoading ? (
+            <p className="text-sm text-muted-foreground">Checking…</p>
+          ) : runs.isError ? (
+            <p className="text-sm text-amber-500">Could not read the run trail — this is unknown, not empty. {runs.error?.message}</p>
+          ) : (runs.data?.runs.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No content runs recorded yet. A run opens when you generate something in the Studio.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {runs.data!.runs.map((r: RunTrailRow) => (
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-mono text-xs">{r.id}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.chosenFormat ?? r.requestedFormat ?? "format undecided"} · stage {r.stage}
+                      {r.inventoryId ? ` · queued as ${r.inventoryId}` : " · not yet queued"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {r.costCents > 0 && (
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        ${(r.costCents / 100).toFixed(2)}
+                      </span>
+                    )}
+                    <span className="rounded-full border px-2 py-0.5 text-[11px]">
+                      built: {r.implementationState}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] ${
+                        r.isProvenPublished
+                          ? "bg-emerald-500/15 text-emerald-500"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                      title={r.isProvenPublished
+                        ? "Proven live — a real post id was recorded"
+                        : "NOT proven published. This is the half of the model that a single green check would hide."}
+                    >
+                      {r.isProvenPublished ? "published" : r.operationalState}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

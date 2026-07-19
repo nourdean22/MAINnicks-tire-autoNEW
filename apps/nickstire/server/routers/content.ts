@@ -2706,7 +2706,10 @@ export const contentAdminRouter = router({
     .query(async ({ input }) => {
       const { getDb } = await import("../db");
       const d = await getDb();
-      if (!d) return { runs: [] };
+      // Not `{ runs: [] }`. An unreachable database is not a shop that has never
+      // asked for anything — and now that this has a screen, that difference is
+      // the one the operator would actually read.
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available — the run trail is unknown, not empty." });
       const { contentRuns } = await import("../../drizzle/schema");
       const { desc } = await import("drizzle-orm");
       const rows = await d.select().from(contentRuns).orderBy(desc(contentRuns.createdAt)).limit(input?.limit ?? 20);
