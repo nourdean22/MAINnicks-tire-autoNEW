@@ -239,7 +239,22 @@ export const instagramStudioRouter = router({
   generate: adminProcedure
     .input(z.object({
       source: sourceSchema,
-      format: z.enum(INSTAGRAM_FORMATS).refine((value) => value !== "reel", "Use the Reel Studio for Reels"),
+      /**
+       * The old message said "Use the Reel Studio for Reels" and pointed at a
+       * screen that IS NOT MOUNTED. `instagram/Studio.tsx` has zero importers —
+       * it is the only caller of generateReelBrief, validateReelBrief and
+       * generateReelReferenceFrames, and nothing renders it. So the operator was
+       * sent to a door that does not exist in the UI.
+       *
+       * Reels ARE creatable, from the Campaign package on this same Studio tab
+       * (CampaignPackageCard -> draftReelFromGenome -> enqueueReelJob), which is
+       * mounted at StudioV2.tsx:146. The refusal is correct; only its directions
+       * were wrong.
+       */
+      format: z.enum(INSTAGRAM_FORMATS).refine(
+        (value) => value !== "reel",
+        "Reels are not made here. Use the Campaign package below on this same tab — it drafts a reel from a genome and queues the render.",
+      ),
       objective: z.enum(INSTAGRAM_OBJECTIVES),
       operatorDirection: z.string().trim().max(2000).optional(),
     }))
@@ -632,6 +647,36 @@ export const instagramStudioRouter = router({
           message: `Caption with hashtags is ${scheduledCaption.length} characters — Instagram's limit is ${IG_CAPTION_MAX}. Shorten it; nothing is trimmed automatically.`,
         });
       }
+      /**
+       * SCHEDULING NEEDS THE APPROVAL CHECK MORE THAN PUBLISHING DOES, NOT LESS.
+       *
+       * `publish` verifies that what goes out is byte-identical to what the
+       * operator approved (instagramStudio.ts:564). `schedule` did not — so the
+       * stricter path was the one where a human is watching, and the looser path
+       * was the one that fires hours later with nobody in the room.
+       *
+       * This file already makes exactly this argument about captions a few lines
+       * up: "deferred execution is exactly when nobody is watching, so it needs
+       * the stricter rule, not the looser one." The rule was written down and
+       * then applied to one of the two things that needed it.
+       */
+      const { verifyApprovalRecord } = await import("../services/contentApprovals");
+      const scheduleVerdict = await verifyApprovalRecord(database, {
+        inventoryId: input.id,
+        version: row.version - 1,
+        briefJson: row.briefJson,
+        mediaUrls: "imageUrls" in media ? media.imageUrls ?? [] : ("imageUrl" in media && media.imageUrl ? [media.imageUrl] : []),
+      });
+      if (!scheduleVerdict.ok) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            scheduleVerdict.reason === "no_record"
+              ? "No approval record found for this version — re-approve the draft before scheduling it."
+              : `Integrity breach: the draft's ${scheduleVerdict.reason === "brief_mismatch" ? "content" : "media"} changed after approval. Re-review and re-approve before scheduling.`,
+        });
+      }
+
       await database.insert(scheduledPosts).values({
         platforms: ["instagram"],
         caption: scheduledCaption,

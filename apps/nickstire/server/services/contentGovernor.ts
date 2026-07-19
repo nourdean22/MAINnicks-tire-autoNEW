@@ -185,8 +185,44 @@ export async function assertPublishCadence(input: { format: "reel" | "carousel" 
       .orderBy(desc(socialContentInventory.publishedAt));
     const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
 
+    /**
+     * THE CAP MUST COUNT EVERY DOOR, NOT THE ONE IT WAS WRITTEN BESIDE.
+     *
+     * This counted only social_content_inventory.publishedAt — the Queue's own
+     * publishes. Two other doors reach Instagram and never stamp that column:
+     *   - the daily reel cron settles onto reel_jobs.status='posted'
+     *   - the scheduled-post worker settles onto scheduled_posts.status='posted'
+     *
+     * So "max 2 feed posts per day" was really "max 2 posts THROUGH THE QUEUE per
+     * day", and a cron reel plus a scheduled post plus two Queue publishes was
+     * four posts against a cap of two — with the governor reporting no breach,
+     * because it never saw the other two.
+     *
+     * Counted defensively: a source that cannot be read contributes 0 AND is
+     * named in the log, rather than silently lowering the count. An undercount
+     * here spends the operator's audience, which is the resource this cap exists
+     * to protect.
+     */
+    let externalFeedPosts = 0;
+    try {
+      const { reelJobs, scheduledPosts } = await import("../../drizzle/schema");
+      const { eq: eqx, and: andx, gte: gtex, inArray: inArrayx, sql: sqlx } = await import("drizzle-orm");
+      const since = clevelandDayStart();
+      const [reelRow] = await d
+        .select({ n: sqlx<number>`COUNT(*)`.as("n") })
+        .from(reelJobs)
+        .where(andx(eqx(reelJobs.status, "posted"), gtex(reelJobs.updatedAt, since)));
+      const [schedRow] = await d
+        .select({ n: sqlx<number>`COUNT(*)`.as("n") })
+        .from(scheduledPosts)
+        .where(andx(inArrayx(scheduledPosts.status, ["posted"]), gtex(scheduledPosts.postedAt, since)));
+      externalFeedPosts = Number(reelRow?.n ?? 0) + Number(schedRow?.n ?? 0);
+    } catch (err) {
+      log.warn("feed cap: could not count cron/scheduled publishes — cap is counting the Queue only", err);
+    }
+
     if (input.format !== "story") {
-      if (rows.length >= policy.limits.maxFeedPostsPerDay) {
+      if (rows.length + externalFeedPosts >= policy.limits.maxFeedPostsPerDay) {
         throw new GovernorDenial(["PUBLISH_FEED_CAP"]);
       }
       const latest = rows[0]?.publishedAt ? new Date(rows[0].publishedAt).getTime() : 0;
