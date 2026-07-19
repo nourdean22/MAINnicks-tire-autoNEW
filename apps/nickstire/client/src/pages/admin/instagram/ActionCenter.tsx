@@ -68,6 +68,8 @@ export default function ActionCenter() {
   const [checked, setChecked] = useState<Record<string, any>>({});
   const [discarding, setDiscarding] = useState<number | null>(null);
   const [discardReason, setDiscardReason] = useState("");
+  /** Job awaiting an explicit spend confirmation before regenerating. */
+  const [regenerating, setRegenerating] = useState<number | null>(null);
 
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, {
     // Probing artifact reachability costs real HTTP calls, so do not hammer it.
@@ -115,6 +117,17 @@ export default function ActionCenter() {
       openAttempts.refetch();
     },
     onError: (err) => toast.error("Could not reconcile", { description: err.message }),
+  });
+
+  const regenerate = trpc.contentAdmin.regenerateReelFromBrief.useMutation({
+    onSuccess: (r: any) => {
+      toast.success(`New reel job ${r.newJobId} queued`, {
+        description: `Reel ${r.supersededJobId} was closed and superseded. This is a new paid generation — it needs its own QA and approval.`,
+      });
+      setRegenerating(null);
+      attention.refetch();
+    },
+    onError: (err) => toast.error("Could not regenerate", { description: err.message }),
   });
 
   const discardJob = trpc.contentAdmin.discardReelJob.useMutation({
@@ -345,7 +358,8 @@ export default function ActionCenter() {
                       // A button that cannot do anything is worse than no button —
                       // that is the whole reason this tab exists.
                       const wired = a.id === "reassemble" || a.id === "rerun_qa"
-                        || a.id === "discard" || a.id === "archive_unrecoverable";
+                        || a.id === "discard" || a.id === "archive_unrecoverable"
+                        || a.id === "regenerate_new_job";
                       return (
                         <Button
                           key={a.id}
@@ -362,6 +376,11 @@ export default function ActionCenter() {
                               setDiscardReason("");
                               return;
                             }
+                            // Spending money takes a second, explicit tap.
+                            if (a.id === "regenerate_new_job") {
+                              setRegenerating(job.jobId);
+                              return;
+                            }
                             setBusyJob(job.jobId);
                             if (a.id === "reassemble") reassemble.mutate({ jobId: job.jobId });
                             else if (a.id === "rerun_qa") rerunQa.mutate({ jobId: job.jobId });
@@ -375,6 +394,30 @@ export default function ActionCenter() {
                       );
                     })}
                   </div>
+
+                  {regenerating === job.jobId && (
+                    <div className="rounded border border-amber-500/40 bg-amber-500/5 p-2 space-y-2">
+                      <p className="text-[11px] leading-relaxed">
+                        <strong>This spends generation budget.</strong> It starts a brand-new reel from
+                        the surviving brief — different footage, a different file, its own quality check
+                        and its own approval. Reel {job.jobId} will be closed and superseded.
+                        It still passes the daily spend cap and the defect preflight, so it may be refused.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm" className="text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                          disabled={regenerate.isPending}
+                          onClick={() => regenerate.mutate({ jobId: job.jobId, confirmSpend: true })}
+                        >
+                          {regenerate.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <DollarSign className="h-3 w-3 mr-1" />}
+                          Spend and regenerate
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-xs" onClick={() => setRegenerating(null)}>
+                          Not now
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {discarding === job.jobId && (
                     <div className="rounded border border-destructive/30 bg-destructive/5 p-2 space-y-2">
