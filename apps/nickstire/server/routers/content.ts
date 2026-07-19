@@ -2572,4 +2572,57 @@ export const contentAdminRouter = router({
         })),
       };
     }),
+  /**
+   * What content actually EARNED — run -> lead -> paid invoice.
+   *
+   * `leads.utmContent` has been captured on every booking and callback the whole
+   * time and read by NOTHING. This is its first consumer. Until now a reel with
+   * 18,000 views and no bookings, and a carousel with 400 views and six paid
+   * repairs, looked the same to every dashboard in the system.
+   */
+  contentRevenue: adminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(365).optional() }).optional())
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const { leads, invoices, contentRuns } = await import("../../drizzle/schema");
+      const { eq, gte, desc, isNotNull } = await import("drizzle-orm");
+      const since = new Date(Date.now() - (input?.days ?? 90) * 864e5);
+
+      // Only leads that carry a tracking id can be attributed at all. Leads
+      // without one are the blind spot — counted and NAMED by the aggregator
+      // rather than quietly dropped.
+      const rows = await d
+        .select({
+          leadId: leads.id,
+          utmContent: leads.utmContent,
+          invoiceId: leads.invoiceId,
+          // The invoice's real columns: paymentStatus is the enum
+          // (paid|pending|partial|refunded) and totalAmount is already in cents.
+          invoiceStatus: invoices.paymentStatus,
+          invoiceAmountCents: invoices.totalAmount,
+        })
+        .from(leads)
+        .leftJoin(invoices, eq(leads.invoiceId, invoices.id))
+        .where(gte(leads.createdAt, since))
+        .limit(5000);
+
+      // Generation cost per run, so revenue sits beside what it cost to make.
+      const costByRun: Record<string, number> = {};
+      try {
+        const runs = await d
+          .select({ id: contentRuns.id, costCents: contentRuns.costCents })
+          .from(contentRuns)
+          .orderBy(desc(contentRuns.createdAt))
+          .limit(500);
+        for (const r of runs) costByRun[r.id] = Number(r.costCents ?? 0);
+      } catch (err) {
+        log.warn("content run costs unavailable — revenue shown without cost", err);
+      }
+
+      const { aggregateContentRunRevenue } = await import("../services/contentRunAttribution");
+      return { windowDays: input?.days ?? 90, ...aggregateContentRunRevenue(rows as never, costByRun) };
+    }),
 });
