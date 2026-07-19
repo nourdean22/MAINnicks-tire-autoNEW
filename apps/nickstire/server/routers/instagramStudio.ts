@@ -641,8 +641,16 @@ export const instagramStudioRouter = router({
         scheduledAt: when,
         status: "pending",
       });
+      // STATUS ONLY — never `scheduledAt`. The scheduled_posts row inserted
+      // directly above owns this publish; stamping scheduled_at here would ALSO
+      // arm socialInventoryPublisher.ts:29, which publishes inventory rows with
+      // status IN ('approved','scheduled') AND scheduled_at <= now. Two
+      // publishers, two tables with no link between them, same content, same
+      // moment — a guaranteed duplicate post that no CAS can prevent, because
+      // each publisher's at-most-once claim only protects it from itself.
+      // See the long note at instagramAdmin.ts schedulePost for the full trace.
       await database.update(socialContentInventory).set({
-        status: "scheduled", scheduledAt: when, errorMessage: null, updatedAt: new Date(),
+        status: "scheduled", errorMessage: null, updatedAt: new Date(),
       }).where(eq(socialContentInventory.id, input.id));
       return { status: "scheduled" as const, scheduledAt: when.toISOString() };
     }),

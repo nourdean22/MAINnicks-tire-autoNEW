@@ -95,7 +95,10 @@ export const instagramAdminRouter = router({
 
   /** Pipeline Health: Storage, Veo API, Meta API, and failed reel jobs. */
   getPipelineHealth: adminProcedure.query(async () => {
-    const { getMetaSocialStatus } = await import("../services/metaSocial");
+    // verifyMetaConnectionLive comes along because "configured" and "connected"
+    // are different questions and this endpoint answers the one the operator
+    // reads. It is TTL-cached, so this is not a Graph call per poll.
+    const { getMetaSocialStatus, verifyMetaConnectionLive } = await import("../services/metaSocial");
     const meta = await getMetaSocialStatus();
 
     const database = await db();
@@ -147,9 +150,43 @@ export const instagramAdminRouter = router({
           higgsfieldConfigured,
         };
       })(),
-      meta: {
-        connected: meta.configured && (meta.facebookReady || meta.instagramReady),
-      },
+      /**
+       * CONFIGURED IS NOT CONNECTED.
+       *
+       * `connected` here is presence-only: credentials are set and an IG/page id
+       * exists. A token that Meta has REVOKED or that has simply expired leaves
+       * every one of those facts true — so HQ painted a green dot and the word
+       * "Connected" while every publish failed at the Graph call.
+       *
+       * `verifyMetaConnectionLive` already asks Meta the actual question, and it
+       * was already wired into getConnectionStatus — just not into the card the
+       * operator looks at. It is cached (LIVE_CACHE_TTL_MS) so this costs a Graph
+       * call only once per TTL, not once per health poll.
+       *
+       * Three states are reported, never two, because "we could not reach Meta to
+       * ask" is not the same as "Meta says no" — and neither is "connected".
+       */
+      meta: await (async () => {
+        const configured = meta.configured && (meta.facebookReady || meta.instagramReady);
+        if (!configured) return { connected: false, live: false, liveError: "Not configured" };
+        try {
+          const live = await verifyMetaConnectionLive();
+          return {
+            connected: configured,
+            live: live.ok,
+            liveError: live.ok ? null : (live.error ?? "Meta rejected the credentials"),
+          };
+        } catch (err) {
+          // Could not ASK. Reporting that as connected would be the original bug
+          // wearing a different hat, and reporting it as disconnected would send
+          // the operator hunting a token that is probably fine.
+          return {
+            connected: configured,
+            live: null as boolean | null,
+            liveError: err instanceof Error ? err.message.slice(0, 200) : "Could not reach Meta to verify",
+          };
+        }
+      })(),
       failedJobs,
     };
   }),
@@ -1394,8 +1431,38 @@ Keep it under 200 characters.`;
 
       if (input.inventoryId) {
         const { eq } = await import("drizzle-orm");
+        /**
+         * STATUS ONLY — NEVER `scheduledAt`. Writing both arms a SECOND publisher.
+         *
+         * There are two independent deferred publishers over two different tables:
+         *   - scheduledPosts.ts:54    drains scheduled_posts WHERE status='pending'
+         *                             AND scheduledAt <= now
+         *   - socialInventoryPublisher.ts:29 publishes social_content_inventory
+         *                             WHERE status IN ('approved','scheduled')
+         *                             AND scheduled_at <= now
+         *
+         * This procedure has ALREADY inserted the scheduled_posts row above, so
+         * scheduled_posts owns this publish. Stamping scheduled_at here as well
+         * hands the SAME content to the inventory publisher at the SAME moment —
+         * and the two tables carry no link to each other (scheduled_posts has no
+         * inventoryId column), so neither publisher can see the other's claim and
+         * no CAS can save it. The inventory publisher's own at-most-once claim
+         * only protects it from ITSELF.
+         *
+         * The result is a guaranteed duplicate post to Instagram. It has never
+         * fired only because social_content_inventory.scheduled_at has never been
+         * non-null in production — every use of this endpoint so far passed no
+         * inventoryId. The first schedule from the Queue would have posted twice.
+         *
+         * The status alone is what the Queue filters on, so the operator still
+         * sees "scheduled"; the WHEN lives on the scheduled_posts row that owns
+         * it. `actOnInventoryItem` (content.ts:2264) is the one caller that
+         * legitimately drives the inventory publisher — it sets scheduled_at and
+         * creates NO scheduled_posts row — which is why the fix belongs here and
+         * not in the publisher's allowlist.
+         */
         await database.update(socialContentInventory)
-          .set({ status: "scheduled", scheduledAt: when, updatedAt: new Date() })
+          .set({ status: "scheduled", updatedAt: new Date() })
           .where(eq(socialContentInventory.id, input.inventoryId));
       }
 
