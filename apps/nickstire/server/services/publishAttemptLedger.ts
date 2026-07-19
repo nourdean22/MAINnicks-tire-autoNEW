@@ -39,6 +39,21 @@ export const OUTCOME = {
 } as const;
 export type PublishOutcome = (typeof OUTCOME)[keyof typeof OUTCOME];
 
+/**
+ * The outcomes that actually CLOSE an attempt.
+ *
+ * `CONFIRMED` — it is live and we have the post id.
+ * `FAILED`    — it is not live and we know that.
+ * Both are answers. `AMBIGUOUS` is the absence of one, and `ATTEMPTED` is the
+ * opening record rather than an outcome, so neither may settle anything.
+ *
+ * An allowlist so a future outcome value stays OPEN until someone decides it
+ * closes an attempt — being nagged about a resolved publish is a nuisance,
+ * silently hiding one that may be live is the failure this ledger exists to
+ * prevent.
+ */
+const RESOLVING_OUTCOMES: ReadonlySet<string> = new Set([OUTCOME.confirmed, OUTCOME.failed]);
+
 for (const v of Object.values(OUTCOME)) {
   if (v.length > 24) throw new Error(`publish outcome "${v}" exceeds decision varchar(24)`);
 }
@@ -182,14 +197,44 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
     .limit(200);
   if (!attempts.length) return [];
 
-  // Outcomes carry their attemptId in reasoningCodes, so settled attempts are a
-  // set membership test rather than a per-attempt query.
+  /**
+   * An outcome row does not necessarily RESOLVE an attempt.
+   *
+   * This selected only `reasoningCodes` and treated the presence of ANY outcome
+   * row as settlement — so AMBIGUOUS, the outcome that means "we do not know
+   * whether this went live", closed the attempt exactly as CONFIRMED did. The
+   * one state this function exists to surface was the one it hid.
+   *
+   * Four live writers put AMBIGUOUS here, all inside the catch of a real Meta
+   * call (scheduledPosts.ts:146, dailyReelPost.ts:284, adminRoutes.ts:225,
+   * instagramAdmin.ts:1215) — a 502 after the container is created is the
+   * ordinary case those branches exist for. The row was written synchronously at
+   * throw time, so the attempt was settled long before the 15-minute window
+   * could ever surface it. It could not appear even once.
+   *
+   * Consequences, all of which were live: openPublishAttempts returned 0, so the
+   * Action Center's reconcile card never rendered; resolveAmbiguousPublish takes
+   * an attemptId whose only source is that list, so the entire reconciler became
+   * unreachable for the exact state it was built for; and operationsSignal reads
+   * this same function, so the sidebar badge undercounted too — both screens
+   * agreeing on the same wrong number.
+   *
+   * RESOLUTION IS AN ALLOWLIST, for the reason the regenerate guard is
+   * (#923): only decisions that genuinely close an attempt may close it, and an
+   * outcome value added later stays open until someone decides otherwise. The
+   * failure direction of "open too long" is a visible nag; the failure direction
+   * of "closed too early" is a post that may be live and is on no screen.
+   */
   const outcomes = await d
-    .select({ codes: autonomyAuditEvents.reasoningCodes })
+    .select({ codes: autonomyAuditEvents.reasoningCodes, decision: autonomyAuditEvents.decision })
     .from(autonomyAuditEvents)
     .where(eq(autonomyAuditEvents.actionType, OUTCOME_ACTION))
     .limit(2000);
-  const settled = new Set(outcomes.map((o: { codes: string }) => o.codes));
+  const settled = new Set(
+    outcomes
+      .filter((o: { decision: string | null }) => RESOLVING_OUTCOMES.has(String(o.decision ?? "")))
+      .map((o: { codes: string }) => o.codes),
+  );
 
   const open: UnreconciledAttempt[] = [];
   for (const a of attempts) {
