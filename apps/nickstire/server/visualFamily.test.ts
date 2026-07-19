@@ -26,13 +26,28 @@ const card = (over: Partial<Parameters<typeof renderFamilyCardHtml>[0]> = {}) =>
   });
 
 describe("families are genuinely different compositions", () => {
-  it("every family has its own background AND anchor — not one card recoloured", () => {
+  it("families differ in GROUND, which is where variety belongs", () => {
     const families = Object.values(VISUAL_FAMILIES);
     expect(families.length).toBeGreaterThanOrEqual(3);
     expect(new Set(families.map((f) => f.bg)).size).toBe(families.length);
-    // Anchor is what actually changes how a card READS. If every family were
-    // centered, different gradients would still be the same card.
-    expect(new Set(families.map((f) => f.anchor)).size).toBeGreaterThan(1);
+    expect(new Set(families.map((f) => f.motif)).size).toBeGreaterThan(1);
+  });
+
+  it("anchor changes ONLY where the content demands it — not for variety's sake", () => {
+    // CORRECTED BY OPERATOR FEEDBACK 2026-07-19. This test previously asserted
+    // that anchors must VARY, on the theory that identical composition means one
+    // card recoloured. Shown three renders, the operator accepted both
+    // centre-anchored solid-CTA cards and rejected the only top-anchored
+    // outline-CTA one. The signal was about STRUCTURE, not subject: a hazard post
+    // should read as the same brand in worse weather, not a different publisher.
+    //
+    // So the invariant is inverted. The ONLY family allowed to move its anchor is
+    // one carrying a subject photo, which needs the type out of the image.
+    for (const f of Object.values(VISUAL_FAMILIES)) {
+      if (f.anchor !== "center") {
+        expect(f.subject, `${f.id} moves its anchor without a subject photo to justify it`).toBe("required");
+      }
+    }
   });
 
   it("each family tells the operator WHEN to use it", () => {
