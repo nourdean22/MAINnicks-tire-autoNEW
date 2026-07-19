@@ -209,7 +209,14 @@ export default function AutonomyCommandCenter() {
             <CardTitle className="flex items-center gap-2 text-base"><Film className="h-4 w-4 text-primary" /> Recent renders</CardTitle>
           </CardHeader>
           <CardContent>
-            {!s.recentJobs.available || s.recentJobs.rows.length === 0 ? (
+            {/* Two different facts wore the same sentence. `available:false` means
+                the table could not be read (0086 pending, DB down); zero rows
+                means it was read and is empty. Telling the operator "no reel jobs
+                yet" when the truth is "we could not look" is the same defect the
+                publish gate, the HQ counter and the sidebar badge all had. */}
+            {!s.recentJobs.available ? (
+              <p className="text-sm text-amber-500">Recent renders unavailable — this is not zero.</p>
+            ) : s.recentJobs.rows.length === 0 ? (
               <p className="text-sm text-muted-foreground">No reel jobs yet.</p>
             ) : (
               <ul className="space-y-1.5 text-sm">
