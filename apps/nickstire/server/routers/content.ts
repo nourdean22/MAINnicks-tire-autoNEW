@@ -2625,4 +2625,94 @@ export const contentAdminRouter = router({
       const { aggregateContentRunRevenue } = await import("../services/contentRunAttribution");
       return { windowDays: input?.days ?? 90, ...aggregateContentRunRevenue(rows as never, costByRun) };
     }),
+  /**
+   * Queue entries whose reel job is dead but which still say "awaiting review".
+   * READ-ONLY — reports what would change and why. Applying is a separate tap,
+   * because mass-updating production rows is a data change, not a side effect of
+   * opening a screen.
+   */
+  queueTruthReport: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+    const { socialContentInventory, reelJobs } = await import("../../drizzle/schema");
+    const { eq, inArray, sql } = await import("drizzle-orm");
+
+    const rows = await d
+      .select({
+        inventoryId: socialContentInventory.id,
+        inventoryStatus: socialContentInventory.status,
+        jobId: reelJobs.id,
+        jobStatus: reelJobs.status,
+        jobError: reelJobs.error,
+        assetPaths: socialContentInventory.assetPaths,
+      })
+      .from(socialContentInventory)
+      .leftJoin(reelJobs, eq(reelJobs.briefId, socialContentInventory.id))
+      .where(inArray(socialContentInventory.status, ["pending", "needs_review"]))
+      .limit(500);
+
+    const { planInventoryReconcile } = await import("../services/inventoryJobReconcile");
+    return planInventoryReconcile(rows.map((r: typeof rows[number]) => ({
+      inventoryId: r.inventoryId,
+      inventoryStatus: r.inventoryStatus,
+      jobId: r.jobId ?? null,
+      jobStatus: r.jobStatus ?? null,
+      jobError: r.jobError ?? null,
+      hasRenderedAsset: Array.isArray(r.assetPaths) ? r.assetPaths.length > 0 : Boolean(r.assetPaths),
+    })));
+  }),
+
+  /** Apply the report. Operator-triggered, and it re-plans rather than trusting
+   *  ids the client sent — the queue may have moved since the report was read. */
+  applyQueueTruth: adminProcedure
+    .input(z.object({ confirm: z.literal(true) }))
+    .mutation(async ({ ctx }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { socialContentInventory, reelJobs } = await import("../../drizzle/schema");
+      const { eq, inArray, and } = await import("drizzle-orm");
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const { planInventoryReconcile } = await import("../services/inventoryJobReconcile");
+      const { recordOperatorAction, ACTION_OUTCOME } = await import("../services/operatorActionLog");
+
+      const rows = await d
+        .select({
+          inventoryId: socialContentInventory.id, inventoryStatus: socialContentInventory.status,
+          jobId: reelJobs.id, jobStatus: reelJobs.status, jobError: reelJobs.error,
+          assetPaths: socialContentInventory.assetPaths,
+        })
+        .from(socialContentInventory)
+        .leftJoin(reelJobs, eq(reelJobs.briefId, socialContentInventory.id))
+        .where(inArray(socialContentInventory.status, ["pending", "needs_review"]))
+        .limit(500);
+
+      const plan = planInventoryReconcile(rows.map((r: typeof rows[number]) => ({
+        inventoryId: r.inventoryId, inventoryStatus: r.inventoryStatus,
+        jobId: r.jobId ?? null, jobStatus: r.jobStatus ?? null, jobError: r.jobError ?? null,
+        hasRenderedAsset: Array.isArray(r.assetPaths) ? r.assetPaths.length > 0 : Boolean(r.assetPaths),
+      })));
+
+      let updated = 0;
+      for (const row of plan.rows) {
+        // Guarded on the status we planned against — if the row moved, skip it
+        // rather than overwrite a decision someone else made.
+        const res = await d.update(socialContentInventory)
+          .set({
+            status: "failed",
+            errorMessage: `generation failed with no media${row.regenerable ? " — regenerable, the brief is intact" : ""}`.slice(0, 500),
+            updatedAt: new Date(),
+          })
+          .where(and(eq(socialContentInventory.id, row.inventoryId), inArray(socialContentInventory.status, ["pending", "needs_review"])));
+        if (affectedRowCount(res) === 1) updated++;
+      }
+
+      await recordOperatorAction({
+        action: "queue_truth_reconcile", outcome: ACTION_OUTCOME.ok,
+        operatorId: ctx.user?.id ?? null,
+        detail: { planned: plan.misreported, updated, regenerable: plan.regenerable },
+      });
+      return { planned: plan.misreported, updated, regenerable: plan.regenerable };
+    }),
 });
