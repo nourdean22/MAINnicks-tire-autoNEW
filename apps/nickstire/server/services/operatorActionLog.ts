@@ -87,38 +87,74 @@ export async function recordOperatorAction(rec: OperatorActionRecord): Promise<v
 }
 
 /**
+ * How a caller tells this log what actually happened.
+ *
+ * The first version inferred it from the ERROR MESSAGE TEXT with a regex. That
+ * was a Dependency Rule violation — the telemetry layer depended on the string
+ * formatting of modules it has no business knowing about — and it was wrong
+ * immediately: a spend-governor denial throws "Reel preflight blocked (2): ..."
+ * which matched nothing, so a REFUSAL was recorded as a FAILURE, destroying the
+ * one distinction this log exists to make.
+ *
+ * The caller is the only layer that knows what a refusal means in its own domain.
+ * So the caller says.
+ */
+export interface ActionClassifier<T> {
+  /**
+   * Some services answer with `{ ok: false, reason }` INSTEAD of throwing,
+   * because a refusal is an answer about state, not a fault. Without this hook
+   * every one of those resolved as a success.
+   */
+  outcomeOfResult?: (result: T) => ActionOutcome;
+  /** Was this thrown error a refusal (policy said no) rather than a break? */
+  isRefusal?: (err: unknown) => boolean;
+}
+
+/**
+ * Structural refusal detection — no message parsing. A tRPC BAD_REQUEST is the
+ * codebase's existing way of saying "this is an answer, not a fault", so it is
+ * the only default worth having.
+ */
+function looksLikeRefusal(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return code === "BAD_REQUEST" || code === "CONFLICT" || code === "PRECONDITION_FAILED";
+}
+
+/**
  * Wrap an operator action so timing and outcome are recorded whatever happens.
  * A throw is re-thrown after being logged — the caller still sees its error.
  */
 export async function withOperatorAction<T>(
   meta: Omit<OperatorActionRecord, "outcome" | "durationMs">,
   fn: () => Promise<T>,
+  classify: ActionClassifier<T> = {},
 ): Promise<T> {
   const started = Date.now();
   try {
     const result = await fn();
+    // A resolved promise is NOT proof of success. Ask the caller.
+    const outcome = classify.outcomeOfResult?.(result) ?? ACTION_OUTCOME.ok;
     // AWAITED, not fire-and-forget. These actions spend money and mutate
     // published state; a process exiting right after one must not lose the
     // record of it. recordOperatorAction never throws, so this cannot fail the
     // action — it only makes the write deterministic.
     await recordOperatorAction({
       ...meta,
-      outcome: ACTION_OUTCOME.ok,
+      outcome,
       durationMs: Date.now() - started,
       detail: { ...(meta.detail ?? {}), result: summarize(result) },
     });
     return result;
   } catch (err) {
-    // A refusal (the action was not permitted) is not the same as a failure (it
-    // was permitted and broke). Distinguishing them is the point of the log:
-    // "operators keep being refused" and "this keeps breaking" need different fixes.
-    const message = err instanceof Error ? err.message : String(err);
-    const refused = /BAD_REQUEST|refus|not permitted|no longer in a reconcilable|cannot be closed/i.test(message);
+    // A refusal (policy said no) is not a failure (it was permitted and broke).
+    // "Operators keep being refused" and "this keeps breaking" need different
+    // fixes, and one bucket answers neither.
+    const refused = (classify.isRefusal ?? looksLikeRefusal)(err);
     await recordOperatorAction({
       ...meta,
       outcome: refused ? ACTION_OUTCOME.refused : ACTION_OUTCOME.failed,
       durationMs: Date.now() - started,
-      detail: { ...(meta.detail ?? {}), error: message.slice(0, 400) },
+      detail: { ...(meta.detail ?? {}), error: (err instanceof Error ? err.message : String(err)).slice(0, 400) },
     });
     throw err;
   }

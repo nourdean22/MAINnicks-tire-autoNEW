@@ -45,10 +45,45 @@ describe("outcome classification", () => {
     expect(c.result).toMatchObject({ clipsUsed: 6 });
   });
 
-  it("classifies a REFUSAL separately from a failure", async () => {
+  it("classifies a REFUSAL structurally, by error CODE not message text", async () => {
+    // The first version regex-matched the message, which made this layer depend
+    // on the wording of modules it has no business knowing about.
     await expect(withOperatorAction({ action: "discard", jobId: 1 }, async () => {
-      throw new Error("BAD_REQUEST: this job cannot be closed from here");
+      throw Object.assign(new Error("this job cannot be closed from here"), { code: "BAD_REQUEST" });
     })).rejects.toThrow();
+    expect(inserted[0].decision).toBe(ACTION_OUTCOME.refused);
+  });
+
+  it("lets the CALLER declare a refusal the default cannot recognise", async () => {
+    // A spend-governor denial throws a plain Error reading "Reel preflight
+    // blocked (2): ...". No generic rule can know that is a refusal — the
+    // caller can, and this is the single most important refusal to count
+    // correctly: it is how "we keep hitting the daily cap" stays visible
+    // instead of looking like a broken button.
+    await expect(withOperatorAction(
+      { action: "regenerate", costsMoney: true },
+      async () => { throw new Error("Reel preflight blocked (2): in-frame text; free claim"); },
+      { isRefusal: (e) => e instanceof Error && /preflight blocked/i.test(e.message) },
+    )).rejects.toThrow();
+    expect(inserted[0].decision).toBe(ACTION_OUTCOME.refused);
+  });
+
+  it("without the caller's help, an unrecognised throw is a FAILURE — not silently a refusal", async () => {
+    await expect(withOperatorAction({ action: "regenerate" }, async () => {
+      throw new Error("Reel preflight blocked (2): in-frame text");
+    })).rejects.toThrow();
+    expect(inserted[0].decision).toBe(ACTION_OUTCOME.failed);
+  });
+
+  it("a RESOLVED { ok: false } is a refusal, not a success", async () => {
+    // reassembleFromClips ANSWERS with { ok: false } rather than throwing. The
+    // first version recorded every one of those as OK.
+    const r = await withOperatorAction(
+      { action: "reassemble", jobId: 1 },
+      async () => ({ ok: false as const, reason: "job is 'queued'" }),
+      { outcomeOfResult: (x) => (x.ok ? ACTION_OUTCOME.ok : ACTION_OUTCOME.refused) },
+    );
+    expect(r.ok).toBe(false);
     expect(inserted[0].decision).toBe(ACTION_OUTCOME.refused);
   });
 
