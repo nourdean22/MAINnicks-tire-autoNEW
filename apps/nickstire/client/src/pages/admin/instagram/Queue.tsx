@@ -16,7 +16,7 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
   const [blockedDraft, setBlockedDraft] = useState<{ id: string; version: number; reason: string } | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
 
-  const { data: drafts, isLoading, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
+  const { data: drafts, isLoading, isError, error, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
   const publishDraft = trpc.instagramAdmin.publishPost.useMutation({
     onSuccess: () => {
@@ -136,6 +136,17 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : isError ? (
+        /* A failed read rendered as "No drafts found" — an outage presented as an
+           editorial fact. The reasonable response to an empty queue is to go make
+           something, which is the worst move while the drafts you already have are
+           merely unreadable. */
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <h3 className="text-lg font-medium">Could not read the queue</h3>
+            <p className="mt-1 text-sm text-muted-foreground">This is unknown, not empty. {error?.message}</p>
+          </CardContent>
+        </Card>
       ) : filteredDrafts.length === 0 ? (
         <Card className="bg-muted/10 border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">

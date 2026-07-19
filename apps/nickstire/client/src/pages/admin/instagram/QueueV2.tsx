@@ -89,7 +89,7 @@ export default function QueueV2() {
 
       <Card><CardContent className="flex flex-col gap-3 p-4 lg:flex-row"><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search topic, caption, source, or format..." className="lg:max-w-md" /><div className="flex flex-wrap gap-2">{(["all", "needs_review", "ready", "scheduled", "published", "rejected"] as QueueStatus[]).map((item) => <Button key={item} size="sm" variant={status === item ? "default" : "outline"} onClick={() => setStatus(item)} className="capitalize">{item.replace("_", " ")}</Button>)}</div></CardContent></Card>
 
-      {list.isLoading ? <div className="flex min-h-80 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : rows.length === 0 ? <Card className="border-dashed"><CardContent className="py-20 text-center text-muted-foreground">No Studio V2 drafts match this view.</CardContent></Card> : (
+      {list.isLoading ? <div className="flex min-h-80 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : list.isError ? <Card className="border-amber-500/40 bg-amber-500/5"><CardContent className="py-20 text-center text-sm"><strong>Could not read the queue.</strong><div className="mt-1 text-muted-foreground">This is unknown, not empty. {list.error?.message}</div></CardContent></Card> : rows.length === 0 ? <Card className="border-dashed"><CardContent className="py-20 text-center text-muted-foreground">No Studio V2 drafts match this view.</CardContent></Card> : (
         <div className="grid gap-5 xl:grid-cols-2">
           {rows.map((item) => {
             if (!item.draft) return null;

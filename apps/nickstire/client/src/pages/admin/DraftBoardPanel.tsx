@@ -15,8 +15,11 @@ export default function DraftBoardPanel() {
   const utils = trpc.useUtils();
   
   // Queries
-  const { data: carousels, isLoading: carouselsLoading, refetch: refetchCarousels } = trpc.contentAdmin.allCarouselDrafts.useQuery();
-  const { data: reels, isLoading: reelsLoading, refetch: refetchReels } = trpc.contentAdmin.allReelDrafts.useQuery();
+  const { data: carousels, isLoading: carouselsLoading, isError: carouselsError, error: carouselsErr, refetch: refetchCarousels } = trpc.contentAdmin.allCarouselDrafts.useQuery();
+  const { data: reels, isLoading: reelsLoading, isError: reelsError, error: reelsErr, refetch: refetchReels } = trpc.contentAdmin.allReelDrafts.useQuery();
+  // The server now THROWS when neither the database nor the sheet could be read,
+  // instead of returning [] — so an outage stops rendering as an empty board.
+  const readFailure = carouselsError ? carouselsErr?.message : reelsError ? reelsErr?.message : null;
 
   // Mutations
   const renderSlides = trpc.contentAdmin.renderCarouselSlides.useMutation({
@@ -182,6 +185,20 @@ export default function DraftBoardPanel() {
 
   return (
     <div className="space-y-4 relative">
+      {/* An outage must not render as an editorial fact. This board previously
+          showed "no drafts" whether there were none or whether neither the
+          database nor the sheet could be read — and the reasonable response to an
+          empty board is to go make something, which is the worst possible move
+          while the drafts you already have are merely unreadable. */}
+      {readFailure && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-300">
+          <strong>Could not read drafts.</strong>
+          <div className="mt-1 text-xs text-amber-200/70">
+            This board is showing UNKNOWN, not empty — do not treat it as a clean slate. {readFailure}
+          </div>
+        </div>
+      )}
+
       {/* Filters & Control bar */}
       <div className="bg-card border border-border/30 p-4 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">

@@ -93,6 +93,13 @@ export default function Settings() {
         <StatusCard label="Media generation" ok={generatorReady} detail={generatorReady ? "The configured media provider has credentials." : "The Reel/media generation provider is not fully configured."} icon={ImageIcon} />
       </div>
 
+      {/* null means the count FAILED, and `?? 0` turned that into an all-clear —
+          the banner simply never rendered. A held-reel count that cannot be read
+          is exactly when the operator most needs to know. */}
+      {health.data?.failedJobs === null && (
+        <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300"><ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><strong>Unable to determine held Reel jobs.</strong><div className="mt-1 text-xs text-amber-200/70">This is not zero — the count could not be read. Do not enable autonomous publishing on this reading.</div></div></div>
+      )}
+
       {(health.data?.failedJobs ?? 0) > 0 && (
         <div className="flex gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"><ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><strong>{health.data?.failedJobs} failed Reel job(s).</strong><div className="mt-1 text-xs text-red-200/70">Review the Reel queue before enabling any autonomous publishing.</div></div></div>
       )}

@@ -723,11 +723,16 @@ export const contentAdminRouter = router({
   allReelDrafts: adminProcedure.query(async () => {
     try {
       const dbDrafts: any[] = [];
+      // Tracked so an empty result can distinguish "nothing to show" from
+      // "nothing could be read" — see the guard after both fetches.
+      let dbFailed = false;
+      let sheetFailed = false;
       try {
         const { getDb } = await import("../db");
         const { socialDrafts } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         const d = await getDb();
+        if (!d) dbFailed = true;
         if (d) {
           const rows = await d.select().from(socialDrafts).where(eq(socialDrafts.contentType, "reel"));
           for (const r of rows) {
@@ -739,6 +744,7 @@ export const contentAdminRouter = router({
           }
         }
       } catch (dbErr) {
+        dbFailed = true;
         log.warn("Failed to fetch Reel drafts from DB, continuing to sheet", dbErr);
       }
 
@@ -748,7 +754,28 @@ export const contentAdminRouter = router({
         const { fetchReelDraftsFromSheet } = await import("../sheets-sync");
         sheetDrafts = await fetchReelDraftsFromSheet();
       } catch (sheetErr) {
+        sheetFailed = true;
         log.warn("fetchReelDraftsFromSheet failed", sheetErr);
+      }
+
+      /**
+       * An empty list is only honest when we actually LOOKED.
+       *
+       * Both sources had their own catch and the function returned [] regardless,
+       * so a database outage and a Google Sheets outage together rendered on the
+       * Planning board as "No drafts found" — an outage presented as an editorial
+       * fact. The operator's reasonable response to an empty board is to go make
+       * something, which is the worst possible move while the drafts they already
+       * have are merely unreadable.
+       *
+       * A PARTIAL failure still returns data, because one live source is real
+       * information; only the case where nothing could be read at all throws.
+       */
+      if (dbFailed && sheetFailed) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not read drafts from either the database or the sheet — this is not an empty board.",
+        });
       }
 
       // Merge them by ID. DB takes priority.
@@ -766,8 +793,15 @@ export const contentAdminRouter = router({
 
       return Array.from(mergedMap.values());
     } catch (err) {
+      // The both-sources-failed throw above must ESCAPE. This catch would have
+      // swallowed it and returned [] — a fix that fixes nothing, because the
+      // screen still renders an outage as an empty board.
+      if (err instanceof TRPCError) throw err;
       log.warn("allReelDrafts failed", err);
-      return [];
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not read reel drafts — this is not an empty board.",
+      });
     }
   }),
   allCarouselDrafts: adminProcedure.query(async () => {
