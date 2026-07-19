@@ -333,26 +333,61 @@ export const contentAdminRouter = router({
         const { socialContentInventory, reelJobs } = await import("../../drizzle/schema");
         const { desc, eq, and, gte, inArray, sql } = await import("drizzle-orm");
 
-        // Format fatigue: what did we actually publish, most recent first.
+        /**
+         * Format fatigue: what did we actually publish, most recent first.
+         *
+         * This filtered on status "posted", which NOTHING writes to
+         * socialContentInventory — that value belongs to reelJobs and
+         * socialDrafts. The query therefore always returned zero rows while
+         * reporting `available: true`, so the planner read a permanently empty
+         * result as a MEASUREMENT that no format was overused, and the fatigue
+         * rule could never fire. A wrong status string is not a small bug when
+         * `available` turns its emptiness into a finding.
+         */
         const recent = await d
           .select({ contentType: socialContentInventory.contentType })
           .from(socialContentInventory)
-          .where(eq(socialContentInventory.status, "posted"))
+          .where(inArray(socialContentInventory.status, ["published", "published_partial"]))
           .orderBy(desc(socialContentInventory.updatedAt))
           .limit(6);
         signals.recentFormats = {
-          available: true,
+          // No publish history is MISSING DATA, not evidence of variety. The
+          // shop has published five times ever; an empty window here is the
+          // normal case and must grade the planner's confidence down.
+          available: recent.length > 0,
           values: recent.map((r: typeof recent[number]) =>
             (r.contentType === "post" ? "single" : String(r.contentType)) as never),
         };
 
-        // Footage on hand: clips from reels whose assets survived. This is what
-        // makes a reel FREE instead of a paid generation.
-        const withClips = await d
-          .select({ n: sql<number>`COUNT(*)`.as("n") })
+        /**
+         * Footage on hand: clips from reels whose assets survived. This is what
+         * makes a reel FREE instead of a paid generation — so it directly drives
+         * whether the planner recommends spending money.
+         *
+         * It used to be `COUNT(*) * 6`: a job count multiplied by a guess at
+         * clips-per-reel, presented to the operator as a literal number of clips.
+         * A fabricated number is worse than a missing one — a missing signal
+         * grades confidence down and says so, while a fabricated one is acted on.
+         * Now the actual stored clip lists are counted.
+         */
+        const clipRows = await d
+          .select({ clipUrlsJson: reelJobs.clipUrlsJson })
           .from(reelJobs)
-          .where(and(inArray(reelJobs.status, ["assembled", "assets_ready"]), gte(reelJobs.updatedAt, new Date(Date.now() - 30 * 864e5))));
-        signals.mediaOnHand = { available: true, clipCount: Number(withClips[0]?.n ?? 0) * 6, photoCount: 0 };
+          .where(and(
+            inArray(reelJobs.status, ["assembled", "assets_ready"]),
+            gte(reelJobs.updatedAt, new Date(Date.now() - 30 * 864e5)),
+          ))
+          .limit(200);
+        let clipCount = 0;
+        for (const r of clipRows as Array<{ clipUrlsJson: string | null }>) {
+          try {
+            const urls = JSON.parse(r.clipUrlsJson ?? "[]");
+            if (Array.isArray(urls)) clipCount += urls.filter((u) => typeof u === "string" && u).length;
+          } catch { /* an unreadable clip list contributes nothing — never a guess */ }
+        }
+        // photoCount stays 0 AND the signal stays honest about it: no query
+        // measures a photo library, so this is a partial signal, not a full one.
+        signals.mediaOnHand = { available: clipRows.length > 0, clipCount, photoCount: 0 };
       }
     } catch (err) {
       // A signal we could not read stays UNAVAILABLE — never a silent zero.

@@ -408,6 +408,39 @@ body{font-family:Arial Black,Arial,sans-serif;color:#fff}.stage{position:relativ
 </style></head><body><div class="stage"><div class="top"><div class="eyebrow">${esc(input.eyebrow)}</div><div class="count">${input.index && input.total ? `${input.index}/${input.total}` : ""}</div></div><div class="main"><div class="headline">${esc(input.headline)}</div><div class="body">${esc(input.body)}</div></div><div class="cta"><span>${esc(input.cta)}</span></div><div class="footer"><span>@nicks_tire_euclid</span><span>nickstire.org</span></div></div></body></html>`;
 }
 
+/**
+ * Where this renderer writes. Anything under it is OUR OWN OUTPUT.
+ * Kept beside pickSubjectImage so the two can never drift apart.
+ */
+export const STUDIO_ASSET_PREFIX = "instagram-studio/";
+
+/**
+ * Choose the subject photograph — and REFUSE to accept a card we rendered.
+ *
+ * `imageUrls` is this renderer's own return value. The router does
+ * `return { ...evaluated, imageUrls }`, the client stores that back into the
+ * draft, and the Queue re-renders stored drafts. So on any SECOND render, the
+ * "subject photo" was the JPEG of the card produced by the first one.
+ *
+ * The result was a card inside a card: the previous render painted full-bleed as
+ * the background, a scrim over it, and the same headline drawn on top again —
+ * nesting one level deeper on every re-render, and publishable without anything
+ * flagging it. It also flipped `hasSubjectImage` to true, which silently changed
+ * which visual family got selected.
+ *
+ * The rule is decidable from the URL alone: a file this function wrote is never a
+ * subject. That keeps the guard in the one place that knows where it writes,
+ * instead of asking every caller to remember to clear the field.
+ */
+export function pickSubjectImage(imageUrls: readonly string[] | null | undefined): string | null {
+  for (const url of imageUrls ?? []) {
+    if (typeof url !== "string" || !url) continue;
+    if (url.includes(STUDIO_ASSET_PREFIX)) continue;
+    return url;
+  }
+  return null;
+}
+
 export async function renderInstagramStudioAssets(draft: InstagramStudioDraft): Promise<string[]> {
   if (draft.quality.gate === "block") throw new Error(`Draft is blocked: ${draft.quality.blockers.join("; ")}`);
   if (draft.format === "reel") throw new Error("Reel assets are rendered by the Reel pipeline.");
@@ -429,7 +462,7 @@ export async function renderInstagramStudioAssets(draft: InstagramStudioDraft): 
   // imageUrls is where a generated or selected photo lands. Empty is normal and
   // must not be a failure — most drafts have no subject and render on the family
   // background instead.
-  const subjectImageUrl = draft.imageUrls?.[0] ?? null;
+  const subjectImageUrl = pickSubjectImage(draft.imageUrls);
   const requestedFamilyId = familyFromArtDirection(draft.artDirection, Boolean(subjectImageUrl));
   const resolved = resolveFamilyForSubject(requestedFamilyId, Boolean(subjectImageUrl));
   if (resolved.substituted) {
@@ -464,7 +497,7 @@ export async function renderInstagramStudioAssets(draft: InstagramStudioDraft): 
     });
     const buffer = await renderHtmlToJpeg(html, dimensions.width, dimensions.height);
     const upload = await storagePut(
-      `instagram-studio/${draft.id}-${index + 1}.jpg`,
+      `${STUDIO_ASSET_PREFIX}${draft.id}-${index + 1}.jpg`,
       buffer,
       "image/jpeg",
     );

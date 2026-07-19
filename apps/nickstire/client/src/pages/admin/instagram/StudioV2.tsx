@@ -297,7 +297,7 @@ export default function StudioV2() {
                     <div className="flex items-center gap-2"><ImageIcon className="h-5 w-5 text-primary" /><h4 className="font-semibold">Rendered Media</h4></div>
                     {draft.imageUrls.length ? (
                       <div className={`mt-4 grid gap-3 ${draft.imageUrls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-                        {draft.imageUrls.map((url, index) => <img key={url} src={url} alt={`Rendered asset ${index + 1}`} className={`w-full rounded-lg border object-cover ${draft.format === "story" ? "aspect-[9/16]" : "aspect-square"}`} />)}
+                        {draft.imageUrls.map((url, index) => <img key={url} src={url} alt={`Rendered asset ${index + 1}`} className={`w-full rounded-lg border object-cover ${draft.format === "story" ? "aspect-[9/16]" : "aspect-[4/5]"}`} />)}
                       </div>
                     ) : <div className="mt-4 rounded-lg border border-dashed p-8 text-center text-xs text-muted-foreground">No asset rendered yet. Visual copy stays bounded so it cannot overlap or turn into garbled AI text.</div>}
                     <Button className="mt-4 w-full" disabled={render.isPending || draft.quality.gate === "block"} onClick={() => render.mutate(draft)}>

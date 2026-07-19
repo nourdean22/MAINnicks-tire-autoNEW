@@ -83,16 +83,62 @@ export interface ReconcileReport {
   rows: Array<{ inventoryId: string; jobId: number | null; reason: string; regenerable: boolean }>;
 }
 
-/** Read-only: what WOULD change, and why. Applying is a separate call. */
+/**
+ * Read-only: what WOULD change, and why. Applying is a separate call.
+ *
+ * ONE VERDICT PER INVENTORY ROW, NOT PER JOB.
+ *
+ * The caller reaches these pairs through
+ * `leftJoin(reelJobs, eq(reelJobs.briefId, socialContentInventory.id))`, and one
+ * inventory row can have SEVERAL reel jobs. Classifying each pair independently
+ * meant a single dead job could condemn a queue item whose sibling job was alive.
+ *
+ * That is not hypothetical — REGENERATE DELIBERATELY CREATES THAT SHAPE. It
+ * supersedes the old job (marking it `failed`) and enqueues a new one against the
+ * same brief. So the moment an operator regenerated a dead reel, this planner
+ * would look at the corpse, ignore the live replacement, and offer to mark the
+ * row failed — killing the very recovery it had just been used to start.
+ *
+ * The rule is therefore an ALL, not an ANY: a row is misreported only when EVERY
+ * job behind it is terminally dead. One surviving job is enough to leave it alone,
+ * which is the safe direction — wrongly burying reviewable work is far worse than
+ * leaving a dead row visible for another day.
+ */
 export function planInventoryReconcile(pairs: readonly InventoryJobPair[]): ReconcileReport {
-  const rows: ReconcileReport["rows"] = [];
+  const byInventory = new Map<string, InventoryJobPair[]>();
   for (const p of pairs) {
-    const v = classifyInventoryRow(p);
-    if (v.action !== "mark_failed") continue;
-    rows.push({ inventoryId: p.inventoryId, jobId: p.jobId, reason: v.reason, regenerable: v.regenerable });
+    const list = byInventory.get(p.inventoryId);
+    if (list) list.push(p);
+    else byInventory.set(p.inventoryId, [p]);
   }
+
+  const rows: ReconcileReport["rows"] = [];
+  for (const [inventoryId, jobs] of byInventory) {
+    const verdicts = jobs.map((j) => ({ pair: j, verdict: classifyInventoryRow(j) }));
+
+    // Any job that is not condemned protects the whole row — an in-flight
+    // regeneration, a job with surviving media, a published sibling.
+    if (verdicts.some((v) => v.verdict.action !== "mark_failed")) continue;
+
+    // Report against the NEWEST job: it is the one whose failure is current, and
+    // its error is what the operator needs to read. Job ids ascend.
+    const newest = verdicts.reduce((a, b) => ((b.pair.jobId ?? 0) > (a.pair.jobId ?? 0) ? b : a));
+    if (newest.verdict.action !== "mark_failed") continue;
+
+    rows.push({
+      inventoryId,
+      jobId: newest.pair.jobId,
+      reason: newest.verdict.reason,
+      // Regenerable if ANY surviving brief can be revived — the operator only
+      // needs one good path forward, and offering none when one exists would
+      // strand recoverable work.
+      regenerable: verdicts.some((v) => v.verdict.action === "mark_failed" && v.verdict.regenerable),
+    });
+  }
+
   return {
-    examined: pairs.length,
+    // The count the operator can verify by eye: queue ROWS looked at, not join rows.
+    examined: byInventory.size,
     misreported: rows.length,
     regenerable: rows.filter((r) => r.regenerable).length,
     rows,

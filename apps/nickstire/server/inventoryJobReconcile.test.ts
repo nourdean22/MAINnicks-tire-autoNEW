@@ -90,6 +90,8 @@ describe("the plan is a report, not an action", () => {
       pair({ inventoryId: "c", hasRenderedAsset: true }),
       pair({ inventoryId: "d", inventoryStatus: "published" }),
     ]);
+    // examined counts queue ROWS, not join rows — the number the operator can
+    // verify by eye against the Queue screen.
     expect(plan.examined).toBe(4);
     expect(plan.misreported).toBe(2);
     expect(plan.regenerable).toBe(1);
@@ -100,5 +102,73 @@ describe("the plan is a report, not an action", () => {
     const plan = planInventoryReconcile([pair({ jobStatus: "assembled" })]);
     expect(plan.misreported).toBe(0);
     expect(plan.rows).toEqual([]);
+  });
+});
+
+/**
+ * ONE VERDICT PER INVENTORY ROW, NOT PER JOB.
+ *
+ * The caller joins reelJobs on briefId, so one inventory row can arrive as
+ * several pairs. Classifying each independently meant one dead job could condemn
+ * a queue item whose sibling job was alive — and REGENERATE DELIBERATELY CREATES
+ * THAT SHAPE: it marks the old job failed and enqueues a new one against the same
+ * brief. So the moment an operator regenerated a dead reel, this planner would see
+ * the corpse, ignore the live replacement, and offer to kill the recovery it had
+ * just been used to start.
+ */
+describe("a row with several jobs is judged once, by all of them", () => {
+  const dead = (inventoryId: string, jobId: number) =>
+    pair({ inventoryId, jobId, jobStatus: "failed", hasRenderedAsset: false });
+
+  it("LEAVES a row whose dead job was superseded by a live regeneration", () => {
+    const plan = planInventoryReconcile([
+      dead("inv_1", 900001),                                                  // superseded corpse
+      pair({ inventoryId: "inv_1", jobId: 900002, jobStatus: "generating" }), // the replacement
+    ]);
+    expect(plan.misreported).toBe(0);
+    expect(plan.rows).toEqual([]);
+  });
+
+  it("counts that row ONCE as examined, not once per job", () => {
+    const plan = planInventoryReconcile([dead("inv_1", 1), dead("inv_1", 2), dead("inv_1", 3)]);
+    expect(plan.examined).toBe(1);
+    // All three are dead, so the row IS misreported — but it is one row, not three.
+    expect(plan.misreported).toBe(1);
+  });
+
+  it("reports against the NEWEST job — its failure is the current one", () => {
+    const plan = planInventoryReconcile([
+      pair({ inventoryId: "inv_1", jobId: 100, jobStatus: "failed", jobError: "brief has no storyboardBeats" }),
+      pair({ inventoryId: "inv_1", jobId: 200, jobStatus: "failed", jobError: "Veo submit failed (HTTP 403): Your API key was reported as leaked." }),
+    ]);
+    expect(plan.rows[0].jobId).toBe(200);
+  });
+
+  it("stays regenerable when ANY dead sibling can be revived", () => {
+    // The operator only needs one good path forward; reporting none when one
+    // exists would strand recoverable work.
+    const plan = planInventoryReconcile([
+      pair({ inventoryId: "inv_1", jobId: 100, jobStatus: "failed", jobError: "429 spending cap" }),
+      pair({ inventoryId: "inv_1", jobId: 200, jobStatus: "failed", jobError: "brief has no storyboardBeats" }),
+    ]);
+    expect(plan.misreported).toBe(1);
+    expect(plan.regenerable).toBe(1);
+  });
+
+  it("one job with surviving media protects the whole row", () => {
+    const plan = planInventoryReconcile([
+      dead("inv_1", 100),
+      pair({ inventoryId: "inv_1", jobId: 200, jobStatus: "failed", hasRenderedAsset: true }),
+    ]);
+    expect(plan.misreported).toBe(0);
+  });
+
+  it("still judges unrelated rows independently", () => {
+    const plan = planInventoryReconcile([
+      dead("inv_1", 1), pair({ inventoryId: "inv_1", jobId: 2, jobStatus: "generating" }),
+      dead("inv_2", 3),
+    ]);
+    expect(plan.examined).toBe(2);
+    expect(plan.rows.map((r) => r.inventoryId)).toEqual(["inv_2"]);
   });
 });
