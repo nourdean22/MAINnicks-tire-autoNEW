@@ -158,11 +158,35 @@ export async function advanceContentRun(
       return false;
     }
 
+    /**
+     * The evidence chain is append-only, and this is a read-modify-write — two
+     * concurrent advances both read the same chain and the second write erases
+     * the first's entry. That is not theoretical here: render and stage can
+     * overlap with the publish-side close, and losing an evidence row silently
+     * removes the proof a later screen relies on.
+     *
+     * `chain = []` on a parse failure was the worse half: an unreadable chain
+     * would be REPLACED by a single-entry one, converting a recoverable
+     * corruption into permanent loss. A chain we cannot read is preserved
+     * verbatim instead — the row keeps whatever it had, and only the new entry
+     * is dropped, which is the direction that loses less.
+     */
     let chain: RunEvidence[] = [];
-    try { chain = JSON.parse(row.evidenceJson ?? "[]"); } catch { chain = []; }
-    if (patch.evidence) chain.push(patch.evidence);
+    let chainReadable = true;
+    try {
+      const parsed = JSON.parse(row.evidenceJson ?? "[]");
+      if (Array.isArray(parsed)) chain = parsed;
+      else chainReadable = false;
+    } catch {
+      chainReadable = false;
+    }
+    if (!chainReadable) {
+      log.warn("evidence chain unreadable — preserving it rather than overwriting", { runId });
+    }
+    if (patch.evidence && chainReadable) chain.push(patch.evidence);
 
-    const set: Record<string, unknown> = { evidenceJson: JSON.stringify(chain).slice(0, 16_000_000) };
+    const set: Record<string, unknown> = {};
+    if (chainReadable) set.evidenceJson = JSON.stringify(chain).slice(0, 16_000_000);
     for (const k of ["stage", "implementationState", "operationalState", "chosenFormat", "formatReason", "objective", "thesis", "inventoryId", "reelJobId", "approvalId", "failureReason"] as const) {
       if (patch[k] !== undefined) set[k] = patch[k];
     }

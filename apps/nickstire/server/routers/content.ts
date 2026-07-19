@@ -2592,16 +2592,38 @@ export const contentAdminRouter = router({
 
       const { enqueueReelJob } = await import("../services/reelPipeline");
       const { withOperatorAction } = await import("../services/operatorActionLog");
+      // The two typed refusals, so the classifier below can test identity
+      // instead of parsing prose.
+      const { AutonomyDenial } = await import("../services/autonomyControl");
+      const { GovernorDenial } = await import("../services/contentGovernor");
       const { jobId: newJobId } = await withOperatorAction(
         { action: "regenerate", operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: true },
         () => enqueueReelJob(brief as never, "admin"),
         {
-          // enqueueReelJob throws a plain Error when the M10 preflight or the
-          // spend governor says no. That is the system REFUSING, not breaking,
-          // and it is the most important refusal to count correctly — it is how
-          // "we keep hitting the daily cap" becomes visible instead of looking
-          // like a broken regenerate button.
-          isRefusal: (err) => err instanceof Error && /preflight blocked|governor|budget|spend|cap|cooldown/i.test(err.message),
+          /**
+           * The system REFUSING is not the system breaking, and this is the
+           * most important refusal to classify correctly: it is how "we keep
+           * hitting the daily cap" becomes visible instead of looking like a
+           * broken regenerate button.
+           *
+           * TYPES FIRST, TEXT ONLY WHERE NO TYPE EXISTS YET. The previous
+           * version was a pure message regex, and it matched none of the words
+           * in "Blocked by autonomy policy v3: kill_switch_all" — so every
+           * kill-switch and operating-mode denial was logged as a FAILURE. That
+           * is precisely the defect #914 removed from operatorActionLog, having
+           * come back through a different door.
+           *
+           * The two remaining string tests are for throws that genuinely have
+           * no type yet (reelPipeline.ts:141 preflight, :268 budget); they are
+           * anchored to their literal prefixes rather than to loose words like
+           * "cap", which would also match an unrelated "capacity" error.
+           */
+          isRefusal: (err) => {
+            if (err instanceof AutonomyDenial || err instanceof GovernorDenial) return true;
+            if (!(err instanceof Error)) return false;
+            return err.message.startsWith("Reel preflight blocked")
+              || err.message.startsWith("BUDGET_DAILY_EXCEEDED");
+          },
         },
       );
 
