@@ -21,6 +21,13 @@ const log = createLogger("services:publish-reconciler");
 
 /** Meta's timestamp vs our attempt time: a container can take a while to settle. */
 const MATCH_WINDOW_MINUTES = 90;
+/**
+ * How many recent posts we ask Instagram for. Named because the reconciler has to
+ * know whether the page it got back was FULL — a full page that never reaches
+ * the attempt means the evidence ran out, which is not the same as the post not
+ * existing.
+ */
+const RECONCILE_PAGE_SIZE = 25;
 
 export interface ReconcileCandidate {
   igPostId: string;
@@ -63,7 +70,7 @@ export async function reconcileAttempt(args: {
   expectedCaption?: string | null;
 }): Promise<ReconcileResult> {
   const { fetchInstagramMedia } = await import("./metaSocial");
-  const media = await fetchInstagramMedia(25);
+  const media = await fetchInstagramMedia(RECONCILE_PAGE_SIZE);
   if (!media.ok) {
     // Not knowing is a legitimate outcome and must not look like "not published".
     return { status: "cannot_check", detail: `Could not read the Instagram account: ${media.error}` };
@@ -117,6 +124,49 @@ export async function reconcileAttempt(args: {
     };
   }
   if (candidates.length === 0) {
+    /**
+     * "NOT IN THE 25 I FETCHED" IS NOT "NOT ON INSTAGRAM".
+     *
+     * This returned resolved_not_published — which the operator reads as "safe
+     * to retry" — whenever nothing matched. But the evidence is a fixed page of
+     * the 25 most recent posts. If more than 25 posts landed after the attempt,
+     * the attempt's own post has been pushed off the end of the page and the
+     * absence proves nothing at all.
+     *
+     * Retrying on that reading posts the same content twice, which is the exact
+     * failure the whole reconciler exists to prevent.
+     *
+     * The check is cheap and exact: if the OLDEST post we were given is still
+     * NEWER than the attempt, the page never reached back far enough to see it.
+     * A full page (25 of 25) with no coverage of the attempt window is the
+     * telltale — a partial page means we genuinely saw everything there was.
+     */
+    const postedTimes = media.posts
+      .map((p) => (p.posted ? Date.parse(p.posted) : NaN))
+      .filter((t) => Number.isFinite(t));
+    const oldestFetchedMs = postedTimes.length ? Math.min(...postedTimes) : null;
+    // BOTH conditions, and the page-full half is the one that matters. A partial
+    // page means Instagram gave us everything the account has, so absence really
+    // is proof. Only a FULL page whose oldest entry still postdates the attempt
+    // tells us the page ran out before reaching back far enough.
+    //
+    // (I wrote this rule in the comment above and then implemented only half of
+    // it. The existing "ignores a post far outside the settle window" test caught
+    // it: one post, six hours after the attempt, page nowhere near full — that is
+    // a genuine not-published, and my first version called it unknowable.)
+    const pageWasFull = media.posts.length >= RECONCILE_PAGE_SIZE;
+    const windowTruncated = pageWasFull && oldestFetchedMs !== null && oldestFetchedMs > attemptMs;
+
+    if (windowTruncated) {
+      return {
+        status: "cannot_check",
+        detail:
+          `Every one of the ${media.posts.length} most recent posts is NEWER than this attempt, so the ` +
+          `attempt's own post would have fallen off the end of the page we can see. This is UNKNOWN, ` +
+          `not "did not publish" — retrying could post the same content twice. Check the account directly.`,
+      };
+    }
+
     return {
       status: "resolved_not_published",
       detail: `No post appeared on the account within ${MATCH_WINDOW_MINUTES} minutes of the attempt. The publish did not reach Instagram, so it is safe to retry.`,
