@@ -48,7 +48,7 @@ export function InstagramAdmin() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="drafts">Drafts</TabsTrigger>
+          <TabsTrigger value="drafts" title="Plan and edit drafts here — approving and publishing happens in Queue">Planning</TabsTrigger>
           <TabsTrigger value="inbox">Inbox</TabsTrigger>
           <TabsTrigger value="learn">Learn</TabsTrigger>
           <TabsTrigger value="control">Control</TabsTrigger>

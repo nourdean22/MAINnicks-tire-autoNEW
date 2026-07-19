@@ -17,7 +17,6 @@ export interface RegistrySection {
   keywords?: string[];
   group?: string;
   showInSidebar?: boolean;
-  badgeKey?: "today" | "leads" | "tires" | "memberships";
 }
 
 // Lazy-load sections relative to this file's position (client/src/pages/admin/)
@@ -47,7 +46,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["dashboard", "overview", "home", "today"],
     group: "Operations",
     showInSidebar: true,
-    badgeKey: "today",
   },
   {
     id: "intelligence",
@@ -78,7 +76,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["lead", "crm", "prospect", "new customer", "no-show", "risk"],
     group: "Sales",
     showInSidebar: true,
-    badgeKey: "leads",
   },
   {
     id: "tireOrders",
@@ -89,7 +86,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["tires", "orders", "inventory", "stock"],
     group: "Operations",
     showInSidebar: true,
-    badgeKey: "tires",
   },
   {
     id: "growth",
@@ -120,7 +116,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["membership", "member", "nonstop", "nick", "subscription", "plan", "vehicle", "bind", "7.99", "9.99"],
     group: "Money",
     showInSidebar: true,
-    badgeKey: "memberships",
   },
   {
     id: "voiceReceptionist",

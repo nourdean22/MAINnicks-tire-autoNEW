@@ -26,7 +26,10 @@ export const NAV_GROUPS: NavGroup[] = [
       id: s.id,
       label: s.label,
       icon: s.icon,
-      badge: s.badgeKey,
+      // NOTE: badges are computed in Admin.tsx via getBadgeCount(item.id, ...),
+      // keyed on the section id. The registry's `badgeKey` was a second, parallel
+      // badge channel that nothing ever rendered — removed rather than left to
+      // read as "already supported" to the next reader.
     })),
   },
 ];

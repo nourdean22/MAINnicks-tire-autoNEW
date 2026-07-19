@@ -2342,4 +2342,53 @@ export const contentAdminRouter = router({
       }
       return { ok: true, jobId: input.jobId, mode: input.mode };
     }),
+  /**
+   * A CHEAP platform-level "something needs you" count, safe to poll from the
+   * admin sidebar on every page load.
+   *
+   * Deliberately NOT reelJobsNeedingAttention: that one PROBES every artifact
+   * over HTTP to decide what is recoverable, which is right for a detail view and
+   * catastrophic for a badge that polls. Counts only — two COUNT(*) queries.
+   *
+   * `unknown: true` when a count could not be read. Callers must render that as
+   * "unable to determine", never as zero: a failed query showing 0 is a green
+   * light the system never gave.
+   */
+  operationsSignal: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return { heldReels: 0, openPublishes: 0, total: 0, unknown: true };
+
+    let heldReels = 0;
+    let openPublishes = 0;
+    let unknown = false;
+
+    try {
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { inArray, and, eq, gte, or, sql } = await import("drizzle-orm");
+      const { ATTENTION_STATUSES, FAILED_ATTENTION_DAYS } = await import("../services/reelRecoverability");
+      const cutoff = new Date(Date.now() - FAILED_ATTENTION_DAYS * 24 * 60 * 60 * 1000);
+      const [row] = await d
+        .select({ n: sql<number>`COUNT(*)`.as("n") })
+        .from(reelJobs)
+        .where(or(
+          inArray(reelJobs.status, [...ATTENTION_STATUSES]),
+          and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, cutoff)),
+        ));
+      heldReels = Number(row?.n ?? 0);
+    } catch (err) {
+      log.warn("operationsSignal: could not count held reels", err);
+      unknown = true;
+    }
+
+    try {
+      const { findUnreconciledAttempts } = await import("../services/publishAttemptLedger");
+      openPublishes = (await findUnreconciledAttempts(15)).length;
+    } catch (err) {
+      log.warn("operationsSignal: could not count open publish attempts", err);
+      unknown = true;
+    }
+
+    return { heldReels, openPublishes, total: heldReels + openPublishes, unknown };
+  }),
 });
