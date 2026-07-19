@@ -224,3 +224,32 @@ body{font-family:Arial Black,Arial,sans-serif;color:#fff}
 <div class="main"><div class="headline">${esc(input.headline)}</div><div class="body">${esc(input.body)}</div><div class="cta">${esc(input.cta)}</div></div>
 <div class="footer"><span>@nicks_tire_euclid</span><span>nickstire.org</span></div></div></body></html>`;
 }
+
+/**
+ * Map the LLM's `artDirection` prose onto a family.
+ *
+ * The generator has always produced an artDirection string and the renderer has
+ * always ignored it — the creative intent was computed and thrown away, the same
+ * shape of bug as the audio verdict that was logged and never persisted.
+ *
+ * This is deliberately a DETERMINISTIC keyword map, not another model call. The
+ * art direction is already model output; asking a second model to interpret it
+ * adds cost, latency and a second thing that can hallucinate, to choose between
+ * three options. Same input always picks the same family, and a test can pin it.
+ */
+export function familyFromArtDirection(artDirection: string | null | undefined, hasSubjectImage = false): string {
+  const text = String(artDirection ?? "").toLowerCase();
+
+  // Evidence first: it is the only family that can USE a photo, so when the art
+  // direction asks for one and we have one, nothing else should win.
+  if (hasSubjectImage && /photo|macro|close[- ]?up|close up|real|actual|part|tread|rotor|worn|damage|evidence/.test(text)) {
+    return "mechanic_evidence";
+  }
+  if (/weather|snow|ice|salt|freeze|frozen|pothole|road|storm|winter hazard|flood/.test(text)) {
+    return "road_hazard";
+  }
+  if (/offer|deal|special|promo|sale|discount|book|appointment|reminder|deadline|e-?check/.test(text)) {
+    return "seasonal_offer";
+  }
+  return DEFAULT_FAMILY_ID;
+}

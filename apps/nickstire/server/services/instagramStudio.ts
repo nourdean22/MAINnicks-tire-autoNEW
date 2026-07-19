@@ -414,7 +414,28 @@ export async function renderInstagramStudioAssets(draft: InstagramStudioDraft): 
 
   const { renderHtmlToJpeg } = await import("./adStudio/adRender");
   const { storagePut } = await import("../storage");
-  const dimensions = draft.format === "story" ? { width: 1080, height: 1920 } : { width: 1080, height: 1080 };
+  const { familyFromArtDirection, resolveFamilyForSubject, renderFamilyCardHtml, FEED_W, FEED_H, STORY_W, STORY_H } =
+    await import("./visualFamily");
+
+  // 4:5 for the feed, not 1:1. A square post gives away vertical screen on the
+  // one surface where screen space is the whole competition, and the carousel
+  // renderer has been native 4:5 all along — this brings static posts in line.
+  const dimensions = draft.format === "story"
+    ? { width: STORY_W, height: STORY_H }
+    : { width: FEED_W, height: FEED_H };
+
+  // artDirection has ALWAYS been generated and ALWAYS been ignored — the creative
+  // intent was computed and thrown away. It now picks the composition.
+  // imageUrls is where a generated or selected photo lands. Empty is normal and
+  // must not be a failure — most drafts have no subject and render on the family
+  // background instead.
+  const subjectImageUrl = draft.imageUrls?.[0] ?? null;
+  const requestedFamilyId = familyFromArtDirection(draft.artDirection, Boolean(subjectImageUrl));
+  const resolved = resolveFamilyForSubject(requestedFamilyId, Boolean(subjectImageUrl));
+  if (resolved.substituted) {
+    // Announced, never silent — the caller can surface this to the operator.
+    log.warn("visual family substituted", { draftId: draft.id, reason: resolved.reason });
+  }
   const cards = draft.format === "carousel"
     ? draft.carouselSlides.map((slide, index) => ({
         headline: slide.headline,
@@ -433,7 +454,14 @@ export async function renderInstagramStudioAssets(draft: InstagramStudioDraft): 
 
   const urls: string[] = [];
   for (let index = 0; index < cards.length; index++) {
-    const html = renderCardHtml({ ...cards[index], ...dimensions });
+    const html = renderFamilyCardHtml({
+      ...cards[index],
+      ...dimensions,
+      family: resolved.family,
+      // Only the FIRST card carries the subject image; later carousel slides are
+      // teaching frames and a repeated photo behind each one reads as a template.
+      subjectImageUrl: index === 0 ? subjectImageUrl : null,
+    });
     const buffer = await renderHtmlToJpeg(html, dimensions.width, dimensions.height);
     const upload = await storagePut(
       `instagram-studio/${draft.id}-${index + 1}.jpg`,
@@ -443,6 +471,9 @@ export async function renderInstagramStudioAssets(draft: InstagramStudioDraft): 
     if (!upload.url) throw new Error(`Asset ${index + 1} could not be hosted.`);
     urls.push(upload.url);
   }
-  log.info("rendered studio assets", { draftId: draft.id, format: draft.format, count: urls.length });
+  log.info("rendered studio assets", {
+    draftId: draft.id, format: draft.format, count: urls.length,
+    family: resolved.family.id, substituted: resolved.substituted, hadSubject: Boolean(subjectImageUrl),
+  });
   return urls;
 }
