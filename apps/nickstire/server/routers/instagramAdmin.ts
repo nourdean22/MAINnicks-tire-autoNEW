@@ -1484,10 +1484,30 @@ Keep it under 200 characters.`;
          * no CAS can save it. The inventory publisher's own at-most-once claim
          * only protects it from ITSELF.
          *
-         * The result is a guaranteed duplicate post to Instagram. It has never
-         * fired only because social_content_inventory.scheduled_at has never been
-         * non-null in production — every use of this endpoint so far passed no
-         * inventoryId. The first schedule from the Queue would have posted twice.
+         * The result would be a duplicate post to Instagram.
+         *
+         * SEVERITY CORRECTED 2026-07-20. #930 described this as "live, not
+         * latent" on the strength of SOCIAL_INVENTORY_PUBLISH_ENABLED=true in
+         * apps/nickstire/.env. Production disagrees: cron_log shows
+         * `social-inventory-publisher` SKIPPED 749 times in seven days with
+         * reason "requiresEnv:SOCIAL_INVENTORY_PUBLISH_ENABLED (no env var
+         * set)". The second publisher does not run in production, so the
+         * duplicate could not have fired.
+         *
+         * The root cause of that wrong call is worth keeping: apps/nickstire/.env
+         * has a PRODUCTION DATABASE_URL, which makes the whole file feel
+         * authoritative about production. It is not — Railway env vars are set
+         * separately and this file is a dev-box artefact. Verify production
+         * configuration against cron_log skip reasons, /api/health, or
+         * `railway run` — never against that file.
+         *
+         * Two independent reasons it also never fired: scheduled_at has never
+         * been non-null in social_content_inventory (0 rows, ever), because every
+         * call to this endpoint so far passed no inventoryId.
+         *
+         * The fix stands regardless. Two writers arming two publishers over two
+         * unlinked tables is wrong whether or not an env var happens to be unset
+         * today, and an env var is not an access control.
          *
          * The status alone is what the Queue filters on, so the operator still
          * sees "scheduled"; the WHEN lives on the scheduled_posts row that owns
