@@ -132,7 +132,9 @@ export function VoiceAchievements() {
   // Get current values mapped to badges
   const badgeValues = [
     stats.totalResolved, // Off-Counter Relief
-    stats.totalConverted, // Cleveland Road Protector
+    // Renamed 2026-07-20: this counts calls that REACHED A WRITE TOOL, not
+    // leads created. See the doc comment on totalReachedTool in routers/vapi.ts.
+    stats.totalReachedTool, // Cleveland Road Protector
     stats.totalAfterHours, // Night Watchman
     stats.totalExemplary, // Silver Tongue
     Math.round(stats.totalDuration / 60), // Hours Saved (in minutes)

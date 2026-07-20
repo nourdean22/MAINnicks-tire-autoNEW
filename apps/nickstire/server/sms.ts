@@ -307,15 +307,42 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
   })();
 }
 
+/**
+ * 2026-07-20 · Why the drain is currently holding, or null when it is running.
+ *
+ * The two gates below used to `return` silently every 60s. With 136 messages
+ * stranded, the queue sat still for weeks and emitted NOT ONE log line — the
+ * single biggest reason #962 took a full session to diagnose rather than five
+ * minutes. Logging every cycle would be 1440 lines/day of noise, so we log
+ * only on TRANSITION: once when a hold begins, once when it clears.
+ */
+let drainHoldReason: string | null = null;
+function noteDrainHold(reason: string | null, queued: number): void {
+  if (reason === drainHoldReason) return;
+  if (reason) {
+    log.warn(`[sms queue] HOLDING ${queued} message(s) — ${reason}`);
+  } else {
+    log.info("[sms queue] hold cleared — draining");
+  }
+  drainHoldReason = reason;
+}
+
 async function processDelayedQueue(): Promise<void> {
   if (delayedQueue.length === 0) return;
-  if (!isWithinSendingHours()) return;
+  if (!isWithinSendingHours()) {
+    noteDrainHold("outside sending hours (8AM-8PM ET)", delayedQueue.length);
+    return;
+  }
   // Operator directive (2026-06) — only drain when the F25e is actually
   // back online. A drained send while offline would fail (Twilio is off)
   // and leave the claimed row stuck in 'sending'. Hold until it returns;
   // the queued rows persist + rehydrate, so nothing is lost. Skip the gate
   // when the gateway isn't configured (dev/test keeps draining as before).
-  if (isShopGatewayConfigured() && !(await isShopGatewayReachable())) return;
+  if (isShopGatewayConfigured() && !(await isShopGatewayReachable())) {
+    noteDrainHold("shop gateway (F25e) unreachable", delayedQueue.length);
+    return;
+  }
+  noteDrainHold(null, delayedQueue.length);
 
   const now = Date.now();
   // Drain ready messages atomically to prevent race with concurrent queueForLater
@@ -1153,6 +1180,11 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   // Normalize phone first — both routes need it
   const normalizedEarly = normalizePhone(to);
   if (!normalizedEarly) {
+    // 2026-07-20 · every non-send exit in this function now logs a REASON.
+    // Previously five of them returned silently, so a message that never
+    // reached the customer left no trace anywhere — which is why 4 stranded
+    // sends could not be diagnosed after the #962 backlog drain.
+    log.warn("[sendSms] not sent — invalid phone number", { to: String(to).slice(-4) });
     return { success: false, error: `Invalid phone number: ${to}` };
   }
 
@@ -1178,6 +1210,10 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   // Internal bypasses daily limits.
   if (!isInternal && !opts?._forceImmediate && !opts?.skipOptOutCheck) {
     if (!(await checkDailyLimit(normalizedEarly, { skipShortCooldown: opts?.skipShortCooldown }))) {
+      log.warn("[sendSms] not sent — daily limit / cooldown for this number", {
+        to: normalizedEarly.slice(-4),
+        messageClass,
+      });
       return { success: false, error: "Daily SMS limit reached for this number" };
     }
   }
@@ -1219,6 +1255,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       log.warn("opt-out status unverifiable; allowing INTERNAL message only", { reason: index.reason });
     } else if (index.phones.has(last10)) {
       smsStats.totalOptedOut++;
+      log.info("[sendSms] not sent — recipient opted out (TCPA)", { to: last10.slice(-4), messageClass });
       return { success: false, error: "Customer opted out of SMS" };
     }
   }
@@ -1230,6 +1267,10 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   const bypassQuietHours = isInternal || messageClass === "customer_confirmation" || opts?._forceImmediate;
   
   if (!bypassQuietHours && !isWithinSendingHours()) {
+    log.info("[sendSms] QUEUED — outside sending hours (8AM-8PM ET)", {
+      to: normalizedEarly.slice(-4),
+      messageClass,
+    });
     queueForLater(normalizedEarly, body, opts);
     return {
       success: true,
@@ -1253,6 +1294,10 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     isShopGatewayConfigured() &&
     !(await isShopGatewayReachable())
   ) {
+    log.warn("[sendSms] QUEUED — shop gateway (F25e) unreachable", {
+      to: normalizedEarly.slice(-4),
+      messageClass,
+    });
     queueForLater(normalizedEarly, body, opts);
     return {
       success: true,

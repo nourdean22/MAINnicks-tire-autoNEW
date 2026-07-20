@@ -921,7 +921,12 @@ export const customersRouter = router({
             type: "vapi_call",
             title: `AI Call · ${c.serviceMention || "no service mention"}`,
             detail: c.aiSummary?.slice(0, 120) || `${c.durationSeconds}s · ${c.endedReason || ""}`,
-            status: c.convertedToLead ? "converted" : "info",
+            // 2026-07-20 · convertedToLead means "the AI reached a write tool",
+            // NOT that a lead exists (zero of the 451 flagged calls have a
+            // leadId). Kept as a visual distinction because tool-engagement is
+            // still a real signal, but no longer badged "converted" — that told
+            // the operator a conversion happened when none had.
+            status: c.convertedToLead ? "engaged" : "info",
             date: new Date(c.createdAt),
           }));
         } catch (vapiErr) {
