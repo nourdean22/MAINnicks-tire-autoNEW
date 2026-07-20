@@ -110,13 +110,15 @@ export function HQ({ onNavigate }: HQProps) {
 }
 
 function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void }) {
-  // 30s, not 5s. At 5 seconds this ONE card spent 180 requests per 15 minutes —
-  // nearly twice the entire anti-spam budget that was locking the operator out of
-  // their own admin. Pipeline health does not change meaningfully within 5s, and
-  // this query now also asks Meta whether the token is live (TTL-cached, but
-  // still not something to poll at that rate).
+  // 120s (operator's call), down from 5s.
+  //
+  // At 5 seconds this ONE card spent 180 requests per 15 minutes — nearly twice
+  // the entire anti-spam budget that was locking the operator out of their own
+  // admin. At 120s it spends 7.5. Pipeline health is a "is anything broken"
+  // signal, not a live feed: nothing on this card changes on a five-second
+  // horizon, and the query also asks Meta whether the token is live.
   const { data: health, isLoading } = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, {
-    refetchInterval: 30_000,
+    refetchInterval: 120_000,
   });
 
   const higgsfieldHealth = trpc.instagramAdmin.getHiggsfieldHealth.useQuery(undefined, { enabled: false });
