@@ -69,12 +69,23 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // MFA enforcement — turning on RBAC without this would activate a fail-open
   // default for half the application in the same commit.
 
-  // Dangerous operational surface — migrations, data pruning, credential
-  // rotation, bulk export. Nothing below owner/manager should reach these.
+  /**
+   * Dangerous operational surface — migrations, data pruning, credential
+   * rotation, bulk export.
+   *
+   * SPLIT BY TYPE, and the split is load-bearing. A first version mapped these
+   * prefixes wholesale to settings.manage and broke 32 tests the moment the
+   * permission check was actually enabled: adminDashboard.stats is a QUERY — the
+   * main dashboard read that every role needs — and it was being asked for the
+   * same permission as dbCleanupPrune, which permanently deletes leads.
+   *
+   * Reads on an operational router are still just reads. Only the writes here
+   * can migrate a schema, prune a table, or hand back a Page token.
+   */
   if (
     normalized.startsWith("nickactions.") || normalized.startsWith("admindashboard.") ||
     normalized.startsWith("controlcenter.") || normalized.startsWith("export.")
-  ) return "settings.manage";
+  ) return type === "mutation" ? "settings.manage" : "admin.view";
 
   // Anything that can reach a customer: texts, calls, reviews, reminders, offers.
   if (

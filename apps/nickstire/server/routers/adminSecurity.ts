@@ -30,10 +30,24 @@ export const adminSecurityRouter = router({
     // Enforcement off → report the pre-wave contract (owner, no MFA wall)
     // so the client gate and the middleware agree. See isAdminMfaRequired.
     if (!isAdminMfaRequired()) {
+      /**
+       * The MFA posture is off; the ROLE is still real.
+       *
+       * This returned MFA_NOT_REQUIRED_STATE.adminRole — the literal "owner" —
+       * so the sidebar, command search and topbar rendered an owner's navigation
+       * for every admin regardless of their actual role. The client and the
+       * server now agree because both read the same stored role
+       * (_core/trpc.ts enforces it unconditionally as of the same change).
+       *
+       * mfaEnabled/mfaVerified stay as they were: enforcement is off, so there is
+       * no wall to clear and the client's MFA gate must not render.
+       */
+      const stored = await getAdminSecurityState(ctx.user.openId);
+      const adminRole = stored?.adminRole ?? MFA_NOT_REQUIRED_STATE.adminRole;
       return {
         mfaRequired: false,
-        adminRole: MFA_NOT_REQUIRED_STATE.adminRole,
-        permissions: permissionsForAdminRole(MFA_NOT_REQUIRED_STATE.adminRole),
+        adminRole,
+        permissions: permissionsForAdminRole(adminRole),
         mfaEnabled: false,
         mfaVerified: true,
         mfaVerifiedAt: null,
