@@ -1086,6 +1086,20 @@ export function registerBridgeRoutes(app: Express): void {
     "review-monitor",
     "staff-performance",
     "fleet-scoring",
+    // 2026-07-20 · operator-authorised. Added so a cron FIX can be verified on
+    // the deployed container instead of waiting ~18h for the daily tick —
+    // gsc-pipeline had failed 6/6 runs at exactly the 4-minute cap and
+    // GOOGLE_SEARCH_CONSOLE_KEY is Railway-only, so there is no local path.
+    //
+    // RISK, stated rather than assumed: this allowlist is a control from the
+    // 2026-07-05 adversarial audit, and this bridge is reachable by the "Nour
+    // Command" Custom GPT. Anything listed here can be triggered by that GPT or
+    // by a leaked X-Bridge-Key. gsc-pipeline reads the Search Console API and
+    // writes our own gsc tables — the same class as dashboard-sync and
+    // enrich-customer-data above, not the heavy-write class that needed the
+    // confirm-gate + cooldown. Looping it burns Google API quota and can spam
+    // ranking-drop Telegrams; it cannot destroy data.
+    "gsc-pipeline",
   ]);
 
   // Run a specific cron job by name (e.g. enrich-customer-data)
