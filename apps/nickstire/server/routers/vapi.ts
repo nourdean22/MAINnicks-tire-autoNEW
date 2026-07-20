@@ -1169,7 +1169,17 @@ export const vapiRouter = router({
 
     let totalCalls = rows.length;
     let totalDuration = 0;
-    let totalConverted = 0;
+    /**
+     * 2026-07-20 · RENAMED from `totalConverted`. `convertedToLead` DOES NOT
+     * mean a lead was created — it is set when the caller reached a write tool
+     * (see classifyToolToState / WRITE_TOOLS). Measured the same day: 451 calls
+     * carry convertedToLead = 1, ZERO have a leadId, and the leads table holds
+     * 2 rows in total, because tireInquiry deliberately stops creating leads for
+     * ordinary inquiries (operator directive 2026-06-05). Calling this
+     * "converted" told the operator conversions were happening when none were.
+     * Same correction already applied in controlCenter.ts (`reachedTool24h`).
+     */
+    let totalReachedTool = 0;
     let totalExemplary = 0;
     let totalResolved = 0;
     let totalAfterHours = 0;
@@ -1178,7 +1188,7 @@ export const vapiRouter = router({
 
     for (const r of rows) {
       totalDuration += r.durationSeconds;
-      if (r.convertedToLead === 1) totalConverted++;
+      if (r.convertedToLead === 1) totalReachedTool++;
       if (r.evalScore !== null) {
         sumScore += r.evalScore;
         countScore++;
@@ -1227,7 +1237,7 @@ export const vapiRouter = router({
     return {
       totalCalls,
       totalDuration,
-      totalConverted,
+      totalReachedTool,
       totalExemplary,
       totalResolved,
       totalAfterHours,
