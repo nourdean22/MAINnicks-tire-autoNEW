@@ -41,14 +41,25 @@ export const conversionRouter = router({
         const d = await getDb();
         if (!d) return { count: 0, asOf: new Date().toISOString() };
 
-        // Count distinct session_ids in the last 5 min from page-view events.
-        // Falls back gracefully if the analytics_events table doesn't exist
-        // or is empty.
+        // Reads `customer_events`, which EXISTS and is fed (4,703 rows, ~96
+        // distinct sessions/day). The old query read `analytics_events`, which
+        // does not exist in production at all — safeCount turned the
+        // ER_NO_SUCH_TABLE into 0, liveSessions always returned {count:0}, and
+        // LiveVisitorCounter's `displayCount < minToShow` guard meant the
+        // social-proof element on Home has NEVER rendered, at any traffic level.
+        //
+        // Column names differ from the old guess: `sessionId` and `createdAt`
+        // (camelCase in the DB), and there is no event_type — the column is
+        // `eventName` and no 'page_view' value is ever written, so ANY event
+        // from a session counts as presence. Verified against the live table.
+        //
+        // The window stays 5 minutes and the counter keeps its minToShow floor,
+        // so on a quiet hour it renders nothing rather than inventing company.
         const count = await safeCount(d, sql`
-          SELECT COUNT(DISTINCT session_id) AS cnt
-          FROM analytics_events
-          WHERE created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-            AND event_type = 'page_view'
+          SELECT COUNT(DISTINCT sessionId) AS cnt
+          FROM customer_events
+          WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            AND sessionId IS NOT NULL
         `);
         return { count, asOf: new Date().toISOString() };
       } catch (err) {
