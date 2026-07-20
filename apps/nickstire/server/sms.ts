@@ -362,6 +362,27 @@ async function processDelayedQueue(): Promise<void> {
   }
 }
 
+/**
+ * Rows affected by an UPDATE, tolerant of every shape the driver returns.
+ *
+ * drizzle-orm/mysql2 types an UPDATE result as a TUPLE —
+ * `MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]]` — so reading
+ * `.affectedRows` off the result itself yields undefined. Doing exactly that
+ * silently discarded every rehydrated SMS for weeks (see the call site).
+ *
+ * Fails CLOSED: an unrecognised shape returns 0, so an unverified claim is
+ * never treated as successful. Exported for direct unit testing.
+ */
+export function readClaimedRows(result: unknown): number {
+  const header = Array.isArray(result) ? result[0] : result;
+  if (!header || typeof header !== "object") return 0;
+  const h = header as { affectedRows?: unknown; rowsAffected?: unknown };
+  const n = typeof h.affectedRows === "number" ? h.affectedRows
+    : typeof h.rowsAffected === "number" ? h.rowsAffected
+    : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 export function startDelayedQueueProcessor(): void {
   if (delayedTimer) return;
 
@@ -397,9 +418,22 @@ export function startDelayedQueueProcessor(): void {
           .update(smsMessages)
           .set({ status: "sending" })
           .where(and(eq(smsMessages.id, msg.id), eq(smsMessages.status, "queued")));
-        const claimedRows = (claim as unknown as { rowsAffected?: number; affectedRows?: number })?.rowsAffected
-          ?? (claim as unknown as { rowsAffected?: number; affectedRows?: number })?.affectedRows
-          ?? 0;
+        // 2026-07-20 · THIS READ WAS BROKEN AND SILENTLY DISCARDED EVERY
+        // REHYDRATED MESSAGE. drizzle-orm/mysql2 types an UPDATE result as
+        //   MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]]
+        // i.e. a TUPLE. The old code read `claim.rowsAffected` /
+        // `claim.affectedRows` off the array itself — both undefined — so
+        // claimedRows was ALWAYS 0 and `continue` fired for every row.
+        //
+        // Net effect at boot: the UPDATE still ran (row moved queued ->
+        // sending) but the message was never pushed into delayedQueue, so it
+        // was never sent, and `rehydrated` stayed 0 so even the
+        // "Rehydrated N pending SMS" log never printed. Every restart
+        // converted up to 100 queued messages into a dead 'sending' state
+        // that nothing can recover — 136 had accumulated by 2026-07-20.
+        //
+        // Same tuple gotcha handled correctly in featureFlags.setFlag().
+        const claimedRows = readClaimedRows(claim);
         if (claimedRows < 1) continue;
 
         // Only add if not already in the in-memory queue
