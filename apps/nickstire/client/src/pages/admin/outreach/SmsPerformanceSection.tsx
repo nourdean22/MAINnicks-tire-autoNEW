@@ -181,8 +181,8 @@ export default function SmsPerformanceSection() {
                           successful count would hide that distinction. */}
                       <td className="px-3 py-2.5 text-right tabular-nums text-foreground/70">
                         {l.sent}
-                        {l.failed > 0 && (
-                          <span className="text-amber-400/80"> +{l.failed} failed</span>
+                        {l.undelivered > 0 && (
+                          <span className="text-amber-400/80"> +{l.undelivered} undelivered</span>
                         )}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-foreground/70">{l.paidInvoicesAfter}</td>
@@ -201,8 +201,8 @@ export default function SmsPerformanceSection() {
                   <td className="px-4 py-2.5 text-foreground/70">Total</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {money.totals.sent}
-                    {money.totals.failed > 0 && (
-                      <span className="text-amber-400/80"> +{money.totals.failed} failed</span>
+                    {money.totals.undelivered > 0 && (
+                      <span className="text-amber-400/80"> +{money.totals.undelivered} undelivered</span>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{money.totals.paidInvoicesAfter}</td>

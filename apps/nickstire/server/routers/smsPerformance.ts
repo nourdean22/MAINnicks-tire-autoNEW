@@ -311,14 +311,18 @@ export const smsPerformanceRouter = router({
         //
         // The only correct dedup key is the invoice ID, so revenue is aggregated
         // over DISTINCT (loop, invoice) pairs in its own query and merged below.
-        // `sent` EXCLUDES status='failed'. Counting attempts as sends ranks
-        // deliverability and calls it effectiveness — cross_sell had 301 of 575
-        // fail inside this window while every other loop sat at 0-6%.
+        // `sent` is an ALLOWLIST of delivered states, not `<> 'failed'`.
+        // Counting attempts as sends ranks deliverability and calls it
+        // effectiveness — cross_sell had 301 of 575 fail in this window while
+        // every other loop sat at 0-6%. And excluding only 'failed' still
+        // counted 135 rows parked in 'sending' (zero twilioSids — #962's
+        // permanently-stuck rehydration rows). A denylist must predict every
+        // bad state; an allowlist only names the good ones.
         const [messageRows] = await d.execute(sql`
           SELECT m.variantKey                                             AS loop,
                  COUNT(*)                                                 AS attempted,
-                 SUM(CASE WHEN m.status <> 'failed' THEN 1 ELSE 0 END)    AS sent,
-                 SUM(CASE WHEN m.status =  'failed' THEN 1 ELSE 0 END)    AS failed,
+                 SUM(CASE WHEN m.status IN ('sent','delivered') THEN 1 ELSE 0 END) AS sent,
+                 SUM(CASE WHEN m.status NOT IN ('sent','delivered') THEN 1 ELSE 0 END) AS undelivered,
                  SUM(CASE WHEN m.replyCount > 0 THEN 1 ELSE 0 END)        AS replied,
                  SUM(CASE WHEN m.optOutAt IS NOT NULL THEN 1 ELSE 0 END)  AS optedOut
           FROM sms_messages m
@@ -371,12 +375,12 @@ export const smsPerformanceRouter = router({
         for (const raw of rows as Array<Record<string, unknown>>) {
           const key = rollupKey((raw.loop as string | null) ?? null);
           const cur = byLoop.get(key) ?? {
-            loop: prettyTier(key), attempted: 0, sent: 0, failed: 0, replied: 0, optedOut: 0,
+            loop: prettyTier(key), attempted: 0, sent: 0, undelivered: 0, replied: 0, optedOut: 0,
             paidInvoicesAfter: 0, revenueObservedCents: 0,
           };
           cur.attempted += Number(raw.attempted ?? 0);
           cur.sent += Number(raw.sent ?? 0);
-          cur.failed += Number(raw.failed ?? 0);
+          cur.undelivered += Number(raw.undelivered ?? 0);
           cur.replied += Number(raw.replied ?? 0);
           cur.optedOut += Number(raw.optedOut ?? 0);
           cur.paidInvoicesAfter += Number(raw.paidInvoicesAfter ?? 0);
