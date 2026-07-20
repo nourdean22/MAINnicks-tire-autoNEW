@@ -1238,6 +1238,14 @@ ${urls.join("\n")}
     const rssMB = Math.round(mem.rss / 1024 / 1024);
     console.info(`[server:ready] http://localhost:${port}/ | Memory: heap=${heapMB}MB rss=${rssMB}MB`);
 
+    // Every wall-clock-gated job (daily reel post, 8AM-8PM SMS window,
+    // best-posting-hour) trusts that this container can resolve the shop's
+    // timezone. Node falls back to UTC SILENTLY when the IANA database is
+    // missing, so that trust has to be checked rather than assumed.
+    import("../lib/timezoneAssert")
+      .then(({ assertBusinessTimezoneAtBoot }) => assertBusinessTimezoneAtBoot())
+      .catch(() => { /* never block boot on the checker itself */ });
+
     // wave-181.26 · arm admin-activity for 2 min post-restart so the
     // first pulse-tier pass of ShopDriver/ALG mirrors doesn't skip
     // with "admin inactive." Without this, post-Railway-restart
