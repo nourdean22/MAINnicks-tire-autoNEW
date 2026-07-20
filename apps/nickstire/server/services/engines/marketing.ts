@@ -270,7 +270,12 @@ export async function analyzeContentPerformance(): Promise<{
 // ═══════════════════════════════════════════════════════════
 
 export async function analyzeCompetitorGap(): Promise<{
-  us: { rating: number; reviewCount: number; responseRate: number };
+  /**
+   * `rating` and `responseRate` are NULL when no reviews are captured — the
+   * caller must render "unknown", never substitute a number. They were
+   * non-nullable, which is what allowed a `|| 4.5` default to look legitimate.
+   */
+  us: { rating: number | null; reviewCount: number; responseRate: number | null };
   competitors: Array<{ name: string; rating: number; reviewCount: number; gap: string }>;
   advantage: string;
 }> {
@@ -286,10 +291,21 @@ export async function analyzeCompetitorGap(): Promise<{
     `);
 
     const our = extractOne(ourRows);
-    const rating = Number(our.avgRating || 4.5);
     const reviewCount = Number(our.totalReviews || 0);
     const repliedCount = Number(our.repliedCount || 0);
-    const responseRate = reviewCount > 0 ? Math.round((repliedCount / reviewCount) * 100) : 0;
+
+    // NO `|| 4.5` FALLBACK.
+    //
+    // `review_replies` has 0 rows in production, so AVG(review_rating) returns
+    // a single row with avgRating = NULL. `Number(our.avgRating || 4.5)` let
+    // that NULL fall through and MADE THE SHOP'S RATING THE LITERAL 4.5 — which
+    // then beat all four hardcoded competitor benchmarks (4.3/4.4/3.9/3.7), set
+    // beatingAll = true, and emitted
+    //   "Leading all competitors with 4.5 stars and 0% response rate"
+    // as a finding. An invented number that flatters the shop is the worst kind
+    // of fabrication: nobody questions good news.
+    const rating = reviewCount > 0 && our.avgRating != null ? Number(our.avgRating) : null;
+    const responseRate = reviewCount > 0 ? Math.round((repliedCount / reviewCount) * 100) : null;
 
     // Known Cleveland-area competitor benchmarks (static — updated periodically)
     const competitors = [
@@ -298,6 +314,17 @@ export async function analyzeCompetitorGap(): Promise<{
       { name: "Tire Choice Auto Service", rating: 3.9, reviewCount: 200, gap: "" },
       { name: "Midas Cleveland", rating: 3.7, reviewCount: 160, gap: "" },
     ];
+
+    // With no rating of our own there is nothing to compare against. Say so
+    // rather than filling the gap with a number.
+    if (rating === null) {
+      for (const c of competitors) c.gap = "no rating captured for us — comparison unavailable";
+      return {
+        us: { rating: null, reviewCount, responseRate: null },
+        competitors,
+        advantage: `No review data captured (${reviewCount} reviews on file) — competitor comparison unavailable.`,
+      };
+    }
 
     for (const c of competitors) {
       const ratingDiff = Math.round((rating - c.rating) * 10) / 10;
@@ -315,7 +342,8 @@ export async function analyzeCompetitorGap(): Promise<{
     return { us: { rating, reviewCount, responseRate }, competitors, advantage };
   } catch {
     return {
-      us: { rating: 0, reviewCount: 0, responseRate: 0 },
+      // null, not 0 — a failed read is not a zero-star shop.
+      us: { rating: null, reviewCount: 0, responseRate: null },
       competitors: [],
       advantage: "Unable to analyze",
     };

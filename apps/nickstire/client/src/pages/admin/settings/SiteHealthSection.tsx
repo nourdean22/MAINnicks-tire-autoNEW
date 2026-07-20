@@ -173,7 +173,19 @@ export default function SiteHealthSection() {
           {failData.failures.length === 0 ? (
             <div className="flex items-center gap-2 p-3 border border-emerald-500/20 bg-emerald-500/5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span className="text-[13px] text-foreground/70">No integration failures logged — sheets sync, CAPI, SMS &amp; email are clean.</span>
+              {/* Scope narrowed to what is ACTUALLY instrumented.
+                  All 16 logIntegrationFailure() call sites live in
+                  routers/booking.ts, lead.ts and emergency.ts — the web-form
+                  submit paths only. The SMS pipeline (10,055 messages) and the
+                  CAPI / reminder / review-request senders never call it.
+                  The old copy named "sheets sync, CAPI, SMS & email", so a week
+                  of Twilio or Capevace failures produced exactly the same green
+                  check as a week with none — an all-clear covering channels
+                  with no instrumentation behind it. */}
+              <span className="text-[13px] text-foreground/70">
+                No integration failures logged on the web booking / lead / emergency forms.{" "}
+                <span className="text-foreground/45">SMS and CAPI are not instrumented here — this check does not cover them.</span>
+              </span>
             </div>
           ) : (
             <>

@@ -354,11 +354,32 @@ async function fetchIgInsight(): Promise<{ topType: string | null; topFormatsNot
   try {
     const { getEngagementByType, getTopPosts } = await import("../pipelines/instagram-data");
     const [byType, top] = await Promise.all([getEngagementByType(), getTopPosts({ limit: 5 })]);
-    const topType = byType[0]?.type ?? null;
+
+    // SIGNAL GUARD. This string is injected VERBATIM into the live content
+    // generation prompt, so naming a "top-performing format" tells the model to
+    // bias real posts toward it.
+    //
+    // Measured in production: instagram_analytics has 34 rows. engagementRate
+    // is exactly 0 on 26 of them (76%), comments is 0 on all 34, and the entire
+    // dataset contains NINE likes. IMAGE (29 posts, avg 0.83) "beat" VIDEO
+    // (5 posts, avg 0.60) on the strength of a single post that got 2 likes.
+    // `byType[0]?.type` took that as a verdict.
+    //
+    // Ranking noise is worse here than having no ranking: an unfounded
+    // preference gets laundered through the prompt into every future post.
+    const MIN_POSTS_PER_TYPE = 5;
+    const MIN_TYPES_TO_COMPARE = 2;
+    const withSignal = byType.filter((t) => t.postCount >= MIN_POSTS_PER_TYPE && t.avgEngagementRate > 0);
+    const haveSignal = withSignal.length >= MIN_TYPES_TO_COMPARE;
+    const topType = haveSignal ? withSignal[0].type : null;
+
     const themes = [...new Set(top.flatMap((p) => p.themes))].slice(0, 6);
+    const formatClause = topType
+      ? `Top-performing format is ${topType}`
+      : `Not enough engagement data to say which format performs — do NOT bias toward one`;
     const note = themes.length
-      ? `Top-performing format is ${topType ?? "unknown"}; recurring high-engagement themes: ${themes.join(", ")}.`
-      : `Top-performing format is ${topType ?? "unknown"} (limited history — lean on craft).`;
+      ? `${formatClause}; recurring high-engagement themes: ${themes.join(", ")}.`
+      : `${formatClause} (limited history — lean on craft).`;
     return { topType, topFormatsNote: note };
   } catch (err) {
     log.warn("ig-insight signal skipped", { err: errMsg(err) });
