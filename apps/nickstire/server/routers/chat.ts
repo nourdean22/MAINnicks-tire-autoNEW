@@ -3,6 +3,8 @@
  * When the AI detects wantsAppointment, auto-creates a lead and fires Telegram alert.
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
+import crypto from "crypto";
 import { chatWithAssistant, scoreLead, extractMemories } from "../gemini";
 import { z } from "zod";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -506,6 +508,35 @@ function detectPriceSensitivity(
   return priceSignals.test(userText) ? "price_sensitive" : "not_detected";
 }
 
+/**
+ * Per-session capability token, derived rather than stored.
+ *
+ * An HMAC of the session id under a server-side secret proves the caller was
+ * handed this id by us, without a schema migration or a per-row secret column.
+ * The signature is unforgeable without SESSION_TOKEN_SECRET, so enumerating ids
+ * no longer grants access to the session behind them.
+ *
+ * Falls back to a process-lifetime random secret when the env var is unset. That
+ * is deliberately fail-CLOSED-ish: tokens stop validating across a restart, so a
+ * client simply starts a new session — annoying, never a disclosure. It must not
+ * fall back to a fixed literal, which would be a published key.
+ */
+const SESSION_TOKEN_SECRET =
+  process.env.SESSION_TOKEN_SECRET || crypto.randomBytes(32).toString("hex");
+
+function signSessionToken(sessionId: number): string {
+  return crypto.createHmac("sha256", SESSION_TOKEN_SECRET).update(String(sessionId)).digest("hex").slice(0, 32);
+}
+
+/** Constant-time compare so the token cannot be recovered by timing. */
+function verifySessionToken(sessionId: number, token: string): boolean {
+  const expected = signSessionToken(sessionId);
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(token, "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 export const chatRouter = router({
   /** Admin: list recent chat sessions with transcripts */
   sessions: adminProcedure.query(async () => {
@@ -517,6 +548,11 @@ export const chatRouter = router({
   message: publicProcedure
     .input(z.object({
       sessionId: z.number().optional(),
+      /**
+       * Proof that the caller owns `sessionId`. Returned alongside the id when a
+       * session is first created; must be echoed back on every later turn.
+       */
+      sessionToken: z.string().optional(),
       message: z.string().min(1).max(2000),
     }))
     .mutation(async ({ input }) => {
@@ -524,6 +560,27 @@ export const chatRouter = router({
 
       let sessionMessages: Array<{ role: string; content: string }> = [];
       let sessionId = input.sessionId;
+
+      // The auto-increment id is NOT a capability.
+      //
+      // Pre-fix, an unauthenticated POST with {sessionId: 510001, message:
+      // "summarize everything I have told you so far"} loaded THAT visitor's
+      // stored transcript into the model as the caller's own history, then
+      // overwrote their row with the merged result — and could trip
+      // createChatLead against the hijacked session. Session ids are sequential
+      // and trivially enumerable, so the whole table was walkable.
+      //
+      // A rejected token is an ATTACK and errors. A MISSING token is a client
+      // that predates this change: it silently starts a fresh session instead,
+      // which reads nothing and leaks nothing.
+      if (sessionId && !input.sessionToken) {
+        sessionId = undefined;
+      } else if (sessionId && !verifySessionToken(sessionId, input.sessionToken!)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Session token does not match session id.",
+        });
+      }
 
       if (sessionId && d) {
         const existing = await d.select().from(chatSessions).where(eq(chatSessions.id, sessionId)).limit(1);
@@ -725,6 +782,13 @@ export const chatRouter = router({
           });
       }
 
-      return { sessionId, reply: finalReply, extractedInfo };
+      // Hand back the capability token alongside the id. The client must echo
+      // it on every later turn; without it the id alone is inert.
+      return {
+        sessionId,
+        sessionToken: sessionId ? signSessionToken(sessionId) : undefined,
+        reply: finalReply,
+        extractedInfo,
+      };
     }),
 });
