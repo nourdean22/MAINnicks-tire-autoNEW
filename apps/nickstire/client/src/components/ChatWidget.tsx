@@ -28,6 +28,10 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<number | undefined>();
+  // Capability token proving this browser owns `sessionId`. The server returns
+  // it with the id and requires it on every later turn — the id alone is inert,
+  // so an enumerated session id no longer reads someone else's transcript.
+  const [sessionToken, setSessionToken] = useState<string | undefined>();
   const [showLeadCapture, setShowLeadCapture] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: "", phone: "" });
   const [leadSubmitted, setLeadSubmitted] = useState(false);
@@ -84,6 +88,7 @@ export default function ChatWidget() {
         return next;
       });
       if (data.sessionId) setSessionId(data.sessionId);
+      if (data.sessionToken) setSessionToken(data.sessionToken);
       if (updatedLen >= 4 && !leadSubmitted && !showLeadCapture) {
         setShowLeadCapture(true);
       }
@@ -120,7 +125,7 @@ export default function ChatWidget() {
     if (!text || sendMessage.isPending) return;
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: text }]);
-    sendMessage.mutate({ sessionId, message: text });
+    sendMessage.mutate({ sessionId, sessionToken, message: text });
     // Wave AL (Cat 9 HF) · in-browser Spanish auto-detect.
     // Fire IN PARALLEL with send · zero added latency on the message.
     // Model loads (~170MB) in background on first call · IDB-cached
