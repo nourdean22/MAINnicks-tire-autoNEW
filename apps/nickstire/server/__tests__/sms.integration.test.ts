@@ -176,8 +176,15 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
 
     const sms = await import("../sms");
 
+    // 2026-07-20 · this test is about FOOTER TEXT, not the opt-out gate. That
+    // gate now fails closed and there is no database here, so every send below
+    // would be refused for "cannot verify opt-out status" and never reach the
+    // Twilio mock. skipOptOutCheck isolates the subject under test; the gate's
+    // own behaviour is covered in server/__tests__/sms-optout-failclosed.test.ts.
+    const noGate = { skipOptOutCheck: true } as const;
+
     // Regular marketing send to normal customer should append footer
-    await sms.sendSms("2165550001", "Promo message", { via: "twilio" });
+    await sms.sendSms("2165550001", "Promo message", { via: "twilio", ...noGate });
     expect(mockTwilioCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         body: "Promo message\n\nReply STOP to opt out.",
@@ -185,7 +192,7 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
     );
 
     // Transactional send should bypass
-    await sms.sendSms("2165550002", "Transactional message", { via: "twilio", messageClass: "customer_confirmation" });
+    await sms.sendSms("2165550002", "Transactional message", { via: "twilio", messageClass: "customer_confirmation", ...noGate });
     expect(mockTwilioCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         body: "Transactional message\n\nReply STOP to opt out.",
@@ -193,7 +200,7 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
     );
 
     // skipOptOutFooter send should bypass
-    await sms.sendSms("2165550003", "Skip footer message", { via: "twilio", skipOptOutFooter: true });
+    await sms.sendSms("2165550003", "Skip footer message", { via: "twilio", skipOptOutFooter: true, ...noGate });
     expect(mockTwilioCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         body: "Skip footer message",
