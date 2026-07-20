@@ -366,10 +366,31 @@ function TaskEditSheetBody({
                             : [...prev, idx].sort((a, b) => a - b),
                         )
                       }
-                      className={`min-w-[44px] rounded-md border px-2 py-2 text-xs font-medium transition-colors ${
+                      // 2026-07-20 · These buttons appeared completely dead: tapping a
+                      // day did nothing visible, so a WEEKLY task could not be
+                      // configured. The click was never broken — the STYLING was.
+                      //
+                      // Selected state used `border-primary bg-primary/15 text-primary`,
+                      // and unselected used `border-border text-muted-foreground`. This
+                      // app is Tailwind v4, where a colour utility only exists if the
+                      // token is registered in the `@theme inline` bridge
+                      // (app/styles/tokens.css). That bridge registers ONLY:
+                      //   void base-layer raised elevated surface
+                      //   fg fg-secondary fg-tertiary gold gold-dim glass edge edge-hover
+                      // `primary`, `border` and `muted-foreground` are NOT among them —
+                      // a bare `--primary` custom property does not create `bg-primary`.
+                      // So every one of those classes emitted zero CSS and the selected
+                      // button rendered pixel-identical to the unselected one. The only
+                      // visible outline came from the bare `border` width utility below.
+                      //
+                      // Worse than invisible: a second tap toggles the day back OFF, so
+                      // the save guard fired "Pick at least one weekday" with no way to
+                      // see why. Now uses registered tokens (gold/edge/fg-tertiary), and
+                      // disabled state is finally visible instead of silently inert.
+                      className={`min-w-[44px] rounded-md border px-2 py-2 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                         on
-                          ? "border-primary bg-primary/15 text-primary"
-                          : "border-border text-muted-foreground hover:border-primary/50"
+                          ? "border-gold bg-gold/15 text-gold"
+                          : "border-edge text-fg-tertiary hover:border-gold/50"
                       }`}
                     >
                       {label}
