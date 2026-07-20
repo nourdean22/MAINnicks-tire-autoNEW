@@ -259,7 +259,29 @@ function SafetyGateModal({
     customMessages: messages.map(m => ({ step: m.step, delayDays: m.delayDays, body: m.body })),
   });
 
-  const canExecute = check1 && check2 && check3 && confirmText === "CONFIRM";
+  /**
+   * COMPARE WHAT THE OPERATOR SEES.
+   *
+   * The input below carries the CSS class `uppercase`, which is
+   * `text-transform` — purely VISUAL. `e.target.value` is still exactly what was
+   * typed. So typing "confirm" DISPLAYS "CONFIRM" while confirmText stays
+   * "confirm", `confirmText === "CONFIRM"` is false, and ACTIVATE CAMPAIGN sits
+   * disabled with every checkbox green and the word CONFIRM visibly in the box.
+   *
+   * Reported live 2026-07-20: "it wont let me click activate", with a screenshot
+   * showing all three checks ticked and CONFIRM in the field. The screen was
+   * showing a value it was not holding, and there was nothing on it to reveal
+   * the difference — the operator had no way to debug their own correct input.
+   *
+   * `.trim()` covers the other half: a phone keyboard's trailing space, or an
+   * autocomplete that appends one, would have failed the same way just as
+   * invisibly.
+   *
+   * The typed confirmation is still a real gate — it just now agrees with the
+   * rendering. Weakening it to case-insensitive costs nothing: the whole point
+   * is deliberate intent, and nobody types "confirm" by accident.
+   */
+  const canExecute = check1 && check2 && check3 && confirmText.trim().toUpperCase() === "CONFIRM";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
