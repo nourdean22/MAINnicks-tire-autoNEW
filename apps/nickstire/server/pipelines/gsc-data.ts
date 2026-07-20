@@ -105,6 +105,13 @@ const GSC_SITE_URL = "https://nickstire.org/";
 const GSC_UPSERT_BATCH_SIZE = 500;
 
 /**
+ * Days fetched concurrently. Each day issues TWO Search Console calls (web +
+ * discover), so this is 2x requests in flight. 3 keeps that at 6 — comfortably
+ * inside Google's per-user quota — while turning a 7-round serial fetch into 3.
+ */
+const GSC_DAY_CONCURRENCY = 3;
+
+/**
  * Check if GSC API credentials are configured.
  */
 function hasGscCredentials(): boolean {
@@ -475,16 +482,48 @@ export async function syncSearchPerformance(dateRange: DateRange): Promise<{
   let totalFetched = 0;
   let totalStored = 0;
 
-  for (const dateStr of dates) {
-    const dailyRange = { startDate: dateStr, endDate: dateStr };
-    
-    // Fetch both web and discover in parallel for this day
-    const [webRows, discoverRows] = await Promise.all([
-      fetchSearchPerformance(dailyRange, "web"),
-      fetchSearchPerformance(dailyRange, "discover"),
-    ]);
+  // DAYS RUN CONCURRENTLY, in bounded groups.
+  //
+  // This loop was strictly serial: one day at a time, ~40-50s each in the fetch
+  // phase, 7 days = ~350s against the scheduler's 240s cap. Batching the inserts
+  // (earlier in this file) removed ~175,000 round-trips but left the serial
+  // fetch as the binding constraint, so the job still could not finish.
+  //
+  // Correcting my own note in #968: fixing the Discover 400 does NOT reduce the
+  // time. It never removed a request — a 400 returns FAST, and a success takes
+  // the full round-trip and returns rows to insert. That fix was about DATA
+  // (Discover had never been ingested), not speed. This is the speed fix.
+  //
+  // GSC_DAY_CONCURRENCY groups rather than firing all 7 at once: each day issues
+  // two API calls, so 3 days = 6 in flight. That is well inside Google's
+  // per-user quota while cutting the fetch phase to roughly ceil(7/3) = 3 rounds.
+  for (let g = 0; g < dates.length; g += GSC_DAY_CONCURRENCY) {
+    const group = dates.slice(g, g + GSC_DAY_CONCURRENCY);
 
-    const allRows = [...webRows, ...discoverRows];
+    // One failing day must not abort the others — allSettled, then keep what
+    // resolved. fetchSearchPerformance already catches and returns [] for an API
+    // error, so a rejection here means something more unusual; either way the
+    // remaining days still land.
+    const settled = await Promise.allSettled(
+      group.map(async (dateStr) => {
+        const dailyRange = { startDate: dateStr, endDate: dateStr };
+        const [webRows, discoverRows] = await Promise.all([
+          fetchSearchPerformance(dailyRange, "web"),
+          fetchSearchPerformance(dailyRange, "discover"),
+        ]);
+        return [...webRows, ...discoverRows];
+      }),
+    );
+
+    const allRows: SearchPerformanceRow[] = [];
+    for (let i = 0; i < settled.length; i++) {
+      const outcome = settled[i];
+      if (outcome.status === "fulfilled") {
+        allRows.push(...outcome.value);
+      } else {
+        log.error(`[GSC Pipeline] Day ${group[i]} failed entirely:`, outcome.reason);
+      }
+    }
     totalFetched += allRows.length;
 
     // BATCHED UPSERT. This loop used to `await` ONE INSERT PER ROW.
