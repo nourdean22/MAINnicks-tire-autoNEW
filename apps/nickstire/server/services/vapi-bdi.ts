@@ -80,23 +80,22 @@ export async function buildBdiFirstMessage(phone: string): Promise<BdiResult> {
     return { matched: false, kind: "unknown", reason: "caller construction failed" };
   }
 
-  // Fetch capacity and weather in parallel to keep latency minimal
-  let waitTime: Awaited<ReturnType<typeof caller.getCurrentWaitTime>> | null = null;
+  // 2026-07-20 · shop-load was REMOVED from the greeting. It came from
+  // getCurrentWaitTime, which counted `bookings` rows created in the last 24h
+  // against a hardcoded 6-bay assumption — but Nick's is walk-in / first-come
+  // first-served, so booking volume is not the shop's workload. The greeting
+  // could therefore open a call with "we're super slammed today with about an
+  // hour wait in the bays" on a genuinely quiet day, unprompted, and lose the
+  // caller before they said what they wanted. Wait-time questions are answered
+  // by a live person now (operator decision) — the AI never estimates one.
+  // Removing the call also drops a DB round-trip from call-start latency.
   let activeWeather: "snow" | "rain" | "cold" | null = null;
 
   try {
-    const [waitRes, weatherRes] = await Promise.all([
-      caller.getCurrentWaitTime().catch((err) => {
-        log.warn("buildBdiFirstMessage · getCurrentWaitTime threw", { err });
-        return { available: false } as any;
-      }),
-      getWeather().catch((err) => {
-        log.warn("buildBdiFirstMessage · getWeather threw", { err });
-        return null;
-      }),
-    ]);
-
-    waitTime = waitRes;
+    const weatherRes = await getWeather().catch((err) => {
+      log.warn("buildBdiFirstMessage · getWeather threw", { err });
+      return null;
+    });
 
     if (weatherRes) {
       const code = weatherRes.weather_code;
@@ -132,7 +131,6 @@ export async function buildBdiFirstMessage(phone: string): Promise<BdiResult> {
     log.warn("buildBdiFirstMessage · closing calc failed", { err });
   }
 
-  const isLoaded = waitTime?.available && waitTime.load === "loaded";
 
   // 1 · IDENTITY · existing personalization path · firstName + vehicle
   let lookup: Awaited<ReturnType<typeof caller.lookupCustomer>>;
@@ -154,9 +152,6 @@ export async function buildBdiFirstMessage(phone: string): Promise<BdiResult> {
     if (isClosingSoon) {
       firstMessage = `Nick's Tire and Auto — just a heads up, we close in about ${closingMinutes} minutes today, but what can I do for ya?`;
       reason = "closing_soon override for unknown caller";
-    } else if (isLoaded) {
-      firstMessage = `Nick's Tire and Auto — we're super slammed today with about an hour wait in the bays, but what can I do for you?`;
-      reason = "loaded override for unknown caller";
     } else if (activeWeather === "snow") {
       firstMessage = "Nick's Tire and Auto — stay safe in that Cleveland snow today. What can I do for you?";
       reason = "snow override for unknown caller";
@@ -200,9 +195,6 @@ export async function buildBdiFirstMessage(phone: string): Promise<BdiResult> {
   if (isClosingSoon) {
     modifierText = `we close in about ${closingMinutes} minutes today`;
     statusSentence = `We close in about ${closingMinutes} minutes today. `;
-  } else if (isLoaded) {
-    modifierText = "we're super slammed today with about an hour wait in the bays";
-    statusSentence = "We're super slammed today with about an hour wait in the bays. ";
   } else if (activeWeather === "snow") {
     modifierText = "stay safe in that Cleveland snow today";
     statusSentence = "Stay safe in that Cleveland snow today. ";
@@ -244,7 +236,7 @@ export async function buildBdiFirstMessage(phone: string): Promise<BdiResult> {
   let welcomeBack = "";
   if (modifierText) {
     // If it's a state modifier (closing / busy), use "but what's going on / what can I do"
-    if (isClosingSoon || isLoaded) {
+    if (isClosingSoon) {
       welcomeBack = lookup.vehicle
         ? `Nick's Tire and Auto — ${firstName}, welcome back. ${modifierText}, but what's going on with the ${lookup.vehicle}?`
         : `Nick's Tire and Auto — ${firstName}, welcome back. ${modifierText}, but what can I do for you?`;

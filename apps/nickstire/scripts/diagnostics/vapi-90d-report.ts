@@ -44,6 +44,9 @@ async function main() {
     db.select({ count: sql<number>`count(*)` })
       .from(leads)
       .where(and(gte(leads.createdAt, cutoff), like(leads.problem, "[VOICE-AGENT TIRE INQUIRY]%"))),
+    // HISTORICAL ONLY from 2026-07-20. checkTireStock stopped writing leads on
+    // that date — rack checks hand off to a person and capture nothing. A
+    // count trending to zero here is the expected new state, NOT a regression.
     db.select({ count: sql<number>`count(*)` })
       .from(leads)
       .where(and(gte(leads.createdAt, cutoff), like(leads.problem, "[VOICE-AGENT RACK CHECK]%"))),

@@ -144,12 +144,14 @@ async function main() {
     record("getCurrentWaitTime", false, `threw: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  console.log("\nTest 5: checkTireStock · synthesize rack-check lead");
+  // 2026-07-20 · checkTireStock no longer captures anything. It used to write
+  // an urgency-5 "vapi-rack-check" lead and promise a callback the shop had no
+  // way to track. Rack checks now hand off to a person, so the assertion is
+  // inverted: success MUST come with handOffToHuman and MUST NOT create a lead.
+  console.log("\nTest 5: checkTireStock · hands off, captures nothing");
   const testPhone = `555000${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
   try {
     const r = await caller.checkTireStock({
-      name: "VOICE_AGENT_TEST_DELETE_ME",
-      phone: testPhone,
       tireSize: "225/65R17",
       vehicle: "2017 Honda CR-V (test)",
     });
@@ -157,14 +159,12 @@ async function main() {
       const { leads } = await import("../../drizzle/schema");
       const { eq, and: andOp } = await import("drizzle-orm");
       const [row] = await d.select().from(leads).where(andOp(eq(leads.phone, testPhone), eq(leads.utmCampaign, "vapi-rack-check"))).limit(1);
-      if (row && row.urgencyScore === 5 && row.problem?.toLowerCase().includes("physical rack check requested")) {
-        record("checkTireStock", true, `lead id=${row.id} urgency=5 utmCampaign=vapi-rack-check`);
-        // Clean up the test row
-        const { lt } = await import("drizzle-orm");
-        await d.delete(leads).where(andOp(eq(leads.phone, testPhone), lt(leads.id, row.id + 1)));
-        console.log("  · cleaned up test lead row");
+      if (r.handOffToHuman === true && !row) {
+        record("checkTireStock", true, "hand-off returned; no lead row created (correct)");
+      } else if (row) {
+        record("checkTireStock", false, `REGRESSION: rack check created a lead row id=${row.id} — it must capture nothing`);
       } else {
-        record("checkTireStock", false, `lead row missing or wrong shape: ${JSON.stringify(row).slice(0, 200)}`);
+        record("checkTireStock", false, `missing handOffToHuman in response: ${JSON.stringify(r).slice(0, 200)}`);
       }
     } else {
       record("checkTireStock", false, `procedure returned success=false: ${JSON.stringify(r)}`);

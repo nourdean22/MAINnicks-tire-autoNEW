@@ -88,34 +88,32 @@ describe.skipIf(!HAS_DB)("voiceAgent Router Procedures", () => {
   });
 
   describe("checkTireStock", () => {
-    it("creates a high-urgency lead with updated problem text and no promised SLA callback time", async () => {
+    // 2026-07-20 · Rewritten. This used to assert the tool created an
+    // urgency-5 "[VOICE-AGENT RACK CHECK]" lead. Rack checks now hand off to a
+    // person and write NOTHING — no lead row, no Telegram, no promise (the old
+    // "front desk will follow up" had no completion path anywhere). The
+    // behavioural contract is pinned DB-free in
+    // voiceAgent.no-fabrication.test.ts, which — unlike this file — is not
+    // skipIf(!HAS_DB) and therefore actually runs in CI. What's left here is
+    // the DB-dependent half: proving no lead row appears.
+    it("writes NO lead row — a rack check is a hand-off, not a capture", async () => {
       const d = await db();
       const { leads } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
 
       const caller = appRouter.createCaller(createVoiceContext());
       const res = await caller.voiceAgent.checkTireStock({
-        name: testName,
-        phone: testPhone,
         tireSize: "215/55R16",
         vehicle: testVehicle,
       });
 
       expect(res).toBeDefined();
       expect(res.success).toBe(true);
-      expect(res.message).toContain("check the physical rack");
-      expect(res.message).not.toContain("15 minutes");
+      expect(res.handOffToHuman).toBe(true);
 
-      // Verify lead exists in db
       if (d && typeof d.select === "function") {
         const insertedLeads = await d.select().from(leads).where(eq(leads.phone, testPhone));
-        expect(insertedLeads.length).toBe(1);
-        const lead = insertedLeads[0];
-        expect(lead.urgencyScore).toBe(5);
-        expect(lead.problem).toContain("[VOICE-AGENT RACK CHECK]");
-        expect(lead.problem).toContain("Physical rack check requested (no callback time promised)");
-        expect(lead.problem).not.toContain("15 min callback");
-        expect(lead.problem).not.toContain("promised 15 min");
+        expect(insertedLeads.length).toBe(0);
       }
     });
   });
