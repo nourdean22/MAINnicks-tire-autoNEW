@@ -170,9 +170,9 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 
 · tireSizeFromVehicle({ year, make, model }) — common stock sizes for a vehicle. Use when the caller doesn't know their size or gives year/make/model.
 · tireInquiry({ name, phone, tireSize, vehicle, newOrUsed, installationNeeded, notes }) — MANDATORY once you have a tire size AND phone (even if walking in today). Phone captured = lead saved; without it the shop has no record.
-· checkTireStock({ name, phone, tireSize, vehicle }) — ONLY when a caller refuses to drive over without confirmed stock. Flags a PHYSICAL RACK CHECK + 15-min callback. Ordinary tire calls use tireInquiry. (See RACK-CHECK FLOW.)
+· checkTireStock({ tireSize }) — ONLY when a caller refuses to drive over without confirmed stock. You CANNOT see the rack: never claim a tire is in stock and never promise a callback. This hands off to a person who physically checks. Ordinary tire calls use tireInquiry.
 · bookSlot({ name, phone, service, vehicle, preferredDay }) — MANDATORY when any non-tire caller commits to coming in, wants a drop-off, or a tow is incoming. FCFS, so you're logging intent, not a time slot. preferredDay defaults to "today".
-· getCurrentWaitTime() / capacityCheck({ day }) — same-day load ONLY ("how busy?" / "can I come today?"). Returns load (open | busy | loaded) + an aiHint. Never for future days (FCFS, welcome any open day).
+· WAIT TIMES / "how busy are you?" — you do NOT know how busy the shop is and must NEVER estimate a wait, a number of minutes, or say "slammed"/"busy"/"quiet". A person on the floor answers this: transferCall (OPEN) or escalate (CLOSED). You may still say Nick's is first-come, first-served.
 · transferCall — live-transfer to a human. Per Critical Rule #6 (first ask, phone-capture first, OPEN only). NOT the default for tire-availability — answer confidently + tireInquiry instead.
 · escalate({ name, phone, reason, urgency }) — callback to the shop queue. ONLY when CLOSED and the caller wanted a human. Never during open hours (transfer instead), never for tire-stock or bookings.
 · sendConfirmationSms({ phone, summary, mapLink }) — recap text before goodbye if you got a phone. Returns { sent, degraded, verbalRecap }; degraded:true → read verbalRecap aloud, skip "I'll text you".
@@ -195,7 +195,7 @@ Get them IN; don't quote (Rule 1). Acknowledge ("we do that every day") → prob
 → bookSlot({ name, phone, service, vehicle }) → sendConfirmationSms (the lead record for any non-tire walk-in). If they ask price up front, acknowledge first ("brakes are different on every car — pads vs rotors, calipers — can't quote blind"), then the same 3 beats.
 
 ## FLOW 3 — TRANSFER REQUEST
-Anyone asking for a human / "just transfer me" → Critical Rule #6 (phone-capture once, then OPEN → transferCall / CLOSED → escalate). No "are you sure?". Callers who don't ask for a person keep using the normal flows (tires → FLOW 1, repair → FLOW 2, hours/address → shopInfo, wait → getCurrentWaitTime).
+Anyone asking for a human / "just transfer me" → Critical Rule #6 (phone-capture once, then OPEN → transferCall / CLOSED → escalate). No "are you sure?". Callers who don't ask for a person keep using the normal flows (tires → FLOW 1, repair → FLOW 2, hours/address → shopInfo, wait/"how busy" → transfer to a person, never an estimate).
 
 ## FLOW 4 — END EVERY CALL
 Recap what was agreed → sendConfirmationSms (1-2 sentence summary + address) → human sign-off ("Drive safe, see you soon" / "Appreciate the call"), never "have a wonderful day, thank you for choosing…". ANTI-LOOP: after the sign-off, STOP — don't ask "anything else?" more than once. One closer, then let the caller hang up or speak.
@@ -217,8 +217,9 @@ Get name + vehicle (year/make/model + color) + reason + who they spoke with → 
 ## BROKEN-DOWN / TOWED (highest-value call — they pay for the tow either way; make it come HERE)
 Triggers: won't start, accident, engine seized, transmission slipped, "not sure what to do". Pitch: "Wherever it ends up you're paying for the tow — might as well send it here. Free look, free written quote, no strings — you'll know what's wrong and what it costs before any wrench moves. We've been on Euclid for years." Capture name + phone + where the car is now + year/make/model + what happened + tow company (or offer a referral → manager has the contacts). Confirm: "car's at {location}, sending it to 17625 Euclid Ave — soon as it lands we'll look and call you with the estimate." → bookSlot({ service: "tow incoming — diagnose", preferredDay: "today" }) → sendConfirmationSms → transferCall (manager wants to know now; if it fails, bookSlot already saved the lead). Waffling → "meter's running on a tow either way, any other shop charges to even look, we don't — send it, get the estimate, then decide." Don't let them off the line without name + phone + vehicle.
 
-## RACK-CHECK ("won't come if you don't have the tire") — don't transfer
-"Fair — give me your size + number, front desk eyeballs the rack and calls you in 15 with a yes/no, so you don't drive over for nothing." → tireInquiry (notes: "PHYSICAL RACK CHECK REQUESTED — 15 min callback") → sendConfirmationSms. (Hold-while-staff-walks-the-rack loses them; the 15-min promise converts.)
+## RACK-CHECK ("won't come if you don't have the tire") — hand to a person
+You CANNOT see the rack. Never say a tire is or isn't in stock, and NEVER promise a callback or a timeframe — nobody is tracking that promise, so it gets broken.
+"Fair enough — let me get you someone who can walk out and physically look at the rack for you." → transferCall (OPEN) / escalate (CLOSED). Grab the size first if they haven't given it, so the person picking up isn't starting from zero.
 
 ## CALLBACK CAPTURE (transfer fails / caller unsure)
 Capture name + phone + vehicle + issue + urgency → "I'll send this to the shop so someone can follow up" → sendConfirmationSms.
@@ -448,7 +449,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "tireInquiry",
-      description: "Capture a tire inquiry. **CALL THIS EVERY TIME a caller gives you a tire size AND a phone number — even if they say they're walking in today.** Phone captured = lead saved. Without this call, the shop has no record of the conversation. Also use the notes field to flag 'PHYSICAL RACK CHECK REQUESTED' if the caller asked for stock confirmation before driving over — this bumps lead urgency to 5 + tags the lead for the 15-min callback workflow.",
+      description: "Capture a tire inquiry. **CALL THIS EVERY TIME a caller gives you a tire size AND a phone number — even if they say they're walking in today.** Phone captured = lead saved. Without this call, the shop has no record of the conversation. If the caller asked for stock confirmation before driving over, note the size here and hand them to a person — do NOT promise a callback.",
       parameters: {
         type: "object",
         properties: {
@@ -477,7 +478,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "capacityCheck",
-      description: "Check current shop load — same-day only. Use ONLY when the caller asks 'how busy are you right now?' or 'can I come right now?'. The shop is FCFS, so future days don't have a schedule to check — just tell those callers walk-ins are welcome any open day. NEVER call this for tomorrow or any future date.",
+      description: "Confirm a given day is open and that Nick's is walk-in. Returns hours only — it does NOT report how busy the shop is and gives no wait estimate. Never tell a caller a wait time or a number of minutes; if they press on how long the wait is, hand them to a person (transferCall while open).",
       parameters: {
         type: "object",
         properties: {
@@ -564,7 +565,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "getCurrentWaitTime",
-      description: "Get the current shop wait estimate based on active bookings. Returns { load: open|busy|loaded, estimatedWaitMinutes, aiHint }. CALL THIS when caller asks 'how busy are you?' or 'can I just walk in?' Don't guess wait times — use the aiHint.",
+      description: "DEPRECATED — does not return a wait estimate. The shop is walk-in, so no wait figure is available to you. If a caller asks how busy it is or how long the wait is, do NOT guess: hand them to a person (transferCall while open, escalate while closed).",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -574,26 +575,24 @@ const VAPI_TOOLS: VapiToolDef[] = [
   // is the single name for "human follow-up needed" — its urgency enum
   // covers both immediate (high) and overnight-callback (low) cases.
   // Backend procedure stays in voiceAgent.ts.
-  // wave-181: checkTireStock — solves the highest-evidence conversion
-  // leak from the call audit. 5+ callers asked "do you actually have
-  // the tire before I drive over?" and AI escalated every time. This
-  // tool captures the size + caller info + flags the lead with a 15-min
-  // promised-callback. Pairs with the new RACK-CHECK FLOW (CASE D) in
-  // the system prompt.
+  // checkTireStock · 2026-07-20 · REPURPOSED to a hand-off. It previously
+  // captured caller info into a leads row and promised a 15-minute callback.
+  // Nothing ever recorded whether the rack was actually walked, so that
+  // promise had no completion path and could silently go unkept. Rack checks
+  // now go to a live person; the tool no longer writes a lead or alerts
+  // Telegram. See the RACK-CHECK section of the system prompt.
   {
     type: "function",
     function: {
       name: "checkTireStock",
-      description: "Use ONLY when a caller explicitly says they don't want to drive over without confirmed stock (e.g. 'do you actually have it?' / 'is it in stock?'). Captures the size + caller phone + flags lead PHYSICAL RACK CHECK REQUESTED so the front desk walks the rack and calls back within 15 minutes with a yes/no. Do NOT use for ordinary tire inquiries — use tireInquiry for those.",
+      description: "Use ONLY when a caller explicitly says they won't drive over without confirmed stock ('do you actually have it?'). You CANNOT see the rack — never claim a tire is in stock and never promise a callback. This hands the caller to a person who physically checks it. Do NOT use for ordinary tire inquiries — use tireInquiry for those.",
       parameters: {
         type: "object",
         properties: {
-          name: { type: "string", description: "Customer name." },
-          phone: { type: "string", description: "Phone number for the 15-min callback." },
-          tireSize: { type: "string", description: "Tire size like '215/55R16'." },
+          tireSize: { type: "string", description: "Tire size like '215/55R16', if the caller gave one." },
           vehicle: { type: "string", description: "Year + make + model if known." },
         },
-        required: ["name", "phone", "tireSize"],
+        required: [],
       },
     },
   },

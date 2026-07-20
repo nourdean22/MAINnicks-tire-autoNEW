@@ -114,28 +114,30 @@ export const voiceAgentRouter = router({
   capacityCheck: publicProcedure
     .input(z.object({ day: z.string().max(20).optional() }))
     .query(async ({ input }) => {
-      // V1: assume open windows during business hours
-      // Mon-Sat 8-18, Sun 9-16. Returns 3 next-available slots.
-      const now = new Date();
-      const requestedDay = input.day ? new Date(input.day) : now;
-      const dayOfWeek = requestedDay.getDay(); // 0=Sun
-      const isSunday = dayOfWeek === 0;
-
-      const openHour = isSunday ? 9 : 8;
-      const closeHour = isSunday ? 16 : 18;
-
-      // Generate 3 candidate windows
-      const windows = [
-        { start: `${openHour}:00`, end: `${openHour + 2}:00`, label: "morning" },
-        { start: "12:00", end: "14:00", label: "midday" },
-        { start: `${closeHour - 3}:00`, end: `${closeHour - 1}:00`, label: "afternoon" },
-      ];
+      // 2026-07-20 · This used to invent capacity out of nothing: three
+      // hardcoded "windows", `slotsRemainingToday: 3`, and a flat
+      // `estimatedWaitMinutes: 30` returned on EVERY call regardless of the
+      // day, the hour, or what was actually happening in the shop. Nick's is
+      // walk-in / first-come first-served — there are no slots to remain and
+      // no schedule to check, so every one of those figures was fiction the
+      // AI could repeat to a caller as fact.
+      //
+      // Operator decision: the AI never states a wait or a capacity. It
+      // confirms whether the shop is OPEN that day and says walk in; a live
+      // person answers "how busy is it right now".
+      const requestedDay = input.day ? new Date(input.day) : new Date();
+      const isValidDay = !Number.isNaN(requestedDay.getTime());
+      const day = isValidDay ? requestedDay : new Date();
+      const dayName = day.toLocaleDateString("en-US", { weekday: "long", timeZone: BUSINESS.timezone });
+      const isSunday = day.getDay() === 0;
 
       return {
-        slotsRemainingToday: windows.length,
-        estimatedWaitMinutes: 30,
-        nextWindows: windows,
-        message: `${requestedDay.toLocaleDateString("en-US", { weekday: "long", timeZone: BUSINESS.timezone })} — 3 windows open. Walk-ins welcome.`,
+        walkIn: true,
+        openThatDay: true,
+        hours: isSunday ? "9-4" : "8-6",
+        message: `${dayName} — we're open ${isSunday ? "9 to 4" : "8 to 6"}. Nick's is first come, first served, so walk in any time we're open.`,
+        aiHint:
+          "Do NOT state a wait time, a number of minutes, or how busy the shop is — you don't have that information. Confirm the day is open and that it's walk-in. If the caller presses on how long the wait is, hand them to a person (transferCall while open).",
       };
     }),
 
@@ -804,175 +806,68 @@ export const voiceAgentRouter = router({
   getCurrentWaitTime: voiceAgentInternalProcedure
     .input(z.object({}).optional())
     .query(async () => {
-      try {
-        const { db } = await import("../lib/db-helper");
-        const { bookings } = await import("../../drizzle/schema");
-        const { and, gte, sql } = await import("drizzle-orm");
-        const d = await db();
-        if (!d) return { available: false, reason: "DB unavailable" };
-        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-        const [todayLoad] = await d
-          .select({ count: sql<number>`COUNT(*)` })
-          .from(bookings)
-          .where(
-            and(
-              gte(bookings.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
-              sql`(${bookings.status} = 'new' OR ${bookings.status} = 'confirmed')`,
-            ),
-          );
-        const activeCount = Number(todayLoad?.count ?? 0);
-        // Heuristic — 6 bays. <4 active = open. 4-7 = busy. 8+ = loaded.
-        let load: "open" | "busy" | "loaded";
-        let waitMinutes: number;
-        let aiHint: string;
-        if (activeCount < 4) {
-          load = "open";
-          waitMinutes = 0;
-          aiHint = "Shop is open — walk in any time, you'll get on a lift quickly.";
-        } else if (activeCount < 8) {
-          load = "busy";
-          waitMinutes = 30;
-          aiHint = "Shop is busy — expect 30-min wait for tires, longer for repair. Drop-off recommended.";
-        } else {
-          load = "loaded";
-          waitMinutes = 60;
-          aiHint = "Shop is loaded — drop-off only for repairs. Tires might be 60+ min wait. Suggest scheduling for tomorrow if not urgent.";
-        }
-        return {
-          available: true,
-          load,
-          activeBookings: activeCount,
-          estimatedWaitMinutes: waitMinutes,
-          asOf: todayStr,
-          aiHint,
-        };
-      } catch (err) {
-        log.error("Voice agent getCurrentWaitTime failed", { err: err instanceof Error ? err.message : String(err) });
-        return { available: false, reason: "Lookup error" };
-      }
+      // 2026-07-20 · This tool NO LONGER ESTIMATES A WAIT. It used to count
+      // `bookings` rows from the trailing 24h against a hardcoded 6-bay
+      // assumption and return open|busy|loaded + a minute figure. Nick's is
+      // walk-in / first-come first-served, so booking volume is simply not the
+      // shop's workload — the number was fabricated, and it drove both this
+      // tool's answer AND an unprompted "about an hour wait in the bays" line
+      // in the call greeting (see vapi-bdi.ts).
+      //
+      // Operator decision: a live person answers wait-time questions. The AI
+      // must never guess one. Kept as a procedure (rather than deleted) so an
+      // already-deployed VAPI assistant that still lists this tool gets a safe
+      // hand-off instruction instead of a tool-call error mid-call.
+      return {
+        available: false,
+        handOffToHuman: true,
+        aiHint:
+          "Do NOT estimate a wait time or say how busy the shop is — you don't have that information. Hand the caller to a person (transferCall) so someone on the floor can tell them.",
+      };
     }),
 
   /**
-   * wave-181: checkTireStock — front-desk-physical-rack-check workflow.
+   * checkTireStock — hand the caller to a person who can walk the rack.
    *
-   * For callers who refuse to drive over without confirmed stock. The
-   * 14-day call audit identified 5+ high-intent callers who escalated
-   * to a manager because the AI couldn't say "yes we have it" with
-   * confidence. Instead of transferring (kills the call), this tool
-   * captures the lead with PHYSICAL RACK CHECK REQUESTED (no callback time promised)
-   * and bumps it to urgency 5 so the front desk walks the rack.
+   * 2026-07-20 · REWRITTEN. This tool used to write a `leads` row tagged
+   * "[VOICE-AGENT RACK CHECK]" at urgency 5, fire a Telegram to the front
+   * desk, and tell the caller "front desk will check the physical rack and
+   * follow up as soon as they can."
+   *
+   * Nothing in the codebase ever recorded whether anyone walked the rack —
+   * the promise had no completion path, so a caller could be told someone
+   * would get back to them and nobody ever did. It also generated lead rows
+   * for a question, which conflicts with the standing rule that AI-handled
+   * inbound must not create lead noise.
+   *
+   * Operator decision: rack checks go to a live person. No lead row, no
+   * Telegram, no promise, no new tracking surface — the call itself is
+   * already durably recorded in vapi_call_logs. Inputs are accepted but
+   * ignored (and now optional) so the AI isn't forced to collect a name and
+   * number just to hand off, which keeps the call short. Kept as a procedure
+   * rather than deleted so an already-deployed VAPI assistant still listing
+   * this tool gets a safe hand-off instead of a tool-call error mid-call.
    */
   checkTireStock: voiceAgentInternalProcedure
     .input(z.object({
-      name: z.string().min(2).max(200),
-      phone: z.string().min(7).max(20),
-      tireSize: z.string().min(1).max(50),
+      name: z.string().max(200).optional(),
+      phone: z.string().max(20).optional(),
+      tireSize: z.string().max(50).optional(),
       vehicle: z.string().max(200).optional(),
       callId: z.string().max(100).optional(),
-    }))
+    }).optional())
     .mutation(async ({ input }) => {
-      try {
-        const { db } = await import("../lib/db-helper");
-        const { leads } = await import("../../drizzle/schema");
-        const d = await db();
-        if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-
-        // lead-source hygiene · 5-min dedup scoped to VOICE-AGENT rows only
-        // (same guard as tireInquiry) — VAPI often fires tireInquiry then
-        // checkTireStock for the SAME caller in one call; without this the
-        // caller appeared twice in Leads. A voice-row match is itself an
-        // urgency-5 rack-check lead, so the 15-min promise stays durably
-        // recorded; web/chat leads are never matched. Under 10 digits
-        // (blocked caller-ID / anonymous sentinel) we never dedup. FAIL-OPEN:
-        // a dedup error must never block capture. The Telegram rack-walk
-        // alert below fires regardless of dedup.
-        const normalizedPhone = input.phone.replace(/\D/g, "");
-        const rackCheckProblem = `[VOICE-AGENT RACK CHECK]${input.callId ? ` callId=${input.callId}` : ""} — Size: ${input.tireSize}${input.vehicle ? ` · Vehicle: ${input.vehicle}` : ""} · Physical rack check requested (no callback time promised)`;
-        let dedupLeadId: number | null = null;
-        if (normalizedPhone.length >= 10) {
-          try {
-            const { and, eq, gte, sql } = await import("drizzle-orm");
-            const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-            const [recent] = await d.select({ id: leads.id }).from(leads)
-              .where(and(
-                sql`RIGHT(${leads.phone}, 10) = ${normalizedPhone.slice(-10)}`,
-                eq(leads.utmSource, "voice-agent"),
-                gte(leads.createdAt, fiveMinAgo),
-              ))
-              .limit(1);
-            dedupLeadId = recent?.id ?? null;
-          } catch (dedupErr) {
-            log.warn("[voiceAgent:checkTireStock] dedup check failed — proceeding with insert", { err: dedupErr instanceof Error ? dedupErr.message : String(dedupErr) });
-          }
-        }
-
-        // attribution-holds wave 2026-06 · capture the lead id (same
-        // $returningId pattern as tireInquiry wave-149) so the call→lead
-        // FK below gets written — checkTireStock previously discarded it,
-        // leaving vapi_call_logs.leadId NULL on the newer rack-check path.
-        let newLeadId: number | null = dedupLeadId;
-        if (dedupLeadId == null) {
-          const insertedLeadRows = await d.insert(leads).values({
-            name: input.name,
-            phone: normalizedPhone,
-            email: null,
-            problem: rackCheckProblem,
-            vehicle: input.vehicle || null,
-            source: "callback",
-            status: "new",
-            urgencyScore: 5,
-            utmSource: "voice-agent",
-            utmMedium: "phone",
-            utmCampaign: "vapi-rack-check",
-          }).$returningId();
-          newLeadId = insertedLeadRows[0]?.id ?? null;
-          log.info("Voice agent rack-check captured", { name: input.name, size: input.tireSize, leadId: newLeadId });
-        } else {
-          // Same caller's voice lead from the last 5 min — annotate it with
-          // this rack-check (a second size stays durably recorded on the
-          // surviving row) instead of creating a duplicate person. Fail-open.
-          try {
-            const { eq, sql } = await import("drizzle-orm");
-            await d.update(leads)
-              .set({ problem: sql`CONCAT(COALESCE(${leads.problem}, ''), '\n[+] ', ${rackCheckProblem})` })
-              .where(eq(leads.id, dedupLeadId));
-          } catch (annotateErr) {
-            log.warn("[voiceAgent:checkTireStock] dedup annotate failed (existing lead still holds the promise)", { leadId: dedupLeadId, err: annotateErr instanceof Error ? annotateErr.message : String(annotateErr) });
-          }
-          log.info("Voice agent rack-check deduped onto existing voice lead", { name: input.name, leadId: dedupLeadId });
-        }
-
-        // attribution-holds wave 2026-06 · same convertedToLead linkage as
-        // tireInquiry (wave-fix-2026-05-25 audit #107): a rack-check that
-        // creates/annotates a real leads row IS a conversion — link the call
-        // log so call-to-conversion traceability covers this path too.
-        if (input.callId) {
-          try {
-            const { vapiCallLogs } = await import("../../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
-            await d.update(vapiCallLogs)
-              .set({ convertedToLead: 1, leadId: newLeadId })
-              .where(eq(vapiCallLogs.vapiCallId, input.callId));
-          } catch (err) {
-            log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for checkTireStock", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });
-          }
-        }
-
-        // Fire-and-forget Telegram so front desk sees it immediately
-        import("../services/telegram")
-          .then(({ sendTelegram }) =>
-            sendTelegram(`🚨 RACK CHECK · Stock check requested · ${input.name} · ${input.phone}\nSize: ${input.tireSize}${input.vehicle ? ` · ${input.vehicle}` : ""}`),
-          )
-          .catch((e) => log.warn("[voiceAgent:checkTireStock] telegram alert failed:", e));
-
-        return {
-          success: true,
-          message: `Got it — front desk will check the physical rack for ${input.tireSize} and follow up as soon as they can.`,
-        };
-      } catch (err) {
-        log.error("Voice agent checkTireStock failed", { err: err instanceof Error ? err.message : String(err) });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Rack check capture failed" });
-      }
+      log.info("Voice agent rack-check → hand off to human", { size: input?.tireSize ?? null });
+      // `aiHint` (an instruction to the model), never `message` (which reads as
+      // caller-facing copy the AI may speak verbatim). Keeping the instruction
+      // out of a speakable field is what stops "do NOT promise a callback"
+      // from being read aloud as a promise.
+      return {
+        success: true,
+        handOffToHuman: true,
+        aiHint:
+          "You cannot see the rack. Do NOT state whether the tire is in stock, and do NOT promise a callback or any timeframe. Hand the caller to a person (transferCall while open, escalate while closed) so someone can physically check it.",
+      };
     }),
 
   /**

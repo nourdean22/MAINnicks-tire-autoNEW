@@ -457,11 +457,19 @@ async function processCallEndReport(
         // callback to-do (it flooded the Today queue with "Call back Voice
         // caller" rows) to a self-serve SMS back to the caller. The caller
         // re-engages on their terms; the operator's callback queue stays clean.
+        // 2026-07-20 · vapiCallId is REQUIRED for real idempotency. The
+        // orchestrator only builds a stable key (`..._call_<id>`) when
+        // event.vapiCallId is present (smsOrchestrator.ts) — omit it and the
+        // key falls through to a Date.now()+Math.random() value that is unique
+        // by construction, so the idempotency check can never match and is a
+        // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
+        // Passing the id restores the guard the call site always implied.
         if (firstLog && isForwardedEndedReason(cleanEndedReason) && customer?.number) {
           const { orchestrateSms } = await import("../../services/smsOrchestrator");
           await orchestrateSms({
             type: "vapi_forwarded_call_followup",
             phone: customer.number.trim(),
+            vapiCallId: event.call?.id,
           }).catch((err: unknown) => {
             log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
               error: err instanceof Error ? err.message : String(err),
