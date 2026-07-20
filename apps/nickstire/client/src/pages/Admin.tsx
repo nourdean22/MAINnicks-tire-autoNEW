@@ -110,7 +110,32 @@ export default function Admin() {
     enabled: isAdmin,
     staleTime: 30_000,
   });
-  const adminReady = isAdmin && security?.mfaEnabled === true && security.mfaVerified === true;
+  /**
+   * "READY TO LOAD ADMIN DATA" — not "has completed MFA".
+   *
+   * This required mfaEnabled === true unconditionally. But the server reports
+   * `mfaEnabled: false, mfaVerified: true` when enforcement is OFF
+   * (adminSecurity.ts:33-39), and ADMIN_MFA_REQUIRED is unset in production — so
+   * `adminReady` has been FALSE for every admin session, permanently.
+   *
+   * What that silently disabled, all of it live:
+   *   :117  the overview bundle (stats, bookings, leads, callbacks, health)
+   *   :123  shop-floor work orders
+   *   :247  <AdminSSEProvider enabled> — every real-time lead / booking /
+   *         callback / invoice / payment / work-order / review invalidation
+   *
+   * The admin still LOOKED functional because individual sections fetch their
+   * own data, which is exactly why this survived: the shell was half-connected
+   * and nothing said so.
+   *
+   * The question this flag answers is whether the operator has cleared whatever
+   * bar the SERVER is currently enforcing. When MFA is not required, the bar is
+   * simply being an admin — so mfaRequired is the discriminator, not mfaEnabled.
+   * `!!security` is required too: undefined means the status has not loaded, and
+   * loading is not permission.
+   */
+  const adminReady =
+    isAdmin && !!security && (!security.mfaRequired || (security.mfaEnabled === true && security.mfaVerified === true));
 
   const { data: bundle, isError: overviewUnavailable, error: overviewError } =
     trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {
