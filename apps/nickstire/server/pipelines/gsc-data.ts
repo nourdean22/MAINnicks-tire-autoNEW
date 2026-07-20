@@ -193,7 +193,13 @@ export async function fetchSearchPerformance(
     const dimensions =
       searchType === "web"
         ? ["query", "page", "date", "device", "country"]
-        : ["page", "date", "device", "country"];
+        // NO "device" for Discover. Google rejects it outright:
+        //   400 INVALID_ARGUMENT "Requests for Discover cannot be grouped by device"
+        // Observed on every single Discover fetch in the 2026-07-20 18:10-18:15
+        // production run — 8 consecutive 400s, one per day of the window. The
+        // caller catches and returns [], so this failed silently for as long as
+        // it has existed: Discover data has NEVER been ingested.
+        : ["page", "date", "country"];
 
     const response = await fetch(
       `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(GSC_SITE_URL)}/searchAnalytics/query`,
@@ -243,12 +249,15 @@ export async function fetchSearchPerformance(
         device = row.keys[3] || "desktop";
         country = row.keys[4] || "usa";
       } else {
-        // Discover: dimensions are [page, date, device, country]
+        // Discover: dimensions are [page, date, country] — no device, so
+        // `country` is index 2. These indexes MUST track the dimensions array
+        // above; dropping "device" without shifting this would have silently
+        // written the country string into the device column.
         query = "";
         page = row.keys[0] || "";
         date = row.keys[1] || "";
-        device = row.keys[2] || "desktop";
-        country = row.keys[3] || "usa";
+        device = "desktop";   // not returned for Discover; column is NOT NULL
+        country = row.keys[2] || "usa";
       }
 
       return {
