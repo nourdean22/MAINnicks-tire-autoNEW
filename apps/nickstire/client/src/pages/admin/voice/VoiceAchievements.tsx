@@ -60,10 +60,17 @@ export function VoiceAchievements() {
     },
     {
       name: "Cleveland Road Protector",
-      desc: "High-intent tire size lookups and tire inquiry leads captured.",
+      // 2026-07-20 · Copy corrected. This badge counts calls where Nick reached
+      // a WRITE TOOL (convertedToLead / totalReachedTool) — it does NOT count
+      // leads. Measured that day: 451 such calls, ZERO with a leadId, and the
+      // leads table holds 2 rows, because tireInquiry deliberately stops
+      // creating leads for ordinary inquiries (operator directive 2026-06-05).
+      // The backing field was renamed in #970 but this operator-facing text
+      // still said "leads captured", which is the part the operator reads.
+      desc: "High-intent callers where Nick reached a capture tool (tire size, inquiry, booking).",
       icon: <Shield className="w-4 h-4" />,
       tiers: [3, 15, 50],
-      unit: "leads captured",
+      unit: "calls engaged",
       colorClass: "from-emerald-500/20 to-teal-500/20 border-teal-500/30 text-emerald-400",
     },
     {
