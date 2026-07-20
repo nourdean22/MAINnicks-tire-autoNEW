@@ -27,6 +27,7 @@ import { createLogger } from "./lib/logger";
 import { normalizePhone } from "./lib/phone";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 import { isGatewayOnline } from "./lib/gateway-device";
+import { affectedRowCount } from "./lib/db-affected";
 
 import { BUSINESS } from "@shared/business";
 const log = createLogger("sms");
@@ -362,27 +363,6 @@ async function processDelayedQueue(): Promise<void> {
   }
 }
 
-/**
- * Rows affected by an UPDATE, tolerant of every shape the driver returns.
- *
- * drizzle-orm/mysql2 types an UPDATE result as a TUPLE —
- * `MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]]` — so reading
- * `.affectedRows` off the result itself yields undefined. Doing exactly that
- * silently discarded every rehydrated SMS for weeks (see the call site).
- *
- * Fails CLOSED: an unrecognised shape returns 0, so an unverified claim is
- * never treated as successful. Exported for direct unit testing.
- */
-export function readClaimedRows(result: unknown): number {
-  const header = Array.isArray(result) ? result[0] : result;
-  if (!header || typeof header !== "object") return 0;
-  const h = header as { affectedRows?: unknown; rowsAffected?: unknown };
-  const n = typeof h.affectedRows === "number" ? h.affectedRows
-    : typeof h.rowsAffected === "number" ? h.rowsAffected
-    : 0;
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
 export function startDelayedQueueProcessor(): void {
   if (delayedTimer) return;
 
@@ -433,7 +413,11 @@ export function startDelayedQueueProcessor(): void {
         // that nothing can recover — 136 had accumulated by 2026-07-20.
         //
         // Same tuple gotcha handled correctly in featureFlags.setFlag().
-        const claimedRows = readClaimedRows(claim);
+        // Tuple-safe read — see lib/db-affected.ts. drizzle-orm/mysql2 types an
+        // UPDATE result as [ResultSetHeader, FieldPacket[]], so reading
+        // .affectedRows off the result itself yields undefined; doing exactly
+        // that silently discarded every rehydrated SMS for weeks (#962).
+        const claimedRows = affectedRowCount(claim);
         if (claimedRows < 1) continue;
 
         // Only add if not already in the in-memory queue
