@@ -17,11 +17,12 @@
  * State machine
  * -------------
  *   greeted          ← `status-update` / `call-start` webhook fires
- *   intent_captured  ← agent calls a READ tool (shopInfo, capacityCheck,
- *                       getCurrentWaitTime, quoteRange, tireSizeFromVehicle,
- *                       lookupCustomer, getDeclinedEstimate)
- *   tool_called      ← agent calls a WRITE tool (bookSlot, tireInquiry,
- *                       scheduleCallback, checkTireStock, escalate)
+ *   intent_captured  ← agent calls a READ / hand-off tool (shopInfo,
+ *                       capacityCheck, getCurrentWaitTime, quoteRange,
+ *                       tireSizeFromVehicle, lookupCustomer,
+ *                       getDeclinedEstimate, checkTireStock)
+ *   tool_called      ← agent calls a WRITE tool — one that durably persists a
+ *                       row (bookSlot, tireInquiry, scheduleCallback, escalate)
  *   confirmed        ← agent calls sendConfirmationSms (the success
  *                       acknowledgment to the customer)
  *   ended            ← `end-of-call-report` webhook fires (metadata
@@ -60,12 +61,22 @@ const READ_TOOLS = new Set([
   "tireSizeFromVehicle",
   "lookupCustomer",
   "getDeclinedEstimate",
+  // 2026-07-20 · checkTireStock MOVED here from WRITE_TOOLS. It used to write a
+  // leads row; it now hands the caller to a person and captures nothing, which
+  // makes it a read/hand-off tool exactly like getCurrentWaitTime above.
+  // Leaving it in WRITE_TOOLS recorded `tool_called` → trailReachedTool() true
+  // → vapi_call_logs.convertedToLead = 1, so every caller who merely asked "do
+  // you have my size?" counted as a converted lead with no lead behind it.
+  "checkTireStock",
 ]);
+/**
+ * Tools that DURABLY PERSIST something a human can act on later — the basis of
+ * the conversion signal. A tool belongs here only if a row survives the call.
+ */
 const WRITE_TOOLS = new Set([
   "bookSlot",
   "tireInquiry",
   "scheduleCallback",
-  "checkTireStock",
   "escalate",
 ]);
 const CONFIRM_TOOLS = new Set(["sendConfirmationSms"]);
