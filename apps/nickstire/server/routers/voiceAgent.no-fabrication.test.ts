@@ -44,8 +44,16 @@ const caller = () => appRouter.createCaller(createVoiceContext()).voiceAgent;
 /** Any of these in a tool response means the AI was handed a wait figure. */
 const WAIT_ESTIMATE_KEYS = ["estimatedWaitMinutes", "waitMinutes", "load", "slotsRemainingToday", "activeBookings"];
 
-/** Spoken claims the AI must never be fed about how busy the shop is. */
-const BUSYNESS_CLAIMS = ["slammed", "hour wait", "minute wait", "30-min", "60+ min", "expect a wait"];
+/**
+ * Spoken claims the AI must never be fed. Includes the INVENTED-CAPACITY
+ * language the old capacityCheck emitted ("3 windows open") — an earlier
+ * version of this list only covered busyness words like "slammed", and so
+ * sailed straight past the fabricated windows. Red-green caught that.
+ */
+const BUSYNESS_CLAIMS = [
+  "slammed", "hour wait", "minute wait", "30-min", "60+ min", "expect a wait",
+  "windows open", "window open", "slots", "slot open", "openings",
+];
 
 describe("voice tools must not fabricate shop state", () => {
   describe("getCurrentWaitTime", () => {
@@ -54,6 +62,14 @@ describe("voice tools must not fabricate shop state", () => {
       for (const key of WAIT_ESTIMATE_KEYS) {
         expect(res).not.toHaveProperty(key);
       }
+      // NOT redundant with the hand-off test below, and load-bearing. The old
+      // implementation hit the DB and, with no DATABASE_URL, early-returned
+      // { available:false, reason:"DB unavailable" } — which happens to contain
+      // none of the keys above, so an absence-only assertion PASSED against the
+      // unfixed code in any DB-less environment (i.e. CI, forever). Asserting
+      // the positive contract is what makes this test mean something.
+      expect(res.handOffToHuman).toBe(true);
+      expect(res).not.toHaveProperty("reason");
     });
 
     it("instructs the AI to hand off rather than guess", async () => {
