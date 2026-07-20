@@ -26,6 +26,11 @@ export default defineConfig({
       "server/**/*.test.ts",
       "server/**/*.spec.ts",
       "server/__tests__/**/*.test.ts",
+      // shared/ holds the pure cross-boundary modules both the server and the
+      // client import. Without this glob a test file placed there is silently
+      // NEVER RUN — it looks like coverage in the tree and contributes nothing,
+      // which is the worst possible failure mode for a test.
+      "shared/**/*.test.ts",
       "client/src/__tests__/**/*.test.ts",
       "client/src/__tests__/**/*.test.tsx",
     ],

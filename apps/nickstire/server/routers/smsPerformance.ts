@@ -25,6 +25,8 @@ import { z } from "zod";
 import { smsMessages, smsConversations } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
+import { PHONE_MATCH_KEY_SQL } from "../lib/phoneIdentity";
+import { buildLoopScoreboard, type LoopRow, type LoopScoreboard } from "../../shared/loopScoreboard";
 
 const log = createLogger("routers:smsPerformance");
 
@@ -84,11 +86,17 @@ export const smsPerformanceRouter = router({
     try {
       const d = await db();
       if (!d) {
+        // Carries the SAME error discriminant the catch block below sets.
+        // Pre-fix this path returned a bare empty payload, so a DB outage
+        // rendered as "every tier sent zero messages" — the one state an
+        // operator must never confuse with a quiet week.
         return {
           windowDays: 30,
           replyWindowDays: REPLY_WINDOW_DAYS,
           conversionWindowDays: CONVERSION_WINDOW_DAYS,
           tiers: [] as { key: string; tier: string; sent: number; replied: number; converted: number; optedOut: number }[],
+          error: true as const,
+          errorMessage: "Database not available",
         };
       }
       const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -250,6 +258,88 @@ export const smsPerformanceRouter = router({
       } catch (err) {
         log.warn("recentSends failed", { error: err instanceof Error ? err.message : String(err) });
         return [];
+      }
+    }),
+
+  /**
+   * Dollars observed after each loop's sends. THIS IS CORRELATION, NOT
+   * ATTRIBUTION — see shared/loopScoreboard.ts for what that means
+   * and why the distinction is load-bearing.
+   *
+   * The join only became possible after the phone-identity repair: sms
+   * conversations store whatever format Twilio handed back, customers.phone is
+   * written bare-10 by the ShopDriver mirror, and the two never matched. Both
+   * sides are normalised to the last 10 digits here via PHONE_MATCH_KEY_SQL so
+   * this uses the SAME identity rule as the rest of the app rather than
+   * inventing a fourth one.
+   *
+   * COUNT(DISTINCT i.id) rather than COUNT(*): a customer reached by several
+   * sends of the same loop would otherwise have one invoice counted once per
+   * send, which inflates a high-frequency loop precisely because it is
+   * high-frequency.
+   */
+  recoveredRevenue: adminProcedure
+    .input(z.object({
+      windowDays: z.number().int().min(7).max(365).default(180),
+      attributionWindowDays: z.number().int().min(1).max(90).default(30),
+    }).optional())
+    .query(async ({ input }): Promise<LoopScoreboard & { error?: true; errorMessage?: string }> => {
+      const windowDays = input?.windowDays ?? 180;
+      const attributionWindowDays = input?.attributionWindowDays ?? 30;
+      const empty = (errorMessage: string) => ({
+        ...buildLoopScoreboard([], { windowDays, attributionWindowDays }),
+        error: true as const,
+        errorMessage,
+      });
+
+      try {
+        const d = await db();
+        if (!d) return empty("Database not available");
+
+        const [rows] = await d.execute(sql`
+          SELECT m.variantKey                                            AS loop,
+                 COUNT(DISTINCT m.id)                                    AS sent,
+                 COUNT(DISTINCT CASE WHEN m.replyCount > 0 THEN m.id END) AS replied,
+                 COUNT(DISTINCT CASE WHEN m.optOutAt IS NOT NULL THEN m.id END) AS optedOut,
+                 COUNT(DISTINCT i.id)                                    AS paidInvoicesAfter,
+                 COALESCE(SUM(DISTINCT i.totalAmount), 0)                AS revenueObservedCents
+          FROM sms_messages m
+          JOIN sms_conversations sc ON sc.id = m.conversationId
+          LEFT JOIN customers cu
+            ON ${sql.raw(PHONE_MATCH_KEY_SQL("cu.phone"))} = ${sql.raw(PHONE_MATCH_KEY_SQL("sc.phone"))}
+          LEFT JOIN invoices i
+            ON i.customerId = cu.id
+           AND i.paymentStatus = 'paid'
+           AND i.invoiceDate >  m.createdAt
+           AND i.invoiceDate <= DATE_ADD(m.createdAt, INTERVAL ${sql.raw(String(attributionWindowDays))} DAY)
+          WHERE m.direction = 'outbound'
+            AND m.variantKey IS NOT NULL
+            AND m.createdAt >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(windowDays))} DAY)
+          GROUP BY m.variantKey
+        `);
+
+        // Roll A/B and profile suffixes up to the parent loop, matching
+        // summary30d — otherwise the same loop appears as three rows here and
+        // one row there, and the two panels visibly disagree.
+        const byLoop = new Map<string, LoopRow>();
+        for (const raw of rows as Array<Record<string, unknown>>) {
+          const key = rollupKey((raw.loop as string | null) ?? null);
+          const cur = byLoop.get(key) ?? {
+            loop: prettyTier(key), sent: 0, replied: 0, optedOut: 0,
+            paidInvoicesAfter: 0, revenueObservedCents: 0,
+          };
+          cur.sent += Number(raw.sent ?? 0);
+          cur.replied += Number(raw.replied ?? 0);
+          cur.optedOut += Number(raw.optedOut ?? 0);
+          cur.paidInvoicesAfter += Number(raw.paidInvoicesAfter ?? 0);
+          cur.revenueObservedCents += Number(raw.revenueObservedCents ?? 0);
+          byLoop.set(key, cur);
+        }
+
+        return buildLoopScoreboard([...byLoop.values()], { windowDays, attributionWindowDays });
+      } catch (err) {
+        log.error("recoveredRevenue failed", { error: err instanceof Error ? err.message : String(err) });
+        return empty(err instanceof Error ? err.message : "Query failed");
       }
     }),
 });
