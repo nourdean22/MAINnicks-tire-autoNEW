@@ -113,16 +113,25 @@ export const REPLY_CONFIGS: Record<string, ReplyConfig> = {
   }
 };
 
-const TEMPLATE_VARIANTS: Record<string, string[]> = {
+// Exported so the copy contract in sms.forwarded-followup-copy.test.ts can
+// assert on the real variants rather than a duplicated copy that drifts.
+export const TEMPLATE_VARIANTS: Record<string, string[]> = {
   vapi_confirmation: [
     "Got your request at Nick's Tire & Auto. We're walk-in and first come, first served — but we saw your message and we'll help you when you pull up. Open Mon-Sat 8-6, Sun 9-4. Questions? {shopPhone}",
     "We got your request. We're at 17625 Euclid Ave, Cleveland. Just pull up when you're ready and we'll take care of you. Mon-Sat 8-6, Sun 9-4. Questions? {shopPhone}",
     "Got you down. Nick's is first come, first served, so walk in anytime. We're at 17625 Euclid Ave, open 7 days. Questions? Call or text {shopPhone}"
   ],
+  // 2026-07-20 · NEVER claim we missed the call here. This type fires on VAPI's
+  // `assistant-forwarded-call` ended reason, which is a SUCCESSFUL hand-off to a
+  // human — so the caller most often DID reach the shop. Two prior variants
+  // opened "Sorry we missed your call" / "We missed your call", which meant a
+  // customer who just spent five minutes with the crew got an apology for being
+  // ignored. Every variant below must read correctly whether or not a human
+  // picked up: continue the conversation, never apologize for a call we took.
   vapi_forwarded_call_followup: [
     "Hey, this is Nick's Tire & Auto on Euclid. We saw your request and wanted to help. What's going on with the car — tires, brakes, check engine, or something else?",
-    "Hey, this is Nick's Tire & Auto. Sorry we missed your call. Text us what's going on with the car and the crew will get on it.",
-    "Hey, this is the team at Nick's. We missed your call — what can we help you with today? Text or call us back at {shopPhone}."
+    "Hey, this is Nick's Tire & Auto. Text us the tire size or what the car is doing and the crew will pick it up from here.",
+    "Hey, this is the team at Nick's. Anything else we can help you with on the car? Text us here or call {shopPhone}."
   ],
   after_hours_capture: [
     "Thanks for reaching out to Nick's Tire & Auto. We're closed right now, but we got your message. We'll reach back out when we open at {nextOpen}.",

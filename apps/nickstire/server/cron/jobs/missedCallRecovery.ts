@@ -157,7 +157,12 @@ export async function processMissedCallRecovery(): Promise<{ recordsProcessed: n
           `🔇 Missed-Call Recovery — SHADOW (no texts sent)\n` +
           `${candidates} caller(s) would get a follow-up this run:\n${sample}` +
           (candidates > 10 ? `\n…+${candidates - 10} more` : "") +
-          `\n\nMessage they'd receive: "Sorry we missed your call. Text us what's going on with the car…" (+STOP footer)\n` +
+          // Do NOT hardcode the copy here. The catalog rotates three variants
+          // for this type, so any quoted line drifts the moment the copy
+          // changes — and a shadow preview that misquotes live behaviour is
+          // worse than no preview. Describe the shape, name the source.
+          `\n\nThey'd receive the neutral follow-up for vapi_forwarded_call_followup ` +
+          `(rotating variant, see smsMessageCatalog.ts) + STOP footer.\n` +
           `Flip live: set MISSED_CALL_RECOVERY_SEND=1 on MAINnicks-tire-auto.`,
         );
       }

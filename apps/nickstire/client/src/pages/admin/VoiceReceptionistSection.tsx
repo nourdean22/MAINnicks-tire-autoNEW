@@ -214,7 +214,10 @@ export default function VoiceReceptionistSection() {
     if (intents.includes("oil_change") || intents.includes("alignment")) {
       return "Thanks for calling Nick’s Tire & Auto. Oil changes and alignments are handled on a first-come, first-served basis. Swing by the shop at your convenience.";
     }
-    return "Sorry we missed your call. Let us know what you need, or stop by Nick’s Tire & Auto at 17625 Euclid Ave.";
+    // 2026-07-20 · never apologize for missing a call we may well have taken —
+    // this is the no-intent-matched fallback and fires regardless of whether the
+    // caller reached a human. Keep it neutral and forward-looking.
+    return "Thanks for calling Nick’s Tire & Auto. Let us know what you need, or stop by 17625 Euclid Ave.";
   };
 
   const reasonsChart = m
