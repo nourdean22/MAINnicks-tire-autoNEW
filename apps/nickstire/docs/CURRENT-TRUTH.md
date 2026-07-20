@@ -1,7 +1,7 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` on 2026-07-17  
+**Verified against:** `main` on 2026-07-20  
 **Owner:** Nick's Tire & Auto operator
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
@@ -53,7 +53,10 @@ A transcript classification, tool invocation, direction instruction, transfer at
 
 - Website lead forms write `leads`.
 - Website booking flows write `bookings`.
-- Voice tools may create a lead or callback, but the current `bookSlot` tool provides first-come-first-served walk-in guidance and does not persist an appointment.
+- **Voice tools do not create leads for ordinary inquiries.** Per operator directive 2026-06-05, `tireInquiry` acknowledges the caller and returns **before** any insert; the call recording and `vapi_call_logs` row are treated as the record. Only `escalate` (callback, when closed) still persists an operational row from voice.
+- **`checkTireStock` persists nothing at all** (2026-07-20). It previously wrote an urgency-5 rack-check lead, fired a Telegram and promised a callback that no code tracked to completion; it now hands the caller to a person.
+- The `bookSlot` tool provides first-come-first-served walk-in guidance and does not persist an appointment.
+- Measured 2026-07-20 against production: 494 `tireInquiry` dispatches over 90 days, **0** voice-attributed leads, `leads` table holding 2 rows total. That is the directive working as intended — not a defect. Do not "fix" it without re-confirming the directive.
 - A booking is verified only when a booking row exists.
 - An arrival is verified only from an operational arrival/check-in or repair-order signal.
 - Paid conversion is verified only from a paid invoice linked by a defensible matching rule.
@@ -78,6 +81,15 @@ A transcript classification, tool invocation, direction instruction, transfer at
 - Reel manufacturing: cron-pulsed clip generation (Higgsfield Seedance 1.5) and ffmpeg assembly with a blocking render-integrity gate (duration contract, video-stream length, frame count, sampled-frame motion proof) — operational contract in [`docs/operations/REEL-PIPELINE.md`](operations/REEL-PIPELINE.md); publish remains operator-gated
 
 Automation success is valid only when the final system of record confirms the action.
+
+### Outbound SMS delivery — operating contract
+
+- Outbound routes **shop-first** through the Capevace/F25e gateway on the shop's own Verizon line. Twilio is configured but not the primary sender.
+- A send blocked by quiet hours (8AM–8PM ET) or an unreachable gateway is **queued**, not failed. `sms_messages.status='queued'` is the durable record.
+- **The queue drains only on process start.** `startDelayedQueueProcessor` rehydrates `status='queued'` rows **once at boot**, `LIMIT 100`, then drains them on a 60s timer. A backlog above 100 therefore needs more than one restart. There is no in-process trigger that picks up rows queued after boot.
+- Rehydration atomically claims each row `queued → sending`. **A row left in `sending` is unrecoverable by rehydration** (it only ever selects `queued`) and must be reset deliberately.
+- Verified 2026-07-20: a tuple-shape misread of the claim result made that claim always evaluate to zero rows, so every restart moved up to 100 messages into `sending` and sent none. 136 messages to 103 people accumulated between 2026-06-02 and 2026-07-19. Fixed (#962/#965, `lib/db-affected.ts` `affectedRowCount`), backlog released, 132 delivered.
+- Every non-send path in `sendSms` now logs a reason, and the drain logs hold/resume transitions (#970). Before that, a message that never reached a customer left no trace anywhere.
 
 ## Manual or operator-gated systems
 
