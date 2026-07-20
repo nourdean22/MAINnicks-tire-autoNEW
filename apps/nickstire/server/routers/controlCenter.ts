@@ -1236,4 +1236,110 @@ export const controlCenterRouter = router({
     // Sort by score desc, pick top 3
     return moves.sort((a, b) => b.score - a.score).slice(0, 3);
   }),
+
+  /**
+   * todayPulse — the Today surface, built ONLY on tables that carry real rows.
+   *
+   * WHY THIS EXISTS
+   * The existing Today cards read `leads` and `callback_requests`. Measured
+   * against production on 2026-07-20: `leads` holds 2 rows FOR ALL TIME, and
+   * the newest `callback_requests` row is from 2026-05-31. Meanwhile 2,838
+   * invoices, 1,953 calls and 425 estimates go unread. The screen meant to tell
+   * the operator what is happening today was wired to the emptiest tables in
+   * the database — this is a phone-and-walk-in shop, not a web-lead shop.
+   *
+   * Every figure below was verified to be non-trivial against production before
+   * being built. Deliberately EXCLUDED after measuring:
+   *
+   *   · gross margin — partsCost is set on 6 of 334 recent invoices, laborCost
+   *     on 1. The columns exist; the data does not. A margin tile would be
+   *     arithmetic on nothing.
+   *   · "sales TODAY" — the ShopDriver mirror runs a day behind, so today's
+   *     invoice count is structurally 0 every single morning. A tile reading
+   *     "$0 today" daily reads as a dead shop rather than as a sync lag, so
+   *     this reports the last 7 days and states the through-date instead.
+   *   · leads / callbacks — see above.
+   */
+  todayPulse: adminProcedure.query(async () => {
+    const unavailable = (reason: string) => ({ available: false as const, reason });
+
+    try {
+      const d = await db();
+      if (!d) return unavailable("Database not available");
+
+      // Declined work still unclaimed. matched_invoice_id IS NULL means the
+      // estimate never became a paid job. This is the largest recoverable
+      // number the shop has, and the recovery loops already run against it.
+      const [declinedRows] = await d.execute(sql`
+        SELECT COUNT(*)                              AS openCount,
+               COALESCE(SUM(estimated_amount), 0)    AS openCents,
+               SUM(estimate_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) AS last30
+        FROM alg_estimates
+        WHERE matched_invoice_id IS NULL
+      `);
+
+      // Calls are the only thing in this database that is live to the minute.
+      //
+      // `convertedToLead` DOES NOT MEAN A LEAD WAS CREATED. It is set when the
+      // caller reached a write tool (see classifyToolToState / WRITE_TOOLS).
+      // Measured 2026-07-20: 449 calls over 30 days carry convertedToLead = 1,
+      // ZERO of them have a leadId, and the leads table holds 2 rows in total.
+      // Reporting this as "leads" would tell the operator fifteen leads arrived
+      // yesterday when none did, so it is named and labelled for what it is.
+      const [callRows] = await d.execute(sql`
+        SELECT COUNT(*)                                     AS calls24h,
+               COALESCE(SUM(convertedToLead = 1), 0)        AS reachedTool24h,
+               COALESCE(SUM(durationSeconds < 20), 0)       AS abandoned24h,
+               MAX(createdAt)                               AS lastCallAt
+        FROM vapi_call_logs
+        WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+      `);
+
+      // Invoiced revenue over 7 days, plus the newest invoice date so the UI
+      // can show how current the mirror actually is rather than implying "now".
+      const [revenueRows] = await d.execute(sql`
+        SELECT COUNT(*)                           AS invoices7d,
+               COALESCE(SUM(totalAmount), 0)      AS revenue7dCents,
+               (SELECT MAX(invoiceDate) FROM invoices) AS throughDate
+        FROM invoices
+        WHERE paymentStatus = 'paid'
+          AND invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+      `);
+
+      const declined = (declinedRows as Array<Record<string, unknown>>)[0] ?? {};
+      const calls = (callRows as Array<Record<string, unknown>>)[0] ?? {};
+      const revenue = (revenueRows as Array<Record<string, unknown>>)[0] ?? {};
+
+      const throughRaw = revenue.throughDate;
+      const throughDate = throughRaw ? new Date(throughRaw as string) : null;
+
+      return {
+        available: true as const,
+        declinedWork: {
+          openCount: Number(declined.openCount ?? 0),
+          openCents: Number(declined.openCents ?? 0),
+          last30: Number(declined.last30 ?? 0),
+        },
+        calls: {
+          last24h: Number(calls.calls24h ?? 0),
+          /** Reached a booking/quote tool. NOT a created lead — see above. */
+          reachedTool24h: Number(calls.reachedTool24h ?? 0),
+          /** Under 20 seconds — hung up before the assistant could help. */
+          abandoned24h: Number(calls.abandoned24h ?? 0),
+          lastCallAt: calls.lastCallAt ? new Date(calls.lastCallAt as string) : null,
+        },
+        revenue: {
+          invoices7d: Number(revenue.invoices7d ?? 0),
+          revenue7dCents: Number(revenue.revenue7dCents ?? 0),
+          /** Newest invoice in the mirror. The operator needs to see the lag. */
+          throughDate,
+        },
+      };
+    } catch (err) {
+      log.error("[ControlCenter] todayPulse failed:", err);
+      // Never a zeroed payload — an unreadable pulse must not render as a
+      // quiet day. The card hides itself rather than showing false calm.
+      return unavailable(err instanceof Error ? err.message : "Query failed");
+    }
+  }),
 });
