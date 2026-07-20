@@ -47,17 +47,37 @@ let optOutCache: Set<string> | null = null;
 let optOutCacheLoadedAt = 0;
 const OPT_OUT_CACHE_TTL_MS = 5 * 60 * 1000;
 
-async function ensureOptOutCache(): Promise<Set<string>> {
+/**
+ * Either a usable opt-out index, or an explicit statement that we could not
+ * build one.
+ *
+ * The old signature returned a bare `Set`, and BOTH failure paths returned an
+ * EMPTY one — which reads as "nobody has opted out" and is indistinguishable
+ * from a genuinely empty list. On the one guard in this system where a false
+ * negative is a federal statutory violation, an unreadable answer must never be
+ * able to impersonate a permissive one. Callers now have to handle `ok: false`.
+ *
+ * A STALE set is still `ok: true` — it is real data that was really loaded, and
+ * refusing to send on a 5-minute-old index would be its own outage. Only the
+ * absence of ANY loaded index is `ok: false`.
+ */
+type OptOutIndex =
+  | { ok: true; phones: Set<string>; stale: boolean }
+  | { ok: false; reason: string };
+
+async function ensureOptOutCache(): Promise<OptOutIndex> {
   const now = Date.now();
   if (optOutCache && now - optOutCacheLoadedAt < OPT_OUT_CACHE_TTL_MS) {
-    return optOutCache;
+    return { ok: true, phones: optOutCache, stale: false };
   }
+  const stale = (reason: string): OptOutIndex =>
+    optOutCache ? { ok: true, phones: optOutCache, stale: true } : { ok: false, reason };
   try {
     const { getDb } = await import("./db");
     const { customers, smsPreferences } = await import("../drizzle/schema");
-    const { eq } = await import("drizzle-orm");
+    const { eq, sql } = await import("drizzle-orm");
     const db = await getDb();
-    if (!db) return optOutCache ?? new Set();
+    if (!db) return stale("database unavailable");
     const fresh = new Set<string>();
     const addNorm = (phone: string | null) => {
       const norm = (phone || "").replace(/\D/g, "").slice(-10);
@@ -77,14 +97,44 @@ async function ensureOptOutCache(): Promise<Set<string>> {
       .from(smsPreferences)
       .where(eq(smsPreferences.optedOut, true));
     for (const r of prefRows) addNorm(r.phone);
+
+    // 2026-07-20 · THIRD source: the inbound messages themselves.
+    //
+    // Both sources above record that a handler RAN. Neither records what the
+    // customer actually SAID. Measured in production: 10 numbers have sent a
+    // bare opt-out keyword, and only 5 have a preference row — the 5 older ones
+    // predate the handler and were dropped on the floor. Those people said STOP
+    // and nothing in the system remembered it.
+    //
+    // The message log is the ground truth and the preference table is a cache
+    // of it, so deriving from the log makes the index self-healing: any future
+    // handler gap is covered automatically, and no historical backfill is
+    // needed to honour a STOP that was already spoken.
+    //
+    // Matched on the TRIMMED, UPPERCASED body only. Substring matching would be
+    // wrong in the dangerous direction here — inbound spam routinely carries
+    // "...Reply Stop" footers, and treating those as opt-outs would suppress
+    // messages to people who never asked for that.
+    const optOutBodies = await db.execute(sql`
+      SELECT DISTINCT sc.phone AS phone
+      FROM sms_messages m
+      JOIN sms_conversations sc ON sc.id = m.conversationId
+      WHERE m.direction = 'inbound'
+        AND UPPER(TRIM(m.body)) IN ('STOP','STOPALL','STOP ALL','UNSUBSCRIBE','CANCEL','END','QUIT','REVOKE','OPTOUT','OPT OUT')
+    `);
+    for (const r of (optOutBodies[0] as Array<{ phone: string | null }>)) addNorm(r.phone);
+
     optOutCache = fresh;
     optOutCacheLoadedAt = now;
-    return fresh;
+    return { ok: true, phones: fresh, stale: false };
   } catch (err) {
-    log.warn("opt-out cache refresh failed — using stale or empty", {
+    // log.error, not warn: if this is the FIRST load, every outbound send is
+    // about to be refused, and the operator needs to know why.
+    log.error("opt-out cache refresh FAILED — falling back to the last loaded index", {
       error: err instanceof Error ? err.message : String(err),
+      haveStaleIndex: optOutCache !== null,
     });
-    return optOutCache ?? new Set();
+    return stale(err instanceof Error ? err.message : "opt-out index unavailable");
   }
 }
 
@@ -1114,18 +1164,44 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     }
   }
   
+  // TCPA opt-out gate. FAILS CLOSED for anything aimed at a customer.
+  //
+  // This block used to end in `catch { log.warn("proceeding with send") }`, and
+  // ensureOptOutCache returned an empty Set on failure. Between them, an
+  // unreadable opt-out list meant "nobody opted out" and every send went out.
+  // Verified harm on 2026-07-20: one number opted out on 07-13, was correctly
+  // recorded in sms_preferences, and still received automated recovery texts on
+  // 07-16 and 07-19.
+  //
+  // Refusing to send costs a delayed marketing message. Sending to someone who
+  // said STOP costs $500-$1,500 per message and their trust. That trade is not
+  // close, so an indeterminate answer is treated as "opted out".
   if (!opts?.skipOptOutCheck) {
+    const last10 = normalizedEarly.slice(-10);
+    let index: OptOutIndex;
     try {
-      const last10 = normalizedEarly.slice(-10);
-      const optOuts = await ensureOptOutCache();
-      if (optOuts.has(last10)) {
-        smsStats.totalOptedOut++;
-        return { success: false, error: "Customer opted out of SMS" };
-      }
+      index = await ensureOptOutCache();
     } catch (err) {
-      log.warn("Opt-out check failed, proceeding with send", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      index = { ok: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+
+    if (!index.ok) {
+      // Internal messages go to the shop's OWN phone and carry no TCPA
+      // exposure. They are exempted deliberately: the DB being unreachable is
+      // exactly when the operator most needs the alert saying so, and failing
+      // those closed would make an outage silence its own alarm.
+      if (!isInternal) {
+        smsStats.totalOptedOut++;
+        log.error("REFUSING to send — cannot verify opt-out status", {
+          reason: index.reason,
+          to: last10.slice(-4),
+        });
+        return { success: false, error: `Cannot verify opt-out status (${index.reason}) — send refused` };
+      }
+      log.warn("opt-out status unverifiable; allowing INTERNAL message only", { reason: index.reason });
+    } else if (index.phones.has(last10)) {
+      smsStats.totalOptedOut++;
+      return { success: false, error: "Customer opted out of SMS" };
     }
   }
 

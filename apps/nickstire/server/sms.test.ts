@@ -172,7 +172,17 @@ describe("SMS Module", () => {
       // test runs would queue-for-later and return success.
       // shop-gateway default-route also short-circuits to the Twilio path
       // because SHOP_SMS_GATEWAY_* env vars are unset in tests.
-      const result = await sendSms("+12168620005", "Test message", { messageClass: "customer_confirmation" });
+      // 2026-07-20 · `skipOptOutCheck` isolates the subject under test. The
+      // opt-out gate now FAILS CLOSED, and there is no database in this suite,
+      // so without this the send is refused for "cannot verify opt-out status"
+      // and never reaches the Twilio-credential check this test is about.
+      // The gate's own fail-closed behaviour is covered by
+      // server/__tests__/sms-optout-failclosed.test.ts — do NOT weaken the
+      // guard to make an unrelated test pass.
+      const result = await sendSms("+12168620005", "Test message", {
+        messageClass: "customer_confirmation",
+        skipOptOutCheck: true,
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("not configured");
