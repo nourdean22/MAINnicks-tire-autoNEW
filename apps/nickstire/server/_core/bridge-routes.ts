@@ -1241,7 +1241,14 @@ export function registerBridgeRoutes(app: Express): void {
         const d = await getDb();
         if (d) {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-          const dailyRevenue = await d.execute(sql`
+          // NOTE: d.execute() returns the mysql2 tuple [rows, fields]. Every
+          // query in this handler must be DESTRUCTURED. Binding it whole and
+          // calling .map() on it yields exactly TWO elements whose fields are
+          // Number(undefined) = NaN, serialised by res.json as null — which is
+          // what this endpoint returned for every money series it has ever
+          // served. The `as DbRow[]` casts below are what silenced the type
+          // error; keep the destructuring so the cast can never hide it again.
+          const [dailyRevenue] = await d.execute(sql`
             SELECT DATE(invoiceDate) as day,
                    COUNT(*) as jobs,
                    COALESCE(SUM(totalAmount), 0) as revenue
@@ -1260,7 +1267,7 @@ export function registerBridgeRoutes(app: Express): void {
 
           // Monthly totals (last 6 months)
           const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-          const monthlyRevenue = await d.execute(sql`
+          const [monthlyRevenue] = await d.execute(sql`
             SELECT DATE_FORMAT(invoiceDate, '%Y-%m') as month,
                    COUNT(*) as jobs,
                    COALESCE(SUM(totalAmount), 0) as revenue,
@@ -1297,7 +1304,7 @@ export function registerBridgeRoutes(app: Express): void {
           };
 
           // Service breakdown (top services by revenue)
-          const serviceBreakdown = await d.execute(sql`
+          const [serviceBreakdown] = await d.execute(sql`
             SELECT serviceDescription,
                    COUNT(*) as count,
                    COALESCE(SUM(totalAmount), 0) as revenue
@@ -1316,7 +1323,7 @@ export function registerBridgeRoutes(app: Express): void {
           }));
 
           // Payment method breakdown
-          const paymentBreakdown = await d.execute(sql`
+          const [paymentBreakdown] = await d.execute(sql`
             SELECT paymentMethod,
                    COUNT(*) as count,
                    COALESCE(SUM(totalAmount), 0) as revenue
@@ -1331,7 +1338,7 @@ export function registerBridgeRoutes(app: Express): void {
           }));
 
           // Day of week performance
-          const dayOfWeekPerf = await d.execute(sql`
+          const [dayOfWeekPerf] = await d.execute(sql`
             SELECT DAYOFWEEK(invoiceDate) as dow,
                    COUNT(*) as jobs,
                    COALESCE(SUM(totalAmount), 0) as revenue

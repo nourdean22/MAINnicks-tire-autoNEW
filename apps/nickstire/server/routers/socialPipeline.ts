@@ -25,6 +25,20 @@ const ENV_GATES = [
   { key: "CONTENT_REPLENISH_ENABLED", description: "Content reserve replenishment cron (every 2 hours)", defaultOff: true },
   { key: "SMS_KILL_SWITCH", description: "Blocks Twilio SMS path when 'true' (shop gateway still works). Set 'false' or unset when Twilio is restored.", defaultOff: false },
   { key: "ENABLE_CUSTOMER_CONFIRMATIONS", description: "Customer confirmation SMS/email notifications (dry-run if unset)", defaultOff: true },
+  // 2026-07-20 · These two were ARMED IN PRODUCTION and listed NOWHERE.
+  //
+  // This file's own header promises "single-pane admin visibility into every
+  // kill-switch, feature flag, and env gate that controls the content/social
+  // automation stack". Both of these were set true in production while absent
+  // from ENV_GATES, from SOCIAL_DB_FLAGS, and from the entire client — so an
+  // operator reading the panel concluded nothing autonomous was publishing,
+  // while an LLM was drafting and posting PUBLIC replies to comments on Nick's
+  // reels with no human in the loop (up to 5/run, 15 in the hour after a post).
+  //
+  // A kill-switch panel that omits a live switch is worse than no panel: it
+  // converts "I don't know" into a confident "nothing is running".
+  { key: "REEL_COMMENT_RESPONDER_ENABLED", description: "Autonomous IG comment responder — LLM drafts replies to comments on reels", defaultOff: true },
+  { key: "REEL_COMMENT_RESPONDER_LIVE", description: "PUBLICLY POSTS those AI-drafted comment replies. With ENABLED, this publishes to IG with no human review.", defaultOff: true },
 ] as const;
 
 /** DB feature flags relevant to the social/content pipeline. */
