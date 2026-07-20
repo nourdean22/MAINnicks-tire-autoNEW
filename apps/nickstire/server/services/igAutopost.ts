@@ -1528,6 +1528,16 @@ export async function runIgAutopostCron(): Promise<{ recordsProcessed: number; d
     return { recordsProcessed: 0, details: `Skip — ${slot} slot already ran today` };
   }
   const res = await runIgAutopost({ slot, source: "cron" });
+  // runIgAutopost reports a hard failure (OpenRouter 402, unparseable LLM JSON)
+  // via `status: "failed"` rather than by throwing. This wrapper used to re-wrap
+  // only recordsProcessed + details and DROP that field, so scheduler.runTier
+  // saw a normal return and wrote status='completed' to cron_log. The operator
+  // read "ig-autopost completed" on a slot where nothing was posted, and the
+  // run was invisible to both runCronFailureObserver and safetyMonitor's
+  // cronFailureRate — the two things whose whole job is noticing this.
+  if (res.status === "failed") {
+    throw new Error(`[${slot}] ${res.details}`);
+  }
   return { recordsProcessed: res.recordsProcessed, details: `[${slot}] ${res.details}` };
 }
 

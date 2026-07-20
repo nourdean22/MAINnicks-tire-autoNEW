@@ -1,12 +1,66 @@
 /**
  * Tests for tRPC router procedures.
- * NOTE: These call actual procedures needing DB. Skipped when DATABASE_URL not set.
+ *
+ * These call REAL procedures against a REAL database, and some of them MUTATE
+ * (referrals.submit, bookings, leads). They are gated on TEST_DATABASE_URL —
+ * never on DATABASE_URL.
+ *
+ * WHY: the gate used to be `!!process.env.DATABASE_URL`, and
+ * `apps/nickstire/.env` holds the PRODUCTION connection string. Any
+ * `pnpm test` run from the main checkout therefore un-skipped these blocks and
+ * wrote to prod. It did: 5 of the 6 rows in the production `referrals` table
+ * (ids 30001-30005, all "John Doe", 2026-06-11) were written by this file, not
+ * by customers — a 6x overstatement of a real acquisition channel.
+ *
+ * The old gate had exactly two modes: silent no-op in CI (which never sets
+ * DATABASE_URL, so all 13 blocks skipped and asserted nothing), or a production
+ * write locally. Neither is a test.
+ *
+ * To run these: start the local DB with `pnpm dev:db` and set TEST_DATABASE_URL
+ * to it. The assertion below is a second, independent guard — even if someone
+ * points TEST_DATABASE_URL at prod, the suite refuses rather than writing.
  */
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
-const HAS_DB = !!process.env.DATABASE_URL;
+/**
+ * TWO conditions, and the second is the one that actually protects production.
+ *
+ * `TEST_DATABASE_URL` is the explicit opt-in — a variable production has no
+ * reason to set. But these procedures connect through `getDb()`, which reads
+ * `DATABASE_URL` (server/db.ts:46) and NOT `TEST_DATABASE_URL`. Gating only on
+ * the opt-in would therefore be worse than the original bug: setting it would
+ * un-skip the writes while they still landed on whatever `DATABASE_URL` points
+ * at — production.
+ *
+ * So the binding safety property is: the URL these tests will actually write
+ * through must resolve to a local host.
+ */
+function isLocalDatabase(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0";
+  } catch {
+    return false;
+  }
+}
+
+const OPTED_IN = !!process.env.TEST_DATABASE_URL;
+const WRITES_LOCALLY = isLocalDatabase(process.env.DATABASE_URL);
+
+// Loud, not silent: someone who opted in and is still pointed at a remote host
+// has made a mistake that would cost real rows. Tell them instead of skipping.
+if (OPTED_IN && !WRITES_LOCALLY) {
+  throw new Error(
+    "TEST_DATABASE_URL is set, but DATABASE_URL does not point at a local host — " +
+    "and these tests write through DATABASE_URL. Refusing to run. " +
+    "Start the local DB with `pnpm dev:db` and point DATABASE_URL at it.",
+  );
+}
+
+const HAS_DB = OPTED_IN && WRITES_LOCALLY;
 
 // ─── HELPERS ───────────────────────────────────────────
 

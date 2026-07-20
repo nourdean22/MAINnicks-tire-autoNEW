@@ -19,8 +19,7 @@
  * job_name + completed_at).
  */
 
-import { desc, gte } from "drizzle-orm";
-import { cronLog } from "../../drizzle/schema";
+import { sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { sendTelegramMessage } from "../services/telegram";
 import { createLogger } from "../lib/logger";
@@ -31,7 +30,17 @@ const log = createLogger("cron:observer");
 const lastAlertAt: Map<string, number> = new Map();
 const ALERT_SUPPRESS_MS = 6 * 60 * 60 * 1000; // 6 hours
 const CONSECUTIVE_FAILURE_THRESHOLD = 2;
-const LOOKBACK_HOURS = 24;
+/**
+ * 7 days, not 24 hours.
+ *
+ * A once-per-day job contributes at most ONE row to a 24-hour window, so its
+ * failure streak was capped at 1 and could never reach the threshold of 2. Daily
+ * jobs that failed on every single run alerted zero times, forever — the only
+ * failure alarm for the entire daily tier was structurally dead.
+ */
+const LOOKBACK_HOURS = 24 * 7;
+/** Runs examined per job. Only needs to exceed the streak threshold. */
+const RUNS_PER_JOB = 6;
 
 interface JobFailureSnapshot {
   jobName: string;
@@ -41,33 +50,50 @@ interface JobFailureSnapshot {
 }
 
 /**
- * Fetch the last N runs per distinct job_name (where N is small enough
- * to detect a 2-failure streak). Returns jobs whose tail is all failures.
+ * Fetch the last RUNS_PER_JOB runs for each distinct job_name and return the
+ * jobs whose most recent runs are an unbroken failure streak.
  *
- * We pull a window of runs from the last LOOKBACK_HOURS and bucket by
- * job_name in JS rather than building a CTE — the row count is tiny
- * (17 jobs × handful of runs/hr × 24h ≈ low thousands at most).
+ * The per-job partition is load-bearing, not a tidiness choice — see the
+ * comment on the query itself.
  */
 async function fetchFailingJobs(): Promise<JobFailureSnapshot[]> {
   const db = await getDb();
   if (!db) return [];
 
+  // Take the last RUNS_PER_JOB runs PER JOB, not the last N rows overall.
+  //
+  // The previous query was `ORDER BY completed_at DESC LIMIT 2000` across every
+  // job at once. Production writes roughly 2,600 cron rows per day, so that
+  // limit did not even span the 24-hour window it was filtering on: the
+  // high-frequency jobs (every 2 minutes) consumed the entire budget and the
+  // low-frequency jobs — exactly the ones a daily failure alarm exists for —
+  // could fall off the end of the result set entirely and be invisible.
+  //
+  // Partitioning per job makes each job's history independent of how noisy its
+  // neighbours are.
   const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000);
 
-  // Pull the recent window ordered newest-first, group by job in memory.
-  const rows = await db
-    .select({
-      jobName: cronLog.jobName,
-      status: cronLog.status,
-      errorMessage: cronLog.errorMessage,
-      completedAt: cronLog.completedAt,
-    })
-    .from(cronLog)
-    .where(gte(cronLog.completedAt, since))
-    .orderBy(desc(cronLog.completedAt))
-    .limit(2000);
+  const [raw] = await db.execute(sql`
+    SELECT job_name AS jobName, status, error_message AS errorMessage, completed_at AS completedAt
+    FROM (
+      SELECT job_name, status, error_message, completed_at,
+             ROW_NUMBER() OVER (PARTITION BY job_name ORDER BY completed_at DESC) AS rn
+      FROM cron_log
+      WHERE completed_at >= ${since}
+    ) ranked
+    WHERE rn <= ${RUNS_PER_JOB}
+    ORDER BY job_name, completedAt DESC
+  `);
 
-  const byJob = new Map<string, typeof rows>();
+  type Run = { jobName: string; status: string; errorMessage: string | null; completedAt: Date | null };
+  const rows: Run[] = (raw as Array<Record<string, unknown>>).map((r) => ({
+    jobName: String(r.jobName),
+    status: String(r.status),
+    errorMessage: r.errorMessage == null ? null : String(r.errorMessage),
+    completedAt: r.completedAt ? new Date(r.completedAt as string) : null,
+  }));
+
+  const byJob = new Map<string, Run[]>();
   for (const r of rows) {
     if (!byJob.has(r.jobName)) byJob.set(r.jobName, []);
     byJob.get(r.jobName)!.push(r);
