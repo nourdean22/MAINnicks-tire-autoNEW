@@ -281,6 +281,62 @@ export const campaignsRouter = router({
     }),
 
   /** Get campaign stats summary */
+  /**
+   * STOP A RUNNING CAMPAIGN. The control that did not exist.
+   *
+   * `send` claimed draft -> active and the drain then ran on campaignId +
+   * status='pending' alone, never consulting the campaign. So a started campaign
+   * could not be halted — and resumeStuckCampaigns (cron, every 5 min) re-ran
+   * the drain for anything mid-flight, so even killing the process only bought
+   * five minutes. A campaign reaches real people; "started" must not mean
+   * "unstoppable".
+   *
+   * The drain now re-reads campaign status every batch and breaks when it is not
+   * 'active', so this takes effect within one batch and survives the resume cron.
+   *
+   * WHY 'completed' AND NOT 'paused': smsCampaigns.status is
+   * mysqlEnum(["draft","active","completed"]) (schema.ts:1798). Under
+   * STRICT_TRANS_TABLES an out-of-enum write is REJECTED and the row is LOST —
+   * so a stop that tried to write 'paused' would throw at exactly the moment the
+   * operator needs it to work. The vocabulary is imperfect and the behaviour is
+   * correct; widening the enum is a migration and is tracked separately.
+   *
+   * Already-sent messages cannot be recalled. Pending rows STAY pending rather
+   * than being marked failed, so the campaign is resumable by hand if the stop
+   * was precautionary.
+   */
+  stop: adminProcedure
+    .input(z.object({ campaignId: z.number(), reason: z.string().trim().max(300).optional() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { success: false, error: "Database not available" };
+
+      const [campaign] = await d.select().from(smsCampaigns).where(eq(smsCampaigns.id, input.campaignId)).limit(1);
+      if (!campaign) return { success: false, error: "Campaign not found" };
+      if (campaign.status !== "active") {
+        return { success: false, error: `Campaign is '${campaign.status}', not active — nothing to stop.` };
+      }
+
+      await d.update(smsCampaigns)
+        .set({ status: "completed" })
+        .where(and(eq(smsCampaigns.id, input.campaignId), eq(smsCampaigns.status, "active")));
+
+      const [stillPending] = await d.select({ n: sql<number>`count(*)` })
+        .from(smsCampaignSends)
+        .where(and(eq(smsCampaignSends.campaignId, input.campaignId), eq(smsCampaignSends.status, "pending")));
+
+      log.warn(`[Campaigns] STOPPED campaign ${input.campaignId} by operator`, {
+        reason: input.reason ?? "no reason given",
+        pendingLeftUnsent: Number(stillPending?.n ?? 0),
+      });
+
+      return {
+        success: true,
+        pendingLeftUnsent: Number(stillPending?.n ?? 0),
+        note: "Sends already delivered cannot be recalled. Pending rows were left pending, not failed.",
+      };
+    }),
+
   stats: adminProcedure.query(async () => {
     const d = await db();
     if (!d) {
@@ -363,6 +419,31 @@ export async function processCampaignSends(
       log.warn(`[Campaigns] F25e gateway offline mid-run — pausing campaign ${campaignId} (${totalSent} sent so far); rest stay pending for resume.`);
       break;
     }
+    /**
+     * THE OPERATOR'S STOP, CHECKED EVERY BATCH.
+     *
+     * This loop filtered only on campaignId + status='pending' and never looked
+     * at the CAMPAIGN's status — so once `send` was called there was no way to
+     * halt it. Worse, resumeStuckCampaigns (cron, every 5 minutes) re-runs the
+     * drain for anything left mid-flight, so even killing the process only
+     * paused it for five minutes.
+     *
+     * A campaign reaches real people. "Started" must not mean "unstoppable".
+     *
+     * Re-read each batch rather than once at the top: the operator hits stop
+     * DURING the run, which is the only time it matters. winbackProcessor has
+     * had this since the start — its drain joins on `wc.status = 'active'`
+     * (winbackProcessor.ts:69) — this brings the generic system to parity.
+     */
+    const [live] = await d.select({ status: smsCampaigns.status })
+      .from(smsCampaigns)
+      .where(eq(smsCampaigns.id, campaignId))
+      .limit(1);
+    if (!live || live.status !== "active") {
+      log.warn(`[Campaigns] campaign ${campaignId} is '${live?.status ?? "missing"}' — stopping drain (${totalSent} sent). Pending rows stay pending.`);
+      break;
+    }
+
     // Get next batch of pending sends
     const pendingSends = await d.select()
       .from(smsCampaignSends)
