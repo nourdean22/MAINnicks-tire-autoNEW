@@ -8,6 +8,9 @@ import type { Tool } from "../_core/llm";
 
 import { BUSINESS } from "@shared/business";
 import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:chatTools");
 // ─── TOOL DEFINITIONS (sent to LLM) ────────────────────
 
 export const CHAT_TOOLS: Tool[] = [
@@ -432,7 +435,26 @@ async function executeFindTireInStock(tireSize: string): Promise<string> {
     // Search tire inventory by size (normalize: remove spaces, uppercase)
     const normalized = tireSize.replace(/\s+/g, "").toUpperCase();
     const results = await d.execute(
-      sql`SELECT brand, model, size, price_cents, quantity FROM tire_inventory WHERE REPLACE(UPPER(size), ' ', '') LIKE ${`%${normalized}%`} AND quantity > 0 LIMIT 5`
+      // `tire_inventory` DOES NOT EXIST in production. The real table is
+      // `inventory` (sku/name/category/brand/size/quantity_on_hand/...), which
+      // exists but currently holds 0 rows.
+      //
+      // Before this, every call threw ER_NO_SUCH_TABLE, the bare `catch {}`
+      // below swallowed it, and the tool returned "Inventory check unavailable"
+      // to every customer for every size, forever — while still being
+      // advertised to the model as a working capability, so it kept calling it.
+      //
+      // Pointing at the real table means the customer-facing answer is the same
+      // today (nothing in stock -> "we can order it"), but it is now TRUE
+      // rather than an error, and it starts working the day inventory is
+      // populated. Filtered to tire categories so a future non-tire SKU cannot
+      // be offered as a tire.
+      sql`SELECT brand, name AS model, size, retail_price AS price_cents, quantity_on_hand AS quantity
+          FROM inventory
+          WHERE REPLACE(UPPER(size), ' ', '') LIKE ${`%${normalized}%`}
+            AND quantity_on_hand > 0
+            AND (category IS NULL OR UPPER(category) LIKE '%TIRE%')
+          LIMIT 5`
     );
 
     const tires = (results as any[]) || [];
@@ -457,7 +479,13 @@ async function executeFindTireInStock(tireSize: string): Promise<string> {
       })),
       note: "Prices include mounting + balancing. Drop-off anytime — no appointment needed!",
     });
-  } catch {
+  } catch (err) {
+    // LOG IT. The bare `catch {}` here is why a permanently-broken tool looked
+    // like a working one for its entire life — every failure produced a
+    // polite customer-facing sentence and no trace anywhere.
+    log.error("[chatTools] find_tire_in_stock failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return JSON.stringify({
       inStock: false,
       note: "Inventory check unavailable right now. Call (216) 862-0005 and we'll check for you!",
