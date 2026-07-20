@@ -52,6 +52,88 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   if (normalized.startsWith("content") || normalized.startsWith("campaigns.") || normalized.startsWith("winback.") || normalized.startsWith("instagramadmin.") || normalized.startsWith("instagramstudio.") || normalized.startsWith("socialpipeline.") || normalized.startsWith("gbp.") || normalized.startsWith("metaadsarchitect.")) return "marketing.manage";
   if (normalized.startsWith("analytics.") || normalized.startsWith("weeklyreport.") || normalized.startsWith("intelligence.") || normalized.startsWith("trafficfunnel.") || normalized.startsWith("smsperformance.") || normalized.startsWith("closedloop.")) return "reports.view";
   if (normalized.startsWith("settings.") || normalized.startsWith("featureflags.") || normalized.startsWith("shopdriver.") || normalized.startsWith("autolabor.") || normalized.startsWith("system.")) return "settings.manage";
-  if (normalized.startsWith("adminsecurity.setrole")) return "security.manage";
-  return "admin.view";
+  if (normalized.startsWith("adminsecurity.")) return "security.manage";
+
+  // ── Routers that were falling through to admin.view ────────────────────────
+  //
+  // Measured by running THIS function over every key in the app router: 49 of 85
+  // resolved to "admin.view", the weakest permission, held by every role
+  // including `viewer`. Among them: nickActions (database migrations, customer
+  // CSV import, Meta token reconnect that can return the Page token),
+  // adminDashboard (dbCleanupPrune — permanently deletes leads, bookings and
+  // callbacks), vapi, sms, gatewayTire, coupons, specials and adStudio, whose
+  // own router comment claims "every procedure is owner-gated".
+  //
+  // Currently DORMANT: _core/trpc.ts:90 early-returns when MFA is not required
+  // and never reaches this function. That is precisely why this must land BEFORE
+  // MFA enforcement — turning on RBAC without this would activate a fail-open
+  // default for half the application in the same commit.
+
+  // Dangerous operational surface — migrations, data pruning, credential
+  // rotation, bulk export. Nothing below owner/manager should reach these.
+  if (
+    normalized.startsWith("nickactions.") || normalized.startsWith("admindashboard.") ||
+    normalized.startsWith("controlcenter.") || normalized.startsWith("export.")
+  ) return "settings.manage";
+
+  // Anything that can reach a customer: texts, calls, reviews, reminders, offers.
+  if (
+    normalized.startsWith("sms") || normalized.startsWith("reviewrequests.") ||
+    normalized.startsWith("reviewreplies.") || normalized.startsWith("reviews.") ||
+    normalized.startsWith("servicereviews.") || normalized.startsWith("reminders.") ||
+    normalized.startsWith("followups.") || normalized.startsWith("customernotifications.") ||
+    normalized.startsWith("messengerbot.") || normalized.startsWith("coupons.") ||
+    normalized.startsWith("specials.") || normalized.startsWith("adstudio.") ||
+    normalized.startsWith("sharecards.") || normalized.startsWith("gallery.") ||
+    normalized.startsWith("seotools.") || normalized.startsWith("localgrowth.") ||
+    normalized.startsWith("snap.") || normalized.startsWith("instagram.")
+  ) return "marketing.manage";
+
+  // Phone: the shop's real front door (1,945 call logs vs 2 web leads).
+  if (normalized.startsWith("vapi.") || normalized.startsWith("voiceagent.")) return "callbacks.manage";
+
+  // Shop floor and the work itself.
+  if (
+    normalized.startsWith("gatewaytire.") || normalized.startsWith("inspection.") ||
+    normalized.startsWith("servicematcher.") || normalized.startsWith("qa.") ||
+    normalized.startsWith("shopstatus.")
+  ) return "workorders.manage";
+
+  // Money in and money out.
+  if (
+    normalized.startsWith("financing.") || normalized.startsWith("loyalty.") ||
+    normalized.startsWith("referrals.") || normalized.startsWith("portal.") ||
+    normalized.startsWith("nourosquote.") || normalized.startsWith("pricing.")
+  ) return type === "mutation" ? "money.manage" : "money.view";
+
+  // Customer records.
+  if (normalized.startsWith("customerevents.") || normalized.startsWith("garage.")) return "customers.manage";
+
+  // Read-oriented analytics surfaces.
+  if (
+    normalized.startsWith("activity.") || normalized.startsWith("kpi.") ||
+    normalized.startsWith("conversion.") || normalized.startsWith("costestimator.") ||
+    normalized.startsWith("statenourmetrics.") || normalized.startsWith("nourosbridge.") ||
+    normalized.startsWith("chat.") || normalized.startsWith("emergency.")
+  ) return type === "mutation" ? "settings.manage" : "reports.view";
+
+  /**
+   * FAIL CLOSED ON MUTATIONS.
+   *
+   * A read that slips through costs a viewer seeing a number. A WRITE that slips
+   * through can delete leads, text customers, spend money, or rotate a
+   * credential. Those are not the same risk and must not share a default.
+   *
+   * `security.manage` is the narrowest permission in the system — owner only —
+   * so an unmapped mutation becomes owner-only rather than everyone-allowed. It
+   * fails LOUDLY the first time someone who is not the owner calls it, which is
+   * the correct direction: a new router that nobody classified should inconvenience
+   * exactly one person until it is classified, rather than silently be available
+   * to all five roles.
+   *
+   * Queries keep the permissive default deliberately. Making reads fail closed
+   * would break the admin for every non-owner the moment RBAC is enabled, for no
+   * safety gain.
+   */
+  return type === "mutation" ? "security.manage" : "admin.view";
 }
