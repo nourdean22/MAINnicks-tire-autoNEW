@@ -19,11 +19,19 @@ export interface VendorCheck {
   passed: boolean;
   latencyMs: number;
   error?: string;
+  /** Why this check could not be treated as a pass. Shown beside the pill. */
+  note?: string;
 }
 
 export interface VendorHealthResult {
   vendor: string;
-  status: "healthy" | "degraded" | "down" | "not_configured";
+  /**
+   * "unknown" = NO PROBE RAN. Distinct from "healthy" (probe ran, passed) and
+   * from "not_configured" (deliberately off). Added because two vendors were
+   * hardcoding "healthy" for checks that never executed — a green pill for
+   * something nobody had looked at devalues every other green pill on the page.
+   */
+  status: "healthy" | "degraded" | "down" | "not_configured" | "unknown";
   checks: VendorCheck[];
   checkedAt: string;
 }
@@ -255,11 +263,31 @@ async function checkGmail(): Promise<VendorHealthResult> {
   const recentSuccess = recentLog.filter((l: any) => l.emailSent).length;
 
   if (recentLog.length === 0) {
-    updateSLA("Gmail Notifications", true, 0);
+    // AN EMPTY LOG IS NOT A PASS.
+    //
+    // getDeliveryLog reads a PROCESS-LOCAL ring buffer that starts empty on
+    // every Railway restart, so this branch is hit after each deploy. Worse,
+    // sendNotification returns early WITHOUT writing a log entry when SHOP_EMAIL
+    // and CEO_EMAIL are both unset — in that configuration the buffer is empty
+    // FOREVER and Gmail reported "healthy" (rendered "connected" on the
+    // Integrations screen) permanently, while sending exactly zero email.
+    //
+    // It also fabricated a passing check row, `{name:"delivery_log",
+    // passed:true}`, for a probe that never ran. Every other vendor in this file
+    // has a not_configured state; Gmail never used it and checks no env var.
+    const configured = !!(process.env.SHOP_EMAIL || process.env.CEO_EMAIL);
+    updateSLA("Gmail Notifications", false, 0);
     return {
       vendor: "Gmail Notifications",
-      status: "healthy",
-      checks: [{ name: "delivery_log", passed: true, latencyMs: 0 }],
+      status: configured ? "unknown" : "not_configured",
+      checks: [{
+        name: "delivery_log",
+        passed: false,
+        latencyMs: 0,
+        note: configured
+          ? "no deliveries recorded since last restart — nothing to verify, not a pass"
+          : "SHOP_EMAIL and CEO_EMAIL are both unset; sendNotification returns before logging, so no email is ever sent",
+      }],
       checkedAt: new Date().toISOString(),
     };
   }
@@ -623,11 +651,24 @@ async function checkTelegram(): Promise<VendorHealthResult> {
 }
 
 function checkFinancing(): VendorHealthResult {
-  updateSLA("Financing Providers", true, 0);
+  // THIS FUNCTION PERFORMS NO PROBE. It hardcoded status:"healthy" and a passing
+  // `merchant_portals` check into the vendor health report — a green light for
+  // something nothing has ever looked at.
+  //
+  // There is no API to call here (Snap/Acima merchant portals are human-login
+  // surfaces), so the honest state is "unknown", not "healthy". Reporting
+  // unknown costs an amber pill; reporting healthy costs the operator's trust in
+  // every OTHER green pill on the page.
+  updateSLA("Financing Providers", false, 0);
   return {
     vendor: "Financing Providers",
-    status: "healthy",
-    checks: [{ name: "merchant_portals", passed: true, latencyMs: 0 }],
+    status: "unknown",
+    checks: [{
+      name: "merchant_portals",
+      passed: false,
+      latencyMs: 0,
+      note: "no automated probe exists — merchant portals are login-only. Status is unverified, not healthy.",
+    }],
     checkedAt: new Date().toISOString(),
   };
 }
@@ -702,9 +743,14 @@ export async function getVendorHealthReport(): Promise<{
 function computeOverall(results: VendorHealthResult[]): "all_systems_operational" | "some_systems_offline" | "degraded" {
   const hasDown = results.some(r => r.status === "down");
   const hasDegraded = results.some(r => r.status === "degraded");
+  // An UNVERIFIED vendor cannot contribute to "all systems operational". Before
+  // "unknown" existed, the two vendors that never probed reported "healthy" and
+  // counted toward a green overall — the report asserted operational status for
+  // things nobody had checked.
+  const hasUnknown = results.some(r => r.status === "unknown");
 
   if (hasDown) return "some_systems_offline";
-  if (hasDegraded) return "degraded";
+  if (hasDegraded || hasUnknown) return "degraded";
   return "all_systems_operational";
 }
 

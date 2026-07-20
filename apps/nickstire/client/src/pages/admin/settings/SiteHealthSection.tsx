@@ -170,7 +170,17 @@ export default function SiteHealthSection() {
             </span>
           </div>
 
-          {failData.failures.length === 0 ? (
+          {/* readable === false means the table could not be READ. That is not
+              an all-clear, and it used to render as one — the server returned an
+              identical empty payload for "nothing failing" and "DB down". */}
+          {failData.readable === false ? (
+            <div className="flex items-center gap-2 p-3 border border-amber-500/25 bg-amber-500/5">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <span className="text-[13px] text-amber-200/90">
+                Integration-failure log could not be read — status unknown, not clear.
+              </span>
+            </div>
+          ) : failData.failures.length === 0 ? (
             <div className="flex items-center gap-2 p-3 border border-emerald-500/20 bg-emerald-500/5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               {/* Scope narrowed to what is ACTUALLY instrumented.
