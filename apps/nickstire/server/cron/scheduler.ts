@@ -245,7 +245,9 @@ async function runTier(tier: Tier): Promise<void> {
     } catch (err) {
       const dur = Date.now() - jobStart;
       log.error(`[${tier.name}] ${job.name} failed:`, { error: err instanceof Error ? err.message : String(err) });
-      logTierJob(job.name, "failed", dur, 0, err instanceof Error ? err.message : String(err)).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      // Same text in BOTH columns, deliberately: `details` is what the admin
+      // cron table renders, `errorMessage` is what the failure observer reads.
+      logTierJob(job.name, "failed", dur, 0, err instanceof Error ? err.message : String(err), err instanceof Error ? (err.stack || err.message) : String(err)).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
     } finally {
       if (jobTimer) clearTimeout(jobTimer);
       // Release the DB lock only if we actually acquired it AND the job did
@@ -268,7 +270,17 @@ async function runTier(tier: Tier): Promise<void> {
 }
 
 /** Log tier job execution to cron_log table */
-async function logTierJob(jobName: string, status: string, durationMs: number, recordsProcessed?: number, details?: string): Promise<void> {
+/**
+ * `errorMessage` is a REAL column on cron_log and nothing has ever written it.
+ * The failure path stuffed the reason into `details` instead, so every row read
+ * `error_message: null` — and runCronFailureObserver, which reads exactly that
+ * column, sent every alert with the text "no error message logged".
+ *
+ * That matters more now: the pipeline handlers rethrow rather than swallowing,
+ * so real failures reach this function, and an alert without a reason is barely
+ * better than no alert.
+ */
+async function logTierJob(jobName: string, status: string, durationMs: number, recordsProcessed?: number, details?: string, errorMessage?: string): Promise<void> {
   try {
     const { getDb } = await import("../db");
     const { cronLog } = await import("../../drizzle/schema");
@@ -282,6 +294,7 @@ async function logTierJob(jobName: string, status: string, durationMs: number, r
       durationMs,
       recordsProcessed: recordsProcessed || 0,
       details: details?.slice(0, 2000) || null,
+      errorMessage: errorMessage?.slice(0, 2000) || null,
       startedAt: new Date(Date.now() - durationMs),
       completedAt: new Date(),
     });
@@ -1706,7 +1719,13 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: result.fetched || 0, details: `${result.fetched || 0} reviews synced, ${urgent.length} urgent` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Review pipeline skipped" }; }
+          } catch (e) {
+            // Same swallow-into-success shape as gsc-pipeline above. A review
+            // sync that silently stops is how negative reviews go unanswered
+            // while the cron board stays green.
+            log.error("[cron/scheduler] review-pipeline FAILED:", e);
+            throw e instanceof Error ? e : new Error(String(e));
+          }
         },
       },
       {
@@ -1727,7 +1746,19 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: result.sync?.fetched || 0, details: `${result.sync?.fetched || 0} rows synced, ${drops.length} ranking drops` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "GSC pipeline skipped" }; }
+          } catch (e) {
+            // RETHROW. This catch used to return `{ details: "GSC pipeline
+            // skipped" }`, which is a NORMAL return — runTier writes
+            // status='completed' for it.
+            //
+            // That mattered the moment the token fetch got a timeout: the job
+            // would have gone from visibly failing ("timeout", 6/6 runs) to
+            // silently reporting success while syncing nothing. Adding the
+            // timeout WITHOUT this change would have made the observability
+            // strictly worse, and the new failure observer would never see it.
+            log.error("[cron/scheduler] gsc-pipeline FAILED:", e);
+            throw e instanceof Error ? e : new Error(String(e));
+          }
         },
       },
       {

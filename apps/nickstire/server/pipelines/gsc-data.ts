@@ -131,6 +131,27 @@ async function getAccessToken(): Promise<string> {
 
   const jwt = `${header}.${claims}.${signature}`;
 
+  // TIMEOUT IS LOAD-BEARING. This was the only unbounded fetch in the file, and
+  // it is the one every other GSC call depends on — nothing can run without a
+  // token first.
+  //
+  // Evidence (production cron_log, 2026-07-20): gsc-pipeline failed 6/6 runs and
+  // pipelines-auto-run 7/8, EVERY one with details="timeout" and duration_ms
+  // between 240133 and 240172 — the scheduler's hard 4-minute cap at
+  // scheduler.ts:235, hit to the millisecond. Not a throw: the handler's catch
+  // would have written "GSC pipeline skipped" instead. The promise simply never
+  // settled.
+  //
+  // Worse, scheduler.ts:225-228 deliberately does NOT release the job lock on
+  // timeout, because the handler is still running as a zombie. So each hang
+  // burned four minutes and left something behind.
+  //
+  // pipelines-auto-run's single success in that window took 381ms and ran
+  // nothing — "Ran: none, skipped: gbp-reviews, gsc-data, instagram". It only
+  // passes when it skips this path.
+  //
+  // 20s is generous: this exchange normally answers in under a second, and its
+  // siblings below already use 30-45s for much larger payloads.
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -138,6 +159,7 @@ async function getAccessToken(): Promise<string> {
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion: jwt,
     }),
+    signal: AbortSignal.timeout(20_000),
   });
 
   if (!response.ok) {
