@@ -110,8 +110,13 @@ export function HQ({ onNavigate }: HQProps) {
 }
 
 function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+  // 30s, not 5s. At 5 seconds this ONE card spent 180 requests per 15 minutes —
+  // nearly twice the entire anti-spam budget that was locking the operator out of
+  // their own admin. Pipeline health does not change meaningfully within 5s, and
+  // this query now also asks Meta whether the token is live (TTL-cached, but
+  // still not something to poll at that rate).
   const { data: health, isLoading } = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, {
-    refetchInterval: 5000,
+    refetchInterval: 30_000,
   });
 
   const higgsfieldHealth = trpc.instagramAdmin.getHiggsfieldHealth.useQuery(undefined, { enabled: false });

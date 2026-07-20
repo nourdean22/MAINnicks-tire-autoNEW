@@ -22,11 +22,55 @@ const clientIp = (req: Request): string => {
   return raw === "unknown" ? raw : ipKeyGenerator(raw);
 };
 
-// Rate limiting for public API endpoints to prevent spam/abuse
+/**
+ * A SIGNED-IN OPERATOR IS NOT AN ANONYMOUS ABUSER.
+ *
+ * `app.use("/api/trpc", apiLimiter)` applied a 100-per-15-minutes anti-spam
+ * budget to EVERY tRPC call, including the admin console's own. The console's
+ * POLLING alone spends roughly five times that budget before the operator
+ * clicks anything:
+ *
+ *     2 queries at 5s   = 360 requests / 15 min
+ *     4 queries at 30s  = 120
+ *     3 queries at 60s  =  45
+ *     2 queries at 120s =  15
+ *                       ≈ 540  against a limit of 100
+ *
+ * And batching is deliberately blocked upstream (_core/index.ts:280) so a
+ * batched call cannot count as one — every query is charged separately.
+ *
+ * So a few minutes into any admin session every tRPC call 429s, INCLUDING
+ * auth.me. The client reads that failure as "no user" and renders the
+ * "Sign in required" screen — the operator signs in with Google, lands back on
+ * the sign-in screen, and no amount of signing in fixes it, because the session
+ * was never the problem. Reported live 2026-07-20; the admin was unusable.
+ *
+ * Two tiers rather than an exemption. Authenticated traffic still has a ceiling
+ * — a leaked session must not become an unlimited API key — but the ceiling is
+ * set above what the product itself generates instead of a fifth of it.
+ *
+ * The check is cookie PRESENCE, not validity, and that is the correct trade
+ * here: verifying a JWT on every request in middleware costs more than the
+ * limiter saves, and the downgrade for guessing wrong is merely the higher
+ * bucket. Authorization is still enforced downstream by adminProcedure, which
+ * this does not touch.
+ */
+const AUTHED_WINDOW_MS = 15 * 60 * 1000;
+const ANON_MAX_PER_WINDOW = 100;
+/** ~3x the console's measured polling draw, so normal use never reaches it. */
+const AUTHED_MAX_PER_WINDOW = 1500;
+
+function looksAuthenticated(req: Request): boolean {
+  const cookie = req.headers.cookie;
+  return typeof cookie === "string" && cookie.includes("app_session_id=");
+}
+
 export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  keyGenerator: clientIp,
+  windowMs: AUTHED_WINDOW_MS,
+  max: (req: Request) => (looksAuthenticated(req) ? AUTHED_MAX_PER_WINDOW : ANON_MAX_PER_WINDOW),
+  // Separate buckets, so anonymous traffic from a shared NAT cannot spend the
+  // operator's allowance and lock them out of their own admin.
+  keyGenerator: (req: Request) => `${looksAuthenticated(req) ? "auth" : "anon"}:${clientIp(req)}`,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please try again later or call us at (216) 862-0005." },
