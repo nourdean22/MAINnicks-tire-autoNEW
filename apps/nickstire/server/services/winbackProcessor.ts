@@ -8,6 +8,31 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("winback-processor");
 
+/**
+ * Every outbound message carries its own way out.
+ *
+ * This codebase already treats a STOP notice as mandatory everywhere else:
+ * aiContentGenerator states it as a FORMAT RULE for sms-blast ("Must include
+ * 'Reply STOP to opt out'"), and declinedRecoverySequence and crossSellOutreach
+ * put it in every variant they send.
+ *
+ * The four winback message bodies did not have it and nothing appended one — so
+ * the single sequence aimed at people who have NOT been in for three to six
+ * months, the coldest audience the shop texts, was the one that went out without
+ * a stated opt-out. That is the codebase's own standard applied everywhere except
+ * the place it mattered most.
+ *
+ * Appended HERE rather than fixed in the four rows, so a message written next
+ * month cannot forget it. Idempotent: a body that already says STOP is left
+ * exactly as written, so an author who includes it does not get it twice.
+ */
+export function withOptOutNotice(body: string): string {
+  const text = String(body ?? "").trim();
+  if (!text) return text;
+  if (/\bSTOP\b/i.test(text)) return text;
+  return `${text} Reply STOP to opt out.`;
+}
+
 export async function processWinbackPending(): Promise<{ recordsProcessed: number; details: string }> {
   try {
     const { getDb } = await import("../db");
@@ -98,7 +123,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         continue; // already claimed by an overlapping run — never re-send
       }
 
-      const result = await sendSms(String(send.phone), String(send.personalizedBody), {
+      const result = await sendSms(String(send.phone), withOptOutNotice(String(send.personalizedBody)), {
         via: "shop",
         variantKey: "winback",
       });

@@ -25,6 +25,11 @@ const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
 describe("every list screen distinguishes empty from unreadable", () => {
   it("Queue branches on isError BEFORE the empty state", () => {
+    // Queue.tsx IS reachable — QueueV2.tsx:70 renders it behind a "show legacy"
+    // toggle. I removed this assertion after wrongly concluding the file was
+    // dead, and deleted the file too. Both restored. The reachability check that
+    // misled me excluded its own importer, because the grep filter matched the
+    // FILE PATH ("QueueV2") rather than only the symbol.
     const s = read("client/src/pages/admin/instagram/Queue.tsx");
     expect(s).toMatch(/isError \?/);
     expect(s).toMatch(/unknown, not empty/i);

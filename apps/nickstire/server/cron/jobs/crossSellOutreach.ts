@@ -257,7 +257,29 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       // for diagnostic logs only · customer message is unchanged so
       // brand voice stays consistent.
       const fName = (p.customerName || "").trim().split(/\s+/)[0] || "there";
-      const message = `Hey ${fName}, Nick's Tire & Auto here. Looks like your car is about due for a check. Free check, written quote, you don't pay until you say yes. Walk in any day. Reply STOP to opt out.`;
+
+      /**
+       * SAY WHAT THE CHECK IS FOR.
+       *
+       * SERVICE_LABELS has been declared at the top of this file with ten
+       * services and referenced by NOTHING — its only mention was its own
+       * declaration. Meanwhile `predictedService` is fetched (line 99), typed
+       * (121), mapped (135), logged (273) and stored (302), and the message that
+       * actually goes out says "about due for a check" with the prediction
+       * sitting right there in hand. Computed and thrown away, at the last inch,
+       * on the one line the customer reads.
+       *
+       * The wording stays a SOFT prompt, deliberately. "Your brake pads are worn"
+       * would assert a mechanical fact about a part nobody has inspected — the
+       * prediction is a statistical due-date, not a diagnosis. "Due for a brake
+       * check" is specific enough to be worth reading and honest about what it is.
+       *
+       * An unknown service falls back to the original generic line rather than
+       * printing a raw enum value at a customer.
+       */
+      const serviceLabel = SERVICE_LABELS[String(p.predictedService ?? "").toLowerCase()];
+      const dueFor = serviceLabel ? `about due for ${serviceLabel}` : "about due for a check";
+      const message = `Hey ${fName}, Nick's Tire & Auto here. Looks like your car is ${dueFor}. Free check, written quote, you don't pay until you say yes. Walk in any day. Reply STOP to opt out.`;
 
       const result = await sendSms(p.customerPhone, message, { via: "shop", skipPersist: true, variantKey: "cross_sell" });
       // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered

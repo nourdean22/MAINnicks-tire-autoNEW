@@ -9,6 +9,28 @@ import { Badge } from "@/components/ui/badge";
 
 type DraftStatus = "needs_review" | "ready" | "scheduled" | "published" | "rejected";
 
+/**
+ * The caption exactly as the server would build it.
+ *
+ * instagramStudio.publish (:539) and .schedule (:628) both compose the caption,
+ * a blank line, then the hashtags. This screen sent the BARE caption — so the
+ * same draft published from here lost every hashtag, while the same draft
+ * published from the V2 queue kept them. One piece of content, two doors, two
+ * different posts, and nothing said so.
+ *
+ * This screen is reachable: QueueV2.tsx:70 renders it behind a "show legacy"
+ * toggle. I previously reported it as unreachable dead code and was wrong.
+ *
+ * Mirrored rather than re-invented — and if these ever drift again the right fix
+ * is to make the server authoritative for the caption on every format, not to
+ * patch a third copy.
+ */
+function captionWithHashtags(draft: { caption?: string | null; hashtags?: string[] | null }): string {
+  const caption = (draft.caption || "").trim();
+  const tags = (draft.hashtags ?? []).filter(Boolean).map((t) => (t.startsWith("#") ? t : `#${t}`));
+  return tags.length ? [caption, tags.join(" ")].join("\n\n").trim() : caption;
+}
+
 export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<DraftStatus | "all">("all");
@@ -59,7 +81,8 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
         publishDraft.mutate({
           inventoryId: d.id,
           platforms: ["instagram"],
-          caption: d.caption || "",
+          // The override RETRY is a publish, and it dropped hashtags identically.
+          caption: captionWithHashtags(d),
           imageUrl: d.format !== "reel" ? (d.assetPack?.imageUrl || undefined) : undefined,
           videoUrl: d.format === "reel" ? (d.assetPack?.videoUrl || undefined) : undefined,
         });
@@ -222,7 +245,7 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
                       onClick={() => publishDraft.mutate({ 
                         inventoryId: draft.id,
                         platforms: ["instagram"],
-                        caption: draft.caption || "", 
+                        caption: captionWithHashtags(draft), 
                         imageUrl: draft.format !== "reel" ? (draft.assetPack?.imageUrl || undefined) : undefined,
                         videoUrl: draft.format === "reel" ? (draft.assetPack?.videoUrl || undefined) : undefined
                       })}

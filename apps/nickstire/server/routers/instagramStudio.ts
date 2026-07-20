@@ -240,20 +240,25 @@ export const instagramStudioRouter = router({
     .input(z.object({
       source: sourceSchema,
       /**
-       * The old message said "Use the Reel Studio for Reels" and pointed at a
-       * screen that IS NOT MOUNTED. `instagram/Studio.tsx` has zero importers —
-       * it is the only caller of generateReelBrief, validateReelBrief and
-       * generateReelReferenceFrames, and nothing renders it. So the operator was
-       * sent to a door that does not exist in the UI.
+       * CORRECTION OF #932. I changed this message on the false belief that the
+       * Reel Studio was unmounted. It is not: StudioV2.tsx:73 holds a
+       * `showReelStudio` toggle that renders LegacyStudio (imported at :23), so
+       * "Use the Reel Studio for Reels" was accurate directions all along.
        *
-       * Reels ARE creatable, from the Campaign package on this same Studio tab
-       * (CampaignPackageCard -> draftReelFromGenome -> enqueueReelJob), which is
-       * mounted at StudioV2.tsx:146. The refusal is correct; only its directions
-       * were wrong.
+       * My reachability check was `grep ... | grep -vE "QueueV2"`, and grep
+       * matches the whole output LINE — which includes the file path. The line
+       * `StudioV2.tsx:23:import LegacyStudio from "./Studio"` contains the very
+       * string the filter excluded, so the one result proving reachability was
+       * removed by a filter written to remove false positives. A confident zero
+       * from a broken query.
+       *
+       * The message now names the toggle explicitly, which is the durable fix:
+       * directions that say WHERE the button is cannot be misread as pointing
+       * at nothing.
        */
       format: z.enum(INSTAGRAM_FORMATS).refine(
         (value) => value !== "reel",
-        "Reels are not made here. Use the Campaign package below on this same tab — it drafts a reel from a genome and queues the render.",
+        "Reels use the verified ReelBrief pipeline — open the Reel Studio from the button on this tab.",
       ),
       objective: z.enum(INSTAGRAM_OBJECTIVES),
       operatorDirection: z.string().trim().max(2000).optional(),
