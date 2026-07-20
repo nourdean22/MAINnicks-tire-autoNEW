@@ -100,7 +100,7 @@ function getBadgeCount(
 }
 
 export default function Admin() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, error: authError } = useAuth();
   const { section, setSection } = useAdminNavigation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isAdmin = !!user && user.role === "admin";
@@ -160,6 +160,47 @@ export default function Admin() {
 
   if (authLoading || (isAdmin && securityLoading)) {
     return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary/60" /></div>;
+  }
+
+  /*
+    "WE COULD NOT CHECK" IS NOT "YOU ARE NOT SIGNED IN".
+
+    useAuth maps a FAILED auth.me to `user: null`, and this screen only tested
+    `!user` — so any error on that one query rendered as a definitive "you are
+    signed out", and the only offered action was to sign in again.
+
+    That is exactly what happened on 2026-07-20. /api/trpc carried a 100-per-15-
+    minutes anti-spam limit, the console's own polling spends ~540 in that window,
+    so auth.me started returning 429. The operator signed in with Google, landed
+    back on this screen, signed in again, and looped — because the session was
+    never the problem and signing in could never have fixed it.
+
+    The rate limit is fixed at the source (middleware/rateLimiters.ts), but the
+    misreporting is a separate defect and outlives that one cause: a network blip,
+    a cold start or a deploy would all have read as "signed out".
+  */
+  if (!user && authError) {
+    const rateLimited = /too many requests|429/i.test(authError.message ?? "");
+    return (
+      <main id="main-content" className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md px-6">
+          <div className="w-14 h-14 bg-amber-500/10 flex items-center justify-center rounded-xl mx-auto mb-6"><Shield className="w-7 h-7 text-amber-500" /></div>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight mb-2">Could not verify your session</h1>
+          <p className="text-sm text-muted-foreground mb-2 leading-relaxed">
+            This is <strong>unknown</strong>, not signed out — signing in again will not help if the check itself is failing.
+          </p>
+          <p className="text-xs text-muted-foreground mb-8">
+            {rateLimited
+              ? "The API is rate-limiting this browser. Wait a minute and retry."
+              : authError.message}
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={() => window.location.reload()} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors">Retry</button>
+            <a href={getLoginUrl()} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">Sign in again<ChevronRight className="w-4 h-4" /></a>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (!user) {
