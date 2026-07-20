@@ -93,11 +93,11 @@ describe("could-not-check is not signed-out", () => {
 });
 
 describe("the console stopped spending its own budget", () => {
-  it("pipeline health polls at 30s, not 5s", () => {
+  it("pipeline health polls at 120s, not 5s", () => {
     // One card at 5s = 180 requests / 15 min, nearly twice the entire anti-spam
-    // budget. It also now asks Meta whether the token is live.
+    // budget. At 120s it is 7.5. It also asks Meta whether the token is live.
     const hq = readSource("client/src/pages/admin/instagram/HQ.tsx");
-    expect(hq).not.toMatch(/getPipelineHealth[\s\S]{0,120}refetchInterval: 5000/);
-    expect(hq).toMatch(/refetchInterval: 30_000/);
+    expect(hq).not.toMatch(/getPipelineHealth[\s\S]{0,200}refetchInterval: 5000/);
+    expect(hq).toMatch(/getPipelineHealth[\s\S]{0,200}refetchInterval: 120_000/);
   });
 });
