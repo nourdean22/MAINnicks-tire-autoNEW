@@ -296,27 +296,68 @@ export const smsPerformanceRouter = router({
         const d = await db();
         if (!d) return empty("Database not available");
 
-        const [rows] = await d.execute(sql`
-          SELECT m.variantKey                                            AS loop,
-                 COUNT(DISTINCT m.id)                                    AS sent,
-                 COUNT(DISTINCT CASE WHEN m.replyCount > 0 THEN m.id END) AS replied,
-                 COUNT(DISTINCT CASE WHEN m.optOutAt IS NOT NULL THEN m.id END) AS optedOut,
-                 COUNT(DISTINCT i.id)                                    AS paidInvoicesAfter,
-                 COALESCE(SUM(DISTINCT i.totalAmount), 0)                AS revenueObservedCents
+        // TWO queries, not one, and the reason is a bug this shipped with.
+        //
+        // The first version computed revenue as SUM(DISTINCT i.totalAmount) in the
+        // same aggregate as the message counts. SUM(DISTINCT) de-duplicates by
+        // dollar VALUE, not by invoice identity: two different invoices that both
+        // happen to be $450 collapse into one $450. Proven in production —
+        // 45000 + 45000 + 12500 sums to 57500 instead of 102500, and it cost
+        // retention_d7 $505 of real revenue.
+        //
+        // Plain SUM() is not the fix either: a customer reached by several sends
+        // of the same loop fans the join out and counts their invoice once PER
+        // SEND, inflating exactly the high-frequency loops.
+        //
+        // The only correct dedup key is the invoice ID, so revenue is aggregated
+        // over DISTINCT (loop, invoice) pairs in its own query and merged below.
+        const [messageRows] = await d.execute(sql`
+          SELECT m.variantKey                                             AS loop,
+                 COUNT(*)                                                 AS sent,
+                 SUM(CASE WHEN m.replyCount > 0 THEN 1 ELSE 0 END)        AS replied,
+                 SUM(CASE WHEN m.optOutAt IS NOT NULL THEN 1 ELSE 0 END)  AS optedOut
           FROM sms_messages m
-          JOIN sms_conversations sc ON sc.id = m.conversationId
-          LEFT JOIN customers cu
-            ON ${sql.raw(PHONE_MATCH_KEY_SQL("cu.phone"))} = ${sql.raw(PHONE_MATCH_KEY_SQL("sc.phone"))}
-          LEFT JOIN invoices i
-            ON i.customerId = cu.id
-           AND i.paymentStatus = 'paid'
-           AND i.invoiceDate >  m.createdAt
-           AND i.invoiceDate <= DATE_ADD(m.createdAt, INTERVAL ${sql.raw(String(attributionWindowDays))} DAY)
           WHERE m.direction = 'outbound'
             AND m.variantKey IS NOT NULL
             AND m.createdAt >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(windowDays))} DAY)
           GROUP BY m.variantKey
         `);
+
+        const [revenueRows] = await d.execute(sql`
+          SELECT loop,
+                 COUNT(*)                        AS paidInvoicesAfter,
+                 COALESCE(SUM(totalAmount), 0)   AS revenueObservedCents
+          FROM (
+            SELECT DISTINCT m.variantKey AS loop, i.id, i.totalAmount
+            FROM sms_messages m
+            JOIN sms_conversations sc ON sc.id = m.conversationId
+            JOIN customers cu
+              ON ${sql.raw(PHONE_MATCH_KEY_SQL("cu.phone"))} = ${sql.raw(PHONE_MATCH_KEY_SQL("sc.phone"))}
+            JOIN invoices i
+              ON i.customerId = cu.id
+             AND i.paymentStatus = 'paid'
+             AND i.invoiceDate >  m.createdAt
+             AND i.invoiceDate <= DATE_ADD(m.createdAt, INTERVAL ${sql.raw(String(attributionWindowDays))} DAY)
+            WHERE m.direction = 'outbound'
+              AND m.variantKey IS NOT NULL
+              AND m.createdAt >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(windowDays))} DAY)
+          ) AS per_invoice
+          GROUP BY loop
+        `);
+
+        // Merge on the RAW variantKey before the rollup below folds A/B and
+        // profile suffixes together.
+        const revenueByKey = new Map<string, { invoices: number; cents: number }>();
+        for (const r of revenueRows as Array<Record<string, unknown>>) {
+          revenueByKey.set(String(r.loop ?? ""), {
+            invoices: Number(r.paidInvoicesAfter ?? 0),
+            cents: Number(r.revenueObservedCents ?? 0),
+          });
+        }
+        const rows = (messageRows as Array<Record<string, unknown>>).map((m) => {
+          const money = revenueByKey.get(String(m.loop ?? "")) ?? { invoices: 0, cents: 0 };
+          return { ...m, paidInvoicesAfter: money.invoices, revenueObservedCents: money.cents };
+        });
 
         // Roll A/B and profile suffixes up to the parent loop, matching
         // summary30d — otherwise the same loop appears as three rows here and
