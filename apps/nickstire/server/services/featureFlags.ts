@@ -204,7 +204,35 @@ export async function setFlag(key: FlagKey, value: boolean): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.update(featureFlags).set({ value, updatedAt: new Date() }).where(eq(featureFlags.key, key));
+  // 2026-07-20 · This used to run the UPDATE and then set the cache
+  // UNCONDITIONALLY. An UPDATE against a key with no row matches ZERO rows and
+  // throws nothing, so a missing flag row produced a silent no-op that still
+  // reported success AND poisoned the cache: the admin UI said "toggled", the
+  // flag read as changed for up to CACHE_TTL_MS, then reverted on the next
+  // refresh with no error anywhere.
+  //
+  // That is the failure mode of an off-switch — the operator believes an
+  // outbound path is paused while it keeps sending. Insert the row if it is
+  // missing (definitions are the source of truth), and only cache what was
+  // actually persisted.
+  const result = await db
+    .update(featureFlags)
+    .set({ value, updatedAt: new Date() })
+    .where(eq(featureFlags.key, key));
+
+  const affected = (result as unknown as { affectedRows?: number } | Array<{ affectedRows?: number }>);
+  const rows = Array.isArray(affected) ? affected[0]?.affectedRows : affected?.affectedRows;
+
+  if (rows === 0) {
+    const def = FLAG_DEFINITIONS.find((f) => f.key === key);
+    await db.insert(featureFlags).values({
+      key,
+      value,
+      description: def?.description ?? null,
+    });
+    log.warn(`Feature flag row was MISSING and has been created: ${key} = ${value ? "ENABLED" : "DISABLED"}`);
+  }
+
   flagCache.set(key, value);
   log.info(`Feature flag toggled: ${key} = ${value ? "ENABLED" : "DISABLED"}`);
 }

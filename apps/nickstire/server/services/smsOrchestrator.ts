@@ -137,9 +137,23 @@ export function humanizeCopy(body: string): string {
   clean = clean.replace(/\bno surprises\b/gi, "we tell you the cost first");
   clean = clean.replace(/\bsatisfaction guaranteed\b/gi, "we'll make it right");
   
-  // 3. Make sure the business name is standardized to "Nick's Tire & Auto"
-  clean = clean.replace(/\bNick's Tire\b/gi, "Nick's Tire & Auto");
-  clean = clean.replace(/\bNick's Tire and Auto\b/gi, "Nick's Tire & Auto");
+  // 3. Standardize the business name to "Nick's Tire & Auto".
+  //
+  // 2026-07-20 · Both lines here were wrong and shipped to customers.
+  //   a) `\bNick's Tire\b` also matches the PREFIX of an already-correct
+  //      "Nick's Tire & Auto" (the \b is satisfied by the following space), so
+  //      every correct name got a second suffix:
+  //        "Nick's Tire & Auto"  ->  "Nick's Tire & Auto & Auto"
+  //      Observed live in a real outbound SMS (sms_orchestrations #3270006,
+  //      "Free brake check at Nick's Tire & Auto & Auto...").
+  //   b) The "and Auto" rule ran SECOND, so (a) had already rewritten
+  //      "Nick's Tire and Auto" into "Nick's Tire & Auto and Auto" and this
+  //      line could never match. It was dead code.
+  //
+  // Fix: normalize the spelled-out variant FIRST, then apply the bare-name
+  // rule only when a suffix is NOT already present.
+  clean = clean.replace(/\bNick'?s\s+Tire\s+and\s+Auto\b/gi, "Nick's Tire & Auto");
+  clean = clean.replace(/\bNick'?s\s+Tire\b(?!\s*(?:&|and)\s*Auto\b)/gi, "Nick's Tire & Auto");
 
   return clean;
 }
