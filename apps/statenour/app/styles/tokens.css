@@ -153,4 +153,52 @@
   --color-glass: var(--glass-border);
   --color-edge: var(--border-default);
   --color-edge-hover: var(--border-hover);
+
+  /* 2026-07-20 · shadcn token bridge — these were MISSING and it broke real UI.
+   *
+   * The full shadcn palette above (--primary, --border, --muted-foreground, …)
+   * was authored deliberately in :root but never registered here. In Tailwind
+   * v4 a colour utility only exists if its token is declared in @theme, so
+   * `bg-primary`, `border-border`, `text-muted-foreground` and friends emitted
+   * ZERO css across the app.
+   *
+   * How it surfaced: the weekly-recurrence weekday picker in
+   * components/missions/task-edit-sheet.tsx styled its selected state with
+   * `border-primary bg-primary/15 text-primary`. All three were no-ops, so the
+   * selected day rendered identical to an unselected one and the operator
+   * reported the buttons as dead — a weekly task could not be configured at
+   * all (#972).
+   *
+   * Measured usage of bare (non-arbitrary) utilities before bridging:
+   *   muted-foreground 13 files · primary 12 · foreground 11 · border 8 ·
+   *   muted 6 · destructive 6 · input 5 · background 4 · popover-foreground 4 ·
+   *   ring 3 · primary-foreground 2 · secondary 2 · secondary-foreground 2 ·
+   *   card / card-foreground / accent / accent-foreground / popover 1 each
+   *
+   * VISIBLE CHANGE: components/ui/button.tsx variant=default is
+   * `bg-primary text-primary-foreground` alongside an arbitrary-value gold
+   * glow that always compiled. Until now those buttons rendered with the glow
+   * and NO fill, which read as intentional in the dark glass theme. They will
+   * now render as designed: gold fill (--primary is #FDB913 in oklch, the same
+   * brand gold) with near-black label (--primary-foreground). That pairing is
+   * what the token author specified; it simply never reached the screen.
+   */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }

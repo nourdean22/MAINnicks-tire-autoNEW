@@ -69,12 +69,36 @@ const NON_COLOR = new Set([
   "text-inherit", "border-transparent", "border-current", "border-inherit",
 ]);
 
+/**
+ * Tokens the shipped UI actually depends on. Measured 2026-07-20 from bare
+ * (non-arbitrary) utility usage across components/ + app/. Every one was
+ * authored in :root but MISSING from the @theme bridge, so the utilities
+ * emitted nothing — that is what made the weekday picker invisible (#972).
+ */
+const REQUIRED_TOKENS: Array<[string, number]> = [
+  ["muted-foreground", 13], ["primary", 12], ["foreground", 11], ["border", 8],
+  ["muted", 6], ["destructive", 6], ["input", 5], ["background", 4],
+  ["popover-foreground", 4], ["ring", 3], ["primary-foreground", 2],
+  ["secondary", 2], ["secondary-foreground", 2], ["card", 1],
+  ["card-foreground", 1], ["accent", 1], ["accent-foreground", 1], ["popover", 1],
+];
+
 describe("task-edit-sheet weekday picker · theme tokens", () => {
   const tokens = registeredColorTokens();
 
   it("the @theme bridge is readable and non-empty", () => {
     expect(tokens.size).toBeGreaterThan(5);
     expect(tokens.has("gold")).toBe(true);
+  });
+
+  // Un-registering any of these silently un-styles real components: the
+  // utility stops emitting CSS with no error, no warning and no visual clue.
+  it.each(REQUIRED_TOKENS)("registers %s (used by %i file(s))", (token) => {
+    expect(
+      tokens.has(token as string),
+      `--color-${token} is missing from the @theme bridge in app/styles/tokens.css. ` +
+      `Utilities like bg-${token} / text-${token} will emit NO css and render invisibly.`,
+    ).toBe(true);
   });
 
   // THE regression: `primary` was never registered, which is why the picker
