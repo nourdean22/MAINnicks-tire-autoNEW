@@ -532,20 +532,59 @@ export const customersRouter = router({
     if (!d) return { total: 0, sent: 0, remaining: 0, eligible: 0 };
 
     const [total] = await d.select({ count: sql<number>`count(*)` }).from(customers);
-    const [sent] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(sql`${customers.smsCampaignSent} = 1`);
     const totalCount = total?.count ?? 0;
-    const sentCount = sent?.count ?? 0;
 
-    // Eligible = last visit 6-8 days ago AND not yet texted
-    const [eligible] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(
-      sql`${customers.smsCampaignSent} = 0 AND ${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 6 AND 8`
-    );
+    // "Sent" comes from the ACTUAL SEND LEDGER, not from customers.smsCampaignSent.
+    //
+    // That column is not the campaign-contact record it looks like. Measured in
+    // production 2026-07-20: it holds 52 ones, but `sms_campaign_sends` has
+    // 1,445 rows with status='sent' covering 745 DISTINCT customers — real
+    // Twilio sends. 686 of those people still read 0 on the column.
+    //
+    // So the tile reported "52 sent / 1893 left", a 2.7%-complete progress bar,
+    // for an outreach program that had in fact reached ~38% of the roster. The
+    // operator sees a campaign that has barely started and re-fires it.
+    //
+    // The column is ALSO tri-state: crudAutomation stamps `= 2` as a cooldown
+    // marker for an entirely different message (the VIP 10%-off notice), and 43
+    // rows hold it. Reading "sent" as `= 1` counted those as neither sent nor
+    // untexted, so `remaining` could never reach 0.
+    const [sentLedger] = await d.execute(sql`
+      SELECT COUNT(DISTINCT customerId) AS n FROM sms_campaign_sends WHERE status = 'sent'
+    `);
+    const [sentLegacy] = await d.select({ count: sql<number>`count(*)` })
+      .from(customers)
+      // `> 0`, never `= 1` — see the tri-state note above.
+      .where(sql`${customers.smsCampaignSent} > 0`);
+    const ledgerCount = Number((sentLedger as Array<Record<string, unknown>>)[0]?.n ?? 0);
+    const sentCount = Math.max(ledgerCount, sentLegacy?.count ?? 0);
+
+    // Eligible = last visit 6-8 days ago AND reached by no sender yet.
+    const [eligible] = await d.execute(sql`
+      SELECT COUNT(*) AS n FROM customers cu
+      WHERE cu.smsCampaignSent = 0
+        AND cu.lastVisitDate IS NOT NULL
+        AND DATEDIFF(CURDATE(), cu.lastVisitDate) BETWEEN 6 AND 8
+        AND NOT EXISTS (
+          SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = cu.id AND s.status = 'sent'
+        )
+    `);
+
+    // Counted, not subtracted. `total - sent` silently absorbed the 43 tri-state
+    // rows and drifted from the number of customers a sender could actually reach.
+    const [remaining] = await d.execute(sql`
+      SELECT COUNT(*) AS n FROM customers cu
+      WHERE cu.smsCampaignSent = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = cu.id AND s.status = 'sent'
+        )
+    `);
 
     return {
       total: totalCount,
       sent: sentCount,
-      remaining: totalCount - sentCount,
-      eligible: eligible?.count ?? 0,
+      remaining: Number((remaining as Array<Record<string, unknown>>)[0]?.n ?? 0),
+      eligible: Number((eligible as Array<Record<string, unknown>>)[0]?.n ?? 0),
     };
   }),
 
@@ -564,7 +603,8 @@ export const customersRouter = router({
       smsCampaignDate: customers.smsCampaignDate,
     })
       .from(customers)
-      .where(sql`${customers.smsCampaignSent} = 1`)
+      // `> 0` not `= 1` — the column is tri-state (2 = VIP cooldown marker).
+      .where(sql`${customers.smsCampaignSent} > 0`)
       .orderBy(desc(customers.smsCampaignDate))
       .limit(50);
 
@@ -689,9 +729,20 @@ export const customersRouter = router({
       const REFER_URL = "nickstire.org/refer";
 
       // Get untexted customers, prioritize recent → lapsed → unknown
+      // NOT EXISTS against the real send ledger, in addition to the flag.
+      //
+      // 686 customers in production have smsCampaignSent = 0 but DO have a
+      // status='sent' row in sms_campaign_sends — they were really texted, and
+      // this filter would have selected every one of them for a second copy of
+      // the same campaign message. Excluding them can only REDUCE sends, never
+      // cause new ones, which is the safe direction for a change that decides
+      // what real people receive.
       const untexted = await d.select()
         .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0 AND ${campaignEligiblePhoneSql}`)
+        .where(sql`${customers.smsCampaignSent} = 0 AND ${campaignEligiblePhoneSql}
+          AND NOT EXISTS (
+            SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = ${customers.id} AND s.status = 'sent'
+          )`)
         .orderBy(sql`CASE ${customers.segment} WHEN 'recent' THEN 0 WHEN 'lapsed' THEN 1 ELSE 2 END, ${customers.lastVisitDate} DESC`)
         .limit(batchSize);
 
@@ -722,9 +773,14 @@ export const customersRouter = router({
       }
 
       // Get remaining count
+      // Same predicate as the selection above, so the "remaining" the operator
+      // reads is the number this sender would actually pick up next run.
       const [rem] = await d.select({ count: sql<number>`count(*)` })
         .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0`);
+        .where(sql`${customers.smsCampaignSent} = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = ${customers.id} AND s.status = 'sent'
+          )`);
 
       return { sent, failed, remaining: rem?.count ?? 0 };
     }),
