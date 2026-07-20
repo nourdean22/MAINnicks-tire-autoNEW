@@ -176,7 +176,15 @@ export default function SmsPerformanceSection() {
                   return (
                     <tr key={l.loop} className="border-b border-border/15 last:border-0">
                       <td className="px-4 py-2.5">{l.loop}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-foreground/70">{l.sent}</td>
+                      {/* A loop whose messages never went out is a DELIVERY
+                          problem, not a copy problem. Showing only the
+                          successful count would hide that distinction. */}
+                      <td className="px-3 py-2.5 text-right tabular-nums text-foreground/70">
+                        {l.sent}
+                        {l.failed > 0 && (
+                          <span className="text-amber-400/80"> +{l.failed} failed</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-foreground/70">{l.paidInvoicesAfter}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums font-medium text-emerald-400">
                         {usd(l.revenueObservedCents)}
@@ -191,7 +199,12 @@ export default function SmsPerformanceSection() {
                 })}
                 <tr className="border-t border-border/40 font-medium">
                   <td className="px-4 py-2.5 text-foreground/70">Total</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{money.totals.sent}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">
+                    {money.totals.sent}
+                    {money.totals.failed > 0 && (
+                      <span className="text-amber-400/80"> +{money.totals.failed} failed</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{money.totals.paidInvoicesAfter}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-emerald-400">
                     {usd(money.totals.revenueObservedCents)}

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildLoopScoreboard, sendsPerInvoice, type LoopRow } from "../loopScoreboard";
 
 const row = (over: Partial<LoopRow> = {}): LoopRow => ({
-  loop: "retention_d7", sent: 10, replied: 1, optedOut: 0,
+  loop: "retention_d7", attempted: 10, sent: 10, failed: 0, replied: 1, optedOut: 0,
   paidInvoicesAfter: 2, revenueObservedCents: 50_000, ...over,
 });
 
@@ -31,7 +31,24 @@ describe("buildLoopScoreboard", () => {
 
   it("totals every column", () => {
     const s = buildLoopScoreboard([row(), row()], { windowDays: 180, attributionWindowDays: 30 });
-    expect(s.totals).toEqual({ sent: 20, replied: 2, optedOut: 0, paidInvoicesAfter: 4, revenueObservedCents: 100_000 });
+    expect(s.totals).toEqual({ attempted: 20, sent: 20, failed: 0, replied: 2, optedOut: 0, paidInvoicesAfter: 4, revenueObservedCents: 100_000 });
+  });
+
+  // The cross_sell case: 575 attempted, 301 never went out. Ranking on
+  // `attempted` ranks deliverability and calls it copy performance.
+  it("warns when messages never left the building", () => {
+    const s = buildLoopScoreboard(
+      [row({ loop: "cross_sell", attempted: 575, sent: 274, failed: 301 })],
+      { windowDays: 180, attributionWindowDays: 30 },
+    );
+    expect(s.totals.failed).toBe(301);
+    expect(s.limitations.join(" ")).toMatch(/never left the building/);
+    expect(s.limitations.join(" ")).toMatch(/delivery problem/);
+  });
+
+  it("says nothing about delivery when every message went out", () => {
+    const s = buildLoopScoreboard([row()], { windowDays: 180, attributionWindowDays: 30 });
+    expect(s.limitations.join(" ")).not.toMatch(/never left the building/);
   });
 
   it("always ships its limitations — a correlation number without them invites over-reading", () => {
@@ -57,6 +74,12 @@ describe("buildLoopScoreboard", () => {
 describe("sendsPerInvoice", () => {
   it("computes messages per sale", () => {
     expect(sendsPerInvoice(row({ sent: 72, paidInvoicesAfter: 12 }))).toBe(6);
+  });
+
+  // Divides by sent, not attempted — an undelivered message cannot have failed
+  // to produce a sale.
+  it("ignores failed attempts in the ratio", () => {
+    expect(sendsPerInvoice(row({ attempted: 575, sent: 274, failed: 301, paidInvoicesAfter: 2 }))).toBe(137);
   });
 
   // The defect this guards: rendering "no ratio" as 0 puts the WORST loop
