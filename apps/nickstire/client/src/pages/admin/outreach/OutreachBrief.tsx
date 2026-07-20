@@ -65,6 +65,10 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   const gwOnline = gw?.online ?? false;
 
   const recoveryDryRun = recovery?.dryRun ?? false;
+  // `?? 0` here is what let a DB outage read as "nothing to recover". The
+  // server now returns null for unknown, so keep it null and branch on it —
+  // coalescing to 0 immediately throws that distinction away again.
+  const recoveryUnknown = recovery?.recoverableDollars == null;
   const recoveryDollars = recovery?.recoverableDollars ?? 0;
   const recoveryCount = recovery?.eligible ?? 0;
 
@@ -93,7 +97,10 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   const totalSentLifetime = totalSentReviews + totalSentCampaigns;
 
   // Action line · top priority is dry-run declined-recovery with $ idle
-  const showRecoveryBanner = recoveryDryRun && recoveryDollars >= 100;
+  const showRecoveryBanner = !recoveryUnknown && recoveryDryRun && recoveryDollars >= 100;
+  // Surfaced separately so an unreadable recovery status is VISIBLE rather than
+  // silently collapsing the banner (which reads as "no work waiting").
+  const showRecoveryUnknown = recoveryUnknown;
 
   return (
     <div className="bg-card border border-border/40 p-4 space-y-2.5">
@@ -122,6 +129,18 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
             {totalSentLifetime > 0 ? ` · ${totalSentLifetime.toLocaleString()} customer touches sent lifetime` : ""}
           </span>
         </div>
+
+        {/* Unknown is NOT clear. Before this, an unreadable recovery status made
+            the action banner vanish, and the brief read "no scheduled work right
+            now" — the same thing it says when there genuinely is none. */}
+        {showRecoveryUnknown && (
+          <div className="flex items-center gap-2.5 -mx-2 px-2 py-1">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
+            <span className="text-[12.5px] text-amber-200/70 leading-tight">
+              Recovery status unavailable — could not read declined estimates. This is not "nothing to recover".
+            </span>
+          </div>
+        )}
 
         {/* Line 3 · action · only render when there's real signal */}
         {showRecoveryBanner ? (

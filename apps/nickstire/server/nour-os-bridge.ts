@@ -657,7 +657,8 @@ export function getSyncStatus(): {
 // ─── Vendor Health Alerts ─────────────────────────────
 
 /** Track which vendors were previously down so we can detect recovery */
-const previousVendorStates = new Map<string, "healthy" | "degraded" | "down" | "not_configured">();
+// "unknown" = no probe ran (see VendorHealthResult in services/vendorHealth.ts).
+const previousVendorStates = new Map<string, "healthy" | "degraded" | "down" | "not_configured" | "unknown">();
 
 /**
  * Dispatch vendor health snapshot to NOUR OS.
@@ -665,7 +666,7 @@ const previousVendorStates = new Map<string, "healthy" | "degraded" | "down" | "
  */
 export async function dispatchVendorHealthSnapshot(results: Array<{
   vendor: string;
-  status: "healthy" | "degraded" | "down" | "not_configured";
+  status: "healthy" | "degraded" | "down" | "not_configured" | "unknown";
   checks: Array<{ name: string; passed: boolean; latencyMs: number; error?: string }>;
 }>): Promise<void> {
   // Dispatch overall health snapshot

@@ -348,7 +348,14 @@ export const shopdriverRouter = router({
     const featureEnabled = process.env.FEATURE_DECLINED_RECOVERY === "1";
     const d = await db();
     if (!d) {
-      return { featureEnabled, eligible: 0, recoverableDollars: 0, dryRun: !featureEnabled };
+      // NULL, not 0. `eligible: 0 / recoverableDollars: 0` is indistinguishable
+      // from "nothing to recover", and OutreachBrief gates its call-to-action on
+      // `recoveryDollars >= 100` — so a DB outage silently removed the banner and
+      // Line 1 read "Queue - no scheduled work right now".
+      //
+      // The number being replaced by that silent 0 is real: the same predicate
+      // returns 64 estimates / $52,313 in production right now.
+      return { featureEnabled, eligible: null, recoverableDollars: null, dryRun: !featureEnabled, error: "Database not available" };
     }
     try {
       const { algEstimates } = await import("../../drizzle/schema");
@@ -380,7 +387,8 @@ export const shopdriverRouter = router({
       };
     } catch (err) {
       log.warn("[shopdriver] declinedRecoveryStatus failed:", err instanceof Error ? err.message : err);
-      return { featureEnabled, eligible: 0, recoverableDollars: 0, dryRun: !featureEnabled, error: "DB query failed" };
+      // Same reasoning as the !d branch above — null, never 0.
+      return { featureEnabled, eligible: null, recoverableDollars: null, dryRun: !featureEnabled, error: "DB query failed" };
     }
   }),
 

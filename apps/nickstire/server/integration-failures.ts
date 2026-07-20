@@ -96,6 +96,12 @@ export interface SafeIntegrationFailure {
 }
 
 export interface IntegrationFailureSummary {
+  /**
+   * FALSE when the table could not be read (DB down, query error). An empty
+   * `failures` array means "nothing failing" ONLY when this is true — the two
+   * states were previously byte-identical and the UI rendered both as green.
+   */
+  readable: boolean;
   failures: SafeIntegrationFailure[];
   counts: { recent: number; unresolved: number; leadAffectingUnresolved: number; byType: Record<string, number> };
 }
@@ -118,10 +124,20 @@ export function scrubMessage(raw: string): string {
  * Selects ONLY safe columns (no errorDetails). Pure read.
  */
 export async function getRecentIntegrationFailures(limit = 30): Promise<IntegrationFailureSummary> {
-  const empty: IntegrationFailureSummary = { failures: [], counts: { recent: 0, unresolved: 0, leadAffectingUnresolved: 0, byType: {} } };
+  // `readable: false` is the difference between "nothing is failing" and "we
+  // could not check". Both used to return this identical empty payload, so
+  // SiteHealthSection took its `failures.length === 0` branch and painted the
+  // emerald all-clear during a DB outage. The client already has an honest
+  // "unknown" state (deriveSheetsSyncHealth) — the server just never gave it
+  // anything to trigger on.
+  const unreadable: IntegrationFailureSummary = {
+    readable: false,
+    failures: [],
+    counts: { recent: 0, unresolved: 0, leadAffectingUnresolved: 0, byType: {} },
+  };
   try {
     const d = await getDb();
-    if (!d) return empty;
+    if (!d) return unreadable;
     const safeLimit = Math.min(100, Math.max(1, limit));
     const rows = await d
       .select({
@@ -161,9 +177,9 @@ export async function getRecentIntegrationFailures(limit = 30): Promise<Integrat
         createdAt: r.createdAt,
       };
     });
-    return { failures, counts: { recent: failures.length, unresolved, leadAffectingUnresolved, byType } };
+    return { readable: true, failures, counts: { recent: failures.length, unresolved, leadAffectingUnresolved, byType } };
   } catch (err) {
     log.error("[IntegrationFailures] Failed to read recent failures", err);
-    return empty;
+    return unreadable;
   }
 }
