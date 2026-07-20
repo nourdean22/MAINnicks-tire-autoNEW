@@ -1520,7 +1520,52 @@ export async function checkMirrorHealth(): Promise<{
     return { recordsProcessed: 0, details: `WARNING: ${consecutiveFailures} consecutive failures | data: ${staleDays ?? "?"}d old` };
   }
 
-  return { recordsProcessed: 1, details: `OK | data: ${staleDays ?? 0}d old | session: ${status.sessionActive ? "active" : "expired"}` };
+  /**
+   * STALENESS ALONE IS A FAILURE. "Not erroring" is not "working".
+   *
+   * Every branch above requires consecutiveFailures > 2. But the most common way
+   * this mirror stops working is not an error — the session simply expires and
+   * nothing runs. No sync attempt means no failure to count, so
+   * consecutiveFailures stays 0 and the function returned "OK" forever while the
+   * data aged. Measured 2026-07-20: this ran 1,253 times in seven days, every one
+   * of them reporting `OK | data: 2d old | session: expired`.
+   *
+   * staleDays and sessionActive were computed, printed into a human-readable
+   * string, and gated on by nothing — the same computed-and-discarded shape as
+   * the rest of this codebase's honesty defects, on the one check whose entire
+   * job is to notice.
+   *
+   * consecutiveFailures is also a module-level variable, so it resets on every
+   * process restart. On a platform that redeploys often it may never reach 3 at
+   * all, which makes the existing gate weaker than it looks.
+   *
+   * Thresholds are deliberate: the shop is closed Sundays, so one or two days
+   * without a new invoice is normal on a Monday and must not page. Beyond
+   * MAX_ACCEPTABLE_STALE_DAYS it is not a weekend, it is a broken pipe — and
+   * every downstream number (sales today, gross profit, recoverable estimates)
+   * is silently that far behind reality.
+   */
+  const MAX_ACCEPTABLE_STALE_DAYS = 3;
+
+  if (staleDays !== null && staleDays > MAX_ACCEPTABLE_STALE_DAYS) {
+    const msg = `ALG DATA STALE: last invoice is ${staleDays} days old with no sync failures recorded — ` +
+      `the mirror is not erroring, it is not running. Session: ${status.sessionActive ? "active" : "EXPIRED"}. ` +
+      `Dashboard stats, revenue and recoverable-estimate figures are all ${staleDays} days behind.`;
+    await sendMirrorAlert(msg);
+    return { recordsProcessed: 0, details: `STALE: ${staleDays}d old | session: ${status.sessionActive ? "active" : "expired"} | no failures recorded` };
+  }
+
+  // An expired session is not yet stale data, but it is the state that BECOMES
+  // stale data. Reported as DEGRADED rather than OK so it is visible before the
+  // numbers start lying, not after.
+  if (!status.sessionActive) {
+    return {
+      recordsProcessed: 0,
+      details: `DEGRADED: session expired | data: ${staleDays ?? "?"}d old | will go stale past ${MAX_ACCEPTABLE_STALE_DAYS}d`,
+    };
+  }
+
+  return { recordsProcessed: 1, details: `OK | data: ${staleDays ?? 0}d old | session: active` };
 }
 
 // ─── ALG ENDPOINT PROBE ──────────────────────────────────
