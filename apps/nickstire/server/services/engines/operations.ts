@@ -162,9 +162,12 @@ export async function analyzeTurnaroundTime(): Promise<{
 // ═══════════════════════════════════════════════════════════
 
 export async function analyzePartsCostRatio(): Promise<{
-  avgPartsPercent: number;
+  /** NULL when the parts/labour split is not being captured — never 0. */
+  avgPartsPercent: number | null;
   outliers: Array<{ invoiceId: number; service: string; partsPercent: number; totalAmount: number }>;
-  savingsOpportunity: number;
+  savingsOpportunity: number | null;
+  /** Why the numbers are null, when they are. Null when the analysis is real. */
+  basis: string | null;
 }> {
   try {
     const rows = await (await db()).select({
@@ -176,12 +179,16 @@ export async function analyzePartsCostRatio(): Promise<{
 
     let totalParts = 0;
     let totalAll = 0;
+    let invoiceCount = 0;    // invoices actually considered
+    let partsPopulated = 0;  // ...of which carry a non-zero partsCost
     const outliers: Array<{ invoiceId: number; service: string; partsPercent: number; totalAmount: number }> = [];
 
     for (const inv of rows) {
       const total = (inv.totalAmount || 0) / 100;
       const parts = (inv.partsCost || 0) / 100;
       if (total <= 0) continue;
+      invoiceCount++;
+      if (parts > 0) partsPopulated++;
       totalParts += parts;
       totalAll += total;
       const pct = Math.round((parts / total) * 100);
@@ -193,6 +200,28 @@ export async function analyzePartsCostRatio(): Promise<{
       }
     }
 
+    // FILL GUARD. `partsCost` is populated on 6 of 334 invoices in this 90-day
+    // window (1.8%); laborCost on 1 (0.3%). The ShopDriver/ALG mirror stopped
+    // carrying the parts/labour split entirely from 2026-05: 0 of 104 paid
+    // invoices in May, 0 of 123 in June, 0 of 67 in July — versus ~70% populated
+    // through 2026-03.
+    //
+    // Without this guard the maths still "works": avgPartsPercent computes to
+    // ~0, nothing clears the >65% outlier test, and the engine reports a 0%
+    // parts ratio with $0 of savings opportunity. That reads as "your parts
+    // costs are perfectly controlled" when it means "we stopped receiving the
+    // data". An absent measurement rendered as an excellent result.
+    const MIN_FILL_RATE = 0.05;
+    const fillRate = invoiceCount > 0 ? partsPopulated / invoiceCount : 0;
+    if (fillRate < MIN_FILL_RATE) {
+      return {
+        avgPartsPercent: null,
+        outliers: [],
+        savingsOpportunity: null,
+        basis: `line-item parts cost not captured for this period (${partsPopulated} of ${invoiceCount} invoices carry it)`,
+      };
+    }
+
     const avgPartsPercent = totalAll > 0 ? Math.round((totalParts / totalAll) * 100) : 0;
     outliers.sort((a, b) => b.partsPercent - a.partsPercent);
 
@@ -202,9 +231,10 @@ export async function analyzePartsCostRatio(): Promise<{
       return s + Math.max(0, excess);
     }, 0);
 
-    return { avgPartsPercent, outliers: outliers.slice(0, 15), savingsOpportunity: Math.round(savings) };
+    return { avgPartsPercent, outliers: outliers.slice(0, 15), savingsOpportunity: Math.round(savings), basis: null };
   } catch {
-    return { avgPartsPercent: 0, outliers: [], savingsOpportunity: 0 };
+    // null, not 0 — a failed read is not a shop with zero parts cost.
+    return { avgPartsPercent: null, outliers: [], savingsOpportunity: null, basis: "analysis failed" };
   }
 }
 
