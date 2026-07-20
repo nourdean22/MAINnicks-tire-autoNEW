@@ -63,7 +63,7 @@ export interface LoopRow {
    */
   attempted: number;
   /**
-   * Rows that were not `status='failed'` — i.e. actually handed off.
+   * Rows with `status IN ('sent','delivered')` — actually handed to a carrier.
    * THIS is the denominator for every rate, not `attempted`.
    *
    * Measured 2026-07-20: cross_sell had 575 attempted and 301 FAILED (52.3%)
@@ -71,10 +71,26 @@ export interface LoopRow {
    * `attempted` therefore ranked DELIVERABILITY and called it effectiveness —
    * it reported "575 sends produced 2 invoices" when 301 of those sends never
    * went out.
+   *
+   * An ALLOWLIST of delivered states, not `<> 'failed'`. The first version of
+   * this fix excluded only 'failed' and still counted 135 rows parked in
+   * 'sending' — none of which carry a twilioSid, so not one was ever handed to
+   * Twilio. Those are #962's permanently-stuck rehydration rows: a restart
+   * moved them queued -> sending and lost them, one-way, and rehydration only
+   * ever re-reads 'queued'. A denylist has to predict every bad state; an
+   * allowlist only has to name the good ones.
    */
   sent: number;
-  /** attempted - sent. Non-zero means the loop had a delivery problem. */
-  failed: number;
+  /**
+   * attempted - sent. Everything that never made it out, whatever the reason —
+   * failed, stuck in 'sending', still queued.
+   *
+   * NOT named `failed`: it counts states that are not failures. Shipping a
+   * field whose name overstates what it holds is the same defect as
+   * `convertedToLead` (set on tool contact, read as "a lead exists") and
+   * `smsCampaignSent` (tri-state, read as boolean).
+   */
+  undelivered: number;
   replied: number;
   optedOut: number;
   /** Paid invoices from recipients inside the window. Correlation. */
@@ -89,7 +105,7 @@ export interface LoopScoreboard {
   totals: {
     attempted: number;
     sent: number;
-    failed: number;
+    undelivered: number;
     replied: number;
     optedOut: number;
     paidInvoicesAfter: number;
@@ -117,13 +133,13 @@ export function buildLoopScoreboard(
     (acc, r) => ({
       attempted: acc.attempted + r.attempted,
       sent: acc.sent + r.sent,
-      failed: acc.failed + r.failed,
+      undelivered: acc.undelivered + r.undelivered,
       replied: acc.replied + r.replied,
       optedOut: acc.optedOut + r.optedOut,
       paidInvoicesAfter: acc.paidInvoicesAfter + r.paidInvoicesAfter,
       revenueObservedCents: acc.revenueObservedCents + r.revenueObservedCents,
     }),
-    { attempted: 0, sent: 0, failed: 0, replied: 0, optedOut: 0, paidInvoicesAfter: 0, revenueObservedCents: 0 },
+    { attempted: 0, sent: 0, undelivered: 0, replied: 0, optedOut: 0, paidInvoicesAfter: 0, revenueObservedCents: 0 },
   );
 
   const limitations = [
@@ -134,10 +150,10 @@ export function buildLoopScoreboard(
     "A customer reached by two loops in the window is counted for both — the totals are not a sum of distinct dollars.",
   ];
 
-  if (totals.failed > 0) {
+  if (totals.undelivered > 0) {
     limitations.push(
-      `${totals.failed} of ${totals.attempted} messages never left the building (status='failed') and are EXCLUDED from every rate here. ` +
-      `A loop with a high failed count has a delivery problem, not necessarily a copy problem.`,
+      `${totals.undelivered} of ${totals.attempted} messages never left the building — failed, stuck in 'sending', or still queued — ` +
+      `and are EXCLUDED from every rate here. A loop with a high undelivered count has a DELIVERY problem, not necessarily a copy problem.`,
     );
   }
 
