@@ -72,6 +72,20 @@ export default function OverviewSection() {
   const bookings = (bundle?.bookings ?? []) as BookingItem[];
   const leads = (bundle?.leads ?? []) as LeadItem[];
   const callbacks = (bundle?.callbacks ?? []) as CallbackItem[];
+
+  /**
+   * WHICH OF THOSE EMPTY ARRAYS ARE REAL?
+   *
+   * `?? []` above turns a failed read into an empty queue, and an empty queue
+   * renders as "All clear" — the single most dangerous sentence this screen can
+   * say. The bundle now reports per-slice availability, so emptiness can be
+   * qualified instead of trusted.
+   *
+   * Note this is NOT covered by `isError`: the tRPC call SUCCEEDS while carrying
+   * a failed slice inside it, which is exactly why DegradedDataBanner never fired.
+   */
+  const unavailable = bundle?.unavailableSlices ?? [];
+  const queueTrustworthy = !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks");
   const currentWorkOrders = (workOrders ?? []) as WorkOrderItem[];
   const todayKey = getBusinessDateKey();
 
@@ -224,8 +238,19 @@ export default function OverviewSection() {
     <div className="space-y-5" aria-label="Today operator command center">
       <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} />
 
+      {/* A slice can fail while the request succeeds. Without this the operator
+          sees a clean board built on reads that never happened. */}
+      {unavailable.length > 0 && (
+        <div role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-300">
+          <strong>Could not read: {unavailable.join(", ")}.</strong>
+          <div className="mt-1 text-xs text-amber-200/70">
+            Anything below that looks empty may be UNKNOWN rather than clear. Refresh, or check the database.
+          </div>
+        </div>
+      )}
+
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Today summary">
-        <SummaryCard label="Needs action" value={queue.length} detail={queue.length ? "Open queue items" : "All clear"} alert={queue.length > 0} />
+        <SummaryCard label="Needs action" value={queueTrustworthy ? queue.length : "—"} detail={!queueTrustworthy ? "Unable to determine" : queue.length ? "Open queue items" : "All clear"} alert={queue.length > 0 || !queueTrustworthy} />
         <SummaryCard label="Bookings today" value={todaysBookings.length} detail={`Cleveland date · ${todayKey}`} />
         <SummaryCard label="Urgent leads" value={leads.filter((lead) => !isCallbackDuplicateLead(lead) && ACTIVE_LEAD_STATUSES.has(lead.status) && (lead.urgencyScore ?? 0) >= 4).length} detail="Included once" />
         <SummaryCard label="Active work orders" value={currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length} detail="Shop floor" />
@@ -309,7 +334,14 @@ export default function OverviewSection() {
   );
 }
 
-function SummaryCard({ label, value, detail, alert = false }: { label: string; value: number; detail: string; alert?: boolean }) {
+/**
+ * `value` accepts a string so this card can say "—" for UNKNOWN.
+ *
+ * It was `number`, which meant the component structurally could not express
+ * "we could not read this" — the only options were a count or a zero, and zero
+ * is a claim. The type was enforcing the defect.
+ */
+function SummaryCard({ label, value, detail, alert = false }: { label: string; value: number | string; detail: string; alert?: boolean }) {
   return (
     <div className="rounded-lg border border-border/40 bg-card p-4">
       <div className={`text-2xl font-bold tabular-nums ${alert ? "text-red-400" : "text-foreground"}`}>{value}</div>
