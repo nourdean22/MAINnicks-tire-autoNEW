@@ -85,25 +85,111 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
   if (!ctx.user || ctx.user.role !== "admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
   }
-  // ADMIN_MFA_REQUIRED unset → pre-wave behavior: admin identity alone is
-  // enough (operator decision 2026-07-16; see isAdminMfaRequired).
-  if (!isAdminMfaRequired()) {
-    return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: MFA_NOT_REQUIRED_STATE } });
-  }
+  /**
+   * MFA AND AUTHORIZATION ARE INDEPENDENT CONTROLS.
+   *
+   *   Authentication  who are you            (requireAdminIdentity, above)
+   *   MFA             how strongly proven    (conditional on ADMIN_MFA_REQUIRED)
+   *   Authorization   what your role may do  (ALWAYS)
+   *
+   * This used to early-return when MFA was not required, injecting
+   * MFA_NOT_REQUIRED_STATE — whose adminRole is the literal string "owner"
+   * (adminSecurity.ts:34) — and skipping permissionForAdminProcedure entirely.
+   *
+   * So every user with role === "admin" became an effective OWNER, and
+   * manager / front_desk / tech / accountant / viewer were decorative. Turning
+   * off the second factor also turned off the whole permission system. That is
+   * one control silently disabling an unrelated one.
+   *
+   * It was documented behaviour from the 2026-07-16 decision to back out the MFA
+   * lockout, and that decision was right — the lockout was real. But backing out
+   * MFA should never have backed out ROLES.
+   *
+   * SAFE TO ENABLE TODAY, verified against production: all three admin users
+   * (nourdean22@, moeseuclid@, and a leftover dev row) already carry
+   * adminRole "owner", so enforcing the role check changes nobody's access right
+   * now. It starts mattering the moment anyone is assigned a lesser role —
+   * which is the point, and there IS already a second real human with owner.
+   *
+   * MFA enforcement stays exactly where it was: conditional, off by default.
+   * mfaEnabled is 0 for all three users, so making it unconditional here would
+   * reproduce the lockout that was correctly reversed.
+   */
   const inherited = (ctx as { adminSecurity?: Awaited<ReturnType<typeof getAdminSecurityState>> })
     .adminSecurity;
-  const security = inherited ?? await getAdminSecurityState(ctx.user.openId);
-  if (!security?.mfaEnabled) {
-    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Admin two-factor authentication setup is required." });
+
+  /**
+   * This lookup now runs on EVERY admin request, where the MFA-off path used to
+   * skip it entirely — so it must not be able to turn a database problem into a
+   * 500 on an authorization check. A throw here would take the whole admin down
+   * for a reason that has nothing to do with the caller's permissions.
+   *
+   * It degrades to the same null the function returns for a missing row, which
+   * the fallback below already handles and logs.
+   */
+  let security = inherited ?? null;
+  if (!security) {
+    try {
+      security = await getAdminSecurityState(ctx.user.openId);
+    } catch (err) {
+      log.error("could not read admin security state", {
+        openId: ctx.user.openId,
+        path,
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      security = null;
+    }
   }
-  if (!isMfaVerificationFresh(security.mfaVerifiedAt)) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin two-factor verification is required." });
+  const mfaRequired = isAdminMfaRequired();
+
+  if (mfaRequired) {
+    if (!security?.mfaEnabled) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Admin two-factor authentication setup is required." });
+    }
+    if (!isMfaVerificationFresh(security.mfaVerifiedAt)) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin two-factor verification is required." });
+    }
   }
+
+  /**
+   * WHAT IF THE ROLE CANNOT BE READ?
+   *
+   * The tempting answer is `viewer` — unknown authority is the least authority.
+   * It is the wrong answer HERE, and choosing it deliberately rather than by
+   * instinct matters.
+   *
+   * getAdminSecurityState returns null when the database is unreachable, not
+   * only when a row is missing. So `viewer` would mean: a transient DB hiccup
+   * locks the owner out of their own shop mid-shift. That is precisely the
+   * lockout that was hit live and ordered reversed on 2026-07-16, arriving again
+   * through a different door.
+   *
+   * This change must be a STRICT IMPROVEMENT over today, never an availability
+   * regression. Today, MFA-off grants owner to every admin unconditionally. So:
+   *
+   *   role readable    -> enforce the REAL role            (stronger than today)
+   *   role unreadable  -> today's documented behaviour     (no worse than today)
+   *
+   * The unreadable branch is a fail-open, and it is named as one rather than
+   * hidden: it is logged at ERROR with the path, so it shows up as an incident
+   * instead of as silence. A security change that can take the shop offline will
+   * be reverted, and then there is no security change at all.
+   */
+  const effective = security ?? MFA_NOT_REQUIRED_STATE;
+  if (!security) {
+    log.error(
+      "admin security state unreadable — falling back to pre-RBAC behaviour (owner). " +
+      "Roles are NOT being enforced for this request.",
+      { openId: ctx.user.openId, path },
+    );
+  }
+  const adminRole = effective.adminRole;
+
   const requiredPermission = permissionForAdminProcedure(path, type);
-  if (!hasAdminPermission(security.adminRole, requiredPermission)) {
+  if (!hasAdminPermission(adminRole, requiredPermission)) {
     throw new TRPCError({ code: "FORBIDDEN", message: `Missing admin permission: ${requiredPermission}` });
   }
-  return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: security } });
+  return next({ ctx: { ...ctx, user: ctx.user, adminSecurity: { ...effective, adminRole } } });
 });
 
 export const adminProcedure = t.procedure

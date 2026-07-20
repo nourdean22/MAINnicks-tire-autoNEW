@@ -134,10 +134,34 @@ describe("instagramAdmin router", () => {
       }
     });
 
-    it("default regime (flag unset): admin identity alone reaches the procedure — no MFA wall", async () => {
+    it("default regime (flag unset): no MFA wall for a role that holds the permission", async () => {
       // Operator decision 2026-07-16: Google sign-in alone, "like before".
-      // Even with an MFA-less viewer security state, the call must not die
-      // on PRECONDITION_FAILED (and permission checks run as owner).
+      // The MFA wall must not fire when enforcement is off — that part stands.
+      delete process.env.ADMIN_MFA_REQUIRED;
+      mockSecurityState = {
+        adminRole: "owner",
+        mfaEnabled: false,
+        mfaVerifiedAt: null,
+        encryptedSecret: null,
+      };
+      const caller = appRouter.createCaller(ctx("admin"));
+      const status = await caller.instagramAdmin.getConnectionStatus();
+      expect(status).toHaveProperty("configured");
+    });
+
+    it("default regime: a VIEWER is now denied — turning off MFA no longer grants owner", async () => {
+      // CORRECTED. This test previously asserted the opposite, in its own words:
+      // "Even with an MFA-less viewer security state ... permission checks run as
+      // owner." That was C2 written down as an expectation.
+      //
+      // _core/trpc.ts early-returned when MFA was off, injecting
+      // MFA_NOT_REQUIRED_STATE (adminRole "owner") and skipping the permission
+      // check entirely — so every admin was an effective owner and the five
+      // lesser roles were decorative. Disabling the second factor disabled the
+      // whole permission system.
+      //
+      // MFA posture and authorization are independent now. No MFA wall (correct),
+      // AND the role is enforced (new).
       delete process.env.ADMIN_MFA_REQUIRED;
       mockSecurityState = {
         adminRole: "viewer",
@@ -146,8 +170,13 @@ describe("instagramAdmin router", () => {
         encryptedSecret: null,
       };
       const caller = appRouter.createCaller(ctx("admin"));
-      const status = await caller.instagramAdmin.getConnectionStatus();
-      expect(status).toHaveProperty("configured");
+      await expect(caller.instagramAdmin.getConnectionStatus()).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      // ...and specifically NOT the MFA error, which would mean the wall fired.
+      await expect(caller.instagramAdmin.getConnectionStatus()).rejects.not.toMatchObject({
+        code: "PRECONDITION_FAILED",
+      });
     });
 
     it("rejects non-admin callers with FORBIDDEN", async () => {
