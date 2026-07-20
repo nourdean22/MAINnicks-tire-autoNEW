@@ -18,28 +18,17 @@
  *                            ALL-TIME posts under the word "recent" — and a
  *                            captionless post rendered as the literal "..."
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readCode, readSource } from "./testUtils/sourceAssertions";
 
-const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+const read = (p: string) => readSource(p);
 
-/**
- * Source with comments removed.
- *
- * NEGATIVE assertions must run on CODE, not prose. A good docblock explains the
- * defect it replaced by QUOTING it, so a whole-file `not.toMatch` on the old
- * expression fails against the very comment that documents the fix. This bit me
- * twice in one session before I stopped patching instances and fixed the helper.
- */
-const codeOnly = (p: string) =>
-  read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 const server = read("server/routers/instagramAdmin.ts");
 const hq = read("client/src/pages/admin/instagram/HQ.tsx");
 
 describe("the archetype is a finding or it is nothing", () => {
   it("no longer defaults to the literal string 'proof'", () => {
-    expect(codeOnly("server/routers/instagramAdmin.ts")).not.toMatch(/let topArchetype = "proof"/);
+    expect(readCode("server/routers/instagramAdmin.ts")).not.toMatch(/let topArchetype = "proof"/);
     expect(server).toMatch(/let topArchetype: string \| null = null/);
   });
 
@@ -79,7 +68,7 @@ describe("top posts are labelled from the query that produced them", () => {
   it("appends an ellipsis only when something was actually cut", () => {
     // `caption?.substring(0, 50) + "..."` rendered a captionless post as the
     // literal string "..." and a 40-character caption as one that looked cut.
-    expect(codeOnly("server/routers/instagramAdmin.ts")).not.toMatch(/caption\?\.substring\(0, 50\)/);
+    expect(readCode("server/routers/instagramAdmin.ts")).not.toMatch(/caption\?\.substring\(0, 50\)/);
     expect(server).toMatch(/caption\.length > 50 \? "\.\.\." : ""/);
     expect(server).toMatch(/No caption recorded/);
   });

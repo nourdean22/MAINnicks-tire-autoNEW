@@ -77,15 +77,25 @@ describe("deferred publishing is held to the same bar as immediate publishing", 
     expect(s).toMatch(/Re-review and re-approve before scheduling/);
   });
 
-  it("no longer sends the operator to an unmounted screen for reels", () => {
-    // instagram/Studio.tsx has ZERO importers; the old message pointed at it.
-    // Asserted against the MESSAGE ARGUMENT, not the whole file — the docblock
-    // legitimately quotes the old wording to explain why it changed, and a
-    // whole-file match flagged that quote. The rule is about what the operator
-    // is told, not about what the source may mention.
-    const refineMsg = s.match(/value !== "reel",\s*\n?\s*"([^"]+)"/)?.[1] ?? "";
-    expect(refineMsg).not.toMatch(/Use the Reel Studio/);
-    expect(refineMsg).toMatch(/Campaign package below on this same tab/);
+  /**
+   * CORRECTED. #932 asserted this message must NOT say "Reel Studio", on my
+   * false conclusion that instagram/Studio.tsx was unmounted. It is mounted:
+   * StudioV2.tsx:23 imports it as LegacyStudio and :73/:120 render it behind a
+   * `showReelStudio` toggle.
+   *
+   * The check that misled me was `grep ... | grep -vE "QueueV2"` — grep matches
+   * the whole output LINE, which includes the file path, so the line
+   * `StudioV2.tsx:23:import LegacyStudio from "./Studio"` was filtered out by
+   * the very exclusion meant to remove false positives. A confident zero from a
+   * broken query, asserted to the operator twice.
+   *
+   * What the message must actually do is say WHERE the button is — directions
+   * that name the control cannot be misread as pointing at nothing.
+   */
+  it("tells the operator where the Reel Studio actually is", () => {
+    const refineMsg = s.match(/value !== "reel",[\s\S]{0,40}?"([^"]+)"/)?.[1] ?? "";
+    expect(refineMsg).toMatch(/Reel Studio/);
+    expect(refineMsg).toMatch(/on this tab/);
   });
 });
 
