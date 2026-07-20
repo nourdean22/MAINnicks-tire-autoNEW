@@ -94,6 +94,17 @@ export interface SeasonalComparison {
 const GSC_SITE_URL = "https://nickstire.org/";
 
 /**
+ * Rows per upsert statement.
+ *
+ * 500 keeps each statement comfortably inside MySQL's max_allowed_packet while
+ * cutting round-trips by ~500x. The pipeline pulls 7 days x up to 25,000 rows
+ * (web + discover), so the difference is roughly 175,000 sequential round-trips
+ * versus ~350 statements — the whole reason this job could not finish inside the
+ * scheduler's 4-minute cap.
+ */
+const GSC_UPSERT_BATCH_SIZE = 500;
+
+/**
  * Check if GSC API credentials are configured.
  */
 function hasGscCredentials(): boolean {
@@ -131,27 +142,18 @@ async function getAccessToken(): Promise<string> {
 
   const jwt = `${header}.${claims}.${signature}`;
 
-  // TIMEOUT IS LOAD-BEARING. This was the only unbounded fetch in the file, and
-  // it is the one every other GSC call depends on — nothing can run without a
-  // token first.
-  //
-  // Evidence (production cron_log, 2026-07-20): gsc-pipeline failed 6/6 runs and
-  // pipelines-auto-run 7/8, EVERY one with details="timeout" and duration_ms
-  // between 240133 and 240172 — the scheduler's hard 4-minute cap at
-  // scheduler.ts:235, hit to the millisecond. Not a throw: the handler's catch
-  // would have written "GSC pipeline skipped" instead. The promise simply never
-  // settled.
-  //
-  // Worse, scheduler.ts:225-228 deliberately does NOT release the job lock on
-  // timeout, because the handler is still running as a zombie. So each hang
-  // burned four minutes and left something behind.
-  //
-  // pipelines-auto-run's single success in that window took 381ms and ran
-  // nothing — "Ran: none, skipped: gbp-reviews, gsc-data, instagram". It only
-  // passes when it skips this path.
-  //
+  // Bounded because every GSC call depends on it — nothing runs without a token
+  // first, so an unbounded await here would stall the whole pipeline behind it.
   // 20s is generous: this exchange normally answers in under a second, and its
   // siblings below already use 30-45s for much larger payloads.
+  //
+  // CORRECTION, 2026-07-20: an earlier version of this comment claimed this
+  // missing timeout was WHY gsc-pipeline failed 6/6 runs at the 240s cap. That
+  // was wrong, and the evidence is in the data — search_performance rows were
+  // written at 11:13 on a run that started ~11:12:38 and was killed at 11:16:38.
+  // The token exchange plainly completed; inserts were flowing the whole time.
+  // The real cause was the row-by-row upsert loop below, now batched. This
+  // timeout is correct hygiene on its own, not the fix for that failure.
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -476,30 +478,65 @@ export async function syncSearchPerformance(dateRange: DateRange): Promise<{
     const allRows = [...webRows, ...discoverRows];
     totalFetched += allRows.length;
 
-    for (const row of allRows) {
+    // BATCHED UPSERT. This loop used to `await` ONE INSERT PER ROW.
+    //
+    // That is why gsc-pipeline failed 6/6 runs at duration_ms 240133-240172 —
+    // the scheduler's hard 4-minute cap (scheduler.ts:235), hit to the
+    // millisecond every time. It was never hanging on a network call: it fetches
+    // 7 DAYS x up to 25,000 rows (rowLimit: 25000, web + discover), and even at
+    // ~10ms per round-trip to TiDB Cloud that is well past 240 seconds.
+    //
+    // The evidence that it was slow rather than stuck: search_performance rows
+    // were written at 11:13 on a run that started ~11:12:38 and was killed at
+    // 11:16:38. Inserts were flowing the whole time; it simply never reached the
+    // end. Every run died at exactly the cap rather than at a variable time,
+    // which is the signature of a long operation being killed, not a stall.
+    //
+    // (I first suspected the unbounded OAuth token fetch — that WAS missing a
+    // timeout and is fixed separately in #961 — but the writes prove the token
+    // exchange completes.)
+    const rowsToStore = allRows.map((row) => ({
+      query: row.query,
+      page: row.page || "",
+      clicks: row.clicks,
+      impressions: row.impressions,
+      ctr: row.ctr,
+      position: row.position,
+      date: row.date,
+      device: row.device,
+      country: row.country,
+      searchType: row.searchType,
+    }));
+
+    // `values(col)` re-reads the incoming row's value, so a multi-row upsert
+    // updates each conflicting row with ITS OWN new numbers rather than one
+    // shared literal. Column names are the DB's (camelCase here).
+    const upsertSet = {
+      clicks: sql`values(${searchPerformance.clicks})`,
+      impressions: sql`values(${searchPerformance.impressions})`,
+      ctr: sql`values(${searchPerformance.ctr})`,
+      position: sql`values(${searchPerformance.position})`,
+    };
+
+    for (let i = 0; i < rowsToStore.length; i += GSC_UPSERT_BATCH_SIZE) {
+      const batch = rowsToStore.slice(i, i + GSC_UPSERT_BATCH_SIZE);
       try {
-        await d.insert(searchPerformance).values({
-          query: row.query,
-          page: row.page || "",
-          clicks: row.clicks,
-          impressions: row.impressions,
-          ctr: row.ctr,
-          position: row.position,
-          date: row.date,
-          device: row.device,
-          country: row.country,
-          searchType: row.searchType,
-        }).onDuplicateKeyUpdate({
-          set: {
-            clicks: row.clicks,
-            impressions: row.impressions,
-            ctr: row.ctr,
-            position: row.position,
-          },
-        });
-        totalStored++;
+        await d.insert(searchPerformance).values(batch).onDuplicateKeyUpdate({ set: upsertSet });
+        totalStored += batch.length;
       } catch (error) {
-        log.error("[GSC Pipeline] Upsert error:", error);
+        // The per-row loop this replaced was resilient: one bad row skipped
+        // itself and the rest still landed. Batching would lose the whole
+        // batch, so fall back to per-row for THIS batch only and keep that
+        // property. Costs a slow path exactly where something is already wrong.
+        log.error("[GSC Pipeline] Batch upsert failed, retrying row-by-row:", error);
+        for (const single of batch) {
+          try {
+            await d.insert(searchPerformance).values(single).onDuplicateKeyUpdate({ set: upsertSet });
+            totalStored++;
+          } catch (rowError) {
+            log.error("[GSC Pipeline] Upsert error:", rowError);
+          }
+        }
       }
     }
   }
