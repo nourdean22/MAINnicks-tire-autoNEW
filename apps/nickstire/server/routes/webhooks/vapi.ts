@@ -153,6 +153,32 @@ export function isForwardedEndedReason(endedReason: string | null | undefined): 
   return /forward/i.test(endedReason ?? "");
 }
 
+/**
+ * 2026-07-20 · The complete send decision for the forwarded-call follow-up SMS,
+ * as a pure function so every branch is unit-tested rather than buried in the
+ * webhook body.
+ *
+ * This is the ONLY always-armed outbound path in the voice system: its cron
+ * sibling (missedCallRecovery) is flag-gated AND shadow-gated, while this one
+ * fires straight off the webhook with nothing but a first-insert guard. `paused`
+ * is the operator's off-switch — see the vapi_forward_followup_paused flag,
+ * whose polarity is inverted precisely so a DB failure keeps the current
+ * behaviour instead of silently killing a live customer touchpoint.
+ */
+export function shouldSendForwardedFollowup(input: {
+  /** True only on the first (non-duplicate) vapi_call_logs insert for this call. */
+  firstLog: boolean;
+  endedReason: string | null | undefined;
+  customerNumber: string | null | undefined;
+  /** Value of the vapi_forward_followup_paused flag. */
+  paused: boolean;
+}): boolean {
+  if (input.paused) return false;
+  if (!input.firstLog) return false;
+  if (!isForwardedEndedReason(input.endedReason)) return false;
+  return !!input.customerNumber?.trim();
+}
+
 // ─── Tool call dispatcher ──────────────────────────────
 
 interface VapiToolCall {
@@ -464,17 +490,44 @@ async function processCallEndReport(
         // by construction, so the idempotency check can never match and is a
         // silent no-op. Dedupe then rests entirely on the 24h phone cooldown.
         // Passing the id restores the guard the call site always implied.
-        if (firstLog && isForwardedEndedReason(cleanEndedReason) && customer?.number) {
+        // 2026-07-20 · operator off-switch. Read the pause flag BEFORE deciding;
+        // a flag-read failure resolves to `false` (= not paused), so a DB blip
+        // keeps today's behaviour rather than silently muting the path.
+        let followupPaused = false;
+        try {
+          const { isEnabled } = await import("../../services/featureFlags");
+          followupPaused = await isEnabled("vapi_forward_followup_paused");
+        } catch (flagErr) {
+          log.warn("[vapi webhook] pause-flag read failed — treating as NOT paused", {
+            error: flagErr instanceof Error ? flagErr.message : String(flagErr),
+          });
+        }
+
+        // Narrow the number ONCE and pass the same value to both the decision
+        // and the send. Reaching back for `customer!.number` after the predicate
+        // returned true would re-assert a fact the compiler can't follow across
+        // the call boundary — a non-null assertion there would silence the
+        // checker rather than satisfy it.
+        const followupPhone = customer?.number?.trim() ?? "";
+
+        if (shouldSendForwardedFollowup({
+          firstLog,
+          endedReason: cleanEndedReason,
+          customerNumber: followupPhone,
+          paused: followupPaused,
+        })) {
           const { orchestrateSms } = await import("../../services/smsOrchestrator");
           await orchestrateSms({
             type: "vapi_forwarded_call_followup",
-            phone: customer.number.trim(),
+            phone: followupPhone,
             vapiCallId: event.call?.id,
           }).catch((err: unknown) => {
             log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
               error: err instanceof Error ? err.message : String(err),
             });
           });
+        } else if (followupPaused && isForwardedEndedReason(cleanEndedReason)) {
+          log.info("[vapi webhook] forwarded-call SMS suppressed — vapi_forward_followup_paused is ON");
         }
       }
     }

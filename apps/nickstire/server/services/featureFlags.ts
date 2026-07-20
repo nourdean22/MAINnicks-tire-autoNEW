@@ -95,6 +95,17 @@ export const FLAG_DEFINITIONS = [
   { key: "photo_assess_enabled", description: "Photo-damage MMS pipeline · vision-analyzer + auto-reply. Requires REPLICATE_API_KEY (or HF_API_KEY for fallback). OFF default · enable after testing via /api/admin/photo-assess with skipSmsSend=true to verify model quality on sample photos" },
   { key: "legacy_autopost_live", description: "Allow live posting for legacy IG/FB autoposter instead of dry-run only" },
   { key: "nickgpt_low_risk_autosend_enabled", description: "Allow auto-sending low-risk AI SMS replies directly" },
+  // PAUSE-SEMANTICS, DELIBERATELY INVERTED. Every other flag here is an
+  // "enable" that must be switched ON. This one is an OFF-SWITCH for behaviour
+  // that is ALREADY LIVE, so its polarity is reversed on purpose.
+  //
+  // isEnabled() fails closed — a missing row or any DB error returns false. On
+  // an enable-flag that means "feature dies"; retrofitting one onto a live path
+  // would have silently switched off a working customer touchpoint in prod
+  // until a row was hand-inserted, and re-killed it on every DB blip. Named as
+  // a PAUSE, false (the failure value) means "not paused" → keeps sending →
+  // current behaviour preserved. The safe state and the failure state match.
+  { key: "vapi_forward_followup_paused", description: "OFF-SWITCH (inverted). Set TRUE to STOP the immediate follow-up SMS sent when a VAPI call is forwarded to a human. Leave FALSE for normal operation — this path ships live and false is the safe default. Unlike the missed_call_recovery cron this fires straight off the webhook, so this is the only way to stop it without a redeploy." },
   { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
 
   // ─── CREATIVE SKILL PACKS ─────────────────────────
