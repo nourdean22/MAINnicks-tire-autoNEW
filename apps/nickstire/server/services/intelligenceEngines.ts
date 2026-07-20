@@ -442,7 +442,7 @@ export async function trackCampaignAttribution() {
     phone: customers.phone,
     campaignDate: customers.smsCampaignDate,
   }).from(customers)
-    .where(and(eq(customers.smsCampaignSent, 1), gte(customers.smsCampaignDate, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`)));
+    .where(and(sql`${customers.smsCampaignSent} > 0`, gte(customers.smsCampaignDate, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`)));
 
   // Pre-fetch ALL invoices from last 90 days with phone + amounts (eliminates N+1)
   const recentInvoices = await d.select({
