@@ -436,16 +436,26 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     }
   }
 
-  // Capacity
-  if (capacity) {
-    const util = num(capacity, "currentUtilization", "utilization");
-    if (util > 90) {
-      alertCandidates.push({ priority: 35, text: `Bay capacity at ${util}% — consider extending hours or adding capacity` });
-    }
-    if (util < 40) {
-      opportunityCandidates.push({ priority: 25, text: `Bay utilization only ${util}% — room to take more walk-ins or run a flash promo` });
-    }
-  }
+  // Capacity — REMOVED, deliberately. Do not reinstate without real bay data.
+  //
+  // This block read `num(capacity, "currentUtilization", "utilization")`, but
+  // forecastCapacity() (services/engines/operations.ts:215) returns only
+  // `{ tomorrow, nextWeek }`. Neither key exists, so num() fell through its key
+  // loop and returned 0 on EVERY run. That made `util > 90` dead code and
+  // `util < 40` always true, pushing a priority-25 candidate
+  //   "Bay utilization only 0% — room to take more walk-ins or run a flash promo"
+  // into every report. The only competing candidate that can outrank 25 is the
+  // revenue-pace one, and only above 125% of pace — so in the ordinary case
+  // this fabricated sentence WAS `summary.topOpportunity`, rendered verbatim to
+  // the operator as the single most important thing to do today.
+  //
+  // There is no honest figure to compute here: this deployment has 0 bays,
+  // 0 technicians and 1 work order. An absent measurement was being rendered as
+  // a measured 0%, which is the defect class this whole arc removed.
+  //
+  // If bay capture ever lands, gate any replacement on a NON-ZERO denominator
+  // (work_orders with an assigned bay in the window) rather than treating a
+  // missing reading as 0.
 
   // Referral network
   if (referralNet) {

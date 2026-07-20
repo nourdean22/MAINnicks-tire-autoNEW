@@ -392,17 +392,35 @@ export async function getFollowerGrowth(): Promise<FollowerGrowth> {
 
   if (!d) return { currentFollowers, snapshots: [], growthRate7d: 0, growthRate30d: 0, trend: "stable" };
 
-  // Get follower snapshots over time (one per day, from post analyses)
-  const snapshots = await d
-    .select({
-      date: sql<string>`DATE(${instagramAnalytics.createdAt})`,
-      followers: sql<number>`MAX(${instagramAnalytics.followerSnapshot})`,
-    })
-    .from(instagramAnalytics)
-    .where(gte(instagramAnalytics.createdAt, new Date(Date.now() - 90 * 86400000)))
-    .groupBy(sql`DATE(${instagramAnalytics.createdAt})`)
-    .orderBy(sql`DATE(${instagramAnalytics.createdAt}) DESC`)
-    .limit(90);
+  // Raw SQL, deliberately, so the grouped expression is byte-identical in all
+  // three clauses.
+  //
+  // The Drizzle builder emitted an UNQUALIFIED `DATE(\`createdAt\`)` in the
+  // SELECT list but a TABLE-QUALIFIED `DATE(\`instagram_analytics\`.\`createdAt\`)`
+  // in the GROUP BY. Production runs with only_full_group_by, which compares
+  // those expressions textually, does not match them, and REJECTS the
+  // statement. getFollowerGrowth therefore threw on every single call.
+  //
+  // It is awaited inside runInstagramPipeline() and sits in the Promise.all of
+  // both instagramAdmin.getAnalytics and getPerformanceReport — so this one
+  // mismatch took down the entire admin Learn tab (top posts, best posting
+  // times, follower growth, AI recommendations) and kept the IG analytics
+  // pipeline permanently red. The 2,791-test suite passes with it fully broken.
+  // Column names here are camelCase IN THE DATABASE (`createdAt`,
+  // `followerSnapshot`) — this table does not follow the snake_case convention
+  // that cron_log and alg_estimates use. Verified against drizzle/schema.ts:2977.
+  const [snapshotRows] = await d.execute(sql`
+    SELECT DATE(createdAt) AS date, MAX(followerSnapshot) AS followers
+    FROM instagram_analytics
+    WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+    GROUP BY DATE(createdAt)
+    ORDER BY DATE(createdAt) DESC
+    LIMIT 90
+  `);
+  const snapshots = (snapshotRows as Array<Record<string, unknown>>).map((r) => ({
+    date: String(r.date),
+    followers: Number(r.followers ?? 0),
+  }));
 
   if (snapshots.length < 2) {
     return { currentFollowers, snapshots: [], growthRate7d: 0, growthRate30d: 0, trend: "stable" };
