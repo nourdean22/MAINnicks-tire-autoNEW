@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Brain, ShieldAlert, Target, Zap, Activity } from "lucide-react";
 import { TopMoneyMoves } from "../today/TopMoneyMoves";
 import { TodaysMoneyRisks } from "../today/TodaysMoneyRisks";
+import { TodaysRealNumbers } from "../today/TodaysRealNumbers";
 import { NextBestActions } from "../today/NextBestActions";
 import { AIHealthPanel } from "./AIHealthPanel";
 import { CustomerIntelligence } from "./CustomerIntelligence";
@@ -149,6 +150,11 @@ export default function IntelligenceHQSection() {
             </div>
 
             <div className="space-y-6">
+              {/* TODAY, FOR REAL — leads first because it reads the tables that
+                  carry rows. The Money At Risk card below it reads `leads`
+                  (2 rows in all of production) and stale callbacks. */}
+              <TodaysRealNumbers />
+
               {/* MONEY RISKS */}
               <div className="stat-card !p-5 !border-red-500/20 bg-red-500/5">
                 <div className="flex items-center gap-2 mb-4">
