@@ -947,6 +947,16 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
             inboundMessage: event.body,
             conversationContext,
             activeBooking: ctx.activeBooking,
+            // NCSOS memory: forward the identity/estimate/last-call context
+            // loadCustomerContext already built so the reply is personal, not
+            // cold ("for the Accord") instead of "Hello, how can I assist you?".
+            customer: ctx.customerRecord ? {
+              firstName: ctx.customerRecord.firstName,
+              vehicle: [ctx.customerRecord.vehicleYear, ctx.customerRecord.vehicleMake, ctx.customerRecord.vehicleModel]
+                .filter(Boolean).join(" ") || null,
+            } : undefined,
+            activeEstimate: ctx.activeEstimate ? { serviceDescription: ctx.activeEstimate.serviceDescription } : undefined,
+            lastVapiSummary: ctx.lastVapiCall?.aiSummary ?? null,
           });
 
           if (draftResult.ok && draftResult.draft) {
