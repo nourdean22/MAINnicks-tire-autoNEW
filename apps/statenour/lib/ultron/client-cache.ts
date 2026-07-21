@@ -128,7 +128,7 @@ export function invalidateUltron(key: string): void {
  * { data, loading } — null data means "still loading, no data yet."
  *
  * Example:
- *   const { data, loading } = useUltronFetch<SignalPayload>("/api/ultron/signal");
+ *   const { data, loading } = useUltronFetch<HealthDigest>("/api/ultron/health-digest");
  */
 export function useUltronFetch<T>(
   url: string,
