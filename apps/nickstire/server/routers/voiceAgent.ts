@@ -220,6 +220,26 @@ export const voiceAgentRouter = router({
           }
         }
 
+        // Persist the intent as a durable EXPECTED ARRIVAL (not a booking — FCFS,
+        // no appointments — and not a lead). This is the "customer said they're
+        // coming" record the shop can plan around and later reconcile to a paid
+        // invoice; it also makes the bookSlot/scheduleDropoff "phantom" real, so
+        // agenticAuditor can verify a dropoff was persisted. Best-effort.
+        try {
+          const { recordExpectedArrival } = await import("../services/expectedArrivals");
+          await recordExpectedArrival({
+            phone: input.phone,
+            name: input.name,
+            vehicle: input.vehicle,
+            service: input.service,
+            preferredDay: input.preferredDay,
+            source: "voice",
+            sourceRef: input.callId,
+          });
+        } catch (err) {
+          log.warn("Failed to record expected arrival from bookSlot", { err: err instanceof Error ? err.message : String(err) });
+        }
+
         // PII projection — never echo caller name/service in returned text; AI has them in context.
         return {
           success: true,

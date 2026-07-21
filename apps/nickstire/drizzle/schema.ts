@@ -3695,6 +3695,43 @@ export const businessFacts = mysqlTable("business_facts", {
 export type BusinessFactRow = typeof businessFacts.$inferSelect;
 export type InsertBusinessFactRow = typeof businessFacts.$inferInsert;
 
+/**
+ * expected_arrivals — a durable "the customer said they're coming / dropping off"
+ * record (NCSOS business-action-tools). The shop is FCFS drop-off-preferred, so
+ * voice/SMS "I'll come by today" must NOT mint a booking (operator directive) or
+ * a lead (sms-no-lead-noise) — but it IS a real operational signal the shop can
+ * plan around and later reconcile to an arrival/paid invoice. Before this,
+ * bookSlot/scheduleDropoff persisted nothing (agenticAuditor flagged "dropoff
+ * promised but not persisted"). See server/services/expectedArrivals.ts.
+ */
+export const expectedArrivals = mysqlTable("expected_arrivals", {
+  id: int("id").autoincrement().primaryKey(),
+  customerName: varchar("customerName", { length: 255 }),
+  customerPhone: varchar("customerPhone", { length: 30 }).notNull(),
+  vehicle: varchar("vehicle", { length: 255 }),
+  service: varchar("service", { length: 255 }),
+  /** The day they said they'd come; defaults to today (drop-offs are same-day). */
+  expectedDate: date("expectedDate").notNull(),
+  /** Raw phrase for context ("this afternoon", "tomorrow morning"). */
+  whenText: varchar("whenText", { length: 100 }),
+  source: mysqlEnum("source", ["voice", "sms", "web", "manual"]).default("manual").notNull(),
+  /** vapiCallId / orchestrationId / conversationId that produced this. */
+  sourceRef: varchar("sourceRef", { length: 128 }),
+  status: mysqlEnum("status", ["expected", "arrived", "no_show", "cancelled"]).default("expected").notNull(),
+  arrivedAt: timestamp("arrivedAt"),
+  /** The invoice that reconciled this arrival (arrival -> paid). */
+  reconciledInvoiceId: int("reconciledInvoiceId"),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_ea_status_date").on(table.status, table.expectedDate),
+  index("idx_ea_phone").on(table.customerPhone),
+]);
+
+export type ExpectedArrival = typeof expectedArrivals.$inferSelect;
+export type InsertExpectedArrival = typeof expectedArrivals.$inferInsert;
+
 export const nickgptTrainingExamples = mysqlTable("nickgpt_training_examples", {
   id: int("id").autoincrement().primaryKey(),
   customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
