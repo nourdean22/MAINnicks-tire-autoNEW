@@ -3667,6 +3667,34 @@ export const smsResponseJobs = mysqlTable("sms_response_jobs", {
 export type SmsResponseJob = typeof smsResponseJobs.$inferSelect;
 export type InsertSmsResponseJob = typeof smsResponseJobs.$inferInsert;
 
+/**
+ * business_facts — versioned business facts / approved-claims store (NCSOS #1/#2).
+ * One active row per factKey (prices, warranty terms, policies) with the
+ * provenance the blueprint requires: source, approver, effective + verified
+ * dates, and the channels it may be used on. Operator-editable override for the
+ * code-level SEED_FACTS. See server/services/businessFacts.ts.
+ */
+export const businessFacts = mysqlTable("business_facts", {
+  id: int("id").autoincrement().primaryKey(),
+  factKey: varchar("factKey", { length: 64 }).notNull(),
+  category: varchar("category", { length: 32 }).notNull(),
+  value: text("value").notNull(),
+  source: varchar("source", { length: 255 }).notNull(),
+  approvedBy: varchar("approvedBy", { length: 100 }).notNull(),
+  effectiveDate: date("effectiveDate").notNull(),
+  verifiedDate: date("verifiedDate").notNull(),
+  channels: varchar("channels", { length: 255 }).default("sms,voice,web").notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uniq_fact_key").on(table.factKey),
+  index("idx_fact_active").on(table.active),
+]);
+
+export type BusinessFactRow = typeof businessFacts.$inferSelect;
+export type InsertBusinessFactRow = typeof businessFacts.$inferInsert;
+
 export const nickgptTrainingExamples = mysqlTable("nickgpt_training_examples", {
   id: int("id").autoincrement().primaryKey(),
   customerPhone: varchar("customer_phone", { length: 30 }).notNull(),

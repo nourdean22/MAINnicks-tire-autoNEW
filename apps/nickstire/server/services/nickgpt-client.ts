@@ -22,6 +22,7 @@
 import { createLogger } from "../lib/logger";
 import { withTimeout } from "@nour/utils";
 import { NICK_SMS_SYSTEM_PROMPT } from "./nickSmsPersona";
+import { buildWarrantyFactsPreamble } from "./businessFacts";
 
 const log = createLogger("nickgpt-client");
 
@@ -320,6 +321,12 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
   // answers as an employee who remembers the customer — the NCSOS memory gap
   // where loadCustomerContext built this state but the drafter never saw it.
   systemPrompt = `${systemPrompt}${buildCustomerMemoryPreamble(opts)}`;
+
+  // Inject the authoritative WARRANTY facts from the facts store so a warranty
+  // question is answered from the invoice — and the AI never quotes the repair
+  // warranty (or road-hazard coverage) on a used tire. Prices already live in the
+  // base persona; warranty was the gap.
+  systemPrompt = `${systemPrompt}${buildWarrantyFactsPreamble()}`;
 
   const enabled = await isNickGptEnabled();
   if (enabled) {

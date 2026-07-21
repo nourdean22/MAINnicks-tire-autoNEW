@@ -127,6 +127,16 @@ export const BUSINESS = {
     months: 12,
     display: "12-month warranty",
     shortDisplay: "12-mo warranty",
+    // Invoice legal text (source of truth, owner-supplied 2026-07-21): shop-
+    // installed PARTS carry a 1-year limited warranty; shop LABOR carries a
+    // 90-day limited warranty; NO road-hazard or mileage warranty unless stated
+    // in writing. The "12-month" headline reflects the 1-year PARTS term. Used
+    // tires are separate (usedTires.warranty). The prior "12 months / 12,000
+    // miles, whichever comes first" wording is NOT on the invoice — flagged for
+    // operator review across the SEO/marketing surfaces that still show it.
+    partsWarranty: "1-year limited parts warranty (shop-installed parts, unless stated otherwise in writing)",
+    laborWarranty: "90-day limited labor warranty (shop labor, unless stated otherwise in writing)",
+    roadHazard: "No road-hazard or mileage warranty unless expressly stated in writing on the invoice",
   },
   founded: {
     year: 2018,
@@ -198,6 +208,10 @@ export const BUSINESS = {
     explanation: "Used tires start at $25 for 12-inch; most standard passenger sizes run $40-80 installed (typically around $60)",
     turnaround: "Under 20 minutes",
     dailyVolume: "50+ per day",
+    // Invoice legal text (source of truth, owner-supplied 2026-07-21): used tires
+    // carry a SEPARATE, shorter warranty than repairs. Never quote the repair
+    // warranty on a used tire.
+    warranty: "7-day limited replacement warranty — verified air loss or internal tire failure from a defect present at time of sale ONLY. Does not cover road hazard, punctures, sidewall/impact/bead damage, cosmetic issues, vibration, uneven wear, alignment, or misuse.",
   },
 
   oilChange: {
