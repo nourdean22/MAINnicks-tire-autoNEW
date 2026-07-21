@@ -20,7 +20,9 @@ export interface SlashCommand {
   action?: "new-chat" | "history" | "pin-last" | "diagnose";
 }
 
-const SLASH_COMMANDS: SlashCommand[] = [
+// Exported so the drift-guard test (tests/ai/command-drift.test.ts) can assert
+// every backend F5 command surfaces here. truth-substrate audit P1 (#18).
+export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/image", label: "Generate Image", icon: "📸", prompt: "Generate an image: " },
   { cmd: "/revenue", label: "Revenue Snapshot", icon: "📊", prompt: "Give me a full revenue snapshot — today, this week, pipeline, aging estimates, and what needs follow-up." },
   { cmd: "/leads", label: "Stale Leads", icon: "🔴", prompt: "Show me all leads that haven't been contacted in 24+ hours. Include urgency, name, service needed." },
@@ -73,6 +75,9 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: "/triage-prune", label: "Triage Prune (untouched >14d)", icon: "🧹", prompt: "/triage-prune" },
   { cmd: "/db-vacuum", label: "Database Vacuum (reclaim space)", icon: "🗄️", prompt: "/db-vacuum" },
   { cmd: "/run-cron", label: "Run Cron Job (manually)", icon: "⚙️", prompt: "/run-cron " },
+  // truth-substrate audit P1 (#18): preview-pushes is an implemented + unit-tested
+  // backend command that was invisible in the slash menu (drift). Dry-run, safe.
+  { cmd: "/preview-pushes", label: "Preview Proactive Pushes (dry-run)", icon: "🔔", prompt: "/preview-pushes " },
 ];
 
 export function useSlashCommands() {
