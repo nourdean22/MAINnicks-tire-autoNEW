@@ -117,12 +117,12 @@ export const BUSINESS = {
   ] as readonly string[],
 
   // ─── TRUST SIGNALS ──────────────────────────────────
-  // wave-167: reconciled to 12mo/12k. The shop's written warranty on
-  // every receipt is "12 months / 12,000 miles, whichever comes first."
-  // The FAQ, About body copy, BrakeRepairPage, BookingPage,
-  // AutoRepairNearMePage, and BlogPost all state 12mo. LocalBusinessSchema
-  // + About SEO meta previously claimed 36mo — broadcasting a false promise
-  // to Google's Knowledge Panel + SERP description. Real warranty wins.
+  // 2026-07-21: the shop's actual invoice states shop-installed PARTS carry a
+  // 1-year limited warranty and shop LABOR a 90-day limited warranty, with NO
+  // mileage or road-hazard warranty unless stated in writing. The prior "12
+  // months / 12,000 miles, whichever comes first" copy (wave-167) was NOT on the
+  // invoice and was corrected site-wide to "12-month parts / 90-day labor".
+  // `display` keeps a "12-month" headline for the 1-year PARTS term.
   warranty: {
     months: 12,
     display: "12-month warranty",

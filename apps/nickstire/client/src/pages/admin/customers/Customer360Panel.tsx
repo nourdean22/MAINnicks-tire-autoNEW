@@ -392,7 +392,7 @@ export function Customer360Panel({ customer }: {
                       return `"Hey ${firstName}, this is the team at Nick's Tire. I was looking over your vehicle's checkup and noticed we recommended some work on ${declinedSvc} that wasn't completed yet. We know budget can be tight, so we offer Snap Finance and easy payment plans to let you pay over time. We can also prioritize just the safety items today. Would you like to check out some payment options?"`;
                     }
                     if (selectedProfile === "skeptical_pat") {
-                      return `"Hey ${firstName}, this is the team at Nick's Tire. Just following up on the ${declinedSvc} quote we did. Our work is fully backed by our 24-month warranty, and we guarantee the lowest price in Cleveland. We do a completely transparent digital inspection, so you see exactly what we see. Can we get you set up to take a look?"`;
+                      return `"Hey ${firstName}, this is the team at Nick's Tire. Just following up on the ${declinedSvc} quote we did. Our work is fully backed by our 12-month parts / 90-day labor warranty, and we guarantee the lowest price in Cleveland. We do a completely transparent digital inspection, so you see exactly what we see. Can we get you set up to take a look?"`;
                     }
                     // default / busy_tim
                     return `"Hey ${firstName}, this is the team at Nick's Tire. Following up on the ${declinedSvc} quote. We know your time is valuable, so we can get this done in under 45 minutes if we schedule an early slot. You can also use our secure drop-off box or we can give you a ride to work. What time this week works best to drop the car off?"`;
@@ -410,7 +410,7 @@ export function Customer360Panel({ customer }: {
                     <span className="text-[10px] font-bold text-amber-400 block mb-0.5">Brakes & Rotors Objection:</span>
                     <p className="text-[11px] text-foreground/60 leading-normal">
                       {selectedProfile === "broke_brenda" && "“I understand it's a stretch. If we just replace the brake pads today, we can get you safe on the road for half the cost, and do the rotors next month.”"}
-                      {selectedProfile === "skeptical_pat" && "“All our pads come with a lifetime warranty. We also show you the exact digital measurements (e.g. 2mm left) so you see the wear yourself.”"}
+                      {selectedProfile === "skeptical_pat" && "“All our pads are backed by our 12-month parts / 90-day labor warranty. We also show you the exact digital measurements (e.g. 2mm left) so you see the wear yourself.”"}
                       {selectedProfile === "busy_tim" && "“We pre-order the exact pad and rotor match based on your VIN so they're in the bay when you arrive. In and out in 45 mins.”"}
                     </p>
                   </div>

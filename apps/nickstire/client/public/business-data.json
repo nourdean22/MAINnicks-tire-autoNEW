@@ -288,8 +288,13 @@
     },
     {
       "@type": "PropertyValue",
+      "name": "partsWarranty",
+      "value": "1 year"
+    },
+    {
+      "@type": "PropertyValue",
       "name": "laborWarranty",
-      "value": "12 months / 12,000 miles"
+      "value": "90 days"
     },
     {
       "@type": "PropertyValue",

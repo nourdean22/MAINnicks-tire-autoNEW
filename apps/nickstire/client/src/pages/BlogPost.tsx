@@ -242,7 +242,7 @@ function MidArticleCTA({ category }: { category: string }) {
   const svc = CATEGORY_TO_SERVICE[category] || {
     slug: "general-repair",
     label: "Cleveland's Local Mechanic",
-    pitch: "Free written estimate. 12-month warranty. $10-down financing. Walk-ins welcome 7 days.",
+    pitch: "Free written estimate. 12-month parts / 90-day labor warranty. $10-down financing. Walk-ins welcome 7 days.",
   };
   return (
     <FadeIn>
@@ -300,7 +300,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
   const svc = CATEGORY_TO_SERVICE[category] || {
     slug: "general-repair",
     label: "this repair",
-    pitch: "Free written estimate before any work. 12-month warranty on parts and labor.",
+    pitch: "Free written estimate before any work. 12-month parts / 90-day labor warranty.",
   };
   return (
     <div className="mt-12 bg-card border border-primary/30 rounded-2xl p-7 lg:p-9">
@@ -317,7 +317,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
             {svc.pitch} Free Uber within 5 miles if you drop off. Walk-ins welcome 7 days a week.
           </p>
           <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4 text-[13px] text-foreground/70">
-            <li className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> 12-mo / 12,000-mi warranty</li>
+            <li className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> 12-mo parts / 90-day labor warranty</li>
             <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> $10-down financing available</li>
             <li className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> Most repairs same/next day</li>
             <li className="flex items-center gap-2"><MessageSquare className="w-3.5 h-3.5 text-primary" /> Text updates throughout</li>

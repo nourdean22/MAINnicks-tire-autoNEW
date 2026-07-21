@@ -132,7 +132,7 @@ export default function About() {
               { stat: "30+", label: "Years combined tech experience", sub: "Master + journeyman techs across the floor" },
               { stat: "4 bays", label: "Operating capacity", sub: "Two lifts, two flat-bay drive-ons; ~32 jobs/day max" },
               { stat: "OBD-II + live data", label: "Scan tools, manufacturer-grade", sub: "Snap-on / Autel — same tools the dealer uses" },
-              { stat: "12-mo", label: "Parts + labor warranty", sub: "12,000-mile or 12-month — whichever comes first, in writing" },
+              { stat: "12-mo", label: "Parts + labor warranty", sub: "12-month parts / 90-day labor — in writing" },
             ].map((item, i) => (
               <FadeIn key={item.label} delay={i * 0.08}>
                 <div className="text-center">
@@ -433,7 +433,7 @@ export default function About() {
               {
                 icon: <Star className="w-6 h-6" />,
                 title: "12-month warranty in writing",
-                sub: "Parts + labor, 12 months / 12,000 miles. If a fix doesn't take, we redo it free.",
+                sub: "12-month parts / 90-day labor. If a fix doesn't take, we redo it free.",
                 anchor: "Chain warranties: 90 days typical",
               },
             ].map((item, i) => (
@@ -516,8 +516,8 @@ export default function About() {
             {[
               {
                 num: "01",
-                title: "12 months / 12,000 miles parts + labor",
-                sub: "Whichever comes first. Failed part or improper repair? Bring it back, no charge — full re-do, including labor.",
+                title: "12-month parts / 90-day labor warranty",
+                sub: "Failed part or improper repair? Bring it back, no charge — full re-do, including labor.",
               },
               {
                 num: "02",

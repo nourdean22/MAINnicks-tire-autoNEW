@@ -2,18 +2,18 @@ import FocusedServicePage, { type ServicePageConfig } from "@/components/Focused
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/warranties",
-  title: "12-Month/12,000-Mile Auto Repair Warranty Cleveland | Nick's",
-  description: "Our 12-month / 12k-mile warranty covers parts and labor. Transparency, trust, and honest service on Euclid Ave. Pull up any day.",
+  title: "12-Month Parts / 90-Day Labor Auto Repair Warranty Cleveland | Nick's",
+  description: "Our 12-month parts / 90-day labor warranty backs every repair. Transparency, trust, and honest service on Euclid Ave. Pull up any day.",
   eyebrow: "REPAIR GUARANTEE · BUILT ON TRUST",
-  h1: "12-MONTH / 12,000-MILE WARRANTY\nON PARTS & LABOR.",
-  sub: "Every repair at Nick's Tire & Auto is backed by our 12-month or 12,000-mile parts-and-labor guarantee. We stand behind our work because we do it right the first time. Written estimate before any wrench moves. You don't pay until you say yes.",
+  h1: "12-MONTH PARTS / 90-DAY LABOR\nWARRANTY.",
+  sub: "Every repair at Nick's Tire & Auto is backed by our 12-month parts / 90-day labor guarantee. We stand behind our work because we do it right the first time. Written estimate before any wrench moves. You don't pay until you say yes.",
   startingPrice: "Guaranteed repair backing",
   pricingTitle: "WARRANTY TIERS",
   pricingSub: "Coverage that gives you peace of mind on Cleveland roads.",
   tiers: [
     {
       name: "Parts & Labor",
-      price: "12 Mo / 12K Mi",
+      price: "12-Mo Parts / 90-Day Labor",
       sub: "Standard coverage",
       use: "Every mechanical repair we perform automatically gets this guarantee.",
       featured: true,
@@ -43,8 +43,8 @@ const CONFIG: ServicePageConfig = {
   ],
   faqs: [
     {
-      q: "What does the 12-month / 12,000-mile warranty cover?",
-      a: "It covers the labor we performed and the parts we supplied for 12 months or 12,000 miles (whichever comes first) from the original service date. If a part we installed fails due to defect or our workmanship during that period, we replace it and perform the labor at zero cost to you.",
+      q: "What does the 12-month parts / 90-day labor warranty cover?",
+      a: "It covers the parts we supplied for 12 months and the labor we performed for 90 days from the original service date. If a part we installed fails due to defect or our workmanship during that period, we replace it and perform the labor at zero cost to you.",
     },
     {
       q: "Do used tires have a warranty?",
