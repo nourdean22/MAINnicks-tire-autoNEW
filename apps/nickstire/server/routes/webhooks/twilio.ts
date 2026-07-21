@@ -101,15 +101,19 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
 
     if (conversationId) {
       try {
-        const { orchestrateSms } = await import("../../services/smsOrchestrator");
-        await orchestrateSms({
-          type: "inbound_sms",
-          phone: from,
-          body,
+        // Durable inbound-response spine: record the obligation, then answer it
+        // now for latency. A restart can no longer silently drop the reply — an
+        // un-answered job is re-swept. Degrades to direct orchestrate if the job
+        // table is unavailable. (NCSOS #1/#2 — server/services/smsResponseJobs.ts)
+        const { handleInboundResponse } = await import("../../services/smsResponseJobs");
+        await handleInboundResponse({
           conversationId,
+          phone: from,
+          providerMsgId: messageSid ? String(messageSid) : null,
+          body,
         });
       } catch (orchErr) {
-        log.warn("Orchestrator inbound SMS check failed in Twilio webhook", {
+        log.warn("Inbound SMS response handling failed in Twilio webhook", {
           error: orchErr instanceof Error ? orchErr.message : String(orchErr),
         });
       }

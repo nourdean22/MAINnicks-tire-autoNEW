@@ -288,12 +288,15 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             });
             return;
           }
-          const { orchestrateSms } = await import("../../services/smsOrchestrator");
-          await orchestrateSms({
-            type: "inbound_sms",
-            phone: normalized,
-            body,
+          // Durable inbound-response spine: record the obligation then answer it.
+          // A restart between the 200 ack and the reply no longer drops it — the
+          // sweep re-claims un-answered jobs. (NCSOS #1/#2)
+          const { handleInboundResponse } = await import("../../services/smsResponseJobs");
+          await handleInboundResponse({
             conversationId: conversationId!,
+            phone: normalized,
+            providerMsgId: messageId || null,
+            body,
           });
         })().catch((err) => {
           log.warn("Inbound shop SMS intent processing failed", {
