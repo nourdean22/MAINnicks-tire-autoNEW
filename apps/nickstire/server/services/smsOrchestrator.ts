@@ -708,6 +708,33 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
     else if (ctx.activeCallback) journeyId = `callback:${ctx.activeCallback.id}`;
     else journeyId = `customer:${ctx.customerRecord?.id || normalizedPhone}`;
 
+    // Expected-arrival capture (SMS equivalent of voice bookSlot): if the
+    // customer said they're coming / dropping off, record it as a durable
+    // planning signal. Best-effort and reply-neutral — it does NOT change what
+    // the AI sends. Not a booking (FCFS) and not a lead (sms-no-lead-noise).
+    if (event.type === "inbound_sms") {
+      try {
+        const { detectArrivalIntent, recordExpectedArrival } = await import("./expectedArrivals");
+        const arrival = detectArrivalIntent(event.body);
+        if (arrival.isArrival) {
+          const vehicle = ctx.customerRecord
+            ? [ctx.customerRecord.vehicleYear, ctx.customerRecord.vehicleMake, ctx.customerRecord.vehicleModel].filter(Boolean).join(" ") || undefined
+            : ctx.activeBooking?.vehicle ?? undefined;
+          await recordExpectedArrival({
+            phone: normalizedPhone,
+            name: ctx.customerRecord?.firstName,
+            vehicle,
+            service: ctx.activeBooking?.service ?? ctx.activeLead?.problem ?? undefined,
+            preferredDay: arrival.whenText,
+            source: "sms",
+            sourceRef: event.conversationId ? String(event.conversationId) : undefined,
+          });
+        }
+      } catch (err) {
+        log.warn("Expected-arrival SMS capture failed", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     if (ctx.customerRecord) {
       if (ctx.customerRecord.smsOptOut) {
         log.info("Orchestrator blocked send: customer opted out", { customerPhoneSuffix: normalizedPhone.slice(-4) });

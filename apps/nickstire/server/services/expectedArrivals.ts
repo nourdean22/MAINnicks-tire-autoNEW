@@ -45,6 +45,25 @@ export function parseExpectedDate(preferredDay: string | undefined, now: Date = 
   return today;
 }
 
+/**
+ * Detect whether an inbound SMS says the customer is coming / dropping off, and
+ * pull out the "when" phrase. Precision-biased: a false positive clutters the
+ * board (mildly — it expires to no_show), a false negative just misses a capture
+ * (no harm). NEGATION suppresses it — "can't make it" / "not coming" / "reschedule"
+ * is a decline the cancel/human path owns, not an arrival.
+ */
+export function detectArrivalIntent(body: string): { isArrival: boolean; whenText?: string } {
+  const b = (body || "").toLowerCase();
+  if (!b.trim()) return { isArrival: false };
+  if (/\b(not|n'?t|cannot|can'?t|cant|won'?t|wont|never|no longer|reschedul|another day|different day|maybe later|can i come)\b/.test(b)) {
+    return { isArrival: false };
+  }
+  const arrival = /\b(com(e|ing) (by|in|on|over|down|today|tomorrow|now|through|out)|come by|be there|on (my|the) way|omw|head(ing|ed)? (over|in|down|your way)|stop(ping)? by|drop(ping)? (it|the car|my car|off|by)|i'?ll (come|be|drop|swing|stop|bring|head|pull)|swing(ing)? by|pull(ing)? up|see (you|ya) (today|soon|tomorrow|in a bit)|bring(ing)? (it|the car|my car) (in|by|today|tomorrow)|on my way)\b/;
+  if (!arrival.test(b)) return { isArrival: false };
+  const when = b.match(/\b(today|tomorrow|this (morning|afternoon|evening)|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
+  return { isArrival: true, whenText: when?.[0] };
+}
+
 export interface RecordExpectedArrivalInput {
   phone: string;
   name?: string | null;
