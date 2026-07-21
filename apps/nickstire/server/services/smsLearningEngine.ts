@@ -111,6 +111,20 @@ export async function trackDraftFeedback(draftId: number, status: string, operat
     const finalReply = operatorReply || draft.operatorReply || draft.draftReply;
     const approvedForTraining = (status === "approved" || status === "edited");
 
+    // Training-loop signal: classify WHY the operator changed the draft (edits
+    // only — an approve-as-is or a reject has no diff to learn from). Pure,
+    // best-effort; a classifier miss must never block the capture.
+    let editCategoriesJson: string | null = null;
+    if (status === "edited") {
+      try {
+        const { classifyEdit } = await import("./editClassifier");
+        const cats = classifyEdit(draft.draftReply, finalReply);
+        if (cats.length > 0) editCategoriesJson = JSON.stringify(cats);
+      } catch (err) {
+        log.warn("classifyEdit failed", { draftId, err: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     await db.insert(nickgptTrainingExamples).values({
       customerPhone: draft.customerPhone,
       inboundMessage: draft.inboundMessage,
@@ -121,6 +135,7 @@ export async function trackDraftFeedback(draftId: number, status: string, operat
       serviceMention: null,
       rating: status === "rejected" ? 1 : 5,
       outcome: status,
+      editCategoriesJson,
       approvedForTraining,
     });
 
@@ -571,6 +586,29 @@ export async function processSmsLearningDigest() {
       .where(eq(nickgptTrainingExamples.approvedForTraining, true));
     const datasetSize = Number(datasetSizeRows[0]?.count || 0);
 
+    // Edit-taxonomy signal: aggregate WHY operators edited drafts over the last
+    // 30 days. A dominant category (e.g. too_long) is a concrete prompt-fix lead
+    // — evidence for the operator, not an auto-action.
+    let editTally: Record<string, number> = {};
+    let editedCount = 0;
+    try {
+      const { tallyEditCategories } = await import("./editClassifier");
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const edited = await db.select({ cats: nickgptTrainingExamples.editCategoriesJson })
+        .from(nickgptTrainingExamples)
+        .where(and(
+          eq(nickgptTrainingExamples.outcome, "edited"),
+          gte(nickgptTrainingExamples.createdAt, since),
+        ));
+      editedCount = edited.length;
+      editTally = tallyEditCategories(edited.map((r) => {
+        try { return r.cats ? (JSON.parse(r.cats) as string[]) : null; } catch { return null; }
+      }));
+    } catch (err) {
+      log.warn("edit-category tally failed", { err: err instanceof Error ? err.message : String(err) });
+    }
+    const topEdit = Object.entries(editTally).sort((a, b) => b[1] - a[1])[0];
+
     // Threshold recommendations
     let promptUpgrade = false;
     let fineTuneThreshold = "none";
@@ -603,9 +641,10 @@ export async function processSmsLearningDigest() {
           eventType: "system",
           currentVariantKey: "ollama_3b_v1",
           proposedVariantKey: "ollama_3b_v2",
-          proposedMessage: "Trigger Ollama / NickGPT fine-tuning pipeline.",
-          reason: `Training set size reached ${datasetSize} examples. Ready for: ${fineTuneThreshold}`,
-          supportingStatsJson: JSON.stringify({ datasetSize, promptUpgrade }),
+          proposedMessage: "Operator-gated: review, then run the NickGPT fine-tune/prompt update. This recommendation never auto-triggers a fine-tune.",
+          reason: `Training set reached ${datasetSize} examples (${fineTuneThreshold}).`
+            + (topEdit ? ` Top operator-edit pattern (last 30d, ${editedCount} edits): ${topEdit[0]} (${topEdit[1]}). Consider a prompt fix before/with any fine-tune.` : ""),
+          supportingStatsJson: JSON.stringify({ datasetSize, promptUpgrade, editedCount, editTally }),
           status: "pending",
         });
         log.info("Learning engine recommended NickGPT fine-tune upgrade!");

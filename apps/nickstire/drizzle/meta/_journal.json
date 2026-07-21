@@ -757,6 +757,13 @@
       "when": 1784295499866,
       "tag": "0094_expected_arrivals",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "5",
+      "when": 1784295500866,
+      "tag": "0095_training_edit_categories",
+      "breakpoints": true
     }
   ]
 }
