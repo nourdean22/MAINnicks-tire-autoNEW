@@ -38,6 +38,7 @@ A transcript classification, tool invocation, direction instruction, transfer at
 4. A separate no-dimension Search Analytics request is the authoritative source for headline clicks, impressions, CTR and average position.
 5. Dimensional rows may be incomplete because Search Analytics returns bounded top rows. Their sums must be labeled detailed-row totals, not official totals.
 6. GSC jobs are automated through the pipeline scheduler when production credentials are configured.
+7. The `device` dimension applies to web only. Google's Discover reporting rejects it, so the Discover request omits it and `search_performance` holds no `searchType='discover'` rows — nickstire.org has no Discover traffic (ROS-029). Do not treat an empty Discover slice as a pipeline failure.
 
 ## VAPI data flow
 
