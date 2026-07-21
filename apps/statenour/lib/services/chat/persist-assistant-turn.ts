@@ -45,6 +45,7 @@ import {
   countUnverified,
   formatFactCheckSummary,
 } from "@/lib/ai/fact-check";
+import { checkKnownTruth, formatTruthSummary } from "@/lib/ai/known-truth-guard";
 import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
@@ -1037,6 +1038,19 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
       const unverifiedCount = countUnverified(factClaims);
 
+      // truth-substrate audit P1 (#17): known-truth guard — was pure dead code
+      // (only tests/evals called it). Detects retired-infra claims asserted as
+      // current (statenour->Vercel, codex/ollama-local=prod, ...) and evidence-
+      // free status claims ("deployed", "tests passed", "build is green") with no
+      // in-sentence evidence. TELEMETRY-ONLY here: logged + folded into tokenUsage
+      // so false "done" claims are observable; the stored reply is NOT altered.
+      // (The block/banner tier that would rewrite persisted text is deferred to a
+      // flag-gated step once the false-positive rate is known on real traffic.)
+      const truthFlags = hasContent ? checkKnownTruth(cleanedText) : [];
+      if (truthFlags.length > 0) {
+        log.info("known_truth_flags", { summary: formatTruthSummary(truthFlags) });
+      }
+
       // v9.1.13 · Heavier hallucination guard — env-gated.
       // NOTE: checkClaims() runs once, in the DEFERRED post-processing
       // block further below (search "BATCH 1C — Hallucination guard"),
@@ -1389,6 +1403,19 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
                           start: c.start,
                           end: c.end,
                           verified: c.verified,
+                        })),
+                      }
+                    : undefined,
+                  // audit #17: known-truth flags folded in for calibration
+                  // (each = one offending sentence: retired-infra or evidence-free).
+                  truth: truthFlags.length > 0
+                    ? {
+                        total: truthFlags.length,
+                        flags: truthFlags.map((f) => ({
+                          kind: f.kind,
+                          rule: f.rule,
+                          snippet: f.snippet,
+                          severity: f.severity,
                         })),
                       }
                     : undefined,
