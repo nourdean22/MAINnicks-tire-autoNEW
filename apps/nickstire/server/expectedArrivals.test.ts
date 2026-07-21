@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from "vitest";
 const h = vi.hoisted(() => ({ getDb: vi.fn() }));
 vi.mock("./db", () => ({ getDb: h.getDb }));
 
-import { parseExpectedDate, toShopDateStr, recordExpectedArrival } from "./services/expectedArrivals";
+import { parseExpectedDate, toShopDateStr, recordExpectedArrival, detectArrivalIntent } from "./services/expectedArrivals";
 
 // Fixed instant: 2026-07-21 16:00 UTC = 12:00 ET, a Tuesday. Safe from DST/day edges.
 const NOW = new Date("2026-07-21T16:00:00Z");
@@ -48,6 +48,43 @@ describe("toShopDateStr", () => {
   it("formats in the shop timezone (ET), not UTC", () => {
     // 2026-01-01 02:00 UTC = 2025-12-31 21:00 ET — the ET date is the prior day.
     expect(toShopDateStr(new Date("2026-01-01T02:00:00Z"))).toBe("2025-12-31");
+  });
+});
+
+describe("detectArrivalIntent", () => {
+  it.each([
+    ["coming by today", "today"],
+    ["I'll drop it off tomorrow morning", "tomorrow"],
+    ["on my way", undefined],
+    ["omw", undefined],
+    ["swinging by this afternoon", "this afternoon"],
+    ["dropping the car off friday", "friday"],
+    ["I'll be there in a bit", undefined],
+    ["gonna pull up today", "today"],
+  ])("flags %j as an arrival (when=%s)", (msg, when) => {
+    const r = detectArrivalIntent(msg);
+    expect(r.isArrival).toBe(true);
+    expect(r.whenText).toBe(when);
+  });
+
+  it.each([
+    "can't make it today",
+    "not coming today",
+    "won't be there",
+    "need to reschedule",
+    "cancel my appointment",
+    "can I come tomorrow?",
+  ])("does NOT flag a decline/negation: %j", (msg) => {
+    expect(detectArrivalIntent(msg).isArrival).toBe(false);
+  });
+
+  it.each([
+    "how much for an oil change?",
+    "what are your hours?",
+    "do you have 225/50R17 in stock?",
+    "",
+  ])("does NOT flag an unrelated message: %j", (msg) => {
+    expect(detectArrivalIntent(msg).isArrival).toBe(false);
   });
 });
 
