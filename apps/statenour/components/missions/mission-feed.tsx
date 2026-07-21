@@ -26,10 +26,10 @@
  */
 
 import { useMemo, useState } from "react";
-import { Inbox } from "lucide-react";
+import { Inbox, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
-import { isUserProject } from "@/lib/services/mission-helpers";
+import { groupMissionFeed } from "@/components/missions/group-mission-feed";
 import { MissionCard } from "./mission-card";
 import { MissionTaskRow } from "./mission-task-row";
 
@@ -58,43 +58,12 @@ export function MissionFeed({
   autonomicHealth,
 }: MissionFeedProps) {
   const actions = useMissionDispatch();
-  const { activeMissions, tasksByMission, unattached } = useMemo(() => {
-    const activeMissions = missions
-      .filter((m) => m.status === "ACTIVE" && isUserProject(m))
-      .sort((a, b) => {
-        // Wave AJ · 2026-05-28 · operator's manual rank takes priority.
-        // Mission.manualRankOverride: lower = higher in list · nulls
-        // sink to the bottom so any explicit ranking wins. Pre-AJ this
-        // sort started at deadline; manualRank is now the head key so
-        // the operator's ↑/↓ buttons actually persist visually.
-        const aRank = a.manualRankOverride ?? Number.MAX_SAFE_INTEGER;
-        const bRank = b.manualRankOverride ?? Number.MAX_SAFE_INTEGER;
-        if (aRank !== bRank) return aRank - bRank;
-        // Missions with imminent deadlines float to the top, then by
-        // open-task count (more = more urgent), then by title for
-        // determinism.
-        const aDue = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-        const bDue = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-        if (aDue !== bDue) return aDue - bDue;
-        return a.title.localeCompare(b.title);
-      });
-
-    const activeIds = new Set(activeMissions.map((m) => m.id));
-    const tasksByMission = new Map<string, Task[]>();
-    const unattached: Task[] = [];
-    for (const task of tasks) {
-      if (task.missionId && activeIds.has(task.missionId)) {
-        const bucket = tasksByMission.get(task.missionId) ?? [];
-        bucket.push(task);
-        tasksByMission.set(task.missionId, bucket);
-      } else if (task.status !== "DONE") {
-        // Unattached only shows OPEN tasks. Done tasks without a mission
-        // would be noise.
-        unattached.push(task);
-      }
-    }
-    return { activeMissions, tasksByMission, unattached };
-  }, [missions, tasks]);
+  const { activeMissions, tasksByMission, unattached, domainGroups } = useMemo(
+    // truth-substrate audit P1 (#19): pure grouping extracted to
+    // group-mission-feed.ts so it is unit-testable + can't drift.
+    () => groupMissionFeed(missions, tasks),
+    [missions, tasks],
+  );
 
   // Drag and drop states for Missions
   const [draggedMissionIdx, setDraggedMissionIdx] = useState<number | null>(null);
@@ -309,6 +278,35 @@ export function MissionFeed({
           ))}
         </div>
       )}
+
+      {/* Domains section — GENERAL anchor buckets (audit #19). These are
+          CLASSIFIED tasks routed to a per-domain anchor, shown distinctly from
+          the "unattached" (truly unclassified) pile below. */}
+      {domainGroups.map((group) => (
+        <section
+          key={group.anchor.id}
+          className="rounded-lg border border-[var(--border-default)]/60 bg-[var(--bg-base)]"
+        >
+          <header className="px-3 py-2 flex items-center gap-2 border-b border-[var(--border-default)]/40">
+            <Layers
+              size={12}
+              className="text-[var(--text-tertiary)]"
+              strokeWidth={1.75}
+            />
+            <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+              {group.anchor.title}
+            </h3>
+            <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70 tabular-nums">
+              {group.tasks.length}
+            </span>
+          </header>
+          <div className="py-1">
+            {group.tasks.map((task) => (
+              <MissionTaskRow key={task.id} task={task} />
+            ))}
+          </div>
+        </section>
+      ))}
 
       {/* Unattached section */}
       {unattached.length > 0 && (
