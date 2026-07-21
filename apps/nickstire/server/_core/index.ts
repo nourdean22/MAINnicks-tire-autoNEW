@@ -757,75 +757,17 @@ ${urls.join("\n")}
     res.send(xml);
   });
 
-  // ─── SMS Bot Webhook (Twilio) ───────────────────────────
-  // Unified inbound SMS handler: runs booking bot + logs communication + parses intent
-  // Protected by Twilio signature validation in production
-  const { handleIncomingSMS } = await import("../routers/smsBot");
-  app.post("/api/sms-webhook", express.urlencoded({ extended: false }), validateTwilioRequest, async (req, res) => {
-    try {
-      const { Body, From, MessageSid } = req.body;
-
-      // Dedup — Twilio delivers inbound webhooks at-least-once. A
-      // redelivery must not re-run the booking-bot state machine (it
-      // would double-advance / re-save the booking), re-fire
-      // executeAutoAction, or re-send the bot's TwiML reply. If this
-      // MessageSid is already recorded, ack with empty TwiML and skip.
-      const { getOrCreateConversation, addSmsMessage, smsMessageExists } = await import("../db");
-      if (MessageSid && (await smsMessageExists(String(MessageSid)))) {
-        console.warn(`[SMS] Duplicate inbound webhook ignored: ${String(MessageSid).slice(0, 12)}`);
-        res.type("text/xml").send("<Response></Response>");
-        return;
-      }
-      // Persist inbound — the conversation-thread record + the dedup
-      // marker the check above reads.
-      if (From && Body) {
-        try {
-          const conversation = await getOrCreateConversation(String(From));
-          await addSmsMessage({
-            conversationId: conversation.id,
-            direction: "inbound",
-            body: String(Body),
-            twilioSid: MessageSid ? String(MessageSid) : undefined,
-            status: "received",
-          });
-        } catch (persistErr) {
-          console.warn("[SMS] Failed to persist inbound webhook SMS:", persistErr instanceof Error ? persistErr.message : persistErr);
-        }
-      }
-
-      // 1. Run booking bot state machine (returns reply text)
-      const reply = await handleIncomingSMS(From, Body);
-
-      // 2. Log communication + parse intent (fire-and-forget)
-      import("../services/smsResponseParser").then(async ({ parseSmsResponse, executeAutoAction }) => {
-        const parsed = parseSmsResponse(Body);
-        // Execute auto-actions for high-confidence intents (confirm, cancel, approve)
-        if (parsed.autoAction && !parsed.requiresHuman) {
-          await executeAutoAction(parsed, From);
-        }
-        // Log to communication table
-        const { getDb } = await import("../db");
-        const { communicationLog } = await import("../../drizzle/schema");
-        const db = await getDb();
-        if (db) {
-          await db.insert(communicationLog).values({
-            customerPhone: From,
-            type: "sms",
-            direction: "inbound",
-            body: (Body || "").slice(0, 5000),
-            metadata: { parsedIntent: parsed.intent, botReply: reply.slice(0, 200) },
-          });
-        }
-      }).catch((err) => console.warn("[SMS] Background processing error:", err instanceof Error ? err.message : err));
-
-      // XML-escape the reply to prevent malformed Twilio responses
-      const safeReply = reply.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      res.type("text/xml").send(`<Response><Message>${safeReply}</Message></Response>`);
-    } catch (err) {
-      console.error("[SMS Webhook] Error:", err);
-      res.type("text/xml").send("<Response></Response>");
-    }
-  });
+  // ─── SMS Bot Webhook — RETIRED 2026-07-21 (NCSOS engine consolidation) ──
+  // The /api/sms-webhook route ran a SECOND, divergent inbound-SMS reply engine
+  // (routers/smsBot.ts state machine + smsResponseParser.executeAutoAction) with
+  // contradictory facts vs the orchestrator: $29.99 oil (vs $49/$80), "CANCEL"
+  // opting a customer out of ALL texts while also cancelling their booking, a
+  // $49.99 charge for a "free" diagnostic, and a blank <Message> on empty input.
+  // It was a Twilio-signature-gated endpoint; the shop uses the Capevace gateway,
+  // not Twilio (owner-confirmed), so it received no traffic. Retired to leave ONE
+  // inbound SMS engine: the Capevace gateway → orchestrateSms. The Twilio→
+  // orchestrator route (routes/webhooks/twilio.ts) remains as a consistent
+  // fallback that uses the SAME engine, so there is no divergence.
 
   // ─── Voice Webhooks (Twilio) ──────────────────────────
   // Mount AI voice receptionist endpoints

@@ -1,11 +1,11 @@
 /**
  * A booking must never be auto-cancelled by an ambiguous reply.
  *
- * `parseSmsResponse` feeds two live inbound paths that both run
+ * `parseSmsResponse` feeds the live inbound path — orchestrateSms
+ * (services/smsOrchestrator.ts:827), the F25e/Capevace gateway — which runs
  * `UPDATE bookings SET status='cancelled'` + cancelBookingReminders with NO
- * confirmation step:
- *   - orchestrateSms         (services/smsOrchestrator.ts:827)  — F25e/Capevace gateway
- *   - executeAutoAction      (services/smsResponseParser.ts:136) — Twilio + _core webhook
+ * confirmation step. (The old executeAutoAction path — a second, divergent
+ * engine on the dormant Twilio /api/sms-webhook route — was retired 2026-07-21.)
  *
  * So whatever this parser calls "cancel" at confidence >= 80 destroys a real
  * appointment for a real customer. Before this test, a bare "No" matched at 95%

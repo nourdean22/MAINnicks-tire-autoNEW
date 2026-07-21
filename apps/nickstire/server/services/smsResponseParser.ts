@@ -2,11 +2,12 @@
  * SMS Response Parser — Auto-classifies inbound customer SMS
  * Pattern matching for common responses; anything ambiguous or long is
  * flagged for human follow-up (no AI fallback in this path).
- * Auto-actions: confirm, cancel, approve estimate, unsubscribe.
+ * This module only CLASSIFIES intent — the orchestrator (smsOrchestrator.ts)
+ * executes the action and owns opt-out/cancel/confirm. The old executeAutoAction
+ * (a second, divergent engine with $29.99 oil etc.) was retired 2026-07-21.
  */
 
 import { createLogger } from "../lib/logger";
-import { eq, and } from "drizzle-orm";
 
 const log = createLogger("sms-parser");
 
@@ -117,150 +118,3 @@ export function parseSmsResponse(message: string): ParsedResponse {
     requiresHuman: true,
   };
 }
-
-/**
- * Execute the auto-action for a parsed SMS response.
- */
-export async function executeAutoAction(parsed: ParsedResponse, phone: string, context?: { bookingId?: number; estimateId?: string }): Promise<{ executed: boolean; action?: string }> {
-  if (!parsed.autoAction || parsed.requiresHuman) {
-    return { executed: false };
-  }
-
-  try {
-    const { getDb } = await import("../db");
-    const db = await getDb();
-
-    switch (parsed.autoAction) {
-      case "confirm-appointment":
-        if (context?.bookingId && db) {
-          const { bookings } = await import("../../drizzle/schema");
-          await db.update(bookings)
-            .set({
-              status: "confirmed",
-              confirmedAt: new Date(),
-              confirmationMethod: "sms_reply",
-            })
-            .where(eq(bookings.id, context.bookingId));
-          log.info("Auto-confirmed appointment via SMS reply", { bookingId: context.bookingId, phone: phone.slice(-4) });
-        }
-        return { executed: true, action: "confirm-appointment" };
-
-      case "cancel-appointment":
-        if (context?.bookingId && db) {
-          const { bookings } = await import("../../drizzle/schema");
-          await db.update(bookings)
-            .set({ status: "cancelled" })
-            .where(eq(bookings.id, context.bookingId));
-          // Cancel pending SMS reminders
-          const { cancelBookingReminders } = await import("./sms-scheduler");
-          await cancelBookingReminders(context.bookingId);
-          log.info("Auto-cancelled appointment + reminders", { bookingId: context.bookingId, phone: phone.slice(-4) });
-        }
-        return { executed: true, action: "cancel-appointment" };
-
-      case "approve-estimate":
-        if (context?.estimateId) {
-          log.info("Estimate approved via SMS — flagging for shop", { estimateId: context.estimateId, phone: phone.slice(-4) });
-          // Notify shop about approval
-          const { sendNotification } = await import("../email-notify");
-          sendNotification({
-            category: "booking",
-            subject: `Estimate Approved by Customer (***${phone.slice(-4)})`,
-            body: `Customer approved estimate #${context.estimateId} via SMS reply. Please proceed with the repair.`,
-          }).catch((e) => { log.warn("[services/smsResponseParser] fire-and-forget failed:", e); });
-        }
-        return { executed: true, action: "approve-estimate" };
-
-      case "unsubscribe-customer":
-        if (db) {
-          const { customers } = await import("../../drizzle/schema");
-          const { like } = await import("drizzle-orm");
-          const { markPhoneOptedOut } = await import("../sms");
-          const normalized = phone.replace(/\D/g, "").slice(-10);
-          await db.update(customers)
-            .set({ smsOptOut: 1 })
-            .where(like(customers.phone, `%${normalized}`));
-          // wave-142a — write-through cache invalidation (TCPA: opt-out
-          // must propagate immediately to the next sendSms call).
-          markPhoneOptedOut(normalized);
-          // TCPA-defensible audit row. executeAutoAction is the live
-          // opt-out path for BOTH the Twilio and F25e inbound webhooks,
-          // so without this no opt-out ever reached the compliance log.
-          const { logSmsOptOut } = await import("./complianceLog");
-          await logSmsOptOut({ phone: normalized, via: "keyword", keyword: parsed.extractedData?.message });
-          log.info("Customer opted out of SMS marketing", { phone: phone.slice(-4) });
-        }
-        return { executed: true, action: "unsubscribe-customer" };
-
-      case "auto-price-response":
-        try {
-          const { isEnabled: isQuoteEnabled } = await import("./featureFlags");
-          if (!(await isQuoteEnabled("sms_auto_quote"))) return { executed: false };
-          const priceResult = detectServiceAndPrice(parsed.extractedData?.question || "");
-          if (priceResult) {
-            const { sendSms } = await import("../sms");
-            await sendSms(phone, `Hi! ${priceResult.service} starts at ${priceResult.price} at Nick's. Drop off anytime for a free check -- no appointment needed. (216) 862-0005`, { via: "shop" });
-            log.info("Auto-responded with price quote", { phone: phone.slice(-4), service: priceResult.service });
-
-            // Operator directive 2026-07-03: the AI answered the text —
-            // do NOT mint a lead row from it. Journey analytics stays so
-            // the touchpoint is still attributable if they convert later.
-            if (db) {
-              const { trackJourneyEvent } = await import("./journeyTracker");
-              await trackJourneyEvent({ phone, eventType: "first_chat", metadata: { source: "sms_price_inquiry", service: priceResult.service } });
-            }
-          } else {
-            // Could not detect specific service — flag for human follow-up
-            log.info("Price question but service not detected, flagging", { phone: phone.slice(-4) });
-          }
-        } catch (priceErr) {
-          log.warn("Auto-price-response failed", { error: priceErr instanceof Error ? priceErr.message : String(priceErr) });
-        }
-        return { executed: true, action: "auto-price-response" };
-
-      case "flag-for-followup":
-        log.info("Flagged for human follow-up", { phone: phone.slice(-4) });
-        return { executed: true, action: "flag-for-followup" };
-
-      default:
-        return { executed: false };
-    }
-  } catch (err) {
-    log.error("Auto-action failed", { action: parsed.autoAction, error: err instanceof Error ? err.message : String(err) });
-    return { executed: false };
-  }
-}
-
-// ─── PRICE LOOKUP FOR SMS AUTO-RESPONSE ────────────
-
-const SERVICE_PRICES: Array<{ key: string; pattern: RegExp; service: string; price: string }> = [
-  { key: "oilChange", pattern: /oil\s*change|oil|lube/i, service: "An oil change", price: "$29.99" },
-  { key: "brakes", pattern: /brake|brakes|brake\s*pad|rotor/i, service: "Brake service", price: "$129/axle" },
-  { key: "tires", pattern: /tire|tires|new tire/i, service: "Tire installation", price: "$20/tire (mount & balance)" },
-  { key: "alignment", pattern: /alignment|align/i, service: "A wheel alignment", price: "$89.99" },
-  { key: "diagnostic", pattern: /diagnos|check\s*engine|engine\s*light|scan|code/i, service: "A code scan + live data", price: "$49.99" },
-  { key: "rotation", pattern: /rotat|tire\s*rotation/i, service: "A tire rotation", price: "$24.99" },
-  { key: "battery", pattern: /battery|batteries/i, service: "Battery replacement", price: "$129.99 (installed)" },
-  { key: "suspension", pattern: /strut|shock|suspension/i, service: "Suspension work", price: "$199/corner" },
-  { key: "exhaust", pattern: /exhaust|muffler|catalytic/i, service: "Exhaust repair", price: "$149" },
-  { key: "transmission", pattern: /transmission|trans\s*fluid|trans\s*flush/i, service: "A transmission flush", price: "$149.99" },
-  { key: "coolant", pattern: /coolant|radiator|overheat|flush/i, service: "A coolant flush", price: "$99.99" },
-];
-
-/**
- * Detect which service a customer is asking about and return the price.
- */
-function detectServiceAndPrice(message: string): { service: string; price: string } | null {
-  const normalized = message.toLowerCase();
-  for (const sp of SERVICE_PRICES) {
-    if (sp.pattern.test(normalized)) {
-      return { service: sp.service, price: sp.price };
-    }
-  }
-  return null;
-}
-
-/**
- * Standalone price lookup (usable from other modules).
- */
-export { detectServiceAndPrice };

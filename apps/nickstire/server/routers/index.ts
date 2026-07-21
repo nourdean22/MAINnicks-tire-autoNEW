@@ -24,7 +24,6 @@ export {
 export { reviewRequestsRouter } from "./reviewRequests";
 export { remindersRouter } from "./reminders";
 export { smsConversationsRouter } from "./smsConversations";
-export { smsBotRouter } from "./smsBot";
 export { reviewRepliesRouter } from "./reviewReplies";
 export { shareCardsRouter } from "./shareCards";
 export { galleryRouter } from "./gallery";
