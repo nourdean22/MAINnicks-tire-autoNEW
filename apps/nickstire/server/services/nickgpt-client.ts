@@ -47,6 +47,36 @@ interface DraftOpts {
     stage: string;
     service: string;
   };
+  /** Optional · known customer identity so the reply is personal, not cold. */
+  customer?: {
+    firstName?: string | null;
+    /** e.g. "2018 Honda Accord" — assembled from the customer record. */
+    vehicle?: string | null;
+  };
+  /** Optional · an open written estimate the customer may be following up on. */
+  activeEstimate?: {
+    serviceDescription: string | null;
+  };
+  /** Optional · the gist of the customer's most recent VAPI call, for continuity. */
+  lastVapiSummary?: string | null;
+}
+
+/**
+ * Build the customer-memory preamble appended to the system prompt so the drafter
+ * can answer personally and continuously ("got 225/50R17 for the Accord") instead
+ * of restarting cold. Only facts that are present are included; the model is told
+ * to use them only when relevant and never to invent beyond them. Prices are
+ * deliberately omitted — an open-estimate amount must not be quoted by the model.
+ * Pure and exported so the wiring is unit-testable.
+ */
+export function buildCustomerMemoryPreamble(opts: Pick<DraftOpts, "customer" | "activeEstimate" | "lastVapiSummary">): string {
+  const bits: string[] = [];
+  if (opts.customer?.firstName) bits.push(`the customer's name is ${opts.customer.firstName}`);
+  if (opts.customer?.vehicle) bits.push(`their vehicle on file is a ${opts.customer.vehicle}`);
+  if (opts.activeEstimate?.serviceDescription) bits.push(`they have an open written estimate for "${opts.activeEstimate.serviceDescription}"`);
+  if (opts.lastVapiSummary) bits.push(`their most recent call was about: ${opts.lastVapiSummary}`);
+  if (bits.length === 0) return "";
+  return `\n\n[Customer memory: ${bits.join("; ")}. Use these only when they help answer the text — do NOT recite them or restart the conversation, and never invent details beyond them.]`;
 }
 
 interface DraftResult {
@@ -284,6 +314,11 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
     }". You can use this to answer status/progress queries, but only bring it up if relevant to their text.]`;
     systemPrompt = `${systemPrompt}${bookingInfo}`;
   }
+
+  // Inject known customer identity, open estimate, and last-call gist so the AI
+  // answers as an employee who remembers the customer — the NCSOS memory gap
+  // where loadCustomerContext built this state but the drafter never saw it.
+  systemPrompt = `${systemPrompt}${buildCustomerMemoryPreamble(opts)}`;
 
   const enabled = await isNickGptEnabled();
   if (enabled) {
