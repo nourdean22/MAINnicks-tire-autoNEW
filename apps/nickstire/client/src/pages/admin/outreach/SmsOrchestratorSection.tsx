@@ -338,7 +338,6 @@ export default function SmsOrchestratorSection() {
               { label: "Inbound", value: "inbound" },
               { label: "Vapi Callrecaps", value: "Vapi" },
               { label: "NickGPT Auto-Replies", value: "NickGPT" },
-              { label: "Reminders", value: "reminders" },
               { label: "Price Queries", value: "price questions" }
             ].map(f => (
               <button

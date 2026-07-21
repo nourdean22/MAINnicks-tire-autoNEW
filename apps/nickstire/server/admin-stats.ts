@@ -513,7 +513,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NOT NULL`)),
         d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NULL`)),
         d.select({ total: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NULL`)),
-        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
+        // paid + non-Estimate, matching the revenue population. Without these
+        // two predicates this breakdown summed ALL invoices (unpaid + Estimate#
+        // placeholders), so it disagreed with revenueThisMonth beside it by
+        // $846.72 in the month it was found — and the whole shopFloor object is
+        // forwarded to statenour by statenourSync, propagating the mismatch. The
+        // sibling revenue/count queries were deliberately aligned here (wave-97);
+        // this one was added below that comment and skipped both filters.
+        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} AND paymentStatus = 'paid' AND invoiceNumber NOT LIKE 'Estimate#%' GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
       ]);

@@ -24,19 +24,25 @@ async function fetchNewReviewsFromGoogle(): Promise<any[]> {
     throw new Error("GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY not configured");
   }
 
-  try {
-    const response = await fetch(buildPlaceDetailsUrl(apiKey, "reviews"));
+  // NO catch-and-return-[]. This function used to swallow every failure —
+  // 429, 500, timeout, DNS — and return an empty array, so the mutation
+  // resolved {created:0, total:0} and the Growth screen printed "Last run: 0
+  // new drafts from 0 reviews" as a SUCCESS. A fresh 1-star review sat undrafted
+  // while the operator had positive confirmation there was nothing to draft.
+  // The client already renders an error branch (fetchNew.error); it was just
+  // never reachable because nothing propagated. The !apiKey branch above already
+  // throws, so letting these throw too is consistent — a failed fetch is a
+  // failed run, not an empty result.
+  const response = await fetch(buildPlaceDetailsUrl(apiKey, "reviews"), {
+    signal: AbortSignal.timeout(15_000),
+  });
 
-    if (!response.ok) {
-      throw new Error(`Google Places API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.result?.reviews || [];
-  } catch (err) {
-    log.error("[ReviewReplies] Failed to fetch reviews from Google:", err);
-    return [];
+  if (!response.ok) {
+    throw new Error(`Google Places API error: ${response.status}`);
   }
+
+  const data = await response.json();
+  return data.result?.reviews || [];
 }
 
 async function generateAIDraftReply(review: any): Promise<string> {
