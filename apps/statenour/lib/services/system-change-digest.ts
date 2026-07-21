@@ -35,6 +35,9 @@ export interface ReconEntry {
 // consumers of these names keep working.
 import { readDeployIdentity, type DeployStatus, type DeployIdentity } from "@/lib/services/deploy-identity";
 export type { DeployStatus, DeployIdentity };
+// Re-export the VALUE too — the pre-existing system-change-digest.test.ts (and
+// any other consumer) imports readDeployIdentity from THIS module.
+export { readDeployIdentity };
 
 export interface SystemChangeDigest {
   generatedAt: string;

@@ -401,7 +401,12 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
     })
     .sort((a, b) => b.ratio - a.ratio)
     .slice(0, 1);
-  for (const c of constraintCandidates) {
+  // truth-substrate audit #6: the ENGAGEMENT half of this ratio comes from
+  // userText (domainMentionCount). If a feeding read FAILED (corpusReliable=false),
+  // "low engagement" is a measurement gap, not real neglect — a partial failure
+  // would otherwise emit a false high/critical "SYSTEM CONSTRAINT" spot. Same
+  // reason the Wald block above is gated. Importance-only (no corpus) isn't enough.
+  for (const c of corpusReliable ? constraintCandidates : []) {
     if (c.ratio < 2) continue; // need real signal
     blindSpots.push({
       domain: c.domain,
