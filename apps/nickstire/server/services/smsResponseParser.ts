@@ -24,9 +24,21 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
   { pattern: /^(yes|y|yep|yeah|yea|ok|okay|sure|confirm|confirmed|sounds good|see you|will be there|on my way)$/i, intent: "confirm", autoAction: "confirm-appointment", confidence: 95 },
   { pattern: /^(yes|y)\b/i, intent: "confirm", autoAction: "confirm-appointment", confidence: 85 },
 
-  // Cancellations
-  { pattern: /^(cancel|no|nope|can'?t make it|need to cancel|won'?t be there|not coming)$/i, intent: "cancel", autoAction: "cancel-appointment", confidence: 95 },
-  { pattern: /cancel/i, intent: "cancel", autoAction: "cancel-appointment", confidence: 80 },
+  // Cancellations.
+  //
+  // A bare "no" / "nope" is DELIBERATELY NOT here. It used to match — a lone
+  // "No" classified as cancel at 95% confidence, above the requiresHuman<80
+  // threshold, and BOTH inbound paths (orchestrateSms at smsOrchestrator.ts:827
+  // and executeAutoAction here) then ran `UPDATE bookings SET status='cancelled'`
+  // + cancelBookingReminders with no confirmation. So a customer with an active
+  // booking who answered "No" to ANY message — a confirmation text they meant to
+  // reschedule, a cross-sell, anything — had their appointment silently destroyed.
+  //
+  // "No" is a yes/no answer, not an unambiguous cancel intent. It now falls
+  // through to the default (unknown → requiresHuman) so a person reads it in
+  // context. Only explicit cancel language auto-cancels.
+  { pattern: /^(cancel|need to cancel|can'?t make it|won'?t be there|not coming)$/i, intent: "cancel", autoAction: "cancel-appointment", confidence: 95 },
+  { pattern: /\bcancel\b/i, intent: "cancel", autoAction: "cancel-appointment", confidence: 80 },
 
   // Estimate approvals
   { pattern: /^(approve|approved|go ahead|do it|fix it|go for it|let'?s do it|proceed)$/i, intent: "approve-estimate", autoAction: "approve-estimate", confidence: 95 },
