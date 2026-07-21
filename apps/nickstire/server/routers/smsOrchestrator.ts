@@ -29,9 +29,14 @@ export const smsOrchestratorRouter = router({
         else if (input.filter === "inbound") filterClause = sql`event_type = 'inbound_sms'`;
         else if (input.filter === "Vapi") filterClause = sql`event_type LIKE 'vapi%'`;
         else if (input.filter === "NickGPT") filterClause = sql`variant_key = 'nickgpt_v1'`;
-        else if (input.filter === "reminders") filterClause = sql`event_type = 'booking_reminder'`;
         else if (input.filter === "review requests") filterClause = sql`event_type = 'review_request'`;
-        else if (input.filter === "price questions") filterClause = sql`event_type LIKE 'price_question%'`;
+        // price-question orchestrations live in selected_template_key, NOT
+        // event_type. event_type LIKE 'price_question%' matched 0 of 1,051 rows
+        // while 25 real price-question records exist — the chip told the operator
+        // a working feature was empty. (The "reminders" chip that matched
+        // event_type='booking_reminder' was removed: nothing in the codebase
+        // writes that value, so it was permanently empty by construction.)
+        else if (input.filter === "price questions") filterClause = sql`${smsOrchestrations.selectedTemplateKey} LIKE 'price_question%'`;
       }
 
       const items = await db.select()
