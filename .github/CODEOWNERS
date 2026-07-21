@@ -1,21 +1,41 @@
-# Default owner
-* @owner
+# CODEOWNERS — monorepo ownership for review routing.
+#
+# truth-substrate audit #23 (2026-07-21): the prior file used the placeholder
+# handle `@owner` (not a real GitHub user → GitHub could not resolve it, so it
+# enforced nothing) and single-app paths (`/server/`, `/drizzle/`) that match
+# nothing at the monorepo root. Corrected to the real owner + real monorepo paths.
+#
+# NOTE: this file only ROUTES review requests. To make ownership REQUIRED, enable
+# branch protection on `main` → "Require review from Code Owners" (repo settings —
+# not settable from code). It's a solo repo today (one owner), so this mainly
+# documents which surfaces are load-bearing and prepares for adding collaborators.
 
-# Load-bearing runtime areas
-/server/_core/ @owner
-/server/routers/ @owner
-/server/integrations/ @owner
-/server/ @owner
+# Default owner — everything not matched below.
+*                                               @nourdean22
 
-# Data and migration contract
-/drizzle/ @owner
-/drizzle.config.ts @owner
+# ── Security boundary (statenour) ──────────────────────────────────────────────
+/apps/statenour/middleware.ts                   @nourdean22
+/apps/statenour/auth.ts                         @nourdean22
+/apps/statenour/lib/auth-guard.ts               @nourdean22
+/apps/statenour/lib/security/                   @nourdean22
 
-# CI/CD and governance contracts
-/.github/workflows/ @owner
-/.github/pull_request_template.md @owner
-/.github/ISSUE_TEMPLATE/ @owner
+# ── Database + migration contract ──────────────────────────────────────────────
+/apps/statenour/prisma/                         @nourdean22
+/apps/nickstire/drizzle/                        @nourdean22
 
-# Environment contract
-/.env.example @owner
-/scripts/env-validate.mjs @owner
+# ── AI chat pipeline (statenour) ───────────────────────────────────────────────
+/apps/statenour/app/api/ai/chat/                @nourdean22
+/apps/statenour/lib/ai/                         @nourdean22
+
+# ── Autonomous execution + cron manifests ──────────────────────────────────────
+/apps/statenour/lib/automation/                 @nourdean22
+/apps/statenour/config/crons.ts                 @nourdean22
+/apps/nickstire/server/                         @nourdean22
+
+# ── Shared workspace packages (affect both apps) ───────────────────────────────
+/packages/                                      @nourdean22
+
+# ── CI / release / governance contracts ────────────────────────────────────────
+/.github/workflows/                             @nourdean22
+/.github/CODEOWNERS                             @nourdean22
+/lefthook.yml                                   @nourdean22
