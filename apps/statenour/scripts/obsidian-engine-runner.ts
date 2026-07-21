@@ -50,11 +50,14 @@ function runScript(scriptName: string, runArgs: string[] = []): boolean {
     // read `result.status === 0` (null !== 0 => false), so every doctor/ingest/
     // export step silently no-opped and the daemon reported "Synchronization
     // failed" while never running anything. Route the win32 call through the
-    // shell as a single quoted command string (no DEP0190 arg-escaping warning);
-    // args here are fixed, space-free script paths + flags, so this is safe.
+    // shell as a single command string (a string, not an args array, avoids the
+    // DEP0190 arg-escaping warning). Quote the script path AND each arg so a
+    // future extraArg carrying a space or shell metacharacter can't break the
+    // command line or inject — inside double quotes cmd treats them literally.
     const isWin = process.platform === "win32";
+    const winArgs = runArgs.map((a) => `"${a}"`).join(" ");
     const result = isWin
-      ? spawnSync(`${NPX_COMMAND} tsx "${scriptPath}" ${runArgs.join(" ")}`.trim(), {
+      ? spawnSync(`${NPX_COMMAND} tsx "${scriptPath}" ${winArgs}`.trim(), {
           stdio: "inherit",
           cwd: process.cwd(),
           shell: true,
@@ -158,7 +161,25 @@ async function runSyncPipeline(): Promise<boolean> {
     export: false,
     finalDoctor: false,
   };
-  if (steps.doctor) steps.ingest = runScript("ingest-obsidian-vault.ts");
+  if (steps.doctor) {
+    steps.ingest = runScript("ingest-obsidian-vault.ts");
+    // Defense-in-depth (parity with export's verified wrapper): the ingest
+    // script exits 1 on counters.failed>0, but don't trust the exit code alone.
+    // Re-read the status it just wrote and fail the step if it recorded any
+    // per-file failures — guards against a future refactor that logs+swallows
+    // instead of exiting non-zero, which would otherwise pass green here.
+    if (steps.ingest) {
+      const post = readEngineStatus();
+      const failed = post?.stats?.failed ?? 0;
+      const failures = post?.stats?.failures ?? 0;
+      if (failed > 0 || failures > 0) {
+        console.error(
+          `[Engine] ingest exited 0 but recorded ${failed} failed / ${failures} failures — treating step as failed`,
+        );
+        steps.ingest = false;
+      }
+    }
+  }
   if (steps.ingest) steps.export = runScript("export-brain-to-obsidian-verified.ts", extraArgs);
   steps.finalDoctor = runScript("obsidian-doctor.ts");
   const success = await finishSync(steps);
