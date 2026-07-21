@@ -16,7 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { CRONS } from "@/config/crons";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 import { nourTools } from "@/lib/ai/tools";
-import { ENV_SPEC } from "@/lib/env";
+import { ENV_SPEC, isProd } from "@/lib/env";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -176,7 +176,7 @@ export async function scanSystemGaps() {
   // ── 5. Missing env vars ────────────────────────────────────────
   for (const spec of ENV_SPEC) {
     if (spec.tier !== "required") continue;
-    const when = spec.when ? spec.when() : true;
+    const when = spec.when ? spec.when(isProd()) : true;
     if (!when) continue;
     const direct = process.env[spec.key];
     const viaAlias = (spec.aliases ?? []).some((a) => process.env[a]);

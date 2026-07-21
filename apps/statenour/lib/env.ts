@@ -22,13 +22,26 @@ interface Spec {
   key: string;
   tier: Tier;
   description: string;
-  /** If present, the variable is only required when `when()` returns true. */
-  when?: () => boolean;
+  /** If present, the variable is only required when `when(prod)` returns true.
+   *  `prod` is the EFFECTIVE production flag for this check (from an explicit
+   *  `mode` option or, failing that, the live environment). */
+  when?: (prod: boolean) => boolean;
   /** Fallback env keys (legacy names). First non-empty wins. */
   aliases?: string[];
 }
 
-const PROD = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+/**
+ * Lazily evaluate the production flag. truth-substrate audit P0 (2026-07-21) ·
+ * audit finding #13. The previous module-level `const PROD` was captured at
+ * IMPORT time — but `scripts/check-env.ts --prod` sets `NODE_ENV=production`
+ * AFTER importing this module (ES imports are hoisted + run first). So `PROD`
+ * was always `false` there and every prod-only `when` guard silently no-opped:
+ * `pnpm check:env:prod` validated nothing. Reading the env on each call fixes it,
+ * and `checkEnvHealth({ mode })` lets callers force the mode without mutating env.
+ */
+export function isProd(): boolean {
+  return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+}
 
 export const ENV_SPEC: Spec[] = [
   // ── REQUIRED ────────────────────────────────────────────────────────
@@ -36,13 +49,13 @@ export const ENV_SPEC: Spec[] = [
   { key: "DIRECT_URL",   tier: "required", description: "Neon direct (non-pooled) connection for migrations" },
 
   // Auth — only required in production or when AUTH_SECRET is set
-  { key: "AUTH_SECRET",              tier: "required", when: () => PROD, description: "NextAuth JWT signing secret" },
-  { key: "AUTH_GOOGLE_CLIENT_ID",    tier: "required", when: () => PROD, description: "Google OAuth client id",     aliases: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID"] },
-  { key: "AUTH_GOOGLE_CLIENT_SECRET",tier: "required", when: () => PROD, description: "Google OAuth client secret", aliases: ["GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"] },
-  { key: "AUTH_ALLOWED_EMAIL",       tier: "required", when: () => PROD, description: "Single allowed operator email" },
+  { key: "AUTH_SECRET",              tier: "required", when: (prod) => prod, description: "NextAuth JWT signing secret" },
+  { key: "AUTH_GOOGLE_CLIENT_ID",    tier: "required", when: (prod) => prod, description: "Google OAuth client id",     aliases: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID"] },
+  { key: "AUTH_GOOGLE_CLIENT_SECRET",tier: "required", when: (prod) => prod, description: "Google OAuth client secret", aliases: ["GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"] },
+  { key: "AUTH_ALLOWED_EMAIL",       tier: "required", when: (prod) => prod, description: "Single allowed operator email" },
 
-  { key: "CRON_SECRET",         tier: "required", when: () => PROD, description: "Vercel cron auth header" },
-  { key: "STATENOUR_SYNC_KEY",  tier: "required", when: () => PROD, description: "Shared secret for /api/sync" },
+  { key: "CRON_SECRET",         tier: "required", when: (prod) => prod, description: "Cron auth header (Railway cron / Inngest)" },
+  { key: "STATENOUR_SYNC_KEY",  tier: "required", when: (prod) => prod, description: "Shared secret for /api/sync" },
 
   // AI — at least one provider must be set. Validated as a group below.
   { key: "OPENAI_API_KEY",    tier: "runtime", description: "Fallback AI provider" },
@@ -122,13 +135,26 @@ interface EnvHealth {
   atLeastOneAiProvider: boolean;
 }
 
-export function checkEnvHealth(): EnvHealth {
+/** Options for env validation. `mode` forces the production flag so callers
+ *  (scripts, tests) don't have to mutate NODE_ENV before the module loads. */
+export interface EnvCheckOptions {
+  mode?: "production" | "development";
+}
+
+/** Resolve the effective production flag: explicit `mode` wins, else the live env. */
+function resolveProd(opts?: EnvCheckOptions): boolean {
+  if (opts?.mode) return opts.mode === "production";
+  return isProd();
+}
+
+export function checkEnvHealth(opts?: EnvCheckOptions): EnvHealth {
   const missing: EnvHealth["missing"] = [];
   const degraded: EnvHealth["degraded"] = [];
+  const prod = resolveProd(opts);
 
   for (const spec of ENV_SPEC) {
     if (spec.tier === "platform") continue;
-    const required = spec.tier === "required" && (spec.when ? spec.when() : true);
+    const required = spec.tier === "required" && (spec.when ? spec.when(prod) : true);
     const value = readValue(spec);
     if (!value) {
       if (required) missing.push({ key: spec.key, description: spec.description, aliases: spec.aliases });
@@ -142,10 +168,10 @@ export function checkEnvHealth(): EnvHealth {
   return { missing, degraded, atLeastOneAiProvider };
 }
 
-export function describeEnvHealth(): string {
-  const h = checkEnvHealth();
+export function describeEnvHealth(opts?: EnvCheckOptions): string {
+  const h = checkEnvHealth(opts);
   const lines: string[] = [];
-  lines.push(`env · ${PROD ? "production" : "development"}`);
+  lines.push(`env · ${resolveProd(opts) ? "production" : "development"}`);
   if (h.missing.length) {
     lines.push(`  ❌ ${h.missing.length} REQUIRED missing:`);
     for (const m of h.missing) lines.push(`     · ${m.key} — ${m.description}`);
@@ -164,8 +190,8 @@ export function describeEnvHealth(): string {
 }
 
 /** Throws at boot if any required env var is missing. */
-export function assertEnvOrDie(): void {
-  const h = checkEnvHealth();
+export function assertEnvOrDie(opts?: EnvCheckOptions): void {
+  const h = checkEnvHealth(opts);
   const fatal = h.missing.length > 0 || !h.atLeastOneAiProvider;
   if (fatal) {
     const lines: string[] = ["FATAL: environment check failed"];
@@ -183,6 +209,6 @@ export const env = {
     return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://bdnick.info";
   },
   get NICKS_ADMIN_URL() { return process.env.NICKS_ADMIN_URL || "https://nickstire.org/admin"; },
-  get IS_PROD() { return PROD; },
+  get IS_PROD() { return isProd(); },
   get IS_VERCEL() { return process.env.VERCEL === "1"; },
 };
