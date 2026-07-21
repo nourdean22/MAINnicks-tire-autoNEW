@@ -38,7 +38,8 @@ import {
 } from "@/lib/ai/output-critic";
 import { parseCitations } from "@/lib/ai/memory-citations";
 import { recordToolInvocation } from "@/lib/ai/tool-telemetry";
-import { runReplyGate, formatGateSummary } from "@/lib/ai/reply-gate";
+import { runReplyGate, runReplyGateWithContract, formatGateSummary } from "@/lib/ai/reply-gate";
+import type { ResponseContract } from "@/lib/ai/response-contract";
 import {
   factCheck,
   countUnverified,
@@ -93,6 +94,12 @@ export interface BuildOnFinishInput {
   systemPrompt: string;
   finalTaskType: string;
   userContent: string;
+  // truth-substrate audit P1 (#16): the per-turn ResponseContract (built in
+  // route.ts). When present, the finalize gate runs the contract-aware variant
+  // to EMIT richer telemetry (contract-compliance signals). NOTE: on the default
+  // streaming path this is TELEMETRY-ONLY — the reply is already flushed +
+  // persisted before the gate runs, so it does not (and cannot) change the reply.
+  responseContract?: ResponseContract;
   turnSignal: TurnSignal;
   contextBlocksFired: ContextBlocksFired;
   deeperContextCount: number;
@@ -644,6 +651,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
     finalTaskType,
     userContent,
     turnSignal,
+    responseContract,
     contextBlocksFired,
     deeperContextCount,
     deeperContextTypes,
@@ -1007,8 +1015,14 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
 
       // Apr 19 · Reply gate — layers on top of the critic.
+      // truth-substrate audit P1 (#16): when the per-turn ResponseContract is
+      // available, run the contract-aware variant for richer telemetry
+      // (contract-compliance signals). This is TELEMETRY-ONLY on the streaming
+      // path — the reply is already flushed + persisted; the gate never mutates it.
       const gate = hasContent
-        ? runReplyGate(cleanedText, userContent, critic, turnSignal)
+        ? responseContract
+          ? runReplyGateWithContract(cleanedText, userContent, critic, turnSignal, responseContract)
+          : runReplyGate(cleanedText, userContent, critic, turnSignal)
         : null;
       if (gate) {
         log.info("reply_gate_applied", { summary: formatGateSummary(gate) });
@@ -1356,6 +1370,12 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
                         shouldRegen: gate.shouldRegen,
                         reasons: gate.reasons,
                         signals: gate.signals,
+                        // audit #16: contract-compliance signals when the
+                        // contract-aware gate ran (telemetry only). Cast to a
+                        // plain bool record so it satisfies Prisma InputJsonValue.
+                        ...("contractSignals" in gate
+                          ? { contractSignals: gate.contractSignals as Record<string, boolean> }
+                          : {}),
                       }
                     : undefined,
                   factCheck: factClaims.length > 0
