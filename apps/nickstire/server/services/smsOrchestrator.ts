@@ -18,7 +18,7 @@ import {
   invoices
 } from "../../drizzle/schema";
 import { sendSms } from "../sms";
-import { parseSmsResponse, executeAutoAction } from "./smsResponseParser";
+import { parseSmsResponse } from "./smsResponseParser";
 import { draftSmsReply } from "./nickgpt-client";
 import { classifyIntent } from "./classifiers";
 import { isEnabled } from "./featureFlags";

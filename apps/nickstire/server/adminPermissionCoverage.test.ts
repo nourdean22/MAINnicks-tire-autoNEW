@@ -33,7 +33,7 @@ estimates export featureFlags financing followUps gallery garage gatewayTire gbp
 instagram instagramAdmin instagramStudio intelligence invoices jobAssignments kpi lead localGrowth
 loyalty memberships messengerBot metaAdsArchitect nickActions nourOsBridge nourOsQuote payments
 portal pricing qa referrals reminders revenueAttribution revenueOps reviewReplies reviewRequests
-reviews segments seoTools serviceMatcher serviceReviews shareCards shopStatus shopdriver sms smsBot
+reviews segments seoTools serviceMatcher serviceReviews shareCards shopStatus shopdriver sms
 smsConversations smsOrchestrator smsPerformance snap socialPipeline specials statenourMetrics system
 technicians trafficFunnel vapi voiceAgent weeklyReport winback workOrders`.split(/\s+/).filter(Boolean);
 
