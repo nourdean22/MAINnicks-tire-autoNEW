@@ -3631,6 +3631,42 @@ export const smsOrchestrationOutcomes = mysqlTable("sms_orchestration_outcomes",
 export type SmsOrchestrationOutcome = typeof smsOrchestrationOutcomes.$inferSelect;
 export type InsertSmsOrchestrationOutcome = typeof smsOrchestrationOutcomes.$inferInsert;
 
+/**
+ * sms_response_jobs — the durable inbound-response obligation spine (NCSOS #1/#2).
+ * One row per inbound customer message: the durable promise that the AI will
+ * produce a decision. Leaves the queue only by reaching a terminal status, so an
+ * un-answered inbound survives a restart instead of being silently forgotten.
+ * See server/services/smsResponseJobs.ts.
+ */
+export const smsResponseJobs = mysqlTable("sms_response_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  conversationId: int("conversationId").notNull(),
+  customerPhone: varchar("customerPhone", { length: 30 }).notNull(),
+  /** Twilio MessageSid / gateway messageId — null when the provider sent none. */
+  providerMsgId: varchar("providerMsgId", { length: 128 }),
+  /** Deterministic dedup key so a provider redelivery maps to ONE job. */
+  idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+  body: text("body").notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "responded", "suppressed", "failed", "dead"]).default("pending").notNull(),
+  attempts: int("attempts").default(0).notNull(),
+  maxAttempts: int("maxAttempts").default(5).notNull(),
+  /** SLA / backoff anchor — the sweep only claims rows whose dueAt has passed. */
+  dueAt: timestamp("dueAt").defaultNow().notNull(),
+  claimedAt: timestamp("claimedAt"),
+  claimedBy: varchar("claimedBy", { length: 64 }),
+  orchestrationId: int("orchestrationId"),
+  lastError: varchar("lastError", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uniq_response_idem").on(table.idempotencyKey),
+  index("idx_response_status_due").on(table.status, table.dueAt),
+  index("idx_response_phone").on(table.customerPhone),
+]);
+
+export type SmsResponseJob = typeof smsResponseJobs.$inferSelect;
+export type InsertSmsResponseJob = typeof smsResponseJobs.$inferInsert;
+
 export const nickgptTrainingExamples = mysqlTable("nickgpt_training_examples", {
   id: int("id").autoincrement().primaryKey(),
   customerPhone: varchar("customer_phone", { length: 30 }).notNull(),

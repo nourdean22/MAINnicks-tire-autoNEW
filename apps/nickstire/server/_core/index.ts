@@ -396,6 +396,12 @@ async function startServer() {
       startDelayedQueueProcessor();
       serverLog.info("SMS delayed queue processor started");
     }).catch(e => console.warn("[server:init] SMS queue processor startup failed:", e));
+    // NCSOS #1/#2 — durable inbound-response obligation sweep: re-answers any
+    // inbound whose in-request reply was lost to a restart, and reclaims jobs a
+    // crashed worker left mid-run. The piece that makes obligations survive boot.
+    import("../services/smsResponseJobs").then(({ startResponseJobProcessor }) => {
+      startResponseJobProcessor();
+    }).catch(e => console.warn("[server:init] SMS response-job processor startup failed:", e));
     import("../services/telegram").then(({ startBatchTimer }) => {
       startBatchTimer();
       serverLog.info("Telegram batch timer started");
