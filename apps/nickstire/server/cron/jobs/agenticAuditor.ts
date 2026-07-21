@@ -19,8 +19,8 @@
  *     bounds (e.g. quoted $25 oil change when minimum is $50)
  *   · missing_followthrough · submitCallback fired but no callbacks
  *     row exists (callback was promised but not persisted)
- *   · missing_booking · scheduleDropoff fired but no bookings row
- *     exists (dropoff was promised but not persisted)
+ *   · missing_arrival_record · scheduleDropoff/bookSlot fired but no
+ *     expected_arrivals row exists (dropoff promised but not persisted)
  *   · tool_error_ignored · tool returned error but agent continued
  *     as if successful (caller heard "I scheduled you" after a fail)
  *
@@ -42,7 +42,7 @@ interface AuditFinding {
     | "vehicle_mismatch"
     | "price_drift"
     | "missing_followthrough"
-    | "missing_booking"
+    | "missing_arrival_record"
     | "tool_error_ignored";
   severity: "info" | "warning" | "alert";
   detail: string;
@@ -95,8 +95,8 @@ export async function processAgenticAuditor(): Promise<ProcessResult> {
   log.info("[agentic-auditor] start");
 
   const { getDb } = await import("../../db");
-  const { vapiCallLogs, bookings, callbackRequests } = await import("../../../drizzle/schema");
-  const { sql, gte, isNull, and, desc } = await import("drizzle-orm");
+  const { vapiCallLogs, bookings, callbackRequests, expectedArrivals } = await import("../../../drizzle/schema");
+  const { sql, gte, isNull, and, desc, eq } = await import("drizzle-orm");
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
 
@@ -206,27 +206,30 @@ export async function processAgenticAuditor(): Promise<ProcessResult> {
           }
         }
 
-        // RULE 3 · scheduleDropoff fired · verify a booking row was created
-        // for the customer in the call window.
+        // RULE 3 · scheduleDropoff/bookSlot fired · verify an EXPECTED ARRIVAL
+        // row was persisted for the customer in the call window. The shop is
+        // FCFS with no appointments, so the durable "customer said they're
+        // coming" record is an expected_arrivals row, NOT a booking. Its
+        // customerPhone is stored normalized to last-10, so match directly.
         if (name === "scheduleDropoff" || name === "schedule_dropoff" || name === "bookSlot") {
           const phone = String(args.phone ?? row.phoneNumber ?? "").replace(/\D/g, "").slice(-10);
           if (phone) {
             const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // last 30 days
             const [hit] = await d
-              .select({ id: bookings.id })
-              .from(bookings)
+              .select({ id: expectedArrivals.id })
+              .from(expectedArrivals)
               .where(and(
-                gte(bookings.createdAt, since),
-                sql`RIGHT(REGEXP_REPLACE(${bookings.phone}, '[^0-9]', ''), 10) = ${phone}`,
+                gte(expectedArrivals.createdAt, since),
+                eq(expectedArrivals.customerPhone, phone),
               ))
               .limit(1);
             if (!hit) {
               findings.push({
-                type: "missing_booking",
+                type: "missing_arrival_record",
                 severity: "alert",
                 toolName: name,
                 toolCallId,
-                detail: `dropoff scheduled but no booking row found for ...${phone.slice(-4)}`,
+                detail: `dropoff scheduled but no expected_arrival row found for ...${phone.slice(-4)}`,
               });
             }
           }

@@ -292,6 +292,16 @@ export const dispatchRouter = router({
     return getPromiseRiskSummary();
   }),
 
+  // ─── Expected Arrivals ────────────────────────────
+  // "Customers who said they're coming today" — captured from voice/SMS as a
+  // durable record (not a booking; FCFS). Feeds the Today screen.
+  expectedArrivals: adminProcedure
+    .input(z.object({ date: z.string().max(10).optional(), includeAll: z.boolean().optional() }).optional())
+    .query(async ({ input }) => {
+      const { listExpectedArrivals } = await import("../services/expectedArrivals");
+      return listExpectedArrivals({ date: input?.date, includeAllStatuses: input?.includeAll });
+    }),
+
   // ─── Declined Work Recovery ──────────────────────
   declinedLedger: adminProcedure
     .input(z.object({ limit: z.number().default(50) }).optional())

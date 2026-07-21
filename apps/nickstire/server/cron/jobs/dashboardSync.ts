@@ -109,7 +109,20 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
     }
 
     const reconciliation = await runRevenueReconciliationIfDue(db);
-    return { recordsProcessed: 1, details: `${JSON.stringify(metrics)}; ${reconciliation}` };
+
+    // Expected arrivals: mark those matched to a paid invoice as 'arrived', and
+    // stale unmet expectations as 'no_show'. Best-effort — never fails the sync.
+    let arrivals = "";
+    try {
+      const { reconcileExpectedArrivals, expireStaleExpectedArrivals } = await import("../../services/expectedArrivals");
+      const rec = await reconcileExpectedArrivals();
+      const exp = await expireStaleExpectedArrivals(2);
+      arrivals = `arrivals: ${rec.reconciled} arrived, ${exp.expired} no_show`;
+    } catch (error) {
+      log.warn("Expected-arrivals reconcile skipped", { error: error instanceof Error ? error.message : String(error) });
+    }
+
+    return { recordsProcessed: 1, details: `${JSON.stringify(metrics)}; ${reconciliation}; ${arrivals}` };
   } catch (error) {
     log.error("Dashboard sync failed", { error: error instanceof Error ? error.message : String(error) });
     return { recordsProcessed: 0 };
