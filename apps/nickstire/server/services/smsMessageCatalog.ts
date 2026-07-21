@@ -216,7 +216,7 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
   same_day_visit: [
     "Yes, you can come by today. We're first-come, first-served, so earlier is better. If you can drop it off, that helps us work it in faster.",
     "Yes, you can stop by today. If you can drop it off, that helps us work it in faster.",
-    "Yes, bring it in. We're open till 6 today. Pull right up."
+    "Yes, bring it in. We're open today. Pull right up."
   ],
   drop_off: [
     "Dropping it off is perfect. Bring the keys in, tell us what's going on, and we'll call or text you before doing any work.",

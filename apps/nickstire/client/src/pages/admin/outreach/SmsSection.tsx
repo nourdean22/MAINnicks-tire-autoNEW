@@ -991,7 +991,7 @@ function NickGptDashboard({ onNew }: { onNew: () => void }) {
               </div>
               <div className="p-3 rounded-xl bg-foreground/[0.02] border border-border/10 text-center">
                 <p className="text-foreground/45 text-[10px] uppercase font-medium">Approval Rate</p>
-                <p className="text-xl font-bold text-amber-500 mt-1">{stats?.approvalRate ?? 100}%</p>
+                <p className="text-xl font-bold text-amber-500 mt-1">{stats?.approvalRate == null ? "—" : `${stats.approvalRate}%`}</p>
               </div>
             </div>
           </div>

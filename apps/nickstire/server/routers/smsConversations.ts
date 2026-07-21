@@ -295,7 +295,12 @@ export const smsConversationsRouter = router({
         const draftsGeneratedToday = draftsToday.length;
         const draftsApprovedToday = draftsToday.filter((d) => d.status === "approved" || d.status === "edited" || d.autoSent).length;
         const totalActed = draftsToday.filter((d) => ["approved", "edited", "rejected"].includes(d.status)).length;
-        const approvalRate = totalActed > 0 ? Math.round((draftsToday.filter((d) => ["approved", "edited"].includes(d.status)).length / totalActed) * 100) : 100;
+        // No drafts acted on today = no rate to report. Returning 100 here
+        // painted a fabricated-perfect number on an empty denominator; null lets
+        // the UI render "—" so a quiet day never reads as flawless performance.
+        const approvalRate = totalActed > 0
+          ? Math.round((draftsToday.filter((d) => ["approved", "edited"].includes(d.status)).length / totalActed) * 100)
+          : null;
 
         const lastDrafts = await db.select()
           .from(nickgptDrafts)

@@ -104,7 +104,13 @@ export const smsPerformanceRouter = router({
       const rows = await d
         .select({
           variantKey: smsMessages.variantKey,
-          sent: sql<number>`COUNT(*)`,
+          // `sent` is an ALLOWLIST of delivered states, not COUNT(*). Counting
+          // every outbound row — including 'failed' and #962's permanently-stuck
+          // 'sending' rows — as a send inflates this tier summary and makes it
+          // disagree with the loop query below (line ~324), which was already
+          // fixed to IN ('sent','delivered') in #963. This is that same fix on
+          // its missed sibling: two reporting paths now agree.
+          sent: sql<number>`SUM(CASE WHEN ${smsMessages.status} IN ('sent','delivered') THEN 1 ELSE 0 END)`,
           replied: sql<number>`SUM(CASE WHEN ${smsMessages.replyCount} > 0 THEN 1 ELSE 0 END)`,
           converted: sql<number>`SUM(CASE WHEN ${smsMessages.convertedCount} > 0 THEN 1 ELSE 0 END)`,
           optedOut: sql<number>`SUM(CASE WHEN ${smsMessages.optOutAt} IS NOT NULL THEN 1 ELSE 0 END)`,
