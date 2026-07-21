@@ -3743,6 +3743,9 @@ export const nickgptTrainingExamples = mysqlTable("nickgpt_training_examples", {
   serviceMention: varchar("service_mention", { length: 100 }),
   rating: int("rating"),
   outcome: varchar("outcome", { length: 100 }),
+  /** JSON array of edit categories (why the operator changed the draft) — the
+   *  training-loop signal. Null when not an edit or classification unavailable. */
+  editCategoriesJson: text("edit_categories_json"),
   approvedForTraining: boolean("approved_for_training").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [

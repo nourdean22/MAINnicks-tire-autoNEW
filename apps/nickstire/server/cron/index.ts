@@ -361,6 +361,16 @@ export function registerAllJobs(): void {
     return generateDailyReport();
   });
 
+  // SMS self-learning digest (weekly) — was orphaned. Counts approved training
+  // examples + aggregates the operator-edit taxonomy, and RECOMMENDS a fine-tune
+  // / prompt update as a `pending` sms_learning_recommendations row. It never
+  // auto-triggers a fine-tune — the operator reviews and runs it. (NCSOS)
+  registerJob("sms-learning-digest", 7 * 24 * 60 * 60 * 1000, async () => {
+    const { processSmsLearningDigest } = await import("../services/smsLearningEngine");
+    await processSmsLearningDigest();
+    return { recordsProcessed: 1 };
+  });
+
   // Cleanup (every 6 hours)
   registerJob("cleanup", 6 * 60 * 60 * 1000, async () => {
     const { cleanupOldData } = await import("./jobs/cleanup");
