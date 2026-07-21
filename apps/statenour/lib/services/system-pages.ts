@@ -78,12 +78,13 @@ import {
 export interface DiagnosticsView {
   db: { connected: boolean; latency_ms: number };
   kpis: Record<string, unknown>;
+  // truth-substrate audit P0 (2026-07-21 · finding #7). Removed customers/leads/
+  // jobs — statenour has NO Customer/Lead/Job model (they are nickstire concepts),
+  // so a real count can't exist; they were hardcoded Promise.resolve(0) that
+  // rendered as if measured. Every remaining field is a real prisma count.
   models: {
     missions: number;
     tasks: number;
-    customers: number;
-    leads: number;
-    jobs: number;
     devices: number;
     deviceEvents: number;
     chatMessages: number;
@@ -99,7 +100,8 @@ export interface DiagnosticsView {
     enabled: boolean;
     lastSync: string | null;
   }>;
-  queue: { pending: number; failed: number };
+  // NOTE: the `queue` field was removed here (audit #7) — statenour has no
+  // job-queue subsystem, so pending/failed were hardcoded Promise.resolve(0).
   version: string;
   timestamp: string;
 }
@@ -108,7 +110,7 @@ export interface DiagnosticsView {
  *  device rollup + integrations. Lifted verbatim from
  *  app/api/system/diagnostics/route.ts. */
 export async function buildDiagnostics(): Promise<DiagnosticsView> {
-  const [db, kpis, modelCounts, deviceCounts, integrations, queueCounts] =
+  const [db, kpis, modelCounts, deviceCounts, integrations] =
     await Promise.all([
       checkDbConnection(),
       getKpiSummary(),
@@ -116,11 +118,10 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         // modelCounts = PHYSICAL table census (tombstones included on
         // purpose — see ALLOWLIST in scripts/audit-soft-delete-filters.ts;
         // rows must stay comparable with models that have no deletedAt).
+        // Every entry is a REAL count — the former Promise.resolve(0)
+        // placeholders for customers/leads/jobs were removed (audit #7).
         prisma.mission.count(),
         prisma.task.count(),
-        Promise.resolve(0),
-        Promise.resolve(0),
-        Promise.resolve(0),
         prisma.smartDevice.count(),
         prisma.deviceEvent.count(),
         prisma.chatMessage.count(),
@@ -132,9 +133,6 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         ([
           missions,
           tasks,
-          customers,
-          leads,
-          jobs,
           devices,
           deviceEvents,
           chatMessages,
@@ -145,9 +143,6 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         ]) => ({
           missions,
           tasks,
-          customers,
-          leads,
-          jobs,
           devices,
           deviceEvents,
           chatMessages,
@@ -164,9 +159,6 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       prisma.integration.findMany({
         select: { name: true, status: true, lastSyncAt: true, enabled: true },
       }),
-      Promise.all([Promise.resolve(0), Promise.resolve(0)]).then(
-        ([pending, failed]) => ({ pending, failed }),
-      ),
     ]);
 
   const devices = { online: 0, offline: 0, error: 0, total: 0 };
@@ -188,7 +180,6 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       enabled: i.enabled,
       lastSync: i.lastSyncAt?.toISOString() ?? null,
     })),
-    queue: queueCounts,
     version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
     timestamp: new Date().toISOString(),
   };

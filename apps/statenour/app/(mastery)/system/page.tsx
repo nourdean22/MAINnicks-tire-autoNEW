@@ -46,7 +46,6 @@ interface DiagnosticsData {
   };
   devices: { online: number; offline: number; error: number; total: number };
   integrations: { name: string; status: string; enabled: boolean; lastSync: string | null }[];
-  queue: { pending: number; failed: number };
   version: string;
   timestamp: string;
 }
@@ -161,8 +160,10 @@ export default function SystemPage() {
   const { refreshing, onTouchStart, onTouchEnd } = usePullRefresh(refresh);
 
   const d = diagnostics;
-  const overallStatus =
-    d?.db.connected && (d?.queue.failed ?? 0) === 0 ? "healthy" : "degraded";
+  // truth-substrate audit #7: the former `queue.failed === 0` input was a
+  // fabricated zero (statenour has no job-queue) — removed. Status now reflects
+  // the real DB-connectivity measurement.
+  const overallStatus = d?.db.connected ? "healthy" : "degraded";
 
   return (
     <div
@@ -207,12 +208,6 @@ export default function SystemPage() {
           <span className="text-xs text-[var(--text-tertiary)]">
             DB: {d?.db.latency_ms !== undefined ? <AnimatedCounter value={d.db.latency_ms} /> : "..."}ms
           </span>
-        </div>
-        <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
-          <span>Queue: <AnimatedCounter value={d?.queue.pending ?? 0} /> pending</span>
-          {(d?.queue.failed ?? 0) > 0 && (
-            <span className="text-red-400"><AnimatedCounter value={d!.queue.failed} /> failed</span>
-          )}
         </div>
       </Panel>
 
