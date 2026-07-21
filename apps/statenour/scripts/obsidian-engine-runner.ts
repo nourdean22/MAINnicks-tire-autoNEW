@@ -44,11 +44,32 @@ function runScript(scriptName: string, runArgs: string[] = []): boolean {
   const scriptPath = path.join(process.cwd(), "scripts", scriptName);
   console.log(`[Engine] tsx scripts/${scriptName} ${runArgs.join(" ")}`);
   try {
-    const result = spawnSync(NPX_COMMAND, ["tsx", scriptPath, ...runArgs], {
-      stdio: "inherit",
-      cwd: process.cwd(),
-      shell: false,
-    });
+    // Windows: NPX_COMMAND is "npx.cmd". Since the CVE-2024-27980 patch
+    // (Node 18.20/20.12/22+), spawnSync REFUSES to run a .cmd with shell:false —
+    // it returns { status: null, error: EINVAL } WITHOUT throwing. The old code
+    // read `result.status === 0` (null !== 0 => false), so every doctor/ingest/
+    // export step silently no-opped and the daemon reported "Synchronization
+    // failed" while never running anything. Route the win32 call through the
+    // shell as a single quoted command string (no DEP0190 arg-escaping warning);
+    // args here are fixed, space-free script paths + flags, so this is safe.
+    const isWin = process.platform === "win32";
+    const result = isWin
+      ? spawnSync(`${NPX_COMMAND} tsx "${scriptPath}" ${runArgs.join(" ")}`.trim(), {
+          stdio: "inherit",
+          cwd: process.cwd(),
+          shell: true,
+        })
+      : spawnSync(NPX_COMMAND, ["tsx", scriptPath, ...runArgs], {
+          stdio: "inherit",
+          cwd: process.cwd(),
+          shell: false,
+        });
+    // spawnSync reports spawn failures on result.error (it does NOT throw), so
+    // the catch below never saw them — surface them loudly instead of a silent false.
+    if (result.error) {
+      console.error(`[Engine] ${scriptName} failed to start:`, result.error);
+      return false;
+    }
     return result.status === 0;
   } catch (error) {
     console.error(`[Engine] ${scriptName} failed to start:`, error);
