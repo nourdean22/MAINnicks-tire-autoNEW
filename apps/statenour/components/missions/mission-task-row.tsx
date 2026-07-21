@@ -201,7 +201,11 @@ export function MissionTaskRow({
       // at the top of /missions and made the operator scan. scroll-mt-24
       // honors the sticky ticker. Closes the orphan-anchor synergy gap.
       className={cn(
-        "group flex items-start gap-2 py-2 px-2.5 rounded-md transition-all scroll-mt-24 border",
+        // truth-substrate UI fix (2026-07-21): flex-wrap so the action cluster
+        // wraps to its own line on a narrow phone instead of squeezing the title
+        // column to ~1 char wide (which made `break-words` stack the title
+        // vertically, one letter per line). On desktop it stays single-line.
+        "group flex flex-wrap items-start gap-2 py-2 px-2.5 rounded-md transition-all scroll-mt-24 border",
         isDoing
           ? "border-amber-500/30 bg-amber-500/[0.03] shadow-[0_0_12px_rgba(253,185,19,0.04)] animate-breath"
           : "border-transparent hover:bg-[var(--bg-raised)]/[0.06]",
@@ -450,7 +454,11 @@ export function MissionTaskRow({
        *  Pre-fix `opacity-0 group-hover` made mobile operators unable
        *  to edit/start/delete any task. */}
       {!isDone && (
-        <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
+        // truth-substrate UI fix: shrink-0 so the buttons keep their tap-target
+        // size; basis-full on mobile makes the cluster wrap to its own line
+        // (right-aligned) under the title instead of crushing it; lg:basis-auto
+        // keeps it inline on desktop.
+        <div className="flex items-center gap-0.5 shrink-0 basis-full justify-end lg:basis-auto lg:justify-normal lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={() => actions.handleEditTask(task)}

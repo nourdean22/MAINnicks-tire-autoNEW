@@ -87,7 +87,13 @@ export default function MasteryLayout({
           a second one here just created phantom bottom whitespace on
           short pages (e.g. HQ/Ultron when content is < 100vh). */}
       <AmbientAura>
-        <main id="main-content" className="pb-[var(--bottom-chrome-h)]">
+        {/* truth-substrate UI fix (2026-07-21): viewport-fit=cover lets content
+            render under the iOS status bar / notch in the installed PWA, which
+            covered the top of the page (the operator: "the time covers the back
+            button"). Nothing padded the TOP (only the bottom chrome was safe-area
+            aware). pt-[env(safe-area-inset-top)] pushes content clear of the
+            status bar; it resolves to 0 where there's no inset (e.g. desktop). */}
+        <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)]">
           <div className="feed py-4 md:py-6 page-enter">
             {/* v11.1 · ErrorBoundary wraps the page content (not the
                 chrome). A broken panel still lets the orb, nav, and
