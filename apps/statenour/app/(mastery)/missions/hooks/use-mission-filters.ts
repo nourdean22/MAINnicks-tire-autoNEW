@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import type { Task, Project } from "@/components/actions/shared";
-import { isUserProject } from "@/lib/services/mission-helpers";
+import { isUserProject, isGeneralAnchor } from "@/lib/services/mission-helpers";
 
 export type KindFilter = "all" | "ONCE" | "DAILY" | "PROMISE";
 
@@ -41,9 +41,20 @@ export function useMissionFilters(tasks: Task[], missions: Project[]) {
     if (!hasActiveFilter) return missions;
 
     return missions.filter((m) => {
-      if (m.status !== "ACTIVE" || !isUserProject(m)) return false;
+      // truth-substrate audit P1 (#19): keep GENERAL domain anchors too, not just
+      // user projects — MissionFeed needs them to render domain-routed task buckets.
+      // Without this, an active filter dropped every anchor and the tasks the
+      // classifier routed to them regressed back into "unattached". MissionFeed's
+      // own isUserProject filter still keeps anchors OUT of the project cards, so
+      // this only feeds the domain-bucket path. (filteredMissions has one consumer.)
+      if (m.status !== "ACTIVE" || (!isUserProject(m) && !isGeneralAnchor(m))) return false;
 
-      if (domainFilter && m.domain?.toLowerCase() !== domainFilter.toLowerCase()) {
+      // Anchors are domain-scoped by canonicalDomain; match either field.
+      if (
+        domainFilter &&
+        m.domain?.toLowerCase() !== domainFilter.toLowerCase() &&
+        m.canonicalDomain?.toLowerCase() !== domainFilter.toLowerCase()
+      ) {
         return false;
       }
 

@@ -19,11 +19,14 @@ const INTENTIONALLY_UNLISTED: string[] = [];
 function menuRoutingSlugs(): Set<string> {
   const slugs = new Set<string>();
   for (const s of SLASH_COMMANDS) {
-    // The routing key is the prompt's first token when it is a "/command".
+    // ONLY the prompt routes: on click, chat-composer sends command.prompt, which
+    // hits resolveCommand -> parseCommand (matches the first "/token"). The `cmd`
+    // field is display-only (React key + label + filter substring) and is
+    // deliberately NOT counted here — crediting it would let a menu entry whose
+    // prompt drifted off "/name" (or became a navigate/action) still pass this
+    // guard while being unroutable. (P1 review finding.)
     const firstTok = s.prompt?.trim().split(/\s+/)[0];
     if (firstTok?.startsWith("/")) slugs.add(firstTok);
-    // `cmd` is the display slug; accept it too so a menu entry counts either way.
-    if (s.cmd?.startsWith("/")) slugs.add(s.cmd.trim());
   }
   return slugs;
 }
