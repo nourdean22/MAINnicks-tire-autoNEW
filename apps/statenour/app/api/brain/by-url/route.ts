@@ -157,8 +157,12 @@ export async function GET(req: NextRequest) {
     log.warn("by_url_lookup_failed", {
       err: e instanceof Error ? e.message.slice(0, 200) : String(e),
     });
+    // truth-substrate audit P0 (#6): the lookup FAILED — do not present the empty
+    // result as fact. `lookupFailed: true` lets the client distinguish "this read
+    // errored" from "this URL genuinely has no prior notes" (previously identical:
+    // notes:[] + 200). Kept 200 + notes:[] for backward-compatible clients.
     return Response.json(
-      { url: parsed.url, domain, notes: [] },
+      { url: parsed.url, domain, notes: [], lookupFailed: true },
       { status: 200 },
     );
   }

@@ -20,6 +20,7 @@
 import { prisma } from "@/lib/prisma";
 import { daysAgo, today, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export interface BlindSpot {
   domain: string;
@@ -92,6 +93,14 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
   // retired. Dropped both queries entirely. fourteenDaysAgo still
   // referenced downstream (brain dumps), so leave it declared.
   void fourteenDaysAgo;
+
+  // truth-substrate audit P0 (#6): the corpus (chat + brain dumps) that drives
+  // the Wald survivor-bias detector below is built from two reads that used to
+  // .catch(() => []) SILENTLY. A partial failure looked like a genuinely empty
+  // domain → false "zero data inflow" blind spots (absence mistaken for signal).
+  // We now LOG the failure and mark the corpus unreliable so absence-inference
+  // is skipped when a feeding read failed.
+  let corpusReliable = true;
   const [
     overdueCommitments,
     staleLoops,
@@ -137,7 +146,11 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       where: { createdAt: { gte: sevenDaysAgo }, role: "user" },
       select: { content: true },
       take: 50,
-    }).catch((): never[] => []),
+    }).catch((e): never[] => {
+      logError("brain.blind-spot-detector", e, { fn: "recentConversations" });
+      corpusReliable = false;
+      return [];
+    }),
 
     // Unresolved drift alerts — v-truth · only RECENT ones. Without the
     // createdAt floor, months-old never-resolved alerts inflated the count
@@ -174,7 +187,11 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       where: { deletedAt: null, createdAt: { gte: fourteenDaysAgo } }, // v9.1.18
       select: { summary: true, patterns: true, rawThoughts: true },
       take: 5,
-    }).catch((): never[] => []),
+    }).catch((e): never[] => {
+      logError("brain.blind-spot-detector", e, { fn: "recentBrainDumps" });
+      corpusReliable = false;
+      return [];
+    }),
 
     // Leads going stale
     Promise.resolve(0).catch(() => 0),
@@ -318,7 +335,11 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
   // truly empty corpus (fresh install, no journal/chat data), all
   // domains are silent and Wald would emit 10 spots about absence.
   // That's not a blind spot — that's an empty system.
-  if (userText.trim().length > 100) {
+  //
+  // truth-substrate audit #6: ALSO require corpusReliable — if a feeding read
+  // FAILED, apparent silence is a measurement gap, not real neglect. Emitting
+  // "zero data inflow" off a failed query is a false signal, so skip it.
+  if (corpusReliable && userText.trim().length > 100) {
     for (const domain of Object.keys(DOMAIN_INVERSIONS)) {
       if (domainMentionCount(domain) === 0) {
         blindSpots.push({
