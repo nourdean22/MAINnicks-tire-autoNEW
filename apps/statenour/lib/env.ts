@@ -210,5 +210,7 @@ export const env = {
   },
   get NICKS_ADMIN_URL() { return process.env.NICKS_ADMIN_URL || "https://nickstire.org/admin"; },
   get IS_PROD() { return isProd(); },
-  get IS_VERCEL() { return process.env.VERCEL === "1"; },
+  // truth-substrate audit #11/#14: removed the dead IS_VERCEL getter (zero
+  // consumers; always false on Railway — it only perpetuated the wrong platform
+  // model). Deploy identity comes from lib/services/deploy-identity.ts.
 };

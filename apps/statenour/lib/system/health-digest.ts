@@ -22,6 +22,7 @@
  */
 
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
+import { getDeployMeta } from "@/lib/services/deploy-identity";
 import { scanStaleData } from "@/lib/system/stale-data-scanner";
 import { prisma } from "@/lib/prisma";
 import { safeQuery } from "@/lib/db/safe-prisma";
@@ -88,38 +89,19 @@ interface EnvGroups {
 }
 
 /**
- * v10.0.88 — collect deploy provenance from Vercel build env vars.
- * Returns null fields in local dev (no VERCEL_GIT_* set).
- *
- * Vercel sets:
- *   · VERCEL_GIT_COMMIT_SHA        — full SHA
- *   · VERCEL_GIT_COMMIT_REF        — branch name
- *   · VERCEL_ENV                   — production / preview / development
- *
- * Vercel does NOT set a "deployed at" timestamp directly; we use
- * the build timestamp captured by the Next runtime as a proxy
- * (process.env.NEXT_BUILD_ID is base32 of the build time on Vercel).
+ * Collect deploy provenance. truth-substrate audit P0 (#11/#14): sourced from
+ * the canonical getDeployMeta() (Railway-first, then Vercel), replacing the old
+ * Vercel-only reads that returned null on Railway prod. Returns null fields only
+ * when neither platform's env is present (genuine local dev).
  */
 function collectDeployInfo(): SystemHealthDigest["stats"]["deploy"] {
-  const sha =
-    process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? null;
-  const branch =
-    process.env.VERCEL_GIT_COMMIT_REF ?? process.env.GIT_BRANCH ?? null;
-  const env = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? null;
-
-  // Best-effort deployedAt: VERCEL doesn't expose it as an env var,
-  // but DEPLOY_TIMESTAMP can be set during build. Falls back to null.
-  const deployedAt =
-    process.env.DEPLOY_TIMESTAMP ??
-    process.env.VERCEL_GIT_COMMIT_TIMESTAMP ??
-    null;
-
+  const m = getDeployMeta();
   return {
-    sha,
-    shortSha: sha ? sha.slice(0, 7) : null,
-    branch,
-    env,
-    deployedAt,
+    sha: m.sha,
+    shortSha: m.shaShort,
+    branch: m.branch,
+    env: m.env,
+    deployedAt: m.buildTime,
   };
 }
 

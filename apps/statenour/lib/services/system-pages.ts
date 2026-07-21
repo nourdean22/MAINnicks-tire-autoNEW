@@ -70,6 +70,7 @@ import {
   deriveHealthHeadline,
   type MetricResult,
 } from "@/lib/services/metric-result";
+import { getDeployMeta } from "@/lib/services/deploy-identity";
 
 // ════════════════════════ /system · diagnostics ════════════════════════
 
@@ -180,7 +181,8 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       enabled: i.enabled,
       lastSync: i.lastSyncAt?.toISOString() ?? null,
     })),
-    version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+    // truth-substrate audit #11/#14: Railway-first short SHA (was Vercel-only → "local" on prod).
+    version: getDeployMeta().shaShort ?? "local",
     timestamp: new Date().toISOString(),
   };
 }
@@ -1626,24 +1628,24 @@ export async function buildDeploymentTruth(): Promise<DeploymentTruthView> {
         health = "yellow";
       }
 
-      const sha = process.env.VERCEL_GIT_COMMIT_SHA ?? "dev";
-      const BUILD_TIME =
-        process.env.BUILD_TIME ||
-        process.env.VERCEL_DEPLOYMENT_CREATED_AT ||
-        null;
+      // truth-substrate audit P0 (#11/#14): deploy identity from the canonical
+      // Railway-first getDeployMeta(), not Vercel-only reads that showed
+      // "dev"/"local"/"development" on Railway prod (this is the "deployment
+      // TRUTH" surface — it must not lie about what is live).
+      const deploy = getDeployMeta();
 
       return {
         generatedAt: new Date().toISOString(),
         build: {
-          sha,
-          shaShort: sha.slice(0, 7),
-          commitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE
-            ? process.env.VERCEL_GIT_COMMIT_MESSAGE.slice(0, 200)
+          sha: deploy.sha ?? "unknown",
+          shaShort: deploy.shaShort ?? "unknown",
+          commitMessage: deploy.commitMessage
+            ? deploy.commitMessage.slice(0, 200)
             : null,
-          branch: process.env.VERCEL_GIT_COMMIT_REF ?? "local",
-          deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
-          env: process.env.VERCEL_ENV ?? "development",
-          buildTime: BUILD_TIME,
+          branch: deploy.branch ?? "local",
+          deploymentId: deploy.deploymentId,
+          env: deploy.env ?? "development",
+          buildTime: deploy.buildTime,
           serverTime: new Date().toISOString(),
         },
         schema: {

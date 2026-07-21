@@ -7,10 +7,13 @@
  * the new `system.deployInfo` tRPC procedure call the SAME function ·
  * drift between consumers structurally impossible.
  *
- * Pure env-var read · no DB, no AI cost. Vercel injects the build-time
- * git vars on every deploy; BUILD_TIME is stamped by next.config.ts.
+ * Pure env-var read · no DB, no AI cost. truth-substrate audit P0 (#11/#14):
+ * identity now comes from the canonical getDeployMeta() (Railway-first), not
+ * Vercel-only reads that showed "dev"/"local"/"development" on Railway prod.
  * Returns an explicit, shallow `DeployInfo` shape.
  */
+
+import { getDeployMeta } from "@/lib/services/deploy-identity";
 
 /** Current deployment identity · build SHA + branch + deploy timestamp. */
 export interface DeployInfo {
@@ -25,28 +28,21 @@ export interface DeployInfo {
 }
 
 /**
- * Read the current deployment identity from build-time env vars. The
- * route and the tRPC `system.deployInfo` procedure both call this.
+ * Read the current deployment identity. The route and the tRPC
+ * `system.deployInfo` procedure both call this. When neither Railway nor
+ * Vercel env is present the fields read "unknown"/"local" HONESTLY rather
+ * than pretending a specific dev SHA.
  */
 export function buildDeployInfo(): DeployInfo {
-  const buildTime =
-    process.env.BUILD_TIME ||
-    process.env.VERCEL_DEPLOYMENT_CREATED_AT ||
-    null;
-  const sha = process.env.VERCEL_GIT_COMMIT_SHA ?? "dev";
-  const commitMessage = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? null;
-  const branch = process.env.VERCEL_GIT_COMMIT_REF ?? "local";
-  const deploymentId = process.env.VERCEL_DEPLOYMENT_ID ?? null;
-  const env = process.env.VERCEL_ENV ?? "development";
-
+  const m = getDeployMeta();
   return {
-    sha,
-    shaShort: sha.slice(0, 7),
-    commitMessage: commitMessage ? commitMessage.slice(0, 140) : null,
-    branch,
-    deploymentId,
-    env,
-    buildTime,
+    sha: m.sha ?? "unknown",
+    shaShort: m.shaShort ?? "unknown",
+    commitMessage: m.commitMessage ? m.commitMessage.slice(0, 140) : null,
+    branch: m.branch ?? "local",
+    deploymentId: m.deploymentId,
+    env: m.env ?? "development",
+    buildTime: m.buildTime,
     serverTime: new Date().toISOString(),
   };
 }
