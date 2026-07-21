@@ -402,6 +402,12 @@ async function startServer() {
     import("../services/smsResponseJobs").then(({ startResponseJobProcessor }) => {
       startResponseJobProcessor();
     }).catch(e => console.warn("[server:init] SMS response-job processor startup failed:", e));
+    // NCSOS facts store: upsert the code-level SEED_FACTS into business_facts so
+    // the operator has editable rows. Idempotent; the code seed is the fallback,
+    // so a failure here never leaves a fact unavailable.
+    import("../services/businessFacts").then(({ seedBusinessFacts }) => {
+      void seedBusinessFacts();
+    }).catch(e => console.warn("[server:init] business-facts seed failed:", e));
     import("../services/telegram").then(({ startBatchTimer }) => {
       startBatchTimer();
       serverLog.info("Telegram batch timer started");
