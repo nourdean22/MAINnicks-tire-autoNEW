@@ -280,7 +280,9 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         habitsDone,
         habitsTotal,
         streaks: streaksData?.streaks ?? [],
-        driftAlerts: health?.alerts?.unresolved ?? 0,
+        // truth-substrate audit #4-6: alerts is now a MetricResult — read
+        // .value.unresolved (undefined when the read was unavailable → 0 here).
+        driftAlerts: health?.alerts?.value?.unresolved ?? 0,
         mit: cmd?.brief?.topTasks?.[0]?.title ?? null,
         urgentItems: cmd?.urgentItems ?? [],
         brainHealth: cmd?.brain?.healthScore ?? 0,

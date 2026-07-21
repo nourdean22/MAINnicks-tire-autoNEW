@@ -65,6 +65,12 @@ import { MEGA_JOB_COUNTS } from "@/lib/inngest/jobs";
 import { braintrustWrapStatus } from "@/lib/ai/braintrust-wrap";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { listCronControls, getCronStats } from "@/lib/services/cron-control";
+import {
+  measure,
+  deriveHealthHeadline,
+  type MetricResult,
+} from "@/lib/services/metric-result";
+import { getDeployMeta } from "@/lib/services/deploy-identity";
 
 // ════════════════════════ /system · diagnostics ════════════════════════
 
@@ -73,12 +79,13 @@ import { listCronControls, getCronStats } from "@/lib/services/cron-control";
 export interface DiagnosticsView {
   db: { connected: boolean; latency_ms: number };
   kpis: Record<string, unknown>;
+  // truth-substrate audit P0 (2026-07-21 · finding #7). Removed customers/leads/
+  // jobs — statenour has NO Customer/Lead/Job model (they are nickstire concepts),
+  // so a real count can't exist; they were hardcoded Promise.resolve(0) that
+  // rendered as if measured. Every remaining field is a real prisma count.
   models: {
     missions: number;
     tasks: number;
-    customers: number;
-    leads: number;
-    jobs: number;
     devices: number;
     deviceEvents: number;
     chatMessages: number;
@@ -94,7 +101,8 @@ export interface DiagnosticsView {
     enabled: boolean;
     lastSync: string | null;
   }>;
-  queue: { pending: number; failed: number };
+  // NOTE: the `queue` field was removed here (audit #7) — statenour has no
+  // job-queue subsystem, so pending/failed were hardcoded Promise.resolve(0).
   version: string;
   timestamp: string;
 }
@@ -103,7 +111,7 @@ export interface DiagnosticsView {
  *  device rollup + integrations. Lifted verbatim from
  *  app/api/system/diagnostics/route.ts. */
 export async function buildDiagnostics(): Promise<DiagnosticsView> {
-  const [db, kpis, modelCounts, deviceCounts, integrations, queueCounts] =
+  const [db, kpis, modelCounts, deviceCounts, integrations] =
     await Promise.all([
       checkDbConnection(),
       getKpiSummary(),
@@ -111,11 +119,10 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         // modelCounts = PHYSICAL table census (tombstones included on
         // purpose — see ALLOWLIST in scripts/audit-soft-delete-filters.ts;
         // rows must stay comparable with models that have no deletedAt).
+        // Every entry is a REAL count — the former Promise.resolve(0)
+        // placeholders for customers/leads/jobs were removed (audit #7).
         prisma.mission.count(),
         prisma.task.count(),
-        Promise.resolve(0),
-        Promise.resolve(0),
-        Promise.resolve(0),
         prisma.smartDevice.count(),
         prisma.deviceEvent.count(),
         prisma.chatMessage.count(),
@@ -127,9 +134,6 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         ([
           missions,
           tasks,
-          customers,
-          leads,
-          jobs,
           devices,
           deviceEvents,
           chatMessages,
@@ -140,9 +144,6 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
         ]) => ({
           missions,
           tasks,
-          customers,
-          leads,
-          jobs,
           devices,
           deviceEvents,
           chatMessages,
@@ -159,9 +160,6 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       prisma.integration.findMany({
         select: { name: true, status: true, lastSyncAt: true, enabled: true },
       }),
-      Promise.all([Promise.resolve(0), Promise.resolve(0)]).then(
-        ([pending, failed]) => ({ pending, failed }),
-      ),
     ]);
 
   const devices = { online: 0, offline: 0, error: 0, total: 0 };
@@ -183,8 +181,8 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
       enabled: i.enabled,
       lastSync: i.lastSyncAt?.toISOString() ?? null,
     })),
-    queue: queueCounts,
-    version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+    // truth-substrate audit #11/#14: Railway-first short SHA (was Vercel-only → "local" on prod).
+    version: getDeployMeta().shaShort ?? "local",
     timestamp: new Date().toISOString(),
   };
 }
@@ -192,67 +190,53 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
 // ═════════════════════════════ /api/health ═════════════════════════════
 
 /** Composite health probe shape. Plain scalars only — no Prisma Json. */
+// truth-substrate audit P0 (2026-07-21 · findings #4-6). The four fields whose
+// reads previously `.catch(() => 0/[]/null)` are now MetricResult<T>: a failed
+// read is `unavailable` (not a fake zero), so the UI can render "unknown"
+// distinctly from a real 0. `db`, `tasks`, `commitments`, `devices` stay scalar
+// — their reads are UNCAUGHT (they reject the whole probe on failure = an honest
+// hard error, never a false green). `status` no longer follows db connectivity
+// alone; it is "healthy" only when db is up AND every metric measured ok.
 export interface SystemHealthView {
   status: string;
   db: { connected: boolean; latency_ms: number };
   tasks: { inbox: number; ready: number; doing: number; done: number; total: number };
-  alerts: { unresolved: number };
+  alerts: MetricResult<{ unresolved: number }>;
   commitments: { active: number };
   devices: { online: number; offline: number; total: number };
-  radar: {
+  radar: MetricResult<{
     threads: { active: number; dormant: number; archived: number; total: number };
     pendingCandidates: number;
     pendingSuggestions: number;
-  };
-  morningBrief: { ready: boolean; date: string; composedAt: string | null };
+  }>;
+  morningBrief: MetricResult<{ ready: boolean; date: string; composedAt: string | null }>;
   inngest: {
     configured: boolean;
     functions: number;
     megaJobs: typeof MEGA_JOB_COUNTS;
   };
   braintrust: { status: ReturnType<typeof braintrustWrapStatus> };
-  autonomic: {
+  autonomic: MetricResult<{
     lastRunAt: string | null;
     status: string | null;
     error: string | null;
-  };
+  }>;
+  /** Sources of every non-ok metric — the quick "what is unknown right now" list. */
+  degradedSources: string[];
 }
 
 /** Composite health probe · 30s-cached. Lifted verbatim from
  *  app/api/health/route.ts. */
 export async function buildSystemHealth(): Promise<SystemHealthView> {
   return cached("health_v1", 30, async (): Promise<SystemHealthView> => {
-    const [
-      db,
-      alertCount,
-      taskCounts,
-      commitmentCount,
-      deviceCounts,
-      threadCounts,
-      candidateCount,
-      suggestionCount,
-      healerLog,
-    ] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Hard-required reads: UNCAUGHT on purpose — a failure rejects the whole
+    // probe (an honest 500, never a false green). Kept scalar for consumers.
+    // Soft-deleted tasks are tombstones — `where: { deletedAt: null }` keeps the
+    // count aligned with the live universe (104 of 161 Task rows are tombstones).
+    const hard = Promise.all([
       checkDbConnection(),
-      prisma.brainMemory
-        .findMany({
-          where: {
-            category: "coach_event",
-            key: { startsWith: "coach:drift-recovery:" },
-          },
-          select: { metadata: true },
-        })
-        .then((rows) => {
-          return rows.filter((r) => {
-            const meta = (r.metadata ?? {}) as Record<string, any>;
-            return !meta.ackedAt;
-          }).length;
-        })
-        .catch(() => 0),
-      // Soft-deleted tasks are tombstones — counting them made /api/health
-      // report 161 tasks / 52 INBOX when the live universe was 57 / 0 (104 of
-      // 161 Task rows are soft-deleted). The journalThread groupBy below has
-      // always filtered; these two were the oversight.
       prisma.task.groupBy({
         by: ["status"],
         where: { deletedAt: null },
@@ -265,55 +249,67 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         by: ["status"],
         _count: { id: true },
       }),
-      prisma.journalThread
-        .groupBy({
-          by: ["status"],
-          where: { deletedAt: null },
-          _count: { id: true },
-        })
-        .catch((): never[] => []),
-      prisma.brainMemory
-        .count({
-          where: {
-            category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE,
-            deletedAt: null,
-          },
-        })
-        .catch(() => 0),
-      prisma.brainMemory
-        .count({
-          where: {
-            category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION,
-            deletedAt: null,
-          },
-        })
-        .catch(() => 0),
-      prisma.cronJobLog
-        .findFirst({
-          where: { jobName: "cron-healer" },
-          orderBy: { createdAt: "desc" },
-          select: { createdAt: true, status: true, error: true },
-        })
-        .catch(() => null),
     ]);
 
-    const today = new Date().toISOString().slice(0, 10);
-    const briefRow = await prisma.brainMemory
-      .findUnique({
-        where: {
-          category_key: {
-            category: BRAIN_CATEGORIES.MORNING_BRIEF,
-            key: today,
-          },
-        },
+    // False-green-prone reads: each MEASURED. A failure becomes `unavailable`
+    // (distinct from a real zero) instead of the old silent .catch(()=>0/[]/null),
+    // so the UI can render "unknown" and the headline can reflect the failure.
+    const alertsMetric = measure("alerts", async () => {
+      const rows = await prisma.brainMemory.findMany({
+        where: { category: "coach_event", key: { startsWith: "coach:drift-recovery:" } },
+        select: { metadata: true },
+      });
+      const unresolved = rows.filter((r) => {
+        const meta = (r.metadata ?? {}) as Record<string, any>;
+        return !meta.ackedAt;
+      }).length;
+      return { unresolved };
+    });
+
+    const radarMetric = measure("radar", async () => {
+      const [threadCounts, pendingCandidates, pendingSuggestions] = await Promise.all([
+        prisma.journalThread.groupBy({ by: ["status"], where: { deletedAt: null }, _count: { id: true } }),
+        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE, deletedAt: null } }),
+        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION, deletedAt: null } }),
+      ]);
+      const threads = { active: 0, dormant: 0, archived: 0, total: 0 };
+      for (const g of threadCounts) {
+        const count = g._count.id;
+        threads.total += count;
+        if (g.status === "active") threads.active = count;
+        else if (g.status === "dormant") threads.dormant = count;
+        else if (g.status === "archived") threads.archived = count;
+      }
+      return { threads, pendingCandidates, pendingSuggestions };
+    });
+
+    const morningBriefMetric = measure("morningBrief", async () => {
+      const briefRow = await prisma.brainMemory.findUnique({
+        where: { category_key: { category: BRAIN_CATEGORIES.MORNING_BRIEF, key: today } },
         select: { updatedAt: true },
-      })
-      .catch(() => null);
-    const morningBrief = {
-      ready: briefRow != null,
-      date: today,
-      composedAt: briefRow?.updatedAt?.toISOString() ?? null,
-    };
+      });
+      return {
+        ready: briefRow != null,
+        date: today,
+        composedAt: briefRow?.updatedAt?.toISOString() ?? null,
+      };
+    });
+
+    const autonomicMetric = measure("autonomic", async () => {
+      const healerLog = await prisma.cronJobLog.findFirst({
+        where: { jobName: "cron-healer" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, status: true, error: true },
+      });
+      return {
+        lastRunAt: healerLog?.createdAt?.toISOString() ?? null,
+        status: healerLog?.status ?? null,
+        error: healerLog?.error ?? null,
+      };
+    });
+
+    const [[db, taskCounts, commitmentCount, deviceCounts], alerts, radar, morningBrief, autonomic] =
+      await Promise.all([hard, alertsMetric, radarMetric, morningBriefMetric, autonomicMetric]);
 
     const tasks = { inbox: 0, ready: 0, doing: 0, done: 0, total: 0 };
     for (const g of taskCounts) {
@@ -331,24 +327,20 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       else devices.offline += count;
     }
 
-    const radar = {
-      threads: { active: 0, dormant: 0, archived: 0, total: 0 },
-      pendingCandidates: candidateCount,
-      pendingSuggestions: suggestionCount,
-    };
-    for (const g of threadCounts) {
-      const count = g._count.id;
-      radar.threads.total += count;
-      if (g.status === "active") radar.threads.active = count;
-      else if (g.status === "dormant") radar.threads.dormant = count;
-      else if (g.status === "archived") radar.threads.archived = count;
-    }
+    // Honest headline: healthy ONLY when the DB is up AND every measured metric
+    // succeeded. A swallowed sub-read can no longer read "healthy" (audit #4).
+    const { status, degradedSources } = deriveHealthHeadline(db.connected, [
+      alerts,
+      radar,
+      morningBrief,
+      autonomic,
+    ]);
 
     return {
-      status: db.connected ? "healthy" : "degraded",
+      status,
       db: { connected: db.connected, latency_ms: db.latency_ms },
       tasks,
-      alerts: { unresolved: alertCount },
+      alerts,
       commitments: { active: commitmentCount },
       devices,
       radar,
@@ -359,11 +351,8 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         megaJobs: MEGA_JOB_COUNTS,
       },
       braintrust: { status: braintrustWrapStatus() },
-      autonomic: {
-        lastRunAt: healerLog?.createdAt?.toISOString() ?? null,
-        status: healerLog?.status ?? null,
-        error: healerLog?.error ?? null,
-      },
+      autonomic,
+      degradedSources,
     };
   });
 }
@@ -1639,24 +1628,24 @@ export async function buildDeploymentTruth(): Promise<DeploymentTruthView> {
         health = "yellow";
       }
 
-      const sha = process.env.VERCEL_GIT_COMMIT_SHA ?? "dev";
-      const BUILD_TIME =
-        process.env.BUILD_TIME ||
-        process.env.VERCEL_DEPLOYMENT_CREATED_AT ||
-        null;
+      // truth-substrate audit P0 (#11/#14): deploy identity from the canonical
+      // Railway-first getDeployMeta(), not Vercel-only reads that showed
+      // "dev"/"local"/"development" on Railway prod (this is the "deployment
+      // TRUTH" surface — it must not lie about what is live).
+      const deploy = getDeployMeta();
 
       return {
         generatedAt: new Date().toISOString(),
         build: {
-          sha,
-          shaShort: sha.slice(0, 7),
-          commitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE
-            ? process.env.VERCEL_GIT_COMMIT_MESSAGE.slice(0, 200)
+          sha: deploy.sha ?? "unknown",
+          shaShort: deploy.shaShort ?? "unknown",
+          commitMessage: deploy.commitMessage
+            ? deploy.commitMessage.slice(0, 200)
             : null,
-          branch: process.env.VERCEL_GIT_COMMIT_REF ?? "local",
-          deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
-          env: process.env.VERCEL_ENV ?? "development",
-          buildTime: BUILD_TIME,
+          branch: deploy.branch ?? "local",
+          deploymentId: deploy.deploymentId,
+          env: deploy.env ?? "development",
+          buildTime: deploy.buildTime,
           serverTime: new Date().toISOString(),
         },
         schema: {

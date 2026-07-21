@@ -18,6 +18,20 @@ import type { NextRequest } from "next/server";
 export const runtime = "nodejs";
 
 export async function register() {
+  // truth-substrate audit P0 (#12): FAIL LOUD at boot on missing required env.
+  // assertEnvOrDie was defined but never called — a Railway prod boot with a
+  // missing AUTH_SECRET / CRON_SECRET / DATABASE_URL silently started a broken
+  // server. register() runs once per server-instance start, so this is the
+  // canonical boot gate.
+  //   · Skipped during `next build` (NEXT_PHASE guard) so CI/build stay green.
+  //   · Safe locally: isProd() is false in dev, so only DATABASE_URL/DIRECT_URL
+  //     + one AI provider key are required.
+  //   · NOT wrapped in try/catch — the throw MUST propagate to abort boot.
+  if (process.env.NEXT_PHASE !== "phase-production-build") {
+    const { assertEnvOrDie } = await import("@/lib/env");
+    assertEnvOrDie();
+  }
+
   // Module-load side effects · the tracer is already set up as a
   // singleton in lib/observability/tracer.ts. Nothing to do at register
   // time other than ensure the module is loaded (so it's hot when

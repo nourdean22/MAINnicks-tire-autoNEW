@@ -29,16 +29,15 @@ export interface ReconEntry {
   verifyGate: string | null;
 }
 
-export type DeployStatus = "production" | "non-production" | "unknown";
-
-export interface DeployIdentity {
-  sha: string | null;
-  branch: string | null;
-  env: string | null;
-  source: "railway" | "vercel" | "none";
-  status: DeployStatus;
-  note: string;
-}
+// truth-substrate audit P0 (#11/#14): deploy-identity moved to the canonical
+// lib/services/deploy-identity.ts (Railway-first, shared by every surface).
+// Imported locally (used in the interfaces below) AND re-exported so existing
+// consumers of these names keep working.
+import { readDeployIdentity, type DeployStatus, type DeployIdentity } from "@/lib/services/deploy-identity";
+export type { DeployStatus, DeployIdentity };
+// Re-export the VALUE too — the pre-existing system-change-digest.test.ts (and
+// any other consumer) imports readDeployIdentity from THIS module.
+export { readDeployIdentity };
 
 export interface SystemChangeDigest {
   generatedAt: string;
@@ -86,39 +85,7 @@ export function parseLatestReconciliation(content: string): ReconEntry | null {
   return { date, title, ships, verifyGate };
 }
 
-/**
- * Read deploy identity from env (Railway first, then Vercel). Pure given env.
- * Never asserts "deployed" without an explicit production env + SHA.
- */
-export function readDeployIdentity(env: Record<string, string | undefined>): DeployIdentity {
-  const railSha = env.RAILWAY_GIT_COMMIT_SHA;
-  const vercelSha = env.VERCEL_GIT_COMMIT_SHA;
-  if (railSha) {
-    const envName = env.RAILWAY_ENVIRONMENT_NAME ?? env.RAILWAY_ENVIRONMENT ?? null;
-    const isProd = (envName ?? "").toLowerCase() === "production";
-    return {
-      sha: railSha, branch: env.RAILWAY_GIT_BRANCH ?? null, env: envName,
-      source: "railway",
-      status: isProd ? "production" : "non-production",
-      note: `Railway ${envName ?? "env"} @ ${railSha.slice(0, 7)}${env.RAILWAY_GIT_BRANCH ? ` (${env.RAILWAY_GIT_BRANCH})` : ""}.`,
-    };
-  }
-  if (vercelSha && vercelSha !== "dev") {
-    const envName = env.VERCEL_ENV ?? null;
-    const isProd = (envName ?? "").toLowerCase() === "production";
-    return {
-      sha: vercelSha, branch: env.VERCEL_GIT_COMMIT_REF ?? null, env: envName,
-      source: "vercel",
-      status: isProd ? "production" : "non-production",
-      note: `Vercel ${envName ?? "env"} @ ${vercelSha.slice(0, 7)} (note: statenour prod is Railway — verify).`,
-    };
-  }
-  return {
-    sha: null, branch: null, env: null, source: "none",
-    status: "unknown",
-    note: "Deploy identity not available from this runtime (no RAILWAY_*/VERCEL_* env). Not asserting a deploy — verify on bdnick.info.",
-  };
-}
+// readDeployIdentity now lives in lib/services/deploy-identity.ts (imported above).
 
 export interface DigestParts {
   reconciliation: ReconEntry | null;

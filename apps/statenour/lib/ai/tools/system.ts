@@ -965,7 +965,7 @@ export const systemTools = {
     inputSchema: z.object({
       repo: z.string().describe("Repo name: statenour-os, MAINnicks-tire-autoNEW, easy-nickstire"),
       path: z.string().describe("File path in the repo (e.g., 'lib/ai/tools.ts', 'package.json')"),
-      branch: z.string().optional().describe("Branch name (default: main or codex/ollama-local for statenour)"),
+      branch: z.string().optional().describe("Branch name (default: main)"),
     }),
     execute: async ({ repo, path, branch }) => {
       const { getFileContent } = await import("@/lib/integrations/github");
