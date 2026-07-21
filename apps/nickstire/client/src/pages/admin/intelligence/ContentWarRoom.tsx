@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { AlertCircle, CheckCircle2, Clock, PlaySquare, FileText, Image as ImageIcon } from "lucide-react";
 
 export function ContentWarRoom() {
-  const { data: drafts, isLoading } = trpc.intelligence.contentDrafts.useQuery(undefined, {
+  const { data: drafts, isLoading, isError, error } = trpc.intelligence.contentDrafts.useQuery(undefined, {
     refetchInterval: 30000,
   });
 
@@ -15,10 +15,25 @@ export function ContentWarRoom() {
     );
   }
 
+  // A FAILED query is not an empty inventory. Before this, a rejected
+  // contentDrafts made `drafts` undefined -> the empty branch below told the
+  // operator to "Enable the content manufacturing pipeline" — which is already
+  // on, and production has 33 drafts. It sent them to hunt a flag instead of a
+  // server error.
+  if (isError) {
+    return (
+      <div className="p-8 text-center border border-amber-500/30 rounded-xl bg-amber-500/5">
+        <AlertCircle className="w-5 h-5 text-amber-400 mx-auto mb-2" />
+        <div className="text-amber-200/90 text-sm">Could not load content drafts.</div>
+        <div className="text-amber-200/50 text-xs mt-1">{error?.message ?? "unknown error"} — this is a read failure, not an empty inventory.</div>
+      </div>
+    );
+  }
+
   if (!drafts?.length) {
     return (
       <div className="p-8 text-center text-muted-foreground border border-border/40 rounded-xl bg-muted/10">
-        No content drafts currently in inventory. Enable the content manufacturing pipeline.
+        No content drafts currently in inventory.
       </div>
     );
   }

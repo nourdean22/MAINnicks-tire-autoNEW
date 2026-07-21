@@ -68,7 +68,18 @@ export function TopMoneyMoves() {
     );
   }
 
-  if (error || !moves || moves.length === 0) {
+  // FAILURE is not EMPTY. The parent always renders the styled "Top Money Moves"
+  // header, so collapsing `error` into this null-return produced a card with a
+  // header and nothing under it — indistinguishable from "no moves right now".
+  if (error) {
+    return (
+      <div className="text-xs text-amber-300/80 flex items-center gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        Could not load money moves — read failed, not "nothing to do".
+      </div>
+    );
+  }
+  if (!moves || moves.length === 0) {
     return null; // Clarity-gate: do not render vanity empty panel if no moves available
   }
 

@@ -3,16 +3,35 @@ import { trpc } from "@/lib/trpc";
 import { Users, PhoneCall, MessageSquare, AlertTriangle, RefreshCw } from "lucide-react";
 
 export function CustomerIntelligence() {
-  const { data: nbaData, isLoading: nbaLoading } = trpc.intelligence.nextBestActions.useQuery(undefined, {
+  const { data: nbaData, isLoading: nbaLoading, isError: nbaError } = trpc.intelligence.nextBestActions.useQuery(undefined, {
     refetchInterval: 60000,
   });
 
-  const { data: report, isLoading: reportLoading } = trpc.intelligence.masterReport.useQuery(undefined, {
+  const { data: report, isLoading: reportLoading, isError: reportError } = trpc.intelligence.masterReport.useQuery(undefined, {
     refetchInterval: 60000,
   });
 
   if (nbaLoading || reportLoading) {
     return <div className="h-48 flex items-center justify-center text-muted-foreground text-xs animate-pulse">Loading customer signals...</div>;
+  }
+
+  // A FAILED read must not render as "Retention looks solid". Before this, a
+  // rejected masterReport left highRiskCount/recommendedCount at 0 and the card
+  // showed two zeros plus an explicit all-clear — a retention verdict produced
+  // by a query that never succeeded. On a phone that reads as good news.
+  if (reportError || nbaError) {
+    return (
+      <div className="bg-card border border-amber-500/30 p-5 rounded-xl">
+        <div className="flex items-center gap-2 pb-2 border-b border-border/10">
+          <Users className="w-5 h-5 text-amber-400" />
+          <h2 className="text-sm font-black text-amber-400 tracking-wide uppercase">Customer Intelligence</h2>
+        </div>
+        <div className="flex items-center gap-2 mt-4 text-amber-200/90 text-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>Customer signals could not be read — churn and retention status unknown, not clear.</span>
+        </div>
+      </div>
+    );
   }
 
   // Filter for VIP winbacks
