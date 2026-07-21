@@ -10,7 +10,6 @@
 
 import { Router, type Request, type Response } from "express";
 import { createLogger } from "../../lib/logger";
-import { parseSmsResponse, executeAutoAction } from "../../services/smsResponseParser";
 import { generateGreetingTwiML, generateResponseTwiML } from "../../services/aiReceptionist";
 import { validateTwilioRequest } from "../../middleware/twilioValidation";
 
