@@ -38,12 +38,14 @@ import {
 } from "@/lib/ai/output-critic";
 import { parseCitations } from "@/lib/ai/memory-citations";
 import { recordToolInvocation } from "@/lib/ai/tool-telemetry";
-import { runReplyGate, formatGateSummary } from "@/lib/ai/reply-gate";
+import { runReplyGate, runReplyGateWithContract, formatGateSummary } from "@/lib/ai/reply-gate";
+import type { ResponseContract } from "@/lib/ai/response-contract";
 import {
   factCheck,
   countUnverified,
   formatFactCheckSummary,
 } from "@/lib/ai/fact-check";
+import { checkKnownTruth, formatTruthSummary } from "@/lib/ai/known-truth-guard";
 import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
@@ -93,6 +95,12 @@ export interface BuildOnFinishInput {
   systemPrompt: string;
   finalTaskType: string;
   userContent: string;
+  // truth-substrate audit P1 (#16): the per-turn ResponseContract (built in
+  // route.ts). When present, the finalize gate runs the contract-aware variant
+  // to EMIT richer telemetry (contract-compliance signals). NOTE: on the default
+  // streaming path this is TELEMETRY-ONLY — the reply is already flushed +
+  // persisted before the gate runs, so it does not (and cannot) change the reply.
+  responseContract?: ResponseContract;
   turnSignal: TurnSignal;
   contextBlocksFired: ContextBlocksFired;
   deeperContextCount: number;
@@ -644,6 +652,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
     finalTaskType,
     userContent,
     turnSignal,
+    responseContract,
     contextBlocksFired,
     deeperContextCount,
     deeperContextTypes,
@@ -1007,8 +1016,14 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
 
       // Apr 19 · Reply gate — layers on top of the critic.
+      // truth-substrate audit P1 (#16): when the per-turn ResponseContract is
+      // available, run the contract-aware variant for richer telemetry
+      // (contract-compliance signals). This is TELEMETRY-ONLY on the streaming
+      // path — the reply is already flushed + persisted; the gate never mutates it.
       const gate = hasContent
-        ? runReplyGate(cleanedText, userContent, critic, turnSignal)
+        ? responseContract
+          ? runReplyGateWithContract(cleanedText, userContent, critic, turnSignal, responseContract)
+          : runReplyGate(cleanedText, userContent, critic, turnSignal)
         : null;
       if (gate) {
         log.info("reply_gate_applied", { summary: formatGateSummary(gate) });
@@ -1022,6 +1037,19 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         log.info("fact_check_applied", { summary: formatFactCheckSummary(factClaims) });
       }
       const unverifiedCount = countUnverified(factClaims);
+
+      // truth-substrate audit P1 (#17): known-truth guard — was pure dead code
+      // (only tests/evals called it). Detects retired-infra claims asserted as
+      // current (statenour->Vercel, codex/ollama-local=prod, ...) and evidence-
+      // free status claims ("deployed", "tests passed", "build is green") with no
+      // in-sentence evidence. TELEMETRY-ONLY here: logged + folded into tokenUsage
+      // so false "done" claims are observable; the stored reply is NOT altered.
+      // (The block/banner tier that would rewrite persisted text is deferred to a
+      // flag-gated step once the false-positive rate is known on real traffic.)
+      const truthFlags = hasContent ? checkKnownTruth(cleanedText) : [];
+      if (truthFlags.length > 0) {
+        log.info("known_truth_flags", { summary: formatTruthSummary(truthFlags) });
+      }
 
       // v9.1.13 · Heavier hallucination guard — env-gated.
       // NOTE: checkClaims() runs once, in the DEFERRED post-processing
@@ -1356,6 +1384,12 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
                         shouldRegen: gate.shouldRegen,
                         reasons: gate.reasons,
                         signals: gate.signals,
+                        // audit #16: contract-compliance signals when the
+                        // contract-aware gate ran (telemetry only). Cast to a
+                        // plain bool record so it satisfies Prisma InputJsonValue.
+                        ...("contractSignals" in gate
+                          ? { contractSignals: gate.contractSignals as Record<string, boolean> }
+                          : {}),
                       }
                     : undefined,
                   factCheck: factClaims.length > 0
@@ -1369,6 +1403,19 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
                           start: c.start,
                           end: c.end,
                           verified: c.verified,
+                        })),
+                      }
+                    : undefined,
+                  // audit #17: known-truth flags folded in for calibration
+                  // (each = one offending sentence: retired-infra or evidence-free).
+                  truth: truthFlags.length > 0
+                    ? {
+                        total: truthFlags.length,
+                        flags: truthFlags.map((f) => ({
+                          kind: f.kind,
+                          rule: f.rule,
+                          snippet: f.snippet,
+                          severity: f.severity,
                         })),
                       }
                     : undefined,

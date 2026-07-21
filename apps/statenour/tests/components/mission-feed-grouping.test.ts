@@ -13,41 +13,10 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Project, Task } from "@/components/actions/shared";
-import { isUserProject } from "@/lib/services/mission-helpers";
-
-// Tiny re-implementation of the helper so we can unit-test it without
-// importing the React component (which would pull lucide-react +
-// "use client" boundary into the test runner).
-function groupMissions(
-  missions: Project[],
-  tasks: Task[],
-): {
-  activeMissions: Project[];
-  tasksByMission: Map<string, Task[]>;
-  unattached: Task[];
-} {
-  const activeMissions = missions
-    .filter((m) => m.status === "ACTIVE" && isUserProject(m))
-    .sort((a, b) => {
-      const aDue = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-      const bDue = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-      if (aDue !== bDue) return aDue - bDue;
-      return a.title.localeCompare(b.title);
-    });
-  const activeIds = new Set(activeMissions.map((m) => m.id));
-  const tasksByMission = new Map<string, Task[]>();
-  const unattached: Task[] = [];
-  for (const task of tasks) {
-    if (task.missionId && activeIds.has(task.missionId)) {
-      const bucket = tasksByMission.get(task.missionId) ?? [];
-      bucket.push(task);
-      tasksByMission.set(task.missionId, bucket);
-    } else if (task.status !== "DONE") {
-      unattached.push(task);
-    }
-  }
-  return { activeMissions, tasksByMission, unattached };
-}
+// truth-substrate audit P1 (#19): test the REAL extracted grouping function
+// (no drift-prone hand-copied re-implementation). It is a pure module with no
+// React / lucide / "use client" boundary, so it imports cleanly here.
+import { groupMissionFeed as groupMissions } from "@/components/missions/group-mission-feed";
 
 const m = (
   id: string,
@@ -86,6 +55,32 @@ describe("MissionFeed grouping", () => {
       "task-b",
     ]);
     expect(result.unattached).toEqual([]);
+  });
+
+  it("routes GENERAL-anchor tasks into domainGroups, NOT unattached (audit #19)", () => {
+    const result = groupMissions(
+      [
+        m("proj-1", { status: "ACTIVE" }), // a real user project → a card
+        m("m-general-business", {
+          status: "ACTIVE",
+          systemKind: "GENERAL",
+          title: "GENERAL BUSINESS",
+        }),
+      ],
+      [
+        t("task-proj", "proj-1"),
+        t("task-domain", "m-general-business"), // classified into the anchor
+        t("task-orphan", "nonexistent-mission"), // truly unclassified
+      ],
+    );
+    // The anchor is NOT a project card (isUserProject excludes GENERAL anchors).
+    expect(result.activeMissions.map((x) => x.id)).toEqual(["proj-1"]);
+    // The domain-routed task lands in a labeled domain bucket, not unattached.
+    expect(result.domainGroups).toHaveLength(1);
+    expect(result.domainGroups[0].anchor.title).toBe("GENERAL BUSINESS");
+    expect(result.domainGroups[0].tasks.map((x) => x.id)).toEqual(["task-domain"]);
+    // ONLY the unknown-mission task is unattached — the classified one is not.
+    expect(result.unattached.map((x) => x.id)).toEqual(["task-orphan"]);
   });
 
   it("drops missions whose status is not ACTIVE", () => {

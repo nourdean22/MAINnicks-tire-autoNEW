@@ -28,6 +28,12 @@ export interface Project {
    *  the missions list · nulls sink to bottom. MissionFeed sorts by
    *  this first so the ↑/↓ reorder buttons actually persist visually. */
   manualRankOverride?: number | null;
+  /** truth-substrate audit P1 (#19): carried through by listMissions/
+   *  decorateMissions at runtime; declared here so MissionFeed can call
+   *  isGeneralAnchor(mission) to split GENERAL domain-anchor buckets out of
+   *  the "unattached" pile. "GENERAL" ⇒ a per-domain classifier anchor. */
+  systemKind?: string | null;
+  canonicalDomain?: string | null;
 }
 
 /**
