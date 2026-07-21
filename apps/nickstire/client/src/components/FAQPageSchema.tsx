@@ -99,7 +99,7 @@ export const BRAKE_REPAIR_FAQ: FAQItem[] = [
   },
   {
     q: "Are your brake pads warrantied?",
-    a: "Yes · standard pads carry a 12-month / 12,000-mile warranty · premium pads carry 24-month / 24,000-mile. The warranty card prints with your invoice.",
+    a: "Yes · our pads carry a 12-month parts / 90-day labor warranty. The warranty card prints with your invoice.",
   },
 ];
 

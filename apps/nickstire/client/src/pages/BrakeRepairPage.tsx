@@ -48,7 +48,7 @@ const CONFIG: ServicePageConfig = {
     "Caliper slide lubrication",
     "Brake fluid top-off",
     "Full brake system test drive",
-    "12-month / 12,000-mile warranty on parts and labor",
+    "12-month parts / 90-day labor warranty",
   ],
   symptomsSection: {
     heading: "DOES YOUR CAR HAVE THESE BRAKE WARNING SIGNS?",
@@ -73,13 +73,13 @@ const CONFIG: ServicePageConfig = {
         We use micrometers and digital calipers to measure exact pad wear and rotor thickness against manufacturer minimum specifications. We'll walk you under the lift, show you the measurements, and explain exactly what needs replacement.
       </>,
       <>
-        Whether you need a simple pad swap, new rotors, or caliper replacement, we source OE-spec parts and back them with our 12-month / 12,000-mile warranty. If your brakes are squealing or grinding, <Link href="/contact" className="underline text-[#FDB913] hover:text-primary">contact Nick's Tire & Auto</Link> for a free check today.
+        Whether you need a simple pad swap, new rotors, or caliper replacement, we source OE-spec parts and back them with our 12-month parts / 90-day labor warranty. If your brakes are squealing or grinding, <Link href="/contact" className="underline text-[#FDB913] hover:text-primary">contact Nick's Tire & Auto</Link> for a free check today.
       </>
     ]
   },
   showTrustBlock: true,
   faqs: [
-    { q: "How often should brakes be inspected?", a: "Brakes should be inspected at least once a year or every 12,000 miles. However, you should get a brake check immediately if you experience squealing, grinding, a soft brake pedal, steering vibration, or if the brake warning light lights up on your dashboard." },
+    { q: "How often should brakes be inspected?", a: "Brakes should be inspected at least once a year. However, you should get a brake check immediately if you experience squealing, grinding, a soft brake pedal, steering vibration, or if the brake warning light lights up on your dashboard." },
     { q: "What are the common signs of worn brake pads?", a: "Classic signs include squeaking or squealing when you brake (wear indicators), grinding (metal-on-metal, pads fully worn), soft or spongy pedal (air in lines or low fluid), pulsation through the pedal (warped rotors), or the dashboard brake light stays on." },
     { q: "Do I always have to replace my rotors when changing brake pads?", a: "Not always. If the rotors are still above the minimum safe thickness and have no deep scoring or warping, we can reuse or resurface them. However, if they are scored, thin, or warped, we must replace them along with the pads to ensure proper stopping power and warranty coverage." },
     { q: "Why do my brakes make noise, and is it dangerous?", a: "Squeaking can be a warning sign that pads are thin, or from surface rust. Grinding, however, is extremely dangerous as it means metal is rubbing against metal, which significantly increases stopping distances and ruins the rotors. Grinding brakes should be inspected immediately." },
@@ -88,7 +88,7 @@ const CONFIG: ServicePageConfig = {
     { q: "How much does a brake job cost in Cleveland?", a: "It depends on what's worn — pads only is the cheapest fix; pads + rotors is the most common; full brake jobs (calipers, lines) run highest. The free check tells us exactly what's needed. We give you a written quote before any work and explain why each part is being replaced. No upsells, no boilerplate quotes — you don't pay until you say yes." },
     { q: "How long does brake repair take?", a: "Most pad replacements average about 60 minutes per axle — check out our reviews, we're the fastest in the city. Pads + rotors usually 90 minutes. If you drop off before 10 AM, it's done same day. Walk-ins welcome but calling ahead at (216) 862-0005 lets us have the right parts ready." },
     { q: "Do you replace brakes on European cars?", a: "Yes — we service BMW, Mercedes, Audi, Volkswagen, Volvo, Porsche, and most European brands. These typically use specific pads and sensors; we stock or source OE-spec parts and reset the wear indicator on your dashboard after service." },
-    { q: "Do you offer a warranty on brake work?", a: "Every brake job includes our 12-month / 12,000-mile warranty covering parts and labor. If a pad is defective or fails early, we replace it free. Real warranty — not the 'comes with a sticker but good luck claiming it' kind." },
+    { q: "Do you offer a warranty on brake work?", a: "Every brake job includes our 12-month parts / 90-day labor warranty. If a pad is defective or fails early, we replace it free. Real warranty — not the 'comes with a sticker but good luck claiming it' kind." },
   ],
   bookingService: "brakes",
   serviceType: "Brake Repair",

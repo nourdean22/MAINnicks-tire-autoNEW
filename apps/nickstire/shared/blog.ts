@@ -1478,7 +1478,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What Does an Alternator Replacement Cost?",
-        content: "Alternator replacement in Cleveland runs $350 to $700 for most vehicles, including parts and labor. Some vehicles — especially those with the alternator buried under other components — cost more due to labor time. We use quality replacement alternators with solid warranties. Cheap rebuilt alternators from discount stores fail frequently, and then you are paying for the job twice. At Nick's, we stand behind the repair with our 12-month, 12,000-mile warranty."
+        content: "Alternator replacement in Cleveland runs $350 to $700 for most vehicles, including parts and labor. Some vehicles — especially those with the alternator buried under other components — cost more due to labor time. We use quality replacement alternators with solid warranties. Cheap rebuilt alternators from discount stores fail frequently, and then you are paying for the job twice. At Nick's, we stand behind the repair with our 12-month parts / 90-day labor warranty."
       },
       {
         heading: "Get It Diagnosed Right the First Time",
@@ -1517,7 +1517,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Power Steering Repair at Nick's Tire & Auto",
-        content: "We figure out and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 12-month, 12,000-mile warranty. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
+        content: "We figure out and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 12-month parts / 90-day labor warranty. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1762,7 +1762,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get an Honest AC Diagnosis at Nick's",
-        content: "We figure out the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. All AC repairs backed by our 12-month, 12,000-mile warranty."
+        content: "We figure out the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. All AC repairs backed by our 12-month parts / 90-day labor warranty."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1877,20 +1877,20 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "warranty-on-auto-repairs-what-to-know",
     title: "Warranty on Auto Repairs: What You Should Know",
     metaTitle: "Auto Repair Warranty | 12-Month Warranty | Nick's Tire & Auto Cleveland",
-    metaDescription: "Not all repair warranties are equal. Learn what Nick's 12-month/12,000-mile warranty covers and how it compares to industry standards.",
+    metaDescription: "Not all repair warranties are equal. Learn what Nick's 12-month parts / 90-day labor warranty covers and how it compares to industry standards.",
     category: "Cost Guide",
     publishDate: "2026-04-13",
     readTime: "5 min read",
     heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
-    excerpt: "A repair is only as good as the warranty behind it. Here is what Nick's 12-month, 12,000-mile warranty covers and why it matters.",
+    excerpt: "A repair is only as good as the warranty behind it. Here is what Nick's 12-month parts / 90-day labor warranty covers and why it matters.",
     sections: [
       {
         heading: "Industry Standard Warranties — What Most Shops Offer",
-        content: "Most independent auto repair shops offer 12 months or 12,000 miles on parts and labor. Some offer 90 days. Chain shops like Midas or Meineke typically offer 12 to 24 months depending on the service. Dealerships usually offer 12 months or 12,000 miles on non-warranty repair work. The industry average is 12/12 — meaning if the same part fails 13 months later, you are paying for the repair again. That is the standard, and most drivers do not think about it until something fails."
+        content: "Most independent auto repair shops offer 12 months on parts and labor. Some offer 90 days. Chain shops like Midas or Meineke typically offer 12 to 24 months depending on the service. Dealerships usually offer 12 months on non-warranty repair work. The industry average is roughly a year on parts — meaning if the same part fails 13 months later, you are paying for the repair again. That is the standard, and most drivers do not think about it until something fails."
       },
       {
-        heading: "Nick's 12-Month, 12,000-Mile Warranty",
-        content: "We warranty our repairs for 12 months or 12,000 miles — three times the industry standard. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. This is not a gimmick — it is a commitment to doing the job right the first time. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early. Quality work lasts, and we back it up."
+        heading: "Nick's 12-Month Parts / 90-Day Labor Warranty",
+        content: "We warranty our repairs with a 12-month parts / 90-day labor warranty. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. This is not a gimmick — it is a commitment to doing the job right the first time. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early. Quality work lasts, and we back it up."
       },
       {
         heading: "What the Warranty Covers",
@@ -1902,7 +1902,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Repairs You Can Trust",
-        content: "At Nick's Tire and Auto, every repair comes with our 12-month, 12,000-mile warranty. We use quality parts, our technicians take the time to do it right, and we stand behind every job. Call (216) 862-0005 or visit 17625 Euclid Ave, Euclid. The longest warranty on Euclid Ave in Cleveland."
+        content: "At Nick's Tire and Auto, every repair comes with our 12-month parts / 90-day labor warranty. We use quality parts, our technicians take the time to do it right, and we stand behind every job. Call (216) 862-0005 or visit 17625 Euclid Ave, Euclid. The longest warranty on Euclid Ave in Cleveland."
       }
     ],
     relatedServices: ["/brakes", "/general-repair", "/diagnostics"],

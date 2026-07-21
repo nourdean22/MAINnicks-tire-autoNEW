@@ -34,7 +34,7 @@
       "description": "Installation FREE with tire purchase. Tire prices vary by size and brand.",
       "availability": "https://schema.org/InStock"
     },
-    "termsOfService": "12-month / 12,000-mile labor warranty on all installations",
+    "termsOfService": "12-month parts / 90-day labor warranty on all installations",
     "hoursAvailable": [
       {
         "@type": "OpeningHoursSpecification",
@@ -349,7 +349,7 @@
     "@type": "Service",
     "serviceType": "Engine Repair",
     "name": "General Engine Repair",
-    "description": "Water pump, timing belt and chain, head gasket, radiator, thermostat, serpentine belt, hoses, and coolant flush. Comprehensive engine repair backed by 12-month / 12,000-mile warranty.",
+    "description": "Water pump, timing belt and chain, head gasket, radiator, thermostat, serpentine belt, hoses, and coolant flush. Comprehensive engine repair backed by 12-month parts / 90-day labor warranty.",
     "provider": {
       "@type": "AutoRepair",
       "name": "Nick's Tire & Auto",

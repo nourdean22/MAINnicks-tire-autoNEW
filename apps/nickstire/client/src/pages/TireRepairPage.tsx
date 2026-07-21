@@ -69,7 +69,7 @@ const CONFIG: ServicePageConfig = {
     "TPMS reset after the repair (so the dashboard light goes off)",
     "Tire-pressure check on all 4 tires while the car is in the bay",
     "Visual check of the other 3 tires for hidden issues",
-    "12-month repair warranty — if the patch fails, we redo it free",
+    "12-month parts / 90-day labor warranty — if the patch fails, we redo it free",
     "Walk-in welcome 7 days — no appointment system, first-come-first-served",
     "Same crew as Monday-Saturday on Sundays (9am-4pm)",
   ],

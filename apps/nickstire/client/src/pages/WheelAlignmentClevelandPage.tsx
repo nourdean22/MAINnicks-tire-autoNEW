@@ -71,7 +71,7 @@ const CONFIG: ServicePageConfig = {
     "Computerized four-wheel laser alignment to manufacturer specs",
     "Before-and-after measurements printed for your records",
     "Test drive to confirm the pull is gone before you pay",
-    "12-month / 12,000-mile alignment warranty",
+    "12-month parts / 90-day labor warranty",
     "If alignment isn't the actual problem, written estimate for what is",
   ],
   faqs: [

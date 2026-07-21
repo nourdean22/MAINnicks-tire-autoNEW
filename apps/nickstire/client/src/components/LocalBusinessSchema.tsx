@@ -208,7 +208,8 @@ export default function LocalBusinessSchema({
     additionalProperty: [
       { "@type": "PropertyValue", name: "walkInsWelcome", value: "true" },
       { "@type": "PropertyValue", name: "appointmentRequired", value: "false" },
-      { "@type": "PropertyValue", name: "laborWarranty", value: "12 months / 12,000 miles" },
+      { "@type": "PropertyValue", name: "partsWarranty", value: "1 year" },
+      { "@type": "PropertyValue", name: "laborWarranty", value: "90 days" },
       { "@type": "PropertyValue", name: "noCreditCheckFinancing", value: "true" },
       { "@type": "PropertyValue", name: "certifiedECheckStation", value: "true" },
       { "@type": "PropertyValue", name: "freeEstimates", value: "true" },

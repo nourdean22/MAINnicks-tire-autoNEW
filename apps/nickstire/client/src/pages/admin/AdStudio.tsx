@@ -152,7 +152,7 @@ function CampaignArchitectView() {
     },
     priceStack: {
       corePrice: "From $25 used / $89 new",
-      guaranteeOrRefundTerms: "12-month / 12,000-mile warranty",
+      guaranteeOrRefundTerms: "12-month parts / 90-day labor warranty",
       financingAvailable: true
     },
     audience: {

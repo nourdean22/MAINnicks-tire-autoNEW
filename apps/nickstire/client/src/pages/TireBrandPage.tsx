@@ -207,7 +207,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
                 "20-point safety check — brakes, suspension, fluids, lights",
                 "Disposal of old tires",
                 "Wheel cleaning before re-mount",
-                "12-month / 12,000-mile install workmanship warranty",
+                "12-month parts / 90-day labor warranty",
                 "Free flat repair for the life of the tires (in-shop)",
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3">
