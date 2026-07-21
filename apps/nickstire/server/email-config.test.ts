@@ -1,27 +1,26 @@
 import { describe, it, expect } from "vitest";
 
+/**
+ * The two env tests used to branch `if (!VAR) { expect(true).toBe(true); return }`.
+ * No test setup loads dotenv (vitest.config setupFiles is client-only), so the
+ * var is absent in CI and in every worktree — meaning they ALWAYS took the
+ * constant branch and reported green having checked nothing, while their names
+ * claimed "SHOP_EMAIL configured in production ✓".
+ *
+ * `it.runIf` makes the honest thing happen: when the var is present the real
+ * shape assertion runs; when it is absent the case is SKIPPED (visibly), not
+ * passed. A skipped test tells the truth; a vacuous pass does not.
+ */
 describe("Email Configuration", () => {
-  it("should have SHOP_EMAIL configured in production", () => {
-    const shopEmail = process.env.SHOP_EMAIL;
-    if (!shopEmail) {
-      // In test env without .env loaded, skip gracefully
-      expect(true).toBe(true);
-      return;
-    }
-    expect(shopEmail).toContain("@");
+  it.runIf(!!process.env.SHOP_EMAIL)("SHOP_EMAIL, when set, looks like an address", () => {
+    expect(process.env.SHOP_EMAIL).toContain("@");
   });
 
-  it("should have CEO_EMAIL configured in production", () => {
-    const ceoEmail = process.env.CEO_EMAIL;
-    if (!ceoEmail) {
-      expect(true).toBe(true);
-      return;
-    }
-    expect(ceoEmail).toContain("@");
+  it.runIf(!!process.env.CEO_EMAIL)("CEO_EMAIL, when set, looks like an address", () => {
+    expect(process.env.CEO_EMAIL).toContain("@");
   });
 
-  it("email-notify module exports correctly", async () => {
-    // Verify the module structure without needing env vars
+  it("email-notify module references both recipients", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync("server/email-notify.ts", "utf8");
     expect(content).toContain("export");

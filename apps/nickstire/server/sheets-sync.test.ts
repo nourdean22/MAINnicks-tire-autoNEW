@@ -1,22 +1,17 @@
 import { describe, it, expect } from "vitest";
 
-const HAS_SHEETS = !!process.env.GOOGLE_SHEETS_CRM_ID;
-
-describe.skipIf(!HAS_SHEETS)("Google Sheets CRM Sync", () => {
-  it("should have GOOGLE_SHEETS_CRM_ID configured", () => {
-    expect(process.env.GOOGLE_SHEETS_CRM_ID).toBeTruthy();
-  });
-  it("should have a valid auth token available", () => {
-    expect(true).toBe(true); // Needs runtime auth
-  });
-  it("should be able to read the Leads sheet via gws CLI", () => {
-    expect(true).toBe(true); // Needs live connection
-  });
-  it("should be able to read the Bookings sheet via gws CLI", () => {
-    expect(true).toBe(true); // Needs live connection
-  });
-});
-
+/**
+ * The "Google Sheets CRM Sync" suite was deleted.
+ *
+ * One case asserted a credential was present only while it was present (cannot
+ * fail); three others ("valid auth token", "read the Leads/Bookings sheet")
+ * were literal `expect(true).toBe(true)` placeholders that reported green
+ * without touching a token, a sheet, or the gws CLI. Live-connection checks
+ * belong in a runtime health check, not a unit suite that has no live
+ * connection.
+ *
+ * The module-existence assertion below is real.
+ */
 describe("Sheets Sync Module", () => {
   it("sheets-sync module exists", async () => {
     const fs = await import("fs");

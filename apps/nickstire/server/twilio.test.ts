@@ -1,23 +1,18 @@
 import { describe, it, expect } from "vitest";
 
-const HAS_TWILIO = !!process.env.TWILIO_ACCOUNT_SID;
-
-describe.skipIf(!HAS_TWILIO)("Twilio Credentials Validation", () => {
-  it("should have TWILIO_ACCOUNT_SID set and starting with AC", () => {
-    expect(process.env.TWILIO_ACCOUNT_SID).toMatch(/^AC/);
-  });
-  it("should have TWILIO_AUTH_TOKEN set", () => {
-    expect(process.env.TWILIO_AUTH_TOKEN).toBeTruthy();
-  });
-  it("should have TWILIO_PHONE_NUMBER set in E.164 format", () => {
-    expect(process.env.TWILIO_PHONE_NUMBER).toMatch(/^\+?\d{11}$/);
-  });
-  it("should be able to authenticate with Twilio API", () => {
-    // Skip in CI — needs real credentials
-    expect(true).toBe(true);
-  });
-});
-
+/**
+ * The "Twilio Credentials Validation" suite was deleted.
+ *
+ * It ran only when TWILIO_ACCOUNT_SID was set and then asserted the credentials
+ * were set — a check that cannot fail (see integrations.test.ts for the full
+ * write-up). Its "should be able to authenticate with Twilio API" case was a
+ * literal `expect(true).toBe(true)`, a placeholder that reported green while
+ * calling no API. Credential presence and live auth belong in a runtime health
+ * check, not in this suite.
+ *
+ * The module-structure assertion below is real: it fails if sms.ts loses its
+ * sendSms export.
+ */
 describe("Twilio Module Structure", () => {
   it("sms module exports sendSms function", async () => {
     const fs = await import("fs");

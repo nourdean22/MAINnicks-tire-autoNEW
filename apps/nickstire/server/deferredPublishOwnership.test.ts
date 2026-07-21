@@ -31,12 +31,45 @@ import { describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
-/** The `.set({...})` block of every update to socialContentInventory in a file. */
+/**
+ * The full argument of every `.set(...)` that follows an
+ * `update(socialContentInventory)`, extracted with BALANCED PARENS — no length
+ * cap and no "stop at the first `})`".
+ *
+ * The previous version was `.set\(\{([\s\S]{0,400}?)\}\)`. A `.set()` block
+ * containing a ternary like `...(status === "published" ? {…} : {})` closes on
+ * that inner `{})` FIRST, so the lazy match truncated the block there. A
+ * `scheduledAt:` added after the ternary — the exact duplicate-post regression
+ * this file exists to prevent — landed outside the captured span and the test
+ * stayed green. Proven by the "extractor catches the documented bypass" test
+ * below.
+ *
+ * Quote-aware so a stray ")" inside a string literal cannot unbalance it.
+ */
 function inventorySetBlocks(source: string): string[] {
   const blocks: string[] = [];
-  const re = /update\(socialContentInventory\)[\s\S]{0,80}?\.set\(\{([\s\S]{0,400}?)\}\)/g;
+  const marker = /update\(socialContentInventory\)/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(source)) !== null) blocks.push(m[1]);
+  while ((m = marker.exec(source)) !== null) {
+    const setKw = source.indexOf(".set(", m.index);
+    if (setKw === -1) continue;
+    let i = setKw + ".set".length; // now at the "("
+    let depth = 0;
+    let quote: string | null = null;
+    const start = i + 1;
+    for (; i < source.length; i++) {
+      const ch = source[i];
+      if (quote) {
+        if (ch === "\\") { i++; continue; }
+        if (ch === quote) quote = null;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") { quote = ch; continue; }
+      if (ch === "(") depth++;
+      else if (ch === ")") { depth--; if (depth === 0) break; }
+    }
+    blocks.push(source.slice(start, i));
+  }
   return blocks;
 }
 
@@ -67,6 +100,31 @@ describe("a path that delegates to scheduled_posts must not arm the inventory pu
     // to the scheduled_posts row that owns the publish.
     const blocks = inventorySetBlocks(read(file));
     expect(blocks.some((b) => /status:\s*"scheduled"/.test(b))).toBe(true);
+  });
+});
+
+describe("the source-assertion extractor cannot be bypassed", () => {
+  // This is the guard for the guard. The old length-capped regex let a
+  // scheduledAt added AFTER a `...(x ? {…} : {})` ternary escape the check.
+  // If inventorySetBlocks ever regresses to a lazy `}\)` match, THIS fails.
+  it("captures scheduledAt placed after a ternary that contains an inner {})", () => {
+    const synthetic = [
+      'await d.update(socialContentInventory).set({',
+      '  status,',
+      '  ...(status === "published" ? { publishedAt: new Date() } : {}),',
+      '  scheduledAt: new Date(),',
+      '}).where(eq(socialContentInventory.id, id));',
+    ].join("\n");
+    const blocks = inventorySetBlocks(synthetic);
+    expect(blocks.length).toBe(1);
+    expect(blocks[0]).toMatch(/scheduledAt\s*:/);
+  });
+
+  it("does not false-positive on a clean update", () => {
+    const clean = 'd.update(socialContentInventory).set({ status: "scheduled" }).where(x)';
+    const blocks = inventorySetBlocks(clean);
+    expect(blocks.length).toBe(1);
+    expect(blocks[0]).not.toMatch(/scheduledAt\s*:/);
   });
 });
 
