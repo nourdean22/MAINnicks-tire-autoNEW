@@ -1,17 +1,14 @@
 /**
- * Central SMS Message Catalog and Pricing Truth
+ * Central SMS Message Catalog.
+ *
+ * Pricing/business facts belong to the app-wide SSOT `BUSINESS`
+ * (`@shared/business`), NOT to this file. A former `SERVICE_PRICE_TRUTH`
+ * const lived here with zero consumers and a used-tire price ($60) that
+ * contradicted BUSINESS ("from $25 installed") — a drift trap named "Truth".
+ * It was deleted; interpolate from BUSINESS instead of re-stating prices here.
  */
 
 import { BUSINESS } from "@shared/business";
-
-export const SERVICE_PRICE_TRUTH = {
-  usedTires: "$60 installed for most standard sizes",
-  oilConventional: "$49 conventional",
-  oilSynthetic: "$80 synthetic",
-  brakes: "starts at $149/axle",
-  alignment: "starts at $79",
-  diagnostic: "free check"
-};
 
 export interface ReplyConfig {
   expectedReplyTypes: string[];
