@@ -65,6 +65,11 @@ import { MEGA_JOB_COUNTS } from "@/lib/inngest/jobs";
 import { braintrustWrapStatus } from "@/lib/ai/braintrust-wrap";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { listCronControls, getCronStats } from "@/lib/services/cron-control";
+import {
+  measure,
+  deriveHealthHeadline,
+  type MetricResult,
+} from "@/lib/services/metric-result";
 
 // ════════════════════════ /system · diagnostics ════════════════════════
 
@@ -192,67 +197,53 @@ export async function buildDiagnostics(): Promise<DiagnosticsView> {
 // ═════════════════════════════ /api/health ═════════════════════════════
 
 /** Composite health probe shape. Plain scalars only — no Prisma Json. */
+// truth-substrate audit P0 (2026-07-21 · findings #4-6). The four fields whose
+// reads previously `.catch(() => 0/[]/null)` are now MetricResult<T>: a failed
+// read is `unavailable` (not a fake zero), so the UI can render "unknown"
+// distinctly from a real 0. `db`, `tasks`, `commitments`, `devices` stay scalar
+// — their reads are UNCAUGHT (they reject the whole probe on failure = an honest
+// hard error, never a false green). `status` no longer follows db connectivity
+// alone; it is "healthy" only when db is up AND every metric measured ok.
 export interface SystemHealthView {
   status: string;
   db: { connected: boolean; latency_ms: number };
   tasks: { inbox: number; ready: number; doing: number; done: number; total: number };
-  alerts: { unresolved: number };
+  alerts: MetricResult<{ unresolved: number }>;
   commitments: { active: number };
   devices: { online: number; offline: number; total: number };
-  radar: {
+  radar: MetricResult<{
     threads: { active: number; dormant: number; archived: number; total: number };
     pendingCandidates: number;
     pendingSuggestions: number;
-  };
-  morningBrief: { ready: boolean; date: string; composedAt: string | null };
+  }>;
+  morningBrief: MetricResult<{ ready: boolean; date: string; composedAt: string | null }>;
   inngest: {
     configured: boolean;
     functions: number;
     megaJobs: typeof MEGA_JOB_COUNTS;
   };
   braintrust: { status: ReturnType<typeof braintrustWrapStatus> };
-  autonomic: {
+  autonomic: MetricResult<{
     lastRunAt: string | null;
     status: string | null;
     error: string | null;
-  };
+  }>;
+  /** Sources of every non-ok metric — the quick "what is unknown right now" list. */
+  degradedSources: string[];
 }
 
 /** Composite health probe · 30s-cached. Lifted verbatim from
  *  app/api/health/route.ts. */
 export async function buildSystemHealth(): Promise<SystemHealthView> {
   return cached("health_v1", 30, async (): Promise<SystemHealthView> => {
-    const [
-      db,
-      alertCount,
-      taskCounts,
-      commitmentCount,
-      deviceCounts,
-      threadCounts,
-      candidateCount,
-      suggestionCount,
-      healerLog,
-    ] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Hard-required reads: UNCAUGHT on purpose — a failure rejects the whole
+    // probe (an honest 500, never a false green). Kept scalar for consumers.
+    // Soft-deleted tasks are tombstones — `where: { deletedAt: null }` keeps the
+    // count aligned with the live universe (104 of 161 Task rows are tombstones).
+    const hard = Promise.all([
       checkDbConnection(),
-      prisma.brainMemory
-        .findMany({
-          where: {
-            category: "coach_event",
-            key: { startsWith: "coach:drift-recovery:" },
-          },
-          select: { metadata: true },
-        })
-        .then((rows) => {
-          return rows.filter((r) => {
-            const meta = (r.metadata ?? {}) as Record<string, any>;
-            return !meta.ackedAt;
-          }).length;
-        })
-        .catch(() => 0),
-      // Soft-deleted tasks are tombstones — counting them made /api/health
-      // report 161 tasks / 52 INBOX when the live universe was 57 / 0 (104 of
-      // 161 Task rows are soft-deleted). The journalThread groupBy below has
-      // always filtered; these two were the oversight.
       prisma.task.groupBy({
         by: ["status"],
         where: { deletedAt: null },
@@ -265,55 +256,67 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         by: ["status"],
         _count: { id: true },
       }),
-      prisma.journalThread
-        .groupBy({
-          by: ["status"],
-          where: { deletedAt: null },
-          _count: { id: true },
-        })
-        .catch((): never[] => []),
-      prisma.brainMemory
-        .count({
-          where: {
-            category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE,
-            deletedAt: null,
-          },
-        })
-        .catch(() => 0),
-      prisma.brainMemory
-        .count({
-          where: {
-            category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION,
-            deletedAt: null,
-          },
-        })
-        .catch(() => 0),
-      prisma.cronJobLog
-        .findFirst({
-          where: { jobName: "cron-healer" },
-          orderBy: { createdAt: "desc" },
-          select: { createdAt: true, status: true, error: true },
-        })
-        .catch(() => null),
     ]);
 
-    const today = new Date().toISOString().slice(0, 10);
-    const briefRow = await prisma.brainMemory
-      .findUnique({
-        where: {
-          category_key: {
-            category: BRAIN_CATEGORIES.MORNING_BRIEF,
-            key: today,
-          },
-        },
+    // False-green-prone reads: each MEASURED. A failure becomes `unavailable`
+    // (distinct from a real zero) instead of the old silent .catch(()=>0/[]/null),
+    // so the UI can render "unknown" and the headline can reflect the failure.
+    const alertsMetric = measure("alerts", async () => {
+      const rows = await prisma.brainMemory.findMany({
+        where: { category: "coach_event", key: { startsWith: "coach:drift-recovery:" } },
+        select: { metadata: true },
+      });
+      const unresolved = rows.filter((r) => {
+        const meta = (r.metadata ?? {}) as Record<string, any>;
+        return !meta.ackedAt;
+      }).length;
+      return { unresolved };
+    });
+
+    const radarMetric = measure("radar", async () => {
+      const [threadCounts, pendingCandidates, pendingSuggestions] = await Promise.all([
+        prisma.journalThread.groupBy({ by: ["status"], where: { deletedAt: null }, _count: { id: true } }),
+        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE, deletedAt: null } }),
+        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION, deletedAt: null } }),
+      ]);
+      const threads = { active: 0, dormant: 0, archived: 0, total: 0 };
+      for (const g of threadCounts) {
+        const count = g._count.id;
+        threads.total += count;
+        if (g.status === "active") threads.active = count;
+        else if (g.status === "dormant") threads.dormant = count;
+        else if (g.status === "archived") threads.archived = count;
+      }
+      return { threads, pendingCandidates, pendingSuggestions };
+    });
+
+    const morningBriefMetric = measure("morningBrief", async () => {
+      const briefRow = await prisma.brainMemory.findUnique({
+        where: { category_key: { category: BRAIN_CATEGORIES.MORNING_BRIEF, key: today } },
         select: { updatedAt: true },
-      })
-      .catch(() => null);
-    const morningBrief = {
-      ready: briefRow != null,
-      date: today,
-      composedAt: briefRow?.updatedAt?.toISOString() ?? null,
-    };
+      });
+      return {
+        ready: briefRow != null,
+        date: today,
+        composedAt: briefRow?.updatedAt?.toISOString() ?? null,
+      };
+    });
+
+    const autonomicMetric = measure("autonomic", async () => {
+      const healerLog = await prisma.cronJobLog.findFirst({
+        where: { jobName: "cron-healer" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, status: true, error: true },
+      });
+      return {
+        lastRunAt: healerLog?.createdAt?.toISOString() ?? null,
+        status: healerLog?.status ?? null,
+        error: healerLog?.error ?? null,
+      };
+    });
+
+    const [[db, taskCounts, commitmentCount, deviceCounts], alerts, radar, morningBrief, autonomic] =
+      await Promise.all([hard, alertsMetric, radarMetric, morningBriefMetric, autonomicMetric]);
 
     const tasks = { inbox: 0, ready: 0, doing: 0, done: 0, total: 0 };
     for (const g of taskCounts) {
@@ -331,24 +334,20 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
       else devices.offline += count;
     }
 
-    const radar = {
-      threads: { active: 0, dormant: 0, archived: 0, total: 0 },
-      pendingCandidates: candidateCount,
-      pendingSuggestions: suggestionCount,
-    };
-    for (const g of threadCounts) {
-      const count = g._count.id;
-      radar.threads.total += count;
-      if (g.status === "active") radar.threads.active = count;
-      else if (g.status === "dormant") radar.threads.dormant = count;
-      else if (g.status === "archived") radar.threads.archived = count;
-    }
+    // Honest headline: healthy ONLY when the DB is up AND every measured metric
+    // succeeded. A swallowed sub-read can no longer read "healthy" (audit #4).
+    const { status, degradedSources } = deriveHealthHeadline(db.connected, [
+      alerts,
+      radar,
+      morningBrief,
+      autonomic,
+    ]);
 
     return {
-      status: db.connected ? "healthy" : "degraded",
+      status,
       db: { connected: db.connected, latency_ms: db.latency_ms },
       tasks,
-      alerts: { unresolved: alertCount },
+      alerts,
       commitments: { active: commitmentCount },
       devices,
       radar,
@@ -359,11 +358,8 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         megaJobs: MEGA_JOB_COUNTS,
       },
       braintrust: { status: braintrustWrapStatus() },
-      autonomic: {
-        lastRunAt: healerLog?.createdAt?.toISOString() ?? null,
-        status: healerLog?.status ?? null,
-        error: healerLog?.error ?? null,
-      },
+      autonomic,
+      degradedSources,
     };
   });
 }

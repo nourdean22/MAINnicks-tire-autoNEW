@@ -39,14 +39,17 @@ export interface MissionFeedProps {
   /** Phase 2 · per-mission Nick's-pick task id + rationale, keyed by
    *  mission id. */
   nicksPicks?: Record<string, { taskId: string; rationale: string }>;
-  autonomicHealth?: {
+  /** truth-substrate audit P0 (#4-6): a MetricResult, so an UNMEASURED autonomic
+   *  read renders as UNKNOWN instead of a fake "offline/idle". */
+  autonomicHealth?: MetricResult<{
     lastRunAt: string | null;
     status: string | null;
     error: string | null;
-  };
+  }>;
 }
 
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
+import type { MetricResult } from "@/lib/services/metric-result";
 
 export function MissionFeed({
   missions,
@@ -230,37 +233,54 @@ export function MissionFeed({
             </span>
           </>
         )}
-        {autonomicHealth && (
-          <div 
-            className={cn(
-              "ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] tracking-[0.1em] font-mono transition-all duration-300",
-              autonomicHealth.status === "success" 
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.1)]"
-                : autonomicHealth.status === "failed"
-                  ? "bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.1)]"
-                  : "bg-zinc-800/40 border-zinc-700/30 text-zinc-500"
-            )}
-            title={
-              autonomicHealth.lastRunAt 
-                ? `Last Maintenance Run: ${formatTimeAgo(autonomicHealth.lastRunAt)} (${new Date(autonomicHealth.lastRunAt).toLocaleTimeString()})${autonomicHealth.error ? `\nError: ${autonomicHealth.error}` : ''}`
-                : "Autonomic Orchestrator: Idle/No Run Found"
-            }
-          >
-            <span 
+        {autonomicHealth && (() => {
+          // truth-substrate audit #4-6: unwrap the MetricResult with proper
+          // narrowing. When the read was `unavailable` (or degraded with no
+          // value), show a distinct UNKNOWN chip — never a fabricated OFFLINE.
+          const av = autonomicHealth.status !== "unavailable" ? autonomicHealth.value : undefined;
+          if (!av) {
+            return (
+              <div
+                className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] tracking-[0.1em] font-mono bg-amber-500/10 border-amber-500/30 text-amber-400"
+                title="Autonomic health could not be measured (health probe read failed). This is UNKNOWN, not idle."
+              >
+                <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+                <span>AUTONOMIC: UNKNOWN</span>
+              </div>
+            );
+          }
+          return (
+            <div
               className={cn(
-                "w-1 h-1 rounded-full",
-                autonomicHealth.status === "success" 
-                  ? "bg-emerald-400 animate-pulse" 
-                  : autonomicHealth.status === "failed"
-                    ? "bg-rose-400 animate-ping"
-                    : "bg-zinc-600"
-              )} 
-            />
-            <span>
-              AUTONOMIC: {autonomicHealth.status === "success" ? "ONLINE" : autonomicHealth.status === "failed" ? "DEGRADED" : "OFFLINE"}
-            </span>
-          </div>
-        )}
+                "ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] tracking-[0.1em] font-mono transition-all duration-300",
+                av.status === "success"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.1)]"
+                  : av.status === "failed"
+                    ? "bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.1)]"
+                    : "bg-zinc-800/40 border-zinc-700/30 text-zinc-500"
+              )}
+              title={
+                av.lastRunAt
+                  ? `Last Maintenance Run: ${formatTimeAgo(av.lastRunAt)} (${new Date(av.lastRunAt).toLocaleTimeString()})${av.error ? `\nError: ${av.error}` : ''}`
+                  : "Autonomic Orchestrator: Idle/No Run Found"
+              }
+            >
+              <span
+                className={cn(
+                  "w-1 h-1 rounded-full",
+                  av.status === "success"
+                    ? "bg-emerald-400 animate-pulse"
+                    : av.status === "failed"
+                      ? "bg-rose-400 animate-ping"
+                      : "bg-zinc-600"
+                )}
+              />
+              <span>
+                AUTONOMIC: {av.status === "success" ? "ONLINE" : av.status === "failed" ? "DEGRADED" : "OFFLINE"}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Mission cards */}

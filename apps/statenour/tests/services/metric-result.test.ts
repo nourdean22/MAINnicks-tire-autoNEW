@@ -5,6 +5,7 @@ import {
   valueOr,
   rollupStatus,
   unhealthySources,
+  deriveHealthHeadline,
   errorCodeOf,
   type MetricResult,
 } from "@/lib/services/metric-result";
@@ -63,5 +64,35 @@ describe("metric-result (audit #3-6 · false-green telemetry)", () => {
     const m = await measure("a", async () => "v", at);
     expect(isOk(m)).toBe(true);
     if (isOk(m)) expect(m.value).toBe("v");
+  });
+
+  describe("deriveHealthHeadline (audit #4 · status no longer follows db alone)", () => {
+    it("is healthy only when db is up AND every metric is ok", async () => {
+      const ok1 = await measure("alerts", async () => 1, at);
+      const ok2 = await measure("radar", async () => 2, at);
+      expect(deriveHealthHeadline(true, [ok1, ok2])).toEqual({ status: "healthy", degradedSources: [] });
+    });
+
+    it("is DEGRADED when db is up but a metric read failed (the false-green fix)", async () => {
+      const ok1 = await measure("alerts", async () => 1, at);
+      const bad = await measure("radar", async () => { throw new Error("x"); }, at);
+      const h = deriveHealthHeadline(true, [ok1, bad]);
+      expect(h.status).toBe("degraded");
+      expect(h.degradedSources).toEqual(["radar"]);
+    });
+
+    it("is DEGRADED and lists 'db' first when the database is down", async () => {
+      const ok1 = await measure("alerts", async () => 1, at);
+      const h = deriveHealthHeadline(false, [ok1]);
+      expect(h.status).toBe("degraded");
+      expect(h.degradedSources).toEqual(["db"]);
+    });
+
+    it("reports 'db' AND the failed metric when both are down", async () => {
+      const bad = await measure("autonomic", async () => { throw new Error("x"); }, at);
+      const h = deriveHealthHeadline(false, [bad]);
+      expect(h.status).toBe("degraded");
+      expect(h.degradedSources).toEqual(["db", "autonomic"]);
+    });
   });
 });

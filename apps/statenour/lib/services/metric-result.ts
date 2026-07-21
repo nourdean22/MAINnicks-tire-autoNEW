@@ -85,3 +85,21 @@ export function rollupStatus(results: MetricResult<unknown>[]): MetricStatus {
 export function unhealthySources(results: MetricResult<unknown>[]): string[] {
   return results.filter((r) => r.status !== "ok").map((r) => r.source);
 }
+
+/**
+ * Compute an honest health headline. truth-substrate audit #4: the status is
+ * "healthy" ONLY when the DB is up AND every measured metric succeeded — a
+ * swallowed sub-read can no longer read green while the headline stays healthy.
+ * `degradedSources` names exactly what is unknown (including "db" when down).
+ */
+export function deriveHealthHeadline(
+  dbConnected: boolean,
+  metrics: MetricResult<unknown>[],
+): { status: "healthy" | "degraded"; degradedSources: string[] } {
+  const degradedSources = [
+    ...(dbConnected ? [] : ["db"]),
+    ...unhealthySources(metrics),
+  ];
+  const status = dbConnected && rollupStatus(metrics) === "ok" ? "healthy" : "degraded";
+  return { status, degradedSources };
+}
