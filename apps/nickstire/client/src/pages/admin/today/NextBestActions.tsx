@@ -25,12 +25,22 @@ const URGENCY_DOTS: Record<number, string> = {
 };
 
 export function NextBestActions() {
-  const { data, isLoading } = trpc.intelligence.nextBestActions.useQuery(undefined, {
+  const { data, isLoading, isError } = trpc.intelligence.nextBestActions.useQuery(undefined, {
     refetchInterval: 30000,
     staleTime: 25_000, // wave-171: prevent stale=true on every refetch tick
   });
 
   if (isLoading) return null;
+  // FAILURE is not EMPTY. The parent renders the "Next Best Actions" header
+  // unconditionally, so returning null on error left a styled header over a void
+  // that reads as "no actions". Surface the failure instead.
+  if (isError) {
+    return (
+      <div className="text-xs text-amber-300/80">
+        Could not load next best actions — read failed, not "nothing to do".
+      </div>
+    );
+  }
   if (!data?.actions?.length) return null;
 
   return (

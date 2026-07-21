@@ -22,10 +22,15 @@ export default function IntelligenceHQSection() {
 
   // Calculate status
   const status = !report ? "degraded" : report.summary.failures?.length > 0 ? "partial" : "live";
-  const mainFight = report?.summary?.topAlert || "clear stale callbacks before they turn into lost money.";
+  // When the report is unavailable, say so — do NOT fall back to a hardcoded
+  // directive. The old default pointed the operator at "stale callbacks", but
+  // callback_requests has nothing newer than 2026-05-31, so a failed read sent
+  // them to a dead surface with a sentence no engine produced.
+  const mainFight = report?.summary?.topAlert
+    ?? (status === "degraded" ? null : "clear stale callbacks before they turn into lost money.");
 
   // Fetch the recent intelligence decisions from the ledger
-  const { data: recentDecisions } = trpc.intelligence.recentDecisions.useQuery(undefined, {
+  const { data: recentDecisions, isError: decisionsError } = trpc.intelligence.recentDecisions.useQuery(undefined, {
     refetchInterval: 30000,
   });
 
@@ -116,7 +121,9 @@ export default function IntelligenceHQSection() {
           <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center gap-3">
             <Zap className="w-5 h-5 text-primary" />
             <div className="text-sm font-medium">
-              <span className="text-primary font-bold">Today's main fight:</span> {mainFight}
+              {mainFight
+                ? <><span className="text-primary font-bold">Today's main fight:</span> {mainFight}</>
+                : <span className="text-amber-300/90">Main fight unavailable — intelligence read failed.</span>}
             </div>
           </div>
 
@@ -219,13 +226,23 @@ export default function IntelligenceHQSection() {
                       </td>
                     </tr>
                   ))}
-                  {!recentDecisions?.length && (
+                  {/* A failed read is not an empty ledger. The onboarding copy
+                      below is reserved for a CONFIRMED zero — otherwise the
+                      operator concludes the ledger works and is merely unused,
+                      and never notices the day it stops recording. */}
+                  {decisionsError ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-amber-300/80">
+                        Ledger unavailable — could not read recent decisions. This is a read failure, not an empty ledger.
+                      </td>
+                    </tr>
+                  ) : !recentDecisions?.length ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                         No decisions recorded yet. Take action on an intelligence recommendation to start building the ledger.
                       </td>
                     </tr>
-                  )}
+                  ) : null}
                 </tbody>
               </table>
             </div>

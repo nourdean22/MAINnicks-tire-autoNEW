@@ -36,12 +36,23 @@ const SEVERITY_STYLE = {
 
 export function TodaysMoneyRisks() {
   // Same query + cadence as OverviewSection → shared cache, no extra round-trip.
-  const { data: bundle, isLoading } = trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {
+  const { data: bundle, isLoading, isError } = trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {
     refetchInterval: 30000,
     staleTime: 25_000,
   });
 
-  if (isLoading || !bundle) return null;
+  if (isLoading) return null;
+  // FAILURE is not EMPTY. Under the always-rendered "Money At Risk" header, a
+  // null return on a failed bundle read looked identical to "nothing at risk".
+  if (isError) {
+    return (
+      <div className="text-xs text-amber-300/80 flex items-center gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        Could not read money-at-risk signals — status unknown, not clear.
+      </div>
+    );
+  }
+  if (!bundle) return null;
 
   const risks = deriveMoneyRisks(bundle.leads, bundle.callbacks, Date.now());
 
