@@ -1227,6 +1227,28 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
     let finalBodyToSend = body;
     let finalVariantKey = variantKey;
 
+    // Human takeover (NCSOS layer 7): if an operator manually replied to this
+    // conversation recently, they are actively handling it — never auto-send over
+    // a live human. Downgrade to a draft the operator approves. Placed AFTER every
+    // branch's send decision and BEFORE preflight/send so it is the final word on
+    // inbound. STOP/opt-out is handled earlier and is unaffected.
+    if (event.type === "inbound_sms" && shouldAutoSend && finalBodyToSend) {
+      const { isConversationHumanHeld } = await import("./humanTakeover");
+      if (await isConversationHumanHeld(event.conversationId)) {
+        shouldAutoSend = false;
+        requiresHumanApproval = true;
+        status = "drafted";
+        statusReason = "human_takeover_active";
+        reason = "operator_actively_handling";
+        noSendReason = "human_handling";
+        if (!humanReviewReason) humanReviewReason = "human_handling";
+        log.info("Auto-send suppressed — operator is handling this conversation", {
+          conversationId: event.conversationId,
+          phoneLast4: normalizedPhone.replace(/\D/g, "").slice(-4),
+        });
+      }
+    }
+
     if (shouldAutoSend && finalBodyToSend && status !== "skipped" && status !== "blocked" && rolloutMode !== "draft_only") {
       preflightResult = runNickgptPreflightGuard({
         eventType: event.type,
