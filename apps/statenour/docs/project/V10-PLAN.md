@@ -1,8 +1,13 @@
-# STATE NOUR v10 · Prime Reliability + Control Layer
+# STATE NOUR v10 · Prime Reliability + Control Layer — HISTORICAL · DO-NOT-EXECUTE
 
-**Status:** Active execution source. Drafted 2026-04-30 post-v9.1.28.
-**Last reconciled:** 2026-05-08 (v10.0.484 EOD · 43-version sprint v10.0.442-484 closed · see `cohort-2026-05-08-eod-summary.md`).
-**Mission:** Make STATE NOUR reliable, auditable, recoverable, and live-controlled before expanding automation.
+> **HISTORICAL PLANNING DOC — no longer the active execution source (truth-substrate audit #22, 2026-07-21).**
+> Last reconciled **2026-05-08** and never since, while the app kept shipping; the `v10.0.X` versioning scheme it uses is itself retired (see `AGENTS.md`). Do NOT execute this as a current plan.
+> **For current state:** [`docs/CURRENT-TRUTH.md`](../CURRENT-TRUTH.md) (one-screen truth) and [`docs/RECONCILIATION.md`](../RECONCILIATION.md) (verified ship-by-ship log) are canonical.
+> Kept only for the v10 control-layer design context below.
+
+**Status:** HISTORICAL — superseded; retained for context. Drafted 2026-04-30 post-v9.1.28.
+**Last reconciled:** 2026-05-08 (v10.0.484 EOD · 43-version sprint v10.0.442-484 closed · see `cohort-2026-05-08-eod-summary.md`). NOT reconciled since — treat as a snapshot, not live.
+**Mission (as originally drafted):** Make STATE NOUR reliable, auditable, recoverable, and live-controlled before expanding automation.
 
 > v10 is **not** the sci-fi release. v10 is the **control release**.
 

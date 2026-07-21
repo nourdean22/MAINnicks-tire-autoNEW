@@ -49,8 +49,7 @@ branch, and Vercel are all retired. Companion app
    - Active wave + which tracks are open vs. blocked
    - Full v10 commit table with what each commit did
    - Status of every audit wave (v11 surface · cron x2 · brain x2 · API · self-audits)
-4. Active execution plan lives in [`docs/project/V10-PLAN.md`](project/V10-PLAN.md).
-   `UPGRADE-PLAN.md` is HISTORICAL (v8.x archive); don't use for current work.
+4. Current state lives in [`docs/RECONCILIATION.md`](RECONCILIATION.md) (verified ship-by-ship log) + [`docs/CURRENT-TRUTH.md`](CURRENT-TRUTH.md) + the backlog in `AGENTS.md`. There is no separate "active plan" doc: `V10-PLAN.md` (last reconciled 2026-05-08) and `UPGRADE-PLAN.md` (v8.x) are both HISTORICAL — don't use for current work.
 5. Quick health (only if you're about to make changes):
    ```bash
    pnpm typecheck                 # expect: 0 errors
