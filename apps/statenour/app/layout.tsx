@@ -5,6 +5,7 @@ import { Barlow_Condensed, Instrument_Serif } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CommandPalette } from "@/components/command-palette";
 import { PWAInstallPrompt } from "@/components/hud/pwa-install-prompt";
+import { ServiceWorkerRegister } from "@/components/hud/sw-register";
 import { ClientErrorTelemetry } from "@/components/ui/client-error-telemetry";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -92,6 +93,7 @@ export default function RootLayout({
           {children}
           <CommandPalette />
           <PWAInstallPrompt />
+          <ServiceWorkerRegister />
           <Toaster
             position="top-center"
             toastOptions={{
