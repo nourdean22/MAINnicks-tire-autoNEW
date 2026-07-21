@@ -26,4 +26,12 @@ export const GET = apiHandler(async () => {
   // passes a raw Response through and still stamps X-Request-Id.)
   const httpStatus = health.status === "healthy" ? 200 : 503;
   return NextResponse.json(health, { status: httpStatus });
-});
+}, { auth: "owner" });
+// truth-substrate audit P0 (2026-07-21) · route-level owner gate added.
+// buildSystemHealth() exposes internal operational intelligence (task /
+// commitment / device / radar counts, morning-brief readiness, Inngest +
+// Braintrust visibility, last autonomic run + error text). Previously the
+// route carried NO auth wrapper and was reachable anonymously via the
+// middleware PUBLIC_EXACT entry (now also removed). Owner-gated at BOTH
+// layers, matching /api/system/health. External monitors use
+// /api/system/heartbeat (Railway healthcheckPath — deploys unaffected).
