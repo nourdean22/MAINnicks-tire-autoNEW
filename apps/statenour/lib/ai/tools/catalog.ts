@@ -285,6 +285,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // Side-effecting because it drives a real headless browser — clicks,
   // extracts, posts. Spendy because Browserbase bills per session-minute
   // and Stagehand acts wrap LLM calls per step.
+  { name: "browseAndDo",                  category: "browser",        sideEffecting: true, cost: "spendy", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
   { name: "browser_do",                   category: "browser",        sideEffecting: true, cost: "spendy", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
   { name: "browser_navigate",             category: "browser",        sideEffecting: true, cost: "cheap",  riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },
   { name: "browser_act",                  category: "browser",        sideEffecting: true, cost: "medium", riskClass: "high", requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"] },

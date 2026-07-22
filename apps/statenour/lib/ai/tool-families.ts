@@ -258,6 +258,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
 
   // ── backfill 2026-07-11 · integration-arsenal ──
   arsenalNotebookLM: { family: "integration-arsenal", description: "Use Google NotebookLM via the connected MCP server. Allows deep grounding against custom uploaded source do…", mutates: false, cost: "cheap" },
+  browseAndDo: { family: "integration-arsenal", description: "Run a COMPLETE browser task autonomously: opens a cloud browser, plans + executes the steps, returns a rec…", mutates: true, cost: "expensive" },
   browser_act: { family: "integration-arsenal", description: "Execute a natural-language action on the open session's current page: click a button, fill a form field, se…", mutates: false, cost: "medium" },
   browser_do: { family: "integration-arsenal", description: "Start a live cloud browser session (headless Chrome) Nick can use to navigate sites, fill forms, extract da…", mutates: false, cost: "medium" },
   browser_extract: { family: "integration-arsenal", description: "Pull structured data from the open session's current page. Provide an instruction (what to look for) plus a…", mutates: false, cost: "medium" },
