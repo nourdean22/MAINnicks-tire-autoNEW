@@ -55,6 +55,26 @@ export function buildVerifierBanner(diagnostic: string): string {
 }
 
 /**
+/**
+ * Banner for the known-truth guard — a reply that asserts a status
+ * ("deployed" / "tests passed" / "build is green") with no evidence, or
+ * references retired infrastructure as current. Reuses the SAME VERIFIER_MARKER
+ * so isVerifierRewritten guards against double-banners and stripVerifierBanner
+ * undoes it. Wording fits a status assertion, not a missing tool call.
+ */
+export function buildKnownTruthBanner(kinds: string[]): string {
+  const what = kinds.includes("stale_active_claim")
+    ? "references retired or inactive infrastructure as if it were current"
+    : "asserts a status ('deployed', 'tests passed', 'build is green') with no supporting evidence or tool receipt";
+  return [
+    `${VERIFIER_MARKER} ⚠ The response below ${what}. Treat the claim as **unverified** — confirm it (a receipt, a check, a real query) before relying on it.`,
+    "",
+    "_Original response (unverified):_",
+    "",
+  ].join("\n");
+}
+
+/**
  * Build the hedged-banner prefix. We name the verbs that fired no
  * tools so the operator sees the diagnostic up front.
  */

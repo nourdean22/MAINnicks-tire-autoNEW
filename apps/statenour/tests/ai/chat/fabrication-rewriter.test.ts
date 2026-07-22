@@ -14,6 +14,7 @@ import {
   rewriteForFabrication,
   isVerifierRewritten,
   stripVerifierBanner,
+  buildKnownTruthBanner,
   VERIFIER_MARKER,
 } from "@/lib/ai/chat/fabrication-rewriter";
 import type { ActionClaim } from "@/lib/ai/chat/action-claim-detector";
@@ -136,5 +137,23 @@ describe("verifier banner unification (2026-07-11)", () => {
     expect(banner.startsWith("[VERIFIER · v10.0.162]")).toBe(true);
     expect(banner).toContain("**unverified**");
     expect(banner).toContain("_Original response (unverified):_");
+  });
+});
+
+describe("buildKnownTruthBanner", () => {
+  it("evidence_free_status → banner names the status claim + is verifier-detectable + strips clean", () => {
+    const banner = buildKnownTruthBanner(["evidence_free_status"]);
+    const wrapped = `${banner}Deployed and all tests passed.`;
+    expect(isVerifierRewritten(wrapped)).toBe(true);
+    expect(banner).toContain("no supporting evidence or tool receipt");
+    expect(banner).toContain("unverified");
+    expect(banner).toContain("_Original response (unverified):_");
+    expect(stripVerifierBanner(wrapped)).toBe("Deployed and all tests passed.");
+  });
+
+  it("stale_active_claim → banner names the retired-infra case", () => {
+    const banner = buildKnownTruthBanner(["stale_active_claim"]);
+    expect(banner).toContain("retired or inactive infrastructure");
+    expect(isVerifierRewritten(banner)).toBe(true);
   });
 });
