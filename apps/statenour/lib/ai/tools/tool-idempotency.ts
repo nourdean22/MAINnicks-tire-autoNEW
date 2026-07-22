@@ -34,6 +34,15 @@ export async function withToolIdempotency<T>(
   windowMs: number,
   run: () => Promise<T>,
   onDuplicate: () => T,
+  /**
+   * True iff `result` means the side effect COMMITTED. Required for tools that
+   * report failure by RETURN VALUE instead of throwing (sendTelegram -> false,
+   * queryNick -> { error }). If a run reports failure, its marker is released so
+   * a real retry can proceed — otherwise a failed send holds the marker and the
+   * retry falsely reports "already done". Omit only when run() always throws on
+   * failure.
+   */
+  succeeded?: (result: T) => boolean,
 ): Promise<T> {
   let prisma: typeof import("@/lib/prisma").prisma;
   try {
@@ -75,9 +84,15 @@ export async function withToolIdempotency<T>(
   }
 
   try {
-    return await run();
+    const result = await run();
+    // The action ran but reported FAILURE by return value (didn't throw) — release
+    // the marker so a genuine retry proceeds instead of hitting a false "already done".
+    if (succeeded && !succeeded(result)) {
+      await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch(() => {});
+    }
+    return result;
   } catch (err) {
-    // The action failed AFTER claiming — release the marker so a real retry works.
+    // The action threw AFTER claiming — release the marker so a real retry works.
     await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch(() => {});
     throw err;
   }

@@ -92,8 +92,12 @@ const RE = {
   // execute / finalized posture — the user issued a command or closed the
   // decision. Signal to DO the thing and stop re-opening it. Kept phrase-based
   // (low false-positive) — an explicit /spar or brainstorm still overrides.
+  // Phrase-based, IMPERATIVE-anchored to avoid firing on deliberation questions
+  // ("should I ship it?", "how do I execute this?"). Ambiguous verbs (do it / ship
+  // it / execute) require a command modifier (just/go/please) or a now/already
+  // suffix or terminal punctuation; the unambiguous phrases match plainly.
   executeFinalized:
-    /\b(?:just|go|please) do it\b|\bdo it (?:now|already|then)\b|\b(make it happen|get it done|(?:just )?ship it|just (?:answer|tell me|give me the answer)|my (?:decision|call|mind) is (?:final|made up)|i(?:'ve| have) (?:decided|made up my mind)|stop (?:arguing|debating|pushing back|second[- ]guessing)|no more (?:objections?|debate|pushback|counter[- ]?views?)|don'?t (?:argue|debate|push back|second[- ]guess)|final decision|it'?s decided|decision'?s final|(?:just )?execute (?:it|this|the plan))\b/i,
+    /\b(?:just|go|please) do it\b|\bdo it (?:now|already|then)\b|\b(?:just|go) ship it\b|\bship it (?:now|already)\b|\bship it[.!]|\b(?:just|go|please) execute (?:it|this|the plan)\b|\bexecute (?:it|this|the plan) (?:now|already)\b|\b(make it happen|get it done|just (?:answer|tell me|give me the answer)|my (?:decision|call|mind) is (?:final|made up)|i(?:'ve| have) (?:decided|made up my mind)|stop (?:arguing|debating|pushing back|second[- ]guessing)|no more (?:objections?|debate|pushback|counter[- ]?views?)|don'?t (?:argue|debate|push back|second[- ]guess)|final decision|it'?s decided|decision'?s final)\b/i,
 
   // ranking / top-N
   rank: /\b(top|best|first)\s+(\d+)\b|\b(rank|prioriti[sz]e|order)\b|\b(give|show|list) me (\d+)\b/i,
