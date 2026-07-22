@@ -27,6 +27,10 @@ vi.mock("@/lib/state/nour-state", () => ({
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
     useUtils: () => ({}),
+    // The live composer calls trpc.brain.createPin.useMutation() at render.
+    brain: {
+      createPin: { useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }) },
+    },
   },
 }));
 
@@ -46,6 +50,6 @@ describe("ChatComposer Component", () => {
     } as any;
 
     const markup = renderToStaticMarkup(<ChatComposer chat={mockChat} />);
-    expect(markup).toContain('placeholder="Send a message to Statenour OS..."');
+    expect(markup).toContain('placeholder="Ask, analyze, create, or tell Nick to act…"');
   });
 });
