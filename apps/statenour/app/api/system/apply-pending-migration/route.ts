@@ -135,6 +135,14 @@ const MIGRATIONS: Record<string, string[]> = {
     `CREATE INDEX IF NOT EXISTS "task_classification_corrections_created_at_idx" ON "task_classification_corrections" ("created_at" DESC)`,
   ],
 
+  // change-detection-lite sensor · NEW table only · additive · zero data loss.
+  // Matches prisma/migrations-pending/20260722000000_page_snapshots/migration.sql.
+  "20260722000000_page_snapshots": [
+    `CREATE TABLE IF NOT EXISTS "page_snapshots" ("id" TEXT NOT NULL, "url" TEXT NOT NULL, "label" TEXT, "content_hash" TEXT NOT NULL, "content" TEXT NOT NULL, "changed" BOOLEAN NOT NULL DEFAULT false, "checked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "page_snapshots_pkey" PRIMARY KEY ("id"))`,
+    `CREATE INDEX IF NOT EXISTS "page_snapshots_url_checked_at_idx" ON "page_snapshots" ("url", "checked_at")`,
+    `CREATE INDEX IF NOT EXISTS "page_snapshots_changed_checked_at_idx" ON "page_snapshots" ("changed", "checked_at")`,
+  ],
+
   "0011_approval_queue_and_memory_inbox": [
     `CREATE TABLE IF NOT EXISTS "approval_requests" (
       "id" TEXT NOT NULL,

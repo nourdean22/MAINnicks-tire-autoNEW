@@ -729,6 +729,16 @@ export const CRONS: CronDef[] = [
     inngest: true,
     description: "Systemic decay enforcer. Deducts XP from neglected missions that idle for >48h and fires a Telegram alert.",
   },
+  {
+    name: "change-detection",
+    schedule: "0 13 * * *", // daily ~9am ET — fires via the MORNING_JOBS fan-out
+    mode: "active",
+    category: "review",
+    maxDuration: 120,
+    path: "/api/cron/change-detection",
+    addedAt: "2026-07-22",
+    description: "change-detection-lite external-change sensor — Firecrawl scrape + content-hash of watched competitor/regulatory pages into page_snapshots. Observe-only, no autonomous action.",
+  },
 ];
 
 /** Names of crons that SHOULD exist as routes (for verifier). */

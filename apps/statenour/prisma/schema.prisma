@@ -3090,6 +3090,24 @@ model IntelligenceClaim {
   @@map("intelligence_claims")
 }
 
+/// change-detection-lite sensor. One row per watched-page check; `changed` is
+/// true when the content hash differs from that url's previous snapshot. The
+/// engine OBSERVES only (Firecrawl scrape) and takes NO autonomous action —
+/// see lib/intelligence/change-detection.ts.
+model PageSnapshot {
+  id          String   @id @default(cuid())
+  url         String
+  label       String?
+  contentHash String   @map("content_hash")
+  content     String   @db.Text
+  changed     Boolean  @default(false)
+  checkedAt   DateTime @default(now()) @map("checked_at")
+
+  @@index([url, checkedAt])
+  @@index([changed, checkedAt])
+  @@map("page_snapshots")
+}
+
 model OpportunityLog {
   id            String   @id @default(cuid())
   title         String
