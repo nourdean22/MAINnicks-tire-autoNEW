@@ -37,6 +37,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 5.0, output: 20.0 },
   "gpt-oss": { input: 0, output: 0 },
   // ── Anthropic ────────────────────────────────────────────────────────
+  "claude-sonnet-5": { input: 3.0, output: 15.0 }, // current Sonnet tier (anthropic fallback lane)
   "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-3-5-sonnet": { input: 3.0, output: 15.0 },
