@@ -79,6 +79,71 @@ export function detectIntents(text: string): VapiIntent[] {
   return matched;
 }
 
+// ---------------------------------------------------------------------------
+// Per-call signal extraction — feeds the Missed Revenue Queue with the WHY.
+// Deterministic regex (same cheap, testable style as detectIntents; no per-call
+// AI cost) so every evaluated call is enriched with the objection that stalled
+// it, any competitor named, and how price-sensitive the caller sounded. The
+// operator working the queue sees the reason, not just "lost_opportunity".
+// ---------------------------------------------------------------------------
+
+export type CallObjection = "price" | "timing" | "trust" | "availability" | "competitor";
+export type PriceSensitivity = "low" | "medium" | "high";
+
+export interface CallSignals {
+  objections: CallObjection[];
+  competitorMentions: string[];
+  priceSensitivity: PriceSensitivity;
+}
+
+const OBJECTION_PATTERNS: Record<CallObjection, RegExp> = {
+  price: /\b(too (much|expensive|pricey|high)|can'?t afford|cheaper|expensive|out of (my )?budget|that'?s a lot|rip.?off|why so much|more than i)\b/i,
+  timing: /\b(not (right )?now|maybe (later|next)|call (you )?back|think about it|another time|next (week|month|pay|time)|when i get paid|not today|get back to you)\b/i,
+  trust: /\b(not sure|reviews?|reputation|scam|is it legit|second opinion|is that (right|necessary)|do i really need|why do i need)\b/i,
+  availability: /\b(no (appointment|opening|slot)|fully booked|too long (a|of a) wait|how long('?s| is) the wait|no time|can'?t wait)\b/i,
+  competitor: /\b(discount tire|monro|conrad'?s|mavis|belle tire|firestone|goodyear|ntb|pep boys|tire discounters|another (shop|place)|somewhere else|other (guys|shop|place))\b/i,
+};
+
+const COMPETITORS: { name: string; pat: RegExp }[] = [
+  { name: "Discount Tire", pat: /\bdiscount tire\b/i },
+  { name: "Monro", pat: /\bmonro\b/i },
+  { name: "Conrad's", pat: /\bconrad'?s\b/i },
+  { name: "Mavis", pat: /\bmavis\b/i },
+  { name: "Belle Tire", pat: /\bbelle tire\b/i },
+  { name: "Firestone", pat: /\bfirestone\b/i },
+  { name: "Goodyear", pat: /\bgoodyear\b/i },
+  { name: "NTB", pat: /\bntb\b/i },
+  { name: "Pep Boys", pat: /\bpep boys\b/i },
+  { name: "Tire Discounters", pat: /\btire discounters\b/i },
+];
+
+const PRICE_STRONG =
+  /\b(too (much|expensive|pricey|high)|can'?t afford|cheaper|best price|lowest price|any (deals?|discounts?|coupons?)|out of (my )?budget|price match|beat (that|their) price)\b/i;
+const PRICE_MENTION = /\b(prices?|pricing|costs?|how much|quote|estimate|charge|what.?do you charge)\b/i;
+
+export function extractCallSignals(input: {
+  transcript: string | null;
+  summary?: string | null;
+}): CallSignals {
+  const text = `${input.transcript || ""} ${input.summary || ""}`.trim();
+  if (!text) return { objections: [], competitorMentions: [], priceSensitivity: "low" };
+
+  const objections: CallObjection[] = [];
+  for (const [obj, re] of Object.entries(OBJECTION_PATTERNS)) {
+    if (re.test(text)) objections.push(obj as CallObjection);
+  }
+
+  const competitorMentions = COMPETITORS.filter((c) => c.pat.test(text)).map((c) => c.name);
+
+  const priceSensitivity: PriceSensitivity = PRICE_STRONG.test(text)
+    ? "high"
+    : PRICE_MENTION.test(text)
+      ? "medium"
+      : "low";
+
+  return { objections, competitorMentions, priceSensitivity };
+}
+
 export function classifyCall(input: ClassificationInput): ClassificationResult {
   const text = `${input.transcript || ""} ${input.aiSummary || ""}`.trim();
   const intents = detectIntents(text);

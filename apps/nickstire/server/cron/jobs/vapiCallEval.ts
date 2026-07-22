@@ -3,7 +3,7 @@ import { vapiCallLogs } from "../../../drizzle/schema";
 import { createLogger } from "../../lib/logger";
 import { sendTelegram } from "../../services/telegram";
 import { getCallStateHistory } from "../../services/voice-call-state";
-import { classifyCall } from "../../services/vapiCallClassifier";
+import { classifyCall, extractCallSignals } from "../../services/vapiCallClassifier";
 import { trailReachedTool } from "../../services/vapiConversionSignals";
 import {
   buildVapiMeasurementRecord,
@@ -193,6 +193,13 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         walkInEvidence: result.outcome === "walk_in_directed" ? "inferred" : "observed",
       });
 
+      // Per-call signal extraction — the WHY behind a queued call (objection that
+      // stalled it, competitor named, price-sensitivity). Deterministic + cheap.
+      const callSignals = extractCallSignals({
+        transcript: detail.transcript ?? null,
+        summary: row.aiSummary || detail.analysis?.summary || null,
+      });
+
       const existingMetadata = asRecord(row.metadata);
       const queueCandidate = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"].includes(result.outcome);
       const queueUrgency = result.outcome === "callback_needed" ? 9
@@ -209,6 +216,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         metadata: {
           ...existingMetadata,
           intents: result.intents,
+          callSignals,
           revenueOpsV1: measurement,
           ...(queueCandidate ? { queueStatus: "pending", queueUrgency } : {}),
         },

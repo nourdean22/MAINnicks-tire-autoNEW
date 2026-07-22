@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCall, detectIntents } from "../services/vapiCallClassifier";
+import { classifyCall, detectIntents, extractCallSignals } from "../services/vapiCallClassifier";
 
 describe("vapiCallClassifier intents", () => {
   it("detects concurrent service intents", () => {
@@ -103,5 +103,49 @@ describe("vapiCallClassifier quality independence", () => {
     expect(persistedLead.outcome).toBe("hard_conversion");
     expect(toolOnly.score).toBe(persistedLead.score);
     expect(toolOnly.qualityVersion).toBe("vapi-quality-v1");
+  });
+});
+
+describe("extractCallSignals · Missed Revenue Queue enrichment", () => {
+  it("extracts a price objection + high price-sensitivity", () => {
+    const s = extractCallSignals({
+      transcript: "That's way too expensive, I can't afford that. Can you do any better on the price?",
+    });
+    expect(s.objections).toContain("price");
+    expect(s.priceSensitivity).toBe("high");
+  });
+
+  it("names competitors mentioned and flags the competitor objection", () => {
+    const s = extractCallSignals({
+      transcript: "Discount Tire quoted me less, and Monro is closer. Why should I come to you?",
+    });
+    expect(s.competitorMentions).toEqual(expect.arrayContaining(["Discount Tire", "Monro"]));
+    expect(s.objections).toContain("competitor");
+  });
+
+  it("detects timing and availability objections", () => {
+    expect(extractCallSignals({ transcript: "Not right now, maybe next month when I get paid." }).objections).toContain("timing");
+    expect(extractCallSignals({ transcript: "How long is the wait? I have no time to sit around." }).objections).toContain("availability");
+  });
+
+  it("grades a plain pricing question as medium sensitivity (not high)", () => {
+    const s = extractCallSignals({ transcript: "How much do you charge for an oil change?" });
+    expect(s.priceSensitivity).toBe("medium");
+    expect(s.objections).not.toContain("price");
+  });
+
+  it("returns empty signals + low sensitivity for a clean booking call", () => {
+    const s = extractCallSignals({ transcript: "Hi, I'd like to book an alignment for Tuesday at 2pm." });
+    expect(s.objections).toEqual([]);
+    expect(s.competitorMentions).toEqual([]);
+    expect(s.priceSensitivity).toBe("low");
+  });
+
+  it("is null-safe on an empty transcript", () => {
+    expect(extractCallSignals({ transcript: null, summary: null })).toEqual({
+      objections: [],
+      competitorMentions: [],
+      priceSensitivity: "low",
+    });
   });
 });
