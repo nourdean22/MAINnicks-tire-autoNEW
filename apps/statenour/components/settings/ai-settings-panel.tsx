@@ -42,7 +42,7 @@ import { onDataChanged } from "@/lib/events/data-change";
 // the typed mutation with no cast, and is the typed-payload-mismatch
 // guard at the call-site type level.
 interface AiConfig {
-  defaultProvider?: "gemini" | "ollama" | "openai" | "anthropic" | "emergency";
+  defaultProvider?: "gemini" | "ollama" | "openai" | "anthropic" | "openrouter" | "emergency";
   defaultMode?: "standard" | "deep";
   defaultTaskType?:
     | "fast"
@@ -280,13 +280,13 @@ export function AiSettingsPanel() {
         <Row label="Default Provider">
           <SegmentedSelect
             value={config.defaultProvider || "auto"}
-            options={["auto", "gemini", "openai", "anthropic"]}
+            options={["auto", "ollama", "gemini", "openai", "anthropic", "openrouter"]}
             onChange={(v) =>
               patch({
                 defaultProvider:
                   v === "auto"
                     ? undefined
-                    : (v as "gemini" | "openai" | "anthropic"),
+                    : (v as "ollama" | "gemini" | "openai" | "anthropic" | "openrouter"),
               })
             }
           />
