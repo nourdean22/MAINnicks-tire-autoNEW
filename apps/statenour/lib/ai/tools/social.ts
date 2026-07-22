@@ -22,12 +22,22 @@ export const socialTools = {
     }),
     execute: async ({ message, title, urgency }) => {
       const { sendTelegram, formatTelegramNotification } = await import("@/lib/services/telegram");
+      const { withToolIdempotency, idempotencyKey } = await import("./tool-idempotency");
       const prefix = urgency === "high" ? "🚨" : urgency === "medium" ? "📌" : "💬";
       const fullMessage = title
         ? formatTelegramNotification(title, `${prefix} ${message}`)
         : `${prefix} ${message}`;
-      const sent = await sendTelegram(fullMessage);
-      return { sent, urgency, messageLength: fullMessage.length };
+      // Idempotent: a re-run of this turn (auto-regen / retry / best-of-2) with the
+      // same message inside 5 min does not send a duplicate.
+      return withToolIdempotency(
+        idempotencyKey("sendTelegram", fullMessage),
+        5 * 60_000,
+        async () => {
+          const sent = await sendTelegram(fullMessage);
+          return { sent, urgency, messageLength: fullMessage.length };
+        },
+        () => ({ sent: true, deduped: true, urgency, messageLength: fullMessage.length }),
+      );
     },
   }),
 
@@ -41,6 +51,7 @@ export const socialTools = {
     execute: async ({ phone, message, customerName }) => {
       const { prisma } = await import("@/lib/prisma");
       const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
+      const { withToolIdempotency, idempotencyKey } = await import("./tool-idempotency");
 
       const verificationPayload = {
         phone,
@@ -48,35 +59,48 @@ export const socialTools = {
         customerName: customerName || "Unknown Customer",
       };
 
-      const receipt = await prisma.actionReceipt.create({
-        data: {
-          action: "shop.sendSms",
-          status: "PENDING",
-          sourceSystem: "twilio",
-          context: `SMS outreach approval for ${verificationPayload.customerName} (${phone}): "${message}"`,
-          verificationPayload,
+      // Idempotent: a re-run with the same phone+message inside 10 min does not
+      // create a duplicate PENDING receipt or a duplicate approval nudge.
+      return withToolIdempotency<{ status: string; receiptId: string | null; message: string }>(
+        idempotencyKey("stageCustomerAlert", `${phone}|${message}`),
+        10 * 60_000,
+        async () => {
+          const receipt = await prisma.actionReceipt.create({
+            data: {
+              action: "shop.sendSms",
+              status: "PENDING",
+              sourceSystem: "twilio",
+              context: `SMS outreach approval for ${verificationPayload.customerName} (${phone}): "${message}"`,
+              verificationPayload,
+            },
+          });
+
+          const text = `📬 <b>Staged SMS Outreach</b>\n\n` +
+            `<b>To:</b> ${verificationPayload.customerName} (${phone})\n` +
+            `<b>Message:</b> "${message}"\n\n` +
+            `Awaiting your confirmation to send via Twilio SMS:`;
+
+          const buttons = [
+            [
+              { text: "✓ Approve & Send", callback_data: `approve:${receipt.id}` },
+              { text: "✗ Decline", callback_data: `deny:${receipt.id}` }
+            ]
+          ];
+
+          await sendTelegramWithButtons(text, buttons);
+
+          return {
+            status: "STAGED",
+            receiptId: receipt.id,
+            message: "SMS staged. Awaiting approval on your Telegram app.",
+          };
         },
-      });
-
-      const text = `📬 <b>Staged SMS Outreach</b>\n\n` +
-        `<b>To:</b> ${verificationPayload.customerName} (${phone})\n` +
-        `<b>Message:</b> "${message}"\n\n` +
-        `Awaiting your confirmation to send via Twilio SMS:`;
-
-      const buttons = [
-        [
-          { text: "✓ Approve & Send", callback_data: `approve:${receipt.id}` },
-          { text: "✗ Decline", callback_data: `deny:${receipt.id}` }
-        ]
-      ];
-
-      await sendTelegramWithButtons(text, buttons);
-
-      return {
-        status: "STAGED",
-        receiptId: receipt.id,
-        message: "SMS staged. Awaiting approval on your Telegram app.",
-      };
+        () => ({
+          status: "DEDUPED",
+          receiptId: null,
+          message: "An identical SMS to this customer was already staged moments ago — not re-staged.",
+        }),
+      );
     },
   }),
 
@@ -177,8 +201,25 @@ export const socialTools = {
     }),
     execute: async ({ dryRun, forceArchetype }) => {
       const { queryNick } = await import("@/lib/nickstire/query");
-      const result = await queryNick("instagram_autopost_run", { dryRun, forceArchetype });
-      return result;
+      // Dry-runs are side-effect-free. For LIVE publishes, guard against a
+      // re-run of this turn (auto-regen / retry / best-of-2) publishing a SECOND
+      // public post. Fixed key (content is generated fresh each run) + 15-min window.
+      if (dryRun) {
+        return queryNick("instagram_autopost_run", { dryRun, forceArchetype });
+      }
+      const { withToolIdempotency } = await import("./tool-idempotency");
+      return withToolIdempotency<
+        Awaited<ReturnType<typeof queryNick>> | { deduped: boolean; status: string; message: string }
+      >(
+        `triggerInstagramAutopost:live${forceArchetype ? `:${forceArchetype}` : ""}`,
+        15 * 60_000,
+        () => queryNick("instagram_autopost_run", { dryRun, forceArchetype }),
+        () => ({
+          deduped: true,
+          status: "skipped",
+          message: "A live Instagram autopost was already triggered in the last 15 minutes — not re-posted (duplicate-guard).",
+        }),
+      );
     },
   }),
 
