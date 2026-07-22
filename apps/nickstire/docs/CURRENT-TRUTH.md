@@ -45,7 +45,7 @@ A transcript classification, tool invocation, direction instruction, transfer at
 1. VAPI sends signed webhook events to `/api/webhooks/vapi`.
 2. Tool calls invoke the internal voice-agent router.
 3. End-of-call events create or reconcile `vapi_call_logs`.
-4. The daily VAPI evaluator classifies operational outcomes and records quality evidence.
+4. The daily VAPI evaluator classifies operational outcomes and records quality evidence. It also extracts per-call signals (`metadata.callSignals`: objection type · competitor mentions · price-sensitivity, deterministic regex — 2026-07-22) that enrich the Missed Revenue Queue with the *why* behind a stalled call. Signals are observed evidence, not confirmed facts.
 5. Leads, callbacks, bookings and invoices remain separate operational records.
 6. Tool engagement is an observed call fact. It is not automatically a lead, booking, arrival or paid job.
 7. Any classifier-derived outcome must carry a definition version and evidence level before it is used in executive reporting.
