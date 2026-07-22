@@ -37,6 +37,7 @@ export const socialTools = {
           return { sent, urgency, messageLength: fullMessage.length };
         },
         () => ({ sent: true, deduped: true, urgency, messageLength: fullMessage.length }),
+        (r) => r.sent === true, // sendTelegram returns false (no throw) on failure — release the marker then
       );
     },
   }),
@@ -100,6 +101,7 @@ export const socialTools = {
           receiptId: null,
           message: "An identical SMS to this customer was already staged moments ago — not re-staged.",
         }),
+        (r) => r.status === "STAGED", // only a committed receipt holds the dedup marker
       );
     },
   }),
@@ -219,6 +221,7 @@ export const socialTools = {
           status: "skipped",
           message: "A live Instagram autopost was already triggered in the last 15 minutes — not re-posted (duplicate-guard).",
         }),
+        (r) => !((r as { error?: unknown })?.error), // queryNick returns {error} (no throw) on failure — release then
       );
     },
   }),

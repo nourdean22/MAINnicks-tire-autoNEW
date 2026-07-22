@@ -144,20 +144,27 @@ describe("response-contract · execute/finalized posture (no unsolicited opposit
       "stop arguing and write the plan",
       "no more objections — ship it",
       "don't push back, just answer",
-      "execute the plan",
+      "just execute the plan",
+      "ship it now",
+      "go ahead and just do it",
     ]) {
       expect(detectExecuteFinalized(t)).toBe(true);
     }
   });
 
-  it("does NOT fire on ordinary analysis / question turns", () => {
+  it("does NOT fire on ordinary analysis / DELIBERATION questions", () => {
     for (const t of [
       "should I open a second location?",
       "analyze the $20 brake offer",
       "what's my revenue this month",
       "give me your read on retention",
-      "how do I do it right?", // 'do it' in a how-to question, not a command
-      "can you do it by friday?", // question, not a finalized command
+      "how do I do it right?", // 'do it' in a how-to question
+      "can you do it by friday?",
+      // self-review-caught false positives — imperative anchoring must exclude these:
+      "should we ship it or wait?",
+      "should I ship it?",
+      "how do I execute this migration?",
+      "can you execute this query for me first?",
     ]) {
       expect(detectExecuteFinalized(t)).toBe(false);
     }

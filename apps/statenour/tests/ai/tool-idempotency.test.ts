@@ -63,6 +63,21 @@ describe("withToolIdempotency", () => {
     expect(r).toBe("ran");
     expect(run).toHaveBeenCalledOnce();
   });
+
+  it("RELEASES the marker when the action reports failure by RETURN VALUE (no throw)", async () => {
+    // The real bug the self-review caught: sendTelegram returns false / queryNick
+    // returns {error} instead of throwing, so a failed send must still free the marker.
+    const run = vi.fn().mockResolvedValue({ ok: false });
+    const r = await withToolIdempotency("k", 1000, run, () => ({ ok: false, dup: true }), (res) => res.ok === true);
+    expect(r).toEqual({ ok: false });
+    expect(brainMemory.deleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("KEEPS the marker when the action succeeds (per the succeeded predicate)", async () => {
+    const run = vi.fn().mockResolvedValue({ ok: true });
+    await withToolIdempotency("k", 1000, run, () => ({ ok: false, dup: true }), (res) => res.ok === true);
+    expect(brainMemory.deleteMany).not.toHaveBeenCalled();
+  });
 });
 
 describe("idempotencyKey", () => {

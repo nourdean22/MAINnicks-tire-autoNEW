@@ -134,13 +134,20 @@ export function buildObjectionBlock(hit: RelevantObjection): string {
 
 /**
  * Finality resolution (2026-07-22). When the operator issues a command or
- * finalizes a decision (execute posture · detectExecuteFinalized), mark this
- * conversation's OPEN adversarial objections resolved so the injector never
- * re-surfaces them on a later semantically-matching turn. Soft-delete
- * (deletedAt) — findRelevantObjections already filters `deletedAt: null`, so
- * this needs no new status field or WHERE change. Best-effort · never throws.
- * A fresh recommendation on a later turn still earns a NEW counter-view; only
- * the ones the operator has moved past are cleared.
+ * finalizes a decision (execute posture · detectExecuteFinalized), clear this
+ * conversation's OPEN adversarial objections so the injector never re-surfaces
+ * them on a later turn. Soft-delete (deletedAt) — findRelevantObjections already
+ * filters `deletedAt: null`, so this needs no new status field or WHERE change.
+ * Best-effort · never throws.
+ *
+ * SCOPE (honest): this clears EVERY open objection for the conversationId, not
+ * only the one tied to the finalized decision. A strong finality signal
+ * ("my decision is final" / "stop arguing") is treated as "I've moved on — drop
+ * the pending counter-views." In a multi-topic conversation that also drops an
+ * unrelated, never-surfaced objection. Accepted because objections are ephemeral
+ * (24h window) and a fresh recommendation on a later turn still earns a NEW
+ * counter-view; topic-scoped clearing would need decision/message matching and
+ * is deferred.
  */
 export async function resolveConversationObjections(conversationId: string): Promise<number> {
   if (!conversationId) return 0;
