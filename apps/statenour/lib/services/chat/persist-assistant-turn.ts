@@ -78,6 +78,12 @@ export interface FirstTokenRef {
 
 export interface BuildOnFinishInput {
   log: ChatLogger;
+  // ─── authority kernel (2026-07-22) ────────────────────────────
+  /** Private Lab: the returned callback persists NOTHING (no assistant row,
+   *  no BrainMemory, no embeddings, no critic/judge/objection writes). */
+  privateMode?: boolean;
+  /** execute = no new adversarial objections · spar = critique unconditionally. */
+  posture?: string;
   // ─── identity / convo ─────────────────────────────────────────
   convId: string | null | undefined;
   conversationId: string | null | undefined;
@@ -673,6 +679,20 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
   const convId: string | undefined = deps.convId ?? undefined;
 
   return async (event: { text?: string; usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } } & Record<string, unknown>) => {
+      // ─── PRIVATE LAB (2026-07-22) ─────────────────────────────────
+      // The ENTIRE post-stream pipeline below is writes: assistant row,
+      // conversation touch, embeddings, BrainMemory, critic objections,
+      // judge scores, telemetry blobs. One structural gate here keeps a
+      // private turn at ZERO persistence — the reply streamed and is gone.
+      if (deps.privateMode) {
+        deps.log.info("private_mode_zero_persist", { skipped: "assistant-turn pipeline" });
+        // CRITICAL (self-review blocker #2): resolve the work-complete promise
+        // the SSE stream awaits before controller.close() — the normal path
+        // does this at the tail (:onWorkComplete below). Skipping it hangs the
+        // stream until maxDuration and never emits message.completed.
+        deps.onWorkComplete?.();
+        return;
+      }
       const rawText = event.text || "";
       const usage = event.usage;
       const finishReason = (event as unknown as { finishReason?: string }).finishReason;
@@ -1508,13 +1528,22 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
                 import("@/lib/ai/response-contract"),
                 import("@/lib/ai/chat/handlers/patterns"),
               ]);
+              // 2026-07-22 · posture axis: an explicit UI posture ("spar" /
+              // "execute") composes with the phrase-based detections. Explicit
+              // spar/counsel override a phrase-detected finality (self-review #8/#9)
+              // — only "auto"/absent falls back to the phrase.
+              const isAutoPosture = !deps.posture || deps.posture === "auto";
               const sparTurn =
                 buildResponseContract(userContent).answerMode === "brainstorm" ||
-                EARLY_SPAR.test(userContent);
-              // 2026-07-22 · execute/finalized posture suppresses NEW objections too
-              // — unless the user explicitly asked to spar (that IS a request to be
-              // challenged). No stored objection ⇒ nothing for the injector to re-raise.
-              if (detectExecuteFinalized(userContent) && !sparTurn) return;
+                EARLY_SPAR.test(userContent) ||
+                deps.posture === "spar";
+              const executeFinalized =
+                deps.posture === "execute" ||
+                (isAutoPosture && detectExecuteFinalized(userContent));
+              // execute suppresses NEW objections — unless the user explicitly
+              // asked to spar (that IS a request to be challenged). No stored
+              // objection ⇒ nothing for the injector to re-raise.
+              if (executeFinalized && !sparTurn) return;
               return criticizeAsync({
                 messageId: createdAssistant.id,
                 conversationId: convId ?? null,

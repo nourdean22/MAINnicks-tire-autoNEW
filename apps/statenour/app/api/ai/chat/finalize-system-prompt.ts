@@ -72,6 +72,13 @@ export interface FinalizeSystemPromptInput {
    *  returns "" for unconstrained turns, so this is zero-cost on
    *  casual chat. */
   contract?: ResponseContract;
+  /** 2026-07-22 · authority posture from the composer selector —
+   *  "spar" injects the dialectic scaffold, "execute"/"counsel" inject a
+   *  one-line stance directive. "auto"/absent = phrase-inferred behavior. */
+  posture?: string;
+  /** 2026-07-22 · action permission from the composer selector — "read"
+   *  and "draft" inject a tool-restraint directive; "execute" is silent. */
+  actionPermission?: string;
   log: ChatLogger;
 }
 
@@ -243,10 +250,16 @@ You are in Master mode - Nour's operator + strategist.
   // contract turns or the explicit /spar prefix — the thought-partner
   // scaffold that brainstorm turns never had (they got only temperature).
   const sparTurn =
-    input.contract?.answerMode === "brainstorm" || EARLY_SPAR.test(userContent);
+    input.contract?.answerMode === "brainstorm" ||
+    EARLY_SPAR.test(userContent) ||
+    input.posture === "spar"; // 2026-07-22 · explicit composer posture
   if (sparTurn) {
     systemPrompt += `\n\n${SPAR_MODE}`;
   }
+
+  // NOTE: authority-kernel posture/permission directives are injected LAST
+  // (after the always-on HONESTY block below) so they aren't out-weighted by
+  // it — see the block just before the return (self-review #9/#11).
 
   // Apr 19 · Citation protocol — added on turns where any brain block
   // fired. Tells the model it MAY cite sources with [brain:TAG]. We
@@ -341,6 +354,32 @@ Speak as Nour's operator. Direct, specific, grounded in his data.`;
   const toolFirstPrompt = toolFirstDirective(queryShape);
   if (toolFirstPrompt) {
     systemPrompt += `\n\n${toolFirstPrompt}`;
+  }
+
+  // ── AUTHORITY-KERNEL DIRECTIVES (composer selectors) — injected LAST ──
+  // Placed after the always-on HONESTY block ("push hard, challenge the plan")
+  // so an explicit EXECUTE posture actually wins instead of being contradicted
+  // by it (self-review #11). Explicit posture beats phrase inference; permission
+  // restrains tool use at the prompt tier (structural per-tool enforcement is
+  // the follow-up tier — browseAndDo already enforces its permission arg).
+  if (input.posture === "execute" && !sparTurn) {
+    systemPrompt +=
+      "\n\n# POSTURE: EXECUTE (overrides the general 'push back' guidance above for THIS turn)\nNour has set EXECUTE posture: do the requested work directly. No unsolicited counter-views, no re-opening settled decisions, no 'have you considered'. Challenge ONLY if the instruction is impossible or would cause clear harm — then say so in one line and proceed.";
+  } else if (
+    input.posture === "counsel" &&
+    !sparTurn &&
+    // If the user ALSO said "just answer / stop arguing" THIS turn, the phrase
+    // wins for this turn — don't force a counter-view against it (self-review #9).
+    !input.contract?.executeFinalized
+  ) {
+    systemPrompt +=
+      "\n\n# POSTURE: COUNSEL\nNour has set COUNSEL posture: give your recommendation AND exactly one material counter-view (the strongest one), then a clear verdict. Not a debate — one considered opposing angle, integrated.";
+  }
+  // "draft" (default) injects nothing — today's approval-gated behavior. Only an
+  // explicit READ selection restricts the turn.
+  if (input.actionPermission === "read") {
+    systemPrompt +=
+      "\n\n# PERMISSION: READ-ONLY TURN\nDo NOT call any mutating or side-effecting tool this turn (no sends, posts, creates, updates, deletes; browser tasks only with permission 'read'). Observe, query, and answer only. If the goal needs a mutation, describe exactly what you WOULD do and ask.";
   }
 
   return { systemPrompt, greeneSummary, strategicLawCount: strategicLaws.length };

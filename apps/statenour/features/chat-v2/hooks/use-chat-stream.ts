@@ -28,6 +28,11 @@ export function useChatStream(): ChatRuntimeController {
   const activeConversationId = useChatUiStore((s) => s.activeConversationId);
   const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
   const setConnection = useChatUiStore((s) => s.setConnection);
+  // 2026-07-22 · authority-kernel controls (composer selectors)
+  const privateMode = useChatUiStore((s) => s.privateMode);
+  const posture = useChatUiStore((s) => s.posture);
+  const depth = useChatUiStore((s) => s.depth);
+  const actionPermission = useChatUiStore((s) => s.actionPermission);
 
   const bodyRef = useRef<Record<string, unknown>>({ conversationId: activeConversationId });
   const liveContextBlocksRef = useRef<any>(null);
@@ -35,8 +40,22 @@ export function useChatStream(): ChatRuntimeController {
   const lastPersonaHeaderRef = useRef(null);
 
   useEffect(() => {
-    bodyRef.current.conversationId = activeConversationId;
-  }, [activeConversationId]);
+    // Private Lab detaches from ANY conversation — no id is sent, the server
+    // also drops it (belt + suspenders), so no rows can be conversation-scoped.
+    bodyRef.current.conversationId = privateMode ? undefined : activeConversationId;
+  }, [activeConversationId, privateMode]);
+
+  useEffect(() => {
+    // Ship only NON-DEFAULTS so an untouched composer = today's exact requests.
+    if (privateMode) bodyRef.current.privateMode = true;
+    else delete bodyRef.current.privateMode;
+    if (posture !== "auto") bodyRef.current.posture = posture;
+    else delete bodyRef.current.posture;
+    if (depth !== "auto") bodyRef.current.modeOverride = depth;
+    else delete bodyRef.current.modeOverride;
+    if (actionPermission !== "draft") bodyRef.current.actionPermission = actionPermission;
+    else delete bodyRef.current.actionPermission;
+  }, [privateMode, posture, depth, actionPermission]);
 
   useEffect(() => {
     const apply = (ctx: PageContextPayload | null) => {
@@ -77,12 +96,31 @@ export function useChatStream(): ChatRuntimeController {
   });
 
   const retryCountRef = useRef(0);
-  const regenerateRef = useRef(chat.regenerate);
   const messagesRef = useRef(chat.messages);
-
+  // Whether the MOST RECENT send went out under Private Lab, + a live mirror of
+  // privateMode. A private turn must never be replayed (regenerate / auto-retry)
+  // once Private Lab is off — the replay would persist it (self-review high #4).
+  const sentPrivateRef = useRef(false);
+  const privateModeRef = useRef(privateMode);
   useEffect(() => {
-    regenerateRef.current = chat.regenerate;
-  }, [chat.regenerate]);
+    privateModeRef.current = privateMode;
+  }, [privateMode]);
+
+  const safeRegenerate = useCallback(
+    (options?: Parameters<typeof chat.regenerate>[0]): Promise<void> => {
+      if (sentPrivateRef.current && !privateModeRef.current) {
+        toast.error("That turn was private — turn Private Lab back on to retry it.");
+        return Promise.resolve();
+      }
+      return chat.regenerate(options);
+    },
+    [chat],
+  );
+
+  const regenerateRef = useRef(safeRegenerate);
+  useEffect(() => {
+    regenerateRef.current = safeRegenerate;
+  }, [safeRegenerate]);
 
   useEffect(() => {
     messagesRef.current = chat.messages;
@@ -114,6 +152,9 @@ export function useChatStream(): ChatRuntimeController {
         (((p as { type: string }).type).startsWith("tool-") || (p as { type: string }).type === "dynamic-tool"),
     );
     if (hadToolPart) return;
+
+    // Private Lab: don't auto-replay a privately-sent turn once the mode is off.
+    if (sentPrivateRef.current && !privateModeRef.current) return;
 
     retryCountRef.current += 1;
     const timer = setTimeout(
@@ -150,10 +191,16 @@ export function useChatStream(): ChatRuntimeController {
     status: chat.status as "submitted" | "streaming" | "ready" | "error",
     error: chat.error,
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
-    sendText: (text: string) => chat.sendMessage({ text }),
-    append: chat.sendMessage,
+    sendText: (text: string) => {
+      sentPrivateRef.current = privateMode;
+      return chat.sendMessage({ text });
+    },
+    append: ((...args: Parameters<typeof chat.sendMessage>) => {
+      sentPrivateRef.current = privateMode;
+      return chat.sendMessage(...args);
+    }) as typeof chat.sendMessage,
     stop: chat.stop,
-    regenerate: chat.regenerate,
+    regenerate: safeRegenerate,
     setMessages: chat.setMessages,
     liveContextBlocksRef,
     lastTraceIdRef,

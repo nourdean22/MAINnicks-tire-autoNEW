@@ -36,6 +36,15 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
   const setHistoryDrawerOpen = useChatUiStore((s) => s.setHistoryDrawerOpen);
   const setDiagnosticReport = useChatUiStore((s) => s.setDiagnosticReport);
+  // 2026-07-22 · authority-kernel controls
+  const privateMode = useChatUiStore((s) => s.privateMode);
+  const setPrivateMode = useChatUiStore((s) => s.setPrivateMode);
+  const posture = useChatUiStore((s) => s.posture);
+  const setPosture = useChatUiStore((s) => s.setPosture);
+  const depth = useChatUiStore((s) => s.depth);
+  const setDepth = useChatUiStore((s) => s.setDepth);
+  const actionPermission = useChatUiStore((s) => s.actionPermission);
+  const setActionPermission = useChatUiStore((s) => s.setActionPermission);
 
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -210,8 +219,75 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     },
   );
 
+  // Cycle helpers for the compact authority pills — tap advances the value.
+  const POSTURES = ["auto", "execute", "counsel", "spar"] as const;
+  const DEPTHS = ["auto", "standard", "deep"] as const;
+  const PERMISSIONS = ["draft", "read", "execute"] as const;
+  const cycle = <T,>(list: readonly T[], cur: T): T =>
+    list[(list.indexOf(cur) + 1) % list.length];
+
   return (
     <form onSubmit={onSubmit} className="relative mx-auto flex w-full max-w-4xl flex-col gap-2">
+      {privateMode && (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-gold" data-testid="private-lab-banner">
+          Private Lab · no history · no memory · no learning
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 px-1" data-testid="authority-controls">
+        <button
+          type="button"
+          onClick={() => setPosture(cycle(POSTURES, posture))}
+          aria-label={`Posture: ${posture} (tap to change)`}
+          className={cn(
+            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
+            posture === "auto"
+              ? "border-glass text-fg-tertiary hover:text-fg-secondary"
+              : posture === "spar"
+                ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+                : "border-gold/40 bg-gold/10 text-gold",
+          )}
+        >
+          {posture === "auto" ? "posture" : posture}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDepth(cycle(DEPTHS, depth))}
+          aria-label={`Depth: ${depth} (tap to change)`}
+          className={cn(
+            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
+            depth === "auto" ? "border-glass text-fg-tertiary hover:text-fg-secondary" : "border-gold/40 bg-gold/10 text-gold",
+          )}
+        >
+          {depth === "auto" ? "depth" : depth}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActionPermission(cycle(PERMISSIONS, actionPermission))}
+          aria-label={`Action permission: ${actionPermission} (tap to change)`}
+          className={cn(
+            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
+            actionPermission === "draft"
+              ? "border-glass text-fg-tertiary hover:text-fg-secondary"
+              : actionPermission === "read"
+                ? "border-sky-500/40 bg-sky-500/10 text-sky-300"
+                : "border-gold/40 bg-gold/10 text-gold",
+          )}
+        >
+          {actionPermission === "draft" ? "actions" : actionPermission}
+        </button>
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setPrivateMode(!privateMode)}
+          aria-label={privateMode ? "Private Lab on (tap to turn off)" : "Private Lab off (tap to turn on)"}
+          className={cn(
+            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
+            privateMode ? "border-gold/60 bg-gold/15 text-gold" : "border-glass text-fg-tertiary hover:text-fg-secondary",
+          )}
+        >
+          {privateMode ? "private · on" : "private"}
+        </button>
+      </div>
       {slash.show && (
         <SlashCommandDropdown
           filtered={slash.filtered}

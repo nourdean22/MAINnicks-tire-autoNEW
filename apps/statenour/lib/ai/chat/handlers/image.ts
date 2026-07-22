@@ -448,7 +448,9 @@ export async function handleImage(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
-      "X-Conversation-Id": convId || "",
+      // Defensive: never emit the Private Lab sentinel (this path is already
+      // unreachable under privateMode, but keep all three emit sites consistent).
+      "X-Conversation-Id": convId && convId !== "private" && convId !== "temp" ? convId : "",
       "X-Vercel-AI-UI-Message-Stream": "v1",
     },
   });

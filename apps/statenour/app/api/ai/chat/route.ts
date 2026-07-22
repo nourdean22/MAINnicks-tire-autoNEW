@@ -78,12 +78,16 @@ async function chatPostInner(req: Request) {
   const {
     body,
     messages: rawMessages,
-    conversationId,
+    conversationId: gateConversationId,
     modeOverride,
     providerOverride,
     taskTypeOverride,
     personality,
     userContent,
+    // 2026-07-22 · authority-kernel controls (privateMode / posture / permission)
+    privateMode,
+    posture,
+    actionPermission,
     // v10.0.529.86 · Wave 30 · pronoun-resolution context
     contextRoute,
     lastTaskId,
@@ -97,6 +101,11 @@ async function chatPostInner(req: Request) {
     lastReflectionId,
     lastMissionId,
   } = gate;
+
+  // Private Lab: detach the turn from ANY conversation server-side (belt — the
+  // client also omits it). No conversationId → the objection/contradiction
+  // injector paths and conversation-scoped writes structurally no-op.
+  const conversationId = privateMode ? undefined : gateConversationId;
 
   const { sanitizeMessageHistory } = await import(
     "@/lib/ai/chat/sanitize-history"
@@ -131,17 +140,24 @@ async function chatPostInner(req: Request) {
   // of the prefetch can stall 30s+, even though "remember that I
   // decided to X" doesn't need any of that work. Fast-path returns
   // in ~200ms regardless.
-  const interceptorTimer = stageTracker.start("interceptors");
-  const { runInterceptors } = await import("@/lib/ai/chat/interceptors");
-  const interceptResult = await runInterceptors({
-    userContent,
-    lastUserMsg,
-    convId,
-  });
-  interceptorTimer.end();
-  if (interceptResult.kind === "handled") {
-    convId = interceptResult.convId;
-    return interceptResult.response;
+  // Private Lab: SKIP the interceptor fast-paths entirely. They fork off
+  // BEFORE the main pipeline's privateMode gate and persist verbatim — F5
+  // commands / brain-dumps / decisions / /save create a titled conversation +
+  // user row + BrainMemory/Decision rows (self-review blocker #1). Falling
+  // through routes the turn to the model pipeline, which is private-safe.
+  if (!privateMode) {
+    const interceptorTimer = stageTracker.start("interceptors");
+    const { runInterceptors } = await import("@/lib/ai/chat/interceptors");
+    const interceptResult = await runInterceptors({
+      userContent,
+      lastUserMsg,
+      convId,
+    });
+    interceptorTimer.end();
+    if (interceptResult.kind === "handled") {
+      convId = interceptResult.convId;
+      return interceptResult.response;
+    }
   }
 
   // ── Specialist Sub-Agent Routing ──
@@ -158,7 +174,9 @@ async function chatPostInner(req: Request) {
   // WOULD have routed (SystemMetric `specialist.route`) but never
   // dispatches — measure on live traffic before flipping to "true".
   const { isSpecialistRoutingEnabled, isSpecialistShadowMode } = await import("@/lib/ai/agents/types");
-  if (isSpecialistRoutingEnabled() || isSpecialistShadowMode()) {
+  // Private Lab: skip specialist routing too — it records content-derived
+  // route metrics (self-review #7) and its buildFastStream persists the reply.
+  if (!privateMode && (isSpecialistRoutingEnabled() || isSpecialistShadowMode())) {
     const { assertWithinBudget: assertSpecBudget } = await import("@/lib/ai/budget");
     const specBudget = await assertSpecBudget().catch(() => null);
     if (specBudget && !specBudget.ok) {
@@ -211,14 +229,17 @@ async function chatPostInner(req: Request) {
           // specialist actually handles a turn live (deduped, fire-and-forget).
           const { alertFirstSpecialistDispatch } = await import("@/lib/ai/agents/router-metrics");
           void alertFirstSpecialistDispatch(decision.route, decision.reason);
+          // Private Lab: no user-message row, no BrainMemory auto-write.
           const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
-          const resolvedConvId = await persistUserTurn({
-            convId,
-            lastUserMsg,
-            userContent,
-            log,
-            recordError,
-          });
+          const resolvedConvId = privateMode
+            ? (convId || "private")
+            : await persistUserTurn({
+                convId,
+                lastUserMsg,
+                userContent,
+                log,
+                recordError,
+              });
 
           const { buildFastStream } = await import("@/lib/ai/chat/handlers/shared");
           return buildFastStream(
@@ -267,20 +288,24 @@ async function chatPostInner(req: Request) {
   // never rejects on its own (internal catch → "temp"), so the only
   // rejection here is the timeout — fall back to the same "temp"
   // contract as its error path. The detached write may still land.
-  const dbWritePromise: Promise<string> = withTimeout(
-    persistUserTurn({
-      convId,
-      lastUserMsg,
-      userContent,
-      log,
-      recordError,
-    }),
-    5_000,
-    "persist-user-turn",
-  ).catch(() => {
-    log.warn("persist_user_turn_timeout", { convId: convId ?? null });
-    return convId || "temp";
-  });
+  // Private Lab: the user turn persists NOTHING (no chatMessage row, no
+  // conversation row, no persistIfImportant BrainMemory auto-write).
+  const dbWritePromise: Promise<string> = privateMode
+    ? Promise.resolve(convId || "private")
+    : withTimeout(
+        persistUserTurn({
+          convId,
+          lastUserMsg,
+          userContent,
+          log,
+          recordError,
+        }),
+        5_000,
+        "persist-user-turn",
+      ).catch(() => {
+        log.warn("persist_user_turn_timeout", { convId: convId ?? null });
+        return convId || "temp";
+      });
 
   const { provider, modelId } = getActiveProviderInfo();
   const startedAt = Date.now();
@@ -754,6 +779,7 @@ async function chatPostInner(req: Request) {
           forceRecall,
           messages: messages as Array<{ role: string; content: string }>,
           convId: cid,
+          posture,
           log,
         }),
       ),
@@ -826,6 +852,8 @@ async function chatPostInner(req: Request) {
     mode,
     queryShape,
     contract: responseContract,
+    posture,
+    actionPermission,
     log,
   });
   systemPrompt = __finalized.systemPrompt;
@@ -1214,6 +1242,8 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
 
           const __altPersist = buildOnFinish({
             log,
+            privateMode,
+            posture,
             convId,
             conversationId,
             provider,
@@ -1356,6 +1386,8 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           // Reuse the EXACT persist pipeline streamText would have run.
           const __altPersist = buildOnFinish({
             log,
+            privateMode,
+            posture,
             convId,
             conversationId,
             provider,
@@ -1573,7 +1605,12 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           // produce text. Applies to all three branches, including the
           // previously-prepareStep-less default.
           const lastStep = (mode === "deep" ? 5 : 3) - 1;
-          if (__pythonExecuteIntent) {
+          // READ permission (composer selector) must not be contradicted by
+          // structural tool forcing — a forced runPython / toolChoice:"required"
+          // makes the "observe and describe, don't act" directive impossible
+          // (self-review high #5). Skip the mutating forces; fall through to the
+          // unforced default so the READ prompt directive governs the turn.
+          if (__pythonExecuteIntent && actionPermission !== "read") {
             log.info("python_execute_intent_detected", { surface: "chat" });
             return {
               prepareStep: ({ stepNumber }: { stepNumber: number }) =>
@@ -1605,7 +1642,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           // force) — one detectActionIntent call drives both the provider
           // pick AND toolChoice, so the two can never disagree.
           const intent = __actionIntent;
-          if (intent) {
+          if (intent && actionPermission !== "read") {
             log.info("action_intent_detected", {
               intent: intent.intent,
               expectedTool: intent.expectedTool,
@@ -1661,6 +1698,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
         // returns the callback wired with the deps it needs (convId,
         // model, traceId, partial-text ref, recordTrace).
         onError: buildStreamErrorHandler({
+          privateMode,
           convId,
           conversationId,
           model: __fbModel,
@@ -1677,6 +1715,8 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
         // returns the callback wired with all post-stream deps.
         onFinish: buildOnFinish({
           log,
+          privateMode,
+          posture,
           convId,
           conversationId,
           provider: fbProvider,

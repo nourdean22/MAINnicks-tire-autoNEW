@@ -75,7 +75,10 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
   headers.set("Content-Type", "text/event-stream");
   headers.set("Cache-Control", "no-cache, no-transform");
   headers.set("Connection", "keep-alive");
-  headers.set("X-Conversation-Id", convId);
+  // Never leak the Private Lab sentinel (or the "temp" placeholder) to the
+  // client — adopting it as activeConversationId inverts privacy after
+  // toggle-off (self-review high #3). Emit blank; the client keeps its id.
+  headers.set("X-Conversation-Id", convId === "private" || convId === "temp" ? "" : convId);
   // v10.0.28 — surface the AgentTrace traceId so the chat client
   // can let the operator click "this turn" and jump to
   // /system/agent-traces?search=<traceId>. The route already mints

@@ -50,6 +50,11 @@ export interface PartialTextRef {
 }
 
 export interface BuildStreamErrorHandlerInput {
+  /** Private Lab: skip the errored-turn chatMessage.create — convId is the
+   *  "private" sentinel (truthy), so the write would otherwise persist the
+   *  partial reply's content (self-review high #6). Provider-marking + trace
+   *  carry no user content and still run. */
+  privateMode?: boolean;
   /** Convo id resolved from dbWritePromise. May be null pre-resolve. */
   convId: string | null | undefined;
   /** Original client-supplied conversationId (may differ from convId for first turn). */
@@ -197,7 +202,7 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
       //     retryable } column DESIGNED for this (see schema.prisma)
       //   · sanitize-history.ts neutralizes errored turns before they
       //     replay to the model (verifier-style note)
-      if (convId) {
+      if (convId && !deps.privateMode) {
         const hasMeaningfulPartial = partial.text.trim().length >= 20;
         await prisma.chatMessage
           .create({

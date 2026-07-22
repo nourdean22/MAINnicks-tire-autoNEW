@@ -133,7 +133,10 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           //    send). Fire-and-forget: the callback will no-op if the
           //    id matches what's already active.
           const convId = res.headers.get("X-Conversation-Id");
-          if (convId) {
+          // Guard sentinels defensively (server already blanks them): adopting
+          // "private"/"temp" as activeConversationId clobbers the real id and
+          // inverts privacy after toggle-off (self-review high #3).
+          if (convId && convId !== "private" && convId !== "temp") {
             onConversationId?.(convId);
           }
 

@@ -39,6 +39,18 @@ export interface GatePass {
   taskTypeOverride: TaskType | undefined;
   personality: string;
   userContent: string;
+  // 2026-07-22 · Authority-kernel controls (audit Waves 1+7). All optional,
+  // defaulted by parseChatControls so absent fields = today's behavior.
+  //   privateMode      — Private Lab: the turn persists NOTHING (no message
+  //                      rows, no BrainMemory, no embeddings, no learning).
+  //   posture          — execute = suppress unsolicited opposition ·
+  //                      spar = force the adversarial dialectic ·
+  //                      counsel = balanced (default behavior) · auto = infer.
+  //   actionPermission — read = no mutating tools · draft = stage, don't fire
+  //                      irreversible/outward actions · execute = allowed.
+  privateMode: boolean;
+  posture: ChatPosture;
+  actionPermission: ChatActionPermission;
   // v10.0.529.86 · Wave 30 · pronoun-resolution context hints. All
   // optional · the system prompt + tool fuzzy-lookup paths prefer
   // these when present but fall back to existing behavior when
@@ -62,6 +74,32 @@ export interface GatePass {
 }
 
 export type GateResult = GateBlock | GatePass;
+
+export type ChatPosture = "auto" | "execute" | "counsel" | "spar";
+export type ChatActionPermission = "read" | "draft" | "execute";
+
+const POSTURES: readonly ChatPosture[] = ["auto", "execute", "counsel", "spar"];
+const PERMISSIONS: readonly ChatActionPermission[] = ["read", "draft", "execute"];
+
+/**
+ * Parse the authority-kernel control fields off the request body. Pure +
+ * defensive: anything malformed degrades to the safe default (no private mode,
+ * auto posture, draft permission) instead of throwing. Exported for tests.
+ */
+export function parseChatControls(body: Record<string, unknown>): {
+  privateMode: boolean;
+  posture: ChatPosture;
+  actionPermission: ChatActionPermission;
+} {
+  const privateMode = body.privateMode === true;
+  const posture = POSTURES.includes(body.posture as ChatPosture)
+    ? (body.posture as ChatPosture)
+    : "auto";
+  const actionPermission = PERMISSIONS.includes(body.actionPermission as ChatActionPermission)
+    ? (body.actionPermission as ChatActionPermission)
+    : "draft";
+  return { privateMode, posture, actionPermission };
+}
 
 /**
  * Extract plain text from a UIMessage. Handles both legacy string
@@ -184,6 +222,7 @@ export async function runGate(req: Request): Promise<GateResult> {
     taskTypeOverride,
     personality,
     userContent,
+    ...parseChatControls(body),
     contextRoute,
     lastTaskId,
     lastGoalId,
