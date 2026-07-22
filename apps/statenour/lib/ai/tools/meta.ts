@@ -251,9 +251,37 @@ export const metaTools = {
     },
   }),
 
+  // 2026-07-22 · browseAndDo — the ONE dependable high-level browser workflow.
+  // Session + plan/do loop + permission gate + receipt in a single call, so the
+  // chat model no longer hand-coordinates browser_navigate/act/extract. The
+  // low-level tools below stay available for debugging / surgical steps.
+  browseAndDo: tool({
+    description:
+      "Run a COMPLETE browser task autonomously: opens a cloud browser, plans + executes the steps (navigate, click, type, read), and returns a structured receipt with a session replay URL. THE preferred tool whenever Nour asks Nick to do something on a website ('go check X', 'find Y on site Z', 'fill the form but don't submit'). permission: 'read' = look only · 'draft' (default) = interact but STOP before any consequential submission (submit/send/purchase/delete) · 'execute' = allowed to fire the final action. Costs real money per step — keep goals specific.",
+    inputSchema: z.object({
+      goal: z.string().min(8).describe("Specific, self-contained description of what to accomplish, including the site if known."),
+      startUrl: z.string().url().optional().describe("URL to open first (skips one planning step)."),
+      permission: z.enum(["read", "draft", "execute"]).default("draft").describe("Action permission. Use 'execute' ONLY when Nour explicitly authorized the final consequential action."),
+      maxSteps: z.number().int().min(1).max(10).optional().describe("Step cap · default 6."),
+      keepSessionOpen: z.boolean().optional().describe("Leave the session open (live-view) instead of closing it at the end."),
+    }),
+    execute: async ({ goal, startUrl, permission, maxSteps, keepSessionOpen }) => {
+      const { browseAndDo } = await import("@/lib/ai/browser/browse-and-do");
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+      const r = await browseAndDo({ goal, startUrl, permission, maxSteps, keepSessionOpen });
+      // Page-derived text is untrusted — fence everything read off the web
+      // before it re-enters the model's context.
+      return {
+        ...r,
+        summary: fenceContent("browseAndDo", "external_web", r.summary),
+        steps: r.steps.map((s) => ({ ...s, info: fenceContent("browseAndDo", "external_web", s.info) })),
+      };
+    },
+  }),
+
   browser_do: tool({
     description:
-      "Start a live cloud browser session (headless Chrome) Nick can use to navigate sites, fill forms, extract data, or check third-party dashboards. Returns a live-view URL Nour can open to watch the agent work. Use this tool when Nour asks Nick to 'go check X online', 'log into Y', 'pull data from Z', or any task that requires a real web browser.",
+      "LOW-LEVEL: start a live cloud browser session (headless Chrome) and return its id + live-view URL — you then drive it manually with browser_navigate/browser_act/browser_extract. For complete tasks ('go check X online', 'pull data from Z') PREFER browseAndDo, which runs the whole workflow in one call. Use this only for surgical multi-tool control or debugging.",
     inputSchema: z.object({
       goal: z
         .string()

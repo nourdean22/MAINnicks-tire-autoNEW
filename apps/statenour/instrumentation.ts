@@ -18,6 +18,18 @@ import type { NextRequest } from "next/server";
 export const runtime = "nodejs";
 
 export async function register() {
+  // 2026-07-22 · EDGE-GRAPH GATE (fixed the Railway build break). Next compiles
+  // instrumentation.ts for BOTH runtimes — `export const runtime = "nodejs"` is
+  // NOT honored here — so without this guard the edge pass statically bundles
+  // every literal dynamic import below (tool-embeddings -> the entire tool
+  // universe -> sharp / node:stream), and a node_modules hoisting shift (the
+  // stagehand lockfile change) turned that into a FATAL Turbopack error
+  // ("sharp: non-ecmascript placeable asset" under Edge Instrumentation).
+  // NEXT_RUNTIME is a compile-time define, so this branch is dead-code-
+  // eliminated from the edge bundle — the edge graph compiles EMPTY, immune to
+  // any dependency-hoisting shape. This is the documented Next.js pattern.
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
   // truth-substrate audit P0 (#12): FAIL LOUD at boot on missing required env.
   // assertEnvOrDie was defined but never called — a Railway prod boot with a
   // missing AUTH_SECRET / CRON_SECRET / DATABASE_URL silently started a broken
@@ -70,6 +82,8 @@ export async function onRequestError(
   err: unknown,
   request: { path: string; method: string },
 ): Promise<void> {
+  // Same edge-graph gate as register() — keep the edge bundle import-free.
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
   try {
     const { recordTrace } = await import("@/lib/observability/tracer");
     recordTrace({
