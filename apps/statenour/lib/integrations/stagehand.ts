@@ -2,11 +2,11 @@
  * Stagehand driver — G1 driver layer on top of Browserbase sessions.
  *
  * Stagehand (@browserbasehq/stagehand) is Browserbase's LLM-native
- * page controller. It wraps Playwright with three natural-language
- * primitives:
- *   · page.act("click the sign-in button")
- *   · page.extract({ instruction, schema })  // Zod-typed return
- *   · page.observe("find the login form")
+ * page controller. v3 exposes three natural-language primitives as
+ * INSTANCE methods (the v1-era `.page` facade is gone):
+ *   · stagehand.act("click the sign-in button")
+ *   · stagehand.extract("get the price", zodSchema)   // positional
+ *   · stagehand.observe("find the login form")        // -> Action[]
  *
  * Why this file exists (and not direct Playwright):
  *   · Stagehand handles the LLM plumbing so we don't hand-roll DOM
@@ -122,10 +122,17 @@ async function runStagehandOp<T>(
 }
 
 /**
- * Minimal structural type for the bits of Stagehand we use. We keep
- * our own type rather than `typeof import(...)` because the package
- * may not be installed yet (the dynamic import is runtime-only and
- * the structural type lets tsc compile without the dep on disk).
+ * Minimal structural types for the bits of Stagehand we use. We keep
+ * our own types rather than `typeof import(...)` because the package
+ * may be absent from junctioned worktree node_modules pre-merge (the
+ * structural types let tsc compile either way).
+ *
+ * VERIFIED against the installed v3.7.0 dist types (2026-07-22 — see
+ * dist/cjs/lib/v3/v3.d.ts). The v3 API is a hard break from v1/v2:
+ *   · act/extract/observe are INSTANCE methods (there is no `.page`)
+ *   · extract is POSITIONAL: extract(instruction, schema, options?)
+ *   · navigation goes through `get context()` → activePage()/newPage()
+ *   · ActResult = { success, message, actionDescription, actions }
  */
 interface StagehandCtor {
   new (opts: {
@@ -133,21 +140,35 @@ interface StagehandCtor {
     apiKey: string;
     projectId: string;
     browserbaseSessionID?: string;
-    modelName?: string;
+    /** Model string ("google/gemini-2.5-flash", key via providerEnvVarMap) or a
+     *  config object ({modelName, apiKey, baseURL} — e.g. an OpenRouter route). */
+    model?: string | { modelName: string; apiKey?: string; baseURL?: string };
+    /** MUST be true when attaching: v3 close() RELEASES a non-keepAlive session,
+     *  killing it between per-op attach cycles ("Requested session is not running"). */
+    keepAlive?: boolean;
+    /** true = run act/extract/observe LOCALLY over CDP instead of proxying
+     *  through Browserbase's hosted Stagehand API (which 500s on custom
+     *  baseURL model configs — live-repro'd 2026-07-22). */
+    disableAPI?: boolean;
+    disablePino?: boolean;
+    verbose?: 0 | 1 | 2;
   }): StagehandInstance;
+}
+interface StagehandPageV3 {
+  goto(url: string, opts?: { waitUntil?: string; timeoutMs?: number }): Promise<unknown>;
+  title(): Promise<string>;
+  url(): string;
 }
 interface StagehandInstance {
   init(): Promise<void>;
-  close(): Promise<void>;
-  page: StagehandPage;
-}
-interface StagehandPage {
-  goto(url: string, opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" }): Promise<unknown>;
-  title(): Promise<string>;
-  url(): string;
-  act(opts: { action: string }): Promise<{ success?: boolean; message?: string } | undefined>;
-  extract<T>(opts: { instruction: string; schema: unknown }): Promise<T>;
-  observe(opts?: { instruction?: string }): Promise<Array<{ description: string; selector?: string }> | undefined>;
+  close(opts?: Record<string, unknown>): Promise<void>;
+  readonly context: {
+    activePage(): StagehandPageV3 | undefined;
+    newPage(url?: string): Promise<StagehandPageV3>;
+  };
+  act(instruction: string, opts?: Record<string, unknown>): Promise<{ success: boolean; message: string }>;
+  extract(instruction: string, schema: unknown, opts?: Record<string, unknown>): Promise<unknown>;
+  observe(instruction?: string, opts?: Record<string, unknown>): Promise<unknown[]>;
 }
 
 /**
@@ -212,6 +233,52 @@ async function loadStagehand(): Promise<
  * Pattern: one Stagehand per tool call. We build, use, close. That's
  * the serverless-friendly pattern — no persistent connections.
  */
+/**
+ * Resolve the LLM Stagehand's act/extract/observe calls use. Live-verified
+ * 2026-07-22, every lane probed end-to-end: direct GEMINI_API_KEY is over its
+ * monthly spending cap, OPENAI_API_KEY is out of quota, and OpenRouter has
+ * near-zero credits ("can only afford 127 tokens") — Ollama Cloud is the one
+ * FUNDED lane (the primary chat provider; openai-compatible at
+ * <OLLAMA_BASE_URL>/v1, same registration Perplexica uses). Wired via
+ * Stagehand's ModelConfig object ({modelName, apiKey, baseURL} — the "openai/"
+ * prefix selects its OpenAI-compatible client, the rest is the upstream model
+ * id). Chain:
+ *   1. STAGEHAND_MODEL          — explicit operator override (plain model string)
+ *   2. OLLAMA_API_KEY set       — Ollama Cloud route. Model: STAGEHAND_OLLAMA_MODEL
+ *                                 || OLLAMA_MODEL || deepseek-v4-pro. deepseek-v4-pro
+ *                                 is E2E-VERIFIED for extract/observe structured
+ *                                 output (2026-07-22 receipt: real zod-v4 extract off
+ *                                 example.com); gpt-oss:120b FAILS schema parsing
+ *                                 ("No object generated") — do not default to it.
+ *   3. OPENROUTER_API_KEY set   — OpenRouter route (default google/gemini-2.5-flash,
+ *                                 override via STAGEHAND_OPENROUTER_MODEL)
+ *   4. fallback                 — direct google/gemini-2.5-flash (when the cap resets)
+ */
+function resolveStagehandModel():
+  | string
+  | { modelName: string; apiKey: string; baseURL: string } {
+  const explicit = process.env.STAGEHAND_MODEL;
+  if (explicit) return explicit;
+  const ollamaKey = process.env.OLLAMA_API_KEY;
+  if (ollamaKey) {
+    const base = (process.env.OLLAMA_BASE_URL || "https://ollama.com").replace(/\/+$/, "");
+    return {
+      modelName: `openai/${process.env.STAGEHAND_OLLAMA_MODEL || process.env.OLLAMA_MODEL || "deepseek-v4-pro"}`,
+      apiKey: ollamaKey,
+      baseURL: `${base}/v1`,
+    };
+  }
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (openrouterKey) {
+    return {
+      modelName: `openai/${process.env.STAGEHAND_OPENROUTER_MODEL || "google/gemini-2.5-flash"}`,
+      apiKey: openrouterKey,
+      baseURL: "https://openrouter.ai/api/v1",
+    };
+  }
+  return "google/gemini-2.5-flash";
+}
+
 async function attach(sessionId: string) {
   const bb = getBrowserbaseConfig();
   if (!bb) {
@@ -226,16 +293,28 @@ async function attach(sessionId: string) {
   if (!loaded.ok) return loaded;
 
   try {
-    // Stagehand takes the browserbase session id via browserbaseSessionID
-    // and drives Chrome through CDP. env=BROWSERBASE tells it to not
-    // spin a local browser.
+    // Stagehand resumes the existing Browserbase session via
+    // browserbaseSessionID and drives Chrome through CDP. env=BROWSERBASE
+    // tells it to not spin a local browser. Model via resolveStagehandModel()
+    // (OpenRouter-first — see its doc). disablePino keeps its logger out of
+    // our stdout.
     const stagehand = new loaded.Stagehand({
       env: "BROWSERBASE",
       apiKey: bb.apiKey,
       projectId: bb.projectId,
       browserbaseSessionID: sessionId,
-      // modelName omitted — Stagehand picks a sensible default; we
-      // can pin later when we want consistency.
+      model: resolveStagehandModel(),
+      // One-Stagehand-per-op design: each call attaches, works, closes. Without
+      // keepAlive, v3's close() RELEASES the session and the NEXT op 400s with
+      // "Requested session is not running" (live-repro'd 2026-07-22). The
+      // session's actual lifetime stays owned by browserbase.closeSession().
+      keepAlive: true,
+      // Local execution over CDP — the hosted Stagehand API 500s on custom
+      // baseURL model configs (Ollama Cloud lane), and local keeps inference
+      // inside our process/keys anyway.
+      disableAPI: true,
+      disablePino: true,
+      verbose: 0,
     });
     await stagehand.init();
     return { ok: true as const, stagehand };
@@ -278,9 +357,11 @@ export async function navigate(opts: {
   const sh = att.stagehand;
   return runStagehandOp<DriverOk<{ url: string; title: string }>>(
     async () => {
-      await sh.page.goto(opts.url, { waitUntil: opts.waitUntil ?? "networkidle" });
-      const title = await sh.page.title();
-      const url = sh.page.url();
+      // v3: no `.page` — navigation goes through the CDP context.
+      const page = sh.context.activePage() ?? (await sh.context.newPage());
+      await page.goto(opts.url, { waitUntil: opts.waitUntil ?? "networkidle" });
+      const title = await page.title();
+      const url = page.url();
       return { ok: true, data: { url, title } };
     },
     () => close(sh),
@@ -308,7 +389,8 @@ export async function act(opts: {
   const sh = att.stagehand;
   return runStagehandOp<DriverOk<{ success: boolean; message?: string }>>(
     async () => {
-      const result = await sh.page.act({ action: opts.instruction });
+      // v3: act is an instance method taking the instruction positionally.
+      const result = await sh.act(opts.instruction);
       return {
         ok: true,
         data: {
@@ -346,10 +428,9 @@ export async function extract<T extends Record<string, unknown>>(opts: {
   const sh = att.stagehand;
   return runStagehandOp<DriverOk<T>>(
     async () => {
-      const result = (await sh.page.extract({
-        instruction: opts.instruction,
-        schema: opts.schema,
-      })) as T;
+      // v3: extract is POSITIONAL — extract(instruction, schema, options?).
+      // zod v4 schemas are first-class (v3 ships a zodCompat layer).
+      const result = (await sh.extract(opts.instruction, opts.schema)) as T;
       return { ok: true, data: result };
     },
     () => close(sh),
@@ -374,10 +455,20 @@ export async function observe(opts: {
     DriverOk<Array<{ description: string; selector?: string }>>
   >(
     async () => {
-      const result = await sh.page.observe(
-        opts.instruction ? { instruction: opts.instruction } : undefined,
-      );
-      return { ok: true, data: Array.isArray(result) ? result : [] };
+      // v3: observe is an instance method returning Action[] — map to the
+      // stable {description, selector} shape our callers were built on.
+      const result = await sh.observe(opts.instruction);
+      const actions = Array.isArray(result) ? result : [];
+      return {
+        ok: true,
+        data: actions.map((a) => {
+          const rec = (a ?? {}) as { description?: unknown; method?: unknown; selector?: unknown };
+          return {
+            description: String(rec.description ?? rec.method ?? "action"),
+            ...(typeof rec.selector === "string" ? { selector: rec.selector } : {}),
+          };
+        }),
+      };
     },
     () => close(sh),
     opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
