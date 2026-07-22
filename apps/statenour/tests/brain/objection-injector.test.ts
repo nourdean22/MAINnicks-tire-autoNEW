@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockFindMany = vi.fn();
 const mockFindUnique = vi.fn();
 const mockCreate = vi.fn();
+const mockUpdateMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -17,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: (...a: unknown[]) => mockFindMany(...a),
       findUnique: (...a: unknown[]) => mockFindUnique(...a),
       create: (...a: unknown[]) => mockCreate(...a),
+      updateMany: (...a: unknown[]) => mockUpdateMany(...a),
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
   },
@@ -27,6 +29,7 @@ vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 import {
   findRelevantObjections,
   buildObjectionBlock,
+  resolveConversationObjections,
 } from "@/lib/brain/objection-injector";
 
 const CONV = "conv_123";
@@ -105,5 +108,34 @@ describe("buildObjectionBlock", () => {
     expect(block).toContain("raise it ONCE");
     expect(block).toContain("stay silent");
     expect(block).toContain("alignment-rack downtime");
+  });
+});
+
+describe("resolveConversationObjections · finality resolution", () => {
+  it("soft-deletes this conversation's OPEN objections and returns the count", async () => {
+    mockUpdateMany.mockResolvedValue({ count: 3 });
+    const n = await resolveConversationObjections(CONV);
+    expect(n).toBe(3);
+    expect(mockUpdateMany).toHaveBeenCalledTimes(1);
+    const arg = mockUpdateMany.mock.calls[0][0] as {
+      where: { category: string; deletedAt: null; metadata: { path: string[]; equals: string } };
+      data: { deletedAt: Date };
+    };
+    expect(arg.where.category).toBe("adversarial_objection");
+    expect(arg.where.deletedAt).toBeNull();
+    expect(arg.where.metadata).toEqual({ path: ["conversationId"], equals: CONV });
+    expect(arg.data.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it("no-ops (returns 0) on an empty conversationId without touching the DB", async () => {
+    const n = await resolveConversationObjections("");
+    expect(n).toBe(0);
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed (returns 0) if the update throws", async () => {
+    mockUpdateMany.mockRejectedValue(new Error("db down"));
+    const n = await resolveConversationObjections(CONV);
+    expect(n).toBe(0);
   });
 });
