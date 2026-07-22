@@ -143,6 +143,24 @@ const MIGRATIONS: Record<string, string[]> = {
     `CREATE INDEX IF NOT EXISTS "page_snapshots_changed_checked_at_idx" ON "page_snapshots" ("changed", "checked_at")`,
   ],
 
+  // Closed-loop Experiment factory · NEW table + nullable columns · additive · zero data loss.
+  // Matches prisma/migrations-pending/20260722120000_experiment_factory/migration.sql.
+  // COLUMN-FIRST: the two ADD COLUMN statements touch hot tables — apply BEFORE the
+  // schema deploy (see the .sql header). This registry entry is the idempotent re-apply /
+  // record-of-truth path once the code is live.
+  "20260722120000_experiment_factory": [
+    `CREATE TABLE IF NOT EXISTS "experiments" ("id" TEXT NOT NULL, "opportunity_id" TEXT NOT NULL, "source_id" TEXT, "hypothesis" TEXT NOT NULL, "metric" TEXT, "baseline" DOUBLE PRECISION, "expected_effect" DOUBLE PRECISION, "status" TEXT NOT NULL DEFAULT 'running', "actual_result" TEXT, "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "due_at" TIMESTAMP(3) NOT NULL, "measured_at" TIMESTAMP(3), "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "experiments_pkey" PRIMARY KEY ("id"))`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "experiments_opportunity_id_key" ON "experiments" ("opportunity_id")`,
+    `CREATE INDEX IF NOT EXISTS "experiments_status_due_at_idx" ON "experiments" ("status", "due_at")`,
+    `CREATE INDEX IF NOT EXISTS "experiments_source_id_idx" ON "experiments" ("source_id")`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'experiments_opportunity_id_fkey') THEN ALTER TABLE "experiments" ADD CONSTRAINT "experiments_opportunity_id_fkey" FOREIGN KEY ("opportunity_id") REFERENCES "opportunity_logs"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'experiments_source_id_fkey') THEN ALTER TABLE "experiments" ADD CONSTRAINT "experiments_source_id_fkey" FOREIGN KEY ("source_id") REFERENCES "intelligence_sources"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `ALTER TABLE "opportunity_logs" ADD COLUMN IF NOT EXISTS "source_id" TEXT`,
+    `CREATE INDEX IF NOT EXISTS "opportunity_logs_source_id_idx" ON "opportunity_logs" ("source_id")`,
+    `ALTER TABLE "intelligence_sources" ADD COLUMN IF NOT EXISTS "auth_score_updated_at" TIMESTAMP(3)`,
+    `ALTER TABLE "intelligence_sources" ADD COLUMN IF NOT EXISTS "auth_score_samples" INTEGER NOT NULL DEFAULT 0`,
+  ],
+
   "0011_approval_queue_and_memory_inbox": [
     `CREATE TABLE IF NOT EXISTS "approval_requests" (
       "id" TEXT NOT NULL,

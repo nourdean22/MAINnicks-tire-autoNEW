@@ -48,6 +48,10 @@ them back when ready.
 
 ## Parked migrations
 
+### `20260722120000_experiment_factory` — ✅ APPLIED 2026-07-22 (COLUMN-FIRST, via `apply.mjs`)
+
+Closed-loop Experiment factory: new `experiments` table (1:1 with an accepted `opportunity_logs` row, FK to `intelligence_sources`) + nullable columns `opportunity_logs.source_id`, `intelligence_sources.auth_score_updated_at` / `auth_score_samples`. Additive, idempotent, pgvector-verified untouched. **COLUMN-FIRST**: applied to prod Neon BEFORE the schema-bearing deploy (the two `ADD COLUMN`s touch hot tables the regenerated Prisma client SELECTs — deploying first would 500 every read until apply). Applied via the DO-`$$`-aware `apply.mjs` in the migration dir (`railway run … node apply.mjs`), NOT the legacy `;`-split script. Also mirrored in the `apply-pending-migration` route's `MIGRATIONS` map (idempotent re-apply path).
+
 ### `20260625000000_action_receipts_and_completion_criteria` — ✅ APPLIED 2026-06-26 (via script)
 
 Patience XP ledger and auto-closer migration (adds `completionCriteria` column to `Mission` table and `action_receipts` table for logging). Applied directly to Neon database and registered in `apply-pending-migration` route's `MIGRATIONS` map.

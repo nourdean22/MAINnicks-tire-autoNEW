@@ -18,6 +18,7 @@ export interface RawOpportunityProposal {
   urgency: number; // 0 to 100
   confidence: number; // 0.0 to 1.0
   reversibility: number; // 0 to 100
+  sourceClaims?: number[]; // 1-based Claim # indices that support this (source attribution)
 }
 
 /**
@@ -33,6 +34,17 @@ export function calculateOpportunityScore(
 ): number {
   const raw = impact * 0.4 + urgency * 0.3 + confidence * 20.0 + reversibility * 0.1;
   return Math.min(100.0, Math.max(0.0, Math.round(raw * 100) / 100));
+}
+
+/**
+ * Fold LEARNED source trust into a base priority score — the read path that gives the
+ * closed-loop Experiment factory teeth. authScore∈[0,100] maps to a factor∈[0.9,1.1],
+ * so a source the loop has proven reliable ranks its opportunities up to 10% higher and
+ * an unreliable one up to 10% lower — a nudge, never a dominant term. Pure; capped [0,100].
+ */
+export function applyAuthTrust(baseScore: number, authScore: number): number {
+  const factor = 0.9 + 0.2 * (Math.min(100, Math.max(0, authScore)) / 100);
+  return Math.min(100, Math.max(0, Math.round(baseScore * factor * 100) / 100));
 }
 
 /**
@@ -74,6 +86,7 @@ For each opportunity or threat identified, propose:
 5. An urgency score (0 to 100, where 100 requires immediate action within 24 hours).
 6. A confidence score (0.0 to 1.0, based on source authority and claim status).
 7. A reversibility score (0 to 100, where 100 is completely reversible with zero cost, and 0 is completely irreversible/expensive).
+8. sourceClaims: the 1-based Claim # numbers (from the list below) that most directly support this opportunity — used to attribute it to its source. Include at least the single strongest supporting claim.
 
 Only propose highly specific and actionable opportunities/threats. Skip generic advice or non-actionable points.
 
@@ -87,7 +100,8 @@ JSON Schema:
     "impact": 85,
     "urgency": 90,
     "confidence": 0.95,
-    "reversibility": 70
+    "reversibility": 70,
+    "sourceClaims": [1, 3]
   }
 ]`;
 
@@ -122,8 +136,25 @@ ${claims
 
     let createdCount = 0;
     for (const prop of parsed.value) {
-      // Calculate final priority score
-      const score = calculateOpportunityScore(prop.impact, prop.urgency, prop.confidence, prop.reversibility);
+      // Attribute the opportunity to its STRONGEST supporting source. Map the
+      // LLM's 1-based sourceClaims to real claims (bounds-checked against
+      // hallucinated/out-of-range indices), then pick the highest-verification
+      // claim's source. Nullable — degrades gracefully when the model omits indices.
+      const supporting = (prop.sourceClaims ?? [])
+        .map((n) => claims[n - 1])
+        .filter((c): c is (typeof claims)[number] => Boolean(c));
+      const primary = supporting.reduce<(typeof claims)[number] | null>(
+        (best, c) => (!best || c.verificationScore > best.verificationScore ? c : best),
+        null,
+      );
+      const primarySource = primary?.document.source ?? null;
+
+      // Base priority, then fold in LEARNED source trust — the READ path that gives
+      // the closed loop teeth. authScore∈[0,100] -> factor∈[0.9,1.1]: a source the
+      // experiment loop has PROVEN reliable ranks its opportunities higher, an
+      // unreliable one lower. Bounded so trust nudges priority, never dominates it.
+      const baseScore = calculateOpportunityScore(prop.impact, prop.urgency, prop.confidence, prop.reversibility);
+      const score = applyAuthTrust(baseScore, primarySource?.authScore ?? 70);
 
       // Deduplicate opportunities by title + status
       const existing = await prisma.opportunityLog.findFirst({
@@ -145,6 +176,7 @@ ${claims
             reversibility: prop.reversibility,
             score,
             status: "pending",
+            sourceId: primarySource?.id ?? null,
           },
         });
         createdCount++;

@@ -66,9 +66,13 @@ export async function seedSources(prisma: PrismaClient) {
       where: { url: s.url },
     });
     if (existing) {
+      // Do NOT clobber a LEARNED authScore on re-seed — the closed-loop experiment
+      // resolver mutates it over time. Set authScore only on CREATE; on update keep
+      // the seed's static config but preserve whatever the loop has learned.
+      const { authScore: _seedAuthScore, ...updatable } = s;
       await prisma.registeredSource.update({
         where: { url: s.url },
-        data: s,
+        data: updatable,
       });
       console.log(`Updated source: ${s.name}`);
     } else {

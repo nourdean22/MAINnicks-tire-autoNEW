@@ -100,6 +100,9 @@ export const MORNING_JOBS: readonly string[] = [
 export const EVENING_JOBS: readonly string[] = [
   "/api/cron/predict",
   "/api/cron/consolidate",
+  // 2026-07-22 · closed-loop Experiment resolver — resolves DUE experiments
+  // (accepted opportunities past their horizon) + nudges source authScore. Daily is plenty.
+  "/api/cron/experiment-measure",
   "/api/cron/data-cleanup",
   "/api/cron/subtask-usage-audit",
   "/api/cron/cron-healer",
