@@ -21,6 +21,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { mapGroupBy } from "@/lib/utils/group-by";
 import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
@@ -97,8 +98,8 @@ export async function GET(req: Request) {
       };
     });
 
-    // L.2 · Map.groupBy (ES2024) · replaces the per-tier .get/.set loop
-    const byTier = Map.groupBy(traces, (t) => t.tier);
+    // L.2 pattern, now via mapGroupBy (ES2024 Map.groupBy is absent on Node 20)
+    const byTier = mapGroupBy(traces, (t) => t.tier);
 
     // Marker counts (which classifier reasons fire most)
     const markerCounts: Record<string, number> = {};
@@ -106,7 +107,7 @@ export async function GET(req: Request) {
     const tracesWithMarker = traces.filter(
       (t): t is TraceRow & { markerBucket: string } => t.markerBucket !== null,
     );
-    const byMarker = Map.groupBy(tracesWithMarker, (t) => t.markerBucket);
+    const byMarker = mapGroupBy(tracesWithMarker, (t) => t.markerBucket);
     for (const [bucket, items] of byMarker) {
       markerCounts[bucket] = items.length;
     }

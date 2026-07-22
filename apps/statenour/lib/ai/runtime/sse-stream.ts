@@ -30,13 +30,21 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
 
   return new ReadableStream({
     async start(controller) {
+      // The client can disconnect mid-stream (navigate away / abort). After that
+      // `controller.enqueue` throws "Controller is already closed" for every
+      // subsequent event — which previously logged one warn PER chunk, flooding
+      // error_logs (348 rows / 48h from a handful of aborted streams). Track it:
+      // drop further sends silently and log exactly once.
+      let clientClosed = false;
       const sendEvent = (type: string, payload: any) => {
+        if (clientClosed) return;
         try {
           controller.enqueue(
             encoder.encode(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`)
           );
         } catch (err) {
-          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.sendEvent", eventType: type }, "warn"));
+          clientClosed = true;
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.sendEvent", eventType: type, note: "client disconnected mid-stream; suppressing further sends" }, "warn"));
         }
       };
 
@@ -64,6 +72,7 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
         // Run the async reading loop inside the AsyncLocalStorage context
         await cockpitEventStore.run({ traceId, publish }, async () => {
           while (true) {
+            if (clientClosed) break; // client gone — stop pulling upstream
             const { done, value } = await reader.read();
             if (done) {
               break;
@@ -77,19 +86,28 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
           await onFinishPromise;
         });
 
-        // 4. Publish message.completed
-        sendEvent("message.completed", {
-          text: "", // client accumulates text from chunks
-          costCents: 0,
-          durationMs: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-        });
-
-        controller.close();
+        // 4. Publish message.completed — only if the client is still attached.
+        // Closing an already-closed controller throws and re-logs noise.
+        if (!clientClosed) {
+          sendEvent("message.completed", {
+            text: "", // client accumulates text from chunks
+            costCents: 0,
+            durationMs: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+          });
+          controller.close();
+        }
       } catch (err) {
-        void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.reader" }, "error"));
-        controller.error(err);
+        if (clientClosed) {
+          // Client disconnected mid-stream; the read/close cascade is the
+          // expected consequence, not a real failure. Log once at warn and do
+          // NOT call controller.error — the controller is already closed.
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.reader", note: "client disconnected mid-stream" }, "warn"));
+        } else {
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.runtime.sse-stream", err, { fn: "createCockpitSseStream.reader" }, "error"));
+          controller.error(err);
+        }
       } finally {
         reader.releaseLock();
       }

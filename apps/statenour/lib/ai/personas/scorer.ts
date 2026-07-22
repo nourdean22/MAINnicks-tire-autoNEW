@@ -1,4 +1,5 @@
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { mapGroupBy } from "@/lib/utils/group-by";
 /**
  * lib/ai/personas/scorer.ts · Phase N.6 (2026-05-18 PM)
  *
@@ -98,8 +99,8 @@ export async function scorePersonas(
       select: { confidence: true, createdAt: true, metadata: true },
     });
 
-    // Group by personaKey (Map.groupBy from L.2 pattern · ES2024)
-    const usageByPersona = Map.groupBy(rows, (r) => {
+    // Group by personaKey via mapGroupBy (ES2024 Map.groupBy is absent on Node 20)
+    const usageByPersona = mapGroupBy(rows, (r) => {
       const m = (r.metadata ?? {}) as { personaKey?: string };
       return m.personaKey ?? "unknown";
     });
