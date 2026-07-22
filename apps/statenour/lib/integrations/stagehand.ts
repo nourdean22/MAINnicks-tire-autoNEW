@@ -15,14 +15,15 @@
  *     about intent ("click Send") instead of DOM selectors.
  *
  * Lazy loading:
- *   Stagehand pulls in @playwright/test (~9MB). We `await import()`
- *   inside each call so:
- *     1. The serverless bundle stays small if nobody calls the driver
- *     2. If Nour hasn't `pnpm install`-ed yet, we return a structured
- *        "not_installed" error instead of crashing the server
+ *   Stagehand is heavy (Playwright plumbing + LLM clients). We
+ *   `await import()` inside each call so the serverless bundle stays
+ *   small when nobody calls the driver, and a missing install degrades
+ *   to a structured "not_installed" error instead of crashing.
  *
- * Install command (when ready):
- *   pnpm add @browserbasehq/stagehand playwright-core
+ * INSTALLED 2026-07-22: @browserbasehq/stagehand@3.7.0 +
+ * playwright-core@1.61.1 are pinned deps (package.json) and listed in
+ * next.config.ts `serverExternalPackages` so the standalone runtime
+ * image actually contains them (see loadStagehand's tracing note).
  *
  * Reference: https://docs.stagehand.dev
  */
@@ -153,8 +154,16 @@ interface StagehandPage {
  * Lazily load Stagehand. Returns the module or a structured error if
  * the dep isn't installed. Never throws — callers branch on `.ok`.
  *
- * We use a variable-indirected dynamic import so tsc doesn't try to
- * resolve the module at compile time (it's an optional runtime dep).
+ * 2026-07-22 · LITERAL import on purpose. The old version used a
+ * variable-indirected, webpackIgnore-hinted dynamic import because the
+ * package was optional — but that made the import INVISIBLE to Next's
+ * file tracer, so the standalone runtime image (Dockerfile stage 3
+ * copies ONLY `.next/standalone`) would prune Stagehand and prod would
+ * report not_installed forever, even with the dep installed. Now that
+ * @browserbasehq/stagehand is a real pinned dependency, a literal
+ * dynamic import + `serverExternalPackages` (next.config.ts) lets the
+ * tracer carry the package and its transitive closure into standalone.
+ * The not_installed catch stays as defense-in-depth.
  *
  * Memoized for the life of the process: Node caches modules after the
  * first import anyway, but memoizing our wrapper avoids the try/catch
@@ -172,8 +181,12 @@ async function loadStagehand(): Promise<
   if (cachedLoad) return cachedLoad;
   cachedLoad = (async () => {
     try {
-      const moduleName = "@browserbasehq/stagehand";
-      const mod = (await import(/* webpackIgnore: true */ moduleName)) as {
+      // @ts-ignore -- the LITERAL specifier is REQUIRED for standalone file
+      // tracing (see the note above), but the package may be absent on disk in
+      // worktrees that junction node_modules from a pre-merge main. @ts-ignore
+      // (not @ts-expect-error) so tsc passes in BOTH states; the structural
+      // types below own the compile-time contract either way.
+      const mod = (await import("@browserbasehq/stagehand")) as unknown as {
         Stagehand: StagehandCtor;
       };
       return { ok: true as const, Stagehand: mod.Stagehand };

@@ -78,7 +78,12 @@ const nextConfig: NextConfig = {
   // dependencies · was a dead config entry from a prior browser-automation
   // exploration. Browser automation now flows via the claude-in-chrome MCP
   // path · no in-process puppeteer.
-  serverExternalPackages: ["@prisma/client", "@resvg/resvg-js"],
+  // 2026-07-22 · stagehand + playwright-core: externalized so Turbopack doesn't
+  // try to bundle their runtime plumbing (pino/ws/CDP), and so the standalone
+  // file tracer carries the packages + transitive deps into the runtime image —
+  // the Dockerfile ships ONLY .next/standalone, so an untraced dep simply does
+  // not exist in prod (lib/integrations/stagehand.ts has the full story).
+  serverExternalPackages: ["@prisma/client", "@resvg/resvg-js", "@browserbasehq/stagehand", "playwright-core"],
 
   // v10.0.290 · 3D layer.
   // Wave 53 (2026-05-20): pivoted off Spline to React Three Fiber. The
