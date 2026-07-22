@@ -76,6 +76,7 @@ export const PUBLIC_EXACT = [
   //     already points there — see railway.json — so deploys are unaffected).
   "/api/system/health",    // owner-gated at the route ({ auth: "owner" }); kept here as coexistence path
   "/api/system/heartbeat", // External monitors (UptimeRobot, etc.) — returns only { status, db_latency_ms }
+  "/api/system/perplexica-diag", // CRON_SECRET-gated at the route ({ auth: "cron" }); bypasses the session gate so the /perplexica diagnostic is reachable with the cron bearer, exactly like /api/cron/*
 ] as const;
 
 /** True iff `pathname` bypasses the NextAuth session gate. Pure — no I/O, no env. */
