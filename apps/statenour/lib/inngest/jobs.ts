@@ -41,6 +41,9 @@
  */
 export const MORNING_JOBS: readonly string[] = [
   "/api/cron/stale-tasks",
+  // 2026-07-22 · change-detection-lite external-change sensor (competitor
+  // pricing / regulatory pages -> page_snapshots). Observe-only; daily is plenty.
+  "/api/cron/change-detection",
   "/api/cron/journal-checkin?slot=morning",
   "/api/cron/embed-backfill",
   // 2026-05-29 · data-source canary · probes the nickstire bridge +
