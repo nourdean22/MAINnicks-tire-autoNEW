@@ -3046,11 +3046,17 @@ model RegisteredSource {
   domain          String // ai | seo | competitor | automotive | macro
   sourceType      String // official | primary | secondary | community
   authScore       Float            @default(70.0) @map("auth_score")
+  // Closed-loop learning audit (2026-07-22): stamped by the experiment-measure
+  // resolver when a resolved experiment nudges this source's authScore. Lets an
+  // operator SEE the loop working (samples fed in, last movement) and correct by hand.
+  authScoreUpdatedAt DateTime?     @map("auth_score_updated_at")
+  authScoreSamples   Int           @default(0) @map("auth_score_samples")
   refreshInterval Int              @default(86400) @map("refresh_interval") // refresh period in seconds
   lastFetched     DateTime?        @map("last_fetched")
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   documents       SourceDocument[]
+  experiments     Experiment[]
 
   @@index([domain])
   @@index([createdAt])
@@ -3119,13 +3125,54 @@ model OpportunityLog {
   reversibility Float // 0 - 100
   score         Float // calculated priority score
   status        String   @default("pending") // pending | accepted | declined | resolved
+  // Closed-loop attribution (2026-07-22): the highest-authority supporting
+  // source, denormalized here at scoring time so the accept -> experiment ->
+  // authScore feedback leg has a source to credit/blame. Plain column, no FK
+  // (the FK lives on Experiment.sourceId); nullable for legacy/unattributed rows.
+  sourceId      String?  @map("source_id")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+  experiment    Experiment?
 
   @@index([status, score(sort: Desc)])
   @@index([domain])
   @@index([createdAt])
+  @@index([sourceId])
   @@map("opportunity_logs")
+}
+
+/// Closed-loop Experiment factory (2026-07-22). One row per ACCEPTED opportunity:
+/// spawned by /api/intelligence/decisions/log, resolved by the daily
+/// experiment-measure cron, whose decisive outcome nudges the attributed
+/// source's authScore (bounded, reversible EWMA). Makes source trust LEARN from
+/// whether accepted opportunities actually held up, instead of being static.
+model Experiment {
+  id             String            @id @default(cuid())
+  // @unique -> at most one experiment per opportunity; also makes the accept-time
+  // upsert idempotent (double-accept is a no-op).
+  opportunityId  String            @unique @map("opportunity_id")
+  opportunity    OpportunityLog    @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  // Copied from OpportunityLog.sourceId at spawn. Nullable: unattributed
+  // opportunities skip the feedback leg. SetNull keeps the audit row on source delete.
+  sourceId       String?           @map("source_id")
+  source         RegisteredSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  hypothesis     String            @db.Text
+  metric         String?           @db.Text
+  baseline       Float?
+  expectedEffect Float?            @map("expected_effect")
+  // running -> measuring (atomically claimed by the resolver, prevents concurrent
+  // double-scoring) -> held_up | failed | inconclusive.
+  status         String            @default("running")
+  actualResult   String?           @map("actual_result") @db.Text
+  startedAt      DateTime          @default(now()) @map("started_at")
+  dueAt          DateTime          @map("due_at")
+  measuredAt     DateTime?         @map("measured_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  @@index([status, dueAt]) // resolver DUE query: status='running' AND dueAt <= now
+  @@index([sourceId])
+  @@map("experiments")
 }
 
 model BriefingLog {

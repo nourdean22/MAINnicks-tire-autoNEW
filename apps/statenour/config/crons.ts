@@ -739,6 +739,16 @@ export const CRONS: CronDef[] = [
     addedAt: "2026-07-22",
     description: "change-detection-lite external-change sensor — Firecrawl scrape + content-hash of watched competitor/regulatory pages into page_snapshots. Observe-only, no autonomous action.",
   },
+  {
+    name: "experiment-measure",
+    schedule: "0 3 * * *", // daily ~10pm ET — fires via the EVENING_JOBS fan-out
+    mode: "active",
+    category: "review",
+    maxDuration: 120,
+    path: "/api/cron/experiment-measure",
+    addedAt: "2026-07-22",
+    description: "Closed-loop Experiment resolver — resolves DUE experiments (accepted opportunities past their horizon), scores whether each hypothesis held up, and feeds a bounded, reversible nudge into the attributed source's authScore. Observe + learn only, no autonomous action.",
+  },
 ];
 
 /** Names of crons that SHOULD exist as routes (for verifier). */
