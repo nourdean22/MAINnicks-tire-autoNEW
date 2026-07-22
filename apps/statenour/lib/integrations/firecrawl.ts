@@ -68,22 +68,31 @@ async function _scrapeUrl(
     excludeTags: opts.excludeTags,
   }) as any; // SDK returns a union type; cast to avoid brittle narrowing
 
-  if (!response.success) {
+  // @mendable/firecrawl-js v4 returns the scraped Document DIRECTLY on success
+  // ({ markdown, metadata, ... }) — there is NO top-level `success` field. The
+  // old `if (!response.success)` check therefore threw on EVERY v4 call
+  // (success === undefined), silently breaking every Firecrawl consumer with a
+  // masked "unknown error". Only treat an EXPLICIT success:false (legacy shape)
+  // as a failure; a genuine SDK error throws before we reach here.
+  if (response?.success === false) {
     throw new Error(
       `Firecrawl scrape failed: ${response.error ?? "unknown error"}`,
     );
   }
 
-  const markdown = response.markdown ?? "";
+  // v4 returns the doc at the top level; older/legacy shapes nest it under .data.
+  const doc = response?.data ?? response ?? {};
+  const markdown: string = doc.markdown ?? "";
+  const metadata = doc.metadata ?? {};
   const maxLen = opts.maxLength ?? 12_000;
 
   return {
     markdown: markdown.length > maxLen
       ? markdown.slice(0, maxLen) + "\n\n...[truncated]"
       : markdown,
-    title: response.metadata?.title ?? null,
-    description: response.metadata?.description ?? null,
-    sourceUrl: response.metadata?.sourceURL ?? url,
+    title: metadata.title ?? null,
+    description: metadata.description ?? null,
+    sourceUrl: metadata.sourceURL ?? url,
     charCount: markdown.length,
   };
 }
