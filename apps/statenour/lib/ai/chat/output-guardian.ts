@@ -284,6 +284,15 @@ export function critiqueOutput(
     { name: "no-real-time", pat: /\bi\s+(do\s+)?n[o']?t?\s+have\s+(access\s+to|the\s+ability\s+to|real[- ]time)\b/i },
     { name: "as-an-ai", pat: /\bas\s+an?\s+ai\s+(assistant|language\s+model|model)\b/i },
     { name: "cannot-perform-directly", pat: /\bcannot\s+perform\s+directly\b/i },
+    // False SCOPE-refusals: deflecting a task the model can actually do (broad
+    // intellectual / creative / research work) to "use Claude" or "not my lane".
+    // The persona forbids this (execute-not-gatekeep) — Nick is a general-purpose
+    // chief of staff, not shop-only. Flag it so the best-of-2 regen does the work
+    // instead. (The repo previously even shipped an eval REWARDING this deflection.)
+    { name: "not-my-lane", pat: /\bnot\s+(my|nick'?s)\s+(lane|area|domain|department|wheelhouse|thing)\b/i },
+    { name: "outside-my-scope", pat: /\boutside\s+(my|nick'?s)\s+(lane|scope|domain|wheelhouse|area)\b/i },
+    { name: "use-claude-direct", pat: /\buse\s+claude\s+(direct|directly|for\s+(this|that|these))\b/i },
+    { name: "not-tuned-for", pat: /\b(not\s+what\s+i'?m\s+(tuned|designed|built|here)\s+for|i'?m\s+not\s+(designed|built|tuned)\s+(to|for))\b/i },
   ];
   const hedgeHits: string[] = [];
   const replyOpen = trimmed.slice(0, 200);
