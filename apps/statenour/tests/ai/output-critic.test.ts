@@ -109,3 +109,27 @@ describe("output-critic · axis-specific regen gate (v10.0.490)", () => {
     expect(score.shouldRegen).toBe(true);
   });
 });
+
+describe("output-critic · false scope-refusal detection (authority reconciliation)", () => {
+  it("flags 'not my lane / use Claude direct / not designed for' deflections -> regen", () => {
+    const deflections = [
+      "That's not my lane — use Claude direct for a literary essay.",
+      "Writing a 2000-word essay is outside my domain. Use Claude directly for this.",
+      "That's not what I'm tuned for. Want me to save it as a task instead?",
+      "I'm not designed to write literary essays.",
+    ];
+    for (const text of deflections) {
+      const score = critiqueOutput(text, "prose");
+      expect(score.shouldRegen).toBe(true);
+      expect(score.reasons.some((r) => r.includes("hedge-detected"))).toBe(true);
+    }
+  });
+
+  it("does NOT flag a normal in-voice reply that merely mentions 'domain' or 'Claude' as content", () => {
+    const text =
+      "Domain authority for nickstire.org climbed to 18 this week — 3 new backlinks " +
+      "from Cleveland auto blogs. Claude's API bill was $42. Next: 5 more guest posts by 5/15.";
+    const score = critiqueOutput(text, "prose");
+    expect(score.reasons.some((r) => r.includes("hedge-detected"))).toBe(false);
+  });
+});
