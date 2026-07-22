@@ -19,6 +19,18 @@ import { inArray } from "drizzle-orm";
 
 
 export const sectionInsightProcedures = {
+  // Read-only repeat-customer retention cohorts (one-and-done vs repeat,
+  // reactivation-eligible). Powers the customers-section insight below and any
+  // retention panel. NOTHING on the SMS send path.
+  retentionCohortSummary: adminProcedure.query(async () => {
+    try {
+      const { getRetentionCohortSummary } = await import("../../../lib/retentionCohorts");
+      return await getRetentionCohortSummary();
+    } catch (e) {
+      void e;
+      return null;
+    }
+  }),
   sectionInsight: adminProcedure
     .input(z.object({
       section: z.enum([
@@ -53,6 +65,22 @@ export const sectionInsightProcedures = {
                   variant: "primary" as const,
                   message: `Lapsed VIPs (>$500 lifetime, no visit in 6+ months) — these are your highest-LTV winback targets.`,
                   metric: `${cnt} VIPs lapsed`,
+                  cta: { label: "Run Win-Back", section: "reEngagement" },
+                };
+              }
+            } catch (e) { void e; }
+            // Retention overview — the fundamental repeat-customer lens, shown
+            // when there's no lapsed-VIP alert to surface. Read-only.
+            try {
+              const { getRetentionCohortSummary } = await import("../../../lib/retentionCohorts");
+              const c = await getRetentionCohortSummary();
+              // MIN_COHORT_SAMPLE (20): below this the percentages are noise.
+              if (c && c.customersWithVisits >= 20 && c.oneAndDone.count > 0) {
+                const winbackUsd = Math.round(c.reactivationEligible.lifetimeValueCents / 100);
+                return {
+                  variant: "primary" as const,
+                  message: `${c.oneAndDone.pct}% of customers who visited never came back (one-and-done). ${c.reactivationEligible.count} are reactivation-eligible — $${winbackUsd.toLocaleString()} of lifetime value to win back.`,
+                  metric: `${c.oneAndDone.pct}% one-and-done`,
                   cta: { label: "Run Win-Back", section: "reEngagement" },
                 };
               }
