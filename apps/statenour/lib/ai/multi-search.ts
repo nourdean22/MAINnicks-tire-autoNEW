@@ -22,7 +22,9 @@
  *   - Promise.allSettled · partial failure is the common case, not
  *     the exception. Never let one source's outage poison the others.
  *   - 8s per-source timeout · cap blast radius. Guardian's 25s is
- *     too generous for an interactive chat path.
+ *     too generous for an interactive chat path. EXCEPTION: Perplexica
+ *     (self-hosted synthesis, 24-38s) gets PERPLEXICA_TIMEOUT_MS — an 8s
+ *     budget guarantees it always times out and never contributes.
  *   - Missing API key → skip silently. Not an error, just a smaller
  *     quorum. (Operator may not have provisioned all three keys.)
  *   - Consensus = lexical-overlap heuristic on top-claim sentences.
@@ -34,7 +36,7 @@ import { askPerplexity, type PerplexityResponse } from "@/lib/integrations/perpl
 import { askTavily, type TavilyResponse } from "@/lib/integrations/tavily";
 import { askExa, type ExaResponse } from "@/lib/integrations/exa";
 import { askGoogleSearch } from "@/lib/integrations/google-search";
-import { askPerplexica, hasPerplexica } from "@/lib/integrations/perplexica";
+import { askPerplexica, hasPerplexica, PERPLEXICA_TIMEOUT_MS } from "@/lib/integrations/perplexica";
 // v10.0.525 · #12 silent-failure-hunter H1 fix · the all-sources-
 // failed path was returning empty without any log surface, which
 // risks the very fabrication searchWebVerified exists to prevent.
@@ -296,12 +298,13 @@ export async function multiSourceSearch(
     }
     if (name === "perplexica") {
       // Free self-hosted 5th source. askPerplexica is already withGuardian-
-      // wrapped (reliabilityOnly); the withTimeout here is the same per-source
-      // budget the metered sources get. 'balanced' mode trades a little speed
-      // for better retrieval on verification queries.
+      // wrapped (reliabilityOnly). Perplexica synthesis is 24-38s — the metered
+      // sources' 8s budget would guarantee a timeout, so give it the dedicated
+      // PERPLEXICA_TIMEOUT_MS (never LESS than the caller's budget). 'balanced'
+      // mode trades a little speed for better retrieval on verification queries.
       const r = await withTimeout(
         askPerplexica(query, { optimizationMode: "balanced" }),
-        timeoutMs,
+        Math.max(timeoutMs, PERPLEXICA_TIMEOUT_MS),
         "perplexica",
       );
       return {

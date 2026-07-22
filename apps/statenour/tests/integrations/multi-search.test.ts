@@ -44,6 +44,11 @@ vi.mock("@/lib/integrations/google-search", () => ({
 vi.mock("@/lib/integrations/perplexica", () => ({
   askPerplexica: (...args: unknown[]) => mockPerplexica(...args),
   hasPerplexica: () => Boolean(process.env.PERPLEXICA_API_URL),
+  // Perplexica's source-specific budget. multiSourceSearch does
+  // Math.max(timeoutMs, PERPLEXICA_TIMEOUT_MS); if the mock omits it the value
+  // is undefined → Math.max(...,undefined)=NaN → setTimeout(NaN)=0 → the source
+  // is dropped as an instant timeout. Mirror the real export.
+  PERPLEXICA_TIMEOUT_MS: 35_000,
 }));
 
 import { multiSourceSearch, __test__ } from "../../lib/ai/multi-search";
