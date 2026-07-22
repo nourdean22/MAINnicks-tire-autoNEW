@@ -77,7 +77,10 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     id: "anthropic",
     apiKeyEnv: ["ANTHROPIC_API_KEY"],
     modelEnv: "ANTHROPIC_MODEL",
-    defaultModel: "claude-3-5-sonnet-latest",
+    // 2026-07-22 · was "claude-3-5-sonnet-latest" (stuck on the 3.5 generation) —
+    // this is a 4th/5th-hop fallback lane (prod primary is Ollama), so refresh to
+    // the current balanced Sonnet tier. Override via ANTHROPIC_MODEL.
+    defaultModel: "claude-sonnet-5",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
     modelSubstrings: ["claude"],
   },
