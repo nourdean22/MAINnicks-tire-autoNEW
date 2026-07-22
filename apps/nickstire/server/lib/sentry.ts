@@ -1,15 +1,14 @@
 /**
  * Sentry integration — opt-in via SENTRY_DSN env var.
  *
- * Design choice: we don't import @sentry/node unless it's actually configured.
- * This keeps the bundle lean when Sentry isn't used (local dev, free tier)
- * and avoids forcing the dep.
+ * @sentry/node is a pinned dependency. We still LAZY-load it (dynamic import
+ * inside initSentry) so it's only pulled in when a DSN is actually set — startup
+ * stays lean on local dev / any deploy that leaves Sentry disabled.
  *
- * To enable:
- *   1. `pnpm add @sentry/node`
- *   2. Set SENTRY_DSN=<your-dsn> on Railway
- *   3. Optionally SENTRY_ENVIRONMENT=production (defaults to NODE_ENV)
- *   4. Optionally SENTRY_TRACES_SAMPLE_RATE=0.1 (defaults to 0)
+ * To enable (the dep is already installed — no install step):
+ *   1. Set SENTRY_DSN=<your-dsn> on Railway
+ *   2. Optionally SENTRY_ENVIRONMENT=production (defaults to NODE_ENV)
+ *   3. Optionally SENTRY_TRACES_SAMPLE_RATE=0.1 (defaults to 0)
  *
  * Every error recorded via errorTelemetry.record() also goes to Sentry if
  * initialized. Nothing else changes.
@@ -27,7 +26,8 @@ let sentryClient: {
 
 /**
  * Initialize Sentry if SENTRY_DSN is set.
- * Silently no-ops if the DSN is missing or the dep isn't installed.
+ * Silently no-ops if the DSN is missing (or, defensively, if the Sentry
+ * module ever fails to load).
  * Call once at server startup.
  */
 export async function initSentry(): Promise<void> {
@@ -38,8 +38,10 @@ export async function initSentry(): Promise<void> {
   }
 
   try {
-    // Dynamic import so this file compiles even without @sentry/node installed.
-    // Cast to `unknown` first so TS doesn't complain about missing types.
+    // Lazy dynamic import: @sentry/node is a hard dep, but we only load it when a
+    // DSN is set so startup stays lean while Sentry is disabled. The string-cast
+    // keeps the import untyped; .catch(null) defends against a corrupt/failed
+    // module load, not a missing dependency.
     const Sentry = (await import("@sentry/node" as unknown as string).catch(() => null)) as
       | null
       | {
@@ -50,7 +52,7 @@ export async function initSentry(): Promise<void> {
         };
 
     if (!Sentry) {
-      log.warn("SENTRY_DSN set but @sentry/node not installed. Run: pnpm add @sentry/node");
+      log.warn("SENTRY_DSN set but the @sentry/node module failed to load — Sentry disabled for this process.");
       return;
     }
 
