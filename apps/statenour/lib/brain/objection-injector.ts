@@ -132,6 +132,34 @@ export function buildObjectionBlock(hit: RelevantObjection): string {
   ].join("\n");
 }
 
+/**
+ * Finality resolution (2026-07-22). When the operator issues a command or
+ * finalizes a decision (execute posture · detectExecuteFinalized), mark this
+ * conversation's OPEN adversarial objections resolved so the injector never
+ * re-surfaces them on a later semantically-matching turn. Soft-delete
+ * (deletedAt) — findRelevantObjections already filters `deletedAt: null`, so
+ * this needs no new status field or WHERE change. Best-effort · never throws.
+ * A fresh recommendation on a later turn still earns a NEW counter-view; only
+ * the ones the operator has moved past are cleared.
+ */
+export async function resolveConversationObjections(conversationId: string): Promise<number> {
+  if (!conversationId) return 0;
+  const res = await prisma.brainMemory
+    .updateMany({
+      where: {
+        category: "adversarial_objection",
+        deletedAt: null,
+        metadata: { path: ["conversationId"], equals: conversationId },
+      },
+      data: { deletedAt: new Date() },
+    })
+    .catch((err) => {
+      logError("brain.objection-injector", err, { fn: "resolveConversationObjections" });
+      return { count: 0 };
+    });
+  return res.count;
+}
+
 /** Test helper · clears dedup markers for a conversation. */
 export async function clearObjectionLog(conversationId: string): Promise<number> {
   const res = await prisma.brainMemory

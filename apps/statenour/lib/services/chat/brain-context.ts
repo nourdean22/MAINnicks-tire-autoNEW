@@ -190,6 +190,15 @@ export async function buildBrainContext(
       import("@/lib/ai/tactician/next-move").catch(() => null),
     ]);
 
+    // 2026-07-22 · finality resolution. When the operator finalizes/commands
+    // (execute posture), mark this conversation's OPEN objections resolved so the
+    // injector never re-raises them on a LATER semantically-matching turn — the
+    // gate at the findRelevantObjections call only covers the finalizing turn
+    // itself. Fire-and-forget; a fresh recommendation still earns a new one.
+    if (convId && detectExecuteFinalized(userContent)) {
+      void objectionInjectorMod?.resolveConversationObjections(convId).catch(() => {});
+    }
+
     const [
       recallBlock, skillsBlock, identityBlock, ghostBlock,
       qBlock, bBlock, nBlock, concernsBlock, anticipatedBlock, physicalBlock,
