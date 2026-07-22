@@ -254,6 +254,14 @@ export const BRAIN_CATEGORIES = {
   RESEARCH_PACK: "research_pack",
   RESEARCH_SOURCE: "research_source",
   RESEARCH_CLAIM: "research_claim",
+  /**
+   * Low-trust landing zone for pipeline-promoted IntelligenceClaims (the
+   * belief_candidate pattern). Deliberately ABSENT from memory-recall.ts's
+   * CONTEXT_CATEGORIES whitelist, so a promoted claim is queryable/reviewable
+   * but can never leak into chat recall until a human promotes it
+   * (research_claim_candidate -> research_claim). See lib/intelligence/promote.ts.
+   */
+  RESEARCH_CLAIM_CANDIDATE: "research_claim_candidate",
   RESEARCH_QUESTION: "research_question",
   RESEARCH_ACTION: "research_action",
   RESEARCH_CONTRADICTION: "research_contradiction",

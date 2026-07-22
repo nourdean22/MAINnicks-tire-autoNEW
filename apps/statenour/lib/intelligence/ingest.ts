@@ -240,11 +240,12 @@ ${scraped.markdown}
 
     // 5. Ground and verify claims
     let savedClaimsCount = 0;
+    const createdClaimIds: string[] = [];
     for (const claim of extractedClaims) {
       const grounded = await groundClaim(claim.text, claim.category, claim.confidence);
 
       // Save claim
-      await prisma.intelligenceClaim.create({
+      const created = await prisma.intelligenceClaim.create({
         data: {
           documentId: document.id,
           text: grounded.text,
@@ -256,6 +257,7 @@ ${scraped.markdown}
           narrativeStatus: claim.narrativeStatus,
         },
       });
+      createdClaimIds.push(created.id);
       savedClaimsCount++;
     }
 
@@ -264,6 +266,22 @@ ${scraped.markdown}
       where: { id: source.id },
       data: { lastFetched: new Date() },
     });
+
+    // 6b. Governed final leg — promote source-supported claims into the brain as
+    // LOW-TRUST candidates (research_claim_candidate; quarantined from chat recall
+    // until a human promotes them). Best-effort: a promotion failure never fails
+    // ingestion, and the write is bounded + idempotent (see lib/intelligence/promote.ts).
+    try {
+      const { promoteIntelligenceClaims } = await import("./promote");
+      const promo = await promoteIntelligenceClaims({ claimIds: createdClaimIds });
+      if (promo.promoted > 0) {
+        log.info(`Promoted ${promo.promoted}/${promo.examined} claim(s) into brain candidates.`);
+      }
+    } catch (err) {
+      log.warn("Claim-promotion leg failed (non-fatal):", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     log.info(`Ingestion finished successfully. Created document ${document.id} with ${savedClaimsCount} claims.`);
 
