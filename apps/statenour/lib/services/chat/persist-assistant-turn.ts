@@ -1487,13 +1487,17 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           // injector can re-surface unaddressed ones on later turns.
           import("@/lib/ai/adversarial-critic")
             .then(async ({ criticizeAsync }) => {
-              const [{ buildResponseContract }, { EARLY_SPAR }] = await Promise.all([
+              const [{ buildResponseContract, detectExecuteFinalized }, { EARLY_SPAR }] = await Promise.all([
                 import("@/lib/ai/response-contract"),
                 import("@/lib/ai/chat/handlers/patterns"),
               ]);
               const sparTurn =
                 buildResponseContract(userContent).answerMode === "brainstorm" ||
                 EARLY_SPAR.test(userContent);
+              // 2026-07-22 · execute/finalized posture suppresses NEW objections too
+              // — unless the user explicitly asked to spar (that IS a request to be
+              // challenged). No stored objection ⇒ nothing for the injector to re-raise.
+              if (detectExecuteFinalized(userContent) && !sparTurn) return;
               return criticizeAsync({
                 messageId: createdAssistant.id,
                 conversationId: convId ?? null,

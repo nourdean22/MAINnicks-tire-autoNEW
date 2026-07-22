@@ -3,7 +3,7 @@
  * the reply gate enforces. Pure, deterministic, no model/DB.
  */
 import { describe, it, expect } from "vitest";
-import { buildResponseContract, buildContractDirective } from "@/lib/ai/response-contract";
+import { buildResponseContract, buildContractDirective, detectExecuteFinalized } from "@/lib/ai/response-contract";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
 
 const c = (t: string) => buildResponseContract(t, classifyTurn(t));
@@ -131,5 +131,46 @@ describe("response-contract · directive rendering", () => {
   });
   it("casual turn → concise directive (keep banter short)", () => {
     expect(buildContractDirective(c("hey"))).toMatch(/concise/i);
+  });
+});
+
+describe("response-contract · execute/finalized posture (no unsolicited opposition)", () => {
+  it("detects command / finalized-decision phrases", () => {
+    for (const t of [
+      "just do it",
+      "do it now",
+      "my decision is final",
+      "i've decided, we open the second location",
+      "stop arguing and write the plan",
+      "no more objections — ship it",
+      "don't push back, just answer",
+      "execute the plan",
+    ]) {
+      expect(detectExecuteFinalized(t)).toBe(true);
+    }
+  });
+
+  it("does NOT fire on ordinary analysis / question turns", () => {
+    for (const t of [
+      "should I open a second location?",
+      "analyze the $20 brake offer",
+      "what's my revenue this month",
+      "give me your read on retention",
+      "how do I do it right?", // 'do it' in a how-to question, not a command
+      "can you do it by friday?", // question, not a finalized command
+    ]) {
+      expect(detectExecuteFinalized(t)).toBe(false);
+    }
+  });
+
+  it("the contract carries executeFinalized + forbids re-opening the decision", () => {
+    const r = c("My decision is final. Stop arguing and just do it.");
+    expect(r.executeFinalized).toBe(true);
+    expect(r.forbiddenMoves.join(" ")).toMatch(/re-open|counter-view|objection/i);
+    expect(r.reasons.join(" ")).toMatch(/execute-finalized/i);
+  });
+
+  it("a normal recommendation ask leaves executeFinalized false", () => {
+    expect(c("what should I do about the 30 failed reels?").executeFinalized).toBe(false);
   });
 });

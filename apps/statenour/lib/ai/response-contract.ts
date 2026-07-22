@@ -62,6 +62,11 @@ export interface ResponseContract {
   userIsManagingConcurrentSessions: boolean;
   /** The user PASTED a status report (don't treat reported status as verified). */
   isStatusUpdate: boolean;
+  /** The user issued a COMMAND or FINALIZED a decision ("do it", "my decision is
+   *  final", "stop arguing"). Execute it — do NOT re-open with unsolicited
+   *  counter-views. Gates the adversarial critic + objection injector. An
+   *  explicit /spar or brainstorm turn overrides (that IS a request to challenge). */
+  executeFinalized: boolean;
   forbiddenMoves: string[];
   requiredMoves: string[];
   reasons: string[];
@@ -83,6 +88,12 @@ const RE = {
   audit: /\b(audit|review (the|my|this)|go through (the|my|all)|check (the|my|all|every) .{0,30}(file|code|page|surface|module)|find (the )?(gaps?|issues?|bugs?|problems?))\b/i,
   digest: /\b(recap|digest|what changed|summari[sz]e (the|this|my|what)|tl;?dr of|catch me up|bring me up to speed)\b/i,
   brainstorm: /\b(brainstorm|come up with|ideas? for|what could we|spitball|riff on)\b/i,
+
+  // execute / finalized posture — the user issued a command or closed the
+  // decision. Signal to DO the thing and stop re-opening it. Kept phrase-based
+  // (low false-positive) — an explicit /spar or brainstorm still overrides.
+  executeFinalized:
+    /\b(?:just|go|please) do it\b|\bdo it (?:now|already|then)\b|\b(make it happen|get it done|(?:just )?ship it|just (?:answer|tell me|give me the answer)|my (?:decision|call|mind) is (?:final|made up)|i(?:'ve| have) (?:decided|made up my mind)|stop (?:arguing|debating|pushing back|second[- ]guessing)|no more (?:objections?|debate|pushback|counter[- ]?views?)|don'?t (?:argue|debate|push back|second[- ]guess)|final decision|it'?s decided|decision'?s final|(?:just )?execute (?:it|this|the plan))\b/i,
 
   // ranking / top-N
   rank: /\b(top|best|first)\s+(\d+)\b|\b(rank|prioriti[sz]e|order)\b|\b(give|show|list) me (\d+)\b/i,
@@ -175,6 +186,14 @@ function detectOutputFormat(
  * existing classifier outputs — pass them when available so the contract
  * reuses their work; the function still works standalone for testing.
  */
+/** True when the user issued a command or finalized a decision — the signal to
+ *  EXECUTE and stop re-opening the question. Pure + phrase-based. Exported so the
+ *  brain-context (objection injector) and persist-turn (adversarial critic) gate
+ *  sites can suppress unsolicited opposition without rebuilding the full contract. */
+export function detectExecuteFinalized(text: string): boolean {
+  return RE.executeFinalized.test((text || "").trim());
+}
+
 export function buildResponseContract(
   userText: string,
   turn?: TurnSignal,
@@ -192,6 +211,7 @@ export function buildResponseContract(
   const userIsCorrectingDirection = RE.correction.test(text);
   const mustBeRepoGrounded = RE.repoGrounded.test(text);
   const dontAsk = RE.dontAsk.test(text);
+  const executeFinalized = detectExecuteFinalized(text);
 
   const rankCount = extractRankCount(text);
   const mode = detectAnswerMode(text, turn, isStatusUpdate, rankCount);
@@ -278,6 +298,14 @@ export function buildResponseContract(
     requiredMoves.push("treat pasted status as REPORTED, not verified — don't upgrade it to fact");
     reasons.push("status-update paste detected");
   }
+  if (executeFinalized) {
+    forbiddenMoves.push(
+      "re-open or re-litigate the finalized decision",
+      "add an unsolicited counter-view / objection / 'have you considered'",
+    );
+    requiredMoves.push("execute the command / honor the decision directly");
+    reasons.push("execute-finalized posture (no unsolicited opposition)");
+  }
   if (userIsManagingConcurrentSessions) reasons.push("multi-session context");
   // Direction-correction forbidden specifics
   if (/\bno more (internal|busy ?work|cleanup)\b|\bnot (internal|busywork)\b/i.test(text)) {
@@ -303,6 +331,7 @@ export function buildResponseContract(
     userIsAskingForCoderPrompt,
     userIsManagingConcurrentSessions,
     isStatusUpdate,
+    executeFinalized,
     forbiddenMoves,
     requiredMoves,
     reasons,

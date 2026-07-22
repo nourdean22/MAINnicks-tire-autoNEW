@@ -78,10 +78,15 @@ export function useChatStream(): ChatRuntimeController {
 
   const retryCountRef = useRef(0);
   const regenerateRef = useRef(chat.regenerate);
+  const messagesRef = useRef(chat.messages);
 
   useEffect(() => {
     regenerateRef.current = chat.regenerate;
   }, [chat.regenerate]);
+
+  useEffect(() => {
+    messagesRef.current = chat.messages;
+  }, [chat.messages]);
 
   useEffect(() => {
     if (!chat.error) {
@@ -97,6 +102,18 @@ export function useChatStream(): ChatRuntimeController {
       message.includes("fetch failed") ||
       message.includes("load failed");
     if (!isNetworkKill) return;
+
+    // 2026-07-22 · idempotency guard. A tool may have committed a real side
+    // effect (Telegram send, IG autopost, customer alert) on the server BEFORE
+    // the stream dropped. Auto-regenerating re-runs the turn and re-fires the
+    // tool = duplicate action. Only auto-retry when the last assistant turn
+    // produced NO tool parts (pure-text stream broke, or the POST never landed).
+    const lastAssistant = [...messagesRef.current].reverse().find((m) => m.role === "assistant");
+    const hadToolPart = lastAssistant?.parts?.some(
+      (p) => typeof (p as { type?: unknown })?.type === "string" &&
+        (((p as { type: string }).type).startsWith("tool-") || (p as { type: string }).type === "dynamic-tool"),
+    );
+    if (hadToolPart) return;
 
     retryCountRef.current += 1;
     const timer = setTimeout(
