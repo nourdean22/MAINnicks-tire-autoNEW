@@ -67,6 +67,9 @@ export interface BuildBrainContextInput {
   forceRecall: boolean;
   messages: Array<{ role: string; content: string }>;
   convId: string;
+  /** 2026-07-22 · authority posture ("execute" suppresses the objection
+   *  injector + resolves open objections; other values no-op here). */
+  posture?: string;
   log: ChatLogger;
 }
 
@@ -93,7 +96,14 @@ const EMPTY_FIRED: ContextBlocksFired = {
 export async function buildBrainContext(
   input: BuildBrainContextInput,
 ): Promise<BuildBrainContextOutput> {
-  const { userContent, mode, userEmbedding, forceRecall, messages, convId, log } = input;
+  const { userContent, mode, userEmbedding, forceRecall, messages, convId, posture, log } = input;
+  // Authority posture (self-review #8): explicit "execute" pill suppresses the
+  // objection injector this turn — same as the phrase detector. Explicit "spar"
+  // / "counsel" mean the user WANTS engagement, so they override a phrase-
+  // detected finality (only "auto"/absent falls back to the phrase).
+  const isAutoPosture = !posture || posture === "auto";
+  const executePosture =
+    posture === "execute" || (isAutoPosture && detectExecuteFinalized(userContent));
 
   // Apr 19 · Task context injection — fires in parallel with the
   // brain blocks below. Surfaces the live DOING/READY queue so Nick
@@ -190,11 +200,12 @@ export async function buildBrainContext(
       import("@/lib/ai/tactician/next-move").catch(() => null),
     ]);
 
-    // 2026-07-22 · finality resolution. When the operator finalizes/commands
-    // (execute posture), mark this conversation's OPEN objections resolved so the
-    // injector never re-raises them on a LATER semantically-matching turn — the
-    // gate at the findRelevantObjections call only covers the finalizing turn
-    // itself. Fire-and-forget; a fresh recommendation still earns a new one.
+    // 2026-07-22 · finality resolution. Fire on the explicit finalizing PHRASE
+    // only ("just do it", "stop arguing", …) — NOT the sticky EXECUTE pill,
+    // which would soft-delete this conversation's open objections on every turn
+    // and lose them permanently if the operator later switches back (self-review
+    // #8). Marks OPEN objections resolved so the injector can't re-raise them on
+    // a later matching turn. Fire-and-forget; a fresh recommendation earns a new one.
     if (convId && detectExecuteFinalized(userContent)) {
       void objectionInjectorMod?.resolveConversationObjections(convId).catch(() => {});
     }
@@ -314,7 +325,7 @@ export async function buildBrainContext(
       // 2026-07-22 · execute/finalized posture ("do it" / "my decision is final" /
       // "stop arguing") suppresses re-surfacing a prior counter-view — don't
       // re-open a decision the operator has explicitly closed.
-      objectionInjectorMod && convId && !detectExecuteFinalized(userContent)
+      objectionInjectorMod && convId && !executePosture
         ? withTimeout(objectionInjectorMod.findRelevantObjections({ conversationId: convId }), 3000, null)
         : Promise.resolve(null),
       // AG-31 · self-gates on TACTICIAN_INTENT; /battle relaxes thresholds.

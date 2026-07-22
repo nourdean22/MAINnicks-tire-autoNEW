@@ -33,6 +33,17 @@ export type ChatUiState = {
   historyDrawerOpen: boolean;
   recalledHits: MemoryHit[];
   contradictions: ContradictionLog[];
+  // 2026-07-22 · Authority-kernel controls (audit Waves 1+7). Defaults =
+  // today's behavior; the composer selectors set these and the transport
+  // body ships only non-defaults.
+  privateMode: boolean;
+  posture: "auto" | "execute" | "counsel" | "spar";
+  depth: "auto" | "standard" | "deep";
+  actionPermission: "read" | "draft" | "execute";
+  setPrivateMode: (on: boolean) => void;
+  setPosture: (p: ChatUiState["posture"]) => void;
+  setDepth: (d: ChatUiState["depth"]) => void;
+  setActionPermission: (p: ChatUiState["actionPermission"]) => void;
   setDraft: (draft: string) => void;
   setConnection: (state: ChatUiState["connection"]) => void;
   setActiveConversationId: (id: string | null) => void;
@@ -58,6 +69,14 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   historyDrawerOpen: false,
   recalledHits: [],
   contradictions: [],
+  privateMode: false,
+  posture: "auto",
+  depth: "auto",
+  actionPermission: "draft",
+  setPrivateMode: (privateMode) => set({ privateMode }),
+  setPosture: (posture) => set({ posture }),
+  setDepth: (depth) => set({ depth }),
+  setActionPermission: (actionPermission) => set({ actionPermission }),
   setDraft: (draft) => set({ draft }),
   setConnection: (connection) => set({ connection }),
   setActiveConversationId: (activeConversationId) => set({ activeConversationId }),

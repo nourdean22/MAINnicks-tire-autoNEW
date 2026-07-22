@@ -103,7 +103,7 @@ export async function buildFastStream(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
-      "X-Conversation-Id": convId || "",
+      "X-Conversation-Id": convId && convId !== "private" && convId !== "temp" ? convId : "",
       "X-Vercel-AI-UI-Message-Stream": "v1",
     },
   });
