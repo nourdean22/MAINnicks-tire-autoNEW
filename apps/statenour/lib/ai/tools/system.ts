@@ -14,6 +14,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
+import { hasPerplexica } from "@/lib/integrations/perplexica";
 
 // moneyprinter rewrites the shared MoneyPrinterTurbo config.toml before each
 // run while a prior 7-minute subprocess may still be reading it — one run at
@@ -675,7 +676,7 @@ export const systemTools = {
       // — degrades to the multi-source quorum instead of throwing (which the
       // model would otherwise surface as a confident failure claim).
       try {
-        if (process.env.PERPLEXICA_API_URL) {
+        if (hasPerplexica()) {
           const { askPerplexica } = await import("@/lib/integrations/perplexica");
           // 2026-07-12 · FAIL-FAST on a hung primary. When perplexica's synth
           // backend stalls (e.g. the Gemini key hit its spending cap →
@@ -734,7 +735,7 @@ export const systemTools = {
       const { multiSourceSearch } = await import("@/lib/ai/multi-search");
       const q = await multiSourceSearch(
         query,
-        process.env.PERPLEXICA_API_URL
+        hasPerplexica()
           ? { sources: ["perplexity", "tavily", "exa", "google"] }
           : {},
       );
