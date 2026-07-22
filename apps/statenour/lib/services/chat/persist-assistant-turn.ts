@@ -49,7 +49,7 @@ import { checkKnownTruth, formatTruthSummary } from "@/lib/ai/known-truth-guard"
 import { trackGeneration } from "@/lib/ai/track";
 import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
-import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
+import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
 import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
@@ -1286,6 +1286,23 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
               },
             } as Parameters<typeof prisma.brainMemory.create>[0]["data"],
           }).catch(() => undefined);
+        }
+
+        // truth-substrate (2026-07-22): promote HIGH-HARM known-truth flags
+        // (evidence-free status / retired-infra-as-current, detected at ~1049
+        // where they were TELEMETRY-ONLY) into a persisted-row correction banner —
+        // the SAME reload mechanism as the action-receipt verifier above. Flag-
+        // gated default-off (NICK_KNOWN_TRUTH_BANNER) while the false-positive rate
+        // is measured on real traffic; skips when a banner already fired (the
+        // action-receipt banner is more specific and takes precedence). Every
+        // truthFlag is already sev>=55 by the guard's construction.
+        if (truthFlags.length > 0 && !isVerifierRewritten(cleanedText)) {
+          const { getFlag } = await import("@/lib/feature-flags");
+          if (getFlag("NICK_KNOWN_TRUTH_BANNER")?.isOn) {
+            const kinds = [...new Set(truthFlags.map((f) => f.kind))];
+            cleanedText = `${buildKnownTruthBanner(kinds)}${cleanedText}`;
+            log.info("known_truth_banner_applied", { kinds });
+          }
         }
 
         const { partsArray, searchableContent } = await buildMessageParts(

@@ -149,6 +149,14 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "app/api/ai/chat/finalize-system-prompt.ts",
   },
   {
+    key: "NICK_KNOWN_TRUTH_BANNER",
+    description: "Promotes HIGH-HARM known-truth guard flags (evidence-free status claims like 'deployed'/'tests passed' with no receipt, or retired-infra-as-current) from telemetry to a persisted-row correction banner on reload — the same mechanism as the action-receipt verifier. Never double-banners (skips if one already fired). OFF = telemetry-only (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Known-truth flags are logged + folded into tokenUsage but the stored reply is not altered.",
+    ownerDoc: "lib/services/chat/persist-assistant-turn.ts",
+  },
+  {
     key: "NICK_COVE",
     description: "Chain-of-Verification on factual/operator-facing answers: after drafting, Nick generates isolated verification questions, answers them, and revises — the isolation step kills rubber-stamped hallucinations. Gated to factual intents. OFF = no CoVe pass.",
     status: "experimental",
