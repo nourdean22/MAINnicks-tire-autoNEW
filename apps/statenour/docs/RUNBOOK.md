@@ -358,6 +358,7 @@ Last-resort recovery from a Neon branch:
 | Queue backlog | `/system` page → queue pending count |
 | Integration stale | `/system` page → integrations last-sync |
 | Web search never `arsenal/perplexica` | `GET /api/system/perplexica-diag` (Bearer `$CRON_SECRET`) → receipt: `health` (provider+model verification), `source`, `fallbackUsed`, `telemetry` (last success / latency / sourceCount). `sourceCount:0` + healthy config = SearXNG engines bot-blocked (see ledger 2026-07-22). |
+| Browser agent "not_installed" / dead | `GET /api/browser/diagnostics` (owner-gated, open in an authed browser tab) → `{browserbase:{configured}, stagehand:{installed}, ready}`. NOTE: `railway ssh` + `require.resolve` false-negatives on Turbopack externals — trust the endpoint, not a bare node probe. Watch a run live/replay via the `browseAndDo` receipt's `replayUrl`. |
 
 ---
 
@@ -377,6 +378,7 @@ class structurally impossible. New rows go in date-asc.
 | 2026-05-04 | Anti-slop drift (Inter / purple gradients) | Future-risk only; baseline is /brain/link-review (DFII 15) | git-grep block in `scripts/check-anti-slop.sh` |
 | 2026-05-04 | BrainMemory category abuse | 8 domains crammed into KV store; queries paid for unrelated drift | Phase-1 dual-write playbook · 5 tables extracted (ToolTelemetry, ProviderPing, ToolVerbRatio, AutonomousEvent, SemanticEdge) |
 | 2026-05-04 | isInboxMission TS↔SQL drift | Two regexes for the same predicate | `tests/db/inbox-mission-drift.test.ts` · 15 fixtures asserting parity at CI |
+| 2026-07-22 | Edge-instrumentation build break | Both stagehand-bearing Railway deploys FAILED at `next build` (prod safely pinned on the old image; CLI logs for failed deploys are EMPTY — dashboard only). Next compiles `instrumentation.ts` for BOTH runtimes, so the edge pass bundled tool-embeddings → the whole tool universe → sharp; a lockfile hoisting shift made it fatal. | `if (process.env.NEXT_RUNTIME !== "nodejs") return;` first line of `register()` + `onRequestError()` — compile-time define dead-code-eliminates the edge bundle to EMPTY, immune to dependency-hoisting shape. After any merge, check `railway deployment list` — a green PR is not a deployed PR. |
 | 2026-07-22 | Perplexica silent-empty (0 sources) | Chat "rarely produced arsenal/perplexica" — self-hosted SearXNG's engines (DuckDuckGo/Brave/Startpage/Google-CSE) all CAPTCHA/rate-limit Railway's datacenter IP → 0 results → 38s empty synth → silent fallback to Tavily. Config + timeout bugs masked it further. | Canonical native-API path (no MCP aliasing) + `PERPLEXICA_TIMEOUT_MS` (35s, was generic 8s) + `checkPerplexicaHealth()` provider/model verification + search-source telemetry + `GET /api/system/perplexica-diag` receipt. Root SearXNG bot-block is a datacenter-IP reality — needs an egress proxy or lean on the working Tavily/Exa fallback. |
 
 ---
