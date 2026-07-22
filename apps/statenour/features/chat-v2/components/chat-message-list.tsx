@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ExternalLink, Paperclip, ShieldCheck, Wrench } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
@@ -14,6 +14,17 @@ import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
 import { toast } from "sonner";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
+import { trpc } from "@/lib/trpc/client";
+import { haptic } from "@/lib/ui/haptic";
+
+/** Stable djb2-ish content-hash key so re-saving the same reply reinforces the
+ *  row (upsert by category+key) instead of duplicating. Mirrors the legacy
+ *  save-as-* hook so keys match across both entry points. */
+function memoryKey(content: string): string {
+  let h = 0;
+  for (let i = 0; i < content.length; i++) h = (h * 31 + content.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
 
 function textOf(message: UIMessage): string {
   return (message.parts ?? [])
@@ -121,6 +132,50 @@ export function ChatMessageList({
   const setDraft = useChatUiStore((state) => state.setDraft);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
+
+  // 2026-07-22 · restore the save-as-* long-press actions the v2 rewrite dropped.
+  // Assistant-only: they promote Nick's reply into his trusted memory (belief) or
+  // the decision loop. recordMemory upserts by (category, key) — the content-hash
+  // key means re-saving reinforces instead of duplicating.
+  const recordMemory = trpc.brain.recordMemory.useMutation();
+  const harvestBeliefs = trpc.brain.harvestBeliefs.useMutation();
+
+  const onSaveAsBelief = useCallback(async () => {
+    if (!actionSheetMsg) return;
+    try {
+      await harvestBeliefs.mutateAsync();
+      const content = actionSheetMsg.text.slice(0, 500);
+      await recordMemory.mutateAsync({
+        category: "belief_manual",
+        key: `belief_manual:${memoryKey(content)}`,
+        content,
+        source: "chat:save-as-belief",
+      });
+      haptic.success();
+      toast.success("Saved as belief");
+    } catch {
+      haptic.error();
+      toast.error("Couldn't save as belief — try again");
+    }
+  }, [actionSheetMsg, harvestBeliefs, recordMemory]);
+
+  const onSaveAsDecision = useCallback(async () => {
+    if (!actionSheetMsg) return;
+    try {
+      const content = actionSheetMsg.text.slice(0, 500);
+      await recordMemory.mutateAsync({
+        category: "decision_manual",
+        key: `decision_manual:${memoryKey(content)}`,
+        content,
+        source: "chat:save-as-decision",
+      });
+      haptic.success();
+      toast.success("Saved as decision");
+    } catch {
+      haptic.error();
+      toast.error("Couldn't save as decision — try again");
+    }
+  }, [actionSheetMsg, recordMemory]);
   const { renderedMessages, hasHidden, hiddenCount, showOlder } = useLazyRenderMessages(messages, isLoading);
 
   if (messages.length === 0 && pending.length === 0 && !diagnosticReport) {
@@ -244,6 +299,8 @@ export function ChatMessageList({
           if (actionSheetMsg?.id) setReasoningTraceMsg(actionSheetMsg.id);
           setActionSheetMsg(null);
         }}
+        onSaveAsBelief={actionSheetMsg?.role === "assistant" ? onSaveAsBelief : undefined}
+        onSaveAsDecision={actionSheetMsg?.role === "assistant" ? onSaveAsDecision : undefined}
       />
       <ReasoningTraceModal open={reasoningTraceMsg !== null} messageId={reasoningTraceMsg} onClose={() => setReasoningTraceMsg(null)} />
     </div>
