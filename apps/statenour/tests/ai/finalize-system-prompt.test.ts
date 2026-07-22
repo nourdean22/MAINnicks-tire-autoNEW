@@ -199,3 +199,26 @@ describe("finalizeSystemPrompt · response contract (AG-11)", () => {
     expect(a).not.toContain("## This turn");
   });
 });
+
+describe("finalizeSystemPrompt · NICK_DEPTH_UNCAP (master depth ceilings)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("OFF (default): master persona keeps the hard word-count caps — prod unchanged", async () => {
+    vi.stubEnv("NICK_DEPTH_UNCAP", "");
+    const prompt = await finalize("analyze my retention cohorts in depth");
+    expect(prompt).toContain("40-60 words");
+    expect(prompt).toContain("Up to 150 words");
+    expect(prompt).toContain("No sections. No bullets");
+  });
+
+  it("ON: caps removed, depth follows the question intent", async () => {
+    vi.stubEnv("NICK_DEPTH_UNCAP", "true");
+    const prompt = await finalize("analyze my retention cohorts in depth");
+    expect(prompt).not.toContain("40-60 words");
+    expect(prompt).not.toContain("Up to 150 words");
+    expect(prompt).not.toContain("No sections. No bullets");
+    expect(prompt).toContain("go as deep as the answer needs");
+  });
+});

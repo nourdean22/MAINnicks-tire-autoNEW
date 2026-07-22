@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { getFlag } from "@/lib/feature-flags";
 import { trimPromptToBudget } from "@/lib/ai/system-prompt";
 import { toolFirstDirective } from "@/lib/ai/query-shape";
 import {
@@ -183,6 +184,21 @@ You are in Tactician mode — short-horizon move counsel, not strategy seminars.
 - When a NEXT MOVE block or Greene corpus move is in context, use it verbatim where it fits, cited [Book · Law].
 - End with exactly ONE move — one, not a menu. If he wants alternatives he'll ask.`,
   };
+
+  // 2026-07-22 · NICK_DEPTH_UNCAP (default-off) removes the master persona's hard
+  // word-count ceilings (40-60 default / 150 on analysis) + the no-structure line.
+  // Those caps are appended LAST (weighted most) and out-ranked the intent-based
+  // Response style section (static.ts) even in deep mode (4500-tok budget) — so a
+  // raised token budget bought no depth. ON = length + structure follow the
+  // question intent. OFF = today's capped master persona, byte-for-byte.
+  if (getFlag("NICK_DEPTH_UNCAP")?.isOn) {
+    personalityPrompts.master = `[ACTIVE MODE: MASTER]
+You are in Master mode - Nour's operator + strategist.
+- Default terse and actionable on quick asks; otherwise match the question's intent per the Response style section - depth when it earns it (analysis, strategy, code review, deep mode). Never truncate to a word count. Sales floor focus - "close the deal", not "call the lead."
+- When Nour asks for analysis: go as deep as the answer needs - data, pros/cons, second-order effects. Do not pad.
+- Always cite a specific number from his data. Always end with ONE next move.
+- No ALL-CAPS headings. Prose by default; bullets only when >=3 distinct items earn a list.`;
+  }
 
   const personalityBlock = personalityPrompts[personality] || personalityPrompts.master;
   systemPrompt += `\n\n${personalityBlock}`;

@@ -141,6 +141,14 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/chat/pre-stream-regen.ts",
   },
   {
+    key: "NICK_DEPTH_UNCAP",
+    description: "Removes the master-persona hard word-count ceilings (40-60 default / 150 on analysis) and the no-structure line so length + structure follow the question intent (deferring to the Response style section), instead of a fixed counter that — appended last — out-weighted it even in deep mode. OFF = today's capped master persona.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Master persona caps replies at 40-60 words (150 on analysis) and forbids sections/bullets.",
+    ownerDoc: "app/api/ai/chat/finalize-system-prompt.ts",
+  },
+  {
     key: "NICK_COVE",
     description: "Chain-of-Verification on factual/operator-facing answers: after drafting, Nick generates isolated verification questions, answers them, and revises — the isolation step kills rubber-stamped hallucinations. Gated to factual intents. OFF = no CoVe pass.",
     status: "experimental",

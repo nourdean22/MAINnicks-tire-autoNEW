@@ -32,6 +32,7 @@ import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reran
 import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
 import type { ChatMode } from "@/lib/ai/chat-mode";
+import { detectExecuteFinalized } from "@/lib/ai/response-contract";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -301,7 +302,10 @@ export async function buildBrainContext(
         ? withTimeout(skillRegistryRecallMod.getRelevantSkillsBlock(userContent), 3000, "")
         : Promise.resolve(""),
       // AG-30 · once-per-conversation, 24h lookback, severity≥2+flaw only.
-      objectionInjectorMod && convId
+      // 2026-07-22 · execute/finalized posture ("do it" / "my decision is final" /
+      // "stop arguing") suppresses re-surfacing a prior counter-view — don't
+      // re-open a decision the operator has explicitly closed.
+      objectionInjectorMod && convId && !detectExecuteFinalized(userContent)
         ? withTimeout(objectionInjectorMod.findRelevantObjections({ conversationId: convId }), 3000, null)
         : Promise.resolve(null),
       // AG-31 · self-gates on TACTICIAN_INTENT; /battle relaxes thresholds.
