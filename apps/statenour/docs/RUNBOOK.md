@@ -357,6 +357,7 @@ Last-resort recovery from a Neon branch:
 | Device offline | `/api/health` devices block vs `/api/system/pulse` |
 | Queue backlog | `/system` page → queue pending count |
 | Integration stale | `/system` page → integrations last-sync |
+| Web search never `arsenal/perplexica` | `GET /api/system/perplexica-diag` (Bearer `$CRON_SECRET`) → receipt: `health` (provider+model verification), `source`, `fallbackUsed`, `telemetry` (last success / latency / sourceCount). `sourceCount:0` + healthy config = SearXNG engines bot-blocked (see ledger 2026-07-22). |
 
 ---
 
@@ -376,6 +377,7 @@ class structurally impossible. New rows go in date-asc.
 | 2026-05-04 | Anti-slop drift (Inter / purple gradients) | Future-risk only; baseline is /brain/link-review (DFII 15) | git-grep block in `scripts/check-anti-slop.sh` |
 | 2026-05-04 | BrainMemory category abuse | 8 domains crammed into KV store; queries paid for unrelated drift | Phase-1 dual-write playbook · 5 tables extracted (ToolTelemetry, ProviderPing, ToolVerbRatio, AutonomousEvent, SemanticEdge) |
 | 2026-05-04 | isInboxMission TS↔SQL drift | Two regexes for the same predicate | `tests/db/inbox-mission-drift.test.ts` · 15 fixtures asserting parity at CI |
+| 2026-07-22 | Perplexica silent-empty (0 sources) | Chat "rarely produced arsenal/perplexica" — self-hosted SearXNG's engines (DuckDuckGo/Brave/Startpage/Google-CSE) all CAPTCHA/rate-limit Railway's datacenter IP → 0 results → 38s empty synth → silent fallback to Tavily. Config + timeout bugs masked it further. | Canonical native-API path (no MCP aliasing) + `PERPLEXICA_TIMEOUT_MS` (35s, was generic 8s) + `checkPerplexicaHealth()` provider/model verification + search-source telemetry + `GET /api/system/perplexica-diag` receipt. Root SearXNG bot-block is a datacenter-IP reality — needs an egress proxy or lean on the working Tavily/Exa fallback. |
 
 ---
 
