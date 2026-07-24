@@ -263,6 +263,39 @@ export const instagramStudioRouter = router({
       // Same recency window the re-score paths use — generation previously
       // omitted it, so novelty scored differently before and after staging.
       const draft = await generateInstagramStudioDraft({ ...input, recentConceptKeys: await recentKeysSafe() });
+
+      // PERSIST IMMEDIATELY. The draft cost a metered model call, and until
+      // Wave 5 it lived only in one component's useState — a refresh, a PWA
+      // relaunch, or one mis-tap destroyed paid work. Status "draft" keeps it
+      // out of the review lanes until the operator stages it. Persistence
+      // failure is reported, not fatal: the draft is already made and paid for.
+      let persisted = false;
+      try {
+        const database = await dbTyped();
+        if (database) {
+          await database.insert(socialContentInventory).values({
+            id: draft.id,
+            platform: "instagram",
+            contentType: input.format === "post" || input.format === "ad" ? "post" : input.format,
+            topic: draft.topic.slice(0, 128),
+            seriesName: "instagram_studio_v2",
+            hookCategory: draft.objective,
+            hookText: draft.caption,
+            bodyText: draft.subheadline,
+            visualStyle: "nick_grit_v2",
+            persona: "nick",
+            scoreOverall: draft.quality.overall,
+            status: "draft",
+            assetPaths: [],
+            briefJson: JSON.stringify(draft),
+            version: 1,
+          });
+          persisted = true;
+        }
+      } catch (err) {
+        const { createLogger } = await import("../lib/logger");
+        createLogger("routers:instagramStudio").error("draft persistence failed — work survives only in the client", { id: draft.id, err });
+      }
       // Open a content run so the four separate operator actions
       // (generate -> evaluate -> render -> stage) become ONE traceable thing.
       // Recording is additive and MUST NOT be able to break generation: the draft
@@ -287,8 +320,123 @@ export const instagramStudioRouter = router({
           evidence: { at: new Date().toISOString(), what: `draft generated: "${draft.headline}"` },
         });
       }
-      return { ...draft, runId };
+      // draftRowVersion, NOT version: the draft object's own `version` field is
+      // the schema literal "instagram-studio-v2" and must not be shadowed by
+      // the inventory row's integer version.
+      return { ...draft, runId, persisted, draftRowVersion: 1 };
     }),
+
+  /**
+   * Debounced autosave for a generated-but-not-yet-staged draft. Only rows
+   * still in status "draft" are writable here — anything past that belongs to
+   * the review lifecycle (update/approve/etc.) and its version protocol.
+   */
+  saveDraft: adminProcedure
+    .input(z.object({ draft: draftSchema, expectedVersion: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const database = await dbTyped();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — autosave failed." });
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const nextVersion = input.expectedVersion + 1;
+      const existing = await database.select({ status: socialContentInventory.status })
+        .from(socialContentInventory).where(eq(socialContentInventory.id, input.draft.id)).limit(1);
+      if (existing[0] && existing[0].status !== "draft") {
+        throw new TRPCError({ code: "CONFLICT", message: `This draft is already ${existing[0].status} in the queue — edit it from Publish.` });
+      }
+      if (!existing[0]) {
+        await database.insert(socialContentInventory).values({
+          id: input.draft.id,
+          platform: "instagram",
+          contentType: input.draft.format === "post" || input.draft.format === "ad" ? "post" : input.draft.format,
+          topic: input.draft.topic.slice(0, 128),
+          seriesName: "instagram_studio_v2",
+          hookCategory: input.draft.objective,
+          hookText: input.draft.caption,
+          bodyText: input.draft.subheadline,
+          visualStyle: "nick_grit_v2",
+          persona: "nick",
+          scoreOverall: input.draft.quality.overall,
+          status: "draft",
+          assetPaths: input.draft.imageUrls,
+          briefJson: JSON.stringify(input.draft),
+          version: 1,
+        });
+        return { version: 1 };
+      }
+      const saved = await database.update(socialContentInventory).set({
+        topic: input.draft.topic.slice(0, 128),
+        hookText: input.draft.caption,
+        bodyText: input.draft.subheadline,
+        scoreOverall: input.draft.quality.overall,
+        assetPaths: input.draft.imageUrls,
+        briefJson: JSON.stringify(input.draft),
+        version: nextVersion,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(socialContentInventory.id, input.draft.id),
+        eq(socialContentInventory.status, "draft"),
+        eq(socialContentInventory.version, input.expectedVersion),
+      ));
+      if (affectedRowCount(saved) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Draft changed elsewhere (another tab?). Reload it before continuing." });
+      }
+      return { version: nextVersion };
+    }),
+
+  /**
+   * Real records to create from — replaces the raw-database-ID input the
+   * audit called a developer interface. Same lookup order the generator's
+   * evidence resolver uses (reviewReplies first, then reviewPipeline), so
+   * what the picker shows is what generation grounds on.
+   */
+  sourceOptions: adminProcedure.query(async () => {
+    const database = await dbTyped();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — source records cannot be listed." });
+    const { reviewReplies, reviewPipeline, workOrderItems } = await import("../../drizzle/schema");
+
+    let reviews: Array<{ recordId: string; label: string; detail: string }> = [];
+    try {
+      const replies = await database
+        .select({ id: reviewReplies.id, author: reviewReplies.reviewerName, text: reviewReplies.reviewText })
+        .from(reviewReplies)
+        .where(eq(reviewReplies.reviewRating, 5))
+        .orderBy(desc(reviewReplies.id))
+        .limit(8);
+      reviews = replies
+        .filter((row) => (row.text ?? "").trim().length > 0)
+        .map((row) => ({ recordId: String(row.id), label: `${row.author || "Anonymous"} · 5★`, detail: (row.text ?? "").slice(0, 220) }));
+    } catch { /* table variant absent — fall through to pipeline */ }
+    if (reviews.length === 0) {
+      try {
+        const pipeline = await database
+          .select({ id: reviewPipeline.id, author: reviewPipeline.authorName, text: reviewPipeline.reviewText })
+          .from(reviewPipeline)
+          .where(eq(reviewPipeline.rating, 5))
+          .orderBy(desc(reviewPipeline.id))
+          .limit(8);
+        reviews = pipeline
+          .filter((row) => (row.text ?? "").trim().length > 0)
+          .map((row) => ({ recordId: String(row.id), label: `${row.author || "Anonymous"} · 5★`, detail: (row.text ?? "").slice(0, 220) }));
+      } catch { /* honest empty below */ }
+    }
+
+    let declinedWork: Array<{ recordId: string; label: string; detail: string }> = [];
+    try {
+      const items = await database
+        .select({ id: workOrderItems.id, description: workOrderItems.description, notes: workOrderItems.notes })
+        .from(workOrderItems)
+        .where(eq(workOrderItems.declined, true))
+        .orderBy(desc(workOrderItems.id))
+        .limit(10);
+      declinedWork = items.map((row) => ({
+        recordId: row.id,
+        label: row.description.slice(0, 80),
+        detail: (row.notes ?? "").slice(0, 220) || "Declined by the customer.",
+      }));
+    } catch { /* honest empty */ }
+
+    return { reviews, declinedWork };
+  }),
 
   /**
    * `runId` is extended here for the same reason render and stage extend it, and
@@ -391,7 +539,10 @@ export const instagramStudioRouter = router({
       const existingRows = await database.select({ status: socialContentInventory.status, version: socialContentInventory.version })
         .from(socialContentInventory).where(eq(socialContentInventory.id, id)).limit(1);
       const existing = existingRows[0];
-      if (existing && !["pending", "rejected", "failed"].includes(existing.status)) {
+      // "draft" is the autosave lane (Wave 5) — staging is exactly its
+      // graduation into review, so it is overwritable here alongside the
+      // pre-review failure states.
+      if (existing && !["draft", "pending", "rejected", "failed"].includes(existing.status)) {
         throw new TRPCError({
           code: "CONFLICT",
           message: `This draft is already ${existing.status} in the queue. Edit it from the Queue instead of re-staging.`,

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "../shared";
+import { writeCreateHandoff } from "./igViews";
 
 export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const analytics = trpc.instagramAdmin.getAnalytics.useQuery();
@@ -166,7 +167,20 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
                 <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{winner.postType}</Badge><Badge variant="outline">{winner.engagementRate.toFixed(2)}% engagement</Badge>{winner.contentScore > 0 && <Badge variant="outline">Score {winner.contentScore}</Badge>}</div>
                 <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6">{winner.caption || "Caption unavailable"}</p>
                 <div className="mt-3 flex gap-4 text-xs text-muted-foreground"><span>{winner.likes} likes</span><span>{winner.comments} comments</span><span>{new Date(winner.postedAt).toLocaleDateString()}</span></div>
-                <Button className="mt-4" size="sm" variant="outline" onClick={() => onNavigate?.("studio")}><RefreshCw className="mr-2 h-4 w-4" /> Build a truthful sequel</Button>
+                {/* REAL handoff (Wave 5): the winning post's type, caption
+                    theme, and measured engagement ride into Create — this was
+                    a bare tab switch that discarded the very evidence it sat
+                    on top of. */}
+                <Button className="mt-4 min-h-11" size="sm" variant="outline" onClick={() => {
+                  writeCreateHandoff({
+                    sourceType: "proven_post",
+                    recordId: winner.postId,
+                    detail: `Sequel to a measured winner (${winner.postType}, ${winner.engagementRate.toFixed(2)}% engagement${winner.contentScore > 0 ? `, score ${winner.contentScore}` : ""}). Original caption: "${(winner.caption ?? "").slice(0, 400)}". The new angle must differ from the original concept.`,
+                    format: winner.postType === "carousel" ? "carousel" : "post",
+                    objective: "engagement",
+                  });
+                  onNavigate?.("studio");
+                }}><RefreshCw className="mr-2 h-4 w-4" /> Build a truthful sequel</Button>
               </div>
             ))}
           </CardContent>
