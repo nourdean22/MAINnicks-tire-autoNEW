@@ -3178,6 +3178,15 @@ export type InsertIgAutopostLog = typeof igAutopostLog.$inferInsert;
  */
 export const scheduledPosts = mysqlTable("scheduled_posts", {
   id: int("id").autoincrement().primaryKey(),
+  /**
+   * Link back to the social_content_inventory row that owns this deferred
+   * publish. Nullable — legacy rows and ad-hoc schedules have none. This link
+   * is what lets reject cancel a pending schedule and lets the cron write the
+   * fire-time outcome back onto the inventory row; without it a rejected item
+   * still published and a failed fire left the queue saying "scheduled" forever.
+   * Migration: drizzle/0096_scheduled_posts_inventory_id.sql (hand-applied).
+   */
+  inventoryId: varchar("inventoryId", { length: 64 }),
   platforms: json("platforms").$type<("facebook" | "instagram")[]>().notNull(),
   caption: text("caption").notNull(),
   imageUrl: varchar("imageUrl", { length: 1000 }),
@@ -3192,6 +3201,7 @@ export const scheduledPosts = mysqlTable("scheduled_posts", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_scheduled_due").on(table.status, table.scheduledAt),
+  index("idx_scheduled_inventory").on(table.inventoryId),
 ]);
 export type ScheduledPostRow = typeof scheduledPosts.$inferSelect;
 export type InsertScheduledPost = typeof scheduledPosts.$inferInsert;

@@ -1,6 +1,9 @@
 import { createLogger } from "../lib/logger";
 import { publishToSocial } from "./socialPublish";
 import { recordPublishAttempt, recordPublishOutcome, OUTCOME } from "./publishAttemptLedger";
+import type { db as dbFactory } from "../lib/db-helper";
+
+type Database = NonNullable<Awaited<ReturnType<typeof dbFactory>>>;
 
 const log = createLogger("services:scheduledPosts");
 
@@ -30,6 +33,39 @@ const STATUS = {
 /** Guard the invariant at module load rather than discovering it in production. */
 for (const v of Object.values(STATUS)) {
   if (v.length > 16) throw new Error(`scheduled_posts.status value "${v}" exceeds varchar(16)`);
+}
+
+/**
+ * Write the fire-time outcome back onto the inventory row that scheduled this
+ * post (scheduled_posts.inventoryId, migration 0096). Before the link existed
+ * the inventory row said "scheduled" FOREVER — a failed 3am fire was invisible
+ * on the Queue, and a published one never showed as published. Predicated on
+ * status='scheduled' so we never clobber a row the operator meanwhile touched.
+ * Best-effort: the scheduled_posts row already carries the authoritative
+ * outcome; a writeback failure must not turn a successful publish into a
+ * cron error.
+ */
+async function syncInventoryOutcome(
+  database: Database,
+  inventoryId: string | null,
+  status: "published" | "failed" | "ambiguous",
+  detail: string | null,
+): Promise<void> {
+  if (!inventoryId) return;
+  try {
+    const { socialContentInventory } = await import("../../drizzle/schema");
+    const { and, eq } = await import("drizzle-orm");
+    await database.update(socialContentInventory).set({
+      status,
+      ...(status === "published" ? { publishedAt: new Date() } : {}),
+      errorMessage: detail
+        ? `${status === "ambiguous" ? "scheduled publish AMBIGUOUS (may be LIVE — verify before retrying): " : "scheduled publish: "}${detail}`.slice(0, 500)
+        : null,
+      updatedAt: new Date(),
+    }).where(and(eq(socialContentInventory.id, inventoryId), eq(socialContentInventory.status, "scheduled")));
+  } catch (err) {
+    log.error("failed to sync scheduled-post outcome onto inventory row", { inventoryId, status, err });
+  }
 }
 
 /**
@@ -108,17 +144,35 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
         });
         const succeeded = results.filter((r) => r.success);
         const failures = results.filter((r) => !r.success);
+        // A dispatched-but-unanswered media_publish is NOT a plain failure —
+        // the post may be live, and "failed" is the status that invites the
+        // retry that duplicates it. Park those ambiguous, same as the throw
+        // path below.
+        const dispatchAmbiguous = succeeded.length === 0 && failures.some((r) => r.ambiguous);
         const failureDetail = failures.map((r) => `${r.platform}: ${r.error}`).join("; ").slice(0, 500);
-        await recordPublishOutcome(attemptId, succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed, {
-          igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results,
-        });
+        await recordPublishOutcome(
+          attemptId,
+          succeeded.length === 0 ? (dispatchAmbiguous ? OUTCOME.ambiguous : OUTCOME.failed) : OUTCOME.confirmed,
+          { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
+        );
 
-        if (succeeded.length === 0) {
+        if (dispatchAmbiguous) {
+          failed++;
+          await database
+            .update(scheduledPosts)
+            .set({
+              status: STATUS.ambiguous,
+              error: `publish dispatched but unanswered — reconcile with Meta before retrying (may be LIVE): ${failureDetail}`.slice(0, 500),
+            })
+            .where(eq(scheduledPosts.id, row.id));
+          await syncInventoryOutcome(database, row.inventoryId, "ambiguous", failureDetail);
+        } else if (succeeded.length === 0) {
           failed++;
           await database
             .update(scheduledPosts)
             .set({ status: STATUS.failed, error: failureDetail })
             .where(eq(scheduledPosts.id, row.id));
+          await syncInventoryOutcome(database, row.inventoryId, "failed", failureDetail);
         } else if (failures.length > 0) {
           // PARTIAL, not posted. This branch did not exist: any single success
           // marked the whole row "posted", so a Facebook success alongside an
@@ -131,12 +185,14 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
             .set({ status: STATUS.partial, postedAt: new Date(), igPostId: igPostId ?? null, error: failureDetail })
             .where(eq(scheduledPosts.id, row.id));
           log.warn("scheduled post published to SOME platforms only", { id: row.id, ok: succeeded.map((r) => r.platform), failed: failureDetail });
+          await syncInventoryOutcome(database, row.inventoryId, "published", `partial: ${failureDetail}`);
         } else {
           posted++;
           await database
             .update(scheduledPosts)
             .set({ status: STATUS.posted, postedAt: new Date(), igPostId: igPostId ?? null })
             .where(eq(scheduledPosts.id, row.id));
+          await syncInventoryOutcome(database, row.inventoryId, "published", null);
         }
       } catch (err) {
         // A throw is NOT proof nothing was posted — the call may have reached Meta
@@ -152,6 +208,7 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
             error: `threw mid-publish, reconcile with Meta before retrying (may be LIVE): ${(err instanceof Error ? err.message : String(err)).slice(0, 400)}`,
           })
           .where(eq(scheduledPosts.id, row.id));
+        await syncInventoryOutcome(database, row.inventoryId, "ambiguous", err instanceof Error ? err.message : String(err));
       }
     }
     const detail = `${posted} posted, ${partial} partial, ${failed} failed, ${skipped} claimed-elsewhere`

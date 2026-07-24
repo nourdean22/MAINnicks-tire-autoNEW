@@ -305,37 +305,10 @@ describe("instagramAdmin router", () => {
     });
   });
 
-  describe("schedulePost", () => {
-    const future = () => new Date(Date.now() + 3_600_000).toISOString();
-
-    it("rejects non-admin callers", async () => {
-      const caller = appRouter.createCaller(ctx("user"));
-      await expect(
-        caller.instagramAdmin.schedulePost({ platforms: ["instagram"], caption: "Pull up for tires", imageUrl: "https://x.com/y.jpg", scheduledAt: future() }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    });
-
-    it("blocks a banned claim before scheduling (BAD_REQUEST)", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      await expect(
-        caller.instagramAdmin.schedulePost({ platforms: ["instagram"], caption: "We guarantee the best deal in Cleveland", imageUrl: "https://x.com/y.jpg", scheduledAt: future() }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    });
-
-    it("rejects a scheduled time in the past (BAD_REQUEST)", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      await expect(
-        caller.instagramAdmin.schedulePost({ platforms: ["instagram"], caption: "Pull up for tires", imageUrl: "https://x.com/y.jpg", scheduledAt: new Date(Date.now() - 3_600_000).toISOString() }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    });
-  });
-
-  describe("listScheduled (admin)", () => {
-    it("returns an array without throwing", async () => {
-      const caller = appRouter.createCaller(ctx("admin"));
-      expect(Array.isArray(await caller.instagramAdmin.listScheduled({ limit: 10 }))).toBe(true);
-    });
-  });
+  // schedulePost / listScheduled / cancelScheduled were deleted 2026-07-24
+  // (zero client callers + integrity holes publishPost had already fixed).
+  // Scheduling is owned by instagramStudio.schedule — its guards are pinned in
+  // instagramStudioLifecycle.test.ts.
 
   describe("stageDraft validation for Reels", () => {
     // Reels no longer stage through stageDraft at all — the contract moved to

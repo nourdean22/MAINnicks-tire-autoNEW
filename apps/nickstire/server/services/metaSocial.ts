@@ -471,10 +471,50 @@ export async function postToFacebook(params: {
 
 // ─── Instagram Post (Image Required) ──────────────────
 
+/**
+ * The media_publish POST is the irreversible step: once it is dispatched, a
+ * timeout or dropped connection is NOT proof of failure — Meta may have
+ * published. Every result from this helper distinguishes "Meta answered no"
+ * (plain failure, safe to retry) from "the request left and no answer came
+ * back" (`ambiguous: true` — retrying can duplicate a live post). Callers park
+ * ambiguous results for reconciliation instead of resetting to a retryable
+ * state. Container creation and readiness polling stay OUTSIDE this helper:
+ * failures there are provably pre-publish and must remain plain failures.
+ */
+async function publishMediaContainer(
+  igUserId: string,
+  creationId: string,
+  authHeaders: Record<string, string>,
+  what: string,
+): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
+  let publishRes: Response;
+  try {
+    publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ creation_id: creationId }),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error(`Instagram ${what} publish DISPATCHED but no response — AMBIGUOUS, may be live:`, { error: errMsg });
+    return { success: false, ambiguous: true, error: `media_publish sent but no response (${errMsg}) — the ${what} may be LIVE` };
+  }
+  const publishData = await publishRes.json().catch(() => null);
+  if (!publishRes.ok) {
+    const errMsg = publishData?.error?.message || `${what} publish failed: HTTP ${publishRes.status}`;
+    log.error(`Instagram ${what} publish error:`, { error: errMsg });
+    return { success: false, error: errMsg };
+  }
+  const postId = publishData?.id;
+  log.info(`Instagram ${what} published: ${postId}`);
+  return { success: true, postId };
+}
+
 export async function postToInstagram(params: {
   imageUrl: string;
   caption: string;
-}): Promise<{ success: boolean; postId?: string; error?: string }> {
+}): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
   const igUserId = await getIgUserId();
@@ -520,27 +560,8 @@ export async function postToInstagram(params: {
       return { success: false, error: readiness.error };
     }
 
-    // Step 3: Publish the container
-    const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({
-        creation_id: creationId,
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    const publishData = await publishRes.json();
-
-    if (!publishRes.ok) {
-      const errMsg = publishData?.error?.message || `Publish failed: HTTP ${publishRes.status}`;
-      log.error("Instagram publish error:", { error: errMsg });
-      return { success: false, error: errMsg };
-    }
-
-    const postId = publishData.id;
-    log.info(`Instagram post published: ${postId}`);
-    return { success: true, postId };
+    // Step 3: Publish the container (ambiguity-aware — see publishMediaContainer)
+    return await publishMediaContainer(igUserId, creationId, authHeaders, "image");
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error("Instagram post error:", { error: errMsg });
@@ -553,7 +574,7 @@ export async function postToInstagram(params: {
 export async function postInstagramStory(params: {
   imageUrl?: string;
   videoUrl?: string;
-}): Promise<{ success: boolean; postId?: string; error?: string }> {
+}): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
   const igUserId = await getIgUserId();
@@ -603,27 +624,8 @@ export async function postInstagramStory(params: {
       return { success: false, error: readiness.error };
     }
 
-    // Step 3: Publish the container
-    const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({
-        creation_id: creationId,
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    const publishData = await publishRes.json();
-
-    if (!publishRes.ok) {
-      const errMsg = publishData?.error?.message || `Story publish failed: HTTP ${publishRes.status}`;
-      log.error("Instagram story publish error:", { error: errMsg });
-      return { success: false, error: errMsg };
-    }
-
-    const postId = publishData.id;
-    log.info(`Instagram story published: ${postId}`);
-    return { success: true, postId };
+    // Step 3: Publish the container (ambiguity-aware — see publishMediaContainer)
+    return await publishMediaContainer(igUserId, creationId, authHeaders, "story");
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error("Instagram story post error:", { error: errMsg });
@@ -636,7 +638,7 @@ export async function postInstagramStory(params: {
 export async function postInstagramCarousel(params: {
   imageUrls: string[];
   caption: string;
-}): Promise<{ success: boolean; postId?: string; error?: string }> {
+}): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
   const igUserId = await getIgUserId();
@@ -701,22 +703,8 @@ export async function postInstagramCarousel(params: {
       return { success: false, error: readiness.error };
     }
 
-    // Step 4: Publish
-    const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({
-        creation_id: containerData.id,
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-    const publishData = await publishRes.json();
-    if (!publishRes.ok) {
-      return { success: false, error: `Carousel publish failed: ${publishData?.error?.message || "unknown"}` };
-    }
-
-    log.info(`Instagram carousel published: ${publishData.id}`);
-    return { success: true, postId: publishData.id };
+    // Step 4: Publish (ambiguity-aware — see publishMediaContainer)
+    return await publishMediaContainer(igUserId, containerData.id, authHeaders, "carousel");
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error("Instagram carousel error:", { error: errMsg });
@@ -733,7 +721,7 @@ export async function postInstagramReel(params: {
   coverUrl?: string;
   /** Fallback cover: ms into the reel to grab the cover frame. Default 0 = the centered Anton hook first frame. */
   thumbOffsetMs?: number;
-}): Promise<{ success: boolean; postId?: string; error?: string }> {
+}): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
   const igUserId = await getIgUserId();
@@ -813,24 +801,8 @@ export async function postInstagramReel(params: {
       return { success: false, error: "Meta video processing timed out (still IN_PROGRESS after 150s)" };
     }
 
-    // Step 3: Publish the Reel container
-    const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({
-        creation_id: creationId,
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    const publishData = await publishRes.json();
-    if (!publishRes.ok) {
-      return { success: false, error: `Reel publish failed: ${publishData?.error?.message || "unknown"}` };
-    }
-
-    const postId = publishData.id;
-    log.info(`Instagram Reel published: ${postId}`);
-    return { success: true, postId };
+    // Step 3: Publish the Reel container (ambiguity-aware — see publishMediaContainer)
+    return await publishMediaContainer(igUserId, creationId, authHeaders, "Reel");
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error("Instagram Reel error:", { error: errMsg });
