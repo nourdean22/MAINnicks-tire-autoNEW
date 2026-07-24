@@ -486,6 +486,35 @@ export async function getTopPosts(opts?: { limit?: number }): Promise<PostAnalys
   }));
 }
 
+/**
+ * Account-wide averages over EVERY stored analytics row (Wave 7). The Learn
+ * screen's headline stats previously averaged only getTopPosts(5) — an
+ * average of winners presented as the account's baseline. null = the table
+ * could not be read (unknown, never zero).
+ */
+export async function getAccountAverages(): Promise<{
+  postCount: number;
+  avgEngagementRate: number | null;
+  avgContentScore: number | null;
+  scoredCount: number;
+} | null> {
+  const d = await db();
+  if (!d) return null;
+  const rows = await d
+    .select({ engagementRate: instagramAnalytics.engagementRate, contentScore: instagramAnalytics.contentScore })
+    .from(instagramAnalytics);
+  type AvgRow = { engagementRate: number | null; contentScore: number | null };
+  const typedRows = rows as AvgRow[];
+  const postCount = typedRows.length;
+  if (postCount === 0) return { postCount: 0, avgEngagementRate: null, avgContentScore: null, scoredCount: 0 };
+  const avgEngagementRate = typedRows.reduce((sum: number, r: AvgRow) => sum + (r.engagementRate ?? 0), 0) / postCount / 100;
+  const scored = typedRows.filter((r: AvgRow) => (r.contentScore ?? 0) > 0);
+  const avgContentScore = scored.length
+    ? Math.round(scored.reduce((sum: number, r: AvgRow) => sum + (r.contentScore ?? 0), 0) / scored.length)
+    : null;
+  return { postCount, avgEngagementRate, avgContentScore, scoredCount: scored.length };
+}
+
 // ─── FULL PIPELINE ──────────────────────────────────────
 
 /**

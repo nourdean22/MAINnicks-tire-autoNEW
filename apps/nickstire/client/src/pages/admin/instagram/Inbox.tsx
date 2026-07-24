@@ -33,13 +33,16 @@ export function Inbox({ onNavigate }: InboxProps) {
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState<string>("");
   const [selectedTone, setSelectedTone] = useState<"warm" | "professional" | "witty" | "promo">("warm");
+  /** Unanswered-first triage (Wave 7): the operator's actual job here is the
+   *  comments nobody has replied to, not a flat chronological list. */
+  const [commentFilter, setCommentFilter] = useState<"all" | "unanswered" | "replied">("all");
 
   // Load Content Opportunities from reviews
   const { data: optData, isLoading: isOptLoading } = trpc.reviewReplies.getContentClusters.useQuery();
   const clusters = optData?.clusters;
 
   // Load Live Post Feed
-  const { data: posts, isLoading: loadingFeed, refetch: refetchFeed } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
+  const { data: posts, isLoading: loadingFeed, isError: feedError, error: feedErrorDetail, refetch: refetchFeed } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
 
   // Load Comments for selected post
   const { data: commentsRes, isLoading: loadingComments, refetch: refetchComments } = trpc.instagramAdmin.getComments.useQuery(
@@ -131,6 +134,15 @@ export function Inbox({ onNavigate }: InboxProps) {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Loading feed...</span>
               </div>
+            ) : feedError ? (
+              // "No posts cached" is a claim about Instagram; when the QUERY
+              // failed, the honest statement is that we could not look.
+              <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-3">
+                <AlertTriangle className="h-6 w-6 text-amber-500" />
+                <p className="text-sm">Could not read the cached feed — this is <strong>unknown</strong>, not empty.</p>
+                <p className="text-xs text-muted-foreground">{feedErrorDetail?.message}</p>
+                <Button size="sm" variant="outline" onClick={() => refetchFeed()}>Retry</Button>
+              </div>
             ) : posts && posts.length > 0 ? (
               posts.map((post) => {
                 const isSelected = post.id === selectedPostId;
@@ -211,6 +223,25 @@ export function Inbox({ onNavigate }: InboxProps) {
                 </Button>
               </CardHeader>
               <CardContent className="p-0 overflow-y-auto flex-1 divide-y">
+                {commentsRes?.ok !== false && (commentsRes?.comments?.length ?? 0) > 0 && (
+                  <div className="flex gap-2 border-b bg-muted/10 p-2">
+                    {(["all", "unanswered", "replied"] as const).map((f) => {
+                      const count = f === "all"
+                        ? commentsRes!.comments!.length
+                        : commentsRes!.comments!.filter((c) => (f === "replied") === Boolean(c.replied)).length;
+                      return (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setCommentFilter(f)}
+                          className={`min-h-11 rounded border px-3 text-xs capitalize transition-colors ${commentFilter === f ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted border-border"}`}
+                        >
+                          {f} · {count}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {loadingComments ? (
                   <div className="flex flex-col items-center justify-center h-full space-y-2 p-8">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -228,7 +259,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                   </div>
                 ) : commentsRes?.comments && commentsRes.comments.length > 0 ? (
                   <div className="divide-y">
-                    {commentsRes.comments.map((comment) => (
+                    {commentsRes.comments.filter((c) => commentFilter === "all" ? true : (commentFilter === "replied") === Boolean(c.replied)).map((comment) => (
                       <div key={comment.id} className="p-4 space-y-3 transition-colors hover:bg-muted/10">
                         <div className="flex justify-between items-start">
                           <div className="flex items-center gap-2">
@@ -264,6 +295,24 @@ export function Inbox({ onNavigate }: InboxProps) {
                         <p className="text-sm text-foreground/90 pl-9 whitespace-pre-wrap leading-relaxed">
                           {comment.text}
                         </p>
+
+                        {/* A real question in the comments is content evidence —
+                            hand it to Create with the actual text, not a bare
+                            tab switch (Wave 7). */}
+                        {!comment.replied && comment.text.includes("?") && (
+                          <div className="pl-9">
+                            <Button size="sm" variant="ghost" className="min-h-11 px-2 text-xs text-primary" onClick={() => {
+                              writeCreateHandoff({
+                                sourceType: "customer_question",
+                                detail: `A customer asked on Instagram: "${comment.text.slice(0, 400)}" — answer it usefully for everyone who has the same question.`,
+                                objective: "education",
+                              });
+                              onNavigate("studio");
+                            }}>
+                              <Sparkles className="mr-1 h-3 w-3" /> Turn into a content idea
+                            </Button>
+                          </div>
+                        )}
 
                         {!comment.replied && (
                           <div className="pl-9">

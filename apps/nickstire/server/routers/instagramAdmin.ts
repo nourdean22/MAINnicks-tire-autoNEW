@@ -202,11 +202,15 @@ export const instagramAdminRouter = router({
     };
   }),
 
-  /** Account header (username, followers, etc.) from the cached feed. */
-  getAccountInfo: adminProcedure.query(async () => {
-    const { getInstagramAccount } = await import("../instagram");
-    return getInstagramAccount();
-  }),
+  /*
+   * getAccountInfo / reconnectToken / generatePost were DELETED 2026-07-24
+   * (audit R4): zero client callers, no test coverage, and each duplicated a
+   * capability owned elsewhere (feed cache, Settings config flow, the
+   * governed Studio pipeline). finalizeReelDraft was deleted in the same cut
+   * and RESTORED the same day: approval-integrity.test.ts's E2E pipeline
+   * (enqueue -> finalize -> approve -> publish) exercises it — it is part of
+   * the reel pipeline's tested contract, not dead weight.
+   */
 
   /** Recent posts from the cached feed (refresh via syncFeed). */
   getLiveFeed: adminProcedure
@@ -216,18 +220,21 @@ export const instagramAdminRouter = router({
       return getInstagramPosts(input?.limit ?? 24);
     }),
 
-  /** Content-intelligence bundle: four fast, already-built analytics reports. */
+  /** Content-intelligence bundle: fast, already-built analytics reports.
+   *  accountAverages covers EVERY stored post — the headline stats used to
+   *  average only the top-5 list, presenting winners as the baseline. */
   getAnalytics: adminProcedure.query(async () => {
-    const { getEngagementByType, getBestPostingTimes, getFollowerGrowth, getTopPosts } = await import(
+    const { getEngagementByType, getBestPostingTimes, getFollowerGrowth, getTopPosts, getAccountAverages } = await import(
       "../pipelines/instagram-data"
     );
-    const [engagementByType, bestPostingTimes, followerGrowth, topPosts] = await Promise.all([
+    const [engagementByType, bestPostingTimes, followerGrowth, topPosts, accountAverages] = await Promise.all([
       getEngagementByType(),
       getBestPostingTimes({ limit: 7 }),
       getFollowerGrowth(),
       getTopPosts({ limit: 5 }),
+      getAccountAverages(),
     ]);
-    return { engagementByType, bestPostingTimes, followerGrowth, topPosts };
+    return { engagementByType, bestPostingTimes, followerGrowth, topPosts, accountAverages };
   }),
 
   /** On-demand narrative performance report (separate proc — may be heavier). */
@@ -461,29 +468,6 @@ Keep it under 200 characters.`;
       return result;
     }),
 
-  /** Mint a never-expiring Page token from a pasted short-lived user token. */
-  reconnectToken: adminProcedure
-    .input(z.object({ userToken: z.string().min(10) }))
-    .mutation(async ({ input }) => {
-      const { reconnectMetaFromUserToken } = await import("../services/metaSocial");
-      const result = await reconnectMetaFromUserToken(input.userToken.trim());
-      // Never return the token itself to the client — only success + error.
-      return { ok: result.ok, error: result.error ?? null };
-    }),
-
-  /** AI co-pilot: generate + eval an IG post. Dry-run by default (logs +
-   *  Telegram preview); only posts live when the legacy_autopost_live flag
-   *  is enabled — so this is safe to expose without a live-publish toggle. */
-  generatePost: adminProcedure
-    .input(z.object({
-      archetype: z.enum(IG_ARCHETYPES).optional(),
-      customConcept: z.string().trim().max(1000).optional(),
-    }).optional())
-    .mutation(async ({ input }) => {
-      const { runIgAutopostOneOff } = await import("../services/igAutopost");
-      return runIgAutopostOneOff(input?.archetype, input?.customConcept);
-    }),
-
   /** Advanced IQ 200 Content Generator endpoint for Studio.tsx */
   generatePostDraft: adminProcedure
     .input(z.object({
@@ -507,9 +491,10 @@ Keep it under 200 characters.`;
       }
     }),
 
-  /** Recent AI generations (from ig_autopost_log) so the composer can show
-   *  the actual draft the co-pilot produced — generatePost returns scores +
-   *  status but not the caption/image (those go to the log + Telegram). */
+  /** Recent AI generations (from ig_autopost_log).
+   *  @deprecated Zero client callers (audit R4, 2026-07-24) — its composer and
+   *  the generatePost co-pilot are gone. Kept only for its test coverage;
+   *  delete alongside the legacy queue. */
   getRecentGenerations: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(50).default(25) }).optional())
     .query(async ({ input }): Promise<Array<{
@@ -636,6 +621,9 @@ Keep it under 200 characters.`;
       return { success: true };
     }),
 
+  /** Reel pipeline step: attach the finished mp4 to a generating draft and
+   *  move it to review. Part of the E2E integrity contract pinned by
+   *  approval-integrity.test.ts (enqueue -> finalize -> approve -> publish). */
   finalizeReelDraft: adminProcedure
     .input(z.object({
       id: z.string(),
@@ -645,7 +633,7 @@ Keep it under 200 characters.`;
     .mutation(async ({ input }) => {
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
+
       const { socialContentInventory } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
 

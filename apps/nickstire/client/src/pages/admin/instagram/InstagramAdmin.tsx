@@ -119,7 +119,7 @@ export function InstagramAdmin() {
         {activeView === "publish" && <QueueV2 />}
         {activeView === "community" && <Inbox onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
         {activeView === "insights" && <Learn onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
-        {activeView === "planning" && <DraftBoardPanel />}
+        {activeView === "planning" && <DraftBoardPanel onNavigate={() => navigate("create")} />}
         {activeView === "actions" && <ActionCenter />}
         {activeView === "control" && <AutonomyCommandCenter />}
         {activeView === "settings" && <Settings />}
