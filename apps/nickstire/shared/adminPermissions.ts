@@ -41,6 +41,32 @@ export function permissionsForAdminRole(role: AdminRole): readonly AdminPermissi
  */
 export function permissionForAdminProcedure(path: string, type: "query" | "mutation" | "subscription"): AdminPermission {
   const normalized = path.toLowerCase();
+
+  // ── Exact-path overrides (checked before every prefix rule) ──────────────
+  //
+  // adminSecurity.recordAction is the AUDIT-LOG WRITE fired after ordinary
+  // operator actions (Overview's confirm/cancel calls it on success). Rolled
+  // into adminsecurity.* → security.manage (owner-only), the sequence for any
+  // non-owner was: booking confirm SUCCEEDS → receipt write throws FORBIDDEN
+  // → mutateAsync rejects → the operator sees a red error for a write that
+  // worked, and re-taps an already-confirmed booking. An audit log only the
+  // owner may write defeats its own purpose: every role must be able to
+  // record its own actions. READING/managing the log stays security.manage —
+  // this is the one deliberate mutation→admin.view exception, pinned in
+  // adminPermissionCoverage.test.ts.
+  if (normalized === "adminsecurity.recordaction") return "admin.view";
+
+  // Physical-security reads are not dashboard reads: nickActions.cameras
+  // returns camera config + stream URLs, and the operational-router QUERY
+  // default below handed it to every role including viewer.
+  if (normalized === "nickactions.cameras") return "settings.manage";
+
+  // Bulk export is exfiltration-shaped even though it is a read: export.leads
+  // returns up to 10,000 customers' name/phone/email/problem as CSV, and the
+  // query default gave it to every role. The comment further down already
+  // named "bulk export" part of the dangerous operational surface — the
+  // query/mutation split silently undermined that for reads.
+  if (normalized.startsWith("export.")) return "settings.manage";
   if (normalized.startsWith("customers.") || normalized.startsWith("technicians.") || normalized.startsWith("jobassignments.")) return "customers.manage";
   if (normalized.startsWith("lead.") || normalized.startsWith("segments.")) return "leads.manage";
   if (normalized.startsWith("booking.") || normalized.startsWith("dispatch.")) return "bookings.manage";
@@ -50,7 +76,13 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
     return type === "mutation" ? "money.manage" : "money.view";
   }
   if (normalized.startsWith("content") || normalized.startsWith("campaigns.") || normalized.startsWith("winback.") || normalized.startsWith("instagramadmin.") || normalized.startsWith("instagramstudio.") || normalized.startsWith("socialpipeline.") || normalized.startsWith("gbp.") || normalized.startsWith("metaadsarchitect.")) return "marketing.manage";
-  if (normalized.startsWith("analytics.") || normalized.startsWith("weeklyreport.") || normalized.startsWith("intelligence.") || normalized.startsWith("trafficfunnel.") || normalized.startsWith("smsperformance.") || normalized.startsWith("closedloop.")) return "reports.view";
+  // SPLIT BY TYPE: reports.view is held by viewer and accountant — fine for
+  // reading a chart, wrong for whatever mutations these routers grow
+  // (closedLoop has write procedures). Reads stay reports.view; writes need
+  // an operator-grade permission.
+  if (normalized.startsWith("analytics.") || normalized.startsWith("weeklyreport.") || normalized.startsWith("intelligence.") || normalized.startsWith("trafficfunnel.") || normalized.startsWith("smsperformance.") || normalized.startsWith("closedloop.")) {
+    return type === "mutation" ? "settings.manage" : "reports.view";
+  }
   if (normalized.startsWith("settings.") || normalized.startsWith("featureflags.") || normalized.startsWith("shopdriver.") || normalized.startsWith("autolabor.") || normalized.startsWith("system.")) return "settings.manage";
   if (normalized.startsWith("adminsecurity.")) return "security.manage";
 
@@ -64,10 +96,12 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // callbacks), vapi, sms, gatewayTire, coupons, specials and adStudio, whose
   // own router comment claims "every procedure is owner-gated".
   //
-  // Currently DORMANT: _core/trpc.ts:90 early-returns when MFA is not required
-  // and never reaches this function. That is precisely why this must land BEFORE
-  // MFA enforcement — turning on RBAC without this would activate a fail-open
-  // default for half the application in the same commit.
+  // LIVE since the 2026-07 authorization fix in _core/trpc.ts: authorization
+  // now runs unconditionally (MFA and roles are independent controls), so
+  // this resolver governs every adminProcedure call. (An earlier version of
+  // this comment said "currently DORMANT" — that went stale the day RBAC was
+  // enabled, and a stale claim that a permission map is decorative invites
+  // someone to weaken it.)
 
   /**
    * Dangerous operational surface — migrations, data pruning, credential
@@ -84,7 +118,7 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
    */
   if (
     normalized.startsWith("nickactions.") || normalized.startsWith("admindashboard.") ||
-    normalized.startsWith("controlcenter.") || normalized.startsWith("export.")
+    normalized.startsWith("controlcenter.")
   ) return type === "mutation" ? "settings.manage" : "admin.view";
 
   // Anything that can reach a customer: texts, calls, reviews, reminders, offers.

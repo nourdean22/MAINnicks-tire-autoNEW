@@ -15,12 +15,11 @@
  * adStudio's own router comment claims "every procedure is owner-gated". It was
  * resolving to admin.view.
  *
- * THE SEQUENCING TRAP THIS TEST EXISTS TO HOLD:
- * the fallback is currently DORMANT — _core/trpc.ts:90 early-returns when MFA is
- * not required and never reaches the resolver. So enabling RBAC (C2) WITHOUT this
- * fix would activate a fail-open default for half the application in the same
- * commit. Both audit reports listed C2 before C3. That order opens the hole it is
- * trying to close.
+ * The resolver is LIVE: _core/trpc.ts applies authorization unconditionally
+ * (MFA and roles are independent controls). An earlier version of this header
+ * called the fallback "currently DORMANT" — stale since the RBAC enablement,
+ * and corrected because a test that claims to guard a decorative map invites
+ * someone to weaken the map.
  */
 import { describe, it, expect } from "vitest";
 import { permissionForAdminProcedure, ADMIN_ROLES, hasAdminPermission } from "../shared/adminPermissions";
@@ -69,6 +68,38 @@ describe("every admin mutation is explicitly permissioned", () => {
   it("...and only the owner holds that fallback permission", () => {
     const allowed = ADMIN_ROLES.filter((r) => hasAdminPermission(r, "security.manage"));
     expect(allowed).toEqual(["owner"]);
+  });
+});
+
+describe("sensitive READS do not ride the permissive query default (Wave 2)", () => {
+  it.each([
+    // Bulk export is exfiltration-shaped: up to 10,000 customers' name/phone/
+    // email as CSV. It was a .query, so it resolved to admin.view — every
+    // role, including viewer, could pull the whole customer database.
+    ["export.leads", "settings.manage"],
+    ["export.bookings", "settings.manage"],
+    ["export.callbacks", "settings.manage"],
+    ["export.calls", "settings.manage"],
+    // Camera config + stream URLs are physical security, not dashboard reads.
+    ["nickActions.cameras", "settings.manage"],
+  ] as const)("%s (query) requires %s", (path, expected) => {
+    expect(permissionForAdminProcedure(path, "query")).toBe(expected);
+  });
+
+  it("reports-family routers split by type — a viewer can read charts, not write", () => {
+    expect(permissionForAdminProcedure("closedLoop.overview", "query")).toBe("reports.view");
+    expect(permissionForAdminProcedure("closedLoop.recordDecision", "mutation")).toBe("settings.manage");
+    expect(permissionForAdminProcedure("intelligence.masterReport", "query")).toBe("reports.view");
+    expect(permissionForAdminProcedure("intelligence.rebuild", "mutation")).toBe("settings.manage");
+  });
+
+  it("recordAction is the ONE deliberate mutation→admin.view exception: every role must be able to write its own audit entry", () => {
+    // Owner-only audit writes made a front_desk booking-confirm SUCCEED and
+    // then error on the receipt — a red banner over a write that worked.
+    expect(permissionForAdminProcedure("adminSecurity.recordAction", "mutation")).toBe("admin.view");
+    // The rest of adminSecurity stays owner-only, including READING the log.
+    expect(permissionForAdminProcedure("adminSecurity.listActions", "query")).toBe("security.manage");
+    expect(permissionForAdminProcedure("adminSecurity.rotateSecret", "mutation")).toBe("security.manage");
   });
 });
 
