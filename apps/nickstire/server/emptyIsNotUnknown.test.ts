@@ -24,17 +24,17 @@ import { describe, expect, it } from "vitest";
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
 describe("every list screen distinguishes empty from unreadable", () => {
-  it("Queue branches on isError BEFORE the empty state", () => {
-    // Queue.tsx IS reachable — QueueV2.tsx:70 renders it behind a "show legacy"
-    // toggle. I removed this assertion after wrongly concluding the file was
-    // dead, and deleted the file too. Both restored. The reachability check that
-    // misled me excluded its own importer, because the grep filter matched the
-    // FILE PATH ("QueueV2") rather than only the symbol.
-    const s = read("client/src/pages/admin/instagram/Queue.tsx");
+  it("ReelQueue branches on isError BEFORE the empty state", () => {
+    // Queue.tsx's reel capability was ABSORBED into ReelQueue.tsx (a Publish
+    // segment) in the reel-absorption wave, and the legacy file deleted — this
+    // time capability-first, unlike the earlier premature deletion this
+    // comment used to describe (a reachability grep whose filter matched the
+    // FILE PATH "QueueV2" instead of only the symbol, hiding the importer).
+    const s = read("client/src/pages/admin/instagram/ReelQueue.tsx");
     expect(s).toMatch(/isError \?/);
     expect(s).toMatch(/unknown, not empty/i);
     // Order matters: an isError branch after the empty check never renders.
-    expect(s.indexOf("isError ?")).toBeLessThan(s.indexOf("filteredDrafts.length === 0"));
+    expect(s.indexOf("isError ?")).toBeLessThan(s.indexOf("reels.length === 0"));
   });
 
   it("QueueV2 branches on isError BEFORE the empty state", () => {

@@ -25,11 +25,18 @@ describe("irreversible actions take two in-DOM taps (window.confirm is dead in t
     expect(q).toMatch(/Yes — publish now/);
   });
 
-  it("legacy Queue reject is armed then confirmed, never one icon tap", () => {
-    const q = read("instagram/Queue.tsx");
+  it("ReelQueue reject is armed then confirmed, never one icon tap", () => {
+    // (Ported from the legacy Queue, deleted in the reel-absorption wave.)
+    const q = read("instagram/ReelQueue.tsx");
     expect(q).toMatch(/setConfirmRejectId/);
     // the destructive mutate only fires from the confirm row
     expect(q).not.toMatch(/onClick=\{\(\) => rejectDraft\.mutate/);
+  });
+
+  it("ReelQueue publish is two-tap through the exact-payload panel (an upgrade over the legacy one-tap)", () => {
+    const q = read("instagram/ReelQueue.tsx");
+    expect(q).toMatch(/setConfirmPublishId/);
+    expect(q).toMatch(/Yes — publish now/);
   });
 
   it("ActionCenter ambiguous-publish resolutions are armed Buttons, not 11px links", () => {
