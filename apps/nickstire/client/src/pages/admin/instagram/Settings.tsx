@@ -8,12 +8,26 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 
-function StatusCard({ label, ok, detail, icon: Icon }: { label: string; ok: boolean; detail: string; icon: typeof Server }) {
+/**
+ * THREE STATES, NEVER TWO — same rule HQ's Meta card already follows. "We
+ * could not verify" is neither READY nor NEEDS ATTENTION: forcing it into
+ * either lies in one direction or the other (a two-state card here showed a
+ * revoked-token UNKNOWN as green READY).
+ */
+type HealthState = "ready" | "attention" | "unknown";
+const STATE_STYLE: Record<HealthState, { chip: string; badge: string; label: string }> = {
+  ready: { chip: "bg-emerald-500/10 text-emerald-400", badge: "border-emerald-500/40 text-emerald-400", label: "READY" },
+  attention: { chip: "bg-red-500/10 text-red-400", badge: "border-red-500/40 text-red-400", label: "NEEDS ATTENTION" },
+  unknown: { chip: "bg-amber-500/10 text-amber-400", badge: "border-amber-500/40 text-amber-400", label: "UNVERIFIED" },
+};
+
+function StatusCard({ label, state, detail, icon: Icon }: { label: string; state: HealthState; detail: string; icon: typeof Server }) {
+  const style = STATE_STYLE[state];
   return (
     <Card>
       <CardContent className="flex items-start gap-3 p-4">
-        <div className={`rounded-lg p-2 ${ok ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}><Icon className="h-5 w-5" /></div>
-        <div><div className="flex items-center gap-2"><span className="font-semibold">{label}</span><Badge variant="outline" className={ok ? "border-emerald-500/40 text-emerald-400" : "border-red-500/40 text-red-400"}>{ok ? "READY" : "NEEDS ATTENTION"}</Badge></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div>
+        <div className={`rounded-lg p-2 ${style.chip}`}><Icon className="h-5 w-5" /></div>
+        <div><div className="flex items-center gap-2"><span className="font-semibold">{label}</span><Badge variant="outline" className={style.badge}>{style.label}</Badge></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div>
       </CardContent>
     </Card>
   );
@@ -62,19 +76,28 @@ export default function Settings() {
   const isLoading = connection.isLoading || health.isLoading || config.isLoading;
   if (isLoading) return <div className="flex min-h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
-  // "Configured" (presence) and "alive" (the Graph API accepted the token just
-  // now) are different facts — a revoked token used to show green here while
-  // every publish failed. The card is only green when BOTH hold.
+  // "Configured" (presence), "alive" (Graph accepted the token just now), and
+  // "could not ask" are THREE different facts. `live?.ok !== false` previously
+  // rendered the unknown case as READY — the exact defect this card's comment
+  // said it fixed.
   const live = connection.data?.live;
   const metaConfigured = Boolean(connection.data?.configured && (connection.data?.facebookReady || connection.data?.instagramReady));
-  const metaReady = metaConfigured && live?.ok !== false;
+  const metaState: HealthState = !metaConfigured
+    ? "attention"
+    : live?.ok === true
+      ? "ready"
+      : live?.ok === false && !live?.unknown
+        ? "attention"
+        : "unknown";
   const metaDetail = !metaConfigured
     ? "Meta identifiers or access token are incomplete."
-    : live?.ok === false
-      ? `Configured, but the Graph API rejected the token: ${live.error ?? "unknown error"}`
-      : live?.ok
-        ? `Live check passed${live.igUsername ? ` as @${live.igUsername}` : ""}${live.pageName ? ` · Page "${live.pageName}"` : ""}.`
-        : "Facebook or Instagram Graph access is configured.";
+    : live?.ok === true
+      ? `Live check passed${live.igUsername ? ` as @${live.igUsername}` : ""}${live.pageName ? ` · Page "${live.pageName}"` : ""}.`
+      : live?.unknown
+        ? `Configured, but Meta could not be reached to verify: ${live.error ?? "transport error"}. This is unknown, not a dead token.`
+        : live?.ok === false
+          ? `Configured, but the Graph API rejected the token: ${live.error ?? "unknown error"}`
+          : "Configured — no live verification result is available yet.";
   const tokenReady = Boolean(connection.data?.token?.present);
   const storageReady = Boolean(health.data?.storage?.configured && health.data?.storage?.permanentUrls);
   const generatorReady = Boolean(health.data?.generator?.configured);
@@ -87,10 +110,10 @@ export default function Settings() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatusCard label="Meta connection" ok={metaReady} detail={metaDetail} icon={Server} />
-        <StatusCard label="Access token" ok={tokenReady} detail={tokenReady ? "A persisted token is present. Its raw value is hidden." : "No persisted Meta access token is available."} icon={KeyRound} />
-        <StatusCard label="Permanent media" ok={storageReady} detail={storageReady ? "S3 and CloudFront are configured for Meta-readable permanent URLs." : "S3_BUCKET and CLOUDFRONT_DOMAIN must both be configured."} icon={Database} />
-        <StatusCard label="Media generation" ok={generatorReady} detail={generatorReady ? "The configured media provider has credentials." : "The Reel/media generation provider is not fully configured."} icon={ImageIcon} />
+        <StatusCard label="Meta connection" state={metaState} detail={metaDetail} icon={Server} />
+        <StatusCard label="Access token" state={tokenReady ? "ready" : "attention"} detail={tokenReady ? "A persisted token is present. Its raw value is hidden." : "No persisted Meta access token is available."} icon={KeyRound} />
+        <StatusCard label="Permanent media" state={storageReady ? "ready" : "attention"} detail={storageReady ? "S3 and CloudFront are configured for Meta-readable permanent URLs." : "S3_BUCKET and CLOUDFRONT_DOMAIN must both be configured."} icon={Database} />
+        <StatusCard label="Media generation" state={generatorReady ? "ready" : "attention"} detail={generatorReady ? "The configured media provider has credentials." : "The Reel/media generation provider is not fully configured."} icon={ImageIcon} />
       </div>
 
       {/* null means the count FAILED, and `?? 0` turned that into an all-clear —

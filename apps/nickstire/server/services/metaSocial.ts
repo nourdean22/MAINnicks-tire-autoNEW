@@ -46,6 +46,9 @@ export function clearRuntimeMetaConfigCache(): void {
   metaIgUserId = null;
   metaAppId = null;
   metaAppSecret = null;
+  // A config change invalidates any cached live verdict — the old ids' result
+  // must not answer for the new ids.
+  liveCache = null;
 }
 
 function getPageToken(): string | null {
@@ -76,7 +79,10 @@ async function persistPageToken(token: string): Promise<void> {
 
 async function ensurePageTokenLoaded(): Promise<void> {
   if (runtimePageToken || persistedLoadAttempted) return;
-  persistedLoadAttempted = true;
+  // The latch is set only on a COMPLETED read. It used to be set before the
+  // attempt with a log-only catch — one DB blip on first use (routine during a
+  // redeploy) permanently stranded the persisted token for the process
+  // lifetime, and every publish failed "not configured" until a restart.
   try {
     const { db } = await import("../lib/db-helper");
     const d = await db();
@@ -88,14 +94,15 @@ async function ensurePageTokenLoaded(): Promise<void> {
       runtimePageToken = rows[0].v;
       log.info("Loaded persisted Meta page token from durable store");
     }
+    persistedLoadAttempted = true;
   } catch (err) {
-    log.error("Failed to load persisted Meta page token:", { error: err instanceof Error ? err.message : String(err) });
+    log.error("Failed to load persisted Meta page token (will retry on next use):", { error: err instanceof Error ? err.message : String(err) });
   }
 }
 
 async function ensureMetaConfigLoaded(): Promise<void> {
   if (configLoadAttempted) return;
-  configLoadAttempted = true;
+  // Latch on COMPLETION only — same stranding bug as ensurePageTokenLoaded.
   try {
     const { db } = await import("../lib/db-helper");
     const d = await db();
@@ -119,9 +126,10 @@ async function ensureMetaConfigLoaded(): Promise<void> {
       if (r.k === "meta_app_id") metaAppId = r.v;
       if (r.k === "meta_app_secret") metaAppSecret = r.v;
     }
+    configLoadAttempted = true;
     log.info("Loaded persisted Meta configuration from database");
   } catch (err) {
-    log.error("Failed to load persisted Meta config:", { error: err instanceof Error ? err.message : String(err) });
+    log.error("Failed to load persisted Meta config (will retry on next use):", { error: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -214,6 +222,13 @@ export interface MetaLiveStatus {
   igUsername: string | null;
   pageName: string | null;
   error: string | null;
+  /**
+   * We could not ASK Meta (DNS/timeout/connection drop) — a third state that
+   * is neither "Meta accepted" nor "Meta rejected". Consumers must render it
+   * as unknown, not as a dead token. Never cached: the next poll should
+   * actually re-ask instead of replaying a transport blip for 5 minutes.
+   */
+  unknown?: boolean;
 }
 
 let liveCache: { at: number; result: MetaLiveStatus } | null = null;
@@ -244,12 +259,26 @@ export async function verifyMetaConnectionLive(opts?: { force?: boolean }): Prom
   if (!token) return fail("No Meta access token available");
   if (!igUserId && !pageId) return fail("Neither META_IG_USER_ID nor META_PAGE_ID is configured");
 
+  /**
+   * "Could not reach Meta" and "Meta rejected the credentials" are different
+   * facts. The old catch routed BOTH through fail(), so a 10s network blip was
+   * negative-cached as ok:false for 5 minutes and every consumer's carefully
+   * built third state (live: null) was unreachable — a transport error read as
+   * a dead token. Transport failures are tagged and NEVER cached.
+   */
+  class MetaTransportError extends Error {}
+
   try {
     const probe = async (id: string, fields: string) => {
-      const res = await fetch(`${GRAPH_URL}/${id}?fields=${fields}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10000),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${GRAPH_URL}/${id}?fields=${fields}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10000),
+        });
+      } catch (err) {
+        throw new MetaTransportError(err instanceof Error ? err.message : String(err));
+      }
       const data = await res.json().catch(() => null);
       if (!res.ok || !data || data.error) {
         throw new Error(data?.error?.message || `HTTP ${res.status}`);
@@ -272,6 +301,9 @@ export async function verifyMetaConnectionLive(opts?: { force?: boolean }): Prom
     liveCache = { at: Date.now(), result };
     return result;
   } catch (err) {
+    if (err instanceof MetaTransportError) {
+      return { ok: false, unknown: true, checkedAt, igUsername: null, pageName: null, error: `Could not reach Meta to verify: ${err.message}` };
+    }
     return fail(err instanceof Error ? err.message : String(err));
   }
 }
@@ -390,6 +422,10 @@ export async function reconnectMetaFromUserToken(userToken: string): Promise<{
     const pageToken: string = pageData.access_token;
     setRuntimePageToken(pageToken);
     await persistPageToken(pageToken);
+    // The dead-token verdict must not outlive the reconnect that fixed it —
+    // without this, Settings kept saying "disconnected" for up to 5 minutes
+    // after a WORKING reconnect, inviting a second panic reconnect.
+    liveCache = null;
     log.info("Meta page token reconnected (never-expiring) for page", { pageId });
     return { ok: true, pageToken };
   } catch (err) {

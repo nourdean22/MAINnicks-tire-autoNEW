@@ -164,4 +164,46 @@ describe("verifyMetaConnectionLive", () => {
     expect(second).toEqual(first);
     expect(mock.mock.calls.length).toBe(callsAfterFirst);
   });
+
+  it("reports a TRANSPORT failure as unknown — not as a dead token (Wave 2)", async () => {
+    // stubFetch throws for unrouted urls — exactly a network/timeout throw.
+    stubFetch(() => null);
+    const res = await verifyMetaConnectionLive({ force: true });
+    expect(res.ok).toBe(false);
+    expect(res.unknown).toBe(true);
+    expect(res.error).toContain("Could not reach Meta");
+  });
+
+  it("never CACHES a transport failure — the next poll re-asks and can recover (Wave 2)", async () => {
+    stubFetch(() => null);
+    const blip = await verifyMetaConnectionLive({ force: true });
+    expect(blip.unknown).toBe(true);
+
+    // Transport restored; a NON-forced call must re-probe rather than replay
+    // the blip for 5 minutes.
+    stubFetch((url) => {
+      if (url.includes("/1789?")) return { body: { id: "1789", username: "nickstire" } };
+      if (url.includes("/42?")) return { body: { id: "42", name: "Nick's" } };
+      return null;
+    });
+    const recovered = await verifyMetaConnectionLive();
+    expect(recovered.ok).toBe(true);
+    expect(recovered.unknown).toBeUndefined();
+  });
+
+  it("a definitive Graph rejection IS cached (unchanged) and carries no unknown flag", async () => {
+    stubFetch(() => ({ status: 401, body: { error: { message: "token revoked" } } }));
+    const rejected = await verifyMetaConnectionLive({ force: true });
+    expect(rejected.ok).toBe(false);
+    expect(rejected.unknown).toBeUndefined();
+
+    // Even with transport now healthy, the cached rejection answers.
+    const { mock } = stubFetch((url) => {
+      if (url.includes("/1789?")) return { body: { id: "1789", username: "nickstire" } };
+      return null;
+    });
+    const cached = await verifyMetaConnectionLive();
+    expect(cached.ok).toBe(false);
+    expect(mock.mock.calls.length).toBe(0);
+  });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Film, Image as ImageIcon,
   Layers3, Loader2, Megaphone, RefreshCw, Save, ShieldCheck, Sparkles, Wand2,
@@ -33,10 +33,12 @@ import CampaignPackageCard from "@/components/admin/CampaignPackageCard";
  * another. Adding a field the renderer reads without adding it here reintroduces
  * that bug, so keep this list next to `renderInstagramStudioAssets`.
  *
- * `artDirection` is intentionally absent: the deterministic renderer never reads it
- * (server/services/instagramStudio.ts:340 takes no artDirection param). Over-listing
- * a field only wastes a re-render; under-listing one publishes the wrong visual, so
- * when in doubt add it here.
+ * `artDirection` IS in this set: renderInstagramStudioAssets routes it through
+ * familyFromArtDirection to pick the visual family (background, headline color,
+ * CTA styling — see server/services/visualFamily.ts). A comment here previously
+ * claimed the renderer never reads it; that went stale the day the renderer
+ * started reading it, and editing art direction silently kept the old media
+ * attached. visualFieldsParity.test.ts pins this list against the renderer.
  */
 const VISUAL_FIELDS: ReadonlySet<keyof InstagramStudioDraft> = new Set([
   "format",
@@ -44,6 +46,7 @@ const VISUAL_FIELDS: ReadonlySet<keyof InstagramStudioDraft> = new Set([
   "subheadline",
   "cta",
   "carouselSlides",
+  "artDirection",
 ]);
 
 const STATIC_FORMATS: Array<{ id: Exclude<InstagramFormat, "reel">; icon: typeof ImageIcon; description: string }> = [
@@ -78,32 +81,98 @@ export default function StudioV2() {
   const [objective, setObjective] = useState<InstagramObjective>("bookings");
   const [direction, setDirection] = useState("");
   const [draft, setDraft] = useState<InstagramStudioDraft | null>(null);
+  /**
+   * In-DOM confirm for discarding a paid draft (window.confirm is silently
+   * suppressed in the installed iOS PWA). A single tap on a source/format
+   * button used to setDraft(null) instantly — destroying a generated+rendered
+   * draft the operator already paid for.
+   */
+  const [pendingSwitch, setPendingSwitch] = useState<
+    | { kind: "source"; value: InstagramSourceType }
+    | { kind: "format"; value: Exclude<InstagramFormat, "reel"> }
+    | null
+  >(null);
+  /**
+   * Request-identity guard. Every mutation's onSuccess used to setDraft(result)
+   * unconditionally, so a slow response could resurrect a deliberately
+   * discarded draft or revert edits typed while it was pending. Any discard or
+   * new request bumps the sequence; a response only applies if it is still the
+   * latest.
+   */
+  const reqSeq = useRef(0);
+  const applyIfCurrent = (seq: number, apply: () => void, staleNote: string) => {
+    if (reqSeq.current === seq) apply();
+    else toast.info(staleNote);
+  };
 
   const generate = trpc.instagramStudio.generate.useMutation({
-    onSuccess: (result) => {
-      setDraft(result as InstagramStudioDraft);
-      toast.success("Draft generated", { description: "Copy and quality findings are ready for review." });
-    },
     onError: (error) => toast.error("Generation failed", { description: error.message }),
   });
   const evaluate = trpc.instagramStudio.evaluate.useMutation({
-    onSuccess: (result) => {
-      setDraft(result as InstagramStudioDraft);
-      toast.success("Quality gate refreshed");
-    },
     onError: (error) => toast.error("Quality check failed", { description: error.message }),
   });
   const render = trpc.instagramStudio.render.useMutation({
-    onSuccess: (result) => {
-      setDraft(result as InstagramStudioDraft);
-      toast.success("Assets rendered", { description: `${result.imageUrls.length} permanent JPEG asset${result.imageUrls.length === 1 ? "" : "s"} ready.` });
-    },
     onError: (error) => toast.error("Render failed", { description: error.message }),
   });
   const stage = trpc.instagramStudio.stage.useMutation({
-    onSuccess: () => toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Queue." }),
     onError: (error) => toast.error("Queue failed", { description: error.message }),
   });
+
+  const runGenerate = () => {
+    const seq = ++reqSeq.current;
+    generate.mutate({
+      source: { type: sourceType, recordId: sourceRecordId || undefined, detail: sourceDetail || undefined },
+      format,
+      objective,
+      operatorDirection: direction || undefined,
+    }, {
+      onSuccess: (result) => applyIfCurrent(seq, () => {
+        setDraft(result as InstagramStudioDraft);
+        toast.success("Draft generated", { description: "Copy and quality findings are ready for review." });
+      }, "A generation finished for a concept you already discarded — it was not applied."),
+    });
+  };
+  const runEvaluate = (current: InstagramStudioDraft) => {
+    const seq = ++reqSeq.current;
+    evaluate.mutate(current, {
+      onSuccess: (result) => applyIfCurrent(seq, () => {
+        setDraft(result as InstagramStudioDraft);
+        toast.success("Quality gate refreshed");
+      }, "A re-score finished for a concept you already discarded — it was not applied."),
+    });
+  };
+  const runRender = (current: InstagramStudioDraft) => {
+    const seq = ++reqSeq.current;
+    render.mutate(current, {
+      onSuccess: (result) => applyIfCurrent(seq, () => {
+        setDraft(result as InstagramStudioDraft);
+        toast.success("Assets rendered", { description: `${result.imageUrls.length} permanent JPEG asset${result.imageUrls.length === 1 ? "" : "s"} ready.` });
+      }, "A render finished for a concept you already discarded — it was not applied."),
+    });
+  };
+  const runStage = (current: InstagramStudioDraft) => {
+    const seq = ++reqSeq.current;
+    stage.mutate(current, {
+      onSuccess: () => applyIfCurrent(seq, () => {
+        // The draft now lives in the Queue — keeping it mounted here left the
+        // stage button armed, and a second tap blind-upserted the queue row.
+        setDraft(null);
+        toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Queue." });
+      }, "Staged — find it in the Queue."),
+    });
+  };
+
+  const discardAndSwitch = (target: NonNullable<typeof pendingSwitch>) => {
+    reqSeq.current += 1; // in-flight responses for the old concept are now stale
+    if (target.kind === "source") setSourceType(target.value);
+    else setFormat(target.value);
+    setDraft(null);
+    setPendingSwitch(null);
+  };
+  const requestSwitch = (target: NonNullable<typeof pendingSwitch>) => {
+    if (!draft) discardAndSwitch(target);
+    else setPendingSwitch(target);
+  };
 
   const requiresRecord = sourceType === "review" || sourceType === "declined_work";
   const canGenerate = !requiresRecord || sourceRecordId.trim().length > 0;
@@ -152,6 +221,21 @@ export default function StudioV2() {
             <CardDescription>The system follows these controls. It does not guess your objective.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {pendingSwitch && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <div>
+                    <div className="font-semibold">Discard the current draft?</div>
+                    <p className="mt-1 text-muted-foreground">Switching {pendingSwitch.kind} throws away the generated copy{draft?.imageUrls.length ? " and the rendered media you already paid for" : ""}. Stage it to the Queue first if you want to keep it.</p>
+                    <div className="mt-2 flex gap-2">
+                      <Button size="sm" variant="destructive" onClick={() => discardAndSwitch(pendingSwitch)}>Discard and switch</Button>
+                      <Button size="sm" variant="outline" onClick={() => setPendingSwitch(null)}>Keep working on it</Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">1. Source of truth</label>
               <div className="grid grid-cols-2 gap-2">
@@ -159,7 +243,7 @@ export default function StudioV2() {
                   <button
                     type="button"
                     key={type}
-                    onClick={() => { setSourceType(type); setDraft(null); }}
+                    onClick={() => requestSwitch({ kind: "source", value: type })}
                     className={`rounded-lg border p-3 text-left text-xs transition ${sourceType === type ? "border-primary bg-primary/10 text-foreground" : "border-border/70 text-muted-foreground hover:border-primary/40"}`}
                   >
                     {INSTAGRAM_SOURCE_LABELS[type]}
@@ -188,7 +272,7 @@ export default function StudioV2() {
                   <button
                     type="button"
                     key={id}
-                    onClick={() => { setFormat(id); setDraft(null); }}
+                    onClick={() => requestSwitch({ kind: "format", value: id })}
                     className={`rounded-xl border p-3 text-left transition ${format === id ? "border-primary bg-primary/10" : "border-border/70 hover:border-primary/40"}`}
                   >
                     <Icon className="mb-2 h-4 w-4 text-primary" />
@@ -215,12 +299,7 @@ export default function StudioV2() {
             <Button
               className="w-full"
               disabled={!canGenerate || generate.isPending}
-              onClick={() => generate.mutate({
-                source: { type: sourceType, recordId: sourceRecordId || undefined, detail: sourceDetail || undefined },
-                format,
-                objective,
-                operatorDirection: direction || undefined,
-              })}
+              onClick={runGenerate}
             >
               {generate.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               {generate.isPending ? "Building draft..." : "Generate controlled draft"}
@@ -288,7 +367,7 @@ export default function StudioV2() {
                         {(draft.quality.blockers.length ? draft.quality.blockers : draft.quality.warnings).map((item) => <div key={item} className="flex gap-2 py-1"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{item}</div>)}
                       </div>
                     )}
-                    <Button className="mt-4 w-full" variant="outline" disabled={evaluate.isPending} onClick={() => evaluate.mutate(draft)}>
+                    <Button className="mt-4 w-full" variant="outline" disabled={evaluate.isPending} onClick={() => runEvaluate(draft)}>
                       {evaluate.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />} Re-score edited draft
                     </Button>
                   </div>
@@ -300,7 +379,7 @@ export default function StudioV2() {
                         {draft.imageUrls.map((url, index) => <img key={url} src={url} alt={`Rendered asset ${index + 1}`} className={`w-full rounded-lg border object-cover ${draft.format === "story" ? "aspect-[9/16]" : "aspect-[4/5]"}`} />)}
                       </div>
                     ) : <div className="mt-4 rounded-lg border border-dashed p-8 text-center text-xs text-muted-foreground">No asset rendered yet. Visual copy stays bounded so it cannot overlap or turn into garbled AI text.</div>}
-                    <Button className="mt-4 w-full" disabled={render.isPending || draft.quality.gate === "block"} onClick={() => render.mutate(draft)}>
+                    <Button className="mt-4 w-full" disabled={render.isPending || draft.quality.gate === "block"} onClick={() => runRender(draft)}>
                       {render.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                       {draft.imageUrls.length ? "Re-render assets" : "Render clean assets"}
                     </Button>
@@ -308,8 +387,8 @@ export default function StudioV2() {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-3 border-t bg-muted/10 sm:flex-row sm:justify-between">
-                <Button variant="outline" onClick={() => { setDraft(null); }}><RefreshCw className="mr-2 h-4 w-4" /> Start another concept</Button>
-                <Button disabled={stage.isPending || draft.quality.gate === "block" || draft.imageUrls.length === 0} onClick={() => stage.mutate(draft)}>
+                <Button variant="outline" onClick={() => { reqSeq.current += 1; setDraft(null); }}><RefreshCw className="mr-2 h-4 w-4" /> Start another concept</Button>
+                <Button disabled={stage.isPending || draft.quality.gate === "block" || draft.imageUrls.length === 0} onClick={() => runStage(draft)}>
                   {stage.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Send to review queue <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>

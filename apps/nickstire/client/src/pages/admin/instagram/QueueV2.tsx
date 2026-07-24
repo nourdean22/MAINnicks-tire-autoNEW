@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, Edit3, ExternalLink, Film, Image as ImageIcon, Loader2, RefreshCw, Send, ShieldCheck, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,15 @@ export default function QueueV2() {
   const [showLegacy, setShowLegacy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<InstagramStudioDraft | null>(null);
+  /**
+   * The version SNAPSHOTTED when Edit was tapped. Save previously sent the
+   * LIVE list row's version — which the 30s refetch silently updates — so a
+   * concurrent edit's version was presented as our own and the server's CAS
+   * could never catch the conflict: a structurally defeated lost-update guard.
+   */
+  const [editVersion, setEditVersion] = useState<number | null>(null);
+  /** Mirrors editingId for mutation callbacks (state in closures goes stale). */
+  const editingIdRef = useRef<string | null>(null);
   const [scheduleById, setScheduleById] = useState<Record<string, string>>({});
   const [rejectReasonById, setRejectReasonById] = useState<Record<string, string>>({});
 
@@ -39,23 +48,36 @@ export default function QueueV2() {
   const schedule = trpc.instagramStudio.schedule.useMutation({ onSuccess: async () => { await invalidate(); toast.success("Post scheduled"); }, onError: (e) => toast.error("Scheduling failed", { description: e.message }) });
   const reject = trpc.instagramStudio.reject.useMutation({ onSuccess: async () => { await invalidate(); toast.success("Draft rejected"); }, onError: (e) => toast.error("Reject failed", { description: e.message }) });
   const rerender = trpc.instagramStudio.render.useMutation({
-    onSuccess: (result) => {
-      setEditDraft(result as InstagramStudioDraft);
-      toast.success("Edited visual re-rendered");
+    onSuccess: (result, variables) => {
+      // Cross-item guard: this render's multi-second round trip may outlive the
+      // edit session that requested it. Without the identity check, item X's
+      // render landed in whatever editor was open — including item Y's.
+      if (editingIdRef.current === (variables as InstagramStudioDraft).id) {
+        setEditDraft(result as InstagramStudioDraft);
+        toast.success("Edited visual re-rendered");
+      } else {
+        toast.info("A re-render finished for an item you are no longer editing — it was not applied.");
+      }
     },
     onError: (e) => toast.error("Re-render failed", { description: e.message }),
   });
   const update = trpc.instagramStudio.update.useMutation({
     onSuccess: async () => {
       await invalidate();
+      editingIdRef.current = null;
       setEditingId(null);
       setEditDraft(null);
+      setEditVersion(null);
       toast.success("Draft saved and returned to review");
     },
     onError: (e) => toast.error("Save failed", { description: e.message }),
   });
 
   const counts: Record<string, number> = diagnostics.data?.counts ?? {};
+  // The server sends connected:false + blockers when the DB is unreachable —
+  // the cards previously read only .counts, so an outage rendered as four
+  // silent zeros ("all clear") instead of "we could not look".
+  const countsUnavailable = diagnostics.isError || diagnostics.data?.connected === false || !diagnostics.data;
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (list.data ?? []).filter((item) => {
@@ -81,9 +103,15 @@ export default function QueueV2() {
           <Button variant="outline" onClick={() => setShowLegacy(true)}><Film className="mr-2 h-4 w-4" /> Reels</Button><Button variant="outline" onClick={() => Promise.all([list.refetch(), diagnostics.refetch()])} disabled={list.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${list.isFetching ? "animate-spin" : ""}`} /> Refresh</Button></div>
       </div>
 
+      {countsUnavailable && !diagnostics.isLoading && (
+        <div className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>Queue counts are <strong>unknown</strong>, not zero — the diagnostics read failed{diagnostics.data?.connected === false ? " (database unreachable)" : ""}.</span>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[["Needs review", counts.pending ?? 0], ["Ready", counts.ready ?? 0], ["Scheduled", counts.scheduled ?? 0], ["Published", counts.published ?? 0]].map(([label, value]) => (
-          <Card key={String(label)}><CardContent className="p-4"><div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-bold">{value}</div></CardContent></Card>
+          <Card key={String(label)}><CardContent className="p-4"><div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-bold">{countsUnavailable ? "—" : value}</div></CardContent></Card>
         ))}
       </div>
 
@@ -108,7 +136,7 @@ export default function QueueV2() {
                       <div className="space-y-1"><label className="text-xs font-semibold">Subheadline</label><Textarea value={activeEdit.subheadline} onChange={(event) => setEditDraft({ ...activeEdit, subheadline: event.target.value, imageUrls: [] })} /></div>
                       <div className="space-y-1"><label className="text-xs font-semibold">Caption</label><Textarea className="min-h-40" value={activeEdit.caption} onChange={(event) => setEditDraft({ ...activeEdit, caption: event.target.value })} /></div>
                       {activeEdit.imageUrls.length === 0 && <Button className="w-full" variant="outline" disabled={rerender.isPending} onClick={() => rerender.mutate(activeEdit)}>{rerender.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />} Re-render edited visual</Button>}
-                      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => { setEditingId(null); setEditDraft(null); }}>Cancel</Button><Button disabled={update.isPending || activeEdit.imageUrls.length === 0} onClick={() => update.mutate({ id: item.id, expectedVersion: item.version, draft: activeEdit })}>{update.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save</Button></div>
+                      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => { editingIdRef.current = null; setEditingId(null); setEditDraft(null); setEditVersion(null); }}>Cancel</Button><Button disabled={update.isPending || activeEdit.imageUrls.length === 0} onClick={() => update.mutate({ id: item.id, expectedVersion: editVersion ?? item.version, draft: activeEdit })}>{update.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save</Button></div>
                     </div>
                   ) : <div className="rounded-lg border bg-muted/10 p-4"><div className="font-semibold leading-6">{draft.headline}</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{draft.caption}</p>{draft.hashtags.length > 0 && <p className="mt-3 text-xs text-primary">{draft.hashtags.map((tag) => `#${tag}`).join(" ")}</p>}</div>}
 
@@ -117,7 +145,7 @@ export default function QueueV2() {
                   {item.status === "scheduled" && item.scheduledAt && <div className="flex items-center gap-2 text-sm text-blue-400"><Clock3 className="h-4 w-4" /> Scheduled for {new Date(item.scheduledAt).toLocaleString()}</div>}
                   {item.error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{item.error}</div>}
                 </CardContent>
-                <CardFooter className="flex flex-wrap justify-end gap-2 border-t bg-muted/10 p-4">{item.status !== "published" && item.status !== "scheduled" && !activeEdit && <Button variant="outline" onClick={() => { setEditingId(item.id); setEditDraft(draft); }}><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>}{item.status === "needs_review" && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: item.id, expectedVersion: item.version })}><CheckCircle2 className="mr-2 h-4 w-4" /> Approve</Button>}{item.status === "ready" && <Button disabled={publish.isPending} onClick={() => publish.mutate({ id: item.id })}>{publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Publish now</Button>}</CardFooter>
+                <CardFooter className="flex flex-wrap justify-end gap-2 border-t bg-muted/10 p-4">{item.status !== "published" && item.status !== "scheduled" && !activeEdit && <Button variant="outline" onClick={() => { editingIdRef.current = item.id; setEditingId(item.id); setEditDraft(draft); setEditVersion(item.version); }}><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>}{item.status === "needs_review" && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: item.id, expectedVersion: item.version })}><CheckCircle2 className="mr-2 h-4 w-4" /> Approve</Button>}{item.status === "ready" && <Button disabled={publish.isPending} onClick={() => publish.mutate({ id: item.id })}>{publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Publish now</Button>}</CardFooter>
               </Card>
             );
           })}
