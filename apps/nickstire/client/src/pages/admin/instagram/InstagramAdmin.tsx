@@ -33,7 +33,11 @@ export function InstagramAdmin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 gap-1 lg:grid-cols-9">
+        {/* h-auto is load-bearing: the base TabsList fixes h-9 (36px), and this
+            3-column grid stacks THREE ~33px rows into that box below lg — the
+            overflow painted panel content over rows 2-3, making six of nine
+            tabs untappable on the operator's phone. */}
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 lg:grid-cols-9">
           <TabsTrigger value="hq">HQ</TabsTrigger>
           <TabsTrigger value="studio">Studio</TabsTrigger>
           <TabsTrigger value="queue">Queue</TabsTrigger>

@@ -19,6 +19,36 @@ function badgeClass(status: string) {
   return "border-amber-500/40 bg-amber-500/10 text-amber-400";
 }
 
+/** datetime-local value for "now" — used as the input's min so past times
+ *  cannot be picked at all. */
+function nowLocalIso(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+/**
+ * The shop runs on Eastern time; the browser may not. datetime-local commits
+ * the BROWSER's interpretation with no timezone shown, so a schedule set from
+ * anywhere else silently fired at the wrong hour. This spells out both the
+ * shop-time reading and the countdown before the operator commits.
+ */
+function describeScheduleEt(localValue: string): string | null {
+  const when = new Date(localValue);
+  if (!Number.isFinite(when.getTime())) return null;
+  const et = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long", month: "long", day: "numeric",
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  }).format(when);
+  const deltaMs = when.getTime() - Date.now();
+  if (deltaMs <= 0) return `${et} — in the past`;
+  const hours = Math.floor(deltaMs / 3_600_000);
+  const minutes = Math.round((deltaMs % 3_600_000) / 60_000);
+  const rel = hours >= 48 ? `in ${Math.floor(hours / 24)} days, ${hours % 24}h` : hours >= 1 ? `in ${hours}h ${minutes}m` : `in ${minutes}m`;
+  return `${et} · publishes ${rel}`;
+}
+
 export default function QueueV2() {
   const utils = trpc.useUtils();
   const [status, setStatus] = useState<QueueStatus>("all");
@@ -37,6 +67,9 @@ export default function QueueV2() {
   const editingIdRef = useRef<string | null>(null);
   const [scheduleById, setScheduleById] = useState<Record<string, string>>({});
   const [rejectReasonById, setRejectReasonById] = useState<Record<string, string>>({});
+  /** Two-tap publish (in-DOM — window.confirm is suppressed in the installed
+   *  iOS PWA). The final tap happens on a panel showing the EXACT payload. */
+  const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
 
   const list = trpc.instagramStudio.list.useQuery({ limit: 75 }, { refetchInterval: 30_000 });
   const diagnostics = trpc.instagramStudio.diagnostics.useQuery(undefined, { refetchInterval: 60_000 });
@@ -140,12 +173,24 @@ export default function QueueV2() {
                     </div>
                   ) : <div className="rounded-lg border bg-muted/10 p-4"><div className="font-semibold leading-6">{draft.headline}</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{draft.caption}</p>{draft.hashtags.length > 0 && <p className="mt-3 text-xs text-primary">{draft.hashtags.map((tag) => `#${tag}`).join(" ")}</p>}</div>}
 
-                  {item.status === "ready" && canSchedule && <div className="rounded-lg border p-3"><label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Schedule</label><div className="mt-2 flex gap-2"><Input type="datetime-local" value={scheduleById[item.id] ?? ""} onChange={(event) => setScheduleById((current) => ({ ...current, [item.id]: event.target.value }))} /><Button variant="outline" disabled={!scheduleById[item.id] || schedule.isPending} onClick={() => schedule.mutate({ id: item.id, scheduledAt: new Date(scheduleById[item.id]).toISOString() })}><CalendarClock className="h-4 w-4" /></Button></div></div>}
+                  {item.status === "ready" && canSchedule && <div className="rounded-lg border p-3"><label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Schedule</label><div className="mt-2 flex gap-2"><Input type="datetime-local" min={nowLocalIso()} value={scheduleById[item.id] ?? ""} onChange={(event) => setScheduleById((current) => ({ ...current, [item.id]: event.target.value }))} /><Button variant="outline" aria-label="Schedule this post" disabled={!scheduleById[item.id] || schedule.isPending} onClick={() => schedule.mutate({ id: item.id, scheduledAt: new Date(scheduleById[item.id]).toISOString() })}><CalendarClock className="h-4 w-4" /></Button></div>{scheduleById[item.id] && <p className="mt-2 text-xs text-blue-400">{describeScheduleEt(scheduleById[item.id])}</p>}</div>}
                   {item.status === "needs_review" && <div className="rounded-lg border p-3"><label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reject reason</label><div className="mt-2 flex gap-2"><Input value={rejectReasonById[item.id] ?? ""} onChange={(event) => setRejectReasonById((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="What must change?" /><Button variant="destructive" disabled={(rejectReasonById[item.id] ?? "").trim().length < 2 || reject.isPending} onClick={() => reject.mutate({ id: item.id, reason: rejectReasonById[item.id] })}><Trash2 className="h-4 w-4" /></Button></div></div>}
                   {item.status === "scheduled" && item.scheduledAt && <div className="flex items-center gap-2 text-sm text-blue-400"><Clock3 className="h-4 w-4" /> Scheduled for {new Date(item.scheduledAt).toLocaleString()}</div>}
                   {item.error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{item.error}</div>}
+
+                  {confirmPublishId === item.id && item.status === "ready" && (
+                    <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
+                      <div className="text-sm font-semibold">Publish this to Instagram now?</div>
+                      <p className="text-xs text-muted-foreground">This is exactly what goes live — {draft.imageUrls.length} media asset{draft.imageUrls.length === 1 ? "" : "s"} (shown above) as a {draft.format}, with this final caption:</p>
+                      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded border bg-background/60 p-3 text-xs leading-5">{`${draft.caption}${draft.hashtags.length ? `\n\n${draft.hashtags.map((tag) => `#${tag}`).join(" ")}` : ""}`}</div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" onClick={() => setConfirmPublishId(null)}>Cancel</Button>
+                        <Button disabled={publish.isPending} onClick={() => { publish.mutate({ id: item.id }); setConfirmPublishId(null); }}>{publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Yes — publish now</Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
-                <CardFooter className="flex flex-wrap justify-end gap-2 border-t bg-muted/10 p-4">{item.status !== "published" && item.status !== "scheduled" && !activeEdit && <Button variant="outline" onClick={() => { editingIdRef.current = item.id; setEditingId(item.id); setEditDraft(draft); setEditVersion(item.version); }}><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>}{item.status === "needs_review" && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: item.id, expectedVersion: item.version })}><CheckCircle2 className="mr-2 h-4 w-4" /> Approve</Button>}{item.status === "ready" && <Button disabled={publish.isPending} onClick={() => publish.mutate({ id: item.id })}>{publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Publish now</Button>}</CardFooter>
+                <CardFooter className="flex flex-wrap justify-end gap-2 border-t bg-muted/10 p-4">{item.status !== "published" && item.status !== "scheduled" && !activeEdit && <Button variant="outline" onClick={() => { editingIdRef.current = item.id; setEditingId(item.id); setEditDraft(draft); setEditVersion(item.version); }}><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>}{item.status === "needs_review" && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: item.id, expectedVersion: item.version })}><CheckCircle2 className="mr-2 h-4 w-4" /> Approve</Button>}{item.status === "ready" && <Button disabled={publish.isPending} onClick={() => setConfirmPublishId((current) => current === item.id ? null : item.id)}>{publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Publish…</Button>}</CardFooter>
               </Card>
             );
           })}

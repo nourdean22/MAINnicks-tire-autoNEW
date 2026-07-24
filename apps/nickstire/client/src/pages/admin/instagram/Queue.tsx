@@ -37,6 +37,9 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
   /** Draft whose publish was refused by the quality gate, awaiting an operator decision. */
   const [blockedDraft, setBlockedDraft] = useState<{ id: string; version: number; reason: string } | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
+  /** Two-tap reject (in-DOM — window.confirm is suppressed in the installed
+   *  iOS PWA). One tap on an icon 8px from Publish used to reject instantly. */
+  const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
 
   const { data: drafts, isLoading, isError, error, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
@@ -253,15 +256,26 @@ export default function Queue({ onNavigate }: { onNavigate?: (tab: string) => vo
                       <Send className="h-4 w-4 mr-2" /> Publish
                     </Button>
                   )}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
+                    aria-label="Reject this draft"
                     className="flex-none text-destructive hover:bg-destructive/10"
                     disabled={draft.status === "published" || draft.status === "rejected"}
-                    onClick={() => rejectDraft.mutate({ id: draft.id, reason: "Manual Rejection" })}
+                    onClick={() => setConfirmRejectId((current) => current === draft.id ? null : draft.id)}
                   >
                     <XCircle className="h-4 w-4" />
                   </Button>
                 </div>
+
+                {confirmRejectId === draft.id && (
+                  <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-red-500/40 bg-red-500/5 p-3">
+                    <span className="text-xs">Reject this draft?</span>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setConfirmRejectId(null)}>Keep it</Button>
+                      <Button size="sm" variant="destructive" disabled={rejectDraft.isPending} onClick={() => { rejectDraft.mutate({ id: draft.id, reason: "Manual Rejection" }); setConfirmRejectId(null); }}>Reject</Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Quality-gate refusal, resolved IN THE DOM. window.confirm is
                     silently suppressed in the standalone iOS PWA, so a native
