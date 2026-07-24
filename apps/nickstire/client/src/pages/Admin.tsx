@@ -10,7 +10,6 @@ import DensityToggle from "@/components/admin/DensityToggle";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
 import ThemeToggle from "@/components/admin/ThemeToggle";
 import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
-import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { getAdminActionableCounts, type AdminActionableCounts } from "@/lib/adminActionableCounts";
 import { trpc } from "@/lib/trpc";
 import type { AdminRole } from "@shared/adminPermissions";
@@ -295,7 +294,7 @@ export default function Admin() {
             <DensityToggle /><ThemeToggle />
             {TOPBAR_ACTIONS.filter((action) => !action.sectionTrigger || allowedSections.includes(action.sectionTrigger)).map((action) => <Link key={action.href} href={action.href} title={action.title} aria-label={action.title} onClick={(event) => { if (action.sectionTrigger) { event.preventDefault(); window.history.replaceState({}, "", action.href); setSection(action.sectionTrigger); } }} className={`${action.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"} items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary`}>{action.icon}</Link>)}
           </header>
-          <div className="admin-content"><div className="px-4 pt-4 space-y-3"><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} /><WeatherAwareBanner /></div><SectionContent section={section} /></div>
+          <div className="admin-content"><div className="px-4 pt-4 space-y-3"><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} /></div><SectionContent section={section} /></div>
         </main>
         <DrilldownDrawer /><ConfirmDialog /><WalkInQuoteDrawer /><ActivityPulse />
       </div>
