@@ -3,12 +3,26 @@ import { trpc } from "@/lib/trpc";
 import { Clock, Zap, AlertCircle, PhoneIncoming } from "lucide-react";
 
 export function LeadSLAMonitor() {
-  const { data: report, isLoading } = trpc.intelligence.masterReport.useQuery(undefined, {
+  const { data: report, isLoading, isError, error } = trpc.intelligence.masterReport.useQuery(undefined, {
     refetchInterval: 60000,
   });
 
   if (isLoading) {
     return <div className="h-48 flex items-center justify-center text-muted-foreground text-xs animate-pulse">Loading SLA metrics...</div>;
+  }
+
+  // UNKNOWN IS NOT ZERO. A failed report used to fall through `|| 0` into an
+  // EMERALD "Avg: 0m" — a failed read rendered as a perfect response time.
+  if (isError) {
+    return (
+      <div className="bg-card border border-amber-500/30 p-5 rounded-xl shadow-sm">
+        <div className="flex items-center gap-2 pb-2">
+          <Clock className="w-5 h-5 text-amber-400" />
+          <h2 className="text-sm font-black text-amber-400 tracking-wide uppercase">Lead SLA Monitor</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">SLA metrics could not be read — response times are <strong className="text-amber-400">unknown</strong>, not 0 minutes. {error?.message}</p>
+      </div>
+    );
   }
 
   const leadResp = report?.marketing?.leadResponse as any;

@@ -15,31 +15,43 @@ import { DollarSign, Phone, MessageSquare, Clock, Receipt } from "lucide-react";
 type UnpaidInvoice = RouterOutputs["invoices"]["unpaidList"]["items"][number];
 
 export default function UnpaidInvoicesSection() {
-  const { data, isLoading } = trpc.invoices.unpaidList.useQuery();
+  const { data, isLoading, isError, error } = trpc.invoices.unpaidList.useQuery();
   const items = data?.items ?? [];
   const totalOwed = Math.round((data?.totalCents ?? 0) / 100);
   const count = items.length;
   const avg = count > 0 ? Math.round(totalOwed / count) : 0;
+  /**
+   * UNKNOWN IS NOT ZERO. A failed read used to fall through `?? []` / `?? 0`
+   * into "$0 owed · Everything issued has been paid" — the single worst
+   * false-green in this admin: money you are owed, reported as collected,
+   * exactly when the system can't see it.
+   */
+  const unknown = isError;
 
   return (
     <div className="space-y-6">
+      {unknown && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+          <strong>Unpaid invoices could not be read.</strong> The numbers below are unknown — NOT zero, and nothing here means you have been paid. {error?.message}
+        </div>
+      )}
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           label="UNPAID INVOICES"
-          value={count}
+          value={unknown ? "—" : count}
           icon={<Receipt className="w-4 h-4" />}
           color={count > 0 ? "text-amber-400" : "text-foreground"}
         />
         <StatCard
           label="TOTAL OWED"
-          value={`$${totalOwed.toLocaleString()}`}
+          value={unknown ? "—" : `$${totalOwed.toLocaleString()}`}
           icon={<DollarSign className="w-4 h-4" />}
-          color="text-emerald-400"
+          color={unknown ? "text-amber-400" : "text-emerald-400"}
         />
         <StatCard
           label="AVG INVOICE"
-          value={`$${avg.toLocaleString()}`}
+          value={unknown ? "—" : `$${avg.toLocaleString()}`}
           icon={<DollarSign className="w-4 h-4" />}
         />
       </div>
@@ -53,6 +65,10 @@ export default function UnpaidInvoicesSection() {
       {/* List */}
       {isLoading ? (
         <LoadingState label="Loading unpaid invoices..." />
+      ) : unknown ? (
+        <div className="text-center py-12 text-amber-400/80">
+          <p className="text-[13px]">The worklist is unavailable — retry before trusting any collection state.</p>
+        </div>
       ) : items.length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <Receipt className="w-8 h-8 mx-auto mb-3 opacity-30" />

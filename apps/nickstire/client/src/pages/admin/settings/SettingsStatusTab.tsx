@@ -154,6 +154,7 @@ export default function SettingsStatusTab() {
     openIssues,
     alertCount,
     warningCount,
+    failedChecks,
 
     totalCustomers,
     vipCustomers,
@@ -205,6 +206,19 @@ export default function SettingsStatusTab() {
             ))}
           </div>
         </Panel>
+      ) : failedChecks.length > 0 ? (
+        /* A check that could not RUN is not a check that PASSED. With every
+           query down this screen used to render its greenest banner — the
+           health page at maximum confidence at minimum knowledge. */
+        <div className="bg-amber-500/[0.06] border border-amber-500/30 p-6 flex items-center gap-4">
+          <AlertTriangle className="w-8 h-8 text-amber-400 shrink-0" />
+          <div>
+            <h3 className="font-semibold text-foreground tracking-tight">Status unknown — {failedChecks.length} of 8 checks could not run.</h3>
+            <p className="text-foreground/55 text-[12.5px] mt-0.5">
+              Unreadable: {failedChecks.join(" · ")}. No news here is NOT good news — retry before trusting this page.
+            </p>
+          </div>
+        </div>
       ) : (
         <div className="bg-emerald-500/[0.04] border border-emerald-500/25 p-6 flex items-center gap-4">
           <CheckCircle2 className="w-8 h-8 text-emerald-400 shrink-0" />
@@ -215,6 +229,12 @@ export default function SettingsStatusTab() {
             </p>
           </div>
         </div>
+      )}
+
+      {failedChecks.length > 0 && openIssues.length > 0 && (
+        <p className="text-[12px] text-amber-400/80">
+          Note: {failedChecks.length} health check{failedChecks.length === 1 ? "" : "s"} could not run ({failedChecks.join(", ")}) — the issue list above may be incomplete.
+        </p>
       )}
 
       {/* ── Connection health ───────────────────────────── */}

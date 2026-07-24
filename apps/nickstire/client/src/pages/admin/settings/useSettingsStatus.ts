@@ -14,14 +14,14 @@ export interface OpenIssue {
 
 export function useSettingsStatus() {
   // 1. Execute tRPC queries
-  const { data: dashStats, isLoading: isDashStatsLoading } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
-  const { data: flags, isLoading: isFlagsLoading } = trpc.featureFlags.list.useQuery(undefined, { staleTime: 120_000 });
-  const { data: funnel, isLoading: isFunnelLoading } = trpc.trafficFunnel.overview.useQuery({ range: "30d" }, { staleTime: 120_000 });
-  const { data: algStatus, isLoading: isAlgLoading } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 30_000 });
-  const { data: smsGwHealth, isLoading: isSmsGwLoading } = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
-  const { data: smsStatus, isLoading: isSmsStatusLoading } = trpc.sms.status.useQuery(undefined, { staleTime: 60_000 });
-  const { data: vapiStatus, isLoading: isVapiLoading } = trpc.vapi.status.useQuery(undefined, { staleTime: 60_000 });
-  const { data: cronHealth, isLoading: isCronLoading } = trpc.nickActions.cronHealth.useQuery(undefined, { staleTime: 30_000 });
+  const { data: dashStats, isLoading: isDashStatsLoading, isError: isDashStatsError } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
+  const { data: flags, isLoading: isFlagsLoading, isError: isFlagsError } = trpc.featureFlags.list.useQuery(undefined, { staleTime: 120_000 });
+  const { data: funnel, isLoading: isFunnelLoading, isError: isFunnelError } = trpc.trafficFunnel.overview.useQuery({ range: "30d" }, { staleTime: 120_000 });
+  const { data: algStatus, isLoading: isAlgLoading, isError: isAlgError } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 30_000 });
+  const { data: smsGwHealth, isLoading: isSmsGwLoading, isError: isSmsGwError } = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
+  const { data: smsStatus, isLoading: isSmsStatusLoading, isError: isSmsStatusError } = trpc.sms.status.useQuery(undefined, { staleTime: 60_000 });
+  const { data: vapiStatus, isLoading: isVapiLoading, isError: isVapiError } = trpc.vapi.status.useQuery(undefined, { staleTime: 60_000 });
+  const { data: cronHealth, isLoading: isCronLoading, isError: isCronError } = trpc.nickActions.cronHealth.useQuery(undefined, { staleTime: 30_000 });
 
   // 2. Aggregate loading states
   const isLoading =
@@ -33,6 +33,25 @@ export function useSettingsStatus() {
     isSmsStatusLoading ||
     isVapiLoading ||
     isCronLoading;
+
+  /**
+   * WHICH CHECKS COULD NOT RUN? Every rule below silently skips when its
+   * query failed (undefined data falls through `?? []` / optional chains), so
+   * with all eight queries down this hook used to return zero issues and the
+   * tab printed "All clear" — the health screen at its greenest exactly when
+   * it was blindest. A check that could not run is a fact the operator must
+   * see, distinct from a check that ran and passed.
+   */
+  const failedChecks = [
+    isDashStatsError && "shop stats",
+    isFlagsError && "feature flags",
+    isFunnelError && "traffic funnel",
+    isAlgError && "auto-labor",
+    isSmsGwError && "SMS gateway health",
+    isSmsStatusError && "SMS status",
+    isVapiError && "voice (VAPI) status",
+    isCronError && "cron health",
+  ].filter((name): name is string => Boolean(name));
 
   // 3. Compose open-issues stack (moved from view layer to state controller)
   const openIssues = useMemo<OpenIssue[]>(() => {
@@ -106,6 +125,7 @@ export function useSettingsStatus() {
 
   return {
     isLoading,
+    failedChecks,
     dashStats,
     flags,
     funnel,
