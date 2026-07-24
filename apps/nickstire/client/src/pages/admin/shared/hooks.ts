@@ -84,5 +84,19 @@ export function useUrlFilter<T extends string>(
     };
   }, []);
 
+  // ── Back/forward + deep-link sync (admin Wave 4) ──────────────────────
+  // The hook read the URL exactly ONCE (the useState initializer) and never
+  // listened again: browser Back changed the address bar while every filter
+  // kept its old state — the URL said one thing, the screen another. This
+  // hook owns ~25 filters and the inner tabs of Settings, Growth, Tires,
+  // Voice and Customers, so ONE missing listener broke back/forward and
+  // deep-link fidelity across five sections at once.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sync = () => setLocalValue(readUrlValue());
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, [readUrlValue]);
+
   return [value, setValue, reset];
 }

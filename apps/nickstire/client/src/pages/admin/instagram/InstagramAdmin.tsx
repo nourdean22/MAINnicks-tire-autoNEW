@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Settings2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,15 @@ export function InstagramAdmin() {
     setActiveView(view);
     writeIgViewToUrl(view);
   };
+
+  // Same defect class as useUrlFilter's missing popstate listener (admin
+  // Wave 4): a one-shot URL read means browser Back moves the address bar
+  // but not the screen. Keep the active view honest against history.
+  useEffect(() => {
+    const sync = () => setActiveView(readIgViewFromUrl());
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
 
   // Count ON the surface, so a held reel is visible without going looking.
   // Three reels once sat stuck for 32 hours because nothing surfaced them.
