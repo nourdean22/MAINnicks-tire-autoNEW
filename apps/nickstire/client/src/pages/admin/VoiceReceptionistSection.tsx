@@ -14,6 +14,7 @@
  * Server-side memo'd 60s; client polls every 60s.
  */
 import { useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
   PageHeader,
@@ -102,7 +103,7 @@ export default function VoiceReceptionistSection() {
   const range = rangeToISO(rangePreset, customSince, customUntil);
   const queryInput = { sinceISO: range.sinceISO, untilISO: range.untilISO };
 
-  const { data: metrics, isLoading: metricsLoading, refetch: refetchMetrics, isFetching: metricsFetching } = trpc.vapi.todayMetrics.useQuery(queryInput, {
+  const { data: metrics, isLoading: metricsLoading, isError: metricsError, refetch: refetchMetrics, isFetching: metricsFetching } = trpc.vapi.todayMetrics.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false, // only auto-poll for "today"
   });
   // Honest ROI — measured conversions × real avg paid ticket, shown as an estimate range.
@@ -120,10 +121,13 @@ export default function VoiceReceptionistSection() {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
 
-  const { data: queueItems, isLoading: queueLoading, refetch: refetchQueue, isFetching: queueFetching } = trpc.vapi.getMissedRevenueQueue.useQuery({
+  // No `enabled: activeTab === "queue"` gate: the tab badge now reports this
+  // query's real contents, so it must load on mount — a badge that only knows
+  // the truth after you've already visited the tab alerts nobody.
+  const { data: queueItems, isLoading: queueLoading, isError: queueError, refetch: refetchQueue, isFetching: queueFetching } = trpc.vapi.getMissedRevenueQueue.useQuery({
     status: queueStatusFilter,
   }, {
-    enabled: activeTab === "queue",
+    staleTime: 60_000,
   });
 
   const updateQueueMutation = trpc.vapi.updateQueueStatus.useMutation({
@@ -187,9 +191,15 @@ export default function VoiceReceptionistSection() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const handleCopy = (id: number, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    // The promise was fire-and-forget: "Copied!" showed even when the write
+    // rejected (iOS clipboard permissions do reject). Confirm only on success.
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+      },
+      () => toast.error("Copy failed — long-press the text to copy it manually."),
+    );
   };
 
   const getSmsDraft = (intents: string[], outcome: string): string => {
@@ -234,11 +244,18 @@ export default function VoiceReceptionistSection() {
         subtitle={`AI line +1 216 424 9249 · "Nick" assistant`}
         icon={<PhoneCall className="w-5 h-5" />}
         badge={
-          m && !m.ok
+          /* A FAILED metrics read used to land in the "QUIET DAY" branch —
+             the calmest possible words, produced by knowing nothing. Unknown
+             gets its own state; QUIET DAY requires a successful read. */
+          metricsError
+            ? { label: "METRICS UNREADABLE", variant: "danger" }
+            : m && !m.ok
             ? { label: "VAPI UNREACHABLE", variant: "danger" }
             : m && m.total > 0
             ? { label: `${m.total} CALLS · ${range.shortLabel.toUpperCase()}`, variant: "success" }
-            : { label: rangePreset === "today" ? "QUIET DAY" : `0 CALLS · ${range.shortLabel.toUpperCase()}`, variant: "neutral" }
+            : m
+            ? { label: rangePreset === "today" ? "QUIET DAY" : `0 CALLS · ${range.shortLabel.toUpperCase()}`, variant: "neutral" }
+            : { label: "LOADING…", variant: "neutral" }
         }
         /* wave-181.x Voice Phase 5 ELON cut · VapiDashboardLinks
          * chips removed · they sent the operator out of the admin.
@@ -323,9 +340,19 @@ export default function VoiceReceptionistSection() {
           }`}
         >
           Missed Revenue Queue
-          {activeTab !== "queue" && (
+          {/* The old pill rendered on `activeTab !== "queue"` alone — a
+              permanent red badge with zero connection to queue contents. A
+              badge that is always on trains the operator to ignore red
+              badges everywhere. It now reflects what the queue query
+              actually returned, and shows "?" when that read failed. */}
+          {activeTab !== "queue" && queueError && (
+            <span className="bg-amber-500/15 text-amber-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold" title="Queue could not be read">
+              ?
+            </span>
+          )}
+          {activeTab !== "queue" && !queueError && (queueItems?.length ?? 0) > 0 && (
             <span className="bg-rose-500/15 text-rose-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-              Action Required
+              {queueItems!.length}
             </span>
           )}
         </button>
@@ -334,7 +361,14 @@ export default function VoiceReceptionistSection() {
       {activeTab === "performance" ? (
         <div className="space-y-6">
           {/* ─── KPI Tiles ──────────────────────────────────── */}
-          {metricsLoading || !m ? (
+          {metricsError ? (
+            /* `metricsLoading || !m` rendered the skeleton FOREVER on a failed
+               read — loading ends, m stays null, the shimmer never resolves. */
+            <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+              <strong>Call metrics could not be read.</strong> These numbers are unknown, not zero.{" "}
+              <button type="button" className="underline" onClick={() => refetchMetrics()}>Retry</button>
+            </div>
+          ) : metricsLoading || !m ? (
             <SkeletonKpiGrid cols={4} />
           ) : (
             <MetricGrid cols={4}>
@@ -643,6 +677,14 @@ export default function VoiceReceptionistSection() {
 
           {queueLoading ? (
             <SkeletonTable rows={4} cells={4} />
+          ) : queueError ? (
+            /* "All Caught Up!" over a failed read is the same lie as the $0
+               unpaid-invoices banner — celebration born from blindness. */
+            <EmptyState
+              icon={<AlertTriangle className="w-10 h-10 text-amber-400" />}
+              title="Queue unreadable"
+              subtitle="Missed opportunities could not be loaded — this is unknown, NOT caught up. Retry before trusting it."
+            />
           ) : !queueItems || queueItems.length === 0 ? (
             <EmptyState
               icon={<CheckCircle2 className="w-10 h-10 text-emerald-400" />}

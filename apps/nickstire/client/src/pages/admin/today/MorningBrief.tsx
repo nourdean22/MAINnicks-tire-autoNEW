@@ -76,7 +76,10 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
       if (booked > 0) parts.push(`${booked} booked`);
       if (lost > 0) parts.push(`${lost} lost`);
       if (escalated > 0) parts.push(`${escalated} escalated`);
-      const gwState = smsGw?.online === false ? "F25e OFFLINE" : "F25e live";
+      // Three states, never two: `smsGw` UNDEFINED (query failed or still
+      // loading) used to print "F25e live" — fabricated gateway liveness in
+      // the one sentence the operator reads first every morning.
+      const gwState = smsGw?.online === false ? "F25e OFFLINE" : smsGw?.online === true ? "F25e live" : "F25e status unknown";
       parts.push(gwState);
       out.push({
         icon: <Phone className="w-3.5 h-3.5 text-blue-400" />,

@@ -2,6 +2,7 @@
  * SmsOrchestratorSection — Complete SMS Operating System & Self-Learning Dashboard.
  */
 import { useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
   Cpu,
@@ -114,10 +115,10 @@ export default function SmsOrchestratorSection() {
   const handleExportCorpus = async () => {
     try {
       await exportCorpusMutation.mutateAsync();
-      alert("Training corpus exported successfully to apps/nickstire/data/training/nickgpt-learning.jsonl");
+      toast.success("Training corpus exported", { description: "apps/nickstire/data/training/nickgpt-learning.jsonl" });
       refetchTraining();
     } catch (err) {
-      alert("Failed to export training corpus.");
+      toast.error("Failed to export training corpus", { description: err instanceof Error ? err.message : String(err) });
     }
   };
 
@@ -125,7 +126,7 @@ export default function SmsOrchestratorSection() {
     try {
       await reviewRecMutation.mutateAsync({ id, status });
     } catch (err) {
-      alert("Failed to update recommendation.");
+      toast.error("Failed to update recommendation", { description: err instanceof Error ? err.message : String(err) });
     }
   };
 
@@ -139,9 +140,9 @@ export default function SmsOrchestratorSection() {
         delete copy[id];
         return copy;
       });
-      alert(`Successfully processed review action: ${action}`);
+      toast.success(`Review action processed: ${action}`);
     } catch (err) {
-      alert("Failed to process human review action.");
+      toast.error("Failed to process review action", { description: err instanceof Error ? err.message : String(err) });
     }
   };
 
