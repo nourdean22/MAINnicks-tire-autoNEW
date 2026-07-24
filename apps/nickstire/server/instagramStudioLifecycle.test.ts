@@ -89,6 +89,7 @@ vi.mock("./services/igAutopost", () => ({
 }));
 
 import { appRouter } from "./routers";
+import { computeStudioItemState } from "./routers/instagramStudio";
 import { scheduledPosts, socialContentInventory } from "../drizzle/schema";
 import { INSTAGRAM_STUDIO_VERSION } from "../shared/instagramStudio";
 import type { TrpcContext } from "./_core/context";
@@ -322,6 +323,84 @@ describe("stage graduates the autosave lane", () => {
   it("a row in status 'draft' is overwritable by stage (draft → pending)", async () => {
     selectQueue.push([{ status: "draft", version: 4 }]);
     await expect(admin().instagramStudio.stage(makeDraft() as never)).resolves.toMatchObject({ status: "needs_review" });
+  });
+});
+
+describe("computeStudioItemState — lifecycle and health are separate questions (Wave 6)", () => {
+  const now = new Date();
+  it.each([
+    [{ status: "pending", updatedAt: now }, true, "needs_review", "healthy"],
+    [{ status: "ready", updatedAt: now }, false, "ready", "healthy"],
+    [{ status: "scheduled", updatedAt: now }, true, "scheduled", "healthy"],
+    // The calm-looking lie: "scheduled" with NO pending row to ever fire it.
+    [{ status: "scheduled", updatedAt: now }, false, "scheduled", "stalled"],
+    [{ status: "ambiguous", updatedAt: now }, false, "ambiguous", "ambiguous"],
+    [{ status: "failed", updatedAt: now }, false, "failed", "attention"],
+    // A publish claim takes seconds; 20 minutes in "publishing" is wedged.
+    [{ status: "publishing", updatedAt: new Date(Date.now() - 20 * 60 * 1000) }, false, "publishing", "stalled"],
+    [{ status: "publishing", updatedAt: now }, false, "publishing", "healthy"],
+  ] as const)("%o + pendingSchedule=%s → %s/%s", (row, pending, lifecycle, health) => {
+    expect(computeStudioItemState(row as { status: string; updatedAt: Date }, pending)).toEqual({ lifecycle, health });
+  });
+});
+
+describe("cancelSchedule / reschedule (Wave 6 — possible only via inventoryId)", () => {
+  it("cancels the pending row and returns the item to ready", async () => {
+    selectQueue.push([makeRow("scheduled")]);
+    updateResults.push(1, 1); // cancel row, inventory flip
+    await expect(admin().instagramStudio.cancelSchedule({ id: "ig_lifecycle_test" }))
+      .resolves.toEqual({ status: "ready" });
+    expect(scheduledUpdates()[0]?.set.status).toBe("canceled");
+    expect(inventoryUpdates()[0]?.set.status).toBe("ready");
+  });
+
+  it("CONFLICTs when the linked publish already fired — never re-arms a possibly-live post", async () => {
+    selectQueue.push([makeRow("scheduled")]);
+    updateResults.push(0); // nothing pending to cancel
+    selectQueue.push([{ status: "posted" }]); // the linked row already fired
+    await expect(admin().instagramStudio.cancelSchedule({ id: "ig_lifecycle_test" }))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+    expect(inventoryUpdates()).toHaveLength(0);
+  });
+
+  it("RESCUES a stalled item (no linked row at all) back to ready", async () => {
+    selectQueue.push([makeRow("scheduled")]);
+    updateResults.push(0); // nothing pending
+    selectQueue.push([]); // and no linked rows ever — the pre-0096 stall
+    updateResults.push(1);
+    await expect(admin().instagramStudio.cancelSchedule({ id: "ig_lifecycle_test" }))
+      .resolves.toEqual({ status: "ready" });
+  });
+
+  it("reschedule moves only a still-pending row; a fired one CONFLICTs", async () => {
+    selectQueue.push([makeRow("scheduled")]);
+    updateResults.push(0);
+    await expect(admin().instagramStudio.reschedule({ id: "ig_lifecycle_test", scheduledAt: new Date(Date.now() + 3_600_000).toISOString() }))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+  });
+});
+
+describe("resolveAmbiguous — the operator tells the system what reality is", () => {
+  it("'published' finalizes the item as live", async () => {
+    selectQueue.push([makeRow("ambiguous")]);
+    updateResults.push(1);
+    await expect(admin().instagramStudio.resolveAmbiguous({ id: "ig_lifecycle_test", decision: "published" }))
+      .resolves.toEqual({ status: "published" });
+    expect(inventoryUpdates()[0]?.set.status).toBe("published");
+  });
+
+  it("'not_published' returns it to ready for a safe retry", async () => {
+    selectQueue.push([makeRow("ambiguous")]);
+    updateResults.push(1);
+    await expect(admin().instagramStudio.resolveAmbiguous({ id: "ig_lifecycle_test", decision: "not_published" }))
+      .resolves.toEqual({ status: "ready" });
+    expect(inventoryUpdates()[0]?.set.status).toBe("ready");
+  });
+
+  it("refuses to resolve anything that is not actually ambiguous", async () => {
+    selectQueue.push([makeRow("ready")]);
+    await expect(admin().instagramStudio.resolveAmbiguous({ id: "ig_lifecycle_test", decision: "published" }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 

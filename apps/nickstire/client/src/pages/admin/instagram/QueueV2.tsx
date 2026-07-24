@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import type { InstagramStudioDraft } from "../../../../shared/instagramStudio";
 import LegacyQueue from "./Queue";
+import PublishBoard from "./PublishBoard";
 
 type QueueStatus = "all" | "needs_review" | "ready" | "scheduled" | "published" | "rejected";
 
@@ -54,6 +55,7 @@ export default function QueueV2() {
   const [status, setStatus] = useState<QueueStatus>("all");
   const [search, setSearch] = useState("");
   const [showLegacy, setShowLegacy] = useState(false);
+  const [layout, setLayout] = useState<"board" | "list">("board");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<InstagramStudioDraft | null>(null);
   /**
@@ -132,13 +134,21 @@ export default function QueueV2() {
     <div className="space-y-6 pb-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div><h3 className="text-2xl font-bold">Publishing Queue</h3><p className="mt-1 text-sm text-muted-foreground">Review the exact media and copy, then approve, schedule, or publish. Nothing leaves the app without an explicit action.</p></div>
-        <div className="flex gap-2">{/* Was "Reels & legacy drafts". Reels are the primary content type and
-              the one the operator just rendered — filing them under a word that
-              means "deprecated, do not use" is the interface lying about its own
-              architecture. */}
-          <Button variant="outline" onClick={() => setShowLegacy(true)}><Film className="mr-2 h-4 w-4" /> Reels</Button><Button variant="outline" onClick={() => Promise.all([list.refetch(), diagnostics.refetch()])} disabled={list.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${list.isFetching ? "animate-spin" : ""}`} /> Refresh</Button></div>
+        <div className="flex flex-wrap gap-2">
+          <div className="flex rounded-md border">
+            <Button variant={layout === "board" ? "default" : "ghost"} size="sm" className="min-h-10 rounded-r-none" onClick={() => setLayout("board")}>Board</Button>
+            <Button variant={layout === "list" ? "default" : "ghost"} size="sm" className="min-h-10 rounded-l-none" onClick={() => setLayout("list")}>List</Button>
+          </div>
+          {/* Reels still approve/publish through the legacy queue until the
+              unified board absorbs the reel lifecycle (Wave 8 decides). */}
+          <Button variant="outline" onClick={() => setShowLegacy(true)}><Film className="mr-2 h-4 w-4" /> Reels</Button>
+          <Button variant="outline" onClick={() => Promise.all([list.refetch(), diagnostics.refetch()])} disabled={list.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${list.isFetching ? "animate-spin" : ""}`} /> Refresh</Button>
+        </div>
       </div>
 
+      {layout === "board" && <PublishBoard />}
+
+      {layout === "list" && (<>
       {countsUnavailable && !diagnostics.isLoading && (
         <div className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-500">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -199,6 +209,7 @@ export default function QueueV2() {
           })}
         </div>
       )}
+      </>)}
     </div>
   );
 }
