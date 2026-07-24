@@ -115,7 +115,11 @@ export function Inbox({ onNavigate }: InboxProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Sidebar: Live Post List */}
-        <Card className="lg:col-span-4 flex flex-col h-[600px] overflow-hidden">
+        {/* dvh, not a fixed 600px: on the phone the two stacked 600px cards
+            overflowed small viewports, and the fixed height put the reply
+            composer under the iOS keyboard. dvh tracks the visual viewport,
+            so the composer stays reachable while typing. */}
+        <Card className="lg:col-span-4 flex flex-col h-[70dvh] lg:h-[600px] overflow-hidden">
           <CardHeader className="pb-3 border-b">
             <CardTitle className="text-sm font-semibold">Recent Instagram Feed</CardTitle>
             <CardDescription>Select a post to manage comments.</CardDescription>
@@ -182,7 +186,7 @@ export function Inbox({ onNavigate }: InboxProps) {
         </Card>
 
         {/* Main Work Area: Comment Moderation */}
-        <Card className="lg:col-span-8 flex flex-col h-[600px] overflow-hidden">
+        <Card className="lg:col-span-8 flex flex-col h-[70dvh] lg:h-[600px] overflow-hidden">
           {selectedPostId ? (
             <>
               <CardHeader className="pb-3 border-b flex flex-row justify-between items-start gap-4">
@@ -194,12 +198,13 @@ export function Inbox({ onNavigate }: InboxProps) {
                     Post: {selectedPost?.caption || "No caption"}
                   </CardDescription>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => refetchComments()} 
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Refresh comments"
+                  onClick={() => refetchComments()}
                   disabled={loadingComments}
-                  className="h-8 w-8 p-0"
+                  className="h-11 w-11 p-0"
                 >
                   <RefreshCw className={`h-4 w-4 ${loadingComments ? "animate-spin" : ""}`} />
                 </Button>
@@ -269,16 +274,19 @@ export function Inbox({ onNavigate }: InboxProps) {
                                       <Sparkles className="w-3.5 h-3.5 text-primary" />
                                       Reply Draft
                                     </span>
-                                    <div className="flex gap-1">
+                                    {/* 44px targets: the old px-2 py-0.5 text-[10px]
+                                        chips were ~21px tall — a mis-tap silently
+                                        changed which tone the AI drafts in. */}
+                                    <div className="flex flex-wrap gap-2">
                                       {(["warm", "professional", "witty", "promo"] as const).map((t) => (
                                         <button
                                           key={t}
                                           type="button"
                                           disabled={suggestReply.isPending}
                                           onClick={() => setSelectedTone(t)}
-                                          className={`px-2 py-0.5 text-[10px] rounded border capitalize transition-colors ${
-                                            selectedTone === t 
-                                              ? "bg-primary text-primary-foreground border-primary font-medium" 
+                                          className={`min-h-11 px-3 text-xs rounded border capitalize transition-colors ${
+                                            selectedTone === t
+                                              ? "bg-primary text-primary-foreground border-primary font-medium"
                                               : "bg-background text-muted-foreground hover:bg-muted border-border"
                                           }`}
                                         >
@@ -294,7 +302,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                                       variant="outline"
                                       disabled={suggestReply.isPending || postReply.isPending}
                                       onClick={() => suggestReply.mutate({ commentText: comment.text, tone: selectedTone })}
-                                      className="w-full text-xs gap-1.5 h-8 border-dashed hover:border-solid"
+                                      className="w-full text-xs gap-1.5 min-h-11 border-dashed hover:border-solid"
                                     >
                                       {suggestReply.isPending ? (
                                         <>
@@ -344,7 +352,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                                           setReplyingToCommentId(null);
                                           setReplyMessage("");
                                         }}
-                                        className="h-8 px-3 text-xs"
+                                        className="min-h-11 px-3 text-xs"
                                       >
                                         Cancel
                                       </Button>
@@ -352,7 +360,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                                         size="sm"
                                         disabled={!replyMessage.trim() || isBlockedBySafety || postReply.isPending}
                                         onClick={() => postReply.mutate({ commentId: comment.id, message: replyMessage })}
-                                        className="h-8 px-4 text-xs gap-1.5"
+                                        className="min-h-11 px-4 text-xs gap-1.5"
                                       >
                                         {postReply.isPending ? (
                                           <>

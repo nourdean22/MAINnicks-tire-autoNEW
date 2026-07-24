@@ -70,6 +70,11 @@ export default function ActionCenter() {
   const [discardReason, setDiscardReason] = useState("");
   /** Job awaiting an explicit spend confirmation before regenerating. */
   const [regenerating, setRegenerating] = useState<number | null>(null);
+  /** Ambiguous-publish resolution is irreversible — arm on the first tap,
+   *  execute on the second (in-DOM; window.confirm is dead in the iOS PWA).
+   *  These were 11px text links before: ~16px tap targets carrying
+   *  opposite-outcome decisions, adjacent to each other, on a phone. */
+  const [armedResolve, setArmedResolve] = useState<string | null>(null);
 
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, {
     // Probing artifact reachability costs real HTTP calls, so do not hammer it.
@@ -302,31 +307,51 @@ export default function ActionCenter() {
                                   <a href={c.permalink} target="_blank" rel="noreferrer"
                                      className="text-[11px] text-primary underline">Open on Instagram</a>
                                 )}
-                                {(a.jobId ?? a.scheduledPostId) && (
-                                  <button
-                                    className="text-[11px] text-green-600 underline"
-                                    disabled={resolveAmbiguous.isPending}
-                                    onClick={() => resolveAmbiguous.mutate({
-                                      kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
-                                      attemptId: a.attemptId, decision: "published",
-                                      igPostId: c.igPostId, operatorNote: "matched by operator",
-                                    })}
-                                  >This is the one — mark it live</button>
-                                )}
+                                {(a.jobId ?? a.scheduledPostId) && (() => {
+                                  const key = `${a.attemptId}:published:${c.igPostId}`;
+                                  const armed = armedResolve === key;
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      variant={armed ? "default" : "outline"}
+                                      className="min-h-11 border-green-600/50 text-green-600"
+                                      disabled={resolveAmbiguous.isPending}
+                                      onClick={() => {
+                                        if (!armed) { setArmedResolve(key); return; }
+                                        setArmedResolve(null);
+                                        resolveAmbiguous.mutate({
+                                          kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
+                                          attemptId: a.attemptId, decision: "published",
+                                          igPostId: c.igPostId, operatorNote: "matched by operator",
+                                        });
+                                      }}
+                                    >{armed ? "Tap again — mark it LIVE (irreversible)" : "This is the one — mark it live"}</Button>
+                                  );
+                                })()}
                               </div>
                             </div>
                           ))}
-                          {(a.jobId ?? a.scheduledPostId) && (
-                            <button
-                              className="text-[11px] text-muted-foreground underline"
-                              disabled={resolveAmbiguous.isPending}
-                              onClick={() => resolveAmbiguous.mutate({
-                                kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
-                                attemptId: a.attemptId, decision: "not_published",
-                                operatorNote: "operator confirmed none of the candidates match",
-                              })}
-                            >None of these — it never posted</button>
-                          )}
+                          {(a.jobId ?? a.scheduledPostId) && (() => {
+                            const key = `${a.attemptId}:not_published`;
+                            const armed = armedResolve === key;
+                            return (
+                              <Button
+                                size="sm"
+                                variant={armed ? "destructive" : "outline"}
+                                className="min-h-11"
+                                disabled={resolveAmbiguous.isPending}
+                                onClick={() => {
+                                  if (!armed) { setArmedResolve(key); return; }
+                                  setArmedResolve(null);
+                                  resolveAmbiguous.mutate({
+                                    kind: a.kind, jobId: a.jobId ?? a.scheduledPostId,
+                                    attemptId: a.attemptId, decision: "not_published",
+                                    operatorNote: "operator confirmed none of the candidates match",
+                                  });
+                                }}
+                              >{armed ? "Tap again — confirm it never posted (irreversible)" : "None of these — it never posted"}</Button>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
@@ -426,6 +451,10 @@ export default function ActionCenter() {
                           size="sm"
                           variant={a.costsMoney ? "outline" : "secondary"}
                           disabled={!wired || busy}
+                          // title= never renders on iOS touch (and never on a
+                          // disabled button anywhere) — the visible suffix below
+                          // carries the disabled reason; the tooltip is a
+                          // desktop-only bonus.
                           title={wired ? a.detail : `${a.detail}\n\n(not yet available from the admin)`}
                           onClick={() => {
                             // Closing a job is terminal, so it takes a second tap
@@ -449,6 +478,7 @@ export default function ActionCenter() {
                         >
                           {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Icon className="h-3 w-3 mr-1" />}
                           {a.label}
+                          {!wired && <span className="ml-1 text-[10px] opacity-70">· not wired yet</span>}
                           {a.costsMoney && <DollarSign className="h-3 w-3 ml-1 text-amber-500" />}
                         </Button>
                       );

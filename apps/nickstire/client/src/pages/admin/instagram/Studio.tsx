@@ -885,10 +885,15 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                       <div className="relative rounded-md overflow-hidden border bg-black/5 flex justify-center p-2 group">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={mediaUrl} alt="Staged media" className="max-h-[300px] object-contain rounded" />
-                        <Button 
-                          size="icon" 
-                          variant="destructive" 
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        {/* Always visible: opacity-0 + group-hover meant iOS
+                            (no hover) had an INVISIBLE but still-tappable
+                            destructive control — undiscoverable on purpose-built
+                            touch hardware, and a phantom tap target. */}
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          aria-label="Remove staged media"
+                          className="absolute top-2 right-2 opacity-80 hover:opacity-100 transition-opacity"
                           onClick={() => setMediaUrl("")}
                         >
                           <X className="h-4 w-4" />
