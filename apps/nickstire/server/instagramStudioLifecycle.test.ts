@@ -287,6 +287,44 @@ describe("stage refuses to overwrite rows past review", () => {
   });
 });
 
+describe("saveDraft (Wave 5 autosave lane)", () => {
+  it("refuses to touch a row that has left the draft lane", async () => {
+    selectQueue.push([{ status: "pending" }]);
+    await expect(admin().instagramStudio.saveDraft({ draft: makeDraft() as never, expectedVersion: 1 }))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+    expect(ops).toHaveLength(0);
+  });
+
+  it("reports a lost autosave CAS as CONFLICT (another tab moved the draft on)", async () => {
+    selectQueue.push([{ status: "draft" }]);
+    updateResults.push(0);
+    await expect(admin().instagramStudio.saveDraft({ draft: makeDraft() as never, expectedVersion: 3 }))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("bumps the version on a clean save", async () => {
+    selectQueue.push([{ status: "draft" }]);
+    updateResults.push(1);
+    await expect(admin().instagramStudio.saveDraft({ draft: makeDraft() as never, expectedVersion: 3 }))
+      .resolves.toEqual({ version: 4 });
+  });
+
+  it("creates the row at version 1 when nothing is persisted yet", async () => {
+    selectQueue.push([]);
+    await expect(admin().instagramStudio.saveDraft({ draft: makeDraft() as never, expectedVersion: 1 }))
+      .resolves.toEqual({ version: 1 });
+    const insert = ops.find((o): o is Extract<Op, { kind: "insert" }> => o.kind === "insert" && o.table === socialContentInventory);
+    expect(insert?.values.status).toBe("draft");
+  });
+});
+
+describe("stage graduates the autosave lane", () => {
+  it("a row in status 'draft' is overwritable by stage (draft → pending)", async () => {
+    selectQueue.push([{ status: "draft", version: 4 }]);
+    await expect(admin().instagramStudio.stage(makeDraft() as never)).resolves.toMatchObject({ status: "needs_review" });
+  });
+});
+
 describe("publish parks a dispatched-but-unanswered call as AMBIGUOUS", () => {
   it("sets status 'ambiguous' (never 'ready') when the media_publish dispatch got no answer", async () => {
     selectQueue.push([makeRow("ready")]);

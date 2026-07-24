@@ -355,7 +355,14 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {(Object.keys(FormatRegistry) as PostFormat[]).map((key) => {
+            {/* REEL ONLY (Wave 5). This screen is reached exclusively through
+                Studio V2's "Open Advanced Reel Studio" button, yet it still
+                offered every static format — whose "quality scores" here were
+                CLIENT-INVENTED heuristics (caption length, contains
+                "cleveland", hardcoded 7s and 8s) with no server evaluation.
+                Static formats belong to Studio V2's real quality gate; the
+                reel path is the only one with genuine server scoring here. */}
+            {(Object.keys(FormatRegistry) as PostFormat[]).filter((key) => key === "reel").map((key) => {
               const f = FormatRegistry[key];
               return (
                 <Card 

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { checkReviewReply, hasBlockingFindings } from "@shared/reviewReplyQa";
+import { writeCreateHandoff } from "./igViews";
 
 interface InboxProps {
   onNavigate: (tab: string) => void;
@@ -449,7 +450,17 @@ export function Inbox({ onNavigate }: InboxProps) {
                     </p>
                   </CardContent>
                   <CardFooter>
-                    <Button variant="ghost" size="sm" className="w-full justify-between" onClick={() => onNavigate("studio")}>
+                    {/* REAL handoff (Wave 5): the theme, sample quote, and
+                        mention count ride along — this used to be a bare tab
+                        switch that threw away everything on this card. */}
+                    <Button variant="ghost" size="sm" className="w-full justify-between min-h-11" onClick={() => {
+                      writeCreateHandoff({
+                        sourceType: "review",
+                        detail: `Customers keep mentioning "${cluster.label}" (${cluster.count} mentions). Example: "${cluster.sample}"`,
+                        objective: "trust",
+                      });
+                      onNavigate("studio");
+                    }}>
                       Create Post
                       <ArrowRight className="h-4 w-4" />
                     </Button>

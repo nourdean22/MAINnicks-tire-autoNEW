@@ -47,6 +47,35 @@ describe("normalizeIgView", () => {
   });
 });
 
+describe("cross-view handoffs carry real context (Wave 5)", () => {
+  it("Community's Create Post writes the handoff (theme + sample + count), not a bare tab switch", () => {
+    const inbox = read("client/src/pages/admin/instagram/Inbox.tsx");
+    expect(inbox).toMatch(/writeCreateHandoff\(\{/);
+    expect(inbox).toMatch(/cluster\.sample/);
+  });
+
+  it("Insights' Build-a-sequel hands over the winning post's identity and metrics", () => {
+    const learn = read("client/src/pages/admin/instagram/Learn.tsx");
+    expect(learn).toMatch(/writeCreateHandoff\(\{/);
+    expect(learn).toMatch(/sourceType: "proven_post"/);
+    expect(learn).toMatch(/recordId: winner\.postId/);
+  });
+
+  it("Create consumes the handoff exactly once on mount", () => {
+    const studio = read("client/src/pages/admin/instagram/StudioV2.tsx");
+    expect(studio).toMatch(/consumeCreateHandoff\(\)/);
+  });
+
+  it("legacy Studio offers ONLY the reel format (client-invented static quality is unreachable)", () => {
+    const legacy = read("client/src/pages/admin/instagram/Studio.tsx");
+    expect(legacy).toMatch(/\.filter\(\(key\) => key === "reel"\)/);
+  });
+
+  it("QueueV2 keeps autosaved drafts out of the review lanes", () => {
+    expect(read("client/src/pages/admin/instagram/QueueV2.tsx")).toMatch(/item\.status === "draft"\) return false/);
+  });
+});
+
 describe("the shell persists the active view in the URL", () => {
   it("initial view reads from the URL and navigation writes back", () => {
     const shell = read("client/src/pages/admin/instagram/InstagramAdmin.tsx");

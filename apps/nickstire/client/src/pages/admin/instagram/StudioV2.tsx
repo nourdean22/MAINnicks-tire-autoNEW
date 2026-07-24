@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Film, Image as ImageIcon,
   Layers3, Loader2, Megaphone, RefreshCw, Save, ShieldCheck, Sparkles, Wand2,
@@ -22,6 +22,28 @@ import {
 } from "../../../../shared/instagramStudio";
 import LegacyStudio from "./Studio";
 import CampaignPackageCard from "@/components/admin/CampaignPackageCard";
+import { consumeCreateHandoff } from "./igViews";
+
+/** One-shot mount initializer from the cross-view handoff contract. */
+function initialFromHandoff() {
+  const handoff = consumeCreateHandoff();
+  if (!handoff) return null;
+  const sourceType = (INSTAGRAM_SOURCE_TYPES as readonly string[]).includes(handoff.sourceType)
+    ? (handoff.sourceType as InstagramSourceType)
+    : null;
+  if (!sourceType) return null;
+  return {
+    sourceType,
+    recordId: handoff.recordId ?? "",
+    detail: handoff.detail ?? "",
+    format: handoff.format && handoff.format !== "reel" && ["post", "carousel", "story", "ad"].includes(handoff.format)
+      ? (handoff.format as Exclude<InstagramFormat, "reel">)
+      : null,
+    objective: handoff.objective && (INSTAGRAM_OBJECTIVES as readonly string[]).includes(handoff.objective)
+      ? (handoff.objective as InstagramObjective)
+      : null,
+  };
+}
 
 /**
  * Draft fields the deterministic renderer consumes. Editing any of them invalidates
@@ -73,14 +95,20 @@ function gateClass(gate: string) {
 }
 
 export default function StudioV2() {
+  // Handoff from Community/Insights/Today — consumed exactly once, before
+  // first render, so a preloaded source is indistinguishable from a typed one.
+  const [handoff] = useState(() => initialFromHandoff());
   const [showReelStudio, setShowReelStudio] = useState(false);
-  const [sourceType, setSourceType] = useState<InstagramSourceType>("manual_idea");
-  const [sourceRecordId, setSourceRecordId] = useState("");
-  const [sourceDetail, setSourceDetail] = useState("");
-  const [format, setFormat] = useState<Exclude<InstagramFormat, "reel">>("post");
-  const [objective, setObjective] = useState<InstagramObjective>("bookings");
+  const [sourceType, setSourceType] = useState<InstagramSourceType>(handoff?.sourceType ?? "manual_idea");
+  const [sourceRecordId, setSourceRecordId] = useState(handoff?.recordId ?? "");
+  const [sourceDetail, setSourceDetail] = useState(handoff?.detail ?? "");
+  const [format, setFormat] = useState<Exclude<InstagramFormat, "reel">>(handoff?.format ?? "post");
+  const [objective, setObjective] = useState<InstagramObjective>(handoff?.objective ?? "bookings");
   const [direction, setDirection] = useState("");
   const [draft, setDraft] = useState<InstagramStudioDraft | null>(null);
+  /** Server row version for the autosave CAS — null until persisted. */
+  const [draftVersion, setDraftVersion] = useState<number | null>(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   /**
    * In-DOM confirm for discarding a paid draft (window.confirm is silently
    * suppressed in the installed iOS PWA). A single tap on a source/format
@@ -105,9 +133,22 @@ export default function StudioV2() {
     else toast.info(staleNote);
   };
 
+  const utils = trpc.useUtils();
+  // Real records to create from — no more raw database IDs.
+  const sourceOptions = trpc.instagramStudio.sourceOptions.useQuery(undefined, {
+    enabled: sourceType === "review" || sourceType === "declined_work",
+    staleTime: 60_000,
+  });
+  // Autosaved drafts to resume — the work survives refresh/relaunch now.
+  const recentDrafts = trpc.instagramStudio.list.useQuery({ limit: 20 }, {
+    enabled: draft === null,
+    select: (rows) => rows.filter((row) => row.status === "draft").slice(0, 3),
+  });
+
   const generate = trpc.instagramStudio.generate.useMutation({
     onError: (error) => toast.error("Generation failed", { description: error.message }),
   });
+  const saveDraft = trpc.instagramStudio.saveDraft.useMutation();
   const evaluate = trpc.instagramStudio.evaluate.useMutation({
     onError: (error) => toast.error("Quality check failed", { description: error.message }),
   });
@@ -127,10 +168,57 @@ export default function StudioV2() {
       operatorDirection: direction || undefined,
     }, {
       onSuccess: (result) => applyIfCurrent(seq, () => {
-        setDraft(result as InstagramStudioDraft);
-        toast.success("Draft generated", { description: "Copy and quality findings are ready for review." });
+        const { persisted, draftRowVersion, ...generated } = result;
+        setDraft(generated as InstagramStudioDraft);
+        setDraftVersion(persisted ? draftRowVersion : null);
+        setSavedAt(persisted ? new Date() : null);
+        toast.success("Draft generated", {
+          description: persisted
+            ? "Saved to the server — safe across refresh."
+            : "NOT server-saved (persistence failed) — stage it before leaving.",
+        });
       }, "A generation finished for a concept you already discarded — it was not applied."),
     });
+  };
+
+  /**
+   * Debounced autosave. Every edit (patchDraft, evaluate/render results) lands
+   * on the server within ~1.5s — the generated asset cost money and must never
+   * again depend on one component's unsaved state. CONFLICT means another tab
+   * owns a newer version; surfaced once, not spammed.
+   */
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!draft || draftVersion === null) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    const snapshot = draft;
+    const version = draftVersion;
+    autosaveTimer.current = setTimeout(() => {
+      saveDraft.mutate({ draft: snapshot, expectedVersion: version }, {
+        onSuccess: (result) => {
+          setDraftVersion((current) => (current === version ? result.version : current));
+          setSavedAt(new Date());
+        },
+        onError: (error) => {
+          // Stop retrying a lost CAS — the row moved on without us.
+          setDraftVersion(null);
+          toast.warning("Autosave stopped", { description: error.message });
+        },
+      });
+    }, 1500);
+    return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
+  const resumeDraft = (row: { version: number; draft: InstagramStudioDraft | null }) => {
+    if (!row.draft) return;
+    reqSeq.current += 1;
+    setDraft(row.draft);
+    setDraftVersion(row.version);
+    setSavedAt(null);
+    setSourceType(row.draft.source.type);
+    setFormat(row.draft.format === "reel" ? "post" : row.draft.format);
+    setObjective(row.draft.objective);
   };
   const runEvaluate = (current: InstagramStudioDraft) => {
     const seq = ++reqSeq.current;
@@ -153,12 +241,17 @@ export default function StudioV2() {
   const runStage = (current: InstagramStudioDraft) => {
     const seq = ++reqSeq.current;
     stage.mutate(current, {
-      onSuccess: () => applyIfCurrent(seq, () => {
-        // The draft now lives in the Queue — keeping it mounted here left the
-        // stage button armed, and a second tap blind-upserted the queue row.
-        setDraft(null);
-        toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Queue." });
-      }, "Staged — find it in the Queue."),
+      onSuccess: async () => {
+        await utils.instagramStudio.list.invalidate();
+        applyIfCurrent(seq, () => {
+          // The draft now lives in the Queue — keeping it mounted here left the
+          // stage button armed, and a second tap blind-upserted the queue row.
+          setDraft(null);
+          setDraftVersion(null);
+          setSavedAt(null);
+          toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Publish." });
+        }, "Staged — find it in Publish.");
+      },
     });
   };
 
@@ -167,6 +260,8 @@ export default function StudioV2() {
     if (target.kind === "source") setSourceType(target.value);
     else setFormat(target.value);
     setDraft(null);
+    setDraftVersion(null);
+    setSavedAt(null);
     setPendingSwitch(null);
   };
   const requestSwitch = (target: NonNullable<typeof pendingSwitch>) => {
@@ -254,8 +349,32 @@ export default function StudioV2() {
 
             {requiresRecord && (
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Verified database record ID</label>
-                <Input value={sourceRecordId} onChange={(event) => setSourceRecordId(event.target.value)} placeholder={sourceType === "review" ? "Review ID" : "Declined work item ID"} />
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {sourceType === "review" ? "Pick the real review" : "Pick the declined work"}
+                </label>
+                {sourceOptions.isLoading ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading records…</div>
+                ) : sourceOptions.isError ? (
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">Records could not be listed — unknown, not empty. You can still paste an ID below.</p>
+                ) : (
+                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {(sourceType === "review" ? sourceOptions.data?.reviews : sourceOptions.data?.declinedWork)?.map((option) => (
+                      <button
+                        type="button"
+                        key={option.recordId}
+                        onClick={() => setSourceRecordId(option.recordId)}
+                        className={`w-full rounded-lg border p-3 text-left text-xs transition ${sourceRecordId === option.recordId ? "border-primary bg-primary/10" : "border-border/70 hover:border-primary/40"}`}
+                      >
+                        <div className="font-semibold">{option.label}</div>
+                        {option.detail && <p className="mt-1 line-clamp-2 text-muted-foreground">{option.detail}</p>}
+                      </button>
+                    ))}
+                    {(sourceType === "review" ? sourceOptions.data?.reviews : sourceOptions.data?.declinedWork)?.length === 0 && (
+                      <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">No matching records found — verified empty.</p>
+                    )}
+                  </div>
+                )}
+                <Input value={sourceRecordId} onChange={(event) => setSourceRecordId(event.target.value)} placeholder={sourceType === "review" ? "…or paste a review ID" : "…or paste a work item ID"} />
                 <p className="text-xs text-muted-foreground">The server blocks generation when this record cannot be verified.</p>
               </div>
             )}
@@ -313,6 +432,22 @@ export default function StudioV2() {
               <div className="rounded-full bg-primary/10 p-5"><Sparkles className="h-10 w-10 text-primary" /></div>
               <h3 className="mt-5 text-xl font-semibold">Ready for a real creative order</h3>
               <p className="mt-2 max-w-lg text-sm text-muted-foreground">Select the source, format, and business goal. The output will include editable copy, actual quality findings, and clean rendered media.</p>
+              {(recentDrafts.data?.length ?? 0) > 0 && (
+                <div className="mt-6 w-full max-w-md space-y-2 text-left">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resume a saved draft</p>
+                  {recentDrafts.data!.map((row) => row.draft && (
+                    <button
+                      type="button"
+                      key={row.id}
+                      onClick={() => resumeDraft(row)}
+                      className="w-full rounded-lg border border-border/70 p-3 text-left text-sm transition hover:border-primary/40"
+                    >
+                      <span className="font-medium">{row.draft.topic}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{row.draft.format} · {row.draft.imageUrls.length ? "rendered" : "copy only"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -324,7 +459,18 @@ export default function StudioV2() {
                     <CardTitle>{INSTAGRAM_FORMAT_LABELS[draft.format]} · {draft.topic}</CardTitle>
                     <CardDescription className="mt-1">{draft.rationale}</CardDescription>
                   </div>
-                  <Badge className={gateClass(draft.quality.gate)} variant="outline">{draft.quality.gate.toUpperCase()} · {draft.quality.overall}</Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge className={gateClass(draft.quality.gate)} variant="outline">{draft.quality.gate.toUpperCase()} · {draft.quality.overall}</Badge>
+                    <span className={`text-[11px] ${draftVersion === null ? "text-amber-500" : "text-muted-foreground"}`}>
+                      {draftVersion === null
+                        ? "Not server-saved — stage before leaving"
+                        : saveDraft.isPending
+                          ? "Saving…"
+                          : savedAt
+                            ? `Saved ${Math.max(0, Math.round((Date.now() - savedAt.getTime()) / 1000))}s ago`
+                            : "Saved"}
+                    </span>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_340px]">

@@ -114,6 +114,9 @@ export default function QueueV2() {
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (list.data ?? []).filter((item) => {
+      // Autosaved drafts (status "draft") belong to Create until staged —
+      // showing them here would put un-reviewed work next to approvals.
+      if (item.status === "draft") return false;
       if (status !== "all" && item.status !== status) return false;
       if (!q || !item.draft) return !q;
       const draft = item.draft as InstagramStudioDraft;
