@@ -203,10 +203,13 @@ export const instagramAdminRouter = router({
   }),
 
   /*
-   * getAccountInfo / reconnectToken / generatePost / finalizeReelDraft were
-   * DELETED 2026-07-24 (audit R4): zero client callers, no test coverage,
-   * and each duplicated a capability owned elsewhere (feed cache, Settings
-   * config flow, the governed Studio pipeline, the reel pipeline).
+   * getAccountInfo / reconnectToken / generatePost were DELETED 2026-07-24
+   * (audit R4): zero client callers, no test coverage, and each duplicated a
+   * capability owned elsewhere (feed cache, Settings config flow, the
+   * governed Studio pipeline). finalizeReelDraft was deleted in the same cut
+   * and RESTORED the same day: approval-integrity.test.ts's E2E pipeline
+   * (enqueue -> finalize -> approve -> publish) exercises it — it is part of
+   * the reel pipeline's tested contract, not dead weight.
    */
 
   /** Recent posts from the cached feed (refresh via syncFeed). */
@@ -615,6 +618,66 @@ Keep it under 200 characters.`;
         version: 1,
       });
       
+      return { success: true };
+    }),
+
+  /** Reel pipeline step: attach the finished mp4 to a generating draft and
+   *  move it to review. Part of the E2E integrity contract pinned by
+   *  approval-integrity.test.ts (enqueue -> finalize -> approve -> publish). */
+  finalizeReelDraft: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      videoUrl: z.string(),
+      brief: z.any(),
+    }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const { socialContentInventory } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const rows = await database
+        .select()
+        .from(socialContentInventory)
+        .where(eq(socialContentInventory.id, input.id))
+        .limit(1);
+
+      if (rows.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Inventory record with ID ${input.id} not found.`,
+        });
+      }
+
+      const item = rows[0];
+      if (item.status !== "generating") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot finalize draft in status ${item.status}. Expected status 'generating'.`,
+        });
+      }
+
+      if (!input.videoUrl.toLowerCase().endsWith(".mp4")) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Reel asset must be an MP4 video.",
+        });
+      }
+
+      const assetPaths = [input.videoUrl];
+      const briefJson = JSON.stringify(input.brief || {});
+
+      await database
+        .update(socialContentInventory)
+        .set({
+          status: "review_ready",
+          assetPaths,
+          briefJson,
+          updatedAt: new Date(),
+        })
+        .where(eq(socialContentInventory.id, input.id));
+
       return { success: true };
     }),
 

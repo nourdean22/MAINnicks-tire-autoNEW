@@ -119,13 +119,16 @@ describe("legacy surface cleanup (Wave 8)", () => {
     expect(panel).not.toMatch(/window\.location\.href = `/);
   });
 
-  it("the four untested dead instagramAdmin procs are deleted", () => {
+  it("the three untested dead instagramAdmin procs are deleted", () => {
     const router = read("server/routers/instagramAdmin.ts");
-    for (const proc of ["getAccountInfo:", "reconnectToken:", "generatePost:", "finalizeReelDraft:"]) {
+    for (const proc of ["getAccountInfo:", "reconnectToken:", "generatePost:"]) {
       expect(router).not.toContain(proc);
     }
-    // generatePostDraft (legacy Studio's live endpoint) must SURVIVE the cut.
+    // Live/tested endpoints must SURVIVE the cut: generatePostDraft (legacy
+    // Studio) and finalizeReelDraft (approval-integrity E2E contract — its
+    // deletion broke the pipeline test and was reverted same-day).
     expect(router).toContain("generatePostDraft:");
+    expect(router).toContain("finalizeReelDraft:");
   });
 });
 

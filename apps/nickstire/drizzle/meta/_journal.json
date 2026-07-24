@@ -764,6 +764,13 @@
       "when": 1784295500866,
       "tag": "0095_training_edit_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "5",
+      "when": 1784923072011,
+      "tag": "0096_scheduled_posts_inventory_id",
+      "breakpoints": true
     }
   ]
 }
