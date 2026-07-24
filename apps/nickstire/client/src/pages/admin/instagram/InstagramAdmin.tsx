@@ -1,7 +1,15 @@
 import { useState } from "react";
+import { Settings2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { HQ } from "./HQ";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { IG_PRIMARY_VIEWS, IG_SECONDARY_VIEWS, type IgView, readIgViewFromUrl, writeIgViewToUrl } from "./igViews";
+import Today from "./Today";
 import StudioV2 from "./StudioV2";
 import QueueV2 from "./QueueV2";
 import { Inbox } from "./Inbox";
@@ -11,81 +19,111 @@ import DraftBoardPanel from "../DraftBoardPanel";
 import AutonomyCommandCenter from "@/components/admin/AutonomyCommandCenter";
 import ActionCenter from "./ActionCenter";
 
+/**
+ * The canonical five-view shell (audit Wave 4). The operator has five jobs —
+ * what needs attention / create / approve+publish / respond / what worked —
+ * not nine equal tabs. Rare surfaces (Planning, reel recovery, autonomy
+ * control, settings) live behind the gear. The active view persists in the
+ * URL (?igview=), so a refresh or PWA relaunch no longer resets to square one.
+ */
 export function InstagramAdmin() {
-  const [activeTab, setActiveTab] = useState("hq");
+  const [activeView, setActiveView] = useState<IgView>(() => readIgViewFromUrl());
+  const navigate = (view: IgView) => {
+    setActiveView(view);
+    writeIgViewToUrl(view);
+  };
 
-  // A count ON THE TAB, so a held reel is visible without going looking for it.
-  // Three reels once sat stuck for 32 hours precisely because nothing surfaced
-  // them until someone thought to ask.
+  // Count ON the surface, so a held reel is visible without going looking.
+  // Three reels once sat stuck for 32 hours because nothing surfaced them.
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, {
     refetchInterval: 120_000,
     staleTime: 60_000,
   });
   const needsAttention = attention.data?.count ?? 0;
 
+  // Meta liveness chip in the header — the operator should not need to open
+  // Settings to learn publishing is down. Tri-state, same source HQ uses.
+  const health = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, { refetchInterval: 120_000 });
+  const meta = health.data?.meta;
+  const metaChip = !meta
+    ? null
+    : !meta.connected
+      ? { className: "border-red-500/40 text-red-400", label: "Meta off" }
+      : meta.live === true
+        ? { className: "border-emerald-500/40 text-emerald-400", label: "Meta live" }
+        : meta.live === false
+          ? { className: "border-red-500/40 text-red-400", label: "Meta rejected" }
+          : { className: "border-amber-500/40 text-amber-400", label: "Meta unverified" };
+
+  const isSecondary = IG_SECONDARY_VIEWS.some((v) => v.key === activeView);
+
   return (
     <div className="flex h-full flex-col space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Instagram Operating System</h2>
-          <p className="text-muted-foreground">Create, verify, render, approve, publish, and learn from one controlled workflow.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold tracking-tight">Instagram</h2>
+          <p className="text-sm text-muted-foreground">Create, approve, publish, respond, learn — one controlled workflow.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {metaChip && <Badge variant="outline" className={metaChip.className}>{metaChip.label}</Badge>}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="More surfaces" className="relative h-11 w-11">
+                <Settings2 className="h-4 w-4" />
+                {needsAttention > 0 && (
+                  <span
+                    className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white"
+                    aria-label={`${needsAttention} reel job(s) need attention`}
+                  >
+                    {needsAttention}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>More surfaces</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {IG_SECONDARY_VIEWS.map((view) => (
+                <DropdownMenuItem key={view.key} onSelect={() => navigate(view.key)}>
+                  {view.label}
+                  {view.key === "actions" && needsAttention > 0 && (
+                    <Badge variant="outline" className="ml-2 border-amber-500/40 text-amber-500">{needsAttention}</Badge>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        {/* h-auto is load-bearing: the base TabsList fixes h-9 (36px), and this
-            3-column grid stacks THREE ~33px rows into that box below lg — the
-            overflow painted panel content over rows 2-3, making six of nine
-            tabs untappable on the operator's phone. */}
-        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 lg:grid-cols-9">
-          <TabsTrigger value="hq">HQ</TabsTrigger>
-          <TabsTrigger value="studio">Studio</TabsTrigger>
-          <TabsTrigger value="queue">Queue</TabsTrigger>
-          <TabsTrigger value="actions" className="relative">
-            Actions
-            {needsAttention > 0 && (
-              <span
-                className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white"
-                aria-label={`${needsAttention} reel job(s) need attention`}
-              >
-                {needsAttention}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="drafts" title="Plan and edit drafts here — approving and publishing happens in Queue">Planning</TabsTrigger>
-          <TabsTrigger value="inbox">Inbox</TabsTrigger>
-          <TabsTrigger value="learn">Learn</TabsTrigger>
-          <TabsTrigger value="control">Control</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+      <Tabs value={isSecondary ? "" : activeView} onValueChange={(value) => navigate(value as IgView)} className="w-full">
+        {/* h-auto is load-bearing (see Wave 3): the base TabsList fixes h-9. */}
+        <TabsList className="grid h-auto w-full grid-cols-5 gap-1">
+          {IG_PRIMARY_VIEWS.map((view) => (
+            <TabsTrigger key={view.key} value={view.key} className="min-h-10">{view.label}</TabsTrigger>
+          ))}
         </TabsList>
-        <TabsContent value="hq" className="mt-4">
-          <HQ onNavigate={setActiveTab} />
-        </TabsContent>
-        <TabsContent value="studio" className="mt-4">
-          <StudioV2 />
-        </TabsContent>
-        <TabsContent value="queue" className="mt-4">
-          <QueueV2 />
-        </TabsContent>
-        <TabsContent value="actions" className="mt-4">
-          <ActionCenter />
-        </TabsContent>
-        <TabsContent value="drafts" className="mt-4">
-          <DraftBoardPanel />
-        </TabsContent>
-        <TabsContent value="inbox" className="mt-4">
-          <Inbox onNavigate={setActiveTab} />
-        </TabsContent>
-        <TabsContent value="learn" className="mt-4">
-          <Learn onNavigate={setActiveTab} />
-        </TabsContent>
-        <TabsContent value="control" className="mt-4">
-          <AutonomyCommandCenter />
-        </TabsContent>
-        <TabsContent value="settings" className="mt-4">
-          <Settings />
-        </TabsContent>
       </Tabs>
+
+      {isSecondary && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <button type="button" className="underline min-h-11" onClick={() => navigate("today")}>← Back to Today</button>
+          <span>·</span>
+          <span className="font-medium text-foreground">{IG_SECONDARY_VIEWS.find((v) => v.key === activeView)?.label}</span>
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1">
+        {activeView === "today" && <Today onNavigate={navigate} />}
+        {activeView === "create" && <StudioV2 />}
+        {activeView === "publish" && <QueueV2 />}
+        {activeView === "community" && <Inbox onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
+        {activeView === "insights" && <Learn onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
+        {activeView === "planning" && <DraftBoardPanel />}
+        {activeView === "actions" && <ActionCenter />}
+        {activeView === "control" && <AutonomyCommandCenter />}
+        {activeView === "settings" && <Settings />}
+      </div>
     </div>
   );
 }
