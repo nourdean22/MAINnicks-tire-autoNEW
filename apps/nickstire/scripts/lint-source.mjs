@@ -7,11 +7,21 @@
  * Rules (hard fail on any):
  *   - no-console-in-server: server/ must not call console.log/warn/error.
  *     Use createLogger() instead. (console.info / .debug allowed.)
+ *   - no-dialog-globals-in-client: client/src must not call alert()/confirm()/
+ *     prompt(). The admin runs as an installed iOS PWA where all three are
+ *     SILENTLY SUPPRESSED — an alert()-based flow gives zero feedback on the
+ *     operator's phone (the SMS approval screen shipped exactly that). Use
+ *     sonner toasts and in-DOM two-tap confirms (see FollowUpButton.tsx /
+ *     ConfirmDialog.tsx).
  *
  * Soft reports (warning only, doesn't fail the run):
  *   - `: any` or `as any` usage count — tracked but not enforced yet
  *   - TODO/FIXME count
  *   - raw SQL count in routers
+ *   - client `as {`/`as any` casts on data — the WeatherAwareBanner class:
+ *     an `as` cast on tRPC data invented a shape the server never returns,
+ *     and the component rendered null forever with no compile or runtime
+ *     error. tRPC's inferred types are the contract; casts opt out of it.
  *
  * Run: pnpm run lint:source
  * Fix: there is no auto-fix; address each hit by hand (it's intentional).
@@ -55,6 +65,11 @@ function walk(dir, out = []) {
 
 // ─── Rules ─────────────────────────────────────────
 const serverFiles = walk(path.join(ROOT, "server"));
+// The gate walked ONLY server/ for its first year — which is exactly why the
+// client accumulated alert()-based flows, shape-inventing casts, and dead
+// CTAs that 2,500 server tests could never see. The client is part of the
+// product; it is part of the gate.
+const clientFiles = walk(path.join(ROOT, "client", "src"));
 
 let errors = 0;
 const stats = {
@@ -62,6 +77,8 @@ const stats = {
   anyHits: 0,
   rawSqlHits: 0,
   todoHits: 0,
+  dialogHits: 0,
+  clientCastHits: 0,
 };
 
 for (const file of serverFiles) {
@@ -92,6 +109,47 @@ for (const file of serverFiles) {
   });
 }
 
+// no-dialog-globals-in-client — alert()/confirm()/prompt() are silently
+// suppressed in the installed iOS PWA. The lookbehind-free prefix guard
+// excludes method calls (.confirm()) and longer names (confirmDialog().
+const DIALOG_RE = /(^|[^.\w])(?:window\.)?(alert|confirm|prompt)\s*\(/;
+for (const file of clientFiles) {
+  const rel = path.relative(ROOT, file).replace(/\\/g, "/");
+  if (EXEMPT_FILES.has(rel)) continue;
+
+  const src = fs.readFileSync(file, "utf8");
+  const lines = src.split("\n");
+
+  // Block-comment tracker: JSX {/* … */} spans lines whose continuations
+  // start with plain prose — the startsWith("//"/"*") heuristic misses them
+  // and flagged a comment ABOUT migrating away from confirm().
+  let inBlockComment = false;
+  lines.forEach((line, idx) => {
+    const wasInBlock = inBlockComment;
+    const opens = line.lastIndexOf("/*");
+    const closes = line.lastIndexOf("*/");
+    if (opens > closes) inBlockComment = true;
+    else if (closes > -1) inBlockComment = false;
+    if (wasInBlock) return;
+
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return;
+    // Declaring a local function NAMED confirm (ConfirmDialog's internals) is
+    // not calling the global.
+    if (/\bfunction\s+(alert|confirm|prompt)\s*\(/.test(line)) return;
+
+    const mDialog = DIALOG_RE.exec(line);
+    if (mDialog) {
+      console.error(`${rel}:${idx + 1} ${mDialog[2]}() — dead in the installed iOS PWA; use toasts / in-DOM confirms (FollowUpButton.tsx is the reference)`);
+      errors++;
+      stats.dialogHits++;
+    }
+
+    // soft: shape-inventing casts on client data (the WeatherAwareBanner class)
+    if (/\bas\s+any\b|\bas\s+\{/.test(line)) stats.clientCastHits++;
+  });
+}
+
 // ─── Summary ───────────────────────────────────────
 console.log("");
 console.log("─── source lint summary ───");
@@ -99,6 +157,8 @@ console.log(`  any / as any usages:  ${stats.anyHits} (soft — target < 100)`);
 console.log(`  raw SQL queries:      ${stats.rawSqlHits} (soft)`);
 console.log(`  TODO / FIXME markers: ${stats.todoHits} (soft)`);
 console.log(`  forbidden console.* : ${stats.consoleHits}`);
+console.log(`  client dialog globals: ${stats.dialogHits} (alert/confirm/prompt — hard)`);
+console.log(`  client as-casts:      ${stats.clientCastHits} (soft — the never-rendered-banner class)`);
 console.log("");
 
 if (errors > 0) {
