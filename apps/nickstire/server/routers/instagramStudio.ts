@@ -13,6 +13,7 @@ import { socialContentInventory, scheduledPosts } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
 import {
+  buildEvalArgs,
   evaluateInstagramDraft,
   generateInstagramStudioDraft,
   renderInstagramStudioAssets,
@@ -100,32 +101,11 @@ async function recentKeysSafe(): Promise<string[] | undefined> {
   }
 }
 
-/** The evaluator args every proc passes — including the carousel slides the
- *  renderer actually draws (visual readiness scored copy that never rendered
- *  before this). */
-function evalArgs(d: {
-  source: InstagramStudioDraft["source"];
-  format: InstagramStudioDraft["format"];
-  caption: string;
-  headline: string;
-  subheadline: string;
-  artDirection: string;
-  conceptKey: string;
-  cta: string;
-  carouselSlides: Array<{ headline: string; body: string }>;
-}) {
-  return {
-    source: d.source,
-    format: d.format,
-    caption: d.caption,
-    headline: d.headline,
-    subheadline: d.subheadline,
-    artDirection: d.artDirection,
-    conceptKey: d.conceptKey,
-    cta: d.cta,
-    carouselSlides: d.carouselSlides,
-  };
-}
+/** The evaluator args every proc passes now live in the SERVICE
+ *  (buildEvalArgs) so generation and re-score cannot drift again — the router
+ *  copy and the service's inline copy previously disagreed, and the same
+ *  carousel scored 6 points lower at generation than at re-score. */
+const evalArgs = buildEvalArgs;
 
 function mediaForDraft(draft: InstagramStudioDraft) {
   if (draft.format === "carousel") return { imageUrls: draft.imageUrls };
@@ -280,7 +260,9 @@ export const instagramStudioRouter = router({
        * paths is not a limit, it is a description of one path.
        */
       await enforceStudioBoundary("generate_campaign", input.format, ctx.user?.id);
-      const draft = await generateInstagramStudioDraft(input);
+      // Same recency window the re-score paths use — generation previously
+      // omitted it, so novelty scored differently before and after staging.
+      const draft = await generateInstagramStudioDraft({ ...input, recentConceptKeys: await recentKeysSafe() });
       // Open a content run so the four separate operator actions
       // (generate -> evaluate -> render -> stage) become ONE traceable thing.
       // Recording is additive and MUST NOT be able to break generation: the draft
@@ -477,7 +459,10 @@ export const instagramStudioRouter = router({
     .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional())
     .query(async ({ input }) => {
       const database = await dbTyped();
-      if (!database) return [];
+      // THROW, never []. A 200-with-empty is indistinguishable from a genuinely
+      // empty queue — QueueV2's isError branch (pinned by emptyIsNotUnknown
+      // .test.ts) renders the honest outage card, but only if we actually error.
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — the queue cannot be read (this is an outage, not an empty queue)." });
       const rows = await database.select().from(socialContentInventory)
         .where(eq(socialContentInventory.seriesName, "instagram_studio_v2"))
         .orderBy(desc(socialContentInventory.createdAt))

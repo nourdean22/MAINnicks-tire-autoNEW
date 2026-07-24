@@ -171,6 +171,17 @@ export const instagramAdminRouter = router({
         if (!configured) return { connected: false, live: false, liveError: "Not configured" };
         try {
           const live = await verifyMetaConnectionLive();
+          // "Could not ASK" now arrives as a typed result (live.unknown) rather
+          // than a throw — verifyMetaConnectionLive never threw, so the catch
+          // below was unreachable and the third state never rendered. A
+          // transport blip must not read as a dead token.
+          if (live.unknown) {
+            return {
+              connected: configured,
+              live: null as boolean | null,
+              liveError: (live.error ?? "Could not reach Meta to verify").slice(0, 200),
+            };
+          }
           return {
             connected: configured,
             live: live.ok,
@@ -510,7 +521,7 @@ Keep it under 200 characters.`;
       fbPostId: string | null;
     }>> => {
       const database = await db();
-      if (!database) return [];
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — generation history cannot be read." });
       const { igAutopostLog } = await import("../../drizzle/schema");
       return database
         .select({
@@ -1465,7 +1476,9 @@ Keep it under 200 characters.`;
   /** Get all Instagram Drafts for the Queue */
   getAllDrafts: adminProcedure.query(async () => {
     const database = await db();
-    if (!database) return [];
+    // THROW, never [] — the Queue's isError branch renders the honest outage
+    // card; a 200-with-empty painted "no drafts" during a DB outage.
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — drafts cannot be read (outage, not an empty queue)." });
     const { socialContentInventory } = await import("../../drizzle/schema");
     const { desc } = await import("drizzle-orm");
     const rows = await database

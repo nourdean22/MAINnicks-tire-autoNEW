@@ -79,6 +79,24 @@ function compact(value: string, max: number): string {
   return sanitizeText(value).replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+/**
+ * Caption-specific compaction. compact()'s `\s+ → " "` flattened EVERY
+ * generated caption into one unbroken line: Instagram captions live on
+ * paragraph breaks, and evaluateInstagramDraft reads the first line
+ * (`caption.split(/\n+/)`) to score the hook — so the same collapse that made
+ * captions publish as walls of text also corrupted hook-strength scoring.
+ * Collapse runs of spaces/tabs WITHIN a line, cap blank runs at one empty
+ * line, keep the structure.
+ */
+export function compactCaption(value: string, max: number): string {
+  return sanitizeText(value)
+    .replace(/[^\S\n]+/g, " ")
+    .split("\n").map((line) => line.trim()).join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, max);
+}
+
 function normalizeHashtag(value: string): string {
   return value.replace(/^#+/, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 40);
 }
@@ -240,11 +258,46 @@ async function resolveEvidence(source: InstagramSourceInput): Promise<InstagramS
   };
 }
 
+/**
+ * The ONE evaluator-args builder — the router's four procs and generation all
+ * pass drafts through this, so a draft scores identically at generation and at
+ * every later re-score. Generation previously built its args inline and
+ * omitted carouselSlides (+ cta + recentConceptKeys): the same carousel scored
+ * 6 points lower at generation, with a spurious "Carousel has no slide copy to
+ * render" warning that could flip the gate pass→warn.
+ */
+export function buildEvalArgs(d: {
+  source: InstagramStudioDraft["source"];
+  format: InstagramStudioDraft["format"];
+  caption: string;
+  headline: string;
+  subheadline: string;
+  artDirection: string;
+  conceptKey: string;
+  cta: string;
+  carouselSlides: Array<{ headline: string; body: string }>;
+}) {
+  return {
+    source: d.source,
+    format: d.format,
+    caption: d.caption,
+    headline: d.headline,
+    subheadline: d.subheadline,
+    artDirection: d.artDirection,
+    conceptKey: d.conceptKey,
+    cta: d.cta,
+    carouselSlides: d.carouselSlides,
+  };
+}
+
 export async function generateInstagramStudioDraft(input: {
   source: InstagramSourceInput;
   format: InstagramFormat;
   objective: InstagramObjective;
   operatorDirection?: string;
+  /** From fetchRecentConceptKeys — generation scores novelty against the same
+   *  recency window the router's re-score paths use. */
+  recentConceptKeys?: string[];
 }): Promise<InstagramStudioDraft> {
   if (input.format === "reel") {
     throw new Error("Reels use the dedicated verified ReelBrief pipeline.");
@@ -314,7 +367,7 @@ Return only JSON matching the schema.`;
   }
 
   const normalized = {
-    caption: compact(parsed.caption, 2200),
+    caption: compactCaption(parsed.caption, 2200),
     headline: compact(parsed.headline, 42),
     subheadline: compact(parsed.subheadline, 90),
     cta: compact(parsed.cta, 52),
@@ -324,13 +377,18 @@ Return only JSON matching the schema.`;
   };
 
   const quality = evaluateInstagramDraft({
-    source,
-    format: input.format,
-    caption: normalized.caption,
-    headline: normalized.headline,
-    subheadline: normalized.subheadline,
-    artDirection: normalized.artDirection,
-    conceptKey: normalized.conceptKey,
+    ...buildEvalArgs({
+      source,
+      format: input.format,
+      caption: normalized.caption,
+      headline: normalized.headline,
+      subheadline: normalized.subheadline,
+      artDirection: normalized.artDirection,
+      conceptKey: normalized.conceptKey,
+      cta: normalized.cta,
+      carouselSlides,
+    }),
+    recentConceptKeys: input.recentConceptKeys,
   });
 
   return {

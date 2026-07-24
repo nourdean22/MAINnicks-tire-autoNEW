@@ -139,8 +139,12 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
       </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Avg content score" value={metrics.quality == null ? "No data" : String(metrics.quality)} trend="neutral" icon={<Sparkles className="h-4 w-4" />} />
-        <StatCard label="Avg engagement" value={metrics.engagement == null ? "No data" : `${metrics.engagement.toFixed(2)}%`} trend="neutral" icon={<BarChart className="h-4 w-4" />} />
+        {/* Labeled for what they ARE: averages of the top-5-by-engagement list
+            (getTopPosts limit 5), not account averages. The unqualified labels
+            presented an average of winners as the account's baseline — a skew
+            that grows as the account grows. */}
+        <StatCard label="Avg score · top 5 posts" value={metrics.quality == null ? "No data" : String(metrics.quality)} trend="neutral" icon={<Sparkles className="h-4 w-4" />} />
+        <StatCard label="Avg engagement · top 5 posts" value={metrics.engagement == null ? "No data" : `${metrics.engagement.toFixed(2)}%`} trend="neutral" icon={<BarChart className="h-4 w-4" />} />
         <StatCard label="Studio queue" value={metrics.queueHealth} trend={metrics.queueHealth === "Attention" ? "down" : "neutral"} icon={<Trophy className="h-4 w-4" />} />
       </div>
 
