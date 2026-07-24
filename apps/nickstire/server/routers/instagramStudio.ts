@@ -113,6 +113,33 @@ function mediaForDraft(draft: InstagramStudioDraft) {
   return { imageUrl: draft.imageUrls[0] };
 }
 
+/**
+ * The read-model split the audit asked for: LIFECYCLE (where the item sits in
+ * the workflow) and HEALTH (whether it needs intervention) are different
+ * questions, and encoding both in one status string is what made 'failed'
+ * ambiguous between "retry me" and "may be live". Pure so it is unit-testable.
+ *
+ * `hasPendingSchedule` matters for one specific lie: a row can say "scheduled"
+ * while NO pending scheduled_posts row exists to ever fire it (pre-0096
+ * legacy rows, or a fire that died before the outcome writeback existed).
+ * That is a stalled item wearing a calm badge.
+ */
+export function computeStudioItemState(row: { status: string; updatedAt: Date | string | null }, hasPendingSchedule: boolean): {
+  lifecycle: "draft" | "needs_review" | "ready" | "scheduled" | "publishing" | "published" | "rejected" | "failed" | "ambiguous";
+  health: "healthy" | "attention" | "stalled" | "ambiguous";
+} {
+  const lifecycle = (row.status === "pending" ? "needs_review" : row.status) as ReturnType<typeof computeStudioItemState>["lifecycle"];
+  if (row.status === "ambiguous") return { lifecycle, health: "ambiguous" };
+  if (row.status === "failed") return { lifecycle, health: "attention" };
+  if (row.status === "scheduled" && !hasPendingSchedule) return { lifecycle, health: "stalled" };
+  if (row.status === "publishing") {
+    const updatedAt = row.updatedAt ? new Date(row.updatedAt).getTime() : 0;
+    // A publish call takes seconds; a claim older than 15 minutes is wedged.
+    if (Date.now() - updatedAt > 15 * 60 * 1000) return { lifecycle, health: "stalled" };
+  }
+  return { lifecycle, health: "healthy" };
+}
+
 function assertPublishable(draft: InstagramStudioDraft): void {
   if (draft.quality.gate === "block") {
     throw new TRPCError({ code: "BAD_REQUEST", message: `Quality gate blocked: ${draft.quality.blockers.join("; ")}` });
@@ -947,6 +974,116 @@ export const instagramStudioRouter = router({
         throw err;
       }
       return { status: "scheduled" as const, scheduledAt: when.toISOString() };
+    }),
+
+  /**
+   * The unified Publish read-model (Wave 6): every Studio item with its
+   * lifecycle, computed health, and — via scheduled_posts.inventoryId — the
+   * ACTUAL deferred-publish state, not just the inventory row's word for it.
+   */
+  board: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(150).default(100) }).optional())
+    .query(async ({ input }) => {
+      const database = await dbTyped();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — the board cannot be read (outage, not empty)." });
+      const rows = await database.select().from(socialContentInventory)
+        .where(eq(socialContentInventory.seriesName, "instagram_studio_v2"))
+        .orderBy(desc(socialContentInventory.createdAt))
+        .limit(input?.limit ?? 100);
+      const ids = rows.map((row) => row.id);
+      const pendingSchedules = ids.length
+        ? await database.select({ inventoryId: scheduledPosts.inventoryId, scheduledAt: scheduledPosts.scheduledAt })
+            .from(scheduledPosts)
+            .where(and(inArray(scheduledPosts.inventoryId, ids), eq(scheduledPosts.status, "pending")))
+        : [];
+      const scheduleByInventory = new Map(pendingSchedules.map((s) => [s.inventoryId, s.scheduledAt]));
+      return rows.map((row) => {
+        const state = computeStudioItemState(row, scheduleByInventory.has(row.id));
+        return {
+          id: row.id,
+          version: row.version,
+          ...state,
+          scheduledAt: scheduleByInventory.get(row.id) ?? null,
+          publishedAt: row.publishedAt,
+          error: row.errorMessage,
+          updatedAt: row.updatedAt,
+          draft: parseDraft(row.briefJson),
+        };
+      }).filter((item) => item.draft !== null);
+    }),
+
+  /**
+   * Cancel a deferred publish and hand the item back to the ready lane.
+   * Possible at all only because scheduled_posts now carries inventoryId.
+   */
+  cancelSchedule: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const { database, row } = await loadInventoryDraft(input.id);
+      if (row.status !== "scheduled") throw new TRPCError({ code: "BAD_REQUEST", message: `Only scheduled items can be unscheduled (this one is ${row.status}).` });
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const cancelled = await database.update(scheduledPosts).set({
+        status: "canceled", error: "unscheduled by operator",
+      }).where(and(eq(scheduledPosts.inventoryId, input.id), eq(scheduledPosts.status, "pending")));
+      if (affectedRowCount(cancelled) === 0) {
+        // Nothing pending. Distinguish the two realities: a fire in flight or
+        // already fired must NOT be flipped back (duplicate risk); a stalled
+        // item — "scheduled" with no row that will ever fire it (pre-0096
+        // legacy, or an insert that died) — is exactly what unschedule must
+        // rescue, or the item is stuck in a calm-looking lane forever.
+        const linked = await database.select({ status: scheduledPosts.status })
+          .from(scheduledPosts).where(eq(scheduledPosts.inventoryId, input.id));
+        const active = linked.some((s) => ["publishing", "posted", "partial", "ambiguous"].includes(s.status));
+        if (active) {
+          throw new TRPCError({ code: "CONFLICT", message: "The scheduled publish already fired (or is executing). Verify its outcome on Instagram — do not re-arm it blind." });
+        }
+      }
+      await database.update(socialContentInventory).set({
+        status: "ready", errorMessage: null, version: row.version + 1, updatedAt: new Date(),
+      }).where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.version, row.version)));
+      return { status: "ready" as const };
+    }),
+
+  /** Move a pending deferred publish to a new time — no re-approval needed,
+   *  the approved bytes are unchanged. */
+  reschedule: adminProcedure
+    .input(z.object({ id: z.string(), scheduledAt: z.string().datetime() }))
+    .mutation(async ({ input }) => {
+      const { database, row } = await loadInventoryDraft(input.id);
+      if (row.status !== "scheduled") throw new TRPCError({ code: "BAD_REQUEST", message: `Only scheduled items can be rescheduled (this one is ${row.status}).` });
+      const when = new Date(input.scheduledAt);
+      if (!Number.isFinite(when.getTime()) || when.getTime() <= Date.now()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Scheduled time must be in the future." });
+      }
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const moved = await database.update(scheduledPosts).set({ scheduledAt: when })
+        .where(and(eq(scheduledPosts.inventoryId, input.id), eq(scheduledPosts.status, "pending")));
+      if (affectedRowCount(moved) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "No pending scheduled publish found — it may already be executing. Verify before re-scheduling." });
+      }
+      return { status: "scheduled" as const, scheduledAt: when.toISOString() };
+    }),
+
+  /**
+   * Operator resolution for the AMBIGUOUS state (publish dispatched, no
+   * answer). The operator checks the actual Instagram account and tells the
+   * system what reality is — the one thing no retry logic can safely infer.
+   */
+  resolveAmbiguous: adminProcedure
+    .input(z.object({ id: z.string(), decision: z.enum(["published", "not_published"]) }))
+    .mutation(async ({ input }) => {
+      const { database, row } = await loadInventoryDraft(input.id);
+      if (row.status !== "ambiguous") throw new TRPCError({ code: "BAD_REQUEST", message: `Only ambiguous items can be resolved (this one is ${row.status}).` });
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const resolved = await database.update(socialContentInventory).set(
+        input.decision === "published"
+          ? { status: "published", publishedAt: new Date(), errorMessage: null, version: row.version + 1, updatedAt: new Date() }
+          : { status: "ready", errorMessage: null, version: row.version + 1, updatedAt: new Date() },
+      ).where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.status, "ambiguous"), eq(socialContentInventory.version, row.version)));
+      if (affectedRowCount(resolved) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "The item changed while you were deciding. Refresh and re-check." });
+      }
+      return { status: input.decision === "published" ? ("published" as const) : ("ready" as const) };
     }),
 
   diagnostics: adminProcedure.query(async () => {
