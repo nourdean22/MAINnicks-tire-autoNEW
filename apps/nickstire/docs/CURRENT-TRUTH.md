@@ -83,6 +83,13 @@ A transcript classification, tool invocation, direction instruction, transfer at
 
 Automation success is valid only when the final system of record confirms the action.
 
+### Instagram deferred publishing — operating contract (2026-07-24, IG quality waves)
+
+- `scheduled_posts.inventoryId` (migration 0096, applied to prod and verified via information_schema) links every Studio-scheduled fire back to its inventory row. Consequences that hold by construction now: **reject cancels the pending fire first** and CONFLICTs if the cron already claimed it; `runScheduledPosts` writes the fire-time outcome (published / failed / ambiguous) back onto the inventory row, so "scheduled" can no longer be a forever-state; cancel/reschedule exist and discriminate fired-vs-stalled.
+- `instagramStudio.schedule` claims `ready → scheduled` at-most-once BEFORE inserting the fire row; a double-tap gets a CONFLICT, not a duplicate post.
+- A `media_publish` request that was **dispatched and got no answer** parks the item as `ambiguous` ("may be LIVE") everywhere — image/story/carousel/reel, both routers, and the cron — never as retryable `failed`. The operator resolves it from Publish (It IS live → published / It never posted → ready) after checking the real account.
+- `instagramAdmin.schedulePost/listScheduled/cancelScheduled` were DELETED (zero callers + integrity holes); Studio's schedule → scheduled_posts → cron is the only deferred-publish path. adStudio writes its own unlinked scheduled_posts rows (no inventory linkage; unaffected).
+
 ### Outbound SMS delivery — operating contract
 
 - Outbound routes **shop-first** through the Capevace/F25e gateway on the shop's own Verizon line. Twilio is configured but not the primary sender.
@@ -103,8 +110,8 @@ Automation success is valid only when the final system of record confirms the ac
 
 - Applying SEO copy changes to source
 - Publishing generated content or GBP material
-- Approving and publishing reels (Queue -> Reels & legacy drafts -> Approve, hash-sealed via approveDraft/publishPost; verified live 2026-07-17 with IG posts 18018908711883906 and 17877918753617173)
-- Approving and publishing Instagram Studio V2 drafts — server-owned quality gate (review/declined-work require a verified DB record), deterministic HTML→JPEG render, and an explicit approve → schedule/publish step; nothing posts without operator action (`server/services/instagramStudio.ts`, `server/routers/instagramStudio.ts`)
+- Approving and publishing reels (Instagram → Publish → **Reels segment** since the 2026-07-24 reel-absorption wave — the legacy Queue is deleted; hash-sealed via approveDraft/publishPost with a two-tap exact-payload confirm; earlier live verification 2026-07-17 with IG posts 18018908711883906 and 17877918753617173)
+- Approving and publishing Instagram Studio V2 drafts — server-owned quality gate (review/declined-work sources are picked from real records; the server still verifies them), deterministic HTML→JPEG render, drafts persisted server-side with versioned autosave from the moment of generation, and an explicit approve → schedule/publish step behind a two-tap payload confirm; nothing posts without operator action (`server/services/instagramStudio.ts`, `server/routers/instagramStudio.ts`)
 - Pushing VAPI prompt/configuration changes
 - Resolving weak invoice or customer matches
 - Approving outbound campaigns
@@ -142,6 +149,7 @@ These must remain visibly labeled as inferred or modeled.
 - Voice call activity: Voice Receptionist admin, with metric definitions from `METRICS-CONTRACT.md`
 - Search performance: official GSC aggregate totals plus separately labeled detailed-row analysis
 - System health: integration-specific timestamps and error states, not a single blended score
+- Instagram content: the five-view IG admin (`?igview=` Today / Create / Publish / Community / Insights, 2026-07-24). **Publish is the only queue** — Board (lifecycle × computed health, incl. the Attention lane), List, and Reels segments; Planning, reel recovery, autonomy control and settings live behind the gear. Views, filters and inner tabs are URL-persisted and honor browser history (popstate). Admin-wide rule pinned by tests: a failed read renders as *unknown*, never as an empty/positive state (`adminTruth.test.ts`, `emptyIsNotUnknown.test.ts`); client dialog globals are lint-banned (the iOS PWA suppresses them)
 
 ## Production actions not performed by documentation changes
 
