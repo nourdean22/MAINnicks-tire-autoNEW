@@ -57,12 +57,13 @@ describe("no winback text leaves without a way out", () => {
 });
 
 describe("both Queue publish paths carry the hashtags", () => {
-  // Queue.tsx is REACHABLE — QueueV2.tsx:70 renders it behind a "show legacy"
-  // toggle. I reported it as dead code, deleted it, and had to restore it: my
-  // reachability grep excluded its own importer because the filter matched the
-  // FILE PATH ("QueueV2") and not just the symbol.
-  const q = readSource("client/src/pages/admin/instagram/Queue.tsx");
-  const qc = readCode("client/src/pages/admin/instagram/Queue.tsx");
+  // Queue.tsx's reel capability moved to ReelQueue.tsx (Publish's Reels
+  // segment, reel-absorption wave) and the legacy file was deleted —
+  // capability-first this time, unlike the earlier premature deletion this
+  // comment used to describe. The hashtag invariant travels with the port:
+  // both the primary publish and the override retry must use the helper.
+  const q = readSource("client/src/pages/admin/instagram/ReelQueue.tsx");
+  const qc = readCode("client/src/pages/admin/instagram/ReelQueue.tsx");
 
   it("neither publish call sends the bare caption any more", () => {
     expect(qc).not.toMatch(/caption: draft\.caption \|\| ""/);

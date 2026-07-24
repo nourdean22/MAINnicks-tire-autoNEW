@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import type { InstagramStudioDraft } from "../../../../shared/instagramStudio";
-import LegacyQueue from "./Queue";
+import ReelQueue from "./ReelQueue";
 import PublishBoard from "./PublishBoard";
 
 type QueueStatus = "all" | "needs_review" | "ready" | "scheduled" | "published" | "rejected";
@@ -54,8 +54,9 @@ export default function QueueV2() {
   const utils = trpc.useUtils();
   const [status, setStatus] = useState<QueueStatus>("all");
   const [search, setSearch] = useState("");
-  const [showLegacy, setShowLegacy] = useState(false);
-  const [layout, setLayout] = useState<"board" | "list">("board");
+  /** Reels are a first-class segment of Publish (reel-absorption wave) —
+   *  the legacy Queue they used to hide behind is deleted. */
+  const [layout, setLayout] = useState<"board" | "list" | "reels">("board");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<InstagramStudioDraft | null>(null);
   /**
@@ -126,10 +127,6 @@ export default function QueueV2() {
     });
   }, [list.data, search, status]);
 
-  if (showLegacy) {
-    return <div className="space-y-4"><Button variant="outline" onClick={() => setShowLegacy(false)}><X className="mr-2 h-4 w-4" /> Back to the publishing queue</Button><LegacyQueue /></div>;
-  }
-
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -137,16 +134,15 @@ export default function QueueV2() {
         <div className="flex flex-wrap gap-2">
           <div className="flex rounded-md border">
             <Button variant={layout === "board" ? "default" : "ghost"} size="sm" className="min-h-10 rounded-r-none" onClick={() => setLayout("board")}>Board</Button>
-            <Button variant={layout === "list" ? "default" : "ghost"} size="sm" className="min-h-10 rounded-l-none" onClick={() => setLayout("list")}>List</Button>
+            <Button variant={layout === "list" ? "default" : "ghost"} size="sm" className="min-h-10 rounded-none border-x" onClick={() => setLayout("list")}>List</Button>
+            <Button variant={layout === "reels" ? "default" : "ghost"} size="sm" className="min-h-10 rounded-l-none" onClick={() => setLayout("reels")}><Film className="mr-1 h-4 w-4" /> Reels</Button>
           </div>
-          {/* Reels still approve/publish through the legacy queue until the
-              unified board absorbs the reel lifecycle (Wave 8 decides). */}
-          <Button variant="outline" onClick={() => setShowLegacy(true)}><Film className="mr-2 h-4 w-4" /> Reels</Button>
           <Button variant="outline" onClick={() => Promise.all([list.refetch(), diagnostics.refetch()])} disabled={list.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${list.isFetching ? "animate-spin" : ""}`} /> Refresh</Button>
         </div>
       </div>
 
       {layout === "board" && <PublishBoard />}
+      {layout === "reels" && <ReelQueue />}
 
       {layout === "list" && (<>
       {countsUnavailable && !diagnostics.isLoading && (
