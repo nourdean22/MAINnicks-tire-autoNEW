@@ -75,12 +75,19 @@ function inventorySetBlocks(source: string): string[] {
 
 describe("a path that delegates to scheduled_posts must not arm the inventory publisher", () => {
   it.each([
-    ["server/routers/instagramAdmin.ts", "schedulePost"],
+    // instagramAdmin.schedulePost was DELETED 2026-07-24 (zero callers +
+    // integrity holes) — instagramStudio.schedule is now the only
+    // INVENTORY-LINKED writer of scheduled_posts rows (adStudio.ts also
+    // inserts, but its rows carry no inventory linkage and arm nothing else).
     ["server/routers/instagramStudio.ts", "schedule"],
   ])("%s (%s) inserts into scheduled_posts", (file) => {
     // Establishes the premise: these files DO delegate. If this ever stops being
     // true the rule below is measuring nothing, and the test should be revisited.
     expect(read(file)).toMatch(/insert\(scheduledPosts\)/);
+  });
+
+  it("instagramAdmin no longer writes scheduled_posts at all (schedulePost deleted)", () => {
+    expect(read("server/routers/instagramAdmin.ts")).not.toMatch(/insert\(scheduledPosts\)/);
   });
 
   it.each([
@@ -93,7 +100,6 @@ describe("a path that delegates to scheduled_posts must not arm the inventory pu
   });
 
   it.each([
-    "server/routers/instagramAdmin.ts",
     "server/routers/instagramStudio.ts",
   ])("%s still marks the row 'scheduled' so the Queue filter keeps working", (file) => {
     // The operator must still see the item as scheduled. Only the TIMESTAMP moves

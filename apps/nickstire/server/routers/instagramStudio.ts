@@ -399,6 +399,24 @@ export const instagramStudioRouter = router({
       assertPublishable(draft);
       const id = input.id.startsWith("ig_") ? input.id : `ig_${randomUUID()}`;
       const contentType = input.format === "post" || input.format === "ad" ? "post" : input.format;
+
+      // Generated drafts keep their stable ig_ id across evaluate/render, so a
+      // re-tap of "Send to review queue" upserts the SAME row. The duplicate-key
+      // update below used to run with NO status guard — one accidental re-stage
+      // yanked an approved (even published) row back to "pending", outside the
+      // version protocol every other mutation honors. Only rows still in a
+      // pre-review state may be overwritten by staging.
+      const existingRows = await database.select({ status: socialContentInventory.status, version: socialContentInventory.version })
+        .from(socialContentInventory).where(eq(socialContentInventory.id, id)).limit(1);
+      const existing = existingRows[0];
+      if (existing && !["pending", "rejected", "failed"].includes(existing.status)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `This draft is already ${existing.status} in the queue. Edit it from the Queue instead of re-staging.`,
+        });
+      }
+
+      const { sql } = await import("drizzle-orm");
       await database.insert(socialContentInventory).values({
         id,
         platform: "instagram",
@@ -424,6 +442,9 @@ export const instagramStudioRouter = router({
           assetPaths: input.imageUrls,
           briefJson: JSON.stringify({ ...draft, id }),
           errorMessage: null,
+          // Overwrites participate in the version protocol like every other
+          // writer — a stale editor holding the old version must lose its CAS.
+          version: sql`${socialContentInventory.version} + 1`,
           updatedAt: new Date(),
         },
       });
@@ -484,7 +505,7 @@ export const instagramStudioRouter = router({
       }
       const quality = evaluateInstagramDraft({ ...evalArgs(input.draft), recentConceptKeys: await recentKeysSafe() });
       const nextVersion = row.version + 1;
-      await database.update(socialContentInventory).set({
+      const saveResult = await database.update(socialContentInventory).set({
         hookText: input.draft.caption,
         bodyText: input.draft.subheadline,
         scoreOverall: quality.overall,
@@ -495,6 +516,14 @@ export const instagramStudioRouter = router({
         errorMessage: null,
         updatedAt: new Date(),
       }).where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.version, input.expectedVersion)));
+      // Same rule as approve: the read-then-act check above is advisory; this
+      // CAS is the gate. Matching zero rows means another request edited or
+      // approved first — reporting success for a write that changed nothing is
+      // how a lost edit masquerades as a saved one.
+      const { affectedRowCount } = await import("../lib/db-affected");
+      if (affectedRowCount(saveResult) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Draft changed in another session. Refresh before saving." });
+      }
       return { version: nextVersion, status: "needs_review" as const, quality };
     }),
 
@@ -541,9 +570,40 @@ export const instagramStudioRouter = router({
     .mutation(async ({ input }) => {
       const { database, row } = await loadInventoryDraft(input.id);
       if (row.status === "published") throw new TRPCError({ code: "BAD_REQUEST", message: "Published content cannot be rejected." });
-      await database.update(socialContentInventory).set({
-        status: "rejected", errorMessage: input.reason, updatedAt: new Date(),
-      }).where(eq(socialContentInventory.id, input.id));
+      // "publishing" means the Meta call is in flight — the outcome is not ours
+      // to overwrite. Rejecting here used to race the publish's failure path,
+      // which reset the row to "ready" and erased the rejection.
+      if (row.status === "publishing") {
+        throw new TRPCError({ code: "CONFLICT", message: "A publish attempt is in flight. Wait for its outcome, then reject." });
+      }
+
+      // A scheduled item has a pending scheduled_posts row that WILL fire.
+      // Cancel it FIRST — flipping the inventory status alone never stopped the
+      // cron, which is how rejected content still went live at the scheduled
+      // time. Zero cancelled rows means the cron already claimed it.
+      const { affectedRowCount } = await import("../lib/db-affected");
+      if (row.status === "scheduled") {
+        const cancelled = await database.update(scheduledPosts).set({
+          status: "canceled",
+          error: `rejected by operator: ${input.reason}`.slice(0, 500),
+        }).where(and(eq(scheduledPosts.inventoryId, input.id), eq(scheduledPosts.status, "pending")));
+        if (affectedRowCount(cancelled) === 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "The scheduled publish is already executing (or was created before cancellation was possible). Verify its outcome on Instagram before rejecting.",
+          });
+        }
+      }
+
+      // Version-CAS like every other mutation — reject was the one writer
+      // outside the protocol, so a concurrent edit could silently absorb or
+      // erase a rejection.
+      const rejectResult = await database.update(socialContentInventory).set({
+        status: "rejected", errorMessage: input.reason, version: row.version + 1, updatedAt: new Date(),
+      }).where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.version, row.version)));
+      if (affectedRowCount(rejectResult) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Draft changed in another session. Refresh and re-review before rejecting." });
+      }
       return { status: "rejected" as const };
     }),
 
@@ -595,6 +655,12 @@ export const instagramStudioRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: "Another publish attempt claimed this draft first." });
       }
 
+      // Every post-claim write below is predicated on status='publishing' — we
+      // only ever overwrite the state we own. Without the predicate, a reject
+      // that lands during the seconds-long Meta call was erased by the failure
+      // path's unconditional reset to "ready".
+      const ownClaim = and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.status, "publishing"));
+
       let outcome: Awaited<ReturnType<typeof publishToSocial>>;
       try {
         outcome = await publishToSocial({
@@ -604,24 +670,44 @@ export const instagramStudioRouter = router({
           isStory: draft.format === "story",
         });
       } catch (err) {
-        // The claim must not outlive a throw or the draft wedges in "publishing".
+        // A throw is NOT proof nothing posted — the call may have reached Meta
+        // before dying. Park for reconciliation instead of releasing back to
+        // "ready", which invites a duplicate on retry. Same rule as the
+        // scheduled-posts cron.
         await database.update(socialContentInventory).set({
-          status: "ready", errorMessage: (err instanceof Error ? err.message : String(err)).slice(0, 500), updatedAt: new Date(),
-        }).where(eq(socialContentInventory.id, input.id));
+          status: "ambiguous",
+          errorMessage: `threw mid-publish — may be LIVE on Instagram. Verify before retrying: ${(err instanceof Error ? err.message : String(err))}`.slice(0, 500),
+          updatedAt: new Date(),
+        }).where(ownClaim);
         throw err;
       }
       const instagram = outcome.results.find((item) => item.platform === "instagram");
       if (!instagram?.success) {
+        if (instagram?.ambiguous) {
+          // The media_publish POST was dispatched and the response never came
+          // back. Recording this as a plain failure is what turned one timeout
+          // into two live posts: "failed" invites retry, and the first post may
+          // already be up.
+          await database.update(socialContentInventory).set({
+            status: "ambiguous",
+            errorMessage: `publish timed out AFTER dispatch — may be LIVE on Instagram. Verify before retrying: ${instagram.error ?? "no response"}`.slice(0, 500),
+            updatedAt: new Date(),
+          }).where(ownClaim);
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "The publish call timed out after it was sent — the post MAY BE LIVE. Check the Instagram account before retrying; retrying now can duplicate it.",
+          });
+        }
         await database.update(socialContentInventory).set({
           status: "ready",
           errorMessage: instagram?.error?.slice(0, 500) || "Instagram publish failed",
           updatedAt: new Date(),
-        }).where(eq(socialContentInventory.id, input.id));
+        }).where(ownClaim);
         throw new TRPCError({ code: "BAD_REQUEST", message: instagram?.error || "Instagram publish failed" });
       }
       await database.update(socialContentInventory).set({
         status: "published", publishedAt: new Date(), errorMessage: null, updatedAt: new Date(),
-      }).where(eq(socialContentInventory.id, input.id));
+      }).where(ownClaim);
       return { status: "published" as const, postId: instagram.postId ?? null };
     }),
 
@@ -665,12 +751,16 @@ export const instagramStudioRouter = router({
        * the stricter rule, not the looser one." The rule was written down and
        * then applied to one of the two things that needed it.
        */
+      // Verify with the SAME media set approve hashed (the full imageUrls
+      // array). Deriving a subset from mediaForDraft here made every
+      // multi-image post/ad fail with a false "media changed" — approve hashed
+      // N urls, schedule presented 1.
       const { verifyApprovalRecord } = await import("../services/contentApprovals");
       const scheduleVerdict = await verifyApprovalRecord(database, {
         inventoryId: input.id,
         version: row.version - 1,
         briefJson: row.briefJson,
-        mediaUrls: "imageUrls" in media ? media.imageUrls ?? [] : ("imageUrl" in media && media.imageUrl ? [media.imageUrl] : []),
+        mediaUrls: draft.imageUrls,
       });
       if (!scheduleVerdict.ok) {
         throw new TRPCError({
@@ -682,26 +772,44 @@ export const instagramStudioRouter = router({
         });
       }
 
-      await database.insert(scheduledPosts).values({
-        platforms: ["instagram"],
-        caption: scheduledCaption,
-        imageUrl: "imageUrl" in media ? media.imageUrl ?? null : null,
-        imageUrls: "imageUrls" in media ? media.imageUrls ?? null : null,
-        videoUrl: null,
-        scheduledAt: when,
-        status: "pending",
-      });
-      // STATUS ONLY — never `scheduledAt`. The scheduled_posts row inserted
-      // directly above owns this publish; stamping scheduled_at here would ALSO
-      // arm socialInventoryPublisher.ts:29, which publishes inventory rows with
-      // status IN ('approved','scheduled') AND scheduled_at <= now. Two
-      // publishers, two tables with no link between them, same content, same
-      // moment — a guaranteed duplicate post that no CAS can prevent, because
-      // each publisher's at-most-once claim only protects it from itself.
-      // See the long note at instagramAdmin.ts schedulePost for the full trace.
-      await database.update(socialContentInventory).set({
+      // CLAIM BEFORE INSERT. The status read at the top is advisory; this CAS
+      // is the gate. Two concurrent schedule calls (a double-tap, or schedule
+      // racing publish) both pass the read — without the claim, both inserted a
+      // scheduled_posts row and the cron published the post twice.
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const scheduleClaim = await database.update(socialContentInventory).set({
         status: "scheduled", errorMessage: null, updatedAt: new Date(),
-      }).where(eq(socialContentInventory.id, input.id));
+      }).where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.status, "ready")));
+      if (affectedRowCount(scheduleClaim) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Another request claimed this draft first (scheduled or publishing). Refresh the queue." });
+      }
+
+      // STATUS ONLY — never `scheduledAt`. The scheduled_posts row inserted
+      // below owns this publish; stamping scheduled_at here would ALSO arm
+      // socialInventoryPublisher.ts:29, which publishes inventory rows with
+      // status IN ('approved','scheduled') AND scheduled_at <= now. Two
+      // publishers over two tables, same content, same moment — a guaranteed
+      // duplicate post that no CAS can prevent, because each publisher's
+      // at-most-once claim only protects it from itself.
+      try {
+        await database.insert(scheduledPosts).values({
+          inventoryId: input.id,
+          platforms: ["instagram"],
+          caption: scheduledCaption,
+          imageUrl: "imageUrl" in media ? media.imageUrl ?? null : null,
+          imageUrls: "imageUrls" in media ? media.imageUrls ?? null : null,
+          videoUrl: null,
+          scheduledAt: when,
+          status: "pending",
+        });
+      } catch (err) {
+        // The claim must not outlive a failed insert — release it or the draft
+        // reads "scheduled" with no scheduled_posts row to ever fire it.
+        await database.update(socialContentInventory).set({
+          status: "ready", errorMessage: `scheduling failed: ${(err instanceof Error ? err.message : String(err))}`.slice(0, 500), updatedAt: new Date(),
+        }).where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.status, "scheduled")));
+        throw err;
+      }
       return { status: "scheduled" as const, scheduledAt: when.toISOString() };
     }),
 

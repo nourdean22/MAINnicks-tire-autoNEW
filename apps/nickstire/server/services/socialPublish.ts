@@ -19,7 +19,19 @@ export interface PublishInput {
 }
 
 export interface PublishOutcome {
-  results: Array<{ platform: "facebook" | "instagram"; success: boolean; postId?: string; error?: string }>;
+  results: Array<{
+    platform: "facebook" | "instagram";
+    success: boolean;
+    postId?: string;
+    error?: string;
+    /**
+     * The publish request was DISPATCHED to Meta and no answer came back
+     * (timeout/connection drop after media_publish left). The post may be
+     * LIVE. Callers must park these for reconciliation — a retry can
+     * duplicate a live post. Absent/false means Meta definitively answered.
+     */
+    ambiguous?: boolean;
+  }>;
   igPostId?: string;
 }
 

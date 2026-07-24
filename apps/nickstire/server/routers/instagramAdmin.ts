@@ -1301,11 +1301,24 @@ Keep it under 200 characters.`;
       const succeeded = results.filter((r) => r.success);
       const failed = results.filter((r) => !r.success);
       const failureDetail = failed.map((r) => `${r.platform}: ${r.error}`).join("; ");
+      // A dispatched-but-unanswered media_publish is NOT a plain failure: the
+      // post may be LIVE, and "failed" is the status that invites the retry
+      // that duplicates it. Park it ambiguous and keep the override consumed —
+      // releasing it would arm an instant retry of a possibly-live post.
+      const dispatchAmbiguous = succeeded.length === 0 && failed.some((r) => r.ambiguous);
       await recordPublishOutcome(
         attemptId,
-        succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed,
+        succeeded.length === 0 ? (dispatchAmbiguous ? OUTCOME.ambiguous : OUTCOME.failed) : OUTCOME.confirmed,
         { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
       );
+
+      if (dispatchAmbiguous) {
+        await setInventoryStatus("ambiguous", `publish dispatched but unanswered — may be LIVE, verify on Instagram before retrying: ${failureDetail}`);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The publish call timed out after it was sent — the post MAY BE LIVE. Check the Instagram account before retrying; retrying now can duplicate it.",
+        });
+      }
 
       if (succeeded.length === 0) {
         await setInventoryStatus("failed", failureDetail);
@@ -1336,222 +1349,15 @@ Keep it under 200 characters.`;
       return { success: true, results, postId: igPostId };
     }),
 
-  /** Schedule a post for later. The scheduled-posts cron fires it at scheduledAt.
-   *  Same claim-safety gate as publishPost, applied now at schedule time. */
-  schedulePost: adminProcedure
-    .input(z.object({
-      inventoryId: z.string().optional(),
-      platforms: z.array(z.enum(["facebook", "instagram"])).min(1),
-      caption: z.string().min(1).max(2200),
-      imageUrl: z.string().url().optional(),
-      imageUrls: z.array(z.string().url()).min(2).max(10).optional(),
-      videoUrl: z.string().url().optional(),
-      scheduledAt: z.string().datetime(),
-    }))
-    .mutation(async ({ input }) => {
-      // P1 fix: captured so the schedule-time check below can compare the PUBLICATION time against the approval TTL
-      let scheduledApprovalExpiresAt: Date | null = null;
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-      let publishCaption = input.caption;
-      let publishVideoUrl = input.videoUrl;
-
-      if (input.inventoryId) {
-        const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
-        const { eq, and } = await import("drizzle-orm");
-        const rows = await database
-          .select()
-          .from(socialContentInventory)
-          .where(eq(socialContentInventory.id, input.inventoryId))
-          .limit(1);
-        const draft = rows[0];
-        if (draft) {
-          if (draft.contentType === "reel") {
-            if (draft.status !== "ready") {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "This Reel draft must be reviewed and approved before scheduling.",
-              });
-            }
-
-            const approvedCaption = buildReelPublishCaption(draft.briefJson, draft.hookText);
-
-            let approvedVideoUrl = "";
-            if (Array.isArray(draft.assetPaths)) {
-              approvedVideoUrl = draft.assetPaths[0] as string;
-            } else if (typeof draft.assetPaths === "string") {
-              try {
-                const parsed = JSON.parse(draft.assetPaths);
-                if (Array.isArray(parsed)) approvedVideoUrl = parsed[0];
-              } catch (e) {}
-            }
-
-            if (!approvedVideoUrl) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "No approved video asset found on this Reel draft.",
-              });
-            }
-
-            // Same authority as publishPost. This block previously hashed the
-            // media URL *string* and compared it to an approval that stores a
-            // hash of the video BYTES — a comparison that can never succeed, so
-            // scheduling an approved reel always failed "Integrity breach". It
-            // also never consulted the quality gate, which matters more here than
-            // at the Queue: this row fires later from cron with NO operator
-            // present, so an unresolved QA state would go out unattended.
-            const { authorizeReelPublish, ReelNotPublishableError } = await import("../services/reelPublishAuthority");
-            try {
-              const authorization = await authorizeReelPublish(database, {
-                draft: { id: draft.id, version: draft.version, briefJson: draft.briefJson },
-                videoUrl: approvedVideoUrl,
-              });
-              scheduledApprovalExpiresAt = authorization.approvalExpiresAt;
-            } catch (err) {
-              if (err instanceof ReelNotPublishableError) {
-                throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
-              }
-              throw err;
-            }
-
-            publishCaption = approvedCaption;
-            publishVideoUrl = approvedVideoUrl;
-          }
-        }
-      } else {
-        if (input.videoUrl) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Scheduling a Reel requires a valid, approved inventoryId.",
-          });
-        }
-      }
-
-      const { captionClaimBlockers, assertPermanentPublicMediaUrl } = await import("../services/socialPublish");
-      if (publishVideoUrl) assertPermanentPublicMediaUrl(publishVideoUrl);
-      
-      const blockers = captionClaimBlockers(publishCaption);
-      if (blockers.length) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Claim-safety: ${blockers.map((f) => `${f.rule} ("${f.match}")`).join("; ")} — edit the caption first.`,
-        });
-      }
-      const when = new Date(input.scheduledAt);
-      if (when.getTime() <= Date.now()) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Scheduled time must be in the future." });
-      }
-      // P1 (gated assessment, confirmed): expiry was checked at NOW but never
-      // against the PUBLICATION time — a post scheduled past its approval's
-      // TTL would fire from the worker with an approval that had already
-      // lapsed. The human authorization must cover the moment of publish.
-      if (scheduledApprovalExpiresAt && when.getTime() > scheduledApprovalExpiresAt.getTime()) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Scheduled time falls AFTER this approval expires (${scheduledApprovalExpiresAt.toISOString()}). Schedule earlier or re-approve closer to the publish window.`,
-        });
-      }
-      
-      const { scheduledPosts, socialContentInventory } = await import("../../drizzle/schema");
-      await database.insert(scheduledPosts).values({
-        platforms: input.platforms,
-        caption: publishCaption,
-        imageUrl: input.imageUrl ?? null,
-        videoUrl: publishVideoUrl ?? null,
-        imageUrls: input.imageUrls ?? null,
-        scheduledAt: when,
-        status: "pending",
-      });
-
-      if (input.inventoryId) {
-        const { eq } = await import("drizzle-orm");
-        /**
-         * STATUS ONLY — NEVER `scheduledAt`. Writing both arms a SECOND publisher.
-         *
-         * There are two independent deferred publishers over two different tables:
-         *   - scheduledPosts.ts:54    drains scheduled_posts WHERE status='pending'
-         *                             AND scheduledAt <= now
-         *   - socialInventoryPublisher.ts:29 publishes social_content_inventory
-         *                             WHERE status IN ('approved','scheduled')
-         *                             AND scheduled_at <= now
-         *
-         * This procedure has ALREADY inserted the scheduled_posts row above, so
-         * scheduled_posts owns this publish. Stamping scheduled_at here as well
-         * hands the SAME content to the inventory publisher at the SAME moment —
-         * and the two tables carry no link to each other (scheduled_posts has no
-         * inventoryId column), so neither publisher can see the other's claim and
-         * no CAS can save it. The inventory publisher's own at-most-once claim
-         * only protects it from ITSELF.
-         *
-         * The result would be a duplicate post to Instagram.
-         *
-         * SEVERITY CORRECTED 2026-07-20. #930 described this as "live, not
-         * latent" on the strength of SOCIAL_INVENTORY_PUBLISH_ENABLED=true in
-         * apps/nickstire/.env. Production disagrees: cron_log shows
-         * `social-inventory-publisher` SKIPPED 749 times in seven days with
-         * reason "requiresEnv:SOCIAL_INVENTORY_PUBLISH_ENABLED (no env var
-         * set)". The second publisher does not run in production, so the
-         * duplicate could not have fired.
-         *
-         * The root cause of that wrong call is worth keeping: apps/nickstire/.env
-         * has a PRODUCTION DATABASE_URL, which makes the whole file feel
-         * authoritative about production. It is not — Railway env vars are set
-         * separately and this file is a dev-box artefact. Verify production
-         * configuration against cron_log skip reasons, /api/health, or
-         * `railway run` — never against that file.
-         *
-         * Two independent reasons it also never fired: scheduled_at has never
-         * been non-null in social_content_inventory (0 rows, ever), because every
-         * call to this endpoint so far passed no inventoryId.
-         *
-         * The fix stands regardless. Two writers arming two publishers over two
-         * unlinked tables is wrong whether or not an env var happens to be unset
-         * today, and an env var is not an access control.
-         *
-         * The status alone is what the Queue filters on, so the operator still
-         * sees "scheduled"; the WHEN lives on the scheduled_posts row that owns
-         * it. `actOnInventoryItem` (content.ts:2264) is the one caller that
-         * legitimately drives the inventory publisher — it sets scheduled_at and
-         * creates NO scheduled_posts row — which is why the fix belongs here and
-         * not in the publisher's allowlist.
-         */
-        await database.update(socialContentInventory)
-          .set({ status: "scheduled", updatedAt: new Date() })
-          .where(eq(socialContentInventory.id, input.inventoryId));
-      }
-
-      return { ok: true, scheduledAt: when.toISOString() };
-    }),
-
-  /** List scheduled posts, newest scheduled time first. */
-  listScheduled: adminProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional())
-    .query(async ({ input }) => {
-      const database = await db();
-      if (!database) return [];
-      const { scheduledPosts } = await import("../../drizzle/schema");
-      return database
-        .select()
-        .from(scheduledPosts)
-        .orderBy(desc(scheduledPosts.scheduledAt))
-        .limit(input?.limit ?? 50);
-    }),
-
-  /** Cancel a still-pending scheduled post (DB-only — nothing posts). */
-  cancelScheduled: adminProcedure
-    .input(z.object({ id: z.number().int() }))
-    .mutation(async ({ input }) => {
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      const { scheduledPosts } = await import("../../drizzle/schema");
-      const { eq, and } = await import("drizzle-orm");
-      await database
-        .update(scheduledPosts)
-        .set({ status: "canceled" })
-        .where(and(eq(scheduledPosts.id, input.id), eq(scheduledPosts.status, "pending")));
-      return { ok: true };
-    }),
+  /**
+   * schedulePost / listScheduled / cancelScheduled were DELETED 2026-07-24.
+   * All three had ZERO client callers, and schedulePost carried two verified
+   * integrity holes its live sibling publishPost had already fixed (no
+   * terminal-status guard for non-reel drafts; client-supplied media accepted
+   * verbatim). Deferred publishing for Studio content is owned end-to-end by
+   * instagramStudio.schedule -> scheduled_posts(inventoryId) -> runScheduledPosts,
+   * which also writes the fire-time outcome back onto the inventory row.
+   */
 
   /** Get Meta integration configuration parameters (env defaults + database overrides). */
   getMetaConfig: adminProcedure.query(async () => {
