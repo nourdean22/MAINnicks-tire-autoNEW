@@ -83,6 +83,18 @@ describe("LeadSLAMonitor never paints emerald Avg: 0m from a failed read", () =>
   });
 });
 
+describe("URL state listens to history (admin Wave 4)", () => {
+  it("useUrlFilter re-reads the URL on popstate — back/forward moves the screen, not just the address bar", () => {
+    const s = readFileSync(resolve(process.cwd(), "client/src/pages/admin/shared/hooks.ts"), "utf8");
+    expect(s).toMatch(/addEventListener\("popstate", sync\)/);
+    expect(s).toMatch(/removeEventListener\("popstate", sync\)/);
+  });
+
+  it("the Instagram shell syncs its active view on popstate (same defect class)", () => {
+    expect(read("instagram/InstagramAdmin.tsx")).toMatch(/addEventListener\("popstate", sync\)/);
+  });
+});
+
 describe("no raw alert()/confirm()/prompt() in the SMS orchestrator (dead in the iOS PWA)", () => {
   it("SmsOrchestratorSection uses toasts with real error detail", () => {
     const s = read("outreach/SmsOrchestratorSection.tsx");
