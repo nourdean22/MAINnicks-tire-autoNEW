@@ -202,11 +202,12 @@ export const instagramAdminRouter = router({
     };
   }),
 
-  /** Account header (username, followers, etc.) from the cached feed. */
-  getAccountInfo: adminProcedure.query(async () => {
-    const { getInstagramAccount } = await import("../instagram");
-    return getInstagramAccount();
-  }),
+  /*
+   * getAccountInfo / reconnectToken / generatePost / finalizeReelDraft were
+   * DELETED 2026-07-24 (audit R4): zero client callers, no test coverage,
+   * and each duplicated a capability owned elsewhere (feed cache, Settings
+   * config flow, the governed Studio pipeline, the reel pipeline).
+   */
 
   /** Recent posts from the cached feed (refresh via syncFeed). */
   getLiveFeed: adminProcedure
@@ -464,29 +465,6 @@ Keep it under 200 characters.`;
       return result;
     }),
 
-  /** Mint a never-expiring Page token from a pasted short-lived user token. */
-  reconnectToken: adminProcedure
-    .input(z.object({ userToken: z.string().min(10) }))
-    .mutation(async ({ input }) => {
-      const { reconnectMetaFromUserToken } = await import("../services/metaSocial");
-      const result = await reconnectMetaFromUserToken(input.userToken.trim());
-      // Never return the token itself to the client — only success + error.
-      return { ok: result.ok, error: result.error ?? null };
-    }),
-
-  /** AI co-pilot: generate + eval an IG post. Dry-run by default (logs +
-   *  Telegram preview); only posts live when the legacy_autopost_live flag
-   *  is enabled — so this is safe to expose without a live-publish toggle. */
-  generatePost: adminProcedure
-    .input(z.object({
-      archetype: z.enum(IG_ARCHETYPES).optional(),
-      customConcept: z.string().trim().max(1000).optional(),
-    }).optional())
-    .mutation(async ({ input }) => {
-      const { runIgAutopostOneOff } = await import("../services/igAutopost");
-      return runIgAutopostOneOff(input?.archetype, input?.customConcept);
-    }),
-
   /** Advanced IQ 200 Content Generator endpoint for Studio.tsx */
   generatePostDraft: adminProcedure
     .input(z.object({
@@ -510,9 +488,10 @@ Keep it under 200 characters.`;
       }
     }),
 
-  /** Recent AI generations (from ig_autopost_log) so the composer can show
-   *  the actual draft the co-pilot produced — generatePost returns scores +
-   *  status but not the caption/image (those go to the log + Telegram). */
+  /** Recent AI generations (from ig_autopost_log).
+   *  @deprecated Zero client callers (audit R4, 2026-07-24) — its composer and
+   *  the generatePost co-pilot are gone. Kept only for its test coverage;
+   *  delete alongside the legacy queue. */
   getRecentGenerations: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(50).default(25) }).optional())
     .query(async ({ input }): Promise<Array<{
@@ -636,63 +615,6 @@ Keep it under 200 characters.`;
         version: 1,
       });
       
-      return { success: true };
-    }),
-
-  finalizeReelDraft: adminProcedure
-    .input(z.object({
-      id: z.string(),
-      videoUrl: z.string(),
-      brief: z.any(),
-    }))
-    .mutation(async ({ input }) => {
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
-      const { socialContentInventory } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-
-      const rows = await database
-        .select()
-        .from(socialContentInventory)
-        .where(eq(socialContentInventory.id, input.id))
-        .limit(1);
-
-      if (rows.length === 0) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: `Inventory record with ID ${input.id} not found.`,
-        });
-      }
-
-      const item = rows[0];
-      if (item.status !== "generating") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Cannot finalize draft in status ${item.status}. Expected status 'generating'.`,
-        });
-      }
-
-      if (!input.videoUrl.toLowerCase().endsWith(".mp4")) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Reel asset must be an MP4 video.",
-        });
-      }
-
-      const assetPaths = [input.videoUrl];
-      const briefJson = JSON.stringify(input.brief || {});
-
-      await database
-        .update(socialContentInventory)
-        .set({
-          status: "review_ready",
-          assetPaths,
-          briefJson,
-          updatedAt: new Date(),
-        })
-        .where(eq(socialContentInventory.id, input.id));
-
       return { success: true };
     }),
 

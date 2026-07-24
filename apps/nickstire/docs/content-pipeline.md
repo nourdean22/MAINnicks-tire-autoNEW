@@ -1,5 +1,16 @@
 # Content Pipeline — End-to-End Architecture
 
+> **⚠ PARTIALLY STALE — 2026-07-24 (IG quality waves 1–8, PRs #1037+).** The
+> Instagram admin described below was rebuilt: nine tabs → a five-view
+> URL-backed shell (Today/Create/Publish/Community/Insights), server-persisted
+> drafts with autosave, a lifecycle×health Publish board, scheduled_posts now
+> carries `inventoryId` (migration 0096), reject cancels deferred publishes,
+> dispatched-but-unanswered publishes park as `ambiguous`, and
+> `instagramAdmin.schedulePost/listScheduled/cancelScheduled` plus four other
+> dead procs were deleted. Trust the code + `instagramStudio` router for the
+> Instagram flow; the non-Instagram sections below remain accurate as of the
+> date underneath.
+>
 > **Last updated:** 2026-07-01 · Post Clarity Gate audit
 >
 > This document maps every component in the content generation pipeline across both apps and all shared packages. It is the single reference for understanding how content flows from idea → generation → evaluation → publishing.

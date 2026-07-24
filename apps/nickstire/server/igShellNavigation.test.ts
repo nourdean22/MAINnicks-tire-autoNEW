@@ -106,6 +106,29 @@ describe("Community + Insights honesty (Wave 7)", () => {
   });
 });
 
+describe("legacy surface cleanup (Wave 8)", () => {
+  it("the orphaned IgAutopostPanel is gone", () => {
+    expect(() => read("client/src/pages/admin/settings/IgAutopostPanel.tsx")).toThrow();
+  });
+
+  it("Planning's Open-in-Studio rides the handoff contract, not the dead ?briefId redirect", () => {
+    const panel = read("client/src/pages/admin/DraftBoardPanel.tsx");
+    expect(panel).toMatch(/writeCreateHandoff/);
+    // No template-literal navigation writer building a briefId URL remains
+    // (the historical note in a comment is allowed to mention it).
+    expect(panel).not.toMatch(/window\.location\.href = `/);
+  });
+
+  it("the four untested dead instagramAdmin procs are deleted", () => {
+    const router = read("server/routers/instagramAdmin.ts");
+    for (const proc of ["getAccountInfo:", "reconnectToken:", "generatePost:", "finalizeReelDraft:"]) {
+      expect(router).not.toContain(proc);
+    }
+    // generatePostDraft (legacy Studio's live endpoint) must SURVIVE the cut.
+    expect(router).toContain("generatePostDraft:");
+  });
+});
+
 describe("the shell persists the active view in the URL", () => {
   it("initial view reads from the URL and navigation writes back", () => {
     const shell = read("client/src/pages/admin/instagram/InstagramAdmin.tsx");

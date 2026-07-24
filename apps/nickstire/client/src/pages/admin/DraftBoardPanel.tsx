@@ -5,7 +5,24 @@ import { Loader2, Kanban, Calendar as CalendarIcon, Filter, Search, Sparkles, Re
 import DraftCard from "@/components/admin/DraftCard";
 import PublishDrawer from "@/components/admin/PublishDrawer";
 
-export default function DraftBoardPanel() {
+export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "create") => void } = {}) {
+  /**
+   * "Open in Studio" used to full-page-navigate to /admin/ig-studio?briefId=…
+   * — a route that redirects to /admin?tab=instagram and DROPS the query
+   * string, which no component ever read anyway (verified dead, audit R5).
+   * The brief's identity now rides the real Create handoff contract.
+   */
+  const openStudio = (d: { id: string; contentType: string }) => {
+    import("./instagram/igViews").then(({ writeCreateHandoff }) => {
+      writeCreateHandoff({
+        sourceType: "manual_idea",
+        detail: `Continue planning-board brief ${d.id} (${d.contentType}).`,
+        format: d.contentType === "carousel" ? "carousel" : undefined,
+      });
+      if (onNavigate) onNavigate("create");
+      else window.location.href = "/admin?tab=instagram&igview=create";
+    });
+  };
   const [view, setView] = useState<"board" | "calendar">("board");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -317,10 +334,7 @@ export default function DraftBoardPanel() {
                         onUpdateNotes={(notes) => handleUpdateNotes(d, notes)}
                         onOpenPublish={() => setSelectedDraftForPublish(d)}
                         onRenderSlides={d.contentType === "carousel" && (d.slides || []).length ? () => handleRenderSlides(d) : undefined}
-                        onOpenStudio={() => {
-                          const route = d.contentType === "carousel" ? "/admin/ig-studio" : "/admin/reel-studio";
-                          window.location.href = `${route}?briefId=${d.id}`;
-                        }}
+                        onOpenStudio={() => openStudio(d)}
                       />
                     ))
                   )}
@@ -360,10 +374,7 @@ export default function DraftBoardPanel() {
                         onUpdateNotes={(notes) => handleUpdateNotes(d, notes)}
                         onOpenPublish={() => setSelectedDraftForPublish(d)}
                         onRenderSlides={d.contentType === "carousel" && (d.slides || []).length ? () => handleRenderSlides(d) : undefined}
-                        onOpenStudio={() => {
-                          const route = d.contentType === "carousel" ? "/admin/ig-studio" : "/admin/reel-studio";
-                          window.location.href = `${route}?briefId=${d.id}`;
-                        }}
+                        onOpenStudio={() => openStudio(d)}
                       />
                     ))}
                   </div>
@@ -387,10 +398,7 @@ export default function DraftBoardPanel() {
                       onUpdateNotes={(notes) => handleUpdateNotes(d, notes)}
                       onOpenPublish={() => setSelectedDraftForPublish(d)}
                       onRenderSlides={d.contentType === "carousel" && (d.slides || []).length ? () => handleRenderSlides(d) : undefined}
-                        onOpenStudio={() => {
-                        const route = d.contentType === "carousel" ? "/admin/ig-studio" : "/admin/reel-studio";
-                        window.location.href = `${route}?briefId=${d.id}`;
-                      }}
+                        onOpenStudio={() => openStudio(d)}
                     />
                   ))}
                 </div>
