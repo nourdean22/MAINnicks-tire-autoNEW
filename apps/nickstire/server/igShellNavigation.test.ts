@@ -76,6 +76,36 @@ describe("cross-view handoffs carry real context (Wave 5)", () => {
   });
 });
 
+describe("Community + Insights honesty (Wave 7)", () => {
+  it("the feed list has a real error state — a failed query no longer renders as 'No posts cached'", () => {
+    const inbox = read("client/src/pages/admin/instagram/Inbox.tsx");
+    expect(inbox).toMatch(/feedError \?/);
+    expect(inbox).toMatch(/unknown<\/strong>, not empty/);
+  });
+
+  it("comments triage by unanswered-first filter chips", () => {
+    expect(read("client/src/pages/admin/instagram/Inbox.tsx")).toMatch(/commentFilter/);
+  });
+
+  it("an unanswered question in the comments hands its TEXT to Create", () => {
+    const inbox = read("client/src/pages/admin/instagram/Inbox.tsx");
+    expect(inbox).toMatch(/sourceType: "customer_question"/);
+    expect(inbox).toMatch(/comment\.text\.slice/);
+  });
+
+  it("Insights headline stats are account-wide (getAccountAverages), with the top-5 stat labeled as top-5", () => {
+    const learn = read("client/src/pages/admin/instagram/Learn.tsx");
+    expect(learn).toMatch(/accountAverages/);
+    expect(learn).toMatch(/top 5/);
+    const analytics = read("server/routers/instagramAdmin.ts");
+    expect(analytics).toMatch(/getAccountAverages\(\)/);
+  });
+
+  it("every Insights stat block states its source, window, and sample basis", () => {
+    expect(read("client/src/pages/admin/instagram/Learn.tsx")).toMatch(/Source: Meta analytics cache/);
+  });
+});
+
 describe("the shell persists the active view in the URL", () => {
   it("initial view reads from the URL and navigation writes back", () => {
     const shell = read("client/src/pages/admin/instagram/InstagramAdmin.tsx");

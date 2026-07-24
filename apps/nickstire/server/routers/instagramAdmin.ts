@@ -216,18 +216,21 @@ export const instagramAdminRouter = router({
       return getInstagramPosts(input?.limit ?? 24);
     }),
 
-  /** Content-intelligence bundle: four fast, already-built analytics reports. */
+  /** Content-intelligence bundle: fast, already-built analytics reports.
+   *  accountAverages covers EVERY stored post — the headline stats used to
+   *  average only the top-5 list, presenting winners as the baseline. */
   getAnalytics: adminProcedure.query(async () => {
-    const { getEngagementByType, getBestPostingTimes, getFollowerGrowth, getTopPosts } = await import(
+    const { getEngagementByType, getBestPostingTimes, getFollowerGrowth, getTopPosts, getAccountAverages } = await import(
       "../pipelines/instagram-data"
     );
-    const [engagementByType, bestPostingTimes, followerGrowth, topPosts] = await Promise.all([
+    const [engagementByType, bestPostingTimes, followerGrowth, topPosts, accountAverages] = await Promise.all([
       getEngagementByType(),
       getBestPostingTimes({ limit: 7 }),
       getFollowerGrowth(),
       getTopPosts({ limit: 5 }),
+      getAccountAverages(),
     ]);
-    return { engagementByType, bestPostingTimes, followerGrowth, topPosts };
+    return { engagementByType, bestPostingTimes, followerGrowth, topPosts, accountAverages };
   }),
 
   /** On-demand narrative performance report (separate proc — may be heavier). */

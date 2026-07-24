@@ -139,14 +139,35 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {/* Labeled for what they ARE: averages of the top-5-by-engagement list
-            (getTopPosts limit 5), not account averages. The unqualified labels
-            presented an average of winners as the account's baseline — a skew
-            that grows as the account grows. */}
-        <StatCard label="Avg score · top 5 posts" value={metrics.quality == null ? "No data" : String(metrics.quality)} trend="neutral" icon={<Sparkles className="h-4 w-4" />} />
-        <StatCard label="Avg engagement · top 5 posts" value={metrics.engagement == null ? "No data" : `${metrics.engagement.toFixed(2)}%`} trend="neutral" icon={<BarChart className="h-4 w-4" />} />
-        <StatCard label="Studio queue" value={metrics.queueHealth} trend={metrics.queueHealth === "Attention" ? "down" : "neutral"} icon={<Trophy className="h-4 w-4" />} />
+      <div className="space-y-2">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {/* Account-wide numbers first (Wave 7) — the top-5 stats are kept but
+              labeled as what they are. Averaging only winners presented the
+              ceiling as the baseline. */}
+          <StatCard
+            label={`Avg engagement · account${analytics.data?.accountAverages ? ` (n=${analytics.data.accountAverages.postCount})` : ""}`}
+            value={analytics.data?.accountAverages == null
+              ? "Unknown"
+              : analytics.data.accountAverages.avgEngagementRate == null
+                ? "No data"
+                : `${analytics.data.accountAverages.avgEngagementRate.toFixed(2)}%`}
+            trend="neutral" icon={<BarChart className="h-4 w-4" />}
+          />
+          <StatCard
+            label={`Avg score · account${analytics.data?.accountAverages?.scoredCount ? ` (n=${analytics.data.accountAverages.scoredCount} scored)` : ""}`}
+            value={analytics.data?.accountAverages == null
+              ? "Unknown"
+              : analytics.data.accountAverages.avgContentScore == null
+                ? "No data"
+                : String(analytics.data.accountAverages.avgContentScore)}
+            trend="neutral" icon={<Sparkles className="h-4 w-4" />}
+          />
+          <StatCard label="Avg engagement · top 5" value={metrics.engagement == null ? "No data" : `${metrics.engagement.toFixed(2)}%`} trend="neutral" icon={<BarChart className="h-4 w-4" />} />
+          <StatCard label="Studio queue" value={metrics.queueHealth} trend={metrics.queueHealth === "Attention" ? "down" : "neutral"} icon={<Trophy className="h-4 w-4" />} />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Source: Meta analytics cache (sync via Community → Sync Feed) · window: all-time · engagement = (likes+comments)/followers at sync time.
+        </p>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
