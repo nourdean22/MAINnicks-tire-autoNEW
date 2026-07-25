@@ -25,19 +25,23 @@ export default defineConfig({
     // v8.26 · Mock @/lib/auth-guard globally so route tests don't pull
     // next-auth into the vitest node environment (incompatible runtime).
     setupFiles: ["tests/setup/auth-guard-mock.ts"],
-    // 2026-05-23 · Wave G · threads pool is dramatically faster than
-    // the default `forks` pool on Windows (process-spawn cost is heavy
-    // on Win32 · threads share the V8 heap). Safe here because all
-    // tests are pure-function / Prisma-mocked · no native modules that
-    // require process isolation. On Linux CI both pools are close.
-    pool: "threads",
-    poolOptions: {
-      threads: {
-        // useAtomics speeds up cross-thread coordination · default off
-        // for backwards compatibility but recommended for our scale.
-        useAtomics: true,
-      },
-    },
+    // 2026-07-25 · forks, NOT threads. The 2026-05-23 switch to the
+    // threads pool assumed "no native modules load in workers" — that
+    // stopped being true once tests began importing modules that reach
+    // @/lib/prisma (eager `new PrismaClient()` at import). The Prisma
+    // query engine (libquery_engine .so/.dll, napi-rs) then loads inside
+    // vitest worker THREADS, and when a worker's JS env is torn down its
+    // ThreadsafeFunction callbacks abort the whole process:
+    //   FATAL ERROR: threadsafe_function.rs:749 ... InvalidArg
+    //   Aborted (core dumped) — exit 134
+    // This killed CI on main nondeterministically from run 29847275435
+    // (07-21) onward, and is the same class as the long-standing
+    // nondeterministic native faults in local full-suite runs on
+    // Windows. Forked child processes die cleanly at exit — no live
+    // napi TSFN over a dying env — so process isolation is the fix.
+    // Do NOT switch back to threads while anything under test can
+    // transitively import @/lib/prisma.
+    pool: "forks",
   },
   resolve: {
     alias: {
