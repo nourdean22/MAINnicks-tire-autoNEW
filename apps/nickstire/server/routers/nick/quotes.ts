@@ -389,7 +389,7 @@ export async function handleCompetitorPriceCheck(input: {
     if (position === "below_market") {
       recommendation = `Our price is competitive — ${Math.round((1 - nickMid / marketMid) * 100)}% below market average. Room to increase by $${Math.round(marketMid - nickMid)} per job without losing competitive edge. Customers save $${Math.round(dealerMid - nickMid)} vs dealership.`;
     } else if (position === "above_market") {
-      recommendation = `Price is slightly above market. Justify with: fast turnaround, warranty (${WARRANTY_SCHEDULE["general_repair"]?.description || "12mo/12k miles"}), and honest diagnostics. Or adjust down $${Math.round(nickMid - marketMid)} to match market.`;
+      recommendation = `Price is slightly above market. Justify with: fast turnaround, warranty (${WARRANTY_SCHEDULE["general_repair"]?.description || "12-month parts / 90-day labor"}), and honest diagnostics. Or adjust down $${Math.round(nickMid - marketMid)} to match market.`;
     } else {
       recommendation = `Competitively priced. Differentiate on speed, warranty, and trust. Customers save $${Math.round(dealerMid - nickMid)} vs dealership. Upsell with multi-point inspection or fluid top-off.`;
     }

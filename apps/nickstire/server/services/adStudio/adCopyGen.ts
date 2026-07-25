@@ -54,7 +54,7 @@ BUSINESS FACTS (all owner-confirmed — use freely, accurately):
 - ${BUSINESS.name} — "${BUSINESS.tagline}". ${BUSINESS.founded.display}. ${BUSINESS.ase.display}. ${BUSINESS.languageDisplay}.
 - ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} Google reviews. ${BUSINESS.address.full}. ${BUSINESS.phone.display}.
 - Open 7 days, walk-ins welcome, NO appointment, first come first serve. Free quick checks.
-- Financing: no credit check, $10 down, drive today (Acima/Snap/Koalafi). New tires from $89 installed. Used from $25 installed (most sizes $40-80 — the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month / 12,000-mile warranty.
+- Financing: no credit check, $10 down, drive today (Acima/Snap/Koalafi). New tires from $89 installed. Used from $25 installed (most sizes $40-80 — the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month parts / 90-day labor warranty.
 
 ANGLE FOR THIS AD: ${AD_ANGLES[angle]}${topic ? `\nOPERATOR STEER: weave in this topic/season: ${topic}.` : ""}
 

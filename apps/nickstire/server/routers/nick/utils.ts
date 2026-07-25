@@ -203,23 +203,34 @@ export const PARTS_KB: Record<string, { low: number; high: number; unit: string 
   "power_steering_fluid": { low: 15, high: 30, unit: "flush" },
 };
 
-/** Warranty schedule by service type */
+/**
+ * Warranty schedule by service type — ROS-043 correction (2026-07-25).
+ *
+ * The previous table was a FABRICATED menu (24mo/24k brakes, 36-month battery,
+ * per-service mileage caps) that the quote tool sent to customers as written
+ * warranty terms. The shop's printed invoice — the legal source of truth,
+ * mirrored on /warranties and in BUSINESS.warranty — grants exactly one repair
+ * promise: shop-installed PARTS 12 months, shop LABOR 90 days, NO mileage cap
+ * and NO road hazard unless expressly stated in writing. `miles: 0` everywhere
+ * because a mileage number here becomes a mileage promise in a quote.
+ */
+const REPAIR_WARRANTY = "12-month parts / 90-day labor warranty (shop-installed parts; no mileage cap; in writing on your receipt)";
 export const WARRANTY_SCHEDULE: Record<string, { months: number; miles: number; description: string }> = {
-  "brakes": { months: 24, miles: 24000, description: "24 months / 24,000 miles on brake pads and rotors" },
-  "oil_change": { months: 3, miles: 5000, description: "3 months / 5,000 miles (or next service interval)" },
-  "tires": { months: 0, miles: 0, description: "Manufacturer tread warranty applies; road hazard available" },
-  "battery": { months: 36, miles: 0, description: "36-month free replacement warranty" },
-  "alternator": { months: 12, miles: 12000, description: "12 months / 12,000 miles parts and labor" },
-  "starter": { months: 12, miles: 12000, description: "12 months / 12,000 miles parts and labor" },
-  "cooling_system": { months: 12, miles: 12000, description: "12 months / 12,000 miles parts and labor" },
-  "exhaust": { months: 12, miles: 12000, description: "12 months / 12,000 miles parts and labor" },
-  "suspension": { months: 12, miles: 12000, description: "12 months / 12,000 miles parts and labor" },
-  "electrical": { months: 6, miles: 6000, description: "6 months / 6,000 miles (diagnosis verified)" },
+  "brakes": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "oil_change": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "tires": { months: 0, miles: 0, description: "New tires: manufacturer tread warranty applies; optional road-hazard protection available in writing. Used tires: 7-day defect-only replacement warranty (no road hazard)" },
+  "battery": { months: 0, miles: 0, description: "Manufacturer battery warranty applies (many carry multi-year free replacement); 90-day shop labor warranty" },
+  "alternator": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "starter": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "cooling_system": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "exhaust": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "suspension": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "electrical": { months: 12, miles: 0, description: REPAIR_WARRANTY },
   "diagnostics": { months: 0, miles: 0, description: "Diagnostic fee applied to repair if customer proceeds" },
-  "alignment": { months: 6, miles: 6000, description: "6 months / 6,000 miles alignment warranty" },
-  "general_repair": { months: 12, miles: 12000, description: "12 months / 12,000 miles standard parts and labor warranty" },
-  "ac_repair": { months: 12, miles: 12000, description: "12 months / 12,000 miles; refrigerant top-off 90 days" },
-  "transmission": { months: 12, miles: 12000, description: "12 months / 12,000 miles parts and labor" },
+  "alignment": { months: 0, miles: 0, description: "90-day limited labor warranty (alignment is labor; in writing on your receipt)" },
+  "general_repair": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "ac_repair": { months: 12, miles: 0, description: REPAIR_WARRANTY },
+  "transmission": { months: 12, miles: 0, description: REPAIR_WARRANTY },
 };
 
 /** Financing providers available at Nick's */

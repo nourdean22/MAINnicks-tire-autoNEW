@@ -576,7 +576,7 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 - Phone: (216) 862-0005
 - Hours: Monday-Saturday 8AM-6PM, Sunday 9AM-4PM (open 7 days a week)
 - Rating: 4.9 stars from 1,700+ Google reviews
-- Warranty: 12 months / 12,000 miles on parts and labor
+- Warranty: 12-month parts / 90-day labor, in writing (no mileage cap)
 - No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
 - Financing: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)
 - Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Lyndhurst, Richmond Heights, Willoughby
