@@ -109,7 +109,7 @@ export function InstagramAdmin() {
         {/* h-auto is load-bearing (see Wave 3): the base TabsList fixes h-9. */}
         <TabsList className="grid h-auto w-full grid-cols-5 gap-1">
           {IG_PRIMARY_VIEWS.map((view) => (
-            <TabsTrigger key={view.key} value={view.key} className="min-h-10">{view.label}</TabsTrigger>
+            <TabsTrigger key={view.key} value={view.key} className="min-h-11">{view.label}</TabsTrigger>
           ))}
         </TabsList>
       </Tabs>

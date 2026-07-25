@@ -1083,7 +1083,34 @@ export const instagramStudioRouter = router({
       if (affectedRowCount(resolved) === 0) {
         throw new TRPCError({ code: "CONFLICT", message: "The item changed while you were deciding. Refresh and re-check." });
       }
-      return { status: input.decision === "published" ? ("published" as const) : ("ready" as const) };
+
+      /**
+       * ONE resolution settles EVERY record of the same publish. Resolving
+       * only the inventory row left the scheduled_posts row parked
+       * "ambiguous" and the attempt ledger open — so the Board said settled
+       * while the reconciler still nagged, and a second surface could re-arm
+       * the same attempt the operator had already decided.
+       */
+      const note = `operator resolved ambiguity: ${input.decision}`;
+      const linkedFires = await database.update(scheduledPosts).set(
+        input.decision === "published"
+          ? { status: "posted", postedAt: new Date(), error: note }
+          : { status: "canceled", error: note },
+      ).where(and(eq(scheduledPosts.inventoryId, input.id), eq(scheduledPosts.status, "ambiguous")));
+      let attemptsClosed = 0;
+      if (affectedRowCount(linkedFires) > 0) {
+        const fires = await database.select({ id: scheduledPosts.id })
+          .from(scheduledPosts).where(eq(scheduledPosts.inventoryId, input.id));
+        const { closeOpenAttemptsForScheduledPost, OUTCOME } = await import("../services/publishAttemptLedger");
+        for (const fire of fires) {
+          attemptsClosed += await closeOpenAttemptsForScheduledPost(
+            fire.id,
+            input.decision === "published" ? OUTCOME.confirmed : OUTCOME.failed,
+            note,
+          );
+        }
+      }
+      return { status: input.decision === "published" ? ("published" as const) : ("ready" as const), attemptsClosed };
     }),
 
   diagnostics: adminProcedure.query(async () => {

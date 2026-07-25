@@ -56,10 +56,14 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // adminPermissionCoverage.test.ts.
   if (normalized === "adminsecurity.recordaction") return "admin.view";
 
-  // Physical-security reads are not dashboard reads: nickActions.cameras
-  // returns camera config + stream URLs, and the operational-router QUERY
-  // default below handed it to every role including viewer.
-  if (normalized === "nickactions.cameras") return "settings.manage";
+  // Physical-security reads are not dashboard reads: cameras returns camera
+  // config + stream URLs and cameraFeed returns a live stream URL for one
+  // camera — the operational-router QUERY default below handed both to every
+  // role including viewer. A FAMILY set, not a single path: the first fix
+  // covered `cameras` alone and left its sibling `cameraFeed` wide open.
+  if (normalized === "nickactions.cameras" || normalized === "nickactions.camerafeed") {
+    return "settings.manage";
+  }
 
   // Bulk export is exfiltration-shaped even though it is a read: export.leads
   // returns up to 10,000 customers' name/phone/email/problem as CSV, and the

@@ -93,7 +93,7 @@ export default function ReelQueue() {
         publishDraft.mutate({
           inventoryId: d.id,
           platforms: ["instagram"],
-          caption: captionWithHashtags(d),
+          caption: d.publishCaption ?? captionWithHashtags(d),
           imageUrl: d.format !== "reel" ? (d.assetPack?.imageUrl || undefined) : undefined,
           videoUrl: d.format === "reel" ? (d.assetPack?.videoUrl || undefined) : undefined,
         });
@@ -201,15 +201,16 @@ export default function ReelQueue() {
           <div className="mt-3 space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
             <div className="text-sm font-semibold">Publish this {draft.format} to Instagram now?</div>
             <p className="text-xs text-muted-foreground">The media above and this final caption go live exactly as shown{draft.format === "reel" ? " (the server re-verifies the approved reel bytes before posting)" : ""}:</p>
-            <div className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded border bg-background/60 p-2 text-xs leading-5">{captionWithHashtags(draft) || "(no caption)"}</div>
+            <div className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded border bg-background/60 p-2 text-xs leading-5">{draft.publishCaption ?? captionWithHashtags(draft) ?? "(no caption)"}</div>
+            {draft.publishCaptionError && <p className="text-xs text-red-400">This cannot publish yet: {draft.publishCaptionError}</p>}
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" onClick={() => setConfirmPublishId(null)}>Cancel</Button>
-              <Button size="sm" disabled={publishDraft.isPending} onClick={() => {
+              <Button size="sm" disabled={publishDraft.isPending || Boolean(draft.publishCaptionError)} onClick={() => {
                 setConfirmPublishId(null);
                 publishDraft.mutate({
                   inventoryId: draft.id,
                   platforms: ["instagram"],
-                  caption: captionWithHashtags(draft),
+                  caption: draft.publishCaption ?? captionWithHashtags(draft),
                   imageUrl: draft.format !== "reel" ? (draft.assetPack?.imageUrl || undefined) : undefined,
                   videoUrl: draft.format === "reel" ? (draft.assetPack?.videoUrl || undefined) : undefined,
                 });
@@ -223,7 +224,7 @@ export default function ReelQueue() {
             <span className="text-xs">Reject this draft?</span>
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={() => setConfirmRejectId(null)}>Keep it</Button>
-              <Button size="sm" variant="destructive" disabled={rejectDraft.isPending} onClick={() => { rejectDraft.mutate({ id: draft.id, reason: "Manual Rejection" }); setConfirmRejectId(null); }}>Reject</Button>
+              <Button size="sm" variant="destructive" disabled={rejectDraft.isPending} onClick={() => { rejectDraft.mutate({ id: draft.id, reason: "Manual Rejection", expectedVersion: draft.version }); setConfirmRejectId(null); }}>Reject</Button>
             </div>
           </div>
         )}

@@ -108,7 +108,16 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
       const claim = await database
         .update(scheduledPosts)
         .set({ status: STATUS.publishing })
-        .where(and(eq(scheduledPosts.id, row.id), eq(scheduledPosts.status, STATUS.pending)));
+        // `lte(scheduledAt, now)` is part of the CLAIM, not just the select:
+        // an operator reschedule between the select and this CAS moves the
+        // fire time but leaves status pending, so a status-only claim would
+        // still win and publish at the OLD time while the reschedule UI had
+        // already reported success. Whoever moves the time first owns the row.
+        .where(and(
+          eq(scheduledPosts.id, row.id),
+          eq(scheduledPosts.status, STATUS.pending),
+          lte(scheduledPosts.scheduledAt, new Date()),
+        ));
       if (affectedRowCount(claim) === 0) {
         skipped++;
         log.warn("scheduled post already claimed by another runner — skipping", { id: row.id });
@@ -146,26 +155,31 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
         const failures = results.filter((r) => !r.success);
         // A dispatched-but-unanswered media_publish is NOT a plain failure —
         // the post may be live, and "failed" is the status that invites the
-        // retry that duplicates it. Park those ambiguous, same as the throw
-        // path below.
-        const dispatchAmbiguous = succeeded.length === 0 && failures.some((r) => r.ambiguous);
+        // retry that duplicates it. ANY ambiguous platform parks the WHOLE
+        // row: the first version required every platform to fail, so a
+        // Facebook success beside an unanswered Instagram call was recorded
+        // as PARTIAL — whose meaning ("post the missing platform manually")
+        // is precisely the duplicate this state exists to prevent.
+        const dispatchAmbiguous = failures.some((r) => r.ambiguous);
         const failureDetail = failures.map((r) => `${r.platform}: ${r.error}`).join("; ").slice(0, 500);
         await recordPublishOutcome(
           attemptId,
-          succeeded.length === 0 ? (dispatchAmbiguous ? OUTCOME.ambiguous : OUTCOME.failed) : OUTCOME.confirmed,
+          dispatchAmbiguous ? OUTCOME.ambiguous : succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed,
           { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
         );
 
         if (dispatchAmbiguous) {
           failed++;
+          const confirmedNote = succeeded.length ? `CONFIRMED on ${succeeded.map((r) => r.platform).join(", ")}; ` : "";
           await database
             .update(scheduledPosts)
             .set({
               status: STATUS.ambiguous,
-              error: `publish dispatched but unanswered — reconcile with Meta before retrying (may be LIVE): ${failureDetail}`.slice(0, 500),
+              error: `${confirmedNote}publish dispatched but unanswered — reconcile with Meta before retrying (may be LIVE): ${failureDetail}`.slice(0, 500),
+              ...(igPostId ? { igPostId } : {}),
             })
             .where(eq(scheduledPosts.id, row.id));
-          await syncInventoryOutcome(database, row.inventoryId, "ambiguous", failureDetail);
+          await syncInventoryOutcome(database, row.inventoryId, "ambiguous", `${confirmedNote}${failureDetail}`);
         } else if (succeeded.length === 0) {
           failed++;
           await database

@@ -1302,20 +1302,33 @@ Keep it under 200 characters.`;
       const failureDetail = failed.map((r) => `${r.platform}: ${r.error}`).join("; ");
       // A dispatched-but-unanswered media_publish is NOT a plain failure: the
       // post may be LIVE, and "failed" is the status that invites the retry
-      // that duplicates it. Park it ambiguous and keep the override consumed —
-      // releasing it would arm an instant retry of a possibly-live post.
-      const dispatchAmbiguous = succeeded.length === 0 && failed.some((r) => r.ambiguous);
+      // that duplicates it. ANY ambiguous platform makes the WHOLE operation
+      // ambiguous — the first version required every platform to fail, so
+      // "Facebook confirmed + Instagram unanswered" fell into the PARTIAL
+      // branch, whose message tells the operator to post the missing platform
+      // manually. Manually posting a possibly-live Instagram reel is exactly
+      // the duplicate this state exists to prevent.
+      const dispatchAmbiguous = failed.some((r) => r.ambiguous);
       await recordPublishOutcome(
         attemptId,
-        succeeded.length === 0 ? (dispatchAmbiguous ? OUTCOME.ambiguous : OUTCOME.failed) : OUTCOME.confirmed,
+        dispatchAmbiguous ? OUTCOME.ambiguous : succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed,
         { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
       );
 
       if (dispatchAmbiguous) {
-        await setInventoryStatus("ambiguous", `publish dispatched but unanswered — may be LIVE, verify on Instagram before retrying: ${failureDetail}`);
+        const confirmedNote = succeeded.length
+          ? `CONFIRMED on ${succeeded.map((r) => r.platform).join(", ")}${igPostId ? ` (id ${igPostId})` : ""}; `
+          : "";
+        await setInventoryStatus(
+          "ambiguous",
+          `${confirmedNote}publish dispatched but unanswered on ${failed.filter((r) => r.ambiguous).map((r) => r.platform).join(", ")} — may be LIVE, verify before retrying: ${failureDetail}`,
+          igPostId ?? null,
+        );
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "The publish call timed out after it was sent — the post MAY BE LIVE. Check the Instagram account before retrying; retrying now can duplicate it.",
+          message: succeeded.length
+            ? `Published on ${succeeded.map((r) => r.platform).join(", ")}, but the ${failed.filter((r) => r.ambiguous).map((r) => r.platform).join(", ")} call timed out AFTER it was sent — that platform MAY BE LIVE. Verify on the account; do NOT repost manually.`
+            : "The publish call timed out after it was sent — the post MAY BE LIVE. Check the Instagram account before retrying; retrying now can duplicate it.",
         });
       }
 
@@ -1540,7 +1553,26 @@ Keep it under 200 characters.`;
         status: mappedStatus,
         format: r.contentType,
         caption: r.hookText,
-        assetPack: { 
+        /**
+         * The AUTHORITATIVE caption this draft would publish with, built by
+         * the same server function the publish path uses. The Reel queue's
+         * confirm panel previously assembled its preview from caption +
+         * hashtags fields — but reel hashtags live inside briefJson and the
+         * list never returned them, so the panel said "exactly as shown" over
+         * copy that was missing every hashtag the server would add.
+         * `publishCaptionError` carries the overlength refusal so the panel
+         * can say so BEFORE the final tap instead of erroring after it.
+         */
+        ...(isReel
+          ? (() => {
+              try {
+                return { publishCaption: buildReelPublishCaption(r.briefJson, r.hookText), publishCaptionError: null as string | null };
+              } catch (err) {
+                return { publishCaption: null as string | null, publishCaptionError: err instanceof Error ? err.message : String(err) };
+              }
+            })()
+          : { publishCaption: r.hookText, publishCaptionError: null as string | null }),
+        assetPack: {
           imageUrl: isReel ? "" : mediaPath,
           videoUrl: isReel ? mediaPath : "",
         },
@@ -1565,16 +1597,40 @@ Keep it under 200 characters.`;
   rejectDraft: adminProcedure
     .input(z.object({
       id: z.string(),
-      reason: z.string().optional()
+      reason: z.string().optional(),
+      /** Optional for legacy callers; when supplied it joins the CAS. */
+      expectedVersion: z.number().int().positive().optional(),
     }))
     .mutation(async ({ input }) => {
+      // The old body was every anti-pattern this codebase has spent a week
+      // deleting: `if (database)` returned {success:true} on a DB OUTAGE
+      // (a lying success that wrote nothing), no status guard could relabel a
+      // PUBLISHED row as rejected, and the unchecked update reported success
+      // for zero matched rows.
       const database = await db();
-      if (database) {
-        const { socialContentInventory } = await import("../../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
-        await database.update(socialContentInventory)
-          .set({ status: "rejected", errorMessage: input.reason, updatedAt: new Date() })
-          .where(eq(socialContentInventory.id, input.id));
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — nothing was rejected." });
+      const { socialContentInventory } = await import("../../drizzle/schema");
+      const { and, eq, inArray } = await import("drizzle-orm");
+      const rows = await database.select({ status: socialContentInventory.status, version: socialContentInventory.version })
+        .from(socialContentInventory).where(eq(socialContentInventory.id, input.id)).limit(1);
+      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found." });
+      const REJECTABLE = ["pending", "needs_review", "review_ready", "ready", "failed", "draft", "generating"];
+      if (!REJECTABLE.includes(rows[0].status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `A ${rows[0].status} item cannot be rejected from here${rows[0].status === "scheduled" ? " — unschedule it first" : rows[0].status === "ambiguous" ? " — resolve the ambiguous publish first" : ""}.`,
+        });
+      }
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const rejected = await database.update(socialContentInventory)
+        .set({ status: "rejected", errorMessage: input.reason ?? "Manual rejection", version: rows[0].version + 1, updatedAt: new Date() })
+        .where(and(
+          eq(socialContentInventory.id, input.id),
+          inArray(socialContentInventory.status, REJECTABLE),
+          eq(socialContentInventory.version, input.expectedVersion ?? rows[0].version),
+        ));
+      if (affectedRowCount(rejected) === 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "The draft changed while you were deciding (it may have been approved or published). Refresh before rejecting." });
       }
       return { success: true };
     }),

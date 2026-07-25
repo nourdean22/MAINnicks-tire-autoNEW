@@ -112,7 +112,9 @@ for (const file of serverFiles) {
 // no-dialog-globals-in-client — alert()/confirm()/prompt() are silently
 // suppressed in the installed iOS PWA. The lookbehind-free prefix guard
 // excludes method calls (.confirm()) and longer names (confirmDialog().
-const DIALOG_RE = /(^|[^.\w])(?:window\.)?(alert|confirm|prompt)\s*\(/;
+// globalThis./self. are the same globals wearing different prefixes — the
+// first version matched only bare and window.-prefixed calls, an alias bypass.
+const DIALOG_RE = /(^|[^.\w])(?:(?:window|globalThis|self)\.)?(alert|confirm|prompt)\s*\(/;
 for (const file of clientFiles) {
   const rel = path.relative(ROOT, file).replace(/\\/g, "/");
   if (EXEMPT_FILES.has(rel)) continue;
