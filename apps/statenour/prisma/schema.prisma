@@ -3244,3 +3244,25 @@ model IntelligenceSignal {
   @@index([createdAt])
   @@map("intelligence_signals")
 }
+
+/// 2026-07-25 · durable outbox for post-turn chat work (audit P1).
+/// The deferred pipeline (memory writes, receipts, journal ingest,
+/// people intel …) was fire-and-forget: a crash mid-turn silently lost
+/// it. Every turn now writes its frozen ctx here BEFORE running the
+/// work inline (inline-first, durability added); the nightly drain
+/// re-runs only orphans (status=pending past the grace window).
+model PostTurnOutbox {
+  id            String   @id @default(cuid())
+  kind          String   @default("deferred-background")
+  /// Frozen, serializable DeferredBackgroundCtx (log excluded; messages capped).
+  payload       Json
+  status        String   @default("pending") // pending | processing | done | failed
+  attempts      Int      @default(0)
+  lastError     String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  nextAttemptAt DateTime @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@map("post_turn_outbox")
+}

@@ -477,8 +477,12 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // same order, same error handling. Invoked at the SAME point. All
       // inputs are the frozen post-rewrite state (cleanedText/text are no
       // longer reassigned past this line).
-      await runDeferredBackgroundWork({
-        log,
+      // 2026-07-25 durable outbox (audit P1): enqueue the frozen ctx
+      // BEFORE running inline, mark done after — a crash mid-work now
+      // strands a pending row the nightly outbox-drain replays instead
+      // of silently losing memory writes / receipts / journal ingest.
+      // Both outbox writes are best-effort and never affect the turn.
+      const __deferredCtx = {
         convId,
         traceId,
         provider,
@@ -492,7 +496,13 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         text,
         messages,
         createdAssistantId,
-      });
+      };
+      const { enqueuePostTurnWork, completePostTurnWork } = await import(
+        "./post-turn-outbox"
+      );
+      const __outboxId = await enqueuePostTurnWork(__deferredCtx);
+      await runDeferredBackgroundWork({ log, ...__deferredCtx });
+      await completePostTurnWork(__outboxId);
 
       deps.onWorkComplete?.();
     };
