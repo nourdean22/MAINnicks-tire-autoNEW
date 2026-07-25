@@ -108,17 +108,28 @@ jobs:
       - name: Build (deps + app · the type gate runs here)
         run: pnpm exec turbo build --filter=@statenour/web
 
-      - name: Start production server
+      # Serve via `next dev`, NOT `next start`: the middleware honors
+      # AUTH_FORCE_MOCK strictly under isDev (run 4 proved prod mode is
+      # fail-closed with no mock path — by design; we do not weaken it).
+      # Prod-build fidelity is still enforced by the separate build step
+      # above (type gate + prerender). Dev cold-compiles per route, so
+      # after the heartbeat we warm the heaviest pages before Playwright.
+      - name: Start dev server (mock-auth is dev-mode-only by design)
         working-directory: apps/statenour
         run: |
-          nohup pnpm exec next start -p 3001 > /tmp/next-start.log 2>&1 &
+          nohup pnpm exec next dev --webpack -p 3001 > /tmp/next-start.log 2>&1 &
           echo "waiting for heartbeat..."
-          for i in $(seq 1 60); do
+          up=0
+          for i in $(seq 1 90); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/system/heartbeat || true)
-            if [ "$code" = "200" ]; then echo "up after $((i*2))s"; exit 0; fi
+            if [ "$code" = "200" ]; then echo "up after $((i*2))s"; up=1; break; fi
             sleep 2
           done
-          echo "server never came up"; tail -50 /tmp/next-start.log; exit 1
+          if [ "$up" != "1" ]; then echo "server never came up"; tail -50 /tmp/next-start.log; exit 1; fi
+          echo "warming pages..."
+          for p in / /chat /system /stats /brain; do
+            curl -s -o /dev/null -m 120 "http://localhost:3001$p" || true
+          done
 
       - name: Install Playwright chromium
         working-directory: apps/statenour
