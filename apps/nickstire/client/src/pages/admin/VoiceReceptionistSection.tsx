@@ -130,6 +130,16 @@ export default function VoiceReceptionistSection() {
     staleTime: 60_000,
   });
 
+  // The tab badge must count PENDING work regardless of which roster filter
+  // is on screen — after viewing 'reviewed' the badge used to count history
+  // (or show nothing while pending items waited). React Query dedupes this
+  // against the roster query whenever the filter IS 'pending'.
+  const { data: pendingQueue, isError: pendingQueueError } = trpc.vapi.getMissedRevenueQueue.useQuery({
+    status: "pending",
+  }, {
+    staleTime: 60_000,
+  });
+
   const updateQueueMutation = trpc.vapi.updateQueueStatus.useMutation({
     onSuccess: () => {
       void refetchQueue();
@@ -345,14 +355,14 @@ export default function VoiceReceptionistSection() {
               badge that is always on trains the operator to ignore red
               badges everywhere. It now reflects what the queue query
               actually returned, and shows "?" when that read failed. */}
-          {activeTab !== "queue" && queueError && (
+          {activeTab !== "queue" && pendingQueueError && (
             <span className="bg-amber-500/15 text-amber-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold" title="Queue could not be read">
               ?
             </span>
           )}
-          {activeTab !== "queue" && !queueError && (queueItems?.length ?? 0) > 0 && (
+          {activeTab !== "queue" && !pendingQueueError && (pendingQueue?.length ?? 0) > 0 && (
             <span className="bg-rose-500/15 text-rose-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-              {queueItems!.length}
+              {pendingQueue!.length}
             </span>
           )}
         </button>

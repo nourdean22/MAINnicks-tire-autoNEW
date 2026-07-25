@@ -90,6 +90,19 @@ function parseDraft(value: string | null): InstagramStudioDraft | null {
   }
 }
 
+/** The content-run lineage rides inside briefJson but OUTSIDE the typed draft
+ *  (draftSchema strips unknown keys). Re-exposed here so resume keeps the
+ *  attribution chain the run was created for. */
+function runIdFrom(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed?.runId === "string" && parsed.runId ? parsed.runId : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Recent concept keys for the novelty dimension. Failure means "recency
  *  unknown" (scored honestly as unchecked), never a blocked evaluation. */
 async function recentKeysSafe(): Promise<string[] | undefined> {
@@ -291,6 +304,32 @@ export const instagramStudioRouter = router({
       // omitted it, so novelty scored differently before and after staging.
       const draft = await generateInstagramStudioDraft({ ...input, recentConceptKeys: await recentKeysSafe() });
 
+      // Open the content run BEFORE persisting, so the runId can ride inside
+      // the persisted brief. The first version persisted first — a refreshed
+      // + resumed draft therefore carried no runId, and every later stage
+      // (tracking links, revenue attribution, cost recording) silently lost
+      // its lineage. Run creation stays additive: a null runId degrades to
+      // untracked, never to lost work.
+      const { createContentRun, advanceContentRun, RUN_STAGE, IMPLEMENTATION_STATE } =
+        await import("../services/contentRun");
+      const runId = await createContentRun({
+        requestedBy: String(ctx.user?.id ?? ""),
+        requestSource: "operator",
+        requestedTopic: input.operatorDirection ?? null,
+        requestedFormat: input.format,
+      });
+      if (runId) {
+        await advanceContentRun(runId, {
+          stage: RUN_STAGE.generating,
+          implementationState: IMPLEMENTATION_STATE.pending,
+          chosenFormat: input.format,
+          formatReason: "Operator chose this format directly.",
+          objective: input.objective,
+          thesis: draft.topic,
+          evidence: { at: new Date().toISOString(), what: `draft generated: "${draft.headline}"` },
+        });
+      }
+
       // PERSIST IMMEDIATELY. The draft cost a metered model call, and until
       // Wave 5 it lived only in one component's useState — a refresh, a PWA
       // relaunch, or one mis-tap destroyed paid work. Status "draft" keeps it
@@ -314,7 +353,9 @@ export const instagramStudioRouter = router({
             scoreOverall: draft.quality.overall,
             status: "draft",
             assetPaths: [],
-            briefJson: JSON.stringify(draft),
+            // runId INSIDE the persisted brief (parseDraft strips unknown keys
+            // from the typed draft, so list/board re-expose it via runIdFrom).
+            briefJson: JSON.stringify({ ...draft, runId }),
             version: 1,
           });
           persisted = true;
@@ -322,30 +363,6 @@ export const instagramStudioRouter = router({
       } catch (err) {
         const { createLogger } = await import("../lib/logger");
         createLogger("routers:instagramStudio").error("draft persistence failed — work survives only in the client", { id: draft.id, err });
-      }
-      // Open a content run so the four separate operator actions
-      // (generate -> evaluate -> render -> stage) become ONE traceable thing.
-      // Recording is additive and MUST NOT be able to break generation: the draft
-      // is already made and paid for by the time we get here, so a null runId
-      // degrades to today's behaviour rather than losing the work.
-      const { createContentRun, advanceContentRun, RUN_STAGE, IMPLEMENTATION_STATE } =
-        await import("../services/contentRun");
-      const runId = await createContentRun({
-        requestedBy: String(ctx.user?.id ?? ""),
-        requestSource: "operator",
-        requestedTopic: input.operatorDirection ?? null,
-        requestedFormat: input.format,
-      });
-      if (runId) {
-        await advanceContentRun(runId, {
-          stage: RUN_STAGE.generating,
-          implementationState: IMPLEMENTATION_STATE.pending,
-          chosenFormat: input.format,
-          formatReason: "Operator chose this format directly.",
-          objective: input.objective,
-          thesis: draft.topic,
-          evidence: { at: new Date().toISOString(), what: `draft generated: "${draft.headline}"` },
-        });
       }
       // draftRowVersion, NOT version: the draft object's own `version` field is
       // the schema literal "instagram-studio-v2" and must not be shadowed by
@@ -359,7 +376,7 @@ export const instagramStudioRouter = router({
    * the review lifecycle (update/approve/etc.) and its version protocol.
    */
   saveDraft: adminProcedure
-    .input(z.object({ draft: draftSchema, expectedVersion: z.number().int().positive() }))
+    .input(z.object({ draft: draftSchema, expectedVersion: z.number().int().positive(), runId: z.string().max(64).optional() }))
     .mutation(async ({ input }) => {
       const database = await dbTyped();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — autosave failed." });
@@ -385,7 +402,7 @@ export const instagramStudioRouter = router({
           scoreOverall: input.draft.quality.overall,
           status: "draft",
           assetPaths: input.draft.imageUrls,
-          briefJson: JSON.stringify(input.draft),
+          briefJson: JSON.stringify({ ...input.draft, runId: input.runId ?? null }),
           version: 1,
         });
         return { version: 1 };
@@ -396,7 +413,7 @@ export const instagramStudioRouter = router({
         bodyText: input.draft.subheadline,
         scoreOverall: input.draft.quality.overall,
         assetPaths: input.draft.imageUrls,
-        briefJson: JSON.stringify(input.draft),
+        briefJson: JSON.stringify({ ...input.draft, runId: input.runId ?? null }),
         version: nextVersion,
         updatedAt: new Date(),
       }).where(and(
@@ -652,6 +669,7 @@ export const instagramStudioRouter = router({
         scheduledAt: row.scheduledAt,
         publishedAt: row.publishedAt,
         error: row.errorMessage,
+        runId: runIdFrom(row.briefJson),
         draft: parseDraft(row.briefJson),
       })).filter((item) => item.draft !== null);
     }),
@@ -1007,6 +1025,7 @@ export const instagramStudioRouter = router({
           publishedAt: row.publishedAt,
           error: row.errorMessage,
           updatedAt: row.updatedAt,
+          runId: runIdFrom(row.briefJson),
           draft: parseDraft(row.briefJson),
         };
       }).filter((item) => item.draft !== null);

@@ -67,8 +67,13 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
     decisionRows.push({ key: "ready", tone: "blue", label: `${rows.readyCount} approved draft${rows.readyCount === 1 ? "" : "s"} ready to publish or schedule`, action: "Publish", view: "publish" });
   }
 
-  const decisionsUnknown = list.isError || diagnostics.isError || !diagnosticsOk;
-  const loading = list.isLoading || diagnostics.isLoading;
+  // EVERY contributing source counts toward "unknown", not just the two the
+  // first version checked — "Nothing needs you (verified)" over an unread
+  // Meta-health or reel-attention query was the exact false-green this screen
+  // exists to prevent.
+  const decisionsUnknown = list.isError || diagnostics.isError || !diagnosticsOk
+    || health.isError || attention.isError;
+  const loading = list.isLoading || diagnostics.isLoading || health.isLoading || attention.isLoading;
 
   const toneClass = { red: "border-red-500/40 bg-red-500/5", amber: "border-amber-500/40 bg-amber-500/5", blue: "border-blue-500/40 bg-blue-500/5" } as const;
 

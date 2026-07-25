@@ -50,11 +50,13 @@ describe("Voice tells the truth about what it knows", () => {
     expect(voice()).toMatch(/metricsError \?/);
   });
 
-  it("the Action Required pill is driven by queue contents, not tab selection", () => {
+  it("the tab pill counts PENDING queue contents — never tab selection, never the roster filter", () => {
     const s = voice();
     expect(s).not.toMatch(/Action Required/);
-    expect(s).toMatch(/queueItems!\.length/);
-    expect(s).toMatch(/queueError &&/);
+    // Upgraded in the PR-B closure: the pill reads a dedicated pending-only
+    // query, so viewing 'reviewed' can no longer make it count history.
+    expect(s).toMatch(/pendingQueue!\.length/);
+    expect(s).toMatch(/pendingQueueError &&/);
   });
 
   it("All Caught Up! requires a successful read", () => {
