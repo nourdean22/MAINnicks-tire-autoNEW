@@ -64,6 +64,9 @@ jobs:
       # ── classic-engine TCP switch: the Neon serverless adapter cannot
       # speak to a plain Postgres container (lib/prisma.ts guard) ──
       E2E_PLAIN_PG: "1"
+      # ── hermetic marker: skips the tests that REQUIRE a real AI key
+      # (assistant-reply roundtrip) — the operator-keyed extra ──
+      E2E_HERMETIC: "1"
       PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
 
     services:

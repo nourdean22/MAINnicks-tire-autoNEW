@@ -39,7 +39,12 @@ const PAGES = [
   { path: "/chat", title: /Nick|Chat/i },
   { path: "/system", title: /system/i },
   { path: "/system/ai-cost", title: /ai cost/i },
-  { path: "/intelligence/brief", title: /Daily Brief|Intelligence/i },
+  // 2026-07-25 hermetic-CI: /intelligence/brief server-renders an
+  // AI-GENERATED brief — with a dummy provider key the RSC stream never
+  // completes and page.goto hangs (proven in e2e run 6). AI-dependent
+  // surfaces are the operator-keyed extra; /missions covers the core
+  // execution surface hermetically instead.
+  { path: "/missions", title: /Missions/i },
   { path: "/content?tab=history", title: /Content/i },
   { path: "/pins", title: /pinned memory|Pins/i },
   { path: "/stats", title: /Stats/i },
@@ -104,7 +109,10 @@ const API_ENDPOINTS = [
   // `observability` router (osSnapshot).
   { method: "GET", path: "/api/system/rate-limits", expectKeys: ["tone", "label", "providers"] },
   { method: "GET", path: "/api/trpc/system.costs?input=" + encodeURIComponent(JSON.stringify({ days: 7 })), expectKeys: ["result"] },
-  { method: "GET", path: "/api/intel", expectKeys: ["industry", "stories", "performers"] },
+  // 2026-07-25 empty-tolerance (the header's own rule): on an empty DB
+  // /api/intel returns { ok, industry: [], generatedAt } and OMITS the
+  // data-dependent keys (proven in e2e run 6) — pin the structural shape.
+  { method: "GET", path: "/api/intel", expectKeys: ["ok", "industry", "generatedAt"] },
   { method: "GET", path: "/api/content/history?days=30", expectKeys: ["count", "rows", "stats"] },
   { method: "GET", path: "/api/social/recent-images", expectKeys: ["images"] },
   { method: "GET", path: "/api/brain/wisdom", expectKeys: ["total", "totalRecalls", "groupings"] },
@@ -124,7 +132,12 @@ for (const e of API_ENDPOINTS) {
 
 // ── Chat critical-path: send message + verify stream lands ────────
 
+// 2026-07-25 hermetic-CI: a REAL assistant reply requires a REAL
+// provider key — the hermetic run uses presence-only dummies, so the
+// stream can never produce one. This test remains the operator-keyed
+// extra (set a real key + unset E2E_HERMETIC to run it in CI).
 test("chat: send a message + assistant reply lands within 30s", async ({ page }) => {
+  test.skip(process.env.E2E_HERMETIC === "1", "needs a real AI provider key — operator-keyed extra");
   await page.goto("/chat");
   await page.waitForSelector("textarea", { timeout: 10_000 });
   await page.fill("textarea", "ping — single word reply please");
