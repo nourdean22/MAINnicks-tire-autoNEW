@@ -184,7 +184,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
         // surfaced into system prompts forever. Now: hash the name
         // for the key, store only business-relevant fields (visit
         // count, segment, spend tier) — no name in content.
-        const nameHash = (await import("crypto"))
+        const nameHash = (await import("node:crypto"))
           .createHash("sha1")
           .update(customerName.toLowerCase().trim())
           .digest("hex")
