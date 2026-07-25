@@ -219,7 +219,7 @@ BAD analysis:
     "reason"
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const extracted = extractJsonObject<any>(result.content);
   if (!extracted.ok) return null;
 

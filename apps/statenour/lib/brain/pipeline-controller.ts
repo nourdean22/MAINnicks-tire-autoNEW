@@ -283,7 +283,7 @@ Return empty arrays if nothing found. Be specific, not generic.`,
   ], "fast");
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const extracted = extractJsonObject<any>(result.content);
     if (!extracted.ok) return;
     const intel = extracted.value;

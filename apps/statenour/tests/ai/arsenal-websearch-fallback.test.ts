@@ -31,6 +31,11 @@ vi.mock("@/lib/integrations/perplexity", () => ({
 }));
 vi.mock("@/lib/integrations/perplexica", () => ({
   askPerplexica: (...a: any[]) => mockPerplexica(...a),
+  // 2026-07-25 mock refresh: the integration gained a hasPerplexica()
+  // availability probe consumed on the live path. Mirror the real
+  // implementation (PERPLEXICA_API_URL presence) so the existing
+  // per-test vi.stubEnv setups drive it exactly like production.
+  hasPerplexica: () => Boolean(process.env.PERPLEXICA_API_URL),
 }));
 vi.mock("@/lib/ai/multi-search", () => ({
   multiSourceSearch: (...a: any[]) => mockMulti(...a),

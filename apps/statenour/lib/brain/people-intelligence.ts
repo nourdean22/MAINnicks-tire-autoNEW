@@ -151,7 +151,7 @@ Return ONLY JSON:
         "fast"
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const enrichExtracted = extractJsonObject<any>(enrichResult.content);
       if (enrichExtracted.ok) {
         try {

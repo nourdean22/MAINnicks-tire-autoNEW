@@ -94,7 +94,7 @@ type ModelDelegate = {
 };
 
 function getDelegate(model: SoftDeleteModel): ModelDelegate {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const d = (prisma as any)[model];
   if (!d || typeof d.update !== "function") {
     throw new Error(`soft-delete: unknown model "${model}"`);

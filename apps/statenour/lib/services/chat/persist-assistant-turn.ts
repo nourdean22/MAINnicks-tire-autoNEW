@@ -424,7 +424,16 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         posture: deps.posture,
         log,
       });
-      if (__persisted.kind !== "done") return;
+      if (__persisted.kind !== "done") {
+        // 2026-07-25 fix (pre-existing quirk flagged in PR #1064): both
+        // skip paths previously returned WITHOUT resolving onWorkComplete.
+        // The SSE stream awaits that promise before emitting
+        // message.completed + controller.close(), so a duplicate-reply or
+        // empty turn held its stream open until maxDuration (120s).
+        // Resolve exactly as the privateMode gate and the normal tail do.
+        deps.onWorkComplete?.();
+        return;
+      }
       const createdAssistantId: string | null = __persisted.createdAssistantId;
       cleanedText = __persisted.cleanedText;
 

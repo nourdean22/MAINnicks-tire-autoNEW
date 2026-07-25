@@ -1,4 +1,4 @@
-/* eslint-disable */
+ 
 // One-shot build of restore-full.json with the v10.0.279 transfer-first
 // flow + 'shop-guy answers and goes to the back' persona.
 const fs = require('fs');

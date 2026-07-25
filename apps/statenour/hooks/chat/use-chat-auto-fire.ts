@@ -131,7 +131,7 @@ export function useChatAutoFire(opts: UseChatAutoFireOpts): ChatAutoFireState {
       setPendingAutoFire({ messageId: id, plan: decision.plan! });
     }, 0);
     autoFiredRef.current.add(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [messages, isStreaming, pendingAutoFire]);
 
   const handleAutoFireProceed = useCallback(

@@ -288,7 +288,7 @@ describe("consultBoard · synthesizer failures degrade gracefully", () => {
 
 describe("consultBoard · validation", () => {
   it("throws on unknown board id", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     await expect(consultBoard("nope" as any, "q")).rejects.toThrow(
       /Unknown board/,
     );
@@ -307,25 +307,25 @@ describe("coerceAdvisorTake · defensive shape", () => {
   };
 
   it("clamps confidence to [0,1]", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const t = __testInternals.coerceAdvisorTake(frame as any, { confidence: 2.5 }, "v");
     expect(t.confidence).toBe(1);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const t2 = __testInternals.coerceAdvisorTake(frame as any, { confidence: -3 }, "v");
     expect(t2.confidence).toBe(0);
   });
 
   it("falls back to 0.6 confidence when missing or non-finite", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const t = __testInternals.coerceAdvisorTake(frame as any, {}, "v");
     expect(t.confidence).toBe(0.6);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const t2 = __testInternals.coerceAdvisorTake(frame as any, { confidence: NaN }, "v");
     expect(t2.confidence).toBe(0.6);
   });
 
   it("substitutes (missing) for absent string fields", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const t = __testInternals.coerceAdvisorTake(frame as any, {}, "v");
     expect(t.lensOneLine).toBe("(missing)");
     expect(t.keyInsight).toBe("(missing)");
@@ -333,7 +333,7 @@ describe("coerceAdvisorTake · defensive shape", () => {
   });
 
   it("preserves valid divergenceFlag", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const t = __testInternals.coerceAdvisorTake(
       frame as any,
       { divergenceFlag: "X would disagree" },
@@ -343,7 +343,7 @@ describe("coerceAdvisorTake · defensive shape", () => {
   });
 
   it("drops empty-string divergenceFlag to undefined", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const t = __testInternals.coerceAdvisorTake(frame as any, { divergenceFlag: "" }, "v");
     expect(t.divergenceFlag).toBeUndefined();
   });
@@ -358,7 +358,7 @@ describe("buildAdvisorPrompt (internal)", () => {
       name: "Test Lens",
       oneLiner: "x",
       triggers: [],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       lens: "TEST LENS BLOCK 12345",
     } as any);
     expect(prompt).toContain("TEST LENS BLOCK 12345");
