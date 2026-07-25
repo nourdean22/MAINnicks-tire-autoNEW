@@ -3,13 +3,18 @@
  * their own page identity + critical content, and throw no runtime errors.
  *
  * Runs against a running dev server (default localhost:3001) or a deployed
- * preview via E2E_BASE_URL. truth-substrate audit P0 (#8/#10): this suite is
- * NOT wired into any gate today — vitest excludes tests/e2e/**, verify:hard
- * never invokes playwright, and no CI workflow runs it. Wiring it to gate ship
- * needs a deployed preview URL + a Playwright storageState (authenticated
- * session), which are operator/CI-secret setup. Until then these run manually:
- *   pnpm test:e2e            (against a running app / E2E_BASE_URL)
- * Do NOT claim E2E gates ship until that CI job + storageState exist.
+ * preview via E2E_BASE_URL.
+ *
+ * CI GATE (2026-07-25 · closes truth-substrate audit P0 #8/#10): this suite
+ * IS wired into CI — .github/workflows/e2e-statenour.yml runs it BLOCKING on
+ * every statenour PR against a HERMETIC build: throwaway pgvector Postgres
+ * service + `prisma db push` (empty data) + real `next build`/`next start` +
+ * AUTH_FORCE_MOCK=1 for the authenticated session. No operator secrets, no
+ * prod URL — the storageState variant against live bdnick.info remains an
+ * optional operator-keyed extra, not a prerequisite. Locally these still run
+ * manually: pnpm test:e2e (against a running app / E2E_BASE_URL).
+ * Assertions must therefore stay EMPTY-DATA TOLERANT (labels and shapes, not
+ * row counts).
  */
 
 import { test, expect } from "@playwright/test";
