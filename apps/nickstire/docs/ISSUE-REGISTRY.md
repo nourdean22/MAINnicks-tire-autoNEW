@@ -1,6 +1,6 @@
 # Nick's Tire & Auto — Revenue Operations Issue Registry
 
-**Last verified:** 2026-07-24
+**Last verified:** 2026-07-25
 
 A code change is not production verification. Status must follow evidence.
 
@@ -62,6 +62,7 @@ A code change is not production verification. Status must follow evidence.
 | ROS-051 | The master verify gate could not see the client | 2026-07-24 | Deployed | High | scripts/lint-source.mjs walked ONLY server/ — no automated check could ever catch a client alert(), a shape-inventing as-cast on tRPC data, or a dead CTA. This is the structural reason the false-green and silent-dialog classes recurred, and why the 3,000-test suite caught none of them | Engineering | The linter now walks client/src: hard-fails alert/confirm/prompt (comment-, JSX-block-comment- and declaration-aware), soft-counts as-casts (baseline 40, the never-rendered-banner class). Canary-verified: a violating file fails the run with both lines named; the clean tree passes (#1047) |
 | ROS-052 | URL-persisted filters ignored history navigation | 2026-07-24 | Deployed | Medium | useUrlFilter — owner of ~25 filters and the inner tabs of Settings, Growth, Tires, Voice and Customers — read the URL once in its useState initializer with no popstate listener: browser Back/Forward moved the address bar while every screen kept its old state. The IG shell's ?igview= read shared the defect | Engineering | popstate listeners re-read and re-validate on history navigation in both places; pinned in adminTruth.test.ts (#1048) |
 
+| ROS-053 | Assembled reels stranded outside the publish gate; Action Center Publish dead | 2026-07-25 | Deployed | High | Operator-reported: four assembled jobs showed a permanently disabled Publish button. Live prod query proved the mechanism: the assembly writeback UPDATE (reelPipeline) matched ZERO social_content_inventory rows for canary/autopost briefIds — no draft ever existed, nothing checked affectedRows (the ROS-020/045 class) — so "publish through the normal gates" pointed at an EMPTY gate. A fourth card was a ghost: its draft had already published and the job row never heard. "stalled 0h" rendered on fresh states as noise | Engineering | reelInventoryLink.ensureReelDraftForJob (update-then-insert healer) now backs the assembly writeback, so every assembled reel lands a review_ready draft; contentAdmin.reconcileAssembledReel wires the button (create-missing / close-ghost / no-op; AMBIGUOUS REFUSED — staging one would arm a duplicate of a possibly-live reel) and hands the operator to Publish → Reels via ?igpub=; stalled renders only >=1h. 4 behavior tests + 4 pins (#1051) |
 ## Status definitions
 
 - Reported: not reproduced.
