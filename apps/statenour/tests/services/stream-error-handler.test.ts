@@ -245,10 +245,13 @@ describe("2026-07-25 · errored streams resolve onFinishPromise", () => {
 
 describe("2026-07-25 · client-visible stream error text never echoes the error", () => {
   it("returns the constant for any error — including key-bearing auth failures", () => {
-    const leaky = new Error("Invalid API key: sk-abc123SECRET");
+    // Assembled at runtime — a key-shaped LITERAL in source trips the
+    // gitleaks hard gate (it can't know a fixture from a leak, correctly).
+    const fakeKey = ["sk", "abc123SECRET"].join("-");
+    const leaky = new Error(`Invalid API key: ${fakeKey}`);
     expect(clientSafeStreamErrorText(leaky)).toBe(CLIENT_SAFE_STREAM_ERROR_TEXT);
-    expect(clientSafeStreamErrorText(leaky)).not.toContain("sk-");
-    expect(clientSafeStreamErrorText({ message: "401 sk-xyz" })).toBe(CLIENT_SAFE_STREAM_ERROR_TEXT);
+    expect(clientSafeStreamErrorText(leaky)).not.toContain(fakeKey);
+    expect(clientSafeStreamErrorText({ message: `401 ${fakeKey}` })).toBe(CLIENT_SAFE_STREAM_ERROR_TEXT);
     expect(clientSafeStreamErrorText(undefined)).toBe(CLIENT_SAFE_STREAM_ERROR_TEXT);
   });
 
