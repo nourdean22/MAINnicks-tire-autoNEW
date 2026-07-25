@@ -9,10 +9,15 @@
 
 import fs from "fs";
 import path from "path";
-import crypto from "crypto";
 import { prisma } from "../lib/prisma";
 import { getObsidianEngineConfig, readEngineStatus, writeEngineStatus } from "../lib/obsidian/engine-config";
 import { ObsidianEngineStatus, EngineIssue } from "../lib/obsidian/types";
+import {
+  hasIdenticalNewestConflict,
+  planNoteWrite,
+  pruneConflictDir,
+  sanitizeFilename,
+} from "../lib/obsidian/note-writer";
 
 // Parse CLI arguments
 const args = process.argv.slice(2);
@@ -41,146 +46,51 @@ let exportedReflections = 0;
 let exportedMemories = 0;
 let exportFailed = 0;
 
-// Helper to sanitize filename by removing illegal Windows/Linux characters
-function sanitizeFilename(name: string): string {
-  return name
-    .replace(/[\\/:*?"<>|]/g, "")
-    .trim();
-}
-
-// Helper to calculate SHA256 of string
-function calculateHash(str: string): string {
-  return crypto.createHash("sha256").update(str, "utf-8").digest("hex");
-}
-
-// Helper to parse YAML frontmatter (read-only for local conflict check)
-function parseFrontmatter(fileContent: string): { metadata: Record<string, any>; content: string } {
-  const result = { metadata: {} as Record<string, any>, content: fileContent };
-  const normalized = fileContent.trim();
-  if (!normalized.startsWith("---")) return result;
-
-  const lines = normalized.split(/\r?\n/);
-  if (lines[0] !== "---") return result;
-
-  let closingIndex = -1;
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === "---") {
-      closingIndex = i;
-      break;
-    }
-  }
-
-  if (closingIndex === -1) return result;
-
-  const yamlLines = lines.slice(1, closingIndex);
-  const metadata: Record<string, any> = {};
-
-  for (const line of yamlLines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-
-    const colonIdx = trimmed.indexOf(":");
-    if (colonIdx === -1) continue;
-
-    const rawKey = trimmed.substring(0, colonIdx).trim();
-    let rawVal = trimmed.substring(colonIdx + 1).trim();
-
-    if ((rawVal.startsWith('"') && rawVal.endsWith('"')) || (rawVal.startsWith("'") && rawVal.endsWith("'"))) {
-      rawVal = rawVal.substring(1, rawVal.length - 1);
-    }
-
-    metadata[rawKey] = rawVal;
-  }
-
-  result.metadata = metadata;
-  result.content = lines.slice(closingIndex + 1).join("\n");
-  return result;
-}
-
-// Helper to build frontmatter YAML string
-function buildFrontmatter(metadata: Record<string, any>): string {
-  let yaml = "---\n";
-  for (const [key, val] of Object.entries(metadata)) {
-    if (val === undefined || val === null) continue;
-    if (Array.isArray(val)) {
-      yaml += `${key}: [${val.map(v => typeof v === 'string' ? `"${v.replace(/"/g, '\\"')}"` : v).join(", ")}]\n`;
-    } else if (typeof val === "object") {
-      yaml += `${key}: ${JSON.stringify(val)}\n`;
-    } else if (typeof val === "string") {
-      yaml += `${key}: "${val.replace(/"/g, '\\"')}"\n`;
-    } else {
-      yaml += `${key}: ${val}\n`;
-    }
-  }
-  yaml += "---\n";
-  return yaml;
-}
-
-// Build final content with embedded content hash and timestamp
-function buildNoteContent(metadata: Record<string, any>, body: string): { content: string; hash: string } {
-  const cleanBody = body.trim();
-  const contentHash = calculateHash(cleanBody);
-  const fullMetadata = {
-    ...metadata,
-    hash: contentHash,
-    last_synced_at: new Date().toISOString()
-  };
-  const content = buildFrontmatter(fullMetadata) + body;
-  return { content, hash: contentHash };
-}
+// How many timestamped conflict copies to retain per note title
+const CONFLICT_KEEP_PER_NOTE = 10;
 
 // Safe Note Writer with Conflict Protection
+// (write/skip/conflict decision lives in lib/obsidian/note-writer.ts)
 function safeWriteNote(
   filePath: string,
   metadata: Record<string, any>,
   body: string
 ): boolean {
   try {
-    let finalMetadata = { ...metadata };
+    const existingRaw = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : null;
+    const plan = planNoteWrite(existingRaw, metadata, body);
 
-    if (fs.existsSync(filePath)) {
-      const localRaw = fs.readFileSync(filePath, "utf-8");
-      const localParsed = parseFrontmatter(localRaw);
-      
-      const storedHash = localParsed.metadata.hash;
-      const currentLocalHash = calculateHash(localParsed.content.trim());
-      
-      // Preserve review_due from local file if present
-      if (localParsed.metadata.review_due && !finalMetadata.review_due) {
-        finalMetadata.review_due = localParsed.metadata.review_due;
+    if (plan.kind === "skip") {
+      // Already converged — rewriting would only churn OneDrive and retrigger the watch daemon
+      return true;
+    }
+
+    if (plan.kind === "conflict") {
+      // Sync Conflict! Write copy under Statenour/Quarantine/Conflicts/
+      const conflictDir = path.join(vaultPath, "Statenour", "Quarantine", "Conflicts");
+      if (!fs.existsSync(conflictDir)) {
+        fs.mkdirSync(conflictDir, { recursive: true });
       }
 
-      // If the local file's stored hash doesn't match the current body, the user has edited it
-      const isModified = storedHash && storedHash !== currentLocalHash;
+      const sanitizedTitle = sanitizeFilename(metadata.title || path.basename(filePath, ".md"));
+      const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+      const conflictFilename = `${sanitizedTitle}.conflict-${timestamp}.md`;
 
-      if (isModified) {
-        const { content: newContent } = buildNoteContent(finalMetadata, body);
-        // Sync Conflict! Write copy under Statenour/Quarantine/Conflicts/
-        const conflictDir = path.join(vaultPath, "Statenour", "Quarantine", "Conflicts");
-        if (!fs.existsSync(conflictDir)) {
-          fs.mkdirSync(conflictDir, { recursive: true });
-        }
-
-        const sanitizedTitle = sanitizeFilename(finalMetadata.title || path.basename(filePath, ".md"));
-        const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
-        const conflictFilename = `${sanitizedTitle}.conflict-${timestamp}.md`;
-        const conflictPath = path.join(conflictDir, conflictFilename);
-
-        fs.writeFileSync(conflictPath, newContent, "utf-8");
-        
+      if (hasIdenticalNewestConflict(conflictDir, sanitizedTitle, plan.content)) {
+        console.warn(`  ⚠️  [Conflict] "${sanitizedTitle}" is still modified locally; identical staged copy already in Quarantine/Conflicts/ — not re-stamping.`);
+      } else {
+        fs.writeFileSync(path.join(conflictDir, conflictFilename), plan.content, "utf-8");
         exportConflicts.push({
-          title: finalMetadata.title || sanitizedTitle,
+          title: metadata.title || sanitizedTitle,
           file: filePath,
           conflictFile: conflictFilename
         });
-
         console.warn(`  ⚠️  [Conflict] "${sanitizedTitle}" was modified locally in Obsidian. Staged version written to Quarantine/Conflicts/`);
-        return false;
       }
+      return false;
     }
 
-    const { content: newContent } = buildNoteContent(finalMetadata, body);
-    fs.writeFileSync(filePath, newContent, "utf-8");
+    fs.writeFileSync(filePath, plan.content, "utf-8");
     return true;
   } catch (err) {
     console.error(`  ❌ Failed to write note: ${filePath}`, err);
@@ -407,7 +317,9 @@ async function main() {
           ]
         }
       },
-      orderBy: { createdAt: "desc" }
+      // Secondary id sort keeps the rendered order stable when createdAt ties —
+      // an order flip would read as a content change and rewrite the rollup
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }]
     });
 
     // Group memories by category
@@ -434,8 +346,10 @@ async function main() {
           sync_direction: "none",
         };
 
+        // No "Last Synced" line in the body: the body must be deterministic for
+        // unchanged data or every run rewrites every rollup (frontmatter
+        // last_synced_at carries the sync time)
         let body = `# 🧠 Brain Memories: ${cleanCatName}\n\n`;
-        body += `*Last Synced: ${new Date().toLocaleString()}*\n\n`;
 
         // Cap to 100 most recent items to prevent Obsidian from freezing on huge files
         for (const mem of catMemories.slice(0, 100)) {
@@ -494,6 +408,18 @@ async function main() {
   } catch (err) {
     console.error("    └─ ❌ Failed to export Brain Memories:", err);
     exportFailed++;
+  }
+
+  // Conflict retention: cap staged copies at CONFLICT_KEEP_PER_NOTE per note
+  // title (runs every export so a pre-existing backlog also drains)
+  try {
+    const conflictDir = path.join(vaultPath, "Statenour", "Quarantine", "Conflicts");
+    const pruned = pruneConflictDir(conflictDir, CONFLICT_KEEP_PER_NOTE);
+    if (pruned.deleted > 0) {
+      console.log(`  🧹 Conflict retention: deleted ${pruned.deleted} old conflict copies (kept newest ${pruned.kept}).`);
+    }
+  } catch (pruneErr) {
+    console.error("  ⚠️ Conflict retention pruning failed:", pruneErr);
   }
 
   // Write updated status file after each export run
