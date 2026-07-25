@@ -276,8 +276,8 @@ The customer site + an autonomous operations backend for the shop.
   `schema-sentinel.ts`).
 - **Build:** `prisma generate && next build` (`output: "standalone"` → `.next/standalone`).
   Local prod builds use `NEXT_DIST_DIR=.next-prod` so a running dev server on `.next` isn't
-  clobbered. `typescript.ignoreBuildErrors: true` works around a `googleapis`/Turbopack
-  `.d.ts` crash — **real type errors are caught by `pnpm typecheck`, not the build.**
+  clobbered. Build-time TS checking is ON (`ignoreBuildErrors` removed 2026-07-25 — the old
+  `googleapis`/Turbopack `.d.ts` crash no longer reproduces): **the build itself is a type gate.**
 - **Crons** run via the **Inngest** mega fan-out; the single source of truth is
   `config/crons.ts` (verified by `pnpm check:crons`).
 
@@ -559,9 +559,10 @@ confirm (two-tap button or a dialog component). See the `nickstire-ios-pwa-primi
 The `wouter@3.7.1` patch must reapply on install; on lockfile drift do
 `rm -rf node_modules && pnpm install`.
 
-**statenour `next build` passes but ships type errors (or vice-versa).**
-Build-time TS checking is disabled (`ignoreBuildErrors: true`, a `googleapis`/Turbopack
-workaround). Trust `pnpm typecheck`, not the build, for type safety.
+**statenour `next build` fails with a type error `pnpm typecheck` missed.**
+Build-time TS checking is ON (`ignoreBuildErrors` removed 2026-07-25). The build's check
+covers `.next/types` route validation that `typecheck:raw` excludes — fix the error; do
+NOT re-add the ignore flag.
 
 ---
 

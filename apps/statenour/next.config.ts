@@ -47,22 +47,16 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Apr 28 · BATCH 4 hotfix — Next 16 + Turbopack typecheck does NOT
-  // honor `skipLibCheck: true` from tsconfig and crashes on
-  // `googleapis@171.4.0/build/src/apis/gkehub/v2beta.d.ts:1:1` with
-  // "Type error: File appears to be binary." even though gkehub is
-  // never imported (the package barrel-exports every Google product).
-  //
-  // Real type errors are still caught by:
-  //   1. Pre-push hook (`tsc --noEmit` over the project)
-  //   2. CI typecheck job (separate from the build)
-  //   3. Local `pnpm typecheck` before each commit
-  //
-  // So setting ignoreBuildErrors=true here only opts out of the
-  // duplicative Next-build-time check that's broken on this version.
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // 2026-07-25 · ignoreBuildErrors REMOVED (audit P0). The Apr 28
+  // justification — Next 16 + Turbopack crashing on googleapis'
+  // gkehub/v2beta.d.ts with "File appears to be binary" — no longer
+  // reproduces: the installed file is clean UTF-8 (verified byte-level,
+  // zero NULs) and `next build` completes WITH its own typecheck on
+  // next 16.2.6 + googleapis 171.4.0. With the flag gone, the build
+  // itself is now a type gate: a direct merge, misconfigured workflow,
+  // or Railway rebuild can no longer produce a deployable artifact
+  // that carries type errors. (Pre-push tsc + CI typecheck still run
+  // as the earlier, faster layers.)
 
   // ── Hide Next.js dev indicator (the little N circle in dev mode) ─────
   devIndicators: false,
