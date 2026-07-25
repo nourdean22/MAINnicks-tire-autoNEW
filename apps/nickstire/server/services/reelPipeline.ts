@@ -627,15 +627,16 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     }
 
     if (job.briefId && job.briefId !== "unknown") {
-      await d
-        .update(socialContentInventory)
-        .set({
-          status: "review_ready",
-          assetPaths: [mp4Url],
-          errorMessage: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(socialContentInventory.id, job.briefId));
+      // Update-then-insert via the shared link-healer. The bare UPDATE here
+      // matched ZERO rows for canary/autopost briefIds (no inventory row
+      // exists for them) and nothing checked — three assembled reels sat
+      // stranded with the Action Center's Publish button pointing at an
+      // empty gate (verified live 2026-07-25).
+      const { ensureReelDraftForJob } = await import("./reelInventoryLink");
+      const linkOutcome = await ensureReelDraftForJob(d, { briefId: job.briefId, mp4Url, brief });
+      if (linkOutcome === "created") {
+        log.info("reel draft CREATED for gate (briefId had no inventory row)", { jobId: job.id, briefId: job.briefId });
+      }
     }
 
     log.info("reel job assembled", { jobId: job.id, mp4Url, durationSec });

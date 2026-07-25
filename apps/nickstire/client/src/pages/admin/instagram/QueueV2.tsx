@@ -55,8 +55,14 @@ export default function QueueV2() {
   const [status, setStatus] = useState<QueueStatus>("all");
   const [search, setSearch] = useState("");
   /** Reels are a first-class segment of Publish (reel-absorption wave) —
-   *  the legacy Queue they used to hide behind is deleted. */
-  const [layout, setLayout] = useState<"board" | "list" | "reels">("board");
+   *  the legacy Queue they used to hide behind is deleted. The segment reads
+   *  ?igpub= on mount so cross-view handoffs (Action Center's Publish wire)
+   *  can land the operator directly on the right segment. */
+  const [layout, setLayout] = useState<"board" | "list" | "reels">(() => {
+    if (typeof window === "undefined") return "board";
+    const seg = new URLSearchParams(window.location.search).get("igpub");
+    return seg === "list" || seg === "reels" ? seg : "board";
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<InstagramStudioDraft | null>(null);
   /**
