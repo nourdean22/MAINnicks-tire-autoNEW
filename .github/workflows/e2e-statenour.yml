@@ -57,6 +57,7 @@ jobs:
       AUTH_GOOGLE_CLIENT_SECRET: e2e-ci-dummy-secret
       AUTH_ALLOWED_EMAIL: e2e-ci@example.invalid
       CRON_SECRET: e2e-ci-dummy-cron-secret
+      STATENOUR_SYNC_KEY: e2e-ci-dummy-sync-key
       OLLAMA_API_KEY: e2e-ci-dummy-ollama-key
       # ── the authenticated-session switch (same path as local dev) ──
       AUTH_FORCE_MOCK: "1"
