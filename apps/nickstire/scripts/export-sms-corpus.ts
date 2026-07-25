@@ -37,6 +37,7 @@
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { NICK_SMS_SYSTEM_PROMPT as SYSTEM_PROMPT } from "../server/services/nickSmsPersona";
+import { buildAllTurns, normalizeBody, turnStats, type ResponderLookups } from "../server/services/smsCorpusTurns";
 
 interface CliArgs {
   days: number;
@@ -171,33 +172,51 @@ async function fetchMessages(days: number): Promise<SmsRow[]> {
   return rows as SmsRow[];
 }
 
-function pairMessages(rows: SmsRow[], windowMs: number): TrainingPair[] {
-  const pairs: TrainingPair[] = [];
-  // Group by conversation, then walk chronologically
-  const byConvo = new Map<number, SmsRow[]>();
-  for (const r of rows) {
-    if (!byConvo.has(r.conversationId)) byConvo.set(r.conversationId, []);
-    byConvo.get(r.conversationId)!.push(r);
-  }
-  for (const convoRows of byConvo.values()) {
-    for (let i = 0; i < convoRows.length; i++) {
-      const cur = convoRows[i];
-      if (cur.direction !== "inbound") continue;
-      // Find next outbound within window
-      const next = convoRows
-        .slice(i + 1)
-        .find((r) => r.direction === "outbound" && r.createdAt.getTime() - cur.createdAt.getTime() <= windowMs);
-      if (!next) continue;
-      pairs.push({
-        inbound: cur.body,
-        reply: next.body,
-        conversationId: cur.conversationId,
-        inboundAt: cur.createdAt.toISOString(),
-        replyAt: next.createdAt.toISOString(),
-      });
-    }
-  }
-  return pairs;
+/**
+ * ROS-058 turn model: consecutive inbounds form ONE customer turn answered by
+ * ONE reply — the old per-inbound pairing produced duplicate-reply mispairs
+ * ("Do you have tires?" and "Size is 225/50R17." both paired with "Yes,
+ * bring it by"), which is why fine-tuning was blocked on this exporter.
+ * Only turns a HUMAN answered (operator / operator-sent draft) become
+ * training pairs; automation and NickGPT's own outputs never train NickGPT.
+ */
+async function buildTrainingPairs(rows: SmsRow[], windowMs: number, days: number): Promise<{ pairs: TrainingPair[]; stats: ReturnType<typeof turnStats> }> {
+  const { getDb } = await import("../server/db");
+  const { nickgptDrafts, smsOrchestrations } = await import("../drizzle/schema");
+  const { gte } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) throw new Error("Database connection not available");
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const draftRows = await db
+    .select({ draftReply: nickgptDrafts.draftReply, autoSent: nickgptDrafts.autoSent })
+    .from(nickgptDrafts)
+    .where(gte(nickgptDrafts.createdAt, cutoff));
+  const orchRows = await db
+    .select({ messageBody: smsOrchestrations.messageBody, variantKey: smsOrchestrations.variantKey })
+    .from(smsOrchestrations)
+    .where(gte(smsOrchestrations.createdAt, cutoff));
+
+  const lookups: ResponderLookups = {
+    draftBodies: new Map(draftRows.map((d) => [normalizeBody(d.draftReply), { autoSent: Boolean(d.autoSent) }])),
+    orchestrationBodies: new Map(
+      orchRows.filter((o) => o.messageBody).map((o) => [normalizeBody(o.messageBody!), { variantKey: o.variantKey ?? "none" }]),
+    ),
+    looksAutomated,
+  };
+
+  const turns = buildAllTurns(rows, windowMs, lookups);
+  const stats = turnStats(turns);
+  const pairs: TrainingPair[] = turns
+    .filter((t) => t.reply && (t.responder === "operator" || t.responder === "operator_sent_draft"))
+    .map((t) => ({
+      inbound: t.inboundBodies.join("\n"),
+      reply: t.reply!.body,
+      conversationId: t.conversationId,
+      inboundAt: t.inboundAt.toISOString(),
+      replyAt: t.reply!.at.toISOString(),
+    }));
+  return { pairs, stats };
 }
 
 function filterAndRedact(pairs: TrainingPair[], aggressive: boolean): TrainingPair[] {
@@ -240,8 +259,10 @@ async function main() {
   const rows = await fetchMessages(args.days);
   console.log(`[export-sms-corpus] fetched ${rows.length} messages`);
 
-  const rawPairs = pairMessages(rows, args.pairWindowMs);
-  console.log(`[export-sms-corpus] raw pairs: ${rawPairs.length}`);
+  const { pairs: rawPairs, stats } = await buildTrainingPairs(rows, args.pairWindowMs, args.days);
+  console.log(`[export-sms-corpus] turns: ${stats.turns} · answered: ${stats.answered} · unanswered: ${stats.unanswered}`);
+  console.log(`[export-sms-corpus] responder mix: ${JSON.stringify(stats.byResponder)}`);
+  console.log(`[export-sms-corpus] human-answered training pairs: ${rawPairs.length} (automation + NickGPT outputs excluded)`);
 
   const filtered = filterAndRedact(rawPairs, args.redactAggressive);
   console.log(`[export-sms-corpus] after filter + redact: ${filtered.length}`);
