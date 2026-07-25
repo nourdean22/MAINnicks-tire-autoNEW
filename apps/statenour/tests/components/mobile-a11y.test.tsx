@@ -50,10 +50,12 @@ describe("A2 · composer buttons + textarea hit 44px Apple HIG on mobile", () =>
   // watching for can't reappear on the surface that actually ships.
   const composerSrc = readSource("features/chat-v2/components/chat-composer.tsx");
 
-  it("attach + mic buttons render h-11 w-11 on mobile (44px), dense on desktop", () => {
-    // Both left-toolbar buttons use `h-11 w-11 sm:h-9 sm:w-9` (44px phone,
-    // 36px desktop). There must be at least 2 occurrences (attach + mic).
-    const occurrences = composerSrc.match(/h-11 w-11 sm:h-9 sm:w-9/g) ?? [];
+  it("composer icon buttons render h-11 w-11 (44px) — now on ALL breakpoints", () => {
+    // 2026-07-25 pin refresh: the #1035 composer restyle DROPPED the
+    // `sm:h-9 sm:w-9` desktop shrink — buttons keep 44px everywhere,
+    // an a11y upgrade. Pin the current spelling; the contract is
+    // unchanged (≥2 icon buttons at 44px: attach + mic minimum).
+    const occurrences = composerSrc.match(/h-11 w-11/g) ?? [];
     expect(occurrences.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -65,7 +67,9 @@ describe("A2 · composer buttons + textarea hit 44px Apple HIG on mobile", () =>
   });
 
   it("textarea min-height is 44px on mobile", () => {
-    expect(composerSrc).toContain("min-h-[44px]");
+    // 2026-07-25 pin refresh: `min-h-11` is Tailwind's spacing-scale
+    // spelling of the same 44px the old arbitrary `min-h-[44px]` pinned.
+    expect(composerSrc).toContain("min-h-11");
   });
 });
 

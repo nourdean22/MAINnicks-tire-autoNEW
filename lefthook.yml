@@ -29,6 +29,13 @@ pre-commit:
       root: "apps/statenour"
       glob: "**/*.{ts,tsx,js,jsx}"
       run: pnpm run lint
+    # 2026-07-25 gate-integrity: staged-only secret scan. The whole-repo
+    # scanner (check:secrets) rightly flags local .env files, so it can
+    # never gate a dev machine; --staged scans exactly what is about to
+    # enter history, which is the leak surface that matters.
+    statenour-secrets-staged:
+      root: "apps/statenour"
+      run: pnpm exec tsx scripts/scan-secrets.ts --staged
 
 pre-push:
   commands:

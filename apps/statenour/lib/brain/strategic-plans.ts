@@ -158,7 +158,7 @@ Be honest. If a plan has 0 task completions in 30 days, it's behind. Don't sugar
     "fast"
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const extracted = extractJsonArray<any>(result.content);
   if (!extracted.ok) return { activePlans: missions.length, assessments: [] };
 

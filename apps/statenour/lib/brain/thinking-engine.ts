@@ -145,7 +145,7 @@ Score values ONLY from data, not from claims. 0.0 = no evidence, 1.0 = overwhelm
   // Use any-typed result · prisma create expects a specific input
   // shape that's not worth duplicating here. The repair pass still
   // applies; we just don't lose type erasure on snapshot fields.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const extracted = extractJsonObject<any>(result.content);
   if (!extracted.ok) return { tracked: false };
 

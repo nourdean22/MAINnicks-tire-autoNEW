@@ -60,7 +60,7 @@ export function wrapWithBraintrust(model: LanguageModel): LanguageModel {
     return model;
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const braintrust = require("braintrust") as {
       wrapAISDKModel?: (m: LanguageModel) => LanguageModel;
       initLogger?: (opts: { projectName: string; apiKey: string }) => void;

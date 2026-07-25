@@ -235,10 +235,10 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
       // The shapes are inherently dynamic (different endpoints return
       // different structures) so we use `any` here deliberately rather
       // than typing each endpoint's response.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const unwrap = (x: unknown): any => {
         if (!x || typeof x !== "object") return null;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const o = x as any;
         return o.data ?? o;
       };

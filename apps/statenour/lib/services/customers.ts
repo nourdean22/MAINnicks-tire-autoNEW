@@ -43,12 +43,12 @@ function warnMissingBridge(method: string) {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function decorateCustomers(customers: Array<DemoCustomer> | any[]) {
   const dormantView = scanDormantCustomers(serializeForJson(customers));
   const viewMap = new Map(dormantView.map((customer) => [customer.id, customer]));
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return serializeForJson(customers).map((customer: any) => ({
     ...customer,
     ...viewMap.get(customer.id),

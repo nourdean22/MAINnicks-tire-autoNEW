@@ -115,7 +115,7 @@ Rules:
   );
 
   // v10.0.229 · extractJsonObject · gets repair pass for free
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const extracted = extractJsonObject<any>(result.content);
   if (!extracted.ok) return null;
 
@@ -543,7 +543,7 @@ Rules:
     "fast"
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const extracted = extractJsonObject<any>(result.content);
   if (!extracted.ok) return null;
 

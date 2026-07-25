@@ -294,7 +294,7 @@ export async function analyzeDecisionPatterns(): Promise<{
         { role: "user", content: decisionContext.join("\n") },
       ], "fast");
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const extracted = extractJsonArray<any>(result.content);
       if (extracted.ok) {
         const parsed = extracted.value;
