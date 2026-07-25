@@ -104,6 +104,9 @@ export const EVENING_JOBS: readonly string[] = [
   // (accepted opportunities past their horizon) + nudges source authScore. Daily is plenty.
   "/api/cron/experiment-measure",
   "/api/cron/data-cleanup",
+  // 2026-07-25 · durable-outbox drain — replays post-turn work orphaned
+  // by a mid-turn crash (rare; rows past the grace window, ≤3 attempts).
+  "/api/cron/outbox-drain",
   "/api/cron/subtask-usage-audit",
   "/api/cron/cron-healer",
   "/api/cron/journal-checkin?slot=evening",

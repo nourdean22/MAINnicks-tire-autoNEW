@@ -404,6 +404,19 @@ export const CRONS: CronDef[] = [
     maxDuration: 300,
   },
   {
+    // 2026-07-25 · durable-outbox drain (audit P1). Sits in EVENING_JOBS —
+    // fires nightly via the mega-evening fan-out. Replays post-turn chat
+    // work orphaned by a mid-turn crash (status=pending past the 10-min
+    // grace window, <=3 attempts, atomic first-claimant-wins).
+    name: "outbox-drain",
+    schedule: "0 3 * * *",
+    mode: "active",
+    category: "hygiene",
+    description: "Nightly via mega-evening fan-out · replays orphaned post-turn chat work from post_turn_outbox.",
+    memory: 512,
+    maxDuration: 300,
+  },
+  {
     // 2026-07-09 · sweep · pre-Wave-AE "daily 5am" retired; the route is in
     // WEEKLY_JOBS, which the evening fan-out appends only on Sunday-ET —
     // i.e. the Monday 03:00 UTC run (= Sunday 10/11pm ET). Weekly matches
