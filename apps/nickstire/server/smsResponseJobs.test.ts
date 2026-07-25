@@ -52,7 +52,7 @@ describe("responseIdempotencyKey — a redelivery must dedupe to one job", () =>
   });
 });
 
-describe("terminalStatusFor — a completed run is terminal; only a throw retries", () => {
+describe("jobStatusFor — a completed run never re-orchestrates; humans get a durable obligation", () => {
   it.each(["sent", "queued", "delivered", "sending", "replied"])("%s → responded", (status) => {
     expect(terminalStatusFor({ status })).toBe("responded");
   });
@@ -61,15 +61,26 @@ describe("terminalStatusFor — a completed run is terminal; only a throw retrie
     expect(terminalStatusFor({ status: "failed" })).toBe("failed");
   });
 
-  it.each(["skipped", "blocked", "expired", "cancelled", "drafted", "approved", "received"])(
-    "%s → suppressed (AI deliberately did not auto-send)",
+  it.each(["skipped", "blocked", "expired", "cancelled", "approved", "received"])(
+    "%s → suppressed (genuinely no reply owed)",
     (status) => {
       expect(terminalStatusFor({ status })).toBe("suppressed");
     },
   );
 
-  it("an explicit human-approval decision is suppressed, not responded", () => {
-    expect(terminalStatusFor({ status: "drafted", shouldAutoSend: false, requiresHumanApproval: true })).toBe("suppressed");
+  // ROS-058: these used to collapse to 'suppressed' — proving the AI chose not
+  // to send while proving NOTHING about a human answering. Now they transfer
+  // the obligation to a human with an SLA.
+  it("a draft awaiting an operator → human_pending, never suppressed", () => {
+    expect(terminalStatusFor({ status: "drafted" })).toBe("human_pending");
+  });
+
+  it("an explicit human-approval decision → human_pending", () => {
+    expect(terminalStatusFor({ status: "drafted", shouldAutoSend: false, requiresHumanApproval: true })).toBe("human_pending");
+  });
+
+  it("requiresHumanApproval forces human_pending even on an odd status", () => {
+    expect(terminalStatusFor({ status: "compiled", requiresHumanApproval: true })).toBe("human_pending");
   });
 });
 
