@@ -37,7 +37,6 @@ import {
   type ContentCriticScore,
 } from "@/lib/ai/output-critic";
 import { parseCitations } from "@/lib/ai/memory-citations";
-import { recordToolInvocation } from "@/lib/ai/tool-telemetry";
 import { runReplyGate, runReplyGateWithContract, formatGateSummary } from "@/lib/ai/reply-gate";
 import type { ResponseContract } from "@/lib/ai/response-contract";
 import {
@@ -46,8 +45,7 @@ import {
   formatFactCheckSummary,
 } from "@/lib/ai/fact-check";
 import { checkKnownTruth, formatTruthSummary } from "@/lib/ai/known-truth-guard";
-import { recordInteraction } from "@/lib/ai/memory";
-import { withErrorCapture, recordError } from "@/lib/errors/record-error";
+import { withErrorCapture } from "@/lib/errors/record-error";
 import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
