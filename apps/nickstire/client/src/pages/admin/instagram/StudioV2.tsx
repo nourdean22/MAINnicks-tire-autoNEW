@@ -170,7 +170,8 @@ export default function StudioV2() {
       onSuccess: (result) => applyIfCurrent(seq, () => {
         const { persisted, draftRowVersion, ...generated } = result;
         setDraft(generated as InstagramStudioDraft);
-        setDraftVersion(persisted ? draftRowVersion : null);
+        runIdRef.current = (generated as { runId?: string | null }).runId ?? null;
+        setRowVersion(persisted ? draftRowVersion : null);
         setSavedAt(persisted ? new Date() : null);
         toast.success("Draft generated", {
           description: persisted
@@ -182,39 +183,61 @@ export default function StudioV2() {
   };
 
   /**
-   * Debounced autosave. Every edit (patchDraft, evaluate/render results) lands
-   * on the server within ~1.5s — the generated asset cost money and must never
-   * again depend on one component's unsaved state. CONFLICT means another tab
-   * owns a newer version; surfaced once, not spammed.
+   * SINGLE-FLIGHT debounced autosave. The first version fired a new request
+   * from every debounce window with the version it saw at arm time — two
+   * overlapping saves carried the SAME expectedVersion, the second lost the
+   * CAS to the first, and the client treated its own collision as an external
+   * conflict and permanently stopped autosaving (most plausible exactly on a
+   * slow phone connection). One request in flight; edits during it mark
+   * dirty; the follow-up save uses the version the SERVER just returned.
+   * Autosave stops only on a conflict it did not cause itself.
    */
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestDraftRef = useRef<InstagramStudioDraft | null>(null);
+  const rowVersionRef = useRef<number | null>(null);
+  const runIdRef = useRef<string | null>(null);
+  const saveInFlight = useRef(false);
+  const saveDirty = useRef(false);
+  const setRowVersion = (v: number | null) => { rowVersionRef.current = v; setDraftVersion(v); };
+
+  const flushAutosave = () => {
+    if (saveInFlight.current) { saveDirty.current = true; return; }
+    const snapshot = latestDraftRef.current;
+    const version = rowVersionRef.current;
+    if (!snapshot || version === null) return;
+    saveInFlight.current = true;
+    saveDraft.mutate({ draft: snapshot, expectedVersion: version, runId: runIdRef.current ?? undefined }, {
+      onSuccess: (result) => {
+        saveInFlight.current = false;
+        setRowVersion(result.version);
+        setSavedAt(new Date());
+        if (saveDirty.current) { saveDirty.current = false; flushAutosave(); }
+      },
+      onError: (error) => {
+        saveInFlight.current = false;
+        saveDirty.current = false;
+        // A conflict here is EXTERNAL by construction (single-flight) —
+        // another tab really does own a newer version. Stop honestly.
+        setRowVersion(null);
+        toast.warning("Autosave stopped", { description: error.message });
+      },
+    });
+  };
   useEffect(() => {
-    if (!draft || draftVersion === null) return;
+    latestDraftRef.current = draft;
+    if (!draft || rowVersionRef.current === null) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    const snapshot = draft;
-    const version = draftVersion;
-    autosaveTimer.current = setTimeout(() => {
-      saveDraft.mutate({ draft: snapshot, expectedVersion: version }, {
-        onSuccess: (result) => {
-          setDraftVersion((current) => (current === version ? result.version : current));
-          setSavedAt(new Date());
-        },
-        onError: (error) => {
-          // Stop retrying a lost CAS — the row moved on without us.
-          setDraftVersion(null);
-          toast.warning("Autosave stopped", { description: error.message });
-        },
-      });
-    }, 1500);
+    autosaveTimer.current = setTimeout(flushAutosave, 1500);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
 
-  const resumeDraft = (row: { version: number; draft: InstagramStudioDraft | null }) => {
+  const resumeDraft = (row: { version: number; runId?: string | null; draft: InstagramStudioDraft | null }) => {
     if (!row.draft) return;
     reqSeq.current += 1;
     setDraft(row.draft);
-    setDraftVersion(row.version);
+    runIdRef.current = row.runId ?? null;
+    setRowVersion(row.version);
     setSavedAt(null);
     setSourceType(row.draft.source.type);
     setFormat(row.draft.format === "reel" ? "post" : row.draft.format);
@@ -240,14 +263,14 @@ export default function StudioV2() {
   };
   const runStage = (current: InstagramStudioDraft) => {
     const seq = ++reqSeq.current;
-    stage.mutate(current, {
+    stage.mutate({ ...current, runId: runIdRef.current ?? (current as { runId?: string }).runId }, {
       onSuccess: async () => {
         await utils.instagramStudio.list.invalidate();
         applyIfCurrent(seq, () => {
           // The draft now lives in the Queue — keeping it mounted here left the
           // stage button armed, and a second tap blind-upserted the queue row.
           setDraft(null);
-          setDraftVersion(null);
+          setRowVersion(null);
           setSavedAt(null);
           toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Publish." });
         }, "Staged — find it in Publish.");
@@ -260,7 +283,7 @@ export default function StudioV2() {
     if (target.kind === "source") setSourceType(target.value);
     else setFormat(target.value);
     setDraft(null);
-    setDraftVersion(null);
+    setRowVersion(null);
     setSavedAt(null);
     setPendingSwitch(null);
   };

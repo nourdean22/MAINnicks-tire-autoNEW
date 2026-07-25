@@ -235,3 +235,33 @@ describe("source pins for the rest of the closure", () => {
     expect(read("scripts/lint-source.mjs")).toMatch(/window\|globalThis\|self/);
   });
 });
+
+describe("draft durability + attribution (PR B)", () => {
+  it("the content run is created BEFORE the draft persists, and runId rides inside briefJson", () => {
+    const r = read("server/routers/instagramStudio.ts");
+    expect(r.indexOf("const runId = await createContentRun")).toBeLessThan(r.indexOf('status: "draft"'));
+    expect(r).toMatch(/briefJson: JSON\.stringify\(\{ \.\.\.draft, runId \}\)/);
+  });
+
+  it("list + board re-expose runId (draftSchema strips it) and saveDraft re-persists it", () => {
+    const r = read("server/routers/instagramStudio.ts");
+    expect(r.match(/runId: runIdFrom\(row\.briefJson\)/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(r).toMatch(/JSON\.stringify\(\{ \.\.\.input\.draft, runId: input\.runId \?\? null \}\)/);
+  });
+
+  it("autosave is SINGLE-FLIGHT: dirty edits queue behind the in-flight save with the server's returned version", () => {
+    const s = read("client/src/pages/admin/instagram/StudioV2.tsx");
+    expect(s).toMatch(/saveInFlight\.current\) \{ saveDirty\.current = true; return; \}/);
+    expect(s).toMatch(/if \(saveDirty\.current\) \{ saveDirty\.current = false; flushAutosave\(\); \}/);
+  });
+
+  it("Today's all-clear requires EVERY source read (health + reel attention included)", () => {
+    expect(read("client/src/pages/admin/instagram/Today.tsx")).toMatch(/\|\| health\.isError \|\| attention\.isError/);
+  });
+
+  it("Voice's tab badge counts PENDING work, never the selected roster filter", () => {
+    const v = read("client/src/pages/admin/VoiceReceptionistSection.tsx");
+    expect(v).toMatch(/pendingQueue!\.length/);
+    expect(v).not.toMatch(/queueItems!\.length/);
+  });
+});
