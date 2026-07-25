@@ -310,6 +310,11 @@ export function buildStreamConfigFactory(deps: {
         partial: __partialRef,
         log,
         recordTrace,
+        // 2026-07-25 · errored streams must also resolve onFinishPromise
+        // (onFinish never fires after a mid-stream error) or the SSE
+        // zombie-heartbeats to maxDuration. Same resolver as onFinish —
+        // resolving a promise twice is a no-op.
+        onWorkComplete: resolveOnFinish,
       }) as Parameters<typeof streamText>[0]["onError"],
       // May 02 · chat-route extract chunk 5 · onFinish moved to
       // lib/services/chat/persist-assistant-turn.ts. Factory pattern
