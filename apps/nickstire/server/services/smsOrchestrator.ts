@@ -19,6 +19,7 @@ import {
 } from "../../drizzle/schema";
 import { sendSms } from "../sms";
 import { parseSmsResponse } from "./smsResponseParser";
+import { routeInboundSms, isCancellationPolicyQuestion } from "./smsIntentRouter";
 import { draftSmsReply } from "./nickgpt-client";
 import { classifyIntent } from "./classifiers";
 import { isEnabled } from "./featureFlags";
@@ -860,7 +861,10 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         variantKey = "action_receipt_confirm";
         riskTier = "low";
       }
-      else if (parsed.intent === "cancel" && ctx.activeBooking) {
+      // Router V2 guard: the parser matches `\bcancel\b` at confidence 80, so
+      // without this check "What's your cancellation policy?" CANCELS the
+      // customer's visit. A question ABOUT cancelling routes to the drafter.
+      else if (parsed.intent === "cancel" && ctx.activeBooking && !isCancellationPolicyQuestion(event.body)) {
         if (db) {
           await db.update(bookings)
             .set({ status: "cancelled" })
@@ -916,34 +920,20 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         riskTier = "low";
       }
       else {
-        const bodyLower = event.body.toLowerCase().trim();
-        let matchedCatalogEvent: string | null = null;
-        let leadProblem: string | null = null;
-
-        if (bodyLower.includes("hour") || bodyLower.includes("time") || bodyLower.includes("open") || bodyLower.includes("close")) {
-          matchedCatalogEvent = "hours_location";
-        } else if (bodyLower.includes("address") || bodyLower.includes("location") || bodyLower.includes("where")) {
-          matchedCatalogEvent = "hours_location";
-        } else if (bodyLower.includes("oil") || bodyLower.includes("lube")) {
-          matchedCatalogEvent = "price_question_oil";
-          leadProblem = "Oil change price inquiry";
-        } else if (bodyLower.includes("tire")) {
-          matchedCatalogEvent = "price_question_tires";
-          leadProblem = "Tires price inquiry";
-        } else if (bodyLower.includes("brake") || bodyLower.includes("rotor")) {
-          matchedCatalogEvent = "price_question_brakes";
-          leadProblem = "Brakes price inquiry";
-        } else if (bodyLower.includes("alignment") || bodyLower.includes("align")) {
-          matchedCatalogEvent = "price_question_alignment";
-          leadProblem = "Alignment price inquiry";
-        } else if (bodyLower.includes("diagnostic") || bodyLower.includes("check engine") || bodyLower.includes("scan") || bodyLower.includes("code") || bodyLower.includes("e-check") || bodyLower.includes("echeck")) {
-          matchedCatalogEvent = "price_question_diagnostic";
-          leadProblem = "Diagnostic/E-Check inquiry";
-        } else if (bodyLower.includes("come today") || bodyLower.includes("walk in") || bodyLower.includes("stop by")) {
-          matchedCatalogEvent = "same_day_visit";
-        } else if (bodyLower.includes("drop off") || bodyLower.includes("dropoff")) {
-          matchedCatalogEvent = "drop_off";
-        }
+        // Intent Router V2 (ROS-058 follow-up): typed, state-aware,
+        // multi-intent routing replaces the substring-includes chain whose
+        // documented misroutes sent "what time will my car be done" to the
+        // hours template and "brakes still grind after the repair" to a price
+        // menu. A template answers ONLY single-intent deterministic matches;
+        // everything else goes to the drafter, and human_only routes force
+        // operator review below regardless of classifier confidence.
+        const routerDecision = routeInboundSms(event.body, {
+          hasActiveBooking: !!ctx.activeBooking,
+          hasActiveEstimate: !!ctx.activeEstimate,
+          hasActiveLead: !!ctx.activeLead,
+        });
+        metadataJson.router = routerDecision;
+        const matchedCatalogEvent: string | null = routerDecision.catalogEvent;
 
         if (matchedCatalogEvent) {
           const autoReplyEnabled = await isEnabled("smart_sms_auto_reply");
@@ -977,9 +967,10 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
           // answered must NOT surface as new leads — the conversation is
           // handled. relatedLeadId still links when an active lead exists
           // (set above); we just no longer mint one from the text itself.
-          if (leadProblem) {
-            log.info("SMS price inquiry auto-handled — no lead created", { phone: normalizedPhone.slice(-4) });
-          }
+          log.info("SMS inquiry auto-handled — no lead created", {
+            phone: normalizedPhone.slice(-4),
+            intent: routerDecision.primary,
+          });
         }
         else {
           const autoReplyEnabled = await isEnabled("smart_sms_auto_reply");
@@ -1076,6 +1067,18 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
               requiresHumanApproval = true;
               humanReviewReason = "repeated_customer_message";
               riskTier = "medium";
+            }
+
+            // Router V2: human_only routes (safety, complaint/comeback,
+            // explicit human request) force operator review REGARDLESS of the
+            // downstream classifier's confidence — a 0.94 "tire question"
+            // score must not auto-send over "brakes still grind after the
+            // repair".
+            if (routerDecision.risk === "human_only") {
+              isLowRisk = false;
+              requiresHumanApproval = true;
+              humanReviewReason = `router_human_only:${routerDecision.primary}`;
+              riskTier = "high";
             }
 
             if (autoReplyEnabled && lowRiskEnabled && isLowRisk && !requiresHumanApproval) {
