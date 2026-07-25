@@ -79,7 +79,7 @@ export function fenceContent(
   // with the import style used elsewhere in this dir).
   let annotation = "";
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const {
       classifyToolResult,
       renderInjectionAnnotation,

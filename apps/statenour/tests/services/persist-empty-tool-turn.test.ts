@@ -18,6 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockChatMessageCreate = vi.fn();
+const mockChatMessageFindFirst = vi.fn(() => Promise.resolve(null as unknown));
 vi.mock("@/lib/prisma", () => {
   // Every model method must return a real promise — the handler chains
   // .catch on fire-and-forget writes.
@@ -42,6 +43,7 @@ vi.mock("@/lib/prisma", () => {
           if (prop === "chatMessage") {
             return {
               ...passthrough,
+              findFirst: (args: unknown) => mockChatMessageFindFirst(args),
               create: (args: unknown) => {
                 mockChatMessageCreate(args);
                 return Promise.resolve({ id: "m-1" });
@@ -132,6 +134,20 @@ describe("persist-assistant-turn · empty tool-turn fallback", () => {
     const expected = emptyResponseFallback("tool-calls");
     expect(expected.length).toBeGreaterThan(0);
     expect(created.data.content).toBe(expected);
+  });
+
+  it("duplicate-skip resolves onWorkComplete so the SSE stream can close (PR #1064 quirk fix)", async () => {
+    const onWorkComplete = vi.fn();
+    const deps = { ...(makeDeps() as unknown as Record<string, unknown>), onWorkComplete } as never;
+    // First findFirst -> the parent user row; second -> an existing assistant
+    // reply for that parent = the dedup guard trips -> duplicate-skip.
+    mockChatMessageFindFirst
+      .mockResolvedValueOnce({ id: "user-row-1" })
+      .mockResolvedValueOnce({ id: "assistant-row-1", createdAt: new Date() });
+    const onFinish = buildOnFinish(deps);
+    await onFinish({ text: "a real reply", finishReason: "stop" } as never);
+    expect(mockChatMessageCreate).not.toHaveBeenCalled();
+    expect(onWorkComplete).toHaveBeenCalledTimes(1);
   });
 
   it("persists real text untouched (guard does not over-fire)", async () => {

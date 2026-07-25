@@ -105,10 +105,10 @@ export async function subscribe<T = unknown>(
   // isn't installed. Use a string-literal-spread + eval-ish import
   // to avoid TS resolving the type — typed any here intentionally.
   const moduleName = "pg";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let pgModule: any;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+     
     pgModule = await (Function(
       "name",
       "return import(name);",
@@ -127,7 +127,7 @@ export async function subscribe<T = unknown>(
   if (!ClientCtor) {
     throw new Error("brain-bus: pg module loaded but Client constructor missing");
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const client: any = new ClientCtor({ connectionString });
   await client.connect();
 
