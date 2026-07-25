@@ -128,7 +128,17 @@ export async function trackDraftFeedback(draftId: number, status: string, operat
     await db.insert(nickgptTrainingExamples).values({
       customerPhone: draft.customerPhone,
       inboundMessage: draft.inboundMessage,
-      conversationContextJson: JSON.stringify({}),
+      // ROS-058: was JSON.stringify({}) — every training example taught
+      // "customer text -> operator reply" with the decision context amputated.
+      // Store everything the draft row actually knows; full conversation-state
+      // capture needs a schema column (registered follow-up).
+      conversationContextJson: JSON.stringify({
+        intent: draft.intent ?? "general",
+        confidence: draft.confidence ?? null,
+        provider: draft.provider ?? null,
+        autoSent: draft.autoSent ?? false,
+        draftCreatedAt: draft.createdAt ?? null,
+      }),
       nickgptDraft: draft.draftReply,
       operatorFinalReply: finalReply,
       intent: draft.intent || "general",

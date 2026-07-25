@@ -839,16 +839,25 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
           await db.update(bookings)
             .set({ status: "confirmed" })
             .where(eq(bookings.id, ctx.activeBooking.id));
-            
+
           if (orchestrationId) {
             const { trackOrchestrationOutcome } = await import("./smsLearningEngine");
             await trackOrchestrationOutcome(orchestrationId, "booking_created", "1", "bookings", String(ctx.activeBooking.id));
           }
         }
-        status = "skipped";
+        // ROS-058 action receipts: a successful state change used to return
+        // body="" — the customer's instruction worked and they heard NOTHING,
+        // so they re-texted or called to check. Every state-changing action now
+        // confirms what happened (honest FCFS wording — never "appointment
+        // reserved"). Rides the same flag + preflight + send path as the
+        // deterministic replies; the receipt is composed AFTER the write.
+        const receiptFlagConfirm = await isEnabled("smart_sms_auto_reply");
+        body = "You're confirmed — we've marked your visit as planned. We're first come, first served, so this doesn't reserve an exact start time. See you soon!";
+        shouldAutoSend = receiptFlagConfirm;
+        status = receiptFlagConfirm ? "compiled" : "drafted";
         statusReason = "booking_confirmed_via_keyword";
         reason = "booking_confirmed_automatically";
-        body = "";
+        variantKey = "action_receipt_confirm";
         riskTier = "low";
       }
       else if (parsed.intent === "cancel" && ctx.activeBooking) {
@@ -859,10 +868,18 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
           const { cancelBookingReminders } = await import("./sms-scheduler");
           await cancelBookingReminders(ctx.activeBooking.id);
         }
-        status = "skipped";
+        // Receipt doubles as disambiguation for the CANCEL keyword overload:
+        // the shop's deliberate rule (#982 era) is that a lone "cancel" at an
+        // auto shop means cancel-my-visit, but Twilio treats CANCEL as an
+        // opt-out keyword — so the receipt states exactly what we did AND how
+        // to stop texts, covering both readings honestly.
+        const receiptFlagCancel = await isEnabled("smart_sms_auto_reply");
+        body = "Got it — your visit is cancelled and reminders are stopped. If plans change, just text us or pull up any day. (Reply STOP to also stop automated texts.)";
+        shouldAutoSend = receiptFlagCancel;
+        status = receiptFlagCancel ? "compiled" : "drafted";
         statusReason = "booking_cancelled_via_keyword";
         reason = "booking_cancelled_automatically";
-        body = "";
+        variantKey = "action_receipt_cancel";
         riskTier = "low";
       }
       else if (parsed.intent === "approve-estimate" && ctx.activeEstimate) {
@@ -879,17 +896,23 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
             await trackOrchestrationOutcome(orchestrationId, "lead_converted", "1", "alg_estimates", String(ctx.activeEstimate.id));
           }
         }
-        status = "skipped";
+        const receiptFlagApprove = await isEnabled("smart_sms_auto_reply");
+        body = `Got it — you approved estimate #${ctx.activeEstimate.externalId}. The shop has been notified and will get started. This confirms your approval, not a completion time; we'll be in touch.`;
+        shouldAutoSend = receiptFlagApprove;
+        status = receiptFlagApprove ? "compiled" : "drafted";
         statusReason = "estimate_approved_via_keyword";
         reason = "estimate_approved_automatically";
-        body = "";
+        variantKey = "action_receipt_estimate_approve";
         riskTier = "low";
       }
       else if (parsed.intent === "decline-estimate" && ctx.activeEstimate) {
-        status = "skipped";
+        const receiptFlagDecline = await isEnabled("smart_sms_auto_reply");
+        body = "Got it — we marked the estimate as declined. Nothing gets done without your OK. If you change your mind or want other options, just text us.";
+        shouldAutoSend = receiptFlagDecline;
+        status = receiptFlagDecline ? "compiled" : "drafted";
         statusReason = "estimate_declined_via_keyword";
         reason = "estimate_declined_automatically";
-        body = "";
+        variantKey = "action_receipt_estimate_decline";
         riskTier = "low";
       }
       else {
@@ -1006,8 +1029,14 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
 
             const classification = await classifyIntent(event.body, { labels: candidateLabels });
             let isLowRisk = false;
-            let confScore = 0;
-            let detectedIntent = "general";
+            // ROS-058 shadowing fix: these assignments MUST write the outer
+            // detectedIntent/confScore declared at the top of orchestrateSms —
+            // a re-declared `let` pair here meant the preflight guard and the
+            // decision trace always received "general"/0 while the REAL
+            // classification (e.g. "complaint", 0.94) stayed trapped in this
+            // block. The guard was grading every reply as an unclassified one.
+            confScore = 0;
+            detectedIntent = "general";
 
             if (classification.ok) {
               detectedIntent = classification.topLabel;
@@ -1318,8 +1347,6 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
       } else {
         metadataJson.preflightAction = preflightResult.action;
       }
-
-      const isStop = /^(stop|unsubscribe|cancel)$/i.test(finalBodyToSend.trim());
     }
 
     if (rolloutMode === "shadow") {

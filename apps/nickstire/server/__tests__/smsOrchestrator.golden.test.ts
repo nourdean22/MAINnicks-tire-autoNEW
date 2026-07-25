@@ -211,8 +211,12 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
       conversationId: 101,
     });
 
-    expect(res.status).toBe("skipped");
+    // ROS-058 action receipts: a successful state change now CONFIRMS to the
+    // customer instead of returning silence ("skipped", body="").
+    expect(res.status).toBe("sent");
     expect(res.reason).toBe("booking_confirmed_automatically");
+    expect(res.body).toContain("confirmed");
+    expect(res.body).toContain("first come, first served");
   });
 
   // 3. Cancel after reminder -> cancels booking
@@ -226,8 +230,12 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
       conversationId: 101,
     });
 
-    expect(res.status).toBe("skipped");
+    // ROS-058: the cancel receipt also disambiguates the CANCEL/opt-out
+    // keyword overload by stating what happened + how to stop texts.
+    expect(res.status).toBe("sent");
     expect(res.reason).toBe("booking_cancelled_automatically");
+    expect(res.body).toContain("cancelled");
+    expect(res.body).toContain("STOP");
   });
 
   // 4. How much for oil change -> conventional/synthetic pricing
@@ -244,8 +252,10 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(res.body).toContain("$80");
   });
 
-  // 5. How much for used tires -> $60 installed pricing
-  it("How much for used tires -> $60 installed only", async () => {
+  // 5. How much for used tires -> the SSOT floor + band (ROS-058: the old pin
+  // REQUIRED the drifted "$60" — this golden test was enforcing the
+  // contradiction with BUSINESS ("from $25 installed / most sizes $40-80").
+  it("How much for used tires -> SSOT floor + band, never the drifted $60 flat", async () => {
     const res = await orchestrateSms({
       type: "inbound_sms",
       phone: "2165550005",
@@ -254,12 +264,15 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     });
 
     expect(res.shouldAutoSend).toBe(true);
-    expect(res.body).toContain("$60");
+    expect(res.body).toContain("$25");
+    expect(res.body).toMatch(/\$40-80/);
     expect(res.body).toContain("installed");
   });
 
-  // 6. How much for brakes -> starts at $149/axle pricing
-  it("How much for brakes -> starts at $149/axle only", async () => {
+  // 6. How much for brakes -> inspection-first, no fabricated price (ROS-058:
+  // "$149 per axle" existed nowhere in BUSINESS — it was invented copy this
+  // test then locked in).
+  it("How much for brakes -> inspection-first, price in writing before work", async () => {
     const res = await orchestrateSms({
       type: "inbound_sms",
       phone: "2165550006",
@@ -268,7 +281,8 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     });
 
     expect(res.shouldAutoSend).toBe(true);
-    expect(res.body).toContain("$149");
+    expect(res.body).not.toContain("$149");
+    expect(res.body).toMatch(/check|inspect/i);
   });
 
   // 7. Failed E-Check -> free check

@@ -241,3 +241,36 @@ export function buildWarrantyFactsPreamble(): string {
   const lines = [usedTire, parts, labor, newTire].filter(Boolean);
   return `\n\n[Warranty facts (authoritative, from the shop invoice — quote only if asked, never invent or soften): ${lines.join(" ")} NEVER apply the parts/labor repair warranty to a used tire, and never promise road-hazard coverage. If the customer needs specifics beyond this, offer to have the shop confirm.]`;
 }
+
+// ROS-058: the sync preamble above reads the in-code SEED map, so an operator
+// updating a warranty fact in the DATABASE changed nothing about what NickGPT
+// actually said — the whole point of the override store was defeated on the
+// one live conversational surface. This async variant resolves each fact
+// through getFact() (DB override first, seed fallback) with a short cache so
+// the drafter is not paying a DB round-trip per message.
+let livePreambleCache: { value: string; at: number } | null = null;
+const LIVE_PREAMBLE_TTL_MS = 5 * 60_000;
+
+export async function buildWarrantyFactsPreambleLive(): Promise<string> {
+  if (livePreambleCache && Date.now() - livePreambleCache.at < LIVE_PREAMBLE_TTL_MS) {
+    return livePreambleCache.value;
+  }
+  try {
+    const [usedTire, parts, labor, newTire] = await Promise.all([
+      getFact("used_tire.warranty"),
+      getFact("repair.parts_warranty"),
+      getFact("repair.labor_warranty"),
+      getFact("new_tire.warranty"),
+    ]);
+    const lines = [usedTire?.value, parts?.value, labor?.value, newTire?.value].filter(Boolean);
+    const value = lines.length === 0
+      ? ""
+      : `\n\n[Warranty facts (authoritative, from the shop invoice — quote only if asked, never invent or soften): ${lines.join(" ")} NEVER apply the parts/labor repair warranty to a used tire, and never promise road-hazard coverage. If the customer needs specifics beyond this, offer to have the shop confirm.]`;
+    livePreambleCache = { value, at: Date.now() };
+    return value;
+  } catch {
+    // DB unreachable — the seed facts are still invoice-true; never let a
+    // transient outage strip the warranty grounding from the prompt.
+    return buildWarrantyFactsPreamble();
+  }
+}

@@ -22,12 +22,12 @@
 import { createLogger } from "../lib/logger";
 import { withTimeout } from "@nour/utils";
 import { NICK_SMS_SYSTEM_PROMPT } from "./nickSmsPersona";
-import { buildWarrantyFactsPreamble } from "./businessFacts";
+import { buildWarrantyFactsPreambleLive } from "./businessFacts";
 
 const log = createLogger("nickgpt-client");
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const DEFAULT_MAX_TOKENS = 320; // SMS-length cap
+const DEFAULT_MAX_TOKENS = 110; // ROS-058: ~320 CHARS. The old value was 320 TOKENS (~1,200 chars) — a token/char confusion that let drafts run 4x past the persona contract before the guard saw them.
 
 interface DraftOpts {
   /** Inbound customer message that needs a reply */
@@ -36,7 +36,7 @@ interface DraftOpts {
   conversationContext?: Array<{ role: "user" | "assistant"; content: string }>;
   /** Optional · operator-tuned system prompt override */
   systemPrompt?: string;
-  /** Optional · max tokens; SMS-length default 320 */
+  /** Optional · max tokens; SMS-length default 110 (~320 chars) */
   maxTokens?: number;
   /** Optional · temperature; 0.5 default · balance between voice fidelity and variety */
   temperature?: number;
@@ -326,7 +326,9 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
   // question is answered from the invoice — and the AI never quotes the repair
   // warranty (or road-hazard coverage) on a used tire. Prices already live in the
   // base persona; warranty was the gap.
-  systemPrompt = `${systemPrompt}${buildWarrantyFactsPreamble()}`;
+  // ROS-058: LIVE facts (DB override first, seed fallback, 5-min cache) — the
+  // sync seed-only version meant operator fact edits never reached the prompt.
+  systemPrompt = `${systemPrompt}${await buildWarrantyFactsPreambleLive()}`;
 
   const enabled = await isNickGptEnabled();
   if (enabled) {
