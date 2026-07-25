@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-07-25 · quality-pass truth wave: README de-corrupted + de-staled, repos.ts lifecycle synced to GitHub, hub-grid fabricated-health chips now measured, e2e smoke routes repaired, smoke-prod hardened (bdnick.info + strict heartbeat + SHA assert).
+> **Last refreshed:** 2026-07-25 · chat-route decomposition: route.ts 1,833 → 962 lines behavior-preserving (persistBase dedup + 6 extracted pipeline modules + contract tests); earlier same day: quality-pass truth wave (README de-corrupted, repos.ts↔GitHub sync, honest health chips, e2e route repair, smoke-prod hardening).
 
 ## 1 · Where we are right now
 

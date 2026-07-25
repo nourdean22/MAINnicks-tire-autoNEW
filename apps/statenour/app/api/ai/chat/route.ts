@@ -1,13 +1,14 @@
-import { streamText, stepCountIs } from "ai";
-import { getModel, getActiveProviderInfo, isRuntimeProvider, GEMINI_SAFETY_OFF, type ProviderName, type TaskType } from "@/lib/ai/provider";
+import { streamText } from "ai";  // (stepCountIs moved into the extracted pipeline modules, 2026-07-25)
+import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";  // (GEMINI_SAFETY_OFF moved into ./build-stream-config.ts, 2026-07-25)
 import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/ai/system-prompt";
-import { detectQueryShape } from "@/lib/ai/query-shape";
-import { classifyTurn } from "@/lib/ai/turn-intelligence";
-import { buildResponseContract } from "@/lib/ai/response-contract";
-import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
+// (query-shape / turn-intelligence / response-contract imports moved
+// into ./derive-turn-signals.ts with the derivation stack, 2026-07-25)
+// (context-reranker + predictive-prefetch + heartbeat imports were DEAD —
+// imported but never referenced in the route body; removed 2026-07-25)
 import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
-import { detectChatMode, pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
-import { prefetchIntents, formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
+// (chat-mode imports moved into ./derive-turn-signals.ts +
+// ./prepare-tools.ts, 2026-07-25. detectChatMode itself had been an
+// unused import here since the three-layer mode priority landed.)
 import { compressConversation } from "@/lib/ai/conversation-compress";
 import {
   embedUserMessage,
@@ -15,19 +16,19 @@ import {
   isToolEmbeddingCacheWarm,
 } from "@/lib/ai/tool-embeddings";
 import { prisma } from "@/lib/prisma";
-import { ACTION_CATALOG } from "@/lib/ai/nick-agent";
-import { nourTools } from "@/lib/ai/tools";
-import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
+// (ACTION_CATALOG import moved into ./augment-final-prompt.ts, 2026-07-25)
+// (nourTools import moved into ./prepare-tools.ts, 2026-07-25)
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { recordError } from "@/lib/errors/record-error";
-import { getAiConfig } from "@/lib/settings/ai-config";
-import { withHeartbeat } from "@/lib/streaming/heartbeat";
+// (getAiConfig import moved into ./derive-turn-signals.ts, 2026-07-25 —
+// the aiConfig result still flows back to the tool-pruning block below)
 import { requireSession } from "@/lib/auth-guard";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { logger as rootLogger } from "@/lib/logger";
-import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
-import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
-import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
+// (repair-tool-call / stream-error-handler / persist-assistant-turn imports
+// moved into ./build-stream-config.ts + ./alternate-paths.ts, 2026-07-25)
+// (getFlag moved into ./alternate-paths.ts with the flag-gated block, 2026-07-25)
+import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
 // hooks-lib REST→tRPC slice (2026-05-22) · the conversation-list read ·
 // also called by the new `chat.list` tRPC procedure · drift impossible.
 import { listConversations } from "@/lib/services/chat-conversation-read";
@@ -161,96 +162,26 @@ async function chatPostInner(req: Request) {
   }
 
   // ── Specialist Sub-Agent Routing ──
-  // AG-42 · SAFETY reorder: this block used to sit ABOVE the
-  // interceptor fast-path AND above every budget check, so
-  //   (a) an image-gen / decision-log / brain-dump message that also
-  //       tripped a specialist keyword got hijacked away from its
-  //       deterministic handler, and
-  //   (b) the router LLM tiebreak + specialist dispatch spent money
-  //       even after the daily budget was blown.
-  // It now runs AFTER the interceptors (deterministic intents win by
-  // ordering) and behind a hoisted budget check. Shadow mode
-  // (ENABLE_SPECIALIST_ROUTING="shadow") classifies + records what
-  // WOULD have routed (SystemMetric `specialist.route`) but never
-  // dispatches — measure on live traffic before flipping to "true".
-  const { isSpecialistRoutingEnabled, isSpecialistShadowMode } = await import("@/lib/ai/agents/types");
-  // Private Lab: skip specialist routing too — it records content-derived
-  // route metrics (self-review #7) and its buildFastStream persists the reply.
-  if (!privateMode && (isSpecialistRoutingEnabled() || isSpecialistShadowMode())) {
-    const { assertWithinBudget: assertSpecBudget } = await import("@/lib/ai/budget");
-    const specBudget = await assertSpecBudget().catch(() => null);
-    if (specBudget && !specBudget.ok) {
-      log.info("specialist_routing_skipped", { reason: "budget_exceeded" });
-    } else {
-      const mappedMessages = messages.map(m => {
-        const msg = m as any;
-        let content = "";
-        if (typeof msg.content === "string") {
-          content = msg.content;
-        } else if (msg.parts && Array.isArray(msg.parts)) {
-          content = msg.parts
-            .map((p: any) => (p && typeof p.text === "string" ? p.text : ""))
-            .filter(Boolean)
-            .join(" ");
-        }
-        const role = (msg.role === "user" || msg.role === "assistant" || msg.role === "system")
-          ? (msg.role as "user" | "assistant" | "system")
-          : ("user" as const);
-        return { role, content };
-      }).filter(m => m.content.length > 0);
-
-      const { routeMessage } = await import("@/lib/ai/agents/router");
-      const decision = await routeMessage({ messages: mappedMessages });
-
-      const specShadow = isSpecialistShadowMode();
-      // 2026-07-12 · record the classification in BOTH modes so routing
-      // telemetry survives the shadow→live flip (was shadow-only, so the
-      // operator went blind the moment routing went live). Fire-and-forget.
-      {
-        const { recordSpecialistRouteMetric } = await import("@/lib/ai/agents/router-metrics");
-        const willDispatch = !specShadow && decision.route === "marketing-director";
-        void recordSpecialistRouteMetric(decision.route, decision.confidence, decision.reason, {
-          shadow: specShadow,
-          dispatched: willDispatch,
-        });
-      }
-
-      if (specShadow) {
-        // Shadow: metric recorded above, never dispatch.
-      } else if (decision.route === "marketing-director") {
-        log.info("specialist_routing_match", { route: decision.route, reason: decision.reason });
-        const { runMarketingDirector } = await import("@/lib/ai/agents/specialists/marketing-director");
-        const specResult = await runMarketingDirector({ messages: mappedMessages });
-
-        if (specResult.handBack) {
-          log.info("specialist_handback", { route: decision.route, reason: specResult.reason });
-        } else {
-          // Prod-first dispatch guard · alert the operator the first time a
-          // specialist actually handles a turn live (deduped, fire-and-forget).
-          const { alertFirstSpecialistDispatch } = await import("@/lib/ai/agents/router-metrics");
-          void alertFirstSpecialistDispatch(decision.route, decision.reason);
-          // Private Lab: no user-message row, no BrainMemory auto-write.
-          const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
-          const resolvedConvId = privateMode
-            ? (convId || "private")
-            : await persistUserTurn({
-                convId,
-                lastUserMsg,
-                userContent,
-                log,
-                recordError,
-              });
-
-          const { buildFastStream } = await import("@/lib/ai/chat/handlers/shared");
-          return buildFastStream(
-            resolvedConvId,
-            specResult.content,
-            "specialist_marketing",
-            specResult.provider || "reason"
-          );
-        }
-      }
-    }
+  // chat-route decomposition (2026-07-25) · the whole block (AG-42
+  // ordering guards, budget check, shadow-mode metrics, dispatch +
+  // persist + fast-stream) moved verbatim to ./specialist-routing.ts.
+  // Ordering preserved: runs AFTER the interceptors (deterministic
+  // intents win) and BEFORE the user-turn persist kickoff below.
+  // Private Lab: skip specialist routing entirely — it records
+  // content-derived route metrics (self-review #7) and its
+  // buildFastStream persists the reply.
+  if (!privateMode) {
+    const { runSpecialistRouting } = await import("./specialist-routing");
+    const specialist = await runSpecialistRouting({
+      messages: messages as unknown as Array<Record<string, unknown>>,
+      privateMode,
+      convId,
+      lastUserMsg,
+      userContent,
+      log,
+      recordError,
+    });
+    if (specialist.kind === "handled") return specialist.response;
   }
 
   // ═══ HALLUCINATION PREVENTION ═══
@@ -345,120 +276,43 @@ async function chatPostInner(req: Request) {
     log.warn("provider_override_rejected", { requested: providerOverride });
   }
 
-  // ═══ PERF: Chat mode detection (with overrides) ═══
-  // Three-layer priority for mode:
-  //   1. Per-request override from the chat control bar (client body)
-  //   2. Global default from the AI config (Settings page)
-  //   3. Automatic detection via detectChatMode
-  const aiConfig = await getAiConfig().catch((): null => null);
-  const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
-  const classifyTimer = stageTracker.start("classify");
-  const classification = await classifyIntent(userContent, __traceId);
-  classifyTimer.end();
-  const mode: ChatMode =
-    modeOverride ||
-    aiConfig?.defaultMode ||
-    (classification.mode === "engineer" || classification.mode === "operator" ? "deep" : "standard");
+  // chat-route decomposition (2026-07-25) · the per-turn signal
+  // derivation stack (mode resolution → task-type mapping → query
+  // shape → turn-intelligence → response contract → domain routing →
+  // the three tool-mandatory intent detections) moved VERBATIM to
+  // ./derive-turn-signals.ts. One typed input → one typed result; the
+  // classify stage-timer is threaded through and wraps classifyIntent
+  // exactly as before. The three pure intent regexes now evaluate
+  // BEFORE the budget gate below (they ran after it inline) — zero
+  // side effects, zero I/O, so ordering is unobservable.
+  const { deriveTurnSignals } = await import("./derive-turn-signals");
+  const {
+    aiConfig,
+    classification,
+    mode,
+    taskTypeForMode,
+    queryShape,
+    turnSignal,
+    responseContract,
+    finalTaskType,
+    finalPreferLargeContext,
+    pythonExecuteIntent: __pythonExecuteIntent,
+    actionIntent: __actionIntent,
+    webSearchIntent: __webSearchIntent,
+  } = await deriveTurnSignals({
+    userContent,
+    messages: messages as unknown as Array<Record<string, unknown>>,
+    modeOverride,
+    taskTypeOverride,
+    contentMode,
+    traceId: __traceId,
+    stageTracker,
+    log,
+  });
+  // t0 anchors the prompt_built buildMs log metric. It previously sat
+  // between the classify call and the pure derivations; the ~2-5ms of
+  // sync derivation time now falls outside it (log-metric-only drift).
   const t0 = Date.now();
-
-  // ═══ CRITICAL FIX: map chat mode → Venice task type ═══
-  // Previously getModel() was called BEFORE mode detection and always
-  // used the "reason" task type (reasoning_effort: "high"). That meant
-  // for QUICK mode casual messages like "hi" the model would think
-  // heavily, strip_thinking_response would remove all the reasoning,
-  // and the assistant response came back EMPTY. Nick's chat went dead
-  // on every short message.
-  //
-  // Now mode drives task type:
-  //   standard → "reason"  (medium reasoning, temp 0.7, balanced, sub-3s)
-  //   deep     → "deep"    (wide tools, temp 0.3, strategic, up to 4000 tokens)
-  // Quick mode was removed Apr 17 — standard + query-shape adaptation
-  // handles casual greetings just as fast without a second code path.
-  // Client task-type override still wins when explicitly set.
-  const taskTypeForMode: TaskType =
-    taskTypeOverride ||
-    (mode === "deep" ? "deep" : "reason");
-
-  // ═══ Query-shape detection (used by both the prompt assembly AND
-  // the maxOutputTokens cap below). Pure function, no I/O. ═══
-  const queryShape = detectQueryShape(userContent);
-
-  // ═══ Apr 19 · Turn intelligence classifier ═══
-  // Single-pass heuristic that drives four downstream choices:
-  //   • temperature  (factual=tight, creative=warm)
-  //   • chain-of-thought scratchpad (complex / analytical / decision / reflective)
-  //   • output-shape template (email/SMS/proposal/code/json/list/summary)
-  //   • two-pass critique (high-stakes decisions only)
-  // Zero AI cost, <2ms. Pure function of user text. Turns every
-  // downstream slow path into "only fires when it matters" instead
-  // of "always on, burn the budget". See lib/ai/turn-intelligence.ts.
-  const turnSignal = classifyTurn(userContent);
-  log.info("turn_signal", {
-    complexity: turnSignal.complexity,
-    intent: turnSignal.intent,
-    shape: turnSignal.outputShape,
-    urgency: turnSignal.urgency,
-    domain: turnSignal.domain,
-    temp: turnSignal.temperature,
-    cot: turnSignal.useChainOfThought,
-    critique: turnSignal.useTwoPassCritique,
-  });
-
-  // AG-11 · Response contract. Pure (<1ms) derivation of the turn's
-  // output obligations (answerMode incl. 'brainstorm', exact rank counts,
-  // no-clarifying-question, must-not-claim-actions...). Existed fully
-  // tested but was never built on the live path — the module header's
-  // claim that it fed the system prompt was false until this wire.
-  // buildContractDirective() returns "" for plain turns, so casual chat
-  // pays zero tokens. Injection happens in finalizeSystemPrompt.
-  const responseContract = buildResponseContract(userContent, turnSignal, queryShape.shape);
-  if (responseContract.reasons.length > 0) {
-    log.info("response_contract", {
-      answerMode: responseContract.answerMode,
-      length: responseContract.length,
-      rankCount: responseContract.rankCount,
-      askOk: responseContract.shouldAskClarifying,
-      reasons: responseContract.reasons.slice(0, 6),
-    });
-  }
-
-  // v6 · BATCH 3 · Apr 28 — Domain-routed model selection.
-  // detectDomain() reads the message and picks the best taskType +
-  // preferLargeContext combo. Code asks → ollama qwen3-coder. Vision →
-  // qwen3-vl. Strategy → deepseek-v4-pro. Marketing → venice-uncensored
-  // for brand voice. Fast classify → cheap fast Venice. Falls through to
-  // mode-driven defaults when no specific domain matches.
-  const { detectDomain } = await import("@/lib/ai/domain-routing");
-  // v8.6 BATCH 34 — peek at the LAST user message's parts to detect
-  // image attachments. If found, route to qwen3-vl regardless of text
-  // (closes the "user uploads photo and just types '?'" gap).
-  const lastMsg = messages[messages.length - 1] as unknown as {
-    parts?: Array<{ type?: string; mediaType?: string; mimeType?: string }>;
-  };
-  const hasImageAttachments = Array.isArray(lastMsg?.parts)
-    ? lastMsg.parts.some((p) => {
-        if (!p) return false;
-        if (p.type === "image") return true;
-        if (p.type === "file") {
-          const m = p.mediaType ?? p.mimeType;
-          return typeof m === "string" && m.startsWith("image/");
-        }
-        return false;
-      })
-    : false;
-  const domainRoute = detectDomain(userContent, { hasImageAttachments });
-  const finalTaskType = (taskTypeOverride
-    ? taskTypeForMode
-    : domainRoute.domain !== "general"
-      ? domainRoute.taskType
-      : taskTypeForMode) as TaskType;
-  const finalPreferLargeContext =
-    contentMode || domainRoute.preferLargeContext;
-  log.info("domain_route", {
-    label: domainRoute.label,
-    taskType: finalTaskType,
-    largeContext: finalPreferLargeContext,
-  });
 
   // v10.0.208 · daily-budget gate. budget.ts is server-only, so we
   // dynamic-import it here to avoid pulling prisma into any client
@@ -486,56 +340,10 @@ async function chatPostInner(req: Request) {
     );
   }
 
-  // v10.0.521 · Python-execute intent detection ALSO drives the
-  // provider pick. Venice-uncensored has documented loose tool_choice
-  // adherence (v10.0.520 set { type:"tool", toolName:"runPython" }
-  // and the smoke test still showed TOOLS=0 · model wrote code text
-  // instead of calling). Anthropic + OpenAI honor strict tool_choice.
-  // Route python-execute intent through Anthropic to guarantee the
-  // tool actually fires.
-  const __pythonExecuteIntent =
-    /\b(run|execute|invoke)\s+(?:this\s+)?python\b|\bpython\s+(?:to\s+|and\s+)?(?:compute|calculate|run|execute)\b|\buse\s+(?:the\s+)?runPython\b|\brun\s+(?:this\s+)?code\b/i.test(
-      userContent,
-    );
-
-  // v-truth · Generic action intent ("add this task", "remember this",
-  // "send the email") ALSO drives the provider pick. toolChoice:
-  // "required" is set below for these turns, but forcing only EXECUTES
-  // on a provider that honors strict tool_choice. Ollama qwen3 does
-  // (and is the live primary · provider.ts PROVIDERS[0]); Venice strips
-  // tool_choice, so a forced action landing on the Venice fallback gets
-  // narrated, never run. Mirror the python pattern so a genuine action
-  // routes to the lane that actually fires the tool. Hoisted here (was
-  // recomputed inline in the streamText config) so it's detected ONCE
-  // and reused for both the provider force and toolChoice below.
-  // Degrades safely: if Ollama is unavailable, getModel falls through.
-  const __actionIntent = __pythonExecuteIntent
-    ? null
-    : (() => {
-        try {
-          const { detectActionIntent } =
-            require("@/lib/ai/chat/action-intent-detector") as typeof import("@/lib/ai/chat/action-intent-detector");
-          return detectActionIntent(userContent);
-        } catch {
-          return null;
-        }
-      })();
-
-  // 2026-07-15 · explicit web-search intent. Telemetry showed turns
-  // where the operator explicitly asked to "search the web" and the
-  // model either couldn't reach a web tool (pruner follow-up gap,
-  // fixed via conversationTail) or narrated "no web search available"
-  // WITHOUT attempting the attached tool (persona-framed reasoning
-  // model). Mirror the python-execute pattern: when the ask is
-  // explicit, force arsenalWebSearch on step 0 so unavailability can't
-  // be narrated — the only choice left is the query string. Detection
-  // stays tight (explicit phrasings only) so ordinary questions keep
-  // toolChoice auto.
-  const __webSearchIntent =
-    !__pythonExecuteIntent &&
-    /\b(search (the )?(web|internet|net|online)|google (it|for|me|this|that)|web ?search|look (it |this |that |them )?up online|(find|pull|get) (me )?(the )?(latest|current|live|breaking|newest|hottest) .{0,40}\b(online|on the web|from the web|news|trends?)\b)\b/i.test(
-      userContent,
-    );
+  // (python-execute / action / web-search intent detections moved into
+  // deriveTurnSignals above — destructured as __pythonExecuteIntent /
+  // __actionIntent / __webSearchIntent to keep every downstream
+  // reference byte-identical.)
 
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
@@ -864,263 +672,51 @@ async function chatPostInner(req: Request) {
   let resolveOnFinish: () => void = () => {};
   let onFinishPromise: Promise<void> = Promise.resolve();
   try {
-  // For Ollama/Gemini (small context), use just the truncated system prompt — it already has Nick's identity
-  // For Anthropic (large context), append the full chat-layer identity + Greene laws
-  const chatLayerPrompt = (provider === "ollama" || provider === "gemini") ? systemPrompt : `${systemPrompt}
-
-# NICK — Chief of Staff, NOUR OS (Chat Layer)
-
-${greeneSummary ? `## Greene Strategic Law Library (${strategicLawCount} laws loaded)
-When analyzing patterns, decisions, or strategy, reference specific laws by [BOOK #NUMBER] format.
-For business situations, apply the shopApplication. For personal situations, apply the nourApplication.
-Be specific: not "consider Law 28" but "Law 28 (Enter Action with Boldness) — your 3 pending estimates need follow-up calls TODAY."
-
-### Law Index:
-${greeneSummary}` : ""}
-
-## Business naming conventions
-- **Auto Labor Guide** = the CRM at nickstire.org/admin (leads, estimates, invoices, scheduling, callbacks). Always call it by name.
-- **Revenue pipeline**: Google Ads/walk-ins/calls → Auto Labor Guide estimates → invoices → revenue. #1 leak = unfollowed estimates.
-
-## Action engine
-${ACTION_CATALOG}
-
-Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
-
-
-
   // NL interceptors moved to the top of the POST handler — see the
   // "NL INTERCEPTOR FAST PATH" block above. By the time we get here
   // we're in the normal streamText path and the message is NOT an
   // image/decision/brain-dump intent.
   //
-  // v6 · BATCH 3 · Apr 28 — Multi-output mode addendum.
-  // Detect /all, /ab, /reformat, /twopass, /carousel slash commands and
-  // append the matching shape template to the system prompt. The model
-  // still produces a single stream, but it's structured so the chat
-  // surface can render multiple cards from one response.
-  const { detectMultiMode, buildMultiPromptAddendum } = await import("@/lib/ai/content-multi");
-  const multiCtx = detectMultiMode(userContent);
-  const multiAddendum = multiCtx ? buildMultiPromptAddendum(multiCtx) : "";
-  let finalSystemPrompt = multiAddendum
-    ? `${chatLayerPrompt}\n\n${multiAddendum}`
-    : chatLayerPrompt;
-  if (multiCtx) {
-    log.info("multi_output_mode", { mode: multiCtx.mode, subject: multiCtx.subject.slice(0, 60) });
-  }
-
-  // AG-15 · content-feedback RECALL. detectContentFeedback has CAPTURED
-  // Nour's reactions to generated content since Apr 28 (persist-assistant-
-  // turn.ts), but the read half — recallRecentContentFeedback +
-  // buildFeedbackPromptBlock — had zero call-sites: the "compounding
-  // voice" loop was write-only. On content turns, his recent reactions
-  // now ride into the prompt.
-  if (contentMode) {
-    try {
-      const { recallRecentContentFeedback, buildFeedbackPromptBlock } = await import(
-        "@/lib/ai/content-feedback"
-      );
-      const feedbackBlock = buildFeedbackPromptBlock(await recallRecentContentFeedback());
-      if (feedbackBlock) {
-        finalSystemPrompt += `\n\n${feedbackBlock}`;
-        log.info("content_feedback_recalled", { chars: feedbackBlock.length });
-      }
-    } catch {
-      // Supplementary voice context — never blocks the stream.
-    }
-  }
-
-  // v10.0.499 · ADR-0011 Tier 2-lite · high-specificity gate.
-  //
-  // When NICK_HIGH_SPEC_GATE=on (env flag · default off · reversible),
-  // factual/decision/instructional/procedural/analytical turns get a
-  // preemptive specificity directive prepended to the system prompt.
-  // This is the smaller-cost version of Tier 2 · no probe call, no
-  // regen, no double LLM cost · just a harder prompt on the turns
-  // that need specifics most.
-  //
-  // If the chat-quality dashboard shows spec axis rising from 50 →
-  // 65+ over a 7-day window with this enabled, the full Tier 2
-  // (with auto-regen winner-selection) is unnecessary. If it doesn't
-  // move the needle · the full path with UI-stream-compat is
-  // justified.
-  //
-  // Skill stance: prompt-engineering + error-handling-patterns +
-  // kaizen (smallest reversible change that tests the hypothesis).
-  if (process.env.NICK_HIGH_SPEC_GATE === "on") {
-    const { shouldGateForIntent, REGEN_SYSTEM_PREFIX } = await import(
-      "@/lib/ai/chat/pre-stream-regen"
-    );
-    const intent = turnSignal.intent as Parameters<typeof shouldGateForIntent>[0];
-    if (shouldGateForIntent(intent)) {
-      // Append the hard directive so the static system prompt prefix remains cached.
-      finalSystemPrompt = `${finalSystemPrompt}\n\n${REGEN_SYSTEM_PREFIX}`;
-      log.info("high_spec_gate_active", {
-        intent,
-        addedChars: REGEN_SYSTEM_PREFIX.length,
-      });
-    }
-  }
-
-  // v10.0.503 · ADR-0011 Tier 3 surfacing fix · customer-shape hint.
-  // Even with the findCustomer tool registered, the model would
-  // sometimes hallucinate customer details rather than calling the
-  // tool · the description-clarity gap diagnosed at v10.0.494. This
-  // detector recognizes customer-shaped user content (10-digit phone,
-  // name patterns, ownership phrasing) and INJECTS a hard hint to
-  // call findCustomer first.
-  //
-  // The detector is cheap (regex · zero AI cost · <1ms) and the hint
-  // only fires on matches · non-customer turns stay unchanged.
-  // Always-on (no env flag) because the cost of a wrong fabrication
-  // is much higher than the cost of an extra tool call.
-  //
-  // Detector + hard-hint assembly moved verbatim to
-  // app/api/ai/chat/customer-shape-hint.ts. The route just appends the
-  // returned block; behavior is byte-identical.
-  const userTextSlice = userContent.slice(0, 1500);
-  const { buildCustomerShapeHint } = await import("./customer-shape-hint");
-  const customerHint = buildCustomerShapeHint(userTextSlice);
-  if (customerHint) finalSystemPrompt = finalSystemPrompt + "\n\n" + customerHint;
-
-  // v10.0.511 · GSC pre-fetch + inject · the 2026-05-12 smoke tests
-  // showed venice-uncensored consistently ignores the tool-call-first
-  // directive on SEO queries even when getGscSummary is in the toolset
-  // (post v10.0.510 pruner expansion). The model invents narratives
-  // about "Google logging errors" instead of calling the tool.
-  //
-  // This pre-fetch bypasses the model's tool-call decision entirely:
-  // when SEO/GSC regex matches the user content, we call queryNick
-  // ourselves BEFORE streamText runs and inject the JSON result as a
-  // system-prompt addendum. The model has the real numbers in its
-  // context · fabrication becomes structurally impossible.
-  //
-  // If the call fails or returns no data, we inject a "NO DATA AVAILABLE"
-  // block so the model says that instead of fabricating.
-  //
-  // Cost: 1 extra bridge call per matching turn (~200-500ms). Latency
-  // hit is acceptable for the failure-mode it eliminates.
-  //
-  // Regex + bridge call + all 3 branches moved verbatim to
-  // app/api/ai/chat/gsc-prefetch.ts. The route just appends the
-  // returned block; behavior is byte-identical.
-  const { buildGscPrefetch } = await import("./gsc-prefetch");
-  const gscBlock = await buildGscPrefetch(userTextSlice);
-  if (gscBlock) finalSystemPrompt = finalSystemPrompt + "\n\n" + gscBlock;
+  // chat-route decomposition (2026-07-25) · the final-prompt
+  // augmentation stack (chat-layer prompt w/ Greene laws +
+  // ACTION_CATALOG → multi-output addendum → content-feedback recall →
+  // NICK_HIGH_SPEC_GATE directive → customer-shape hint → GSC
+  // pre-fetch) moved VERBATIM to ./augment-final-prompt.ts, exact
+  // append order preserved. Error semantics unchanged: only the
+  // content-feedback step swallows its own errors; anything else
+  // throwing lands in this route's catch → 500, as before.
+  const { augmentFinalPrompt } = await import("./augment-final-prompt");
+  const finalSystemPrompt = await augmentFinalPrompt({
+    systemPrompt,
+    provider,
+    greeneSummary,
+    strategicLawCount,
+    userContent,
+    contentMode,
+    turnSignal,
+    log,
+  });
 
   // Venice params (web search, scraping, no safety prompt, think strip) are injected
   // via custom fetch wrapper in provider.ts — NOT providerOptions (AI SDK ignores custom fields).
 
-  // ═══ PERF: Prune tools by mode ═══
-  // Quick mode → zero tools. Standard → ~15-30 relevant. Deep → all 159.
-  // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
-  // messages without removing any capability from data-heavy queries.
-  // 2026-07-15 · conversation-aware pruning. The pruner keyed ONLY on
-  // the current message, so follow-up turns ("try again", "?", "u
-  // sure?") lost the tool families the CONVERSATION needed — telemetry
-  // showed the model calling arsenalWebSearch and getting "unavailable
-  // tool · Available tools: <core-only list>" on exactly such turns,
-  // then honestly telling the operator "web search still unavailable".
-  // Feed the last few user messages as a matching tail so families
-  // persist across the follow-ups that reference them.
-  const __conversationTail = messages
-    .filter((m) => m.role === "user")
-    .slice(-4, -1)
-    .map((m) =>
-      (m.parts ?? [])
-        .filter((p) => p?.type === "text" && typeof p.text === "string")
-        .map((p) => p.text)
-        .join(" "),
-    )
-    .filter(Boolean)
-    .join("\n")
-    .slice(-1500);
-
-  let prunedTools = (await pruneTools(
+  // chat-route decomposition (2026-07-25) · the tool-pruning + token-
+  // budget block (conversation-tail assembly, pruneTools, disabledTools
+  // blocklist, alwaysOnTools, action-intent + web-search coherence
+  // forcing, maxOutputTokens derivation) moved VERBATIM to
+  // ./prepare-tools.ts — same order, same blocklist precedence.
+  const { prepareTools } = await import("./prepare-tools");
+  const { prunedTools, maxOutputTokens } = await prepareTools({
     mode,
-    nourTools as unknown as Record<string, unknown>,
+    messages: messages as unknown as Parameters<typeof prepareTools>[0]["messages"],
     userContent,
     userEmbedding,
-    { conversationTail: __conversationTail }
-  )) as typeof nourTools;
-
-  // Apply the AI config's tool blocklist (#13). Tools in
-  // ai_config.disabledTools are NEVER loaded regardless of mode —
-  // used for disabling broken or unused tools without editing
-  // nourTools.
-  if (aiConfig?.disabledTools && aiConfig.disabledTools.length > 0) {
-    const filtered = { ...prunedTools } as Record<string, unknown>;
-    for (const blocked of aiConfig.disabledTools) {
-      delete filtered[blocked];
-    }
-    prunedTools = filtered as unknown as typeof nourTools;
-  }
-  // Force the always-on tools to be included even when pruning would
-  // have dropped them (quick mode, for example).
-  if (aiConfig?.alwaysOnTools && aiConfig.alwaysOnTools.length > 0) {
-    const forced = { ...prunedTools } as Record<string, unknown>;
-    const all = nourTools as unknown as Record<string, unknown>;
-    for (const name of aiConfig.alwaysOnTools) {
-      if (all[name] && !forced[name]) forced[name] = all[name];
-    }
-    prunedTools = forced as unknown as typeof nourTools;
-  }
-  // 2026-07-06 bug fix · force the ACTION-INTENT's expected tool into the
-  // pruned set. pruneTools attaches read-only CORE_TOOLS + keyword/semantic
-  // families, but a keyword-less action turn ("add it", "do it") with a cold
-  // embedding cache drops the write tool (e.g. createTask). The
-  // toolChoice:"required" force below (action_intent_detected) then makes the
-  // model act with ONLY read-only tools — so it fabricates "done" or admits
-  // the tool is unavailable. Guarantee the expected tool is present so the
-  // force is coherent. Respects the disabledTools blocklist above (never
-  // re-add a tool the operator deliberately disabled). expectedTool may be a
-  // "toolA|toolB" alternation (action-claim-detector), so split on "|".
-  if (__actionIntent?.expectedTool) {
-    const all = nourTools as unknown as Record<string, unknown>;
-    const disabled = new Set(aiConfig?.disabledTools ?? []);
-    const forced = { ...prunedTools } as Record<string, unknown>;
-    for (const raw of __actionIntent.expectedTool.split("|")) {
-      const name = raw.trim();
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
-    }
-    prunedTools = forced as unknown as typeof nourTools;
-  }
-  // 2026-07-15 · same coherence guarantee for the web-search force: the
-  // step-0 toolChoice below can only fire if the tool is in the set.
-  if (__webSearchIntent) {
-    const all = nourTools as unknown as Record<string, unknown>;
-    const disabled = new Set(aiConfig?.disabledTools ?? []);
-    const forced = { ...prunedTools } as Record<string, unknown>;
-    for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
-    }
-    prunedTools = forced as unknown as typeof nourTools;
-  }
-
-  const toolCountAll = Object.keys(nourTools).length;
-  const toolCountPruned = Object.keys(prunedTools).length;
-  log.info("mode_description", {
-    description: describeMode(mode, toolCountAll, toolCountPruned),
-    promptChars: finalSystemPrompt.length,
-  });
-
-  // maxOutputTokens derived from mode default + query shape. queryShape
-  // was detected earlier so the tool-first directive could also read it.
-  // Standard mode uses 1200 default; query-shape drops it to 80-150 for
-  // yes/no + casual, 700 for explain, 1600 for plan — making it feel
-  // as fast as the old quick mode when the query calls for brevity.
-  // 2026-07-12 · raised standard default 1200 → 2000 (operator: replies read
-  // too short). Shape-specific budgets (query-shape.ts) still tighten yes/no +
-  // casual turns; this only lifts the ceiling for substantive "default" turns.
-  const modeDefaultTokens = mode === "deep" ? 4500 : 2000;
-  const maxOutputTokens = queryShape.tokenBudget > 0
-    ? queryShape.tokenBudget
-    : modeDefaultTokens;
-  log.info("query_shape", {
-    shape: queryShape.shape,
-    maxOutputTokens,
-    modeDefaultTokens,
-    toolFirst: queryShape.needsTool ? queryShape.factualHints : null,
+    aiConfig,
+    actionIntent: __actionIntent,
+    webSearchIntent: __webSearchIntent,
+    queryShape,
+    finalSystemPromptLength: finalSystemPrompt.length,
+    log,
   });
 
   // chat-route extract (2026-05-31) · the model-message preparation
@@ -1137,323 +733,77 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     log,
   });
 
+  // chat-route decomposition (2026-07-25) · ONE base bundle for the
+  // buildOnFinish persist deps. This exact bundle used to be duplicated
+  // THREE times (deep alt path, winner alt path, main onFinish) — three
+  // copies that had to stay manually in sync, a live drift hazard.
+  // Built ONCE here, after the last finalSystemPrompt / systemPrompt
+  // mutation, so every call site captures identical values; per-site
+  // overrides are only provider/modelId/model (+ onWorkComplete on the
+  // main stream path).
+  const persistBase = {
+    log,
+    privateMode,
+    posture,
+    convId,
+    conversationId,
+    mode,
+    modeOverride,
+    personality,
+    contentMode,
+    finalSystemPrompt,
+    systemPrompt,
+    finalTaskType,
+    userContent,
+    turnSignal,
+    responseContract,
+    contextBlocksFired,
+    deeperContextCount,
+    deeperContextTypes,
+    startedAt,
+    firstTokenRef: __firstTokenRef,
+    traceId: __traceId,
+    recordTrace,
+    messages,
+    topicTier,
+  };
+
   // ═══ v-truth · PRE-STREAM ALTERNATE PATHS (flag-gated · DEFAULT OFF) ═══
-  // Two opt-in paths that generate the FULL reply up front, then ship it as a
-  // simulated stream and persist via the SAME buildOnFinish pipeline (so
-  // history/importance/action-parse all keep working):
-  //   · NICK_DEEP_REASONING — hard turns (complex + decision/analytical) go
-  //     through the decompose->plan->critique->refine reasoning engine.
-  //   · NICK_VERIFIED_REGEN — factual/decision turns get a critic-gated
-  //     best-of-2 (maybePreStreamRegen) before shipping.
-  // SAFETY: strict env+turnSignal gate; the entire block is wrapped in
-  // try/catch — on ANY error (or both flags off) it falls through to the
-  // untouched streamText path below. Operator runtime-verifies by flipping the
-  // flag on Railway (rollback = delete the env var). Flag-off = zero change.
-  const __deepReasonFlag = getFlag("NICK_DEEP_REASONING")?.isOn ?? false;
-  const __verifiedRegenFlag = getFlag("NICK_VERIFIED_REGEN")?.isOn ?? false;
-  const __selfConsistencyFlag = getFlag("NICK_SELF_CONSISTENCY")?.isOn ?? false;
-  const __multiAgentAutoFlag = getFlag("NICK_MULTI_AGENT_AUTO")?.isOn ?? false;
-  if (
-    __deepReasonFlag ||
-    __verifiedRegenFlag ||
-    __selfConsistencyFlag ||
-    __multiAgentAutoFlag
-  ) {
-    try {
-      const { shouldGateForIntent, maybePreStreamRegen } = await import(
-        "@/lib/ai/chat/pre-stream-regen"
-      );
-      const { isMultiPartQuestion } = await import(
-        "@/lib/ai/chat/multi-agent-detect"
-      );
-      // Mutually-exclusive gates · priority multi-agent > deep > regen > self-consistency.
-      const multiAgentOn =
-        __multiAgentAutoFlag && isMultiPartQuestion(userContent);
-      const deepOn =
-        !multiAgentOn &&
-        __deepReasonFlag &&
-        turnSignal.complexity === "complex" &&
-        (turnSignal.intent === "decision" || turnSignal.intent === "analytical");
-      const regenOn =
-        !multiAgentOn &&
-        !deepOn &&
-        __verifiedRegenFlag &&
-        shouldGateForIntent(
-          turnSignal.intent as Parameters<typeof shouldGateForIntent>[0],
-        );
-      const selfConsistencyOn =
-        !multiAgentOn &&
-        !deepOn &&
-        !regenOn &&
-        __selfConsistencyFlag &&
-        (turnSignal.intent === "factual" ||
-          turnSignal.intent === "decision" ||
-          turnSignal.intent === "analytical");
-
-      // v10.0.534 · action requests must NEVER route to a reasoning path —
-      // the deepOn branch CANNOT call tools (it pre-fetches a snapshot and
-      // reasons over it), so an action like "sync my calendar" got NARRATED
-      // ("Calendar sync complete") instead of actually calling syncCalendar.
-      // A live agent_traces test (2026-07-06) proved it: the sync turn ran
-      // deep → tool_calls=0, toolsCalled=[]. When detectActionIntent fires
-      // (incl. python-execute), suppress ALL reasoning gates so the turn
-      // falls through to the normal tool-FORCING streamText path below, where
-      // toolChoice:"required" makes the model call the real tool.
-      if (!__actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn)) {
-        let winner = "";
-        // Shared generateText config for the regen + self-consistency
-        // branches (identical shape) — hoisted so a new field is added
-        // once, not in two places that could silently disagree.
-        const genBase = {
-          model,
-          messages: sanitizedModelMessages as never,
-          tools: prunedTools as never,
-          stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
-          ...(maxOutputTokens ? { maxOutputTokens } : {}),
-        };
-
-        if (multiAgentOn) {
-          const { runAutoDecompose } = await import(
-            "@/lib/ai/chat/multi-agent-detect"
-          );
-          winner = await runAutoDecompose(
-            userContent,
-            finalSystemPrompt.slice(0, 8000),
-          );
-          log.info("multi_agent_auto_path", { intent: turnSignal.intent });
-        } else if (deepOn) {
-          // v-truth · LIVE-DATA ACCESS for deep reasoning. The reasoning
-          // engine can't call tools, so it would otherwise reason blind to
-          // current numbers. Pre-fetch a compact real-business snapshot and
-          // prepend it to the reasoning context so it works from real data,
-          // not invented figures. Best-effort: skip on failure.
-          let liveSnapshot = "";
-          try {
-            const { getDashboardSummary } = await import(
-              "@/lib/services/business-intel"
-            );
-            const snap = await getDashboardSummary();
-            liveSnapshot =
-              `## LIVE DATA SNAPSHOT (real, as of this turn — reason from THESE numbers; do NOT invent figures)\n` +
-              `${JSON.stringify(snap)}\n(snapshot captured ${new Date().toISOString()} — most figures are live, but review counts are cron-cached; call getReviewStats before quoting an exact review number)\n\n`;
-          } catch {
-            /* snapshot is best-effort — proceed without it */
-          }
-
-          const __altPersist = buildOnFinish({
-            log,
-            privateMode,
-            posture,
-            convId,
-            conversationId,
-            provider,
-            modelId,
-            model,
-            mode,
-            modeOverride,
-            personality,
-            contentMode,
-            finalSystemPrompt,
-            systemPrompt,
-            finalTaskType,
-            userContent,
-            turnSignal,
-            responseContract,
-            contextBlocksFired,
-            deeperContextCount,
-            deeperContextTypes,
-            startedAt,
-            firstTokenRef: __firstTokenRef,
-            traceId: __traceId,
-            recordTrace,
-            messages,
-            topicTier,
-          });
-
-          // 2026-07-05 audit HIGH · cost-safety cap. The chat deep path passed
-          // the reasoning engine NO explicit tier, so its internal classifier
-          // could land on 'mega' (~$0.20, fire-all-5) on natural phrasing — with
-          // none of the confirmExpensive + reserveBudget gates that /reason
-          // (reason/stream/route.ts) and the nick tRPC router enforce for mega.
-          // The chat surface is interactive iOS-PWA (no window.confirm), so we
-          // cap the auto-classified tier to 'deep' when the base classifier
-          // returns 'mega' instead of forcing a confirm round-trip. The engine's
-          // tuner only DEMOTES (never promotes), so a non-mega base can never
-          // escalate to mega — leaving request.tier undefined for those turns
-          // preserves the normal internal classify + tune behavior exactly.
-          let deepTier: "deep" | undefined;
-          try {
-            const { classifyReasoning } = await import(
-              "@/lib/ai/reasoning/classifier"
-            );
-            if (classifyReasoning(userContent).tier === "mega") {
-              deepTier = "deep";
-              log.info("deep_reasoning_mega_capped", { intent: turnSignal.intent });
-            }
-          } catch {
-            /* classifier best-effort — fall through to engine auto-classify */
-          }
-
-          const { simulateReasoningStream } = await import(
-            "@/lib/ai/chat/simulate-stream-from-text"
-          );
-          const { buildChatResponse } = await import(
-            "@/lib/services/chat/response-shape"
-          );
-
-          const streamResponse = simulateReasoningStream({
-            request: {
-              question: userContent,
-              brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 24000),
-              tier: deepTier,
-            },
-            chunkSize: 24,
-            chunkDelayMs: 8,
-            onComplete: (finalWinner) => {
-              log.info("deep_reasoning_path_completed", { intent: turnSignal.intent, hadSnapshot: liveSnapshot.length > 0 });
-              return __altPersist({ text: finalWinner, finishReason: "stop" });
-            }
-          });
-
-          return buildChatResponse({
-            streamResponse,
-            convId: convId!,
-            traceId: __traceId,
-            mode,
-            modeOverride,
-            personality,
-            turnSignal,
-            deeperContextCount,
-            deeperContextTypes,
-            contextBlocksFired,
-            classification,
-            recalledMemories: recalledHits,
-            contradictions: detectedContradictions,
-            onFinishPromise: Promise.resolve(),
-          });
-        } else if (regenOn) {
-          const { generateText } = await import("ai");
-          const genOnce = async (sys: string, temp: number): Promise<string> => {
-            const r = await generateText({
-              ...genBase,
-              system: sys,
-              temperature: temp,
-            } as Parameters<typeof generateText>[0]);
-            return r.text;
-          };
-          const regen = await maybePreStreamRegen({
-            intent: turnSignal.intent as Parameters<
-              typeof maybePreStreamRegen
-            >[0]["intent"],
-            shape: turnSignal.outputShape,
-            generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
-            regenOnce: ({ suggestedSystemPrefix }) =>
-              genOnce(
-                `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
-                Math.min(0.9, turnSignal.temperature + 0.1),
-              ),
-          });
-          winner = regen.text;
-          log.info("verified_regen_path", {
-            regenFired: regen.regenFired,
-            intent: turnSignal.intent,
-          });
-        } else if (selfConsistencyOn) {
-          const { generateText } = await import("ai");
-          const { selfConsistentAnswer } = await import(
-            "@/lib/ai/chat/self-consistency"
-          );
-          const sc = await selfConsistentAnswer({
-            samples: 3,
-            generate: async () => {
-              const r = await generateText({
-                ...genBase,
-                system: finalSystemPrompt,
-                temperature: Math.min(0.9, turnSignal.temperature + 0.15),
-              } as Parameters<typeof generateText>[0]);
-              return r.text;
-            },
-          });
-          winner = sc.answer;
-          log.info("self_consistency_path", {
-            agreed: sc.agreed,
-            samples: sc.samples,
-            intent: turnSignal.intent,
-          });
-        }
-
-        if (winner && winner.trim().length > 0) {
-          // Reuse the EXACT persist pipeline streamText would have run.
-          const __altPersist = buildOnFinish({
-            log,
-            privateMode,
-            posture,
-            convId,
-            conversationId,
-            provider,
-            modelId,
-            model,
-            mode,
-            modeOverride,
-            personality,
-            contentMode,
-            finalSystemPrompt,
-            systemPrompt,
-            finalTaskType,
-            userContent,
-            turnSignal,
-            responseContract,
-            contextBlocksFired,
-            deeperContextCount,
-            deeperContextTypes,
-            startedAt,
-            firstTokenRef: __firstTokenRef,
-            traceId: __traceId,
-            recordTrace,
-            messages,
-            topicTier,
-          });
-          const { simulateStreamFromText } = await import(
-            "@/lib/ai/chat/simulate-stream-from-text"
-          );
-          const { buildChatResponse } = await import(
-            "@/lib/services/chat/response-shape"
-          );
-          const streamResponse = simulateStreamFromText({
-            text: winner,
-            chunkSize: 24,
-            chunkDelayMs: 8,
-            onComplete: () =>
-              __altPersist({ text: winner, finishReason: "stop" }),
-          });
-          return buildChatResponse({
-            streamResponse,
-            convId: convId!,
-            traceId: __traceId,
-            mode,
-            modeOverride,
-            personality,
-            turnSignal,
-            deeperContextCount,
-            deeperContextTypes,
-            contextBlocksFired,
-            classification,
-            recalledMemories: recalledHits,
-            contradictions: detectedContradictions,
-            onFinishPromise: Promise.resolve(),
-          });
-        }
-        // empty winner → fall through to the normal streamText path
-      }
-    } catch (altErr) {
-      log.warn("prestream_alt_path_fallthrough", {
-        error:
-          altErr instanceof Error
-            ? altErr.message.slice(0, 200)
-            : String(altErr),
-      });
-      // fall through to the normal streamText path — the turn still works
-    }
+  // chat-route decomposition (2026-07-25) · the whole flag-gated block
+  // (multi-agent auto-decompose / deep reasoning w/ mega-cap + live
+  // snapshot / verified regen / self-consistency, incl. the v10.0.534
+  // action-intent suppression and the catch-all fallthrough) moved
+  // VERBATIM to ./alternate-paths.ts. Returns a Response when an
+  // alternate path handled the turn; null falls through to the
+  // untouched streamText path below. Flags off = zero change.
+  {
+    const { runAlternatePaths } = await import("./alternate-paths");
+    const altResponse = await runAlternatePaths({
+      persistBase,
+      provider,
+      modelId,
+      model,
+      sanitizedModelMessages,
+      prunedTools,
+      mode,
+      maxOutputTokens,
+      userContent,
+      finalSystemPrompt,
+      turnSignal,
+      actionIntent: __actionIntent,
+      convId,
+      traceId: __traceId,
+      modeOverride,
+      personality,
+      classification,
+      recalledHits,
+      detectedContradictions,
+      deeperContextCount,
+      deeperContextTypes,
+      contextBlocksFired,
+      log,
+    });
+    if (altResponse) return altResponse;
   }
 
   // v11.0 W7 strict · the AI SDK's streamText options type is extremely
@@ -1470,7 +820,7 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // time is unchanged, because the first-word-visible latency drops
   // AND there's no perceived stall mid-reply. Only applied to chat
   // mode (streamText) — tool results still render as they complete.
-  const { smoothStream } = await import("ai");
+  // (smoothStream now imported inside ./build-stream-config.ts)
 
   // v10 B.5 · same-turn provider fallback. If streamText throws
   // synchronously (bad config, auth fail, immediate connection
@@ -1487,264 +837,43 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   });
 
   streamConfigTimer.end();
-  const { streamWithFallback, inferProviderName } = await import("@/lib/ai/stream-with-fallback");
+  // chat-route decomposition (2026-07-25) · the entire per-attempt
+  // streamText config (Gemini safety-off, Anthropic cacheControl fold,
+  // pruned tools + repair, smoothStream, step caps, the prepareStep
+  // toolChoice ladder with READ-permission suppression, onChunk TTFT +
+  // partial capture, onError, onFinish) moved VERBATIM to
+  // ./build-stream-config.ts as a factory over the same shared refs.
+  const { streamWithFallback } = await import("@/lib/ai/stream-with-fallback");
+  const { buildStreamConfigFactory } = await import("./build-stream-config");
   const __sameTurnFallback = await streamWithFallback({
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
     forceProviderFirst: effectiveForce,
-    buildConfig: (__fbModel) => {
-      const fbProvider = inferProviderName(__fbModel) ?? provider;
-      const fbModelId =
-        typeof __fbModel === "object" && __fbModel && "modelId" in __fbModel
-          ? String((__fbModel as { modelId?: unknown }).modelId)
-          : modelId;
-
-      return ({
-        model: __fbModel,
-        // 2026-07-06 · disable Gemini's default safety filters (per-call, via
-        // providerOptions.google — the @ai-sdk/google v3 API). Ignored by
-        // non-Google providers. Gemini's defaults can truncate a reply
-        // mid-generation on flagged content (the likely "messages don't
-        // finish" cause) and are an unwanted restriction on this owner-operated
-        // OS. See GEMINI_SAFETY_OFF in lib/ai/provider.ts.
-        providerOptions: { google: GEMINI_SAFETY_OFF },
-        // v10.0.446 · prompt-quality audit fix #1 · cacheControl wiring.
-        // When Anthropic is the active fallback provider, fold the
-        // system prompt into messages with `cacheControl: ephemeral`
-        // so the 8-12K-token system prompt gets the 90% Anthropic
-        // prompt-cache discount. Mirrors lib/ai/provider.ts:1007-1027
-        // (the aiChat path that judge + adversarial use). Venice /
-        // Ollama / OpenAI keep the legacy `system: string` form —
-        // Venice/Ollama have no server-side caching; OpenAI auto-
-        // caches prefixes ≥1024 tokens regardless of message shape.
-        ...(inferProviderName(__fbModel) === "anthropic"
-          ? {
-              messages: [
-                {
-                  role: "system" as const,
-                  content: finalSystemPrompt,
-                  providerOptions: {
-                    anthropic: { cacheControl: { type: "ephemeral" } },
-                  },
-                },
-                ...(sanitizedModelMessages as readonly unknown[]),
-              ] as Parameters<typeof streamText>[0]["messages"],
-            }
-          : {
-              system: finalSystemPrompt,
-              // v10.0.529.58 · use sanitized messages · strips
-              // item_reference parts that Ollama + Venice + OpenAI
-              // chat-completions endpoints reject.
-              messages: sanitizedModelMessages as Parameters<typeof streamText>[0]["messages"],
-            }),
-        // Tools enabled for ALL providers — Venice supports OpenAI-compatible function calling.
-        // Pruned by chat-mode for speed — see lib/ai/chat-mode.ts.
-        tools: prunedTools,
-        // 2026-07-12 · remap hallucinated tool names (e.g. dotted forms like
-        // `memory.remember` / `person.update`) onto the real tool when one
-        // exists in the active set — otherwise the model wastes a 7-8s step
-        // and shows a phantom tool card. Only remaps to tools present in
-        // prunedTools; returns null (SDK graceful path) when unmappable.
-        experimental_repairToolCall: buildRepairToolCall(
-          prunedTools as unknown as import("ai").ToolSet,
-        ),
-        // Smooth the token stream for perceived-speed. See note above.
-        experimental_transform: smoothStream({ delayInMs: 10, chunking: "word" }),
-        // Standard allows 3 tool-call steps; deep allows 5 for agentic
-        // workflows. Keep step counts tight so a confused tool chain can't
-        // blow through the whole context budget.
-        stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
-        // Context-aware brevity cap — see block above.
-        ...(maxOutputTokens ? { maxOutputTokens } : {}),
-        // Apr 19 · Adaptive temperature from the turn classifier.
-        // factual/procedural turns run tight (0.2-0.25), creative/emotional
-        // warm (0.6-0.75), casual middle (0.5). Overrides the provider
-        // default per request without touching provider config.
-        temperature: turnSignal.temperature,
-        // v10.0.175 · proactive tool forcing. Pre-classify the user's
-        // message: if it's clearly an action request ("add this task",
-        // "send the email", "schedule a follow-up"), pass toolChoice:
-        // "required" to remove the option to narrate. The model must
-        // call SOME tool — fabrication-by-narration becomes structurally
-        // impossible. Questions ("what tasks do I have?") fall through
-        // to the default `auto` so reads stay flexible.
-        //
-        // v10.0.520 · SPECIFIC tool forcing for python execution. The
-        // 2026-05-12 Chrome smoke test showed venice-uncensored has a
-        // strong training bias to WRITE python code text instead of
-        // calling runPython · even with an imperative tool description.
-        // When the user clearly asks to execute python, force the
-        // model's hand with `toolChoice: { type: "tool", toolName:
-        // "runPython" }`. This bypasses the model's discretion entirely
-        // · the only choice left is what python code to pass.
-        //
-        // Same pattern available for any future "model declines to call
-        // a tool we WANT called" case · add another regex+toolName
-        // branch above the generic action-intent block.
-        ...(() => {
-          // Python-execute · most specific gate, checked first. Reuse the
-          // hoisted `__pythonExecuteIntent` (computed once for the provider
-          // force) so the detection regex lives in exactly one place — the
-          // two can never drift apart on a future edit.
-          // 2026-07-12 · Force the tool on the FIRST step ONLY, then hand
-          // control back (toolChoice:"auto") so the model emits a final text
-          // reply AFTER the tools run. Forcing "required" across ALL steps
-          // (pre-fix) meant an action turn ended with only tool cards and NO
-          // prose — "it runs the tool but never responds; I have to ask what
-          // happened." prepareStep scopes the force to step 0, keeping the
-          // anti-fabrication guarantee (can't narrate-without-acting) while
-          // restoring the closing summary. stepCountIs stops the loop as soon
-          // as a step emits text with no tool call.
-          //
-          // 2026-07-15 · silent-tool-turn fix (final-step text forcing).
-          // With stopWhen(stepCountIs(N)), a turn whose EVERY step emitted
-          // tool calls ends with finishReason "tool-calls" and zero prose —
-          // the tool cards render but Nick never "responds" (operator nudged
-          // with "?" to get an answer). Force toolChoice:"none" on the last
-          // allowed step so the loop always ends with a step that can only
-          // produce text. Applies to all three branches, including the
-          // previously-prepareStep-less default.
-          const lastStep = (mode === "deep" ? 5 : 3) - 1;
-          // READ permission (composer selector) must not be contradicted by
-          // structural tool forcing — a forced runPython / toolChoice:"required"
-          // makes the "observe and describe, don't act" directive impossible
-          // (self-review high #5). Skip the mutating forces; fall through to the
-          // unforced default so the READ prompt directive governs the turn.
-          if (__pythonExecuteIntent && actionPermission !== "read") {
-            log.info("python_execute_intent_detected", { surface: "chat" });
-            return {
-              prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-                stepNumber === 0
-                  ? { toolChoice: { type: "tool" as const, toolName: "runPython" as const } }
-                  : stepNumber >= lastStep
-                    ? { toolChoice: "none" as const }
-                    : { toolChoice: "auto" as const },
-            };
-          }
-
-          // 2026-07-15 · explicit web-search ask → force the web tool on
-          // step 0 (checked before the generic action intent — more
-          // specific wins). deepseek-v4-pro honors strict tool_choice
-          // via Ollama's OpenAI-compat endpoint (probed live).
-          if (__webSearchIntent) {
-            log.info("web_search_intent_detected", { surface: "chat" });
-            return {
-              prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-                stepNumber === 0
-                  ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
-                  : stepNumber >= lastStep
-                    ? { toolChoice: "none" as const }
-                    : { toolChoice: "auto" as const },
-            };
-          }
-
-          // Reuse the hoisted detection (computed above for the provider
-          // force) — one detectActionIntent call drives both the provider
-          // pick AND toolChoice, so the two can never disagree.
-          const intent = __actionIntent;
-          if (intent && actionPermission !== "read") {
-            log.info("action_intent_detected", {
-              intent: intent.intent,
-              expectedTool: intent.expectedTool,
-            });
-            return {
-              prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-                stepNumber === 0
-                  ? { toolChoice: "required" as const }
-                  : stepNumber >= lastStep
-                    ? { toolChoice: "none" as const }
-                    : { toolChoice: "auto" as const },
-            };
-          }
-          return {
-            prepareStep: ({ stepNumber }: { stepNumber: number }) =>
-              stepNumber >= lastStep ? { toolChoice: "none" as const } : {},
-          };
-        })(),
-        // v10.0.446 · `messages:` (and `system:` for non-Anthropic) are
-        // now set by the conditional spread above. The Anthropic branch
-        // folds the system prompt into messages[0] with cacheControl
-        // ephemeral; the non-Anthropic branch keeps the legacy split
-        // form (system + messages separately).
-        // v7.6 · Apr 29 · ChatMessage Batch A · C2 — capture TTFT on the
-        // first chunk. Cheap closure: only fires once, then noops.
-        // v10.0.20 — also accumulate text into __partialRef.text so a
-        // mid-stream onError can persist the actual partial reply.
-        // v10.0.26 — narrowed to the actual AI SDK v6 TextStreamPart
-        // shape: text-delta chunks expose `text: string` (not `textDelta`).
-        // Verified against node_modules/ai/dist/index.d.ts:2601.
-        // v10.0.27 (decision) — only accumulate text-delta, NOT
-        // reasoning-delta. The graceful-degradation message should match
-        // what the user saw on screen; reasoning streams render in a
-        // separate collapsed UI region (or are hidden) so mixing it into
-        // the assistant content would diverge from the user's view at
-        // failure time.
-        onChunk: ((chunk: unknown) => {
-          if (__firstTokenRef.value === null) __firstTokenRef.value = Date.now();
-          const c = chunk as { chunk?: { type?: string; text?: string } };
-          const inner = c?.chunk;
-          if (inner?.type === "text-delta" && typeof inner.text === "string") {
-            __partialRef.text += inner.text;
-          }
-        }) as Parameters<typeof streamText>[0]["onChunk"],
-        // v9.1.22 · onError handler. Without this, a mid-stream provider
-        // error (Venice 5xx during streaming, Anthropic transient drop)
-        // causes onFinish to NEVER fire — meaning the partial assistant
-        // text streamed to the user's screen vanishes from history on
-        // next reload. Now we capture the partial text + error and write
-        // a placeholder ChatMessage so reload shows what happened.
-        // May 02 · chat-route extract chunk 4 · onError handler moved
-        // verbatim to lib/services/chat/stream-error-handler.ts. Factory
-        // returns the callback wired with the deps it needs (convId,
-        // model, traceId, partial-text ref, recordTrace).
-        onError: buildStreamErrorHandler({
-          privateMode,
-          convId,
-          conversationId,
-          model: __fbModel,
-          traceId: __traceId,
-          provider: fbProvider,
-          modelId: fbModelId,
-          startedAt,
-          partial: __partialRef,
-          log,
-          recordTrace,
-        }) as Parameters<typeof streamText>[0]["onError"],
-        // May 02 · chat-route extract chunk 5 · onFinish moved to
-        // lib/services/chat/persist-assistant-turn.ts. Factory pattern
-        // returns the callback wired with all post-stream deps.
-        onFinish: buildOnFinish({
-          log,
-          privateMode,
-          posture,
-          convId,
-          conversationId,
-          provider: fbProvider,
-          modelId: fbModelId,
-          model: __fbModel,
-          mode,
-          modeOverride,
-          personality,
-          contentMode,
-          finalSystemPrompt,
-          systemPrompt,
-          finalTaskType,
-          userContent,
-          turnSignal,
-          responseContract,
-          contextBlocksFired,
-          deeperContextCount,
-          deeperContextTypes,
-          startedAt,
-          firstTokenRef: __firstTokenRef,
-          traceId: __traceId,
-          recordTrace,
-          messages,
-          topicTier,
-          onWorkComplete: resolveOnFinish,
-        }) as Parameters<typeof streamText>[0]["onFinish"],
-      } as never);
-    },
+    buildConfig: buildStreamConfigFactory({
+      persistBase,
+      provider,
+      modelId,
+      finalSystemPrompt,
+      sanitizedModelMessages,
+      prunedTools,
+      mode,
+      maxOutputTokens,
+      turnSignal,
+      pythonExecuteIntent: __pythonExecuteIntent,
+      webSearchIntent: __webSearchIntent,
+      actionIntent: __actionIntent,
+      actionPermission,
+      privateMode,
+      convId,
+      conversationId,
+      traceId: __traceId,
+      startedAt,
+      firstTokenRef: __firstTokenRef,
+      partialRef: __partialRef,
+      recordTrace,
+      resolveOnFinish,
+      log,
+    }),
   });
   result = __sameTurnFallback.result;
   // v10 B.5 · log fallback trace. If attempts.length > 1, a sync-
