@@ -198,13 +198,13 @@ test("chat composer: audio drop + voice mode buttons present", async ({ page }) 
 
   // Audio attach button · aria-label includes 'audio'
   const audioBtn = page.locator(
-    "button[aria-label*='audio file' i], button[aria-label*='Transcribing audio' i]",
+    // 2026-07-25 pin refresh: the #1035 composer restyle merged the
+    // audio-drop + voice-mode pair into ONE "Voice input" mic button.
+    "button[aria-label*='voice input' i]",
   );
   await expect(audioBtn).toBeVisible({ timeout: 5_000 });
 
-  // Voice mode (phone) button · aria-label includes 'voice mode'
-  const voiceBtn = page.locator("button[aria-label*='voice mode' i]");
-  await expect(voiceBtn).toBeVisible({ timeout: 5_000 });
+  // (voice-mode button removed in #1035 — single Voice input mic now)
 });
 
 // ── v10.0.378 · brain wisdom dashboard renders cards ─────────────
