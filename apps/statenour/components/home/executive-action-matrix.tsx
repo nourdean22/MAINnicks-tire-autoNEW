@@ -85,13 +85,17 @@ export function ExecutiveActionMatrix() {
       };
     }
 
+    // 2026-07-25 honest-copy fix (audit P1): this used to say "Halt
+    // revenue operations" over 3 hygiene findings — theatrical advice
+    // no measurement supports. State the count, suggest the action,
+    // let the operator weigh it.
     if (findingsCount >= 3) {
       return {
-        status: "critical",
-        title: "SYSTEM DRIFT DETECTED",
-        message: `Nour, your system drift is compounding (${findingsCount} unresolved flaws). The cost of inaction is severe technical debt. Halt revenue operations and clear the hygiene queue immediately.`,
+        status: "warning",
+        title: "HYGIENE QUEUE BUILDING",
+        message: `${findingsCount} hygiene findings are waiting. They compound quietly — clear them in your next gap.`,
         actionType: "hygiene",
-        color: "text-rose-400"
+        color: "text-amber-400"
       };
     }
 
@@ -116,10 +120,13 @@ export function ExecutiveActionMatrix() {
       };
     }
 
+    // 2026-07-25 honest-copy fix (audit P1): "peak operational
+    // efficiency" was fabricated — no targets returned is an ABSENCE of
+    // signal, not proof of efficiency. Say what is actually known.
     return {
       status: "idle",
       title: "ALL QUEUES CLEAR",
-      message: `You are operating at peak operational efficiency. Awaiting your next command to expand the empire.`,
+      message: `Nothing is waiting and no immediate targets came back. Pick a direction, or ask Nick for options.`,
       actionType: "suggestions",
       color: "text-emerald-400"
     };

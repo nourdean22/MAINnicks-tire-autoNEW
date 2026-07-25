@@ -102,20 +102,28 @@ export function CognitivePartner() {
 
   const isLoading = status === "streaming" || status === "submitted";
 
-  // Proactive brief on mount — gated to once per calendar day.
-  // useChat state does not survive unmount/remount, so messages.length
-  // is always 0 on mount; without the day-stamp gate this fired a paid
-  // LLM stream on EVERY Home visit. See lib/home/cognitive-partner-brief.
-  useEffect(() => {
-    if (messages.length === 0 && !isLoading) {
-      const today = todayStamp();
-      if (shouldFireBrief(readBriefStamp(), today)) {
-        markBriefFired(today);
-        sendMessage({ text: "Wake up. Give me the morning brief." });
+  // Morning brief is a TAP, not an auto-fire (2026-07-25 Home
+  // consolidation, operator decision): the old mount effect silently
+  // started a paid LLM stream on the first Home visit each day. Now the
+  // same once-per-day stamp gates a visible chip instead — the brief
+  // stays one tap away, and no spend happens without an explicit tap.
+  // Day-stamp helpers unchanged (lib/home/cognitive-partner-brief).
+  // Lazy initializer (same localStorage-read idiom as FollowUpsList):
+  // SSR renders false; the client's first render reads the day stamp.
+  const [briefAvailable, setBriefAvailable] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        return shouldFireBrief(readBriefStamp(), todayStamp());
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch {}
+    return false;
+  });
+  const fireBrief = useCallback(() => {
+    const today = todayStamp();
+    markBriefFired(today);
+    setBriefAvailable(false);
+    sendMessage({ text: "Wake up. Give me the morning brief." });
+  }, [sendMessage]);
 
   // Auto-grow textarea up to 4 lines
   useEffect(() => {
@@ -197,6 +205,18 @@ export function CognitivePartner() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Morning-brief chip — visible only until fired today */}
+      {briefAvailable && !isLoading && (
+        <button
+          type="button"
+          onClick={fireBrief}
+          className="inline-flex items-center gap-2 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)]/20 min-h-[36px]"
+        >
+          <Brain size={12} />
+          Morning brief
+        </button>
       )}
 
       {/* Interactive Dock */}
