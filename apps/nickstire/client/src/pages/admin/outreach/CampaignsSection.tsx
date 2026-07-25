@@ -414,8 +414,9 @@ export default function CampaignsSection() {
 }
 
 function CampaignRow({ campaign }: { campaign: Campaign }) {
-  const { data: detail } = trpc.campaigns.getById.useQuery({ id: campaign.id });
-
+  // No per-row query: campaigns.list carries send stats in one grouped read.
+  // The old per-row detail query here was an N+1 — every rendered row
+  // fired its own request just for two counts.
   const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
     draft: { color: "text-foreground/50", icon: <Clock className="w-4 h-4" /> },
     active: { color: "text-amber-400", icon: <Loader2 className="w-4 h-4 animate-spin" /> },
@@ -459,14 +460,12 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
         </div>
       </div>
 
-      {/* Stats */}
-      {detail && (
-        <div className="mt-3 flex gap-4 text-xs text-foreground/60">
-          <div>Failed: {detail.stats?.failed ?? 0}</div>
-          <div>Pending: {detail.stats?.pending ?? 0}</div>
-          <div className="text-foreground/30">Created {formatDate(campaign.createdAt)}</div>
-        </div>
-      )}
+      {/* Stats — served by the list query itself, no extra request */}
+      <div className="mt-3 flex gap-4 text-xs text-foreground/60">
+        <div>Failed: {campaign.stats?.failed ?? 0}</div>
+        <div>Pending: {campaign.stats?.pending ?? 0}</div>
+        <div className="text-foreground/30">Created {formatDate(campaign.createdAt)}</div>
+      </div>
     </div>
   );
 }

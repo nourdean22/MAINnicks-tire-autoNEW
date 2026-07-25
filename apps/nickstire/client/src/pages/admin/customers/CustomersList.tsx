@@ -55,7 +55,15 @@ export function CustomersList({ onOpenCustomer }: { onOpenCustomer: (id: number)
     return () => clearTimeout(t);
   }, [search]);
   const [exporting, setExporting] = useState(false);
-  const [minVisits, setMinVisits] = useState<number | undefined>();
+  // Seeded from ?minVisits= so Command Search's "show VIPs (3+ visits)" is a
+  // real filter, not a navigation that quietly drops its promise. Kept as
+  // plain state after mount (only the entry deep-link needs the URL).
+  const [minVisits, setMinVisits] = useState<number | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    const raw = new URLSearchParams(window.location.search).get("minVisits");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isInteger(n) && n > 0 ? n : undefined;
+  });
   const [lastVisitDays, setLastVisitDays] = useState<number | undefined>();
   const [hasDeclined, setHasDeclined] = useState(false);
   const [hasBacklog, setHasBacklog] = useState(false);

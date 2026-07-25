@@ -80,29 +80,29 @@ export default function TireOrdersSection() {
     },
   });
 
-  const deleteOrderMutation = trpc.gatewayTire.deleteOrder.useMutation({
+  const cancelOrderMutation = trpc.gatewayTire.cancelOrder.useMutation({
     onSuccess: () => {
-      toast.success("Order deleted successfully");
+      toast.success("Order cancelled — kept in history");
       refetchOrders();
       refetchStats();
       setExpandedOrderId(null);
     },
     onError: (err) => {
-      toast.error(`Delete failed: ${err.message}`);
+      toast.error(`Cancel failed: ${err.message}`);
     },
   });
 
-  const handleDelete = async (orderId: number, orderNumber: string, customerName: string) => {
+  const handleCancel = async (orderId: number, orderNumber: string, customerName: string) => {
     const ok = await confirmDialog({
-      title: "Delete Tire Order?",
-      message: `Are you sure you want to permanently delete order ${orderNumber} for ${customerName}? This action cannot be undone.`,
-      confirmLabel: "Delete Order",
+      title: "Cancel Tire Order?",
+      message: `Cancel order ${orderNumber} for ${customerName}? The order stays in history as CANCELLED — nothing is deleted, so refund risk and walked-order patterns stay visible.`,
+      confirmLabel: "Cancel Order",
       tone: "danger",
     });
 
     if (!ok) return;
 
-    deleteOrderMutation.mutate({ id: orderId });
+    cancelOrderMutation.mutate({ id: orderId });
   };
 
   const handleRefresh = () => {
@@ -400,22 +400,22 @@ export default function TireOrdersSection() {
                             {order.statusLabel}
                           </span>
 
-                          {/* Quick Delete */}
+                          {/* Quick Cancel (soft — the row stays in history) */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDelete(order.id, order.orderNumber, order.customerName);
+                              handleCancel(order.id, order.orderNumber, order.customerName);
                             }}
-                            disabled={deleteOrderMutation.isPending}
+                            disabled={cancelOrderMutation.isPending}
                             className="px-2 py-0.5 text-[10px] font-extrabold border border-red-500/30 bg-red-500/10 hover:bg-red-500/25 text-red-400 rounded transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1"
-                            title="Delete Order"
+                            title="Cancel Order"
                           >
-                            {deleteOrderMutation.isPending && deleteOrderMutation.variables?.id === order.id ? (
+                            {cancelOrderMutation.isPending && cancelOrderMutation.variables?.id === order.id ? (
                               <Loader2 className="w-2.5 h-2.5 animate-spin" />
                             ) : (
                               <X className="w-2.5 h-2.5" />
                             )}
-                            Delete
+                            Cancel
                           </button>
                         </div>
 
@@ -465,8 +465,8 @@ export default function TireOrdersSection() {
                         nextAction={nextAction}
                         flags={flags}
                         confidence={confidence}
-                        handleDelete={handleDelete}
-                        deleteOrderMutation={deleteOrderMutation}
+                        handleCancel={handleCancel}
+                        cancelOrderMutation={cancelOrderMutation}
                       />
                     </div>
                   )}
@@ -497,16 +497,16 @@ function OrderFormEdit({
   nextAction,
   flags,
   confidence,
-  handleDelete,
-  deleteOrderMutation
+  handleCancel,
+  cancelOrderMutation
 }: {
   order: any;
   updateOrderMutation: any;
   nextAction: any;
   flags: string[];
   confidence: any;
-  handleDelete: (orderId: number, orderNumber: string, customerName: string) => Promise<void>;
-  deleteOrderMutation: any;
+  handleCancel: (orderId: number, orderNumber: string, customerName: string) => Promise<void>;
+  cancelOrderMutation: any;
 }) {
   const [status, setStatus] = useState<string>(order.status);
   const [adminNotes, setAdminNotes] = useState<string>(order.adminNotes || "");
@@ -853,11 +853,11 @@ function OrderFormEdit({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => handleDelete(order.id, order.orderNumber, order.customerName)}
-                disabled={deleteOrderMutation.isPending}
+                onClick={() => handleCancel(order.id, order.orderNumber, order.customerName)}
+                disabled={cancelOrderMutation.isPending}
                 className="px-4 py-2 bg-red-500/10 hover:bg-red-500/25 border border-red-500/30 text-red-400 rounded text-xs font-semibold transition-colors disabled:opacity-50"
               >
-                Delete Order
+                Cancel Order
               </button>
             </div>
             <div className="flex gap-3">

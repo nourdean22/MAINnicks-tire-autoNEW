@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
-import { eq, sql, desc, and, isNull } from "drizzle-orm";
+import { eq, sql, desc, and, inArray, isNull } from "drizzle-orm";
 import { customers, smsCampaigns, smsCampaignSends } from "../../drizzle/schema";
 import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
 import { sendSms, isShopGatewayReachable, isShopGatewayConfigured } from "../sms";
@@ -91,12 +91,34 @@ export async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"):
 // ─── MAIN ROUTER ───────────────────────────────────────
 
 export const campaignsRouter = router({
-  /** List all SMS campaigns with stats */
+  /** List all SMS campaigns with stats.
+   *  Send stats ride along in ONE grouped query — the client used to fire
+   *  campaigns.getById per rendered row (N+1: 100 campaigns = 101 requests)
+   *  just to show failed/pending counts. */
   list: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return [];
 
-    return d.select().from(smsCampaigns).orderBy(desc(smsCampaigns.createdAt)).limit(100);
+    const rows = await d.select().from(smsCampaigns).orderBy(desc(smsCampaigns.createdAt)).limit(100);
+    if (rows.length === 0) return [];
+
+    const statRows = await d
+      .select({
+        campaignId: smsCampaignSends.campaignId,
+        sent: sql<number>`sum(case when ${smsCampaignSends.status} = 'sent' then 1 else 0 end)`,
+        failed: sql<number>`sum(case when ${smsCampaignSends.status} = 'failed' then 1 else 0 end)`,
+        pending: sql<number>`sum(case when ${smsCampaignSends.status} = 'pending' then 1 else 0 end)`,
+      })
+      .from(smsCampaignSends)
+      .where(inArray(smsCampaignSends.campaignId, rows.map((r: (typeof rows)[number]) => r.id)))
+      .groupBy(smsCampaignSends.campaignId);
+    type StatRow = (typeof statRows)[number];
+    const statsById = new Map<number, StatRow>(statRows.map((s: StatRow) => [s.campaignId, s]));
+
+    return rows.map((r: (typeof rows)[number]) => ({
+      ...r,
+      stats: statsById.get(r.id) ?? { campaignId: r.id, sent: 0, failed: 0, pending: 0 },
+    }));
   }),
 
   /** Get campaign detail with send stats */

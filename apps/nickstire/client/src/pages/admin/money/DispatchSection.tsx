@@ -30,7 +30,13 @@ export default function DispatchSection() {
   // 10s (the real-time shop-floor expectation) feeds every consumer, so the
   // interval is now explicit and consistent. Mirrors WorkOrdersSection's
   // lifted-stats pattern.
-  const load = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
+  // 10s foreground keeps the bay grid live on the counter screen; the
+  // background flag stops the tab from hammering the server (this section
+  // alone was ~24 req/min even while hidden behind another admin tab).
+  const load = trpc.dispatch.load.useQuery(undefined, {
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
+  });
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "bays", label: "Bay Grid" },
@@ -95,11 +101,12 @@ type DispatchLoadQuery = {
 function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
   // wave-admin-audit P3 — dispatch.load now lifted to the section root and
   // passed in (was a duplicate 30s subscription on the same key that fought
-  // BayGrid's 10s). stats + qcStats stay local (only this strip reads them);
-  // bumped to 10s to match the unified shop-floor cadence.
+  // BayGrid's 10s). stats + qcStats stay local (only this strip reads them).
   const { data: load, isError } = loadQuery;
-  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 10000 });
-  const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 10000 });
+  // Summary counters don't need bay-grid cadence — 30s halves this strip's
+  // request volume with no visible staleness on aggregate numbers.
+  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 30_000, refetchIntervalInBackground: false });
+  const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 30_000, refetchIntervalInBackground: false });
 
   const clockedIn = load?.techs.filter((t: Tech) => t.clockedIn).length || 0;
   const freeBays = load?.bays.filter((b: Bay) => !b.occupied).length || 0;
@@ -213,7 +220,7 @@ function BayCard({ bay, techs }: { bay: Bay; techs: Tech[] }) {
 
 // ─── Ready Queue ────────────────────────────────────
 function ReadyQueue({ load: loadQuery }: { load: DispatchLoadQuery }) {
-  const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000 });
+  const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
   // wave-admin-audit P3 — bays come from the lifted dispatch.load (was a
   // duplicate 10s subscription on the same key).
   const { data: load } = loadQuery;
@@ -370,7 +377,7 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay
 
 // ─── QC Review ──────────────────────────────────────
 function QcReview() {
-  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "qc_review" }, { refetchInterval: 10000 });
+  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "qc_review" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;

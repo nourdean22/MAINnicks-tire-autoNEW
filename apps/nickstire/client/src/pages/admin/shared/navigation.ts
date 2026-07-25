@@ -13,7 +13,6 @@ import type { AdminSection } from "./types";
 // listeners import them instead of re-declaring the shape.
 export interface AdminNavigateDetail {
   section: AdminSection;
-  highlightId?: number;
 }
 export interface AdminOpenCustomerDrawerDetail {
   customerId: number;
@@ -23,25 +22,22 @@ export interface AdminOpenCustomerDrawerDetail {
 /**
  * Section-navigation helper — fires the same `admin:navigate-section` event
  * that Admin.tsx listens for (see line 220-233). Optionally also writes
- * `settingsTab` to the URL so SettingsSection lands on the right inner tab,
- * and/or carries a `highlightId` for the target section to scroll/flash the
- * relevant row (Priority Queue items, tire orders, etc.).
+ * `settingsTab` to the URL so SettingsSection lands on the right inner tab.
  *
  * Why an event + URL write instead of a wouter <Link>: Admin.tsx is a
  * single-page component; clicking a Link to /admin?tab=X doesn't actually
  * remount Admin or re-resolve the section state. The event bridge is the
  * existing mechanism the codebase uses for cross-section nav.
  *
- * `highlightId` support added 2026-07-04 — three call sites (Overview's
- * priority-queue jump, Revenue's legacy tire-orders redirect, Outreach's
- * settings jump) were hand-rolling raw `window.dispatchEvent(new
- * CustomEvent(...))` instead of this helper because the signature didn't
- * cover their needs. Extending the helper removed that duplication rather
- * than leaving a second, untyped way to fire the same event.
+ * A `highlightId` option existed here 2026-07-04 → 2026-07-25 and was
+ * REMOVED: no section ever implemented a receiver, so the payload was
+ * dispatched into the void while the call sites read as if the target
+ * would scroll/flash the row. If row-highlighting is ever built, the
+ * receiver must land in the SAME change that reintroduces the option.
  */
 export function navigateToAdminSection(
   section: AdminSection,
-  opts?: { settingsTab?: string; highlightId?: number },
+  opts?: { settingsTab?: string },
 ) {
   if (typeof window === "undefined") return;
   if (opts?.settingsTab) {
@@ -50,7 +46,6 @@ export function navigateToAdminSection(
     window.history.replaceState({}, "", url.toString());
   }
   const detail: AdminNavigateDetail = { section };
-  if (opts?.highlightId !== undefined) detail.highlightId = opts.highlightId;
   window.dispatchEvent(
     new CustomEvent("admin:navigate-section", { detail })
   );
