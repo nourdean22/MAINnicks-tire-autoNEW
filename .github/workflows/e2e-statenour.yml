@@ -1,0 +1,140 @@
+# e2e-statenour · authenticated Playwright E2E in CI (2026-07-25)
+#
+# The last open item from the bdnick.info audit: "authenticated E2E
+# coverage exists but is not gated". This job closes it HERMETICALLY —
+# no operator secrets, no prod session:
+#
+#   · a throwaway pgvector Postgres service container is the database
+#   · `prisma db push` materializes the schema (empty data = empty-state
+#     rendering, which the smoke spec tolerates by design)
+#   · the app runs a REAL production build (`next build` → `next start`,
+#     type gate included) with AUTH_FORCE_MOCK=1 — the same mock-session
+#     path local dev uses, so every page renders as the authenticated
+#     operator without a Google session in CI
+#   · boot-gate env vars are presence-checked dummies (lib/env.ts
+#     asserts presence, not validity; nothing here can reach prod —
+#     DATABASE_URL points at the container)
+#   · tests/e2e/smoke.spec.ts runs against http://localhost:3001
+#
+# ADVISORY→BLOCKING: `continue-on-error` is false — this job BLOCKS.
+# (It was born blocking because the suite was route-repaired 2026-07-25
+# and runs against a hermetic build; if it flakes in practice, demote
+# deliberately with a dated comment, never silently.)
+
+name: e2e · statenour
+
+on:
+  pull_request:
+    paths:
+      - 'apps/statenour/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/e2e-statenour.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/statenour/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/e2e-statenour.yml'
+
+concurrency:
+  group: e2e-statenour-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+      # ── hermetic database (the service container below) ──
+      DATABASE_URL: postgresql://postgres:e2e_ci_pw@localhost:5432/statenour_e2e
+      DIRECT_URL: postgresql://postgres:e2e_ci_pw@localhost:5432/statenour_e2e
+      # ── boot-gate dummies · presence-only checks (lib/env.ts) ──
+      AUTH_SECRET: e2e-ci-dummy-auth-secret-0000000000000000
+      AUTH_GOOGLE_CLIENT_ID: e2e-ci-dummy.apps.googleusercontent.com
+      AUTH_GOOGLE_CLIENT_SECRET: e2e-ci-dummy-secret
+      AUTH_ALLOWED_EMAIL: e2e-ci@example.invalid
+      CRON_SECRET: e2e-ci-dummy-cron-secret
+      OLLAMA_API_KEY: e2e-ci-dummy-ollama-key
+      # ── the authenticated-session switch (same path as local dev) ──
+      AUTH_FORCE_MOCK: "1"
+      PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: e2e_ci_pw
+          POSTGRES_DB: statenour_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node 20 (matches Railway runtime)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable pgvector extension
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
+          PGPASSWORD=e2e_ci_pw psql -h localhost -U postgres -d statenour_e2e -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Materialize schema (prisma db push, empty DB)
+        working-directory: apps/statenour
+        run: pnpm exec prisma db push --skip-generate
+
+      - name: Build (deps + app · the type gate runs here)
+        run: pnpm exec turbo build --filter=@statenour/web
+
+      - name: Start production server
+        working-directory: apps/statenour
+        run: |
+          nohup pnpm exec next start -p 3001 > /tmp/next-start.log 2>&1 &
+          echo "waiting for heartbeat..."
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/system/heartbeat || true)
+            if [ "$code" = "200" ]; then echo "up after $((i*2))s"; exit 0; fi
+            sleep 2
+          done
+          echo "server never came up"; tail -50 /tmp/next-start.log; exit 1
+
+      - name: Install Playwright chromium
+        working-directory: apps/statenour
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run authenticated E2E smoke
+        working-directory: apps/statenour
+        env:
+          E2E_BASE_URL: http://localhost:3001
+          CI: "true"
+        run: pnpm exec playwright test
+
+      - name: Server log on failure
+        if: failure()
+        run: tail -100 /tmp/next-start.log || true
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/statenour/test-results/
+          retention-days: 7
