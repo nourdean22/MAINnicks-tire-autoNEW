@@ -14,6 +14,7 @@ import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 import { KNOWN_BRAIN_CATEGORIES } from "../lib/brain/categories";
 import { getObsidianEngineConfig, writeEngineStatus, readEngineStatus } from "../lib/obsidian/engine-config";
+import { dirHasIgnoreMarker } from "../lib/obsidian/ignore";
 import { ObsidianEngineStatus, EngineIssue, QuarantinedFileInfo } from "../lib/obsidian/types";
 
 const TOKEN_PATTERNS = [
@@ -253,6 +254,10 @@ function fixNoteFrontmatter(content: string): string | null {
 function getFilesRecursive(dir: string): string[] {
   let results: string[] = [];
   if (!fs.existsSync(dir)) return results;
+  // Self-declared non-inbox folders (`.statenour-ignore` marker) are exempt
+  // from validation AND from --fix's frontmatter rewriting — machine exports
+  // like the graphify digests must never be mutated by the doctor.
+  if (dirHasIgnoreMarker(dir)) return results;
 
   const list = fs.readdirSync(dir);
   for (const file of list) {

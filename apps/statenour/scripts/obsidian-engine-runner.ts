@@ -10,6 +10,7 @@ import {
   readEngineStatus,
   writeEngineStatus,
 } from "../lib/obsidian/engine-config";
+import { dirHasIgnoreMarker } from "../lib/obsidian/ignore";
 import type {
   ObsidianEngineStatus,
   ObsidianEngineStepResults,
@@ -242,6 +243,11 @@ function startWatcher(): void {
   for (const watchedPath of watchedPaths) {
     fs.watch(watchedPath, { recursive: true }, (_event, filename) => {
       if (!filename || /(?:\.obsidian|\.git|node_modules|Quarantine|Archive|\.tmp)/.test(filename) || filename.startsWith("~")) return;
+      // Events inside self-declared non-inbox folders (`.statenour-ignore`)
+      // must not trigger engine runs — a graphify sync writes 111 files in
+      // ~2s, and each run it triggered used to end in a quarantine sweep.
+      const topSegment = String(filename).split(/[\\/]/)[0];
+      if (topSegment && dirHasIgnoreMarker(path.join(watchedPath, topSegment))) return;
       trigger();
     });
   }
