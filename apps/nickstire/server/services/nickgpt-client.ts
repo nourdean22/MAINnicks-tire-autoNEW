@@ -60,6 +60,9 @@ interface DraftOpts {
   };
   /** Optional · the gist of the customer's most recent VAPI call, for continuity. */
   lastVapiSummary?: string | null;
+  /** Optional · constrained reply plan from the planner — when present, the
+   *  model's job narrows to phrasing the plan, not deciding shop facts. */
+  plan?: import("./smsReplyPlanner").SmsReplyPlan;
 }
 
 /**
@@ -329,6 +332,13 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
   // ROS-058: LIVE facts (DB override first, seed fallback, 5-min cache) — the
   // sync seed-only version meant operator fact edits never reached the prompt.
   systemPrompt = `${systemPrompt}${await buildWarrantyFactsPreambleLive()}`;
+
+  // Reply planner: when the orchestrator built a plan, it is the LAST and most
+  // binding block — approved facts, the one question, forbidden claims.
+  if (opts.plan) {
+    const { renderPlanPrompt } = await import("./smsReplyPlanner");
+    systemPrompt = `${systemPrompt}${renderPlanPrompt(opts.plan)}`;
+  }
 
   const enabled = await isNickGptEnabled();
   if (enabled) {

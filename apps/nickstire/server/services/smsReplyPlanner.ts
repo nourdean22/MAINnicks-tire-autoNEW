@@ -1,0 +1,384 @@
+/**
+ * SMS Reply Planner + Playbooks (ROS-058 arc, 2026-07-25).
+ *
+ * The separation this module enforces: the PLANNER decides WHAT may be said —
+ * which approved facts, which single question, which claims are forbidden —
+ * and NickGPT's job narrows to phrasing it naturally. The drafter no longer
+ * reasons from one big persona prompt about prices, inventory, timing or
+ * policy; it receives a constrained plan built from the Intent Router V2
+ * decision plus the customer's actual state.
+ *
+ * Three exports matter:
+ * - buildReplyPlan(decision, ctx, body)  — pure; merges playbooks multi-intent
+ * - renderPlanPrompt(plan)               — the compact block the drafter gets
+ * - planViolations(plan, draft)          — post-draft enforcement: a draft that
+ *   promises what its plan forbids (stock, holds, completion times, callbacks,
+ *   reserved appointments, drive-safe assurances, complaint outcomes) is
+ *   forced to operator review. These are the report's "unsupported promise"
+ *   invariants, made executable.
+ */
+import { BUSINESS } from "@shared/business";
+import type { SmsIntent, SmsIntentDecision } from "./smsIntentRouter";
+
+export interface PlannerContext {
+  customerFirstName: string | null;
+  customerVehicle: string | null;
+  activeBooking: { service: string; stage: string } | null;
+  activeEstimate: { serviceDescription: string | null; externalId: string } | null;
+  lastVapiSummary: string | null;
+}
+
+export type SmsReplyGoal =
+  | "answer"
+  | "collect_information"
+  | "acknowledge_and_handoff"
+  | "safety_triage";
+
+export interface ProhibitedClaim {
+  label: string;
+  re: RegExp;
+}
+
+export interface SmsReplyPlan {
+  intent: SmsIntent;
+  secondary: SmsIntent[];
+  goal: SmsReplyGoal;
+  /** Approved fact strings the reply may use — nothing outside them. */
+  knownFacts: string[];
+  /** What we know about THIS customer (never invented, only forwarded). */
+  customerFacts: string[];
+  missingInformation: string[];
+  /** At most ONE high-value question. */
+  requiredQuestion: string | null;
+  nextStep: string | null;
+  prohibited: ProhibitedClaim[];
+  maxChars: number;
+}
+
+const TIRE_SIZE_RE = /\b\d{3}\s*\/\s*\d{2}\s*(?:R|\/)\s*\d{2}\b/i;
+
+// ─── Shared prohibited-claim library (affirmative-claim shaped so honest
+//     "we'll check what's in stock" copy never trips them) ──────────────
+const CLAIM_STOCK: ProhibitedClaim = {
+  label: "inventory_claim",
+  re: /\b(we (have|got) (it|them|that size|your size|one)|yes,? (we have|it'?s) in stock|is in stock right now)\b/i,
+};
+const CLAIM_HOLD: ProhibitedClaim = {
+  label: "hold_promise",
+  re: /\b(we('?ll| will) (hold|save|set aside)|holding (it|one|the tire) for you)\b/i,
+};
+const CLAIM_COMPLETION: ProhibitedClaim = {
+  label: "completion_time_promise",
+  re: /\b(ready by|done by|finished by|be done (in|within) \d|within \d+ (minutes|hours)|takes? (about )?\d+ (minutes|hours) and (it'?s|you'?re) done)\b/i,
+};
+const CLAIM_CALLBACK: ProhibitedClaim = {
+  label: "callback_promise",
+  re: /\b(we('?ll| will) call you|expect a call|someone (will|is going to) call)\b/i,
+};
+const CLAIM_APPOINTMENT: ProhibitedClaim = {
+  label: "reserved_appointment_claim",
+  re: /\b(appointment (is )?(confirmed|booked|reserved)|reserved (a|your) (bay|slot|spot)|your slot is)\b/i,
+};
+const CLAIM_SAFE_TO_DRIVE: ProhibitedClaim = {
+  label: "drive_safe_assurance",
+  re: /\b(safe to (drive|keep driving)|fine to drive|you can keep driving)\b/i,
+};
+const CLAIM_REMOTE_DIAGNOSIS: ProhibitedClaim = {
+  label: "remote_diagnosis",
+  re: /\b(it'?s (definitely|just|only|probably just) (the|your) \w+|that means your \w+ (is|has) (bad|shot|dead|failed))\b/i,
+};
+const CLAIM_COMPLAINT_OUTCOME: ProhibitedClaim = {
+  label: "complaint_outcome_promise",
+  re: /\b(we('?ll| will) (refund|redo|replace it free|fix (it|that) (for )?free|take care of everything)|full refund)\b/i,
+};
+
+/** Prohibitions that apply to EVERY planned reply (FCFS honesty + safety). */
+const GLOBAL_PROHIBITED: ProhibitedClaim[] = [CLAIM_APPOINTMENT, CLAIM_SAFE_TO_DRIVE];
+
+const FCFS_FACT = "The shop is first come, first served — walk-ins welcome, no appointment needed, 7 days a week.";
+const SHOP_FACT = `${BUSINESS.address.full} · ${BUSINESS.phone.display}.`;
+
+interface SmsPlaybook {
+  goal: SmsReplyGoal;
+  knownFacts: (ctx: PlannerContext, body: string) => string[];
+  missingInformation: (ctx: PlannerContext, body: string) => string[];
+  requiredQuestion: (ctx: PlannerContext, body: string) => string | null;
+  nextStep: string | null;
+  prohibited: ProhibitedClaim[];
+  maxChars: number;
+}
+
+const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
+  tire_inventory: {
+    goal: "collect_information",
+    knownFacts: (_ctx, body) => {
+      const size = body.match(TIRE_SIZE_RE)?.[0] ?? null;
+      const facts = [
+        `Used tires start ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}); ${BUSINESS.usedTires.typicalBand}.`,
+        "There is NO live inventory feed — stock is confirmed by a physical rack check at the shop.",
+      ];
+      if (size) facts.push(`The customer already provided the tire size: ${size}.`);
+      return facts;
+    },
+    missingInformation: (_ctx, body) => (TIRE_SIZE_RE.test(body) ? [] : ["tire size from the sidewall"]),
+    requiredQuestion: (_ctx, body) =>
+      TIRE_SIZE_RE.test(body)
+        ? null
+        : "Ask for the tire size printed on the sidewall (like 225/50R17) — a clear photo works too.",
+    nextStep: "The crew checks the rack for that size when the customer comes in or once the size is known.",
+    prohibited: [CLAIM_STOCK, CLAIM_HOLD],
+    maxChars: 300,
+  },
+
+  job_status: {
+    goal: "answer",
+    knownFacts: (ctx) =>
+      ctx.activeBooking
+        ? [`The customer's job is currently marked: "${ctx.activeBooking.stage}" for "${ctx.activeBooking.service}". That stage is the ONLY verified status.`]
+        : ["No verified job status is available — do not guess; say the shop will check and follow up."],
+    missingInformation: (ctx) => (ctx.activeBooking ? [] : ["verified job status from the shop floor"]),
+    requiredQuestion: () => null,
+    nextStep: "The shop updates the customer when the next status is recorded.",
+    prohibited: [CLAIM_COMPLETION, CLAIM_CALLBACK],
+    maxChars: 300,
+  },
+
+  estimate_question: {
+    goal: "answer",
+    knownFacts: (ctx) =>
+      ctx.activeEstimate
+        ? [`The customer has a written estimate #${ctx.activeEstimate.externalId} for: ${ctx.activeEstimate.serviceDescription ?? "service"}. Explain only — never change, approve, or re-price it from a text.`]
+        : [],
+    missingInformation: () => [],
+    requiredQuestion: () => "Ask which part of the estimate they want explained.",
+    nextStep: null,
+    prohibited: [CLAIM_COMPLETION],
+    maxChars: 320,
+  },
+
+  dashboard_light: {
+    goal: "answer",
+    knownFacts: () => [
+      "A dashboard light can mean several different things — only an in-person check can say which.",
+      "The shop does a free quick check first and gives the price in writing before any work.",
+    ],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Bring the car by for the free check.",
+    prohibited: [CLAIM_REMOTE_DIAGNOSIS],
+    maxChars: 300,
+  },
+
+  complaint_or_comeback: {
+    goal: "acknowledge_and_handoff",
+    knownFacts: () => [
+      "Acknowledge plainly, do not argue, do not admit fault, do not promise outcomes.",
+      "The conversation is being routed to the shop for a person to review.",
+    ],
+    missingInformation: () => [],
+    requiredQuestion: (_ctx, body) =>
+      /\bstill\b/i.test(body) ? "Ask what changed and when it started — one question only." : null,
+    nextStep: "A person at the shop reviews this conversation and the job.",
+    prohibited: [CLAIM_COMPLAINT_OUTCOME, CLAIM_CALLBACK, CLAIM_COMPLETION],
+    maxChars: 280,
+  },
+
+  safety_urgent: {
+    goal: "safety_triage",
+    knownFacts: () => [
+      "If the vehicle is overheating, smoking, or unsafe: stop driving, let it cool, arrange a tow.",
+      SHOP_FACT,
+    ],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Arrange a tow; the shop will be told it is coming.",
+    prohibited: [CLAIM_COMPLETION, CLAIM_CALLBACK],
+    maxChars: 300,
+  },
+
+  financing: {
+    goal: "answer",
+    knownFacts: () => [
+      "Financing is available through Acima, Snap and Koalafi — no credit check, $10 down, subject to the provider's approval and terms.",
+      "The shop can help the customer apply and explain options before they agree.",
+    ],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Come by and the shop helps with the application.",
+    prohibited: [],
+    maxChars: 300,
+  },
+
+  cancellation_policy_question: {
+    goal: "answer",
+    knownFacts: () => [
+      "There is no appointment system to cancel against — the shop is first come, first served, so nothing is reserved and nothing is charged for not showing up.",
+      "If they had told us they were coming, a quick text either way is appreciated but never required.",
+    ],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: null,
+    prohibited: [],
+    maxChars: 280,
+  },
+
+  human_requested: {
+    goal: "acknowledge_and_handoff",
+    knownFacts: () => [
+      "Confirm a person at the shop will see this conversation.",
+      `During business hours they can also call ${BUSINESS.phone.display}.`,
+    ],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "The conversation is routed to the shop for a person.",
+    prohibited: [CLAIM_CALLBACK],
+    maxChars: 240,
+  },
+
+  // Deterministic-tier intents still get playbooks: a MULTI-intent message
+  // ("225/50R17 and can I come today?") arrives at the drafter carrying them
+  // as secondary, and their approved facts must travel with the plan.
+  hours_location: {
+    goal: "answer",
+    knownFacts: () => [`Open Mon-Sat 8-6, Sun 9-4. ${SHOP_FACT}`, FCFS_FACT],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: null,
+    prohibited: [],
+    maxChars: 300,
+  },
+  same_day_visit: {
+    goal: "answer",
+    knownFacts: () => [FCFS_FACT, "Earlier is better; a drop-off helps the shop work it in faster."],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Come by whenever ready — first come, first served.",
+    prohibited: [CLAIM_COMPLETION],
+    maxChars: 300,
+  },
+  drop_off: {
+    goal: "answer",
+    knownFacts: () => ["Drop-off is fine: bring the keys inside and tell the desk what the car is doing. The shop inspects and gets approval before any paid work."],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: null,
+    prohibited: [CLAIM_COMPLETION],
+    maxChars: 300,
+  },
+  price_oil: {
+    goal: "answer",
+    knownFacts: () => [`Oil change: ${BUSINESS.oilChange.conventionalPrice} conventional / ${BUSINESS.oilChange.syntheticPrice} full synthetic. Walk in any day.`],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: null,
+    prohibited: [],
+    maxChars: 280,
+  },
+  price_tires: {
+    goal: "answer",
+    knownFacts: () => [`Used tires start ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}); ${BUSINESS.usedTires.typicalBand}.`],
+    missingInformation: (_ctx, body) => (TIRE_SIZE_RE.test(body) ? [] : ["tire size"]),
+    requiredQuestion: (_ctx, body) => (TIRE_SIZE_RE.test(body) ? null : "Ask for the tire size so the crew can check options."),
+    nextStep: null,
+    prohibited: [CLAIM_STOCK, CLAIM_HOLD],
+    maxChars: 300,
+  },
+  price_brakes: {
+    goal: "answer",
+    knownFacts: () => ["Brake pricing depends on what is worn — free check first, price in writing before any work. Never quote a brake dollar amount."],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Bring it in for the free check.",
+    prohibited: [CLAIM_COMPLETION],
+    maxChars: 300,
+  },
+  price_alignment: {
+    goal: "answer",
+    knownFacts: () => ["Alignment starts with an inspection of steering, suspension and tire wear — price in writing before any work. Never quote an alignment dollar amount."],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Bring it in for the inspection.",
+    prohibited: [],
+    maxChars: 300,
+  },
+  diagnostic: {
+    goal: "answer",
+    knownFacts: () => ["Diagnostics start with a free check — the shop scans it, looks it over, and gives the price in writing before doing anything."],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Bring the car (and any failed E-Check paperwork) by.",
+    prohibited: [CLAIM_REMOTE_DIAGNOSIS],
+    maxChars: 300,
+  },
+
+  general: {
+    goal: "collect_information",
+    knownFacts: () => [FCFS_FACT],
+    missingInformation: () => ["what the customer actually needs"],
+    requiredQuestion: () => "Ask ONE clarifying question: are they asking about price, whether we do the service, or when to come in?",
+    nextStep: null,
+    prohibited: [],
+    maxChars: 280,
+  },
+};
+
+function customerFactsFor(ctx: PlannerContext): string[] {
+  const facts: string[] = [];
+  if (ctx.customerFirstName) facts.push(`Customer first name: ${ctx.customerFirstName}.`);
+  if (ctx.customerVehicle) facts.push(`Customer vehicle: ${ctx.customerVehicle}.`);
+  if (ctx.activeBooking) facts.push(`Active visit: "${ctx.activeBooking.service}" currently "${ctx.activeBooking.stage}".`);
+  if (ctx.activeEstimate) facts.push(`Open written estimate #${ctx.activeEstimate.externalId}: ${ctx.activeEstimate.serviceDescription ?? "service"}.`);
+  if (ctx.lastVapiSummary) facts.push(`Last phone call gist: ${ctx.lastVapiSummary}`);
+  return facts;
+}
+
+/**
+ * Build the constrained plan for a routed message. Multi-intent merges the
+ * playbooks: facts and prohibitions UNION, the single question comes from the
+ * primary (or the first secondary that has one), the tightest length wins.
+ */
+export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext, body: string): SmsReplyPlan {
+  const intents = [decision.primary, ...decision.secondary];
+  const books = intents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
+  const primaryBook = PLAYBOOKS[decision.primary] ?? PLAYBOOKS.general!;
+
+  const knownFacts = [...new Set(books.flatMap((b) => b.knownFacts(ctx, body)))];
+  const missingInformation = [...new Set(books.flatMap((b) => b.missingInformation(ctx, body)))];
+  const requiredQuestion =
+    books.map((b) => b.requiredQuestion(ctx, body)).find((q): q is string => Boolean(q)) ?? null;
+  const prohibitedMap = new Map<string, ProhibitedClaim>();
+  for (const c of [...GLOBAL_PROHIBITED, ...books.flatMap((b) => b.prohibited)]) prohibitedMap.set(c.label, c);
+  const maxChars = Math.min(...books.map((b) => b.maxChars), 320);
+
+  return {
+    intent: decision.primary,
+    secondary: decision.secondary,
+    goal: primaryBook.goal,
+    knownFacts,
+    customerFacts: customerFactsFor(ctx),
+    missingInformation,
+    requiredQuestion,
+    nextStep: primaryBook.nextStep,
+    prohibited: [...prohibitedMap.values()],
+    maxChars,
+  };
+}
+
+/** The compact block appended to the drafter's system prompt. */
+export function renderPlanPrompt(plan: SmsReplyPlan): string {
+  const lines = [
+    `GOAL: ${plan.goal.replaceAll("_", " ")}.`,
+    plan.knownFacts.length ? `USE ONLY THESE FACTS: ${plan.knownFacts.join(" ")}` : null,
+    plan.customerFacts.length ? `CUSTOMER: ${plan.customerFacts.join(" ")}` : null,
+    plan.requiredQuestion ? `ASK EXACTLY ONE QUESTION: ${plan.requiredQuestion}` : "Do not ask a question unless essential.",
+    plan.nextStep ? `NEXT STEP TO OFFER: ${plan.nextStep}` : null,
+    plan.prohibited.length ? `NEVER: ${plan.prohibited.map((p) => p.label.replaceAll("_", " ")).join("; ")}.` : null,
+    `Keep it under ${plan.maxChars} characters. Address every part of the customer's message.`,
+  ].filter(Boolean);
+  return `\n\n[REPLY PLAN — follow exactly. ${lines.join(" ")}]`;
+}
+
+/** Post-draft enforcement: which of the plan's prohibitions the draft violates. */
+export function planViolations(plan: SmsReplyPlan, draft: string): string[] {
+  return plan.prohibited.filter((p) => p.re.test(draft)).map((p) => p.label);
+}
