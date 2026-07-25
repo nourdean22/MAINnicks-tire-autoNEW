@@ -285,6 +285,36 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(res.body).toMatch(/check|inspect/i);
   });
 
+  // Router V2: "what time will my car be done" must NOT get the hours template
+  it("What time will my car be done -> job status route, never store hours", async () => {
+    mockTableResponses.bookings = [{ id: 303, phone: "2165550012", service: "Brakes", status: "confirmed" }];
+
+    const res = await orchestrateSms({
+      type: "inbound_sms",
+      phone: "2165550012",
+      body: "what time will my car be done?",
+      conversationId: 101,
+    });
+
+    expect(res.body).not.toContain("17625 Euclid");
+    expect(res.body).not.toMatch(/Mon-Sat 8-6/);
+  });
+
+  // Router V2: a cancellation POLICY question must not cancel the visit
+  it("What is your cancellation policy -> question, booking survives", async () => {
+    mockTableResponses.bookings = [{ id: 304, phone: "2165550013", service: "Tires", status: "confirmed" }];
+
+    const res = await orchestrateSms({
+      type: "inbound_sms",
+      phone: "2165550013",
+      body: "what is your cancellation policy?",
+      conversationId: 101,
+    });
+
+    expect(res.reason).not.toBe("booking_cancelled_automatically");
+    expect(res.statusReason).not.toBe("booking_cancelled_via_keyword");
+  });
+
   // 7. Failed E-Check -> free check
   it("Failed E-Check -> free check / bring it by", async () => {
     const res = await orchestrateSms({
