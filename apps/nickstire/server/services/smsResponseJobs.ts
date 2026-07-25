@@ -71,23 +71,35 @@ export function responseIdempotencyKey(input: EnqueueInput): string {
   return `resp:conv:${input.conversationId}:${h}`.slice(0, 191);
 }
 
+/** How long a human-pending obligation may wait before it counts as overdue. */
+export const HUMAN_SLA_MS = 30 * 60_000;
+
 /**
- * Map a completed orchestration result to a terminal job status. A returned
- * result (no throw) is ALWAYS terminal — the AI decided; we never re-orchestrate
- * a decision, only a crash.
+ * Map a completed orchestration result to the job's next status. A returned
+ * result (no throw) is never re-orchestrated — the AI decided. But "decided"
+ * no longer always means "done":
+ *
+ *   responded     — a reply was dispatched; the customer got an answer
+ *   human_pending — a DRAFT awaits an operator (ROS-058: this used to collapse
+ *                   to terminal 'suppressed', which proved the AI chose not to
+ *                   send but NOT that any human ever answered; dashboards read
+ *                   "handled" over waiting customers). dueAt becomes the SLA.
+ *   suppressed    — genuinely no reply owed (opt-out block, rollout off)
+ *   failed        — a decision was made but dispatch failed
  */
-export function terminalStatusFor(result: {
+export function jobStatusFor(result: {
   status: string;
   shouldAutoSend?: boolean;
   requiresHumanApproval?: boolean;
-}): "responded" | "suppressed" | "failed" {
+}): "responded" | "suppressed" | "failed" | "human_pending" {
   if (result.status === "failed") return "failed";
   if (["sent", "queued", "delivered", "sending", "replied"].includes(result.status)) return "responded";
-  // skipped / blocked / expired / cancelled / drafted-for-human, or an explicit
-  // no-auto-send / human-approval decision: the AI chose not to send. The
-  // obligation is discharged to a human via the draft/orchestration record.
+  if (result.status === "drafted" || result.requiresHumanApproval === true) return "human_pending";
   return "suppressed";
 }
+
+/** @deprecated renamed jobStatusFor when human_pending stopped being 'suppressed'. */
+export const terminalStatusFor = jobStatusFor;
 
 // ─── Enqueue ──────────────────────────────────────────────────────────────
 
@@ -167,7 +179,7 @@ export async function claimDueResponseJobs(limit = 20): Promise<ResponseJob[]> {
 
 async function setJobStatus(
   jobId: number,
-  status: "responded" | "suppressed" | "failed" | "dead" | "pending",
+  status: "responded" | "suppressed" | "failed" | "dead" | "pending" | "human_pending",
   opts: { orchestrationId?: number; lastError?: string; dueAt?: Date } = {},
 ): Promise<void> {
   const { getDb } = await import("../db");
@@ -204,8 +216,17 @@ export async function runResponseJob(job: ResponseJob): Promise<void> {
       body: job.body,
       conversationId: job.conversationId,
     });
-    const terminal = terminalStatusFor(result);
-    await setJobStatus(job.id, terminal, { orchestrationId: result.id });
+    const next = jobStatusFor(result);
+    if (next === "human_pending") {
+      // The obligation transfers to a HUMAN with a deadline — dueAt becomes
+      // the SLA anchor the summary counts overdue against. The claim guards
+      // only touch pending/processing, so a human_pending job is never
+      // re-orchestrated; it closes via an operator action (manual reply,
+      // approved draft send, or an explicit no-reply-needed).
+      await setJobStatus(job.id, "human_pending", { orchestrationId: result.id, dueAt: new Date(Date.now() + HUMAN_SLA_MS) });
+    } else {
+      await setJobStatus(job.id, next, { orchestrationId: result.id });
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (job.attempts >= MAX_ATTEMPTS) {
@@ -270,6 +291,64 @@ async function claimJobById(jobId: number): Promise<ResponseJob | null> {
     FROM sms_response_jobs WHERE id = ${jobId} LIMIT 1
   `);
   return (rows as Array<ResponseJob>)[0] ?? null;
+}
+
+// ─── Human-pending resolution (ROS-058) ────────────────────────────────────
+
+/**
+ * Close open human_pending obligations for a conversation. Called by the
+ * operator paths that PROVE a human acted: the manual/approved-draft send
+ * (→ human_replied) and the explicit no-reply-needed action
+ * (→ no_reply_required). Returns how many obligations closed.
+ */
+export async function resolveHumanPendingForConversation(
+  conversationId: number,
+  resolution: "human_replied" | "no_reply_required",
+): Promise<number> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return 0;
+  const res = await db.execute(sql`
+    UPDATE sms_response_jobs
+    SET status = ${resolution}
+    WHERE conversationId = ${conversationId} AND status = 'human_pending'
+  `);
+  const closed = affectedRowCount(res);
+  if (closed > 0) log.info("human-pending obligations resolved", { conversationId, resolution, closed });
+  return closed;
+}
+
+export interface HumanPendingSummary {
+  humanPending: number;
+  overdue: number;
+  oldestWaitingMinutes: number | null;
+}
+
+/**
+ * The Needs-Reply truth for the admin: how many customers are waiting on a
+ * human, how many have blown the SLA (dueAt in the past), and how long the
+ * oldest has been waiting. Throws on DB unavailability — the caller must
+ * render UNKNOWN, never zero (the admin-truth rule).
+ */
+export async function humanPendingSummary(): Promise<HumanPendingSummary> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) throw new Error("database unavailable — human-pending count is UNKNOWN, not zero");
+  const [rows] = await db.execute(sql`
+    SELECT COUNT(*) AS humanPending,
+           COALESCE(SUM(CASE WHEN dueAt < NOW() THEN 1 ELSE 0 END), 0) AS overdue,
+           TIMESTAMPDIFF(MINUTE, MIN(createdAt), NOW()) AS oldestWaitingMinutes
+    FROM sms_response_jobs
+    WHERE status = 'human_pending'
+  `);
+  const row = (rows as Array<{ humanPending: number | string; overdue: number | string; oldestWaitingMinutes: number | string | null }>)[0];
+  return {
+    humanPending: Number(row?.humanPending ?? 0),
+    overdue: Number(row?.overdue ?? 0),
+    oldestWaitingMinutes: row?.oldestWaitingMinutes == null ? null : Number(row.oldestWaitingMinutes),
+  };
 }
 
 // ─── Safety-net processor (boot rehydrate + interval sweep) ────────────────

@@ -87,6 +87,14 @@ export default function SmsOrchestratorSection() {
 
   // Human Review Inbox queries
   const { data: humanReviewQueue, refetch: refetchReviewQueue } = trpc.smsOrchestrator.getHumanReviewQueue.useQuery();
+
+  // ROS-058 human_pending: customers durably waiting on a HUMAN. The server
+  // THROWS when it cannot count, so isError here means UNKNOWN — rendered as
+  // such, never as zero/quiet (the admin-truth rule).
+  const { data: needsReply, isError: needsReplyError } = trpc.smsConversations.humanPendingSummary.useQuery(undefined, {
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
   const actionHumanReviewMutation = trpc.smsOrchestrator.actionHumanReview.useMutation({
     onSuccess: () => {
       refetchReviewQueue();
@@ -156,6 +164,20 @@ export default function SmsOrchestratorSection() {
 
   return (
     <div className="space-y-6">
+      {/* ROS-058 Needs Reply truth strip: waiting customers are VISIBLE — a
+          held draft can never again read as "all handled". Unknown ≠ zero. */}
+      {needsReplyError ? (
+        <div className="rounded border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+          NEEDS-REPLY COUNT UNKNOWN — the human-pending query failed. Customers may be waiting; check the review queue directly.
+        </div>
+      ) : needsReply && needsReply.humanPending > 0 ? (
+        <div className={`rounded border px-3 py-2 text-xs ${needsReply.overdue > 0 ? "border-red-500/40 bg-red-500/5 text-red-400" : "border-amber-500/40 bg-amber-500/5 text-amber-400"}`}>
+          <strong>{needsReply.humanPending}</strong> customer{needsReply.humanPending === 1 ? "" : "s"} waiting on a human reply
+          {needsReply.overdue > 0 && <> · <strong>{needsReply.overdue}</strong> past the 30-min SLA</>}
+          {needsReply.oldestWaitingMinutes != null && <> · oldest waiting {needsReply.oldestWaitingMinutes}m</>}
+          {" — "}answer from the review queue below or the conversation thread.
+        </div>
+      ) : null}
       <div className="flex items-start justify-between gap-4">
         <PageHeader
           title="SMS Operating System"

@@ -117,6 +117,16 @@ export const smsConversationsRouter = router({
           actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
         }).catch(() => { /* audit must never break the send */ });
 
+        // ROS-058 human_pending: an operator reply is the PROOF a human
+        // answered — close the open obligations for this conversation. This
+        // covers both free-form replies and approved-draft sends (both exit
+        // through here). Never blocks the send.
+        if (result.success) {
+          const { resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");
+          resolveHumanPendingForConversation(conversation.id, "human_replied")
+            .catch(() => { /* resolution miss must never break the send */ });
+        }
+
         return { success: result.success, conversationId: conversation.id };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
@@ -244,6 +254,31 @@ export const smsConversationsRouter = router({
         provider: draftResult.source,
         latencyMs: draftResult.latencyMs,
       };
+    }),
+
+  /** ROS-058: Needs-Reply truth — human-pending obligations + SLA. Throws on
+   *  DB unavailability so the client renders UNKNOWN, never zero. */
+  humanPendingSummary: adminProcedure.query(async () => {
+    const { humanPendingSummary } = await import("../services/smsResponseJobs");
+    return humanPendingSummary();
+  }),
+
+  /** ROS-058: an operator explicitly closes a waiting conversation as needing
+   *  no reply — the ONLY way an obligation ends without a human answer. */
+  markNoReplyNeeded: adminProcedure
+    .input(z.object({ conversationId: z.number().int() }))
+    .mutation(async ({ input, ctx }) => {
+      const { resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");
+      const closed = await resolveHumanPendingForConversation(input.conversationId, "no_reply_required");
+      logAdminAction({
+        action: "customer.sms_manual_send",
+        entityType: "sms_conversation",
+        entityId: input.conversationId,
+        details: `Marked no-reply-needed (${closed} obligation${closed === 1 ? "" : "s"} closed)`,
+        newValue: "no_reply_required",
+        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+      }).catch(() => { /* audit must never block */ });
+      return { closed };
     }),
 
   /** Save operator feedback/rating on a draft (admin) */

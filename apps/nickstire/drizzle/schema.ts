@@ -3657,7 +3657,7 @@ export const smsResponseJobs = mysqlTable("sms_response_jobs", {
   /** Deterministic dedup key so a provider redelivery maps to ONE job. */
   idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
   body: text("body").notNull(),
-  status: mysqlEnum("status", ["pending", "processing", "responded", "suppressed", "failed", "dead"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "responded", "suppressed", "failed", "dead", "human_pending", "human_replied", "no_reply_required"]).default("pending").notNull(),
   attempts: int("attempts").default(0).notNull(),
   maxAttempts: int("maxAttempts").default(5).notNull(),
   /** SLA / backoff anchor — the sweep only claims rows whose dueAt has passed. */
