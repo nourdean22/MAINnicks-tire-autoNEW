@@ -390,12 +390,71 @@ async function processDelayedQueue(): Promise<void> {
   }
 }
 
+/**
+ * Stale-'sending' recovery (ROS-058 close-out, 2026-07-25).
+ *
+ * The rehydrate path claims queued→sending, then the send happens from the
+ * in-memory queue. A crash AFTER the claim strands the row in 'sending' —
+ * the state #962's own comment called "a dead 'sending' state that nothing
+ * can recover". #962 released the 136-row backlog but never added the
+ * recovery mechanism; this is it.
+ *
+ * Invariant: the in-memory queue dies with the process, so any 'sending' row
+ * older than a short overlap-lease is a crash orphan. Two honest outcomes:
+ *   > 48h old  → 'failed' (visible, never zombie-sent — the 4-of-136 lesson:
+ *                a days-old "sorry we missed you" must not suddenly arrive)
+ *   > 10m old  → 'queued' (the normal rehydrate/timer machinery re-sends)
+ * The 10-minute lease covers deploy-overlap: a genuinely in-flight send from
+ * an outgoing instance resolves in seconds, never minutes.
+ * Runs at boot AND throttled inside the delayed-queue timer, so an orphan
+ * created mid-run is recovered without waiting for another restart.
+ */
+let lastStaleRecoveryAt = 0;
+const STALE_RECOVERY_THROTTLE_MS = 5 * 60_000;
+
+export async function recoverStaleSendingRows(): Promise<{ requeued: number; failedAncient: number }> {
+  const out = { requeued: 0, failedAncient: 0 };
+  try {
+    const { getDb } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return out;
+
+    const ancient = await db.execute(sql`
+      UPDATE sms_messages SET status = 'failed'
+      WHERE status = 'sending' AND direction = 'outbound'
+        AND createdAt < DATE_SUB(NOW(), INTERVAL 48 HOUR)
+    `);
+    out.failedAncient = affectedRowCount(ancient);
+
+    const stale = await db.execute(sql`
+      UPDATE sms_messages SET status = 'queued'
+      WHERE status = 'sending' AND direction = 'outbound'
+        AND createdAt < DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+    `);
+    out.requeued = affectedRowCount(stale);
+
+    // Transitions-only logging (ROS-021): silence when there was nothing.
+    if (out.requeued > 0 || out.failedAncient > 0) {
+      log.info("stale-'sending' recovery", out);
+    }
+  } catch (err) {
+    log.warn("stale-'sending' recovery failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+  return out;
+}
+
 export function startDelayedQueueProcessor(): void {
   if (delayedTimer) return;
 
   // Rehydrate pending messages from DB that survived a restart
   (async () => {
     try {
+      // Recover crash-orphaned 'sending' rows FIRST (awaited), so anything
+      // flipped back to 'queued' is picked up by the SELECT just below in
+      // the same boot pass instead of waiting for the next restart.
+      await recoverStaleSendingRows();
+      lastStaleRecoveryAt = Date.now();
       const { getDb } = await import("./db");
       const { smsMessages, smsConversations } = await import("../drizzle/schema");
       const { eq, and } = await import("drizzle-orm");
@@ -470,6 +529,13 @@ export function startDelayedQueueProcessor(): void {
         error: err instanceof Error ? err.message : String(err),
       });
     });
+    // Throttled stale-'sending' recovery: an orphan created mid-run (worker
+    // died between claim and send) is recovered within ~15 minutes instead
+    // of waiting for the next restart.
+    if (Date.now() - lastStaleRecoveryAt > STALE_RECOVERY_THROTTLE_MS) {
+      lastStaleRecoveryAt = Date.now();
+      void recoverStaleSendingRows();
+    }
   }, 60_000); // Check every minute
   log.info("SMS delayed queue processor started");
 }
