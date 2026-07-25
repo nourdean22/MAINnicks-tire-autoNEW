@@ -131,3 +131,25 @@ describe("the live prompt consumes DB fact overrides", () => {
     expect(s).toMatch(/await buildWarrantyFactsPreambleLive\(\)/);
   });
 });
+
+describe("training context is captured at draft time and copied through (0098)", () => {
+  it("the draft insert persists the full decision context (turns, router, plan)", () => {
+    const s = read("server/services/smsOrchestrator.ts");
+    expect(s).toMatch(/contextJson: JSON\.stringify\(\{/);
+    expect(s).toMatch(/conversationTurns: conversationContext/);
+    expect(s).toMatch(/router: \{ primary: routerDecision\.primary/);
+    expect(s).toMatch(/goal: replyPlan\.goal/);
+  });
+
+  it("the learning engine copies the draft's real context, with an honest pre-0098 fallback", () => {
+    const s = read("server/services/smsLearningEngine.ts");
+    expect(s).toMatch(/draft\.contextJson \?\? JSON\.stringify/);
+    expect(s).toMatch(/pre-0098 draft/);
+  });
+
+  it("migration 0098 exists, is journaled, and the schema carries the column", () => {
+    expect(read("drizzle/0098_nickgpt_drafts_context.sql")).toMatch(/ADD COLUMN context_json TEXT NULL/);
+    expect(read("drizzle/meta/_journal.json")).toContain("0098_nickgpt_drafts_context");
+    expect(read("drizzle/schema.ts")).toMatch(/contextJson: text\("context_json"\)/);
+  });
+});

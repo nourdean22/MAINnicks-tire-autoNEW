@@ -128,16 +128,18 @@ export async function trackDraftFeedback(draftId: number, status: string, operat
     await db.insert(nickgptTrainingExamples).values({
       customerPhone: draft.customerPhone,
       inboundMessage: draft.inboundMessage,
-      // ROS-058: was JSON.stringify({}) — every training example taught
-      // "customer text -> operator reply" with the decision context amputated.
-      // Store everything the draft row actually knows; full conversation-state
-      // capture needs a schema column (registered follow-up).
-      conversationContextJson: JSON.stringify({
+      // ROS-058 close-out: the draft row now persists the FULL decision
+      // context captured at draft time (conversation turns, customer facts,
+      // router decision, reply plan — see contextJson in smsOrchestrator).
+      // Copy it through verbatim; fall back to the draft's own fields for
+      // rows created before migration 0098.
+      conversationContextJson: draft.contextJson ?? JSON.stringify({
         intent: draft.intent ?? "general",
         confidence: draft.confidence ?? null,
         provider: draft.provider ?? null,
         autoSent: draft.autoSent ?? false,
         draftCreatedAt: draft.createdAt ?? null,
+        note: "pre-0098 draft — full context not captured",
       }),
       nickgptDraft: draft.draftReply,
       operatorFinalReply: finalReply,

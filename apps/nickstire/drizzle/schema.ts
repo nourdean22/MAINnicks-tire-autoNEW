@@ -3551,6 +3551,10 @@ export const nickgptDrafts = mysqlTable("nickgpt_drafts", {
   rating: mysqlEnum("rating", ["good", "bad"]),
   status: mysqlEnum("status", ["draft", "approved", "edited", "rejected"]).default("draft").notNull(),
   autoSent: boolean("auto_sent").default(false).notNull(),
+  /** ROS-058: the decision context the drafter ACTUALLY used (conversation
+   *  turns, customer facts, router decision, reply plan, provider) — copied
+   *  into training examples so a fine-tune learns why, not just what. */
+  contextJson: text("context_json"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
