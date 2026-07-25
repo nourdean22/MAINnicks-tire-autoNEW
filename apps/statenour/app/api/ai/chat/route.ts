@@ -5,7 +5,9 @@ import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/
 // into ./derive-turn-signals.ts with the derivation stack, 2026-07-25)
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
-import { detectChatMode, pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
+// (chat-mode imports moved into ./derive-turn-signals.ts +
+// ./prepare-tools.ts, 2026-07-25. detectChatMode itself had been an
+// unused import here since the three-layer mode priority landed.)
 import { prefetchIntents, formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import { compressConversation } from "@/lib/ai/conversation-compress";
 import {
@@ -15,7 +17,7 @@ import {
 } from "@/lib/ai/tool-embeddings";
 import { prisma } from "@/lib/prisma";
 // (ACTION_CATALOG import moved into ./augment-final-prompt.ts, 2026-07-25)
-import { nourTools } from "@/lib/ai/tools";
+// (nourTools import moved into ./prepare-tools.ts, 2026-07-25)
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { recordError } from "@/lib/errors/record-error";
@@ -27,7 +29,8 @@ import { checkAiRateLimit } from "@/lib/rate-limit";
 import { logger as rootLogger } from "@/lib/logger";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
-import { getFlag, loadFeatureFlagOverrides } from "@/lib/feature-flags";
+// (getFlag moved into ./alternate-paths.ts with the flag-gated block, 2026-07-25)
+import { loadFeatureFlagOverrides } from "@/lib/feature-flags";
 // hooks-lib REST→tRPC slice (2026-05-22) · the conversation-list read ·
 // also called by the new `chat.list` tRPC procedure · drift impossible.
 import { listConversations } from "@/lib/services/chat-conversation-read";
@@ -699,116 +702,23 @@ async function chatPostInner(req: Request) {
   // Venice params (web search, scraping, no safety prompt, think strip) are injected
   // via custom fetch wrapper in provider.ts — NOT providerOptions (AI SDK ignores custom fields).
 
-  // ═══ PERF: Prune tools by mode ═══
-  // Quick mode → zero tools. Standard → ~15-30 relevant. Deep → all 159.
-  // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
-  // messages without removing any capability from data-heavy queries.
-  // 2026-07-15 · conversation-aware pruning. The pruner keyed ONLY on
-  // the current message, so follow-up turns ("try again", "?", "u
-  // sure?") lost the tool families the CONVERSATION needed — telemetry
-  // showed the model calling arsenalWebSearch and getting "unavailable
-  // tool · Available tools: <core-only list>" on exactly such turns,
-  // then honestly telling the operator "web search still unavailable".
-  // Feed the last few user messages as a matching tail so families
-  // persist across the follow-ups that reference them.
-  const __conversationTail = messages
-    .filter((m) => m.role === "user")
-    .slice(-4, -1)
-    .map((m) =>
-      (m.parts ?? [])
-        .filter((p) => p?.type === "text" && typeof p.text === "string")
-        .map((p) => p.text)
-        .join(" "),
-    )
-    .filter(Boolean)
-    .join("\n")
-    .slice(-1500);
-
-  let prunedTools = (await pruneTools(
+  // chat-route decomposition (2026-07-25) · the tool-pruning + token-
+  // budget block (conversation-tail assembly, pruneTools, disabledTools
+  // blocklist, alwaysOnTools, action-intent + web-search coherence
+  // forcing, maxOutputTokens derivation) moved VERBATIM to
+  // ./prepare-tools.ts — same order, same blocklist precedence.
+  const { prepareTools } = await import("./prepare-tools");
+  const { prunedTools, maxOutputTokens } = await prepareTools({
     mode,
-    nourTools as unknown as Record<string, unknown>,
+    messages: messages as unknown as Parameters<typeof prepareTools>[0]["messages"],
     userContent,
     userEmbedding,
-    { conversationTail: __conversationTail }
-  )) as typeof nourTools;
-
-  // Apply the AI config's tool blocklist (#13). Tools in
-  // ai_config.disabledTools are NEVER loaded regardless of mode —
-  // used for disabling broken or unused tools without editing
-  // nourTools.
-  if (aiConfig?.disabledTools && aiConfig.disabledTools.length > 0) {
-    const filtered = { ...prunedTools } as Record<string, unknown>;
-    for (const blocked of aiConfig.disabledTools) {
-      delete filtered[blocked];
-    }
-    prunedTools = filtered as unknown as typeof nourTools;
-  }
-  // Force the always-on tools to be included even when pruning would
-  // have dropped them (quick mode, for example).
-  if (aiConfig?.alwaysOnTools && aiConfig.alwaysOnTools.length > 0) {
-    const forced = { ...prunedTools } as Record<string, unknown>;
-    const all = nourTools as unknown as Record<string, unknown>;
-    for (const name of aiConfig.alwaysOnTools) {
-      if (all[name] && !forced[name]) forced[name] = all[name];
-    }
-    prunedTools = forced as unknown as typeof nourTools;
-  }
-  // 2026-07-06 bug fix · force the ACTION-INTENT's expected tool into the
-  // pruned set. pruneTools attaches read-only CORE_TOOLS + keyword/semantic
-  // families, but a keyword-less action turn ("add it", "do it") with a cold
-  // embedding cache drops the write tool (e.g. createTask). The
-  // toolChoice:"required" force below (action_intent_detected) then makes the
-  // model act with ONLY read-only tools — so it fabricates "done" or admits
-  // the tool is unavailable. Guarantee the expected tool is present so the
-  // force is coherent. Respects the disabledTools blocklist above (never
-  // re-add a tool the operator deliberately disabled). expectedTool may be a
-  // "toolA|toolB" alternation (action-claim-detector), so split on "|".
-  if (__actionIntent?.expectedTool) {
-    const all = nourTools as unknown as Record<string, unknown>;
-    const disabled = new Set(aiConfig?.disabledTools ?? []);
-    const forced = { ...prunedTools } as Record<string, unknown>;
-    for (const raw of __actionIntent.expectedTool.split("|")) {
-      const name = raw.trim();
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
-    }
-    prunedTools = forced as unknown as typeof nourTools;
-  }
-  // 2026-07-15 · same coherence guarantee for the web-search force: the
-  // step-0 toolChoice below can only fire if the tool is in the set.
-  if (__webSearchIntent) {
-    const all = nourTools as unknown as Record<string, unknown>;
-    const disabled = new Set(aiConfig?.disabledTools ?? []);
-    const forced = { ...prunedTools } as Record<string, unknown>;
-    for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
-    }
-    prunedTools = forced as unknown as typeof nourTools;
-  }
-
-  const toolCountAll = Object.keys(nourTools).length;
-  const toolCountPruned = Object.keys(prunedTools).length;
-  log.info("mode_description", {
-    description: describeMode(mode, toolCountAll, toolCountPruned),
-    promptChars: finalSystemPrompt.length,
-  });
-
-  // maxOutputTokens derived from mode default + query shape. queryShape
-  // was detected earlier so the tool-first directive could also read it.
-  // Standard mode uses 1200 default; query-shape drops it to 80-150 for
-  // yes/no + casual, 700 for explain, 1600 for plan — making it feel
-  // as fast as the old quick mode when the query calls for brevity.
-  // 2026-07-12 · raised standard default 1200 → 2000 (operator: replies read
-  // too short). Shape-specific budgets (query-shape.ts) still tighten yes/no +
-  // casual turns; this only lifts the ceiling for substantive "default" turns.
-  const modeDefaultTokens = mode === "deep" ? 4500 : 2000;
-  const maxOutputTokens = queryShape.tokenBudget > 0
-    ? queryShape.tokenBudget
-    : modeDefaultTokens;
-  log.info("query_shape", {
-    shape: queryShape.shape,
-    maxOutputTokens,
-    modeDefaultTokens,
-    toolFirst: queryShape.needsTool ? queryShape.factualHints : null,
+    aiConfig,
+    actionIntent: __actionIntent,
+    webSearchIntent: __webSearchIntent,
+    queryShape,
+    finalSystemPromptLength: finalSystemPrompt.length,
+    log,
   });
 
   // chat-route extract (2026-05-31) · the model-message preparation
@@ -861,276 +771,41 @@ async function chatPostInner(req: Request) {
   };
 
   // ═══ v-truth · PRE-STREAM ALTERNATE PATHS (flag-gated · DEFAULT OFF) ═══
-  // Two opt-in paths that generate the FULL reply up front, then ship it as a
-  // simulated stream and persist via the SAME buildOnFinish pipeline (so
-  // history/importance/action-parse all keep working):
-  //   · NICK_DEEP_REASONING — hard turns (complex + decision/analytical) go
-  //     through the decompose->plan->critique->refine reasoning engine.
-  //   · NICK_VERIFIED_REGEN — factual/decision turns get a critic-gated
-  //     best-of-2 (maybePreStreamRegen) before shipping.
-  // SAFETY: strict env+turnSignal gate; the entire block is wrapped in
-  // try/catch — on ANY error (or both flags off) it falls through to the
-  // untouched streamText path below. Operator runtime-verifies by flipping the
-  // flag on Railway (rollback = delete the env var). Flag-off = zero change.
-  const __deepReasonFlag = getFlag("NICK_DEEP_REASONING")?.isOn ?? false;
-  const __verifiedRegenFlag = getFlag("NICK_VERIFIED_REGEN")?.isOn ?? false;
-  const __selfConsistencyFlag = getFlag("NICK_SELF_CONSISTENCY")?.isOn ?? false;
-  const __multiAgentAutoFlag = getFlag("NICK_MULTI_AGENT_AUTO")?.isOn ?? false;
-  if (
-    __deepReasonFlag ||
-    __verifiedRegenFlag ||
-    __selfConsistencyFlag ||
-    __multiAgentAutoFlag
-  ) {
-    try {
-      const { shouldGateForIntent, maybePreStreamRegen } = await import(
-        "@/lib/ai/chat/pre-stream-regen"
-      );
-      const { isMultiPartQuestion } = await import(
-        "@/lib/ai/chat/multi-agent-detect"
-      );
-      // Mutually-exclusive gates · priority multi-agent > deep > regen > self-consistency.
-      const multiAgentOn =
-        __multiAgentAutoFlag && isMultiPartQuestion(userContent);
-      const deepOn =
-        !multiAgentOn &&
-        __deepReasonFlag &&
-        turnSignal.complexity === "complex" &&
-        (turnSignal.intent === "decision" || turnSignal.intent === "analytical");
-      const regenOn =
-        !multiAgentOn &&
-        !deepOn &&
-        __verifiedRegenFlag &&
-        shouldGateForIntent(
-          turnSignal.intent as Parameters<typeof shouldGateForIntent>[0],
-        );
-      const selfConsistencyOn =
-        !multiAgentOn &&
-        !deepOn &&
-        !regenOn &&
-        __selfConsistencyFlag &&
-        (turnSignal.intent === "factual" ||
-          turnSignal.intent === "decision" ||
-          turnSignal.intent === "analytical");
-
-      // v10.0.534 · action requests must NEVER route to a reasoning path —
-      // the deepOn branch CANNOT call tools (it pre-fetches a snapshot and
-      // reasons over it), so an action like "sync my calendar" got NARRATED
-      // ("Calendar sync complete") instead of actually calling syncCalendar.
-      // A live agent_traces test (2026-07-06) proved it: the sync turn ran
-      // deep → tool_calls=0, toolsCalled=[]. When detectActionIntent fires
-      // (incl. python-execute), suppress ALL reasoning gates so the turn
-      // falls through to the normal tool-FORCING streamText path below, where
-      // toolChoice:"required" makes the model call the real tool.
-      if (!__actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn)) {
-        let winner = "";
-        // Shared generateText config for the regen + self-consistency
-        // branches (identical shape) — hoisted so a new field is added
-        // once, not in two places that could silently disagree.
-        const genBase = {
-          model,
-          messages: sanitizedModelMessages as never,
-          tools: prunedTools as never,
-          stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
-          ...(maxOutputTokens ? { maxOutputTokens } : {}),
-        };
-
-        if (multiAgentOn) {
-          const { runAutoDecompose } = await import(
-            "@/lib/ai/chat/multi-agent-detect"
-          );
-          winner = await runAutoDecompose(
-            userContent,
-            finalSystemPrompt.slice(0, 8000),
-          );
-          log.info("multi_agent_auto_path", { intent: turnSignal.intent });
-        } else if (deepOn) {
-          // v-truth · LIVE-DATA ACCESS for deep reasoning. The reasoning
-          // engine can't call tools, so it would otherwise reason blind to
-          // current numbers. Pre-fetch a compact real-business snapshot and
-          // prepend it to the reasoning context so it works from real data,
-          // not invented figures. Best-effort: skip on failure.
-          let liveSnapshot = "";
-          try {
-            const { getDashboardSummary } = await import(
-              "@/lib/services/business-intel"
-            );
-            const snap = await getDashboardSummary();
-            liveSnapshot =
-              `## LIVE DATA SNAPSHOT (real, as of this turn — reason from THESE numbers; do NOT invent figures)\n` +
-              `${JSON.stringify(snap)}\n(snapshot captured ${new Date().toISOString()} — most figures are live, but review counts are cron-cached; call getReviewStats before quoting an exact review number)\n\n`;
-          } catch {
-            /* snapshot is best-effort — proceed without it */
-          }
-
-          const __altPersist = buildOnFinish({
-            ...persistBase,
-            provider,
-            modelId,
-            model,
-          });
-
-          // 2026-07-05 audit HIGH · cost-safety cap. The chat deep path passed
-          // the reasoning engine NO explicit tier, so its internal classifier
-          // could land on 'mega' (~$0.20, fire-all-5) on natural phrasing — with
-          // none of the confirmExpensive + reserveBudget gates that /reason
-          // (reason/stream/route.ts) and the nick tRPC router enforce for mega.
-          // The chat surface is interactive iOS-PWA (no window.confirm), so we
-          // cap the auto-classified tier to 'deep' when the base classifier
-          // returns 'mega' instead of forcing a confirm round-trip. The engine's
-          // tuner only DEMOTES (never promotes), so a non-mega base can never
-          // escalate to mega — leaving request.tier undefined for those turns
-          // preserves the normal internal classify + tune behavior exactly.
-          let deepTier: "deep" | undefined;
-          try {
-            const { classifyReasoning } = await import(
-              "@/lib/ai/reasoning/classifier"
-            );
-            if (classifyReasoning(userContent).tier === "mega") {
-              deepTier = "deep";
-              log.info("deep_reasoning_mega_capped", { intent: turnSignal.intent });
-            }
-          } catch {
-            /* classifier best-effort — fall through to engine auto-classify */
-          }
-
-          const { simulateReasoningStream } = await import(
-            "@/lib/ai/chat/simulate-stream-from-text"
-          );
-          const { buildChatResponse } = await import(
-            "@/lib/services/chat/response-shape"
-          );
-
-          const streamResponse = simulateReasoningStream({
-            request: {
-              question: userContent,
-              brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 24000),
-              tier: deepTier,
-            },
-            chunkSize: 24,
-            chunkDelayMs: 8,
-            onComplete: (finalWinner) => {
-              log.info("deep_reasoning_path_completed", { intent: turnSignal.intent, hadSnapshot: liveSnapshot.length > 0 });
-              return __altPersist({ text: finalWinner, finishReason: "stop" });
-            }
-          });
-
-          return buildChatResponse({
-            streamResponse,
-            convId: convId!,
-            traceId: __traceId,
-            mode,
-            modeOverride,
-            personality,
-            turnSignal,
-            deeperContextCount,
-            deeperContextTypes,
-            contextBlocksFired,
-            classification,
-            recalledMemories: recalledHits,
-            contradictions: detectedContradictions,
-            onFinishPromise: Promise.resolve(),
-          });
-        } else if (regenOn) {
-          const { generateText } = await import("ai");
-          const genOnce = async (sys: string, temp: number): Promise<string> => {
-            const r = await generateText({
-              ...genBase,
-              system: sys,
-              temperature: temp,
-            } as Parameters<typeof generateText>[0]);
-            return r.text;
-          };
-          const regen = await maybePreStreamRegen({
-            intent: turnSignal.intent as Parameters<
-              typeof maybePreStreamRegen
-            >[0]["intent"],
-            shape: turnSignal.outputShape,
-            generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
-            regenOnce: ({ suggestedSystemPrefix }) =>
-              genOnce(
-                `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
-                Math.min(0.9, turnSignal.temperature + 0.1),
-              ),
-          });
-          winner = regen.text;
-          log.info("verified_regen_path", {
-            regenFired: regen.regenFired,
-            intent: turnSignal.intent,
-          });
-        } else if (selfConsistencyOn) {
-          const { generateText } = await import("ai");
-          const { selfConsistentAnswer } = await import(
-            "@/lib/ai/chat/self-consistency"
-          );
-          const sc = await selfConsistentAnswer({
-            samples: 3,
-            generate: async () => {
-              const r = await generateText({
-                ...genBase,
-                system: finalSystemPrompt,
-                temperature: Math.min(0.9, turnSignal.temperature + 0.15),
-              } as Parameters<typeof generateText>[0]);
-              return r.text;
-            },
-          });
-          winner = sc.answer;
-          log.info("self_consistency_path", {
-            agreed: sc.agreed,
-            samples: sc.samples,
-            intent: turnSignal.intent,
-          });
-        }
-
-        if (winner && winner.trim().length > 0) {
-          // Reuse the EXACT persist pipeline streamText would have run.
-          const __altPersist = buildOnFinish({
-            ...persistBase,
-            provider,
-            modelId,
-            model,
-          });
-          const { simulateStreamFromText } = await import(
-            "@/lib/ai/chat/simulate-stream-from-text"
-          );
-          const { buildChatResponse } = await import(
-            "@/lib/services/chat/response-shape"
-          );
-          const streamResponse = simulateStreamFromText({
-            text: winner,
-            chunkSize: 24,
-            chunkDelayMs: 8,
-            onComplete: () =>
-              __altPersist({ text: winner, finishReason: "stop" }),
-          });
-          return buildChatResponse({
-            streamResponse,
-            convId: convId!,
-            traceId: __traceId,
-            mode,
-            modeOverride,
-            personality,
-            turnSignal,
-            deeperContextCount,
-            deeperContextTypes,
-            contextBlocksFired,
-            classification,
-            recalledMemories: recalledHits,
-            contradictions: detectedContradictions,
-            onFinishPromise: Promise.resolve(),
-          });
-        }
-        // empty winner → fall through to the normal streamText path
-      }
-    } catch (altErr) {
-      log.warn("prestream_alt_path_fallthrough", {
-        error:
-          altErr instanceof Error
-            ? altErr.message.slice(0, 200)
-            : String(altErr),
-      });
-      // fall through to the normal streamText path — the turn still works
-    }
+  // chat-route decomposition (2026-07-25) · the whole flag-gated block
+  // (multi-agent auto-decompose / deep reasoning w/ mega-cap + live
+  // snapshot / verified regen / self-consistency, incl. the v10.0.534
+  // action-intent suppression and the catch-all fallthrough) moved
+  // VERBATIM to ./alternate-paths.ts. Returns a Response when an
+  // alternate path handled the turn; null falls through to the
+  // untouched streamText path below. Flags off = zero change.
+  {
+    const { runAlternatePaths } = await import("./alternate-paths");
+    const altResponse = await runAlternatePaths({
+      persistBase,
+      provider,
+      modelId,
+      model,
+      sanitizedModelMessages,
+      prunedTools,
+      mode,
+      maxOutputTokens,
+      userContent,
+      finalSystemPrompt,
+      turnSignal,
+      actionIntent: __actionIntent,
+      convId,
+      traceId: __traceId,
+      modeOverride,
+      personality,
+      classification,
+      recalledHits,
+      detectedContradictions,
+      deeperContextCount,
+      deeperContextTypes,
+      contextBlocksFired,
+      log,
+    });
+    if (altResponse) return altResponse;
   }
 
   // v11.0 W7 strict · the AI SDK's streamText options type is extremely
