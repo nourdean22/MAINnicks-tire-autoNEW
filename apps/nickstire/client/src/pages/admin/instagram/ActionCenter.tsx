@@ -62,7 +62,7 @@ const ACTION_ICON: Record<string, typeof Wrench> = {
   discard: Trash2,
 };
 
-export default function ActionCenter() {
+export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: () => void } = {}) {
   const [busyJob, setBusyJob] = useState<number | null>(null);
   /** Reconciliation verdict for one attempt, awaiting the operator's call. */
   const [checked, setChecked] = useState<Record<string, any>>({});
@@ -99,6 +99,33 @@ export default function ActionCenter() {
       attention.refetch();
     },
     onError: (err) => toast.error("Could not correct the queue", { description: err.message }),
+  });
+
+  /**
+   * The Publish wire (2026-07-25). This button was disabled "not wired yet"
+   * since the audit — and verified live, it COULD not have worked: three
+   * assembled jobs had no draft in the gate at all (the assembly writeback
+   * missed silently), one had a draft that was already published. Reconcile
+   * fixes whichever reality this job is in, then hands the operator to
+   * Publish → Reels where approve → two-tap publish lives.
+   */
+  const reconcile = trpc.contentAdmin.reconcileAssembledReel.useMutation({
+    onSuccess: (r) => {
+      setBusyJob(null);
+      attention.refetch();
+      if (r.outcome === "job_marked_published") {
+        toast.success("Already live", { description: "This reel's draft was published earlier — the job card is now closed." });
+        return;
+      }
+      toast.success(r.outcome === "staged" ? "Staged for publish" : "Already in the queue", {
+        description: "Approve and publish it in Publish → Reels (opening now).",
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.set("igpub", "reels");
+      window.history.replaceState(window.history.state, "", url.toString());
+      onPublishStaged?.();
+    },
+    onError: (e) => { setBusyJob(null); toast.error("Could not stage the reel", { description: e.message }); },
   });
 
   const reassemble = trpc.contentAdmin.reassembleReelFromClips.useMutation({
@@ -419,7 +446,10 @@ export default function ActionCenter() {
                         <span className="font-mono text-sm font-semibold">Reel {job.jobId}</span>
                         <Badge variant="outline" className="text-[10px]">{job.status}</Badge>
                         <Badge variant="outline" className={`text-[10px] ${rec.tone}`}>{rec.label}</Badge>
-                        {job.stalledHours != null && (
+                        {/* "stalled 0h" on a fresh state was pure noise that
+                            made healthy jobs read as stuck. Only a real wait
+                            deserves the word. */}
+                        {job.stalledHours != null && job.stalledHours >= 1 && (
                           <span className="text-[11px] text-muted-foreground">stalled {job.stalledHours}h</span>
                         )}
                       </div>
@@ -439,12 +469,16 @@ export default function ActionCenter() {
                   <div className="flex flex-wrap gap-2 pt-1">
                     {(job.actions ?? []).map((a: any) => {
                       const Icon = ACTION_ICON[a.id] ?? Wrench;
-                      // Only the two actions that are actually wired are enabled.
+                      // Only actions that are actually wired are enabled.
                       // A button that cannot do anything is worse than no button —
-                      // that is the whole reason this tab exists.
+                      // that is the whole reason this tab exists. "publish" is
+                      // wired ONLY for assembled jobs: staging an ambiguous
+                      // job would arm a duplicate of a possibly-live reel, so
+                      // those resolve through the candidates panel above first.
                       const wired = a.id === "reassemble" || a.id === "rerun_qa"
                         || a.id === "discard" || a.id === "archive_unrecoverable"
-                        || a.id === "regenerate_new_job";
+                        || a.id === "regenerate_new_job"
+                        || (a.id === "publish" && job.status === "assembled");
                       return (
                         <Button
                           key={a.id}
@@ -455,7 +489,7 @@ export default function ActionCenter() {
                           // disabled button anywhere) — the visible suffix below
                           // carries the disabled reason; the tooltip is a
                           // desktop-only bonus.
-                          title={wired ? a.detail : `${a.detail}\n\n(not yet available from the admin)`}
+                          title={wired ? a.detail : a.id === "publish" ? `${a.detail}\n\n(resolve the ambiguous publish above first)` : `${a.detail}\n\n(not yet available from the admin)`}
                           onClick={() => {
                             // Closing a job is terminal, so it takes a second tap
                             // with a reason. window.confirm is suppressed in the
@@ -473,12 +507,13 @@ export default function ActionCenter() {
                             setBusyJob(job.jobId);
                             if (a.id === "reassemble") reassemble.mutate({ jobId: job.jobId });
                             else if (a.id === "rerun_qa") rerunQa.mutate({ jobId: job.jobId });
+                            else if (a.id === "publish") reconcile.mutate({ jobId: job.jobId });
                           }}
                           className="text-xs"
                         >
                           {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Icon className="h-3 w-3 mr-1" />}
                           {a.label}
-                          {!wired && <span className="ml-1 text-[10px] opacity-70">· not wired yet</span>}
+                          {!wired && <span className="ml-1 text-[10px] opacity-70">{a.id === "publish" ? "· resolve ambiguity first" : "· not wired yet"}</span>}
                           {a.costsMoney && <DollarSign className="h-3 w-3 ml-1 text-amber-500" />}
                         </Button>
                       );

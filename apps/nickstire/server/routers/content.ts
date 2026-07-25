@@ -2343,6 +2343,66 @@ export const contentAdminRouter = router({
     };
   }),
 
+  /**
+   * The Action Center's "Publish" wire (2026-07-25). "Publish through the
+   * normal gates" was structurally impossible for canary/autopost reels: the
+   * assembly writeback UPDATE matched zero inventory rows (no draft ever
+   * existed for those briefIds), so the gate was empty and the button dead.
+   * This reconciles an assembled job with the gate:
+   *  - draft missing         → CREATE it (review_ready) so approve → publish works
+   *  - draft already published → mark the JOB published (closes ghost cards
+   *    whose content went out through the queue long ago)
+   *  - draft mid-flow        → nothing to do; it is already in Publish → Reels
+   * Ambiguous jobs are refused — resolving a may-be-live publish comes first,
+   * or staging would arm a duplicate of a possibly-live reel.
+   */
+  reconcileAssembledReel: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      const { reelJobs } = await import("../../drizzle/schema");
+      const rows = await d.select().from(reelJobs).where(eq(reelJobs.id, input.jobId)).limit(1);
+      const job = rows[0];
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: `Reel job ${input.jobId} not found.` });
+      if (job.status !== "assembled") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Only assembled jobs can be staged for publish (this one is ${job.status}). An ambiguous publish must be resolved first — staging it would arm a duplicate of a possibly-live reel.`,
+        });
+      }
+      if (!job.mp4Url) throw new TRPCError({ code: "BAD_REQUEST", message: "This job has no rendered master to stage." });
+      if (!job.briefId || job.briefId === "unknown") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This job carries no brief id, so it cannot be linked to a draft." });
+      }
+
+      const existing = await d.select({ status: socialContentInventory.status })
+        .from(socialContentInventory).where(eq(socialContentInventory.id, job.briefId)).limit(1);
+
+      if (existing[0]) {
+        if (["published", "published_partial"].includes(existing[0].status)) {
+          // The content already went out through the queue; only the job row
+          // never heard. Close the ghost — CAS on status so a concurrent
+          // change is never overwritten.
+          await d.update(reelJobs).set({ status: "published", updatedAt: new Date() })
+            .where(and(eq(reelJobs.id, input.jobId), eq(reelJobs.status, "assembled")));
+          return { outcome: "job_marked_published" as const, draftId: job.briefId };
+        }
+        return { outcome: "already_staged" as const, draftId: job.briefId, draftStatus: existing[0].status };
+      }
+
+      let brief: Record<string, unknown> = {};
+      try {
+        const payload = JSON.parse(job.payload ?? "{}");
+        brief = (payload?.brief && typeof payload.brief === "object" ? payload.brief : payload) as Record<string, unknown>;
+      } catch { /* stage with minimal fields — the master is the substance */ }
+
+      const { ensureReelDraftForJob } = await import("../services/reelInventoryLink");
+      await ensureReelDraftForJob(d, { briefId: job.briefId, mp4Url: job.mp4Url, brief });
+      return { outcome: "staged" as const, draftId: job.briefId };
+    }),
+
   /** Rebuild a lost master from surviving source clips. Free — no generation
    *  spend. NOT a repair: it produces a different file, so the service drops the
    *  stale QA verdict and the job returns to "assembled" needing fresh QA. */
