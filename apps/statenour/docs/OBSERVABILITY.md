@@ -91,13 +91,16 @@ you'll navigate faster.
 
 ## Navigation
 
-**From FloatingHome orb:** tap → SYSTEM OPS section shows 4 badges
-(CRONS · ERRORS · AI COST · ACTIONS) with live counts. Orb itself
-tints gold/amber/red by aggregate. Nick-quality 7d mean + delta
-direction shows as 🧠 NN↗/↘/→ when ≥ 3 replies exist.
+**From the bottom tab bar / More sheet:** navigation is the fixed
+bottom tab bar + the More sheet (`components/layout/bottom-tab-bar.tsx`
+· `more-sheet.tsx`). (2026-07-25 correction: the FloatingHome orb this
+section used to describe is retired and its component deleted — only
+its smart-now picker survives in `lib/floating-home/smart-now.ts`,
+consumed by the More sheet.)
 
-**From `/system` index:** drill-down chips for all 14 surfaces in a
-single tab bar.
+**From the `/system` hub:** the hub grid groups every live system
+surface into health / governance / AI / data tiles with live chips,
+and lifts degraded surfaces into a needs-attention strip.
 
 **From anywhere:** `⌘K` palette includes every `/system/*` route.
 `G` then letter for vim-style jump (`g c` = crons, `g q` = quality,
