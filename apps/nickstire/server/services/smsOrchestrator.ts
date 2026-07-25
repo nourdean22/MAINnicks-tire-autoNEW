@@ -1150,6 +1150,28 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
                   latencyMs: draftResult.latencyMs,
                   status: shouldAutoSend ? "approved" : "draft",
                   autoSent: shouldAutoSend,
+                  // ROS-058: the decision context the drafter ACTUALLY used —
+                  // persisted here so the learning engine copies REAL context
+                  // into training examples instead of {}. No phone numbers.
+                  contextJson: JSON.stringify({
+                    conversationTurns: conversationContext,
+                    customer: {
+                      firstName: ctx.customerRecord?.firstName ?? null,
+                      vehicle: customerVehicle,
+                    },
+                    activeBooking: ctx.activeBooking ? { service: ctx.activeBooking.service, stage: ctx.activeBooking.stage } : null,
+                    activeEstimate: ctx.activeEstimate ? { serviceDescription: ctx.activeEstimate.serviceDescription } : null,
+                    lastVapiSummary: ctx.lastVapiCall?.aiSummary ?? null,
+                    router: { primary: routerDecision.primary, secondary: routerDecision.secondary, risk: routerDecision.risk },
+                    plan: {
+                      goal: replyPlan.goal,
+                      requiredQuestion: replyPlan.requiredQuestion,
+                      prohibited: replyPlan.prohibited.map((p) => p.label),
+                      maxChars: replyPlan.maxChars,
+                    },
+                    classifier: { intent: detectedIntent, confidence: confScore },
+                    provider: draftResult.source,
+                  }),
                 }).$returningId();
                 nickgptDraftId = draftRow?.id ?? null;
               } catch (err) {
