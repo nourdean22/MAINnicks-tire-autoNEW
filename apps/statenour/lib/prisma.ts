@@ -86,7 +86,7 @@ function createPrismaClient(): PrismaClient {
   // the untouched default path below stays Neon-adapter.
   const adapter =
     process.env.E2E_PLAIN_PG === "1"
-      ? undefined
+      ? null // Prisma: null (not undefined) conditionally disables adapters
       : new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 
   // v10.0.18 — emit "query" events in BOTH dev + prod so the slow-query
