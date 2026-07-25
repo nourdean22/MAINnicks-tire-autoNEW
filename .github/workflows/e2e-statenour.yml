@@ -126,9 +126,10 @@ jobs:
             sleep 2
           done
           if [ "$up" != "1" ]; then echo "server never came up"; tail -50 /tmp/next-start.log; exit 1; fi
-          echo "warming pages..."
-          for p in / /chat /system /stats /brain; do
-            curl -s -o /dev/null -m 120 "http://localhost:3001$p" || true
+          echo "warming pages (dev cold-compiles each route; be patient)..."
+          for p in / /chat /system /stats /brain /content /pins /photo-improver /intelligence/brief /system/ai-cost /system/health /system/cockpit-observability; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
+            echo "  warm $p -> $code"
           done
 
       - name: Install Playwright chromium
@@ -140,7 +141,9 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:3001
           CI: "true"
-        run: pnpm exec playwright test
+        # 120s per-test budget: even warmed, dev-mode hydration on a
+        # 2-core runner is slower than the 30s default assumes.
+        run: pnpm exec playwright test --timeout=120000
 
       - name: Server log on failure
         if: failure()
