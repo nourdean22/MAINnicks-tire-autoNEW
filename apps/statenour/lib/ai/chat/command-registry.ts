@@ -8,8 +8,12 @@
  *
  * parseCommand + resolveCommand are pure (testable). runCommand executes a
  * command via injectable deps (real services by default; stubbed in tests).
- * Exposed end-to-end via POST /api/system/command; an optional chat-interceptor
- * hook is a documented follow-up (kept out of the chat route this wave).
+ * Exposed end-to-end via TWO live consumers: POST /api/system/command, AND
+ * the chat interceptor (lib/ai/chat/interceptors.ts imports resolveCommand +
+ * runCommand and the chat route runs it via runInterceptors) — the SAME
+ * registry, so slash commands behave identically in chat and over REST.
+ * (2026-07-25 doc correction: an older note here still called the chat hook
+ * "a documented follow-up" long after it shipped.)
  *
  * See docs/project/NEXT-INTELLIGENCE-WAVE.md (F5).
  */

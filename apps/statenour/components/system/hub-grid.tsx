@@ -119,7 +119,20 @@ const CARDS: HubCard[] = [
     description:
       "Real-time vehicle detection and automated license plate recognition cockpit",
     featured: true,
-    chip: () => ({ label: "live", severity: "healthy" }),
+    // 2026-07-25 honest-health: was a hardcoded `() => "live"/healthy` that
+    // ignored the rollup entirely — a fabricated status. Now derived from
+    // the measured smartDevice fleet (the cameras this surface runs on).
+    // Guard is `online < total`, NOT `offline > 0`: SmartDevice.status also
+    // takes ERROR and UNKNOWN (the column default), which inflate `total`
+    // while counting as neither online nor offline — an all-UNKNOWN fleet
+    // must warn, never render "0 online" in green.
+    chip: (d) => {
+      if (!d) return { label: "—", severity: "unknown" };
+      if (d.devices.total === 0) return { label: "no devices", severity: "unknown" };
+      return d.devices.online < d.devices.total
+        ? { label: `${d.devices.online}/${d.devices.total} online`, severity: "warning" }
+        : { label: `${d.devices.online} online`, severity: "healthy" };
+    },
   },
   {
     href: "/system/crons",
@@ -238,7 +251,13 @@ const CARDS: HubCard[] = [
     icon: Brain,
     group: "ai",
     description: "Live metrics, execution traces, memory decay, and prompt versions for Nick",
-    chip: () => ({ label: "observing", severity: "healthy" }),
+    // 2026-07-25 honest-health: was a hardcoded `() => "observing"/healthy`
+    // that ignored the rollup — a fabricated status. Now shows the measured
+    // 24h AI-call count as telemetry ("info"), never an unearned "healthy".
+    chip: (d) => {
+      if (!d) return { label: "—", severity: "unknown" };
+      return { label: `${d.ai.calls24h} calls · 24h`, severity: "info" };
+    },
   },
   {
     // 2026-06-18 · IA reorg Phase 2 · surface the last orphaned system page.

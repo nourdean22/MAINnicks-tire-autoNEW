@@ -163,7 +163,10 @@ export default function SystemPage() {
   // truth-substrate audit #7: the former `queue.failed === 0` input was a
   // fabricated zero (statenour has no job-queue) — removed. Status now reflects
   // the real DB-connectivity measurement.
-  const overallStatus = d?.db.connected ? "healthy" : "degraded";
+  // 2026-07-25 honest-health: before diagnostics load, `d` is null — that is
+  // "not yet measured", not "degraded". Report UNKNOWN until a measurement
+  // exists; StatusDot renders it as the neutral gray dot.
+  const overallStatus = !d ? "unknown" : d.db.connected ? "healthy" : "degraded";
 
   return (
     <div

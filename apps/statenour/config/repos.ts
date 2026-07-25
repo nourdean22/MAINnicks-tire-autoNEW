@@ -68,7 +68,11 @@ export const REPOS: RepoEntry[] = [
     host: "github-only",
     branch: null,
     productionUrl: null,
-    status: "archived",
+    // 2026-07-25 lifecycle sync — GitHub does NOT mark this repo archived
+    // (verified via `gh repo list`), so "archived" here overstated reality.
+    // "stale" = retired for production but the GitHub archive flag is still
+    // pending (see nextAction). Flip to "archived" once actually archived.
+    status: "stale",
     monitored: false,
     nickWriteAccess: "none",
     nextAction: "Archive on GitHub (retired — superseded by the monorepo)",
@@ -119,14 +123,16 @@ export const REPOS: RepoEntry[] = [
     tier: "active-satellite",
     purpose:
       "easy.nickstire.org · simplified customer-facing booking surface. Optimized for low-friction quote requests + appointment scheduling.",
+    // 2026-07-25 lifecycle sync — GitHub marked this repo ARCHIVED on
+    // 2026-05-22 (verified via `gh repo list`); the manifest still said
+    // active/monitored, so /system briefings showed a dead repo as live.
     host: "vercel",
     branch: "main",
     productionUrl: "https://easy.nickstire.org",
-    status: "active",
-    monitored: true,
+    status: "archived",
+    monitored: false,
     nickWriteAccess: "none",
-    nextAction:
-      "Decide: keep separate or fold into nickstire.org as a /easy route",
+    nextAction: "None — archived on GitHub 2026-05-22",
   },
   {
     name: "nicks-tire-social",
@@ -135,14 +141,16 @@ export const REPOS: RepoEntry[] = [
     tier: "active-satellite",
     purpose:
       "Instagram + Buffer automation for Nick's Tire content. Schedules posts, manages content calendar, surfaces engagement metrics.",
+    // 2026-07-25 lifecycle sync — GitHub marked this repo ARCHIVED on
+    // 2026-05-22 (verified via `gh repo list`). Social automation now
+    // lives inside the monorepo (packages/social-assets + nickstire).
     host: "github-only",
     branch: null,
     productionUrl: null,
-    status: "active",
-    monitored: true,
+    status: "archived",
+    monitored: false,
     nickWriteAccess: "none",
-    nextAction:
-      "Decide: keep posting cron or archive · last activity check needed",
+    nextAction: "None — archived on GitHub 2026-05-22",
   },
 
   // ═══ DESKTOP LAYER ═══
@@ -153,13 +161,17 @@ export const REPOS: RepoEntry[] = [
     tier: "active-support",
     purpose:
       "Windows local agent · device bridge + heartbeat + local file watch + scheduled tasks. Communicates with statenour-os via /api/devices and /api/runner.",
+    // 2026-07-25 lifecycle sync — GitHub marked this repo ARCHIVED on
+    // 2026-05-22 (verified via `gh repo list`); the manifest still said
+    // active/monitored with a heartbeat next-action pointing at the
+    // deleted /system/devices page.
     host: "local-windows",
     branch: "main",
     productionUrl: null,
-    status: "active",
-    monitored: true,
+    status: "archived",
+    monitored: false,
     nickWriteAccess: "none",
-    nextAction: "Verify heartbeat fresh in /system/devices",
+    nextAction: "None — archived on GitHub 2026-05-22",
   },
 
   // ═══ ARCHIVED / DEAD ═══

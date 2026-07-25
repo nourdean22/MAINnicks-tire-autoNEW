@@ -2,10 +2,12 @@
 
 Living reference for the repos under `github.com/nourdean22/*`
 so future sessions + any agent understand the layering without
-grepping. Last refreshed 2026-05-21 (infra reconciliation — statenour
-moved into the `MAINnicks-tire-autoNEW` monorepo at `apps/statenour/`,
-deployed by Railway; the standalone `statenour-os` repo, the
-`codex/ollama-local` branch, and Vercel are retired).
+grepping. Last refreshed 2026-07-25 (lifecycle sync — easy-nickstire,
+nicks-tire-social, and nour-os-unified were archived on GitHub
+2026-05-22 and are marked so below; earlier 2026-05-21 reconciliation:
+statenour moved into the `MAINnicks-tire-autoNEW` monorepo at
+`apps/statenour/`, deployed by Railway; the standalone `statenour-os`
+repo, the `codex/ollama-local` branch, and Vercel are retired).
 
 > **Live source:** [`config/repos.ts`](../config/repos.ts) is now the
 > structured truth — typed entries with `ring`, `tier`, `host`,
@@ -100,8 +102,8 @@ customers load a tiny app instead of the full shop UI.
 
 - **Stack:** Next.js 16 · React 19 (App Router)
 - **Routes:** `/book` · `/review` · `/status` · `/api/*`
-- **Deploy:** Vercel
-- **Status:** ACTIVE
+- **Deploy:** Vercel (historical)
+- **Status:** ARCHIVED on GitHub 2026-05-22 (2026-07-25 lifecycle sync — `config/repos.ts` agrees)
 
 ### `nicks-tire-social` · Instagram automation
 Autonomous Instagram publishing engine. Posts themed content on
@@ -111,7 +113,7 @@ cron schedule, reacts to weather triggers, self-learns from engagement.
 - **Modules:** caption-generator · design-generator · IG publisher ·
   Notion logger · weather-reactor · self-learner · themes · brain-connector
 - **Scripts:** `npm run post:theme` · `npm run auto` · `npm run learn`
-- **Status:** ACTIVE
+- **Status:** ARCHIVED on GitHub 2026-05-22 — social automation now lives in the monorepo (2026-07-25 lifecycle sync)
 
 ---
 
@@ -184,8 +186,8 @@ automation, daily briefings.
 - **Modules:** `audio/` · `automation/` · `briefing/` · `browser/` ·
   `energy/` · `iot/{eufy,google,ring,tuya}`
 - **Setup:** `setup.ps1` installs a `nour` CLI alias in the user profile
-- **Status:** ACTIVE · kept for Windows-only control (Ring, Eufy, Tuya,
-  Google Home) that the cloud stack can't do.
+- **Status:** ARCHIVED on GitHub 2026-05-22 (2026-07-25 lifecycle sync) —
+  was kept for Windows-only control (Ring, Eufy, Tuya, Google Home).
 - **Apr 20 — bridge to statenour:** the desktop agent can
   poll `GET /api/devices/queue` for pending `DeviceCommand` rows,
   execute them locally via its vendor bridges, and PATCH the
@@ -235,9 +237,9 @@ Where the rings actually talk to each other:
 | MAINnicks-tire-autoNEW (`apps/nickstire/`) | Railway | prod | `main` | yes |
 | MAINnicks-tire-autoNEW (`apps/statenour/`) | Railway | prod | `main` | yes |
 | nickstire-cron-worker | Railway | prod | `main` | yes |
-| easy-nickstire | Vercel | prod | `main` | yes |
-| nicks-tire-social | Railway | prod | `main` | yes |
-| nour-os-unified | none (local) | desktop | `main` | manual `setup.ps1` |
+| easy-nickstire | — (archived 2026-05-22) | — | — | — |
+| nicks-tire-social | — (archived 2026-05-22) | — | — | — |
+| nour-os-unified | — (archived 2026-05-22) | — | — | — |
 
 ---
 
