@@ -51,9 +51,14 @@ interface ChatLogger {
  * error. Must NOT contain "failed to fetch"/"networkerror"/"fetch failed"
  * — those substrings trigger the client's transport-level auto-retry
  * matcher (use-chat-stream.ts) which this error is not.
+ *
+ * PR #1089 review (P2): no persistence claim in this text — Private Lab
+ * deliberately skips the errored-row persist, and the normal path
+ * swallows a failed write, so "your reply is saved" can be false.
+ * Neutral interruption text only.
  */
 export const CLIENT_SAFE_STREAM_ERROR_TEXT =
-  "The AI provider dropped mid-response. Anything it already said is saved — tap Retry.";
+  "The AI provider dropped mid-response — tap Retry to continue.";
 
 /** SDK-shaped onError callback: swallow the real error, return the constant. */
 export function clientSafeStreamErrorText(_error: unknown): string {
