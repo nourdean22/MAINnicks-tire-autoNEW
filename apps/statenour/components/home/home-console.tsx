@@ -1,36 +1,76 @@
 "use client";
 
+/**
+ * HomeConsole — the four-question decision page (2026-07-25 Home
+ * consolidation, audit P1, operator-approved scope):
+ *
+ *   1. Is anything broken?        → HomeHealthChip (measured, /system link)
+ *   2. What requires my decision? → FollowUpsList (was an imported-but-
+ *                                    never-rendered orphan; now mounted)
+ *   3. What should I do now?      → ExecutiveActionMatrix (honest copy)
+ *   4. What changed since last visit? → SinceLastVisitCard
+ *
+ * Plus the single Nick strip (CognitivePartner — morning brief is a tap
+ * now, never an auto-fired spend) under the identity header.
+ *
+ * DELIBERATELY GONE from Home (audit P1 "cockpit, not decision page"):
+ *   · HomeBrainGraph — lives at /brain (one tap via the drill-down row)
+ *   · HomeEnginesDeck — lives at /system
+ *   · dead imports (CoachEventBanner, HomeJournalHub) — never rendered
+ * Component files are untouched; only Home stopped mounting them.
+ */
+
+import Link from "next/link";
 import { HomeIdentityHeader } from "./home-identity-header";
 import { CognitivePartner } from "./cognitive-partner";
-import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { FollowUpsList } from "./follow-ups-list";
 import { ExecutiveActionMatrix } from "./executive-action-matrix";
-import { HomeJournalHub } from "./home-journal-hub";
-import { HomeEnginesDeck } from "./home-engines-deck";
-import { HomeBrainGraph } from "./home-brain-graph";
+import { HomeHealthChip } from "./home-health-chip";
+import { SinceLastVisitCard } from "@/components/ultron/since-last-visit-card";
 
 export function HomeConsole() {
   return (
-    <div className="mx-auto max-w-[1600px] px-3 sm:px-6 pb-8 flex flex-col gap-6">
-      {/* 1. Identity & Operator Vitals */}
+    <div className="mx-auto max-w-[1200px] px-3 sm:px-6 pb-8 flex flex-col gap-6">
+      {/* Identity + the single Nick strip */}
       <section aria-label="Operator Identity" className="space-y-4">
         <HomeIdentityHeader />
         <CognitivePartner />
       </section>
 
-      {/* 2. Elite Command Center */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_480px]">
-        {/* Left Column: Asymmetric Execution */}
-        <section aria-label="Strategic Execution" className="space-y-6 min-w-0">
-          <ExecutiveActionMatrix />
-          <HomeEnginesDeck />
-        </section>
+      {/* Q1 · Is anything broken? */}
+      <section aria-label="System health" className="flex items-center justify-between gap-3 flex-wrap">
+        <HomeHealthChip />
+        {/* Drill-downs for what used to live on Home */}
+        <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.12em]">
+          <Link
+            href="/brain"
+            className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-zinc-400 transition hover:text-zinc-200 hover:bg-white/[0.05] min-h-[36px] inline-flex items-center"
+          >
+            Brain graph →
+          </Link>
+          <Link
+            href="/system"
+            className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-zinc-400 transition hover:text-zinc-200 hover:bg-white/[0.05] min-h-[36px] inline-flex items-center"
+          >
+            Engines →
+          </Link>
+        </div>
+      </section>
 
-        {/* Right Column: Visual Intelligence & Brain Graph */}
-        <section aria-label="Visual Intelligence" className="lg:sticky lg:top-4 lg:h-[calc(100vh-6rem)] min-w-0">
-          <HomeBrainGraph variant="home" />
-        </section>
-      </div>
+      {/* Q2 · What requires my decision? */}
+      <section aria-label="Decisions awaiting" className="min-w-0">
+        <FollowUpsList />
+      </section>
+
+      {/* Q3 · What should I do now? */}
+      <section aria-label="Do now" className="min-w-0">
+        <ExecutiveActionMatrix />
+      </section>
+
+      {/* Q4 · What changed since last visit? */}
+      <section aria-label="Since last visit" className="min-w-0">
+        <SinceLastVisitCard limit={20} />
+      </section>
     </div>
   );
 }
