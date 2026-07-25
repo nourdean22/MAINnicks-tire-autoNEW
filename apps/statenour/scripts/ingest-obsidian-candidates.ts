@@ -7,6 +7,7 @@ import {
 } from "../lib/knowledge/adapters/obsidian";
 import { persistKnowledgeCandidate } from "../lib/knowledge/candidate-store";
 import { getObsidianEngineConfig, readEngineStatus, writeEngineStatus } from "../lib/obsidian/engine-config";
+import { dirHasIgnoreMarker } from "../lib/obsidian/ignore";
 import type { ObsidianEngineStatus, QuarantinedFileInfo } from "../lib/obsidian/types";
 import { prisma } from "../lib/prisma";
 
@@ -19,6 +20,12 @@ interface ScanTarget {
 
 function walk(root: string, accepts: (filename: string) => boolean): string[] {
   if (!fs.existsSync(root)) return [];
+  // A folder that declares itself non-inbox (machine exports like the NOURCITY
+  // graphify digest folder) is invisible to ingest: nothing in it may be
+  // quarantined OR fed to the knowledge gate. Before this check, 106 digests
+  // were swept to Quarantine per sync and 5 whose filenames happened to match
+  // inferCategory() were re-ingested as candidates on every regeneration.
+  if (dirHasIgnoreMarker(root)) return [];
   const files: string[] = [];
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (entry.isDirectory()) {
