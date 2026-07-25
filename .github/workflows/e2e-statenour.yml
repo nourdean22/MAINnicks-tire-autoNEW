@@ -61,6 +61,9 @@ jobs:
       OLLAMA_API_KEY: e2e-ci-dummy-ollama-key
       # ── the authenticated-session switch (same path as local dev) ──
       AUTH_FORCE_MOCK: "1"
+      # ── classic-engine TCP switch: the Neon serverless adapter cannot
+      # speak to a plain Postgres container (lib/prisma.ts guard) ──
+      E2E_PLAIN_PG: "1"
       PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
 
     services:
