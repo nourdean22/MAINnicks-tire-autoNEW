@@ -91,9 +91,12 @@ exactly why.
 - **Big, thoughtful checkpoints.** A commit should be a complete
   increment — a feature landed, a surface polished, a wave closed.
   Not 6 micro-commits fixing typos.
-- **Checkpoint-as-commit.** After each commit, update the
-  `UPGRADE-PLAN.md` checkpoint log with the SHA so the next agent
-  picks up cleanly.
+- **Checkpoint-as-commit.** When a wave lands, add the full entry to
+  `docs/RECONCILIATION.md` (top, most-recent-first) and roll the
+  `AGENTS.md` "Last refreshed" stamp so the next agent picks up
+  cleanly. (2026-07-25 correction: this used to point at the
+  `UPGRADE-PLAN.md` checkpoint log — that doc is quarantined-historical
+  per `CURRENT-TRUTH.md`; there is no separate active plan doc.)
 - **Self-verification.** Run typecheck + lint + tests yourself before
   claiming done. Don't hand-wave.
 - **Alive + interesting over static + minimal.** Pulse dots,
@@ -155,9 +158,9 @@ exactly why.
 | Nick's tool catalog | `lib/ai/tools.ts` (W6 split pending — will become `lib/ai/tools/`) |
 | System prompt | `lib/ai/system-prompt.ts` (W6.3 split pending — will become `lib/ai/prompt/`) |
 | Chat pipeline | `app/api/ai/chat/route.ts` (W6.2 split pending → `lib/ai/chat/pipeline/*`) |
-| Ultron surface | `app/(mastery)/page.tsx` + `components/ultron/ultron.tsx` |
+| Home surface | `app/(mastery)/page.tsx` + `components/home/home-console.tsx` (the old `components/ultron/ultron.tsx` is deleted) |
 | System ops deck | `app/(mastery)/system/*` |
-| FloatingHome orb | `components/layout/floating-home.tsx` |
+| Navigation (tab bar + More sheet) | `components/layout/bottom-tab-bar.tsx` + `more-sheet.tsx` (the FloatingHome orb is retired; `components/layout/floating-home.tsx` is deleted) |
 | Nav items + system tabs | `components/layout/nav-items.ts` |
 | Cross-cutting state | `lib/state/nour-state.tsx` |
 | Useful hooks | `lib/hooks/` (`useSystemPulse`, `usePullRefresh`, …) |
