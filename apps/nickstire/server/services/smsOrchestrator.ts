@@ -20,6 +20,7 @@ import {
 import { sendSms } from "../sms";
 import { parseSmsResponse } from "./smsResponseParser";
 import { routeInboundSms, isCancellationPolicyQuestion } from "./smsIntentRouter";
+import { buildReplyPlan, planViolations } from "./smsReplyPlanner";
 import { draftSmsReply } from "./nickgpt-client";
 import { classifyIntent } from "./classifiers";
 import { isEnabled } from "./featureFlags";
@@ -984,6 +985,34 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
             }));
           }
 
+          // Reply planner: convert the router decision + customer state into a
+          // constrained plan — approved facts, at most one question, forbidden
+          // claims. The drafter phrases the plan; it no longer decides shop
+          // truth from the persona alone. The plan rides the decision trace.
+          const customerVehicle = ctx.customerRecord
+            ? [ctx.customerRecord.vehicleYear, ctx.customerRecord.vehicleMake, ctx.customerRecord.vehicleModel]
+                .filter(Boolean).join(" ") || null
+            : null;
+          const replyPlan = buildReplyPlan(routerDecision, {
+            customerFirstName: ctx.customerRecord?.firstName ?? null,
+            customerVehicle,
+            activeBooking: ctx.activeBooking
+              ? { service: ctx.activeBooking.service, stage: ctx.activeBooking.stage }
+              : null,
+            activeEstimate: ctx.activeEstimate
+              ? { serviceDescription: ctx.activeEstimate.serviceDescription, externalId: ctx.activeEstimate.externalId }
+              : null,
+            lastVapiSummary: ctx.lastVapiCall?.aiSummary ?? null,
+          }, event.body);
+          metadataJson.replyPlan = {
+            intent: replyPlan.intent,
+            secondary: replyPlan.secondary,
+            goal: replyPlan.goal,
+            requiredQuestion: replyPlan.requiredQuestion,
+            prohibited: replyPlan.prohibited.map((p) => p.label),
+            maxChars: replyPlan.maxChars,
+          };
+
           const draftResult = await draftSmsReply({
             inboundMessage: event.body,
             conversationContext,
@@ -993,11 +1022,11 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
             // cold ("for the Accord") instead of "Hello, how can I assist you?".
             customer: ctx.customerRecord ? {
               firstName: ctx.customerRecord.firstName,
-              vehicle: [ctx.customerRecord.vehicleYear, ctx.customerRecord.vehicleMake, ctx.customerRecord.vehicleModel]
-                .filter(Boolean).join(" ") || null,
+              vehicle: customerVehicle,
             } : undefined,
             activeEstimate: ctx.activeEstimate ? { serviceDescription: ctx.activeEstimate.serviceDescription } : undefined,
             lastVapiSummary: ctx.lastVapiCall?.aiSummary ?? null,
+            plan: replyPlan,
           });
 
           if (draftResult.ok && draftResult.draft) {
@@ -1078,6 +1107,19 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
               isLowRisk = false;
               requiresHumanApproval = true;
               humanReviewReason = `router_human_only:${routerDecision.primary}`;
+              riskTier = "high";
+            }
+
+            // Plan enforcement: a draft that promises what its plan forbids
+            // (stock claims, holds, completion times, callbacks, reserved
+            // appointments, drive-safe assurances, complaint outcomes) never
+            // auto-sends — the operator sees the draft plus what tripped.
+            const violations = planViolations(replyPlan, body);
+            if (violations.length > 0) {
+              metadataJson.planViolations = violations;
+              isLowRisk = false;
+              requiresHumanApproval = true;
+              humanReviewReason = `plan_violation:${violations[0]}`;
               riskTier = "high";
             }
 
