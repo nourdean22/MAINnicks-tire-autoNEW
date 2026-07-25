@@ -76,7 +76,18 @@ function sqlForLog(query: string, max = 120): string {
 }
 
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+  // e2e-hermetic guard (2026-07-25 · .github/workflows/e2e-statenour.yml):
+  // the Neon serverless adapter speaks Neon's WebSocket/HTTP proxy
+  // protocol and CANNOT reach the plain TCP Postgres service container
+  // CI uses (symptom: every query dies as `prisma:error undefined`).
+  // When the CI workflow sets E2E_PLAIN_PG=1, omit the adapter so the
+  // classic query engine connects over ordinary TCP via DATABASE_URL.
+  // Same env-guard class as AUTH_FORCE_MOCK — prod never sets it, and
+  // the untouched default path below stays Neon-adapter.
+  const adapter =
+    process.env.E2E_PLAIN_PG === "1"
+      ? undefined
+      : new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 
   // v10.0.18 — emit "query" events in BOTH dev + prod so the slow-query
   // tracker can populate /system/slow-queries. Dev keeps the verbose
