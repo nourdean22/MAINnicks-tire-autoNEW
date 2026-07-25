@@ -30,17 +30,51 @@ export const adStudioRouter = router({
       return { copy, issues, slideUrls };
     }),
 
-  /** Post the carousel ad NOW via the existing gated Meta carousel path. */
+  /**
+   * Post the carousel ad NOW — through publishToSocial, the ONE gated door.
+   *
+   * The previous body called postInstagramCarousel DIRECTLY while its comment
+   * claimed "the existing gated path". The gates live in publishToSocial
+   * (autonomy kill-switch, publishing kill-switch, per-platform switches, the
+   * daily-cadence content governor) — so Ad Studio was the one surface the
+   * emergency stop did not stop and the cadence cap did not count. Claim
+   * safety is additionally enforced HERE because publishToSocial documents
+   * that callers must gate first, and this caller trusted the client.
+   */
   post: adminProcedure
     .input(z.object({ slideUrls: slideUrlsSchema, caption: captionSchema }))
     .mutation(async ({ input }) => {
-      const { postInstagramCarousel } = await import("../services/metaSocial");
-      const res = await postInstagramCarousel({ imageUrls: input.slideUrls, caption: input.caption });
-      if (!res.success) throw new TRPCError({ code: "BAD_REQUEST", message: res.error || "carousel post failed" });
-      return { postId: res.postId ?? null };
+      const { publishToSocial, captionClaimBlockers, assertPermanentPublicMediaUrl } = await import("../services/socialPublish");
+      const blockers = captionClaimBlockers(input.caption);
+      if (blockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${blockers.map((b) => `${b.rule} ("${b.match}")`).join("; ")} — edit the caption first.`,
+        });
+      }
+      for (const url of input.slideUrls) assertPermanentPublicMediaUrl(url);
+
+      const { results } = await publishToSocial({
+        platforms: ["instagram"],
+        caption: input.caption,
+        imageUrls: input.slideUrls,
+      });
+      const instagram = results.find((r) => r.platform === "instagram");
+      if (instagram?.ambiguous) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The publish call timed out AFTER it was sent — the ad MAY BE LIVE. Check the Instagram account before retrying; retrying now can duplicate it.",
+        });
+      }
+      if (!instagram?.success) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: instagram?.error || "carousel post failed" });
+      }
+      return { postId: instagram.postId ?? null };
     }),
 
-  /** Schedule the carousel ad for later (publish-later queue, fired by cron). */
+  /** Schedule the carousel ad for later (publish-later queue, fired by cron).
+   *  Deferred execution gets the STRICTER checks — nobody is watching when it
+   *  fires, so claim-safety and permanent-URL problems must refuse NOW. */
   schedule: adminProcedure
     .input(z.object({ slideUrls: slideUrlsSchema, caption: captionSchema, scheduledAt: z.string().datetime() }))
     .mutation(async ({ input }) => {
@@ -48,6 +82,15 @@ export const adStudioRouter = router({
       if (Number.isNaN(when.getTime()) || when.getTime() < Date.now()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "scheduledAt must be a valid future time" });
       }
+      const { captionClaimBlockers, assertPermanentPublicMediaUrl } = await import("../services/socialPublish");
+      const blockers = captionClaimBlockers(input.caption);
+      if (blockers.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Claim-safety: ${blockers.map((b) => `${b.rule} ("${b.match}")`).join("; ")} — edit the caption before scheduling.`,
+        });
+      }
+      for (const url of input.slideUrls) assertPermanentPublicMediaUrl(url);
       const { db } = await import("../lib/db-helper");
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "database unavailable" });

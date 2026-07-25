@@ -112,7 +112,7 @@ function SingleAdView() {
           <div className="flex flex-col sm:flex-row gap-3 pt-1">
             <button
               onClick={() => post.mutate({ slideUrls: result.slideUrls, caption: result.copy.caption })}
-              disabled={post.isPending}
+              disabled={post.isPending || result.issues.length > 0}
               className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold disabled:opacity-60"
             >
               {post.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Post now
@@ -124,7 +124,7 @@ function SingleAdView() {
                   if (!when) return toast.error("Pick a date/time first");
                   schedule.mutate({ slideUrls: result.slideUrls, caption: result.copy.caption, scheduledAt: new Date(when).toISOString() });
                 }}
-                disabled={schedule.isPending}
+                disabled={schedule.isPending || result.issues.length > 0}
                 className="inline-flex items-center justify-center gap-2 border border-border px-4 py-2.5 rounded-lg font-semibold hover:border-primary/40 disabled:opacity-60"
               >
                 {schedule.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />} Schedule
