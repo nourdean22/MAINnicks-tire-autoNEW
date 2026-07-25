@@ -89,8 +89,17 @@ export function CognitivePartner() {
   const currentMode = MODES.find((m) => m.key === activeMode) || MODES[0];
 
   const transport = useMemo(
+    // 2026-07-25 · engine unification (audit P1 "competing command
+    // centers"): Home's Nick strip now speaks to the CANONICAL chat
+    // pipeline instead of the separate tool-less partner-stream route.
+    // privateMode:true preserves CP's exact prior semantics — zero
+    // persistence (no conversation, no rows, no BrainMemory) — while
+    // gaining the full pipeline: provider fallback, output critic,
+    // fabrication defenses, honest streaming contract, composer-grade
+    // truth machinery. The old route is deleted.
     () => new DefaultChatTransport({
-      api: "/api/system/partner-stream",
+      api: "/api/ai/chat",
+      body: { privateMode: true },
     }),
     []
   );
