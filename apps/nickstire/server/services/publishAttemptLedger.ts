@@ -163,6 +163,26 @@ export async function recordPublishOutcome(
   }
 }
 
+/**
+ * Close every still-open attempt for one scheduled post (operator
+ * reconciliation). Resolving an ambiguity only on the inventory row left the
+ * attempt ledger open and the reconciler still nagging about a decision the
+ * operator had already made — one resolution must settle every record that
+ * described the same publish.
+ */
+export async function closeOpenAttemptsForScheduledPost(
+  scheduledPostId: number,
+  outcome: PublishOutcome,
+  note: string,
+): Promise<number> {
+  const open = await findUnreconciledAttempts(0);
+  const mine = open.filter((a) => a.scheduledPostId === scheduledPostId);
+  for (const attempt of mine) {
+    await recordPublishOutcome(attempt.attemptId, outcome, { error: note });
+  }
+  return mine.length;
+}
+
 export interface UnreconciledAttempt {
   attemptId: string;
   occurredAt: Date;

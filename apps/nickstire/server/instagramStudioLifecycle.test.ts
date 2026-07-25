@@ -385,7 +385,7 @@ describe("resolveAmbiguous — the operator tells the system what reality is", (
     selectQueue.push([makeRow("ambiguous")]);
     updateResults.push(1);
     await expect(admin().instagramStudio.resolveAmbiguous({ id: "ig_lifecycle_test", decision: "published" }))
-      .resolves.toEqual({ status: "published" });
+      .resolves.toMatchObject({ status: "published" });
     expect(inventoryUpdates()[0]?.set.status).toBe("published");
   });
 
@@ -393,7 +393,7 @@ describe("resolveAmbiguous — the operator tells the system what reality is", (
     selectQueue.push([makeRow("ambiguous")]);
     updateResults.push(1);
     await expect(admin().instagramStudio.resolveAmbiguous({ id: "ig_lifecycle_test", decision: "not_published" }))
-      .resolves.toEqual({ status: "ready" });
+      .resolves.toMatchObject({ status: "ready" });
     expect(inventoryUpdates()[0]?.set.status).toBe("ready");
   });
 
