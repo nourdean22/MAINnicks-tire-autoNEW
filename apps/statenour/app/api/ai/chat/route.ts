@@ -161,96 +161,26 @@ async function chatPostInner(req: Request) {
   }
 
   // ── Specialist Sub-Agent Routing ──
-  // AG-42 · SAFETY reorder: this block used to sit ABOVE the
-  // interceptor fast-path AND above every budget check, so
-  //   (a) an image-gen / decision-log / brain-dump message that also
-  //       tripped a specialist keyword got hijacked away from its
-  //       deterministic handler, and
-  //   (b) the router LLM tiebreak + specialist dispatch spent money
-  //       even after the daily budget was blown.
-  // It now runs AFTER the interceptors (deterministic intents win by
-  // ordering) and behind a hoisted budget check. Shadow mode
-  // (ENABLE_SPECIALIST_ROUTING="shadow") classifies + records what
-  // WOULD have routed (SystemMetric `specialist.route`) but never
-  // dispatches — measure on live traffic before flipping to "true".
-  const { isSpecialistRoutingEnabled, isSpecialistShadowMode } = await import("@/lib/ai/agents/types");
-  // Private Lab: skip specialist routing too — it records content-derived
-  // route metrics (self-review #7) and its buildFastStream persists the reply.
-  if (!privateMode && (isSpecialistRoutingEnabled() || isSpecialistShadowMode())) {
-    const { assertWithinBudget: assertSpecBudget } = await import("@/lib/ai/budget");
-    const specBudget = await assertSpecBudget().catch(() => null);
-    if (specBudget && !specBudget.ok) {
-      log.info("specialist_routing_skipped", { reason: "budget_exceeded" });
-    } else {
-      const mappedMessages = messages.map(m => {
-        const msg = m as any;
-        let content = "";
-        if (typeof msg.content === "string") {
-          content = msg.content;
-        } else if (msg.parts && Array.isArray(msg.parts)) {
-          content = msg.parts
-            .map((p: any) => (p && typeof p.text === "string" ? p.text : ""))
-            .filter(Boolean)
-            .join(" ");
-        }
-        const role = (msg.role === "user" || msg.role === "assistant" || msg.role === "system")
-          ? (msg.role as "user" | "assistant" | "system")
-          : ("user" as const);
-        return { role, content };
-      }).filter(m => m.content.length > 0);
-
-      const { routeMessage } = await import("@/lib/ai/agents/router");
-      const decision = await routeMessage({ messages: mappedMessages });
-
-      const specShadow = isSpecialistShadowMode();
-      // 2026-07-12 · record the classification in BOTH modes so routing
-      // telemetry survives the shadow→live flip (was shadow-only, so the
-      // operator went blind the moment routing went live). Fire-and-forget.
-      {
-        const { recordSpecialistRouteMetric } = await import("@/lib/ai/agents/router-metrics");
-        const willDispatch = !specShadow && decision.route === "marketing-director";
-        void recordSpecialistRouteMetric(decision.route, decision.confidence, decision.reason, {
-          shadow: specShadow,
-          dispatched: willDispatch,
-        });
-      }
-
-      if (specShadow) {
-        // Shadow: metric recorded above, never dispatch.
-      } else if (decision.route === "marketing-director") {
-        log.info("specialist_routing_match", { route: decision.route, reason: decision.reason });
-        const { runMarketingDirector } = await import("@/lib/ai/agents/specialists/marketing-director");
-        const specResult = await runMarketingDirector({ messages: mappedMessages });
-
-        if (specResult.handBack) {
-          log.info("specialist_handback", { route: decision.route, reason: specResult.reason });
-        } else {
-          // Prod-first dispatch guard · alert the operator the first time a
-          // specialist actually handles a turn live (deduped, fire-and-forget).
-          const { alertFirstSpecialistDispatch } = await import("@/lib/ai/agents/router-metrics");
-          void alertFirstSpecialistDispatch(decision.route, decision.reason);
-          // Private Lab: no user-message row, no BrainMemory auto-write.
-          const { persistUserTurn } = await import("@/lib/services/chat/persist-user-turn");
-          const resolvedConvId = privateMode
-            ? (convId || "private")
-            : await persistUserTurn({
-                convId,
-                lastUserMsg,
-                userContent,
-                log,
-                recordError,
-              });
-
-          const { buildFastStream } = await import("@/lib/ai/chat/handlers/shared");
-          return buildFastStream(
-            resolvedConvId,
-            specResult.content,
-            "specialist_marketing",
-            specResult.provider || "reason"
-          );
-        }
-      }
-    }
+  // chat-route decomposition (2026-07-25) · the whole block (AG-42
+  // ordering guards, budget check, shadow-mode metrics, dispatch +
+  // persist + fast-stream) moved verbatim to ./specialist-routing.ts.
+  // Ordering preserved: runs AFTER the interceptors (deterministic
+  // intents win) and BEFORE the user-turn persist kickoff below.
+  // Private Lab: skip specialist routing entirely — it records
+  // content-derived route metrics (self-review #7) and its
+  // buildFastStream persists the reply.
+  if (!privateMode) {
+    const { runSpecialistRouting } = await import("./specialist-routing");
+    const specialist = await runSpecialistRouting({
+      messages: messages as unknown as Array<Record<string, unknown>>,
+      privateMode,
+      convId,
+      lastUserMsg,
+      userContent,
+      log,
+      recordError,
+    });
+    if (specialist.kind === "handled") return specialist.response;
   }
 
   // ═══ HALLUCINATION PREVENTION ═══
@@ -1137,6 +1067,41 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
     log,
   });
 
+  // chat-route decomposition (2026-07-25) · ONE base bundle for the
+  // buildOnFinish persist deps. This exact bundle used to be duplicated
+  // THREE times (deep alt path, winner alt path, main onFinish) — three
+  // copies that had to stay manually in sync, a live drift hazard.
+  // Built ONCE here, after the last finalSystemPrompt / systemPrompt
+  // mutation, so every call site captures identical values; per-site
+  // overrides are only provider/modelId/model (+ onWorkComplete on the
+  // main stream path).
+  const persistBase = {
+    log,
+    privateMode,
+    posture,
+    convId,
+    conversationId,
+    mode,
+    modeOverride,
+    personality,
+    contentMode,
+    finalSystemPrompt,
+    systemPrompt,
+    finalTaskType,
+    userContent,
+    turnSignal,
+    responseContract,
+    contextBlocksFired,
+    deeperContextCount,
+    deeperContextTypes,
+    startedAt,
+    firstTokenRef: __firstTokenRef,
+    traceId: __traceId,
+    recordTrace,
+    messages,
+    topicTier,
+  };
+
   // ═══ v-truth · PRE-STREAM ALTERNATE PATHS (flag-gated · DEFAULT OFF) ═══
   // Two opt-in paths that generate the FULL reply up front, then ship it as a
   // simulated stream and persist via the SAME buildOnFinish pipeline (so
@@ -1241,33 +1206,10 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
           }
 
           const __altPersist = buildOnFinish({
-            log,
-            privateMode,
-            posture,
-            convId,
-            conversationId,
+            ...persistBase,
             provider,
             modelId,
             model,
-            mode,
-            modeOverride,
-            personality,
-            contentMode,
-            finalSystemPrompt,
-            systemPrompt,
-            finalTaskType,
-            userContent,
-            turnSignal,
-            responseContract,
-            contextBlocksFired,
-            deeperContextCount,
-            deeperContextTypes,
-            startedAt,
-            firstTokenRef: __firstTokenRef,
-            traceId: __traceId,
-            recordTrace,
-            messages,
-            topicTier,
           });
 
           // 2026-07-05 audit HIGH · cost-safety cap. The chat deep path passed
@@ -1385,33 +1327,10 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
         if (winner && winner.trim().length > 0) {
           // Reuse the EXACT persist pipeline streamText would have run.
           const __altPersist = buildOnFinish({
-            log,
-            privateMode,
-            posture,
-            convId,
-            conversationId,
+            ...persistBase,
             provider,
             modelId,
             model,
-            mode,
-            modeOverride,
-            personality,
-            contentMode,
-            finalSystemPrompt,
-            systemPrompt,
-            finalTaskType,
-            userContent,
-            turnSignal,
-            responseContract,
-            contextBlocksFired,
-            deeperContextCount,
-            deeperContextTypes,
-            startedAt,
-            firstTokenRef: __firstTokenRef,
-            traceId: __traceId,
-            recordTrace,
-            messages,
-            topicTier,
           });
           const { simulateStreamFromText } = await import(
             "@/lib/ai/chat/simulate-stream-from-text"
@@ -1714,33 +1633,10 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
         // lib/services/chat/persist-assistant-turn.ts. Factory pattern
         // returns the callback wired with all post-stream deps.
         onFinish: buildOnFinish({
-          log,
-          privateMode,
-          posture,
-          convId,
-          conversationId,
+          ...persistBase,
           provider: fbProvider,
           modelId: fbModelId,
           model: __fbModel,
-          mode,
-          modeOverride,
-          personality,
-          contentMode,
-          finalSystemPrompt,
-          systemPrompt,
-          finalTaskType,
-          userContent,
-          turnSignal,
-          responseContract,
-          contextBlocksFired,
-          deeperContextCount,
-          deeperContextTypes,
-          startedAt,
-          firstTokenRef: __firstTokenRef,
-          traceId: __traceId,
-          recordTrace,
-          messages,
-          topicTier,
           onWorkComplete: resolveOnFinish,
         }) as Parameters<typeof streamText>[0]["onFinish"],
       } as never);
