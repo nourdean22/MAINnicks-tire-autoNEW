@@ -185,20 +185,26 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
     "Conventional oil change is $49, synthetic is $80. Includes a free vehicle check. Stop by anytime.",
     "It's $49 for conventional and $80 for full synthetic. Just pull up when you're ready."
   ],
+  // ROS-058: interpolated from BUSINESS so price drift is structurally
+  // impossible — this file previously restated "$60 installed" while the SSOT
+  // said "from $25 installed / most sizes $40-80" (the band MUST travel with
+  // the $25 — operator honesty rule, wave-183). Brakes/alignment carried $149
+  // and $79 that exist NOWHERE in BUSINESS: fabricated amounts texted to
+  // customers as written prices. Inspection-first until an approved fact exists.
   price_question_tires: [
-    "Used tires start around $60 installed for most standard sizes. Pull up and we'll check your size and what we have in stock before you decide.",
-    "We do used tires starting around $60 installed for standard sizes. Pull up and we'll check what we have in stock.",
-    "Used tires are $60 installed for most sizes. Walk in anytime and we'll check your size."
+    `Used tires start ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}) — ${BUSINESS.usedTires.typicalBand}. Pull up and we'll check your size and what's in stock before you decide.`,
+    `We do used tires — ${BUSINESS.usedTires.typicalBand}, starting ${BUSINESS.usedTires.priceDisplay} (${BUSINESS.usedTires.fineprint}). Pull up and we'll check what we have in your size.`,
+    `${BUSINESS.usedTires.typicalBand.charAt(0).toUpperCase()}${BUSINESS.usedTires.typicalBand.slice(1)}, starting ${BUSINESS.usedTires.priceDisplay}. Walk in anytime and we'll check your size.`
   ],
   price_question_brakes: [
-    "Brake work starts with a check first (brakes start around $149 per axle). Bring it in and we'll look it over, show you what's worn, and give you the price before doing anything.",
-    "Brakes start around $149 per axle. We'll inspect them first and give you a quote before doing any work.",
-    "Brake check is free first. Bring it in and we'll inspect them for you."
+    "Brake pricing depends on what's actually worn, so it starts with a free check. Bring it in and we'll show you what it needs and give you the price in writing before doing anything.",
+    "We start with a free check on the brakes and give you the price before any work. Bring it by and we'll take a look.",
+    "Free check first on brakes. Bring it in and we'll inspect them and quote you before any work."
   ],
   price_question_alignment: [
-    "Alignment starts at $79. If the car pulls, shakes, or the tires are wearing uneven, bring it by and we'll check it first.",
-    "Standard alignment starts at $79. Just pull up during business hours.",
-    "Wheel alignment starts at $79. We'll inspect your steering and suspension first."
+    "If the car pulls, shakes, or the tires wear uneven, bring it by — we check the alignment plus steering and suspension first, then give you the price before any work.",
+    "Alignment starts with an inspection: we check steering, suspension and tire wear, then quote you before doing anything.",
+    "We'll check the alignment and what's behind it first, and you get the price before any work happens. Just pull up."
   ],
   price_question_diagnostic: [
     "Diagnostics start with a free check first. Bring it by and we'll scan it, look it over, and tell you what it needs before doing any work.",

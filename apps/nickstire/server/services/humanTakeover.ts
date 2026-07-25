@@ -18,6 +18,13 @@
  * the AI reverts to its normal behavior rather than silently muting every thread
  * during a DB blip. The downside of a rare talk-over is smaller than mass
  * customer silence; the durable response-job spine still records the inbound.
+ *
+ * Re-examined 2026-07-25 (external report argued "unknown ownership must not
+ * become permission to send"): KEPT fail-open deliberately. Fail-closed turns a
+ * DB blip into guaranteed customer silence on every thread; a talk-over needs
+ * the narrow coincidence of operator-mid-conversation + DB error + low-risk
+ * auto-sendable reply. For a walk-in shop, answering wins. Do not flip this
+ * without weighing the silence side.
  */
 import { createLogger } from "../lib/logger";
 

@@ -11,7 +11,6 @@ export type PreflightSourceType =
   | "legacy";
 
 export type PreflightSeverity =
-  | "none" // We use none internally but the contract requires low/medium/high/critical. Actually, the user said "Do not use severity: none". So we won't use "none".
   | "low"
   | "medium"
   | "high"
@@ -56,6 +55,25 @@ export type PreflightResult = {
 const APPROVED_DOMAINS = ["nickstire.org", "bdnick.info"];
 const APPROVED_PHONES = [BUSINESS.phone.raw, "2168620005", "216-862-0005", "(216) 862-0005"];
 
+// Every dollar figure the SSOT actually states for conversational channels,
+// harvested from BUSINESS at module load so a price change there flows here
+// automatically. NickGPT may not text any amount outside this set.
+const APPROVED_AMOUNTS: Set<number> = (() => {
+  const amounts = new Set<number>();
+  const scan = (v: unknown) => {
+    if (typeof v === "string") {
+      for (const m of v.matchAll(/\$(\d+)/g)) amounts.add(Number(m[1]));
+    } else if (v && typeof v === "object") {
+      for (const inner of Object.values(v as Record<string, unknown>)) scan(inner);
+    }
+  };
+  scan(BUSINESS.oilChange);
+  scan(BUSINESS.usedTires);
+  scan((BUSINESS as Record<string, unknown>).newTires);
+  scan((BUSINESS as Record<string, unknown>).financing);
+  return amounts;
+})();
+
 export function runNickgptPreflightGuard(params: PreflightParams): PreflightResult {
   const { candidateBody, sourceType } = params;
   
@@ -97,23 +115,38 @@ export function runNickgptPreflightGuard(params: PreflightParams): PreflightResu
     }
   }
 
-  // Rule 4: Legal / lawsuit / fraud language (High)
-  const legalRegex = /\b(refund|warranty|legal|lawsuit|fraud|police|threat)\b/i;
+  // Rule 4: Legal / lawsuit / fraud language (High) — ROS-058 split: "warranty"
+  // used to sit in this list, so a CORRECT, fact-grounded warranty answer (the
+  // drafter is HANDED the invoice warranty facts precisely so it can answer)
+  // was blocked merely for containing the topic the customer asked about.
+  // Disputes/refunds/legal threats stay hard-blocked; a bare warranty mention
+  // downgrades to human review — never auto-blocked, never auto-sent unreviewed.
+  const legalRegex = /\b(refund|lawsuit|legal|fraud|police|threat|sue|suing)\b/i;
   const legalMatch = candidateBody.match(legalRegex);
   if (legalMatch) {
     findings.push({ code: "prohibited_legal_language", message: "Found high-risk legal/fraud/refund language.", matchedText: legalMatch[0] });
     severity = severity === "critical" ? "critical" : "high";
+  } else if (/\bwarranty\b/i.test(candidateBody) && sourceType === "nickgpt") {
+    findings.push({ code: "warranty_mention_review", message: "Warranty statement requires operator review (facts allowed, disputes are not)." });
+    if (severity !== "critical" && severity !== "high") severity = "medium";
   }
 
-  // Rule 5: Unguaranteed dollar amounts (High)
-  // If we see $\d+, ensure words like "estimate", "about", "starting", "starts", "quote" are nearby.
-  const dollarRegex = /\$\d+(\.\d{2})?/g;
-  const dollars = candidateBody.match(dollarRegex);
-  if (dollars && sourceType === "nickgpt") {
-    const mitigatingWords = /\b(estimate|about|starting|starts|quote|around|approximate|approximately)\b/i;
-    if (!mitigatingWords.test(lowerBody)) {
-      findings.push({ code: "unguaranteed_dollar_amount", message: "Exact dollar amount specified without estimate qualifier.", matchedText: dollars.join(", ") });
-      severity = severity === "critical" ? "critical" : "high";
+  // Rule 5: Dollar amounts must be APPROVED amounts (High) — ROS-058: the old
+  // rule accepted any figure that sat near a qualifier word, so "about $899"
+  // passed while being pure invention. A NickGPT-sourced amount must now match
+  // a price that actually exists in the BUSINESS SSOT (oil $49/$80, used-tire
+  // floor $25, band $40-$80, typical $60). Anything else blocks regardless of
+  // how it is hedged.
+  const dollarRegex = /\$(\d+)(\.\d{2})?/g;
+  const dollars = [...candidateBody.matchAll(dollarRegex)];
+  if (dollars.length && sourceType === "nickgpt") {
+    for (const m of dollars) {
+      const amount = Number(m[1]);
+      if (!APPROVED_AMOUNTS.has(amount)) {
+        findings.push({ code: "unapproved_dollar_amount", message: "Dollar amount is not an approved shop price.", matchedText: m[0] });
+        severity = severity === "critical" ? "critical" : "high";
+        break;
+      }
     }
   }
 
@@ -151,8 +184,18 @@ export function runNickgptPreflightGuard(params: PreflightParams): PreflightResu
     if (!severity) severity = "medium";
   }
 
-  // Rule 10: Length / Segment Overflow Risk (Low)
-  if (candidateBody.length > 500) {
+  // Rule 10: Length (ROS-058) — three limits used to disagree: the persona says
+  // under 320 chars, the model budget was 320 TOKENS (~4x more text), and this
+  // guard only warned past 500. Now aligned to the persona contract: a NickGPT
+  // reply past 320 chars goes to human review; past 480 (past 3 GSM segments
+  // for most bodies) it blocks. Templates keep the soft 500 warning.
+  if (sourceType === "nickgpt" && candidateBody.length > 480) {
+    findings.push({ code: "length_blocked", message: `NickGPT reply far exceeds the SMS contract (${candidateBody.length} chars > 480).` });
+    severity = severity === "critical" ? "critical" : "high";
+  } else if (sourceType === "nickgpt" && candidateBody.length > 320) {
+    findings.push({ code: "length_review", message: `NickGPT reply exceeds the 320-char persona contract (${candidateBody.length} chars).` });
+    if (severity !== "critical" && severity !== "high") severity = "medium";
+  } else if (candidateBody.length > 500) {
     findings.push({ code: "length_exceeded", message: `Message exceeds 500 chars (${candidateBody.length}).` });
     if (!severity) severity = "low";
   }
