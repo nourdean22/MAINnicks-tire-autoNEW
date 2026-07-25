@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-07-10 · Veo 3.1 Fast / Audio-Off wave: switched default video model to veo-3.1-fast-generate-001 + dynamic support to disable audio natively via env; verified via unit tests and full suite green.
+> **Last refreshed:** 2026-07-25 · quality-pass truth wave: README de-corrupted + de-staled, repos.ts lifecycle synced to GitHub, hub-grid fabricated-health chips now measured, e2e smoke routes repaired, smoke-prod hardened (bdnick.info + strict heartbeat + SHA assert).
 
 ## 1 · Where we are right now
 
@@ -13,7 +13,7 @@
 
 **Versioning:** the `v10.0.X` scheme is retired — commits use `fix · statenour · …` / `docs · statenour · …`.
 
-**Tests:** the vitest suite EXITS 1 even when your work is green — ~12 pre-existing unhandled-rejection errors + an intermittent `tests/ai/agents/router.test.ts` mock-order flake, PLUS at least one pre-existing test failure (`tests/components/chat-composer.test.tsx` — a `trpc.brain.createPin` mock gap; fails identically on `main`). So do NOT claim "all tests pass" and do NOT trust `$?`: read the vitest **summary line**, and confirm the files YOUR change touched are green (run them explicitly — `tsconfig` excludes `tests/`, so `tsc` never catches a broken test import). Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
+**Tests:** the vitest suite EXITS 1 even when your work is green — ~12 pre-existing unhandled-rejection errors + an intermittent `tests/ai/agents/router.test.ts` mock-order flake. (The old `tests/components/chat-composer.test.tsx` failure was REPAIRED 2026-07-22 in PR #1025 — do not treat it as a known-red.) So do NOT claim "all tests pass" and do NOT trust `$?`: read the vitest **summary line**, and confirm the files YOUR change touched are green (run them explicitly — `tsconfig` excludes `tests/`, so `tsc` never catches a broken test import). Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
 
 ## 2 · How we work
 
@@ -29,7 +29,7 @@
 2. **Small ships** — 1–4 files + 1 test file per commit; a wave is 4–6 slices.
 3. **The push must build clean.** Full local gate: `pnpm verify:hard` (typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
 4. Operator-private GET routes need `auth: "owner"`; mutating routes need an explicit auth wrapper.
-5. **Pgvector lives in Prisma as `Unsupported(...)`** — Prisma sees the columns and won't drop them on `db push`; querying is raw SQL (`lib/db/pgvector.ts`); the HNSW index is raw-SQL only; `check:raw-sql` blocks `--accept-data-loss` patterns.
+5. **Pgvector lives in Prisma as `Unsupported(...)`** — Prisma sees the columns and won't drop them on `db push`; querying is raw SQL (`lib/db/pgvector.ts`); the HNSW index is raw-SQL only. (`check:raw-sql` audits camelCase column references in `$queryRaw` strings — it does NOT scan for `--accept-data-loss`; no automated gate does. The flag ban in §7 is policy, enforced by review.)
 6. **Inbox missions â‰  user projects** — `lib/services/mission-helpers.ts isInboxMission()` is the single predicate (Plan view, Track tile, mission cap all depend on it).
 
 When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`, `/using-superpowers`, `/antigravity-workflows`, or `/prompt-library` — treat them as MANDATORY framing for the work.
@@ -137,7 +137,7 @@ There is no `CODEOWNERS` file. Ownership is enforced by:
 | App-level rules | This file (`apps/statenour/AGENTS.md`) — read first |
 | Cross-cutting rules | Root [`AGENTS.md`](../../AGENTS.md) + [`CIITTY v2.1`](../../.agents/frameworks/ciitty/SKILL.md) |
 | PR gate | Operator merges all PRs — no direct main push |
-| DB constraints | `check:raw-sql` blocks `--accept-data-loss`, pgvector via raw SQL only |
+| DB constraints | `check:raw-sql` audits raw-SQL column casing; the `--accept-data-loss` ban is policy (no automated gate); pgvector via raw SQL only |
 | Schema drift | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) EXPECTATIONS list |
 
 **Governance checks (automated):**

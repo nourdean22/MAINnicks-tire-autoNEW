@@ -15,22 +15,34 @@
 import { test, expect } from "@playwright/test";
 
 // ── Pages render without runtime errors ───────────────────────────
+//
+// 2026-07-25 route repair: five PAGES entries (plus the standalone
+// /brain/wisdom goto below) pointed at pages deleted in the 2026-05/06
+// mega-delete + IA reorg. Four of them (/system/costs, /system/prompt,
+// /plan, /system/performance) ride next.config.ts redirects to their
+// consolidated surfaces — so the old tests landed on a DIFFERENT page
+// whose identity could never match; /intel had no page AND no redirect,
+// a genuine 404. Entries now target the live surfaces directly. The
+// `title` regex is a page-IDENTITY check matched against document.title
+// OR the h1 heading: the root layout sets a flat "NOUR OS" <title> and,
+// of the pages listed here, only /chat exports its own metadata (a few
+// others exist app-wide, e.g. /warroom), so most pages carry their
+// identity in the StandardPage/PageHeader h1, not the document title.
 
 const PAGES = [
   { path: "/", title: /NOUR OS|Ultron|HQ/i },
   { path: "/chat", title: /Nick|Chat/i },
-  { path: "/system/costs", title: /AI Costs|Costs/i },
-  { path: "/system/prompt", title: /System Prompt|Diagnostics/i },
-  { path: "/intel", title: /Intel|Marketing/i },
+  { path: "/system", title: /system/i },
+  { path: "/system/ai-cost", title: /ai cost/i },
+  { path: "/intelligence/brief", title: /Daily Brief|Intelligence/i },
   { path: "/content?tab=history", title: /Content/i },
-  { path: "/pins", title: /Pinned Memory|Pins/i },
-  { path: "/plan", title: /Day Planner|Plan/i },
+  { path: "/pins", title: /pinned memory|Pins/i },
+  { path: "/stats", title: /Stats/i },
   { path: "/content?tab=publish", title: /Content/i },
-  { path: "/photo-improver", title: /Photo Improver/i },
-  // v10.0.378 · added new surfaces shipped in this sprint
+  { path: "/photo-improver", title: /photo improver/i },
   { path: "/brain?tab=wisdom", title: /Brain/i },
-  { path: "/system/performance", title: /Observability|Trace/i },
-  { path: "/system/health", title: /Health|Grid/i },
+  { path: "/system/cockpit-observability", title: /cockpit observability|Observability/i },
+  { path: "/system/health", title: /os health|Health/i },
 ];
 
 for (const p of PAGES) {
@@ -64,8 +76,15 @@ for (const p of PAGES) {
       page.locator("h1, [role='heading'], main").first(),
       `${p.path} rendered no heading/main content`,
     ).toBeVisible({ timeout: 10_000 });
-    // (3) Page-specific identity — the document title matches this page.
-    await expect(page, `${p.path} wrong/mismatched <title>`).toHaveTitle(p.title);
+    // (3) Page-specific identity — document title OR h1 heading matches.
+    // (Most pages have the global "NOUR OS" <title>; identity lives in h1.)
+    const docTitle = await page.title();
+    const h1Text =
+      (await page.locator("h1").first().textContent().catch(() => "")) ?? "";
+    expect(
+      `${docTitle} ${h1Text}`,
+      `${p.path} identity mismatch — title "${docTitle}" / h1 "${h1Text}"`,
+    ).toMatch(p.title);
     // (4) No JS-throwing errors.
     expect(errors, `runtime errors on ${p.path}`).toEqual([]);
   });
@@ -74,14 +93,17 @@ for (const p of PAGES) {
 // ── API contracts ─────────────────────────────────────────────────
 
 const API_ENDPOINTS = [
-  { method: "GET", path: "/api/trpc/system.rateLimits", expectKeys: ["result"] },
+  // 2026-07-25 route repair: `system.rateLimits` and `system.observability`
+  // tRPC procedures no longer exist — rate limits moved to the REST route
+  // /api/system/rate-limits and observability to the top-level
+  // `observability` router (osSnapshot).
+  { method: "GET", path: "/api/system/rate-limits", expectKeys: ["tone", "label", "providers"] },
   { method: "GET", path: "/api/trpc/system.costs?input=" + encodeURIComponent(JSON.stringify({ days: 7 })), expectKeys: ["result"] },
   { method: "GET", path: "/api/intel", expectKeys: ["industry", "stories", "performers"] },
   { method: "GET", path: "/api/content/history?days=30", expectKeys: ["count", "rows", "stats"] },
   { method: "GET", path: "/api/social/recent-images", expectKeys: ["images"] },
-  // v10.0.378 · new API endpoints from this sprint
   { method: "GET", path: "/api/brain/wisdom", expectKeys: ["total", "totalRecalls", "groupings"] },
-  { method: "GET", path: "/api/trpc/system.observability", expectKeys: ["result"] },
+  { method: "GET", path: "/api/trpc/observability.osSnapshot", expectKeys: ["result"] },
 ];
 
 for (const e of API_ENDPOINTS) {
@@ -173,7 +195,10 @@ test("chat composer: audio drop + voice mode buttons present", async ({ page }) 
 // the API returns 401 or the StandardPage breaks, this catches it.
 
 test("brain wisdom: dashboard renders top-line stats", async ({ page }) => {
-  await page.goto("/brain/wisdom");
+  // 2026-07-25 route repair: the standalone /brain/wisdom page was folded
+  // into the tabbed /brain surface — go straight to the wisdom tab rather
+  // than riding the redirect.
+  await page.goto("/brain?tab=wisdom");
   // Not bounced to auth.
   expect(page.url()).not.toMatch(/\/(sign-in|auth)(\/|\?|$)/);
   // Wait for the page-title h1 to render.

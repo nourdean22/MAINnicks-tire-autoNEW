@@ -10,10 +10,11 @@
 monorepo at `apps/statenour/`, deployed from branch `main` to
 Railway, served at `bdnick.info`.
 
-**Verified ground truth:** [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md)
-holds the current reality snapshot — counts, gates, doc hierarchy. Read
-that first. If a number in this README disagrees with RECONCILIATION,
-RECONCILIATION wins (and this file should be patched).
+**Verified ground truth:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md)
+is the one-screen "where am I and what's real" answer — read it first.
+[`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) is the ship-by-ship
+log. If anything in this README disagrees with those two (or with live
+code), they win and this file should be patched.
 
 **Companion app:** `nickstire` (the business ring — Express + tRPC +
 TiDB on Railway) lives in the same monorepo at `apps/nickstire/`. See
@@ -50,7 +51,7 @@ Verify environment at any point:
 pnpm check:env        # required vs runtime vs platform vars
 pnpm check:crons      # cron manifest vs filesystem
 pnpm typecheck        # tsc --noEmit (0 errors)
-pnpm lint             # eslint . (0 errors, ~430 warnings tolerated)
+pnpm lint             # eslint . (0 errors; tolerated warnings pinned in .lintbaseline.json)
 pnpm test             # vitest run — current count in RECONCILIATION.md
 pnpm verify:hard      # full local gate: typecheck + lint + test +
                       # raw-sql + cron manifest + prompt-size + prisma validate
@@ -66,40 +67,42 @@ auth-gated, wrapped in `NourStateProvider` + `AmbientAura` +
 
 | Route | Purpose |
 |---|---|
-| `/` | **Ultron** — top-strip pulse + Today's 3 + Situation + omni-capture. Vision lives at [`docs/ULTRON-VISION.md`](docs/ULTRON-VISION.md) |
-| `/chat` | Nick — streaming chat, tool calls, output critic, lane-correction |
-| `/tasks` | Action deck — NOW / PLAN / TRACK / LEARN, goal↔project bridge |
+| `/` | **Home console** — identity header + Cognitive Partner + execution matrix + engines deck + brain graph. (Historical vision: [`docs/ULTRON-VISION.md`](docs/ULTRON-VISION.md)) |
+| `/chat` | Nick — streaming chat, tool calls, output critic, composer authority controls |
+| `/missions` | Missions — tasks / projects / recurring loops (absorbed the old `/tasks`) |
 | `/journal` | Thought stream — voice + text + Obsidian-flavored |
 | `/knowledge` | Knowledge base (Drive ingest lives here) |
-| `/brain` | Memory browser + graph explorer + reset |
-| `/devices` | Smart-home bridge (Ring / Eufy / Tuya / Google Home) |
-| `/body` · `/financial` · `/mastery` · `/integrations` | Depth surfaces |
+| `/brain` | Memory hub — Memory / Board / Wisdom / Reason tabs |
+| `/stats` | Stats + body log (absorbed `/body`, `/mastery`, `/plan`) |
+| `/business` · `/money` · `/market` · `/people` · `/content` | Tabbed domain surfaces (absorbed `/financial`, `/funnel`, `/crm`, `/seo`, `/radar`, …) |
 | `/system` | **System Command Center** — see below |
 | `/settings` | App config, cron control, push notifications |
 
-**System ops deck** (v8.x → v10 · fully observable, every knob exposed):
+**System ops deck** (the 13 live pages + hub — a 2026-06 mega-delete
+folded ~30 older `/system/*` subpages into these; `next.config.ts`
+redirects the retired paths):
 
 | Route | What you see / control |
 |---|---|
-| `/system` | Top-level status + drill-down nav chips |
-| `/system/health` | DB latency, device count, commitments, loops |
-| `/system/crons` | active crons · kill-switch + run-now per cron · sparkline history · drift detector · 8-category filter |
-| `/system/cron-runs` | All-jobs index — every cron at a glance · success rate · failures-first sort · staleness highlighting · click-thru (v8.18) |
-| `/system/cron-runs/[jobName]` | Per-job history — last 200 runs · duration sparkline · expandable error preview · run-now button (v8.14/v8.18/v8.19) |
-| `/system/alerts` | Cross-category brain-alert inspector · 7 categories · drill into audit trail (v8.11.2) |
-| `/system/embedding-coverage` | pgvector migration dashboard · dual-write coverage % · per-sourceType breakdown · backfill + dedup runs (v8.13) |
-| `/system/errors` | ErrorLog grouped by fingerprint · "→ task" button · recent feed with expand-to-stack |
-| `/system/ai-cost` | Today/7d/30d cost + latency + error rate · 14-day trend bars · breakdown by feature × model · burn rate vs 7d avg |
-| `/system/actions` | Nick's autonomous-action audit · rule leaderboard w/ SVG success-rate rings · expand for payload JSON |
-| `/system/command-center` | NICK Prime control room (v9.0+) — prompt mode toggle + parity health |
-| `/system/repos` | Cross-repo health (v10 E.1) — 8 repos by ring · last commit + freshness via GitHub API |
-| `/system/schema-history` | Schema-change ledger (v10 E.2) — every `prisma db push` reasoned + reviewed |
-| `/system/deployment-truth` | Single-pane deploy fact-sheet (v10 E.4) — build SHA + schema drift + env health + cron 24h |
+| `/system` | Hub grid — health / governance / AI / data tiles + needs-attention strip |
+| `/system/health` | Unified probe hub — DB latency, env, crons, errors, backlog, vectors |
+| `/system/crons` | Cron deck — enable/disable + run-now per job (absorbed `/system/cron-runs`) |
+| `/system/logs` | Unified log tail (`?view=errors` = fingerprint groups; absorbed `/system/errors`) |
+| `/system/ai-cost` | Cost + latency + error rate · trend bars · feature × model breakdown (absorbed `/system/costs`, `/system/performance`) |
+| `/system/actions` | Nick's autonomous-action audit + approvals (absorbed `/system/approvals`) |
+| `/system/alerts` | Cross-category brain-alert inspector |
+| `/system/calibration` | Eval / coverage / quality / operator-state lenses (absorbed the eval quadruplet) |
+| `/system/camera` | Arrival Intelligence — vehicle detection + plate recognition cockpit |
+| `/system/cockpit-observability` | Live metrics, execution traces, memory decay, prompt versions |
+| `/system/inbox` | Memory-quarantine review — claims + contradictions before they land |
+| `/system/proactive-preview` | Proactive-push dry-run preview |
+| `/system/schema-history` | Schema-change ledger |
+| `/system/tools` | Agent-tools registry |
 
-The **FloatingHome orb** (bottom-right, draggable) tints live by
-system state: gold=calm, amber=watch, red=alert. The expanded menu
-shows SYSTEM OPS with live badges so you never need to navigate to
-spot a problem.
+Navigation is the **bottom tab bar + More sheet**
+(`components/layout/bottom-tab-bar.tsx` · `more-sheet.tsx`). The old
+FloatingHome orb is retired — only its smart-now picker survives in
+`lib/floating-home/smart-now.ts` (consumed by the More sheet).
 
 ---
 
@@ -124,19 +127,20 @@ of truth — with a CI drift guard. See
 ## Developer workflow
 
 ```
-main  ← the one branch (monorepo: statenour + nickstire share it)
+statenour/<task>  ← named branch (never push main directly) → PR → main
        │
-       │  push → .husky/pre-push (repo root):
-       │    turbo run build --filter=...[upstream]
+       │  push → repo-root lefthook.yml pre-push hook:
+       │    turbo build --affected
        │    — rebuilds every affected app, catching Next.js
        │      prerender errors before they reach Railway
+       │      (Husky is retired; there is no .husky/ directory)
        │
        │  statenour's own full local gate is `pnpm verify:hard`:
        │    typecheck · lint · test · raw-sql audit · cron manifest
-       │    · prompt-size · prisma validate
+       │    · soft-delete audit · stale-docs · prompt-size · prisma validate
        │
        ▼
-  Railway   ← watches `main` with per-service watch paths; a push
+  Railway   ← watches `main` with per-service watch paths; a merge
               touching apps/statenour/** auto-deploys the
               statenour-web service →
               bdnick.info
@@ -146,18 +150,24 @@ main  ← the one branch (monorepo: statenour + nickstire share it)
 
 ## Project docs (read in this order)
 
-1. [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — **start here** · verified reality snapshot · counts · gate status · doc hierarchy
-2. [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) — what any agent needs to know before editing
-3. [`docs/project/UPGRADE-PLAN.md`](docs/project/UPGRADE-PLAN.md) — **active execution source** · current wave + checkpoint log
-4. [`docs/project/CHANGELOG.md`](docs/project/CHANGELOG.md) — shipped features by wave
-5. [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) — high-level future horizons (not a wave plan; see UPGRADE-PLAN for execution)
+1. [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — **start here** · one-screen truth: deploy path, retired landmines, source-of-truth hierarchy
+2. [`AGENTS.md`](AGENTS.md) — how agents work here · gates · gotchas · backlog
+3. [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — verified ship-by-ship log (top entry = latest)
+4. [`docs/runbooks/index.md`](docs/runbooks/index.md) — agent operating runbooks
+5. [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) — AI agent contract
 6. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — subsystem map + data flow
-7. [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) — 80 Prisma models + retention
+7. [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) — Prisma models + retention
 8. [`docs/SECURITY.md`](docs/SECURITY.md) — auth, CSP, secrets, boundaries
 9. [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — cron catalog + incident playbook
 10. [`docs/ENDPOINT-HYGIENE.md`](docs/ENDPOINT-HYGIENE.md) — primary vs helper routes
 11. [`docs/REPO-MAP.md`](docs/REPO-MAP.md) — repos under `nourdean22/*`
-12. [`docs/ULTRON-VISION.md`](docs/ULTRON-VISION.md) — product vision for `/`
+
+Historical planning docs (`docs/project/UPGRADE-PLAN.md`,
+`docs/project/ROADMAP.md`, `docs/project/CHANGELOG.md`,
+`docs/ULTRON-VISION.md`) are **not** active instructions — see the
+"Active vs historical docs" section of `docs/CURRENT-TRUTH.md`.
+There is no separate "active plan" doc: RECONCILIATION (ship log) +
+AGENTS.md (backlog) are the live sources.
 
 Archived material (Mar 27 prompt files, Ollama modelfiles, prior
 session notes, retired plans) lives at [`docs/archive/`](docs/archive/).
@@ -168,10 +178,12 @@ session notes, retired plans) lives at [`docs/archive/`](docs/archive/).
 
 The 6-phase Wave-200 rollout lives behind feature flags. Default state
 is "everything degrades gracefully · operator pastes credentials to
-activate each substrate". Status surfaces on `/api/health`:
+activate each substrate". Status surfaces on `/api/health` (owner-gated
+since the 2026-07-21 truth-substrate wave — an unauthenticated curl now
+gets 401; use an authenticated session):
 
 ```bash
-curl https://bdnick.info/api/health | jq '.data | {inngest, braintrust}'
+curl -H "Cookie: <operator session>" https://bdnick.info/api/health | jq '.data | {inngest, braintrust}'
 ```
 
 Operator action items per substrate · each is a 5-minute paste:
@@ -213,10 +225,12 @@ pnpm dev                         # next dev --webpack -p 3001
 # build (v8.25 · safe by default)
 pnpm build                       # prisma generate && next build
 pnpm build:local                 # same but writes to .next-prod (doesn't clobber .next)
-pnpm build:check                 # build only (no prisma generate) — used by pre-push on master
-pnpm build:push-schema           # ⚠️ generate + db push --accept-data-loss + build.
-                                 # Schema-conforming deploy — DROPS columns/tables not in
-                                 # schema.prisma. Use only for explicit one-shot resyncs.
+pnpm build:check                 # build only (no prisma generate) — standalone prod-build sanity check
+pnpm build:push-schema           # ⚠️ generate + prisma db push + build. Bypasses the
+                                 # migration ledger. Prisma itself refuses destructive
+                                 # diffs; NOTHING automated blocks --accept-data-loss —
+                                 # the ban is policy (AGENTS.md: it silently drops
+                                 # pgvector/tsvector). Use only for explicit one-shot resyncs.
 
 # db
 pnpm db:generate                 # prisma client only
@@ -247,7 +261,7 @@ pnpm inngest:dev                 # Inngest local dev runner (port 8288)
 - **Power + control everywhere.** Every cron, every integration, every AI call has a kill switch and a manual run.
 - **Alive over static.** Live counters, sparklines, freshness chips, pulse dots — the UI answers "is the system OK?" without opening anything.
 - **Interesting data.** Breakdowns, sparklines, burn rates, cross-surface correlations. Not just lists.
-- **Devastating lead.** Meta-intelligence surfaces (Nick-quality trend, decision-drift, Ghost Nour, anti-pattern library) on the roadmap — see [`docs/project/UPGRADE-PLAN.md`](docs/project/UPGRADE-PLAN.md) W12.
+- **Devastating lead.** Meta-intelligence surfaces (quality trends, decision-drift, calibration lenses) ship wave by wave — the live record is [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md), not a plan doc.
 - **Solo operator.** One allowlist email. One Nour. The product is the leverage, not the platform.
 
 ---
@@ -255,5 +269,4 @@ pnpm inngest:dev                 # Inngest local dev runner (port 8288)
 **Quality gate live on every push**: `pre-push` hook + GitHub Actions
 CI + cron-manifest guard + schema-drift check. Zero broken deploys
 is the goal.
-   
- 
+ 

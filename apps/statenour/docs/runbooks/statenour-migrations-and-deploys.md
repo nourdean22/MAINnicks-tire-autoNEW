@@ -16,7 +16,7 @@
 
 ```
 pnpm exec prisma validate
-pnpm check:raw-sql                       # blocks --accept-data-loss patterns
+pnpm check:raw-sql                       # audits camelCase columns in $queryRaw (does NOT scan for --accept-data-loss; the flag ban is policy)
 pnpm tsx scripts/run-schema-sentinel.ts  # expectations should be green
 ```
 
