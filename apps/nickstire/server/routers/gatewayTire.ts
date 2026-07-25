@@ -29,6 +29,7 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
 
 import { db } from "../lib/db-helper";
+import { affectedRowCount } from "../lib/db-affected";
 import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
@@ -1574,13 +1575,22 @@ export const gatewayTireRouter = router({
       return res;
     }),
 
-  deleteOrder: adminProcedure
+  cancelOrder: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) return { success: false, error: "Database unavailable" };
 
-      await d.delete(tireOrders).where(eq(tireOrders.id, input.id));
+      // Soft-cancel, never DELETE: cancellationRisks and the revenue history
+      // read this table — a vanished row hides a refund owed or a pattern of
+      // walked orders. The row survives with its full order detail.
+      const [res] = await d
+        .update(tireOrders)
+        .set({ status: "cancelled" })
+        .where(eq(tireOrders.id, input.id));
+      if (affectedRowCount(res) === 0) {
+        return { success: false, error: "Order not found" };
+      }
       return { success: true };
     }),
 });

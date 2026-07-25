@@ -86,6 +86,20 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     showInSidebar: true,
   },
   {
+    // Nav-orphan fix 2026-07-25: Money was reachable ONLY via Cmd+K or an
+    // Overview deep-link. The operator drives this admin from an iPhone PWA
+    // where Cmd+K does not exist — the highest-value section in the app had
+    // no visible door. Same fix for Content & AI below.
+    id: "revenue",
+    label: "Money",
+    icon: <DollarSign className="w-4 h-4" />,
+    component: RevenueSection,
+    aliases: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"],
+    keywords: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"],
+    group: "Money",
+    showInSidebar: true,
+  },
+  {
     id: "growth",
     label: "Marketing / Growth",
     icon: <TrendingUp className="w-4 h-4" />,
@@ -93,6 +107,16 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     aliases: ["gbp", "local", "localseo", "social"],
     keywords: ["marketing", "growth", "seo", "local", "reviews", "replies"],
     group: "Operations",
+    showInSidebar: true,
+  },
+  {
+    id: "content",
+    label: "Content & AI",
+    icon: <Sparkles className="w-4 h-4" />,
+    component: ContentSection,
+    aliases: ["content", "content-and-ai", "specials", "coupons", "qa", "seoengine"],
+    keywords: ["content", "post", "social", "blog", "ai", "seo", "specials"],
+    group: "Outreach",
     showInSidebar: true,
   },
   {
@@ -161,16 +185,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
   },
   // Non-sidebar targets
   {
-    id: "revenue",
-    label: "Money",
-    icon: <DollarSign className="w-4 h-4" />,
-    component: RevenueSection,
-    aliases: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"],
-    keywords: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"],
-    group: "Money",
-    showInSidebar: false,
-  },
-  {
     id: "callTrackingView",
     label: "Call Tracking",
     icon: <PhoneCall className="w-4 h-4" />,
@@ -188,16 +202,6 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     aliases: ["funnel", "traffic", "traffic-revenue"],
     keywords: ["funnel", "traffic", "seo", "conversion", "clicks"],
     group: "Operations",
-    showInSidebar: false,
-  },
-  {
-    id: "content",
-    label: "Content & AI",
-    icon: <Sparkles className="w-4 h-4" />,
-    component: ContentSection,
-    aliases: ["content", "content-and-ai", "specials", "coupons", "qa", "seoengine"],
-    keywords: ["content", "post", "social", "blog", "ai", "seo", "specials"],
-    group: "Outreach",
     showInSidebar: false,
   },
 ];

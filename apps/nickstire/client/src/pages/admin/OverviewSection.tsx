@@ -176,7 +176,7 @@ export default function OverviewSection() {
   async function performPrimary(item: ActionItem) {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "workOrder") {
-      navigateToAdminSection("customers", { highlightId: item.entityId });
+      navigateToAdminSection("customers");
       await logReceipt(item, "admin.work_order_opened", { status: item.status });
       return;
     }
@@ -202,12 +202,12 @@ export default function OverviewSection() {
   async function performSecondary(item: ActionItem) {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "callback") {
-      navigateToAdminSection("callTrackingView", { highlightId: item.entityId });
+      navigateToAdminSection("callTrackingView");
       await logReceipt(item, "admin.callback_opened", { status: item.status });
       return;
     }
     if (item.type === "workOrder") {
-      navigateToAdminSection("customers", { highlightId: item.entityId });
+      navigateToAdminSection("customers");
       await logReceipt(item, "admin.work_order_opened", { status: item.status });
       return;
     }

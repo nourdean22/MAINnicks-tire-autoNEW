@@ -214,7 +214,9 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // of Money. These actions land Cmd+K users on the right tab.
     {
       id: "action-declined-work",
-      label: "Declined Work · $321K pipeline",
+      // No hardcoded dollar figure: a stale amount in a command label reads
+      // as live data. The Declined tab itself shows the real number.
+      label: "Declined Work · recovery pipeline",
       keywords: ["declined", "walked", "lost", "recovery", "pipeline", "estimates"],
       icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
       group: "Action",
@@ -321,32 +323,21 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       group: "Action",
       run: () => {
         if (typeof window !== "undefined") {
-          window.history.replaceState({}, "", "/admin?tab=customers&seg=all");
-        }
-        onNavigate("customers");
-        // The Customers page reads minVisits from local state · we
-        // can't pre-seed via URL · but the VIP StatCard is the first
-        // click target on landing. Future: extend useUrlFilter to
-        // cover minVisits so deep-linking works fully.
-      },
-    },
-    {
-      id: "action-customers-declined",
-      label: "Customers · show declined-work cohort",
-      keywords: ["customers", "declined", "walked", "estimate", "recovery"],
-      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
-      group: "Action",
-      run: () => {
-        if (typeof window !== "undefined") {
-          window.history.replaceState({}, "", "/admin?tab=customers&seg=all");
+          // minVisits=3 is a REAL filter now — CustomersList seeds its
+          // min-visits state from this URL param on mount.
+          window.history.replaceState({}, "", "/admin?tab=customers&seg=all&minVisits=3");
         }
         onNavigate("customers");
       },
     },
+    // The former "Customers · show declined-work cohort" command was DELETED:
+    // it navigated to the plain customer list with no declined filter applied —
+    // a command that promises a cohort and delivers everybody is worse than no
+    // command. "Declined Work · recovery pipeline" lands on the real surface.
     {
       id: "action-flip-declined-recovery",
-      label: "Flip FEATURE_DECLINED_RECOVERY (84 estimates · $47K)",
-      keywords: ["declined", "recovery", "flag", "flip", "47k", "84", "sms", "FEATURE_DECLINED"],
+      label: "Flip FEATURE_DECLINED_RECOVERY (declined-work SMS)",
+      keywords: ["declined", "recovery", "flag", "flip", "sms", "FEATURE_DECLINED"],
       icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
       group: "Action",
       run: () => {
@@ -474,7 +465,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     {
       id: "action-money-declined-fire",
       label: "Money · Declined work · FIRE bulk recovery",
-      keywords: ["money", "declined", "fire", "recovery", "bulk", "sms", "$321K", "47K"],
+      keywords: ["money", "declined", "fire", "recovery", "bulk", "sms"],
       icon: <DollarSign className="w-4 h-4 text-amber-500" />,
       group: "Action",
       run: () => {

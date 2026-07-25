@@ -3,6 +3,7 @@ import { getLoginUrl } from "@/const";
 import ActivityPulse from "@/components/admin/ActivityPulse";
 import AdminMfaGate from "@/components/admin/AdminMfaGate";
 import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
+import { GbpOAuthCatcher } from "./admin/content/GbpOAuthCatcher";
 import { CommandSearch } from "@/components/admin/CommandSearch";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
@@ -270,6 +271,9 @@ export default function Admin() {
   return (
     <AdminSSEProvider enabled={adminReady}>
       <AdminSSEListeners />
+      {/* Shell-level: Google's OAuth redirect can land on ANY tab, so the
+          code exchange cannot live inside the GBP sub-tab component. */}
+      <GbpOAuthCatcher />
       <div className="admin-shell min-h-screen bg-background flex">
         {sidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
         <aside className={`admin-sidebar fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen w-[260px] flex flex-col transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`} aria-label="Admin navigation">

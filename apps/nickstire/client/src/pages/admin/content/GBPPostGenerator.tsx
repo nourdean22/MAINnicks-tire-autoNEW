@@ -62,29 +62,10 @@ export function GBPPostGenerator() {
     }
   });
 
-  const reconnectMutation = trpc.gbp.reconnect.useMutation({
-    onSuccess: () => {
-      toast.success("Google Business Profile connected!");
-      // Clean query parameters
-      const newParams = new URLSearchParams(window.location.search);
-      newParams.delete("code");
-      newParams.delete("state");
-      const cleanUrl = window.location.pathname + (newParams.toString() ? "?" + newParams.toString() : "");
-      window.history.replaceState({}, "", cleanUrl);
-      void utils.gbp.getAuthStatus.invalidate();
-    },
-    onError: (err: any) => toast.error(`OAuth Reconnect Failed: ${err.message}`)
-  });
-
-  // Handle OAuth code redirect
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-    if (code && state === "gbp-oauth") {
-      reconnectMutation.mutate({ code });
-    }
-  }, []);
+  // The OAuth code-exchange effect that used to live here moved to
+  // GbpOAuthCatcher (mounted in the Admin shell): this component only mounts
+  // inside the GBP sub-tab, so redirects landing on any other tab silently
+  // expired the single-use code.
 
   const generate = trpc.contentAdmin.generateGBPPost.useMutation({
     onSuccess: (data) => {
@@ -180,13 +161,6 @@ export function GBPPostGenerator() {
             <p className="text-[11px] text-foreground/40">Secure OAuth 2.0 API connection registry</p>
           </div>
         </div>
-
-        {reconnectMutation.isPending && (
-          <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 text-primary text-xs rounded">
-            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-            <span>Exchanging OAuth code for refresh tokens...</span>
-          </div>
-        )}
 
         {authStatusLoading ? (
           <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
