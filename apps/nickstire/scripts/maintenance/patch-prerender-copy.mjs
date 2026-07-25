@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(__dirname, "..", "..");
 const PRERENDER_DIR = path.join(ROOT, "prerendered");
 
 /**
@@ -106,6 +106,15 @@ const EDITS = [
   // -- competitor / dealership descriptions: drop mileage only, keep truthful "12 months"
   [/12 months or 12,000 miles on parts and labor/g, "12 months on parts and labor"],
   [/12 months or 12,000 miles on non-warranty repair work/g, "12 months on non-warranty repair work"],
+
+  // -- ROS-043 close-out: the "12k-mile" abbreviation escaped every rule above
+  //    (it survived in /warranties og:/twitter:/JSON-LD descriptions).
+  [
+    /Our 12-month \/ 12k-mile warranty covers parts and labor\./g,
+    "Our 12-month parts / 90-day labor warranty backs every repair.",
+  ],
+  [/12-month \/ 12k-mile warranty/g, "12-month parts / 90-day labor warranty"],
+  [/12k-mile warranty/g, "12-month parts / 90-day labor warranty"],
 
   // -- broad fallbacks LAST (after every contextual rule above) --
   [/12-month \/ 12,000-mile/g, "12-month parts / 90-day labor"],

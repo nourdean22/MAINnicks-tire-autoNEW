@@ -488,8 +488,10 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/warranties",
     priority: 0.8,
     changefreq: "monthly",
-    title: "12-Month/12,000-Mile Auto Repair Warranty Cleveland | Nick's",
-    description: "Our 12-month / 12k-mile warranty covers parts and labor. Transparency, trust, and honest service on Euclid Ave. Pull up any day.",
+    // ROS-043: title/description must match the invoice terms (12-month parts /
+    // 90-day labor, NO mileage cap) — the prior mileage wording was fabricated.
+    title: "12-Month Parts / 90-Day Labor Auto Repair Warranty Cleveland | Nick's",
+    description: "Our 12-month parts / 90-day labor warranty backs every repair. Transparency, trust, and honest service on Euclid Ave. Pull up any day.",
     group: "service",
     sitemap: true,
     prerender: true,

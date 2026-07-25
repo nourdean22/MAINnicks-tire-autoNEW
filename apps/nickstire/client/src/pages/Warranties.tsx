@@ -48,7 +48,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "Do used tires have a warranty?",
-      a: "Used tires do not carry a 12-month warranty, but they pass our rigorous 4-point safety inspection (checking tread depth, sidewalls, bead, and DOT age date) before installation. We stand by their safety at mount time.",
+      a: "Used tires carry a 7-day limited replacement warranty covering verified air loss or internal tire failure from a defect present at time of sale only — it does not cover road hazard, punctures, or impact damage. Every used tire also passes our rigorous 4-point safety inspection (tread depth, sidewalls, bead, and DOT age date) before installation.",
     },
     {
       q: "Is the warranty nationwide?",

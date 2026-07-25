@@ -297,7 +297,7 @@ const ANTI_PROMISE_SETS = [
     promises: [
       "We won't replace 4 tires when 1 has a fixable nail.",
       "We won't recommend a service your manual doesn't.",
-      "We won't disappear after the work — every repair carries a 12-month / 12,000-mile warranty.",
+      "We won't disappear after the work — every repair carries a 12-month parts / 90-day labor warranty.",
     ],
     closer: "The yellow's a little louder in person. So is the math.",
     imageHint: "the workshop bay with two cars on lifts mid-service",
