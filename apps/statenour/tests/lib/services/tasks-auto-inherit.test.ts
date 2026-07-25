@@ -28,9 +28,17 @@ const mocks = vi.hoisted(() => ({
     create: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   mission: {
     findUnique: vi.fn(),
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+  },
+  lifeGoal: {
+    findMany: vi.fn(),
+  },
+  taskClassificationCorrection: {
     findMany: vi.fn(),
   },
 }));
@@ -39,6 +47,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     task: mocks.task,
     mission: mocks.mission,
+    lifeGoal: mocks.lifeGoal,
+    taskClassificationCorrection: mocks.taskClassificationCorrection,
     $transaction: vi.fn(async (fn) =>
       fn({
         task: mocks.task,
@@ -46,6 +56,26 @@ vi.mock("@/lib/prisma", () => ({
       }),
     ),
   },
+}));
+
+// 2026-07-25 · createTask fires `void enrichTaskLinkage(id)` — a
+// fire-and-forget chain that touches prisma.mission / prisma.lifeGoal /
+// prisma.taskClassificationCorrection AND the AI classifier. With those
+// missing from the mock, evaluating its Promise.all threw synchronously
+// (reading `.findMany` of undefined), orphaning the sibling
+// resolveInboxMissionId() promise → 12 unhandled-rejection errors that
+// failed the whole vitest run (exit 1) even with every test green.
+// Stub the classifier inert (all-null result → every write branch in
+// enrichTaskLinkage no-ops) and give the extra models real promises.
+vi.mock("@/lib/ai/classify-task-linkage", () => ({
+  classifyTaskLinkage: vi.fn().mockResolvedValue({
+    missionId: null,
+    goalId: null,
+    statHints: [],
+    confidence: 0,
+    rationale: "",
+    domain: null,
+  }),
 }));
 
 vi.mock("@/lib/db/entity-audit", () => ({
@@ -70,6 +100,17 @@ vi.mock("@/lib/runtime", () => ({
 
 // Top-level import so vi.mock's hoisted prisma mock applies.
 import { createTask } from "@/lib/services/tasks";
+
+// File-level defaults for every surface the fire-and-forget enrichment
+// path can touch. Runs BEFORE each describe's own beforeEach; the
+// per-block `vi.clearAllMocks()` clears calls, not implementations, so
+// these survive and per-block mockResolvedValue overrides still win.
+beforeEach(() => {
+  mocks.task.updateMany.mockResolvedValue({ count: 0 });
+  mocks.mission.findFirst.mockResolvedValue(null);
+  mocks.lifeGoal.findMany.mockResolvedValue([]);
+  mocks.taskClassificationCorrection.findMany.mockResolvedValue([]);
+});
 
 const baseInput = {
   title: "new task",
