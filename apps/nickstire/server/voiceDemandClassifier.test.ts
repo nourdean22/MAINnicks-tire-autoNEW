@@ -237,3 +237,41 @@ describe("patterns the real unclear residue exposed", () => {
     expect(intentOf(s)).not.toBe("unclear");
   });
 });
+
+describe("precision bugs found by adjudicating the gold sample", () => {
+  it("matches PAST-TENSE 'spoke with the owner', not just speak/talk", () => {
+    expect(intentOf("I spoke with the owner yesterday")).toBe("human_requested");
+  });
+
+  it("tolerates STT interjections inside the phrase", () => {
+    // Real transcripts inject filler: "spoke with, uh, the owner".
+    expect(intentOf("I need to speak with, um, a manager")).toBe("human_requested");
+  });
+
+  it("catches 'waiting for the managers' — manager not at start of string", () => {
+    expect(intentOf("Waiting for the managers.")).toBe("human_requested");
+  });
+
+  it("does NOT read a phone-number readout as a check-engine code", () => {
+    // "Amber, area code four zero one..." matched \bcode\b before the lookbehind.
+    expect(intentOf("Amber, area code four zero one three nine one")).toBe("unclear");
+  });
+
+  it("still classifies a real code/diagnostic mention", () => {
+    expect(intentOf("it threw a code")).toBe("check_engine");
+    expect(intentOf("do you guys do free diagnostic")).toBe("check_engine");
+  });
+
+  it("treats 'had work done ... ago' as a comeback signal", () => {
+    expect(intentOf("I had work done there two months ago and it's worse")).toBe("complaint");
+  });
+
+  it("documents a genuinely AMBIGUOUS case rather than forcing a rule", () => {
+    // "had work done ... and I spoke with the owner" is defensibly complaint OR
+    // human_requested. Both route to a person, so either is operationally
+    // correct; forcing one would be false precision. Recorded as an
+    // inter-annotator ambiguity class in the calibration notes.
+    const got = intentOf("I had work done there two months ago, and I spoke with, uh, the owner");
+    expect(["complaint", "human_requested"]).toContain(got);
+  });
+});
