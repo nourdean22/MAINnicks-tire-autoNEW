@@ -88,13 +88,19 @@ for (const p of PAGES) {
     ).toBeVisible({ timeout: 10_000 });
     // (3) Page-specific identity — document title OR h1 heading matches.
     // (Most pages have the global "NOUR OS" <title>; identity lives in h1.)
-    const docTitle = await page.title();
-    const h1Text =
-      (await page.locator("h1").first().textContent().catch(() => "")) ?? "";
-    expect(
-      `${docTitle} ${h1Text}`,
-      `${p.path} identity mismatch — title "${docTitle}" / h1 "${h1Text}"`,
-    ).toMatch(p.title);
+    // 2026-07-25 · polled: on the 2-core CI runner the h1 can hydrate a
+    // beat after the heading/main gate above passes (seen on
+    // /system/health — h1 read back empty, then passed on retry). Same
+    // assertion, retried up to 15s instead of a single snapshot read.
+    await expect(async () => {
+      const docTitle = await page.title();
+      const h1Text =
+        (await page.locator("h1").first().textContent().catch(() => "")) ?? "";
+      expect(
+        `${docTitle} ${h1Text}`,
+        `${p.path} identity mismatch — title "${docTitle}" / h1 "${h1Text}"`,
+      ).toMatch(p.title);
+    }).toPass({ timeout: 15_000 });
     // (4) No JS-throwing errors.
     expect(errors, `runtime errors on ${p.path}`).toEqual([]);
   });
@@ -121,7 +127,12 @@ const API_ENDPOINTS = [
 
 for (const e of API_ENDPOINTS) {
   test(`api ${e.method} ${e.path} responds with expected shape`, async ({ request }) => {
-    const res = await request.get(e.path);
+    // 2026-07-25 · 30s request budget: the assertion is about SHAPE, not
+    // latency. Playwright's 10s default flaked when the dev server's
+    // single-threaded webpack compiler was busy with a neighboring
+    // page's modules (rate-limits timed out at 10s post-warmup while
+    // /system/health compiled). Latency bounds belong to prod smoke.
+    const res = await request.get(e.path, { timeout: 30_000 });
     expect(res.status(), `${e.path} status`).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     for (const key of e.expectKeys) {

@@ -920,8 +920,17 @@ async function chatPostInner(req: Request) {
   });
 
   const { buildChatResponse } = await import("@/lib/services/chat/response-shape");
+  // 2026-07-25 · onError closes the SSE-side gap in the v10.0.111 no-echo
+  // policy above: ai@6's default forwards error.message VERBATIM into the
+  // client-visible {type:"error"} part (auth failures can embed API keys).
+  // Server-side detail is already persisted by buildStreamErrorHandler.
+  const { clientSafeStreamErrorText } = await import(
+    "@/lib/services/chat/stream-error-handler"
+  );
   return buildChatResponse({
-    streamResponse: result.toUIMessageStreamResponse(),
+    streamResponse: result.toUIMessageStreamResponse({
+      onError: clientSafeStreamErrorText,
+    }),
     convId: convId!,
     traceId: __traceId,
     mode,

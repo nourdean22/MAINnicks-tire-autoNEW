@@ -196,3 +196,69 @@ describe("2026-07-16 audit · quota breakers wired + no silent no-op marking", (
     );
   });
 });
+
+// ── 2026-07-25 · provider-drought incident · errored streams terminate ──
+//
+// Two verified defects on the errored-stream leg: (1) onFinish never fires
+// after a mid-stream error, so unless onError resolves the route's
+// onFinishPromise the SSE zombie-heartbeats to maxDuration; (2) ai@6's
+// default toUIMessageStreamResponse onError echoes error.message verbatim
+// to the client (API-key leak class). These pins keep both fixes honest.
+
+import {
+  clientSafeStreamErrorText,
+  CLIENT_SAFE_STREAM_ERROR_TEXT,
+} from "@/lib/services/chat/stream-error-handler";
+
+describe("2026-07-25 · errored streams resolve onFinishPromise", () => {
+  it("calls onWorkComplete after the persist completes (stream terminates)", async () => {
+    const deps = { ...makeDeps("a long enough partial reply to persist"), onWorkComplete: vi.fn() };
+    const onError = buildStreamErrorHandler(deps);
+
+    await onError({ error: new Error("provider dropped mid-stream") });
+
+    expect(deps.onWorkComplete).toHaveBeenCalledTimes(1);
+    // Ordering: the errored ChatMessage row is written BEFORE the resolver
+    // fires, so a fast client reload can't race an unpersisted row.
+    expect(chatMessageCreateMock).toHaveBeenCalledTimes(1);
+    expect(deps.onWorkComplete.mock.invocationCallOrder[0]).toBeGreaterThan(
+      chatMessageCreateMock.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("calls onWorkComplete even when the persist path throws (finally semantics)", async () => {
+    chatMessageCreateMock.mockRejectedValue(new Error("db down"));
+    errorLogCreateMock.mockRejectedValue(new Error("db down"));
+    const deps = { ...makeDeps("partial text long enough to persist"), onWorkComplete: vi.fn() };
+    const onError = buildStreamErrorHandler(deps);
+
+    await onError({ error: new Error("provider dropped mid-stream") });
+
+    expect(deps.onWorkComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays optional — handler still resolves without onWorkComplete", async () => {
+    const onError = buildStreamErrorHandler(makeDeps("some partial"));
+    await expect(onError({ error: new Error("boom") })).resolves.toBeUndefined();
+  });
+});
+
+describe("2026-07-25 · client-visible stream error text never echoes the error", () => {
+  it("returns the constant for any error — including key-bearing auth failures", () => {
+    // Assembled at runtime — a key-shaped LITERAL in source trips the
+    // gitleaks hard gate (it can't know a fixture from a leak, correctly).
+    const fakeKey = ["sk", "abc123SECRET"].join("-");
+    const leaky = new Error(`Invalid API key: ${fakeKey}`);
+    expect(clientSafeStreamErrorText(leaky)).toBe(CLIENT_SAFE_STREAM_ERROR_TEXT);
+    expect(clientSafeStreamErrorText(leaky)).not.toContain(fakeKey);
+    expect(clientSafeStreamErrorText({ message: `401 ${fakeKey}` })).toBe(CLIENT_SAFE_STREAM_ERROR_TEXT);
+    expect(clientSafeStreamErrorText(undefined)).toBe(CLIENT_SAFE_STREAM_ERROR_TEXT);
+  });
+
+  it("does not contain the client transport auto-retry trigger substrings", () => {
+    const lower = CLIENT_SAFE_STREAM_ERROR_TEXT.toLowerCase();
+    for (const trigger of ["failed to fetch", "networkerror", "fetch failed"]) {
+      expect(lower).not.toContain(trigger);
+    }
+  });
+});

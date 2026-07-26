@@ -41,6 +41,31 @@ interface ChatLogger {
 }
 
 /**
+ * 2026-07-25 (provider-drought incident) · the client-visible text for a
+ * mid-stream error part. Passed as `onError` to toUIMessageStreamResponse.
+ *
+ * Without this, ai@6's default forwards `error.message` VERBATIM into the
+ * SSE {type:"error"} part — provider SDK auth failures can embed the API
+ * key (the exact leak the route's 500-path no-echo policy guards against;
+ * see v10.0.111 in route.ts). Constant on purpose: never derive from the
+ * error. Must NOT contain "failed to fetch"/"networkerror"/"fetch failed"
+ * — those substrings trigger the client's transport-level auto-retry
+ * matcher (use-chat-stream.ts) which this error is not.
+ *
+ * PR #1089 review (P2): no persistence claim in this text — Private Lab
+ * deliberately skips the errored-row persist, and the normal path
+ * swallows a failed write, so "your reply is saved" can be false.
+ * Neutral interruption text only.
+ */
+export const CLIENT_SAFE_STREAM_ERROR_TEXT =
+  "The AI provider dropped mid-response — tap Retry to continue.";
+
+/** SDK-shaped onError callback: swallow the real error, return the constant. */
+export function clientSafeStreamErrorText(_error: unknown): string {
+  return CLIENT_SAFE_STREAM_ERROR_TEXT;
+}
+
+/**
  * Mutable partial-text reference shared with onChunk. onChunk pushes
  * text-delta chunks into `.text`; this onError reads `.text` when the
  * stream interrupts.
@@ -74,6 +99,19 @@ export interface BuildStreamErrorHandlerInput {
    * because route.ts already imports + binds it to the per-turn traceId.
    */
   recordTrace: (start: TraceStartInput, finalize: TraceFinishInput) => Promise<void> | void;
+  /**
+   * 2026-07-25 (provider-drought incident) · resolves the route's
+   * onFinishPromise. onFinish never fires on an errored stream, so without
+   * this the SSE assembler (sse-stream.ts) awaits a promise that never
+   * resolves — "message.completed" is never emitted and the connection
+   * hangs on 7s heartbeats until client abort or the 120s maxDuration.
+   * Called in `finally` AFTER the persist/trace awaits so a fast client
+   * reload can't race the errored ChatMessage row. Committed streams only:
+   * failed probe attempts drop their buffered onError events before the
+   * route handler runs (stream-with-fallback.ts), so recovered turns never
+   * reach this.
+   */
+  onWorkComplete?: () => void;
 }
 
 export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
@@ -266,6 +304,10 @@ export function buildStreamErrorHandler(deps: BuildStreamErrorHandlerInput) {
         .catch(() => {});
     } catch {
       /* swallow — onError must not throw */
+    } finally {
+      // Terminate the errored stream: resolve onFinishPromise so the SSE
+      // closes promptly instead of zombie-heartbeating to maxDuration.
+      deps.onWorkComplete?.();
     }
   };
 }

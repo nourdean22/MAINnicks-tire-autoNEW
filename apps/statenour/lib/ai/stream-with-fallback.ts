@@ -93,7 +93,9 @@ export interface StreamAttempt {
 export interface StreamWithFallbackResult {
   result: {
     fullStream: ReadableStream;
-    toUIMessageStreamResponse: () => Response;
+    toUIMessageStreamResponse: (options?: {
+      onError?: (error: unknown) => string;
+    }) => Response;
     toolCalls: any;
   };
   model: LanguageModel;

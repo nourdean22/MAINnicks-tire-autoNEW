@@ -134,6 +134,17 @@ jobs:
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
             echo "  warm $p -> $code"
           done
+          # 2026-07-25 · warm the API-contract routes too. The smoke's API
+          # tests use a 10s request cap — a fine bound for a WARMED route,
+          # but next dev cold-compiles each route on first hit, which blew
+          # the cap nondeterministically (rate-limits/costs/intel flaked in
+          # the PR #1089 run; run 8 only passed on timing luck). Status is
+          # irrelevant here — compilation happens regardless of auth.
+          echo "warming API routes..."
+          for p in /api/system/rate-limits "/api/trpc/system.costs?input=%7B%22days%22%3A7%7D" /api/intel "/api/content/history?days=30" /api/social/recent-images /api/brain/wisdom /api/trpc/observability.osSnapshot "/api/trpc/system.promptDiagnostics?input=%7B%22msg%22%3A%22warmup%22%7D"; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
+            echo "  warm $p -> $code"
+          done
 
       - name: Install Playwright chromium
         working-directory: apps/statenour
