@@ -117,16 +117,22 @@ export function CognitivePartner() {
   // same once-per-day stamp gates a visible chip instead — the brief
   // stays one tap away, and no spend happens without an explicit tap.
   // Day-stamp helpers unchanged (lib/home/cognitive-partner-brief).
-  // Lazy initializer (same localStorage-read idiom as FollowUpsList):
-  // SSR renders false; the client's first render reads the day stamp.
-  const [briefAvailable, setBriefAvailable] = useState(() => {
+  // 2026-07-26 hydration fix: this was a lazy useState initializer reading
+  // localStorage, with a comment claiming "SSR renders false; the client's
+  // first render reads the day stamp" — which is exactly the bug. React
+  // requires the client's FIRST render to match the server's; branching on
+  // localStorage there made the server emit a <div> where the client emitted
+  // the brief <button>, and React discarded and re-rendered the whole Home
+  // tree on every visit. (Caught by the e2e console-error assertion once the
+  // suite stopped crashing before it could report — see PR #1098.)
+  // Correct shape: render the SSR-safe value first, then read the stamp in an
+  // effect after mount. The chip appears a frame later; nothing else changes.
+  const [briefAvailable, setBriefAvailable] = useState(false);
+  useEffect(() => {
     try {
-      if (typeof window !== "undefined") {
-        return shouldFireBrief(readBriefStamp(), todayStamp());
-      }
+      setBriefAvailable(shouldFireBrief(readBriefStamp(), todayStamp()));
     } catch {}
-    return false;
-  });
+  }, []);
   const fireBrief = useCallback(() => {
     const today = todayStamp();
     markBriefFired(today);
