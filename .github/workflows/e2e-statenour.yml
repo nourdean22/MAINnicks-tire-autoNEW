@@ -39,7 +39,14 @@ on:
       - '.github/workflows/e2e-statenour.yml'
 
 concurrency:
-  group: e2e-statenour-${{ github.ref }}
+  # PR refs share a per-ref group (so a new push supersedes the old
+  # verdict); push-to-main runs get a UNIQUE group per commit.
+  # 2026-07-26 · PR #1098 review (P1): cancel-in-progress:false is NOT
+  # enough on a shared group — GitHub allows only ONE running + ONE
+  # pending run per group, so a third qualifying push to main evicts
+  # the pending one and that commit still goes unverified. Keying the
+  # group on the sha removes main runs from contention entirely.
+  group: e2e-statenour-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
   # 2026-07-25 · NEVER cancel a main run. Superseding is right for PR
   # refs (a new push obsoletes the old verdict and saves runner
   # minutes) but on main each run is the ONLY verification that commit
