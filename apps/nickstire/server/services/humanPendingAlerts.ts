@@ -51,16 +51,35 @@ export interface OverdueAlertResult {
   skippedReason?: string;
 }
 
-/** Last 4 digits only — the deep link, not the phone number, is how the operator acts. */
+/**
+ * How many overdue rows to CONSIDER per sweep. Larger than the listing cap on
+ * purpose: the query returns oldest-first, so fetching only MAX_LISTED would let
+ * a handful of already-alerted obligations at the front permanently hide newer
+ * ones behind them — the customer at position 26 would never be surfaced.
+ */
+const SCAN_LIMIT = 200;
+
+/** Last 4 digits only — the admin link, not the phone number, is how the operator acts. */
 function tail(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   return digits.length >= 4 ? `...${digits.slice(-4)}` : "...????";
 }
 
+/**
+ * Telegram renders with parse_mode HTML, so raw customer text is markup here. A
+ * message containing "<" (or an angle-bracketed word) would break the send or
+ * inject tags into the operator's alert — customer-controlled input reaching a
+ * markup renderer.
+ */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /** Keep the digest scannable on a phone screen. */
 function preview(body: string): string {
   const flat = body.replace(/\s+/g, " ").trim();
-  return flat.length > 70 ? `${flat.slice(0, 70)}...` : flat;
+  const clipped = flat.length > 70 ? `${flat.slice(0, 70)}...` : flat;
+  return escapeHtml(clipped);
 }
 
 /**
@@ -89,7 +108,7 @@ export function composeOverdueAlert(waiting: WaitingCustomer[], totalOverdue: nu
  * unreadable queue look like an empty one (the exact ROS-059 failure shape).
  */
 export async function alertOverdueObligations(): Promise<OverdueAlertResult> {
-  const overdueRows = await listOverdueHumanPending(25);
+  const overdueRows = await listOverdueHumanPending(SCAN_LIMIT);
   if (overdueRows.length === 0) {
     return { overdue: 0, alerted: 0, delivered: false, skippedReason: "none overdue" };
   }

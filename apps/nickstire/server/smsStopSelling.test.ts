@@ -176,3 +176,50 @@ describe("discriminating questions — one resolvable gap, not a dodge", () => {
     expect(plan("how much for brakes?").knownFacts.join(" ")).not.toMatch(/\$\d/);
   });
 });
+
+describe("review #1099 P2 — an asked-for answer is not a pitch", () => {
+  it("still allows financing when a COMMITTED customer asks about it", () => {
+    // Suppressing the unprompted pitch must never suppress a direct answer.
+    // Refusing to answer "do you take payments?" is a worse failure than the
+    // pitch the prohibition exists to prevent.
+    const p = plan("on my way, do you take payment plans?");
+    expect(p.stopSelling).toBe(true);
+    expect(planViolations(p, "Financing is available — ask at the counter when you get here.")).toEqual([]);
+  });
+
+  it("still blocks UNPROMPTED financing for a committed customer", () => {
+    const p = plan("I'm on my way");
+    expect(planViolations(p, "Got it. We also offer financing if you need it.")).toContain(
+      "pitch_after_commitment:unprompted_financing",
+    );
+  });
+
+  it("keeps the other pitch prohibitions active when financing was asked about", () => {
+    const p = plan("omw, do you finance?");
+    expect(planViolations(p, "Sure! Also we have 1,700+ reviews.")).toContain(
+      "pitch_after_commitment:social_proof",
+    );
+  });
+});
+
+describe("router financing rule — the \b bug that hid the whole intent", () => {
+  // `\b(financ|payment plan|...)\b` could not match "financing", "finance" or
+  // "payment plans": a trailing \b needs a boundary right after "financ"/"plan",
+  // which does not exist mid-word. Only the exact singular ever fired, so the
+  // most common phrasing fell through to `general`.
+  it.each([
+    "do you offer financing?",
+    "can I finance it",
+    "do you take payment plans?",
+    "payment plan",
+    "no credit check?",
+  ])("routes %j to the financing intent", (body) => {
+    const d = routeInboundSms(body, CTX);
+    expect([d.primary, ...d.secondary]).toContain("financing");
+  });
+
+  it("does not fire on unrelated words containing the letters", () => {
+    const d = routeInboundSms("what are your hours?", CTX);
+    expect([d.primary, ...d.secondary]).not.toContain("financing");
+  });
+});

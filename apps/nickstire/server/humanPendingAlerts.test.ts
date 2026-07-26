@@ -140,3 +140,33 @@ describe("alertOverdueObligations", () => {
     expect(h.sendTelegram).not.toHaveBeenCalled();
   });
 });
+
+describe("review #1099 — paging and markup safety", () => {
+  it("escapes customer text so it cannot inject Telegram HTML", () => {
+    const text = composeOverdueAlert([waiting({ body: "do you have <b>225/50R17</b> & a spare?" })], 1);
+    expect(text).not.toMatch(/<b>/);
+    expect(text).toContain("&lt;b&gt;");
+    expect(text).toContain("&amp;");
+  });
+
+  it("surfaces a customer sitting past the listing cap", async () => {
+    h.sendTelegram.mockResolvedValue(true);
+    const many = Array.from({ length: 40 }, (_, i) => waiting({ jobId: i + 1 }));
+    h.listOverdue.mockResolvedValue(many);
+
+    const first = await alertOverdueObligations();
+    expect(first.alerted).toBe(40);
+    const sent = h.sendTelegram.mock.calls[0][0] as string;
+    expect(sent).toContain("40 CUSTOMERS ARE WAITING");
+    expect(sent).toContain("...and 35 more");
+
+    const second = await alertOverdueObligations();
+    expect(second.alerted).toBe(0);
+  });
+
+  it("requests a scan window larger than the listing cap", async () => {
+    h.listOverdue.mockResolvedValue([]);
+    await alertOverdueObligations();
+    expect(h.listOverdue).toHaveBeenCalledWith(200);
+  });
+});

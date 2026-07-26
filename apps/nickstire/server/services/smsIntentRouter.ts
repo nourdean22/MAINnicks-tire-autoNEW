@@ -253,7 +253,13 @@ const RULES: Rule[] = [
     priority: 6,
     risk: "human_assisted",
     catalogEvent: null,
-    test: (b) => /\b(financ|payment plan|snap|acima|koalafi|no credit|credit check)\b/i.test(b),
+    // `financ\w*` / `plans?` on purpose. The prior `\b(financ|payment plan|...)\b`
+    // could not match "financing", "finance", or "payment plans": a trailing \b
+    // needs a word boundary right after "financ"/"plan", which does not exist
+    // mid-word. Only the exact singular "payment plan" ever fired, so the most
+    // common phrasing of the question — "do you offer financing?" — fell through
+    // to `general` and never reached the financing playbook.
+    test: (b) => /\b(financ\w*|payment plans?|snap|acima|koalafi|no credit|credit check)\b/i.test(b),
   },
   {
     intent: "human_requested",

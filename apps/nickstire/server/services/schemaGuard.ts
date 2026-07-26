@@ -100,6 +100,40 @@ export function getLastSchemaAudit(): SchemaAuditResult | null {
   return lastAudit;
 }
 
+/** Backoff between boot retries: the pool is usually ready within seconds. */
+const RETRY_DELAYS_MS = [5_000, 20_000, 60_000];
+
+/**
+ * Boot entry point: audit, and retry if the audit could not RUN.
+ *
+ * At boot the guard races the database pool, so a cold start can report "no
+ * database connection" — indistinguishable from a real outage and, without this,
+ * cached as `unknown` until the next deploy. That would quietly defeat the guard
+ * on exactly the restarts it exists to cover.
+ *
+ * Only a failure to RUN is retried. A successful audit that FOUND missing tables
+ * is a real answer; re-running it would just repeat the alarm.
+ */
+export async function auditCriticalTablesWithRetry(
+  /** Overridable so tests exercise the retry logic without sleeping for real. */
+  delaysMs: readonly number[] = RETRY_DELAYS_MS,
+): Promise<SchemaAuditResult> {
+  let result = await auditCriticalTables();
+  for (const delay of delaysMs) {
+    if (!result.error) return result; // ran successfully — ok or not, it is an answer
+    log.warn(`Schema guard could not run; retrying in ${Math.round(delay / 1000)}s`, { error: result.error });
+    await new Promise((r) => setTimeout(r, delay));
+    result = await auditCriticalTables();
+  }
+  if (result.error) {
+    log.error("Schema guard never completed — critical-table state stays UNKNOWN until the next restart", {
+      error: result.error,
+      errorId: "SCHEMA_GUARD_UNRESOLVED",
+    });
+  }
+  return result;
+}
+
 /**
  * Check every critical table in one query and log LOUD for each absence.
  *

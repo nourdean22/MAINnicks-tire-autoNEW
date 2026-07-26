@@ -260,14 +260,35 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
                 },
               );
               const { getOrCreateConversation } = await import("../../db");
+              const { ensureResponseObligation, answerResponseObligation } =
+                await import("../../services/smsResponseJobs");
               const conv = await getOrCreateConversation(normalized);
-              void handleInboundResponse({
+              const healInput = {
                 conversationId: conv.id,
                 phone: normalized,
                 providerMsgId: messageId,
                 body,
-              }).catch((err) => {
-                log.warn("Obligation healing failed", {
+              };
+              // AWAIT the obligation write, exactly as the first-delivery path
+              // does. Fire-and-forgetting it here would rebuild the very hole
+              // this branch exists to repair: if the heal is lost to a restart
+              // the message row still exists, so the NEXT redelivery lands back
+              // in this same dedupe and finds no obligation again. A 500 hands
+              // the retry to Capevace instead.
+              let healed: ObligationHandle;
+              try {
+                healed = await ensureResponseObligation(healInput);
+              } catch (err) {
+                log.error("Obligation healing failed — asking Capevace to redeliver", {
+                  error: err instanceof Error ? err.message : String(err),
+                  errorId: "SMS_OBLIGATION_HEAL_FAILED",
+                });
+                res.status(500).json({ error: "heal_failed" });
+                return;
+              }
+              // Answering stays off the ack path; the durable row is the guarantee.
+              void answerResponseObligation(healed, healInput).catch((err) => {
+                log.warn("Healed obligation could not be answered in-request", {
                   error: err instanceof Error ? err.message : String(err),
                 });
               });

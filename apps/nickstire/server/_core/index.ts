@@ -406,7 +406,10 @@ async function startServer() {
     // guard's registry degrades SILENTLY when absent (sms_response_jobs ran its
     // quiet fallback for 4 days before anyone noticed). This makes that condition
     // loud once at boot. Diagnostic only: it never throws and never blocks.
-    import("../services/schemaGuard").then(({ auditCriticalTables }) => auditCriticalTables())
+    // Retrying variant: at boot the guard races the DB pool, and a cold start
+    // that reports "no connection" would otherwise cache as `unknown` until the
+    // next deploy — defeating the guard on the very restarts it covers.
+    import("../services/schemaGuard").then(({ auditCriticalTablesWithRetry }) => auditCriticalTablesWithRetry())
       .catch(e => console.warn("[server:init] schema guard failed:", e));
     // NCSOS facts store: upsert the code-level SEED_FACTS into business_facts so
     // the operator has editable rows. Idempotent; the code seed is the fallback,

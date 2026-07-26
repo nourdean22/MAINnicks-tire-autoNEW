@@ -15,7 +15,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 const h = vi.hoisted(() => ({ getDb: vi.fn() }));
 vi.mock("./db", () => ({ getDb: h.getDb }));
 
-import { auditCriticalTables, getLastSchemaAudit, CRITICAL_TABLES } from "./services/schemaGuard";
+import {
+  auditCriticalTables,
+  auditCriticalTablesWithRetry,
+  getLastSchemaAudit,
+  CRITICAL_TABLES,
+} from "./services/schemaGuard";
 
 const readResult = (rows: unknown[]) => [rows, []];
 const allPresent = () => readResult(CRITICAL_TABLES.map((t) => ({ name: t.table })));
@@ -89,5 +94,38 @@ describe("auditCriticalTables", () => {
     h.getDb.mockResolvedValue({ execute: vi.fn().mockResolvedValue(allPresent()) });
     const result = await auditCriticalTables();
     expect(getLastSchemaAudit()).toEqual(result);
+  });
+});
+
+describe("review #1099 P2 — a boot race must not cache as UNKNOWN forever", () => {
+  it("retries when the audit could not RUN, then reports the real answer", async () => {
+    // Cold start: the guard races the DB pool, so the first attempt cannot run.
+    // Without a retry that result caches as `unknown` until the next deploy —
+    // defeating the guard on exactly the restarts it exists to cover.
+    h.getDb
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ execute: vi.fn().mockResolvedValue(allPresent()) });
+
+    const result = await auditCriticalTablesWithRetry([1]);
+    expect(result.ok).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("does NOT retry a successful audit that found missing tables", async () => {
+    // That is a real answer, not a failure to run; re-running repeats the alarm.
+    const present = CRITICAL_TABLES.filter((t) => t.table !== "cron_locks").map((t) => ({ name: t.table }));
+    h.getDb.mockResolvedValue({ execute: vi.fn().mockResolvedValue(readResult(present)) });
+
+    const result = await auditCriticalTablesWithRetry([1, 1, 1]);
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.table)).toEqual(["cron_locks"]);
+    expect(h.getDb).toHaveBeenCalledTimes(1); // no retry after a real answer
+  });
+
+  it("gives up honestly after exhausting retries", async () => {
+    h.getDb.mockResolvedValue(null);
+    const result = await auditCriticalTablesWithRetry([1, 1]);
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeTruthy();
   });
 });

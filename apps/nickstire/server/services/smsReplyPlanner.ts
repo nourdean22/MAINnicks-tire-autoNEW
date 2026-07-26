@@ -85,6 +85,13 @@ const BRAKE_SYMPTOM_RE = /\b(squeak\w*|squeal\w*|grind\w*|shak\w*|vibrat\w*|puls
 /** Solid vs flashing — the detail that separates "bring it by" from urgent. */
 const CEL_STATE_RE = /\b(solid|steady|flash\w*|blink\w*)\b/i;
 
+/**
+ * The customer raised financing themselves. Broader than the router's financing
+ * rule because this only needs to decide whether ANSWERING is allowed, not what
+ * the reply is about — a false positive here costs nothing.
+ */
+const FINANCING_ASK_RE = /\b(financ\w*|payment plans?|make payments|pay(ing)? (it )?off|snap|acima|koalafi|no credit|bad credit|credit check|layaway)\b/i;
+
 // ─── Shared prohibited-claim library (affirmative-claim shaped so honest
 //     "we'll check what's in stock" copy never trips them) ──────────────
 const CLAIM_STOCK: ProhibitedClaim = {
@@ -449,11 +456,20 @@ export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext,
   // grinding, on my way" must still answer the brakes — just without the pitch.
   const stopSelling = intents.includes("arrival_committed");
 
+  // Stop-selling suppresses the UNPROMPTED pitch, never an answer the customer
+  // asked for. "I'm on my way — do you take payments?" is a direct question, and
+  // refusing to answer it would be a worse failure than the pitch we are
+  // preventing. Same logic as scoping the prohibitions to commitment at all.
+  const askedAboutFinancing = intents.includes("financing") || FINANCING_ASK_RE.test(body);
+  const stopSellingClaims = STOP_SELLING_PROHIBITED.filter(
+    (c) => !(askedAboutFinancing && c.label === CLAIM_PITCH_FINANCING.label),
+  );
+
   const prohibitedMap = new Map<string, ProhibitedClaim>();
   for (const c of [
     ...GLOBAL_PROHIBITED,
     ...books.flatMap((b) => b.prohibited),
-    ...(stopSelling ? STOP_SELLING_PROHIBITED : []),
+    ...(stopSelling ? stopSellingClaims : []),
   ]) {
     prohibitedMap.set(c.label, c);
   }
