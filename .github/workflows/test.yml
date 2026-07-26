@@ -360,6 +360,15 @@ jobs:
           check_url "Worker" "$WORKER_HEALTH_URL"
           check_url "Voice" "$VOICE_HEALTH_URL"
 
+  # 2026-07-26 · the "Fail on critical upstream failure" step was deleted.
+  # It could never turn a green run red: node/voice failures already fail
+  # their own jobs, and railway-smoke exits 1 itself under strict mode.
+  # Verified across 60 runs — notify went red if and only if node was
+  # already failure/cancelled, zero exceptions. What it DID do was report
+  # the wrong cause: a vitest crash in `node` surfaced as
+  # "::error::Strict Smoke Tests failed.", which sent a diagnosis two
+  # rounds down the wrong path. This job now only SUMMARISES; the jobs
+  # themselves own their verdicts.
   notify:
     needs: [changes, node, voice, railway-smoke]
     if: always()
@@ -397,17 +406,3 @@ jobs:
               "$SLACK_WEBHOOK_URL" || true
           fi
           
-      - name: Fail on critical upstream failure
-        run: |
-          if [[ "${{ needs.node.result }}" == "failure" || "${{ needs.node.result }}" == "cancelled" ]]; then
-            echo "::error::Node CI job failed or was cancelled."
-            exit 1
-          fi
-          if [[ "${{ needs.voice.result }}" == "failure" || "${{ needs.voice.result }}" == "cancelled" ]]; then
-            echo "::error::Voice CI job failed or was cancelled."
-            exit 1
-          fi
-          if [[ "${{ vars.RAILWAY_SMOKE_STRICT }}" == "true" && "${{ needs.railway-smoke.result }}" == "failure" ]]; then
-            echo "::error::Strict Smoke Tests failed."
-            exit 1
-          fi
