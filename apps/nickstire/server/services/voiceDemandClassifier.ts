@@ -97,11 +97,11 @@ const RULES: Rule[] = [
     re: new RegExp(
       [
         // generic nouns
-        /\b(speak|talk)\w*\s+(to|with)\s+(a\s+|the\s+)?(someone|somebody|some body|a person|human|manager|owner|rep\w*|representative|associate|agent|guy|lady|girl|man)\b/.source,
+        /\b(speak|spoke|spoken|talk\w*|ask(ed|ing)?)\s+(to|with|for)\b[^.?!]{0,14}?\b(someone|somebody|some body|a person|human|manager|owner|rep\w*|representative|associate|agent|guy|lady|girl|man)\b/.source,
         // dropped-verb STT artifacts: "can I ... to a representative"
         /\b(can|could)\s+i\b[^.?!]{0,12}\bto\s+(a|the)\s+(representative|rep|person|manager|somebody|someone)\b/.source,
         // explicit routing language
-        /real person|^\s*manager\b|manager,?\s*please|just transfer|transfer me|connect me|connecting to the store|customer service\b|front desk\b/.source,
+        /real person|^\s*manager|manager,?\s*please|\b(waiting|wait|hold)\w*\s+(for|on)\s+(the\s+)?manager|just transfer|transfer me|connect me|connecting to the store|customer service\b|front desk\b/.source,
       ].join("|"),
       "i",
     ),
@@ -120,7 +120,10 @@ const RULES: Rule[] = [
   },
   {
     intent: "complaint", priority: 0, friction: "complaint", confidence: 0.9,
-    re: /\bstill\s+(doing|making|grind\w*|squeak\w*|leak\w*|pull\w*)|after (you|the shop|the) (fix|repair|work)|\bcame back\b|not happy|complain\w*|\brefund\w*|you (broke|damaged|messed)/i,
+    // "had work done there two months ago" is a COMEBACK — the strongest
+    // signal in the sentence, and it must outrank whoever the caller
+    // happened to mention speaking to. Found by gold-sample adjudication.
+    re: /\bstill\s+(doing|making|grind\w*|squeak\w*|leak\w*|pull\w*)|after (you|the shop|the) (fix|repair|work)|\bcame back\b|had\s+(work|it)\s+(done|fixed|repaired)\b|not happy|complain\w*|\brefund\w*|you (broke|damaged|messed)/i,
   },
   {
     intent: "warranty", priority: 1, friction: "trust_uncertainty", confidence: 0.85,
@@ -196,7 +199,9 @@ const RULES: Rule[] = [
   },
   {
     intent: "check_engine", priority: 4, friction: "price_uncertainty", confidence: 0.85,
-    re: /check[- ]engine|engine light|\bcodes?\b|misfire|\bscan\w*|diagnos\w*/i,
+    // `(?<!area )` — a caller reading out "area code four zero one..." is not
+    // a check-engine call. Found by adjudicating the gold sample.
+    re: /check[- ]engine|engine light|(?<!area )\bcodes?\b|misfire|\bscan\w*|diagnos\w*/i,
   },
   { intent: "echeck", priority: 4, friction: "price_uncertainty", confidence: 0.9, re: /\be[-\s]?check\b|emission\w*/i },
   { intent: "oil_change", priority: 4, friction: "price_uncertainty", confidence: 0.85, re: /oil chang\w*|chang\w*\s+(the\s+|my\s+)?oil\b|\boil\b/i },
