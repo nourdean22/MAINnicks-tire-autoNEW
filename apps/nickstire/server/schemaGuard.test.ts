@@ -19,6 +19,8 @@ import {
   auditCriticalTables,
   auditCriticalTablesWithRetry,
   getLastSchemaAudit,
+  startSchemaGuardReaudit,
+  __stopSchemaGuardReaudit,
   CRITICAL_TABLES,
 } from "./services/schemaGuard";
 
@@ -127,5 +129,37 @@ describe("review #1099 P2 — a boot race must not cache as UNKNOWN forever", ()
     const result = await auditCriticalTablesWithRetry([1, 1]);
     expect(result.ok).toBe(false);
     expect(result.error).toBeTruthy();
+  });
+});
+
+describe("re-audit — a boot-only result goes stale in BOTH directions", () => {
+  afterEach(() => __stopSchemaGuardReaudit());
+
+  it("refreshes the cached result on the interval", async () => {
+    // Observed live 2026-07-26: after 0093/0094 were applied to prod, health kept
+    // reporting the pre-fix `degraded` because the audit only ran at boot.
+    vi.useFakeTimers();
+    const missing = CRITICAL_TABLES.filter((t) => t.table !== "business_facts").map((t) => ({ name: t.table }));
+    h.getDb.mockResolvedValue({ execute: vi.fn().mockResolvedValue(readResult(missing)) });
+    await auditCriticalTables();
+    expect(getLastSchemaAudit()!.ok).toBe(false);
+
+    // Operator applies the migration; the table now exists.
+    h.getDb.mockResolvedValue({ execute: vi.fn().mockResolvedValue(allPresent()) });
+    startSchemaGuardReaudit(1000);
+    await vi.advanceTimersByTimeAsync(1100);
+    await vi.waitFor(() => expect(getLastSchemaAudit()!.ok).toBe(true));
+    vi.useRealTimers();
+  });
+
+  it("is idempotent — repeated starts do not stack timers", () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(global, "setInterval");
+    startSchemaGuardReaudit(1000);
+    startSchemaGuardReaudit(1000);
+    startSchemaGuardReaudit(1000);
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+    vi.useRealTimers();
   });
 });

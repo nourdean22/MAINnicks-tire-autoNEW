@@ -409,8 +409,13 @@ async function startServer() {
     // Retrying variant: at boot the guard races the DB pool, and a cold start
     // that reports "no connection" would otherwise cache as `unknown` until the
     // next deploy — defeating the guard on the very restarts it covers.
-    import("../services/schemaGuard").then(({ auditCriticalTablesWithRetry }) => auditCriticalTablesWithRetry())
-      .catch(e => console.warn("[server:init] schema guard failed:", e));
+    import("../services/schemaGuard").then(async ({ auditCriticalTablesWithRetry, startSchemaGuardReaudit }) => {
+      await auditCriticalTablesWithRetry();
+      // Hourly re-audit: a boot-only result goes stale both ways — it keeps
+      // reporting `degraded` after an operator applies the migration, and it
+      // would miss a table dropped after boot.
+      startSchemaGuardReaudit();
+    }).catch(e => console.warn("[server:init] schema guard failed:", e));
     // NCSOS facts store: upsert the code-level SEED_FACTS into business_facts so
     // the operator has editable rows. Idempotent; the code seed is the fallback,
     // so a failure here never leaves a fact unavailable.
