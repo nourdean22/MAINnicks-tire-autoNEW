@@ -37,8 +37,43 @@ export const MAX_TURN_CHARS = 300;
  */
 const MIN_SUBSTANTIVE_CHARS = 12;
 
-/** Pure filler — never the customer's actual request. */
-const FILLER_RE = /^(y(e[ash]*|up|eah)|ok(ay)?|uh[- ]?huh|mm+|hm+|hello|hi|hey|sure|right|alright|no|nope|thanks?|thank you|bye|goodbye|correct|exactly|please|sorry|what|huh)[.!?,]*$/i;
+/** A single filler token — never part of the customer's actual request. */
+const FILLER_WORD_RE = /^(y(e[ash]*|up|eah)|ok(ay)?|uh|um+|uh[- ]?huh|mm+|hm+|hello|hi|hey|sure|right|alright|no|nope|yes|thanks?|thank you|bye|goodbye|correct|exactly|please|sorry|what|huh|there|wait|sir|ma'?am)$/i;
+
+/**
+ * Placeholders that reach us as literal text. Real backfilled calls contained
+ * the four-character string "null" as a customer turn — almost certainly a
+ * serialised absent value upstream. Treating that as a request would classify
+ * those calls on a word the caller never said.
+ */
+const PLACEHOLDER_RE = /^(null|undefined|n\/a|none|\[?inaudible\]?|\[?silence\]?)$/i;
+
+/**
+ * True when a turn is ENTIRELY filler, however many times it repeats.
+ *
+ * The original test anchored a single token, so "Hello? Hello?" — by far the
+ * most common opener in the real corpus, because callers greet twice while the
+ * assistant is still connecting — passed as substantive and became the
+ * "request". That one gap accounted for a large share of an apparent 56%
+ * unclassifiable rate, i.e. it looked like customer ambiguity and was actually a
+ * measurement bug.
+ */
+function isFiller(text: string): boolean {
+  const tokens = text
+    .toLowerCase()
+    .split(/[^a-z']+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return true;
+  if (tokens.length > 6) return false; // too long to be pure greeting noise
+  return tokens.every((t) => FILLER_WORD_RE.test(t));
+}
+
+/** Filler, placeholder, or too short to carry a request. */
+function isSubstantive(text: string): boolean {
+  if (text.length < MIN_SUBSTANTIVE_CHARS) return false;
+  if (PLACEHOLDER_RE.test(text.trim())) return false;
+  return !isFiller(text);
+}
 
 /**
  * VAPI renders transcripts as speaker-prefixed lines. The prefix has varied
@@ -109,7 +144,7 @@ export function extractCustomerTurns(transcript: unknown): CustomerTurns {
   // the contamination this module exists to remove.
   if (!sawPrefix) return { ...empty, unparsed: true };
 
-  const substantive = collected.filter((t) => t.length >= MIN_SUBSTANTIVE_CHARS && !FILLER_RE.test(t));
+  const substantive = collected.filter(isSubstantive);
 
   return {
     turns: collected.slice(0, MAX_TURNS).map((t) => (t.length > MAX_TURN_CHARS ? `${t.slice(0, MAX_TURN_CHARS)}…` : t)),
@@ -158,7 +193,7 @@ export function extractCustomerTurnsFromMessages(messages: unknown): CustomerTur
   // An array that contained messages but no caller turns is a real observation
   // (assistant-only / no-answer call), NOT a parse failure — so `unparsed` stays
   // false and the empty result means what it says.
-  const substantive = collected.filter((t) => t.length >= MIN_SUBSTANTIVE_CHARS && !FILLER_RE.test(t));
+  const substantive = collected.filter(isSubstantive);
   return {
     turns: collected.slice(0, MAX_TURNS).map((t) => (t.length > MAX_TURN_CHARS ? `${t.slice(0, MAX_TURN_CHARS)}…` : t)),
     totalCustomerTurns: collected.length,
@@ -167,7 +202,14 @@ export function extractCustomerTurnsFromMessages(messages: unknown): CustomerTur
   };
 }
 
-export const CUSTOMER_SPEECH_VERSION = 1;
+/**
+ * v2 (2026-07-26): repeated-filler and placeholder handling. v1 treated
+ * "Hello? Hello?" and the literal string "null" as substantive requests, which
+ * inflated the unclassifiable rate and mislabelled calls on words the caller
+ * never said. Bumped rather than silently changed so v1 and v2 extractions stay
+ * distinguishable in the data.
+ */
+export const CUSTOMER_SPEECH_VERSION = 2;
 
 export interface CustomerSpeechRecord {
   v: number;

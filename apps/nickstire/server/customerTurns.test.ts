@@ -172,3 +172,45 @@ describe("extractCustomerTurnsFromMessages — role-tagged is authoritative", ()
     }
   });
 });
+
+describe("v2 — bugs the real corpus exposed", () => {
+  // Found by backfilling production calls: these two patterns dominated the
+  // "unclassifiable" set, so an apparent 56% customer-ambiguity rate was largely
+  // a measurement bug in this file.
+  it.each([
+    "Hello? Hello?",
+    "hello hello",
+    "Yeah, yeah.",
+    "ok ok ok",
+    "Hi? Hello? Hi?",
+    "uh huh, yeah",
+  ])("treats repeated filler %j as filler, not a request", (t) => {
+    expect(extractCustomerTurnsFromMessages([{ role: "user", message: t }]).firstSubstantive).toBeNull();
+  });
+
+  it.each(["null", "undefined", "N/A", "[inaudible]"])("rejects the placeholder %j", (t) => {
+    // A serialised absent value must never be classified as what the caller said.
+    expect(extractCustomerTurnsFromMessages([{ role: "user", message: t }]).firstSubstantive).toBeNull();
+  });
+
+  it("still finds the real request after repeated greetings", () => {
+    const r = extractCustomerTurnsFromMessages([
+      { role: "user", message: "Hello? Hello?" },
+      { role: "user", message: "null" },
+      { role: "user", message: "yeah I need tires for my truck" },
+    ]);
+    expect(r.firstSubstantive).toBe("yeah I need tires for my truck");
+  });
+
+  it("does NOT discard a real sentence that merely contains filler words", () => {
+    // The filler test must be all-tokens, not any-token, or it would eat requests.
+    const r = extractCustomerTurnsFromMessages([
+      { role: "user", message: "yeah hi, no I need a brake quote please" },
+    ]);
+    expect(r.firstSubstantive).toBe("yeah hi, no I need a brake quote please");
+  });
+
+  it("declares version 2 so v1 extractions stay distinguishable", () => {
+    expect(CUSTOMER_SPEECH_VERSION).toBe(2);
+  });
+});
