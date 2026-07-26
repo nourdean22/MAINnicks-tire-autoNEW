@@ -39,8 +39,23 @@ on:
       - '.github/workflows/e2e-statenour.yml'
 
 concurrency:
-  group: e2e-statenour-${{ github.ref }}
-  cancel-in-progress: true
+  # PR refs share a per-ref group (so a new push supersedes the old
+  # verdict); push-to-main runs get a UNIQUE group per commit.
+  # 2026-07-26 · PR #1098 review (P1): cancel-in-progress:false is NOT
+  # enough on a shared group — GitHub allows only ONE running + ONE
+  # pending run per group, so a third qualifying push to main evicts
+  # the pending one and that commit still goes unverified. Keying the
+  # group on the sha removes main runs from contention entirely.
+  group: e2e-statenour-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  # 2026-07-25 · NEVER cancel a main run. Superseding is right for PR
+  # refs (a new push obsoletes the old verdict and saves runner
+  # minutes) but on main each run is the ONLY verification that commit
+  # will ever get — a later push from a concurrent session used to kill
+  # it, leaving the merged commit with zero completed e2e verdicts
+  # (witnessed on 5a421cb48). Merging a PR likewise cancels its own
+  # in-flight run by deleting the ref, so the main run is the backstop.
+  # Same expression test.yml (CI · turbo-affected verify) already uses.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   e2e:
@@ -120,7 +135,42 @@ jobs:
       - name: Start dev server (mock-auth is dev-mode-only by design)
         working-directory: apps/statenour
         run: |
-          nohup pnpm exec next dev --webpack -p 3001 > /tmp/next-start.log 2>&1 &
+          # 2026-07-26 · BOUND the dev server's heap — do not raise it.
+          # Every exit-143 (SIGTERM mid-warm-loop: runs 30170514999 /
+          # 30171051566 / 30202031893 / 30202479325) happened with the
+          # job-level NODE_OPTIONS of --max-old-space-size=6144 in
+          # effect (set in 75920fba8). A 6GB heap allowance on a ~7GB
+          # runner that also hosts the pgvector service removes V8's GC
+          # backpressure: the dev server grows while compiling 12 pages
+          # + 8 API routes until the kernel takes the job down. The
+          # first "fix" (e1e28c2f6) raised it to the SAME 6144 and was
+          # therefore a no-op — which is why nothing changed.
+          # MEASURED (run 30203022021): warming all 20 routes, the dev
+          # server holds ~4.5GB — avail fell to 2259MB with it alive,
+          # then jumped to 6728MB the instant it died. So 2560MB was too
+          # LOW (V8 heap-aborted the server mid-loop; every later request
+          # refused and 23 tests failed) and 6144MB was too HIGH (it grew
+          # into the machine's ~7GB, shared with the pgvector service,
+          # until the job took SIGTERM). 4096 sits below the observed
+          # appetite — forcing GC — while leaving the OS ~2GB of room.
+          # Build still gets the job-level headroom; only dev is capped.
+          # 2026-07-26 · TURBOPACK (Next 16's default) instead of
+          # --webpack. Measured with webpack: the server reached ~6.5GB
+          # RSS warming 20 routes and the box (~7GB, shared with the
+          # pgvector service) hit avail=386MB before the OOM killer took
+          # it — with a 4096MB old-space cap already in place, proving
+          # the cap bounds the JS heap but NOT webpack's native memory.
+          # No heap number can fix that; a lighter compiler can.
+          # Turbopack was originally avoided because it reports type
+          # errors as warnings — irrelevant here: the type gate is the
+          # separate `next build` step above, which still runs webpack.
+          NODE_OPTIONS="--max-old-space-size=4096" \
+            nohup pnpm exec next dev -p 3001 > /tmp/next-start.log 2>&1 &
+          # Stream the server's own output so a crash or heap abort is
+          # visible INLINE — the previous `tail` ran after the loop and
+          # never printed, because the job died first.
+          tail -f /tmp/next-start.log | sed 's/^/  [next] /' &
+          TAILPID=$!
           echo "waiting for heartbeat..."
           up=0
           for i in $(seq 1 90); do
@@ -130,9 +180,15 @@ jobs:
           done
           if [ "$up" != "1" ]; then echo "server never came up"; tail -50 /tmp/next-start.log; exit 1; fi
           echo "warming pages (dev cold-compiles each route; be patient)..."
+          # `ps -C node` (used in e1e28c2f6) NEVER matched the dev
+          # server — Next renames its process to `next-server`, so the
+          # 43MB reading that "refuted" memory was measuring the wrong
+          # process. Report free memory + the two largest processes by
+          # RSS instead, whatever they are called.
+          probe() { echo "$(free -m | awk '/^Mem:/ {print "avail="$7"MB"}') · $(ps -eo rss=,comm= --sort=-rss | head -2 | awk '{printf "%s:%dMB ", $2, $1/1024}')"; }
           for p in / /chat /system /stats /brain /content /pins /photo-improver /intelligence/brief /system/ai-cost /system/health /system/cockpit-observability; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
-            echo "  warm $p -> $code"
+            echo "  warm $p -> $code · $(probe)"
           done
           # 2026-07-25 · warm the API-contract routes too. The smoke's API
           # tests use a 10s request cap — a fine bound for a WARMED route,
@@ -143,8 +199,9 @@ jobs:
           echo "warming API routes..."
           for p in /api/system/rate-limits "/api/trpc/system.costs?input=%7B%22days%22%3A7%7D" /api/intel "/api/content/history?days=30" /api/social/recent-images /api/brain/wisdom /api/trpc/observability.osSnapshot "/api/trpc/system.promptDiagnostics?input=%7B%22msg%22%3A%22warmup%22%7D"; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
-            echo "  warm $p -> $code"
+            echo "  warm $p -> $code · $(probe)"
           done
+          kill $TAILPID 2>/dev/null || true
 
       - name: Install Playwright chromium
         working-directory: apps/statenour
