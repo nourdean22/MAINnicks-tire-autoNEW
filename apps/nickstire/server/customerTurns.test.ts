@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import {
   extractCustomerTurns,
+  extractCustomerTurnsFromMessages,
   buildCustomerSpeechRecord,
   MAX_TURNS,
   MAX_TURN_CHARS,
@@ -115,6 +116,59 @@ describe("buildCustomerSpeechRecord", () => {
   it("never throws on hostile input — it runs inside a webhook", () => {
     for (const bad of [42, {}, [], true, "\n\n\n", "AI:", "User:"]) {
       expect(() => buildCustomerSpeechRecord(bad)).not.toThrow();
+    }
+  });
+});
+
+describe("extractCustomerTurnsFromMessages — role-tagged is authoritative", () => {
+  // VAPI's artifact.messages is role-tagged at the source, so it needs no prefix
+  // guessing and no formatting change can misattribute assistant speech.
+  const MSGS = [
+    { role: "assistant", message: "Thanks for calling Nick's, what can I do for you?" },
+    { role: "user", message: "yeah" },
+    { role: "user", message: "I need a used tire for my Malibu" },
+    { role: "bot", message: "What size is on the sidewall?" },
+    { role: "user", message: "225 50 17" },
+  ];
+
+  it("keeps only caller turns", () => {
+    const r = extractCustomerTurnsFromMessages(MSGS);
+    expect(r.turns).toEqual(["yeah", "I need a used tire for my Malibu", "225 50 17"]);
+    expect(r.turns.join(" ")).not.toMatch(/Thanks for calling|sidewall/);
+  });
+
+  it("picks the real request over filler", () => {
+    expect(extractCustomerTurnsFromMessages(MSGS).firstSubstantive).toBe("I need a used tire for my Malibu");
+  });
+
+  it("DROPS an unrecognised role rather than assuming it is the customer", () => {
+    // Default-exclude: an unknown role must never be counted as demand.
+    const r = extractCustomerTurnsFromMessages([
+      { role: "tool_calls", message: "lookupTireSize({})" },
+      { role: "system", message: "You are Nick's receptionist" },
+      { role: "user", message: "do you have 225/50R17 in stock" },
+    ]);
+    expect(r.turns).toEqual(["do you have 225/50R17 in stock"]);
+  });
+
+  it("reads content/text when message is absent", () => {
+    expect(extractCustomerTurnsFromMessages([{ role: "user", content: "my brakes are grinding badly" }]).turns)
+      .toEqual(["my brakes are grinding badly"]);
+  });
+
+  it("flags a missing array as unparsed, but an assistant-only call as simply empty", () => {
+    // Two different facts that must not collapse: "we could not read this" vs
+    // "the caller genuinely never spoke".
+    expect(extractCustomerTurnsFromMessages(null).unparsed).toBe(true);
+    expect(extractCustomerTurnsFromMessages([]).unparsed).toBe(true);
+    const assistantOnly = extractCustomerTurnsFromMessages([{ role: "assistant", message: "Hello?" }]);
+    expect(assistantOnly.unparsed).toBe(false);
+    expect(assistantOnly.turns).toEqual([]);
+  });
+
+  it("never throws on hostile shapes", () => {
+    for (const bad of [[{}], [null], [{ role: "user" }], [{ role: 5, message: 5 }], "nope", 42]) {
+      expect(() => extractCustomerTurnsFromMessages(bad)).not.toThrow();
     }
   });
 });

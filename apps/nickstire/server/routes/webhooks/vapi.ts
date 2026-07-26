@@ -486,8 +486,28 @@ async function processCallEndReport(
         // (ROS-059). Fail-open — a demand-analytics write must never affect the
         // webhook's 200.
         try {
-          const { buildCustomerSpeechRecord } = await import("../../services/customerTurns");
-          const speech = buildCustomerSpeechRecord(transcript);
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
           if (speech) {
             const { sql } = await import("drizzle-orm");
             await d.execute(sql`

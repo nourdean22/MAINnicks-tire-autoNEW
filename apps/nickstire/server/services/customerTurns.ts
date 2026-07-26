@@ -126,6 +126,47 @@ export function extractCustomerTurns(transcript: unknown): CustomerTurns {
  * Versioned so a later parser change is comparable rather than silently
  * overwriting earlier extractions with different semantics.
  */
+/**
+ * Extract customer turns from VAPI's STRUCTURED message array
+ * (`artifact.messages`), which is role-tagged at the source.
+ *
+ * Strictly better than parsing the flat transcript when available: no prefix
+ * guessing, no continuation-line heuristics, and no way for assistant speech to
+ * be misattributed by a formatting change. `agenticAuditor` already reads this
+ * same array, so the shape is proven against real payloads.
+ *
+ * VAPI uses `role: "user"` for the caller. Anything not explicitly the caller is
+ * dropped — the default must exclude, so an unrecognised role can never be
+ * counted as customer demand.
+ */
+export function extractCustomerTurnsFromMessages(messages: unknown): CustomerTurns {
+  const empty: CustomerTurns = { turns: [], totalCustomerTurns: 0, firstSubstantive: null, unparsed: false };
+  if (!Array.isArray(messages) || messages.length === 0) return { ...empty, unparsed: true };
+
+  const collected: string[] = [];
+  for (const m of messages) {
+    const role = String((m as { role?: unknown })?.role ?? "").toLowerCase();
+    if (role !== "user" && role !== "customer" && role !== "human") continue;
+    const raw = (m as { message?: unknown; content?: unknown; text?: unknown })?.message
+      ?? (m as { content?: unknown })?.content
+      ?? (m as { text?: unknown })?.text;
+    if (typeof raw !== "string") continue;
+    const text = clean(raw);
+    if (text) collected.push(text);
+  }
+
+  // An array that contained messages but no caller turns is a real observation
+  // (assistant-only / no-answer call), NOT a parse failure — so `unparsed` stays
+  // false and the empty result means what it says.
+  const substantive = collected.filter((t) => t.length >= MIN_SUBSTANTIVE_CHARS && !FILLER_RE.test(t));
+  return {
+    turns: collected.slice(0, MAX_TURNS).map((t) => (t.length > MAX_TURN_CHARS ? `${t.slice(0, MAX_TURN_CHARS)}…` : t)),
+    totalCustomerTurns: collected.length,
+    firstSubstantive: substantive.length ? substantive[0]!.slice(0, MAX_TURN_CHARS) : null,
+    unparsed: false,
+  };
+}
+
 export const CUSTOMER_SPEECH_VERSION = 1;
 
 export interface CustomerSpeechRecord {
