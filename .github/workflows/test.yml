@@ -360,17 +360,31 @@ jobs:
           check_url "Worker" "$WORKER_HEALTH_URL"
           check_url "Voice" "$VOICE_HEALTH_URL"
 
-  # 2026-07-26 · the "Fail on critical upstream failure" step was deleted.
-  # It could never turn a green run red: node/voice failures already fail
-  # their own jobs, and railway-smoke exits 1 itself under strict mode.
-  # Verified across 60 runs — notify went red if and only if node was
-  # already failure/cancelled, zero exceptions. What it DID do was report
-  # the wrong cause: a vitest crash in `node` surfaced as
-  # "::error::Strict Smoke Tests failed.", which sent a diagnosis two
-  # rounds down the wrong path. This job now only SUMMARISES; the jobs
-  # themselves own their verdicts.
+  # 2026-07-26 · two changes here, one of them a correction.
+  #
+  # (a) `security` added to needs + summary. Without it this job reported
+  # "CI Pipeline Summary ... Node/Voice/Smoke all clean" on runs where the
+  # repo's ONLY dependency gate was RED (30170985112, 30167641129,
+  # 30164824567: security=failure, node=success, notify=success). A
+  # summary that asserts health while a gate is red is false reassurance —
+  # the one thing a summary must never do.
+  #
+  # (b) The "Fail on critical upstream failure" step was deleted. It could
+  # never turn a green run red: node/voice failures already fail their own
+  # jobs and railway-smoke self-fails under strict mode. Verified across 60
+  # runs — notify went red iff node was already failure/cancelled, zero
+  # exceptions — and it gates no merge (branch protection is unavailable on
+  # this plan). It also fired on merely-superseded runs, adding a red job
+  # to a run that was only cancelled by concurrency.
+  #
+  # NOT the reason: the step was NOT misreporting causes. Its annotation
+  # was correct ("Node CI job failed or was cancelled"); the
+  # "Strict Smoke Tests failed." line that misled a diagnosis was GitHub
+  # echoing the whole script source in the ##[group] block, where all
+  # three hardcoded error strings appear regardless of which branch runs.
+  # Packing three of them into one step is what made the log unreadable.
   notify:
-    needs: [changes, node, voice, railway-smoke]
+    needs: [changes, node, security, voice, railway-smoke]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -388,6 +402,7 @@ jobs:
           - Node Job: \`${{ needs.node.result }}\`
           - Voice Job: \`${{ needs.voice.result }}\`
           - Smoke Tests: \`${{ needs.railway-smoke.result }}\`
+          - Security (advisories): \`${{ needs.security.result }}\`
           EOF
 
       - name: Notify Slack (Optional)
