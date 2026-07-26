@@ -104,6 +104,41 @@ export function getLastSchemaAudit(): SchemaAuditResult | null {
 const RETRY_DELAYS_MS = [5_000, 20_000, 60_000];
 
 /**
+ * Re-audit interval. A boot-only check goes stale in BOTH directions:
+ *
+ *  - After an operator applies the missing migration, `/api/health` keeps
+ *    reporting `degraded` until the next deploy — observed live on 2026-07-26,
+ *    when 0093/0094 were applied and health still showed the pre-fix result.
+ *  - A table dropped AFTER boot would never be noticed at all, which is the
+ *    original ROS-059 failure wearing a different hat.
+ *
+ * Hourly is cheap (one indexed information_schema query) and bounds staleness
+ * to something an operator can reason about.
+ */
+const RE_AUDIT_MS = 60 * 60_000;
+
+let reauditTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Keep the audit fresh for the life of the process. Idempotent, and unref'd so
+ * it can never hold the process open during shutdown or tests.
+ */
+export function startSchemaGuardReaudit(intervalMs: number = RE_AUDIT_MS): void {
+  if (reauditTimer) return;
+  reauditTimer = setInterval(() => {
+    void auditCriticalTables().catch(() => undefined);
+  }, intervalMs);
+  reauditTimer.unref?.();
+  log.info("Schema guard re-audit scheduled", { everyMinutes: Math.round(intervalMs / 60_000) });
+}
+
+/** Test seam — stops the interval so it cannot leak across test files. */
+export function __stopSchemaGuardReaudit(): void {
+  if (reauditTimer) clearInterval(reauditTimer);
+  reauditTimer = null;
+}
+
+/**
  * Boot entry point: audit, and retry if the audit could not RUN.
  *
  * At boot the guard races the database pool, so a cold start can report "no
