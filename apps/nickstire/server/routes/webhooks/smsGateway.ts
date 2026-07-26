@@ -25,6 +25,9 @@ import crypto from "node:crypto";
 import { createLogger } from "../../lib/logger";
 import { recordInboundShopSms } from "../../sms";
 import { STORE_PHONE } from "@shared/const";
+// Type-only: erased at compile time, so it cannot create an import cycle with the
+// service this module otherwise reaches through dynamic import.
+import type { ObligationHandle } from "../../services/smsResponseJobs";
 
 const log = createLogger("sms-gateway-webhook");
 const router = Router();
@@ -231,6 +234,46 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
           // executeAutoAction call below can't fire a duplicate auto-reply
           // SMS or create a duplicate lead (auto-price-response does both).
           if (messageId && (await smsMessageExists(messageId))) {
+            // ROS-058 · this drop is keyed on the MESSAGE row, but the row that
+            // can go missing is the OBLIGATION row. If the first delivery died
+            // between addSmsMessage and the job INSERT (deploy restart, DB
+            // blip), nothing was ever obligated to answer this customer — and
+            // dropping here suppresses the only redelivery that could have
+            // created it. So consult the obligation before discarding.
+            //
+            // Healing cannot double-answer: the idempotency key is
+            // deterministic (INSERT IGNORE collapses to the one row) and
+            // claimJobById only claims pending/stale jobs, so a message that
+            // really was answered is a no-op. `null` means undeterminable —
+            // never read that as "no obligation", or a DB hiccup would
+            // re-answer every redelivery.
+            const { responseObligationExistsForProviderMsg, handleInboundResponse } =
+              await import("../../services/smsResponseJobs");
+            const hasObligation = await responseObligationExistsForProviderMsg(messageId);
+            if (hasObligation === false) {
+              log.error(
+                "Inbound redelivery is healing a MISSING response obligation — a prior delivery persisted the message but never recorded the duty to answer it",
+                {
+                  messageId: messageId.slice(0, 12),
+                  phone: phone.slice(-4),
+                  errorId: "SMS_OBLIGATION_HEALED",
+                },
+              );
+              const { getOrCreateConversation } = await import("../../db");
+              const conv = await getOrCreateConversation(normalized);
+              void handleInboundResponse({
+                conversationId: conv.id,
+                phone: normalized,
+                providerMsgId: messageId,
+                body,
+              }).catch((err) => {
+                log.warn("Obligation healing failed", {
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              });
+              res.status(200).json({ received: true, duplicate: true, healed: true });
+              return;
+            }
             log.info("Duplicate inbound shop SMS ignored", {
               messageId: messageId.slice(0, 12),
               phone: phone.slice(-4),
@@ -281,6 +324,36 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         // the flag and push it into the live opt-out cache via
         // markPhoneOptedOut, so the very next send is blocked. Fire-and-
         // forget — intent handling must never block or fail the 200 ack.
+        // ─── Durable obligation, BEFORE the ack (ROS-058) ───────────────────
+        // Awaited on purpose. This write used to ride the fire-and-forget block
+        // below — i.e. it ran AFTER res.status(200) — so a restart between the
+        // message INSERT above and the job INSERT left a persisted customer text
+        // that nothing was obligated to answer, and the message-keyed dedupe
+        // above then ate the redelivery that could have healed it. Returning 5xx
+        // hands the retry back to Capevace, whose at-least-once redelivery is
+        // idempotent against the deterministic key.
+        let obligation: ObligationHandle = { jobId: null, durable: false, created: false };
+        if (!compositeRedelivery) {
+          try {
+            const { ensureResponseObligation } = await import("../../services/smsResponseJobs");
+            obligation = await ensureResponseObligation({
+              conversationId: conversationId!,
+              phone: normalized,
+              providerMsgId: messageId || null,
+              body,
+            });
+          } catch (err) {
+            log.error("Failed to record the inbound response obligation — asking Capevace to redeliver", {
+              error: err instanceof Error ? err.message : String(err),
+              phone: phone.slice(-4),
+              errorId: "SMS_OBLIGATION_WRITE_FAILED",
+            });
+            res.status(500).json({ error: "obligation_failed" });
+            return;
+          }
+        }
+        // Answering stays OFF the ack path: the durable row is what guarantees a
+        // reply, so this call only supplies latency.
         (async () => {
           if (compositeRedelivery) {
             log.info("Skipping orchestrator — composite redelivery (prior identical inbound <5min)", {
@@ -288,11 +361,8 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             });
             return;
           }
-          // Durable inbound-response spine: record the obligation then answer it.
-          // A restart between the 200 ack and the reply no longer drops it — the
-          // sweep re-claims un-answered jobs. (NCSOS #1/#2)
-          const { handleInboundResponse } = await import("../../services/smsResponseJobs");
-          await handleInboundResponse({
+          const { answerResponseObligation } = await import("../../services/smsResponseJobs");
+          await answerResponseObligation(obligation, {
             conversationId: conversationId!,
             phone: normalized,
             providerMsgId: messageId || null,

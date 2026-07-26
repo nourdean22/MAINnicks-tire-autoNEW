@@ -520,6 +520,28 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // #1074 gave a needs-review reply a durable 30-min SLA, but `dueAt` had one
+        // consumer — an admin query — so nothing ever told the operator. A 180-day
+        // prod read found 74% of customer turns unanswered within 2h. 15-min tier
+        // because a 30-min SLA needs checking well inside its own window; a daily
+        // brief is the wrong clock. businessHoursOnly: an obligation that accrues
+        // overnight surfaces when the shop opens, not at 3am.
+        // Alerts the OPERATOR only — this path cannot message a customer.
+        name: "overdue-reply-alert",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { alertOverdueObligations } = await import("../services/humanPendingAlerts");
+          const r = await alertOverdueObligations();
+          return {
+            recordsProcessed: r.alerted,
+            details:
+              r.overdue === 0
+                ? "none overdue"
+                : `${r.overdue} overdue · ${r.alerted} alerted · delivered=${r.delivered}`,
+          };
+        },
+      },
+      {
         name: "gateway-order-status-poll", // Detect stale/stuck tire orders
         businessHoursOnly: true,
         handler: async () => {

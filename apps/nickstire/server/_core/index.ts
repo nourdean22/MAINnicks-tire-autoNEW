@@ -402,6 +402,12 @@ async function startServer() {
     import("../services/smsResponseJobs").then(({ startResponseJobProcessor }) => {
       startResponseJobProcessor();
     }).catch(e => console.warn("[server:init] SMS response-job processor startup failed:", e));
+    // ROS-059 class fix — migrations here are hand-applied, and every table in the
+    // guard's registry degrades SILENTLY when absent (sms_response_jobs ran its
+    // quiet fallback for 4 days before anyone noticed). This makes that condition
+    // loud once at boot. Diagnostic only: it never throws and never blocks.
+    import("../services/schemaGuard").then(({ auditCriticalTables }) => auditCriticalTables())
+      .catch(e => console.warn("[server:init] schema guard failed:", e));
     // NCSOS facts store: upsert the code-level SEED_FACTS into business_facts so
     // the operator has editable rows. Idempotent; the code seed is the fallback,
     // so a failure here never leaves a fact unavailable.
