@@ -145,8 +145,16 @@ jobs:
           # + 8 API routes until the kernel takes the job down. The
           # first "fix" (e1e28c2f6) raised it to the SAME 6144 and was
           # therefore a no-op — which is why nothing changed.
+          # MEASURED (run 30203022021): warming all 20 routes, the dev
+          # server holds ~4.5GB — avail fell to 2259MB with it alive,
+          # then jumped to 6728MB the instant it died. So 2560MB was too
+          # LOW (V8 heap-aborted the server mid-loop; every later request
+          # refused and 23 tests failed) and 6144MB was too HIGH (it grew
+          # into the machine's ~7GB, shared with the pgvector service,
+          # until the job took SIGTERM). 4096 sits below the observed
+          # appetite — forcing GC — while leaving the OS ~2GB of room.
           # Build still gets the job-level headroom; only dev is capped.
-          NODE_OPTIONS="--max-old-space-size=2560" \
+          NODE_OPTIONS="--max-old-space-size=4096" \
             nohup pnpm exec next dev --webpack -p 3001 > /tmp/next-start.log 2>&1 &
           # Stream the server's own output so a crash or heap abort is
           # visible INLINE — the previous `tail` ran after the loop and
