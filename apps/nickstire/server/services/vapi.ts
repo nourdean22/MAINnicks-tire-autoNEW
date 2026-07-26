@@ -1,9 +1,16 @@
 /**
- * Vapi Voice Receptionist Service — OPTIMAL CONFIG (2026-05-05)
+ * Vapi Voice Receptionist Service.
  *
- * Tuned for Nick's Tire & Auto's actual call mix: ~60% inbound calls
- * are "do you have a used tire for my [vehicle]?" — so the assistant
- * is built TIRE FIRST. General repair questions are the secondary flow.
+ * (Header previously read "OPTIMAL CONFIG (2026-05-05)". Removed 2026-07-26: no
+ * configuration is permanently optimal, and a self-certifying label discourages
+ * exactly the re-measurement that would keep it true.)
+ *
+ * Built TIRE FIRST on a 2026-05 claim that ~60% of inbound calls are "do you
+ * have a used tire for my [vehicle]?", with general repair as the secondary
+ * flow. Treat that percentage as an UNVERIFIED HYPOTHESIS, not a standing fact:
+ * it originates in this comment rather than in any current demand report, and
+ * the tire-first architecture rests on it. Re-measure from sanitized transcripts
+ * before treating the split as evidence, and reprioritize the flows if it moved.
  *
  * STACK
  *  · Transcriber: Deepgram nova-2-phonecall (call-tuned, lowest latency,
@@ -18,10 +25,27 @@
  * KNOWLEDGE BASE
  *  Stock tire sizes for ~25 most-asked-about vehicles (Honda Civic,
  *  Toyota Camry, F-150, etc.) baked into the tireSizeFromVehicle tool.
- *  Used tire pricing: $60-$120 installed range.
+ *  Used tire pricing: interpolated from BUSINESS.usedTires at prompt-build
+ *  time — $25 qualifying floor, most standard sizes $40-80, ~$60 typical
+ *  midpoint. (This line used to read "$60-$120 installed range", a band whose
+ *  floor was the midpoint and whose $120 ceiling appears nowhere in BUSINESS.
+ *  The spoken text was never wrong — it already interpolates the SSOT — but
+ *  stale guidance like that is how drift gets "restored" by a later reader,
+ *  which is precisely how the $60 flat price re-entered the SMS catalog.)
  *  Free install package: mount/balance/valve stems/TPMS reset/alignment
- *  check/20-point inspection — repeated in prompt so AI cites it
- *  consistently.
+ *  check/20-point inspection — named as included WORK, never as a dollar
+ *  valuation. The prompt used to value it at ~$150; that figure is in no
+ *  approved fact, so it was removed 2026-07-26. Likewise a spoken "~15 min"
+ *  oil-change duration: BUSINESS carries a used-tire `turnaround` but no
+ *  oil-change timing, and a spoken duration is a completion promise.
+ *
+ *  Rationale for both lives HERE rather than in the prompt on purpose. Current
+ *  Vapi guidance treats long negative ban lists as an anti-pattern — a banned
+ *  phrase quoted inside the prompt stays live in the model's context and can
+ *  become MORE likely to surface. So the prompt states the rule positively and
+ *  never repeats the retired number; the forbidden literals stay in code
+ *  comments and in the deterministic validators, where they cost no tokens and
+ *  cannot be echoed.
  *
  * Required env: VAPI_API_KEY  (set in Vercel: prod env)
  * Optional env: VAPI_WEBHOOK_SECRET  (HMAC verify; permissive without)
@@ -126,7 +150,7 @@ Hours: Mon-Sat 8 AM-6 PM, Sun 9 AM-4 PM
 Reviews: ${BUSINESS.reviews.rating}★ from ${BUSINESS.reviews.countDisplay} Google reviews
 
 # THE #1 CALL REASON
-Most callers want USED TIRES ("got a tire for my car? how much? do I bring the car or just the tire?"). Default TIRE-FIRST: get year/make/model or tire size early, look it up, give a real answer fast. ${BUSINESS.usedTires.explanation} — FREE install package: mount, computer balance, new valve stems, TPMS reset, alignment check, 20-point safety check (~$150 of work, free).
+Most callers want USED TIRES ("got a tire for my car? how much? do I bring the car or just the tire?"). Default TIRE-FIRST: get year/make/model or tire size early, look it up, give a real answer fast. ${BUSINESS.usedTires.explanation} — FREE install package: mount, computer balance, new valve stems, TPMS reset, alignment check, 20-point safety check — all included, no extra charge. Name the included work; never attach a dollar valuation to it.
 
 # HOW YOU TALK
 Direct, calm, Cleveland-warm. Real-person, not a customer-service-bot. Short sentences, natural phone language, numbers over adjectives. Sound like:
@@ -140,7 +164,7 @@ If the caller opens unsure — "hello?", "you there?", "can you hear me?", or a 
 NEVER SAY (kill-list — sounds fake or loses the sale):
 - Corporate filler, marketing clichés, fake-confidence adjectives — talk like a real shop guy; if it sounds like a brochure, cut it. Be specific, not a generic sign-off ("drive safe").
 - Fake stock confidence: "I checked the back / live inventory" / "I guarantee we have that tire" — you don't see the rack, never claim a live check.
-- Sale-killers: "we can't give a price" (say "depends what we see") · "I don't know" / "call back later" / "the system won't let me" / "I'm just an AI" · "I'll need to check availability" / "let me see if we have an opening" / "I couldn't check the schedule" (no schedule — FCFS, every open day has room) · "do you want a drop-off?" (lead with the option, don't assume).
+- Sale-killers: "we can't give a price" (say "depends what we see") · "I don't know" / "call back later" / "the system won't let me" / "I'm just an AI" · "I'll need to check availability" / "let me see if we have an opening" / "I couldn't check the schedule" (there is no schedule to check — FCFS, walk-ins accepted any open day; say that, not that the shop "has room", which no data source can support) · "do you want a drop-off?" (lead with the option, don't assume).
 - ANY repair dollar amount beyond the 3 anchors — no range, no upper bound, no "around $X" (never "brakes run $200-600", "battery $150-250", etc.). Always "free check, written quote."
 - Dead-air tells: "Is there anything else you need help with?" (this bot-tell killed 12+ calls — end on a concrete confirm or let the caller lead) · "Are you still there?" during a tool wait (only after 6+ seconds of real silence with no tool running).
 - Re-greeting: after your opener, NEVER re-announce the shop ("You're talking to Nick's Tire & Auto on Euclid…", "Thanks for calling Nick's…"). One greeting per call, period.
@@ -153,9 +177,9 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
    - Used tires start at sixty dollars installed — that includes mounting, computer spin balancing, new valve stems, an alignment check, and a safety check.
    - Conventional or synthetic-blend oil change: forty-nine dollars with coupon code OIL2999 · Full synthetic: eighty dollars
    Anything else (brakes, bearings, batteries, transmission, etc.) → "free check, written quote, you don't pay until you say yes." Pattern for any "how much?" on a non-anchor: acknowledge ("we do that every day") → pivot ("hard to say over the phone, depends what we see") → de-risk ("free check, written quote before any wrench moves, no strings") → urgency (URGENCY LIBRARY if symptom-based) → close (first-come first-served, earlier-better, drop-off option) → capture (name + phone). Examples: "Brakes are different on every car — pads vs rotors, calipers. Free check, written quote, your call." / "Batteries depend on the group size — we test free, you only pay if you need one."
-   OIL: give the anchor, then "pull up, we'll do it while you wait (~15 min) or drop it off and we'll text when it's ready. First-come first-served. Mention the code OIL2999 when you get here." Which oil? "Depends what your car takes — most newer cars want synthetic; we'll check the cap when you pull up."
+   OIL: give the anchor, then "pull up, we'll do it while you wait, or drop it off and we'll text when it's ready. First-come first-served. Mention the code OIL2999 when you get here." Which oil? "Depends what your car takes — most newer cars want synthetic; we'll check the cap when you pull up." Never state how long an oil change takes; say it's done while you wait or as a drop-off.
 2. NEVER promise a specific person/tech ("Nick will look at it" — could be wrong).
-3. Walk-ins are processed same day, first-come first-served. Encourage callers to drive down immediately and wait in their cars for pit-stop style service. Do not discourage callers. Do not warn about capacity. Do not tell them to come tomorrow. We want a line of cars waiting to get serviced.
+3. Walk-ins are ACCEPTED any open day, first-come first-served — no appointment, no schedule to check. Be confidently inviting: "pull up, we'll get you taken care of," and offer drop-off for anything that may take a while. Sell the visit hard; earlier in the day genuinely helps. But keep four claims separate — you may promise the first, never the other three: (a) we'll TAKE your car today; (b) you'll be seen immediately; (c) the work will be FINISHED today; (d) the shop has room right now. There is no live capacity feed, so (b)(c)(d) are not yours to promise. If asked how busy it is or how long: "it moves with what's already in the shop — are you planning to wait or drop it off?" That answer is true, keeps the visit alive, and never sets up a caller to be disappointed at the counter.
 4. NEVER make up stock — you don't see the rack. But we carry most popular passenger and light-truck sizes in stock at all times, so answer confidently: "we keep most standard sizes in stock — pull up and we'll get you taken care of." Only hedge on truly uncommon sizes (24"+ rims, run-flats, oversized). Never claim you personally checked live inventory.
 5. END EVERY CALL: recap verbally, then sendConfirmationSms IF you got a phone (degraded:true → read verbalRecap aloud word-for-word, never promise a text you can't deliver). See SMS-DEGRADED HANDLING.
 6. TRANSFER on the caller's FIRST ask for a human (manager / owner / Nick / "real person" / "representative" / "agent" / "customer service" / "just transfer me" / "connect me"). Do NOT ask "what's it about?", do NOT pitch, do NOT handle it yourself first — just transfer. (Callers who don't ask for a person stay in the normal flows.) Also transfer when OPEN for: vehicle already at the shop, caller angry from the first sentence, needs manager approval, or topic outside your tools (complaint, billing, in-progress job).
@@ -489,7 +513,9 @@ const VAPI_TOOLS: VapiToolDef[] = [
   },
   // quoteRange tool REMOVED 2026-05-08 — operator's "sell the visit, not
   // the work" doctrine. Nick should never quote repair pricing. Only
-  // exception is the used-tire $60 anchor in Section 4.
+  // exception is the used-tire price in Section 4, which is interpolated from
+  // BUSINESS.usedTires (a $25 floor + $40-80 band), NOT a "$60 anchor" as this
+  // comment previously said — $60 is the typical midpoint only.
   // wave-181.35: bookSlot RE-ADDED. The May 14 transcript audit found ~7
   // verbal drop-off commits per day producing 0 DB records — because the
   // AI literally had no tool to call. The 0.4% fire rate from wave-181's

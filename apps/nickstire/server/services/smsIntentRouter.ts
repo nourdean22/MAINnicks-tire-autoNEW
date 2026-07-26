@@ -24,6 +24,12 @@
  * - RISK-TIERED: the orchestrator obeys `risk` — human_only forces operator
  *   review no matter what the downstream classifier thinks.
  */
+// detectArrivalIntent is a PURE, negation-guarded string test (#998) and
+// expectedArrivals has no import-time DB work — only logger + db-affected — so
+// reusing it here preserves this module's no-DB contract. Reused rather than
+// re-implemented because a second commitment regex would inevitably drift from
+// the one that decides whether an expected_arrival row gets written.
+import { detectArrivalIntent } from "./expectedArrivals";
 
 export type SmsIntent =
   | "safety_urgent"
@@ -31,6 +37,7 @@ export type SmsIntent =
   | "job_status"
   | "estimate_question"
   | "dashboard_light"
+  | "arrival_committed"
   | "tire_inventory"
   | "cancellation_policy_question"
   | "hours_location"
@@ -134,6 +141,29 @@ const RULES: Rule[] = [
     test: (b) =>
       /\b(oil|tire.?pressure|tpms|battery|abs|airbag|traction|coolant|temp(erature)?)\s*(warning\s*)?light\b/i.test(b) ||
       /\blight('?s)? (came|come|turned|is|keeps? coming) (on|back)\b/i.test(b),
+  },
+
+  // ─── Tier 3b: the customer already said yes ────────────────────────────
+  // Declared AFTER dashboard_light so substance wins the priority-3 tie: "my oil
+  // light came on, heading over" should answer the LIGHT and carry commitment as
+  // a secondary intent. A bare "on my way" has nothing else to match, so it lands
+  // here on its own.
+  //
+  // Above tire_inventory/hours/price on purpose — the failure this prevents is
+  // answering "I'm on my way" with a price menu or a qualifying question. Note
+  // that the real behavior change rides `stopSelling` on the PLAN, not this
+  // intent: commitment is a modifier that applies whatever the customer is
+  // asking about, which is why it is also allowed to sit in `secondary`.
+  //
+  // Detection is delegated to detectArrivalIntent (#998) rather than duplicated:
+  // it is already negation-guarded and already excludes "can i come" — that is a
+  // QUESTION needing an answer, not a commitment needing logistics.
+  {
+    intent: "arrival_committed",
+    priority: 3,
+    risk: "human_assisted",
+    catalogEvent: null,
+    test: (b) => detectArrivalIntent(b).isArrival,
   },
 
   // ─── Tier 4: inventory / coordination — no live-stock truth exists ──
@@ -249,6 +279,10 @@ const RISK_ORDER: Record<SmsRouteRisk, number> = {
  */
 const SUBSUMES: Partial<Record<SmsIntent, SmsIntent[]>> = {
   dashboard_light: ["price_oil", "price_tires", "diagnostic"],
+  // "I'm dropping it off today" is ONE concept, not commitment + drop-off +
+  // same-day + a request for the address. Without this, a committed customer's
+  // message reads as multi-intent and gets a four-part reply.
+  arrival_committed: ["same_day_visit", "drop_off", "hours_location"],
   tire_inventory: ["price_tires"],
   job_status: ["hours_location"],
   complaint_or_comeback: ["price_brakes", "price_tires", "price_oil", "price_alignment"],

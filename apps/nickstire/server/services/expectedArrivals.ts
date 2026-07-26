@@ -58,6 +58,16 @@ export function detectArrivalIntent(body: string): { isArrival: boolean; whenTex
   if (/\b(not|n'?t|cannot|can'?t|cant|won'?t|wont|never|no longer|reschedul|another day|different day|maybe later|can i come)\b/.test(b)) {
     return { isArrival: false };
   }
+  // Asking WHETHER they may come is not saying they will. The guard above only
+  // covered the "can i come" phrasing, so "can I drop off my car?" — a policy
+  // question — was recorded as a real expected arrival, which then reconciled to
+  // a no_show and quietly inflated the arrival metric. Scoped to a modal +
+  // pronoun sitting just before an arrival verb, so a genuine commitment that
+  // happens to contain a later question ("I'll be there at 3, can I pay by
+  // card?") still counts.
+  if (/\b(can|could|may|should|do|does)\s+(i|we|you)\b[^.?!]{0,20}?\b(come|drop|bring|swing|stop|head|pull|tow|be there)\b/.test(b)) {
+    return { isArrival: false };
+  }
   const arrival = /\b(com(e|ing) (by|in|on|over|down|today|tomorrow|now|through|out)|come by|be there|on (my|the) way|omw|head(ing|ed)? (over|in|down|your way)|stop(ping)? by|drop(ping)? (it|the car|my car|off|by)|i'?ll (come|be|drop|swing|stop|bring|head|pull)|swing(ing)? by|pull(ing)? up|see (you|ya) (today|soon|tomorrow|in a bit)|bring(ing)? (it|the car|my car) (in|by|today|tomorrow)|on my way)\b/;
   if (!arrival.test(b)) return { isArrival: false };
   const when = b.match(/\b(today|tomorrow|this (morning|afternoon|evening)|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
