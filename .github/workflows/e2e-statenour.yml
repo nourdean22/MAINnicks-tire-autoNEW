@@ -154,8 +154,18 @@ jobs:
           # until the job took SIGTERM). 4096 sits below the observed
           # appetite — forcing GC — while leaving the OS ~2GB of room.
           # Build still gets the job-level headroom; only dev is capped.
+          # 2026-07-26 · TURBOPACK (Next 16's default) instead of
+          # --webpack. Measured with webpack: the server reached ~6.5GB
+          # RSS warming 20 routes and the box (~7GB, shared with the
+          # pgvector service) hit avail=386MB before the OOM killer took
+          # it — with a 4096MB old-space cap already in place, proving
+          # the cap bounds the JS heap but NOT webpack's native memory.
+          # No heap number can fix that; a lighter compiler can.
+          # Turbopack was originally avoided because it reports type
+          # errors as warnings — irrelevant here: the type gate is the
+          # separate `next build` step above, which still runs webpack.
           NODE_OPTIONS="--max-old-space-size=4096" \
-            nohup pnpm exec next dev --webpack -p 3001 > /tmp/next-start.log 2>&1 &
+            nohup pnpm exec next dev -p 3001 > /tmp/next-start.log 2>&1 &
           # Stream the server's own output so a crash or heap abort is
           # visible INLINE — the previous `tail` ran after the loop and
           # never printed, because the job died first.
