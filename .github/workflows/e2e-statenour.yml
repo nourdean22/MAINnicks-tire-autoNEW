@@ -40,7 +40,15 @@ on:
 
 concurrency:
   group: e2e-statenour-${{ github.ref }}
-  cancel-in-progress: true
+  # 2026-07-25 · NEVER cancel a main run. Superseding is right for PR
+  # refs (a new push obsoletes the old verdict and saves runner
+  # minutes) but on main each run is the ONLY verification that commit
+  # will ever get — a later push from a concurrent session used to kill
+  # it, leaving the merged commit with zero completed e2e verdicts
+  # (witnessed on 5a421cb48). Merging a PR likewise cancels its own
+  # in-flight run by deleting the ref, so the main run is the backstop.
+  # Same expression test.yml (CI · turbo-affected verify) already uses.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   e2e:
