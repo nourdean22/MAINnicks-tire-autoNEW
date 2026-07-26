@@ -135,15 +135,24 @@ jobs:
       - name: Start dev server (mock-auth is dev-mode-only by design)
         working-directory: apps/statenour
         run: |
-          # 2026-07-26 · explicit heap. Warming 12 pages + 8 API routes
-          # accumulates webpack dev-compilation memory in ONE process;
-          # every exit-143 so far (SIGTERM ~87s into the API warm loop,
-          # always at the same route, runs 30170514999 / 30171051566 /
-          # 30202031893) landed while compiling the heaviest tRPC routes
-          # — system.costs alone takes ~72s. Node's default heap on a
-          # 2-core/7GB runner is well under what the runner can give.
-          NODE_OPTIONS="--max-old-space-size=6144" \
+          # 2026-07-26 · BOUND the dev server's heap — do not raise it.
+          # Every exit-143 (SIGTERM mid-warm-loop: runs 30170514999 /
+          # 30171051566 / 30202031893 / 30202479325) happened with the
+          # job-level NODE_OPTIONS of --max-old-space-size=6144 in
+          # effect (set in 75920fba8). A 6GB heap allowance on a ~7GB
+          # runner that also hosts the pgvector service removes V8's GC
+          # backpressure: the dev server grows while compiling 12 pages
+          # + 8 API routes until the kernel takes the job down. The
+          # first "fix" (e1e28c2f6) raised it to the SAME 6144 and was
+          # therefore a no-op — which is why nothing changed.
+          # Build still gets the job-level headroom; only dev is capped.
+          NODE_OPTIONS="--max-old-space-size=2560" \
             nohup pnpm exec next dev --webpack -p 3001 > /tmp/next-start.log 2>&1 &
+          # Stream the server's own output so a crash or heap abort is
+          # visible INLINE — the previous `tail` ran after the loop and
+          # never printed, because the job died first.
+          tail -f /tmp/next-start.log | sed 's/^/  [next] /' &
+          TAILPID=$!
           echo "waiting for heartbeat..."
           up=0
           for i in $(seq 1 90); do
@@ -153,9 +162,15 @@ jobs:
           done
           if [ "$up" != "1" ]; then echo "server never came up"; tail -50 /tmp/next-start.log; exit 1; fi
           echo "warming pages (dev cold-compiles each route; be patient)..."
+          # `ps -C node` (used in e1e28c2f6) NEVER matched the dev
+          # server — Next renames its process to `next-server`, so the
+          # 43MB reading that "refuted" memory was measuring the wrong
+          # process. Report free memory + the two largest processes by
+          # RSS instead, whatever they are called.
+          probe() { echo "$(free -m | awk '/^Mem:/ {print "avail="$7"MB"}') · $(ps -eo rss=,comm= --sort=-rss | head -2 | awk '{printf "%s:%dMB ", $2, $1/1024}')"; }
           for p in / /chat /system /stats /brain /content /pins /photo-improver /intelligence/brief /system/ai-cost /system/health /system/cockpit-observability; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
-            echo "  warm $p -> $code"
+            echo "  warm $p -> $code · $(probe)"
           done
           # 2026-07-25 · warm the API-contract routes too. The smoke's API
           # tests use a 10s request cap — a fine bound for a WARMED route,
@@ -166,12 +181,9 @@ jobs:
           echo "warming API routes..."
           for p in /api/system/rate-limits "/api/trpc/system.costs?input=%7B%22days%22%3A7%7D" /api/intel "/api/content/history?days=30" /api/social/recent-images /api/brain/wisdom /api/trpc/observability.osSnapshot "/api/trpc/system.promptDiagnostics?input=%7B%22msg%22%3A%22warmup%22%7D"; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
-            echo "  warm $p -> $code · rss=$(ps -o rss= -C node 2>/dev/null | awk '{s+=$1} END {print int(s/1024)"MB"}')"
+            echo "  warm $p -> $code · $(probe)"
           done
-          # Evidence for the next failure: if the server died or is
-          # thrashing, its own log says so. Cheap, and the exit-143 runs
-          # gave us nothing to diagnose from.
-          echo "--- next dev log tail ---"; tail -25 /tmp/next-start.log || true
+          kill $TAILPID 2>/dev/null || true
 
       - name: Install Playwright chromium
         working-directory: apps/statenour
