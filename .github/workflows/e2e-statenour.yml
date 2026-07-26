@@ -128,7 +128,15 @@ jobs:
       - name: Start dev server (mock-auth is dev-mode-only by design)
         working-directory: apps/statenour
         run: |
-          nohup pnpm exec next dev --webpack -p 3001 > /tmp/next-start.log 2>&1 &
+          # 2026-07-26 · explicit heap. Warming 12 pages + 8 API routes
+          # accumulates webpack dev-compilation memory in ONE process;
+          # every exit-143 so far (SIGTERM ~87s into the API warm loop,
+          # always at the same route, runs 30170514999 / 30171051566 /
+          # 30202031893) landed while compiling the heaviest tRPC routes
+          # — system.costs alone takes ~72s. Node's default heap on a
+          # 2-core/7GB runner is well under what the runner can give.
+          NODE_OPTIONS="--max-old-space-size=6144" \
+            nohup pnpm exec next dev --webpack -p 3001 > /tmp/next-start.log 2>&1 &
           echo "waiting for heartbeat..."
           up=0
           for i in $(seq 1 90); do
@@ -151,8 +159,12 @@ jobs:
           echo "warming API routes..."
           for p in /api/system/rate-limits "/api/trpc/system.costs?input=%7B%22days%22%3A7%7D" /api/intel "/api/content/history?days=30" /api/social/recent-images /api/brain/wisdom /api/trpc/observability.osSnapshot "/api/trpc/system.promptDiagnostics?input=%7B%22msg%22%3A%22warmup%22%7D"; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
-            echo "  warm $p -> $code"
+            echo "  warm $p -> $code · rss=$(ps -o rss= -C node 2>/dev/null | awk '{s+=$1} END {print int(s/1024)"MB"}')"
           done
+          # Evidence for the next failure: if the server died or is
+          # thrashing, its own log says so. Cheap, and the exit-143 runs
+          # gave us nothing to diagnose from.
+          echo "--- next dev log tail ---"; tail -25 /tmp/next-start.log || true
 
       - name: Install Playwright chromium
         working-directory: apps/statenour
