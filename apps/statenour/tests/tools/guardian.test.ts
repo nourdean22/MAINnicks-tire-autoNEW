@@ -247,11 +247,21 @@ describe("withGuardian · circuit breaker", () => {
       await new Promise((r) => setTimeout(r, 20));
       throw new Error("fetch failed");
     };
+    // 2026-07-25 · the cooldown must be WIDE relative to how long the
+    // fan-out takes to schedule. claimBreakerSlot re-arms openUntil to
+    // `now + cooldownMs`, so if the event loop stalls longer than the
+    // cooldown between the first and last item of the Promise.allSettled
+    // batch, a SECOND caller finds the window elapsed and claims a second
+    // probe — `calls - callsAfterTrip` becomes 2 and the test fails.
+    // The old 30ms cooldown gave no margin: the fan-out alone measures
+    // ~121ms locally, and on a contended 2-core CI runner (forks pool)
+    // it reliably tripped a second window. 1s is far beyond any plausible
+    // scheduling stall inside a ~20ms batch. Assertions below UNCHANGED.
     const guarded = withGuardian("cb-herd", fn, {
       reliabilityOnly: true,
       maxRetries: 0,
       breakerThreshold: 2,
-      breakerCooldownMs: 30,
+      breakerCooldownMs: 1_000,
     });
 
     // Trip the breaker (2 sequential failures).
@@ -260,7 +270,7 @@ describe("withGuardian · circuit breaker", () => {
     const callsAfterTrip = calls; // 2
 
     // Let the cooldown elapse, then fire 10 concurrent calls at once.
-    await new Promise((r) => setTimeout(r, 40));
+    await new Promise((r) => setTimeout(r, 1_200));
     const results = await Promise.allSettled(Array.from({ length: 10 }, () => guarded()));
 
     // Exactly ONE became the probe (reached fn); the other 9 were fast-failed.

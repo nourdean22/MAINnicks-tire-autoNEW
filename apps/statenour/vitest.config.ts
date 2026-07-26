@@ -42,6 +42,16 @@ export default defineConfig({
     // Do NOT switch back to threads while anything under test can
     // transitively import @/lib/prisma.
     pool: "forks",
+    // 2026-07-25 · vitest's default testTimeout is 5s, which was tuned to
+    // the old threads pool on a fast dev box. Forked workers pay real
+    // process-startup + per-process module-load cost, and CI runs on a
+    // 2-core runner, so heavy route tests that measure ~1.4s locally
+    // exceeded 5s there (tests/ai/chat/shadow-dispatch.test.ts timed out
+    // on run 30171959495, and its in-flight work then polluted the next
+    // test in the file). 20s is headroom for the slowest observed test,
+    // not a license to hang: a genuinely stuck test still fails, just
+    // later. No assertion is relaxed by this.
+    testTimeout: 20_000,
   },
   resolve: {
     alias: {
