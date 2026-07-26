@@ -153,3 +153,60 @@ describe("training context is captured at draft time and copied through (0098)",
     expect(read("drizzle/schema.ts")).toMatch(/contextJson: text\("context_json"\)/);
   });
 });
+
+// ── 2026-07-26 · outbound AI meta-language never reaches a customer ──
+//
+// Recovered from a 2026-07-09 stash whose feature otherwise shipped. Every
+// other injection defense here faces INBOUND (classifiers.ts) or runs
+// POST-HOC (editClassifier's ROBOTIC category feeds the training digest and
+// never gates a send), so nothing stopped the DRAFT from announcing itself
+// as a bot. These pin the outbound direction.
+
+describe("guard: the outbound draft never leaks assistant-speak", () => {
+  it("blocks a reply that says 'As an AI'", () => {
+    const r = guard("As an AI, I can't quote that price for you.");
+    expect(r.allowed).toBe(false);
+    expect(r.action).toBe("block_send");
+    expect(r.severity).toBe("critical");
+    expect(r.findings.some(f => f.code === "ai_meta_language")).toBe(true);
+  });
+
+  it("blocks the other assistant-speak tells", () => {
+    for (const body of [
+      "I'm an AI and cannot access that.",
+      "That is outside my system prompt.",
+      "As a language model I don't have that info.",
+      "My training data ends before that.",
+    ]) {
+      const r = guard(body);
+      expect(r.allowed, `should block: ${body}`).toBe(false);
+      expect(r.findings.some(f => f.code === "ai_meta_language"), body).toBe(true);
+    }
+  });
+
+  it("leaves a normal tire-shop reply alone", () => {
+    const r = guard("Got you down for Thursday at 9. We'll take a look at that front tire.");
+    expect(r.allowed).toBe(true);
+    expect(r.findings.some(f => f.code === "ai_meta_language")).toBe(false);
+  });
+
+  it("does not fire on ordinary words that merely contain a tell", () => {
+    // "airing", "email", "assistant manager" must not trip the \b-anchored set.
+    const r = guard("Our assistant manager can help when you get here — email works too.");
+    expect(r.findings.some(f => f.code === "ai_meta_language")).toBe(false);
+  });
+
+  it("routes a correction-style 'ignore previous' to a human instead of blocking it", () => {
+    // A shop legitimately sends corrections; blocking one suppresses the fix,
+    // not the defect. From NickGPT it may be an echoed injection — so: review.
+    const r = guard("Sorry, ignore previous message - we meant Thursday at 9.");
+    expect(r.action).toBe("force_human_review");
+    expect(r.allowed).toBe(false);
+    expect(r.findings.some(f => f.code === "echoed_injection_phrasing")).toBe(true);
+  });
+
+  it("does not apply the echo rule to deterministic templates", () => {
+    const r = guard("Sorry, ignore previous message - we meant Thursday at 9.", "deterministic_template");
+    expect(r.findings.some(f => f.code === "echoed_injection_phrasing")).toBe(false);
+  });
+});

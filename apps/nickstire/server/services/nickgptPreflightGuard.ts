@@ -224,6 +224,37 @@ export function runNickgptPreflightGuard(params: PreflightParams): PreflightResu
     }
   }
 
+  // Rule 12: OUTBOUND AI meta-language (Critical) — recovered 2026-07-26 from
+  // a 2026-07-09 stash whose feature otherwise shipped. Every other injection
+  // defense in this repo faces INBOUND (classifiers.ts gates what the customer
+  // sends us) or runs POST-HOC (editClassifier's ROBOTIC category only feeds
+  // the training digest and never gates a send). Nothing stopped the DRAFT
+  // itself from leaking assistant-speak, so "As an AI, I can't quote that"
+  // could reach a customer and announce that Nick's texts are bot-written.
+  // No legitimate tire-shop SMS contains these phrases — block, don't review.
+  const aiMetaRegex = /\b(as an ai|as an assistant|i am an ai|i'm an ai|ai (language )?model|language model|system prompt|my (training data|instructions))\b/i;
+  const aiMetaMatch = candidateBody.match(aiMetaRegex);
+  if (aiMetaMatch) {
+    findings.push({ code: "ai_meta_language", message: "Outbound draft leaks AI meta-language.", matchedText: aiMetaMatch[0] });
+    severity = "critical";
+  }
+
+  // Rule 13: Echoed injection phrasing (Medium, NickGPT only) — deliberately
+  // NOT folded into Rule 12. The stash this came from hard-blocked
+  // "ignore previous" alongside the assistant-speak set, but a correction text
+  // ("Sorry, ignore previous message — we meant Thursday") is a legitimate
+  // thing for a shop to send, and blocking it would suppress the correction
+  // rather than the defect. From a NickGPT draft the phrase more likely means
+  // the model echoed an injection attempt out of the inbound message, so this
+  // routes to a human instead of auto-blocking or auto-sending.
+  if (sourceType === "nickgpt") {
+    const echoedInjectionMatch = candidateBody.match(/\bignore (all )?previous\b/i);
+    if (echoedInjectionMatch) {
+      findings.push({ code: "echoed_injection_phrasing", message: "Draft repeats injection-style phrasing; confirm it is a genuine correction.", matchedText: echoedInjectionMatch[0] });
+      if (severity !== "critical" && severity !== "high") severity = "medium";
+    }
+  }
+
   // Final Action Resolution
   let reasonCode = "passed_heuristics";
   
