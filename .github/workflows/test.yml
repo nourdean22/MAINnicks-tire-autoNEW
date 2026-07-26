@@ -96,7 +96,14 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.workflow == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 2026-07-26 · 25 was sized for a NARROW affected set (main's last green node
+    # job: 8 tasks / 5m35s). A root pnpm-lock.yaml / package.json change makes
+    # turbo --affected include EVERY package — 33 tasks, cold cache — and #1090
+    # traded the vitest threads pool for the slower forks pool. Both attempts on
+    # e59b70dad died mid-"Verify affected" (24.2m and 22.7m+, 27/33 tasks done,
+    # ZERO failing tasks): the sweep simply outgrew the budget, so every
+    # dependency PR reddened main on the clock rather than on a defect.
+    timeout-minutes: 50
     env:
       # 2026-07-15 · @statenour/web tsc --noEmit outgrew Node's ~2GB default
       # old-space: deterministic OOM (exit 134) on runs 29408774484 and
