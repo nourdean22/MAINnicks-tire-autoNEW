@@ -1,6 +1,9 @@
 {
   "$comment": "Branch evidence manifest for the DoD compiler (Completion Authority). Every derived requirement gets a ref (test file / run / assertion) or an explicit deferred reason — never silence.",
   "evidence": {
+    "cron-fail-closed": {
+      "ref": "New TIER-2 cron `overdue-reply-alert` (apps/nickstire/server/cron/scheduler.ts) -> alertOverdueObligations(). Fail-closed evidence in server/humanPendingAlerts.test.ts (10 tests): (1) 'propagates a database failure rather than reporting an empty queue' -- listOverdueHumanPending THROWS when the DB is unavailable, so the cron reports a FAILED job instead of rendering an unreadable queue as 'nobody is waiting' (the ROS-059 silent-IDLE shape); (2) 'does NOT mark an obligation alerted when delivery failed' -- the 60-min throttle is written only on confirmed Telegram delivery, so an outage cannot buy an hour of silence, and the miss logs OVERDUE_ALERT_UNDELIVERED; (3) 'alerts once, then throttles the same obligation on the next sweep' -- bounded re-alerting. businessHoursOnly, so an obligation accrued overnight surfaces at opening rather than 3am. NON-CUSTOMER PATH: this cron messages the OPERATOR only and has no send-to-customer capability. NOT production-verified -- a live tick needs a deploy."
+    },
     "migration-evidence": {
       "ref": "drizzle/0088_media_registry.sql (additive CREATE TABLE IF NOT EXISTS only) + scripts/apply-0088-media-registry.mts (idempotent, column-count verified) + journal idx 101. APPLICATION PENDING operator authorization — recorded as the P2 blocker on media-asset-registry."
     },

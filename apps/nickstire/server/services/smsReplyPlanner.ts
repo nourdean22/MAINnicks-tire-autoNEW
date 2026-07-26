@@ -32,7 +32,14 @@ export type SmsReplyGoal =
   | "answer"
   | "collect_information"
   | "acknowledge_and_handoff"
-  | "safety_triage";
+  | "safety_triage"
+  /**
+   * The customer already said yes. The job is logistics + a clean stop — not
+   * another benefit, question, or pitch. Selling past this point reads as not
+   * listening, and it is the most expensive kind of not-listening because the
+   * sale was already won.
+   */
+  | "confirm_commitment";
 
 export interface ProhibitedClaim {
   label: string;
@@ -53,9 +60,37 @@ export interface SmsReplyPlan {
   nextStep: string | null;
   prohibited: ProhibitedClaim[];
   maxChars: number;
+  /**
+   * The customer has committed (said they're coming / dropping it off). A
+   * MODIFIER rather than an intent, because commitment applies to whatever they
+   * are asking about: "brakes are grinding, heading over now" still owes the
+   * brake answer — it just owes it without the pitch or the qualifying question.
+   *
+   * When true the planner drops the optional question and adds the pitch
+   * prohibitions. Any remaining detail can be collected at the counter; they are
+   * already on their way to a first-come-first-served shop.
+   */
+  stopSelling: boolean;
 }
 
 const TIRE_SIZE_RE = /\b\d{3}\s*\/\s*\d{2}\s*(?:R|\/)\s*\d{2}\b/i;
+
+/**
+ * The customer already named the brake symptom, so asking again would be the
+ * repeat-question failure. Detected rather than tracked in state because these
+ * words are unambiguous and arrive in the same message often enough to matter.
+ */
+const BRAKE_SYMPTOM_RE = /\b(squeak\w*|squeal\w*|grind\w*|shak\w*|vibrat\w*|pulsat\w*|soft pedal|spongy)\b/i;
+
+/** Solid vs flashing — the detail that separates "bring it by" from urgent. */
+const CEL_STATE_RE = /\b(solid|steady|flash\w*|blink\w*)\b/i;
+
+/**
+ * The customer raised financing themselves. Broader than the router's financing
+ * rule because this only needs to decide whether ANSWERING is allowed, not what
+ * the reply is about — a false positive here costs nothing.
+ */
+const FINANCING_ASK_RE = /\b(financ\w*|payment plans?|make payments|pay(ing)? (it )?off|snap|acima|koalafi|no credit|bad credit|credit check|layaway)\b/i;
 
 // ─── Shared prohibited-claim library (affirmative-claim shaped so honest
 //     "we'll check what's in stock" copy never trips them) ──────────────
@@ -91,6 +126,45 @@ const CLAIM_COMPLAINT_OUTCOME: ProhibitedClaim = {
   label: "complaint_outcome_promise",
   re: /\b(we('?ll| will) (refund|redo|replace it free|fix (it|that) (for )?free|take care of everything)|full refund)\b/i,
 };
+
+/**
+ * Pitching to a customer who already committed. These fire ONLY when
+ * `stopSelling` is set, because each pattern is perfectly legitimate earlier in
+ * a conversation — "we offer financing" is a good answer to "do you finance?"
+ * and a bad answer to "I'm on my way."
+ *
+ * Shaped to catch the pitch, not the logistics: the address, the hours and the
+ * FCFS fact must all still pass, since those are exactly what a committed
+ * customer needs.
+ */
+const CLAIM_PITCH_REVIEWS: ProhibitedClaim = {
+  label: "pitch_after_commitment:social_proof",
+  re: /\b(\d[\d,]*\+? ?(google )?reviews?|\d(\.\d)? ?stars?|highest.rated|top.rated|best (shop|prices) in)\b/i,
+};
+const CLAIM_PITCH_SERVICE_LIST: ProhibitedClaim = {
+  label: "pitch_after_commitment:service_list",
+  re: /\b(tires?,\s*brakes?|brakes?,\s*(tires?|alignments?)|we (also )?(do|offer|handle)\b[^.!?]*\b(and more|everything|full service))\b/i,
+};
+const CLAIM_PITCH_FINANCING: ProhibitedClaim = {
+  label: "pitch_after_commitment:unprompted_financing",
+  re: /\b(we (also )?(offer|have) financing|financing (is )?available|payment plans? available|no credit (check )?needed)\b/i,
+};
+const CLAIM_PITCH_BENEFITS: ProhibitedClaim = {
+  label: "pitch_after_commitment:benefit_restatement",
+  re: /\b(free (check|quote|inspection)[^.!?]*\b(and|plus)\b|great choice|you'?ll love|best decision|happy to help you save)\b/i,
+};
+
+/**
+ * Applied on top of the playbook's own list whenever the customer has committed.
+ * Kept separate from GLOBAL_PROHIBITED so the pre-commitment conversation keeps
+ * its full, honest sales vocabulary.
+ */
+const STOP_SELLING_PROHIBITED: ProhibitedClaim[] = [
+  CLAIM_PITCH_REVIEWS,
+  CLAIM_PITCH_SERVICE_LIST,
+  CLAIM_PITCH_FINANCING,
+  CLAIM_PITCH_BENEFITS,
+];
 
 /** Prohibitions that apply to EVERY planned reply (FCFS honesty + safety). */
 const GLOBAL_PROHIBITED: ProhibitedClaim[] = [CLAIM_APPOINTMENT, CLAIM_SAFE_TO_DRIVE];
@@ -247,6 +321,18 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
     prohibited: [],
     maxChars: 300,
   },
+  // The sale is already won. Confirm, give the address, stop.
+  // Deliberately: no question, no curiosity, no benefit — and a tight character
+  // budget, because brevity here is the signal that we actually heard them.
+  arrival_committed: {
+    goal: "confirm_commitment",
+    knownFacts: () => [FCFS_FACT, SHOP_FACT],
+    missingInformation: () => [],
+    requiredQuestion: () => null,
+    nextStep: "Acknowledge that they're on the way and note it — nothing further is needed.",
+    prohibited: [CLAIM_COMPLETION, CLAIM_HOLD, CLAIM_STOCK],
+    maxChars: 200,
+  },
   same_day_visit: {
     goal: "answer",
     knownFacts: () => [FCFS_FACT, "Earlier is better; a drop-off helps the shop work it in faster."],
@@ -285,9 +371,20 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
   },
   price_brakes: {
     goal: "answer",
-    knownFacts: () => ["Brake pricing depends on what is worn — free check first, price in writing before any work. Never quote a brake dollar amount."],
-    missingInformation: () => [],
-    requiredQuestion: () => null,
+    knownFacts: () => [
+      "Brake pricing depends on what is worn — free check first, price in writing before any work. Never quote a brake dollar amount.",
+      // The distinction is what makes "it depends" land as expertise instead of a
+      // dodge: it names two real paths the customer can tell apart by ear, and
+      // their answer genuinely changes what gets inspected first.
+      "Squeaking is often still just the pads; grinding can mean the rotor is involved. The symptom changes what gets checked first.",
+    ],
+    missingInformation: (_ctx, body) =>
+      BRAKE_SYMPTOM_RE.test(body) ? [] : ["which brake symptom they hear (squeak / grind / shake)"],
+    // Suppressed once they have already told us the symptom — re-asking is the
+    // repeat-question failure, and the symptom words are unambiguous enough to
+    // detect directly.
+    requiredQuestion: (_ctx, body) =>
+      BRAKE_SYMPTOM_RE.test(body) ? null : "Is it squeaking, grinding or shaking?",
     nextStep: "Bring it in for the free check.",
     prohibited: [CLAIM_COMPLETION],
     maxChars: 300,
@@ -303,9 +400,18 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
   },
   diagnostic: {
     goal: "answer",
-    knownFacts: () => ["Diagnostics start with a free check — the shop scans it, looks it over, and gives the price in writing before doing anything."],
-    missingInformation: () => [],
-    requiredQuestion: () => null,
+    knownFacts: () => [
+      "Diagnostics start with a free check — the shop scans it, looks it over, and gives the price in writing before doing anything.",
+      // Process proof rather than hype, and it pre-empts the "just clear the
+      // code" request without calling the customer wrong.
+      "A code points to where to test; the test is what shows whether a part actually failed. Clearing a code does not fix the cause.",
+    ],
+    missingInformation: (_ctx, body) =>
+      CEL_STATE_RE.test(body) ? [] : ["whether the check-engine light is solid or flashing"],
+    // Solid vs flashing is the one detail that changes urgency, and a flashing
+    // light routes to safety copy rather than a shop-visit pitch.
+    requiredQuestion: (_ctx, body) =>
+      CEL_STATE_RE.test(body) ? null : "Is the light solid or flashing?",
     nextStep: "Bring the car (and any failed E-Check paperwork) by.",
     prohibited: [CLAIM_REMOTE_DIAGNOSIS],
     maxChars: 300,
@@ -346,8 +452,27 @@ export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext,
   const missingInformation = [...new Set(books.flatMap((b) => b.missingInformation(ctx, body)))];
   const requiredQuestion =
     books.map((b) => b.requiredQuestion(ctx, body)).find((q): q is string => Boolean(q)) ?? null;
+  // Commitment is a MODIFIER, so it counts from `secondary` too: "brakes are
+  // grinding, on my way" must still answer the brakes — just without the pitch.
+  const stopSelling = intents.includes("arrival_committed");
+
+  // Stop-selling suppresses the UNPROMPTED pitch, never an answer the customer
+  // asked for. "I'm on my way — do you take payments?" is a direct question, and
+  // refusing to answer it would be a worse failure than the pitch we are
+  // preventing. Same logic as scoping the prohibitions to commitment at all.
+  const askedAboutFinancing = intents.includes("financing") || FINANCING_ASK_RE.test(body);
+  const stopSellingClaims = STOP_SELLING_PROHIBITED.filter(
+    (c) => !(askedAboutFinancing && c.label === CLAIM_PITCH_FINANCING.label),
+  );
+
   const prohibitedMap = new Map<string, ProhibitedClaim>();
-  for (const c of [...GLOBAL_PROHIBITED, ...books.flatMap((b) => b.prohibited)]) prohibitedMap.set(c.label, c);
+  for (const c of [
+    ...GLOBAL_PROHIBITED,
+    ...books.flatMap((b) => b.prohibited),
+    ...(stopSelling ? stopSellingClaims : []),
+  ]) {
+    prohibitedMap.set(c.label, c);
+  }
   const maxChars = Math.min(...books.map((b) => b.maxChars), 320);
 
   return {
@@ -357,10 +482,15 @@ export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext,
     knownFacts,
     customerFacts: customerFactsFor(ctx),
     missingInformation,
-    requiredQuestion,
+    // A committed customer is walking into a first-come-first-served shop, so any
+    // remaining detail is cheaper to collect at the counter than to trade another
+    // text for. Suppressing the question here is what makes "Got it — noted" the
+    // whole reply instead of "Got it! What size do you need?"
+    requiredQuestion: stopSelling ? null : requiredQuestion,
     nextStep: primaryBook.nextStep,
     prohibited: [...prohibitedMap.values()],
     maxChars,
+    stopSelling,
   };
 }
 
@@ -368,6 +498,13 @@ export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext,
 export function renderPlanPrompt(plan: SmsReplyPlan): string {
   const lines = [
     `GOAL: ${plan.goal.replaceAll("_", " ")}.`,
+    // A POSITIVE contract, stated once. The equivalent negative ("never mention
+    // reviews, never list services, never...") both lengthens the prompt and
+    // keeps the banned phrasing live in context; the regex validators below are
+    // what actually enforce it.
+    plan.stopSelling
+      ? "THE CUSTOMER ALREADY COMMITTED. Confirm what they said, give only the logistics they still need, and stop. No questions, no benefits, no extras."
+      : null,
     plan.knownFacts.length ? `USE ONLY THESE FACTS: ${plan.knownFacts.join(" ")}` : null,
     plan.customerFacts.length ? `CUSTOMER: ${plan.customerFacts.join(" ")}` : null,
     plan.requiredQuestion ? `ASK EXACTLY ONE QUESTION: ${plan.requiredQuestion}` : "Do not ask a question unless essential.",

@@ -58,17 +58,71 @@ const MAX_REPLY_CHARS = 300;
  * number.
  */
 const DEFAULT_REPLIES: Record<string, string> = {
+  // A photo can show what something LOOKS like. It cannot establish
+  // repairability, remaining tread, stock, or how long a job takes — so each
+  // reply separates what is visible from what is still uncertain, then gives the
+  // easiest way to close that gap. The retired copy asserted all four:
+  // "the tire needs replacement" (a remote verdict), "we have your size in stock
+  // most days" (a live-inventory claim this path bypassed CLAIM_STOCK to make),
+  // "we can patch that if it's in the tread" (remote repairability),
+  // "usually 20 min" and "free 15-min inspection" (completion promises backed by
+  // no approved fact). photoReplyViolations() below now makes drift structurally
+  // detectable instead of relying on review.
+  //
+  // "free check" is the required phrasing, not "free inspection": customers say
+  // check, and the send-preflight rule for the word "free" matches that literal.
   "tire-replacement":
-    "Got the photo · looks like the tire needs replacement. We have your size in stock most days. No charge to look. Call/text (216) 862-0005 when you're ready.",
+    "Got the photo · there's real wear showing, but how much tread is left needs measuring in person. Bring it by for a free check and we'll tell you where it stands before anything is charged. (216) 862-0005.",
   "tire-repair":
-    "Got the photo · we can patch that if it's in the tread. Bring it by — usually 20 min. No charge if it's not patchable. (216) 862-0005.",
+    "Got the photo · whether it can be patched depends on exactly where the puncture sits and what it looks like inside the tire. Bring it by for a free check — no charge if it turns out we can't repair it. (216) 862-0005.",
   "brake-service":
-    "Saw the brake photo · we'd want to check pad thickness + rotor condition in-person before pricing. Free inspection. (216) 862-0005.",
+    "Saw the brake photo · pad thickness and rotor condition need measuring in person before any pricing. Free check, written price before any paid work. (216) 862-0005.",
   "inspection-needed":
-    "Thanks for the photo · we'd want eyes on it to give you a real answer. Free 15-min inspection. (216) 862-0005.",
+    "Thanks for the photo · a photo can't settle this one. Bring it by for a free check and we'll give you a real answer and a written price. (216) 862-0005.",
   unclear:
-    "Got the photo. Hard to tell from one angle — could you swing by for a free look? (216) 862-0005.",
+    "Got the photo, but it's hard to tell from this angle. Send one wider shot showing the whole area, or bring it by for a free check. (216) 862-0005.",
 };
+
+/**
+ * The claims a photo reply must never make, enforced with the SAME regexes the
+ * SMS reply planner uses. This path builds its copy from hardcoded strings rather
+ * than through buildReplyPlan, so without this it silently sits outside every
+ * prohibition the planner enforces — which is exactly how a live-inventory claim
+ * and two completion promises survived here after being removed elsewhere.
+ *
+ * Exported so the tests can assert every template, including future ones.
+ */
+export function photoReplyViolations(reply: string): string[] {
+  const found: string[] = [];
+  // Remote verdicts a photo cannot support.
+  // `replac\w*` on purpose: a trailing \b after "replac" cannot match inside
+  // "replacement", which silently let the exact retired sentence through.
+  if (/\b(needs? (to be )?replac\w*|has to be replaced|is (shot|toast|unsafe|bad))\b/i.test(reply)) {
+    found.push("remote_replacement_verdict");
+  }
+  if (/\b(we can (patch|repair|fix) (that|it|this)|is (patchable|repairable)|that'?s (patchable|repairable))\b/i.test(reply)) {
+    found.push("remote_repairability_verdict");
+  }
+  // Inventory and timing this path has no source for.
+  if (/\b(in stock|we (have|got) your size|have (it|them|that size))\b/i.test(reply)) {
+    found.push("inventory_claim");
+  }
+  if (/\b(usually|about|around|takes?|in) ?~?\d+ ?(min|minute|hour|hr)\b/i.test(reply)) {
+    found.push("completion_time_promise");
+  }
+  // ROS-058 preflight rule: "free" copy must carry the literal "free check".
+  if (/\bfree\b/i.test(reply) && !/\bfree (quick )?check\b/i.test(reply)) {
+    found.push("free_without_free_check");
+  }
+  return found;
+}
+
+/**
+ * Test-only view of the template table, so the claim tests cover EVERY reply —
+ * including ones added later — instead of a hand-copied subset that silently
+ * drifts out of date.
+ */
+export const DEFAULT_REPLIES_FOR_TEST: Readonly<Record<string, string>> = DEFAULT_REPLIES;
 
 function pickDefaultReply(serviceSuggest?: string): string {
   if (serviceSuggest && DEFAULT_REPLIES[serviceSuggest]) {
@@ -158,7 +212,22 @@ export async function runPhotoAssess(req: PhotoAssessRequest): Promise<PhotoAsse
       replyText: replyText,
     });
 
-    const success = orchResult.status === "sent" || orchResult.status === "queued";
+    // ACCEPTED, not delivered. `queued` means the send layer took ownership
+    // (quiet hours, gateway offline, rate cap) — the customer has NOT received
+    // anything yet, and the drain still has to succeed. Collapsing the two into
+    // one boolean is how a queued reply reads as an answered customer on a
+    // dashboard; keep the distinction and report it (ROS-021's lesson: a message
+    // that never reached a customer must leave a trace).
+    const accepted = orchResult.status === "sent" || orchResult.status === "queued";
+    const deliveredNow = orchResult.status === "sent";
+    if (accepted && !deliveredNow) {
+      log.info("photo_assess_sms_queued_not_delivered", {
+        source: req.source,
+        status: orchResult.status,
+        reason: orchResult.reason,
+      });
+    }
+    const success = accepted;
     if (!success) {
       log.warn("photo_assess_sms_failed", {
         source: req.source,

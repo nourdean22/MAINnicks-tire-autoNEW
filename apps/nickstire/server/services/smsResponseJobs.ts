@@ -129,6 +129,138 @@ export async function enqueueResponseJob(input: EnqueueInput): Promise<{ jobId: 
   return { jobId: row.id, created };
 }
 
+/**
+ * The idempotency key a provider-identified inbound maps to.
+ *
+ * Derived through `responseIdempotencyKey` on purpose — there must be exactly ONE
+ * key derivation in this module. When `providerMsgId` is present the conversation,
+ * phone and body do not participate, which is why the placeholders below are safe;
+ * `providerMsgIdempotencyKey` pins that invariant in the tests, so if the
+ * derivation ever starts consuming those fields the pin fails loudly instead of
+ * silently looking up the wrong row.
+ */
+export function providerMsgIdempotencyKey(providerMsgId: string): string {
+  return responseIdempotencyKey({ conversationId: 0, phone: "", providerMsgId, body: "" });
+}
+
+/**
+ * Does a durable obligation already exist for this provider message id?
+ *
+ * `true`  — a job row exists; a redelivery may be dropped.
+ * `false` — the message was persisted but NO obligation was ever recorded. This is
+ *           the unrecoverable-window signature (ROS-058): the first delivery died
+ *           between the message INSERT and the job INSERT.
+ * `null`  — undeterminable (DB down / table absent). Callers must NOT read this as
+ *           "no obligation" — that would re-answer a customer on every redelivery
+ *           whenever the database hiccups.
+ */
+export async function responseObligationExistsForProviderMsg(providerMsgId: string): Promise<boolean | null> {
+  if (!providerMsgId) return null;
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return null;
+    const key = providerMsgIdempotencyKey(providerMsgId);
+    const [rows] = await db.execute(sql`SELECT id FROM sms_response_jobs WHERE idempotencyKey = ${key} LIMIT 1`);
+    return (rows as Array<{ id: number }>).length > 0;
+  } catch (err) {
+    log.warn("obligation existence check failed — treating as undeterminable", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+// ─── Obligation boundary (ROS-058: persist → obligation transaction window) ──
+
+export interface ObligationHandle {
+  /** The durable job id, or null when the spine is unavailable (degraded run). */
+  jobId: number | null;
+  /**
+   * True when a durable row now exists — i.e. the duty to answer survives a
+   * restart. False means this inbound is being handled in-process ONLY, exactly
+   * as it was before the spine existed.
+   */
+  durable: boolean;
+  /** True when THIS call created the row (false = redelivery deduped to it). */
+  created: boolean;
+}
+
+/**
+ * Is this the "the table isn't there" failure, as opposed to a transient fault?
+ *
+ * The distinction decides what the webhook does: a missing table is a deploy-state
+ * problem that retrying cannot fix (retrying would only spin the provider's
+ * at-least-once redelivery into a storm), so we degrade loudly. Anything else may
+ * well succeed on the next attempt, so the caller should hand the retry back to the
+ * provider rather than swallow the obligation.
+ */
+function isMissingTableError(err: unknown): boolean {
+  const e = err as { errno?: number; code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.errno === 1146) return true;
+  if (e.code === "ER_NO_SUCH_TABLE") return true;
+  return /doesn'?t exist|no such table|unknown table/i.test(e.message ?? "");
+}
+
+/**
+ * Durably record the obligation to respond, and say whether it is durable.
+ *
+ * Separated from answering so the inbound webhook can AWAIT this before acking the
+ * provider. That ordering is the whole point: while the obligation write lived on a
+ * fire-and-forget path after `res.status(200)`, a restart between the message
+ * INSERT and the job INSERT left a persisted customer text that nothing was
+ * obligated to answer — and the webhook's message-keyed dedupe then suppressed the
+ * redelivery that could have healed it.
+ *
+ * THROWS on transient failure so the caller can return 5xx and let the provider
+ * redeliver (idempotent: the deterministic key collapses duplicates). Returns
+ * `durable: false` only when the spine is genuinely absent, and logs LOUD when it
+ * does — ROS-059 is the precedent: this fallback ran silently for four days and
+ * nothing surfaced it.
+ */
+export async function ensureResponseObligation(input: EnqueueInput): Promise<ObligationHandle> {
+  let enqueued: { jobId: number; created: boolean } | null = null;
+  try {
+    enqueued = await enqueueResponseJob(input);
+  } catch (err) {
+    if (!isMissingTableError(err)) throw err;
+    log.error(
+      "sms_response_jobs is MISSING — inbound answered in-process only, the restart-survival guarantee is NOT active. Apply drizzle/0092 + 0097.",
+      { error: err instanceof Error ? err.message : String(err), errorId: "SMS_RESPONSE_JOBS_TABLE_MISSING" },
+    );
+    return { jobId: null, durable: false, created: false };
+  }
+
+  if (!enqueued) {
+    // getDb() === null (no DATABASE_URL / DB unreachable) — the pre-spine path.
+    log.error("Could not record a durable inbound-response obligation; answering in-process only", {
+      phone: input.phone.slice(-4),
+      errorId: "SMS_OBLIGATION_NOT_DURABLE",
+    });
+    return { jobId: null, durable: false, created: false };
+  }
+  return { jobId: enqueued.jobId, durable: true, created: enqueued.created };
+}
+
+/**
+ * Answer an obligation that has already been recorded. Safe to fire-and-forget:
+ * the durable row is what guarantees the answer, so this call only supplies
+ * latency. A concurrent processor that claimed the job first wins the claim and
+ * this returns without sending — `claimJobById` only claims `pending`/stale rows,
+ * which is also why re-running an already-answered job can never send twice.
+ */
+export async function answerResponseObligation(handle: ObligationHandle, input: EnqueueInput): Promise<void> {
+  if (!handle.durable || handle.jobId === null) {
+    const { orchestrateSms } = await import("./smsOrchestrator");
+    await orchestrateSms({ type: "inbound_sms", phone: input.phone, body: input.body, conversationId: input.conversationId });
+    return;
+  }
+  const claimed = await claimJobById(handle.jobId);
+  if (claimed) await runResponseJob(claimed);
+}
+
 // ─── Claim ────────────────────────────────────────────────────────────────
 
 /**
@@ -249,26 +381,20 @@ export async function runResponseJob(job: ResponseJob): Promise<void> {
  * pre-spine behavior so an inbound is NEVER dropped.
  */
 export async function handleInboundResponse(input: EnqueueInput): Promise<void> {
-  let enqueued: { jobId: number; created: boolean } | null = null;
+  let handle: ObligationHandle = { jobId: null, durable: false, created: false };
   try {
-    enqueued = await enqueueResponseJob(input);
+    handle = await ensureResponseObligation(input);
   } catch (err) {
-    log.warn("enqueueResponseJob failed; falling back to direct orchestrate", {
+    // Fail-open, for callers that cannot act on a rejection: the Twilio route
+    // (zero live traffic since #994) and the gateway's redelivery-healing path
+    // both invoke this after their ack, so throwing would only lose the answer.
+    // The caller that CAN retry — the SMS gateway's first-delivery path — calls
+    // ensureResponseObligation directly and returns 5xx so Capevace redelivers.
+    log.warn("obligation write failed; answering in-process only", {
       error: err instanceof Error ? err.message : String(err),
     });
   }
-
-  if (!enqueued) {
-    // Fallback: preserve today's behavior exactly.
-    const { orchestrateSms } = await import("./smsOrchestrator");
-    await orchestrateSms({ type: "inbound_sms", phone: input.phone, body: input.body, conversationId: input.conversationId });
-    return;
-  }
-
-  // Claim this specific job and run it now. If a concurrent processor already
-  // claimed it, our claim finds nothing and we return — the other runner owns it.
-  const claimed = await claimJobById(enqueued.jobId);
-  if (claimed) await runResponseJob(claimed);
+  await answerResponseObligation(handle, input);
 }
 
 /** Claim one job by id (webhook fast path). Mirrors claimDueResponseJobs' guard. */
@@ -349,6 +475,53 @@ export async function humanPendingSummary(): Promise<HumanPendingSummary> {
     overdue: Number(row?.overdue ?? 0),
     oldestWaitingMinutes: row?.oldestWaitingMinutes == null ? null : Number(row.oldestWaitingMinutes),
   };
+}
+
+export interface WaitingCustomer {
+  jobId: number;
+  conversationId: number;
+  phone: string;
+  body: string;
+  waitingMinutes: number;
+  overdueMinutes: number;
+}
+
+/**
+ * The actual customers whose human obligation has blown its SLA.
+ *
+ * `humanPendingSummary` returns counts, which is what a dashboard badge needs. An
+ * alert needs the PEOPLE — who is waiting, how long, and what they asked — because
+ * a number cannot be acted on from a phone.
+ *
+ * THROWS when the database is unavailable, matching humanPendingSummary: an empty
+ * array would read as "nobody is waiting", which is the precise failure this whole
+ * feature exists to prevent.
+ */
+export async function listOverdueHumanPending(limit = 25): Promise<WaitingCustomer[]> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) throw new Error("database unavailable — waiting customers are UNKNOWN, not none");
+  const [rows] = await db.execute(sql`
+    SELECT id AS jobId,
+           conversationId,
+           customerPhone AS phone,
+           body,
+           TIMESTAMPDIFF(MINUTE, createdAt, NOW()) AS waitingMinutes,
+           TIMESTAMPDIFF(MINUTE, dueAt, NOW()) AS overdueMinutes
+    FROM sms_response_jobs
+    WHERE status = 'human_pending' AND dueAt < NOW()
+    ORDER BY dueAt ASC
+    LIMIT ${limit}
+  `);
+  return (rows as Array<Record<string, unknown>>).map((r) => ({
+    jobId: Number(r.jobId),
+    conversationId: Number(r.conversationId),
+    phone: String(r.phone ?? ""),
+    body: String(r.body ?? ""),
+    waitingMinutes: Number(r.waitingMinutes ?? 0),
+    overdueMinutes: Number(r.overdueMinutes ?? 0),
+  }));
 }
 
 // ─── Safety-net processor (boot rehydrate + interval sweep) ────────────────

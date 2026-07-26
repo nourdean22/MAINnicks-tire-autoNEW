@@ -120,6 +120,34 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     log.warn("Health check: AI gateway not loaded", { error: err instanceof Error ? err.message : String(err) });
   }
 
+  // ─── Critical schema (ROS-059) ─────────────────────────────────────────────
+  // Reads the cached boot audit — no query on the health path. A missing table is
+  // reported as DEGRADED, never healthy: every table in the registry has a call
+  // site that fails silently, so "the site responds" says nothing about whether
+  // those features are alive. "unknown" (audit could not run) is also not healthy.
+  try {
+    const { getLastSchemaAudit } = await import("../services/schemaGuard");
+    const audit = getLastSchemaAudit();
+    if (!audit) {
+      checks.criticalSchema = { status: "unknown", reason: "boot audit has not run yet" };
+    } else if (audit.error) {
+      checks.criticalSchema = { status: "unknown", reason: audit.error, checkedAt: audit.ranAt };
+    } else {
+      checks.criticalSchema = {
+        status: audit.ok ? "up" : "degraded",
+        checked: audit.checked,
+        checkedAt: audit.ranAt,
+        missing: audit.missing.map((m) => ({ table: m.table, consequence: m.consequence, migration: m.migration })),
+      };
+    }
+    if (checks.criticalSchema.status !== "up" && overallStatus === "healthy") {
+      overallStatus = "degraded";
+    }
+  } catch (err) {
+    checks.criticalSchema = { status: "not_loaded" };
+    log.warn("Health check: schema guard not loaded", { error: err instanceof Error ? err.message : String(err) });
+  }
+
   // Self-healing integration
   let selfHealingState: Record<string, unknown> = {};
   try {

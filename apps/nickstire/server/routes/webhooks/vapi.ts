@@ -469,6 +469,59 @@ async function processCallEndReport(
           }
         });
 
+        // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
+        // The full transcript has been in hand here since wave-fix-2026-05-25,
+        // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`
+        // is populated on 0 of 2,095 rows — VAPI never sets it — so nothing
+        // durable held what callers actually said, and every demand signal was
+        // assistant-contaminated: `serviceMention` is binary (tire|brake) and
+        // `aiSummary` is written by a tire-first assistant. The ~60% used-tire
+        // figure the whole prompt is built around could not be checked.
+        //
+        // Stores the CUSTOMER's turns only — never assistant speech, never the
+        // full transcript — capped and truncated. JSON_SET merges into whatever
+        // `metadata` already holds (intents, agenticAudit), so write order with
+        // the later enrichment updates does not matter. Uses the existing JSON
+        // column deliberately: no migration means no hand-applied DDL to forget
+        // (ROS-059). Fail-open — a demand-analytics write must never affect the
+        // webhook's 200.
+        try {
+          const { buildCustomerSpeechRecord, extractCustomerTurnsFromMessages, CUSTOMER_SPEECH_VERSION } =
+            await import("../../services/customerTurns");
+          // Prefer VAPI's role-tagged `artifact.messages` — authoritative at the
+          // source, so no speaker-prefix guessing and no formatting change can
+          // misattribute assistant speech as customer demand. The flat
+          // transcript is the fallback for calls that lack the array.
+          const artifactMsgs = (event as { artifact?: { messages?: unknown } }).artifact?.messages;
+          let speech: ReturnType<typeof buildCustomerSpeechRecord> = null;
+          if (Array.isArray(artifactMsgs) && artifactMsgs.length) {
+            const parsed = extractCustomerTurnsFromMessages(artifactMsgs);
+            if (parsed.turns.length || parsed.unparsed) {
+              speech = {
+                v: CUSTOMER_SPEECH_VERSION,
+                turns: parsed.turns,
+                turnCount: parsed.totalCustomerTurns,
+                first: parsed.firstSubstantive,
+                unparsed: parsed.unparsed,
+              };
+            }
+          } else {
+            speech = buildCustomerSpeechRecord(transcript);
+          }
+          if (speech) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.customerSpeech', CAST(${JSON.stringify(speech)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+          }
+        } catch (speechErr) {
+          log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
+            error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
         // wave-144 · forwarded-call safety net. A during-hours
         // transferCall hands the caller to the shop line; if nobody
         // picks up (tech mid-bay), that hot caller is lost with NO

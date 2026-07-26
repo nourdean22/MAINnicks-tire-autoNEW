@@ -48,7 +48,13 @@ const AUDIT_MODE = process.argv.includes("--audit");
 const KILL_LIST = [
   { pattern: /\btrusted\b/gi, why: "Fake-corporate adjective label", fix: "Show, don't claim — use 4.9★ / 1,700+ reviews / specific story" },
   { pattern: /\bexperts?\b/gi, why: "Fake-corporate adjective label", fix: "Use 'we do this every day' or '7 days a week'" },
-  { pattern: /\bquality\b/gi, why: "Fake-corporate adjective label", fix: "Use a specific spec or price ('$60 installed includes mount + balance')" },
+  // ROS-058 note: this `fix` used to read "$60 installed includes mount +
+  // balance" — the exact fabricated price that arc removed from the SMS catalog.
+  // Guidance that names a drifted number is a reinfection vector: the next
+  // developer copies it in good faith. The BUSINESS SSOT is a $25 qualifying
+  // floor with most standard sizes $40-80, so ~$60 is a midpoint, never a floor.
+  // Point at the SSOT instead of restating any number here.
+  { pattern: /\bquality\b/gi, why: "Fake-corporate adjective label", fix: "Use a concrete spec, or interpolate the price band from BUSINESS (shared/business.ts) — never hardcode a dollar figure in copy" },
   { pattern: /\brest assured\b/gi, why: "Customer-service-bot phrase", fix: "Use direct promise: 'free check, written quote'" },
   { pattern: /\bhassle.?free\b/gi, why: "Marketing cliché", fix: "Use concrete: 'walk in, drop it off, we'll text you when it's ready'" },
   { pattern: /\bstate.of.the.art\b/gi, why: "Marketing cliché", fix: "Name the actual equipment or skip it" },
