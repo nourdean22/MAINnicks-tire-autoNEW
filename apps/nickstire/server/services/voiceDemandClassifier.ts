@@ -82,8 +82,41 @@ interface Rule {
 const RULES: Rule[] = [
   // ── Tier 0: overrides. These beat any service topic in the same sentence.
   {
+    // Covers three shapes the first version missed, all found in the real
+    // `unclear` residue:
+    //  1. BY NAME — "Speak to Amanda", "Can you speak to Nick?", "looking for
+    //     a Nadine". Asking for a specific person is the STRONGEST human
+    //     request, and matching only generic nouns missed every one of them.
+    //  2. STT damage — "Can I to a representative?" (dropped verb), "I would
+    //     like to speak to a somebody." Callers are transcribed imperfectly;
+    //     requiring clean grammar loses real requests.
+    //  3. Bare imperatives — "Connecting to the store.", "Schedule service."
+    // The name branch requires a speak/talk/ask/looking-for verb so it cannot
+    // fire on a vehicle make ("looking at a Malibu") or a service word.
     intent: "human_requested", priority: 0, friction: "human_required", confidence: 0.95,
-    re: /\b(speak|talk)\w*\s+(to|with)\s+(someone|somebody|a person|a human|a manager|the manager|the owner|a rep\w*)|real person|^\s*manager\b|manager,?\s*please|just transfer|transfer me|connect me|customer service\b/i,
+    re: new RegExp(
+      [
+        // generic nouns
+        /\b(speak|talk)\w*\s+(to|with)\s+(a\s+|the\s+)?(someone|somebody|some body|a person|human|manager|owner|rep\w*|representative|associate|agent|guy|lady|girl|man)\b/.source,
+        // dropped-verb STT artifacts: "can I ... to a representative"
+        /\b(can|could)\s+i\b[^.?!]{0,12}\bto\s+(a|the)\s+(representative|rep|person|manager|somebody|someone)\b/.source,
+        // explicit routing language
+        /real person|^\s*manager\b|manager,?\s*please|just transfer|transfer me|connect me|connecting to the store|customer service\b|front desk\b/.source,
+      ].join("|"),
+      "i",
+    ),
+  },
+  {
+    // BY NAME, deliberately CASE-SENSITIVE (no /i) — the capital letter is the
+    // signal that distinguishes a person from a pronoun. Folding case here
+    // would match "talk to you", since "you" also fits [A-Z][a-z]{2,}.
+    //
+    // The stop-list covers words that are legitimately capitalised mid-sentence
+    // by the transcriber, or that follow these verbs without naming a person.
+    intent: "human_requested", priority: 0, friction: "human_required", confidence: 0.9,
+    // `{1,}` not `{2,}`: short given names are real here — the shop's owner is
+    // "Mo", and "speak to a Mo" sat unclassified in the residue.
+    re: /\b(?:[Ss]peak|[Tt]alk|[Tt]alking|[Ll]ooking|[Aa]sking|[Cc]alling)\s+(?:to|with|for)\s+(?:a\s+|an\s+|the\s+)?(?!You|Your|The|Somebody|Someone|Anyone|Anybody|Sir|Maam|Nick's|Nicks|Tire|Tires|Service)([A-Z][a-z]{1,})\b/,
   },
   {
     intent: "complaint", priority: 0, friction: "complaint", confidence: 0.9,
@@ -112,8 +145,28 @@ const RULES: Rule[] = [
     re: /\bnew\b.{0,12}\b(tire|tyre)s?\b|\bbrand new\b.{0,12}\b(tire|tyre)s?\b/i,
   },
   {
+    // Digits OR SPOKEN NUMBERS. VAPI transcribes speech, and callers read tire
+    // sizes aloud: "Two thirty five thirty five nineteen" is 235/35R19. A
+    // digits-only pattern is a systematic blind spot for a tire shop — this was
+    // sitting in the real `unclear` residue.
     intent: "tire_size_help", priority: 3, friction: "unknown_tire_size", confidence: 0.8,
-    re: /\b\d{3}\s?[\/-]?\s?\d{2}\s?[rR]?\s?\d{2}\b|sidewall|what size\b|(tire|tyre)s?\s+size/i,
+    re: new RegExp(
+      [
+        /\b\d{3}\s?[\/-]?\s?\d{2}\s?[rR]?\s?\d{2}\b/.source,
+        /\bsidewall|what size\b|(tire|tyre)s?\s+size/.source,
+        // three spoken number-groups in a row, e.g. "two thirty five / thirty five / nineteen"
+        /\b(?:two|three|four)\s+(?:hundred\s+)?(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]*(?:one|two|three|four|five|six|seven|eight|nine)?\s+(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)/.source,
+      ].join("|"),
+      "i",
+    ),
+  },
+  {
+    // Services the residue showed callers actually ask for that had NO rule at
+    // all. Priority 3 so they beat the generic tire rule — a tune-up is REPAIR,
+    // and letting `tire_service` claim it would put a repair caller into the
+    // tire flow.
+    intent: "general_repair", priority: 3, friction: "price_uncertainty", confidence: 0.8,
+    re: /\btune[- ]?up\b|window\w*\s+tint\w*|\btint(ed|ing)?\b|headlight\w*|\bbulbs?\b|\bwipers?\b/i,
   },
   {
     intent: "flat_or_puncture", priority: 3, friction: "transportation", confidence: 0.85,
@@ -165,7 +218,13 @@ const RULES: Rule[] = [
   { intent: "pickup", priority: 5, friction: "no_active_friction", confidence: 0.75, re: /pick\s?(it|the car|my car)?\s?up|come get (it|my car)/i },
   { intent: "payment_invoice", priority: 5, friction: "price_uncertainty", confidence: 0.75, re: /\binvoices?\b|\breceipts?\b|\bbill\b|do you take (card|cash)|how (do i|can i) pay/i },
   { intent: "wrong_number", priority: 3, friction: "no_active_friction", confidence: 0.85, re: /wrong number|didn'?t call|not who i/i },
-  { intent: "hours_location", priority: 6, friction: "no_active_friction", confidence: 0.8, re: /what time\b|\bhours?\b|(are )?you (open|clos\w*)|\baddress\b|where (are|you)\b|locat\w*|direction\w*/i },
+  {
+    // "are you GUYS open" / "when are you open TILL" — the old pattern required
+    // `you` adjacent to `open`, so any inserted word missed. Both phrasings sat
+    // unclassified in the real residue.
+    intent: "hours_location", priority: 6, friction: "no_active_friction", confidence: 0.8,
+    re: /what time\b|\bhours?\b|\byou\b[^.?!]{0,12}\b(open|clos\w*)\b|\bopen\b[^.?!]{0,8}\b(till|until)\b|\baddress\b|where (are|you)\b|locat\w*|direction\w*/i,
+  },
   { intent: "general_repair", priority: 7, friction: "unknown", confidence: 0.5, re: /\bfix\w*|\brepair\w*|\bcheck\b.{0,15}\b(car|truck|van)\b|something wrong|\bissues?\b|\bproblems?\b/i },
 ];
 

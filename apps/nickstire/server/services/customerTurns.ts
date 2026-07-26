@@ -68,10 +68,20 @@ function isFiller(text: string): boolean {
   return tokens.every((t) => FILLER_WORD_RE.test(t));
 }
 
+/**
+ * Whole-utterance social openers. "Hello. How are you?" survives the token test
+ * (how/are/you are not filler WORDS) yet carries no request — it was a visible
+ * chunk of the real unclassifiable residue. Matched as a phrase instead.
+ */
+const GREETING_PHRASE_RE =
+  /^(hi|hey|hello|yes|yeah|good (morning|afternoon|evening))?[\s,.!?]*((how('?s| is| are)?\s*(you|it|ya)\s*(doing|going)?)|(what'?s up))[\s,.!?]*$/i;
+
 /** Filler, placeholder, or too short to carry a request. */
 function isSubstantive(text: string): boolean {
   if (text.length < MIN_SUBSTANTIVE_CHARS) return false;
-  if (PLACEHOLDER_RE.test(text.trim())) return false;
+  const t = text.trim();
+  if (PLACEHOLDER_RE.test(t)) return false;
+  if (GREETING_PHRASE_RE.test(t)) return false;
   return !isFiller(text);
 }
 

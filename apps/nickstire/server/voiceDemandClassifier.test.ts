@@ -175,3 +175,65 @@ describe("taxonomy hygiene", () => {
     expect(VOICE_INTENTS).not.toContain("general" as VoiceIntent);
   });
 });
+
+describe("patterns the real unclear residue exposed", () => {
+  it.each([
+    "Speak to Amanda.",
+    "Can you speak to Nick?",
+    "I was looking for a Nadine.",
+    "Yes. I would like to speak to a Mo.",
+  ])("routes a request for a person BY NAME to human_requested: %j", (s) => {
+    // Asking for a specific person is the strongest human request, and matching
+    // only generic nouns ("someone", "a manager") missed every one of these.
+    expect(intentOf(s)).toBe("human_requested");
+  });
+
+  it.each([
+    "talk to you later",
+    "speak to the shop about a tire",
+  ])("does NOT treat %j as a named-person request", (s) => {
+    // The name rule is case-SENSITIVE precisely so "you"/"the" cannot match.
+    expect(intentOf(s)).not.toBe("human_requested");
+  });
+
+  it.each([
+    "Can I to a representative?",
+    "I would like to speak to a somebody.",
+    "Speak to representative. This is AI.",
+  ])("survives speech-to-text damage: %j", (s) => {
+    expect(intentOf(s)).toBe("human_requested");
+  });
+
+  it("reads a SPOKEN tire size — VAPI transcribes numbers as words", () => {
+    // "Two thirty five thirty five nineteen" = 235/35R19. A digits-only pattern
+    // is a systematic blind spot for a tire shop.
+    expect(intentOf("Two thirty five thirty five nineteen")).toBe("tire_size_help");
+    expect(intentOf("two twenty five fifty seventeen")).toBe("tire_size_help");
+  });
+
+  it("still reads a digit tire size", () => {
+    expect(intentOf("225/50R17")).toBe("tire_size_help");
+  });
+
+  it.each([
+    "are you guys open?",
+    "When are you guys open till?",
+  ])("handles hours phrasings with an inserted word: %j", (s) => {
+    // The old rule required `you` adjacent to `open`.
+    expect(intentOf(s)).toBe("hours_location");
+  });
+
+  it("lets a same-day framing win over bare hours", () => {
+    // "are y'all open today" is genuinely a same-day question, not a hours
+    // lookup — the higher-priority rule is the RIGHT answer here.
+    expect(intentOf("are y'all open today")).toBe("walk_in_same_day");
+  });
+
+  it.each([
+    "How much would a tune up be for a 2006 Jeep",
+    "could I get my windows tinted?",
+    "do you do headlights",
+  ])("classifies services that previously had no rule: %j", (s) => {
+    expect(intentOf(s)).not.toBe("unclear");
+  });
+});
