@@ -345,9 +345,32 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
         // Router-only match (its local regex is broader than the red-flag set).
         return ["If the vehicle is unsafe to drive: stop driving it and arrange a tow rather than driving it in.", SHOP_FACT];
       }
-      // Cap at three so a message tripping several hazards cannot crowd the
-      // drafter's context; matches are ordered by RED_FLAG_RULES severity.
-      return [...flags.slice(0, 3).map((f) => f.guidance), SHOP_FACT];
+      /**
+       * SORT BEFORE CAPPING. (Review catch, P1 — my own regression.)
+       *
+       * `detectRedFlags` returns matches in RED_FLAG_RULES DECLARATION order,
+       * not severity order, and `fire-smoke` is declared sixth. "my brakes went
+       * out, steering locked, oil light is on, and it caught fire" therefore
+       * yielded brake, steering, oil, fire — and a bare .slice(0,3) dropped the
+       * FIRE guidance, deleting the 911 instruction this whole change exists to
+       * deliver. The cap was capable of removing exactly the sentence that
+       * matters most.
+       *
+       * Ranked by what kills people first: fire and fuel, then the crash
+       * hazards, then engine damage. Unknown ids sort last rather than first —
+       * `indexOf` returning -1 would otherwise promote them.
+       */
+      const HAZARD_RANK = [
+        "fire-smoke", "fuel-leak",
+        "brake-failure", "steering-loss", "control-loss", "tire-failure",
+        "oil-pressure", "overheating", "flashing-mil",
+      ];
+      const rank = (id: string | undefined) => {
+        const i = HAZARD_RANK.indexOf(id ?? "");
+        return i === -1 ? HAZARD_RANK.length : i;
+      };
+      const ranked = [...flags].sort((a, b) => rank((a as { id?: string }).id) - rank((b as { id?: string }).id));
+      return [...ranked.slice(0, 3).map((f) => f.guidance), SHOP_FACT];
     },
     missingInformation: () => [],
     requiredQuestion: () => null,
@@ -622,7 +645,24 @@ export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext,
    * dropped as SOURCES OF FACTS, not from the decision.
    */
   const factIntents = decision.primary === "safety_urgent" ? ["safety_urgent" as SmsIntent] : intents;
+  /**
+   * TWO SETS, ON PURPOSE. (Review catch, P2 — my own regression.)
+   *
+   * The first version narrowed the single `books` array, which feeds facts AND
+   * `prohibited` AND `maxChars`. Suppressing a secondary intent's FACTS also
+   * deleted its CLAIM GUARDS: "my tire blew out; do you have tires in stock?"
+   * lost tire_inventory's inventory_claim and hold_promise prohibitions while
+   * the prompt still told the model to address every part of the message — so a
+   * fabricated stock answer would no longer trip planViolations.
+   *
+   * My own comment claimed secondaries were "dropped as SOURCES OF FACTS, not
+   * from the decision". The code did not do that. It does now:
+   *   factBooks — what the drafter may SAY (safety alone in an emergency)
+   *   allBooks  — what it may NOT say, and how long (never narrowed)
+   * Enforcement only ever widens.
+   */
   const books = factIntents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
+  const allBooks = intents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
   const primaryBook = PLAYBOOKS[decision.primary] ?? PLAYBOOKS.general!;
 
   const knownFacts = [...new Set(books.flatMap((b) => b.knownFacts(ctx, body)))];
@@ -645,12 +685,16 @@ export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext,
   const prohibitedMap = new Map<string, ProhibitedClaim>();
   for (const c of [
     ...GLOBAL_PROHIBITED,
-    ...books.flatMap((b) => b.prohibited),
+    // allBooks, NOT books: an emergency suppresses a secondary intent's FACTS,
+    // never its claim guards. Enforcement only widens.
+    ...allBooks.flatMap((b) => b.prohibited),
     ...(stopSelling ? stopSellingClaims : []),
   ]) {
     prohibitedMap.set(c.label, c);
   }
-  const maxChars = Math.min(...books.map((b) => b.maxChars), 320);
+  // allBooks too — the TIGHTEST limit across every matched intent should win.
+  // Narrowing to factBooks could RELAX the cap during an emergency.
+  const maxChars = Math.min(...allBooks.map((b) => b.maxChars), 320);
 
   return {
     intent: decision.primary,

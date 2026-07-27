@@ -86,3 +86,46 @@ describe("the ordinary path is unchanged", () => {
     }
   });
 });
+
+/**
+ * Two regressions I introduced, both caught in review, both pinned here.
+ */
+describe("the hazard cap cannot delete the most important hazard", () => {
+  it("fire guidance survives even when three other hazards are declared first", () => {
+    // detectRedFlags returns matches in RED_FLAG_RULES DECLARATION order, and
+    // fire-smoke is declared sixth. A bare .slice(0,3) dropped it — deleting the
+    // 911 instruction this whole change exists to deliver.
+    const body = "my brakes went out, steering locked up, oil light is on, and the car caught fire";
+    const d = routeInboundSms(body, CTX);
+    const text = buildReplyPlan(d, {} as never, body).knownFacts.join(" | ");
+    expect(text).toContain("911");
+  });
+
+  it("still caps — a four-hazard message does not dump every guidance", () => {
+    const body = "my brakes went out, steering locked up, oil light is on, and the car caught fire";
+    const d = routeInboundSms(body, CTX);
+    // 3 hazards + the shop fact.
+    expect(buildReplyPlan(d, {} as never, body).knownFacts).toHaveLength(4);
+  });
+});
+
+describe("an emergency suppresses secondary FACTS, never secondary GUARDS", () => {
+  it("a tire emergency keeps tire_inventory's stock and hold prohibitions", () => {
+    // Narrowing the single `books` array removed these while the prompt still
+    // told the model to address every part of the message — so a fabricated
+    // stock answer would no longer trip planViolations.
+    const body = "my tire blew out on the highway, do you have a 225/50R17 in stock?";
+    const d = routeInboundSms(body, CTX);
+    const labels = buildReplyPlan(d, {} as never, body).prohibited.map((p) => p.label);
+    expect(d.primary).toBe("safety_urgent");
+    expect(labels).toContain("inventory_claim");
+    expect(labels).toContain("hold_promise");
+  });
+
+  it("and still suppresses the secondary's FACTS", () => {
+    const body = "my tire blew out on the highway, do you have a 225/50R17 in stock?";
+    const d = routeInboundSms(body, CTX);
+    const facts = buildReplyPlan(d, {} as never, body).knownFacts.join(" ");
+    expect(facts).not.toMatch(/rack check|used tires start/i);
+  });
+});
