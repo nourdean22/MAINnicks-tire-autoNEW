@@ -454,17 +454,24 @@ async function processCallEndReport(
         // and it works), so the id rides the same proven path instead of a new
         // one. Exact, not heuristic: the tool records the id it just created.
         let trailLeadId: number | null = null;
+        let trailCallbackId: number | null = null;
         try {
           const { getCallStateHistory } = await import("../../services/voice-call-state");
           const { trailReachedTool } = await import("../../services/vapiConversionSignals");
           const history = await getCallStateHistory(String(callId));
           convertedToLead = trailReachedTool(history) ? 1 : 0;
+          // A positive integer or nothing — 0, negatives and floats are rejected
+          // rather than written as a corrupt foreign key. Null means "no such
+          // record", which is a different fact from "record #0".
+          const fkFrom = (value: unknown): number | null => {
+            const n = typeof value === "number" ? value : Number(value);
+            return Number.isInteger(n) && n > 0 ? n : null;
+          };
           for (const entry of history) {
-            const candidate = (entry.metadata as { leadId?: unknown } | null)?.leadId;
-            const asNumber = typeof candidate === "number" ? candidate : Number(candidate);
-            if (Number.isInteger(asNumber) && asNumber > 0) {
-              trailLeadId = asNumber; // last writer wins — a later tool is more specific
-            }
+            const md = entry.metadata as { leadId?: unknown; callbackId?: unknown } | null;
+            // last writer wins — a later tool call is the more specific one
+            trailLeadId = fkFrom(md?.leadId) ?? trailLeadId;
+            trailCallbackId = fkFrom(md?.callbackId) ?? trailCallbackId;
           }
         } catch (stateErr) {
           log.warn("[vapi webhook] convertedToLead trail read failed (default 0; eval reconciles)", { error: stateErr instanceof Error ? stateErr.message : String(stateErr) });
@@ -480,6 +487,7 @@ async function processCallEndReport(
           serviceMention,
           convertedToLead,
           leadId: trailLeadId,
+          callbackId: trailCallbackId,
           transcriptUrl: (event.call as { transcript?: string; transcriptUrl?: string })?.transcriptUrl ?? null,
           recordingUrl: (event.call as { recordingUrl?: string })?.recordingUrl ?? null,
         }).catch((err: unknown) => {

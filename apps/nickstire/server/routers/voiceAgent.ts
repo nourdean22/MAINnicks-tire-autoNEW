@@ -275,7 +275,7 @@ export const voiceAgentRouter = router({
         const { callbackRequests } = await import("../../drizzle/schema");
         const d = await db();
         if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-        await d.insert(callbackRequests).values({
+        const [insertedCallback] = await d.insert(callbackRequests).values({
           name: input.name,
           phone: input.phone.replace(/\D/g, ""),
           context: `[VOICE-AGENT · ${input.urgency.toUpperCase()}]${input.callId ? ` callId=${input.callId}` : ""} — ${input.reason}`,
@@ -284,6 +284,35 @@ export const voiceAgentRouter = router({
           utmMedium: "phone",
           utmCampaign: "vapi-receptionist",
         });
+
+        // LINK THE CALLBACK TO THE CALL — same trail mechanism as tireInquiry's
+        // leadId, because this had the identical hole and a worse version of it:
+        // `callbackId` appeared NOWHERE in this file. tireInquiry at least had a
+        // (broken) writer; escalate never attempted the link at all.
+        //
+        // Measured: 24 callback_requests rows exist, 23 in the last 90 days, and
+        // `vapi_call_logs.callbackId` is NOT NULL on 0 of 2,136 rows.
+        //
+        // The cost is not cosmetic. `hasVerifiedDemandCapture` is
+        // `leadCreated || callbackCreated || bookingCreated`, and all three were
+        // structurally false — so across 482 measured calls (209 of which
+        // engaged a tool) the metric has never once been true, and the daily
+        // digest has reported "Verified lead/callback capture: 0" every day.
+        if (input.callId && insertedCallback?.insertId) {
+          try {
+            const { recordCallState } = await import("../services/voice-call-state");
+            await recordCallState({
+              callId: input.callId,
+              state: "tool_called",
+              metadata: { tool: "escalate", callbackId: Number(insertedCallback.insertId) },
+            });
+          } catch (err) {
+            log.warn("Failed to record callbackId on the call-state trail", {
+              callId: input.callId,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
         // Ping Nick via Telegram immediately on high-urgency
         if (input.urgency === "high") {
           try {

@@ -35,16 +35,25 @@
 import { describe, expect, it } from "vitest";
 import { trailReachedTool } from "./services/vapiConversionSignals";
 
+/** A positive integer or nothing — mirrors the webhook's `fkFrom`. */
+const fkFrom = (value: unknown): number | null => {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
 /** The extraction the webhook performs over `getCallStateHistory()` output. */
-function leadIdFromTrail(history: Array<{ metadata: Record<string, unknown> | null }>): number | null {
-  let found: number | null = null;
+function idsFromTrail(history: Array<{ metadata: Record<string, unknown> | null }>) {
+  let leadId: number | null = null;
+  let callbackId: number | null = null;
   for (const entry of history) {
-    const candidate = (entry.metadata as { leadId?: unknown } | null)?.leadId;
-    const asNumber = typeof candidate === "number" ? candidate : Number(candidate);
-    if (Number.isInteger(asNumber) && asNumber > 0) found = asNumber;
+    const md = entry.metadata as { leadId?: unknown; callbackId?: unknown } | null;
+    leadId = fkFrom(md?.leadId) ?? leadId;
+    callbackId = fkFrom(md?.callbackId) ?? callbackId;
   }
-  return found;
+  return { leadId, callbackId };
 }
+
+const leadIdFromTrail = (h: Array<{ metadata: Record<string, unknown> | null }>) => idsFromTrail(h).leadId;
 
 const entry = (state: string, metadata: Record<string, unknown> | null = null) =>
   ({ state, at: new Date(0), metadata }) as never;
@@ -85,6 +94,48 @@ describe("leadId survives the call-state trail", () => {
   });
 });
 
+/**
+ * `callbackId` had the SAME hole and a worse version of it: the identifier
+ * appeared nowhere in voiceAgent.ts at all — `escalate` inserted the callback
+ * row and never attempted a link.
+ *
+ * The cost is not cosmetic. `hasVerifiedDemandCapture` is
+ * `leadCreated || callbackCreated || bookingCreated`, and production shows all
+ * three permanently false: across 482 measured calls — 209 of which engaged a
+ * tool, with 24 real callback_requests rows on the books — the metric has never
+ * once been true, so the daily digest has reported
+ * "Verified lead/callback capture: 0" every single day.
+ */
+describe("callbackId rides the same trail", () => {
+  it("extracts a callbackId an escalate call recorded", () => {
+    const { callbackId } = idsFromTrail([
+      { state: "greeted", metadata: null },
+      { state: "tool_called", metadata: { tool: "escalate", callbackId: 77 } },
+    ] as never);
+    expect(callbackId).toBe(77);
+  });
+
+  it("carries BOTH ids when one call did both", () => {
+    const ids = idsFromTrail([
+      { state: "tool_called", metadata: { tool: "tireInquiry", leadId: 12 } },
+      { state: "tool_called", metadata: { tool: "escalate", callbackId: 34 } },
+    ] as never);
+    expect(ids).toEqual({ leadId: 12, callbackId: 34 });
+  });
+
+  it("a lead does not leak into the callback slot or vice versa", () => {
+    const ids = idsFromTrail([{ state: "tool_called", metadata: { tool: "tireInquiry", leadId: 9 } }] as never);
+    expect(ids.leadId).toBe(9);
+    expect(ids.callbackId).toBeNull();
+  });
+
+  it("rejects junk callbackIds too", () => {
+    for (const bad of [0, -3, 2.5, "", "x", null, undefined]) {
+      expect(idsFromTrail([{ state: "tool_called", metadata: { callbackId: bad } }] as never).callbackId).toBeNull();
+    }
+  });
+});
+
 describe("the extra trail event cannot distort convertedToLead", () => {
   it("trailReachedTool is an existence check, so a duplicate state is idempotent", () => {
     const once = [entry("tool_called", { tool: "tireInquiry" })];
@@ -121,10 +172,15 @@ describe("both ends are actually wired", () => {
     expect(s).toMatch(/recordCallState\(\{[\s\S]{0,200}leadId: newLeadId/);
   });
 
-  it("the webhook extracts it and writes it at INSERT", async () => {
+  it("the escalate tool records callbackId on the trail", async () => {
+    const s = await read("./routers/voiceAgent.ts");
+    expect(s).toMatch(/recordCallState\(\{[\s\S]{0,240}callbackId: Number\(insertedCallback\.insertId\)/);
+  });
+
+  it("the webhook extracts BOTH ids and writes them at INSERT", async () => {
     const s = await read("./routes/webhooks/vapi.ts");
-    expect(s).toMatch(/trailLeadId/);
     expect(s).toMatch(/leadId: trailLeadId/);
+    expect(s).toMatch(/callbackId: trailCallbackId/);
   });
 
   it("the webhook reads the history ONCE and reuses it", async () => {
