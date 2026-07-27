@@ -295,17 +295,19 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       SELECT
         COUNT(*) AS scanned,
         COALESCE(SUM(JSON_LENGTH(JSON_EXTRACT(metadata, '$.voiceClaims.violations')) > 0), 0) AS withViolations,
-        COALESCE(SUM(JSON_EXTRACT(metadata, '$.voiceClaims.unparsed') = TRUE), 0) AS unparsed
+        COALESCE(SUM(JSON_EXTRACT(metadata, '$.voiceClaims.unparsed') = TRUE), 0) AS unparsed,
+        COALESCE(SUM(JSON_LENGTH(JSON_EXTRACT(metadata, '$.voiceClaims.botTells')) > 0), 0) AS withBotTells
       FROM vapi_call_logs
       WHERE createdAt >= ${cutoff}
         AND JSON_EXTRACT(metadata, '$.voiceClaims') IS NOT NULL
     `);
     const agg = (Array.isArray(claimRows) ? claimRows[0] : (claimRows as { rows?: unknown[] })?.rows?.[0]) as
-      | { scanned?: unknown; withViolations?: unknown; unparsed?: unknown }
+      | { scanned?: unknown; withViolations?: unknown; unparsed?: unknown; withBotTells?: unknown }
       | undefined;
     const scanned = Number(agg?.scanned ?? 0);
     const withViolations = Number(agg?.withViolations ?? 0);
     const unparsedCount = Number(agg?.unparsed ?? 0);
+    const withBotTells = Number(agg?.withBotTells ?? 0);
 
     // Alert when the assistant made prohibited claims, OR when coverage
     // collapsed — a scan that stopped running is the more dangerous failure,
@@ -337,7 +339,11 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           : `NICK AI VOICE CLAIM GUARD: ${withViolations}/${scanned} scanned calls contained a prohibited claim.`,
         `Scanned: ${scanned} · unparsed (no speaker attribution): ${unparsedCount}`,
         ...breakdown,
-        "These are claims the prompt forbids (repair quotes, live stock, capacity/wait promises). Detection only — voice cannot be blocked mid-call.",
+        // Reported on its own line, never folded into the claim count — a banned
+        // phrasing and an unsourced price are not the same severity, and one
+        // blended number would hide which is happening.
+        `Bot-tells (banned phrasings, separate severity): ${withBotTells}/${scanned} calls`,
+        "Claims = repair quotes, live stock, capacity/wait promises. Detection only — voice cannot be blocked mid-call.",
       ].join("\n")).catch(() => undefined);
     }
   } catch (error) {

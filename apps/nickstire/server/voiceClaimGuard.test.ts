@@ -31,6 +31,7 @@ import {
   extractAssistantTurns,
   extractAssistantTurnsFromMessages,
   voiceClaimViolations,
+  botTellViolations,
   VOICE_CLAIM_GUARD_VERSION,
 } from "./services/voiceClaimGuard";
 
@@ -204,6 +205,69 @@ describe("stock, capacity, wait and person claims", () => {
   });
 });
 
+/**
+ * BOT-TELLS — added on evidence, not taste.
+ *
+ * An audit of 539 assistant turns across 100 real inbound calls found 9 of 13
+ * kill-list bans held perfectly, and that `dead_air_tell` was violated on 9% of
+ * calls despite being banned with no exception. A ban violated 9% of the time is
+ * not being enforced by the prose that bans it.
+ *
+ * Two bans were deliberately NOT added, and the tests pin that decision so a
+ * later "completeness" pass does not quietly introduce false positives:
+ *  - re-greeting is INSTRUCTED by `## WRONG NUMBER`;
+ *  - "Are you still there?" is CONDITIONALLY allowed after 6+ seconds of silence,
+ *    which a transcript cannot show.
+ */
+describe("bot-tell detection", () => {
+  it("flags the dead-air tell the prompt says killed 12+ calls", () => {
+    expect(botTellViolations(["Is there anything else you need help with?"])).toContain("dead_air_tell");
+    expect(botTellViolations(["We close at 4 PM today. Anything else I can help you with?"])).toContain("dead_air_tell");
+  });
+
+  it("flags stacked filler", () => {
+    expect(botTellViolations(["Give me a moment Hold on, I'll get you over to the shop."]))
+      .toContain("stacked_filler");
+  });
+
+  it("flags AI self-identification and 'I don't know'", () => {
+    expect(botTellViolations(["I'm just an AI assistant."])).toContain("self_identifies_as_ai");
+    expect(botTellViolations(["I don't know, honestly."])).toContain("says_dont_know");
+  });
+
+  it("does NOT flag re-greeting — WRONG NUMBER instructs it", () => {
+    const v = botTellViolations([
+      "Sounds like the wrong number, this is Nick's Tire & Auto, have a good day.",
+      "You reached Nick's Tire & Auto on Euclid — calling about tires, brakes, or auto repair?",
+    ]);
+    expect(v).toEqual([]);
+  });
+
+  it("does NOT flag 'Are you still there?' — the ban is conditional and unverifiable here", () => {
+    expect(botTellViolations(["Are you still there?"])).toEqual([]);
+  });
+
+  it("does not fire on ordinary compliant speech", () => {
+    const v = botTellViolations([
+      "Used tires start at sixty dollars installed.",
+      "Pull up today, we'll get you taken care of.",
+      "Hold on, getting you over to the shop now.",
+      "What's your name and best number?",
+    ]);
+    expect(v).toEqual([]);
+  });
+
+  it("keeps bot-tells SEPARATE from claim violations in the record", () => {
+    const rec = buildVoiceClaimRecord({
+      transcript: "AI: Brakes run four hundred dollars. Is there anything else you need help with?",
+    });
+    expect(rec?.violations).toContain("unapproved_price_quote");
+    expect(rec?.botTells).toContain("dead_air_tell");
+    // A banned phrasing must never inflate the claim count.
+    expect(rec?.violations).not.toContain("dead_air_tell");
+  });
+});
+
 describe("record shape", () => {
   it("returns null when there is nothing to record", () => {
     expect(buildVoiceClaimRecord({ transcript: "" })).toBeNull();
@@ -217,6 +281,7 @@ describe("record shape", () => {
       violations: [],
       turnsScanned: 1,
       unparsed: false,
+      botTells: [],
     });
   });
 
