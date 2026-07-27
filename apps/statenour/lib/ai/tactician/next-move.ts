@@ -109,7 +109,15 @@ export async function buildNextMoveBlock(
     const person = matchPerson(userMessage, people);
 
     const [greenePicks, darkPicks, personLaws] = await Promise.all([
-      pickContextualLawsForMessage(userMessage, { minScore, maxLaws }).catch(() => []),
+      // 2026-07-27 · embedOnMiss · no prefetched embedding at this call
+      // site, so AG-31's vector fallback was unreachable. Bounded: this
+      // whole function is already gated behind TACTICIAN_INTENT (or an
+      // explicit relaxed call), and the embed is paid only on a miss.
+      pickContextualLawsForMessage(userMessage, {
+        minScore,
+        maxLaws,
+        embedOnMiss: true,
+      }).catch(() => []),
       pickDarkPsychologyForMessage(userMessage, { minScore, maxResults: 2 }).catch(() => []),
       person
         ? import("@/lib/ai/contextual-greene-laws")

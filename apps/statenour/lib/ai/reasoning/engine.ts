@@ -506,7 +506,14 @@ async function runDraft(
       (async () => {
         const { pickContextualLawsForMessage, renderGreeneBlock } =
           await import("@/lib/ai/greene-message-matcher");
-        const picks = await pickContextualLawsForMessage(question);
+        // 2026-07-27 · embedOnMiss · this call site has no prefetched
+        // embedding to pass, so AG-31's vector fallback was unreachable
+        // here and the deterministic path was the only one. One embedding
+        // call is negligible against a deep-reasoning turn, and it is paid
+        // only when triggers miss.
+        const picks = await pickContextualLawsForMessage(question, {
+          embedOnMiss: true,
+        });
         return renderGreeneBlock(picks);
       })(),
       (async () => {

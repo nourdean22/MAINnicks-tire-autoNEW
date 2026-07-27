@@ -151,7 +151,23 @@ export function _resetGreeneCorpusCache(): void {
  */
 export async function pickContextualLawsForMessage(
   userMessage: string,
-  opts: { maxLaws?: number; minScore?: number; userEmbedding?: number[] } = {},
+  opts: {
+    maxLaws?: number;
+    minScore?: number;
+    userEmbedding?: number[];
+    /** 2026-07-27 · compute an embedding in-place when triggers miss and
+     *  the caller has none to pass. AG-31's fallback is gated on
+     *  `userEmbedding`, which only brain-context can supply (it receives
+     *  one from the chat route's prefetch). The reasoning engine and the
+     *  tactician pass no options at all, so for them the vector path was
+     *  unreachable and the deterministic path was the only one — which,
+     *  before matchPhrases, meant they retrieved nothing, ever.
+     *
+     *  Opt-in rather than automatic: this costs one embedding API call,
+     *  so only callers that can absorb the latency should enable it. The
+     *  cost is paid ONLY on the miss path — a trigger hit never embeds. */
+    embedOnMiss?: boolean;
+  } = {},
 ): Promise<GreeneMatch[]> {
   const maxLaws = Math.max(1, Math.min(opts.maxLaws ?? 3, 5));
   const minScore = Math.max(1, opts.minScore ?? 2);
@@ -187,11 +203,23 @@ export async function pickContextualLawsForMessage(
   // for free) and triggers miss, cosine the greene_law embeddings
   // (populated by the embed-backfill cron) — deterministic path stays
   // primary; vector fires only on the miss path.
-  if (triggerMiss && (opts.userEmbedding?.length ?? 0) > 0) {
-    const vectorPicks = await vectorFallback(opts.userEmbedding as number[], corpus, maxLaws);
-    if (vectorPicks.length > 0) {
-      void recordGreeneFire(vectorPicks).catch(() => undefined);
-      return vectorPicks;
+  if (triggerMiss) {
+    let vec = opts.userEmbedding ?? [];
+    // 2026-07-27 · embed-on-miss for callers with nothing to pass. Dynamic
+    // import keeps tool-embeddings off this module's eager graph (the
+    // matcher sits on the chat hot path). embedUserMessage already returns
+    // [] on failure; the extra catch guards the import itself.
+    if (vec.length === 0 && opts.embedOnMiss) {
+      vec = await import("@/lib/ai/tool-embeddings")
+        .then((m) => m.embedUserMessage(userMessage))
+        .catch(() => [] as number[]);
+    }
+    if (vec.length > 0) {
+      const vectorPicks = await vectorFallback(vec, corpus, maxLaws);
+      if (vectorPicks.length > 0) {
+        void recordGreeneFire(vectorPicks).catch(() => undefined);
+        return vectorPicks;
+      }
     }
   }
 
