@@ -28,7 +28,17 @@ const NICKSTIRE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 // 2026-07-17: 127 → 134. The pin had drifted (0085 creative_genomes + 0086
 // autonomy tables landed without bumping it); 0088 adds media_assets +
 // integration_tokens. Bump this whenever schema.ts gains/loses tables.
-export const EXPECTED_TABLE_COUNT = 134;
+//
+// 2026-07-27: 134 → 139. Drifted again — push applied 139 and the guard
+// rejected it, blocking a verification that had nothing to do with schema.
+// `grep -c "= mysqlTable(" drizzle/schema.ts` is the source of truth and
+// reports 139, matching what push produced.
+//
+// The comparison stays `!==` rather than `<` ON PURPOSE. Fewer tables is the
+// search_performance truncation trap; MORE tables means this pin is stale and
+// a human should look. Loosening it to `<` would silence the half that just
+// fired correctly.
+export const EXPECTED_TABLE_COUNT = 139;
 
 // The full column set drizzle expects for search_performance, but with the page
 // index as a PREFIX (page(768)) instead of the full varchar(1000) that blows
