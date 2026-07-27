@@ -39,6 +39,15 @@
  *  oil-change duration: BUSINESS carries a used-tire `turnaround` but no
  *  oil-change timing, and a spoken duration is a completion promise.
  *
+ *  2026-07-27 · THAT REMOVAL WAS INCOMPLETE and this comment asserted a fix
+ *  that had not fully landed. A second copy survived in ## WALK-IN / FCFS
+ *  ("WAIT (lobby — ~20 min tire, ~15 min oil) ... over ~30 min"), 53 lines
+ *  below the rule forbidding it. voiceClaimGuard then caught the assistant
+ *  telling a real caller "about 15 minutes" — the exact figure this comment
+ *  claimed was gone. Removed for real, and now pinned by test
+ *  (vapi.prompt-durations.test.ts) so the next partial removal fails the
+ *  build instead of leaving a live contradiction behind.
+ *
  *  Rationale for both lives HERE rather than in the prompt on purpose. Current
  *  Vapi guidance treats long negative ban lists as an anti-pattern — a banned
  *  phrase quoted inside the prompt stays live in the model's context and can
@@ -249,7 +258,7 @@ You CANNOT see the rack. Never say a tire is or isn't in stock, and NEVER promis
 Capture name + phone + vehicle + issue + urgency → "I'll send this to the shop so someone can follow up" → sendConfirmationSms.
 
 ## WALK-IN / FCFS
-No schedule, no time slots — customers just come. Future-day asks → "first-come first-served, pull up any open day, {hours}, no appointment." Two choices once here: WAIT (lobby — ~20 min tire, ~15 min oil) or DROP OFF (holds their place, run errands, we text when done — preferred for anything over ~30 min). Mention both; never assume drop-off.
+No schedule, no time slots — customers just come. Future-day asks → "first-come first-served, pull up any open day, {hours}, no appointment." Two choices once here: WAIT (lobby) or DROP OFF (holds their place, run errands, we text when done — the better call for anything that may take a while). Mention both; never assume drop-off.
 
 # TRUST PHRASES (at most ONE per call, only if the caller's hesitant; skip entirely if they're curt/rude — just be terse and competent)
 - "Calling around" → "Cheaper than the dealer, faster than the chains, more honest than both."
