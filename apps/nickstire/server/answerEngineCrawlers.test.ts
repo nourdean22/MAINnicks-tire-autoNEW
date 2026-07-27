@@ -44,10 +44,26 @@ const ANSWER_ENGINE_AGENTS: { token: string; why: string }[] = [
   { token: "perplexitybot", why: "Perplexity · index" },
   { token: "claude-user", why: "Anthropic · live fetch on a user question" },
   { token: "claude-searchbot", why: "Anthropic · search indexing" },
-  { token: "google-extended", why: "Google · Gemini and AI Overviews grounding" },
   { token: "meta-externalagent", why: "Meta AI" },
   { token: "amazonbot", why: "Amazon / Alexa" },
   { token: "duckassistbot", why: "DuckDuckGo AI answers" },
+];
+
+/**
+ * Tokens that must NEVER be added, because they are robots.txt CONTROL tokens
+ * rather than user agents — the fetch is made by a crawler already in the list,
+ * so an entry here can never match a request.
+ *
+ * This is not hypothetical: `google-extended` was added in the first draft of
+ * this change and removed after verification. A pattern that cannot fire is
+ * worse than a missing one, because it reads as coverage in review — the same
+ * reasoning behind `voiceKernelParity.test.ts`'s "every rule actually matches
+ * something it claims to ban".
+ */
+const ROBOTS_TXT_TOKENS_NOT_USER_AGENTS = [
+  "google-extended",
+  "applebot-extended",
+  "meta-webindexer",
 ];
 
 /** Search crawlers that were already covered and must stay covered. */
@@ -86,6 +102,20 @@ describe("prerender bot list — answer engines", () => {
     expect(patterns).toContain("gptbot");
     expect(patterns).toContain("oai-searchbot");
     expect(patterns).toContain("chatgpt-user");
+  });
+
+  it.each(ROBOTS_TXT_TOKENS_NOT_USER_AGENTS)(
+    "does NOT carry %s — a robots.txt token, not a user agent, so it could never match",
+    (token) => {
+      expect(patterns).not.toContain(token);
+    },
+  );
+
+  it("Googlebot already covers Gemini and AI Overviews grounding", () => {
+    // The reason dropping google-extended costs nothing: Google fetches with
+    // Googlebot regardless, and google-extended only governs downstream
+    // training use of content already crawled.
+    expect(patterns).toContain("googlebot");
   });
 
   it("has no duplicate patterns", () => {

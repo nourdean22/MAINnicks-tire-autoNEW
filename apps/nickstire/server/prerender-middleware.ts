@@ -66,12 +66,25 @@ const BOT_PATTERNS = [
   "perplexity-user", // Perplexity — live fetch on a user question
   "claude-user", // Anthropic — live fetch on a user question
   "claude-searchbot", // Anthropic — search indexing
-  "google-extended", // Google — Gemini / AI Overviews grounding
   "meta-externalagent", // Meta AI
   "amazonbot", // Amazon / Alexa
   "youbot", // You.com
   "cohere-ai", // Cohere
   "duckassistbot", // DuckDuckGo AI answers
+
+  // DELIBERATELY ABSENT — do not "complete the set" by adding these:
+  //
+  //   google-extended — NOT a user agent. It is a robots.txt control token that
+  //     governs whether content Google ALREADY crawled may train Gemini/Vertex.
+  //     The fetch is still made by Googlebot, which is covered above, so an
+  //     entry here could never match a request. A pattern that can never fire is
+  //     worse than no pattern: it reads as coverage in a review. Gemini and AI
+  //     Overviews grounding is already served through the Googlebot entry.
+  //     (This one WAS added in the first draft of this change and removed after
+  //     verification — the mistake is recorded so it is not repeated.)
+  //
+  //   applebot-extended, meta-webindexer — same shape: robots.txt opt-out
+  //     tokens layered over a crawler that is already in the list.
 ];
 
 function isBot(userAgent: string): boolean {
