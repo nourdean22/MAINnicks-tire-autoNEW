@@ -19,6 +19,9 @@
  */
 import { BUSINESS } from "@shared/business";
 import type { SmsIntent, SmsIntentDecision } from "./smsIntentRouter";
+// The website's do-not-drive authority. The router already consults it to DECIDE
+// safety_urgent; the planner now consults it to say the RIGHT thing.
+import { detectRedFlags } from "../diagnose-safety";
 
 export interface PlannerContext {
   customerFirstName: string | null;
@@ -318,13 +321,40 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
 
   safety_urgent: {
     goal: "safety_triage",
-    knownFacts: () => [
-      "If the vehicle is overheating, smoking, or unsafe: stop driving, let it cool, arrange a tow.",
-      SHOP_FACT,
-    ],
+    /**
+     * NINE HAZARDS, ONE HARDCODED LINE — until now.
+     *
+     * `detectRedFlags` returns per-hazard guidance and the SMS path consumed
+     * only `.length > 0` (smsIntentRouter.ts:116), discarding all of it. Every
+     * emergency therefore got the same sentence: "stop driving, let it cool,
+     * arrange a tow."
+     *
+     * For a fuel leak that is WRONG ADVICE — the hazard is ignition, not heat,
+     * and the real guidance is "don't start it, park it away from the
+     * building". For a fire it is dangerous: the rule's own text says "get out
+     * and call 911", and grepping the whole server for "911" returned exactly
+     * two hits — diagnose-safety.ts and the voice prompt. Voice said it,
+     * /diagnose said it, SMS said it NOWHERE.
+     *
+     * `body` was already a parameter here. No plumbing was needed; the facts
+     * were simply never asked for.
+     */
+    knownFacts: (_ctx, body) => {
+      const flags = detectRedFlags(body);
+      if (!flags.length) {
+        // Router-only match (its local regex is broader than the red-flag set).
+        return ["If the vehicle is unsafe to drive: stop driving it and arrange a tow rather than driving it in.", SHOP_FACT];
+      }
+      // Cap at three so a message tripping several hazards cannot crowd the
+      // drafter's context; matches are ordered by RED_FLAG_RULES severity.
+      return [...flags.slice(0, 3).map((f) => f.guidance), SHOP_FACT];
+    },
     missingInformation: () => [],
     requiredQuestion: () => null,
-    nextStep: "Arrange a tow; the shop will be told it is coming.",
+    // Deliberately NOT "arrange a tow" — that is the right action for brake
+    // failure and the wrong one for a fire, where the guidance above says to
+    // get out and call 911 first. The action now lives in the matched hazard.
+    nextStep: "Follow the safety guidance above; the shop will be told the vehicle is coming.",
     prohibited: [CLAIM_COMPLETION, CLAIM_CALLBACK],
     maxChars: 300,
   },
@@ -536,7 +566,21 @@ function customerFactsFor(ctx: PlannerContext): string[] {
  */
 export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext, body: string): SmsReplyPlan {
   const intents = [decision.primary, ...decision.secondary];
-  const books = intents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
+  /**
+   * IN AN EMERGENCY, NOTHING ELSE GETS A VOICE.
+   *
+   * knownFacts unions every matched intent, so "my brakes went out" arrived at
+   * the drafter carrying safety guidance AND the brake PRICING playbook —
+   * because `brakes` also matches price_brakes. That is #1134's defect one
+   * layer in: not an auto-sent price template, but price context handed to the
+   * drafter for someone reporting they cannot stop the car.
+   *
+   * When the primary intent is safety_urgent the safety playbook is the whole
+   * plan. Secondary intents still count for `stopSelling` below — they are
+   * dropped as SOURCES OF FACTS, not from the decision.
+   */
+  const factIntents = decision.primary === "safety_urgent" ? ["safety_urgent" as SmsIntent] : intents;
+  const books = factIntents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
   const primaryBook = PLAYBOOKS[decision.primary] ?? PLAYBOOKS.general!;
 
   const knownFacts = [...new Set(books.flatMap((b) => b.knownFacts(ctx, body)))];
