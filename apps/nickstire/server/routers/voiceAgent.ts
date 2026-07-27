@@ -643,6 +643,37 @@ export const voiceAgentRouter = router({
         // as bookSlot. A tire inquiry that creates a real `leads` row IS
         // a conversion · should not show up in the "wasted call" bucket.
         if (input.callId) {
+          // RECORD THE LEAD ID ON THE CALL-STATE TRAIL.
+          //
+          // The UPDATE below cannot work mid-call and never did: the
+          // vapi_call_logs row is INSERTED by the end-of-call webhook, so
+          // during the call there is no row to update. Measured consequence —
+          // leadId was populated on 0 of 2,136 rows, while 525 of them had
+          // convertedToLead=1. The shop knew 525 calls produced a lead and
+          // could not say WHICH lead: attribution broke at the first hop.
+          //
+          // The trail is durable, is written during the call, and is already
+          // read by that same webhook to compute convertedToLead — so the id
+          // rides a path that is proven to work rather than a new one. The
+          // webhook picks it up and writes it at INSERT time.
+          //
+          // `tool_called` is the state the webhook already records for this
+          // tool, and `trailReachedTool` is a `.some()` existence check, so an
+          // extra event of the same state cannot distort convertedToLead.
+          try {
+            const { recordCallState } = await import("../services/voice-call-state");
+            await recordCallState({
+              callId: input.callId,
+              state: "tool_called",
+              metadata: { tool: "tireInquiry", leadId: newLeadId },
+            });
+          } catch (err) {
+            log.warn("Failed to record leadId on the call-state trail", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });
+          }
+
+          // Kept deliberately: harmless when the row is absent (0 rows
+          // matched), and correct in the ordering where a webhook retry has
+          // already created it. It is a belt, not the braces.
           try {
             const { vapiCallLogs } = await import("../../drizzle/schema");
             const { eq } = await import("drizzle-orm");

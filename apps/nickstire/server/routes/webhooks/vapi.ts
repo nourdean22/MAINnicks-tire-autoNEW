@@ -441,10 +441,31 @@ async function processCallEndReport(
         // a TOOL-ENGAGEMENT signal — distinct from the nightly digest's
         // score>=70 "converted" count; see vapiConversionSignals.ts.
         let convertedToLead = 0;
+        // The trail also carries WHICH lead, when a tool created one.
+        //
+        // `vapi_call_logs.leadId` is the only call -> lead foreign key, and it
+        // was populated on 0 of 2,136 rows. The only writer is a mid-call
+        // `UPDATE vapi_call_logs SET leadId ... WHERE vapiCallId = ?` inside
+        // voiceAgent.tireInquiry — but this row is INSERTED here, at
+        // end-of-call. Mid-call the row does not exist yet, so that UPDATE
+        // matched nothing, every time, silently.
+        //
+        // The trail is read here anyway (that is how convertedToLead is set,
+        // and it works), so the id rides the same proven path instead of a new
+        // one. Exact, not heuristic: the tool records the id it just created.
+        let trailLeadId: number | null = null;
         try {
           const { getCallStateHistory } = await import("../../services/voice-call-state");
           const { trailReachedTool } = await import("../../services/vapiConversionSignals");
-          convertedToLead = trailReachedTool(await getCallStateHistory(String(callId))) ? 1 : 0;
+          const history = await getCallStateHistory(String(callId));
+          convertedToLead = trailReachedTool(history) ? 1 : 0;
+          for (const entry of history) {
+            const candidate = (entry.metadata as { leadId?: unknown } | null)?.leadId;
+            const asNumber = typeof candidate === "number" ? candidate : Number(candidate);
+            if (Number.isInteger(asNumber) && asNumber > 0) {
+              trailLeadId = asNumber; // last writer wins — a later tool is more specific
+            }
+          }
         } catch (stateErr) {
           log.warn("[vapi webhook] convertedToLead trail read failed (default 0; eval reconciles)", { error: stateErr instanceof Error ? stateErr.message : String(stateErr) });
         }
@@ -458,6 +479,7 @@ async function processCallEndReport(
           aiSummary: summary,
           serviceMention,
           convertedToLead,
+          leadId: trailLeadId,
           transcriptUrl: (event.call as { transcript?: string; transcriptUrl?: string })?.transcriptUrl ?? null,
           recordingUrl: (event.call as { recordingUrl?: string })?.recordingUrl ?? null,
         }).catch((err: unknown) => {
