@@ -80,6 +80,28 @@ export function createCampaign(params: {
  * Runs daily from scheduler. Picks the right campaign template based on season/segment.
  */
 export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: number; details: string }> {
+  // THE FLAG THIS FILE'S OWN HEADER DECLARES WAS NEVER READ.
+  //
+  // Line 4 says `Feature flag: email_marketing_campaigns (start DISABLED)`.
+  // A repo-wide grep found that key in exactly three places: the
+  // FLAG_DEFINITIONS entry, that doc-comment, and an audit note. There was no
+  // isEnabled() call anywhere — so this sent live marketing email to customers
+  // (up to 15 per run, via Resend) with NO kill switch, while the operator's
+  // admin panel showed a toggle that did nothing.
+  //
+  // The sibling job registered a few lines above it in the same scheduler tier
+  // does gate correctly — gbpAutoPost.ts:106 `if (!(await
+  // isEnabled("gbp_auto_posting")))` — which is what proves the intent rather
+  // than assuming it.
+  //
+  // SAFE TO ADD: the flag is currently ENABLED in production (verified
+  // read-only), so this changes nothing today. It gives the operator the
+  // off-switch they already believed they had.
+  const { isEnabled } = await import("./featureFlags");
+  if (!(await isEnabled("email_marketing_campaigns"))) {
+    return { recordsProcessed: 0, details: "Skip — email_marketing_campaigns feature flag is disabled" };
+  }
+
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
