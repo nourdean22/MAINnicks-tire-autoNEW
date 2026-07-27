@@ -1496,9 +1496,63 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     }
 
     // ── LIVE ── post to IG (JPEG url) + FB, capture ids/errors.
+    //
+    // THE EMERGENCY STOP APPLIES HERE TOO.
+    // This branch called postToInstagram/postToFacebook directly, so the
+    // operator's autonomy kill switch — global, publishing, or per-platform —
+    // did not stop the one publisher that runs with NO human in the loop.
+    // Every other path to Meta goes through publishToSocial, which checks it;
+    // this was the exception, and it is the autonomous one. A stop that does
+    // not stop the unattended publisher is the worst possible exception.
+    //
+    // It shares the check rather than re-implementing it. It does NOT route
+    // through publishToSocial wholesale, because that would also apply the
+    // feed cap — a live policy question this autoposter currently exceeds, and
+    // one for the operator to answer, not for this change to decide silently.
+    //
+    // Zero behaviour change while no switch is thrown (all four were false in
+    // the live policy when this was written).
+    const { killSwitchBlockedPlatforms, KILL_SWITCH_ERROR } = await import("./socialPublish");
+    const blocked = await killSwitchBlockedPlatforms(["instagram", "facebook"], {
+      caller: "igAutopost", slot, archetype: post.archetype,
+    });
+    const igBlocked = blocked.includes("instagram");
+    const fbBlocked = blocked.includes("facebook");
+
+    if (igBlocked && fbBlocked) {
+      await logRun({
+        archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
+        scores, status: "aborted", caption, hashtags: post.hashtags,
+        imagePrompt: post.imagePrompt, imageUrl: image.url,
+        igPostId: null, fbPostId: null, error: KILL_SWITCH_ERROR, source,
+      });
+      try {
+        // notifyAbort() hardcodes "no draft cleared the eval gate" — the
+        // opposite of what happened here. The draft PASSED and was withheld.
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `IG AUTOPOST — STOPPED\n${KILL_SWITCH_ERROR}\n` +
+          `The draft cleared its eval gate and was deliberately NOT posted.`,
+        );
+      } catch (err) {
+        log.warn("kill-switch abort notify failed", { error: errMsg(err) });
+      }
+      return {
+        recordsProcessed: 0,
+        details: `Aborted — ${KILL_SWITCH_ERROR}`,
+        status: "aborted",
+        archetype: post.archetype, conceptKey: post.conceptKey, scores,
+        igPostId: null, fbPostId: null, dryRun: false,
+      };
+    }
+
     const { postToInstagram, postToFacebook } = await import("./metaSocial");
-    const ig = await postToInstagram({ imageUrl: image.url, caption });
-    const fb = await postToFacebook({ message: caption, imageUrl: image.url });
+    const ig = igBlocked
+      ? { success: false, postId: undefined, error: KILL_SWITCH_ERROR }
+      : await postToInstagram({ imageUrl: image.url, caption });
+    const fb = fbBlocked
+      ? { success: false, postId: undefined, error: KILL_SWITCH_ERROR }
+      : await postToFacebook({ message: caption, imageUrl: image.url });
     const igPostId = ig.success ? ig.postId ?? null : null;
     const fbPostId = fb.success ? fb.postId ?? null : null;
     const anyOk = ig.success || fb.success;
