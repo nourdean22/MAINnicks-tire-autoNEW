@@ -46,9 +46,24 @@ const MAX_SMS_PER_RUN = 10;
 /** Cooldown days · don't text the same number for any cross-sell within window */
 const COOLDOWN_DAYS = 30;
 
-/** Confidence threshold for outreach · below this, cron writes the
- *  prediction but doesn't act on it. 50 = "more likely than not". */
-const MIN_CONFIDENCE_TO_ACT = 50;
+/**
+ * Confidence threshold for outreach · below this, cron writes the prediction
+ * but doesn't act on it. 0.5 = "more likely than not".
+ *
+ * WAS 50, WHICH IS UNSATISFIABLE. `service_affinity_predictions.confidence` is
+ * `DECIMAL(5,4)` — maximum storable value 9.9999 — and the only writer produces
+ * a 0..1 fraction:
+ *
+ *   const sampleSize     = Math.min(1, totalInvoices / 8);
+ *   const signalStrength = Math.min(1, winner.score / 45);
+ *   const confidence     = Math.round(sampleSize * signalStrength * 100) / 100;
+ *                                                  (services/engines/customer.ts)
+ *
+ * The comment said "50 = more likely than not", which is true on a percentage
+ * scale — the column is a fraction. `>= 50` could never match a row, so every
+ * run selected nothing while reporting success.
+ */
+const MIN_CONFIDENCE_TO_ACT = 0.5;
 
 /** Human-readable service names for SMS · keys match buildServiceAffinityMap output */
 const SERVICE_LABELS: Record<string, string> = {
@@ -99,9 +114,9 @@ async function fetchActionablePredictions(): Promise<V2PredictionRow[]> {
         sap.predicted_service AS predictedService,
         sap.confidence    AS confidence,
         JSON_UNQUOTE(JSON_EXTRACT(sap.features_json, '$.reason')) AS reason,
-        TRIM(CONCAT(COALESCE(c.first_name, ''), ' ', COALESCE(c.last_name, ''))) AS customerName,
+        TRIM(CONCAT(COALESCE(c.firstName, ''), ' ', COALESCE(c.lastName, ''))) AS customerName,
         c.phone           AS customerPhone,
-        COALESCE(c.sms_opt_out, FALSE) AS smsOptOut
+        COALESCE(c.smsOptOut, FALSE) AS smsOptOut
       FROM service_affinity_predictions sap
       JOIN customers c ON c.id = sap.customer_id
       WHERE sap.ab_arm = 'treatment'
@@ -140,9 +155,26 @@ async function fetchActionablePredictions(): Promise<V2PredictionRow[]> {
       smsOptOut: Boolean(r.smsOptOut),
     }));
   } catch (err) {
-    log.warn("v2 predictions read failed · table may not exist yet", {
-      err: err instanceof Error ? err.message : String(err),
-    });
+    const msg = err instanceof Error ? err.message : String(err);
+    // A MISSING TABLE and a BROKEN QUERY are not the same event, and collapsing
+    // them is why this job sat dead for months.
+    //
+    // The old handler logged "table may not exist yet" for every failure and
+    // returned []. The actual error was ER_BAD_FIELD_ERROR — the SELECT read
+    // snake_case columns off `customers`, which is camelCase — so the message
+    // blamed an absent upstream table and an operator flag, and the run wrote
+    // status='completed' to cron_log. A bug in this file was reported, forever,
+    // as somebody else's missing data.
+    //
+    // Unknown-column / unknown-table-alias is a CODE defect: it cannot be fixed
+    // by waiting, it will never self-heal, and it must be loud.
+    if (/ER_BAD_FIELD_ERROR|Unknown column|Unknown table/i.test(msg)) {
+      log.error("cross-sell predictions query is BROKEN (bad column/table) — this job cannot select anything", { err: msg });
+    } else if (/ER_NO_SUCH_TABLE|doesn't exist/i.test(msg)) {
+      log.warn("v2 predictions read skipped · table not created yet", { err: msg });
+    } else {
+      log.error("cross-sell predictions read failed", { err: msg });
+    }
     return [];
   }
 }
@@ -156,7 +188,14 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
   try {
     const predictions = await fetchActionablePredictions();
     if (predictions.length === 0) {
-      return { recordsProcessed: 0, details: "No v2 predictions to act on (treatment-arm ≥50% confidence)" };
+      // Wording matters here: the old string said "treatment-arm ≥50%
+      // confidence", which read as an upstream-data problem and sent every
+      // investigation to serviceAffinityCompute. State the threshold in the
+      // column's own units so a zero is checkable against the data.
+      return {
+        recordsProcessed: 0,
+        details: `No treatment-arm predictions at confidence >= ${MIN_CONFIDENCE_TO_ACT} (0-1 scale)`,
+      };
     }
 
     const { getDb } = await import("../../db");
@@ -181,10 +220,10 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       const cooldownRows = (await db.execute(sql`
         SELECT DISTINCT RIGHT(REGEXP_REPLACE(sc.phone, '[^0-9]', ''), 10) AS phone10
         FROM sms_messages m
-        INNER JOIN sms_conversations sc ON sc.id = m.conversation_id
+        INNER JOIN sms_conversations sc ON sc.id = m.conversationId
         WHERE m.direction = 'outbound'
-          AND m.variant_key = 'cross_sell'
-          AND m.created_at >= ${cooldownDate}
+          AND m.variantKey = 'cross_sell'
+          AND m.createdAt >= ${cooldownDate}
       `)) as unknown as [Array<{ phone10: string | null }>];
       const rows = Array.isArray(cooldownRows) ? cooldownRows[0] : cooldownRows;
       if (Array.isArray(rows)) {
