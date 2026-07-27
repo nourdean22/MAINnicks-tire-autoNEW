@@ -3,7 +3,7 @@
  *
  * Power Atlas wave Y · operator asked "add all, merge them, make what
  * they relay more useful." This script reads the now-merged
- * `ALL_GREENE_ENTRIES` (~164 entries across 6 books) from
+ * `ALL_GREENE_ENTRIES` (153 entries across 6 books) from
  * `lib/brain/greene-corpus.ts` and upserts each into
  * `BrainMemory(category="greene_law")`.
  *
@@ -52,6 +52,7 @@ const TYPE_LABELS: Record<string, string> = {
   mentorship_role: "Mentor Role",
   principle: "Principle",
   fearless_law: "Fearless Law",
+  creative_strategy: "Creative Strategy",
 };
 
 async function main() {
@@ -89,11 +90,15 @@ async function main() {
       summary: entry.summary,
       fullText: entry.fullText,
       triggers: entry.triggers,
+      // 2026-07-27 · chat-side match surface. Null (not omitted) when the
+      // entry has none, so an upsert over a previously-seeded row clears
+      // a stale value instead of leaving it orphaned in metadata.
+      matchPhrases: entry.matchPhrases ?? null,
       actions: entry.actions,
       relatedKeys: entry.relatedKeys,
       applicabilityPrompt: entry.applicabilityPrompt,
       ingestedAt: new Date().toISOString(),
-      version: "2026-05-28-wave-Y",
+      version: "2026-07-27-mastery-book-v",
     } as const;
 
     if (existing) {

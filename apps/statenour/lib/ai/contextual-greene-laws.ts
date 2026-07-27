@@ -220,21 +220,26 @@ export async function pickContextualLawsForPerson(
     if (corpus.length > 40) {
       // Prefer laws · then strategies · then mentorship · then dark
       // traits · then principles · then seducers/victims.
+      // 2026-07-27 · creative_strategy sits just under mentorship_role.
+      // Unranked types fall to `?? 9` and get sliced off by the 40-row cap
+      // below — the Book V strategies would have been seeded and then
+      // never reach the model.
       const typePriority: Record<string, number> = {
         law: 0,
         strategy: 1,
         mentorship_role: 2,
-        dark_trait: 3,
-        principle: 4,
-        fearless_law: 5,
-        phase: 6,
-        seducer_type: 7,
-        victim_type: 8,
+        creative_strategy: 3,
+        dark_trait: 4,
+        principle: 5,
+        fearless_law: 6,
+        phase: 7,
+        seducer_type: 8,
+        victim_type: 9,
       };
       corpus.sort((a, b) => {
         const at = String(a.metadata.type ?? "principle");
         const bt = String(b.metadata.type ?? "principle");
-        return (typePriority[at] ?? 9) - (typePriority[bt] ?? 9);
+        return (typePriority[at] ?? 10) - (typePriority[bt] ?? 10);
       });
       corpus = corpus.slice(0, 40);
     }

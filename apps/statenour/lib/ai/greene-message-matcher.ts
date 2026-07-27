@@ -63,7 +63,8 @@ interface CorpusEntry {
   title: string;
   summary: string;
   book: string;
-  /** Lowercased trigger phrases for fast match. */
+  /** Lowercased phrases for fast match · `metadata.matchPhrases` when the
+   *  entry carries them, else `metadata.triggers` (see loadCorpus). */
   triggers: string[];
   /** Concrete next moves (verbatim corpus text · rendered, not matched). */
   actions: string[];
@@ -86,11 +87,23 @@ async function loadCorpus(): Promise<CorpusEntry[]> {
     const entries: CorpusEntry[] = rows
       .map((r) => {
         const meta = (r.metadata as Record<string, unknown> | null) ?? {};
-        const triggers = Array.isArray(meta.triggers)
-          ? (meta.triggers as unknown[])
-              .filter((t): t is string => typeof t === "string" && t.length > 0)
-              .map((t) => t.toLowerCase())
-          : [];
+        // 2026-07-27 · prefer `matchPhrases` over `triggers` for the
+        // literal-substring scoring below. `triggers` are analyst-facing
+        // condition sentences authored for the digest cron's AI
+        // applicability check ("person.power_balance > +0.4 (operator
+        // weaker)") — scoring `msg.includes(t)` against them can only hit
+        // by accident, so entries without matchPhrases have always fallen
+        // through to the AG-31 vector path regardless of relevance.
+        // Entries that carry matchPhrases score on real operator language.
+        // Fallback keeps the 144 legacy entries byte-identical in behavior.
+        const rawPhrases = Array.isArray(meta.matchPhrases)
+          ? (meta.matchPhrases as unknown[])
+          : Array.isArray(meta.triggers)
+            ? (meta.triggers as unknown[])
+            : [];
+        const triggers = rawPhrases
+          .filter((t): t is string => typeof t === "string" && t.length > 0)
+          .map((t) => t.toLowerCase());
         const actions = Array.isArray(meta.actions)
           ? (meta.actions as unknown[]).filter(
               (a): a is string => typeof a === "string" && a.length > 0,

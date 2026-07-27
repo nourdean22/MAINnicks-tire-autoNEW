@@ -5,7 +5,10 @@
  * of truth that imports each book's entries from `lib/brain/greene/*`
  * and exposes:
  *
- *   · `ALL_GREENE_ENTRIES`   · the merged taxonomy (~164 entries)
+ *   · `ALL_GREENE_ENTRIES`   · the merged taxonomy (153 entries · the
+ *     "~164" in this header before 2026-07-27 was never accurate; the
+ *     real count was 144 pre-Book-V. `GREENE_CORPUS_COUNTS.total` is
+ *     the authority.)
  *   · `ENTRIES_BY_BOOK`      · filter helper
  *   · `GreeneEntry` type     · unified schema with triggers/actions/relatedKeys
  *
@@ -82,6 +85,10 @@ export const MENTORSHIP_ROLES = MASTERY_ENTRIES.filter(
 );
 export const MASTERY_PHASES = MASTERY_ENTRIES.filter(
   (e) => e.type === "phase",
+);
+/** 2026-07-27 · Mastery Book V · the 9 creative-active strategies. */
+export const CREATIVE_STRATEGIES = MASTERY_ENTRIES.filter(
+  (e) => e.type === "creative_strategy",
 );
 export const WAR_STRATEGIES = STRATEGIES_33;
 
