@@ -790,6 +790,19 @@ export interface SmsResult {
   sid?: string;
   error?: string;
   queued?: boolean;
+  /**
+   * The send was ATTEMPTED and not retried, but the provider never confirmed it.
+   * Today this means a shop-gateway timeout: the relay may well have delivered
+   * the text, so retrying would risk a double-send — but nothing observed the
+   * delivery, so nobody may CLAIM it happened.
+   *
+   * `success: true` here means "do not retry", NOT "delivered". The distinction
+   * exists because a voice tool was reporting `sent: true, degraded: false` on
+   * this exact path, so the assistant told the caller "I'll text you the
+   * address" while this function was logging "delivery uncertain" and persisting
+   * the row as `sending`. Three parts of one system, two different truths.
+   */
+  uncertain?: boolean;
 }
 
 interface SendSmsOptions {
@@ -1417,7 +1430,11 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
         persistOutboundShopSms(normalizedEarly, body, "sending", undefined, opts?.variantKey)
           .catch(() => undefined);
       }
-      return { success: true };
+      // `uncertain` so callers can tell "not retried" apart from "delivered".
+      // The row above is persisted as `sending`, and the alert says "delivery
+      // uncertain" — this flag is what lets the rest of the system agree with
+      // those two, instead of reporting a confirmed send.
+      return { success: true, uncertain: true };
     }
     // Definitive failure (non-OK HTTP / DNS / connection error). A non-OK
     // HTTP is AMBIGUOUS: the Capevace relay may have accepted + SENT the

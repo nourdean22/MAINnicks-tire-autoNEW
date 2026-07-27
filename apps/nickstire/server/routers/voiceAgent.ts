@@ -344,8 +344,22 @@ export const voiceAgentRouter = router({
           mapLink: input.mapLink,
         });
 
-        const success = orchResult.status === "sent" || orchResult.status === "queued";
-        const degraded = !success || orchResult.status === "queued";
+        // `sending` = the shop gateway timed out: attempted, deliberately not
+        // retried (retrying risks a double-send), delivery NEVER CONFIRMED.
+        //
+        // It counts as success — the lead is captured and nothing should be
+        // re-sent — but it is DEGRADED, because only `sent` is an observed
+        // delivery. Previously a timeout mapped to "sent", so the tool returned
+        // { sent: true, degraded: false } and the prompt's rule ("I'll text you
+        // the address" only when sent:true) fired on a text nobody had seen
+        // leave. Meanwhile the same call logged "delivery uncertain" and stored
+        // the row as `sending`.
+        //
+        // degraded:true costs one spoken address on a text that may well have
+        // arrived. degraded:false costs a caller driving off with no address at
+        // all. Not a symmetric trade.
+        const success = orchResult.status === "sent" || orchResult.status === "queued" || orchResult.status === "sending";
+        const degraded = orchResult.status !== "sent";
 
         log.info("Voice agent SMS sent via orchestrator", {
           phone: input.phone.slice(-4),
