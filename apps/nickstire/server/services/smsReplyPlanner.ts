@@ -359,6 +359,48 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
     maxChars: 300,
   },
 
+  /**
+   * A symptom the shop cannot price without seeing the car.
+   *
+   * Before this, coolant leaks, burning smells, wheel-bearing noise,
+   * transmission slip and exhaust rattle all landed on `general`, whose only
+   * fact is "first-come first-served, walk-ins welcome" — the shop's drop-in
+   * POLICY offered to someone describing a failing part. Voice names every one
+   * of these; SMS named none.
+   *
+   * The goal is deliberately `collect_information`, not `answer`: the honest
+   * reply is that nobody can diagnose this over a text, and the next step is
+   * getting the car looked at for free.
+   */
+  symptom_triage: {
+    goal: "collect_information",
+    knownFacts: () => [
+      "The shop cannot diagnose a symptom over text — what it is, and what it costs, comes from the free check.",
+      "The check and the written quote are free, and nothing is done until the customer approves the price.",
+      SHOP_FACT,
+    ],
+    missingInformation: (_ctx, body) => {
+      const missing: string[] = [];
+      if (!/\b(19|20)\d{2}\b/.test(body)) missing.push("Vehicle year/make/model");
+      if (!/\b(driv|speed|turn|brak|idle|start|cold|highway|bump)\w*\b/i.test(body)) {
+        missing.push("When it happens — driving, turning, braking, idling, or cold start");
+      }
+      return missing;
+    },
+    // ONE question, and only when the customer has not already said when it
+    // happens. The repeat-question defect this arc has hit before comes from
+    // asking unconditionally.
+    requiredQuestion: (_ctx, body) =>
+      /\b(driv|speed|turn|brak|idle|start|cold|highway|bump)\w*\b/i.test(body)
+        ? null
+        : "What year/make/model is it, and when does it happen?",
+    nextStep: "Bring it by for the free check, or drop it off — no appointment needed.",
+    // No completion promise and no callback promise: nobody has looked at the
+    // car yet, so neither can be honestly offered.
+    prohibited: [CLAIM_COMPLETION, CLAIM_CALLBACK],
+    maxChars: 320,
+  },
+
   financing: {
     goal: "answer",
     knownFacts: () => [
