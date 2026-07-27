@@ -435,7 +435,22 @@ const VAPI_TOOLS: VapiToolDef[] = [
         // transfer message should work for ANY reason a caller is being
         // forwarded. The caller's actual reason gets handled by the human
         // who picks up — Nick doesn't need to summarize it.
-        message: "Hold on, I'll get you over to the manager.",
+        // 2026-07-27 · was "Hold on, I'll get you over to the manager." Two
+        // defects, both measured on 100 real inbound calls:
+        //
+        // 1. STACKED FILLER on 22% of calls. The model correctly says ONE short
+        //    line while the tool fires ("Give me a moment" / "Just a sec"), then
+        //    VAPI speaks THIS message — which opened with a second wait cue.
+        //    Result: "Give me a moment Hold on, I'll get you over to the
+        //    manager." The kill-list has banned chaining two waits since
+        //    0720a97d and could never fix it, because the model was never the
+        //    source of the second wait. Prose aimed at the wrong actor.
+        // 2. NAMED-PERSON PROMISE (Critical Rule #2). This forwards to the shop
+        //    counter line; whoever picks up may not be the manager.
+        //
+        // Now the ACT half only — the model's line is the wait, this is the
+        // action. Still context-neutral per wave-92 (no tire assumption).
+        message: "Connecting you to the shop now.",
         description: "Forward the live call to a human. Use whenever the caller asks to be transferred / wants a manager / wants to talk to a person, OR for: used tire availability checks, vehicle already at the shop, manager/owner requests, upset customers, complex repair questions, language barriers. NEVER assume the topic of the transfer — just transfer.",
         // 2026-05-20 · WARM transfer. The prior default (blind transfer)
         // hands the call to the carrier and never completes from a Vapi-

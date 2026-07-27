@@ -40,3 +40,46 @@ describe("wave-140 · VAPI transfer / callback tools", () => {
     expect(names).not.toContain("transferCall");
   });
 });
+
+/**
+ * 2026-07-27 · the pre-transfer message the CALLER hears.
+ *
+ * MEASURED ON 100 REAL INBOUND CALLS: 22% contained stacked filler, every
+ * instance on the transfer path — "Give me a moment Hold on, I'll get you over
+ * to the manager." The model was behaving correctly (one short line while the
+ * tool fires); the SECOND wait came from this hardcoded message. The prompt
+ * kill-list has banned chaining two waits since 0720a97d and never could fix
+ * it, because it instructs the model and the model was not the source.
+ *
+ * Pinned as a contract, not a snapshot: any wait-cue opener regresses 22% of
+ * calls back to sounding like a recording, and naming a person re-breaks
+ * Critical Rule #2 (this forwards to the counter line, not to a known human).
+ */
+describe("pre-transfer message · no stacked wait, no named person", () => {
+  const transferMessage = (): string => {
+    const t = (VAPI_TOOLS as Array<{ type?: string; destinations?: Array<{ message?: string }> }>)
+      .find((x) => x.type === "transferCall");
+    return t?.destinations?.[0]?.message ?? "";
+  };
+
+  it("is present and non-empty", () => {
+    expect(transferMessage().length).toBeGreaterThan(0);
+  });
+
+  it("does NOT open with a wait cue (the model already said one)", () => {
+    expect(transferMessage()).not.toMatch(
+      /^\s*(?:hold on|one moment|just a (?:sec|second|moment)|give me a (?:sec|second|moment)|hang on|bear with me)\b/i,
+    );
+  });
+
+  it("contains no second wait cue anywhere", () => {
+    const waits = transferMessage().match(
+      /\b(?:hold on|one moment|just a (?:sec|second|moment)|give me a (?:sec|second|moment)|hang on)\b/gi,
+    );
+    expect(waits ?? []).toHaveLength(0);
+  });
+
+  it("does not promise a specific person (Critical Rule #2)", () => {
+    expect(transferMessage()).not.toMatch(/\b(?:the\s+)?(?:manager|owner|nick|tech|mechanic)\b/i);
+  });
+});
