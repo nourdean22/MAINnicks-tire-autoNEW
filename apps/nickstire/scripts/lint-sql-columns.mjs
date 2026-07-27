@@ -88,6 +88,8 @@ const SQL_NOISE = new Set(["group_concat", "date_sub", "date_add", "current_time
 let errors = 0;
 let scanned = 0;
 let skipped = 0;
+/** table name -> how many queries we could not judge because of it. */
+const unknownSeen = new Map();
 const findings = [];
 
 for (const file of sourceFiles(join(APP, "server"))) {
@@ -119,13 +121,39 @@ for (const file of sourceFiles(join(APP, "server"))) {
      * and says how often that happened. A linter that cries wolf gets deleted;
      * one that admits its blind spots gets trusted.
      */
+    /**
+     * CTE names are not tables. `WITH daily AS (...) SELECT ... FROM daily`
+     * made the whole query unjudgeable, which is why the first version skipped
+     * 30 of 800 templates — most of them for a name the query itself defines
+     * two lines earlier. Collect those first so only GENUINELY unknown tables
+     * cause a skip.
+     */
+    const cteNames = new Set(
+      [...query.matchAll(/(?:\bWITH\s+|,\s*)([a-z_][a-z0-9_]*)\s+AS\s*\(/gi)].map((m) => m[1].toLowerCase()),
+    );
+
     const referenced = new Set();
-    let unresolved = false;
-    for (const t of query.matchAll(/\b(?:FROM|JOIN|UPDATE|INTO)\s+`?([a-z_][a-z0-9_]*)`?/gi)) {
-      if (TABLES.has(t[1])) referenced.add(t[1]);
-      else unresolved = true;
+    const unknownTables = new Set();
+    /**
+     * `ON DUPLICATE KEY UPDATE lock_token = ...` is not `UPDATE <table>`.
+     * Naming the blind spots immediately exposed this: lock_token, status,
+     * completed, attempt_count and mission were all reported as unknown TABLES
+     * when they are columns in an upsert clause. Counting them had hidden it —
+     * the list is what made it visible, which is the argument for naming a
+     * blind spot rather than tallying it.
+     */
+    for (const t of query.matchAll(/(?<!\bON\s{1,4}DUPLICATE\s{1,4}KEY\s{1,4})\b(?:FROM|JOIN|UPDATE|INTO)\s+`?([a-z_][a-z0-9_]*)`?/gi)) {
+      const name = t[1];
+      if (TABLES.has(name)) referenced.add(name);
+      else if (!cteNames.has(name.toLowerCase())) unknownTables.add(name);
     }
-    if (unresolved) { skipped++; continue; }
+    if (unknownTables.size) {
+      // Still fail safe — but name the blind spot instead of counting it, so it
+      // is a fixable list rather than an opaque number.
+      skipped++;
+      for (const u of unknownTables) unknownSeen.set(u, (unknownSeen.get(u) ?? 0) + 1);
+      continue;
+    }
     if (!referenced.size) continue;
 
     const known = new Set();
@@ -157,6 +185,14 @@ console.log("─── raw-SQL column lint ───");
 console.log(`  tables in schema:     ${TABLES.size}`);
 console.log(`  sql\`\` templates:      ${scanned}`);
 console.log(`  skipped (unknown table): ${skipped} — cannot judge these`);
+if (unknownSeen.size) {
+  // Named, not just counted: every one of these is a table that exists in
+  // production but not in drizzle/schema.ts (hand-applied migration). Adding
+  // it to the schema shrinks this list and widens the check.
+  const worst = [...unknownSeen.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+  console.log("  blind spots (not in drizzle/schema.ts):");
+  for (const [name, n] of worst) console.log(`    ${name} (${n} quer${n === 1 ? "y" : "ies"})`);
+}
 console.log(`  wrong-case columns:   ${errors}`);
 console.log("");
 
