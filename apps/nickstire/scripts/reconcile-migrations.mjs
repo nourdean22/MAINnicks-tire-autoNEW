@@ -230,7 +230,13 @@ function parseColumnList(body) {
   return { columns: parsed, constraints };
 }
 
-function parseStatement(stmt) {
+/**
+ * Words that can follow ADD but are NOT a column name. The column regex below is
+ * permissive enough to capture any of them as an identifier.
+ */
+const NON_COLUMN_KEYWORD = /^(?:INDEX|KEY|UNIQUE|PRIMARY|FULLTEXT|SPATIAL|CONSTRAINT|FOREIGN|CHECK)$/i;
+
+export function parseStatement(stmt) {
   const s = stmt.replace(/\s+/g, " ").trim();
 
   let m = s.match(/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s*\(([\s\S]*)\)[^)]*$/i);
@@ -245,6 +251,23 @@ function parseStatement(stmt) {
   // another — it reported users.adminRole (declared NULL) as NOT NULL because a
   // sibling clause in the same ALTER declared mfaEnabled NOT NULL. Each clause is
   // now judged on its own text.
+  // ALTER TABLE x ADD [UNIQUE] INDEX|KEY name (cols) — MUST be matched before the
+  // generic ADD branch below. Without this it fell through to the column parser,
+  // which happily captured "INDEX" as the column name and the index name as its
+  // TYPE, and then reported `scheduled_posts.INDEX missing` — a phantom blocking
+  // drift that can never be resolved, because no such column can exist. Worse,
+  // it meant ADD INDEX migrations were never actually verified: a genuinely
+  // missing index was indistinguishable from this false alarm. 0096 sat RED in
+  // `pnpm run migrations:check` (a `verify` gate) for exactly this reason while
+  // its index was present in production the whole time.
+  m = s.match(/^ALTER\s+TABLE\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+ADD\s+(UNIQUE\s+)?(?:INDEX|KEY)\s+[`"]?([A-Za-z0-9_]+)[`"]?\s*\(([^)]*)\)/i);
+  if (m) {
+    return {
+      kind: "index", unique: Boolean(m[2]), name: m[3], table: m[1],
+      columns: m[4].split(",").map((c) => unquote(c.replace(/\s+(asc|desc)$/i, ""))), raw: s,
+    };
+  }
+
   m = s.match(/^ALTER\s+TABLE\s+[`"]?([A-Za-z0-9_]+)[`"]?\s+(ADD\s+(?:COLUMN\s+)?[\s\S]+)$/i);
   if (m && /ADD\s+(?:COLUMN\s+)?[`"]?[A-Za-z0-9_]+[`"]?\s+[A-Za-z]/i.test(m[2])) {
     const table = m[1];
@@ -252,7 +275,12 @@ function parseStatement(stmt) {
     const cols = [];
     for (const c of clauses) {
       const cm = c.match(/^ADD\s+(?:COLUMN\s+)?(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s+([A-Za-z]+(?:\([^)]*\))?(?:\s+unsigned)?)/i);
-      if (!cm) continue; // ADD INDEX / ADD CONSTRAINT / ADD UNIQUE — not a column
+      if (!cm) continue; // ADD CONSTRAINT / ADD PRIMARY KEY — not a column
+      // Belt and braces: this regex DOES match "ADD INDEX idx_x (col)" and would
+      // capture the keyword as the column name. A multi-clause ALTER mixing a
+      // real column with an index would otherwise smuggle one through even now
+      // that ADD INDEX is handled above.
+      if (NON_COLUMN_KEYWORD.test(cm[1])) continue;
       cols.push({ kind: "add_column", table, column: cm[1], type: cm[2], notNull: /\bNOT\s+NULL\b/i.test(c), raw: c });
     }
     if (cols.length === 1) return cols[0];
@@ -575,4 +603,18 @@ async function main() {
   if (strict && (blocking.length || fileNotJournaled.length || journaledNoFile.length)) process.exitCode = 1;
 }
 
-main().catch((err) => { console.error(err); process.exit(2); });
+// Run the CLI only when invoked directly. `parseStatement` is unit-tested, and
+// importing this module must never open a database connection as a side effect.
+// Compared via realpath on both sides: node resolves symlinks in argv[1], and a
+// pnpm/junctioned checkout (this repo) would otherwise fail the comparison and
+// silently turn the gate into a no-op.
+const invokedDirectly = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return true; // cannot tell — prefer running the gate over skipping it
+  }
+})();
+
+if (invokedDirectly) main().catch((err) => { console.error(err); process.exit(2); });
