@@ -48,6 +48,33 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/**
+ * Rows out of a raw `db.execute(sql\`SELECT ...\`)`.
+ *
+ * mysql2 resolves to `[rows, fields]`, so the rows live at index 0 and index 0
+ * of THAT is the first row. Indexing the outer tuple once yields the rows ARRAY
+ * — reading `.scanned` off it gives `undefined`, which `Number(undefined ?? 0)`
+ * then turns into a perfectly plausible `0`.
+ *
+ * That is exactly how this file's voice-claim aggregate shipped reporting
+ * `scanned: 0` forever, which in turn made its coverage alarm ("inbound calls
+ * logged but NONE scanned") fire every single day — the permanently-red gate
+ * that teaches an operator to ignore the alert.
+ *
+ * Extracted and tested rather than repeated inline, because the failure is
+ * silent: the wrong shape does not throw, it produces zeroes.
+ */
+export function rowsFromExecute<T = Record<string, unknown>>(result: unknown): T[] {
+  // mysql2 tuple: [rows, fields]
+  if (Array.isArray(result) && Array.isArray(result[0])) return result[0] as T[];
+  // some drivers return { rows: [...] }
+  const maybe = (result as { rows?: unknown })?.rows;
+  if (Array.isArray(maybe)) return maybe as T[];
+  // already a bare rows array
+  if (Array.isArray(result)) return result as T[];
+  return [];
+}
+
 export async function processVapiCallEval(): Promise<ProcessResult> {
   const startedAt = Date.now();
   const { getDb } = await import("../../db");
@@ -301,9 +328,9 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       WHERE createdAt >= ${cutoff}
         AND JSON_EXTRACT(metadata, '$.voiceClaims') IS NOT NULL
     `);
-    const agg = (Array.isArray(claimRows) ? claimRows[0] : (claimRows as { rows?: unknown[] })?.rows?.[0]) as
-      | { scanned?: unknown; withViolations?: unknown; unparsed?: unknown; withBotTells?: unknown }
-      | undefined;
+    const agg = rowsFromExecute<{
+      scanned?: unknown; withViolations?: unknown; unparsed?: unknown; withBotTells?: unknown;
+    }>(claimRows)[0];
     const scanned = Number(agg?.scanned ?? 0);
     const withViolations = Number(agg?.withViolations ?? 0);
     const unparsedCount = Number(agg?.unparsed ?? 0);
@@ -322,8 +349,8 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         LIMIT 50
       `);
       const tally = new Map<string, number>();
-      for (const r of (Array.isArray(labelRows) ? labelRows : (labelRows as { rows?: unknown[] })?.rows ?? [])) {
-        const raw = (r as { violations?: unknown })?.violations;
+      for (const r of rowsFromExecute<{ violations?: unknown }>(labelRows)) {
+        const raw = r?.violations;
         const list: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
         if (Array.isArray(list)) {
           for (const l of list) tally.set(String(l), (tally.get(String(l)) ?? 0) + 1);
