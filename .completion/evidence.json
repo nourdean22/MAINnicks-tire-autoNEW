@@ -26,7 +26,7 @@
       "deferred": "Vault has no UI surface yet (routes only); Control-tab walkthrough remains owed at acceptance (traj-001). Live Drive round-trip owed after operator consent — capability held at unit_verified/disabled accordingly."
     },
     "capability-ledger-updated": {
-      "ref": "capability-ledger.json: +media-asset-registry (integration_verified/disabled, P2 = 0088 pending), +drive-creative-vault (unit_verified/disabled, P2 = consent + live round-trip owed). No prior capability state changed."
+      "ref": "capability-ledger.json: content-governor updated for THIS diff — the cadence governor's publish-door assertion now reaches ig_autopost, the door it previously COUNTED but could not STOP. Added server/autopostCadence.test.ts (5) and server/feedCapDoors.test.ts (10) to its evidence; recorded prod policy v8 (cap 2->20, spacing 3h->0, operator-authorized 2026-07-27, verified by independent read); dropped the stale 'carousel/photo creator wiring' deferral and added an honest one: the cadence gate is ASSERTED but NOT runtime-verified, since no cron tick was observed. Previous entry described media-asset-registry and drive-creative-vault — unrelated work that this gate accepted as evidence for any diff touching server/services, which is the staleness the same commit fixes."
     },
     "render-spend-trajectory": {
       "ref": "server/reelReservationRelease.test.ts (3: releases the payload-recorded slot on terminal failure; no-id no-op; unparseable payload never throws into the failure path) + existing selectiveRepair/autonomyBoundary trajectories on main"

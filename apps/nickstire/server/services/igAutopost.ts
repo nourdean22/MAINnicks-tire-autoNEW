@@ -230,7 +230,21 @@ async function alreadyRanSlotToday(slot: IgSlot, now: Date): Promise<boolean> {
         and(
           eq(igAutopostLog.slot, slot),
           eq(igAutopostLog.slotDate, dayKey),
-          sql`${igAutopostLog.status} IN ('dryrun','posted')`,
+          // A CAP HOLD IS TERMINAL FOR THE SLOT. (Review catch, P2.)
+          //
+          // `aborted` covers two very different outcomes: an eval-gate failure,
+          // where a later tick SHOULD retry because a fresh draft might pass;
+          // and a daily-cap hold, where retrying cannot possibly succeed —
+          // the cap does not fall during the day. Without this, every
+          // subsequent tick in the slot re-ran the whole pipeline and re-sent
+          // the Telegram notice, so a capped day burned generation spend
+          // repeatedly and spammed the operator.
+          //
+          // Matched on the error text rather than a new status: the `status`
+          // column is a 4-value enum and widening it is a migration, which is
+          // not worth it to distinguish two flavours of the same outcome.
+          sql`(${igAutopostLog.status} IN ('dryrun','posted')
+               OR (${igAutopostLog.status} = 'aborted' AND ${igAutopostLog.error} LIKE 'Blocked by content governor%'))`,
         ),
       )
       .limit(1);
@@ -1414,6 +1428,53 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
   const slot = opts.slot ?? null;
   const slotDate = etDateKey(now);
 
+  /**
+   * PREFLIGHT THE CAP BEFORE SPENDING ANYTHING. (Review catch, P2.)
+   *
+   * The assertion further down runs only AFTER buildSignalBrief and up to three
+   * full generate → render → evaluate attempts. On a capped day that is real
+   * LLM and image spend bought to produce a post that cannot be published, and
+   * the previous tick's `aborted` row did not stop the next tick repeating it.
+   *
+   * This checks first, so a capped day costs nothing. The later assertion STAYS:
+   * generation takes minutes, and another door can consume the last slot while
+   * this run is working — the preflight saves money, the final check is what
+   * actually enforces.
+   *
+   * Dry runs skip it entirely. A dry run publishes nothing, so the cap has no
+   * opinion about it, and the Telegram preview is still worth producing.
+   */
+  if (!dryRun) {
+    try {
+      const { assertPublishCadence } = await import("./contentGovernor");
+      await assertPublishCadence({ format: "photo" });
+    } catch (err) {
+      const denied = err instanceof Error && err.message.startsWith("Blocked by content governor");
+      if (!denied) throw err;
+      await logRun({
+        archetype: opts.forceArchetype ?? "proof", conceptKey: "cap-hold",
+        slot, slotDate, scores: null, status: "aborted",
+        caption: "", hashtags: [], imagePrompt: "", imageUrl: null,
+        igPostId: null, fbPostId: null, error: errMsg(err), source,
+      });
+      try {
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `IG AUTOPOST — HELD BY THE DAILY CAP (before generating)\n${errMsg(err)}\n` +
+          `Nothing was generated, so nothing was spent. Raise the policy limit if this is wrong.`,
+        );
+      } catch (e) {
+        log.warn("cap-preflight notify failed", { error: errMsg(e) });
+      }
+      return {
+        recordsProcessed: 0,
+        details: `Aborted before generation — ${errMsg(err)}`,
+        status: "aborted",
+        igPostId: null, fbPostId: null, dryRun: false,
+      };
+    }
+  }
+
   try {
     const brief = await buildSignalBrief();
 
@@ -1522,6 +1583,60 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     );
     const igBlocked = blocked.includes("instagram");
     const fbBlocked = blocked.includes("facebook");
+
+    /**
+     * THE CAP COUNTED THIS DOOR BUT COULD NOT STOP IT.
+     *
+     * #1129 taught the content governor to COUNT ig_autopost_log, so the
+     * autoposter finally consumed budget alongside the Queue, reels and
+     * scheduled posts. But only `publishToSocial` ever calls
+     * assertPublishCadence, and this cron posts to Meta directly — so the door
+     * responsible for roughly 84% of all publishing was the one door the brake
+     * could not apply to. It spent everyone else's budget and was never
+     * itself refused.
+     *
+     * Measured consequence: 2026-06-17 saw 32 autopost publishes in a single
+     * day (source=admin). Under the policy in force today that would STILL not
+     * have been stopped, because nothing asked.
+     *
+     * SAFE BY MEASUREMENT: policy v8 allows 20 feed posts/day; the autoposter
+     * does 3 and the busiest normal day across ALL four doors is 5. This
+     * changes nothing about ordinary operation and makes the runaway case
+     * actually stop at 20.
+     *
+     * A cadence READ failure must not take publishing down — assertPublishCadence
+     * already fails open internally on infra errors and throws GovernorDenial
+     * only on a real breach, so only the breach is handled here.
+     */
+    try {
+      const { assertPublishCadence } = await import("./contentGovernor");
+      await assertPublishCadence({ format: "photo" });
+    } catch (err) {
+      const denied = err instanceof Error && err.message.startsWith("Blocked by content governor");
+      if (!denied) throw err;
+      await logRun({
+        archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
+        scores, status: "aborted", caption, hashtags: post.hashtags,
+        imagePrompt: post.imagePrompt, imageUrl: image.url,
+        igPostId: null, fbPostId: null, error: errMsg(err), source,
+      });
+      try {
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `IG AUTOPOST — HELD BY THE DAILY CAP\n${errMsg(err)}\n` +
+          `The draft cleared its eval gate and was NOT posted. Raise the policy limit if this is wrong.`,
+        );
+      } catch (e) {
+        log.warn("cap-hold notify failed", { error: errMsg(e) });
+      }
+      return {
+        recordsProcessed: 0,
+        details: `Aborted — ${errMsg(err)}`,
+        status: "aborted",
+        archetype: post.archetype, conceptKey: post.conceptKey, scores,
+        igPostId: null, fbPostId: null, dryRun: false,
+      };
+    }
 
     if (igBlocked && fbBlocked) {
       await logRun({
