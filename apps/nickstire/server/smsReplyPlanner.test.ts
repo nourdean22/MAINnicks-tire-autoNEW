@@ -68,10 +68,29 @@ describe("complaint and safety playbooks stay conservative", () => {
     expect(labels).toContain("callback_promise");
   });
 
-  it("safety: triage goal, stop-driving fact, no completion promises", () => {
+  it("safety: triage goal, a do-not-keep-driving fact, no completion promises", () => {
+    // 2026-07-27 · this asserted the literal words "stop driving", which came
+    // from the ONE hardcoded line the safety playbook used to emit for all nine
+    // hazards. That line is gone: the playbook now emits the matched hazard's
+    // OWN guidance, and overheating's is "Pull over and let it cool" — the same
+    // instruction, worded correctly for heat instead of for brakes.
+    //
+    // The assertion now checks the INTENT (do not keep driving it) rather than
+    // one hazard's phrasing, so it cannot go stale again the next time a
+    // guidance string is reworded.
     const plan = planFor("the car is overheating with steam coming out");
     expect(plan.goal).toBe("safety_triage");
-    expect(plan.knownFacts.join(" ")).toMatch(/stop driving/i);
+    expect(plan.knownFacts.join(" ")).toMatch(/stop driving|pull over|don'?t drive|do not drive|have it towed|don'?t start it/i);
+  });
+
+  it("safety: the fact is the MATCHED hazard's, not a generic catch-all", () => {
+    // Guards the regression the rewrite above exists for: if the playbook ever
+    // reverts to one hardcoded line, these two produce identical facts.
+    const overheat = planFor("the car is overheating with steam coming out").knownFacts.join(" ");
+    const brakes = planFor("my brakes went out").knownFacts.join(" ");
+    expect(overheat).not.toBe(brakes);
+    expect(overheat).toMatch(/cool/i);
+    expect(brakes).toMatch(/tow/i);
   });
 });
 

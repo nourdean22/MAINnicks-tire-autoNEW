@@ -51,6 +51,7 @@ export type SmsIntent =
   | "price_brakes"
   | "price_alignment"
   | "diagnostic"
+  | "symptom_triage"
   | "same_day_visit"
   | "drop_off"
   | "financing"
@@ -112,7 +113,15 @@ const RULES: Rule[] = [
     // tier 0, because the cost of a missed safety route is not symmetrical with
     // the cost of an unnecessary human handoff.
     test: (b) =>
-      /\b(overheat|overheating|smoke|smoking|steam|on fire|stranded|broke down|breaking down|accident|crash|blew out|blowout|brakes? (went|failed|aren'?t working|not working)|can'?t stop|unsafe to drive)\b/i.test(b)
+      // 2026-07-27 · bare `smoke|smoking` sent "white smoke from the tailpipe"
+      // and "it smokes a little on a cold start" to human_only — ordinary
+      // symptoms, not emergencies, burning the operator's attention. Exhaust
+      // smoke now has to say WHERE, and diagnose-safety's fire-smoke rule (which
+      // this unions with below) still catches "smoke pouring from the hood",
+      // "my car is smoking" and every other real form. Narrowing here removes
+      // noise without removing a single genuine hazard.
+      /\b(overheat|overheating|steam|on fire|stranded|broke down|breaking down|accident|crash|blew out|blowout|brakes? (went|failed|aren'?t working|not working)|can'?t stop|unsafe to drive)\b/i.test(b)
+      || /\bsmok(e|ing)\b(?![^.!?]{0,25}\b(tailpipe|exhaust|muffler|cold\s+start|start\s?up)\b)/i.test(b)
       || detectRedFlags(b).length > 0,
   },
 
@@ -195,6 +204,15 @@ const RULES: Rule[] = [
       // testing the inflected form by reflex rather than by intention.
       /\b(w(on'?t|ill not|ont)|does(\s?n'?t| not)|did(n'?t| not)|is(\s?n'?t| not)|can'?t|cannot)\s+(start(s|ing|ed)?|turn(s|ing)? over|crank(s|ing)?|fir(e|es|ing) up|com(e|es|ing) on)\b/i.test(b) ||
       /\b(no\s?start|won'?t\s?start)\b/i.test(b) ||
+      // 2026-07-27 · STALLED / DIED WHILE DRIVING was uncovered on all four
+      // surfaces. It is not a no-start — the car DID start — but the action is
+      // identical (it needs towing in), which is exactly what this playbook
+      // delivers. Deliberately NOT a do-not-drive red flag: the car is already
+      // not driving, and applySafetyFloor would force "have it towed" wording
+      // onto a customer who may just have a stalling idle.
+      /\b(stall(s|ed|ing)?|cut(s|ting)?\s+out|shut(s|ting)?\s+(off|down)|sputter\w*)\b/i.test(b) ||
+      /\b(die[sd]|dying|died|quit|quits|cut\s+off)\b[^.!?]{0,30}\b(driv\w*|road|highway|freeway|street|going|moving|traffic)\b/i.test(b) ||
+      /\b(driv\w*|highway|freeway|road)\b[^.!?]{0,30}\b(die[sd]|dying|died|stalled|shut\s+off|quit)\b/i.test(b) ||
       // The CONTRACTION is the common form — "it's dead", not "it is dead".
       // Requiring `\s+is\s+` missed it entirely; the same literal-form trap as
       // `bulge` vs "bulging". Caught by a self-audit against real speech, where
@@ -295,6 +313,54 @@ const RULES: Rule[] = [
     risk: "deterministic",
     catalogEvent: "price_question_diagnostic",
     test: (b) => /\b(diagnostics?|check engine|scan|code[sp]?|e-?check)\b/i.test(b),
+  },
+  /**
+   * Symptoms nobody can price over the phone, and nothing else claims.
+   *
+   * A coverage audit found these reaching `general`, whose only fact is "FCFS,
+   * walk-ins welcome" — so a customer describing a failing wheel bearing was
+   * answered with the shop's drop-in policy and nothing about the symptom.
+   * Voice names every one of them (vapi.ts URGENCY LIBRARY); SMS named none.
+   *
+   * PRIORITY 8 — deliberately BELOW every pricing rule (6-7). `price_brakes`
+   * already owns squeaking/grinding/pulsating and has a real playbook for them;
+   * a symptom rule that outranked it would steal a working path to fix a broken
+   * one. This catches only what nothing else claims.
+   *
+   * Frequencies are from 2,100 production call summaries: exhaust/rattle 16,
+   * transmission 10, bearing 7. NOT included: "hum"/"droning", which appear
+   * ZERO times — customers here do not use those words, and a pattern for them
+   * would be a mechanism that can never fire.
+   */
+  {
+    intent: "symptom_triage",
+    priority: 8,
+    risk: "human_assisted",
+    catalogEvent: null,
+    test: (b) =>
+      // Coolant LEAK — safety's overheating rule requires boiling/spraying/
+      // pouring and never matches the word "leak". A seep is drive-with-care,
+      // not do-not-drive, which is why it belongs here and not in RED_FLAG_RULES.
+      /\b(coolant|antifreeze)\b[^.!?]{0,20}\b(leak|leaks|leaking|leaked|dripping|low)\b/i.test(b)
+      || /\b(leak|leaking|dripping)\b[^.!?]{0,20}\b(coolant|antifreeze)\b/i.test(b)
+      // BURNING SMELL, unqualified. Fresh brakes and a new exhaust legitimately
+      // smell, so this is triage — not a red flag. "burning smell WITH smoke"
+      // is already the do-not-drive form in diagnose-safety.
+      || /\b(smell|smells|smelling|smelled)\b[^.!?]{0,20}\bburn(ing|t)?\b/i.test(b)
+      || /\bburn(ing|t)\s+(smell|odou?r)\b/i.test(b)
+      // Wheel bearing / hub. The inflected forms are spelled out because
+      // `bearing\b` alone would also catch "bearing with us".
+      || /\b(wheel\s+)?bearings?\b[^.!?]{0,25}\b(noise|noisy|bad|going|out|whine|whining|growl\w*|roar\w*)\b/i.test(b)
+      || /\b(bad|failing|worn)\s+(wheel\s+)?bearings?\b/i.test(b)
+      // Transmission — slipping, or refusing to change gear.
+      || /\btransmission\b[^.!?]{0,25}\b(slip\w*|jerk\w*|hard|rough|shift\w*|gear)\b/i.test(b)
+      || /\b(slipping|not\s+shifting|won'?t\s+shift|wont\s+shift|hard\s+to\s+shift)\b/i.test(b)
+      // Suspension clunk over bumps.
+      || /\b(clunk\w*|knock\w*|thud\w*|bang\w*)\b[^.!?]{0,25}\b(bump|bumps|pothole|potholes|turn|turning|suspension)\b/i.test(b)
+      // Exhaust / rattle — the second most common symptom family in the call
+      // corpus after brakes.
+      || /\b(exhaust|muffler|catalytic|tailpipe)\b/i.test(b)
+      || /\brattl\w+\b[^.!?]{0,25}\b(under|underneath|bottom|exhaust)\b/i.test(b),
   },
   {
     intent: "same_day_visit",

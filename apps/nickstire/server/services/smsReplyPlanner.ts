@@ -19,6 +19,9 @@
  */
 import { BUSINESS } from "@shared/business";
 import type { SmsIntent, SmsIntentDecision } from "./smsIntentRouter";
+// The website's do-not-drive authority. The router already consults it to DECIDE
+// safety_urgent; the planner now consults it to say the RIGHT thing.
+import { detectRedFlags } from "../diagnose-safety";
 
 export interface PlannerContext {
   customerFirstName: string | null;
@@ -318,15 +321,107 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
 
   safety_urgent: {
     goal: "safety_triage",
-    knownFacts: () => [
-      "If the vehicle is overheating, smoking, or unsafe: stop driving, let it cool, arrange a tow.",
-      SHOP_FACT,
-    ],
+    /**
+     * NINE HAZARDS, ONE HARDCODED LINE — until now.
+     *
+     * `detectRedFlags` returns per-hazard guidance and the SMS path consumed
+     * only `.length > 0` (smsIntentRouter.ts:116), discarding all of it. Every
+     * emergency therefore got the same sentence: "stop driving, let it cool,
+     * arrange a tow."
+     *
+     * For a fuel leak that is WRONG ADVICE — the hazard is ignition, not heat,
+     * and the real guidance is "don't start it, park it away from the
+     * building". For a fire it is dangerous: the rule's own text says "get out
+     * and call 911", and grepping the whole server for "911" returned exactly
+     * two hits — diagnose-safety.ts and the voice prompt. Voice said it,
+     * /diagnose said it, SMS said it NOWHERE.
+     *
+     * `body` was already a parameter here. No plumbing was needed; the facts
+     * were simply never asked for.
+     */
+    knownFacts: (_ctx, body) => {
+      const flags = detectRedFlags(body);
+      if (!flags.length) {
+        // Router-only match (its local regex is broader than the red-flag set).
+        return ["If the vehicle is unsafe to drive: stop driving it and arrange a tow rather than driving it in.", SHOP_FACT];
+      }
+      /**
+       * SORT BEFORE CAPPING. (Review catch, P1 — my own regression.)
+       *
+       * `detectRedFlags` returns matches in RED_FLAG_RULES DECLARATION order,
+       * not severity order, and `fire-smoke` is declared sixth. "my brakes went
+       * out, steering locked, oil light is on, and it caught fire" therefore
+       * yielded brake, steering, oil, fire — and a bare .slice(0,3) dropped the
+       * FIRE guidance, deleting the 911 instruction this whole change exists to
+       * deliver. The cap was capable of removing exactly the sentence that
+       * matters most.
+       *
+       * Ranked by what kills people first: fire and fuel, then the crash
+       * hazards, then engine damage. Unknown ids sort last rather than first —
+       * `indexOf` returning -1 would otherwise promote them.
+       */
+      const HAZARD_RANK = [
+        "fire-smoke", "fuel-leak",
+        "brake-failure", "steering-loss", "control-loss", "tire-failure",
+        "oil-pressure", "overheating", "flashing-mil",
+      ];
+      const rank = (id: string | undefined) => {
+        const i = HAZARD_RANK.indexOf(id ?? "");
+        return i === -1 ? HAZARD_RANK.length : i;
+      };
+      const ranked = [...flags].sort((a, b) => rank((a as { id?: string }).id) - rank((b as { id?: string }).id));
+      return [...ranked.slice(0, 3).map((f) => f.guidance), SHOP_FACT];
+    },
     missingInformation: () => [],
     requiredQuestion: () => null,
-    nextStep: "Arrange a tow; the shop will be told it is coming.",
+    // Deliberately NOT "arrange a tow" — that is the right action for brake
+    // failure and the wrong one for a fire, where the guidance above says to
+    // get out and call 911 first. The action now lives in the matched hazard.
+    nextStep: "Follow the safety guidance above; the shop will be told the vehicle is coming.",
     prohibited: [CLAIM_COMPLETION, CLAIM_CALLBACK],
     maxChars: 300,
+  },
+
+  /**
+   * A symptom the shop cannot price without seeing the car.
+   *
+   * Before this, coolant leaks, burning smells, wheel-bearing noise,
+   * transmission slip and exhaust rattle all landed on `general`, whose only
+   * fact is "first-come first-served, walk-ins welcome" — the shop's drop-in
+   * POLICY offered to someone describing a failing part. Voice names every one
+   * of these; SMS named none.
+   *
+   * The goal is deliberately `collect_information`, not `answer`: the honest
+   * reply is that nobody can diagnose this over a text, and the next step is
+   * getting the car looked at for free.
+   */
+  symptom_triage: {
+    goal: "collect_information",
+    knownFacts: () => [
+      "The shop cannot diagnose a symptom over text — what it is, and what it costs, comes from the free check.",
+      "The check and the written quote are free, and nothing is done until the customer approves the price.",
+      SHOP_FACT,
+    ],
+    missingInformation: (_ctx, body) => {
+      const missing: string[] = [];
+      if (!/\b(19|20)\d{2}\b/.test(body)) missing.push("Vehicle year/make/model");
+      if (!/\b(driv|speed|turn|brak|idle|start|cold|highway|bump)\w*\b/i.test(body)) {
+        missing.push("When it happens — driving, turning, braking, idling, or cold start");
+      }
+      return missing;
+    },
+    // ONE question, and only when the customer has not already said when it
+    // happens. The repeat-question defect this arc has hit before comes from
+    // asking unconditionally.
+    requiredQuestion: (_ctx, body) =>
+      /\b(driv|speed|turn|brak|idle|start|cold|highway|bump)\w*\b/i.test(body)
+        ? null
+        : "What year/make/model is it, and when does it happen?",
+    nextStep: "Bring it by for the free check, or drop it off — no appointment needed.",
+    // No completion promise and no callback promise: nobody has looked at the
+    // car yet, so neither can be honestly offered.
+    prohibited: [CLAIM_COMPLETION, CLAIM_CALLBACK],
+    maxChars: 320,
   },
 
   financing: {
@@ -536,7 +631,38 @@ function customerFactsFor(ctx: PlannerContext): string[] {
  */
 export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext, body: string): SmsReplyPlan {
   const intents = [decision.primary, ...decision.secondary];
-  const books = intents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
+  /**
+   * IN AN EMERGENCY, NOTHING ELSE GETS A VOICE.
+   *
+   * knownFacts unions every matched intent, so "my brakes went out" arrived at
+   * the drafter carrying safety guidance AND the brake PRICING playbook —
+   * because `brakes` also matches price_brakes. That is #1134's defect one
+   * layer in: not an auto-sent price template, but price context handed to the
+   * drafter for someone reporting they cannot stop the car.
+   *
+   * When the primary intent is safety_urgent the safety playbook is the whole
+   * plan. Secondary intents still count for `stopSelling` below — they are
+   * dropped as SOURCES OF FACTS, not from the decision.
+   */
+  const factIntents = decision.primary === "safety_urgent" ? ["safety_urgent" as SmsIntent] : intents;
+  /**
+   * TWO SETS, ON PURPOSE. (Review catch, P2 — my own regression.)
+   *
+   * The first version narrowed the single `books` array, which feeds facts AND
+   * `prohibited` AND `maxChars`. Suppressing a secondary intent's FACTS also
+   * deleted its CLAIM GUARDS: "my tire blew out; do you have tires in stock?"
+   * lost tire_inventory's inventory_claim and hold_promise prohibitions while
+   * the prompt still told the model to address every part of the message — so a
+   * fabricated stock answer would no longer trip planViolations.
+   *
+   * My own comment claimed secondaries were "dropped as SOURCES OF FACTS, not
+   * from the decision". The code did not do that. It does now:
+   *   factBooks — what the drafter may SAY (safety alone in an emergency)
+   *   allBooks  — what it may NOT say, and how long (never narrowed)
+   * Enforcement only ever widens.
+   */
+  const books = factIntents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
+  const allBooks = intents.map((i) => PLAYBOOKS[i]).filter((b): b is SmsPlaybook => Boolean(b));
   const primaryBook = PLAYBOOKS[decision.primary] ?? PLAYBOOKS.general!;
 
   const knownFacts = [...new Set(books.flatMap((b) => b.knownFacts(ctx, body)))];
@@ -559,12 +685,16 @@ export function buildReplyPlan(decision: SmsIntentDecision, ctx: PlannerContext,
   const prohibitedMap = new Map<string, ProhibitedClaim>();
   for (const c of [
     ...GLOBAL_PROHIBITED,
-    ...books.flatMap((b) => b.prohibited),
+    // allBooks, NOT books: an emergency suppresses a secondary intent's FACTS,
+    // never its claim guards. Enforcement only widens.
+    ...allBooks.flatMap((b) => b.prohibited),
     ...(stopSelling ? stopSellingClaims : []),
   ]) {
     prohibitedMap.set(c.label, c);
   }
-  const maxChars = Math.min(...books.map((b) => b.maxChars), 320);
+  // allBooks too — the TIGHTEST limit across every matched intent should win.
+  // Narrowing to factBooks could RELAX the cap during an emergency.
+  const maxChars = Math.min(...allBooks.map((b) => b.maxChars), 320);
 
   return {
     intent: decision.primary,
