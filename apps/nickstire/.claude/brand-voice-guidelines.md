@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-18 (wave-181.45)
 **Source documents:**
-- `server/services/vapi.ts` — `ASSISTANT_SYSTEM_PROMPT` (40k chars · canonical voice)
+- `server/services/vapi.ts` — `ASSISTANT_SYSTEM_PROMPT` (19,553 chars ≈ 4,888 tokens, 144 lines · measured 2026-07-26 · canonical voice)
 - `client/src/pages/ServicesOverview.tsx` + `About.tsx` — page voice in production
 - `apps/nickstire/CLAUDE.md` — operator brand directive
 - 82 VAPI call transcripts (May 15-17) — voice-of-customer validation

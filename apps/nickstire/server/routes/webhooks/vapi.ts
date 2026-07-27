@@ -522,6 +522,45 @@ async function processCallEndReport(
           });
         }
 
+        // VOICE CLAIM GUARD · the assistant side of the same artifact.
+        //
+        // SMS drafts are gated before send by `planViolations`; voice had no
+        // equivalent, so the prompt's truth rules (no repair quotes, no live
+        // stock, no capacity or wait promises) were enforced by prose alone.
+        // Vapi streams to TTS with no pre-speech hook, so this cannot block —
+        // it DETECTS, which is what makes drift visible and what makes the
+        // prompt-compression work measurable.
+        //
+        // Separate try from customerSpeech on purpose: one analytics write
+        // failing must not take the other down, and neither may affect the 200.
+        try {
+          const { buildVoiceClaimRecord } = await import("../../services/voiceClaimGuard");
+          const claims = buildVoiceClaimRecord({
+            transcript,
+            messages: (event as { artifact?: { messages?: unknown } }).artifact?.messages,
+          });
+          if (claims) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.voiceClaims', CAST(${JSON.stringify(claims)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (claims.violations.length) {
+              // Labels only — never the utterance. The transcript stays in the
+              // column it arrived in; logs must not become a second PII surface.
+              log.warn("[vapi webhook] voice claim violation", {
+                callId: String(callId),
+                violations: claims.violations,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn("[vapi webhook] voice-claim persist failed (analytics only)", {
+            error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+          });
+        }
+
         // wave-144 · forwarded-call safety net. A during-hours
         // transferCall hands the caller to the shop line; if nobody
         // picks up (tech mid-bay), that hot caller is lost with NO

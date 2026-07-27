@@ -92,8 +92,15 @@ function isSubstantive(text: string): boolean {
  * for the agent. A line with no recognised prefix continues the previous
  * speaker, which is how multi-line utterances arrive.
  */
-const CUSTOMER_PREFIX = /^\s*(user|customer|human|caller)\s*:\s*/i;
-const ASSISTANT_PREFIX = /^\s*(ai|assistant|bot|agent|system)\s*:\s*/i;
+/**
+ * Exported so every consumer shares ONE definition of how VAPI labels speakers.
+ * `voiceClaimGuard` reads the opposite side of the same transcript; if a new
+ * provider label were learned here and copied there, the guard would silently
+ * stop attributing assistant speech and report zero violations — which is
+ * indistinguishable from "the assistant said nothing wrong".
+ */
+export const CUSTOMER_PREFIX = /^\s*(user|customer|human|caller)\s*:\s*/i;
+export const ASSISTANT_PREFIX = /^\s*(ai|assistant|bot|agent|system)\s*:\s*/i;
 
 export interface CustomerTurns {
   /** Customer utterances in order, capped and truncated. */

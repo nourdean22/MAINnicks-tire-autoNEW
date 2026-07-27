@@ -280,6 +280,72 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     }
   }
 
+  // VOICE CLAIM GUARD · daily aggregate.
+  //
+  // The webhook scores each call's assistant speech and stores labels under
+  // `metadata.voiceClaims`; this turns that into the one operator signal, with
+  // the same daily dedupe as the quality alert so a bad day cannot spam.
+  //
+  // COVERAGE IS REPORTED WITH THE COUNT, DELIBERATELY. "0 violations" and
+  // "nothing was scanned" are the same number, so a webhook that silently
+  // stopped writing would otherwise read as a perfect record forever. `scanned`
+  // and `unparsed` are what make a clean day distinguishable from a blind one.
+  try {
+    const claimRows = await db.execute(sql`
+      SELECT
+        COUNT(*) AS scanned,
+        COALESCE(SUM(JSON_LENGTH(JSON_EXTRACT(metadata, '$.voiceClaims.violations')) > 0), 0) AS withViolations,
+        COALESCE(SUM(JSON_EXTRACT(metadata, '$.voiceClaims.unparsed') = TRUE), 0) AS unparsed
+      FROM vapi_call_logs
+      WHERE createdAt >= ${cutoff}
+        AND JSON_EXTRACT(metadata, '$.voiceClaims') IS NOT NULL
+    `);
+    const agg = (Array.isArray(claimRows) ? claimRows[0] : (claimRows as { rows?: unknown[] })?.rows?.[0]) as
+      | { scanned?: unknown; withViolations?: unknown; unparsed?: unknown }
+      | undefined;
+    const scanned = Number(agg?.scanned ?? 0);
+    const withViolations = Number(agg?.withViolations ?? 0);
+    const unparsedCount = Number(agg?.unparsed ?? 0);
+
+    // Alert when the assistant made prohibited claims, OR when coverage
+    // collapsed — a scan that stopped running is the more dangerous failure,
+    // because it looks exactly like success.
+    const coverageBroken = rows.length >= 5 && scanned === 0;
+    if ((withViolations > 0 || coverageBroken) && await claimDailyAlert("vapi_voice_claims")) {
+      const labelRows = await db.execute(sql`
+        SELECT JSON_EXTRACT(metadata, '$.voiceClaims.violations') AS violations
+        FROM vapi_call_logs
+        WHERE createdAt >= ${cutoff}
+          AND JSON_LENGTH(JSON_EXTRACT(metadata, '$.voiceClaims.violations')) > 0
+        LIMIT 50
+      `);
+      const tally = new Map<string, number>();
+      for (const r of (Array.isArray(labelRows) ? labelRows : (labelRows as { rows?: unknown[] })?.rows ?? [])) {
+        const raw = (r as { violations?: unknown })?.violations;
+        const list: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (Array.isArray(list)) {
+          for (const l of list) tally.set(String(l), (tally.get(String(l)) ?? 0) + 1);
+        }
+      }
+      const breakdown = [...tally.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([label, n]) => `  ${label}: ${n}`);
+
+      await sendTelegram([
+        coverageBroken
+          ? "NICK AI VOICE CLAIM GUARD: coverage gap — inbound calls logged but NONE scanned. Verify the end-of-call webhook."
+          : `NICK AI VOICE CLAIM GUARD: ${withViolations}/${scanned} scanned calls contained a prohibited claim.`,
+        `Scanned: ${scanned} · unparsed (no speaker attribution): ${unparsedCount}`,
+        ...breakdown,
+        "These are claims the prompt forbids (repair quotes, live stock, capacity/wait promises). Detection only — voice cannot be blocked mid-call.",
+      ].join("\n")).catch(() => undefined);
+    }
+  } catch (error) {
+    log.warn("[vapi-eval] voice-claim aggregate failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   try {
     const { remember } = await import("../../services/nickMemory");
     const missesByIntent = new Set(
