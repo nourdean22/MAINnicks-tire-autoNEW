@@ -116,7 +116,9 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
           log.warn(`No approval record for ${item.id} v${(item.version ?? 1) - 1} (pre-provenance row) — publishing without integrity check`);
         }
 
-        const { results } = await publishToSocial(mediaInput);
+        // "automated": unattended queue drain — an unreadable kill-switch state
+        // stops it instead of publishing blind.
+        const { results } = await publishToSocial({ ...mediaInput, actor: "automated" });
         const succeeded = results.filter((r) => r.success);
         const failedResults = results.filter((r) => !r.success);
         const errors = failedResults.map((r) => `${r.platform}: ${r.error}`).join("; ");

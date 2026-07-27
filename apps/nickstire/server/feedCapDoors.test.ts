@@ -23,6 +23,8 @@
  * note warns about, in the code the note sits on.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 interface DoorState { reel: number | Error; sched: number | Error; autopost: number | Error }
 const doors: DoorState = { reel: 0, sched: 0, autopost: 0 };
@@ -118,6 +120,33 @@ describe("the autoposter door is counted", () => {
     // The runaway this cap exists for is not hypothetical — it already happened.
     doors.autopost = 20;
     expect(await denied()).toMatch(/Blocked by content governor|PUBLISH_FEED_CAP/);
+  });
+});
+
+/**
+ * A scheduled fire LINKED to an inventory row is the same publish as that
+ * inventory row — the ambiguity resolver stamps both. Counting both doors
+ * double-counts one post against the cap.
+ *
+ * Settled against production rather than reasoned about: of 9 lifetime
+ * `posted` scheduled_posts, 9 are standalone and ZERO are linked, so the
+ * exclusion is a no-op on today's data and closes the double-count before it
+ * can first occur. Asserted at the source because the mock here answers per
+ * TABLE, not per predicate — it cannot observe a WHERE clause.
+ */
+describe("a scheduled fire is not counted twice", () => {
+  const SRC = readFileSync(
+    join(new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), "services", "contentGovernor.ts"),
+    "utf8",
+  );
+
+  it("the scheduled_posts count excludes rows linked to an inventory row", () => {
+    expect(SRC).toMatch(/isNullx\(scheduledPosts\.inventoryId\)/);
+  });
+
+  it("and still filters on posted + today, so the exclusion did not replace them", () => {
+    expect(SRC).toMatch(/inArrayx\(scheduledPosts\.status, \["posted"\]\)/);
+    expect(SRC).toMatch(/gtex\(scheduledPosts\.postedAt, since\)/);
   });
 });
 

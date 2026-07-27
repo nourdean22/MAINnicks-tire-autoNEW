@@ -295,7 +295,10 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // 8. Bay utilization (±5)
   if (bayUtil) {
-    const utilization = num(bayUtil, "utilizationPct", "averageUtilization");
+    // analyzeBayUtilization returns `avgOccupancyRate`. Neither of the two
+    // names read here has ever existed on it, and num() answers 0 for a key
+    // it cannot find — so this component reported "no data" forever.
+    const utilization = num(bayUtil, "avgOccupancyRate");
     let pts = 0;
     let reason = "";
     let hasData = true;
@@ -311,7 +314,8 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // 9. Lead response time (±4)
   if (leadResp) {
-    const avgMin = num(leadResp, "avgResponseMinutes", "averageResponseMinutes");
+    // analyzeLeadResponseTime returns `avgMinutes`.
+    const avgMin = num(leadResp, "avgMinutes");
     let pts = 0;
     let reason = "";
     let hasData = true;
@@ -357,9 +361,29 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // 13. Customer value trend (±3)
   if (valueTrend) {
-    const trend = num(valueTrend, "trendPct", "growthPct");
+    // analyzeCustomerValueTrend returns growing[] and shrinking[], each entry
+    // `{ name, trend, lastTicket, avgTicket }` — there is no portfolio-level
+    // scalar, and neither "trendPct" nor "growthPct" has ever existed on it.
+    // num() answers 0 for a key it cannot find, so this component contributed
+    // exactly 0 on every run while reporting "+0% per-customer spend trend"
+    // like a measurement.
+    //
+    // The portfolio number is the MEAN of the per-customer trends the engine
+    // did compute. Averaging the union (not growing-minus-shrinking counts)
+    // keeps it a spend trend rather than a headcount difference.
+    const trends = [...arr(valueTrend, "growing"), ...arr(valueTrend, "shrinking")]
+      .map((c) => Number((c as { trend?: unknown })?.trend))
+      .filter((t) => Number.isFinite(t));
+    const trend = trends.length ? Math.round(trends.reduce((s, t) => s + t, 0) / trends.length) : 0;
     const pts = clamp(Math.round(trend * 0.15), -3, 3);
-    record("Customer value trend", pts, 3, `${trend > 0 ? "+" : ""}${trend}% per-customer spend trend`);
+    record(
+      "Customer value trend",
+      pts, 3,
+      trends.length
+        ? `${trend > 0 ? "+" : ""}${trend}% average per-customer spend trend across ${trends.length} customers`
+        : "No per-customer trends available (skipped)",
+      trends.length > 0,
+    );
   }
 
   score = clamp(Math.round(score), 0, 100);
@@ -419,18 +443,33 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Review velocity
   if (reviewVel) {
-    const rate = num(reviewVel, "weeklyRate");
-    if (rate === 0) {
-      riskCandidates.push({ priority: 15, text: "Zero new reviews this week — reputation stalling" });
+    /**
+     * `weeklyRate` has never existed on analyzeReviewVelocity — it returns
+     * thisMonth / lastMonth / velocity / trend / projectedAnnual, all MONTHLY.
+     * num() answered 0 every run, which made `rate === 0` permanently true and
+     * `rate >= 5` permanently unreachable. So the report pushed
+     *   "Zero new reviews this week — reputation stalling"
+     * as a risk on EVERY run regardless of how many reviews came in, and could
+     * never surface the good-news counterpart. Exactly the shape of the
+     * capacity block removed above, one component over.
+     *
+     * Reported monthly because monthly is what the engine measures. Dividing
+     * by 4.3 to keep the old wording would invent a weekly precision that was
+     * never computed.
+     */
+    const monthlyReviews = num(reviewVel, "thisMonth");
+    if (monthlyReviews === 0) {
+      riskCandidates.push({ priority: 15, text: "Zero new reviews this month — reputation stalling" });
     }
-    if (rate >= 5) {
-      opportunityCandidates.push({ priority: 15, text: `Strong review velocity: ${rate} reviews this week — momentum building` });
+    if (monthlyReviews >= 10) {
+      opportunityCandidates.push({ priority: 15, text: `Strong review velocity: ${monthlyReviews} reviews this month — momentum building` });
     }
   }
 
   // Lead response time
   if (leadResp) {
-    const avgMins = num(leadResp, "averageMinutes", "avgResponseMinutes");
+    // Same engine, a THIRD spelling. This alert could never fire.
+    const avgMins = num(leadResp, "avgMinutes");
     if (avgMins > 60) {
       alertCandidates.push({ priority: 40, text: `Lead response averaging ${Math.round(avgMins)} minutes — competitors respond in <15` });
     }
