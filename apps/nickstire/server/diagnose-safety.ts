@@ -95,6 +95,14 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       /\bcan'?t\s+steer\b/i,
       /\bsteering\s+(locked|locks\s+up|failed|gave\s+out|seized)\b/i,
       /\bwheel\s+(locked\s+up|won'?t\s+turn)\b/i,
+      // 2026-07-27 · the list above covers TOTAL failure only. A customer whose
+      // steering has gone loose or stopped responding is describing the same
+      // hazard in the words people actually use, and this module's own guidance
+      // for it is "Stop driving it." Excludes the reassurance forms the
+      // brake-failure rule already guards against.
+      // "steering WHEEL is loose" is the ordinary phrasing — the noun the
+      // customer touches, not the system. Optional so both forms match.
+      /\bsteering(\s+wheel)?\s+(is\s+|feels\s+|has\s+(gone|got)\s+)?(loose|sloppy|unresponsive|not\s+responding)\b/i,
     ],
   },
   {
@@ -133,7 +141,9 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       /\boverheat(s|ed|ing)?\b/i,
       /\btemp(erature)?\s+(gauge|needle)\s+.{0,20}\b(red|max|top|all\s+the\s+way\s+up|pegged)\b/i,
       /\bsteam\s+(coming|pouring|rolling|from|out)\b/i,
-      /\bcoolant\s+(boiling|spraying|pouring)\b/i,
+      // The copula is optional — "coolant IS pouring out" is the natural
+      // sentence and the adjacent-only form could not reach it.
+      /\bcoolant\s+(is\s+|was\s+)?(boiling|spraying|pouring|gushing|dumping)\b/i,
       /\brunning\s+hot\b/i,
     ],
   },
@@ -174,6 +184,17 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       /\bbelt\s+separation\b/i,
       /\b(cords?|steel|wire)\s+(is\s+|are\s+)?(showing|exposed|sticking\s+out)\b/i,
       /\bbulge\s+(in|on)\s+(the\s+)?(tire|tyre|sidewall)\b/i,
+      // 2026-07-27 · the noun form above cannot match the VERB, and "my tire is
+      // bulging" is how customers actually say it. Measured consequence: that
+      // exact sentence routed to `price_tires` — a structurally failed tire
+      // answered with the used-tire price menu and an invitation to drive in.
+      // Same \b-after-truncated-stem trap that has now bitten this repo five
+      // times; `bulge` + \s+(in|on) simply cannot reach "bulging".
+      /\b(tire|tyre|sidewall)\s+(is\s+|are\s+)?bulg(e|es|ing)\b/i,
+      /\bbulg(e|es|ing)\b[^.!?]{0,20}\b(tire|tyre|sidewall)\b/i,
+      // "I can see the cords" — the customer reports the observation, not the
+      // component state, so the `cords showing` form above misses it.
+      /\b(see|seeing|saw)\s+(the\s+)?(cords?|steel\s+belts?|wires?)\b/i,
     ],
   },
   {
@@ -188,6 +209,10 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       /\b(wheel|tire|tyre)\s+(is\s+)?(coming|came|fell)\s+off\b/i,
       /\blug\s+nuts?\s+.{0,12}\b(loose|missing|fell)\b/i,
       /\b(pulls|jerks|veers|darts)\s+.{0,20}\binto\s+(traffic|oncoming|the\s+other\s+lane)\b/i,
+      // 2026-07-27 · "lose control" must be adjacent above, so the ordinary
+      // phrasing — "shakes so bad I can barely control it" — fell through to
+      // `general`. The customer is reporting exactly this hazard.
+      /\b(barely|hardly|can'?t|cannot|could\s?n'?t)\s+[^.!?]{0,15}\bcontrol\b/i,
     ],
   },
 ];
@@ -196,6 +221,17 @@ const RED_FLAG_RULES: RedFlagRule[] = [
  * Match red-flag hazards in free-text symptoms. Pure + synchronous — runs
  * before the AI call so a model outage can never suppress a safety warning.
  */
+/**
+ * Every hazard id this module recognises, in declaration order.
+ *
+ * Exported so OTHER CHANNELS can be held to the same list. The website has
+ * always had the most complete do-not-drive thresholds in the repo; voice and
+ * SMS each grew their own partial copies, and an audit of the three found voice
+ * covering exactly ONE of these nine. A cross-channel parity test now reads this
+ * array, so adding a hazard here fails the voice test until voice covers it too.
+ */
+export const RED_FLAG_IDS = RED_FLAG_RULES.map((r) => r.id);
+
 export function detectRedFlags(text: string): RedFlag[] {
   if (!text) return [];
   const found: RedFlag[] = [];
