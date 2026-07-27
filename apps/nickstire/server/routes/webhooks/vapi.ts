@@ -499,6 +499,37 @@ async function processCallEndReport(
           }
         });
 
+        // BACKFILL THE IDS ON A DUPLICATE DELIVERY.
+        //
+        // `getCallStateHistory()` fails open to [] — correct, since a telemetry
+        // read must never break the webhook's 200. But that means a transient
+        // read failure on the FIRST delivery inserts leadId/callbackId as null,
+        // and VAPI's retry — which may well read the trail successfully — would
+        // otherwise hit dup-key, set firstLog=false, and leave the row
+        // permanently unlinked. A recoverable blip would become a permanent
+        // hole in exactly the linkage this change exists to create.
+        //
+        // COALESCE, so this can only ever fill a NULL: a value already present
+        // is never overwritten, and re-delivery is idempotent. Scoped to the two
+        // id columns alone — the one-time side effects below stay gated on
+        // `firstLog` and are NOT replayed.
+        if (!firstLog && (trailLeadId != null || trailCallbackId != null)) {
+          try {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET leadId     = COALESCE(leadId, ${trailLeadId}),
+                  callbackId = COALESCE(callbackId, ${trailCallbackId})
+              WHERE vapiCallId = ${String(callId)}
+                AND (leadId IS NULL OR callbackId IS NULL)
+            `);
+          } catch (backfillErr) {
+            log.warn("[vapi webhook] id backfill on duplicate delivery failed", {
+              error: backfillErr instanceof Error ? backfillErr.message : String(backfillErr),
+            });
+          }
+        }
+
         // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
         // The full transcript has been in hand here since wave-fix-2026-05-25,
         // used for a keyword scan and then dropped. Meanwhile `transcriptUrl`

@@ -183,6 +183,36 @@ describe("both ends are actually wired", () => {
     expect(s).toMatch(/callbackId: trailCallbackId/);
   });
 
+  /**
+   * Review catch (P2). `getCallStateHistory()` fails open to [] — correct, a
+   * telemetry read must never break the webhook's 200. But that meant a
+   * transient read failure on the FIRST delivery inserted null ids, and VAPI's
+   * retry — which may read the trail fine — would hit dup-key, set
+   * firstLog=false, and leave the row permanently unlinked. A recoverable blip
+   * becoming a permanent hole in the very linkage this change creates.
+   */
+  it("backfills the ids when a duplicate delivery finally has them", async () => {
+    const s = await read("./routes/webhooks/vapi.ts");
+    expect(s).toMatch(/if \(!firstLog && \(trailLeadId != null \|\| trailCallbackId != null\)\)/);
+    expect(s).toMatch(/UPDATE vapi_call_logs/);
+  });
+
+  it("the backfill can only FILL a null, never overwrite a value", async () => {
+    const s = await read("./routes/webhooks/vapi.ts");
+    expect(s).toMatch(/leadId\s*=\s*COALESCE\(leadId,/);
+    expect(s).toMatch(/callbackId = COALESCE\(callbackId,/);
+    expect(s).toMatch(/AND \(leadId IS NULL OR callbackId IS NULL\)/);
+  });
+
+  it("the backfill does NOT replay the one-time side effects", async () => {
+    // Those stay gated on `firstLog`; only the two id columns are touched.
+    const s = await read("./routes/webhooks/vapi.ts");
+    const block = s.slice(s.indexOf("BACKFILL THE IDS"), s.indexOf("BACKFILL THE IDS") + 1400);
+    expect(block).toMatch(/SET leadId\s*=\s*COALESCE/);
+    expect(block).not.toMatch(/insert\(/);
+    expect(block).not.toMatch(/sendTelegram/);
+  });
+
   it("the webhook reads the history ONCE and reuses it", async () => {
     // Guards a naive refactor that re-queries per use — this runs on every
     // end-of-call webhook.
