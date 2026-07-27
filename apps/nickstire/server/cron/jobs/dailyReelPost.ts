@@ -275,7 +275,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
     let outcome;
     try {
-      outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption });
+      // "automated": nobody is watching this cron, so an UNREADABLE kill-switch
+      // state must stop it rather than let it publish blind.
+      outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption, actor: "automated" });
     } catch (pubErr) {
       // THREW — Meta may or may not have accepted the reel. Do NOT restore
       // "assembled" (that risks a double-publish); park it for reconciliation

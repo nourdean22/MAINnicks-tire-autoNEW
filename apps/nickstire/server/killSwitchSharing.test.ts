@@ -203,6 +203,38 @@ describe("extracting it did not change publishToSocial", () => {
     expect(results[0].success).toBe(true);
   });
 
+  /**
+   * The actor now rides on PublishInput, so the unattended callers of the door
+   * (the reel cron, the inventory queue drain) fail CLOSED on an unreadable
+   * kill switch, exactly as igAutopost already did. Admin paths are untouched:
+   * omitting `actor` still means "operator".
+   */
+  it("an AUTOMATED caller is stopped when the switch state is unreadable", async () => {
+    throwOnRead = true;
+    const { results } = await publishToSocial({
+      platforms: ["instagram"], caption: "hi", imageUrl: "https://x/y.png", actor: "automated",
+    });
+    expect(postToInstagram).not.toHaveBeenCalled();
+    expect(results[0].error).toBe(KILL_SWITCH_ERROR);
+  });
+
+  it("an OPERATOR caller still publishes in that same state", async () => {
+    throwOnRead = true;
+    await publishToSocial({ platforms: ["instagram"], caption: "hi", imageUrl: "https://x/y.png", actor: "operator" });
+    expect(postToInstagram).toHaveBeenCalledTimes(1);
+  });
+
+  it("omitting actor keeps the OLD behaviour — no existing caller changes", async () => {
+    throwOnRead = true;
+    await publishToSocial({ platforms: ["instagram"], caption: "hi", imageUrl: "https://x/y.png" });
+    expect(postToInstagram).toHaveBeenCalledTimes(1);
+  });
+
+  it("the actor does NOT override a real switch — automated still publishes when nothing is stopped", async () => {
+    await publishToSocial({ platforms: ["instagram"], caption: "hi", imageUrl: "https://x/y.png", actor: "automated" });
+    expect(postToInstagram).toHaveBeenCalledTimes(1);
+  });
+
   it("carries the Facebook link — the field whose absence created the bypass", async () => {
     await publishToSocial({ platforms: ["facebook"], caption: "hi", link: "https://nickstire.org/tires" });
     expect(postToFacebook).toHaveBeenCalledWith(expect.objectContaining({ link: "https://nickstire.org/tires" }));

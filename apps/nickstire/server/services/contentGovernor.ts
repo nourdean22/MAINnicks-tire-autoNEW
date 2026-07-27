@@ -223,7 +223,7 @@ export async function assertPublishCadence(input: { format: "reel" | "carousel" 
     const unreadable: string[] = [];
     try {
       const { reelJobs, scheduledPosts, igAutopostLog } = await import("../../drizzle/schema");
-      const { eq: eqx, and: andx, gte: gtex, inArray: inArrayx, sql: sqlx } = await import("drizzle-orm");
+      const { eq: eqx, and: andx, gte: gtex, inArray: inArrayx, isNull: isNullx, sql: sqlx } = await import("drizzle-orm");
       const since = clevelandDayStart();
       const countOne = async (name: string, run: () => Promise<Array<{ n: unknown }>>) => {
         try {
@@ -241,28 +241,34 @@ export async function assertPublishCadence(input: { format: "reel" | "carousel" 
         .where(andx(eqx(reelJobs.status, "posted"), gtex(reelJobs.updatedAt, since))));
 
       /**
-       * KNOWN OVERCOUNT, LEFT DELIBERATELY.
+       * ONLY STANDALONE FIRES — the linked ones are already counted as inventory.
        *
        * `scheduledPosts.inventoryId` links a fire to an inventory row, and the
        * ambiguity resolver (instagramStudio.ts ~1114) stamps BOTH
        * socialContentInventory.publishedAt AND the linked scheduled_posts row
-       * as posted. That single publish is therefore counted twice here.
+       * as posted. Counting both doors for one publish double-counts it.
        *
-       * The obvious fix — count only rows with a null inventoryId — was NOT
-       * applied, because it is only correct if every linked fire also stamps
-       * its inventory row, and that could not be verified across the whole
-       * scheduled-publish path. Guessing wrong turns a conservative overcount
-       * into an UNDERCOUNT, and this file's own note says why that is the worse
-       * failure: an undercount spends the operator's audience. Overcounting
-       * only makes the cap fire early.
+       * SAFE BY MEASUREMENT. This was left alone in the previous pass because
+       * excluding linked rows is only correct if a linked fire always stamps its
+       * inventory row, and guessing wrong converts a conservative overcount into
+       * an UNDERCOUNT — the worse failure, since an undercount spends the
+       * operator's audience. Settled against production instead of reasoned
+       * about: of 9 lifetime `posted` scheduled_posts, 9 are standalone and
+       * ZERO are linked. The exclusion therefore changes NOTHING about today's
+       * count and closes the double-count before it can first occur.
        *
-       * Measured 2026-07-27: 9 lifetime scheduled posts, so the practical error
-       * is at most a couple of counts on a cap of 20.
+       * If a linked fire ever posts WITHOUT its inventory row being stamped,
+       * this undercounts by one — so that pairing is what to check if the cap
+       * ever looks low.
        */
       await countOne("scheduled_posts", () => d
         .select({ n: sqlx<number>`COUNT(*)`.as("n") })
         .from(scheduledPosts)
-        .where(andx(inArrayx(scheduledPosts.status, ["posted"]), gtex(scheduledPosts.postedAt, since))));
+        .where(andx(
+          inArrayx(scheduledPosts.status, ["posted"]),
+          gtex(scheduledPosts.postedAt, since),
+          isNullx(scheduledPosts.inventoryId),
+        )));
 
       // `posted` is set when EITHER platform succeeded, which is the same unit
       // the other doors count: one feed publish, not one platform write.
