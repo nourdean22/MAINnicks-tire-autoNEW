@@ -441,10 +441,38 @@ async function processCallEndReport(
         // a TOOL-ENGAGEMENT signal — distinct from the nightly digest's
         // score>=70 "converted" count; see vapiConversionSignals.ts.
         let convertedToLead = 0;
+        // The trail also carries WHICH lead, when a tool created one.
+        //
+        // `vapi_call_logs.leadId` is the only call -> lead foreign key, and it
+        // was populated on 0 of 2,136 rows. The only writer is a mid-call
+        // `UPDATE vapi_call_logs SET leadId ... WHERE vapiCallId = ?` inside
+        // voiceAgent.tireInquiry — but this row is INSERTED here, at
+        // end-of-call. Mid-call the row does not exist yet, so that UPDATE
+        // matched nothing, every time, silently.
+        //
+        // The trail is read here anyway (that is how convertedToLead is set,
+        // and it works), so the id rides the same proven path instead of a new
+        // one. Exact, not heuristic: the tool records the id it just created.
+        let trailLeadId: number | null = null;
+        let trailCallbackId: number | null = null;
         try {
           const { getCallStateHistory } = await import("../../services/voice-call-state");
           const { trailReachedTool } = await import("../../services/vapiConversionSignals");
-          convertedToLead = trailReachedTool(await getCallStateHistory(String(callId))) ? 1 : 0;
+          const history = await getCallStateHistory(String(callId));
+          convertedToLead = trailReachedTool(history) ? 1 : 0;
+          // A positive integer or nothing — 0, negatives and floats are rejected
+          // rather than written as a corrupt foreign key. Null means "no such
+          // record", which is a different fact from "record #0".
+          const fkFrom = (value: unknown): number | null => {
+            const n = typeof value === "number" ? value : Number(value);
+            return Number.isInteger(n) && n > 0 ? n : null;
+          };
+          for (const entry of history) {
+            const md = entry.metadata as { leadId?: unknown; callbackId?: unknown } | null;
+            // last writer wins — a later tool call is the more specific one
+            trailLeadId = fkFrom(md?.leadId) ?? trailLeadId;
+            trailCallbackId = fkFrom(md?.callbackId) ?? trailCallbackId;
+          }
         } catch (stateErr) {
           log.warn("[vapi webhook] convertedToLead trail read failed (default 0; eval reconciles)", { error: stateErr instanceof Error ? stateErr.message : String(stateErr) });
         }
@@ -458,6 +486,8 @@ async function processCallEndReport(
           aiSummary: summary,
           serviceMention,
           convertedToLead,
+          leadId: trailLeadId,
+          callbackId: trailCallbackId,
           transcriptUrl: (event.call as { transcript?: string; transcriptUrl?: string })?.transcriptUrl ?? null,
           recordingUrl: (event.call as { recordingUrl?: string })?.recordingUrl ?? null,
         }).catch((err: unknown) => {
@@ -468,6 +498,37 @@ async function processCallEndReport(
             log.warn("vapi_call_logs insert failed", { error: msg });
           }
         });
+
+        // BACKFILL THE IDS ON A DUPLICATE DELIVERY.
+        //
+        // `getCallStateHistory()` fails open to [] — correct, since a telemetry
+        // read must never break the webhook's 200. But that means a transient
+        // read failure on the FIRST delivery inserts leadId/callbackId as null,
+        // and VAPI's retry — which may well read the trail successfully — would
+        // otherwise hit dup-key, set firstLog=false, and leave the row
+        // permanently unlinked. A recoverable blip would become a permanent
+        // hole in exactly the linkage this change exists to create.
+        //
+        // COALESCE, so this can only ever fill a NULL: a value already present
+        // is never overwritten, and re-delivery is idempotent. Scoped to the two
+        // id columns alone — the one-time side effects below stay gated on
+        // `firstLog` and are NOT replayed.
+        if (!firstLog && (trailLeadId != null || trailCallbackId != null)) {
+          try {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET leadId     = COALESCE(leadId, ${trailLeadId}),
+                  callbackId = COALESCE(callbackId, ${trailCallbackId})
+              WHERE vapiCallId = ${String(callId)}
+                AND (leadId IS NULL OR callbackId IS NULL)
+            `);
+          } catch (backfillErr) {
+            log.warn("[vapi webhook] id backfill on duplicate delivery failed", {
+              error: backfillErr instanceof Error ? backfillErr.message : String(backfillErr),
+            });
+          }
+        }
 
         // ─── Persist CUSTOMER-only speech (2026-07-26 demand audit) ─────────
         // The full transcript has been in hand here since wave-fix-2026-05-25,
