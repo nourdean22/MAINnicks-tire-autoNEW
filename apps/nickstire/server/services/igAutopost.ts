@@ -499,7 +499,15 @@ function angleForArchetype(a: IgArchetype): string {
 
 /** Bump when the gen/eval prompts change · stamped on every ig_autopost_log
  * row so a content-quality shift can be tied to the prompt edit that caused it. */
-export const PROMPT_VERSION = "2026-06-20";
+// 2026-07-27 — Voice Kernel wave. The emitted prompt text changed even though
+// the intent did not: the generator's banned-phrase line and the critic's voice
+// rubric now RENDER from shared/voice.ts instead of being two hand-written
+// lists that disagreed, and the critic's price line interpolates the BUSINESS
+// SSOT instead of hardcoding "used tires from $60 installed". Scoring will shift
+// (drafts containing family-owned / state-of-the-art now fail voice; captions
+// stating the correct "from $25 installed" stop failing price-compliance), so
+// the version is bumped to keep that shift attributable in igAutopostLog.
+export const PROMPT_VERSION = "2026-07-27";
 
 function buildGenSystemPrompt(): string {
   return [
