@@ -118,6 +118,19 @@ const CLAIM_SAFE_TO_DRIVE: ProhibitedClaim = {
   label: "drive_safe_assurance",
   re: /\b(safe to (drive|keep driving)|fine to drive|you can keep driving)\b/i,
 };
+/**
+ * Inviting a customer to drive/walk in when the car cannot move.
+ *
+ * Shaped to catch the INVITATION, not the address or the FCFS fact — a no-start
+ * customer still needs to know where the shop is and that no appointment is
+ * required once the car gets there. What they must never be told is to bring it
+ * in themselves.
+ */
+const CLAIM_COME_IN_UNDRIVABLE: ProhibitedClaim = {
+  label: "come_in_when_undrivable",
+  re: /\b(pull up|come (on )?(in|by|down|over)|swing by|stop by|bring (it|the car|your car) (in|by|down|over)|drive (it )?(in|over|down|here|by))\b/i,
+};
+
 const CLAIM_REMOTE_DIAGNOSIS: ProhibitedClaim = {
   label: "remote_diagnosis",
   re: /\b(it'?s (definitely|just|only|probably just) (the|your) \w+|that means your \w+ (is|has) (bad|shot|dead|failed))\b/i,
@@ -414,6 +427,34 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
       CEL_STATE_RE.test(body) ? null : "Is the light solid or flashing?",
     nextStep: "Bring the car (and any failed E-Check paperwork) by.",
     prohibited: [CLAIM_REMOTE_DIAGNOSIS],
+    maxChars: 300,
+  },
+
+  /**
+   * The SMS counterpart to voice's BROKEN-DOWN / TOWED flow.
+   *
+   * Voice has always routed "won't start" to a tow — it is the first trigger in
+   * that flow. SMS fell through to `general`, which offers FCFS_FACT
+   * ("walk-ins welcome") and asks "when to come in?" — an answer the customer
+   * cannot act on, because the car will not move.
+   *
+   * The single highest-value question here is WHERE THE CAR IS, exactly as it is
+   * on the phone: it decides tow vs jump, and whether the shop is even the right
+   * next call. Price is not the question; getting the car here is.
+   */
+  no_start: {
+    goal: "collect_information",
+    knownFacts: () => [
+      "A car that will not start has to get to the shop by tow or jump — the shop cannot come to it.",
+      "Once it arrives the shop looks at it and gives the price in writing before any work.",
+      FCFS_FACT,
+    ],
+    missingInformation: () => ["where the vehicle is right now"],
+    requiredQuestion: () => "Where's the car right now — at home, at work, or on the roadside?",
+    nextStep: "Get it to the shop; it gets looked at once it lands.",
+    // The walk-in invitation is the specific failure this playbook exists to
+    // prevent, so it is prohibited rather than merely omitted.
+    prohibited: [CLAIM_COME_IN_UNDRIVABLE, CLAIM_REMOTE_DIAGNOSIS, CLAIM_CALLBACK],
     maxChars: 300,
   },
 

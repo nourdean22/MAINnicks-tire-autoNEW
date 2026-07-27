@@ -41,6 +41,7 @@ export type SmsIntent =
   | "job_status"
   | "estimate_question"
   | "dashboard_light"
+  | "no_start"
   | "arrival_committed"
   | "tire_inventory"
   | "cancellation_policy_question"
@@ -160,6 +161,32 @@ const RULES: Rule[] = [
     test: (b) =>
       /\b(oil|tire.?pressure|tpms|battery|abs|airbag|traction|coolant|temp(erature)?)\s*(warning\s*)?light\b/i.test(b) ||
       /\blight('?s)? (came|come|turned|is|keeps? coming) (on|back)\b/i.test(b),
+  },
+
+  // ─── Tier 3a: the car cannot be driven here ────────────────────────────
+  // VOICE routes "won't start" straight to its BROKEN-DOWN / TOWED flow — it is
+  // the first trigger in that list. SMS had no equivalent, so these messages
+  // fell to `general`, whose only approved fact is FCFS_FACT: "walk-ins welcome,
+  // no appointment needed", and whose required question asks "when to come in?".
+  //
+  // Telling someone whose car will not start to walk in is not merely unhelpful;
+  // they physically cannot comply, and it reads as not having listened. Same
+  // words, two channels, opposite answers.
+  //
+  // human_assisted rather than human_only: this is a logistics problem, not a
+  // hazard, and the playbook already forbids the walk-in language. Forcing
+  // operator review on every no-start would add load without adding truth.
+  {
+    intent: "no_start",
+    priority: 3,
+    risk: "human_assisted",
+    catalogEvent: null,
+    test: (b) =>
+      /\b(w(on'?t|ill not|ont)|does\s?n'?t|didn'?t|can'?t|cannot)\s+(start|turn over|crank|fire up|come on)\b/i.test(b) ||
+      /\b(no\s?start|won'?t\s?start)\b/i.test(b) ||
+      /\b(car|truck|van|vehicle|it)\s+is\s+dead\b/i.test(b) ||
+      /\b(dead battery|battery('?s| is) dead|clicks? (but )?(won'?t|does\s?n'?t) start|just clicks)\b/i.test(b) ||
+      /\b(needs?|need) a (jump|tow)\b/i.test(b),
   },
 
   // ─── Tier 3b: the customer already said yes ────────────────────────────
