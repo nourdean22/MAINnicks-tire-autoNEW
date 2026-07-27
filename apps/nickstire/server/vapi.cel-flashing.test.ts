@@ -39,6 +39,21 @@ describe("voice · flashing vs solid check-engine light", () => {
     expect(celSection()).toMatch(/solid or flashing/i);
   });
 
+  /**
+   * Review catch (#1114, P2). The first version said "ASK FIRST, always", which
+   * recreated the repeat-question failure SMS avoids with
+   * `CEL_STATE_RE.test(body) ? null : "..."` — and, worse, inserted an extra
+   * exchange BEFORE the tow warning for a caller who opens with "it's flashing"
+   * and may be driving at that moment. A safety fix that delays safety in its
+   * own headline case. The question must be conditional, as it is on SMS.
+   */
+  it("does NOT re-ask when the caller already stated the light state", () => {
+    const s = celSection();
+    expect(s).not.toMatch(/ask first,?\s*always/i);
+    expect(s).toMatch(/already said|already stated|already named/i);
+    expect(s).toMatch(/do NOT ask|don'?t ask/i);
+  });
+
   it("treats FLASHING and SOLID as different branches", () => {
     const s = celSection();
     expect(s).toMatch(/\bSOLID\b/);
@@ -94,6 +109,14 @@ describe("voice · squeak vs grind vs shake", () => {
     expect(brakeSection()).toMatch(/squeaking, grinding or shaking/i);
   });
 
+  /** Same conditional as SMS's `BRAKE_SYMPTOM_RE.test(body) ? null : "..."`. */
+  it("does NOT re-ask when the caller already named the brake symptom", () => {
+    const s = brakeSection();
+    expect(s).not.toMatch(/ask first,?\s*always/i);
+    expect(s).toMatch(/already named|already said/i);
+    expect(s).toMatch(/do NOT ask|don'?t ask/i);
+  });
+
   it("separates the three symptoms instead of one blanket answer", () => {
     const s = brakeSection();
     expect(s).toMatch(/SQUEAK/);
@@ -101,16 +124,28 @@ describe("voice · squeak vs grind vs shake", () => {
     expect(s).toMatch(/SHAKE/);
   });
 
-  it("does NOT give the metal-on-metal line to a squeak", () => {
+  /**
+   * Anchor on the BRANCH bullets, not the first occurrence of each word — the
+   * instruction line itself names all three symptoms ("SQUEAK vs GRIND vs
+   * SHAKE"), so a naive indexOf slice reads the instruction, not the answer.
+   */
+  const branch = (label: string): string => {
     const s = brakeSection();
-    const squeak = s.slice(s.indexOf("SQUEAK"), s.indexOf("GRIND"));
+    const start = s.indexOf(`· ${label}`);
+    expect(start, `branch bullet for ${label} missing`).toBeGreaterThan(-1);
+    const rest = s.slice(start + 1);
+    const end = rest.indexOf("· ");
+    return end === -1 ? rest : rest.slice(0, end);
+  };
+
+  it("does NOT give the metal-on-metal line to a squeak", () => {
+    const squeak = branch("SQUEAK");
     expect(squeak).not.toMatch(/metal-on-metal/i);
     expect(squeak).toMatch(/just the pads/i);
   });
 
   it("keeps metal-on-metal for the symptom that earns it", () => {
-    const s = brakeSection();
-    expect(s.slice(s.indexOf("GRIND"))).toMatch(/metal-on-metal/i);
+    expect(branch("GRIND")).toMatch(/metal-on-metal/i);
   });
 
   it("hedges the shake explanation rather than diagnosing it remotely", () => {
