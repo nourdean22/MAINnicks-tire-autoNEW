@@ -8,6 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { invokeLLM } from "../../_core/llm";
 import type { ShopSetting } from "../../../drizzle/schema";
 import { log, db, type CameraEntry } from "./utils";
+import type { PublishOutcome } from "../../services/socialPublish";
 import { BUSINESS } from "@shared/business";
 // ─── Social Post ──────────────────────────────────────
 
@@ -17,13 +18,33 @@ export async function handleSocialPost(input: {
   imageUrl?: string;
   link?: string;
 }) {
-  const { socialPost } = await import("../../services/metaSocial");
-  const result = await socialPost({
-    platforms: input.platforms,
-    message: input.message,
-    imageUrl: input.imageUrl,
-    link: input.link,
-  });
+  // Routed through the shared publish door. This used to call
+  // `metaSocial.socialPost` directly, which reaches postToFacebook and
+  // postToInstagram without consulting ANY of the three protections that live
+  // in publishToSocial: the autonomy kill switches (+ their DENY audit
+  // record), the content governor's daily caps and spacing, and claim-safety.
+  //
+  // The kill switch is the one that matters most. It exists for the moment the
+  // operator wants everything to stop, and its coverage must not depend on
+  // which endpoint the request happened to hit — nobody reaching for an
+  // emergency stop is also recalling which procedures honour it.
+  const { publishToSocial, captionClaimBlockers } = await import("../../services/socialPublish");
+
+  const blockers = captionClaimBlockers(input.message);
+  const result: PublishOutcome = blockers.length
+    ? {
+        results: input.platforms.map((platform) => ({
+          platform,
+          success: false,
+          error: `Blocked by claim-safety: ${blockers.map((b) => b.rule).join(", ")}`,
+        })),
+      }
+    : await publishToSocial({
+        platforms: input.platforms,
+        caption: input.message,
+        imageUrl: input.imageUrl,
+        link: input.link,
+      });
 
   // Unified event bus
   import("../../services/eventBus").then(({ emit }) =>

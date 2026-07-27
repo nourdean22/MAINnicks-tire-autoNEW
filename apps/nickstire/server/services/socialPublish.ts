@@ -16,6 +16,13 @@ export interface PublishInput {
   imageUrls?: string[];
   videoUrl?: string;
   isStory?: boolean;
+  /**
+   * Facebook-only link attachment. Present so callers that need it do not have
+   * to reach around this choke point to `metaSocial.socialPost` — which is
+   * exactly how `nickActions.socialPost` came to bypass the kill switch.
+   * Instagram ignores it (the Graph API has no link field for feed posts).
+   */
+  link?: string;
 }
 
 export interface PublishOutcome {
@@ -55,6 +62,94 @@ export function assertPermanentPublicMediaUrl(url?: string | null): void {
   }
 }
 
+export const KILL_SWITCH_ERROR = "Publishing is paused by the autonomy kill switch.";
+
+/**
+ * Which of these platforms the operator's emergency controls currently stop,
+ * recording the DENY audit event when any are.
+ *
+ * Extracted from publishToSocial so it can be SHARED rather than re-implemented.
+ * igAutopost is an autonomous cron that posts to IG+FB on its own schedule and
+ * does its own two-platform dispatch, so it cannot simply call publishToSocial
+ * without also inheriting the feed cap — a separate, live policy question. It
+ * can, and now does, honour the same emergency stop through this function.
+ *
+ * Never throws. On infra failure it returns [] and the caller's other gates
+ * govern — matching the behaviour publishToSocial already had, because a
+ * telemetry-ish read must not make publishing MORE fragile than it was.
+ */
+export async function killSwitchBlockedPlatforms(
+  platforms: ("facebook" | "instagram")[],
+  context: Record<string, unknown> = {},
+  actor: "operator" | "automated" = "operator",
+): Promise<("facebook" | "instagram")[]> {
+  /**
+   * Unknowable switch state. An operator's emergency stop may be sitting in
+   * storage right now, invisible to this read.
+   *
+   * A human publishing by hand can see the situation and decide — so they
+   * proceed loud. An unattended cron cannot, so it STOPS. This mirrors the
+   * rule autonomyControl already applies at its own boundary: "Automated
+   * actors fail CLOSED; operators proceed loud."
+   */
+  const unknowable = (): ("facebook" | "instagram")[] => {
+    log.warn("kill-switch state unverifiable (storage unreachable)", { actor });
+    return actor === "automated" ? [...platforms] : [];
+  };
+
+  try {
+    const { getEmergencyControlsFresh, recordAuditEvent } = await import("./autonomyControl");
+    const { controls: ec, source } = await getEmergencyControlsFresh();
+    if (source === "fallback_unreachable" && actor === "automated") {
+      const stopped = unknowable();
+      // Audited, but a failing audit must not flip the decision back to open.
+      try {
+        await recordAuditEvent({
+          actionType: "publish",
+          decision: "DENY",
+          reasoningCodes: ["KILL_SWITCH_STATE_UNKNOWN", ...stopped.map((p) => `platform:${p}`)],
+          policyVersion: 0,
+          context: { platforms, ...context },
+        });
+      } catch (err) {
+        log.warn("could not audit the fail-closed stop", { err: err instanceof Error ? err.message : String(err) });
+      }
+      return stopped;
+    }
+    if (source === "fallback_unreachable") {
+      log.warn("kill-switch state unverifiable (storage unreachable) — operator proceeds, other gates govern");
+    }
+    const blocked = platforms.filter(
+      (p) => ec.globalKillSwitch || ec.publishingKillSwitch || ec.platformKillSwitches[p],
+    );
+    if (blocked.length) {
+      await recordAuditEvent({
+        actionType: "publish",
+        decision: "DENY",
+        reasoningCodes: [
+          ec.globalKillSwitch
+            ? "GLOBAL_KILL_SWITCH"
+            : ec.publishingKillSwitch
+              ? "PUBLISHING_KILL_SWITCH"
+              : "PLATFORM_KILL_SWITCH",
+          ...blocked.map((p) => `platform:${p}`),
+        ],
+        policyVersion: 0,
+        context: { platforms, ...context },
+      });
+    }
+    return blocked;
+  } catch (err) {
+    // Same rule as an unreadable policy row: the state is unknown, so an
+    // unattended cron stops and a human proceeds. For the operator this keeps
+    // the original promise that the switch check never makes publishing MORE
+    // fragile than it was; for the cron, "we could not check" is not a reason
+    // to publish.
+    log.warn("kill-switch check unavailable", { err: err instanceof Error ? err.message : String(err), actor });
+    return unknowable();
+  }
+}
+
 /** Run the actual publish across the selected platforms. No claim-safety here —
  *  callers MUST gate on captionClaimBlockers() first. */
 export async function publishToSocial(input: PublishInput): Promise<PublishOutcome> {
@@ -66,38 +161,17 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
   // existing claim-safety and REEL_PUBLISH_ENABLED gates below — the policy
   // engine adds an instant, versioned, audited emergency stop that covers
   // EVERY publish shape (static, carousel, reel, story, Facebook).
-  try {
-    const { getEmergencyControlsFresh } = await import("./autonomyControl");
-    const { controls: ec, source } = await getEmergencyControlsFresh();
-    if (source === "fallback_unreachable") {
-      log.warn("kill-switch state unverifiable (storage unreachable) — existing gates govern");
+  const blockedPlatforms = await killSwitchBlockedPlatforms(input.platforms, {
+    isStory: input.isStory,
+    hasVideo: !!input.videoUrl,
+  });
+  if (blockedPlatforms.length) {
+    for (const p of blockedPlatforms) {
+      results.push({ platform: p, success: false, error: KILL_SWITCH_ERROR });
     }
-    const blockedPlatforms = input.platforms.filter(
-      (p) => ec.globalKillSwitch || ec.publishingKillSwitch || ec.platformKillSwitches[p],
-    );
-    if (blockedPlatforms.length) {
-      const { recordAuditEvent } = await import("./autonomyControl");
-      await recordAuditEvent({
-        actionType: "publish",
-        decision: "DENY",
-        reasoningCodes: [
-          ec.globalKillSwitch ? "GLOBAL_KILL_SWITCH" : ec.publishingKillSwitch ? "PUBLISHING_KILL_SWITCH" : "PLATFORM_KILL_SWITCH",
-          ...blockedPlatforms.map((p) => `platform:${p}`),
-        ],
-        policyVersion: 0,
-        context: { platforms: input.platforms, isStory: input.isStory, hasVideo: !!input.videoUrl },
-      });
-      for (const p of blockedPlatforms) {
-        results.push({ platform: p, success: false, error: "Publishing is paused by the autonomy kill switch." });
-      }
-      const remaining = input.platforms.filter((p) => !blockedPlatforms.includes(p));
-      if (remaining.length === 0) return { results };
-      input = { ...input, platforms: remaining };
-    }
-  } catch (err) {
-    // The switch check itself must never make publishing MORE dangerous:
-    // on infra failure the existing gates below still govern.
-    log.warn("kill-switch check unavailable — existing gates govern", { err: err instanceof Error ? err.message : String(err) });
+    const remaining = input.platforms.filter((p) => !blockedPlatforms.includes(p));
+    if (remaining.length === 0) return { results };
+    input = { ...input, platforms: remaining };
   }
 
   // Content governor at the publish door: daily caps + spacing hold against
@@ -127,6 +201,7 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
     const fbRes = await postToFacebook({
       message: input.caption,
       imageUrl: input.imageUrl ?? input.imageUrls?.[0],
+      link: input.link,
     });
     results.push({ platform: "facebook", ...fbRes });
   }

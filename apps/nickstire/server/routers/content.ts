@@ -1274,12 +1274,16 @@ export const contentAdminRouter = router({
   }),
   publishCarousel: adminProcedure
     .input(z.object({
-      imageUrls: z.array(z.string()),
+      // Meta's own carousel bound, which postInstagramCarousel already enforces
+      // at the Graph call ("Carousel needs 2-10 images"). Stating it at the
+      // boundary turns a round-trip failure into a validation error, and makes
+      // the publishToSocial routing below unambiguous (>=2 images = carousel).
+      imageUrls: z.array(z.string()).min(2).max(10),
       caption: z.string(),
     }))
     .mutation(async ({ input }) => {
       try {
-        const { getMetaSocialStatus, postInstagramCarousel } = await import("../services/metaSocial");
+        const { getMetaSocialStatus } = await import("../services/metaSocial");
         const status = await getMetaSocialStatus();
         if (!status.configured || !status.instagramReady) {
           const { sendTelegram } = await import("../services/telegram");
@@ -1296,7 +1300,13 @@ export const contentAdminRouter = router({
             `🔢 <b>Slide Count:</b> ${slideCount} panels`,
             `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
             `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
-            `💡 <i>To publish this live, flip the <code>legacy_autopost_live</code> feature flag ON and configure Meta API credentials.</i>`,
+            // This used to say "flip the legacy_autopost_live feature flag ON
+            // and configure Meta API credentials". This procedure never reads
+            // that flag — credentials alone decide sandbox vs live — so the
+            // note pointed the operator at a switch that does nothing here and
+            // implied a second condition guarding the live path. There wasn't
+            // one. Now there is: publishToSocial's kill switch.
+            `💡 <i>Sandbox because Meta API credentials are not configured. Once they are, this posts LIVE — subject to the publishing kill switch and content governor.</i>`,
             `────────────────────────────────`,
             `📖 <b>CAPTION BODY:</b>`,
             `"${cleanCaption}"`,
@@ -1312,12 +1322,52 @@ export const contentAdminRouter = router({
           await sendTelegram(msg);
           return { success: true, postId: mockPostId, isSandbox: true };
         }
-        const res = await postInstagramCarousel({
-          imageUrls: input.imageUrls,
+        // LIVE branch. This used to call postInstagramCarousel DIRECTLY, which
+        // walked straight past every gate the shared publish door enforces:
+        //   1. the autonomy kill switches (global / publishing / instagram)
+        //      plus the DENY audit record,
+        //   2. the content governor (daily caps + spacing against actually
+        //      published inventory),
+        //   3. claim-safety on the caption.
+        // Eight publish call sites gate on captionClaimBlockers; this was the
+        // one that did not. The control is three procedures below: publishReel
+        // had the identical shape and was routed through publishToSocial for
+        // exactly these reasons.
+        const { captionClaimBlockers, assertPermanentPublicMediaUrl, publishToSocial } =
+          await import("../services/socialPublish");
+        const blockers = captionClaimBlockers(input.caption);
+        if (blockers.length) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Caption blocked by claim-safety: ${blockers.map((b) => b.rule).join(", ")}`,
+          });
+        }
+        // A presigned URL publishes fine and then 404s when the signature
+        // expires, leaving a live post with dead panels.
+        for (const url of input.imageUrls) assertPermanentPublicMediaUrl(url);
+
+        const { results } = await publishToSocial({
+          platforms: ["instagram"],
           caption: input.caption,
+          imageUrls: input.imageUrls,
         });
-        return { success: res.success, postId: res.postId, error: res.error, isSandbox: false };
+        const ig = results.find((r) => r.platform === "instagram");
+        // `ambiguous` means media_publish LEFT and no answer came back — the
+        // carousel MAY be live. Reporting that as a plain failure invites a
+        // retry, and the retry duplicates a live post. postInstagramCarousel
+        // has always been able to return this; the old code dropped the flag.
+        if (ig?.ambiguous) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "The publish call timed out AFTER it was sent — the carousel MAY BE LIVE. Check the Instagram account before retrying; retrying now can duplicate it.",
+          });
+        }
+        return { success: !!ig?.success, postId: ig?.postId, error: ig?.error, isSandbox: false };
       } catch (err) {
+        // A deliberate refusal must not be relabelled a server fault. Without
+        // this, the claim-safety BAD_REQUEST above surfaces as a 500 and reads
+        // as "Meta is down, retry" instead of "this caption is not publishable".
+        if (err instanceof TRPCError) throw err;
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Carousel publishing failed" });
       }
     }),
@@ -1343,7 +1393,10 @@ export const contentAdminRouter = router({
             `📱 <b>Placement:</b> Instagram Reels Feed`,
             `📝 <b>Caption Length:</b> ${charCount} chars (${hashtags.length} hashtags)`,
             `🛡️ <b>Status:</b> SIMULATED / SANDBOX MODE`,
-            `💡 <i>To publish this live, flip the <code>legacy_autopost_live</code> feature flag ON and configure Meta API credentials.</i>`,
+            // Also named legacy_autopost_live, which this procedure does not
+            // read either. The reel live path is gated on two REAL switches;
+            // name those instead so the operator can find them.
+            `💡 <i>Sandbox because Meta API credentials are not configured. The live path additionally requires REEL_LEGACY_PUBLISH_ENABLED=true and REEL_PUBLISH_ENABLED=true.</i>`,
             `────────────────────────────────`,
             `📖 <b>CAPTION BODY:</b>`,
             `"${cleanCaption}"`,
@@ -1383,6 +1436,9 @@ export const contentAdminRouter = router({
         const ig = results.find((r) => r.platform === "instagram");
         return { success: !!ig?.success, postId: ig?.postId, error: ig?.error, isSandbox: false };
       } catch (err) {
+        // Same wart as publishCarousel: this swallowed the FORBIDDEN raised by
+        // the legacy-publisher gate below and re-reported it as a 500.
+        if (err instanceof TRPCError) throw err;
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Reel publishing failed" });
       }
     }),
