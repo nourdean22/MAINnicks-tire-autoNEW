@@ -117,7 +117,9 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       // brake-failure rule already guards against.
       // "steering WHEEL is loose" is the ordinary phrasing — the noun the
       // customer touches, not the system. Optional so both forms match.
-      /\bsteering(\s+wheel)?\s+(is\s+|feels\s+|has\s+(gone|got)\s+)?(loose|sloppy|unresponsive|not\s+responding)\b/i,
+      // "has gone/got" was admitted but the bare past tense was not, so
+      // "steering GOT loose" and "steering IS GETTING loose" both missed.
+      /\bsteering(\s+wheel)?\s+(is\s+|was\s+|feels\s+|felt\s+|got\s+|gets\s+|went\s+|is\s+getting\s+|keeps\s+getting\s+|has\s+(gone|got|gotten)\s+)?(loose|sloppy|unresponsive|not\s+responding)\b/i,
     ],
   },
   {
@@ -148,7 +150,11 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       /\boil\s+pressure\s+(is\s+)?(low|dropping|gone|at\s+zero)\b/i,
       /\blow\s+oil\s+light\b/i,
       /\boil\s+(can|lamp)\s+light\b/i,
-      /\boil\s+light\s+(is\s+)?(on|came\s+on|flashing)\b/i,
+      // Same auxiliary gap as the flashing-MIL rule: only "is" was admitted, so
+      // "oil light STARTED flashing" / "KEEPS flashing" fell through to the
+      // generic dashboard_light template — a warning about imminent engine
+      // destruction answered as a routine dash-light question.
+      /\boil\s+light\s+(is\s+|was\s+|started\s+|starts\s+|keeps\s+|kept\s+|came\s+on\s+and\s+)?(on|came\s+on|flashing|blinking|flashes|blinks)\b/i,
     ],
   },
   {
@@ -159,7 +165,11 @@ const RED_FLAG_RULES: RedFlagRule[] = [
     patterns: [
       /\boverheat(s|ed|ing)?\b/i,
       /\btemp(erature)?\s+(gauge|needle)\s+.{0,20}\b(red|max|top|all\s+the\s+way\s+up|pegged)\b/i,
-      /\bsteam\s+(coming|pouring|rolling|from|out)\b/i,
+      // 2026-07-27 · the copula slot the line THREE BELOW already documents
+      // ("The copula is optional") was never added here. "steam IS pouring out
+      // of the hood" is the natural sentence and this pattern could not reach
+      // it. The fix and its reasoning were sitting three lines away.
+      /\bsteam\s+(is\s+|was\s+|started\s+|keeps\s+)?(coming|pouring|rolling|billowing|from|out)\b/i,
       // The copula is optional — "coolant IS pouring out" is the natural
       // sentence and the adjacent-only form could not reach it.
       /\bcoolant\s+(is\s+|was\s+)?(boiling|spraying|pouring|gushing|dumping)\b/i,
@@ -176,7 +186,12 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       /\bflames?\b/i,
       /\bsmoke\s+(is\s+)?(coming|pouring|billowing|rolling)\b/i,
       /\bsmok(e|ing)\s+(from|out\s+of|under)\s+(the\s+)?(hood|engine|dash|dashboard|wheel|car)\b/i,
-      /\b(hood|engine|dash|dashboard)\s+(is\s+)?smoking\b/i,
+      // ONE WORD LIST, TWO LINES APART, OUT OF SYNC. The line above accepts
+      // hood|engine|dash|dashboard|wheel|car; this one dropped wheel and car,
+      // so "my car is smoking" and "the wheel is smoking" raised no flag at all
+      // on /diagnose. A smoking wheel is a seized brake or a failed bearing —
+      // the two things most likely to end in a fire.
+      /\b(hood|engine|dash|dashboard|wheel|tire|car|truck|van)\s+(is\s+|was\s+|started\s+)?smoking\b/i,
       /\bburning\s+(plastic|electrical|wire|wiring|rubber\s+smell\s+with\s+smoke)\b/i,
     ],
   },
@@ -231,7 +246,10 @@ const RED_FLAG_RULES: RedFlagRule[] = [
     patterns: [
       /\b(lose|lost|losing|loses)\s+control\b/i,
       /\bdeath\s+wobble\b/i,
+      // The adverb had to PRECEDE the verb, but English puts it after just as
+      // often: "the car shakes violently" missed while "violently shaking" hit.
       /\bviolent(ly)?\s+.{0,12}\b(shak\w*|vibrat\w*|wobbl\w*)\b/i,
+      /\b(shak\w*|vibrat\w*|wobbl\w*)\s+.{0,12}\bviolent(ly)?\b/i,
       /\b(wheel|tire|tyre)\s+(is\s+)?(coming|came|fell)\s+off\b/i,
       /\blug\s+nuts?\s+.{0,12}\b(loose|missing|fell)\b/i,
       /\b(pulls|jerks|veers|darts)\s+.{0,20}\binto\s+(traffic|oncoming|the\s+other\s+lane)\b/i,
