@@ -56,10 +56,23 @@ export const shareCardsRouter = router({
 
         const shareUrl = `${SITE_URL}/share/${token}`;
 
+        // `result` is drizzle-mysql2's [ResultSetHeader, FieldPacket[]] tuple.
+        // Reading .insertId off the ARRAY returned undefined, so every created
+        // card reported `id: undefined`. The ~20 call sites in server/db.ts get
+        // this right with `result[0].insertId`; this one did not.
+        const { insertedId } = await import("../lib/dbResult");
+        const id = insertedId(result);
+        if (id === null) {
+          // The row was written — the insert did not throw — so this is a
+          // driver/reporting problem, not a failed create. Say so and return
+          // the token, which is what the share URL actually depends on.
+          log.warn("[ShareCards] insert reported no insertId", { token });
+        }
+
         return {
           token,
           shareUrl,
-          id: (result as any).insertId,
+          id,
         };
       } catch (err) {
         if (err instanceof TRPCError) throw err;
@@ -119,12 +132,26 @@ export const shareCardsRouter = router({
           .set({ shares: sql`COALESCE(${shareCards.shares}, 0) + 1` })
           .where(eq(shareCards.token, input.token));
 
-        // Drizzle's MySQL driver returns affectedRows on the result
-        const affected = (result as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
-          ?? (result as unknown as { rowsAffected?: number })?.rowsAffected
-          ?? 0;
+        // THIS GUARD FIRED ON EVERY CALL.
+        //
+        // `result` is drizzle-mysql2's [ResultSetHeader, FieldPacket[]] tuple,
+        // so `.affectedRows` read off the ARRAY was undefined, the `?? 0`
+        // turned that into zero, and zero meant "not found" — so trackShare
+        // threw for every token, including valid ones. A check written to
+        // detect a missing row instead guaranteed failure.
+        //
+        // The `as unknown as` casts are why tsc never objected: they told the
+        // compiler to stop looking at exactly the place the shape was wrong.
+        const { affectedRows } = await import("../lib/dbResult");
+        const affected = affectedRows(result);
+        if (affected === null) {
+          // The driver reported NOTHING. That is not evidence of a missing
+          // card, and treating it as such is the original bug in a new coat.
+          log.warn("[ShareCards] update reported no row count; treating as success", { token: input.token });
+          return { success: true };
+        }
         if (affected === 0) {
-          throw new Error("Share card not found");
+          throw new TRPCError({ code: "NOT_FOUND", message: "Share card not found" });
         }
 
         return { success: true };
