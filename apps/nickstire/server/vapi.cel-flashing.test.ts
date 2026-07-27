@@ -67,3 +67,54 @@ describe("voice · flashing vs solid check-engine light", () => {
     expect(hits.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * The second half of the same gap.
+ *
+ * SMS's `price_brakes` playbook asks "Is it squeaking, grinding or shaking?" and
+ * states the reason plainly: "Squeaking is often still just the pads; grinding
+ * can mean the rotor is involved."
+ *
+ * Voice answered EVERY brake call with the grind line — "metal-on-metal soon —
+ * that gets expensive fast" — including callers who described a squeak. That is
+ * overstated urgency on a symptom the shop's own SMS copy says is usually the
+ * cheap case, and manufactured urgency is explicitly out of bounds.
+ *
+ * Between them, "solid or flashing" and "squeak / grind / shake" are SMS's
+ * ENTIRE discriminating-question set. Voice had neither.
+ */
+function brakeSection(): string {
+  const i = ASSISTANT_SYSTEM_PROMPT.indexOf("- Brakes");
+  expect(i, "brake guidance missing from the prompt entirely").toBeGreaterThan(-1);
+  return ASSISTANT_SYSTEM_PROMPT.slice(i, i + 500);
+}
+
+describe("voice · squeak vs grind vs shake", () => {
+  it("asks the discriminating question, the same one SMS asks", () => {
+    expect(brakeSection()).toMatch(/squeaking, grinding or shaking/i);
+  });
+
+  it("separates the three symptoms instead of one blanket answer", () => {
+    const s = brakeSection();
+    expect(s).toMatch(/SQUEAK/);
+    expect(s).toMatch(/GRIND/);
+    expect(s).toMatch(/SHAKE/);
+  });
+
+  it("does NOT give the metal-on-metal line to a squeak", () => {
+    const s = brakeSection();
+    const squeak = s.slice(s.indexOf("SQUEAK"), s.indexOf("GRIND"));
+    expect(squeak).not.toMatch(/metal-on-metal/i);
+    expect(squeak).toMatch(/just the pads/i);
+  });
+
+  it("keeps metal-on-metal for the symptom that earns it", () => {
+    const s = brakeSection();
+    expect(s.slice(s.indexOf("GRIND"))).toMatch(/metal-on-metal/i);
+  });
+
+  it("hedges the shake explanation rather than diagnosing it remotely", () => {
+    // Mirrors SMS's own hedge ("can mean the rotor is involved").
+    expect(brakeSection()).toMatch(/can be the rotors/i);
+  });
+});

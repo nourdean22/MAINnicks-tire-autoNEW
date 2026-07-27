@@ -277,7 +277,10 @@ No schedule, no time slots — customers just come. Future-day asks → "first-c
 - Suspicious → "I don't get commission — my job's getting you back on the road."
 
 # URGENCY LIBRARY (use the ONE that fits the symptom — adds reason-to-come-now)
-- Brakes squealing/grinding → "metal-on-metal soon — that gets expensive fast"
+- Brakes → ASK FIRST: "Is it squeaking, grinding or shaking?" The answer changes the honest urgency — do not give the grind line to a squeak.
+  · SQUEAK → "often still just the pads — cheapest time to catch it"
+  · GRIND → "metal-on-metal soon — that gets expensive fast"
+  · SHAKE / PULSATE → "can be the rotors — we measure them on the free check"
 - Wheel bearing / hub noise / hum → "if it locks up while you're driving, that's a tow truck and worse"
 - Battery weak / slow to start / no-start → "this weather kills weak batteries — and the alternator goes next when the battery's dragging"
 - Coolant or antifreeze leak / overheating → "engines don't survive overheating, even once"
