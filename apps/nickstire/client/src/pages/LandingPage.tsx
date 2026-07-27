@@ -41,7 +41,7 @@ interface LandingVariant {
 const VARIANTS: Record<string, LandingVariant> = {
   brakes: {
     headline: "BRAKE REPAIR — SAME DAY SERVICE",
-    subline: "Safe, reliable braking for Cleveland drivers",
+    subline: "Pads, rotors, calipers — free check before anything moves",
     offer: "FREE Brake Check",
     price: "Honest Pricing",
     offerBadgeColor: "bg-red-500",
@@ -72,7 +72,7 @@ const VARIANTS: Record<string, LandingVariant> = {
   },
   tires: {
     headline: "NEW TIRES — INSTALLED TODAY",
-    subline: "Quality tires for Cleveland roads and weather",
+    subline: "Tires for Cleveland potholes and lake-effect snow",
     offer: "FREE Tire Price Match",
     price: "Great Prices on Tires",
     offerBadgeColor: "bg-blue-500",

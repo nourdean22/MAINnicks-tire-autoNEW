@@ -24,7 +24,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/ac-repair", label: "AC & Heating Repair", desc: "AC check, recharge, compressor repair" },
   { href: "/transmission", label: "Transmission Repair", desc: "Shifting problems, fluid service, scan-tool checks" },
   { href: "/electrical", label: "Electrical Repair", desc: "Wiring, sensors, modules — we tell you what's wrong" },
-  { href: "/battery", label: "Battery Service", desc: "Free testing, quality replacement with warranty" },
+  { href: "/battery", label: "Battery Service", desc: "Free testing — battery or alternator, we tell you which" },
   { href: "/alignment", label: "Wheel Alignment Cleveland", desc: "Precision wheel alignment — fix pulling and uneven tire wear" },
   { href: "/exhaust", label: "Muffler Shop Near Me", desc: "Muffler, catalytic converter, exhaust repair" },
   { href: "/cooling", label: "Cooling System", desc: "Radiator, thermostat, water pump service" },
@@ -58,7 +58,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/lakewood-auto-repair", label: "Lakewood Auto Repair", desc: "Lakewood drivers — 15-min drive on I-90" },
   { href: "/parma-auto-repair", label: "Parma Auto Repair", desc: "Serving Parma with honest auto repair" },
   { href: "/shaker-heights-auto-repair", label: "Shaker Heights Auto Repair", desc: "Shaker Heights drivers — open 7 days, walk-ins welcome" },
-  { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights Repair", desc: "Trusted by Cleveland Heights drivers" },
+  { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights Repair", desc: "Cleveland Heights — brakes, tires, diagnostics, 7 days" },
   { href: "/mentor-auto-repair", label: "Mentor Auto Repair", desc: "Mentor's go-to for tires and repair" },
   // wave-181.11 · added 4 new keyword-led SERP-fix pages so the
   // InternalLinks component (used on /alignment, /financing, every

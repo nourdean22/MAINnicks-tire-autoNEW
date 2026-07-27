@@ -36,21 +36,27 @@ Nick's Tire & Auto is the **Cleveland walk-in tire-and-repair shop where you don
 
 ## 3. The Kill List (NEVER use these — they sound fake)
 
-Source: VAPI prompt lines 142-148.
+**The list lives in code: [`shared/voice.ts`](../shared/voice.ts) — the Voice Kernel.**
 
-- ❌ "trusted" / "expert" / "quality" *(as adjective labels)*
-- ❌ "rest assured" / "hassle-free" / "state-of-the-art"
-- ❌ "comprehensive" / "premium" / "top-notch"
-- ❌ "Per your inquiry" / "How may I assist"
-- ❌ Generic "have a great day" *(be specific instead: "drive safe")*
+This section used to hold its own bullet list, and `docs/brand/VOICE.md` held a
+different one. Both called themselves canonical and they disagreed on 17 of the
+24 union entries — which is how "reliable" reached the public site while
+"comprehensive" was blocked in copy but never mentioned to the IG generator.
 
-**Add (from this session's audit, wave-181.43):**
-- ❌ "inspection" *(say "check")*
-- ❌ "diagnostic" *(say "we'll tell you what's wrong")*
-- ❌ "approval" *(say "until you say yes")*
-- ❌ "no surprises" *(passive — say "we tell you the cost before we touch anything")*
+Every entry from this section survives in the kernel with its provenance
+recorded (`sources: ["brand-voice-guidelines.md", ...]`), including the four
+wave-181.43 audit additions. Two of them were deliberately narrowed when they
+moved, and the narrowing is recorded on the rule:
 
-**Confidence:** HIGH on the original 5 (in production prompt). MEDIUM on the 4 audit additions (logged from today's transcripts but not yet enforced in prompt).
+- bare "inspection" -> `bot.free-inspection` ("free inspection"), because Ohio
+  safety-inspection language is legitimate elsewhere on the site.
+- bare "diagnostic" -> `bot.diagnostic-fee` ("diagnostic fee"), because the shop
+  runs a real `/diagnostics` route and diagnostic service pages.
+- bare "approval" -> `bot.without-your-approval`.
+
+To read the rules: open `shared/voice.ts`, or run `pnpm run lint:brand-voice --audit`.
+To change one: edit `shared/voice.ts`. Re-adding a word list here fails
+`voiceKernelParity.test.ts`.
 
 ---
 

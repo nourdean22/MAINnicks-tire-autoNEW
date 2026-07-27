@@ -45,6 +45,33 @@ const BOT_PATTERNS = [
   "google-inspectiontool",
   "google-structured-data-testing-tool",
   "mediapartners-google",
+
+  // ─── Answer-engine crawlers ────────────────────────────────────────────
+  // The list above was built for search engines. `gptbot` is OpenAI's MODEL
+  // TRAINING crawler — it is not what answers a question. The agents that
+  // actually produce a customer-facing answer about this shop are separate
+  // user agents, and none of them were here, so nickstire.org served them the
+  // empty SPA shell: visible to the crawler that only trains a model, invisible
+  // to the ones that cite a business when someone asks who to call.
+  //
+  // Cheapest possible change with the largest asymmetry — the prerendered HTML,
+  // the semantic-parity guard and the bot-serving path already exist. This is
+  // the organ, repointed.
+  //
+  // Verify against the vendor docs before editing; these are the published UA
+  // tokens, matched case-insensitively as substrings:
+  "oai-searchbot", // OpenAI — indexes for ChatGPT Search results
+  "chatgpt-user", // OpenAI — live fetch when a user asks about a page
+  "perplexitybot", // Perplexity — index
+  "perplexity-user", // Perplexity — live fetch on a user question
+  "claude-user", // Anthropic — live fetch on a user question
+  "claude-searchbot", // Anthropic — search indexing
+  "google-extended", // Google — Gemini / AI Overviews grounding
+  "meta-externalagent", // Meta AI
+  "amazonbot", // Amazon / Alexa
+  "youbot", // You.com
+  "cohere-ai", // Cohere
+  "duckassistbot", // DuckDuckGo AI answers
 ];
 
 function isBot(userAgent: string): boolean {
