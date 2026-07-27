@@ -19,10 +19,41 @@ describe("the documented misroutes are dead", () => {
     expect(d.catalogEvent).toBeNull();
   });
 
-  it("'My oil light came on' is a dashboard light, NOT an oil-change price", () => {
+  /**
+   * 2026-07-27 · DELIBERATELY CHANGED. This previously asserted
+   * `dashboard_light`. It now asserts tier-0 safety, and the reason matters.
+   *
+   * The original point of this case still stands and is preserved: an oil light
+   * must never be answered with an oil-CHANGE price. But `dashboard_light` was
+   * not a triage intent in practice — its playbook has
+   * `requiredQuestion: () => null`, `missingInformation: () => []`, and
+   * `nextStep: "Bring the car by for the free check."` It asked nothing and
+   * invited the customer to DRIVE.
+   *
+   * `diagnose-safety.ts` classifies an oil-pressure light as a red flag whose
+   * guidance is: "Shut the engine off now. Driving with no oil pressure destroys
+   * the engine in minutes — this is a tow, not a drive." The website has said
+   * that all along; SMS said "bring the car by."
+   *
+   * "Oil light" is genuinely ambiguous — pressure (red, critical) vs. change
+   * reminder (yellow, routine). That ambiguity is an argument FOR the new route,
+   * not against it: safety_urgent is `human_only`, so a person asks which light
+   * it is. The costs are not symmetrical — a needless handoff costs minutes, a
+   * missed oil-pressure light costs an engine.
+   */
+  it("'My oil light came on' escalates to safety, and is still NOT an oil-change price", () => {
     const d = routeInboundSms("My oil light came on", noCtx);
+    expect(d.primary).toBe("safety_urgent");
+    expect(d.risk).toBe("human_only");
+    // The original invariant, still held: never answered with a price template.
+    expect(d.catalogEvent).toBeNull();
+  });
+
+  it("a NON-hazard dashboard light still routes to dashboard_light triage", () => {
+    // Guards against the safety union swallowing the whole dashboard_light
+    // intent — only the hazards in diagnose-safety.ts may escalate.
+    const d = routeInboundSms("my tire pressure light is on again", noCtx);
     expect(d.primary).toBe("dashboard_light");
-    expect(d.catalogEvent).toBe("price_question_diagnostic");
   });
 
   it("'Tire pressure light keeps coming back' is triage, NOT tire pricing", () => {

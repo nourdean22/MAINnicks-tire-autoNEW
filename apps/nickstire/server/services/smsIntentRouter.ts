@@ -30,6 +30,10 @@
 // re-implemented because a second commitment regex would inevitably drift from
 // the one that decides whether an expected_arrival row gets written.
 import { detectArrivalIntent } from "./expectedArrivals";
+// The website's do-not-drive authority. Pure + synchronous (its own docblock:
+// "runs before the AI call so a model outage can never suppress a safety
+// warning"), so importing it keeps this router PURE as its contract requires.
+import { detectRedFlags } from "../diagnose-safety";
 
 export type SmsIntent =
   | "safety_urgent"
@@ -92,8 +96,23 @@ const RULES: Rule[] = [
     priority: 0,
     risk: "human_only",
     catalogEvent: null,
+    // UNION of two sources, deliberately — coverage can only increase.
+    //
+    // The local pattern below catches situational emergencies the website's
+    // symptom rules do not model ("stranded", "broke down", "accident").
+    // `detectRedFlags` is the website's do-not-drive authority and catches the
+    // MECHANICAL hazards this pattern missed: `overheat` followed by \b cannot
+    // match "overheated" or "overheats", `steam`+\b cannot match "steaming",
+    // and "coolant", "radiator", "running hot" and "temp gauge pegged" appear
+    // nowhere in it. Same \b-after-truncated-stem trap that has now bitten this
+    // repo four separate times.
+    //
+    // Neither source is authoritative alone. Either one firing is enough for
+    // tier 0, because the cost of a missed safety route is not symmetrical with
+    // the cost of an unnecessary human handoff.
     test: (b) =>
-      /\b(overheat|overheating|smoke|smoking|steam|on fire|stranded|broke down|breaking down|accident|crash|blew out|blowout|brakes? (went|failed|aren'?t working|not working)|can'?t stop|unsafe to drive)\b/i.test(b),
+      /\b(overheat|overheating|smoke|smoking|steam|on fire|stranded|broke down|breaking down|accident|crash|blew out|blowout|brakes? (went|failed|aren'?t working|not working)|can'?t stop|unsafe to drive)\b/i.test(b)
+      || detectRedFlags(b).length > 0,
   },
 
   // ─── Tier 1: complaint / comeback — never answer with a price menu ──
