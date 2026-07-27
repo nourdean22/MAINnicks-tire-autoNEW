@@ -51,6 +51,28 @@ const TOP_QUERIES_LIMIT = 30;
 const WARNING_SHIFT = 5;
 const ALERT_SHIFT = 10;
 
+/**
+ * `search_performance.position` is an INT holding position × 100 — GSC reports
+ * fractional average positions and the column cannot store them. Verified in
+ * prod: min 100 (= 1.0), avg 2197 (= 21.97), max 14600 (= 146.0).
+ *
+ * Every threshold in this file was written in REAL positions and compared
+ * against RAW ones, which broke the classifier in both directions at once:
+ *
+ *   · `priorPos <= 10` (the top-10 gate on `warning`) needed a raw value of 10,
+ *     i.e. real position 0.1 — impossible. Zero rows in the table satisfy it,
+ *     while 11,326 rows ARE at real positions 1-10. The warning branch could
+ *     never fire.
+ *   · `shift >= ALERT_SHIFT` (10 raw) is a real drop of 0.1 positions, so the
+ *     ALERT branch fired on ordinary daily noise.
+ *   · the digest printed raw units — the operator was shown "position 3500"
+ *     where the truth was 35.
+ *
+ * Converting once at read time fixes the gate, both thresholds, and the digest
+ * together, because they all derive from these two numbers.
+ */
+const POSITION_SCALE = 100;
+
 export async function processSeoForensic(): Promise<ProcessResult> {
   const start = Date.now();
   log.info("[seo-forensic] start");
@@ -97,9 +119,12 @@ export async function processSeoForensic(): Promise<ProcessResult> {
           AND date >= DATE_SUB(NOW(), INTERVAL ${RECENT_DAYS + PRIOR_DAYS} DAY)
       `);
       const posRows = (Array.isArray(positions) && Array.isArray(positions[0]) ? positions[0] : positions) as Array<{ recent_pos: number | null; prior_pos: number | null }>;
-      const recentPos = posRows[0]?.recent_pos;
-      const priorPos = posRows[0]?.prior_pos;
-      if (!recentPos || !priorPos) continue;
+      // Raw (×100) → real positions, ONCE, before anything compares them.
+      const recentRaw = posRows[0]?.recent_pos;
+      const priorRaw = posRows[0]?.prior_pos;
+      if (!recentRaw || !priorRaw) continue;
+      const recentPos = recentRaw / POSITION_SCALE;
+      const priorPos = priorRaw / POSITION_SCALE;
 
       const shift = recentPos - priorPos; // positive = worsened (higher number = lower rank)
       const absShift = Math.abs(shift);
