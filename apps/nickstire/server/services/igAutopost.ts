@@ -1513,9 +1513,13 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     // Zero behaviour change while no switch is thrown (all four were false in
     // the live policy when this was written).
     const { killSwitchBlockedPlatforms, KILL_SWITCH_ERROR } = await import("./socialPublish");
-    const blocked = await killSwitchBlockedPlatforms(["instagram", "facebook"], {
-      caller: "igAutopost", slot, archetype: post.archetype,
-    });
+    // "automated" = fail CLOSED when the switch state cannot be read. Nobody
+    // is watching this run, so "we could not check" must not mean "publish".
+    const blocked = await killSwitchBlockedPlatforms(
+      ["instagram", "facebook"],
+      { caller: "igAutopost", slot, archetype: post.archetype },
+      "automated",
+    );
     const igBlocked = blocked.includes("instagram");
     const fbBlocked = blocked.includes("facebook");
 

@@ -81,12 +81,43 @@ export const KILL_SWITCH_ERROR = "Publishing is paused by the autonomy kill swit
 export async function killSwitchBlockedPlatforms(
   platforms: ("facebook" | "instagram")[],
   context: Record<string, unknown> = {},
+  actor: "operator" | "automated" = "operator",
 ): Promise<("facebook" | "instagram")[]> {
+  /**
+   * Unknowable switch state. An operator's emergency stop may be sitting in
+   * storage right now, invisible to this read.
+   *
+   * A human publishing by hand can see the situation and decide — so they
+   * proceed loud. An unattended cron cannot, so it STOPS. This mirrors the
+   * rule autonomyControl already applies at its own boundary: "Automated
+   * actors fail CLOSED; operators proceed loud."
+   */
+  const unknowable = (): ("facebook" | "instagram")[] => {
+    log.warn("kill-switch state unverifiable (storage unreachable)", { actor });
+    return actor === "automated" ? [...platforms] : [];
+  };
+
   try {
     const { getEmergencyControlsFresh, recordAuditEvent } = await import("./autonomyControl");
     const { controls: ec, source } = await getEmergencyControlsFresh();
+    if (source === "fallback_unreachable" && actor === "automated") {
+      const stopped = unknowable();
+      // Audited, but a failing audit must not flip the decision back to open.
+      try {
+        await recordAuditEvent({
+          actionType: "publish",
+          decision: "DENY",
+          reasoningCodes: ["KILL_SWITCH_STATE_UNKNOWN", ...stopped.map((p) => `platform:${p}`)],
+          policyVersion: 0,
+          context: { platforms, ...context },
+        });
+      } catch (err) {
+        log.warn("could not audit the fail-closed stop", { err: err instanceof Error ? err.message : String(err) });
+      }
+      return stopped;
+    }
     if (source === "fallback_unreachable") {
-      log.warn("kill-switch state unverifiable (storage unreachable) — existing gates govern");
+      log.warn("kill-switch state unverifiable (storage unreachable) — operator proceeds, other gates govern");
     }
     const blocked = platforms.filter(
       (p) => ec.globalKillSwitch || ec.publishingKillSwitch || ec.platformKillSwitches[p],
@@ -109,12 +140,13 @@ export async function killSwitchBlockedPlatforms(
     }
     return blocked;
   } catch (err) {
-    // The switch check itself must never make publishing MORE dangerous:
-    // on infra failure the caller's existing gates still govern.
-    log.warn("kill-switch check unavailable — existing gates govern", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return [];
+    // Same rule as an unreadable policy row: the state is unknown, so an
+    // unattended cron stops and a human proceeds. For the operator this keeps
+    // the original promise that the switch check never makes publishing MORE
+    // fragile than it was; for the cron, "we could not check" is not a reason
+    // to publish.
+    log.warn("kill-switch check unavailable", { err: err instanceof Error ? err.message : String(err), actor });
+    return unknowable();
   }
 }
 

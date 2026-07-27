@@ -110,13 +110,66 @@ describe("killSwitchBlockedPlatforms decides correctly", () => {
     expect(codes).not.toContain("GLOBAL_KILL_SWITCH");
   });
 
-  it("FAILS OPEN when the switch state cannot be read", async () => {
-    // Deliberate, and inherited from the original inline code: a storage blip
-    // must not take publishing down. The caller's other gates still govern, and
-    // publishToSocial logs the unverifiable state.
-    throwOnRead = true;
-    await expect(killSwitchBlockedPlatforms(["instagram", "facebook"])).resolves.toEqual([]);
-    expect(recordAuditEvent).not.toHaveBeenCalled();
+  /**
+   * UNKNOWABLE STATE SPLITS BY ACTOR.  (Review catch, P1.)
+   *
+   * The first version of this guard failed OPEN for everyone — inherited from
+   * the inline code it replaced. For a human publishing by hand that is right:
+   * they can see the situation and decide. For an unattended cron it is exactly
+   * backwards, because a storage blip makes the operator's emergency stop
+   * INVISIBLE to the one publisher nobody is watching — which is the precise
+   * failure this whole change exists to prevent.
+   *
+   * autonomyControl already encodes the rule at its own boundary: "Automated
+   * actors fail CLOSED; operators proceed loud."
+   */
+  describe("when the switch state cannot be read", () => {
+    it("the OPERATOR proceeds — a storage blip must not take manual publishing down", async () => {
+      throwOnRead = true;
+      await expect(killSwitchBlockedPlatforms(["instagram", "facebook"], {}, "operator")).resolves.toEqual([]);
+    });
+
+    it("defaults to operator behaviour, so publishToSocial's callers are unchanged", async () => {
+      throwOnRead = true;
+      await expect(killSwitchBlockedPlatforms(["instagram", "facebook"])).resolves.toEqual([]);
+    });
+
+    it("the AUTOMATED caller STOPS — 'we could not check' is not a reason to publish", async () => {
+      throwOnRead = true;
+      await expect(killSwitchBlockedPlatforms(["instagram", "facebook"], {}, "automated"))
+        .resolves.toEqual(["instagram", "facebook"]);
+    });
+
+    it("stops the automated caller when storage is merely UNREACHABLE, not throwing", async () => {
+      // getEmergencyControlsFresh answers with defaults and flags the source.
+      // The controls look all-off, which is indistinguishable from a real stop
+      // sitting in storage — so the cron must not trust them.
+      source = "fallback_unreachable";
+      await expect(killSwitchBlockedPlatforms(["instagram"], {}, "automated")).resolves.toEqual(["instagram"]);
+    });
+
+    it("and the operator still proceeds in that same state", async () => {
+      source = "fallback_unreachable";
+      await expect(killSwitchBlockedPlatforms(["instagram"], {}, "operator")).resolves.toEqual([]);
+    });
+
+    it("audits the fail-closed stop with a code that says WHY", async () => {
+      source = "fallback_unreachable";
+      await killSwitchBlockedPlatforms(["instagram"], { caller: "igAutopost" }, "automated");
+      expect(recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+        decision: "DENY",
+        reasoningCodes: expect.arrayContaining(["KILL_SWITCH_STATE_UNKNOWN"]),
+      }));
+    });
+
+    it("a failing audit does NOT flip the stop back open", async () => {
+      // The record is evidence, not the decision. If it were inside the same
+      // try as the verdict, an audit outage would silently resume publishing.
+      source = "fallback_unreachable";
+      recordAuditEvent.mockRejectedValueOnce(new Error("audit sink down") as never);
+      await expect(killSwitchBlockedPlatforms(["instagram", "facebook"], {}, "automated"))
+        .resolves.toEqual(["instagram", "facebook"]);
+    });
   });
 });
 

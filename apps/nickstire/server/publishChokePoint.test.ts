@@ -215,10 +215,21 @@ describe("no new surface can reach Meta around the door", () => {
     .filter((p) => !p.replace(/\\/g, "/").endsWith("services/metaSocial.ts")) // the definitions
     .map((p) => ({ rel: p.replace(/\\/g, "/").slice(ROOT.replace(/\\/g, "/").length).replace(/^\/+/, ""), src: readFileSync(p, "utf8") }));
 
-  /** Bindings pulled from metaSocial — static `import {}` or dynamic `const {} = await import()`. */
+  /**
+   * Bindings pulled from metaSocial — static `import {} from` or dynamic
+   * `const {} = await import()`.
+   *
+   * Review catch (P2). The first version claimed to handle static imports but
+   * never consumed the `from` keyword, so it matched ONLY the dynamic form. It
+   * looked correct and its anti-vacuity check passed, because every existing
+   * caller happens to use `await import()`. A future
+   * `import { postToInstagram } from "./services/metaSocial"` would have walked
+   * straight through the sweep — creating precisely the ungated publish path
+   * this test exists to reject. Both forms are now pinned directly below.
+   */
   function metaSocialImports(src: string): string[] {
     const names: string[] = [];
-    const re = /(?:import|const)\s*\{([^}]*)\}\s*(?:=\s*await\s+import\(\s*)?["'][^"']*metaSocial["']/g;
+    const re = /(?:import|const)\s*\{([^}]*)\}\s*(?:from\s*|=\s*await\s+import\(\s*)?["'][^"']*metaSocial["']/g;
     for (const m of src.matchAll(re)) {
       for (const raw of m[1].split(",")) {
         const n = raw.trim().split(/\s+as\s+/)[0].trim();
@@ -227,6 +238,25 @@ describe("no new surface can reach Meta around the door", () => {
     }
     return names;
   }
+
+  it("the matcher catches BOTH import forms, not just the one in use today", () => {
+    // The dynamic form is the only one any current caller uses, so a matcher
+    // that handles only that form passes every other test in this file while
+    // leaving the static door wide open.
+    expect(metaSocialImports(`const { postToFacebook } = await import("./metaSocial");`))
+      .toEqual(["postToFacebook"]);
+    expect(metaSocialImports(`import { postToInstagram } from "./services/metaSocial";`))
+      .toEqual(["postToInstagram"]);
+    expect(metaSocialImports(`import { postToFacebook, postInstagramReel } from "../services/metaSocial";`))
+      .toEqual(["postToFacebook", "postInstagramReel"]);
+    // Renamed bindings still resolve to the real export.
+    expect(metaSocialImports(`import { postToInstagram as go } from "./metaSocial";`))
+      .toEqual(["postToInstagram"]);
+    // A type-only import cannot publish anything, and must not be a false positive.
+    expect(metaSocialImports(`import type { SomeType } from "./metaSocial";`)).toEqual([]);
+    // Unrelated modules must not be swept in.
+    expect(metaSocialImports(`import { publishToSocial } from "./socialPublish";`)).toEqual([]);
+  });
 
   it("the scan actually sees source (an empty sweep would pass everything)", () => {
     expect(FILES.length).toBeGreaterThan(200);
@@ -265,5 +295,8 @@ describe("no new surface can reach Meta around the door", () => {
     expect(f.src).toMatch(/killSwitchBlockedPlatforms\(\s*\[\s*["']instagram["']\s*,\s*["']facebook["']\s*\]/);
     // and it must actually branch on the answer, not just call it
     expect(f.src).toMatch(/igBlocked\s*&&\s*fbBlocked/);
+    // and it must claim the AUTOMATED actor, which is what makes an unreadable
+    // switch state stop the cron instead of letting it publish blind.
+    expect(f.src).toMatch(/killSwitchBlockedPlatforms\([\s\S]{0,200}["']automated["']/);
   });
 });
