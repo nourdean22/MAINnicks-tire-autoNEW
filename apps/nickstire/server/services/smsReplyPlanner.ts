@@ -166,8 +166,21 @@ const STOP_SELLING_PROHIBITED: ProhibitedClaim[] = [
   CLAIM_PITCH_BENEFITS,
 ];
 
-/** Prohibitions that apply to EVERY planned reply (FCFS honesty + safety). */
-const GLOBAL_PROHIBITED: ProhibitedClaim[] = [CLAIM_APPOINTMENT, CLAIM_SAFE_TO_DRIVE];
+/**
+ * Prohibitions that apply to EVERY planned reply (FCFS honesty + safety).
+ *
+ * EXPORTED because "every PLANNED reply" was narrower than it sounded. The
+ * orchestrator has two outbound paths: a deterministic catalog template
+ * (`matchedCatalogEvent`) which auto-sends, and the planner. Only the second
+ * calls `buildReplyPlan`, so these prohibitions could never fire on a catalog
+ * template — an entire class of outbound text was structurally unreachable by
+ * the guard meant to cover everything.
+ *
+ * Templates are static, so the fix is a static check: a test runs every catalog
+ * variant through this list at build time. Zero runtime cost, and a bad template
+ * fails CI instead of reaching a customer.
+ */
+export const GLOBAL_PROHIBITED: ProhibitedClaim[] = [CLAIM_APPOINTMENT, CLAIM_SAFE_TO_DRIVE];
 
 const FCFS_FACT = "The shop is first come, first served — walk-ins welcome, no appointment needed, 7 days a week.";
 const SHOP_FACT = `${BUSINESS.address.full} · ${BUSINESS.phone.display}.`;
