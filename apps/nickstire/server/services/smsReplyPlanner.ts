@@ -86,6 +86,30 @@ const BRAKE_SYMPTOM_RE = /\b(squeak\w*|squeal\w*|grind\w*|shak\w*|vibrat\w*|puls
 const CEL_STATE_RE = /\b(solid|steady|flash\w*|blink\w*)\b/i;
 
 /**
+ * The customer already said WHERE the car is, so asking again is the
+ * repeat-question failure.
+ *
+ * Added after a self-audit of real customer speech: "I need a tow. It's on a
+ * hundred twenty fifty Kinsman." would have been answered with "Where's the car
+ * right now?" — the exact defect that had just been caught on the check-engine
+ * discriminator. Porting a question between channels without porting its guard
+ * is apparently easy to do twice.
+ *
+ * SCOPE, stated honestly: this reads SMS, where customers type digits — so
+ * `\d{2,5}\s+\w+` covers "12050 Kinsman". It does NOT cover a bare street name
+ * ("on Kinsman") or a spoken-number address, and it is not meant to: adding
+ * `on \w+` without a road suffix would fire on "on sale" and "on Monday".
+ *
+ * The residual failure is therefore asking once for a location the customer
+ * already gave in an unusual form. That is the milder of the two errors — the
+ * operator still sees the thread — but it IS the repeat-question class this
+ * repo keeps rediscovering, so widen this list when a real example appears
+ * rather than guessing at phrasings now.
+ */
+const LOCATION_GIVEN_RE =
+  /\b(at (home|work|my (house|place|job)|the (house|shop|office|hotel|store|mall))|in (my|the) (driveway|garage|lot|parking|yard|street)|parking lot|road ?side|side of the (road|highway|freeway)|on (the )?(highway|freeway|interstate|shoulder|i[- ]?\d+|route|rt|us[- ]?\d+)|\d{2,5}\s+\w+|on \w+ (st|street|ave|avenue|rd|road|blvd|dr|drive|way|ln|lane|pkwy|circle|ct|court))\b/i;
+
+/**
  * The customer raised financing themselves. Broader than the router's financing
  * rule because this only needs to decide whether ANSWERING is allowed, not what
  * the reply is about — a false positive here costs nothing.
@@ -449,8 +473,12 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
       "Once it arrives the shop looks at it and gives the price in writing before any work.",
       FCFS_FACT,
     ],
-    missingInformation: () => ["where the vehicle is right now"],
-    requiredQuestion: () => "Where's the car right now — at home, at work, or on the roadside?",
+    missingInformation: (_ctx, body) =>
+      LOCATION_GIVEN_RE.test(body) ? [] : ["where the vehicle is right now"],
+    // Conditional, exactly like the CEL and brake discriminators. A stranded
+    // customer who just gave an address must not be asked for it again.
+    requiredQuestion: (_ctx, body) =>
+      LOCATION_GIVEN_RE.test(body) ? null : "Where's the car right now — at home, at work, or on the roadside?",
     nextStep: "Get it to the shop; it gets looked at once it lands.",
     // The walk-in invitation is the specific failure this playbook exists to
     // prevent, so it is prohibited rather than merely omitted.

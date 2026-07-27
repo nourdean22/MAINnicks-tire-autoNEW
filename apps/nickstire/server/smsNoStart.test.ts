@@ -107,6 +107,35 @@ describe("the no-start plan cannot invite the customer to drive in", () => {
     expect(p.missingInformation.join(" ")).toMatch(/where the vehicle is/i);
   });
 
+  /**
+   * Caught by a self-audit against REAL customer speech, not by review. A live
+   * caller said: "I need a tow. It's on a hundred twenty fifty Kinsman." The
+   * first version of this playbook would have replied "Where's the car right
+   * now?" — the identical repeat-question defect that had just been fixed on the
+   * check-engine discriminator. Porting a question between channels without
+   * porting its guard is evidently easy to do twice.
+   */
+  it("does NOT re-ask when the customer already gave the location", () => {
+    for (const body of [
+      "I need a tow. It's on 12050 Kinsman",
+      "car won't start, it's at home in my driveway",
+      "won't turn over — I'm at work",
+      "it's dead on the side of the road",
+      "needs a tow, I'm in the parking lot at the mall",
+      "won't start, stuck on Euclid Ave",
+    ]) {
+      const p = plan(body);
+      expect(p.requiredQuestion, `re-asked despite location: "${body}"`).toBeNull();
+      expect(p.missingInformation).toEqual([]);
+    }
+  });
+
+  it("STILL asks when no location is given (the guard is not a blanket off-switch)", () => {
+    for (const body of ["my car won't start", "it just clicks", "battery is dead"]) {
+      expect(plan(body).requiredQuestion, `failed to ask: "${body}"`).toMatch(/where'?s the car/i);
+    }
+  });
+
   it("does not promise a callback", () => {
     expect(planViolations(plan("my car won't start"), "Someone will call you back shortly."))
       .toContain("callback_promise");

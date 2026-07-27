@@ -184,7 +184,12 @@ const RULES: Rule[] = [
     test: (b) =>
       /\b(w(on'?t|ill not|ont)|does\s?n'?t|didn'?t|can'?t|cannot)\s+(start|turn over|crank|fire up|come on)\b/i.test(b) ||
       /\b(no\s?start|won'?t\s?start)\b/i.test(b) ||
-      /\b(car|truck|van|vehicle|it)\s+is\s+dead\b/i.test(b) ||
+      // The CONTRACTION is the common form — "it's dead", not "it is dead".
+      // Requiring `\s+is\s+` missed it entirely; the same literal-form trap as
+      // `bulge` vs "bulging". Caught by a self-audit against real speech, where
+      // a caller said "it's dead on the side of the road". Note the sibling
+      // pattern on the next line already got this right for "battery's dead".
+      /\b(car|truck|van|vehicle|it)('?s|\s+is)\s+dead\b/i.test(b) ||
       /\b(dead battery|battery('?s| is) dead|clicks? (but )?(won'?t|does\s?n'?t) start|just clicks)\b/i.test(b) ||
       /\b(needs?|need) a (jump|tow)\b/i.test(b),
   },
