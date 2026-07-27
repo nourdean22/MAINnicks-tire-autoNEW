@@ -87,3 +87,78 @@ Not "chars went down". Required:
 
 Nothing in this file is a change to the prompt. It is the measurement that
 makes the change verifiable.
+
+---
+
+# Addendum 2026-07-27 — the latency + behaviour halves, measured
+
+The gate above named four numbers and supplied one. Three are now measured, from
+the 100 most recent inbound calls (VAPI `GET /call`, read-only).
+
+## Latency
+
+| | p50 | p90 | p95 |
+|---|---|---|---|
+| Time to first assistant audio (n=100) | 0.40s | 0.45s | 0.65s |
+| User turn → assistant reply (n=248) | 0.90s | 2.29s | 3.58s |
+
+**Time-to-first-audio is NOT a useful gate metric.** `FIRST_MESSAGE` is a static
+greeting VAPI speaks without a model call, so 0.40s measures TTS start and says
+nothing about prompt cost. It will not move when the prompt shrinks. The
+mid-call reply gap is the number that matters, and it is 2–7× the 500ms target
+in `VOICE_LATENCY_TARGET_MS`.
+
+## Where the reply gap actually comes from
+
+| Turn type | n | p50 | p90 |
+|---|---|---|---|
+| No tool call — pure generation | 195 (79%) | 0.87s | 2.29s |
+| Tool call in between | 53 (21%) | 1.50s | 3.37s |
+
+**79% of turns invoke no tool at all** — no DB, no API, no round-trip — and still
+cost 0.87s median. Tool traffic adds only ~0.6s on top. The latency is in
+generation with a 4,888-token prompt resident, not in I/O.
+
+This is the first evidence the compression thesis has had. It was previously an
+inference from token count alone.
+
+**Honest limit:** 0.87s is prompt prefill + output generation + TTS start
+combined, and this cannot separate them. Output length is plausibly the larger
+share — the prompt prescribes multi-clause scripted lines ("mounting, computer
+spin balancing, new valve stems, an alignment check, and a safety check"). A
+compression that shortens the PROMPT but not what the assistant SAYS may move
+this number very little. Shortening scripted output is a candidate lever with a
+better prior, and it is testable independently.
+
+## Behaviour baseline (the non-inferiority half)
+
+Scored with `voiceClaimGuard` (#1107) over 526 assistant turns:
+
+| | |
+|---|---|
+| Speaker attribution coverage | 100/100 calls, 0 unparsed |
+| Prohibited-claim violations | **1 turn in 526 (0.19%)** |
+| False positives (adjudicated) | 0 |
+| False negatives (loose-net probe) | 0 |
+
+**The prohibition surface is currently WORKING on claims.** A 0.19% violation
+rate is the bar compression must not regress — and it is a demanding one. This
+reframes the compression from "remove text that enforces nothing" to "remove
+text while preserving a measured 99.8% compliance rate".
+
+The one violation: *"we'll get it done while you wait — about 15 minutes"* —
+banned by Rule 1 ("never state how long an oil change takes") and by the wait
+rule.
+
+## What the same corpus found that prose was NOT preventing
+
+22 of 100 calls opened the transfer with stacked filler. The model was innocent;
+the second wait came from `transferCall`'s hardcoded destination message. Fixed
+in #1108. See that PR — it is the sharpest available illustration that a prompt
+rule cannot govern a behaviour the model does not produce.
+
+## Method
+
+Read-only. `VAPI_API_KEY` only; no DB connection, no writes. Assistant turns
+extracted with #1107's parser. Probe scripts were throwaway — the durable
+instrument is `voiceClaimGuard`, which now runs per-call in the webhook.
