@@ -23,6 +23,21 @@ export interface PublishInput {
    * Instagram ignores it (the Graph API has no link field for feed posts).
    */
   link?: string;
+  /**
+   * Who is publishing. Decides what happens when the kill-switch state cannot
+   * be READ (storage down or unreachable):
+   *
+   *   "operator"  (default) — proceed. A human is watching, can see the
+   *                situation, and a storage blip must not take manual
+   *                publishing down.
+   *   "automated" — STOP. Nobody is watching an unattended cron, so
+   *                "we could not check" must not mean "publish".
+   *
+   * Defaults to "operator" so every existing caller keeps today's behaviour;
+   * the crons opt in explicitly. Same rule autonomyControl applies at its own
+   * boundary: automated actors fail CLOSED, operators proceed loud.
+   */
+  actor?: "operator" | "automated";
 }
 
 export interface PublishOutcome {
@@ -161,10 +176,11 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
   // existing claim-safety and REEL_PUBLISH_ENABLED gates below — the policy
   // engine adds an instant, versioned, audited emergency stop that covers
   // EVERY publish shape (static, carousel, reel, story, Facebook).
-  const blockedPlatforms = await killSwitchBlockedPlatforms(input.platforms, {
-    isStory: input.isStory,
-    hasVideo: !!input.videoUrl,
-  });
+  const blockedPlatforms = await killSwitchBlockedPlatforms(
+    input.platforms,
+    { isStory: input.isStory, hasVideo: !!input.videoUrl, actor: input.actor ?? "operator" },
+    input.actor ?? "operator",
+  );
   if (blockedPlatforms.length) {
     for (const p of blockedPlatforms) {
       results.push({ platform: p, success: false, error: KILL_SWITCH_ERROR });
