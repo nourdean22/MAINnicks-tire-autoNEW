@@ -29,7 +29,12 @@ export async function analyzeTechEfficiency(): Promise<{
       LEFT JOIN work_orders wo ON wo.assigned_tech_id = t.id
         AND wo.status = 'completed'
         AND wo.completed_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
-      WHERE t.is_active = 1
+      -- technicians mixes conventions IN ONE TABLE: isActive/createdAt/photoUrl
+      -- alongside comeback_rate/tech_notes/ase_certs. t.is_active does not
+      -- exist, so this query threw on every call, Promise.allSettled swallowed
+      -- the rejection, and the tech-efficiency component silently vanished from
+      -- the health score. Found by scripts/lint-sql-columns.mjs on its first run.
+      WHERE t.isActive = 1
       GROUP BY t.id, t.name, t.comeback_rate
       ORDER BY totalRev DESC
     `);
