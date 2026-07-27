@@ -216,6 +216,67 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
   },
 ];
 
+/**
+ * BOT-TELLS — banned phrasings, kept deliberately separate from claims.
+ *
+ * The original version of this module refused to score tone, on the grounds that
+ * a regex guessing at "sounds robotic" would generate noise that buries the
+ * claims that cost money. That reasoning still holds, and nothing here scores
+ * tone.
+ *
+ * What changed is evidence. An audit of 539 assistant turns across 100 real
+ * inbound calls measured which kill-list bans actually hold:
+ *
+ *   9 of 13 bans      0 violations
+ *   dead_air_tell     9 calls / 100   <- banned unconditionally, happening anyway
+ *   stacked_filler   18 calls / 100   <- cause found + fixed (#1108)
+ *
+ * A ban that is violated 9% of the time is, by definition, not enforced by the
+ * prose that bans it. These are EXACT phrases the prompt quotes and forbids, so
+ * matching them is a string check, not a judgement — which is why they can live
+ * here without the noise problem.
+ *
+ * DELIBERATELY EXCLUDED, and why:
+ *  - re-greeting: `## WRONG NUMBER` INSTRUCTS the assistant to name the shop
+ *    ("You reached Nick's Tire & Auto on Euclid — calling about tires...").
+ *    Scoring it would flag correct behaviour. The prompt contradiction is the
+ *    defect there, not the speech.
+ *  - "Are you still there?": the ban is CONDITIONAL ("only after 6+ seconds of
+ *    real silence with no tool running"). A transcript cannot show the pause, so
+ *    a detector cannot honestly judge it. Unverifiable is not the same as clean.
+ */
+export const BOT_TELLS: ProhibitedClaim[] = [
+  {
+    // "this bot-tell killed 12+ calls — end on a concrete confirm or let the
+    // caller lead". Banned with no exception anywhere in the prompt.
+    label: "dead_air_tell",
+    re: /\banything else (?:you need help with|i can (?:help you with|do for you))\b/i,
+  },
+  {
+    // "never chain two waits ... One short line, then act."
+    label: "stacked_filler",
+    re: /\b(?:hold on|one moment|just a (?:sec|second|moment)|give me a (?:sec|second|moment))\b[^.!?]{0,40}?\b(?:hold on|one moment|just a (?:sec|second|moment))\b/i,
+  },
+  {
+    label: "self_identifies_as_ai",
+    re: /\b(?:i'?m|i am)\s+(?:just\s+)?(?:an?\s+)?(?:ai|bot|artificial intelligence|automated (?:system|assistant))\b/i,
+  },
+  {
+    // "never the literal words 'I don't know'"
+    label: "says_dont_know",
+    re: /\bi (?:don'?t|do not) know\b/i,
+  },
+];
+
+/** Score assistant turns against the bot-tell list. Same shape as claims. */
+export function botTellViolations(turns: string[]): string[] {
+  const found = new Set<string>();
+  for (const turn of turns) {
+    for (const t of BOT_TELLS) if (t.re.test(turn)) found.add(t.label);
+  }
+  return BOT_TELLS.map((t) => t.label).filter((l) => found.has(l));
+}
+
 export interface VoiceClaimResult {
   /** Violation labels, deduped and stable-ordered. */
   violations: string[];
@@ -262,6 +323,12 @@ export interface VoiceClaimRecord {
   violations: string[];
   turnsScanned: number;
   unparsed: boolean;
+  /**
+   * Bot-tells, stored SEPARATELY from `violations` on purpose. A banned phrasing
+   * and an unsourced price are not the same severity, and merging them into one
+   * count would produce exactly the deceptive blended KPI the directive forbids.
+   */
+  botTells?: string[];
 }
 
 /**
@@ -289,5 +356,6 @@ export function buildVoiceClaimRecord(args: {
     violations: parsed.unparsed ? [] : voiceClaimViolations(parsed.turns),
     turnsScanned: parsed.turns.length,
     unparsed: parsed.unparsed,
+    botTells: parsed.unparsed ? [] : botTellViolations(parsed.turns),
   };
 }
