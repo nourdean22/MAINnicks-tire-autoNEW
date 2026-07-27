@@ -182,7 +182,18 @@ const RULES: Rule[] = [
     risk: "human_assisted",
     catalogEvent: null,
     test: (b) =>
-      /\b(w(on'?t|ill not|ont)|does\s?n'?t|didn'?t|can'?t|cannot)\s+(start|turn over|crank|fire up|come on)\b/i.test(b) ||
+      // EXPANDED negations matter as much as contracted ones — "my car does not
+      // start" and "it did not start" are ordinary typed English, and the first
+      // version recognised only `doesn't`/`didn't`. Those customers fell through
+      // to `general` and got the walk-in plan this rule exists to prevent.
+      // Caught in review (P2); the voice-transcript self-audit could not have
+      // found it, because people SAY "won't start" and TYPE "does not start".
+      // The VERB is inflected too, not just the auxiliary: "is not starting"
+      // needs `start(ing)`, and `start\b` cannot reach it. That is the same
+      // truncated-stem trap as `bulge` vs "bulging" — hit here while writing a
+      // comment about that very trap, which is the strongest argument yet for
+      // testing the inflected form by reflex rather than by intention.
+      /\b(w(on'?t|ill not|ont)|does(\s?n'?t| not)|did(n'?t| not)|is(\s?n'?t| not)|can'?t|cannot)\s+(start(s|ing|ed)?|turn(s|ing)? over|crank(s|ing)?|fir(e|es|ing) up|com(e|es|ing) on)\b/i.test(b) ||
       /\b(no\s?start|won'?t\s?start)\b/i.test(b) ||
       // The CONTRACTION is the common form — "it's dead", not "it is dead".
       // Requiring `\s+is\s+` missed it entirely; the same literal-form trap as

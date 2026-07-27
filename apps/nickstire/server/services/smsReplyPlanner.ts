@@ -152,7 +152,16 @@ const CLAIM_SAFE_TO_DRIVE: ProhibitedClaim = {
  */
 const CLAIM_COME_IN_UNDRIVABLE: ProhibitedClaim = {
   label: "come_in_when_undrivable",
-  re: /\b(pull up|come (on )?(in|by|down|over)|swing by|stop by|bring (it|the car|your car) (in|by|down|over)|drive (it )?(in|over|down|here|by))\b/i,
+  // "walk in" was MISSING from the first version of this list — while the plan
+  // itself hands the drafter FCFS_FACT ("walk-ins welcome"). The guard omitted
+  // the one phrase the model was most likely to echo, because the phrase came
+  // from the approved fact sitting in its own context. Caught in review (P1).
+  //
+  // `walk\s+in` is the VERB and must fire; `walk-ins`/`walk ins` is the noun in
+  // FCFS_FACT and must not. The whitespace-then-word-boundary shape separates
+  // them: neither the hyphen in "walk-ins" nor the trailing "s" in "walk ins"
+  // can satisfy `\s+in\b`.
+  re: /\b(pull up|come (on )?(in|by|down|over)|walk (on )?in\b|swing by|stop by|bring (it|the car|your car) (in|by|down|over)|drive (it )?(in|over|down|here|by))\b/i,
 };
 
 const CLAIM_REMOTE_DIAGNOSIS: ProhibitedClaim = {

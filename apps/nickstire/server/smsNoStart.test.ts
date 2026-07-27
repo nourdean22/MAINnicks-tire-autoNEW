@@ -46,6 +46,12 @@ describe("no-start routing", () => {
     "it just clicks but won't start",
     "battery's dead, needs a jump",
     "truck doesn't start",
+    // Review catch (P2): EXPANDED negations. People say "won't start" aloud and
+    // type "does not start", so the voice-transcript self-audit could not have
+    // surfaced these — only a reader thinking about typed English.
+    "my car does not start",
+    "it did not start this morning",
+    "the van is not starting",
   ];
 
   for (const p of phrases) {
@@ -89,6 +95,36 @@ describe("the no-start plan cannot invite the customer to drive in", () => {
       expect(planViolations(plan("my car won't start"), draft)).toContain("come_in_when_undrivable");
     });
   }
+
+  /**
+   * Review catch (P1). The first version of CLAIM_COME_IN_UNDRIVABLE did not
+   * contain the phrase "walk in" — while the plan hands the drafter FCFS_FACT
+   * ("walk-ins welcome, no appointment needed"). The guard omitted the single
+   * phrase the model was most likely to echo, because that phrase came from an
+   * approved fact sitting in its own context.
+   *
+   * The verb must fire and the noun must not, so both directions are pinned.
+   */
+  it("flags the WALK IN invitation the model is most likely to echo", () => {
+    for (const draft of [
+      "Walk in anytime and we'll take a look.",
+      "You can just walk in — no appointment needed.",
+      "Walk on in whenever you're ready.",
+    ]) {
+      expect(planViolations(plan("my car won't start"), draft), `missed: ${draft}`)
+        .toContain("come_in_when_undrivable");
+    }
+  });
+
+  it("does NOT flag the neutral FCFS fact itself (walk-ins, the noun)", () => {
+    for (const draft of [
+      "No appointment needed — walk-ins welcome once it's here.",
+      "We're first come, first served. Walk ins welcome any day we're open.",
+    ]) {
+      expect(planViolations(plan("my car won't start"), draft), `false positive: ${draft}`)
+        .not.toContain("come_in_when_undrivable");
+    }
+  });
 
   it("ALLOWS the honest tow-aware reply", () => {
     const good =
