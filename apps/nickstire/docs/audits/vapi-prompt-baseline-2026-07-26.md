@@ -162,3 +162,58 @@ rule cannot govern a behaviour the model does not produce.
 Read-only. `VAPI_API_KEY` only; no DB connection, no writes. Assistant turns
 extracted with #1107's parser. Probe scripts were throwaway — the durable
 instrument is `voiceClaimGuard`, which now runs per-call in the webhook.
+
+---
+
+# Addendum 2026-07-27 (late) — the prompt got BIGGER, and why that was chosen
+
+This file exists so a change cannot certify itself. It would fail its own purpose
+if it recorded only the "before".
+
+## After
+
+| | baseline (2026-07-26) | merged main (2026-07-27) | Δ |
+|---|---|---|---|
+| chars | 19,553 | **21,627** | **+2,074 (+10.6%)** |
+| lines | 144 | 161 | +17 |
+| tokens (chars/4) | 4,888 | 5,407 | **+519 per turn** |
+| prohibition share | 64.1% | 70.6% | **up, not down** |
+| spoken exemplars over the 25-word cap | 4 | **0** | −4 |
+
+**The stated goal on 2026-07-26 was compression. The prompt grew 10.6% instead.**
+That was a deliberate reversal, and the evidence for it is recorded above and in
+the PRs, but the number itself belongs here where the next reader will look.
+
+## What was added, and what it bought
+
+| change | ~chars | bought |
+|---|---|---|
+| `# DO NOT DRIVE IT` block | +600 | 9 do-not-drive hazards voice did not have; it covered 1 of 9 |
+| CEL + brake discriminators | +500 | the two questions SMS asks and voice never did |
+| FLOW 1 / BROKEN-DOWN beat cadence | +457 | 54-word monologue → 3 beats; capture finally spoken aloud |
+| re-greet exception scope | +100 | removed a self-contradiction with `## WRONG NUMBER` |
+| wait-duration removal | −13 | removed the cause of the only observed claim violation |
+
+## Why growth was the right call — and what it costs
+
+Compression was pursued for LATENCY. That premise did not survive measurement:
+context length correlates with the user-turn→reply gap at **r = −0.06** over 197
+no-tool turns, and the ~0.9s gap is fixed per-turn overhead. Cutting prompt
+tokens would not have moved it.
+
+The second argument — "remove text that enforces nothing" — also failed: claim
+compliance measured **99.81%** (1 bad turn in 526), so the prohibition surface
+was working.
+
+So the real cost of growth is **token spend, not latency**: +519 tokens on every
+assistant turn, ~5.35 turns per call. That is the price paid, stated plainly.
+
+## The honest caveat
+
+The prohibition share went UP (64.1% → 70.6%). If a future reader wants that
+number down, the evidence says target **scripted output length and duplicated
+rules**, not the safety blocks — and any such change must hold the two
+measurements that now exist: 0 exemplars over 25 words, and the 99.81%
+claim-compliance floor scored by `voiceClaimGuard`.
+
+Nothing in this addendum changes behaviour. It is the "after" half of the gate.
