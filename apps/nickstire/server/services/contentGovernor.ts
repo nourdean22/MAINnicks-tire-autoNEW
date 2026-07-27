@@ -203,22 +203,79 @@ export async function assertPublishCadence(input: { format: "reel" | "carousel" 
      * here spends the operator's audience, which is the resource this cap exists
      * to protect.
      */
+    /**
+     * THE FOURTH DOOR — ig_autopost_log.
+     *
+     * The note above enumerated three doors and missed the one that publishes
+     * MOST: the autonomous IG/FB autoposter (`runIgAutopost`) writes only to
+     * `ig_autopost_log` and never touches social_content_inventory. Measured
+     * 2026-07-27: 116 lifetime posted runs versus 6 through the Queue, 9 reels
+     * and 9 scheduled. So the cap was blind to roughly 84% of everything that
+     * ever reached the feed, and reported no breach while doing it.
+     *
+     * ONE UNREADABLE SOURCE MUST NOT ZERO THE OTHERS.
+     * A single try/catch wrapped all the counts, so a failure reading reel_jobs
+     * silently dropped scheduled_posts too — the exact undercount the note warns
+     * about, produced by the code the note sits on. Each door is now counted and
+     * fails independently, and the unreadable ones are named.
+     */
     let externalFeedPosts = 0;
+    const unreadable: string[] = [];
     try {
-      const { reelJobs, scheduledPosts } = await import("../../drizzle/schema");
+      const { reelJobs, scheduledPosts, igAutopostLog } = await import("../../drizzle/schema");
       const { eq: eqx, and: andx, gte: gtex, inArray: inArrayx, sql: sqlx } = await import("drizzle-orm");
       const since = clevelandDayStart();
-      const [reelRow] = await d
+      const countOne = async (name: string, run: () => Promise<Array<{ n: unknown }>>) => {
+        try {
+          const [row] = await run();
+          externalFeedPosts += Number(row?.n ?? 0);
+        } catch (err) {
+          unreadable.push(name);
+          log.warn(`feed cap: could not count ${name} — it contributes 0 to today's total`, err);
+        }
+      };
+
+      await countOne("reel_jobs", () => d
         .select({ n: sqlx<number>`COUNT(*)`.as("n") })
         .from(reelJobs)
-        .where(andx(eqx(reelJobs.status, "posted"), gtex(reelJobs.updatedAt, since)));
-      const [schedRow] = await d
+        .where(andx(eqx(reelJobs.status, "posted"), gtex(reelJobs.updatedAt, since))));
+
+      /**
+       * KNOWN OVERCOUNT, LEFT DELIBERATELY.
+       *
+       * `scheduledPosts.inventoryId` links a fire to an inventory row, and the
+       * ambiguity resolver (instagramStudio.ts ~1114) stamps BOTH
+       * socialContentInventory.publishedAt AND the linked scheduled_posts row
+       * as posted. That single publish is therefore counted twice here.
+       *
+       * The obvious fix — count only rows with a null inventoryId — was NOT
+       * applied, because it is only correct if every linked fire also stamps
+       * its inventory row, and that could not be verified across the whole
+       * scheduled-publish path. Guessing wrong turns a conservative overcount
+       * into an UNDERCOUNT, and this file's own note says why that is the worse
+       * failure: an undercount spends the operator's audience. Overcounting
+       * only makes the cap fire early.
+       *
+       * Measured 2026-07-27: 9 lifetime scheduled posts, so the practical error
+       * is at most a couple of counts on a cap of 20.
+       */
+      await countOne("scheduled_posts", () => d
         .select({ n: sqlx<number>`COUNT(*)`.as("n") })
         .from(scheduledPosts)
-        .where(andx(inArrayx(scheduledPosts.status, ["posted"]), gtex(scheduledPosts.postedAt, since)));
-      externalFeedPosts = Number(reelRow?.n ?? 0) + Number(schedRow?.n ?? 0);
+        .where(andx(inArrayx(scheduledPosts.status, ["posted"]), gtex(scheduledPosts.postedAt, since))));
+
+      // `posted` is set when EITHER platform succeeded, which is the same unit
+      // the other doors count: one feed publish, not one platform write.
+      await countOne("ig_autopost_log", () => d
+        .select({ n: sqlx<number>`COUNT(*)`.as("n") })
+        .from(igAutopostLog)
+        .where(andx(eqx(igAutopostLog.status, "posted"), gtex(igAutopostLog.createdAt, since))));
+
+      if (unreadable.length) {
+        log.warn("feed cap is UNDERCOUNTING — these doors could not be read", { unreadable });
+      }
     } catch (err) {
-      log.warn("feed cap: could not count cron/scheduled publishes — cap is counting the Queue only", err);
+      log.warn("feed cap: no door could be counted — cap is counting the Queue only", err);
     }
 
     if (input.format !== "story") {

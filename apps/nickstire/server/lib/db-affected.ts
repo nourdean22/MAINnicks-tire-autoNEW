@@ -11,8 +11,22 @@
  * means double-posting to a live account. Failing closed costs a retry; failing
  * open costs a duplicate the operator cannot unsend.
  */
+import { writeResult } from "./dbResult";
+
+/**
+ * Shares ONE unwrap with dbResult.ts. Those two files were briefly duplicating
+ * this logic (my own, same day) — two copies of a shape rule drift apart.
+ *
+ * The CONTRACTS stay different on purpose, and that difference is the point:
+ *   affectedRowCount()  unreadable -> 0     "not claimed", fail closed
+ *   dbResult.affectedRows()  unreadable -> null  "we were told nothing"
+ *
+ * Zero is right here because callers gate irreversible external work on it.
+ * Null is right there because callers turn the count into a user-visible
+ * "not found", and reporting a missing row when the driver simply said nothing
+ * is exactly the bug that made shareCards.trackShare throw on every call.
+ */
 export function affectedRowCount(result: unknown): number {
-  const header = Array.isArray(result) ? result[0] : result;
-  const count = (header as { affectedRows?: unknown } | null | undefined)?.affectedRows;
+  const count = writeResult(result).affectedRows;
   return typeof count === "number" && Number.isFinite(count) ? count : 0;
 }
