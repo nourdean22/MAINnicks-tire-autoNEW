@@ -644,8 +644,15 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
             skipPersist: false,
           });
       if (sendResult.success) {
-        status = sendResult.queued ? "queued" : "sent";
-        statusReason = sendResult.queued ? "outside_hours_queued" : "sent_successfully";
+        // `uncertain` = attempted, deliberately NOT retried, never confirmed
+        // (shop-gateway timeout). It must not read as "sent" — the same call
+        // persists the row as `sending` and alerts "delivery uncertain".
+        status = sendResult.queued ? "queued" : sendResult.uncertain ? "sending" : "sent";
+        statusReason = sendResult.queued
+          ? "outside_hours_queued"
+          : sendResult.uncertain
+            ? "gateway_timeout_delivery_unconfirmed"
+            : "sent_successfully";
         sendResultJson = sendResult;
       } else {
         status = "failed";
