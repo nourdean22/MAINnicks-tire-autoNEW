@@ -74,7 +74,22 @@ const RED_FLAG_RULES: RedFlagRule[] = [
     patterns: [
       // Lookahead excludes reassurance phrasing — "no brake noise, just want a
       // routine check" is a customer ruling the hazard OUT, not reporting it.
-      /\b(no|lost|losing|zero)\s+brakes?\b(?!\s+(noise|noises|sound|sounds|issue|issues|problem|problems|trouble|light|lights|squeal|squeak|squeaking|grind|grinding|dust|wear|concern|concerns|fluid))/i,
+      // 2026-07-27 · a POSSESSIVE breaks adjacency. "I lost my brakes" is the
+      // commonest way a person says this and `lost\s+brakes?` cannot reach it.
+      /\b(no|lost|losing|lose|zero)\s+(my\s+|the\s+|all\s+(my\s+|the\s+)?)?brakes?\b(?!\s+(noise|noises|sound|sounds|issue|issues|problem|problems|trouble|light|lights|squeal|squeak|squeaking|grind|grinding|dust|wear|concern|concerns|fluid))/i,
+      // 2026-07-27 · the STATE forms. Measured: "the brakes are not working",
+      // "my brakes are failing" and "brakes are gone" all routed to
+      // `price_brakes` — risk:"deterministic", so the orchestrator auto-sent a
+      // brake PRICE MENU to someone reporting brake failure. Not a fallthrough
+      // to something harmless: a missed safety phrasing lands on an
+      // auto-sending template. `brake light is not working` cannot match —
+      // "light" sits between the noun and the state.
+      // `went out` is here because the SMS ROUTER has its own copy of that
+      // phrase and this file did not — so "my brakes went out" routed correctly
+      // from a text message while the WEBSITE /diagnose form, which has only
+      // this file to go on, raised no red flag for the identical sentence.
+      // Two surfaces disagreeing about what counts as brake failure.
+      /\bbrakes?\s+(are|is|were|was)?\s*(not\s+working|failing|fail|gone|went\s+out|go\s+out|going\s+out|giving\s+out|give\s+out)\b/i,
       /\bbrake\s+failure\b/i,
       /\b(brake\s+)?pedal\s+(goes|going|went|sinks|sank)\s+(all\s+the\s+way\s+)?(to|down\s+to)\s+the\s+floor\b/i,
       /\bbrakes?\s+(go|goes|going|went)\s+(to|down\s+to)\s+the\s+floor\b/i,
@@ -112,7 +127,11 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       "A flashing check-engine light means a misfire that can wreck the catalytic converter within minutes. Pull over and shut it off — don't keep driving to finish the trip.",
     patterns: [
       /\b(flashing|blinking|flashes|blinks)\s+(the\s+)?(check\s+engine|engine|cel|mil)\b/i,
-      /\b(check\s+engine|engine)\s+light\s+(is\s+)?(flashing|blinking)\b/i,
+      // 2026-07-27 · `(is\s+)?` admits only "is" or nothing. Measured: "check
+      // engine light STARTED blinking" and "...KEEPS flashing" both routed to
+      // `diagnostic` — another auto-sending deterministic template — because an
+      // ordinary auxiliary verb sat where only "is" was allowed.
+      /\b(check\s+engine|engine)\s+light\s+(is\s+|was\s+|started\s+|starts\s+|start\s+|keeps\s+|kept\s+|began\s+|begins\s+|went\s+|goes\s+|has\s+been\s+)?(flashing|blinking)\b/i,
       /\b(cel|mil)\s+(is\s+)?(flashing|blinking)\b/i,
     ],
   },
@@ -180,10 +199,17 @@ const RED_FLAG_RULES: RedFlagRule[] = [
       "Don't drive on it — put the spare on or have it towed. A separating tire lets go without warning at speed.",
     patterns: [
       /\btread\s+(is\s+)?(separat\w*|coming\s+(off|apart)|peeling|fell\s+off)\b/i,
-      /\b(tire|tyre)\s+(blew|blow\s?out|shredded|separat\w*|coming\s+apart|falling\s+apart)\b/i,
+      // 2026-07-27 · `(is\s+)?` was absent entirely, so "my tire IS shredded"
+      // missed; and the noun-first order cannot see "blew a tire". Both routed
+      // to `price_tires` — an auto-sending price menu for a destroyed tire.
+      /\b(tire|tyre)\s+(is\s+|are\s+|got\s+|has\s+)?(blew|blown|blow\s?out|blew\s?out|shredded|shredding|separat\w*|coming\s+apart|falling\s+apart)\b/i,
+      /\bblew\s+(out\s+)?(a|my|the|another)\s+(tire|tyre)\b/i,
       /\bbelt\s+separation\b/i,
       /\b(cords?|steel|wire)\s+(is\s+|are\s+)?(showing|exposed|sticking\s+out)\b/i,
-      /\bbulge\s+(in|on)\s+(the\s+)?(tire|tyre|sidewall)\b/i,
+      // "bubble" is what customers actually call it, and a possessive breaks
+      // adjacency the same way it did for brakes. Measured: "bubble in my tire"
+      // -> price_tires.
+      /\b(bulge|bubble)s?\s+(in|on)\s+(the\s+|my\s+|a\s+|one\s+of\s+(my|the)\s+)?(tire|tyre|sidewall)/i,
       // 2026-07-27 · the noun form above cannot match the VERB, and "my tire is
       // bulging" is how customers actually say it. Measured consequence: that
       // exact sentence routed to `price_tires` — a structurally failed tire
