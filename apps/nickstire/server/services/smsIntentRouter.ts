@@ -41,6 +41,7 @@ export type SmsIntent =
   | "job_status"
   | "estimate_question"
   | "dashboard_light"
+  | "no_start"
   | "arrival_committed"
   | "tire_inventory"
   | "cancellation_policy_question"
@@ -160,6 +161,48 @@ const RULES: Rule[] = [
     test: (b) =>
       /\b(oil|tire.?pressure|tpms|battery|abs|airbag|traction|coolant|temp(erature)?)\s*(warning\s*)?light\b/i.test(b) ||
       /\blight('?s)? (came|come|turned|is|keeps? coming) (on|back)\b/i.test(b),
+  },
+
+  // ─── Tier 3a: the car cannot be driven here ────────────────────────────
+  // VOICE routes "won't start" straight to its BROKEN-DOWN / TOWED flow — it is
+  // the first trigger in that list. SMS had no equivalent, so these messages
+  // fell to `general`, whose only approved fact is FCFS_FACT: "walk-ins welcome,
+  // no appointment needed", and whose required question asks "when to come in?".
+  //
+  // Telling someone whose car will not start to walk in is not merely unhelpful;
+  // they physically cannot comply, and it reads as not having listened. Same
+  // words, two channels, opposite answers.
+  //
+  // human_assisted rather than human_only: this is a logistics problem, not a
+  // hazard, and the playbook already forbids the walk-in language. Forcing
+  // operator review on every no-start would add load without adding truth.
+  {
+    intent: "no_start",
+    priority: 3,
+    risk: "human_assisted",
+    catalogEvent: null,
+    test: (b) =>
+      // EXPANDED negations matter as much as contracted ones — "my car does not
+      // start" and "it did not start" are ordinary typed English, and the first
+      // version recognised only `doesn't`/`didn't`. Those customers fell through
+      // to `general` and got the walk-in plan this rule exists to prevent.
+      // Caught in review (P2); the voice-transcript self-audit could not have
+      // found it, because people SAY "won't start" and TYPE "does not start".
+      // The VERB is inflected too, not just the auxiliary: "is not starting"
+      // needs `start(ing)`, and `start\b` cannot reach it. That is the same
+      // truncated-stem trap as `bulge` vs "bulging" — hit here while writing a
+      // comment about that very trap, which is the strongest argument yet for
+      // testing the inflected form by reflex rather than by intention.
+      /\b(w(on'?t|ill not|ont)|does(\s?n'?t| not)|did(n'?t| not)|is(\s?n'?t| not)|can'?t|cannot)\s+(start(s|ing|ed)?|turn(s|ing)? over|crank(s|ing)?|fir(e|es|ing) up|com(e|es|ing) on)\b/i.test(b) ||
+      /\b(no\s?start|won'?t\s?start)\b/i.test(b) ||
+      // The CONTRACTION is the common form — "it's dead", not "it is dead".
+      // Requiring `\s+is\s+` missed it entirely; the same literal-form trap as
+      // `bulge` vs "bulging". Caught by a self-audit against real speech, where
+      // a caller said "it's dead on the side of the road". Note the sibling
+      // pattern on the next line already got this right for "battery's dead".
+      /\b(car|truck|van|vehicle|it)('?s|\s+is)\s+dead\b/i.test(b) ||
+      /\b(dead battery|battery('?s| is) dead|clicks? (but )?(won'?t|does\s?n'?t) start|just clicks)\b/i.test(b) ||
+      /\b(needs?|need) a (jump|tow)\b/i.test(b),
   },
 
   // ─── Tier 3b: the customer already said yes ────────────────────────────

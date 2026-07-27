@@ -86,6 +86,30 @@ const BRAKE_SYMPTOM_RE = /\b(squeak\w*|squeal\w*|grind\w*|shak\w*|vibrat\w*|puls
 const CEL_STATE_RE = /\b(solid|steady|flash\w*|blink\w*)\b/i;
 
 /**
+ * The customer already said WHERE the car is, so asking again is the
+ * repeat-question failure.
+ *
+ * Added after a self-audit of real customer speech: "I need a tow. It's on a
+ * hundred twenty fifty Kinsman." would have been answered with "Where's the car
+ * right now?" — the exact defect that had just been caught on the check-engine
+ * discriminator. Porting a question between channels without porting its guard
+ * is apparently easy to do twice.
+ *
+ * SCOPE, stated honestly: this reads SMS, where customers type digits — so
+ * `\d{2,5}\s+\w+` covers "12050 Kinsman". It does NOT cover a bare street name
+ * ("on Kinsman") or a spoken-number address, and it is not meant to: adding
+ * `on \w+` without a road suffix would fire on "on sale" and "on Monday".
+ *
+ * The residual failure is therefore asking once for a location the customer
+ * already gave in an unusual form. That is the milder of the two errors — the
+ * operator still sees the thread — but it IS the repeat-question class this
+ * repo keeps rediscovering, so widen this list when a real example appears
+ * rather than guessing at phrasings now.
+ */
+const LOCATION_GIVEN_RE =
+  /\b(at (home|work|my (house|place|job)|the (house|shop|office|hotel|store|mall))|in (my|the) (driveway|garage|lot|parking|yard|street)|parking lot|road ?side|side of the (road|highway|freeway)|on (the )?(highway|freeway|interstate|shoulder|i[- ]?\d+|route|rt|us[- ]?\d+)|\d{2,5}\s+\w+|on \w+ (st|street|ave|avenue|rd|road|blvd|dr|drive|way|ln|lane|pkwy|circle|ct|court))\b/i;
+
+/**
  * The customer raised financing themselves. Broader than the router's financing
  * rule because this only needs to decide whether ANSWERING is allowed, not what
  * the reply is about — a false positive here costs nothing.
@@ -118,6 +142,28 @@ const CLAIM_SAFE_TO_DRIVE: ProhibitedClaim = {
   label: "drive_safe_assurance",
   re: /\b(safe to (drive|keep driving)|fine to drive|you can keep driving)\b/i,
 };
+/**
+ * Inviting a customer to drive/walk in when the car cannot move.
+ *
+ * Shaped to catch the INVITATION, not the address or the FCFS fact — a no-start
+ * customer still needs to know where the shop is and that no appointment is
+ * required once the car gets there. What they must never be told is to bring it
+ * in themselves.
+ */
+const CLAIM_COME_IN_UNDRIVABLE: ProhibitedClaim = {
+  label: "come_in_when_undrivable",
+  // "walk in" was MISSING from the first version of this list — while the plan
+  // itself hands the drafter FCFS_FACT ("walk-ins welcome"). The guard omitted
+  // the one phrase the model was most likely to echo, because the phrase came
+  // from the approved fact sitting in its own context. Caught in review (P1).
+  //
+  // `walk\s+in` is the VERB and must fire; `walk-ins`/`walk ins` is the noun in
+  // FCFS_FACT and must not. The whitespace-then-word-boundary shape separates
+  // them: neither the hyphen in "walk-ins" nor the trailing "s" in "walk ins"
+  // can satisfy `\s+in\b`.
+  re: /\b(pull up|come (on )?(in|by|down|over)|walk (on )?in\b|swing by|stop by|bring (it|the car|your car) (in|by|down|over)|drive (it )?(in|over|down|here|by))\b/i,
+};
+
 const CLAIM_REMOTE_DIAGNOSIS: ProhibitedClaim = {
   label: "remote_diagnosis",
   re: /\b(it'?s (definitely|just|only|probably just) (the|your) \w+|that means your \w+ (is|has) (bad|shot|dead|failed))\b/i,
@@ -427,6 +473,38 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
       CEL_STATE_RE.test(body) ? null : "Is the light solid or flashing?",
     nextStep: "Bring the car (and any failed E-Check paperwork) by.",
     prohibited: [CLAIM_REMOTE_DIAGNOSIS],
+    maxChars: 300,
+  },
+
+  /**
+   * The SMS counterpart to voice's BROKEN-DOWN / TOWED flow.
+   *
+   * Voice has always routed "won't start" to a tow — it is the first trigger in
+   * that flow. SMS fell through to `general`, which offers FCFS_FACT
+   * ("walk-ins welcome") and asks "when to come in?" — an answer the customer
+   * cannot act on, because the car will not move.
+   *
+   * The single highest-value question here is WHERE THE CAR IS, exactly as it is
+   * on the phone: it decides tow vs jump, and whether the shop is even the right
+   * next call. Price is not the question; getting the car here is.
+   */
+  no_start: {
+    goal: "collect_information",
+    knownFacts: () => [
+      "A car that will not start has to get to the shop by tow or jump — the shop cannot come to it.",
+      "Once it arrives the shop looks at it and gives the price in writing before any work.",
+      FCFS_FACT,
+    ],
+    missingInformation: (_ctx, body) =>
+      LOCATION_GIVEN_RE.test(body) ? [] : ["where the vehicle is right now"],
+    // Conditional, exactly like the CEL and brake discriminators. A stranded
+    // customer who just gave an address must not be asked for it again.
+    requiredQuestion: (_ctx, body) =>
+      LOCATION_GIVEN_RE.test(body) ? null : "Where's the car right now — at home, at work, or on the roadside?",
+    nextStep: "Get it to the shop; it gets looked at once it lands.",
+    // The walk-in invitation is the specific failure this playbook exists to
+    // prevent, so it is prohibited rather than merely omitted.
+    prohibited: [CLAIM_COME_IN_UNDRIVABLE, CLAIM_REMOTE_DIAGNOSIS, CLAIM_CALLBACK],
     maxChars: 300,
   },
 
