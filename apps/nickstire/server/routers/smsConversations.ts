@@ -19,6 +19,11 @@ import { bookings, nickgptDrafts } from "../../drizzle/schema";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { draftSmsReply } from "../services/nickgpt-client";
 import { classifyIntent } from "../services/classifiers";
+// The SAME planner the inbound AI path uses. Imported here because the admin
+// drafting path had no plan and no prohibition check at all — see the block in
+// `suggestDraft` for what that meant.
+import { routeInboundSms } from "../services/smsIntentRouter";
+import { buildReplyPlan, planViolations } from "../services/smsReplyPlanner";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("sms-conversations-router");
@@ -225,6 +230,58 @@ export const smsConversationsRouter = router({
         });
       }
 
+      // 3b. RUN THE SAME PROHIBITION CHECK THE INBOUND AI PATH RUNS.
+      //
+      // Until now this endpoint drafted with `draftSmsReply` and returned the
+      // text — no `routeInboundSms`, no `buildReplyPlan`, no `planViolations`.
+      // The inbound orchestrator has run all three since ROS-058, so the shop
+      // had two drafting paths and only one of them could catch a draft that
+      // promised stock, a hold, a completion time, a callback, a reserved
+      // appointment or "safe to drive".
+      //
+      // The operator IS the gate here, which is why this REPORTS rather than
+      // blocks — but a gate cannot judge what it is never shown. An AI draft
+      // that reads perfectly well is exactly the one that gets sent.
+      //
+      // HONEST LIMITATION: the router context is partial. This endpoint fetches
+      // an active BOOKING but not an estimate or a lead, so a plan built here
+      // can differ from the one the inbound path would build for the same words.
+      // GLOBAL_PROHIBITED applies regardless, so the safety-critical checks hold
+      // either way; a playbook-specific miss is possible and is strictly better
+      // than the zero checking this replaced.
+      let violations: string[] = [];
+      let plannedIntent: string | null = null;
+      try {
+        const decision = routeInboundSms(inboundMessage, {
+          hasActiveBooking: Boolean(activeBookingCtx),
+          hasActiveEstimate: false,
+          hasActiveLead: false,
+        });
+        const plan = buildReplyPlan(decision, {
+          customerFirstName: null,
+          customerVehicle: activeBookingCtx?.vehicle ?? null,
+          activeBooking: activeBookingCtx
+            ? { service: activeBookingCtx.service, stage: activeBookingCtx.stage }
+            : null,
+          activeEstimate: null,
+          lastVapiSummary: null,
+        }, inboundMessage);
+        plannedIntent = plan.intent;
+        violations = planViolations(plan, draftResult.draft);
+      } catch (err) {
+        // Never fail the draft on a check failure — an operator with an
+        // unchecked draft is worse off than one with no draft at all.
+        log.warn("[smsConversations] plan/violation check failed for admin draft", err);
+      }
+
+      if (violations.length) {
+        log.warn("[smsConversations] admin draft contains prohibited claims", {
+          phoneTail4: normalized.slice(-4),
+          intent: plannedIntent,
+          violations,
+        });
+      }
+
       // 4. Persist draft
       let draftId: number | null = null;
       if (db) {
@@ -253,6 +310,17 @@ export const smsConversationsRouter = router({
         confidence,
         provider: draftResult.source,
         latencyMs: draftResult.latencyMs,
+        /**
+         * Prohibited-claim labels found in this draft, from the same
+         * `planViolations` the inbound AI path uses. Empty is the normal case.
+         *
+         * Advisory by design: the operator decides. Surfacing them is the point
+         * — previously nothing computed them at all, so a draft promising a hold
+         * or a completion time looked identical to a safe one.
+         */
+        violations,
+        /** Which playbook the planner would have used, for operator context. */
+        plannedIntent,
       };
     }),
 
