@@ -54,3 +54,44 @@ describe("the autoposter asks the cap before publishing", () => {
     expect(CODE).toMatch(/["']automated["']/);
   });
 });
+
+/**
+ * Review catch (P2): a capped day was paying for generation, repeatedly.
+ */
+describe("a capped day costs nothing and happens once", () => {
+  it("preflights the cap BEFORE buildSignalBrief, not only after", () => {
+    // The later assertion ran after up to three generate -> render -> evaluate
+    // attempts, so a capped day bought LLM and image spend for a post that
+    // could never publish.
+    // Anchor on the CALL SITE, not the name: `buildSignalBrief()` also matches
+    // the function's own declaration far earlier in the file, which made the
+    // first version of this assertion compare against the wrong position.
+    const pre = CODE.indexOf("assertPublishCadence");
+    const briefCall = CODE.indexOf("await buildSignalBrief()");
+    expect(pre).toBeGreaterThan(-1);
+    expect(briefCall).toBeGreaterThan(-1);
+    expect(pre).toBeLessThan(briefCall);
+  });
+
+  it("keeps the LATE assertion too — another door can take the slot mid-run", () => {
+    // Generation takes minutes. The preflight saves money; the second check is
+    // what actually enforces.
+    const hits = CODE.split("assertPublishCadence").length - 1;
+    expect(hits).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a dry run is not capped — it publishes nothing", () => {
+    expect(CODE).toMatch(/if\s*\(!dryRun\)\s*\{/);
+  });
+
+  it("a cap hold is TERMINAL for the slot, so the next tick does not repeat it", () => {
+    // alreadyRanSlotToday deduped only dryrun/posted, so every later tick
+    // re-ran the pipeline and re-sent the Telegram notice.
+    expect(CODE).toMatch(/status\} = 'aborted' AND .*error\} LIKE 'Blocked by content governor%'/s);
+  });
+
+  it("an EVAL-gate abort is still retryable — only the cap hold is terminal", () => {
+    // A fresh draft might pass later; a cap does not fall during the day.
+    expect(CODE).not.toMatch(/status\} IN \('dryrun','posted','aborted'\)/);
+  });
+});
