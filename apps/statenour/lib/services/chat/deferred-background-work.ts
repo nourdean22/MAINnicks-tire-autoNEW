@@ -501,6 +501,42 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 })
                 .catch(() => undefined);
             }
+            // S3 · receipt-backed completion event (the audit's split:
+            // attempt acknowledgment now, receipt-confirmed completion
+            // later). This follow-up message is the ONLY voice that says
+            // "done" - the streamed prose is attempt-tense by contract.
+            // Idempotent by traceId marker: the post-turn outbox REPLAYS
+            // this work after a crash, and a replay must not double-post.
+            if (convId && results.length > 0 && traceId) {
+              try {
+                const marker = `receipts · trace ${traceId}`;
+                const already = await prisma.chatMessage.findFirst({
+                  where: { conversationId: convId, role: "assistant", content: { contains: marker } },
+                  select: { id: true },
+                });
+                if (!already) {
+                  const lines = results.map((r) => {
+                    const gatedInfo = r.result as { gated?: boolean; approvalId?: string } | undefined;
+                    if (gatedInfo?.gated) {
+                      return `⏸ ${r.action} - awaiting your approval (ID ${gatedInfo.approvalId ?? "?"}). Approve in System → Actions.`;
+                    }
+                    return r.success
+                      ? `✅ ${r.action} - receipt verified`
+                      : `❌ ${r.action} - failed: ${String(r.error ?? "unknown").slice(0, 120)}`;
+                  });
+                  await prisma.chatMessage.create({
+                    data: {
+                      conversationId: convId,
+                      role: "assistant",
+                      content: "**Action receipts**\n" + lines.join("\n") + "\n\n- " + marker,
+                      streamingState: "complete",
+                    },
+                  });
+                }
+              } catch (e) {
+                logError("chat.action-receipts", e, { stage: "completion-message", traceId }, "warn");
+              }
+            }
             return results;
           },
           { timeoutMs: 15_000 }
