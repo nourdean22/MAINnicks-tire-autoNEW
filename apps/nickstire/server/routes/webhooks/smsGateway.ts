@@ -336,6 +336,18 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
           const { recordSmsReply } = await import("../../services/smsInstrumentation");
           await recordSmsReply(normalized, body);
         })().catch(() => undefined);
+        // Recovery 2.0 · passive stated-concern capture. If this reply
+        // answers a declined-recovery text (last outbound within 7d
+        // carries a declined_* variantKey), classify the customer's own
+        // words and stamp alg_estimates.stated_concern (source
+        // sms_reply). OBSERVER ONLY: no reply logic, no sends; operator
+        // capture is never overwritten (stated_concern IS NULL guard);
+        // fail-open like every parallel block in this path. The reply
+        // engine below is untouched.
+        (async () => {
+          const { captureStatedConcernFromReply } = await import("../../services/recoveryReplyCapture");
+          await captureStatedConcernFromReply(normalized, body);
+        })().catch(() => undefined);
         // wave-181.101 — process inbound intent the same way the Twilio
         // webhook does (routes/webhooks/twilio.ts). CRITICAL TCPA fix:
         // before this, the F25e gateway — now the PRIMARY inbound number

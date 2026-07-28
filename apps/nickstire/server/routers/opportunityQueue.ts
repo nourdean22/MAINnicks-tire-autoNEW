@@ -105,11 +105,12 @@ export const opportunityQueueRouter = router({
 
   /**
    * Recovery 2.0 · operator capture of the customer's stated concern on
-   * a declined estimate. Source is recorded as "operator" — the ONLY
-   * capture path wired today (SMS auto-classification is deliberately
-   * not wired; it runs through the live orchestrator and gets its own
-   * change). Closed signals stop the recovery cron for the estimate on
-   * its next run and drop it from future collection.
+   * a declined estimate. Source is recorded as "operator". A second
+   * capture path is the passive SMS observer (recoveryReplyCapture,
+   * source "sms_reply") on both inbound webhooks — first signal wins
+   * there, but THIS endpoint overwrites freely: the operator is the
+   * correction authority. Closed signals stop the recovery cron for the
+   * estimate on its next run and drop it from future collection.
    */
   captureStatedConcern: adminProcedure
     .input(
