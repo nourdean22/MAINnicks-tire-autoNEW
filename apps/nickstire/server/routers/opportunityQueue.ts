@@ -85,14 +85,23 @@ export const opportunityQueueRouter = router({
       }),
     ),
 
-  /** The only path to `won`: a real invoice id, verified before writing. */
+  /** The only path to `won`: a real invoice id, match-verified against
+   * THIS opportunity (direct source linkage or phone+date). Pass
+   * allowManualMatch to attach an unlinked invoice as an explicit
+   * operator judgment — recorded as `manual`, never as independently
+   * verified. */
   recordOutcome: adminProcedure
-    .input(z.object({ id: z.string().uuid(), invoiceId: z.number().int().positive() }))
+    .input(z.object({
+      id: z.string().uuid(),
+      invoiceId: z.number().int().positive(),
+      allowManualMatch: z.boolean().optional(),
+    }))
     .mutation(async ({ input, ctx }) =>
       recordOutcome({
         id: input.id,
         invoiceId: input.invoiceId,
         by: ctx.user?.email ?? "admin",
+        allowManualMatch: input.allowManualMatch === true,
       }),
     ),
 

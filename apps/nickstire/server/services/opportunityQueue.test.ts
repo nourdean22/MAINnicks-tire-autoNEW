@@ -21,6 +21,8 @@ import {
   rankOpportunity,
   captureComplaintOpportunity,
   summarizeInspectionForQueue,
+  classifyOutcomeMatch,
+  resolveEstimateIdentity,
   type OpportunityState,
 } from "./opportunityQueue";
 
@@ -151,5 +153,78 @@ describe("summarizeInspectionForQueue · DVI deferral semantics", () => {
     ]);
     expect(s.openFlagged).toBe(0);
     expect(s.valueCents).toBe(0);
+  });
+});
+
+
+describe("classifyOutcomeMatch · strike-2: any-invoice-wins is dead", () => {
+  const base = {
+    opportunityPhone: "(216) 555-0142",
+    opportunityCreatedAt: new Date("2026-07-20T12:00:00Z"),
+    invoicePhone: "2165550142",
+    invoiceDate: new Date("2026-07-25T12:00:00Z"),
+    sourceLinkedInvoiceId: null as number | null,
+    invoiceId: 42,
+    allowManualMatch: false,
+  };
+
+  it("direct: the source row links this exact invoice", () => {
+    const m = classifyOutcomeMatch({ ...base, sourceLinkedInvoiceId: 42 });
+    expect(m.method).toBe("direct");
+  });
+
+  it("strong: phone matches and invoice postdates the opportunity", () => {
+    const m = classifyOutcomeMatch(base);
+    expect(m.method).toBe("strong");
+  });
+
+  it("rejected: phone mismatch, no manual override", () => {
+    const m = classifyOutcomeMatch({ ...base, invoicePhone: "2165559999" });
+    expect(m.method).toBe("rejected");
+  });
+
+  it("rejected: invoice predates the opportunity beyond 1-day slack", () => {
+    const m = classifyOutcomeMatch({ ...base, invoiceDate: new Date("2026-07-10T12:00:00Z") });
+    expect(m.method).toBe("rejected");
+  });
+
+  it("1-day slack: same-day timing still counts as strong", () => {
+    const m = classifyOutcomeMatch({ ...base, invoiceDate: new Date("2026-07-19T20:00:00Z") });
+    expect(m.method).toBe("strong");
+  });
+
+  it("manual: operator override is recorded as manual, never verified", () => {
+    const m = classifyOutcomeMatch({ ...base, invoicePhone: null, allowManualMatch: true });
+    expect(m.method).toBe("manual");
+  });
+
+  it("direct outranks a failing phone check (source linkage is authoritative)", () => {
+    const m = classifyOutcomeMatch({ ...base, invoicePhone: "0000000000", sourceLinkedInvoiceId: 42 });
+    expect(m.method).toBe("direct");
+  });
+});
+
+describe("resolveEstimateIdentity · strike-2: the ambiguity rule the SMS path already learned", () => {
+  it("0 matches: unknown customer, consent stays source-default", () => {
+    const r = resolveEstimateIdentity({ matchCount: 0, anyCustomerId: null, anyOptOut: false });
+    expect(r).toEqual({ customerId: null, consentOk: true, ambiguous: false });
+  });
+
+  it("1 match: linked, opt-out honored", () => {
+    expect(resolveEstimateIdentity({ matchCount: 1, anyCustomerId: 7, anyOptOut: false }))
+      .toEqual({ customerId: 7, consentOk: true, ambiguous: false });
+    expect(resolveEstimateIdentity({ matchCount: 1, anyCustomerId: 7, anyOptOut: true }))
+      .toEqual({ customerId: 7, consentOk: false, ambiguous: false });
+  });
+
+  it("2+ matches: NO customer linkage — a shared number must not guess", () => {
+    const r = resolveEstimateIdentity({ matchCount: 2, anyCustomerId: 7, anyOptOut: false });
+    expect(r.customerId).toBeNull();
+    expect(r.ambiguous).toBe(true);
+  });
+
+  it("2+ matches with ANY candidate opted out: consent refused (conservative direction)", () => {
+    const r = resolveEstimateIdentity({ matchCount: 3, anyCustomerId: 7, anyOptOut: true });
+    expect(r.consentOk).toBe(false);
   });
 });

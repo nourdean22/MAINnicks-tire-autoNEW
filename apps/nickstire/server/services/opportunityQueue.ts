@@ -228,6 +228,32 @@ export interface UpsertOpportunityInput {
 }
 
 /**
+ * Queue-scoped contact policy (Strike-2). do_not_contact was
+ * OPPORTUNITY-scoped: marking one row DNC did nothing to stop the next
+ * collector run from creating a fresh consent-true row for the SAME
+ * phone. Until a real customer-level contact-policy table exists, the
+ * queue itself is the policy surface: any live-or-terminal
+ * do_not_contact row for this phone (last-10 match) forces consent_ok=0
+ * on every new/refreshed row for that phone.
+ */
+async function phoneHasQueueDnc(
+  db: NonNullable<Awaited<ReturnType<(typeof import("../db"))["getDb"]>>>,
+  phone: string,
+): Promise<boolean> {
+  const { sql } = await import("drizzle-orm");
+  const last10 = phone.replace(/\D/g, "").slice(-10);
+  if (last10.length !== 10) return false;
+  const rows = rowsFromExecute(await db.execute(sql`
+    SELECT id FROM revenue_opportunities
+    WHERE state = 'do_not_contact'
+      AND customer_phone IS NOT NULL
+      AND RIGHT(REGEXP_REPLACE(customer_phone, '[^0-9]', ''), 10) = ${last10}
+    LIMIT 1
+  `));
+  return rows.length > 0;
+}
+
+/**
  * Insert-or-refresh by (sourceType, sourceId). A refresh updates the
  * evidence/value/urgency/reason columns ONLY — state, owner, attempts,
  * receipts and outcome belong to the state machine and are never
@@ -242,6 +268,19 @@ export async function upsertOpportunity(
   if (!db) return "unavailable";
 
   try {
+    // Strike-2 contact policy: a standing phone-level DNC (any
+    // do_not_contact row for this phone) overrides whatever consent the
+    // source would assign.
+    if (input.consentOk !== false && input.customerPhone) {
+      try {
+        if (await phoneHasQueueDnc(db, input.customerPhone)) {
+          input = { ...input, consentOk: false };
+        }
+      } catch {
+        // policy lookup failure must not block the upsert; the row keeps
+        // its source-derived consent and the next refresh retries
+      }
+    }
     const result = await db.execute(sql`
       INSERT INTO revenue_opportunities
         (id, source_type, source_id, customer_id, customer_name, customer_phone,
@@ -316,45 +355,79 @@ export interface RankedDecision extends OpportunityRow {
   factors: { valueDollars: number; urgencyWeight: number; qualityWeight: number };
 }
 
+const LIVE_STATES: readonly OpportunityState[] = [
+  "new", "assigned", "attempted", "contacted", "scheduled", "walk_in_expected", "arrived", "no_response",
+];
+
 /**
- * The owner's top-N decisions: live, consented, ranked by the transparent
- * score. Excluded (not silently — counted): non-consent rows and
- * terminal states.
+ * The owner's top-N decisions: live, consented, DUE, ranked in SQL over
+ * the FULL eligible set. Strike-2 fixes two review P1s here:
+ *   - due-aware: a snoozed row (due_at in the future) is EXCLUDED and
+ *     counted, so Snooze actually hides the item until its time —
+ *     pre-fix, snooze wrote due_at and nothing read it.
+ *   - full-set ranking: selection previously ranked a 200-row
+ *     `updated_at DESC` subset, so which rows even competed depended on
+ *     collector refresh order. The ORDER BY below mirrors
+ *     rankOpportunity's semantics (urgency primary, then quality-
+ *     weighted value, oldest first on ties) as a deterministic SQL sort.
+ * Excluded rows are counted, never silent.
  */
 export async function topDecisions(n = 5): Promise<{
   decisions: RankedDecision[];
   excludedNoConsent: number;
+  excludedSnoozed: number;
   totalLive: number;
 }> {
-  const live = await listOpportunities({
-    states: ["new", "assigned", "attempted", "contacted", "scheduled", "walk_in_expected", "arrived", "no_response"],
-    limit: 200,
-  });
-  const consented = live.filter((o) => o.consentOk);
-  // Sort: urgency first, then score. A value-unknown critical callback
-  // (customer explicitly asked for a call) must outrank a mid-value
-  // inferred estimate — and we never invent dollars to make that happen,
-  // so urgency is the primary axis and the value-score breaks ties.
-  const ranked = consented
-    .map((o) => ({
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { decisions: [], excludedNoConsent: 0, excludedSnoozed: 0, totalLive: 0 };
+
+  const stateList = sql.join(LIVE_STATES.map((s) => sql`${s}`), sql`, `);
+  try {
+    const countRows = rowsFromExecute(await db.execute(sql`
+      SELECT COUNT(*) AS totalLive,
+             SUM(consent_ok = 0) AS noConsent,
+             SUM(consent_ok = 1 AND due_at IS NOT NULL AND due_at > NOW()) AS snoozed
+      FROM revenue_opportunities
+      WHERE state IN (${stateList})
+    `));
+    const counts = countRows[0] ?? {};
+
+    const ranked = rowsFromExecute(await db.execute(sql`
+      SELECT * FROM revenue_opportunities
+      WHERE state IN (${stateList})
+        AND consent_ok = 1
+        AND (due_at IS NULL OR due_at <= NOW())
+      ORDER BY
+        CASE urgency WHEN 'critical' THEN 4 WHEN 'today' THEN 3 WHEN 'this_week' THEN 2 ELSE 1 END DESC,
+        CASE data_quality WHEN 'verified' THEN 4 WHEN 'inferred' THEN 3 WHEN 'partial' THEN 2 ELSE 1 END
+          * COALESCE(expected_revenue_cents, 0) DESC,
+        created_at ASC
+      LIMIT ${n}
+    `)).map(mapRow);
+
+    const decisions = ranked.map((o) => ({
       ...o,
       ...rankOpportunity({
         expectedRevenueCents: o.expectedRevenueCents,
         urgency: o.urgency,
         dataQuality: o.dataQuality,
       }),
-    }))
-    .sort((a, b) =>
-      b.factors.urgencyWeight !== a.factors.urgencyWeight
-        ? b.factors.urgencyWeight - a.factors.urgencyWeight
-        : b.score - a.score,
-    )
-    .slice(0, n);
-  return {
-    decisions: ranked,
-    excludedNoConsent: live.length - consented.length,
-    totalLive: live.length,
-  };
+    }));
+    return {
+      decisions,
+      excludedNoConsent: Number(counts.noConsent ?? 0),
+      excludedSnoozed: Number(counts.snoozed ?? 0),
+      totalLive: Number(counts.totalLive ?? 0),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingOnce("topDecisions");
+      return { decisions: [], excludedNoConsent: 0, excludedSnoozed: 0, totalLive: 0 };
+    }
+    throw err;
+  }
 }
 
 // ─── State machine (write path) ─────────────────────────────────────
@@ -420,6 +493,30 @@ export async function transitionOpportunity(params: {
     if ((raw.affectedRows ?? 0) === 0) {
       return { ok: false, error: "conflict: state changed concurrently — re-read and retry" };
     }
+
+    // Strike-2 contact policy: DNC is phone-scoped, not row-scoped. Zero
+    // consent on every OTHER live row for the same phone so the inbox
+    // never recommends contacting a number the operator just marked DNC
+    // (collectors also honor this via phoneHasQueueDnc on upsert).
+    if (params.to === "do_not_contact" && current.customerPhone) {
+      const last10 = current.customerPhone.replace(/\D/g, "").slice(-10);
+      if (last10.length === 10) {
+        try {
+          await db.execute(sql`
+            UPDATE revenue_opportunities
+            SET consent_ok = 0, updated_at = CURRENT_TIMESTAMP
+            WHERE id != ${params.id}
+              AND customer_phone IS NOT NULL
+              AND RIGHT(REGEXP_REPLACE(customer_phone, '[^0-9]', ''), 10) = ${last10}
+              AND state IN (${sql.join(LIVE_STATES.map((s) => sql`${s}`), sql`, `)})
+          `);
+        } catch (sweepErr) {
+          log.warn("[opportunity-queue] phone-wide DNC sweep failed (row itself IS marked)", {
+            error: sweepErr instanceof Error ? sweepErr.message : String(sweepErr),
+          });
+        }
+      }
+    }
     return { ok: true };
   } catch (err) {
     if (isMissingTableError(err)) {
@@ -478,15 +575,64 @@ export async function snoozeOpportunity(params: {
 }
 
 /**
- * The ONLY path to `won`. Requires a real invoice: the invoice row is
- * looked up first, and the transition stores the id + verification time.
+ * Pure outcome-match classifier (Strike-2, exported for tests).
+ * Pre-fix, `won` verified only that SOME invoice with that id existed —
+ * any invoice could be attached to any opportunity and counted as
+ * verified recovered revenue. Match tiers:
+ *   direct — the SOURCE carries the linkage (alg_estimates.
+ *            matched_invoice_id equals this invoice).
+ *   strong — same normalized phone AND the invoice is dated on/after
+ *            the opportunity (1-day slack for same-day timing).
+ *   manual — operator explicitly attached it (allowManualMatch); stored
+ *            as manual, never counted as independently verified.
+ *   rejected — nothing links them; the win is refused.
+ */
+export function classifyOutcomeMatch(input: {
+  opportunityPhone: string | null;
+  opportunityCreatedAt: Date;
+  invoicePhone: string | null;
+  invoiceDate: Date | null;
+  sourceLinkedInvoiceId: number | null;
+  invoiceId: number;
+  allowManualMatch: boolean;
+}): { method: "direct" | "strong" | "manual"; detail: string } | { method: "rejected"; detail: string } {
+  if (input.sourceLinkedInvoiceId != null && input.sourceLinkedInvoiceId === input.invoiceId) {
+    return { method: "direct", detail: "source row links this exact invoice" };
+  }
+  const oppLast10 = (input.opportunityPhone ?? "").replace(/\D/g, "").slice(-10);
+  const invLast10 = (input.invoicePhone ?? "").replace(/\D/g, "").slice(-10);
+  const phoneMatches = oppLast10.length === 10 && oppLast10 === invLast10;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const dateOk =
+    input.invoiceDate != null &&
+    input.invoiceDate.getTime() >= input.opportunityCreatedAt.getTime() - DAY_MS;
+  if (phoneMatches && dateOk) {
+    return { method: "strong", detail: "phone matches and invoice postdates the opportunity" };
+  }
+  if (input.allowManualMatch) {
+    return {
+      method: "manual",
+      detail: `operator-attached without independent linkage (phoneMatch=${phoneMatches}, dateOk=${dateOk})`,
+    };
+  }
+  const why = !phoneMatches
+    ? "invoice phone does not match the opportunity"
+    : "invoice predates the opportunity";
+  return { method: "rejected", detail: why };
+}
+
+/**
+ * The ONLY path to `won`. Requires a real invoice AND a defensible link
+ * between that invoice and THIS opportunity (classifyOutcomeMatch).
  * Roadmap: "measure recovery only from verified later outcomes."
  */
 export async function recordOutcome(params: {
   id: string;
   invoiceId: number;
   by: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+  /** Operator override: record the win as an explicit MANUAL match. */
+  allowManualMatch?: boolean;
+}): Promise<{ ok: true; matchMethod: "direct" | "strong" | "manual" } | { ok: false; error: string }> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
@@ -494,11 +640,14 @@ export async function recordOutcome(params: {
 
   try {
     const invoiceRows = rowsFromExecute(
-      await db.execute(sql`SELECT id FROM invoices WHERE id = ${params.invoiceId} LIMIT 1`),
+      await db.execute(sql`
+        SELECT id, customerPhone, invoiceDate FROM invoices WHERE id = ${params.invoiceId} LIMIT 1
+      `),
     );
     if (invoiceRows.length === 0) {
       return { ok: false, error: `invoice ${params.invoiceId} not found — won requires a verified invoice` };
     }
+    const invoice = invoiceRows[0] as { customerPhone?: string | null; invoiceDate?: string | Date | null };
 
     const rows = rowsFromExecute(
       await db.execute(sql`SELECT * FROM revenue_opportunities WHERE id = ${params.id} LIMIT 1`),
@@ -509,12 +658,46 @@ export async function recordOutcome(params: {
       return { ok: false, error: `already terminal (${current.state})` };
     }
 
+    // Direct linkage: for estimate-sourced opportunities the source row
+    // itself may already carry the matched invoice.
+    let sourceLinkedInvoiceId: number | null = null;
+    const estimateId = (current.evidence as Record<string, unknown> | null)?.estimateId;
+    if (current.sourceType === "unapproved_estimate" && typeof estimateId === "number") {
+      try {
+        const linkRows = rowsFromExecute(await db.execute(sql`
+          SELECT matched_invoice_id AS linked FROM alg_estimates WHERE id = ${estimateId} LIMIT 1
+        `));
+        const linked = linkRows[0]?.linked;
+        sourceLinkedInvoiceId = linked == null ? null : Number(linked);
+      } catch {
+        // linkage lookup is best-effort; phone+date can still qualify
+      }
+    }
+
+    const match = classifyOutcomeMatch({
+      opportunityPhone: current.customerPhone,
+      opportunityCreatedAt: current.createdAt,
+      invoicePhone: invoice.customerPhone == null ? null : String(invoice.customerPhone),
+      invoiceDate: invoice.invoiceDate == null ? null : new Date(invoice.invoiceDate),
+      sourceLinkedInvoiceId,
+      invoiceId: params.invoiceId,
+      allowManualMatch: params.allowManualMatch === true,
+    });
+    if (match.method === "rejected") {
+      return {
+        ok: false,
+        error: `invoice ${params.invoiceId} does not match this opportunity (${match.detail}) — pass allowManualMatch to attach it as an explicit manual match`,
+      };
+    }
+
     const receipt = {
       at: new Date().toISOString(),
       by: params.by,
       from: current.state,
       to: "won",
       invoiceId: params.invoiceId,
+      matchMethod: match.method,
+      matchDetail: match.detail,
     };
     const receipts = [...current.receipts, receipt];
 
@@ -533,7 +716,7 @@ export async function recordOutcome(params: {
     if ((raw.affectedRows ?? 0) === 0) {
       return { ok: false, error: "conflict: state changed concurrently — re-read and retry" };
     }
-    return { ok: true };
+    return { ok: true, matchMethod: match.method };
   } catch (err) {
     if (isMissingTableError(err)) {
       warnMissingOnce("recordOutcome");
@@ -546,32 +729,72 @@ export async function recordOutcome(params: {
 // ─── Collectors (read sources → upsert queue · NEVER contact anyone) ─
 
 /**
+ * Honest collector telemetry (Strike-2). Pre-fix every collector
+ * reported one `upserted` count that incremented on refreshes too, so a
+ * cron re-touching the same unresolved rows read as "productive" every
+ * run — the exact loop-shape defect the loopShapeContract was built to
+ * catch. `inserted` = genuinely new rows; `refreshed` = existing rows
+ * re-touched.
+ */
+export interface CollectorStats {
+  scanned: number;
+  inserted: number;
+  refreshed: number;
+}
+
+/**
+ * Pure identity resolver for the last-10 phone join (Strike-2, exported
+ * for tests). The SMS path already learned this rule the hard way:
+ *   0 matches  → unknown customer (no linkage)
+ *   1 match    → linked
+ *   2+ matches → AMBIGUOUS: no customer linkage, and if ANY candidate
+ *                opted out, SMS-class consent is refused (a shared or
+ *                recycled number must never inherit the wrong person's
+ *                consent).
+ */
+export function resolveEstimateIdentity(input: {
+  matchCount: number;
+  anyCustomerId: number | null;
+  anyOptOut: boolean;
+}): { customerId: number | null; consentOk: boolean; ambiguous: boolean } {
+  if (input.matchCount <= 0) return { customerId: null, consentOk: true, ambiguous: false };
+  if (input.matchCount === 1) {
+    return { customerId: input.anyCustomerId, consentOk: !input.anyOptOut, ambiguous: false };
+  }
+  return { customerId: null, consentOk: !input.anyOptOut, ambiguous: true };
+}
+
+/**
  * Unresolved ALG estimates (7-60d old, ≥ $150) → unapproved_estimate
  * opportunities. data_quality is "inferred" BY DESIGN: an unmatched
  * estimate is unresolved, not proven-declined (revenue-truth doctrine).
- * Consent is read from customers.smsOptOut via the phone-last10 join the
- * recovery cron already uses.
+ * Identity: the bare last-10 LEFT JOIN multiplied rows when a phone
+ * matched 2+ customers (last write won, consent read off a possibly
+ * wrong person). Now aggregated per estimate and resolved through
+ * resolveEstimateIdentity's ambiguity rules.
  */
-export async function collectUnapprovedEstimates(): Promise<{ scanned: number; upserted: number }> {
+export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
-  if (!db) return { scanned: 0, upserted: 0 };
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
 
   const MIN_CENTS = 15_000; // below $150 it's not an owner-level decision
   let rows: Array<Record<string, unknown>>;
-  try {
-    // stated_concern (0100): closed signals (repaired elsewhere / sold /
-    // not interested) are excluded — the customer answered; there is no
-    // decision left to surface. Pre-0100 environments fall back to the
-    // same query without the column.
-    rows = rowsFromExecute(await db.execute(sql`
+  // Identity join aggregated per estimate (GROUP BY the alg_estimates PK)
+  // so a phone shared by 2+ customer rows can no longer multiply the
+  // estimate into several conflicting upserts. matchCount drives the
+  // ambiguity rule; anyOptOut is the CONSERVATIVE consent read (if any
+  // candidate opted out, SMS-class consent is refused).
+  const query = (withConcern: boolean) => sql`
       SELECT e.id, e.customer_name AS customerName, e.customer_phone AS customerPhone,
              e.service_description AS serviceDescription, e.estimated_amount AS estimatedAmount,
              e.estimate_date AS estimateDate,
              e.follow_up_7d_sent AS f7, e.follow_up_30d_sent AS f30,
-             e.stated_concern AS statedConcern,
-             c.id AS customerId, c.smsOptOut AS smsOptOut
+             ${withConcern ? sql`e.stated_concern` : sql`NULL`} AS statedConcern,
+             COUNT(DISTINCT c.id) AS matchCount,
+             MIN(c.id) AS anyCustomerId,
+             MAX(CASE WHEN c.smsOptOut = 1 THEN 1 ELSE 0 END) AS anyOptOut
       FROM alg_estimates e
       LEFT JOIN customers c
         ON RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', ''), 10)
@@ -581,46 +804,37 @@ export async function collectUnapprovedEstimates(): Promise<{ scanned: number; u
         AND e.estimate_date >= DATE_SUB(NOW(), INTERVAL 60 DAY)
         AND e.estimate_date <= DATE_SUB(NOW(), INTERVAL 7 DAY)
         AND e.estimated_amount >= ${MIN_CENTS}
-        AND (e.stated_concern IS NULL OR e.stated_concern NOT IN ('repaired_elsewhere', 'no_longer_owns', 'not_interested'))
+        ${withConcern ? sql`AND (e.stated_concern IS NULL OR e.stated_concern NOT IN ('repaired_elsewhere', 'no_longer_owns', 'not_interested'))` : sql``}
+      GROUP BY e.id
       LIMIT 300
-    `));
+    `;
+  try {
+    // stated_concern (0100): closed signals (repaired elsewhere / sold /
+    // not interested) are excluded — the customer answered; there is no
+    // decision left to surface. Pre-0100 environments fall back to the
+    // same query without the column.
+    rows = rowsFromExecute(await db.execute(query(true)));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/unknown column|1054/i.test(msg)) {
-      // 0100 not applied — run without the stated-concern column.
       try {
-        rows = rowsFromExecute(await db.execute(sql`
-          SELECT e.id, e.customer_name AS customerName, e.customer_phone AS customerPhone,
-                 e.service_description AS serviceDescription, e.estimated_amount AS estimatedAmount,
-                 e.estimate_date AS estimateDate,
-                 e.follow_up_7d_sent AS f7, e.follow_up_30d_sent AS f30,
-                 c.id AS customerId, c.smsOptOut AS smsOptOut
-          FROM alg_estimates e
-          LEFT JOIN customers c
-            ON RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', ''), 10)
-             = RIGHT(REGEXP_REPLACE(COALESCE(e.customer_phone, ''), '[^0-9]', ''), 10)
-           AND e.customer_phone IS NOT NULL
-          WHERE e.matched_invoice_id IS NULL
-            AND e.estimate_date >= DATE_SUB(NOW(), INTERVAL 60 DAY)
-            AND e.estimate_date <= DATE_SUB(NOW(), INTERVAL 7 DAY)
-            AND e.estimated_amount >= ${MIN_CENTS}
-          LIMIT 300
-        `));
+        rows = rowsFromExecute(await db.execute(query(false)));
       } catch (retryErr) {
         log.warn("[opportunity-queue] estimate collector query failed", {
           error: retryErr instanceof Error ? retryErr.message : String(retryErr),
         });
-        return { scanned: 0, upserted: 0 };
+        return { scanned: 0, inserted: 0, refreshed: 0 };
       }
     } else {
       log.warn("[opportunity-queue] estimate collector query failed", {
         error: msg,
       });
-      return { scanned: 0, upserted: 0 };
+      return { scanned: 0, inserted: 0, refreshed: 0 };
     }
   }
 
-  let upserted = 0;
+  let inserted = 0;
+  let refreshed = 0;
   for (const r of rows) {
     const amountCents = Number(r.estimatedAmount ?? 0);
     const ageDays = r.estimateDate
@@ -629,10 +843,15 @@ export async function collectUnapprovedEstimates(): Promise<{ scanned: number; u
     const touches = (Number(r.f7 ?? 0) ? 1 : 0) + (Number(r.f30 ?? 0) ? 1 : 0);
     const name = r.customerName ? String(r.customerName) : "customer";
     const service = r.serviceDescription ? String(r.serviceDescription).slice(0, 80) : "quoted work";
+    const identity = resolveEstimateIdentity({
+      matchCount: Number(r.matchCount ?? 0),
+      anyCustomerId: r.anyCustomerId == null ? null : Number(r.anyCustomerId),
+      anyOptOut: Number(r.anyOptOut ?? 0) === 1,
+    });
     const res = await upsertOpportunity({
       sourceType: "unapproved_estimate",
       sourceId: String(r.id),
-      customerId: r.customerId == null ? null : Number(r.customerId),
+      customerId: identity.customerId,
       customerName: name,
       customerPhone: r.customerPhone == null ? null : String(r.customerPhone),
       expectedRevenueCents: amountCents,
@@ -646,13 +865,17 @@ export async function collectUnapprovedEstimates(): Promise<{ scanned: number; u
         serviceDescription: service,
         recoveryTouchesSent: touches,
         statedConcern: r.statedConcern ? String(r.statedConcern) : null,
+        ...(identity.ambiguous
+          ? { identityAmbiguous: true, identityMatches: Number(r.matchCount ?? 0) }
+          : {}),
       },
-      consentOk: Number(r.smsOptOut ?? 0) !== 1,
+      consentOk: identity.consentOk,
     });
-    if (res !== "unavailable") upserted++;
-    else return { scanned: rows.length, upserted }; // table missing — stop early
+    if (res === "inserted") inserted++;
+    else if (res === "refreshed") refreshed++;
+    else return { scanned: rows.length, inserted, refreshed }; // table missing — stop early
   }
-  return { scanned: rows.length, upserted };
+  return { scanned: rows.length, inserted, refreshed };
 }
 
 /**
@@ -660,11 +883,11 @@ export async function collectUnapprovedEstimates(): Promise<{ scanned: number; u
  * "verified" (the customer explicitly asked to be called) and urgency
  * critical — this is the highest-signal row the queue can hold.
  */
-export async function collectPendingCallbacks(): Promise<{ scanned: number; upserted: number }> {
+export async function collectPendingCallbacks(): Promise<CollectorStats> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
-  if (!db) return { scanned: 0, upserted: 0 };
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
 
   let rows: Array<Record<string, unknown>>;
   try {
@@ -679,10 +902,11 @@ export async function collectPendingCallbacks(): Promise<{ scanned: number; upse
     log.warn("[opportunity-queue] callback collector query failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return { scanned: 0, upserted: 0 };
+    return { scanned: 0, inserted: 0, refreshed: 0 };
   }
 
-  let upserted = 0;
+  let inserted = 0;
+  let refreshed = 0;
   for (const r of rows) {
     const name = r.name ? String(r.name) : "customer";
     const ageHours = r.createdAt
@@ -705,10 +929,11 @@ export async function collectPendingCallbacks(): Promise<{ scanned: number; upse
       },
       consentOk: true, // they asked to be contacted
     });
-    if (res !== "unavailable") upserted++;
-    else return { scanned: rows.length, upserted };
+    if (res === "inserted") inserted++;
+    else if (res === "refreshed") refreshed++;
+    else return { scanned: rows.length, inserted, refreshed };
   }
-  return { scanned: rows.length, upserted };
+  return { scanned: rows.length, inserted, refreshed };
 }
 
 /**
@@ -720,10 +945,10 @@ export async function collectPendingCallbacks(): Promise<{ scanned: number; upse
  * CALL BACK — consent gates for SMS don't apply to returning a call, so
  * consentOk stays true. Never sends anything.
  */
-export async function collectMissedCalls(): Promise<{ scanned: number; upserted: number }> {
+export async function collectMissedCalls(): Promise<CollectorStats> {
   const { getDbTyped } = await import("../db");
   const db = await getDbTyped();
-  if (!db) return { scanned: 0, upserted: 0 };
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
 
   const { vapiCallLogs } = await import("../../drizzle/schema");
   const { and, eq, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
@@ -765,10 +990,11 @@ export async function collectMissedCalls(): Promise<{ scanned: number; upserted:
     log.warn("[opportunity-queue] missed-call collector query failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return { scanned: 0, upserted: 0 };
+    return { scanned: 0, inserted: 0, refreshed: 0 };
   }
 
-  let upserted = 0;
+  let inserted = 0;
+  let refreshed = 0;
   for (const r of rows) {
     const meta = (r.metadata ?? null) as Record<string, unknown> | null;
     const eligible = isMissedCallEligible({
@@ -801,10 +1027,11 @@ export async function collectMissedCalls(): Promise<{ scanned: number; upserted:
       },
       consentOk: true, // returning a phone call the customer made
     });
-    if (res !== "unavailable") upserted++;
-    else return { scanned: rows.length, upserted };
+    if (res === "inserted") inserted++;
+    else if (res === "refreshed") refreshed++;
+    else return { scanned: rows.length, inserted, refreshed };
   }
-  return { scanned: rows.length, upserted };
+  return { scanned: rows.length, inserted, refreshed };
 }
 
 /**
@@ -896,11 +1123,11 @@ export function summarizeInspectionForQueue(
  * evidence class the queue holds. Pre-0101 environments degrade
  * gracefully (decision column absent → treated as all-open).
  */
-export async function collectInspectionDeferrals(): Promise<{ scanned: number; upserted: number }> {
+export async function collectInspectionDeferrals(): Promise<CollectorStats> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
-  if (!db) return { scanned: 0, upserted: 0 };
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
 
   type Row = {
     inspectionId: number; customerName: string; customerPhone: string | null;
@@ -929,11 +1156,11 @@ export async function collectInspectionDeferrals(): Promise<{ scanned: number; u
       try {
         rows = rowsFromExecute(await db.execute(baseQuery(false))) as unknown as Row[];
       } catch {
-        return { scanned: 0, upserted: 0 };
+        return { scanned: 0, inserted: 0, refreshed: 0 };
       }
     } else {
       log.warn("[opportunity-queue] inspection collector query failed", { error: msg });
-      return { scanned: 0, upserted: 0 };
+      return { scanned: 0, inserted: 0, refreshed: 0 };
     }
   }
 
@@ -945,7 +1172,8 @@ export async function collectInspectionDeferrals(): Promise<{ scanned: number; u
     byInspection.set(Number(r.inspectionId), entry);
   }
 
-  let upserted = 0;
+  let inserted = 0;
+  let refreshed = 0;
   for (const { meta, items } of byInspection.values()) {
     const s = summarizeInspectionForQueue(
       items.map((i) => ({
@@ -974,25 +1202,210 @@ export async function collectInspectionDeferrals(): Promise<{ scanned: number; u
       },
       consentOk: true, // follow-up call about their own vehicle's check
     });
-    if (res !== "unavailable") upserted++;
-    else return { scanned: byInspection.size, upserted };
+    if (res === "inserted") inserted++;
+    else if (res === "refreshed") refreshed++;
+    else return { scanned: byInspection.size, inserted, refreshed };
   }
-  return { scanned: byInspection.size, upserted };
+  return { scanned: byInspection.size, inserted, refreshed };
 }
 
-/** Cron entry: run all collectors. Read-only against sources; writes only the queue. */
+// ─── Source reconcilers (Strike-2) ──────────────────────────────────
+//
+// A queue that only ever ADDS rows drifts into a wall of stale asks:
+// the estimate got paid, the callback was handled, the missed call aged
+// out — and the inbox still says "call them". Each reconciler closes
+// live rows whose SOURCE has resolved. Closures use the roadmap's own
+// vocabulary: a source-linked invoice → won via recordOutcome (direct
+// match); everything else → `lost` with a receipt naming the REAL
+// reason (the state machine has no "resolved" state by design — the
+// receipt, not the coarse state, carries the truth).
+
+export interface ReconcileStats {
+  checked: number;
+  won: number;
+  closed: number;
+}
+
+export async function reconcileOpportunities(): Promise<ReconcileStats> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { checked: 0, won: 0, closed: 0 };
+
+  const stats: ReconcileStats = { checked: 0, won: 0, closed: 0 };
+  const stateList = sql.join(LIVE_STATES.map((s) => sql`${s}`), sql`, `);
+
+  // 1. unapproved_estimate: the estimate later matched an invoice → WON
+  //    (direct linkage); or the customer answered with a closed signal
+  //    (repaired elsewhere / sold / not interested) → lost.
+  try {
+    const matched = rowsFromExecute(await db.execute(sql`
+      SELECT o.id, e.matched_invoice_id AS invoiceId
+      FROM revenue_opportunities o
+      JOIN alg_estimates e ON e.id = CAST(o.source_id AS UNSIGNED)
+      WHERE o.source_type = 'unapproved_estimate'
+        AND o.state IN (${stateList})
+        AND e.matched_invoice_id IS NOT NULL
+      LIMIT 100
+    `));
+    stats.checked += matched.length;
+    for (const r of matched) {
+      const res = await recordOutcome({
+        id: String(r.id),
+        invoiceId: Number(r.invoiceId),
+        by: "reconciler",
+      });
+      if (res.ok) stats.won++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] estimate-won reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  try {
+    const answered = rowsFromExecute(await db.execute(sql`
+      SELECT o.id, e.stated_concern AS concern
+      FROM revenue_opportunities o
+      JOIN alg_estimates e ON e.id = CAST(o.source_id AS UNSIGNED)
+      WHERE o.source_type = 'unapproved_estimate'
+        AND o.state IN (${stateList})
+        AND e.stated_concern IN ('repaired_elsewhere', 'no_longer_owns', 'not_interested')
+      LIMIT 100
+    `));
+    stats.checked += answered.length;
+    for (const r of answered) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: `source resolved: customer stated ${String(r.concern)}`,
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!isMissingTableError(err) && !/unknown column|1054/i.test(msg)) {
+      log.warn("[opportunity-queue] estimate-concern reconciler failed", { error: msg });
+    }
+  }
+
+  // 2. callback: the callback_requests row left 'new' (someone handled
+  //    it in the callbacks admin) → close the queue's copy.
+  try {
+    const handled = rowsFromExecute(await db.execute(sql`
+      SELECT o.id, c.status AS cbStatus
+      FROM revenue_opportunities o
+      JOIN callback_requests c ON c.id = CAST(o.source_id AS UNSIGNED)
+      WHERE o.source_type = 'callback'
+        AND o.state IN (${stateList})
+        AND c.status != 'new'
+      LIMIT 100
+    `));
+    stats.checked += handled.length;
+    for (const r of handled) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: `source resolved: callback_requests status=${String(r.cbStatus)} (handled outside the queue)`,
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] callback reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // 3. missed_call: a week-old missed call is not an actionable owner
+  //    decision anymore — age it out instead of letting it pin the inbox.
+  try {
+    const stale = rowsFromExecute(await db.execute(sql`
+      SELECT id FROM revenue_opportunities
+      WHERE source_type = 'missed_call'
+        AND state IN (${stateList})
+        AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+      LIMIT 100
+    `));
+    stats.checked += stale.length;
+    for (const r of stale) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: "aged out: missed call older than 7 days",
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] missed-call reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // 4. deferred_service: every flagged item on the inspection now has a
+  //    non-declined decision → the deferral resolved (the customer
+  //    engaged; approved work is active business, not a chase).
+  try {
+    const resolved = rowsFromExecute(await db.execute(sql`
+      SELECT o.id
+      FROM revenue_opportunities o
+      WHERE o.source_type = 'deferred_service'
+        AND o.state IN (${stateList})
+        AND NOT EXISTS (
+          SELECT 1
+          FROM inspection_items i
+          WHERE i.inspectionId = CAST(SUBSTRING(o.source_id, 12) AS UNSIGNED)
+            AND i.condition IN ('red', 'yellow')
+            AND (i.decision IS NULL OR i.decision = 'declined')
+        )
+      LIMIT 100
+    `));
+    stats.checked += resolved.length;
+    for (const r of resolved) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: "source resolved: every flagged inspection item now has a customer decision",
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!isMissingTableError(err) && !/unknown column|1054/i.test(msg)) {
+      log.warn("[opportunity-queue] deferral reconciler failed", { error: msg });
+    }
+  }
+
+  return stats;
+}
+
+/** Cron entry: reconcile resolved sources FIRST, then run all collectors.
+ * Read-only against sources; writes only the queue. recordsProcessed
+ * counts REAL changes only (new rows + closures + wins) — refreshes of
+ * existing rows are reported separately and never read as production. */
 export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: number; details: string }> {
+  const reconciled = await reconcileOpportunities();
   const estimates = await collectUnapprovedEstimates();
   const callbacks = await collectPendingCallbacks();
   const missedCalls = await collectMissedCalls();
   const inspections = await collectInspectionDeferrals();
+  const fmt = (s: CollectorStats) => `${s.inserted}new/${s.refreshed}ref/${s.scanned}scan`;
   const details =
-    `estimates: ${estimates.upserted}/${estimates.scanned} upserted · ` +
-    `callbacks: ${callbacks.upserted}/${callbacks.scanned} upserted · ` +
-    `missed calls: ${missedCalls.upserted}/${missedCalls.scanned} upserted · ` +
-    `inspection deferrals: ${inspections.upserted}/${inspections.scanned} upserted`;
+    `reconciled: ${reconciled.won}won+${reconciled.closed}closed/${reconciled.checked} · ` +
+    `estimates: ${fmt(estimates)} · callbacks: ${fmt(callbacks)} · ` +
+    `missed calls: ${fmt(missedCalls)} · deferrals: ${fmt(inspections)}`;
   return {
-    recordsProcessed: estimates.upserted + callbacks.upserted + missedCalls.upserted + inspections.upserted,
+    recordsProcessed:
+      reconciled.won + reconciled.closed +
+      estimates.inserted + callbacks.inserted + missedCalls.inserted + inspections.inserted,
     details,
   };
 }
