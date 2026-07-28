@@ -1417,14 +1417,63 @@ export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: num
   const missedCalls = await collectMissedCalls();
   const inspections = await collectInspectionDeferrals();
   const fmt = (s: CollectorStats) => `${s.inserted}new/${s.refreshed}ref/${s.scanned}scan`;
-  const details =
+  let details =
     `reconciled: ${reconciled.won}won+${reconciled.closed}closed/${reconciled.checked} · ` +
     `estimates: ${fmt(estimates)} · callbacks: ${fmt(callbacks)} · ` +
     `missed calls: ${fmt(missedCalls)} · deferrals: ${fmt(inspections)}`;
-  return {
-    recordsProcessed:
-      reconciled.won + reconciled.closed +
-      estimates.inserted + callbacks.inserted + missedCalls.inserted + inspections.inserted,
-    details,
-  };
+  const recordsProcessed =
+    reconciled.won + reconciled.closed +
+    estimates.inserted + callbacks.inserted + missedCalls.inserted + inspections.inserted;
+
+  // Strike-4: the loop judges its own shape. The contract was built to
+  // catch "cron looks productive while changing nothing" — with
+  // recordsProcessed now counting only REAL changes, classifyRun can
+  // tell dormant from quiet. Best-effort: shape-judging must never fail
+  // the refresh itself.
+  try {
+    const { classifyRun } = await import("./loopShapeContract");
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    let priorZeroRuns = 0;
+    let runsInWindow = 1;
+    if (db) {
+      const hist = rowsFromExecute(await db.execute(sql`
+        SELECT records_processed AS produced, started_at
+        FROM cron_log
+        WHERE job_name = 'opportunity-queue-refresh'
+          AND status = 'completed'
+          AND COALESCE(details, '') NOT LIKE '%skipped%'
+        ORDER BY started_at DESC
+        LIMIT 20
+      `));
+      for (const h of hist) {
+        if (Number(h.produced ?? 0) === 0) priorZeroRuns++;
+        else break;
+      }
+      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      runsInWindow = 1 + hist.filter((h) => new Date(h.started_at as string).getTime() >= weekAgo).length;
+    }
+    const finding = classifyRun({
+      loop: "opportunity-queue-refresh",
+      produced: recordsProcessed,
+      succeeded: true,
+      details,
+      priorZeroRuns,
+      runsInWindow,
+    });
+    if (finding.actionable) {
+      details += ` · shape:${finding.verdict} — ${finding.summary}`;
+      log.warn("[opportunity-queue] loop shape actionable", {
+        verdict: finding.verdict,
+        summary: finding.summary,
+      });
+    }
+  } catch (err) {
+    log.warn("[opportunity-queue] loop-shape classification failed (refresh unaffected)", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return { recordsProcessed, details };
 }
