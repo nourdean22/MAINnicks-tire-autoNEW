@@ -12,6 +12,7 @@ import {
   classifyRun,
   findActionable,
   getLoopContract,
+  looksSkipped,
   undeclaredLoops,
 } from "./services/loopShapeContract";
 
@@ -156,5 +157,150 @@ describe("loop shape contracts — batch triage", () => {
 
   it("every seeded contract resolves", () => {
     for (const c of LOOP_CONTRACTS) expect(getLoopContract(c.loop)).toBeDefined();
+  });
+});
+
+describe("skip discrimination — the cron_log wiring hazard", () => {
+  // `cron_log.records_processed` is `int DEFAULT 0` and the scheduler writes
+  // `recordsProcessed || 0`, so a deliberate skip is stored as the integer 0 —
+  // identical to "ran and produced nothing". 17 job files return a skip-shaped
+  // `details` alongside that 0. Without this discrimination, wiring classifyRun
+  // to cron_log reports every flag-disabled, outside-hours and
+  // missing-credential loop as dormant, and an alert surface people mute is how
+  // cross_sell stayed invisible for two months to begin with.
+  const REAL_SKIP_DETAILS = [
+    "Skip — gbp_auto_posting feature flag is disabled",
+    "Skip — email_marketing_campaigns feature flag is disabled",
+    "Skip — not within a posting-slot window",
+    "Skipped · FEATURE_VOICE_RECOVERY != '1'",
+    "Skipped · VAPI_API_KEY missing",
+    "Skipped · no VAPI outbound number resolvable",
+    "Not yet evening — skipped",
+    "Outside business hours — skipped",
+    "Feature disabled",
+    "daily_wins_digest flag disabled",
+  ];
+
+  it.each(REAL_SKIP_DETAILS)("recognises a real skip: %s", (details) => {
+    expect(looksSkipped(details)).toBe(true);
+  });
+
+  it("does NOT treat a genuine zero-output run as a skip", () => {
+    expect(looksSkipped("All data clean")).toBe(false);
+    expect(looksSkipped("0 unhealthy")).toBe(false);
+    expect(looksSkipped(null)).toBe(false);
+    expect(looksSkipped(undefined)).toBe(false);
+    expect(looksSkipped("")).toBe(false);
+  });
+
+  it("a skipped run is silent even at a dormancy-triggering streak", () => {
+    const finding = classifyRun({
+      loop: "ig-autopost",
+      produced: 0,
+      succeeded: true,
+      priorZeroRuns: 99,
+      details: "Skip — not within a posting-slot window",
+    });
+    expect(finding.verdict).toBe("skipped");
+    expect(finding.actionable).toBe(false);
+  });
+
+  it("the SAME loop at the SAME streak IS dormant without a skip reason", () => {
+    // The discrimination has to cut both ways or it is just a mute button.
+    const finding = classifyRun({
+      loop: "ig-autopost",
+      produced: 0,
+      succeeded: true,
+      priorZeroRuns: 99,
+      details: "generated 0 drafts",
+    });
+    expect(finding.verdict).toBe("dormant");
+    expect(finding.actionable).toBe(true);
+  });
+
+  it("an explicit skipped flag wins without needing details", () => {
+    const finding = classifyRun({ loop: "cross_sell", produced: 0, succeeded: true, skipped: true });
+    expect(finding.verdict).toBe("skipped");
+  });
+
+  it("a FAILED run is still a failure even when its details mention a skip", () => {
+    // Failure ordering must survive — a job that threw is not a job that idled.
+    const finding = classifyRun({
+      loop: "cross_sell",
+      produced: 0,
+      succeeded: false,
+      details: "Skipped · then threw",
+    });
+    expect(finding.verdict).toBe("failed");
+    expect(finding.actionable).toBe(true);
+  });
+});
+
+describe("skip detection precision — the self-defeating bug", () => {
+  // The first version matched ANY occurrence of "skip". crossSellOutreach ends
+  // EVERY run with `${sent} SMS sent, ${skipped} skipped (N v2 predictions in
+  // pool)` — a PER-ITEM tally. That classified every cross_sell run as a
+  // deliberate skip, which would have permanently hidden the exact ROS-033
+  // dormancy this module exists to detect. Caught in review on #1145.
+  const PER_ITEM_TALLIES = [
+    "1 SMS sent, 4 skipped (25550 v2 predictions in pool)",
+    "0 SMS sent, 12 skipped (25550 v2 predictions in pool)",
+    "3 sent, 2 skipped",
+  ];
+
+  it.each(PER_ITEM_TALLIES)("a per-item tally is NOT a whole-run skip: %s", (details) => {
+    expect(looksSkipped(details)).toBe(false);
+  });
+
+  it("cross_sell reporting 0 sends with per-item skips is DORMANT, not silent", () => {
+    // The flagship case. If this ever returns `skipped`, the module is broken.
+    const finding = classifyRun({
+      loop: "cross_sell",
+      produced: 0,
+      succeeded: true,
+      priorZeroRuns: 60,
+      details: "0 SMS sent, 12 skipped (25550 v2 predictions in pool)",
+    });
+    expect(finding.verdict).toBe("dormant");
+    expect(finding.actionable).toBe(true);
+  });
+
+  it("still recognises the real whole-run skips", () => {
+    for (const d of [
+      "Skip — gbp_auto_posting feature flag is disabled",
+      "Skipped · VAPI_API_KEY missing",
+      "Not yet evening — skipped",
+      "Outside business hours — skipped",
+      "Feature disabled",
+      "daily_wins_digest flag disabled",
+    ]) {
+      expect(looksSkipped(d), d).toBe(true);
+    }
+  });
+
+  it("a loop that STOPPED RUNNING is missing even when its one run was a skip", () => {
+    // Schedule coverage is a separate question from what the run did, and
+    // returning a silent `skipped` first would hide a dead scheduler.
+    const finding = classifyRun({
+      loop: "db-backup",
+      produced: 0,
+      succeeded: true,
+      runsInWindow: 1,
+      details: "Skip — feature flag is disabled",
+    });
+    expect(finding.verdict).toBe("missing");
+    expect(finding.actionable).toBe(true);
+  });
+
+  it("a skipped run on a HEALTHY schedule is still silent", () => {
+    const finding = classifyRun({
+      loop: "db-backup",
+      produced: 0,
+      succeeded: true,
+      runsInWindow: 7,
+      details: "Skip — feature flag is disabled",
+    });
+    expect(finding.verdict).toBe("skipped");
+    expect(finding.actionable).toBe(false);
   });
 });
