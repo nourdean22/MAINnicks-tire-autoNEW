@@ -301,3 +301,189 @@ describe("renderGreeneBlock", () => {
     expect(out).toContain("Laws of Human Nature");
   });
 });
+
+// ── 2026-07-27 · matchPhrases match surface ────────────────────────
+// `triggers` are analyst-facing condition sentences authored for the
+// digest cron's AI applicability check; they are not text a human types,
+// so scoring literal substrings against them never fires in chat. Entries
+// that carry `matchPhrases` score on real operator language instead.
+describe("matchPhrases (chat-side match surface)", () => {
+  function phraseRow(
+    key: string,
+    title: string,
+    triggers: string[],
+    matchPhrases?: string[],
+  ) {
+    return {
+      key,
+      metadata: {
+        title,
+        triggers,
+        matchPhrases,
+        summary: `${title} · short summary line.`,
+        book: "Mastery",
+      },
+    };
+  }
+
+  it("scores on matchPhrases when present, ignoring the triggers prose", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([
+      phraseRow(
+        "mastery_authentic_voice",
+        "The Authentic Voice",
+        // Condition sentences · a human never types these.
+        ["operator's output is fluent but indistinguishable from its influences"],
+        ["sounds like everyone else", "find my voice"],
+      ),
+    ] as never);
+    const r = await pickContextualLawsForMessage(
+      "Every post I write sounds like everyone else — I need to find my voice.",
+    );
+    expect(r.length).toBe(1);
+    expect(r[0].key).toBe("mastery_authentic_voice");
+    expect(r[0].hits).toEqual(
+      expect.arrayContaining(["sounds like everyone else", "find my voice"]),
+    );
+  });
+
+  it("does NOT fall back to triggers when matchPhrases exist but miss", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([
+      phraseRow(
+        "mastery_open_field",
+        "The Open Field",
+        // Would score 2 if triggers were still being matched.
+        ["market is crowded", "competing on price"],
+        ["no overlap at all with the message"],
+      ),
+    ] as never);
+    const r = await pickContextualLawsForMessage(
+      "The market is crowded and everyone is competing on price out here.",
+    );
+    expect(r).toEqual([]);
+  });
+
+  it("still matches on triggers for legacy entries with no matchPhrases", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([
+      phraseRow("law_15", "Crush Your Enemy Totally", ["enemy", "rival"]),
+    ] as never);
+    const r = await pickContextualLawsForMessage(
+      "My rival is openly an enemy now — what should I do?",
+    );
+    expect(r.length).toBe(1);
+    expect(r[0].key).toBe("law_15");
+  });
+
+  it("ignores a null matchPhrases (seed writes null, not undefined)", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([
+      {
+        key: "law_16",
+        metadata: {
+          title: "Use Absence to Increase Respect",
+          triggers: ["absence", "go quiet"],
+          matchPhrases: null,
+          summary: "Scarcity of presence raises its value.",
+          book: "48 Laws of Power",
+        },
+      },
+    ] as never);
+    const r = await pickContextualLawsForMessage(
+      "Should I go quiet for a bit — does absence actually help here?",
+    );
+    expect(r.length).toBe(1);
+    expect(r[0].key).toBe("law_16");
+  });
+});
+
+// ── 2026-07-27 · embedOnMiss ───────────────────────────────────────
+// AG-31's vector fallback is gated on a caller-supplied userEmbedding,
+// which only brain-context can provide (it gets one from the chat route's
+// prefetch). reasoning/engine.ts and tactician/next-move.ts pass no
+// options, so the vector path was unreachable for them. embedOnMiss lets
+// those call sites buy an embedding — but ONLY when triggers miss.
+vi.mock("@/lib/ai/tool-embeddings", () => ({
+  embedUserMessage: vi.fn().mockResolvedValue([1, 0, 0]),
+}));
+
+import { embedUserMessage } from "@/lib/ai/tool-embeddings";
+
+describe("embedOnMiss", () => {
+  const vectorRow = {
+    key: "law_absence",
+    metadata: {
+      title: "Use Absence to Increase Respect",
+      triggers: ["outshine"], // absent from the paraphrased message below
+      summary: "Scarcity of presence raises its value.",
+      book: "48 Laws of Power",
+      actions: ["Go quiet for 48 hours after the proposal lands"],
+    },
+  };
+
+  it("embeds and fires the vector path when triggers miss and no embedding was passed", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([vectorRow] as never);
+    vi.mocked(prisma.vectorEmbedding.findMany).mockResolvedValue([
+      { sourceId: "law_absence", embedding: "[1,0,0]" },
+    ] as never);
+
+    const picks = await pickContextualLawsForMessage(
+      "my business partner takes credit for everything I build",
+      { embedOnMiss: true },
+    );
+    expect(vi.mocked(embedUserMessage)).toHaveBeenCalledOnce();
+    expect(picks).toHaveLength(1);
+    expect(picks[0].source).toBe("vector");
+  });
+
+  it("does NOT embed when the flag is off — preserves the old behavior", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([vectorRow] as never);
+    const picks = await pickContextualLawsForMessage(
+      "my business partner takes credit for everything I build",
+    );
+    expect(vi.mocked(embedUserMessage)).not.toHaveBeenCalled();
+    expect(picks).toEqual([]);
+  });
+
+  it("does NOT embed when triggers hit — the cost is miss-only", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([
+      {
+        key: "law_power",
+        metadata: {
+          title: "Power Law",
+          triggers: ["leverage", "power"],
+          summary: "s",
+          book: "48 Laws of Power",
+          actions: [],
+        },
+      },
+    ] as never);
+    const picks = await pickContextualLawsForMessage(
+      "how do I get leverage and power in this deal",
+      { embedOnMiss: true },
+    );
+    expect(vi.mocked(embedUserMessage)).not.toHaveBeenCalled();
+    expect(picks[0].source).toBe("trigger");
+  });
+
+  it("prefers a passed embedding over embedding again", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([vectorRow] as never);
+    vi.mocked(prisma.vectorEmbedding.findMany).mockResolvedValue([
+      { sourceId: "law_absence", embedding: "[1,0,0]" },
+    ] as never);
+
+    const picks = await pickContextualLawsForMessage(
+      "my business partner takes credit for everything I build",
+      { userEmbedding: [1, 0, 0], embedOnMiss: true },
+    );
+    expect(vi.mocked(embedUserMessage)).not.toHaveBeenCalled();
+    expect(picks[0].source).toBe("vector");
+  });
+
+  it("degrades to [] when the embedding call fails", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValue([vectorRow] as never);
+    vi.mocked(embedUserMessage).mockResolvedValueOnce([]);
+    const picks = await pickContextualLawsForMessage(
+      "my business partner takes credit for everything I build",
+      { embedOnMiss: true },
+    );
+    expect(picks).toEqual([]);
+  });
+});

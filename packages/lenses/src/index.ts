@@ -76,6 +76,29 @@ import { powerLaw } from "./frameworks/power-law";
 import { opportunityCost } from "./frameworks/opportunity-cost";
 import { lossAversion } from "./frameworks/loss-aversion";
 import { oodaLoop } from "./frameworks/ooda-loop";
+// 2026-07-27 · Greene, Mastery Book V — the creative-active strategies.
+// The registry's existing 51 lenses are business-ANALYSIS lenses (how to
+// evaluate a market, a price, a decision). These are creative-PROCESS
+// lenses (how to make original work), which is a genuinely absent axis.
+//
+// Eight of Greene's nine, not all nine: "The Open Field" is the same
+// argument as `blue-ocean` (uncontested space, refuse the incumbents'
+// scoreboard), and a near-duplicate lens would split trigger matches and
+// dilute both. Blue Ocean states it better with the ERRC grid — routing
+// open-field questions there is the correct behavior, not a gap.
+//
+// All eight are non-featured on purpose: featured lenses are listed in
+// the generic business/strategy fallback, which previously dumped every
+// headline and cost ~700-1000 tokens on casual mentions. These fire only
+// on their own triggers, so they add nothing to the common path.
+import { authenticVoice } from "./frameworks/authentic-voice";
+import { factOfGreatYield } from "./frameworks/fact-of-great-yield";
+import { mechanicalIntelligence } from "./frameworks/mechanical-intelligence";
+import { naturalPowers } from "./frameworks/natural-powers";
+import { theHighEnd } from "./frameworks/the-high-end";
+import { evolutionaryHijack } from "./frameworks/evolutionary-hijack";
+import { dimensionalThinking } from "./frameworks/dimensional-thinking";
+import { alchemicalCreativity } from "./frameworks/alchemical-creativity";
 
 /**
  * The 49-lens registry. Order doesn't matter · `detectLenses` scores
@@ -98,6 +121,9 @@ export const REGISTRY: StrategicFramework[] = [
   hanlonsRazor, secondOrderThinking,
   powerLaw, opportunityCost,
   lossAversion, oodaLoop,
+  // Greene · Mastery Book V · creative-active strategies
+  authenticVoice, factOfGreatYield, mechanicalIntelligence, naturalPowers,
+  theHighEnd, evolutionaryHijack, dimensionalThinking, alchemicalCreativity,
 ];
 
 export type { StrategicFramework, FrameworkMatch } from "./types";

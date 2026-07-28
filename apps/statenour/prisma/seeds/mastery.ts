@@ -1,7 +1,13 @@
 import type { PrismaClient } from "@prisma/client";
 
-export async function seedMastery(prisma: PrismaClient) {
-  const laws = [
+/**
+ * Exported (2026-07-27) so the prompt-budget guard is enforceable in a
+ * test. `finalize-system-prompt` maps EVERY StrategicLaw row into the
+ * anthropic system prompt as `[BOOK #N] shortTitle: essence`, so an
+ * unbounded `essence` here is paid on every chat turn against a 65K cap.
+ * See tests/brain/mastery-creative-strategies.test.ts.
+ */
+export const MASTERY_LAWS = [
     {
       book: "MASTERY" as const,
       number: 1,
@@ -252,7 +258,221 @@ export async function seedMastery(prisma: PrismaClient) {
         "unconscious_competence"
       ]),
     },
-  ];
+
+    // ── Book V · the 9 creative strategies (21-29) ──────────────────
+    // 2026-07-27. Numbers 13-20 live in seed-greene-expansion.ts; these
+    // continue at 21 to stay clear of that range.
+    //
+    // These already exist in the BrainMemory Greene corpus
+    // (lib/brain/greene/mastery.ts, type "creative_strategy"), but that
+    // is a DIFFERENT retrieval path — BrainMemory feeds the chat matcher,
+    // the reasoning engine, and the relationship sidebar. StrategicLaw
+    // feeds four other consumers the corpus never reaches:
+    // finalize-system-prompt (every anthropic chat turn, via
+    // greeneSummary), lib/ultron/adviser.ts (cached trigger index),
+    // lib/ai/tools/brain.ts (operator text search), and
+    // lib/ai/tools/tasks.ts (task↔law matching). Absent here, Nick could
+    // retrieve these strategies on a matched chat turn but never carried
+    // them as ambient context, and no tool could surface them on request.
+    //
+    // BUDGET NOTE · greeneSummary maps EVERY row into the system prompt as
+    // `[BOOK #N] shortTitle: essence`, so `essence` is paid on every
+    // anthropic turn — keep it tight (~250-300 chars, matching the rows
+    // above). shopApplication / nourApplication are NOT in that summary;
+    // they surface only on an explicit tool hit, so they carry the depth.
+    {
+      book: "MASTERY" as const,
+      number: 21,
+      title: "The Authentic Voice",
+      shortTitle: "Authentic Voice",
+      essence:
+        "Early work is inevitably an imitation of whoever you absorbed — that is the apprenticeship working. The influences must eventually be shed, and the transition is brutal: your own voice at first sounds worse than your imitation of a master. Most retreat, because imitation earns approval faster than authenticity.",
+      shopApplication:
+        "Nick's marketing currently reads like every other Cleveland shop's marketing — same reassurance language, same stock phrasing, same promises. That is the imitation phase, and it is invisible precisely because it is competent. The authentic version is riskier: say the thing a competitor would never say. Name the repair you talked a customer OUT of. Publish the job that went wrong and what it cost to make right. Quote the actual number instead of 'competitive pricing.' The shop with a voice cannot be comparison-shopped on price alone, because there is nothing to compare it to.",
+      nourApplication:
+        "This applies hardest to what Nick writes on your behalf. Fluent AI output is the purest form of the imitation trap — it is stylistically competent and completely anonymous, and it earns polite non-reaction every time. When a draft could have been produced by any shop with any tool, it has no voice. Test it directly: delete every sentence a competitor could have written and see what survives. If nothing does, the piece has not started yet. Endure the phase where your own voice reads worse than the polished template.",
+      triggerPatterns: JSON.stringify([
+        "voice_search",
+        "generic_output",
+        "sounds_like_everyone",
+        "derivative_work",
+        "imitation_phase",
+        "brand_voice_missing",
+        "ai_sounding_copy"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 22,
+      title: "The Fact of Great Yield",
+      shortTitle: "Fact of Great Yield",
+      essence:
+        "Darwin's breakthroughs came from observations that refused to fit the theory he held. Everyone else averted their eyes, because an anomaly is an accusation against the frame you have invested in. Confirming evidence tells you what you already believe; the single inconvenient fact tells you what is actually true.",
+      shopApplication:
+        "The most valuable data at Nick's is the outlier nobody logged. The customer who declined a quote everyone assumed would close. The month where car count rose and revenue fell. The tire line that moves in one bay and not the other. The instinct is to explain these away — 'they were just price shopping,' 'that month was weird' — and that explanation is where the yield gets buried. Rule: any result that surprises you gets a root cause before it gets a story. One phone call to the customer who left is worth more than a week of reading the dashboard that already agrees with you.",
+      nourApplication:
+        "Your dashboards are built to confirm the model you already have, which makes them comfortable and slightly useless at the margin. The metric that contradicts your working narrative is the one to chase — not the one to caveat. When you catch yourself writing 'that's just noise' or 'that's a data issue,' treat it as an unfinished investigation, not a closed one. Same discipline in code: the bug that only reproduces sometimes is telling you your mental model of the system is wrong, and that is worth more than the fix.",
+      triggerPatterns: JSON.stringify([
+        "anomaly_dismissed",
+        "outlier_ignored",
+        "contradicting_data",
+        "unexplained_result",
+        "confirmation_bias",
+        "root_cause_skipped",
+        "churn_reason_unlogged"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 23,
+      title: "Mechanical Intelligence",
+      shortTitle: "Mechanical Intelligence",
+      essence:
+        "The Wright brothers built and crashed gliders while Langley theorized on a bigger budget. Mechanical intelligence arrives only through physical contact with the object — how the parts resist each other, where it actually breaks, what the diagram omitted. Paper knowledge fails the moment reality diverges from the spec.",
+      shopApplication:
+        "This is the one strategy where Nick's is already the master and the software is the apprentice. A tech diagnoses by sound, by feel, by the color of the fluid — knowledge no manual transfers. Protect that: when a decision about shop flow gets made from a dashboard instead of from standing in the bay, it will be wrong in a way the numbers cannot show. Before changing a process, watch the process run. Before buying the equipment, borrow it for a day. The dashboard reports what was measured; the bay reports what happened.",
+      nourApplication:
+        "Your failure mode here is inverted from the shop's: you have the hands-on instinct for cars and the paper instinct for software. You architect NOUR OS features from the diagram down, and the design survives until it meets a real week of use. Build the crude version and run it yourself for seven days before specifying version two. The feature you were certain about will turn out to be unused, and the throwaway detail will turn out to be the whole product. Let the working object correct the spec, not the reverse.",
+      triggerPatterns: JSON.stringify([
+        "theory_over_practice",
+        "designing_on_paper",
+        "no_prototype",
+        "dashboard_over_observation",
+        "spec_before_build",
+        "overplanning",
+        "hands_off_decision"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 24,
+      title: "Natural Powers",
+      shortTitle: "Natural Powers",
+      essence:
+        "Every field pressures you toward what it already rewards, and that pressure quietly reshapes you into a competent version of someone else. Your leverage is the grain you were born with — the inclinations that predate anyone telling you what was practical. Against it you produce work no one remembers, including you.",
+      shopApplication:
+        "The pressure on Nick's is to become a normal shop: compete on price, advertise like the others, hire the way the others hire, measure what the others measure. Every one of those is a move toward the middle. The shop's actual grain is that its owner can build software — which no competing shop on the East Side can say. Any initiative that does not use that is an initiative a competitor could copy next quarter. Test each one: does this deepen the thing only we have, or does it make us a slightly better version of everyone else?",
+      nourApplication:
+        "The advice you receive most often — get the dev job, sell the shop, use an off-the-shelf tool — is uniformly advice to work against your grain, and it is sincere every time. It optimizes for a life you did not choose. Your inclination is the same one that showed up before it was practical: build the system that gives you leverage over chaos. When energy is chronically low on work that is going well by external measures, that is the grain signal, not a discipline problem. Route what you are actually drawn to onto the critical path instead of the margins.",
+      triggerPatterns: JSON.stringify([
+        "external_approval_path",
+        "against_the_grain",
+        "conventional_pressure",
+        "strength_sidelined",
+        "energy_low_despite_success",
+        "advice_to_conform",
+        "inclination_ignored"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 25,
+      title: "The Open Field",
+      shortTitle: "Open Field",
+      essence:
+        "In a saturated field you are judged on the incumbents' terms, by criteria they defined and already dominate — winning there is expensive and temporary. The open field is the adjacent space nobody has claimed, where you write the standard. This is not avoiding competition; it is refusing someone else's scoreboard.",
+      shopApplication:
+        "Every shop in Cleveland competes on the same three axes: price, proximity, speed. On those, Nick's can at best tie, and the tie is defended by discounting forever. The open field is the seam between auto repair and software — transparent digital inspections, a customer portal with full service history, automated follow-up that actually arrives. Not because those are trendy, but because no competitor can follow: they lack the builder. Occupy that publicly and define the standard before anyone names it, and the price comparison stops being the conversation.",
+      nourApplication:
+        "The same trap exists in what you build. NOUR OS competing with Notion or Linear on their axes is a fight against companies with a hundred engineers and a defined scoreboard. Its open field is the seam nobody else sits in: a personal operating system built by the operator of a real business, wired to that business's live data. Nobody is building that because almost nobody is both. Stop benchmarking against general-purpose tools and start defining what this category means.",
+      triggerPatterns: JSON.stringify([
+        "saturated_market",
+        "price_competition",
+        "commoditized_offering",
+        "differentiation_search",
+        "incumbent_scoreboard",
+        "crowded_field",
+        "race_to_bottom"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 26,
+      title: "The High End",
+      shortTitle: "High End",
+      essence:
+        "Detail without a visible high end is motion — you optimize what cannot move the outcome, and it feels like diligence the whole time. The master keeps the largest purpose in view while doing the smallest work, and lets it decide which details earn attention. Losing the high end is the most comfortable failure available.",
+      shopApplication:
+        "At Nick's the low end is endlessly available and always feels productive: reorganizing the parts shelf, tuning a process nobody complained about, rebuilding a spreadsheet. Meanwhile the estimates from Tuesday go unfollowed. The high end is the number the month turns on — booked jobs, average ticket, retention. Every task should trace to one of them in a single step. If it takes two steps to explain how a task moves revenue, it is low end wearing a disguise.",
+      nourApplication:
+        "This is your documented failure mode, not a hypothetical one. The Build-Drift-Reset cycle runs on low-end work that provides the sensation of progress — the refactor, the polish, the architecture that could be cleaner — while the thing that compounds sits untouched. The countermeasure is structural, not motivational: state the high end in one sentence before choosing the next task, and drop anything that cannot be traced to it in one step. Timebox the detail work you cannot resist rather than pretending you will resist it.",
+      triggerPatterns: JSON.stringify([
+        "lost_in_details",
+        "rabbit_hole",
+        "polish_over_revenue",
+        "no_line_to_goal",
+        "busywork_disguise",
+        "refactor_drift",
+        "big_picture_lost"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 27,
+      title: "The Evolutionary Hijack",
+      shortTitle: "Evolutionary Hijack",
+      essence:
+        "Evolution does not design from scratch — it hijacks what exists and repurposes it, turning a swim bladder into a lung. Adapting a proven structure is faster, cheaper, and more robust than inventing one, because the structure has already survived its own debugging. Greenfield is a luxury; the hijack is the leverage.",
+      shopApplication:
+        "Before building anything new at Nick's, inventory what already runs and is underused. The customer database is a marketing channel nobody is using as one. The SMS pipeline built for appointment reminders is a winback engine. The inspection photos already being taken are the proof content the social accounts lack. Each of those is a structure that already works, already has trust, and needs a new purpose rather than a new build. The mechanism solved in another industry — subscription maintenance, membership pricing, fleet retainers — is cheaper to adapt than to derive.",
+      nourApplication:
+        "This is the thesis NOUR OS is already built on, which means the discipline is to keep applying it rather than to discover it. The instinct that shows up as 'let me rebuild this properly' is almost always the expensive path. Before approving any from-scratch build, list what already runs that gets you eighty percent there. The tire shop's operational machinery being pointed at personal operations is the original hijack; the next one is probably sitting in the same repo, already deployed, doing one job when it could do two.",
+      triggerPatterns: JSON.stringify([
+        "build_from_scratch",
+        "rebuild_instinct",
+        "idle_asset",
+        "greenfield_temptation",
+        "reinventing_solved_problem",
+        "underused_system",
+        "adjacent_industry_solution"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 28,
+      title: "Dimensional Thinking",
+      shortTitle: "Dimensional Thinking",
+      essence:
+        "Leonardo studied an object from every side, in motion, across time, and in relation to its surroundings — the specialist sees a single plane and mistakes it for the whole. The block is almost never a lack of intelligence; it is a fixed vantage point. Widen the frame before working harder inside it.",
+      shopApplication:
+        "Most shop problems look unsolvable because they are being examined from the owner's chair only. Rotate them: what does this pricing change look like from the customer's side, the advisor's side, the tech's paycheck, the P&L, and the same question five years out? A policy that is efficient operationally and humiliating at the counter will fail, and no amount of operational analysis will reveal why. Deliberately ask the person whose vantage point you do not occupy — the advisor knows things the dashboard structurally cannot.",
+      nourApplication:
+        "Your rare asset is that you already hold two vantage points most people never combine — you are the technician and the operator, so you see customer psychology a pure engineer misses and technical leverage a pure owner misses. Protect that and extend it: when stuck, deliberately rotate rather than push. Restate the problem from the customer's side, then the ledger's, then the five-year side. Change the medium — say it out loud, draw it — and watch which constraint turns out to be imaginary. Do not outsource either half; the combination is the whole advantage.",
+      triggerPatterns: JSON.stringify([
+        "single_perspective",
+        "stuck_on_problem",
+        "reframe_needed",
+        "blind_spot",
+        "tunnel_vision",
+        "cross_domain_thinking",
+        "same_approach_repeated"
+      ]),
+    },
+    {
+      book: "MASTERY" as const,
+      number: 29,
+      title: "Alchemical Creativity and the Unconscious",
+      shortTitle: "Alchemical Creativity",
+      essence:
+        "The alchemical move is holding two things that do not belong together until the tension produces a third. The second half is mechanical, not mystical: immersion then genuine release, because the unconscious closes what conscious effort saturated but could not finish. Forcing it yields the obvious answer.",
+      shopApplication:
+        "The breakthrough on a recurring shop problem will not arrive in the meeting held to solve it. Immerse the team fully — lay out the problem, argue it, gather what everyone has noticed — and then deliberately stop, because a decision forced during the tension phase defaults to what the industry already does. Set it down and revisit in two days. The fusion that produces something uncopyable is the one nobody else can hold: a shop floor and a software stack under one roof.",
+      nourApplication:
+        "Your best architecture decisions have always followed the same shape — intense struggle, then stepping away, then the thing resolving on its own. That is not luck, it is the mechanism, and it means constant output is the wrong optimization target. Structure the cycle deliberately: immerse, then release, then decide. The cross-move is the practical version — when the code stalls, go to the shop; when the shop stalls, go to the code. Each domain runs the unconscious on the other one, which is why the fusion keeps producing things neither would alone.",
+      triggerPatterns: JSON.stringify([
+        "creative_block",
+        "grinding_past_returns",
+        "forced_solution",
+        "obvious_answer_only",
+        "no_rest_cycle",
+        "domain_fusion",
+        "immersion_release"
+      ]),
+    },
+];
+
+export async function seedMastery(prisma: PrismaClient) {
+  const laws = MASTERY_LAWS;
 
   for (const law of laws) {
     await prisma.strategicLaw.upsert({

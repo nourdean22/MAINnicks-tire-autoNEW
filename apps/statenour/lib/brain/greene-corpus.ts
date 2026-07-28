@@ -5,7 +5,10 @@
  * of truth that imports each book's entries from `lib/brain/greene/*`
  * and exposes:
  *
- *   · `ALL_GREENE_ENTRIES`   · the merged taxonomy (~164 entries)
+ *   · `ALL_GREENE_ENTRIES`   · the merged taxonomy (153 entries · the
+ *     "~164" in this header before 2026-07-27 was never accurate; the
+ *     real count was 144 pre-Book-V. `GREENE_CORPUS_COUNTS.total` is
+ *     the authority.)
  *   · `ENTRIES_BY_BOOK`      · filter helper
  *   · `GreeneEntry` type     · unified schema with triggers/actions/relatedKeys
  *
@@ -35,8 +38,19 @@ import { FEARLESS_LAWS } from "./greene/50th-law";
 import { MASTERY_ENTRIES } from "./greene/mastery";
 import { SEDUCTION_ENTRIES } from "./greene/art-of-seduction";
 import { HUMAN_NATURE_ENTRIES } from "./greene/laws-of-human-nature";
+import { GREENE_MATCH_PHRASES } from "./greene/match-phrases";
 
 // ── Unified merged set ──────────────────────────────────────────
+// 2026-07-27 · `matchPhrases` are merged in from ./greene/match-phrases
+// rather than authored inline on each of the 144 per-book entries. Two
+// reasons: the per-book files keep sentence-form `triggers` for the
+// digest cron that depends on them, and the chat-side match surface stays
+// reviewable as one artifact instead of a diff across six large files.
+// An entry that carries `matchPhrases` inline wins — that is how the nine
+// Book V creative strategies keep theirs next to the entry they describe.
+const withMatchPhrases = (e: GreeneEntry): GreeneEntry =>
+  e.matchPhrases ? e : { ...e, matchPhrases: GREENE_MATCH_PHRASES[e.key] };
+
 export const ALL_GREENE_ENTRIES: GreeneEntry[] = [
   ...LAWS_48,
   ...STRATEGIES_33,
@@ -44,7 +58,7 @@ export const ALL_GREENE_ENTRIES: GreeneEntry[] = [
   ...MASTERY_ENTRIES,
   ...SEDUCTION_ENTRIES,
   ...HUMAN_NATURE_ENTRIES,
-];
+].map(withMatchPhrases);
 
 // ── Per-book filter helper ──────────────────────────────────────
 export function entriesForBook(book: GreeneBook): GreeneEntry[] {
@@ -82,6 +96,10 @@ export const MENTORSHIP_ROLES = MASTERY_ENTRIES.filter(
 );
 export const MASTERY_PHASES = MASTERY_ENTRIES.filter(
   (e) => e.type === "phase",
+);
+/** 2026-07-27 · Mastery Book V · the 9 creative-active strategies. */
+export const CREATIVE_STRATEGIES = MASTERY_ENTRIES.filter(
+  (e) => e.type === "creative_strategy",
 );
 export const WAR_STRATEGIES = STRATEGIES_33;
 

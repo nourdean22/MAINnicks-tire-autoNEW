@@ -3,7 +3,7 @@
  *
  * Power Atlas wave Y · operator asked "add all, merge them, make what
  * they relay more useful." This script reads the now-merged
- * `ALL_GREENE_ENTRIES` (~164 entries across 6 books) from
+ * `ALL_GREENE_ENTRIES` (153 entries across 6 books) from
  * `lib/brain/greene-corpus.ts` and upserts each into
  * `BrainMemory(category="greene_law")`.
  *
@@ -52,9 +52,30 @@ const TYPE_LABELS: Record<string, string> = {
   mentorship_role: "Mentor Role",
   principle: "Principle",
   fearless_law: "Fearless Law",
+  creative_strategy: "Creative Strategy",
 };
 
-async function main() {
+/**
+ * 2026-07-28 · exported and awaitable.
+ *
+ * This module previously only ran as a side effect of import (bare
+ * `main().catch(...)` at the bottom, never awaited). `seed-greene-all`
+ * did `await import("../../scripts/seed-greene-corpus")`, which resolves
+ * when the module finishes EVALUATING — i.e. the instant `main()` is
+ * called, not when it completes. Verification then queried the corpus
+ * while the seed was still writing, so on a fresh database the count
+ * read zero and the runner process.exit(1)'d in the middle of a
+ * perfectly good seed.
+ *
+ * The disconnect made it worse: `prisma` here is the shared singleton
+ * from @/lib/prisma, so `$disconnect()` tore down the client the calling
+ * runner was still using. Disconnecting is now the caller's job — the
+ * standalone entrypoint below does it, the combined runner does its own.
+ */
+export async function seedGreeneCorpus(): Promise<{
+  inserted: number;
+  updated: number;
+}> {
   console.log("");
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  SEED GREENE CORPUS → BRAIN · 2026-05-28");
@@ -89,11 +110,15 @@ async function main() {
       summary: entry.summary,
       fullText: entry.fullText,
       triggers: entry.triggers,
+      // 2026-07-27 · chat-side match surface. Null (not omitted) when the
+      // entry has none, so an upsert over a previously-seeded row clears
+      // a stale value instead of leaving it orphaned in metadata.
+      matchPhrases: entry.matchPhrases ?? null,
       actions: entry.actions,
       relatedKeys: entry.relatedKeys,
       applicabilityPrompt: entry.applicabilityPrompt,
       ingestedAt: new Date().toISOString(),
-      version: "2026-05-28-wave-Y",
+      version: "2026-07-27-mastery-book-v",
     } as const;
 
     if (existing) {
@@ -135,10 +160,16 @@ async function main() {
   console.log("  on every render. No prose re-derivation needed.");
   console.log("");
 
-  await prisma.$disconnect();
+  return { inserted, updated };
 }
 
-main().catch((err) => {
-  console.error("❌ Greene corpus seed failed:", err);
-  process.exit(1);
-});
+/** Standalone entrypoint · only self-runs when invoked directly, so
+ *  importing this module for `seedGreeneCorpus` has no side effects. */
+if (process.argv[1]?.includes("seed-greene-corpus")) {
+  seedGreeneCorpus()
+    .then(() => prisma.$disconnect())
+    .catch((err) => {
+      console.error("❌ Greene corpus seed failed:", err);
+      process.exit(1);
+    });
+}

@@ -1035,28 +1035,31 @@ const fiftiethLaw = [
 // MAIN SEED FUNCTION
 // ═══════════════════════════════════════════════════════════════════
 
-async function main() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    console.error("DATABASE_URL is required");
-    process.exit(1);
-  }
+/**
+ * 2026-07-27 · exported so `seed-greene-all.ts` can run this alongside
+ * `seed-all.ts`. Previously this file was standalone-only, and
+ * `seed-all.ts` never imported it — so the canonical "master seed
+ * runner" silently omitted all 56 expansion rows (MASTERY 13-20,
+ * the seduction archetypes, and all of FIFTIETH_LAW) while still
+ * printing "Seed verified OK", because its floor check is `total < 120`
+ * and the remaining books clear 120 on their own.
+ */
+export const GREENE_EXPANSION_ENTRIES = [
+  ...seducerArchetypes,
+  ...antiSeducerTypes,
+  ...victimTypes,
+  ...masteryExpansion,
+  ...fiftiethLaw,
+];
 
-  const adapter = new PrismaNeon({ connectionString });
-  const prisma = new PrismaClient({ adapter });
-
-  const allEntries = [
-    ...seducerArchetypes,
-    ...antiSeducerTypes,
-    ...victimTypes,
-    ...masteryExpansion,
-    ...fiftiethLaw,
-  ];
+export async function seedGreeneExpansion(
+  prisma: PrismaClient,
+): Promise<{ upserted: number; errors: number }> {
+  const allEntries = GREENE_EXPANSION_ENTRIES;
 
   console.log(`Seeding ${allEntries.length} Greene expansion entries...\n`);
 
   let created = 0;
-  let updated = 0;
   let errors = 0;
 
   for (const entry of allEntries) {
@@ -1099,6 +1102,23 @@ async function main() {
   console.log(`\n${"=".repeat(50)}`);
   console.log(`Expansion complete: ${created} upserted, ${errors} errors`);
 
+  return { upserted: created, errors };
+}
+
+/** Standalone entrypoint · kept so the original invocation still works.
+ *  Prefer `pnpm seed:greene`, which runs every store in one pass. */
+async function main() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error("DATABASE_URL is required");
+    process.exit(1);
+  }
+
+  const adapter = new PrismaNeon({ connectionString });
+  const prisma = new PrismaClient({ adapter });
+
+  await seedGreeneExpansion(prisma);
+
   // Verify total
   const total = await prisma.strategicLaw.count();
   const byBook = await prisma.strategicLaw.groupBy({
@@ -1121,4 +1141,8 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch(console.error);
+// Only self-run when invoked directly, not when imported by the
+// combined runner (which supplies its own client + ordering).
+if (process.argv[1]?.includes("seed-greene-expansion")) {
+  main().catch(console.error);
+}

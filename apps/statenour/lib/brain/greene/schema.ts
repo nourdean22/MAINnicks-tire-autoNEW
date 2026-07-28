@@ -31,7 +31,8 @@ export type GreeneType =
   | "dark_trait" //       HN · personality types to detect
   | "mentorship_role" //  Mastery · mentor/apprentice taxonomy
   | "principle" //        HN / Mastery / 50L · standalone principle
-  | "fearless_law"; //    50L · the 10 numbered fearless principles
+  | "fearless_law" //     50L · the 10 numbered fearless principles
+  | "creative_strategy"; // Mastery Book V · the 9 creative-active strategies
 
 export interface GreeneEntry {
   /** Stable BrainMemory key · "law_10", "fearless_2", "seducer_siren", etc. */
@@ -56,6 +57,24 @@ export interface GreeneEntry {
    *  fields the digest cron can check (e.g. "interactionCount > 20",
    *  "ledger trends net-negative 90d", "person.role === 'mentor'"). */
   triggers: string[];
+  /** 2026-07-27 · the CHAT-side match surface. `triggers` above are
+   *  analyst-facing condition sentences ("person.power_balance > +0.4
+   *  (operator weaker)") authored for the digest cron's AI applicability
+   *  check — they are prose the cron READS, not text a human ever types.
+   *  `greene-message-matcher` scores by literal substring against the
+   *  operator's chat message, so matching on `triggers` can only ever
+   *  hit by accident: the deterministic path silently degrades to the
+   *  vector fallback for every entry that lacks this field.
+   *
+   *  `matchPhrases` are the short, operator-language fragments that
+   *  actually appear in a real message ("everything i make sounds like",
+   *  "same idea over and over"). Author 8-14 per entry, lowercase, and
+   *  keep each specific enough that two independent hits mean the entry
+   *  genuinely applies — the matcher's default minScore is 2.
+   *
+   *  Optional so the 144 pre-existing entries keep their exact current
+   *  behavior; the matcher falls back to `triggers` when absent. */
+  matchPhrases?: string[];
   /** 3-5 imperative-voice next moves · what the operator should DO. */
   actions: string[];
   /** 1-4 keys of other entries that frequently co-apply · powers the

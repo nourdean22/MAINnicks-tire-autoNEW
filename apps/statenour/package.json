@@ -25,6 +25,8 @@
     "check:env:prod": "tsx scripts/check-env.ts --prod",
     "verify:railway": "tsx ../../scripts/verify-railway-config.ts",
     "check:crons": "tsx scripts/verify-crons.ts",
+    "seed:greene": "tsx prisma/seeds/seed-greene-all.ts",
+    "seed:greene:check": "tsx prisma/seeds/seed-greene-all.ts --check",
     "check:stale-docs": "tsx scripts/check-stale-docs.ts",
     "check:runbooks": "tsx scripts/check-runbooks.ts",
     "check:raw-sql": "tsx scripts/audit-raw-sql-columns.ts",
