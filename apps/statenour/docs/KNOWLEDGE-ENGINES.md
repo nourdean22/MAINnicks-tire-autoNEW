@@ -79,7 +79,14 @@ The localtunnel flow is suitable for experimentation, not world-class reliabilit
 
 ## Graphify contract
 
-Graphify is currently a **developer code-graph snapshot** represented by `graphify-out/GRAPH_REPORT.md`.
+Graphify is currently a **developer code-graph snapshot**. Its surfaces are `graphify-out/GRAPH_REPORT.md` (the versioned map, the only one in git) plus two gitignored HTML views regenerated on every sync:
+
+| File | Size | Use |
+|---|---|---|
+| `graph-communities.html` | ~2 MB | One node per community. The browsable one — ~26 s load, ~92 ms redraw. |
+| `graph.html` | ~43 MB | Every node. Renders correctly but is **not interactive** — ~344 s load, ~2,205 ms redraw. Requires `GRAPHIFY_VIZ_NODE_LIMIT` above the node count or graphify skips it. |
+
+Both load vis-network from a CDN, so neither renders offline.
 
 It is useful for:
 
@@ -93,10 +100,9 @@ It is not currently:
 - a live bdnick.info runtime service;
 - a replacement for source inspection;
 - canonical product memory;
-- automatically refreshed;
 - guaranteed to describe the current commit.
 
-Until an automated refresh contract exists, every report must be treated as a snapshot. A future governed Graphify pipeline should record:
+It **is** now automatically refreshed: a daily scheduled task runs `scripts/graphify-obsidian-sync.ps1`, which rebuilds the graph and regenerates both the HTML views and the Obsidian community digests. That refresh builds from the working tree of the local checkout — which may sit on a detached HEAD — so freshness of the *run* still does not guarantee it describes `origin/main`. A future governed Graphify pipeline should record:
 
 - reachable source commit SHA;
 - generated-at timestamp;

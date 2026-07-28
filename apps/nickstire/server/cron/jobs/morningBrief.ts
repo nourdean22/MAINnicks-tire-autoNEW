@@ -66,9 +66,14 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
     const monthRevenue = Math.round(monthPaidInvoices.reduce((s: any, inv: any) => s + inv.totalAmount, 0) / 100);
     const avgTicket = monthPaidInvoices.length > 0 ? Math.round(monthRevenue / monthPaidInvoices.length) : 0;
     const jobsWon = monthPaidInvoices.length;
-    const conversionRate = (monthBookingsTotal[0]?.count ?? 0) > 0
-      ? Math.round((jobsWon / (monthBookingsTotal[0]?.count ?? 1)) * 100)
-      : 0;
+    // revenue-truth-correction (2026-07-28): the old "conversionRate"
+    // divided paid invoices by bookings — DIFFERENT COHORTS (walk-ins
+    // invoice without ever booking; fresh bookings haven't invoiced yet),
+    // so the % was meaningless and could exceed 100. Removed. The honest
+    // funnel number is pipeline.estimateToInvoice in the enrichment block.
+    // Pace baseline is the shop's own trailing 30 days — no invented target.
+    const monthBookings = monthBookingsTotal[0]?.count ?? 0;
+    const trailingDailyPace = Math.round(monthRevenue / 30);
 
     // Linked callback-form leads are the SAME person as a callback_requests row
     // (counted separately as pendingCallbacks), so exclude them from the lead-side
@@ -95,9 +100,9 @@ THIS WEEK:
 
 30-DAY FINANCIALS:
 - Revenue: $${monthRevenue.toLocaleString()}
-- Jobs won (invoices): ${jobsWon}
+- Jobs won (paid invoices): ${jobsWon}
 - Avg ticket: $${avgTicket}
-- Conversion rate: ${conversionRate}%
+- Bookings (30d): ${monthBookings} — NOTE: paid invoices and bookings are DIFFERENT COHORTS (walk-ins invoice without booking; fresh bookings haven't invoiced yet). Never derive a conversion %% from these two numbers; the funnel number is Est→Job in PIPELINE data below when present.
 
 PIPELINE:
 - Pending leads (new): ${pendingLeadsCount}
@@ -112,14 +117,12 @@ CUSTOMERS:
 MARKETING:
 - Review requests sent (30d): ${monthReviews[0]?.count ?? 0}
 
-WALK RATE: ${jobsWon > 0 ? Math.round((1 - jobsWon / Math.max(jobsWon + (staleCount || 0), 1)) * 100) : 0}% of estimates walked without converting.
-KEY: Invoice = job WON. Estimate without invoice = customer WALKED.
+ESTIMATE SEMANTICS: an estimate without a matched invoice is UNRESOLVED — the customer may be undecided, may have fixed it elsewhere, or the sync may lag. It is NOT proof they walked. Never call unresolved estimates "walked customers" or "lost revenue".
 
 PRIORITIES FOR TODAY:
 ${staleCount > 3 ? `- ⚠️ ${staleCount} STALE LEADS >7 days — call them before they go to a competitor` : "- ✅ Lead queue is clean"}
 ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} CALLBACKS WAITING — clear these first thing` : "- ✅ No pending callbacks"}
-${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% — review estimate follow-up process` : `- ✅ Conversion rate ${conversionRate}% is healthy`}
-- 💰 Revenue target: $${Math.round((10000 / 26) * 1)} today ($10K/month pace = ~$385/day)`;
+- 💰 Pace: trailing 30d averages $${trailingDailyPace.toLocaleString()}/day. Today's bar = beat the trailing average. (No fixed monthly target — the forecast engine's dynamic target below is the only valid one.)`;
 
 
     // ─── Add yesterday's revenue, today's bookings, declined work ────
@@ -142,7 +145,7 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       const unrecovered = declined.filter(e => e.declinedItems.some(i => !i.recovered));
       const totalRecoverable = unrecovered.reduce((s, e) => s + e.totalDeclinedValue, 0);
       if (totalRecoverable > 0) {
-        enrichmentBlock += `\nDECLINED WORK: $${totalRecoverable} recoverable from ${unrecovered.length} customers. ${unrecovered.filter(e => e.hasSafetyItems).length} have SAFETY items that need follow-up calls.`;
+        enrichmentBlock += `\nDECLINED WORK: $${totalRecoverable} in open declined items across ${unrecovered.length} customers (pool, not a recovery forecast). ${unrecovered.filter(e => e.hasSafetyItems).length} have SAFETY items that need follow-up calls.`;
       }
 
       // Intelligence data
@@ -151,6 +154,25 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       enrichmentBlock += `\nPROJECTIONS: This week $${revenue.thisWeekProjection}, this month $${revenue.thisMonthProjection}. WoW: ${revenue.weekOverWeek > 0 ? "+" : ""}${revenue.weekOverWeek}% (${revenue.trend}).`;
       enrichmentBlock += `\nPIPELINE: Est→Job ${pipeline.estimateToInvoice}%, Lead→Booking ${pipeline.leadToBooking}%. ${pipeline.staleEstimates} stale estimates.`;
     } catch (e) { log.warn("[morningBrief] enrichment data (revenue/pipeline/declined) failed:", e); }
+
+    // ─── Owner Decision Inbox: top 5 from the opportunity queue ────
+    // Wave 4: evidence-backed decision cards lead the brief. Degrades to
+    // empty until migration 0099 is applied (service returns no rows).
+    let decisionsBlock = "";
+    try {
+      const { topDecisions } = await import("../../services/opportunityQueue");
+      const top = await topDecisions(5);
+      if (top.decisions.length > 0) {
+        decisionsBlock = "\nTOP DECISIONS (opportunity queue — lead with these, verbatim):";
+        top.decisions.forEach((dec, i) => {
+          const value = dec.factors.valueDollars > 0 ? `$${dec.factors.valueDollars.toLocaleString()}` : "value unknown";
+          decisionsBlock += `\n${i + 1}. [${dec.urgency.toUpperCase()}] ${dec.recommendedAction} — ${value} · ${dec.reason} (evidence: ${dec.dataQuality}, attempts: ${dec.attempts})`;
+        });
+        if (top.excludedNoConsent > 0) {
+          decisionsBlock += `\n(${top.excludedNoConsent} opportunities excluded — no contact consent)`;
+        }
+      }
+    } catch (e) { log.warn("[morningBrief] opportunity queue load failed:", e); }
 
     // ─── Brief self-review: did yesterday's brief drive action? ────
     let briefReviewBlock = "";
@@ -239,7 +261,9 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       }
 
       if (declined) {
-        intelligenceBlock += `\n💸 Declined Work Recovery — $${declined.totalDeclinedValue} total declined | $${declined.recoveryOpportunity} recoverable (20% est.)`;
+        // revenue-truth-correction: report the declined POOL only — the
+        // old "recoverable (20% est.)" was an invented rate as dollars.
+        intelligenceBlock += `\n💸 Declined Work — $${declined.totalDeclinedValue} total declined (90d pool; recovery rate not yet measured)`;
       }
     } catch (e) { log.warn("[morningBrief] intelligence engines data load failed:", e); }
 
@@ -260,6 +284,7 @@ FORMAT RULES:
 - Keep it under 2000 characters total
 - Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → Customer insight → Pattern from memory → Top 3 priorities → Personal check-in → Motivational closer
 - Be direct. No fluff. Like a chief of staff briefing the CEO.
+- If a TOP DECISIONS block is present, those ARE the top priorities — put them first, keep each recommended action verbatim, and never invent decisions beyond them.
 - If stale leads > 3, call it out as lost money.
 - If revenue is strong, acknowledge it. If weak, flag it.
 - Reference a SPECIFIC customer by name if there's a follow-up opportunity.
@@ -267,12 +292,12 @@ FORMAT RULES:
 - Include ONE personal check-in: weight progress (230→186 target), workout consistency, daily score.
 - Watch for BUILD-DRIFT-RESET: if memories show new tools/projects being explored while current work is unfinished, call it "drift mode."
 - If it's been >3 days since last daily score logged, flag it: "You haven't scored yourself in X days — that's drift."
-- End with energy AND a specific dollar number: "To hit $10K this month, you need $X/day for the remaining Y days."
+- End with energy AND a specific dollar number pulled FROM THE DATA (today's expected revenue from the forecast, or the trailing daily pace). NEVER invent a monthly revenue target — the only valid targets are the forecast engine's dynamic month target (trailing-pace-based) and the trailing daily average given in the data.
 - Frame everything through: "Boring repetition beats intensity spikes. What's the ONE boring thing to do today?"`,
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${decisionsBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,
@@ -296,9 +321,10 @@ YESTERDAY: ${yesterdayLeads[0]?.count ?? 0} leads | ${yesterdayBookings[0]?.coun
 
 THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0} leads
 
-30-DAY: $${monthRevenue.toLocaleString()} revenue | ${jobsWon} jobs won | $${avgTicket} avg ticket | ${conversionRate}% conversion
+30-DAY: $${monthRevenue.toLocaleString()} revenue | ${jobsWon} jobs won | $${avgTicket} avg ticket | ~$${trailingDailyPace.toLocaleString()}/day pace
 
 PIPELINE: ${pendingLeadsCount} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
+${decisionsBlock}
 
 CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
 ${masterBlock}

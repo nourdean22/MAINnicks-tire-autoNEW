@@ -25,14 +25,17 @@
  *   - amountSignal · log-scaled · big-ticket quotes get more attention
  *   - ageSignal · sweet spot 7-21 days · before warm but after the
  *     emotion settles · degrades after 30 days
- *   - repeatCustomerSignal · prior visits = higher trust + recovery rate
- *   - vehicleSignal · mid-life vehicles (5-12 yrs old) convert ~3× new
- *     or end-of-life vehicles (new ones go to dealer · old ones get
- *     scrapped or owner-fixed)
+ *   - repeatCustomerSignal · prior visits → assumed higher recovery odds
+ *   - vehicleSignal · mid-life vehicles (5-12 yrs old) assumed likelier
+ *     to fix than brand-new (dealer) or end-of-life (scrap/owner-fix)
  *
- * Sources for the calibration: shop's historical conversion data · plus
- * industry-standard automotive-recovery benchmarks. Operator can tune the
- * weights via env vars if production data suggests different optima.
+ * EPISTEMIC STATUS (revenue-truth-correction 2026-07-28): every weight
+ * and multiplier in this file is a HAND-TUNED PRIOR — plausible-sounding
+ * defaults, NOT fit to this shop's data. (An earlier version of this
+ * header claimed calibration from "historical conversion data + industry
+ * benchmarks"; no such fitting ever happened.) The score is a triage
+ * ordering, nothing more. Re-derive the weights from recovery outcomes
+ * (sms_messages variantKey → matched_invoice_id) once sample size allows.
  */
 
 interface ScoreInputs {
@@ -47,12 +50,11 @@ interface ScoreInputs {
 const NOW_FALLBACK = () => Date.now();
 
 /**
- * Lookup of service-category keywords → conversion-likelihood multiplier.
- * Tire jobs and brake jobs convert at ~2× the baseline because customers
- * physically feel the problem worsening · oil change / battery / wipers
- * convert at baseline because they're scheduled-maintenance · catalytic
- * converter / transmission convert at ~0.7× because of total-cost-of-
- * ownership cliff (high quote · customer often sells the car instead).
+ * Lookup of service-category keywords → priority multiplier (PRIOR, not
+ * measured — see header). Rationale for the priors: customers physically
+ * feel brake/tire problems worsening; oil/battery are scheduled
+ * maintenance; catalytic/transmission quotes hit the total-cost-of-
+ * ownership cliff (customer often sells the car instead).
  */
 const SERVICE_CATEGORY_WEIGHTS: ReadonlyArray<[RegExp, number]> = [
   [/\b(brake|brakes|caliper|rotor|pad)\b/i, 2.0],
@@ -135,15 +137,17 @@ export function scoreEstimateForRecovery(input: ScoreInputs & {
  * shipped in declinedWorkRecovery.ts (buildSevenDay/ThirtyDayMessage)
  * when customer data is missing. Personalization layers:
  *
- *   1. Vehicle reference · "your 2018 Camry's brakes still need attention"
- *      beats "the work we quoted" by ~2× engagement (customers respond
- *      to specifics).
+ *   1. Vehicle reference · "your 2018 camry" — specifics are assumed to
+ *      out-engage generic copy (prior, not measured on this shop).
  *   2. Repeat-customer warmth · 3+ visits gets "you've trusted us before"
  *      framing.
  *   3. Service-category language · brake jobs get safety-framing ·
  *      tire jobs get tread-life framing.
  *
  * Always closes with the Repair Haiku (wave-181.43) and STOP opt-out.
+ * Claim rule (revenue-truth-correction): the quote is described as ON
+ * FILE — never "still good" / "we'll honor that pricing", which are
+ * price commitments this system has no authority to make.
  */
 export function buildPersonalizedRecoveryMessage(params: {
   tier: "7d" | "30d";
@@ -200,7 +204,7 @@ export function buildPersonalizedRecoveryMessage(params: {
   if (tier === "7d") {
     return (
       `Hey ${name}, Nick's Tire & Auto here. ${repeatPrefix}` +
-      `That ${moneyStr} quote for ${serviceClause} on the ${vehicleClause} is still good this week. ` +
+      `That ${moneyStr} quote for ${serviceClause} on the ${vehicleClause} is still on file. ` +
       `Free re-check, no charge, you don't pay until you say yes. ` +
       `Drop off anytime. Reply STOP to opt out.`
     );
@@ -210,7 +214,7 @@ export function buildPersonalizedRecoveryMessage(params: {
   return (
     `Hey ${name}, Nick's here. ${repeatPrefix}` +
     `just following up on the ${moneyStr} quote for ${serviceClause} on the ${vehicleClause} from a month ago. ` +
-    `We'll honor that pricing, free re-check first, and you don't pay until you say yes. ` +
+    `It's still on file — free re-check first, and you don't pay until you say yes. ` +
     `(216) 862-0005. Reply STOP to opt out.`
   );
 }
