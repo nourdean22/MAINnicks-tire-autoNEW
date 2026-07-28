@@ -66,7 +66,9 @@ async function main() {
     const class1 = class1Raw as Array<UuidRow & { real_num: string }>;
     console.log(`Found ${class1.length} UUID rows with sibling real invoice`);
     for (const r of class1) {
-      console.log(`  · DELETE invoices.id=${r.id} · ${r.customerName} · $${(r.totalAmount / 100).toFixed(2)} · UUID=${r.invoiceNumber.slice(0, 8)}... has sibling Invoice#${r.real_num}`);
+      // pii sweep 2026-07-28 · first name only in script output
+      const who1 = (r.customerName ?? "?").split(" ")[0];
+      console.log(`  · DELETE invoices.id=${r.id} · ${who1} · $${(r.totalAmount / 100).toFixed(2)} · UUID=${r.invoiceNumber.slice(0, 8)}... has sibling Invoice#${r.real_num}`);
       if (COMMIT) {
         await conn.execute(`DELETE FROM invoices WHERE id = ?`, [r.id]);
       }
@@ -114,7 +116,9 @@ async function main() {
         continue;
       }
 
-      console.log(`  · MIGRATE invoices.id=${r.id} → alg_estimates · ${r.customerName} · $${(r.totalAmount / 100).toFixed(2)} · ${r.invoiceDate.toISOString().slice(0, 10)}`);
+      // pii sweep 2026-07-28 · first name only in script output
+      const who2 = (r.customerName ?? "?").split(" ")[0];
+      console.log(`  · MIGRATE invoices.id=${r.id} → alg_estimates · ${who2} · $${(r.totalAmount / 100).toFixed(2)} · ${r.invoiceDate.toISOString().slice(0, 10)}`);
       if (COMMIT) {
         await conn.execute(
           `INSERT INTO alg_estimates

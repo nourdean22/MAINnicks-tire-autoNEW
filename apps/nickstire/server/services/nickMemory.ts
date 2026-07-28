@@ -46,7 +46,7 @@ export function applyReinforcement(
   nowIso: string = new Date().toISOString(),
 ): typeof data {
   data.uses = (data.uses || 1) + 1;
-  // round() kills float drift (0.55 + 0.05 = 0.6000000000000001) — same
+  // round() kills float drift (0.55 + 0.05 = 0.600…01 float drift) — same
   // guard decayedConfidence uses; without it the `confidence !== target`
   // check in decayMemories churns a write on every cycle.
   data.confidence = Math.min(1.0, Math.round(((data.confidence || 0.7) + 0.05) * 100) / 100);

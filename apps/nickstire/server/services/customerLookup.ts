@@ -109,7 +109,7 @@ export async function findOrCreateCustomer(data: {
     if (!/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
       throw err;
     }
-    log.warn("Customer race detected in findOrCreate — falling through to lookup", { phone: phoneToStore });
+    log.warn("Customer race detected in findOrCreate — falling through to lookup", { phone: phoneToStore.slice(-4) });
   }
 
   // Fetch by phone since we just created with that phone (or found existing).

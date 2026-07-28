@@ -104,7 +104,9 @@ async function main() {
       const { year, make, model } = parseVehicle(canonical.vehicle_info);
       const totalDeclined = ests.reduce((s, e) => s + e.estimated_amount, 0);
 
-      console.log(`  · ${COMMIT ? "CREATE" : "WOULD CREATE"} customer: ${firstName} ${lastName} · phone=${phone10} · ${ests.length} declined estimate${ests.length === 1 ? "" : "s"} · $${(totalDeclined / 100).toFixed(0)}`);
+      // pii sweep 2026-07-28 · first name + initial in script output
+      const who = `${firstName} ${(lastName || "")[0] ?? ""}.`;
+      console.log(`  · ${COMMIT ? "CREATE" : "WOULD CREATE"} customer: ${who} · phone=***${phone10.slice(-4)} · ${ests.length} declined estimate${ests.length === 1 ? "" : "s"} · $${(totalDeclined / 100).toFixed(0)}`);
 
       if (COMMIT) {
         try {

@@ -5,10 +5,10 @@
  * Four functions named `normalizePhone` shipped side by side, with two
  * incompatible output contracts:
  *
- *   lib/phone.ts              -> "+12162035831"  E.164, for storage and display
- *   shopDriverMirror.ts:655   -> "2162035831"    bare 10, WRITES customers.phone
- *   revenueAttribution.ts:132 -> "2162035831"    last-10, null when short
- *   smsInstrumentation.ts:34  -> "2162035831"    last-10, EMPTY STRING when short
+ *   lib/phone.ts              -> "+12165550142"  E.164, for storage and display
+ *   shopDriverMirror.ts:655   -> "2165550142"    bare 10, WRITES customers.phone
+ *   revenueAttribution.ts:132 -> "2165550142"    last-10, null when short
+ *   smsInstrumentation.ts:34  -> "2165550142"    last-10, EMPTY STRING when short
  *
  * Plus bare `.slice(-10)` at intelligenceEngines.ts:429, :474, :680.
  *
@@ -18,8 +18,8 @@
  * owner — and every consumer that needed it quietly invented its own answer.
  *
  * WHAT IT COST, MEASURED IN PRODUCTION 2026-07-20
- *   alg_estimates.customer_phone is E.164   ("+12162035831", 378 of 425 rows)
- *   customers.phone is bare 10-digit        ("2162035831", 1941 of 1945 rows)
+ *   alg_estimates.customer_phone is E.164   ("+12165550142", 378 of 425 rows)
+ *   customers.phone is bare 10-digit        ("2165550142", 1941 of 1945 rows)
  *
  * A string-equality join between them cannot match, and it didn't:
  *   customer_id was NULL on ALL 425 estimate rows
