@@ -174,7 +174,7 @@ export default function FomoTicker() {
             display: "flex",
             alignItems: "flex-start",
             gap: 12,
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "var(--font-sans)",
           }}
           role="status"
           aria-live="polite"

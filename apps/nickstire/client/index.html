@@ -185,45 +185,49 @@
     <link rel="preload" as="image" href="/photos/shopfront-clear-vertical-sign-bays-medium.webp" type="image/webp" media="(min-width: 769px) and (max-width: 1024px)" fetchpriority="high" />
     <link rel="preload" as="image" href="/photos/shop-exterior-hero-wide-sign-bays.webp" type="image/webp" media="(min-width: 1025px)" fetchpriority="high" />
 
-    <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels).
-         Multi-layer optimization to eliminate Lighthouse's ~80ms render-blocking flag:
-         1. preconnect → opens TCP+TLS connection to fonts.gstatic.com early
-         2. preload as=font for the LCP weight (Inter 800) → fetched in parallel
-         3. CSS preload+onload swap → non-blocking stylesheet load
-         4. font-display: swap → renders system font instantly, upgrades when Inter loads -->
+    <!-- Fonts: Barlow Condensed (headings/display), DM Sans (body),
+         JetBrains Mono (stat numbers + micro-labels).
+         These are the three families index.css:44-48 actually binds to
+         --font-heading / --font-sans / --font-mono.
+
+         KEEP THIS LIST AND index.css:44-48 IN SYNC. Until 2026-07-28 this
+         tag fetched Inter + Roboto Mono + Oswald — none of which the
+         stylesheet referenced — so every heading fell through to Oswald,
+         all body copy rendered in the OS default instead of DM Sans, and
+         Inter + a hardcoded Inter-800 woff2 preload were downloaded for
+         zero elements. A families mismatch here fails SILENTLY: CSS
+         font-family fallback chains exist precisely to suppress this
+         error, so a broken pipeline degrades into looking intentional.
+         Verify with DevTools → Network → filter "font", never by eye.
+
+         1. preconnect → opens TCP+TLS to fonts.gstatic.com early
+         2. CSS preload+onload swap → non-blocking stylesheet load
+         3. display=swap → paints fallback instantly, upgrades on arrival
+
+         No direct woff2 preload: the previous one hardcoded a hashed
+         Google CDN path that went stale and pointed at an unused family.
+         Hardcoding those paths is what produced this bug — preconnect
+         plus the stylesheet preload gets most of the win without it. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Direct woff2 preload for Inter 800 — the LCP H1 ("CLEVELAND TOUGH.") font.
-         Without this the font-CSS gets parsed first, THEN the woff2 fetch starts.
-         With this preload, both happen in parallel — the woff2 is cached by the
-         time the CSS resolves which weights to apply. -->
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      crossorigin
-      href="https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIv.woff2"
-    />
-    <!-- 2026-05-24 PSI CLS fix · display=swap → display=optional.
-         The H1 LCP element uses Inter 800 (font-heading). With swap,
-         the browser paints with fallback font, then re-paints with
-         Inter when it loads · the metric mismatch (Inter is more
-         compact than system sans) causes the H1 to re-wrap and shift
-         surrounding content · CLS contribution.
-         With optional, the H1 paints with fallback IMMEDIATELY and
-         only upgrades to Inter if it's cached (cold loads never
-         swap). Sacrifices brand fidelity on the cold-load path for
-         CLS green. Trade-off documented per /web-performance-optim. -->
+    <!-- 2026-05-24 set display=optional to stop the H1 re-wrapping (CLS).
+         That rationale named "Inter 800" as the H1 font, but --font-heading
+         has never contained Inter — so the swap it guarded against could not
+         happen, and the setting only suppressed the real brand fonts on cold
+         loads. Restored to swap: the hero owning the LCP H1 is height-locked
+         (min-h-[100svh] flex items-center, Home.tsx), so a heading reflow
+         resolves INSIDE the reserved box and contributes ~no document shift.
+         Re-measure CLS on PSI if that hero stops being viewport-height. -->
     <link
       rel="preload"
       as="style"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=optional"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap"
       onload="this.onload=null;this.rel='stylesheet'"
     />
     <noscript>
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=optional"
+        href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap"
       />
     </noscript>
   </head>

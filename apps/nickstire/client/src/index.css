@@ -783,10 +783,10 @@ img[loading="lazy"] {
   transition: opacity 0.3s ease-in;
 }
 
-/* Font display optimization */
-@font-face {
-  font-display: swap;
-}
+/* Font display is set per-request on the Google Fonts URL in index.html
+   (&display=swap). A bare `@font-face { font-display: swap }` with no
+   font-family and no src declares nothing and is dropped by every browser
+   — it lived here until 2026-07-28 looking like it configured something. */
 
 /* ═══════════════════════════════════════════════════════
    TESLA LAYER — Micro-interactions & Polish
