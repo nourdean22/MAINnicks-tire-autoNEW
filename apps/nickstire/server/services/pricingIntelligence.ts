@@ -1,88 +1,36 @@
 /**
- * Pricing Intelligence — Tracks estimate-to-close rates per service category
- * Identifies which services are being declined most and suggests pricing adjustments.
- * Feeds data for dynamic pricing decisions and objection coaching.
+ * Payment-Status Intelligence (formerly "Pricing Intelligence")
+ *
+ * revenue-truth-correction (2026-07-28): this module previously claimed
+ * to measure ESTIMATE APPROVAL and recommended price moves from it
+ * ("RAISE PRICE ... you're leaving money on the table" / "PRICE TOO
+ * HIGH ... consider lowering") over Telegram. The underlying data was
+ * invoices.paymentStatus — records that ALREADY became invoices —
+ * where paid/partial was scored "approved" and pending scored
+ * "declined/walked". That is payment/collection state, not a pricing
+ * decision. Worse, the error is directionally biased: unpaid invoices
+ * sit in pending, so a slow-collections month read as a pricing problem
+ * and generated "lower your prices" advice. The recommender is deleted.
+ *
+ * What the data CAN honestly support — and what this module now does —
+ * is a COLLECTIONS signal: which service categories are accumulating
+ * unpaid invoices. That is real and actionable (chase payment), and the
+ * alert says exactly that.
+ *
+ * Pricing recommendations stay out of this codebase until they can be
+ * built on actual estimate decisions + cost structure (Quote Quality &
+ * Profit Guard — blocked on parts/labor cost capture).
+ *
+ * The decline-reason objection analytics + operator coaching scripts are
+ * retained (they read REAL decline reasons when callers pass them), with
+ * unverifiable claims stripped from the scripts in the same pass —
+ * every factual claim in a script now traces to shared/business.ts.
  */
 
 import { createLogger } from "../lib/logger";
+import { BUSINESS } from "@shared/business";
 
-const log = createLogger("pricing-intel");
-
-export interface ServicePricingStats {
-  service: string;
-  estimateCount: number;
-  approvedCount: number;
-  declinedCount: number;
-  approvalRate: number;
-  avgEstimateAmount: number;
-  avgApprovedAmount: number;
-  totalRevenue: number;
-  avgDaysToApprove: number;
-}
-
-export interface PricingInsight {
-  service: string;
-  approvalRate: number;
-  recommendation: "lower" | "hold" | "raise" | "bundle";
-  reason: string;
-  suggestedAction: string;
-}
-
-/** Analyze approval rates and generate pricing insights */
-export function analyzePricing(
-  stats: ServicePricingStats[]
-): PricingInsight[] {
-  const insights: PricingInsight[] = [];
-
-  for (const s of stats) {
-    if (s.estimateCount < 5) continue; // Need enough data
-
-    if (s.approvalRate < 0.4) {
-      insights.push({
-        service: s.service,
-        approvalRate: s.approvalRate,
-        recommendation: "lower",
-        reason: `Only ${Math.round(s.approvalRate * 100)}% approval rate — customers are price-shopping`,
-        suggestedAction: `Consider lowering ${s.service} estimates by 10-15% or adding a value bundle`,
-      });
-    } else if (s.approvalRate > 0.85) {
-      insights.push({
-        service: s.service,
-        approvalRate: s.approvalRate,
-        recommendation: "raise",
-        reason: `${Math.round(s.approvalRate * 100)}% approval — you may be leaving money on the table`,
-        suggestedAction: `Test raising ${s.service} estimates by 5-10%`,
-      });
-    } else if (s.approvalRate >= 0.4 && s.approvalRate < 0.6) {
-      insights.push({
-        service: s.service,
-        approvalRate: s.approvalRate,
-        recommendation: "bundle",
-        reason: `${Math.round(s.approvalRate * 100)}% approval — borderline. Bundling may increase conversion`,
-        suggestedAction: `Offer ${s.service} as part of a package deal with related services`,
-      });
-    } else {
-      insights.push({
-        service: s.service,
-        approvalRate: s.approvalRate,
-        recommendation: "hold",
-        reason: `${Math.round(s.approvalRate * 100)}% approval — healthy range`,
-        suggestedAction: `Maintain current pricing for ${s.service}`,
-      });
-    }
-  }
-
-  // Sort by approval rate (lowest first = most actionable)
-  insights.sort((a, b) => a.approvalRate - b.approvalRate);
-
-  log.info("Pricing analysis complete", {
-    total: stats.length,
-    insights: insights.length,
-    lowApproval: insights.filter((i) => i.recommendation === "lower").length,
-  });
-
-  return insights;
-}
+const log = createLogger("payment-status-intel");
 
 /** Calculate the "Objection Index" — how often each decline reason appears */
 export function analyzeObjections(
@@ -148,16 +96,21 @@ function categorizeService(description: string): string {
 }
 
 /**
- * Compute approval rates per service category from live invoice data.
- * paid/partial = approved, pending = declined/walked.
+ * Payment-status breakdown per service category from live invoice data.
+ *
+ * MEASURES PAYMENT STATE, NOT ESTIMATE APPROVAL: every row here already
+ * became an invoice; "unpaid" means paymentStatus is not paid/partial.
+ * A category with high unpaid share has a collections problem (or a
+ * data-entry lag) — it says nothing about whether the price was right.
+ *
  * @param days Number of days to look back (default 30)
  */
-export async function getServiceApprovalRates(days = 30): Promise<Array<{
+export async function getServicePaymentBreakdown(days = 30): Promise<Array<{
   service: string;
-  approved: number;
-  declined: number;
+  paidOrPartial: number;
+  unpaid: number;
   total: number;
-  approvalRate: number;
+  unpaidShare: number; // 0-100, % of invoices in this category not yet paid/partial
 }>> {
   try {
     const { getDb } = await import("../db");
@@ -177,39 +130,42 @@ export async function getServiceApprovalRates(days = 30): Promise<Array<{
     if (!invoiceRows || invoiceRows.length === 0) return [];
 
     // Aggregate by category
-    const categoryStats: Record<string, { approved: number; declined: number }> = {};
+    const categoryStats: Record<string, { paidOrPartial: number; unpaid: number }> = {};
 
     for (const row of invoiceRows) {
       const category = categorizeService(row.serviceDescription);
       if (!categoryStats[category]) {
-        categoryStats[category] = { approved: 0, declined: 0 };
+        categoryStats[category] = { paidOrPartial: 0, unpaid: 0 };
       }
       if (row.paymentStatus === "paid" || row.paymentStatus === "partial") {
-        categoryStats[category].approved++;
+        categoryStats[category].paidOrPartial++;
       } else {
-        categoryStats[category].declined++;
+        categoryStats[category].unpaid++;
       }
     }
 
     return Object.entries(categoryStats)
       .map(([service, stats]) => ({
         service,
-        approved: stats.approved,
-        declined: stats.declined,
-        total: stats.approved + stats.declined,
-        approvalRate: Math.round((stats.approved / (stats.approved + stats.declined)) * 100),
+        paidOrPartial: stats.paidOrPartial,
+        unpaid: stats.unpaid,
+        total: stats.paidOrPartial + stats.unpaid,
+        unpaidShare: Math.round((stats.unpaid / (stats.paidOrPartial + stats.unpaid)) * 100),
       }))
       .filter((r) => r.total >= 3) // Need at least 3 data points
       .sort((a, b) => b.total - a.total);
   } catch (err: unknown) {
-    log.error("Failed to compute approval rates:", { error: (err as Error).message });
+    log.error("Failed to compute payment breakdown:", { error: (err as Error).message });
     return [];
   }
 }
 
 /**
- * Run the full pricing intelligence cron job.
- * Queries DB, computes approval rates, alerts on over/under-priced services.
+ * Cron job (scheduler name: "pricing-intelligence", kept for cron_log
+ * continuity): report unpaid-invoice concentrations per category.
+ *
+ * Alerts ONLY on collections facts. Never recommends price changes —
+ * see the module header for why the old raise/lower alerts were invalid.
  */
 export async function runPricingIntelligenceJob(): Promise<{
   recordsProcessed: number;
@@ -218,19 +174,18 @@ export async function runPricingIntelligenceJob(): Promise<{
   const alerts: string[] = [];
 
   try {
-    const rates = await getServiceApprovalRates(30);
+    const rates = await getServicePaymentBreakdown(30);
     if (rates.length === 0) {
       return { recordsProcessed: 0, details: "No invoice data to analyze" };
     }
 
     for (const rate of rates) {
-      if (rate.approvalRate > 85) {
+      // ≥40% of a category's invoices unpaid with real volume = money
+      // sitting in receivables (or a paymentStatus data-entry gap —
+      // both worth a look). Threshold is a triage prior, not a finding.
+      if (rate.unpaidShare >= 40 && rate.unpaid >= 3) {
         alerts.push(
-          `💰 RAISE PRICE: ${rate.service} has ${rate.approvalRate}% approval (${rate.approved}/${rate.total}) — you're leaving money on the table`
-        );
-      } else if (rate.approvalRate < 40) {
-        alerts.push(
-          `📉 PRICE TOO HIGH: ${rate.service} has ${rate.approvalRate}% approval (${rate.approved}/${rate.total}) — consider lowering or bundling`
+          `💵 UNPAID CONCENTRATION: ${rate.service} — ${rate.unpaid}/${rate.total} invoices (last 30d) not marked paid/partial. Chase payment or fix paymentStatus entries.`
         );
       }
     }
@@ -240,9 +195,9 @@ export async function runPricingIntelligenceJob(): Promise<{
       try {
         const { sendTelegram } = await import("./telegram");
         await sendTelegram(
-          `🏷️ PRICING INTELLIGENCE (30-day)\n\n` +
+          `💳 PAYMENT-STATUS CHECK (30-day)\n\n` +
           alerts.join("\n\n") +
-          `\n\n📊 ${rates.length} service categories analyzed`
+          `\n\n📊 ${rates.length} service categories analyzed. This measures payment state on invoices — NOT estimate approval, NOT pricing.`
         );
       } catch (e) { log.warn("[services/pricingIntelligence] operation failed:", e); }
 
@@ -250,18 +205,18 @@ export async function runPricingIntelligenceJob(): Promise<{
         const { remember } = await import("./nickMemory");
         await remember({
           type: "insight",
-          content: `Pricing intelligence: ${alerts.length} alerts. ${alerts.join(" | ").slice(0, 1500)}`,
+          content: `Payment-status check: ${alerts.length} unpaid concentrations. ${alerts.join(" | ").slice(0, 1500)}`,
           source: "pricing_intelligence",
           confidence: 0.85,
         });
       } catch (e) { log.warn("[services/pricingIntelligence] operation failed:", e); }
     }
 
-    const details = `${rates.length} categories, ${alerts.length} pricing alerts`;
-    if (alerts.length > 0) log.info(`Pricing intelligence: ${details}`);
+    const details = `${rates.length} categories, ${alerts.length} unpaid-concentration alerts`;
+    if (alerts.length > 0) log.info(`Payment-status check: ${details}`);
     return { recordsProcessed: rates.length, details };
   } catch (err: unknown) {
-    log.error("Pricing intelligence job failed:", { error: (err as Error).message });
+    log.error("Payment-status job failed:", { error: (err as Error).message });
     return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
@@ -277,39 +232,51 @@ function normalizeDeclineReason(reason: string): string {
   return "other";
 }
 
-/** Generate coaching tips based on common objections */
+/**
+ * Generate coaching tips based on common objections.
+ *
+ * Claim discipline (revenue-truth-correction): every factual claim in
+ * these scripts traces to shared/business.ts or the live site. Removed
+ * from the previous version: "repair cost typically doubles" (invented),
+ * "loaner or shuttle service" (not offered — the real offer is drop-off
+ * + Uber from the lot), "early drop-off at 7:30 AM" (hours open 8 AM),
+ * "20-30% less than dealership rates" (unverified), "24 months
+ * warranty" (unverified), "400+ reviews" (stale — canonical count lives
+ * in BUSINESS.reviews), "convert 3x better" (invented stat).
+ */
 export function getObjectionCoaching(
   topObjection: string
 ): { objection: string; script: string; tip: string } {
+  const financingProviders = BUSINESS.financing.providers.join(", ");
   const coaching: Record<string, { script: string; tip: string }> = {
     price_concern: {
       script:
-        "I understand the concern. Let me show you what happens if we don't address this now — the repair cost typically doubles. We also offer financing through Acima, Snap, Koalafi, or American First Finance — no credit check needed.",
-      tip: "Lead with cost-of-delay, then offer financing. Never discount first.",
+        `I understand the concern. Let me walk you through exactly what's on the estimate and what each part does. We also offer financing through ${financingProviders} — no credit check needed.`,
+      tip: "Explain the estimate line by line, then offer financing. Never discount first.",
     },
     timing: {
       script:
-        "I hear you. We can get this done in about [X hours]. Would it help if we offered a loaner or shuttle service? We also have early drop-off at 7:30 AM.",
-      tip: "Remove the inconvenience barrier. Offer drop-off, shuttle, or same-day service.",
+        "I hear you. Easiest move: drop it off any morning — you can grab an Uber right from our lot and we'll text you the moment it's ready. First come, first served, 7 days a week.",
+      tip: "Remove the inconvenience barrier with the real drop-off flywheel: keys in, Uber out, text when done.",
     },
     shopping_around: {
       script:
-        "Absolutely, get a second opinion — we encourage it. Here's our written estimate. We're usually 20-30% less than dealership rates and we warranty our work for 24 months.",
+        "Absolutely, get a second opinion — we encourage it. Here's our written estimate to take with you. Compare it line for line.",
       tip: "Confidence, not desperation. Give them the estimate on paper. They usually come back.",
     },
     perceived_unnecessary: {
       script:
-        "Let me show you exactly what I found. [Show photo/video]. This is a safety concern because [explain risk]. I wouldn't recommend it if it wasn't needed.",
-      tip: "Visual proof is everything. Photos and videos convert 3x better than verbal explanation.",
+        "Let me show you exactly what I found — come under the car with me and look at the part yourself. I wouldn't recommend it if it wasn't needed.",
+      tip: "Visual proof beats verbal explanation. Put them under their own car with a flashlight.",
     },
     trust_issue: {
       script:
-        "I get it — this industry has a bad rep. Here's what we do differently: we show you the part before we replace it, we don't sell you what you don't need, and we have 400+ Google reviews averaging 4.9 stars.",
+        `I get it — this industry has a bad rep. Here's what we do differently: we show you the part before we replace it, we don't sell you what you don't need, and our Google reviews are public — ${BUSINESS.reviews.countDisplay} of them averaging ${BUSINESS.reviews.rating} stars.`,
       tip: "Social proof and transparency. Show, don't tell. Let reviews do the heavy lifting.",
     },
     self_repair: {
       script:
-        "If you're handy, that's great! Just know this repair requires [special tool/alignment/calibration]. If you run into trouble, we're here. We charge by the job, not the hour.",
+        "If you're handy, that's great! Some jobs need special tools or a calibration pass — if you run into trouble, we're here. We charge by the job, not the hour.",
       tip: "Don't fight it. Give honest advice. They'll come back for the harder stuff.",
     },
     other: {
