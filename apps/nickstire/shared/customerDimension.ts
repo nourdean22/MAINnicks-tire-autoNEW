@@ -11,10 +11,17 @@
  *   - `customerIntelligence`, `retentionCohorts`, `journeyTracker` and
  *     `customerPsychoProfile` each build a fourth, fifth, sixth.
  *
- * ROS-042 #3 is that failure in miniature and it shipped: `loadCustomerContext`
+ * ROS-042 #3 was that failure in miniature and it shipped: `loadCustomerContext`
  * assembled name, vehicle, open estimate and last-call gist, and only
  * `activeBooking` reached the SMS drafter — so replies went out cold to
  * customers the system knew everything about.
+ *
+ * THAT ONE IS CLOSED. #988 wired `buildCustomerMemoryPreamble` into the drafter
+ * (`nickgpt-client.ts`, pinned by `customerMemoryPreamble.test.ts`), so identity,
+ * open estimate and last-call gist all reach it today. This module does NOT
+ * reopen or re-fix it, and an earlier version of this comment implied otherwise.
+ * The per-surface fragmentation above is still real; the cold-reply symptom is
+ * not.
  *
  * THE HARDER PROBLEM: LINKAGE HONESTY
  * Assembling the slices is the easy half. The dangerous half is that they are
@@ -248,10 +255,15 @@ export function buildCustomerDimension(input: BuildDimensionInput): CustomerDime
 /**
  * The subset a customer-facing generator is allowed to speak from.
  *
- * ROS-042 #3 shipped cold SMS replies because rich context existed and did not
- * reach the drafter. The fix is not "hand the drafter everything" — an inferred
- * phone-key match on someone else's invoice becomes a confidently wrong
- * statement about the customer's own car. This returns what is safe to SAY.
+ * The drafter already receives customer context — #988 wired
+ * `buildCustomerMemoryPreamble` in, so this is not about getting facts TO it.
+ * It is about which of those facts are safe to state back.
+ *
+ * `loadCustomerContext` matches on `LIKE '%' + last-10-digits`. A shared
+ * household line, a business number or a recycled number can therefore attach
+ * one person's vehicle and open estimate to another person's text, and the
+ * drafter will state it confidently. Withholding money claims on an inferred
+ * link is the guard; it is a disclosure-safety property, not a copy-quality one.
  */
 export function speakableFacts(dim: CustomerDimension): {
   name: string | null;
