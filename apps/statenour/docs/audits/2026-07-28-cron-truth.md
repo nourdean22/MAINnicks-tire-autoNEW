@@ -41,6 +41,16 @@ Seven consecutive nights `[VERIFIED-runtime]`: `mega-evening | partial | "The op
 - **Fixed: push body showed raw HTML.** The composer emits `<b>…</b>`; the audio path strips tags, the push path didn't — caught the day before the function's first-ever delivery. `pushBodyFromBrief()` strips-then-slices (a slice-first could cut a tag in half), test-pinned.
 - `compose-daily-brief.ts` (intelligence brief): grounding rule verified earlier this session — absolute, "no signal today" fallback, never invent.
 
+## Dimension 6 — auth gates (DONE)
+
+Ran the repo's own `check-sensitive-get-auth` (which was **not wired into any gate**): 4 flagged. Adversarial verification split them:
+
+- **1 genuinely open** `[VERIFIED-code]`: `system/mission-surface-stats` GET dumped 14 days of telemetry with no gate → `requireSession` added.
+- **3 checker blind spots**, each verified gated at source: `suggestion-loop-stats` used `await auth()` (route standardized to canonical `requireSession` — its header's "NextAuth-gated" claim was TRUE, my earlier read of the checker output was the false alarm); `brain/by-url` uses the chrome-extension bearer `validateToken` (signal added to the checker — converting would break the extension); `brain/wisdom` hides auth inside a `withTracing(handler)` wrapper (checker now resolves wrapped identifiers and scans the referenced function's scoped body — still not a file-level grep, PATCH-only auth still fails GET).
+- **Gate wired**: `check:get-auth` added to `verify:hard`. Post-fix run: **✓ all 180 sensitive GET handlers have auth**.
+
+Lesson (same class as nickstire's day): a checker that exists but isn't in the gate, with blind spots nobody measured, protects nothing — the guard needed its own audit.
+
 ## Not yet covered (later loop iterations)
 
-Dimension 2 remainder (pulse · scoreboard · /command surfaces) · dimension 3 dead wiring · dimension 4 prompt self-contradictions · dimension 5 cannot-fail checks · dimension 6 auth gates.
+Dimension 2 remainder (pulse · scoreboard · /command surfaces) · dimension 3 dead wiring · dimension 4 prompt self-contradictions · dimension 5 cannot-fail checks.

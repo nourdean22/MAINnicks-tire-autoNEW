@@ -26,6 +26,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth-guard";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -146,7 +147,12 @@ export async function POST(req: Request): Promise<NextResponse> {
  * GET · returns the last 14 days of aggregated counts per surface,
  * shaped for the Phase 4 prune analysis script. No operator UI yet.
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: Request): Promise<NextResponse> {
+  // Auth (2026-07-28 cron-truth audit, dim 6): this GET dumped 14 days
+  // of mission-surface telemetry with NO gate — the only genuinely open
+  // route the sensitive-GET checker found. Operator-private per house
+  // rule 4; the POST sink below stays fire-and-forget by design.
+  try { await requireSession(req); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
   try {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 14);

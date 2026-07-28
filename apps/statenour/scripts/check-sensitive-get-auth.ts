@@ -53,8 +53,13 @@ const SENSITIVE_PREFIXES = [
   "app/api/conversations",
 ];
 
+// 2026-07-28 cron-truth audit (dim 6): `validateToken` added — the
+// chrome-extension bearer gate (app/api/brain/by-url) is a legitimate
+// auth signal this checker was blind to. Kept deliberately NARROW
+// otherwise: `await auth()` is NOT a signal — routes should use the
+// canonical requireSession so one grep-able idiom guards them all.
 const AUTH_SIGNAL =
-  /(requireSession|requireCronAuth|requireSyncAuth|EXPECTED_SECRET|SYNC_KEY|auth:\s*"(owner|cron|sync)"|\/\/\s*public:)/;
+  /(requireSession|requireCronAuth|requireSyncAuth|validateToken|EXPECTED_SECRET|SYNC_KEY|auth:\s*"(owner|cron|sync)"|\/\/\s*public:)/;
 
 interface Violation {
   file: string;
@@ -126,6 +131,34 @@ function checkFile(file: string): Violation | null {
   const body = lines.slice(preStart, bodyEnd).join("\n");
 
   if (AUTH_SIGNAL.test(body)) return null;
+
+  // 2026-07-28 cron-truth audit (dim 6): wrapped-identifier resolution.
+  // `export const GET = withTracing(handler, …)` was a blind spot — the
+  // auth lives inside `handler`'s body, which the GET-declaration scope
+  // above never reaches (app/api/brain/wisdom false-positived exactly
+  // this way). When the GET line wraps a bare identifier, locate that
+  // identifier's own declaration in-file and scan ITS scoped body with
+  // the same next-export boundary heuristic. Still NOT a file-level
+  // grep: a signal in PATCH/DELETE alone continues to fail GET.
+  const wrapped = lines[getStart].match(/=\s*\w+\(\s*(\w+)\b/);
+  if (wrapped) {
+    const id = wrapped[1];
+    const declRe = new RegExp(
+      `^(?:export\\s+)?(?:async\\s+)?(?:function\\s+${id}\\b|const\\s+${id}\\s*=)`,
+    );
+    for (let i = 0; i < lines.length; i++) {
+      if (i === getStart || !declRe.test(lines[i])) continue;
+      let end = lines.length;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (/^(?:export\s+)?(?:async\s+)?(?:function|const)\s+/.test(lines[j])) {
+          end = j;
+          break;
+        }
+      }
+      if (AUTH_SIGNAL.test(lines.slice(i, end).join("\n"))) return null;
+      break;
+    }
+  }
 
   return {
     file,
