@@ -224,19 +224,33 @@ export function getLoopContract(loop: string): LoopShapeContract | undefined {
  *
  * `details` is the only discriminator available without a schema change.
  */
-const SKIP_PHRASINGS =
-  /(^|[\s·—-])skip(ped)?\b|\bfeature (flag )?(is )?disabled\b|\bflag (is )?disabled\b|\boutside business hours\b|\bnot (yet )?evening\b|\bmissing\b.*\b(key|id|token|credential)|\bnot within\b|\balready ran\b/i;
-
 /**
- * Best-effort detection of a deliberate skip from a `cron_log.details` string.
+ * WHOLE-RUN skip reasons only.
  *
- * Deliberately GENEROUS: a missed skip becomes a false dormancy alarm, while a
- * false skip only costs one silent run — and the dormancy streak is what
- * ultimately catches a genuinely dead loop anyway. Prefer under-alerting here.
+ * The first version of this matched any occurrence of "skip", which was a
+ * self-defeating bug: `crossSellOutreach` ends EVERY run with
+ * `${sent} SMS sent, ${skipped} skipped (N v2 predictions in pool)` — a
+ * PER-ITEM count. A loose match classified every cross_sell run as a deliberate
+ * skip, which would have permanently hidden the exact ROS-033 dormancy this
+ * module exists to detect. Caught in review on #1145.
+ *
+ * So the discriminator is POSITION, not presence. A whole-run skip announces
+ * itself up front or is the entire content of the message; a per-item skip is a
+ * tally that arrives after a count of real work.
  */
+const WHOLE_RUN_SKIP = [
+  // "Skip — gbp_auto_posting feature flag is disabled" · "Skipped · VAPI_API_KEY missing"
+  /^\s*skip(ped)?\b/i,
+  // "Not yet evening — skipped" · "Outside business hours — skipped".
+  // No digit anywhere: a per-item tally always reports counts.
+  /^[^0-9]*[·—-]\s*skipped\.?\s*$/i,
+  // "Feature disabled" · "daily_wins_digest flag disabled"
+  /^[^0-9]*\b(feature|flag)\b[^0-9]*\bdisabled\b[^0-9]*$/i,
+];
+
 export function looksSkipped(details: string | null | undefined): boolean {
   if (!details) return false;
-  return SKIP_PHRASINGS.test(details);
+  return WHOLE_RUN_SKIP.some((rx) => rx.test(details.trim()));
 }
 
 /**
@@ -269,19 +283,6 @@ export function classifyRun(observed: ObservedRun): LoopFinding {
     };
   }
 
-  // A deliberate skip is not an outcome. It must not count toward the dormancy
-  // streak either — the CALLER is responsible for excluding skipped runs when it
-  // computes `priorZeroRuns`, because a loop that is switched off is not a loop
-  // that is broken.
-  if (observed.skipped || looksSkipped(observed.details)) {
-    return {
-      ...base,
-      verdict: "skipped",
-      summary: `${contract.loop} deliberately did nothing${observed.details ? ` (${observed.details})` : ""}.`,
-      actionable: false,
-    };
-  }
-
   // An unmeasured output is the ROS-028 hole: the run said "completed" and
   // nobody counted what it made. Never resolve that to healthy.
   if (observed.produced === null || observed.produced === undefined) {
@@ -293,12 +294,30 @@ export function classifyRun(observed: ObservedRun): LoopFinding {
     };
   }
 
+  // SCHEDULE COVERAGE IS CHECKED BEFORE SKIP STATUS. A daily loop whose only
+  // execution in seven days was a deliberate skip has still stopped running, and
+  // returning a silent `skipped` first would hide that (caught in review on
+  // #1145). Whether the one run we saw did nothing on purpose is a separate
+  // question from whether the loop is running at all.
   if (observed.runsInWindow !== undefined && observed.runsInWindow < contract.expectedRunsPerWeek / 2) {
     return {
       ...base,
       verdict: "missing",
       summary: `${contract.loop} ran ${observed.runsInWindow} times in 7 days, expected about ${contract.expectedRunsPerWeek}.`,
       actionable: true,
+    };
+  }
+
+  // A deliberate skip is not an outcome. It must not count toward the dormancy
+  // streak either — the CALLER is responsible for excluding skipped runs when it
+  // computes `priorZeroRuns`, because a loop that is switched off is not a loop
+  // that is broken.
+  if (observed.skipped || looksSkipped(observed.details)) {
+    return {
+      ...base,
+      verdict: "skipped",
+      summary: `${contract.loop} deliberately did nothing${observed.details ? ` (${observed.details})` : ""}.`,
+      actionable: false,
     };
   }
 

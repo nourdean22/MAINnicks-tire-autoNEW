@@ -235,3 +235,72 @@ describe("skip discrimination — the cron_log wiring hazard", () => {
     expect(finding.actionable).toBe(true);
   });
 });
+
+describe("skip detection precision — the self-defeating bug", () => {
+  // The first version matched ANY occurrence of "skip". crossSellOutreach ends
+  // EVERY run with `${sent} SMS sent, ${skipped} skipped (N v2 predictions in
+  // pool)` — a PER-ITEM tally. That classified every cross_sell run as a
+  // deliberate skip, which would have permanently hidden the exact ROS-033
+  // dormancy this module exists to detect. Caught in review on #1145.
+  const PER_ITEM_TALLIES = [
+    "1 SMS sent, 4 skipped (25550 v2 predictions in pool)",
+    "0 SMS sent, 12 skipped (25550 v2 predictions in pool)",
+    "3 sent, 2 skipped",
+  ];
+
+  it.each(PER_ITEM_TALLIES)("a per-item tally is NOT a whole-run skip: %s", (details) => {
+    expect(looksSkipped(details)).toBe(false);
+  });
+
+  it("cross_sell reporting 0 sends with per-item skips is DORMANT, not silent", () => {
+    // The flagship case. If this ever returns `skipped`, the module is broken.
+    const finding = classifyRun({
+      loop: "cross_sell",
+      produced: 0,
+      succeeded: true,
+      priorZeroRuns: 60,
+      details: "0 SMS sent, 12 skipped (25550 v2 predictions in pool)",
+    });
+    expect(finding.verdict).toBe("dormant");
+    expect(finding.actionable).toBe(true);
+  });
+
+  it("still recognises the real whole-run skips", () => {
+    for (const d of [
+      "Skip — gbp_auto_posting feature flag is disabled",
+      "Skipped · VAPI_API_KEY missing",
+      "Not yet evening — skipped",
+      "Outside business hours — skipped",
+      "Feature disabled",
+      "daily_wins_digest flag disabled",
+    ]) {
+      expect(looksSkipped(d), d).toBe(true);
+    }
+  });
+
+  it("a loop that STOPPED RUNNING is missing even when its one run was a skip", () => {
+    // Schedule coverage is a separate question from what the run did, and
+    // returning a silent `skipped` first would hide a dead scheduler.
+    const finding = classifyRun({
+      loop: "db-backup",
+      produced: 0,
+      succeeded: true,
+      runsInWindow: 1,
+      details: "Skip — feature flag is disabled",
+    });
+    expect(finding.verdict).toBe("missing");
+    expect(finding.actionable).toBe(true);
+  });
+
+  it("a skipped run on a HEALTHY schedule is still silent", () => {
+    const finding = classifyRun({
+      loop: "db-backup",
+      produced: 0,
+      succeeded: true,
+      runsInWindow: 7,
+      details: "Skip — feature flag is disabled",
+    });
+    expect(finding.verdict).toBe("skipped");
+    expect(finding.actionable).toBe(false);
+  });
+});
