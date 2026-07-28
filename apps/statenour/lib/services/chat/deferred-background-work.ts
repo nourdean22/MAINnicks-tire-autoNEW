@@ -12,6 +12,7 @@ import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
+import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
 import { summarizeAndStoreConversation } from "@/lib/brain/conversation-memory";
@@ -367,7 +368,11 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                         payload: JSON.parse(JSON.stringify(rcpt)),
                       },
                     })
-                    .catch(() => {}),
+                    .catch((e) => {
+                      // Spine-6: this row IS the proof the action happened —
+                      // losing it silently defeats the receipt system.
+                      logError("chat.action-receipts", e, { stage: "persist-audit-event", traceId }, "error");
+                    }),
                 ),
             );
 
@@ -456,8 +461,14 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
             // so the existing correction chip (claim-warnings.ts →
             // /api/ai/chat/claim-warnings → action-claim-warning.tsx)
             // surfaces the truth. Best-effort — never tanks the turn.
+            // Spine-6: single canonical evaluator per failure. When the
+            // receipt verdict above already wrote action-done-fail-<traceId>
+            // (and bannered the text), a second chat_claim_warn row for the
+            // SAME failure is duplicate noise — this pass now only covers
+            // what the verdict pass cannot see (prose claims about actions
+            // whose receipts did not fail the done-claim check).
             const failedClaims = detectFailedActionClaims(results, cleanedText);
-            if (failedClaims.length > 0 && convId) {
+            if (failedClaims.length > 0 && convId && actionVerdict.ok) {
               log.warn("action_block_failed_claim", {
                 conversationId: convId,
                 traceId,
