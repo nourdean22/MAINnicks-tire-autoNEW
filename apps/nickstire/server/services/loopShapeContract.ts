@@ -192,6 +192,19 @@ export const LOOP_CONTRACTS: readonly LoopShapeContract[] = Object.freeze([
       "Check the open declined-work value. A $0 reading hid a real $52,313 of recoverable work before ROS-036 — null is not zero.",
     ros: "ROS-036",
   },
+  {
+    loop: "opportunity-queue-refresh",
+    produces: "real queue changes (new opportunities + reconciler closures + verified wins)",
+    // Zero is legitimate on a quiet day — but a queue that changes NOTHING
+    // for two weeks while estimates/callbacks/missed calls keep flowing is
+    // the silent-IDLE class (strike-2 made recordsProcessed count ONLY
+    // real changes precisely so this contract can judge it).
+    healthyPerRun: { min: 0 },
+    dormantAfterRuns: 14,
+    expectedRunsPerWeek: 7,
+    firstCheck:
+      "Run refreshOpportunityQueue() manually and read the per-collector details; then check the sources (alg_estimates, callback_requests, vapi_call_logs) have eligible rows and migration 0099 is applied.",
+  },
 ]);
 
 const BY_LOOP = new Map(LOOP_CONTRACTS.map((c) => [c.loop, c]));

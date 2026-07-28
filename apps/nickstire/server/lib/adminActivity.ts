@@ -27,21 +27,32 @@
 
 interface AdminActivityState {
   lastTouchMs: number;
+  /**
+   * Last REAL human touch (adminProcedure / ping / bridge) — never set by
+   * the synthetic startup arm. Strike-1 fix: the resume edge must be
+   * computed from HUMAN inactivity. Pre-fix it read `lastTouchMs`, which
+   * the boot arm back-dates ~8 min — so a deploy shortly before the
+   * operator's morning open erased their 10-hour gap and suppressed the
+   * first real resume probe of the day.
+   */
+  lastRealTouchMs: number;
   totalTouches: number;
   lastSource: string | null;
 }
 
 const state: AdminActivityState = {
   lastTouchMs: 0,
+  lastRealTouchMs: 0,
   totalTouches: 0,
   lastSource: null,
 };
 
 /** Record admin activity. Called by adminProcedure middleware, /admin pings, bridge calls. */
 export function touchAdminActivity(source: string = "unknown"): void {
-  const prevTouchMs = state.lastTouchMs;
+  const prevRealTouchMs = state.lastRealTouchMs;
   const now = Date.now();
   state.lastTouchMs = now;
+  state.lastRealTouchMs = now;
   state.totalTouches++;
   state.lastSource = source;
 
@@ -50,8 +61,11 @@ export function touchAdminActivity(source: string = "unknown"): void {
   // lasts 30 days, so real callbacks happen ~monthly (verified in prod:
   // last admin.login compliance row 07-23 while lastSignedIn bumped daily
   // via cookie auth). "Login" was a proxy for "operator sat down at the
-  // admin"; this detects that directly: first touch after a long gap.
-  if (isResumeEdge(prevTouchMs, now)) {
+  // admin"; this detects that directly: first HUMAN touch after a long
+  // human gap (the synthetic startup arm never counts — see
+  // lastRealTouchMs). The DB-side throttle below is what keeps deploys
+  // and back-to-back edges from kicking the counter's session.
+  if (isResumeEdge(prevRealTouchMs, now)) {
     void maybeFireSessionResumeProbe(source);
   }
 }
@@ -63,23 +77,35 @@ let resumeProbeInFlight = false;
 
 /**
  * A resume edge is the moment the operator comes back to the admin after
- * a long gap. prevTouchMs === 0 (fresh boot) only NOMINATES an edge —
- * Railway redeploys many times a day here, so the DB-side probe-interval
- * check in maybeFireSessionResumeProbe is what prevents a counter-session
- * kick on every deploy. Exported for unit tests.
+ * a long HUMAN gap. Callers pass the previous REAL touch (never the
+ * synthetic startup arm). prevRealTouchMs === 0 (no human touch since
+ * boot) only NOMINATES an edge — Railway redeploys many times a day
+ * here, so the DB-side probe-interval check in
+ * maybeFireSessionResumeProbe is what prevents a counter-session kick on
+ * every deploy. Exported for unit tests.
  */
-export function isResumeEdge(prevTouchMs: number, nowMs: number, gapMs: number = RESUME_GAP_MS): boolean {
-  return prevTouchMs === 0 || nowMs - prevTouchMs >= gapMs;
+export function isResumeEdge(prevRealTouchMs: number, nowMs: number, gapMs: number = RESUME_GAP_MS): boolean {
+  return prevRealTouchMs === 0 || nowMs - prevRealTouchMs >= gapMs;
 }
 
 /**
+ * Probe outcomes that ATTEMPTED an ALG authentication — the thing that
+ * kicks the shop counter's ShopDriver session. Strike-1 fix: the
+ * throttle previously counted only `success`, so an `empty` probe ten
+ * minutes ago (auth happened, no new records) didn't suppress the next
+ * resume probe — repeated kicks. `dedup`/`skipped_recent` never reach
+ * auth and deliberately don't count. Exported for unit tests.
+ */
+export const AUTH_ATTEMPTING_OUTCOMES = ["success", "empty", "auth_failed", "error"] as const;
+
+/**
  * Fire ONE ALG probe for this sitting, throttled restart-proof:
- * skip unless the last SUCCESSFUL probe (any reason, per alg_probe_log)
- * is older than RESUME_MIN_PROBE_INTERVAL_MS. Each probe re-auths ALG and
- * kicks the shop counter's ShopDriver session once — same cost the
- * operator accepted for the login trigger, ~1-3×/day in practice
- * (morning open; afternoon return; overnight/evening probes already
- * cover the rest).
+ * skip unless the last AUTH-ATTEMPTING probe (any reason, per
+ * alg_probe_log) is older than RESUME_MIN_PROBE_INTERVAL_MS. Each
+ * attempt re-auths ALG and kicks the shop counter's ShopDriver session
+ * once — same cost the operator accepted for the login trigger,
+ * ~1-3×/day in practice (morning open; afternoon return;
+ * overnight/evening probes already cover the rest).
  */
 async function maybeFireSessionResumeProbe(source: string): Promise<void> {
   if (resumeProbeInFlight) return;
@@ -89,15 +115,15 @@ async function maybeFireSessionResumeProbe(source: string): Promise<void> {
     const d = await getDb();
     if (!d) return;
     const { algProbeLog } = await import("../../drizzle/schema");
-    const { desc, eq } = await import("drizzle-orm");
-    const [lastSuccess] = await d
+    const { desc, inArray } = await import("drizzle-orm");
+    const [lastAuthAttempt] = await d
       .select({ startedAt: algProbeLog.startedAt })
       .from(algProbeLog)
-      .where(eq(algProbeLog.outcome, "success"))
+      .where(inArray(algProbeLog.outcome, [...AUTH_ATTEMPTING_OUTCOMES]))
       .orderBy(desc(algProbeLog.startedAt))
       .limit(1);
-    if (lastSuccess?.startedAt && Date.now() - new Date(lastSuccess.startedAt).getTime() < RESUME_MIN_PROBE_INTERVAL_MS) {
-      return; // data is fresh enough — don't kick the counter's session
+    if (lastAuthAttempt?.startedAt && Date.now() - new Date(lastAuthAttempt.startedAt).getTime() < RESUME_MIN_PROBE_INTERVAL_MS) {
+      return; // an auth already happened recently — don't kick the counter again
     }
 
     const { requestAlgProbe } = await import("../services/algProbeBudget");

@@ -27,6 +27,7 @@ import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "../../lib/logger";
 import {
+
   pickProfile,
   buildSequenceMessage,
   TOUCH_ORDER,
@@ -37,6 +38,24 @@ import {
   RECOVERY_CLOSED_SIGNALS,
   type ObservedDeclineSignal,
 } from "../../services/declinedRecoverySequence";
+import { createHash } from "node:crypto";
+
+// ─── Recovery Experiment v3 assignment (strike-5) ────────────────────
+export const RECOVERY_EXPERIMENT_VERSION = "v3";
+const RECOVERY_HOLDOUT_PCT = 15;
+
+/**
+ * Deterministic, version-stable arm assignment: sha256("<version>:<id>")
+ * → first 8 hex chars → int % 100; below RECOVERY_HOLDOUT_PCT = control
+ * (1), else treatment (0). Changing the version string re-randomizes
+ * FUTURE assignments only — existing rows keep their stored arm.
+ * Exported for tests.
+ */
+export function recoveryArmForEstimate(estimateId: number, version: string): 0 | 1 {
+  const h = createHash("sha256").update(`${version}:${estimateId}`).digest("hex").slice(0, 8);
+  return parseInt(h, 16) % 100 < RECOVERY_HOLDOUT_PCT ? 1 : 0;
+}
+
 
 const log = createLogger("cron:declined-recovery");
 
@@ -407,17 +426,24 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
         continue;
       }
 
-      // ── Recovery 2.0 · holdout assignment + skip ─────────────────────
-      // Assigned deterministically (id % 100 < 15 → control) at FIRST
-      // send-eligibility, so control and treated pools share the same
-      // entry criteria. Control rows are never contacted; lift is
-      // measured as treated-vs-holdout matched-invoice rates
-      // (services/recoveryLift.ts) instead of assumed.
+      // ── Recovery Experiment v3 · versioned hash assignment ───────────
+      // Assigned at FIRST send-eligibility so control and treated pools
+      // share entry criteria. v3 (strike-5): stable sha256 hash of
+      // version+id (raw id-modulo correlates arm with insertion order and
+      // silently reassigns if the formula ever changes), stamped with
+      // experiment version + assignment time so the readout can run
+      // intention-to-treat on post-assignment windows and exclude
+      // legacy-policy rows. Rows already assigned KEEP their arm —
+      // changing an in-flight assignment would contaminate both arms.
       let holdout = est.recoveryHoldout as number | null;
       if (holdout === null || holdout === undefined) {
-        holdout = est.id % 100 < 15 ? 1 : 0;
+        holdout = recoveryArmForEstimate(est.id, RECOVERY_EXPERIMENT_VERSION);
         try {
-          await d.update(algEstimates).set({ recoveryHoldout: holdout }).where(eq(algEstimates.id, est.id));
+          await d.update(algEstimates).set({
+            recoveryHoldout: holdout,
+            recoveryExperimentVersion: RECOVERY_EXPERIMENT_VERSION,
+            recoveryAssignedAt: new Date(),
+          }).where(eq(algEstimates.id, est.id));
         } catch (e) {
           log.warn(`[declined-recovery] holdout persist failed for ${est.id}`, { error: e instanceof Error ? e.message : String(e) });
         }

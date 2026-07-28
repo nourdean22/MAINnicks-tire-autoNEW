@@ -1463,6 +1463,10 @@ export const algEstimates = mysqlTable("alg_estimates", {
    *  at first eligibility (id % 100 < 15). Lift = treated vs holdout
    *  matched-invoice rates — measured, never assumed. */
   recoveryHoldout: tinyint("recovery_holdout"),
+  /** 0103 · experiment version stamped at assignment ("v3"+); legacy %-modulo rows stay NULL */
+  recoveryExperimentVersion: varchar("recovery_experiment_version", { length: 8 }),
+  /** 0103 · when the arm was assigned — outcome windows anchor here, not on estimate_date */
+  recoveryAssignedAt: timestamp("recovery_assigned_at"),
   /** wave-181.85 · voice recovery escalation (post-D30) · AgentPhone */
   voiceRecoveryAttemptedAt: timestamp("voice_recovery_attempted_at"),
   voiceRecoveryCallId: varchar("voice_recovery_call_id", { length: 64 }),
