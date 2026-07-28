@@ -1351,6 +1351,45 @@ export const systemTools = {
     },
   }),
 
+  getTopDecisions: tool({
+    description:
+      "Read the shop's top revenue decisions from the nickstire opportunity queue — the same due-aware, consent-filtered, SQL-ranked top-5 the admin Decision Inbox shows. READ-ONLY. Use when the operator asks 'what should I decide', 'what's in the inbox', 'top opportunities', or before recommending any revenue action.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const { queryNick } = await import("@/lib/nickstire/query");
+        const res = await queryNick<{
+          decisions?: Array<Record<string, unknown>>;
+          totalLive?: number;
+          excludedNoConsent?: number;
+          excludedSnoozed?: number;
+        }>("top_decisions");
+        if ("error" in res) {
+          return { ok: false, error: res.error };
+        }
+        // S4 · outcome ledger producer #2: surfacing the decision inbox
+        // in chat is a recommendation event — record it (fire-and-forget)
+        // so decision-surface acceptance becomes measurable.
+        void (async () => {
+          const { recordShown } = await import("@/lib/services/outcome-ledger");
+          const top = (res.data.decisions ?? [])[0] as { recommendedAction?: string } | undefined;
+          await recordShown({
+            kind: "decision_surface",
+            sourceEngine: "getTopDecisions",
+            summary: top?.recommendedAction
+              ? `top: ${String(top.recommendedAction).slice(0, 300)} (+${Math.max(0, (res.data.decisions?.length ?? 1) - 1)} more)`
+              : "decision inbox surfaced (empty top slot)",
+            shownSurface: "chat-tool",
+          });
+        })().catch(() => {});
+        return { ok: true, ...res.data };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return { ok: false, error: sanitizeError(err) };
+      }
+    },
+  }),
+
   getFleetTruth: tool({
     description:
       "Read the cross-app operational fleet truth: statenour capability artifacts (daily brief, outbox drain, Inngest heartbeat — fresh/stale/never_produced/unknown with ages) plus nickstire's live health, database, schema-guard and self-healing verdicts. READ-ONLY. Use when the operator asks 'is everything running', 'system status', 'are the crons alive', or before claiming any scheduled capability works.",

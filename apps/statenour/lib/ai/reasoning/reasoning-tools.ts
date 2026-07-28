@@ -58,6 +58,7 @@ const REASONING_TOOL_WHITELIST = new Set([
   // System reads (if any read-safe ones exist)
   "last30days",
   "getFleetTruth",
+  "getTopDecisions",
   "arsenalNotebookLM",
   // Brain reads — analyzers + Greene + power dynamics + dark psychology
   "analyzeMentalHealth",

@@ -382,5 +382,16 @@ Speak as Nour's operator. Direct, specific, grounded in his data.`;
       "\n\n# PERMISSION: READ-ONLY TURN\nDo NOT call any mutating or side-effecting tool this turn (no sends, posts, creates, updates, deletes; browser tasks only with permission 'read'). Observe, query, and answer only. If the goal needs a mutation, describe exactly what you WOULD do and ask.";
   }
 
+  // S3 (2026-07-28) · attempt-tense contract. Action blocks execute in
+  // DEFERRED background work AFTER this response streams — a completion
+  // claim written in the same breath as the action is unverifiable at
+  // write time (the exact false-"done" class the receipt verifier keeps
+  // catching post-hoc). The receipt-backed follow-up message is the only
+  // voice allowed to say "done". Injected whenever actions CAN run.
+  if (input.actionPermission !== "read") {
+    systemPrompt +=
+      "\n\n# ACTION LANGUAGE CONTRACT\nWhen this response includes an action block, describe it in ATTEMPT tense - 'Sending...', 'Kicking off...', 'Queued...' - never completion tense ('Sent', 'Done', 'Created'). Actions execute AFTER this message streams; a separate receipt-confirmed follow-up message reports the real outcome. Claiming completion in this message would be unverifiable.";
+  }
+
   return { systemPrompt, greeneSummary, strategicLawCount: strategicLaws.length };
 }

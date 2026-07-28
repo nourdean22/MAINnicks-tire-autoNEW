@@ -74,9 +74,73 @@ function FleetTruthCard({ output }: { output: FleetTruthOutput }) {
   );
 }
 
+interface DecisionRow {
+  id?: string;
+  urgency?: string;
+  state?: string;
+  recommendedAction?: string;
+  valueDollars?: number;
+  dataQuality?: string;
+  attempts?: number;
+}
+interface TopDecisionsOutput {
+  ok?: boolean;
+  decisions?: DecisionRow[];
+  totalLive?: number;
+  excludedNoConsent?: number;
+  excludedSnoozed?: number;
+}
+
+const URGENCY_COLOR: Record<string, string> = {
+  critical: "text-red-300",
+  today: "text-amber-300",
+  this_week: "text-sky-300",
+  later: "text-zinc-400",
+};
+
+function TopDecisionsCard({ output }: { output: TopDecisionsOutput }) {
+  if (output.ok === false) return null;
+  const rows = output.decisions ?? [];
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-2 rounded-xl border border-edge bg-void/60 p-3" data-testid="top-decisions-card">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+          Decision inbox — top {rows.length}
+        </span>
+        <span className="text-[10px] text-fg-tertiary">
+          {output.totalLive ?? 0} live
+          {output.excludedSnoozed ? ` · ${output.excludedSnoozed} snoozed` : ""}
+          {output.excludedNoConsent ? ` · ${output.excludedNoConsent} no-consent` : ""}
+        </span>
+      </div>
+      <ol className="space-y-2">
+        {rows.map((d, i) => (
+          <li key={d.id ?? i} className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className={`text-[10px] font-semibold uppercase tracking-wider ${URGENCY_COLOR[d.urgency ?? ""] ?? "text-zinc-400"}`}>
+                {d.urgency ?? "unranked"}
+              </span>
+              <span className="text-[11px] tabular-nums text-fg-secondary">
+                {d.valueDollars && d.valueDollars > 0 ? `$${d.valueDollars.toLocaleString()}` : "value unknown"}
+                {d.dataQuality ? ` · ${d.dataQuality}` : ""}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[12px] leading-snug text-fg">{d.recommendedAction ?? "(no action text)"}</p>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-[10px] text-fg-tertiary">
+        Same read as the admin Decision Inbox — decide there; this card never mutates.
+      </p>
+    </div>
+  );
+}
+
 /** tool name → renderer. Add entries only for VERIFIED output shapes. */
 const RENDERERS: Record<string, (output: unknown) => React.ReactNode> = {
   getFleetTruth: (output) => <FleetTruthCard output={(output ?? {}) as FleetTruthOutput} />,
+  getTopDecisions: (output) => <TopDecisionsCard output={(output ?? {}) as TopDecisionsOutput} />,
 };
 
 export function TypedToolCards({ message }: { message: UIMessage }) {

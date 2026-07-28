@@ -84,6 +84,17 @@ export const intelligenceDailyBrief = inngest.createFunction(
           content: briefContent.text,
         },
       });
+      // S4 · outcome ledger producer #1: the brief is a recommendation
+      // the operator is SHOWN — record it so acceptance/usefulness can
+      // ever be measured. First line = the headline recommendation;
+      // dedup + failure-safety live in the ledger service.
+      const { recordShown } = await import("@/lib/services/outcome-ledger");
+      await recordShown({
+        kind: "daily_brief",
+        sourceEngine: "intelligence-brief",
+        summary: briefContent.text.split("\n").find((l: string) => l.trim().length > 0)?.slice(0, 500) ?? "daily brief",
+        shownSurface: "push+briefing_log",
+      });
     });
 
     // 5. Dispatch Web Push Notification

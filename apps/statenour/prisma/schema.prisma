@@ -3175,6 +3175,40 @@ model Experiment {
   @@map("experiments")
 }
 
+/// S4 (2026-07-28) · Intelligence Outcome Ledger — the learning layer's
+/// missing half. Every substantive machine recommendation gets ONE row:
+/// what generated it, when/where it was shown, what the operator did,
+/// and whether it helped. Aggregates surfaces that lack outcome
+/// tracking (brief headlines, chat decision surfacings); surfaces with
+/// their own receipts (agenda, approvals, queue) are NOT duplicated
+/// here — this ledger reads beside them, never instead of them.
+model IntelligenceOutcome {
+  id           String    @id @default(cuid())
+  /// daily_brief | decision_surface | proactive_push | suggestion | prediction
+  kind         String
+  sourceEngine String    @map("source_engine")
+  /// sha256[:16] of normalized summary — dedup + stable reference
+  contentHash  String    @map("content_hash")
+  summary      String    @db.Text
+  evidenceRefs Json?     @map("evidence_refs")
+  confidence   Float?
+  shownAt      DateTime  @default(now()) @map("shown_at")
+  shownSurface String    @map("shown_surface")
+  decidedAt    DateTime? @map("decided_at")
+  /// accepted | dismissed | edited | ignored (set by sweep after TTL)
+  decision     String?
+  resultRef    String?   @map("result_ref")
+  outcomeAt    DateTime? @map("outcome_at")
+  outcomeUseful Boolean? @map("outcome_useful")
+  conversationId String? @map("conversation_id")
+  traceId      String?   @map("trace_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([kind, shownAt])
+  @@index([contentHash])
+  @@map("intelligence_outcomes")
+}
+
 model BriefingLog {
   id        String   @id @default(cuid())
   briefType String   @map("brief_type") // daily | weekly | monthly
