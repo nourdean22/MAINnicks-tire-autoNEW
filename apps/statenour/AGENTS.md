@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-07-28 · ninth arc — a self-audit of the day's own CI work: 9 confirmed findings fixed (44 raised, 14 verified, 5 refuted; 30 NOT verified — the pass was capped). Highlights: the concurrency P1 fixed in e2e was still live in test.yml's primary sweep; the e2e warm loop could not fail, so a dead dev server exited 0; five false claims in my own comments corrected (notably "this job BLOCKS" — nothing enforces checks on this plan, PR #1106 merged 9s after node went red); a "finally semantics" test that tested nothing, now red-green verified. Plus the defect that had reddened EVERY dependency PR: turbo ran at concurrency 10 with a 6GB heap granted per process on a runner MEASURED at 6921MB max / 361MB min avail — now --concurrency=2 (documented flag, not an unread env var).
+> **Last refreshed:** 2026-07-28 · tenth arc — the operating-spine day (11 merges: cron-truth sweep + Inngest revive, loud-failure phase 2, One-Spine 1-8, chat command console, decision card + outcome ledger + #1152). Full roll-up: RECONCILIATION top entry.
 
 ## 1 · Where we are right now
 
@@ -13,7 +13,7 @@
 
 **Versioning:** the `v10.0.X` scheme is retired — commits use `fix · statenour · …` / `docs · statenour · …`.
 
-**Tests:** the suite is GREEN and exits 0 (measured 2026-07-28: 390 files, 4,419 passed | 1 skipped, exit 0). The old "EXITS 1 on ~12 pre-existing unhandled rejections" era is OVER — a non-zero exit now means a REAL failure; do not explain it away as folklore. Two standing caveats: (1) never export real API keys / prod `DATABASE_URL` into the test shell — provider-chain tests reorder with live keys present and the empty-DB smoke sees real data (phantom failures); (2) still read the vitest **summary line** and run the files YOUR change touched explicitly — `tsconfig` excludes `tests/`, so `tsc` never catches a broken test import. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
+**Tests:** the suite is GREEN and exits 0 (measured 2026-07-28 late: 394 files, 4,441 passed | 1 skipped, exit 0). The old "EXITS 1 on ~12 pre-existing unhandled rejections" era is OVER — a non-zero exit now means a REAL failure; do not explain it away as folklore. Two standing caveats: (1) never export real API keys / prod `DATABASE_URL` into the test shell — provider-chain tests reorder with live keys present and the empty-DB smoke sees real data (phantom failures); (2) still read the vitest **summary line** and run the files YOUR change touched explicitly — `tsconfig` excludes `tests/`, so `tsc` never catches a broken test import. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
 
 ## 2 · How we work
 
@@ -80,17 +80,16 @@ When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`,
 
 Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-claim-detector.ts) — add new verbs as they appear; re-run its test file after changes.
 
-## 5 · Active backlog (priority order · updated 2026-07-28)
+## 5 · Active backlog (priority order · updated 2026-07-28 late — evening waves shipped 5 of the 9 items listed this morning)
 
-1. **Scheduled-cycle proof** — first real briefing_log row (10:15 UTC), heartbeat (12:00 UTC), worker liveness; per-capability artifacts beyond invocation.
-2. **Memory write governance** — commit gateway running in SHADOW mode (lib/brain/memory-commit-gateway.ts); review shadow receipts ~1 week, then route high-value writers through it and change promotion semantics (repetition ≠ corroboration).
-3. **Durable Home agenda** — replace localStorage follow-up dismissals with the server-backed agenda (in progress this arc).
-4. **Task triage adoption** — mandatory-exit triage contract exists server-side; make it the daily behavior (quota, rolled-forward counter surfacing).
-5. **Receipt-first action finalization (full)** — fast side-effects before final prose; slow actions get a second receipt-backed completion event (honesty subset shipped; re-architecture pending).
-6. **Retrieval evaluation corpus** — grow the eval harness fixtures from real corrections/misses; only then retune RRF/persona weights.
-7. **Alert lifecycle** — resolve/mute/false-positive actions; failed fetches render as failed, not empty.
-8. Obsidian bridge PR #1152 — rebase onto current main, re-verify concurrent instances, merge or close deliberately.
-9. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
+1. **Scheduled-cycle proof** — first real briefing_log row (10:15 UTC) + heartbeat + worker artifact-liveness; first outcome-ledger rows from the brief + decision surfacings.
+2. **Memory write governance** — gateway SHADOW receipts accumulate to ~2026-08-04; review `agrees` rates, then route high-value writers + change promotion semantics (repetition ≠ corroboration).
+3. **Triage adoption** — the incumbent one-item flow (InboxTasksTriage + task.triage) is verified complete; adoption is operator behavior, not code. (Spine-5's parallel contract was deleted 2026-07-28 — see contracts registry note.)
+4. **Realtime completion-message push** — S3's receipt-backed follow-up appears on next load; pushing into an open stream is its own transport change.
+5. **Recall-eval corpus growth** — feed real corrections from outcomesNeedingReview into lib/brain/recall-eval fixtures; only then retune RRF/persona weights.
+6. **Chat-state visual regression** — Playwright screenshots of /system/chat-states in the e2e lane.
+7. **Approval/decision card runtime receipts** — first live renders post-#1176 deploy; extend the typed-card registry only on verified shapes.
+8. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
 
 ## 6 · How to resume in a fresh session
 

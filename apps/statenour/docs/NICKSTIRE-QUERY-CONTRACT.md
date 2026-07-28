@@ -485,6 +485,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 
 | Action | Filters | Returns |
 |---|---|---|
+| `top_decisions` | none | `{ decisions: [{ id, urgency, state, recommendedAction, valueDollars, dataQuality, attempts }], totalLive, excludedNoConsent, excludedSnoozed }` — same due-aware/consent-filtered topDecisions(5) read as the admin Decision Inbox (added 2026-07-28, consumed by statenour `getTopDecisions`) |
 | `attention_needed` | none | `{ alerts: [{ level, message, count }], totalCritical, totalWarning }` |
 | `bookings_status` | none | 7-day status breakdown |
 | `bookings_today` | none | Today's bookings (ET-anchored) |
