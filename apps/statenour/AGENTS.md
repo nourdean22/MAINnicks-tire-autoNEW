@@ -80,9 +80,17 @@ When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`,
 
 Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-claim-detector.ts) — add new verbs as they appear; re-run its test file after changes.
 
-## 5 · Active backlog (priority order · updated 2026-06-11)
+## 5 · Active backlog (priority order · updated 2026-07-28)
 
-1. P9 confirm-cards · judge-eval calibration verdict (needs nâ‰¥30) — low priority.
+1. **Scheduled-cycle proof** — first real briefing_log row (10:15 UTC), heartbeat (12:00 UTC), worker liveness; per-capability artifacts beyond invocation.
+2. **Memory write governance** — commit gateway running in SHADOW mode (lib/brain/memory-commit-gateway.ts); review shadow receipts ~1 week, then route high-value writers through it and change promotion semantics (repetition ≠ corroboration).
+3. **Durable Home agenda** — replace localStorage follow-up dismissals with the server-backed agenda (in progress this arc).
+4. **Task triage adoption** — mandatory-exit triage contract exists server-side; make it the daily behavior (quota, rolled-forward counter surfacing).
+5. **Receipt-first action finalization (full)** — fast side-effects before final prose; slow actions get a second receipt-backed completion event (honesty subset shipped; re-architecture pending).
+6. **Retrieval evaluation corpus** — grow the eval harness fixtures from real corrections/misses; only then retune RRF/persona weights.
+7. **Alert lifecycle** — resolve/mute/false-positive actions; failed fetches render as failed, not empty.
+8. Obsidian bridge PR #1152 — rebase onto current main, re-verify concurrent instances, merge or close deliberately.
+9. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
 
 ## 6 · How to resume in a fresh session
 

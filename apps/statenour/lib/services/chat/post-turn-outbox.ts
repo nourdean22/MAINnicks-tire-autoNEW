@@ -48,7 +48,11 @@ export async function enqueuePostTurnWork(
       select: { id: true },
     });
     return row.id;
-  } catch {
+  } catch (e) {
+    // Spine-1: a failed enqueue means THIS TURN has no crash net — the
+    // turn still proceeds (contract unchanged), but the missing net must
+    // be visible, not a silent null.
+    logError("chat.post-turn-outbox", e, { stage: "enqueue" }, "warn");
     return null;
   }
 }
@@ -73,24 +77,44 @@ export async function completePostTurnWork(id: string | null): Promise<void> {
  * flip is the lock — a concurrent drain that loses the race matches
  * zero rows.
  */
+/** A `processing` row untouched this long is a crashed worker's orphan —
+ *  the claim flip bumps updatedAt (@updatedAt), so staleness here is
+ *  restart-proof without new lease columns (spine-1: pre-fix these rows
+ *  were stranded FOREVER — claims only ever looked at `pending`). */
+const OUTBOX_PROCESSING_STALE_MS = 30 * 60 * 1000;
+
 export async function claimOrphans(limit = 25): Promise<
   Array<{ id: string; payload: SerializableDeferredCtx; attempts: number }>
 > {
-  const cutoff = new Date(Date.now() - OUTBOX_ORPHAN_GRACE_MS);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - OUTBOX_ORPHAN_GRACE_MS);
+  const staleProcessing = new Date(now.getTime() - OUTBOX_PROCESSING_STALE_MS);
   const candidates = await prisma.postTurnOutbox.findMany({
     where: {
-      status: "pending",
-      createdAt: { lt: cutoff },
       attempts: { lt: OUTBOX_MAX_ATTEMPTS },
+      OR: [
+        // Crashed BEFORE the drain claimed it (original case) — honor the
+        // retry backoff finishClaim writes into nextAttemptAt (spine-1:
+        // pre-fix claims ignored it, so a failed row could retry early).
+        { status: "pending", createdAt: { lt: cutoff }, nextAttemptAt: { lte: now } },
+        // Crashed AFTER a claim — stranded at `processing` (spine-1).
+        { status: "processing", updatedAt: { lt: staleProcessing } },
+      ],
     },
     orderBy: { createdAt: "asc" },
     take: limit,
-    select: { id: true },
+    select: { id: true, status: true },
   });
   const claimed: Array<{ id: string; payload: SerializableDeferredCtx; attempts: number }> = [];
   for (const c of candidates) {
+    // The status-guarded flip is the lock; for stale-processing rows the
+    // updatedAt guard keeps a LIVE worker's row (it just touched it) safe
+    // from being stolen.
     const res = await prisma.postTurnOutbox.updateMany({
-      where: { id: c.id, status: "pending" },
+      where:
+        c.status === "pending"
+          ? { id: c.id, status: "pending" }
+          : { id: c.id, status: "processing", updatedAt: { lt: staleProcessing } },
       data: { status: "processing", attempts: { increment: 1 } },
     });
     if (res.count !== 1) continue; // lost the race — another drain owns it
@@ -127,5 +151,11 @@ export async function finishClaim(
             nextAttemptAt: new Date(Date.now() + 60 * 60 * 1000),
           },
     })
-    .catch(() => undefined);
+    .catch((e: unknown) => {
+      // Spine-1: an unrecorded finish is how a done row gets re-run or a
+      // failed row silently loses its error — the one write that proves
+      // the drain's work must be LOUD when it fails.
+      logError("chat.post-turn-outbox", e, { stage: "finish-claim", outboxId: id, ok }, "error");
+      return undefined;
+    });
 }

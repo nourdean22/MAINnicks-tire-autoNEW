@@ -64,11 +64,34 @@ export function scheduleInngestSelfSync(): void {
         signal: AbortSignal.timeout(30_000),
       });
       const body = await res.text().catch(() => "");
-      // `modified:true` in the response means the Cloud manifest CHANGED
-      // on this boot — i.e., this very mechanism just prevented a repeat
-      // of the 2026-07-28 drift. Worth an info line either way.
+      // Spine-1: verify the OUTCOME, not the invocation — pre-fix a
+      // 401/404/500 logged as an informational line and the drift class
+      // this mechanism exists to prevent would have sailed through.
+      if (!res.ok) {
+        log.warn("inngest_self_sync_failed", {
+          status: res.status,
+          body: body.slice(0, 200),
+        });
+        return;
+      }
+      let modified: boolean | null = null;
+      try {
+        const parsed = JSON.parse(body) as { modified?: unknown };
+        modified = typeof parsed.modified === "boolean" ? parsed.modified : null;
+      } catch {
+        // Inngest answered 2xx with a non-JSON body — registration state
+        // unknown; say so instead of treating any body as proof.
+        log.warn("inngest_self_sync_unverified", {
+          status: res.status,
+          body: body.slice(0, 160),
+        });
+        return;
+      }
+      // modified:true = the Cloud manifest CHANGED on this boot — this
+      // mechanism just prevented a repeat of the 2026-07-28 drift.
       log.info("inngest_self_sync", {
         status: res.status,
+        modified,
         body: body.slice(0, 160),
       });
     } catch (err) {

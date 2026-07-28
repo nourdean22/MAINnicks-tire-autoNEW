@@ -3191,6 +3191,9 @@ enum AgendaItemCategory {
   STANDING_INTENTION
   CONTRADICTION
   NEGLECT_ALERT
+  /// Spine-4 · Home follow-ups promoted from localStorage-only dismissal
+  /// into the durable agenda ledger (source="follow_up", sourceId=hash).
+  FOLLOW_UP
 }
 
 enum AgendaItemStatus {

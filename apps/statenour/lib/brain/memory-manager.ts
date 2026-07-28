@@ -88,6 +88,16 @@ export class BrainMemoryManager {
     // Operator-curated sources (skill_ingestion / manual / user) bypass
     // the gate entirely · the operator already vouched for them.
     let gateMetadata: Record<string, unknown> = {};
+    // Spine-3: an unknown category still writes (behavior unchanged until
+    // the gateway leaves shadow mode) but is now MARKED for review so
+    // category drift accumulates visibly instead of silently.
+    {
+      const { isKnownCategory } = await import("./categories");
+      if (!isKnownCategory(effectiveCategory)) {
+        gateMetadata.review_required = true;
+        gateMetadata.review_reason = "unknown category";
+      }
+    }
     const operatorTrusted =
       source === "skill_ingestion" || source === "manual" || source === "user";
     if (effectiveCategory === "wisdom" && !operatorTrusted) {
@@ -111,6 +121,36 @@ export class BrainMemoryManager {
 
     const existing = await prisma.brainMemory.findUnique({
       where: { category_key: { category: effectiveCategory, key } },
+    });
+
+    // Spine-2 SHADOW gateway: record what the commit authority WOULD
+    // decide for this write (same-source repetition = noop, changed
+    // claim = update-not-reinforce, weaker-vs-stronger = review, ...).
+    // Fire-and-forget; behavior below is UNCHANGED until the shadow
+    // week's receipts are reviewed.
+    void (async () => {
+      const { shadowMemoryCommit } = await import("./memory-commit-gateway");
+      const { isKnownCategory } = await import("./categories");
+      await shadowMemoryCommit(
+        {
+          category: effectiveCategory,
+          key,
+          content,
+          source,
+          categoryKnown: isKnownCategory(effectiveCategory),
+        },
+        existing
+          ? {
+              content: existing.content,
+              source: existing.source,
+              seenCount: existing.seenCount,
+              confidence: existing.confidence,
+            }
+          : null,
+        existing ? "reinforce" : "create",
+      );
+    })().catch(() => {
+      // shadow observation must never affect the real write path
     });
 
     if (existing) {
@@ -203,15 +243,29 @@ export class BrainMemoryManager {
    * Record a contradiction — reduce confidence and flag for review.
    */
   async contradict(memoryId: string, newEvidence: string): Promise<BrainMemory> {
+    // Spine-3: MERGE metadata and APPEND a contradiction event — the old
+    // implementation replaced the whole metadata object, discarding
+    // provenance/gate context and keeping only the LATEST contradiction.
+    const current = await prisma.brainMemory.findUniqueOrThrow({
+      where: { id: memoryId },
+      select: { metadata: true },
+    });
+    const meta = (current.metadata ?? {}) as Record<string, unknown>;
+    const events = Array.isArray(meta.contradictionEvents) ? meta.contradictionEvents : [];
     return prisma.brainMemory.update({
       where: { id: memoryId },
       data: {
         confidence: { decrement: 0.2 },
         metadata: {
+          ...meta,
           contradicted: true,
           contradiction: newEvidence,
           contradictedAt: new Date().toISOString(),
-        },
+          contradictionEvents: [
+            ...events.slice(-9),
+            { evidence: newEvidence.slice(0, 300), at: new Date().toISOString() },
+          ],
+        } as never,
       },
     });
   }
@@ -292,16 +346,18 @@ export class BrainMemoryManager {
         total: bigint;
         permanent: bigint;
         temporary: bigint;
+        soft_deleted: bigint;
         avg_confidence: number | null;
         by_category: Array<{ category: string; count: number }> | null;
       }>
     >`
       WITH stats AS (
         SELECT
-          COUNT(*)::bigint AS total,
-          COUNT(*) FILTER (WHERE "expires_at" IS NULL)::bigint AS permanent,
-          COUNT(*) FILTER (WHERE "expires_at" IS NOT NULL)::bigint AS temporary,
-          AVG("confidence")::float8 AS avg_confidence
+          COUNT(*) FILTER (WHERE "deleted_at" IS NULL)::bigint AS total,
+          COUNT(*) FILTER (WHERE "deleted_at" IS NULL AND "expires_at" IS NULL)::bigint AS permanent,
+          COUNT(*) FILTER (WHERE "deleted_at" IS NULL AND "expires_at" IS NOT NULL)::bigint AS temporary,
+          COUNT(*) FILTER (WHERE "deleted_at" IS NOT NULL)::bigint AS soft_deleted,
+          AVG("confidence") FILTER (WHERE "deleted_at" IS NULL)::float8 AS avg_confidence
         FROM "brain_memories"
       ),
       cats AS (
@@ -312,6 +368,7 @@ export class BrainMemoryManager {
         FROM (
           SELECT category, COUNT(*)::int AS c
           FROM "brain_memories"
+          WHERE "deleted_at" IS NULL
           GROUP BY category
         ) x
       )
@@ -322,6 +379,7 @@ export class BrainMemoryManager {
       total: 0n,
       permanent: 0n,
       temporary: 0n,
+      soft_deleted: 0n,
       avg_confidence: 0,
       by_category: [],
     };

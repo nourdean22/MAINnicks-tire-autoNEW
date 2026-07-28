@@ -253,7 +253,13 @@ describe("BrainMemoryManager.confirm / forget / contradict", () => {
     expect(mocks.brainMemory.delete).toHaveBeenCalledWith({ where: { id: "m" } });
   });
 
-  it("contradict() decrements confidence by 0.2 + records evidence", async () => {
+  it("contradict() decrements confidence by 0.2, MERGES metadata and appends the event", async () => {
+    // Spine-3: contradict now reads existing metadata first — pre-fix it
+    // REPLACED the whole object, discarding provenance and keeping only
+    // the latest contradiction.
+    mocks.brainMemory.findUniqueOrThrow.mockResolvedValueOnce({
+      metadata: { provenance: "journal", contradictionEvents: [{ evidence: "old", at: "2026-01-01" }] },
+    });
     mocks.brainMemory.update.mockResolvedValueOnce({ id: "m" });
     await mm.contradict("m", "ran the experiment, got the opposite result");
     const args = mocks.brainMemory.update.mock.calls[0][0];
@@ -262,5 +268,9 @@ describe("BrainMemoryManager.confirm / forget / contradict", () => {
     expect(args.data.metadata.contradiction).toBe(
       "ran the experiment, got the opposite result",
     );
+    // provenance survives; the event APPENDS instead of replacing
+    expect(args.data.metadata.provenance).toBe("journal");
+    expect(args.data.metadata.contradictionEvents).toHaveLength(2);
+    expect(args.data.metadata.contradictionEvents[1].evidence).toContain("opposite result");
   });
 });

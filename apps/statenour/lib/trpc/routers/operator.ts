@@ -142,6 +142,7 @@ import {
 // structurally impossible.
 import { createCommitment } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
+import { logError } from "@/lib/utils/error-log";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 
 // The 8 valid identity axes · mirrors `VALID_AXES` in
@@ -555,8 +556,19 @@ export const operatorRouter = router({
         });
       }
 
-      // Sync overrides cache and process.env immediately
-      await loadFeatureFlagOverrides(true).catch(() => {});
+      // Spine-1: persistence and activation are DIFFERENT facts. The DB
+      // write above succeeded; the cache reload can still fail, leaving
+      // the running process on the OLD value while the response implied
+      // the change was live. Report both truthfully.
+      let runtimeApplied = true;
+      let runtimeReason: string | null = null;
+      try {
+        await loadFeatureFlagOverrides(true);
+      } catch (e) {
+        runtimeApplied = false;
+        runtimeReason = e instanceof Error ? e.message.slice(0, 200) : String(e);
+        logError("operator.feature-flags", e, { stage: "override-cache-reload", key }, "warn");
+      }
 
       const resolved = getFlag(key);
       if (!resolved) {
@@ -565,7 +577,14 @@ export const operatorRouter = router({
           message: `Flag ${key} is not registered in the registry.`,
         });
       }
-      return { flag: resolved };
+      return {
+        flag: resolved,
+        persisted: true,
+        runtimeApplied,
+        ...(runtimeReason
+          ? { runtimeReason: `cache reload failed — the returned value may reflect the PREVIOUS process state: ${runtimeReason}` }
+          : {}),
+      };
     }),
 
   // ──────────────── Settings · cold memory / Drive sync (UU.2) ────────────────
@@ -1491,6 +1510,99 @@ export const operatorRouter = router({
   /**
    * Return daily anticipated questions and pending follow-up items.
    */
+  // ── Spine-4 · durable follow-up agenda (replaces localStorage) ──
+  // Follow-ups are generated strings; the ledger rows live in the
+  // EXISTING agenda_items table (category FOLLOW_UP, source "follow_up",
+  // sourceId = sha256(title) hex16). Dismissals/conversions are server
+  // receipts that survive devices and storage clears.
+  agendaSyncFollowUps: operatorProcedure
+    .input(z.object({ titles: z.array(z.string().min(1).max(500)).max(50) }))
+    .mutation(async ({ input }) => {
+      const { createHash } = await import("node:crypto");
+      const prismaModule = await import("@/lib/prisma");
+      const p = prismaModule.prisma;
+      let created = 0;
+      for (const title of input.titles) {
+        const fp = createHash("sha256").update(title.replace(/\s+/g, " ").trim().toLowerCase()).digest("hex").slice(0, 16);
+        const existing = await p.agendaItem.findFirst({
+          where: { source: "follow_up", sourceId: fp },
+          select: { id: true },
+        });
+        if (existing) continue;
+        await p.agendaItem.create({
+          data: {
+            title: title.slice(0, 500),
+            category: "FOLLOW_UP",
+            status: "ACTIVE",
+            source: "follow_up",
+            sourceId: fp,
+          },
+        });
+        created++;
+      }
+      return { created };
+    }),
+
+  agendaActiveFollowUps: operatorProcedure.query(async () => {
+    const prismaModule = await import("@/lib/prisma");
+    const rows = await prismaModule.prisma.agendaItem.findMany({
+      where: { category: "FOLLOW_UP", status: "ACTIVE" },
+      orderBy: { createdAt: "asc" },
+      take: 20,
+      select: { id: true, title: true, createdAt: true },
+    });
+    return { items: rows };
+  }),
+
+  agendaDismissFollowUp: operatorProcedure
+    .input(z.object({ id: z.string(), reason: z.string().max(300).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const prismaModule = await import("@/lib/prisma");
+      const res = await prismaModule.prisma.agendaItem.updateMany({
+        where: { id: input.id, status: "ACTIVE" },
+        data: {
+          status: "ARCHIVED",
+          metadata: {
+            dismissedAt: new Date().toISOString(),
+            dismissedBy: ctx.session.email ?? "operator",
+            ...(input.reason ? { dismissalReason: input.reason } : {}),
+          },
+        },
+      });
+      return { ok: res.count === 1 };
+    }),
+
+  agendaConvertFollowUp: operatorProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const prismaModule = await import("@/lib/prisma");
+      const p = prismaModule.prisma;
+      const item = await p.agendaItem.findUnique({ where: { id: input.id } });
+      if (!item || item.status !== "ACTIVE")
+
+        return { ok: false as const, error: "not found or not active" };
+      // Reuse the canonical task-creation service (fills the required
+      // scoring/effort defaults the raw model demands) — same path the
+      // task router's create procedure delegates to.
+      const { createTaskFromAPI } = await import("@/lib/services/task-actions");
+      const task = (await createTaskFromAPI({
+        title: item.title.slice(0, 300),
+        status: "INBOX",
+      })) as { id: string };
+      await p.agendaItem.update({
+        where: { id: item.id },
+        data: {
+          status: "RESOLVED",
+          metadata: {
+            convertedAt: new Date().toISOString(),
+            convertedBy: ctx.session.email ?? "operator",
+            taskId: task.id,
+          },
+        },
+      });
+      return { ok: true as const, taskId: task.id };
+    }),
+
   nickRemembersContext: operatorProcedure.query(async () => {
     const [anticipated, recentDigests] = await Promise.all([
       getTodaysAnticipated().catch(() => null),
