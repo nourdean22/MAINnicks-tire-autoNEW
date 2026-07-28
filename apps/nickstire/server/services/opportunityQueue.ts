@@ -431,6 +431,53 @@ export async function transitionOpportunity(params: {
 }
 
 /**
+ * Snooze: push due_at without a state change (snooze is scheduling, not
+ * a state — the roadmap vocabulary has no "snoozed"). Appends a receipt
+ * so the audit trail shows who deferred it and until when.
+ */
+export async function snoozeOpportunity(params: {
+  id: string;
+  untilISO: string;
+  by: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { ok: false, error: "DB unavailable" };
+
+  try {
+    const rows = rowsFromExecute(
+      await db.execute(sql`SELECT * FROM revenue_opportunities WHERE id = ${params.id} LIMIT 1`),
+    );
+    if (rows.length === 0) return { ok: false, error: "not found" };
+    const current = mapRow(rows[0]);
+    if (TERMINAL_STATES.includes(current.state)) {
+      return { ok: false, error: `already terminal (${current.state})` };
+    }
+    const receipt = {
+      at: new Date().toISOString(),
+      by: params.by,
+      snoozedUntil: params.untilISO,
+    };
+    const receipts = [...current.receipts, receipt];
+    await db.execute(sql`
+      UPDATE revenue_opportunities
+      SET due_at = ${new Date(params.untilISO)},
+          receipts_json = ${JSON.stringify(receipts)},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${params.id}
+    `);
+    return { ok: true };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingOnce("snooze");
+      return { ok: false, error: "table not applied (migration 0099)" };
+    }
+    throw err;
+  }
+}
+
+/**
  * The ONLY path to `won`. Requires a real invoice: the invoice row is
  * looked up first, and the transition stores the id + verification time.
  * Roadmap: "measure recovery only from verified later outcomes."
@@ -514,11 +561,16 @@ export async function collectUnapprovedEstimates(): Promise<{ scanned: number; u
   const MIN_CENTS = 15_000; // below $150 it's not an owner-level decision
   let rows: Array<Record<string, unknown>>;
   try {
+    // stated_concern (0100): closed signals (repaired elsewhere / sold /
+    // not interested) are excluded — the customer answered; there is no
+    // decision left to surface. Pre-0100 environments fall back to the
+    // same query without the column.
     rows = rowsFromExecute(await db.execute(sql`
       SELECT e.id, e.customer_name AS customerName, e.customer_phone AS customerPhone,
              e.service_description AS serviceDescription, e.estimated_amount AS estimatedAmount,
              e.estimate_date AS estimateDate,
              e.follow_up_7d_sent AS f7, e.follow_up_30d_sent AS f30,
+             e.stated_concern AS statedConcern,
              c.id AS customerId, c.smsOptOut AS smsOptOut
       FROM alg_estimates e
       LEFT JOIN customers c
@@ -529,13 +581,43 @@ export async function collectUnapprovedEstimates(): Promise<{ scanned: number; u
         AND e.estimate_date >= DATE_SUB(NOW(), INTERVAL 60 DAY)
         AND e.estimate_date <= DATE_SUB(NOW(), INTERVAL 7 DAY)
         AND e.estimated_amount >= ${MIN_CENTS}
+        AND (e.stated_concern IS NULL OR e.stated_concern NOT IN ('repaired_elsewhere', 'no_longer_owns', 'not_interested'))
       LIMIT 300
     `));
   } catch (err) {
-    log.warn("[opportunity-queue] estimate collector query failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { scanned: 0, upserted: 0 };
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/unknown column|1054/i.test(msg)) {
+      // 0100 not applied — run without the stated-concern column.
+      try {
+        rows = rowsFromExecute(await db.execute(sql`
+          SELECT e.id, e.customer_name AS customerName, e.customer_phone AS customerPhone,
+                 e.service_description AS serviceDescription, e.estimated_amount AS estimatedAmount,
+                 e.estimate_date AS estimateDate,
+                 e.follow_up_7d_sent AS f7, e.follow_up_30d_sent AS f30,
+                 c.id AS customerId, c.smsOptOut AS smsOptOut
+          FROM alg_estimates e
+          LEFT JOIN customers c
+            ON RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', ''), 10)
+             = RIGHT(REGEXP_REPLACE(COALESCE(e.customer_phone, ''), '[^0-9]', ''), 10)
+           AND e.customer_phone IS NOT NULL
+          WHERE e.matched_invoice_id IS NULL
+            AND e.estimate_date >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+            AND e.estimate_date <= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            AND e.estimated_amount >= ${MIN_CENTS}
+          LIMIT 300
+        `));
+      } catch (retryErr) {
+        log.warn("[opportunity-queue] estimate collector query failed", {
+          error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+        });
+        return { scanned: 0, upserted: 0 };
+      }
+    } else {
+      log.warn("[opportunity-queue] estimate collector query failed", {
+        error: msg,
+      });
+      return { scanned: 0, upserted: 0 };
+    }
   }
 
   let upserted = 0;
@@ -563,6 +645,7 @@ export async function collectUnapprovedEstimates(): Promise<{ scanned: number; u
         estimateAgeDays: ageDays,
         serviceDescription: service,
         recoveryTouchesSent: touches,
+        statedConcern: r.statedConcern ? String(r.statedConcern) : null,
       },
       consentOk: Number(r.smsOptOut ?? 0) !== 1,
     });

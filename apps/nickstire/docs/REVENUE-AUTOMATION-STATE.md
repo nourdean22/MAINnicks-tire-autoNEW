@@ -50,8 +50,19 @@ One durable queue (`revenue_opportunities`, migration **0099 — hand-apply requ
 - **Cron** `opportunity-queue-refresh` (tier 3, business hours). **tRPC** `opportunityQueue.top/list/transition/recordOutcome/refresh` (admin-only).
 - **Owner Decision Inbox v1** = TOP DECISIONS block in the morning brief (top-5 evidence-backed cards, LLM instructed to lead with them verbatim). React admin panel = next arc.
 
+## Recovery 2.0 (shipped 2026-07-28, second follow-on PR)
+
+Migration **0100 `[VERIFIED-runtime]` — APPLIED to prod** (as was 0099): `alg_estimates` gains `stated_concern`, `stated_concern_source`, `stated_concern_at`, `recovery_holdout` (additive nullable; INFORMATION_SCHEMA-guarded applicator).
+
+- **Evidence routing is now real**: the cron reads `stated_concern` and re-routes the track from the customer's own words (evidence beats legacy sticky profiles). Closed signals (`repaired_elsewhere` / `no_longer_owns` / `not_interested`) STOP the sequence and drop the estimate from queue collection.
+- **1-3 adaptive touches** (`allowedTouches`): evidence tracks get 2 targeted touches; P0 gets 2 neutral, a 3rd only when ≥$300 or safety service. 3d/45d retired from sending (columns remain for history).
+- **Holdout measurement**: 15% deterministic control (`id % 100 < 15`) assigned at first send-eligibility, never contacted. `services/recoveryLift.ts` reports treated-vs-holdout matched-invoice rates — raw counts, `readable` flag gates on both arms ≥30 rows, no significance theater. tRPC `opportunityQueue.recoveryLift`.
+- **Capture paths**: operator capture via Decision Inbox chips (`opportunityQueue.captureStatedConcern`, source `operator`) — the ONLY wired path. `classifyDeclineReply()` (pure, inflection-tested) is ready for SMS auto-classification but **deliberately NOT wired** into the live orchestrator; that wire is its own future change with its own review.
+- **Owner Decision Inbox panel** `[VERIFIED]`: `DecisionInboxPanel` leads `/admin` → Today. Call/Spoke/No-answer/Snooze/Lost/DNC (confirmDialog two-tap for destructive) + invoice-gated Won + stated-concern chips.
+
 ## Open items this arc did NOT cover
 
-- Runtime verification (which flags are ON, last runs, measured lift) — `[UNKNOWN-runtime]`, needs `cron_log`/`railway run`.
+- Runtime verification of legacy flags/last-runs (`FEATURE_DECLINED_RECOVERY` state etc.) — `[UNKNOWN-runtime]`, needs `cron_log`/`railway run`. (Migrations 0099+0100 ARE runtime-verified applied.)
 - Missed-call recovery, cross-sell, review-request audits — same truth pass pending.
-- Recovery 2.0 (decline-reason capture → stated-concern routing, 1-3 adaptive touches, holdout measurement) — the follow-on build that makes P1/P2/P3 routable again, on evidence.
+- SMS auto-classification wire (`classifyDeclineReply` → orchestrator inbound path) — deferred by design; see above.
+- Recovery-lift readout is structurally live but `readable=false` until both arms reach 30 rows — do not quote lift numbers before then.

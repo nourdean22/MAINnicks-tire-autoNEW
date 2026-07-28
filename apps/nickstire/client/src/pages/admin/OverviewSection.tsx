@@ -1,4 +1,5 @@
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
+import DecisionInboxPanel from "./DecisionInboxPanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
@@ -237,6 +238,12 @@ export default function OverviewSection() {
   return (
     <div className="space-y-5" aria-label="Today operator command center">
       <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} />
+
+      {/* Owner Decision Inbox (Wave 4) — the top-5 evidence-backed
+          decisions LEAD the day. Everything below is monitoring; this is
+          the part that moves money. Degrades to an empty card until the
+          queue table (0099) is applied + collectors run. */}
+      <DecisionInboxPanel />
 
       {/* A slice can fail while the request succeeds. Without this the operator
           sees a clean board built on reads that never happened. */}

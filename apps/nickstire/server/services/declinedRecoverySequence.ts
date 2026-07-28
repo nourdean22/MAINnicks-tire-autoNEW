@@ -232,6 +232,145 @@ export function touchToDays(touch: RecoveryTouch): number {
   }
 }
 
+// ─── Recovery 2.0 · observed decline signals ───────────────────────
+//
+// The full vocabulary of things a customer can STATE about a declined
+// quote. Routing signals map to tracks; closed signals END recovery for
+// that estimate. Stored in alg_estimates.stated_concern (migration 0100).
+
+export type ObservedDeclineSignal =
+  | StatedConcern          // "price" | "proof" | "time" → routes a track
+  | "waiting_event"        // named a date/payday — logistics track, low cadence
+  | "repaired_elsewhere"   // closed: work done somewhere else
+  | "no_longer_owns"       // closed: vehicle gone
+  | "not_interested";      // closed: asked us to drop it
+
+export const RECOVERY_CLOSED_SIGNALS: readonly ObservedDeclineSignal[] = [
+  "repaired_elsewhere",
+  "no_longer_owns",
+  "not_interested",
+];
+
+/** Map a stored stated_concern to the routing input. Closed signals and
+ *  unknown strings return null (→ P0 or skip; the cron checks closed
+ *  separately). waiting_event rides the logistics track. */
+export function statedConcernFromDb(value: string | null | undefined): StatedConcern | null {
+  switch (value) {
+    case "price": return "price";
+    case "proof": return "proof";
+    case "time": return "time";
+    case "waiting_event": return "time";
+    default: return null;
+  }
+}
+
+/**
+ * Classify a customer's free-text reply about a declined quote into an
+ * observed signal. PURE — string in, signal out, fully table-testable.
+ *
+ * Priority: closed signals first (they end recovery — mis-routing one as
+ * a track would keep texting someone who sold the car), then the more
+ * specific waiting_event before generic time. First match wins. Null
+ * when nothing matches confidently — UNKNOWN stays unknown (P0), per the
+ * doctrine: one neutral follow-up beats pretending to know the objection.
+ *
+ * Regex note: patterns deliberately match INFLECTED forms ("fixed",
+ * "sold it", "traded her in") — the `\b`-after-truncated-stem trap has
+ * bitten this repo seven recorded times; tests pin inflections.
+ *
+ * Wiring status: called TODAY by the operator-capture path (admin inbox).
+ * Auto-classification of inbound SMS replies is NOT wired — that path
+ * runs through the live smsOrchestrator and gets its own careful change.
+ */
+export function classifyDeclineReply(text: string | null | undefined): ObservedDeclineSignal | null {
+  if (!text) return null;
+  const t = text.toLowerCase().trim();
+  if (t.length === 0) return null;
+
+  // Closed: repaired elsewhere
+  if (
+    /(already|got it|had it|took it|it'?s been)\s+(all\s+)?(fixed|done|repaired|handled|taken care of)/.test(t) ||
+    /(fixed|did|done|repaired|handled)\s+(it\s+)?(elsewhere|somewhere else|at another|at a different|myself|my ?self)/.test(t) ||
+    /went (to|with) (another|a different|some other)/.test(t) ||
+    /(another|other|different) (shop|place|mechanic|garage) (did|fixed|took care of|handled)/.test(t)
+  ) {
+    return "repaired_elsewhere";
+  }
+
+  // Closed: vehicle gone. Verb + vehicle-noun/pronoun CO-OCCURRENCE
+  // (handles both "sold the car" and vehicle-first "car got totaled"),
+  // with two guards: hedged intent stays open ("thinking about selling"),
+  // and any repair intent stays open ("wrecked it, how much to fix" is a
+  // customer, not a goodbye).
+  if (
+    /(sold|traded|totaled|totalled|junked|scrapped|wrecked|got rid of)/.test(t) &&
+    /\b(car|truck|vehicle|van|suv|it|her|him)\b/.test(t) &&
+    !/almost|thinking about|might|planning/.test(t) &&
+    !/repair|fix|quote|estimate|how much/.test(t)
+  ) {
+    return "no_longer_owns";
+  }
+  if (/no longer (have|own|drive)|don'?t (have|own) (the|that|it|a car)/.test(t) || /anymore/.test(t) && /\b(car|truck|vehicle)\b/.test(t) && /(don'?t have|got rid)/.test(t)) {
+    return "no_longer_owns";
+  }
+
+  // Closed: not interested
+  if (/not interested|no thanks|no thank you|leave me alone|don'?t (text|message|contact) me|quit (texting|messaging)/.test(t)) {
+    return "not_interested";
+  }
+
+  // Waiting on a named event (more specific than generic time)
+  if (/payday|pay day|tax refund|tax return|next (paycheck|check)|after the (1st|first|holidays)|when i get paid/.test(t)) {
+    return "waiting_event";
+  }
+
+  // Price
+  if (/price|pricey|expensive|cost|costs|afford|too much|budget|cheaper|cheapest|money'?s tight|payment plan|finance|financing/.test(t)) {
+    return "price";
+  }
+
+  // Proof / trust
+  if (/second opinion|really need|actually need|prove|show me|sure it needs|don'?t (believe|think it)|scam|rip.?off|overcharg|really necessary/.test(t)) {
+    return "proof";
+  }
+
+  // Time / logistics
+  if (/busy|no time|can'?t get (in|there)|next (week|month)|later this|out of town|traveling|travelling|work schedule|drop it off when/.test(t)) {
+    return "time";
+  }
+
+  return null;
+}
+
+// ─── Recovery 2.0 · adaptive touch policy (1-3 touches, not 5) ─────
+//
+// The 5-touch × everyone cadence is retired. Policy:
+//   - Evidence-routed tracks (P1/P2/P3 via statedConcern): TWO targeted
+//     touches — the customer told us the blocker; answer it, then stop.
+//   - P0 unknown: TWO neutral touches; a THIRD only when the quote is
+//     high-value (≥$300) or safety-relevant (brakes/tires/suspension/
+//     steering) — extra contact must be earned by stakes, not habit.
+//   - Legacy sticky psychographic P1-P3 rows get the same 2-touch cap —
+//     the 1-3 rule applies to everyone.
+// 3d and 45d are retired from SENDING (columns remain for history).
+// The cron intersects TOUCH_ORDER with this list, so priority order is
+// preserved and already-attempted touches still count via their columns.
+
+const SAFETY_SERVICE_RE = /\b(brake|brakes|caliper|rotor|pad|pads|tire|tires|suspension|strut|struts|shock|shocks|ball joint|tie rod|steering)\b/i;
+
+export function allowedTouches(args: {
+  profile: RecoveryProfile;
+  amountCents: number;
+  serviceDescription: string | null;
+}): RecoveryTouch[] {
+  if (args.profile !== "P0") {
+    return ["7d", "14d"];
+  }
+  const highValue = args.amountCents >= 30_000;
+  const safety = args.serviceDescription ? SAFETY_SERVICE_RE.test(args.serviceDescription) : false;
+  return highValue || safety ? ["7d", "14d", "30d"] : ["7d", "30d"];
+}
+
 // ─── Variant key for sms_messages.variantKey (A/B attribution) ─────
 //
 // Format: declined_<touch>_<profile> · 50-char field, fits comfortably.
