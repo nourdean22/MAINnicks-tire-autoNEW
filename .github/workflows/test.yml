@@ -146,7 +146,55 @@ jobs:
 
       # ─── Affected pipeline (Turbo handles parallelism + cache) ────────
       - name: Verify affected (check + lint + test + build)
-        run: pnpm exec turbo run check lint test build --affected --output-logs=errors-only
+        # 2026-07-28 · --concurrency=2 + a memory sampler.
+        #
+        # SYMPTOM: every dependency PR reddens here. #1092 failed 4/4 with an
+        # IDENTICAL signature — "27 successful, 33 total", zero FAILING tasks,
+        # the same six heavy tasks (@statenour/web build/check/lint/test +
+        # nickstire) force-killed — at wildly different durations (10m, 10m,
+        # 13m, 25m). A timeout yields varying progress at a fixed time; this
+        # is fixed progress at varying times, which is resource death.
+        #
+        # MECHANISM (inferred, NOT yet directly observed): turbo defaults to
+        # concurrency 10 and the job sets NODE_OPTIONS=--max-old-space-size=6144
+        # for every process it spawns. The heavy tasks depend on package builds
+        # so they CLUSTER at the tail — several node processes, each permitted
+        # 6GB, on a 2-core runner measured at ~6.9GB total (e2e probe, same
+        # runner class; the note below claiming 16GB is wrong for this plan).
+        # A lockfile change makes --affected include all 33 packages, which is
+        # why only dependency PRs hit it.
+        #
+        # The heap ceiling is deliberately NOT lowered: it was raised to fix a
+        # real tsc OOM (exit 134), and a ceiling only PERMITS growth. Bounding
+        # how many processes may grow at once is the targeted lever.
+        # Tradeoff: less parallelism on a 2-core box costs wall time. The
+        # budget is 50m and these runs currently die at 10-25m, so there is
+        # room — if this now times out, raise timeout-minutes, do not raise
+        # concurrency back.
+        #
+        # The sampler makes the next run decisive: if `min avail` stays high,
+        # memory is refuted and the cause is elsewhere.
+        #
+        # --concurrency is passed as a FLAG, not TURBO_CONCURRENCY: `turbo run
+        # --help` on the pinned version documents the flag and says nothing
+        # about that env var. An unread env var would make this fix a silent
+        # no-op — the same trap as the duplicated heap flag in e1e28c2f6.
+        run: |
+          ( while true; do
+              free -m | awk '/^Mem:/ {print $7}' >> /tmp/mem-samples.txt
+              sleep 5
+            done ) &
+          SAMPLER=$!
+          set +e
+          pnpm exec turbo run check lint test build --affected --output-logs=errors-only --concurrency=2
+          STATUS=$?
+          set -e
+          kill $SAMPLER 2>/dev/null || true
+          if [ -s /tmp/mem-samples.txt ]; then
+            echo "--- runner memory during the sweep ---"
+            echo "  samples: $(wc -l < /tmp/mem-samples.txt) · min avail: $(sort -n /tmp/mem-samples.txt | head -1)MB · max avail: $(sort -n /tmp/mem-samples.txt | tail -1)MB"
+          fi
+          exit $STATUS
         env:
           TURBO_LOG_VERBOSITY: 0
           NODE_ENV: test
