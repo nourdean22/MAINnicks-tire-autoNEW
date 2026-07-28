@@ -226,7 +226,9 @@ describe("2026-07-25 · errored streams resolve onFinishPromise", () => {
     );
   });
 
-  it("calls onWorkComplete even when the persist path throws (finally semantics)", async () => {
+  it("still calls onWorkComplete when the persist writes reject", async () => {
+    // Note: these rejections are .catch()'d inside the handler, so this case
+    // does NOT exercise `finally` — it is covered separately below.
     chatMessageCreateMock.mockRejectedValue(new Error("db down"));
     errorLogCreateMock.mockRejectedValue(new Error("db down"));
     const deps = { ...makeDeps("partial text long enough to persist"), onWorkComplete: vi.fn() };
@@ -234,6 +236,28 @@ describe("2026-07-25 · errored streams resolve onFinishPromise", () => {
 
     await onError({ error: new Error("provider dropped mid-stream") });
 
+    expect(deps.onWorkComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onWorkComplete when the try block itself THROWS (real finally semantics)", async () => {
+    // 2026-07-28 audit fix: the previous version of this test claimed to
+    // prove `finally` but only rejected promises the handler already
+    // swallows — it passed identically with a plain call at the end of the
+    // try. Throwing from the logger enters the outer catch, so only a real
+    // `finally` still fires the resolver. Without it the SSE would hang.
+    const deps = {
+      ...makeDeps("some partial"),
+      log: {
+        info: vi.fn(),
+        warn: vi.fn(() => {
+          throw new Error("logger blew up mid-handler");
+        }),
+      },
+      onWorkComplete: vi.fn(),
+    };
+    const onError = buildStreamErrorHandler(deps);
+
+    await expect(onError({ error: new Error("boom") })).resolves.toBeUndefined();
     expect(deps.onWorkComplete).toHaveBeenCalledTimes(1);
   });
 

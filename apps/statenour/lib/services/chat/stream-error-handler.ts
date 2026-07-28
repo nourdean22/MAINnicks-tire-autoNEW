@@ -104,7 +104,12 @@ export interface BuildStreamErrorHandlerInput {
    * onFinishPromise. onFinish never fires on an errored stream, so without
    * this the SSE assembler (sse-stream.ts) awaits a promise that never
    * resolves — "message.completed" is never emitted and the connection
-   * hangs on 7s heartbeats until client abort or the 120s maxDuration.
+   * hangs on 7s heartbeats INDEFINITELY. (2026-07-28 correction: this said
+   * "until the 120s maxDuration". `export const maxDuration` is a
+   * Vercel/serverless route-segment config; statenour is self-hosted on
+   * Railway behind `next start`, which does not enforce it. There is no
+   * upper bound — the heartbeat actively defeats proxy idle-kill, so only a
+   * client abort ends it. The bug was worse than first described.)
    * Called in `finally` AFTER the persist/trace awaits so a fast client
    * reload can't race the errored ChatMessage row. Committed streams only:
    * failed probe attempts drop their buffered onError events before the

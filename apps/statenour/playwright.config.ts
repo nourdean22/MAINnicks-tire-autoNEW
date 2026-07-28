@@ -27,5 +27,9 @@ export default defineConfig({
     },
   ],
   // No webServer here — assumes dev server is already running.
-  // CI runs against a deployed preview URL via E2E_BASE_URL env var.
+  // E2E_BASE_URL selects the target. In CI (e2e-statenour.yml) it points at
+  // the HERMETIC localhost dev server that workflow starts — not a deployed
+  // preview. The deployed-preview variant is an optional operator-keyed
+  // extra. Corrected 2026-07-28: this said CI runs against a preview URL,
+  // which has not been true since 75920fba8.
 });
