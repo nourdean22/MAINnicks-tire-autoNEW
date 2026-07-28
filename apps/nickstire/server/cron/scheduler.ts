@@ -461,6 +461,35 @@ export function startTieredScheduler(): void {
           }
         },
       },
+      // 2026-07-28 — same-day sales visibility. The 3 AM overnight probe
+      // means "Sales today" on /admin reads $0 all day and yesterday's
+      // numbers land a day late (found when operator asked why daily sales
+      // disappeared: admin_login probes fired exactly ONCE in 7 days
+      // because the PWA session persists — no fresh logins, no daytime
+      // sync). This 8 PM ET probe runs AFTER close (Mon–Sat 6 PM, Sun
+      // 4 PM), so it cannot kick the shop counter's ShopDriver session —
+      // the 2026-05-05 shop-protect directive stands. Net: today's sales
+      // appear on the admin the same evening.
+      {
+        name: "alg-evening-probe",
+        handler: async () => {
+          try {
+            const shouldRun = await shouldRunWallClockJob("alg-evening-probe", 20);
+            if (!shouldRun) {
+              return { recordsProcessed: 0, details: "skipped (waiting for 8 PM ET window, or already ran)" };
+            }
+
+            const { requestAlgProbe } = await import("../services/algProbeBudget");
+            const result = await requestAlgProbe("evening");
+            return {
+              recordsProcessed: result.recordsProcessed,
+              details: `evening probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
+            };
+          } catch (e: unknown) {
+            return { details: `evening probe failed: ${(e as Error).message}` };
+          }
+        },
+      },
       {
         // wave-109: ping the F25e shop SMS gateway. Telegram alert if
         // last-seen > 30 min — without this we'd only learn it's offline

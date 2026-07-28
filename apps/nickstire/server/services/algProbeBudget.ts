@@ -43,6 +43,7 @@ export type ProbeReason =
   | "chat_query"
   | "manual_refresh"
   | "overnight"
+  | "evening"
   | "health_check";
 
 export type ProbeOutcome =

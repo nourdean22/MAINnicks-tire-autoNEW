@@ -85,6 +85,8 @@ export interface AtRiskWhale {
 
 export interface ShopFloorData {
   revenueToday: number;
+  /** ISO timestamp of the last ALG invoice ingest — null if never synced. */
+  dataAsOf?: string | null;
   invoicesToday: number;
   estimatesToday: number;
   avgTicket: number;

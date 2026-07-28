@@ -761,6 +761,14 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
 
   const revenueToday = Math.round(Number(shopFloor.revenueToday || 0));
   const jobsClosed = Number(shopFloor.invoicesToday || 0);
+  // Freshness — the ALG mirror is probe-driven (3 AM + 8 PM + on-demand),
+  // so today's figures can lag hours. Label the number with its sync time
+  // so "$0" reads as "not synced yet", never as a real zero-sales day.
+  const asOfLabel = shopFloor.dataAsOf
+    ? new Date(shopFloor.dataAsOf).toLocaleTimeString("en-US", {
+        timeZone: BUSINESS.timezone, hour: "numeric", minute: "2-digit",
+      })
+    : null;
   // W3 fix · the mood used `BUSINESS.revenueTarget.monthly / 26` = $100K/26 =
   // ~$3,846/day as the daily bar. Real daily revenue runs ~$2,000, so EVERY
   // normal day scored <70% and read a demoralizing false "SLOW DAY". The
@@ -842,6 +850,9 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
           <div className="text-center">
             <div className="text-[17px] font-semibold text-foreground tabular-nums">${revenueToday.toLocaleString()}</div>
             <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Revenue</div>
+            {asOfLabel && (
+              <div className="text-[8px] text-muted-foreground/60 tabular-nums mt-0.5">as of {asOfLabel}</div>
+            )}
           </div>
           <div className="text-center">
             <div className={`text-[17px] font-semibold tabular-nums ${textColor}`}>{pacePercent}%</div>
