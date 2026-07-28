@@ -31,6 +31,16 @@ Seven consecutive nights `[VERIFIED-runtime]`: `mega-evening | partial | "The op
 - Initial classifier counted `partial` as failure and reported "7 fails / lastSuccess NEVER" for mega-evening — the status vocabulary is success/partial/failed; the honest phrase is "partial nightly."
 - "NEVER_LOGGED = dead" was wrong as a rule (logging is opt-in per route); it took the unconditional-side-effect probe (`briefing_log`) to make the death claim properly.
 
+## Finding 1 update — SYNCED (operator-authorized, 2026-07-28 ~13:20 UTC)
+
+`curl -X PUT https://bdnick.info/api/inngest` → `{"message":"Successfully registered","modified":true}` `[VERIFIED-runtime]` — **`modified:true` is the drift hypothesis confirmed by its own fix**: the Cloud manifest changed on sync. All 16 functions now registered. Watch plan: hourly `proactive-push` (first fire next :00) · `diagnose-cron-failure` 16:00 UTC · `cron-heartbeat` 12:00 UTC tomorrow · **`briefing_log` must gain its first-ever row after 10:15 UTC tomorrow** — that row is the definitive all-clear. Still open: add a deploy-time sync step so drift can't recur; extend the heartbeat to the Inngest-only tier.
+
+## Dimension 2 (partial) — morning-brief surface, audited before its maiden delivery
+
+- **Composer (`lib/services/morning-brief.ts`): CLEAN** on the invented-numbers axis — fully data-driven, null-guarded sections, revenue target rendered only when the payload carries one `[VERIFIED-code]`.
+- **Fixed: push body showed raw HTML.** The composer emits `<b>…</b>`; the audio path strips tags, the push path didn't — caught the day before the function's first-ever delivery. `pushBodyFromBrief()` strips-then-slices (a slice-first could cut a tag in half), test-pinned.
+- `compose-daily-brief.ts` (intelligence brief): grounding rule verified earlier this session — absolute, "no signal today" fallback, never invent.
+
 ## Not yet covered (later loop iterations)
 
-Dimensions 2-6 of the sweep: invented numbers on operator surfaces · dead wiring · prompt self-contradictions · cannot-fail checks · auth gates.
+Dimension 2 remainder (pulse · scoreboard · /command surfaces) · dimension 3 dead wiring · dimension 4 prompt self-contradictions · dimension 5 cannot-fail checks · dimension 6 auth gates.
