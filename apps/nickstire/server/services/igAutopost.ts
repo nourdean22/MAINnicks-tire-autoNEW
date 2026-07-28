@@ -127,10 +127,16 @@ const CAPTION_WEIGHTS: Record<keyof Omit<CaptionEval, "notes">, number> = {
 // The ONLY prices that may ever appear in an autopost. Anything else —
 // especially a repair price — is a hard compliance failure. Mirrors the
 // shop's advertisable-price policy.
+// Interpolated from the BUSINESS SSOT, never restated. This list fed the
+// GENERATOR while buildEvalSystemPrompt hardcoded its own copy for the CRITIC —
+// a third and fourth copy of the used-tire price inside one file. When the
+// critic was moved onto the SSOT and this was not, the two sides of the same
+// gate stated different price contracts, so a compliant caption could be judged
+// against a contract the generator was never given. Caught in review on #1140.
 const ADVERTISABLE_PRICES = [
-  "used tires from $60 installed",
-  "oil change $49",
-  "synthetic oil change $80",
+  BUSINESS.usedTires.explanation,
+  `conventional oil change ${BUSINESS.oilChange.conventionalPrice}`,
+  `synthetic oil change ${BUSINESS.oilChange.syntheticPrice}`,
 ];
 
 // Anti-repetition dials. The generator picks one of each at random so two

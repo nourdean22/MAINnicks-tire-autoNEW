@@ -139,10 +139,40 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number } {
   let currentFile: string | null = null;
   let currentSurface: VoiceSurface | null = null;
   let currentLineNum = 0;
+  /** Added lines awaiting a block scan, so quote state survives the hunk. */
+  let pending: { line: number; text: string }[] = [];
+
+  const flush = () => {
+    if (!currentFile || !currentSurface || pending.length === 0) {
+      pending = [];
+      return;
+    }
+    const block = pending.map((p) => p.text).join("\n");
+    const scannable = currentFile.endsWith(".tsx")
+      ? blankClassNames(block)
+      : keepOnlyStringLiterals(block);
+    for (const v of findVoiceViolations(scannable, { surface: currentSurface })) {
+      // findVoiceViolations reports a 1-based line WITHIN the block, and both
+      // blankers preserve newlines, so the index maps straight back.
+      const src = pending[v.line - 1] ?? pending[pending.length - 1];
+      findings.push({
+        file: currentFile,
+        line: src.line,
+        match: v.match,
+        context: src.text.trim().slice(0, 120),
+        why: v.why,
+        fix: v.fix,
+        severity: v.severity,
+        ruleId: v.ruleId,
+      });
+    }
+    pending = [];
+  };
 
   for (const line of diff.split("\n")) {
     const fileMatch = line.match(/^\+\+\+ b\/(.+)$/);
     if (fileMatch) {
+      flush();
       // Strip the workspace prefix — git runs from APP_ROOT but reports repo paths.
       currentFile = fileMatch[1].replace(/^apps\/nickstire\//, "");
       currentSurface = scopeOf(currentFile);
@@ -153,6 +183,7 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number } {
 
     const hunkMatch = line.match(/^@@ .* \+(\d+)(?:,\d+)? @@/);
     if (hunkMatch) {
+      flush();
       currentLineNum = parseInt(hunkMatch[1], 10) - 1;
       continue;
     }
@@ -162,27 +193,21 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number } {
       if (!currentFile || !currentSurface) continue;
       const text = line.slice(1);
       if (isCommentLine(text)) continue;
-      const scannable = currentFile.endsWith(".tsx")
-        ? blankClassNames(text)
-        : keepOnlyStringLiterals(text);
-      for (const v of findVoiceViolations(scannable, { surface: currentSurface })) {
-        findings.push({
-          file: currentFile,
-          line: currentLineNum,
-          match: v.match,
-          context: text.trim().slice(0, 120),
-          why: v.why,
-          fix: v.fix,
-          severity: v.severity,
-          ruleId: v.ruleId,
-        });
-      }
+      // Buffer the added lines and scan them as ONE block at the end of the
+      // hunk. Scanning line-by-line looked equivalent and was not: for a .ts
+      // file, keepOnlyStringLiterals restarts with no open quote on every call,
+      // so the interior lines of a multi-line template literal have no opening
+      // backtick and were blanked entirely — a banned phrase added on one of
+      // those lines sailed through the gate. Quote state has to survive the
+      // whole block. Caught in review on #1140.
+      pending.push({ line: currentLineNum, text });
     } else if (line.startsWith(" ")) {
       currentLineNum++;
     }
     // "-" lines don't advance the new-file line counter.
   }
 
+  flush();
   return { findings, filesScanned: filesScanned.size };
 }
 

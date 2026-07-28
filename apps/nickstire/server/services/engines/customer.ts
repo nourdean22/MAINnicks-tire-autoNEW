@@ -8,6 +8,7 @@
 import { invoices, customers, algEstimates } from "../../../drizzle/schema";
 import { sql, gte, and, isNull } from "drizzle-orm";
 import { scoreServiceAffinity } from "./affinityScoring";
+import { createLogger } from "../../lib/logger";
 import { RawRow, extractRows, extractOne, db, categorizeService } from "./shared";
 
 // ═══════════════════════════════════════════════════════════
@@ -154,6 +155,8 @@ export async function analyzeCustomerValueTrend(): Promise<{
 // tell v2 predictions (which could never clear the outreach gate) from v3.
 const MODEL_VERSION = "v3-heuristic-2026-07-27" as const;
 
+const affinityLog = createLogger("service-affinity");
+
 // Seasonal demand multipliers per service category (Cleveland tire shop).
 // Tires-snow → fall · A/C → summer · brakes → winter slow-zone.
 // Honest calibration: these are operator-judgment-baked priors. Replace
@@ -237,12 +240,22 @@ export async function buildServiceAffinityMap(): Promise<{
     // intent that plainly, and the previous model never even loaded it.
     const openDeclined = await d.select({
       customerId: algEstimates.customerId,
+      customerPhone: algEstimates.customerPhone,
       serviceDescription: algEstimates.serviceDescription,
       serviceCategory: algEstimates.serviceCategory,
       estimateDate: algEstimates.estimateDate,
     }).from(algEstimates)
       .where(and(
-        sql`${algEstimates.customerId} IS NOT NULL`,
+        // NOT `customerId IS NOT NULL`. `shopDriverEstimateSync` never sets
+        // that column — it has zero references to it — so every estimate the
+        // sync writes arrives unlinked, and the only thing that ever fills it
+        // is a hand-run backfill (scripts/backfill-estimate-customer-link.mjs).
+        // Requiring the id would have made signal β cover only whatever was
+        // backfilled once and decay to nothing as new estimates arrived: a
+        // signal that quietly stops firing, which is the exact defect this
+        // recalibration exists to remove. Fall back to the phone key below.
+        // Caught in review on #1140.
+        sql`(${algEstimates.customerId} IS NOT NULL OR (${algEstimates.customerPhone} IS NOT NULL AND ${algEstimates.customerPhone} <> ''))`,
         isNull(algEstimates.matchedInvoiceId),
         gte(algEstimates.estimateDate, sql`DATE_SUB(NOW(), INTERVAL 24 MONTH)`),
         // CROSS-LOOP SUPPRESSION. `cron/jobs/declinedWorkRecovery.ts` already
@@ -262,10 +275,31 @@ export async function buildServiceAffinityMap(): Promise<{
         isNull(algEstimates.followUp45dAttemptedAt),
       ));
 
+    // Phone -> customer, for estimates the sync left unlinked. AMBIGUITY
+    // REFUSES: a phone matching more than one customer is dropped, never
+    // attached to an arbitrary one — the same discipline the backfill script
+    // applies, and the reason a household line cannot pull one person's
+    // declined work onto another person's prediction.
+    const phoneOwners: Record<string, Set<number>> = {};
+    for (const c of await d.select({ id: customers.id, phone: customers.phone })
+      .from(customers).where(sql`${customers.phone} IS NOT NULL AND ${customers.phone} <> ''`)) {
+      const key = String(c.phone).replace(/\D/g, "").slice(-10);
+      if (key.length < 10) continue;
+      (phoneOwners[key] ??= new Set()).add(c.id);
+    }
+
     // customerId -> category -> days since the FRESHEST open estimate.
     const custDeclined: Record<number, Record<string, number>> = {};
+    let linkedByPhone = 0;
     for (const est of openDeclined) {
-      const cid = est.customerId!;
+      let cid = est.customerId ?? null;
+      if (cid === null) {
+        const key = String(est.customerPhone ?? "").replace(/\D/g, "").slice(-10);
+        const owners = key.length === 10 ? phoneOwners[key] : undefined;
+        if (!owners || owners.size !== 1) continue; // unknown or ambiguous
+        cid = [...owners][0];
+        linkedByPhone++;
+      }
       // Prefer the explicit category when the sync populated it; fall back to
       // the same categorizer the invoice side uses so both agree.
       const cats = est.serviceCategory
@@ -278,6 +312,14 @@ export async function buildServiceAffinityMap(): Promise<{
         const prev = custDeclined[cid][cat];
         if (prev === undefined || daysAgo < prev) custDeclined[cid][cat] = daysAgo;
       }
+    }
+
+    if (linkedByPhone > 0) {
+      // Observability, not decoration: this number IS the health of signal β.
+      // If it collapses to 0 while open estimates exist, the sync has started
+      // writing phones the customers table cannot match and the signal is dying
+      // quietly again.
+      affinityLog.info("linked open estimates to a customer by phone key (sync leaves customer_id null)", { linkedByPhone });
     }
 
     const custNames = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName })
