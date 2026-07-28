@@ -207,12 +207,19 @@ jobs:
           # NOTE: -m 300 is deliberately NOT tightened. A cold tRPC route was
           # measured at 72s under webpack; a shorter cap would abort honest
           # compiles. A wedged route is already bounded by the job timeout.
+          # 2026-07-28 · capture curl's EXIT STATUS, don't infer failure from
+          # the body. PR #1141 review (P2), reproduced locally against an
+          # unreachable port: on a connect failure or timeout curl still emits
+          # its --write-out format ("000") AND returns nonzero, so
+          # `$(curl ... || echo "000")` yields "000000" — the equality check
+          # could never match and the abort was a NO-OP. `|| rc=$?` keeps the
+          # step's `set -e` from firing while preserving the real status.
           warm() {
             local path="$1"
-            local code
-            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$path" || echo "000")
-            echo "  warm $path -> $code · $(probe)"
-            if [ "$code" = "000" ]; then
+            local code rc=0
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$path") || rc=$?
+            echo "  warm $path -> ${code:-none} (curl rc=$rc) · $(probe)"
+            if [ "$rc" -ne 0 ] || [ "$code" = "000" ]; then
               echo "::error::dev server stopped answering while warming $path — aborting rather than running Playwright against a dead server"
               echo "--- next dev log tail ---"; tail -40 /tmp/next-start.log || true
               exit 1
@@ -239,9 +246,10 @@ jobs:
           done
           # Liveness gate: the heartbeat was only checked BEFORE the warm
           # loops, so a server that died during them went undetected.
-          final=$(curl -s -o /dev/null -w "%{http_code}" -m 30 http://localhost:3001/api/system/heartbeat || echo "000")
-          if [ "$final" != "200" ]; then
-            echo "::error::dev server is not healthy after warmup (heartbeat -> $final) — aborting before Playwright"
+          hb_rc=0
+          final=$(curl -s -o /dev/null -w "%{http_code}" -m 30 http://localhost:3001/api/system/heartbeat) || hb_rc=$?
+          if [ "$hb_rc" -ne 0 ] || [ "$final" != "200" ]; then
+            echo "::error::dev server is not healthy after warmup (heartbeat -> ${final:-none}, curl rc=$hb_rc) — aborting before Playwright"
             echo "--- next dev log tail ---"; tail -40 /tmp/next-start.log || true
             kill $TAILPID 2>/dev/null || true
             exit 1
