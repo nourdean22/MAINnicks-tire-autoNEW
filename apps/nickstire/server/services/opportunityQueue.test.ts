@@ -228,3 +228,23 @@ describe("resolveEstimateIdentity · strike-2: the ambiguity rule the SMS path a
     expect(r.consentOk).toBe(false);
   });
 });
+
+
+describe("summarizeInspectionForQueue · strike-3 evidence classes", () => {
+  it("photoSupportedOpen counts only OPEN flagged items that carry a photo", () => {
+    const s = summarizeInspectionForQueue([
+      { condition: "red", decision: null, estimatedCost: 400, photoUrl: "https://cdn/x.jpg" },
+      { condition: "yellow", decision: null, estimatedCost: 150, photoUrl: null },
+      { condition: "yellow", decision: "approved", estimatedCost: 200, photoUrl: "https://cdn/y.jpg" }, // closed — photo irrelevant
+    ]);
+    expect(s.openFlagged).toBe(2);
+    expect(s.photoSupportedOpen).toBe(1);
+  });
+
+  it("typed-only findings yield zero photo support (technician_asserted class)", () => {
+    const s = summarizeInspectionForQueue([
+      { condition: "red", decision: null, estimatedCost: 900 },
+    ]);
+    expect(s.photoSupportedOpen).toBe(0);
+  });
+});

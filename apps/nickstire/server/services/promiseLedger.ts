@@ -133,6 +133,41 @@ export async function createPromise(params: {
   }
 }
 
+/**
+ * Strike-3 lifecycle closure: resolving a promise must also close its
+ * escalated Decision Inbox row — pre-fix a kept/cancelled/missed promise
+ * left the promise_overdue opportunity live, so the inbox kept telling
+ * the operator to keep a promise that was already resolved. Best-effort:
+ * the ledger row is the source of truth; a failed closure is logged and
+ * the queue's own reconcilers get another chance next cron.
+ */
+async function closePromiseOpportunity(promiseId: string, resolution: string, by: string): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const { transitionOpportunity } = await import("./opportunityQueue");
+    const db = await getDb();
+    if (!db) return;
+    const rows = rowsFromExecute(await db.execute(sql`
+      SELECT id FROM revenue_opportunities
+      WHERE source_type = 'promise_overdue' AND source_id = ${promiseId}
+        AND state NOT IN ('won', 'lost', 'do_not_contact', 'duplicate')
+      LIMIT 1
+    `));
+    if (rows.length === 0) return;
+    await transitionOpportunity({
+      id: String(rows[0].id),
+      to: "lost",
+      by,
+      note: `promise resolved: ${resolution}`,
+    });
+  } catch (err) {
+    log.warn("[promise-ledger] inbox closure failed (queue reconciler will retry)", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 /** Kept requires EVIDENCE — "what did you actually do" is the receipt. */
 export async function keepPromise(params: {
   id: string;
@@ -155,6 +190,7 @@ export async function keepPromise(params: {
     `);
     const raw = (Array.isArray(result) && result[0] && typeof result[0] === "object" ? result[0] : result) as { affectedRows?: number };
     if ((raw.affectedRows ?? 0) === 0) return { ok: false, error: "not found or not open" };
+    await closePromiseOpportunity(params.id, `kept — ${params.evidence.slice(0, 80)}`, params.by);
     return { ok: true };
   } catch (err) {
     if (isMissingTableError(err)) {
@@ -178,6 +214,7 @@ export async function cancelPromise(params: { id: string; by: string }): Promise
     `);
     const raw = (Array.isArray(result) && result[0] && typeof result[0] === "object" ? result[0] : result) as { affectedRows?: number };
     if ((raw.affectedRows ?? 0) === 0) return { ok: false, error: "not found or not open" };
+    await closePromiseOpportunity(params.id, "cancelled", params.by);
     return { ok: true };
   } catch (err) {
     if (isMissingTableError(err)) {
@@ -263,7 +300,12 @@ export async function sweepOverduePromises(): Promise<{ recordsProcessed: number
           UPDATE customer_promises SET status = 'missed' WHERE id = ${p.id} AND status = 'open'
         `);
         const raw = (Array.isArray(result) && result[0] && typeof result[0] === "object" ? result[0] : result) as { affectedRows?: number };
-        if ((raw.affectedRows ?? 0) > 0) markedMissed++;
+        if ((raw.affectedRows ?? 0) > 0) {
+          markedMissed++;
+          // The ledger recorded the miss — stop the inbox nagging about a
+          // promise that is officially dead. History lives in the ledger.
+          await closePromiseOpportunity(p.id, "officially MISSED after 48h overdue", "promise-sweep");
+        }
       } catch (e) {
         log.warn("[promise-ledger] missed stamp failed", { error: e instanceof Error ? e.message : String(e) });
       }
@@ -274,4 +316,53 @@ export async function sweepOverduePromises(): Promise<{ recordsProcessed: number
     recordsProcessed: escalated + markedMissed,
     details: `${open.length} open · ${escalated} escalated to inbox · ${markedMissed} marked missed (48h+)`,
   };
+}
+
+
+/**
+ * Ledger truth for the adoption questions (Strike-3): created / kept on
+ * time / kept late / missed / cancelled over a window, plus average
+ * overdue hours for late keeps. Pure aggregation — no invented rates.
+ */
+export async function promiseLedgerStats(windowDays = 30): Promise<{
+  created: number;
+  keptOnTime: number;
+  keptLate: number;
+  missed: number;
+  cancelled: number;
+  open: number;
+  avgKeptLateHours: number | null;
+} | null> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = rowsFromExecute(await db.execute(sql`
+      SELECT
+        COUNT(*) AS created,
+        SUM(status = 'kept' AND kept_at <= due_at) AS keptOnTime,
+        SUM(status = 'kept' AND kept_at > due_at) AS keptLate,
+        SUM(status = 'missed') AS missed,
+        SUM(status = 'cancelled') AS cancelled,
+        SUM(status = 'open') AS open,
+        AVG(CASE WHEN status = 'kept' AND kept_at > due_at
+                 THEN TIMESTAMPDIFF(HOUR, due_at, kept_at) END) AS avgKeptLateHours
+      FROM customer_promises
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${windowDays} DAY)
+    `));
+    const r = rows[0] ?? {};
+    return {
+      created: Number(r.created ?? 0),
+      keptOnTime: Number(r.keptOnTime ?? 0),
+      keptLate: Number(r.keptLate ?? 0),
+      missed: Number(r.missed ?? 0),
+      cancelled: Number(r.cancelled ?? 0),
+      open: Number(r.open ?? 0),
+      avgKeptLateHours: r.avgKeptLateHours == null ? null : Math.round(Number(r.avgKeptLateHours)),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) return null;
+    throw err;
+  }
 }

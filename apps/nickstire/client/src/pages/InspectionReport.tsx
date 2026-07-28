@@ -319,6 +319,13 @@ export default function InspectionReport() {
                         >
                           Not now / ask a question
                         </button>
+                        {/* Honest labeling: this button records the customer's
+                            DECISION and alerts the shop — it is not the final
+                            work authorization (no price lock, no signature,
+                            decisions stay changeable until the shop confirms). */}
+                        <p className="basis-full text-[11px] text-foreground/40 mt-1">
+                          Approving here tells the shop to move forward — we'll confirm details and final pricing with you before any work starts.
+                        </p>
                       </div>
                     )}
                   </div>

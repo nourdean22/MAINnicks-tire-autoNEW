@@ -1097,8 +1097,8 @@ export async function captureComplaintOpportunity(
  * operator conversation, not a deferral chase.
  */
 export function summarizeInspectionForQueue(
-  items: Array<{ condition: string; decision: string | null; estimatedCost: number | null }>,
-): { openFlagged: number; redOpen: number; valueCents: number; urgency: OpportunityUrgency } {
+  items: Array<{ condition: string; decision: string | null; estimatedCost: number | null; photoUrl?: string | null }>,
+): { openFlagged: number; redOpen: number; valueCents: number; urgency: OpportunityUrgency; photoSupportedOpen: number } {
   const open = items.filter(
     (i) =>
       (i.condition === "red" || i.condition === "yellow") &&
@@ -1107,11 +1107,17 @@ export function summarizeInspectionForQueue(
   const redOpen = open.filter((i) => i.condition === "red").length;
   // estimatedCost is stored in DOLLARS on inspection_items
   const valueCents = open.reduce((s, i) => s + (i.estimatedCost ?? 0) * 100, 0);
+  // Strike-3 evidence classes: a typed-only finding is a technician
+  // ASSERTION; a photo makes it photo-supported. The distinction drives
+  // data_quality below — "verified" was previously claimed for every
+  // finding regardless of whether any evidence beyond free text existed.
+  const photoSupportedOpen = open.filter((i) => !!i.photoUrl).length;
   return {
     openFlagged: open.length,
     redOpen,
     valueCents,
     urgency: redOpen > 0 ? "today" : "this_week",
+    photoSupportedOpen,
   };
 }
 
@@ -1131,17 +1137,20 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
 
   type Row = {
     inspectionId: number; customerName: string; customerPhone: string | null;
-    vehicleInfo: string; publishedAgeDays: number;
+    vehicleInfo: string; publishedAgeDays: number; unlinked: number;
     condition: string; decision: string | null; estimatedCost: number | null;
+    photoUrl: string | null;
   };
   let rows: Row[];
   const baseQuery = (withDecision: boolean) => sql`
     SELECT v.id AS inspectionId, v.customerName AS customerName,
            v.customerPhone AS customerPhone, v.vehicleInfo AS vehicleInfo,
            DATEDIFF(NOW(), v.createdAt) AS publishedAgeDays,
+           (v.bookingId IS NULL) AS unlinked,
            i.condition AS condition,
            ${withDecision ? sql`i.decision` : sql`NULL`} AS decision,
-           i.estimatedCost AS estimatedCost
+           i.estimatedCost AS estimatedCost,
+           i.photoUrl AS photoUrl
     FROM vehicle_inspections v
     INNER JOIN inspection_items i ON i.inspectionId = v.id
     WHERE v.isPublished = 1
@@ -1180,6 +1189,7 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
         condition: String(i.condition),
         decision: i.decision == null ? null : String(i.decision),
         estimatedCost: i.estimatedCost == null ? null : Number(i.estimatedCost),
+        photoUrl: i.photoUrl == null ? null : String(i.photoUrl),
       })),
     );
     if (s.openFlagged === 0) continue; // everything approved/answered — no deferral
@@ -1190,7 +1200,10 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
       customerName: meta.customerName,
       customerPhone: meta.customerPhone,
       expectedRevenueCents: s.valueCents > 0 ? s.valueCents : null,
-      dataQuality: "verified", // a technician physically saw the component
+      // Strike-3 evidence honesty: "verified" requires at least one OPEN
+      // flagged item with a photo. Typed-only findings are a technician
+      // assertion — real, but a weaker evidence class, so "inferred".
+      dataQuality: s.photoSupportedOpen > 0 ? "verified" : "inferred",
       urgency: s.urgency,
       recommendedAction: `Call ${meta.customerName} — ${s.openFlagged} flagged ${s.openFlagged === 1 ? "item" : "items"} on the ${meta.vehicleInfo} check${s.redOpen > 0 ? ` (${s.redOpen} urgent)` : ""}`,
       reason: `Published vehicle check (${Number(meta.publishedAgeDays)}d ago) has ${s.openFlagged} yellow/red ${s.openFlagged === 1 ? "item" : "items"} with no approval — tech-verified findings, customer undecided or passed.`,
@@ -1199,6 +1212,12 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
         openFlaggedItems: s.openFlagged,
         redOpen: s.redOpen,
         publishedAgeDays: Number(meta.publishedAgeDays),
+        evidenceClass: s.photoSupportedOpen > 0 ? "photo_supported" : "technician_asserted",
+        photoSupportedItems: s.photoSupportedOpen,
+        // Strike-3: a packet created stand-alone (no booking linkage) is
+        // visibly labeled — identity drift and outcome measurement both
+        // depend on knowing which packets tie to a real shop job.
+        linkedToBooking: Number(meta.unlinked) !== 1,
       },
       consentOk: true, // follow-up call about their own vehicle's check
     });
