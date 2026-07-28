@@ -16,7 +16,7 @@
  * cronHandler provides cron auth + its own CronJobLog persistence.
  */
 import { cronHandler } from "@/lib/utils/http";
-import { prisma } from "@/lib/prisma";
+import { statenourArtifacts } from "@/lib/observability/fleet-truth";
 import { sendTelegram, formatTelegramNotification } from "@/lib/services/telegram";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -26,85 +26,19 @@ const HOUR_MS = 3_600_000;
 /** Heartbeat fires daily 12:00 UTC; 26h = one missed cycle + grace. */
 const MAX_AGE_H = 26;
 
-/**
- * Spine-7 · capability artifacts. The heartbeat row proves Inngest
- * INVOKED one function and that function could write one row — it says
- * nothing about whether the capabilities PRODUCED. Each critical loop
- * gets its expected artifact checked here, out-of-band, on the worker's
- * scheduler. Artifacts are the loop's own output tables — no new
- * bookkeeping to trust, no new bookkeeping to rot.
- */
-const CAPABILITY_ARTIFACTS: Array<{
-  capability: string;
-  maxAgeH: number;
-  probe: () => Promise<Date | null>;
-}> = [
-  {
-    // Daily brief composes at 10:15 UTC — the artifact IS the brief row.
-    capability: "daily-brief",
-    maxAgeH: 30,
-    probe: async () => {
-      const r = await prisma.briefingLog.findFirst({
-        where: { briefType: "daily" },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
-      });
-      return r?.createdAt ?? null;
-    },
-  },
-  {
-    // Outbox drain runs nightly via mega-evening; its CronJobLog row is
-    // the artifact (cronHandler persists it on every real run).
-    capability: "outbox-drain",
-    maxAgeH: 30,
-    probe: async () => {
-      const r = await prisma.cronJobLog.findFirst({
-        where: { jobName: "outbox-drain" },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
-      });
-      return r?.createdAt ?? null;
-    },
-  },
-];
-
 export const GET = cronHandler(async () => {
-  const newest = await prisma.cronJobLog.findFirst({
-    where: { jobName: "cron-heartbeat", status: "success" },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
-
-  const ageH = newest
-    ? (Date.now() - newest.createdAt.getTime()) / HOUR_MS
-    : Infinity;
-
-  // Capability artifacts — checked on EVERY run, independent of the
-  // heartbeat verdict. Distinguish never-produced from stale from fresh;
-  // a probe failure reports unknown, never healthy.
-  const artifacts: Array<{ capability: string; state: string; ageH: number | null }> = [];
-  for (const a of CAPABILITY_ARTIFACTS) {
-    try {
-      const at = await a.probe();
-      if (!at) {
-        artifacts.push({ capability: a.capability, state: "never_produced", ageH: null });
-      } else {
-        const h = (Date.now() - at.getTime()) / HOUR_MS;
-        artifacts.push({
-          capability: a.capability,
-          state: h <= a.maxAgeH ? "fresh" : "stale",
-          ageH: Math.round(h * 10) / 10,
-        });
-      }
-    } catch (e) {
-      log.warn("artifact_probe_failed", {
-        capability: a.capability,
-        error: e instanceof Error ? e.message : String(e),
-      });
-      artifacts.push({ capability: a.capability, state: "unknown", ageH: null });
-    }
-  }
-  const missing = artifacts.filter((a) => a.state === "stale" || a.state === "never_produced");
+  // NL-3: probes extracted to lib/observability/fleet-truth so this
+  // worker-fired route and the operator's /api/system/fleet-truth read
+  // the SAME artifact checks (single source, no drift). The heartbeat
+  // is one of the probes; its age drives the scheduler-down verdict.
+  const artifacts = await statenourArtifacts();
+  const heartbeat = artifacts.find((a) => a.capability === "inngest-heartbeat");
+  const ageH =
+    heartbeat && heartbeat.ageH != null ? heartbeat.ageH : Infinity;
+  const newest = heartbeat && heartbeat.state !== "never_produced" ? true : null;
+  const missing = artifacts.filter(
+    (a) => a.capability !== "inngest-heartbeat" && (a.state === "stale" || a.state === "never_produced"),
+  );
 
   if (ageH <= MAX_AGE_H) {
     if (missing.length > 0) {

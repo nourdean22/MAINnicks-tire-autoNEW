@@ -18,6 +18,10 @@
     "./with-timeout": {
       "types": "./dist/with-timeout.d.ts",
       "default": "./dist/with-timeout.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "default": "./dist/contracts.js"
     }
   },
   "files": [
@@ -27,7 +31,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit -p tsconfig.check.json",
-    "lint": "echo 'no lint config yet · skip'"
+    "lint": "echo 'no lint config yet \u00c2\u00b7 skip'"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -17,3 +17,4 @@
 
 The cron + jobs console already exists at `/system/crons` (manifest `config/crons.ts`,
 verified by `pnpm check:crons`) — see those rather than a new surface.
+- [Neon branching for safe experiments](./neon-branching.md) — branch-per-experiment, migration rehearsal, PITR drill (NL-6, 2026-07-28)
