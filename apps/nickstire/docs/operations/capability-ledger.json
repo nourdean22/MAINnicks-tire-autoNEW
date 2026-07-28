@@ -1198,6 +1198,32 @@
           "source": "docs/execution/creative-compiler/CC2-FINAL-REPORT.md"
         }
       ]
+    },
+    {
+      "capabilityId": "sms-customer-identity",
+      "name": "Inbound SMS customer identity resolution + consent",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "#1149 — loadCustomerContext refuses an ambiguous phone match",
+        "tests": [
+          "server/__tests__/smsOrchestrator.golden.test.ts (49): loadCustomerContext matched customers on LIKE '%'+last-10-digits with .limit(1) and no ORDER BY, so a shared household line, business number or recycled number resolved to a NON-DETERMINISTIC row. #988 feeds that row's name and vehicle into the drafter, and CONFIRM / CANCEL / estimate-approval replies MUTATE the booking, lead, callback and estimate selected by that same shared phone. AMBIGUITY NOW REFUSES every phone-linked facet, not just the name. The refusal is asymmetric on purpose: identity and history are withheld while `optOutOnAnyMatch` carries the MOST RESTRICTIVE opt-out across all matches and survives, so a disclosure fix cannot become a consent regression. Tests pin one-match (unchanged, facets still attached), two-match (every facet undefined), two-match-with-one-opted-out, no-match, and single-opted-out."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "multi-match FREQUENCY in production is unmeasured — the log.warn added in #1149 makes it observable, but no number exists yet, so ROS-079 stays unranked",
+          "source": "measurement"
+        }
+      ],
+      "deferredScope": [
+        "phone-ownership validation — a household line represented by a SINGLE customers row produces the same disclosure and no query over `customers` can detect it",
+        "shared/customerDimension.ts speakableFacts() is not wired to this path yet"
+      ],
+      "lastVerifiedAt": "2026-07-28",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
