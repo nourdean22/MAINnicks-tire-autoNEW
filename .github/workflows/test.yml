@@ -8,7 +8,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # 2026-07-28 · sha-keyed on push. cancel-in-progress:false is NOT enough on
+  # a shared group: GitHub allows one RUNNING + one PENDING run per group, so
+  # a third qualifying push to main evicts the pending one and that commit is
+  # never verified. Fixed in e2e-statenour.yml first; this is the same defect
+  # in the primary gate (the typecheck/lint/test/build sweep), found by an
+  # audit of that fix — a fix applied to one workflow and not its sibling.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

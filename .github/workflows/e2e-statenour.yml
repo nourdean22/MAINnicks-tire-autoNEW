@@ -7,19 +7,27 @@
 #   · a throwaway pgvector Postgres service container is the database
 #   · `prisma db push` materializes the schema (empty data = empty-state
 #     rendering, which the smoke spec tolerates by design)
-#   · the app runs a REAL production build (`next build` → `next start`,
-#     type gate included) with AUTH_FORCE_MOCK=1 — the same mock-session
-#     path local dev uses, so every page renders as the authenticated
-#     operator without a Google session in CI
+#   · `next build` runs as a SEPARATE type/prerender gate, then the suite
+#     is served by `next dev` — not `next start`. That is deliberate and
+#     load-bearing: the middleware honors AUTH_FORCE_MOCK strictly under
+#     isDev, so mock auth works BECAUSE it is dev and would fail closed
+#     under a production server. (Corrected 2026-07-28: this bullet used
+#     to claim `next build` -> `next start`, describing an architecture
+#     this workflow has never actually run.)
 #   · boot-gate env vars are presence-checked dummies (lib/env.ts
 #     asserts presence, not validity; nothing here can reach prod —
 #     DATABASE_URL points at the container)
 #   · tests/e2e/smoke.spec.ts runs against http://localhost:3001
 #
-# ADVISORY→BLOCKING: `continue-on-error` is false — this job BLOCKS.
-# (It was born blocking because the suite was route-repaired 2026-07-25
-# and runs against a hermetic build; if it flakes in practice, demote
-# deliberately with a dated comment, never silently.)
+# RED, BUT NOT MERGE-ENFORCED — corrected 2026-07-28. This job goes red on
+# failure (`continue-on-error` is set nowhere), but nothing stops a merge on
+# red: the repo is private on a plan without branch protection or rulesets
+# (both APIs 403; branches/main reports protected:false), and AGENTS.md tells
+# agents to self-merge with `gh pr merge --squash` — no `--auto`, so it merges
+# regardless of check state. Observed: PR #1106 merged 9 SECONDS after `node`
+# went red; #1103 and #1138 merged with checks still running.
+# So the gate is the person or agent reading this. Treat red as a hard stop.
+# If it flakes, demote deliberately with a dated comment, never silently.
 
 name: e2e · statenour
 
@@ -162,8 +170,11 @@ jobs:
           # the cap bounds the JS heap but NOT webpack's native memory.
           # No heap number can fix that; a lighter compiler can.
           # Turbopack was originally avoided because it reports type
-          # errors as warnings — irrelevant here: the type gate is the
-          # separate `next build` step above, which still runs webpack.
+          # errors as warnings. That is irrelevant here, but NOT for the
+          # reason first written: `next build` above does not run webpack
+          # either (Next 16 defaults to Turbopack and the script passes no
+          # bundler flag). The real type gate is `tsc --noEmit`, run by the
+          # turbo-affected sweep in test.yml. Corrected 2026-07-28.
           NODE_OPTIONS="--max-old-space-size=4096" \
             nohup pnpm exec next dev -p 3001 > /tmp/next-start.log 2>&1 &
           # Stream the server's own output so a crash or heap abort is
@@ -186,9 +197,35 @@ jobs:
           # process. Report free memory + the two largest processes by
           # RSS instead, whatever they are called.
           probe() { echo "$(free -m | awk '/^Mem:/ {print "avail="$7"MB"}') · $(ps -eo rss=,comm= --sort=-rss | head -2 | awk '{printf "%s:%dMB ", $2, $1/1024}')"; }
-          for p in / /chat /system /stats /brain /content /pins /photo-improver /intelligence/brief /system/ai-cost /system/health /system/cockpit-observability; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
-            echo "  warm $p -> $code · $(probe)"
+          # 2026-07-28 · warm() ABORTS on a dead server. Previously every
+          # request ended in `|| echo timeout` and nothing inspected $code,
+          # so when the dev server died mid-loop the step still exited 0 and
+          # the real cause surfaced six minutes later as a pile of unrelated
+          # Playwright failures (run 30203022021: 23 failed, every one a
+          # symptom). A 000 means no HTTP response at all — the server is
+          # gone, and nothing downstream can be trusted.
+          # NOTE: -m 300 is deliberately NOT tightened. A cold tRPC route was
+          # measured at 72s under webpack; a shorter cap would abort honest
+          # compiles. A wedged route is already bounded by the job timeout.
+          warm() {
+            local path="$1"
+            local code
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$path" || echo "000")
+            echo "  warm $path -> $code · $(probe)"
+            if [ "$code" = "000" ]; then
+              echo "::error::dev server stopped answering while warming $path — aborting rather than running Playwright against a dead server"
+              echo "--- next dev log tail ---"; tail -40 /tmp/next-start.log || true
+              exit 1
+            fi
+          }
+          # 2026-07-28 · this list now matches what smoke.spec.ts actually
+          # asserts: /missions is tested (it replaced /intelligence/brief,
+          # whose AI-RSC stream never completes hermetically) so it is the
+          # one that must be warm. Warming /intelligence/brief instead spent
+          # budget compiling a route no test touches while leaving a tested
+          # route to cold-compile inside Playwright's per-test budget.
+          for p in / /chat /system /stats /brain /content /pins /photo-improver /missions /system/ai-cost /system/health /system/cockpit-observability; do
+            warm "$p"
           done
           # 2026-07-25 · warm the API-contract routes too. The smoke's API
           # tests use a 10s request cap — a fine bound for a WARMED route,
@@ -198,9 +235,18 @@ jobs:
           # irrelevant here — compilation happens regardless of auth.
           echo "warming API routes..."
           for p in /api/system/rate-limits "/api/trpc/system.costs?input=%7B%22days%22%3A7%7D" /api/intel "/api/content/history?days=30" /api/social/recent-images /api/brain/wisdom /api/trpc/observability.osSnapshot "/api/trpc/system.promptDiagnostics?input=%7B%22msg%22%3A%22warmup%22%7D"; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$p" || echo timeout)
-            echo "  warm $p -> $code · $(probe)"
+            warm "$p"
           done
+          # Liveness gate: the heartbeat was only checked BEFORE the warm
+          # loops, so a server that died during them went undetected.
+          final=$(curl -s -o /dev/null -w "%{http_code}" -m 30 http://localhost:3001/api/system/heartbeat || echo "000")
+          if [ "$final" != "200" ]; then
+            echo "::error::dev server is not healthy after warmup (heartbeat -> $final) — aborting before Playwright"
+            echo "--- next dev log tail ---"; tail -40 /tmp/next-start.log || true
+            kill $TAILPID 2>/dev/null || true
+            exit 1
+          fi
+          echo "post-warm heartbeat -> $final · server healthy"
           kill $TAILPID 2>/dev/null || true
 
       - name: Install Playwright chromium
