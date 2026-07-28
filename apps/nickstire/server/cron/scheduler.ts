@@ -1691,6 +1691,19 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // Wave 4 (REVENUE-OPS-ROADMAP) · consolidates missed-revenue
+        // opportunities (unresolved estimates, pending callbacks) into
+        // the durable revenue_opportunities queue. READ-ONLY against
+        // sources; writes only its own table; NEVER contacts customers.
+        // Degrades to a no-op until migration 0099 is hand-applied.
+        name: "opportunity-queue-refresh",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { refreshOpportunityQueue } = await import("../services/opportunityQueue");
+          return refreshOpportunityQueue();
+        },
+      },
+      {
         name: "alg-auto-discovery", // Probe ShopDriver API for new endpoints
         handler: async () => {
           // SHOP-PROTECT (wave-100, 2026-05-08): TWO gates now.

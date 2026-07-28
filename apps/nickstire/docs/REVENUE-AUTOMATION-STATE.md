@@ -40,6 +40,16 @@
 
 **No recommendation without evidence; no revenue claim without a matched invoice; no rate without a measured outcome; no customer-psychology inference from vehicle/service proxies.** If a number is a prior, label it a prior — in the code comment *and* in the operator-facing message.
 
+## Wave 4 — Revenue Opportunity Queue (shipped 2026-07-28, follow-on PR)
+
+One durable queue (`revenue_opportunities`, migration **0099 — hand-apply required**) consolidating missed-revenue opportunities per REVENUE-OPS-ROADMAP Wave 4. `[VERIFIED]` code paths:
+
+- **Apply:** `pnpm exec tsx scripts/migrations/apply-opportunity-queue.ts` (idempotent; all code degrades to no-op reads until applied — ROS-059 class handled).
+- **Service** `server/services/opportunityQueue.ts`: dedup by (source_type, source_id) · roadmap's 12-state machine · append-only receipts · `won` reachable ONLY via `recordOutcome()` with a verified invoice id · consent supremacy (`do_not_contact` from any live state; smsOptOut → consent_ok=0) · transparent ranking (urgency-first, value×quality tiebreak, factors returned).
+- **Collectors** (read-only against sources, NEVER contact customers): unresolved ALG estimates ≥$150 (data_quality: inferred) · pending callbacks (data_quality: verified, urgency: critical).
+- **Cron** `opportunity-queue-refresh` (tier 3, business hours). **tRPC** `opportunityQueue.top/list/transition/recordOutcome/refresh` (admin-only).
+- **Owner Decision Inbox v1** = TOP DECISIONS block in the morning brief (top-5 evidence-backed cards, LLM instructed to lead with them verbatim). React admin panel = next arc.
+
 ## Open items this arc did NOT cover
 
 - Runtime verification (which flags are ON, last runs, measured lift) — `[UNKNOWN-runtime]`, needs `cron_log`/`railway run`.
