@@ -99,6 +99,15 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
       });
     }
 
+    // Recovery 2.0 · passive stated-concern capture (same observer the
+    // shop-gateway webhook runs — see routes/webhooks/smsGateway.ts).
+    // OBSERVER ONLY: no reply logic, no sends; operator capture is never
+    // overwritten; fully fail-open off the TwiML-ack path.
+    (async () => {
+      const { captureStatedConcernFromReply } = await import("../../services/recoveryReplyCapture");
+      await captureStatedConcernFromReply(from, body);
+    })().catch(() => undefined);
+
     if (conversationId) {
       try {
         // Durable inbound-response spine: record the obligation, then answer it
