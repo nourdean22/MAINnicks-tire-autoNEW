@@ -58,25 +58,29 @@ interface JobDef {
 // this list is a per-deploy snapshot · keep them in sync manually
 // when a new high-freq cron lands.
 const HIGH_FREQ_JOBS: JobDef[] = [
+  // 2026-07-28 blueprint audit: the four Wave-AE ghosts (brain-bus-backfill ·
+  // calendar-premeeting · bus-exhaustion-watch · provider-ping) forwarded to
+  // routes DELETED on 2026-05-28 — two months of 404s every 2-60 min that
+  // only this process's console ever saw. Removed; every name below must
+  // exist in apps/statenour/config/crons.ts with `worker: true` AND have a
+  // live /api/cron/<name> route.
   {
-    name: "brain-bus-backfill",
-    schedule: "*/2 * * * *",
-    description: "Every 2 min · backfill brain-bus events queue",
+    // Replaces the dead brain-bus-backfill: drains the durable BrainBusEvent
+    // queue (9 live producers, zero consumers since Wave AE — 393-row
+    // backlog measured in prod 2026-07-28). 50/run × 15 min clears the
+    // backlog in ~2h, then steady-state.
+    name: "brain-bus-drain",
+    schedule: "*/15 * * * *",
+    description: "Every 15 min · drain durable brain-bus events (revived 2026-07-28)",
   },
   {
-    name: "calendar-premeeting",
-    schedule: "*/15 11-23,0 * * *",
-    description: "Every 15 min · 7am-8pm ET · pre-meeting cards",
-  },
-  {
-    name: "bus-exhaustion-watch",
-    schedule: "*/30 * * * *",
-    description: "Every 30 min · watch for stuck brain-bus events",
-  },
-  {
-    name: "provider-ping",
-    schedule: "0 * * * *",
-    description: "Hourly · ping LLM providers for health/latency",
+    // Post-turn outbox backstop was nightly-only (mega-evening 03:00) — a
+    // turn that crashed mid-work stranded its receipts/completion message
+    // for up to 24h. The route's claim is atomic first-claimant-wins, so
+    // riding both the nightly fan-out and this 15-min loop is safe.
+    name: "outbox-drain",
+    schedule: "*/15 * * * *",
+    description: "Every 15 min · replay orphaned post-turn chat work",
   },
   {
     // NOT high-frequency — deliberately lives here anyway. This is the

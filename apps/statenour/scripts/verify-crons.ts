@@ -32,7 +32,7 @@ console.log("cron manifest · verifying");
 console.log("");
 
 // ── 1 · Every named cron has a route.ts on disk ──────────────────────
-console.log("[1/6]manifest → filesystem");
+console.log("[1/7]manifest → filesystem");
 for (const c of CRONS) {
   if (c.name === "mega-evening" || c.inngest) continue; // shares mega route / Inngest-native (no route file)
   const routePath = path.join(cwd, "app/api/cron", c.name, "route.ts");
@@ -44,7 +44,7 @@ if (errors === 0) ok(`${CRONS.length} manifest entries all backed by a route.ts`
 
 // ── 1.5 · Inngest-native crons validation ──────────────────────────
 console.log("");
-console.log("[1.5/6] Inngest-native crons manifest parity");
+console.log("[1.5/7] Inngest-native crons manifest parity");
 const functionsDir = path.join(cwd, "lib/inngest/functions");
 const files = fs.existsSync(functionsDir)
   ? fs.readdirSync(functionsDir).filter((f) => f.endsWith(".ts") && f !== "index.ts")
@@ -93,7 +93,7 @@ if (errors === 0) ok(`${inngestCrons.size} Inngest-native crons validated succes
 
 // ── 2 · Every route.ts has a manifest entry ──────────────────────────
 console.log("");
-console.log("[2/6]filesystem → manifest (dark code detector)");
+console.log("[2/7]filesystem → manifest (dark code detector)");
 const cronRoot = path.join(cwd, "app/api/cron");
 const cronDirs = fs.existsSync(cronRoot)
   ? fs.readdirSync(cronRoot).filter((d) => fs.statSync(path.join(cronRoot, d)).isDirectory())
@@ -108,7 +108,7 @@ if (errors === 0) ok(`${cronDirs.length} cron routes all documented in the manif
 
 // ── 3 · Retirement warnings ──────────────────────────────────────────
 console.log("");
-console.log("[3/6]retirement window");
+console.log("[3/7]retirement window");
 const today = new Date();
 for (const c of CRONS) {
   if (c.mode === "retired" && c.retireAfter) {
@@ -151,7 +151,7 @@ function fireFrequency(schedule: string): number {
 }
 
 console.log("");
-console.log("[4/6]budget + fold suggestions");
+console.log("[4/7]budget + fold suggestions");
 const activeSchedules = CRONS.filter((c) => c.mode === "active" && c.schedule);
 
 if (activeSchedules.length > SOFT_CAP) {
@@ -200,7 +200,7 @@ if (candidates.length > 0 && activeSchedules.length > SOFT_CAP - 4) {
 // deleted ~51 routes but left their jobs.ts refs, silently killing ~70%
 // of crons for 2 days. No check looked here. Now it does.
 console.log("");
-console.log("[5/6]  jobs.ts fan-out refs -> filesystem");
+console.log("[5/7]  jobs.ts fan-out refs -> filesystem");
 const fanoutRefs = new Set(
   [...MORNING_JOBS, ...EVENING_JOBS, ...WEEKLY_JOBS].map((p) =>
     p.replace(/^\/api\/cron\//, "").replace(/\?.*$/, ""),
@@ -226,7 +226,7 @@ if (deadFanoutRefs === 0) ok(`${fanoutRefs.size} fan-out refs all backed by a ro
 // state for a parked cron; this gate stops "active" from drifting back
 // into a claim that isn't true.
 console.log("");
-console.log("[6/6]  manifest active -> actually fires");
+console.log("[6/7]  manifest active -> actually fires");
 // Crons that legitimately fire OUTSIDE the fan-out (verified live in
 // CronJobLog). Keep this list tiny + evidence-based.
 const INDEPENDENT = new Set([
@@ -249,6 +249,54 @@ for (const c of CRONS) {
   phantomActive++;
 }
 if (phantomActive === 0) ok(`all active crons are reachable (fan-out or independent)`);
+
+// ── 7 · worker HIGH_FREQ_JOBS ↔ manifest + filesystem ────────────────
+// The worker's node-cron list (apps/worker/src/scheduler.ts) is the third
+// dispatch path, and until 2026-07-28 NOTHING validated it: Wave AE
+// (05-28) deleted four routes the worker kept firing at — two months of
+// 404s every 2-60 min, visible only in the worker's own console. This
+// check makes that drift class structurally impossible, both directions:
+//   A. every worker job name → route.ts exists + manifest entry has
+//      worker: true (the worker fires nothing undocumented or dead)
+//   B. every manifest worker:true entry → present in the worker's list
+//      (no "worker-fired" claim the worker doesn't actually fire)
+console.log("");
+console.log("[7/7]  worker HIGH_FREQ_JOBS <-> manifest + filesystem");
+const workerSchedulerPath = path.join(cwd, "../worker/src/scheduler.ts");
+if (!fs.existsSync(workerSchedulerPath)) {
+  fail(`apps/worker/src/scheduler.ts not found at ${workerSchedulerPath} — cannot validate the worker dispatch path`);
+} else {
+  const workerSrc = fs.readFileSync(workerSchedulerPath, "utf-8");
+  const listMatch = workerSrc.match(/const HIGH_FREQ_JOBS[\s\S]*?\n\];/);
+  if (!listMatch) {
+    fail("could not locate the HIGH_FREQ_JOBS array in apps/worker/src/scheduler.ts — verifier regex needs updating");
+  } else {
+    const workerNames = [...listMatch[0].matchAll(/name:\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
+    let workerErrors = 0;
+    for (const name of workerNames) {
+      const routePath = path.join(cwd, "app/api/cron", name, "route.ts");
+      if (!fs.existsSync(routePath)) {
+        fail(`worker fires /api/cron/${name} but the route does NOT exist — every tick is a 404 (the Wave-AE ghost class)`);
+        workerErrors++;
+      }
+      const entry = CRONS.find((c) => c.name === name);
+      if (!entry) {
+        fail(`worker fires "${name}" but it has NO entry in config/crons.ts`);
+        workerErrors++;
+      } else if (!entry.worker) {
+        fail(`worker fires "${name}" but its manifest entry is missing worker: true`);
+        workerErrors++;
+      }
+    }
+    for (const c of CRONS) {
+      if (c.worker && c.mode === "active" && !workerNames.includes(c.name)) {
+        fail(`${c.name} is marked worker: true + active but is NOT in the worker's HIGH_FREQ_JOBS list — it never fires`);
+        workerErrors++;
+      }
+    }
+    if (workerErrors === 0) ok(`${workerNames.length} worker jobs all route-backed + manifest-honest, both directions`);
+  }
+}
 
 console.log("");
 if (errors > 0) {
