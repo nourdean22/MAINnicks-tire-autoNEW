@@ -1,19 +1,27 @@
 /**
- * Cron · Inventory Demand Forecast
+ * Cron · Unmatched Tire Demand Signal
  *
  * Complementary signal to existing analyzeTireInventory(): instead of
- * looking at WHAT WE SOLD, this looks at WHAT WE LOST. Aggregates declined
- * tire-related estimates from alg_estimates over the last 90 days,
- * extracts size heuristically from serviceDescription, ranks by total
- * lost revenue × frequency, and cross-references Gateway live inventory.
+ * looking at WHAT WE SOLD, this looks at estimates that never resolved.
+ * Aggregates unmatched tire-related estimates from alg_estimates over
+ * the last 90 days, extracts size heuristically from serviceDescription,
+ * ranks by total unresolved value × frequency, and cross-references
+ * Gateway live inventory.
  *
- * Output: Telegram digest "stock these 10 sizes by Tuesday — $X in lost
- * tire revenue last 90 days because we didn't have them on the shelf."
+ * revenue-truth-correction (2026-07-28): this job previously reported
+ * the pool as "$X in lost tire revenue because we didn't have them on
+ * the shelf" and told the operator to stock the sizes. An unmatched
+ * estimate does NOT prove inventory was unavailable, that the customer
+ * declined because of stock, that they'd have bought if stocked, that
+ * the whole estimate was tire revenue, or that the sale is lost rather
+ * than unresolved. The DEMAND ranking is real and useful; the stockout
+ * CAUSATION was invented. The alert now reports the signal and tells
+ * the operator what to verify before ordering.
  *
  * Different from analyzeTireInventory in dataPipelines.ts:551:
  *   - That one reports WHAT WE SOLD + low-stock at Gateway for those
- *   - This one reports WHAT WE LOST + which Gateway-available sizes
- *     would recover the most revenue
+ *   - This one reports which sizes keep appearing in estimates that
+ *     never became invoices — demand pressure with unknown outcomes
  *
  * Tier 4 (daily). Wave-181.112.
  */
@@ -81,15 +89,15 @@ export async function processInventoryDemandForecast(): Promise<ProcessResult> {
   }
 
   // 2. Aggregate by extracted size
-  type DemandRow = { size: string; count: number; lostRevenueCents: number; sampleDescriptions: string[] };
+  type DemandRow = { size: string; count: number; unresolvedValueCents: number; sampleDescriptions: string[] };
   const bySize = new Map<string, DemandRow>();
 
   for (const row of declinedRows) {
     const size = extractSize(row.serviceDescription);
     if (!size) continue;
-    const existing = bySize.get(size) ?? { size, count: 0, lostRevenueCents: 0, sampleDescriptions: [] };
+    const existing = bySize.get(size) ?? { size, count: 0, unresolvedValueCents: 0, sampleDescriptions: [] };
     existing.count++;
-    existing.lostRevenueCents += row.estimatedAmount;
+    existing.unresolvedValueCents += row.estimatedAmount;
     if (existing.sampleDescriptions.length < 2 && row.serviceDescription) {
       existing.sampleDescriptions.push(row.serviceDescription.slice(0, 60));
     }
@@ -99,11 +107,11 @@ export async function processInventoryDemandForecast(): Promise<ProcessResult> {
   // 3. Rank · filter low-occurrence noise · take top N
   const ranked = [...bySize.values()]
     .filter((d) => d.count >= MIN_OCCURRENCES)
-    .sort((a, b) => b.lostRevenueCents - a.lostRevenueCents)
+    .sort((a, b) => b.unresolvedValueCents - a.unresolvedValueCents)
     .slice(0, TOP_N);
 
-  const totalLost = ranked.reduce((sum, r) => sum + r.lostRevenueCents, 0);
-  const totalDollars = Math.round(totalLost / 100);
+  const totalUnresolved = ranked.reduce((sum, r) => sum + r.unresolvedValueCents, 0);
+  const totalDollars = Math.round(totalUnresolved / 100);
 
   if (ranked.length === 0) {
     log.info("[inventory-demand-forecast] no size-extractable demand patterns above threshold");
@@ -135,17 +143,17 @@ export async function processInventoryDemandForecast(): Promise<ProcessResult> {
 
   // 5. Compose Telegram alert (HTML-safe · operator voice per agent #3 report)
   const lines: string[] = [];
-  lines.push(`📊 TIRE DEMAND FORECAST · $${totalDollars.toLocaleString()} lost last ${LOOKBACK_DAYS}d`);
+  lines.push(`📊 UNMATCHED TIRE DEMAND SIGNAL · $${totalDollars.toLocaleString()} in unresolved tire estimates (${LOOKBACK_DAYS}d)`);
   lines.push("");
-  lines.push(`Top ${ranked.length} sizes you lost the most revenue on:`);
+  lines.push(`Top ${ranked.length} sizes by unresolved estimate value:`);
   for (let i = 0; i < ranked.length; i++) {
     const r = ranked[i];
     const gw = gatewayChecks[i];
     const gwTag = gw && gw.available ? ` · ${gw.brandsAvailable} brands @ Gateway` : " · ⚠ NOT at Gateway";
-    lines.push(`${i + 1}. ${r.size} · ${r.count} declined · $${Math.round(r.lostRevenueCents / 100).toLocaleString()}${gwTag}`);
+    lines.push(`${i + 1}. ${r.size} · ${r.count} unresolved · $${Math.round(r.unresolvedValueCents / 100).toLocaleString()} quoted${gwTag}`);
   }
   lines.push("");
-  lines.push("Stock these to capture next quarter's demand.");
+  lines.push("Signal only — unmatched ≠ stockout-caused loss. Before ordering: was the size actually out? what was quoted vs. competitors? did the customer say why they passed?");
 
   try {
     await sendTelegram(lines.join("\n"));
@@ -154,10 +162,10 @@ export async function processInventoryDemandForecast(): Promise<ProcessResult> {
   }
 
   const durMs = Date.now() - start;
-  log.info(`[inventory-demand-forecast] done in ${durMs}ms · ranked=${ranked.length} totalLost=$${totalDollars}`);
+  log.info(`[inventory-demand-forecast] done in ${durMs}ms · ranked=${ranked.length} totalUnresolved=$${totalDollars}`);
 
   return {
     recordsProcessed: ranked.length,
-    details: `parsed ${declinedRows.length} declined rows · ${ranked.length} sizes ranked · $${totalDollars} lost · top: ${ranked[0]?.size ?? "none"} ($${Math.round((ranked[0]?.lostRevenueCents ?? 0) / 100)})`,
+    details: `parsed ${declinedRows.length} unmatched rows · ${ranked.length} sizes ranked · $${totalDollars} unresolved · top: ${ranked[0]?.size ?? "none"} ($${Math.round((ranked[0]?.unresolvedValueCents ?? 0) / 100)})`,
   };
 }

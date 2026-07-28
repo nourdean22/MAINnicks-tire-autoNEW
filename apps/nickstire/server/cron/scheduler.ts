@@ -1164,11 +1164,12 @@ export function startTieredScheduler(): void {
           return processPsychoProfileRefresh();
         },
       },
-      // wave-181.112 · inventory demand forecast · complements existing
-      // analyzeTireInventory in dataPipelines.ts. Aggregates declined
+      // wave-181.112 · unmatched tire demand SIGNAL · complements existing
+      // analyzeTireInventory in dataPipelines.ts. Aggregates UNMATCHED
       // tire estimates by extracted size · cross-references Gateway live
-      // inventory · Telegram ranks top 10 lost-revenue sizes the
-      // operator should stock to capture next quarter's demand.
+      // inventory · Telegram ranks top 10 sizes by unresolved estimate
+      // value. Signal only — unmatched ≠ proven stockout loss; the alert
+      // tells the operator what to verify before ordering.
       {
         name: "inventory-demand-forecast",
         handler: async () => {
@@ -1683,7 +1684,7 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "pricing-intelligence", // Approval rate analysis — raise/lower alerts
+        name: "pricing-intelligence", // Payment-status collections signal (name kept for cron_log continuity; no price advice — see services/pricingIntelligence.ts header)
         handler: async () => {
           const { runPricingIntelligenceJob } = await import("../services/pricingIntelligence");
           return runPricingIntelligenceJob();
@@ -1809,24 +1810,25 @@ export function startTieredScheduler(): void {
             }
             const dec = report.declined as Record<string, unknown> | null;
             if (dec?.totalDeclinedValue && Number(dec.totalDeclinedValue) > 0) {
-              parts.push(`Declined work (line items): $${Math.round(Number(dec.totalDeclinedValue))} recoverable`);
+              // revenue-truth-correction: "recoverable" implied a known
+              // recovery rate — this is the declined POOL, recovery TBD.
+              parts.push(`Declined work (line items): $${Math.round(Number(dec.totalDeclinedValue))} declined pool`);
             }
-            // 2026-05-05 — NEW signal: full walk-away ALG estimates
-            // (whole quotes that never converted). This is the bigger
-            // recovery target per Nick's FCFS model. Surfaces $X / N count
-            // / oldest days when alg_estimates table has data.
+            // 2026-05-05 — NEW signal: full unresolved ALG estimates
+            // (whole quotes never matched to an invoice). Unresolved ≠
+            // walked: could be undecided, repaired elsewhere, or sync lag.
+            // Surfaces $X / N count when alg_estimates table has data.
             const wae = report.walkAwayEstimates as Record<string, unknown> | null;
             if (wae && !wae.error && Number(wae.unmatchedCount || 0) > 0) {
               parts.push(
-                `Walk-away estimates: ${wae.unmatchedCount} unmatched · ` +
-                `$${wae.unmatchedValueDollars} on the table · ` +
+                `Unresolved estimates: ${wae.unmatchedCount} unmatched · ` +
+                `$${wae.unmatchedValueDollars} quoted, outcome unknown · ` +
                 // wave-181.34: sendTelegram uses parse_mode='HTML' — the literal
                 // `(<7d)` was making Telegram's parser try to read `<7d)` as
                 // an opening tag and 400 the whole daily-digest. HTML-escape
                 // the `<` so it renders as the intended text.
                 `${wae.recoveryWindow ? (wae.recoveryWindow as Record<string, number>).last7d : 0} fresh (&lt;7d) · ` +
-                `${wae.conversionRate}% conversion rate · ` +
-                `~$${wae.recoverableEstimate} recoverable @ 20% close`,
+                `${wae.conversionRate}% matched to invoices`,
               );
             }
 

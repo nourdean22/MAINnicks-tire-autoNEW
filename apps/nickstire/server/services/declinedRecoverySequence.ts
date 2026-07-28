@@ -1,15 +1,34 @@
 /**
- * Declined-Work Recovery Sequence · 5 touches × 3 profiles = 15 variants
+ * Declined-Work Recovery Sequence · 5 touches × 4 tracks (P0 default)
  *
- * Replaces the wave-181.59 2-touch (7d/30d) blast with a profile-aware
- * sequence: 3d → 7d → 14d → 30d → 45d.
+ * revenue-truth-correction (2026-07-28): the profile PICKER no longer
+ * guesses the customer's objection. The old pickProfile inferred
+ * psychology from proxies — luxury marque → "time is the blocker",
+ * brakes/tires → "trust is the blocker", decline rate → "money is the
+ * blocker" — hypotheses presented as customer knowledge, then baked
+ * into message tone. Routing is now EVIDENCE-ONLY:
  *
- * Profiles (sticky per estimate · cached in alg_estimates.recovery_profile):
- *   P1 — broke_brenda    money is the blocker → lead with financing
- *   P2 — skeptical_pat   trust is the blocker → lead with proof/transparency
- *   P3 — busy_tim        time is the blocker → lead with drop-off + Uber
+ *   P0 — neutral       DEFAULT · objection unknown → don't pretend
+ *   P1 — price track   customer explicitly raised cost/payments
+ *   P2 — proof track   customer explicitly asked for proof/second look
+ *   P3 — logistics     customer explicitly raised timing/drop-off
  *
- * Every variant:
+ * P1/P2/P3 fire ONLY when the caller passes `statedConcern` sourced from
+ * something the customer actually said (decline reason, SMS reply, call
+ * transcript). No caller wires that yet, so every new estimate lands on
+ * P0. Estimates with a legacy sticky P1-P3 (alg_estimates.recovery_profile,
+ * assigned by the old heuristics) keep their track — the copy below is
+ * honest for any recipient — but no NEW psychographic assignment happens.
+ *
+ * Message-claim rules (same pass):
+ *   - Never claim evidence we can't verify exists. The old P2 opener
+ *     asserted "photos of the worn parts" are on file — nothing checks
+ *     that. Removed.
+ *   - Never invent price guarantees. "Quote is still good" / "we'll
+ *     honor that pricing" is a pricing-policy commitment this system
+ *     has no authority to make. The honest fact is the quote is ON FILE.
+ *
+ * Every variant still:
  *   - Ends with the canonical Repair Haiku close ("you don't pay until
  *     you say yes" or "no charge until you say yes")
  *   - Carries STOP opt-out keyword (TCPA)
@@ -25,18 +44,19 @@
  * iterates touch order (30d > 14d > 7d > 45d > 3d) and respects the
  * existing at-most-once claim pattern + sms.ts rails.
  *
- * Sequence design rationale per agent #1 research report:
- *   D3 · friendly check-in (caller's still warm)
- *   D7 · practical reminder + value reframe
- *   D14 · cost-of-waiting math (real, not scary)
- *   D30 · final invitation, lowered urgency
- *   D45 · long-tail soft touch
+ * Cadence note: the 3/7/14/30/45 windows are retained for now — collapsing
+ * to 1-3 adaptive touches is the Recovery-2.0 rebuild (needs decline-reason
+ * capture + holdout measurement), not a truth fix.
  */
 
 import type { AlgEstimate } from "../../drizzle/schema";
 
-export type RecoveryProfile = "P1" | "P2" | "P3";
+export type RecoveryProfile = "P0" | "P1" | "P2" | "P3";
 export type RecoveryTouch = "3d" | "7d" | "14d" | "30d" | "45d";
+
+/** Objection evidence a caller may pass — must come from something the
+ *  customer actually said, never from vehicle/service/segment proxies. */
+export type StatedConcern = "price" | "proof" | "time";
 
 interface BuildParams {
   touch: RecoveryTouch;
@@ -52,64 +72,34 @@ interface BuildParams {
   } | null;
 }
 
-// ─── Profile picker ───────────────────────────────────────────────
+// ─── Profile picker · evidence-only ───────────────────────────────
 //
-// Deterministic so the same estimate always lands on the same profile
-// across touches. Order matters · busy_tim short-circuits luxury vehicle
-// (commuters drive luxury too); broke_brenda short-circuits decline rate
-// (price-sensitive trumps everything else).
+// Deterministic so the same estimate always lands on the same track
+// across touches (sticky via alg_estimates.recovery_profile).
 //
-// Inputs are limited to what alg_estimates + customers already exposes
-// at query time · no extra joins needed.
+// The legacy proxy args (amountCents, serviceDescription, totalVisits,
+// vehicleMake/Year, declineRate, customerType) are still accepted so
+// existing call sites compile, but they NO LONGER drive routing — the
+// old inferences they powered were unverifiable psychology. Only
+// `statedConcern` routes off P0, and it must be populated from the
+// customer's own words when that capture exists (Recovery 2.0).
 export function pickProfile(args: {
   amountCents: number;
   serviceDescription: string | null;
   totalVisits?: number | null;
   vehicleMake?: string | null;
   vehicleYear?: string | null;
-  // declineRate is computed by caller from customer_metrics if available
   declineRate?: number | null;
   customerType?: "individual" | "commercial" | null;
+  /** Evidence-gated routing input · from the customer's own words only. */
+  statedConcern?: StatedConcern | null;
 }): RecoveryProfile {
-  const {
-    amountCents,
-    serviceDescription,
-    totalVisits = 0,
-    vehicleMake,
-    declineRate,
-    customerType,
-  } = args;
-
-  // Commercial fleet → busy_tim (drop-off + Uber framing fits)
-  if (customerType === "commercial") return "P3";
-
-  // High decline rate → broke_brenda (price-sensitive trumps else)
-  if (typeof declineRate === "number" && declineRate >= 0.5) return "P1";
-
-  // Repeat customer (3+ visits) + work historically declined →
-  // skeptical_pat (they came back but didn't say yes — trust gap)
-  if ((totalVisits ?? 0) >= 3 && (declineRate ?? 0) >= 0.3) return "P2";
-
-  // Luxury vehicle marque → busy_tim by default (income proxy → time
-  // is the constraint, not money)
-  const luxury = /\b(lexus|bmw|mercedes|audi|acura|infiniti|porsche|cadillac|lincoln)\b/i;
-  if (vehicleMake && luxury.test(vehicleMake)) return "P3";
-
-  // Large declined ticket on infrequent customer → broke_brenda
-  // (sticker shock is the blocker for occasional drivers)
-  if ((totalVisits ?? 0) <= 1 && amountCents >= 100000) return "P1";
-
-  // Service-category cue: safety items (brakes/tires) skew skeptical
-  // (they want proof before spending), maintenance skews busy
-  const svc = (serviceDescription || "").toLowerCase();
-  if (/\b(brake|tire|caliper|rotor|suspension|alignment)\b/.test(svc)) {
-    return "P2";
+  switch (args.statedConcern) {
+    case "price": return "P1";
+    case "proof": return "P2";
+    case "time": return "P3";
+    default: return "P0";
   }
-
-  // Default fallback · busy_tim (most Cleveland drivers are time-
-  // constrained, not money-constrained · default to the gentlest
-  // message track)
-  return "P3";
 }
 
 // ─── Vehicle + service clause builders (shared with all variants) ──
@@ -141,20 +131,20 @@ function formatMoney(amountCents: number): string {
   return `$${dollars.toLocaleString()}`;
 }
 
-// ─── 15-variant template engine ────────────────────────────────────
+// ─── 20-variant template engine (4 tracks × 5 touches) ─────────────
 //
 // Each variant is a string-template function. Keep them small + flat
 // so the brand-voice linter (pre-commit) can scan each line.
 //
 // To audit a single variant in the operator chat:
-//   buildSequenceMessage({ touch: "14d", profile: "P2", name: "Test",
+//   buildSequenceMessage({ touch: "14d", profile: "P0", name: "Test",
 //     amountCents: 48700, serviceDescription: "brake pads + rotors" })
 
 export function buildSequenceMessage(params: BuildParams): string {
   const { touch, profile } = params;
   const firstName = params.name ? params.name.trim().split(/\s+/)[0] : "there";
 
-  // P1 · broke_brenda · money is the blocker
+  // P1 · price track · customer explicitly raised cost/payments
   if (profile === "P1") {
     switch (touch) {
       case "3d":
@@ -170,34 +160,51 @@ export function buildSequenceMessage(params: BuildParams): string {
     }
   }
 
-  // P2 · skeptical_pat · trust is the blocker
+  // P2 · proof track · customer explicitly asked for proof/second look
   if (profile === "P2") {
     switch (touch) {
       case "3d":
-        return `Hey ${firstName} — Nick's here. That quote we wrote up is still on file, along with photos of the worn parts. Free re-check with you under the car first, you don't pay until you say yes. Reply STOP to opt out.`;
+        return `Hey ${firstName} — Nick's here. That quote we wrote up is still on file. Come by and we'll put the car up and show you exactly what we found — free. You don't pay until you say yes. Reply STOP to opt out.`;
       case "7d":
-        return `Hey ${firstName}, just following up on the quote from Nick's. We don't do hidden fees or surprises. Come by and we'll show you exactly what we saw. Free check, no charge until you say yes. (216) 862-0005. Reply STOP to opt out.`;
+        return `Hey ${firstName}, just following up on the quote from Nick's. We don't do hidden fees. Come by and we'll show you exactly what we saw. Free check, no charge until you say yes. (216) 862-0005. Reply STOP to opt out.`;
       case "14d":
         return `Nick's here. We only recommend what your car actually needs. Got a second opinion? Bring it in and we'll look at it together. Free re-check, written quote. Reply STOP to opt out.`;
       case "30d":
-        return `Hey ${firstName}, that quote is still in our system. Stop by and we'll put the car back on the lift to show you the parts we noted. Free check first, you don't pay until you say yes. Reply STOP to opt out.`;
+        return `Hey ${firstName}, that quote is still in our system. Stop by and we'll put the car on the lift with you and walk through what we quoted. Free check first, you don't pay until you say yes. Reply STOP to opt out.`;
       case "45d":
         return `Hey ${firstName}, last follow-up from Nick's on that quote. If you still want to re-check those parts with us, stop by anytime. Free check first, no pressure. Reply STOP to opt out.`;
     }
   }
 
-  // P3 · busy_tim · time is the blocker
+  // P3 · logistics track · customer explicitly raised timing/drop-off
+  if (profile === "P3") {
+    switch (touch) {
+      case "3d":
+        return `Hey ${firstName} — Nick's here. That quote is on file whenever it's easy for you. Dropping it off is usually easiest. Leave the keys any morning and we'll text when it's ready. Free check, you don't pay until you say yes. Reply STOP to opt out.`;
+      case "7d":
+        return `Hey ${firstName}, just following up on the quote from Nick's. Drop it off any morning and we'll work it in. We'll text or call before doing any work. (216) 862-0005. Reply STOP to opt out.`;
+      case "14d":
+        return `Nick's here. If you're still planning on that work, drop-offs are always welcome. Leave it with us and we'll let you know when it's done. Free check first, you don't pay until you say yes. Reply STOP to opt out.`;
+      case "30d":
+        return `Hey ${firstName}, that quote is still on file. Drop the car off any morning, first-come first-served, and we'll text you when it's ready. Free check first. Reply STOP to opt out.`;
+      case "45d":
+        return `Hey ${firstName}, last follow-up from Nick's on that quote. If you need us to work the car in, drop it off any day and we'll get it handled. Free check first. (216) 862-0005. Reply STOP to opt out.`;
+    }
+  }
+
+  // P0 · neutral · objection unknown — one honest follow-up, no guessing
+  const serviceClause = buildServiceClause(params.serviceDescription);
   switch (touch) {
     case "3d":
-      return `Hey ${firstName} — Nick's here. That quote is still good when it's easy for you. Dropping it off is usually easiest. Leave the keys any morning and we'll text when it's ready. Free check, you don't pay until you say yes. Reply STOP to opt out.`;
+      return `Hey ${firstName} — Nick's Tire & Auto here. That quote we wrote up is still on file. Questions about it? Call or text and we'll walk you through it. Free re-check anytime, you don't pay until you say yes. Reply STOP to opt out.`;
     case "7d":
-      return `Hey ${firstName}, just following up on the quote from Nick's. Drop it off any morning and we'll work it in. We'll text or call before doing any work. (216) 862-0005. Reply STOP to opt out.`;
+      return `Hey ${firstName}, Nick's here following up on that quote — it's still on file. Whatever the holdup — cost, timing, or you want a second look — call and we'll sort it out. Free re-check, no charge. (216) 862-0005. Reply STOP to opt out.`;
     case "14d":
-      return `Nick's here. If you're still planning on that work, drop-offs are always welcome. Leave it with us and we'll let you know when it's done. Free check first, you don't pay until you say yes. Reply STOP to opt out.`;
+      return `Nick's here. That quote for ${serviceClause} is still on file. Drop the car off any morning or call with questions — free re-check first, you don't pay until you say yes. Reply STOP to opt out.`;
     case "30d":
-      return `Hey ${firstName}, we'll keep that quote open for you. Drop the car off any morning, first-come first-served, and we'll text you when it's ready. Free check first. Reply STOP to opt out.`;
+      return `Hey ${firstName}, that quote is still in our system. Want us to take another look first? The re-check is free. Walk in 7 days a week or call (216) 862-0005. Reply STOP to opt out.`;
     case "45d":
-      return `Hey ${firstName}, last follow-up from Nick's on that quote. If you need us to work the car in, drop it off any day and we'll get it handled. Free check first. (216) 862-0005. Reply STOP to opt out.`;
+      return `Hey ${firstName}, last follow-up from Nick's on that quote. It stays on file whenever you're ready — free re-check first, no pressure. Reply STOP to opt out.`;
   }
 }
 
@@ -229,7 +236,9 @@ export function touchToDays(touch: RecoveryTouch): number {
 //
 // Format: declined_<touch>_<profile> · 50-char field, fits comfortably.
 // Powers the SMS Performance tile per-touch + per-profile breakouts
-// (sms_variant_idx already indexed at schema.ts).
+// (sms_variant_idx already indexed at schema.ts). P0 keys are new as of
+// revenue-truth-correction — a fresh variant series, measurable against
+// the legacy P1-P3 series.
 export function variantKey(touch: RecoveryTouch, profile: RecoveryProfile): string {
   return `declined_${touch.replace("d", "")}d_${profile}`;
 }

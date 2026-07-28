@@ -823,7 +823,10 @@ export async function analyzeDeclinedWork() {
     totalWithDeclined: wosWithDeclined.length,
     totalDeclinedValue: Math.round(totalDeclinedValue),
     topDeclinedServices: Object.entries(declinedCategories).sort((a, b) => b[1].totalValue - a[1].totalValue),
-    recoveryOpportunity: Math.round(totalDeclinedValue * 0.2), // assume 20% recovery rate
+    // revenue-truth-correction: the old `recoveryOpportunity` field was
+    // totalDeclinedValue × 0.2 — an invented recovery rate presented as
+    // a dollar figure. Report the real pool only; a recovery RATE is an
+    // outcome to MEASURE (recovery sends → matched invoices), not assume.
   };
 }
 
@@ -856,7 +859,6 @@ export async function analyzeUnmatchedAlgEstimates(): Promise<{
   unmatchedValueCents: number;
   unmatchedValueDollars: number;
   recoveryWindow: { last7d: number; last30d: number; last60d: number };
-  recoverableEstimate: number;
   topUnmatched: Array<{ name: string; phone: string | null; service: string | null; amountCents: number; estimateDate: string; daysOld: number }>;
   conversionRate: number;
   totalEstimates: number;
@@ -922,16 +924,17 @@ export async function analyzeUnmatchedAlgEstimates(): Promise<{
     ? Math.round(((totalEstimates - unmatched.length) / totalEstimates) * 100)
     : 0;
 
-  // Recovery rate per industry standard: 25% for 7-day SMS, 15% for 30-day
-  // (Nick's FCFS model probably outperforms but use industry as floor).
-  const recoverableCents = Math.round(unmatchedValueCents * 0.20);
-
+  // revenue-truth-correction: this used to return `recoverableEstimate` =
+  // 20% of the pool, sourced to an "industry standard" that was never
+  // cited or verified — an invented dollar figure that flowed into the
+  // daily digest as "~$X recoverable @ 20% close". Removed. The pool and
+  // match rate are facts; a recovery rate must come from measured
+  // outcomes (recovery sends → matched invoices), not assumption.
   return {
     unmatchedCount: unmatched.length,
     unmatchedValueCents,
     unmatchedValueDollars: Math.round(unmatchedValueCents / 100),
     recoveryWindow: { last7d, last30d, last60d },
-    recoverableEstimate: Math.round(recoverableCents / 100),
     topUnmatched,
     conversionRate,
     totalEstimates,

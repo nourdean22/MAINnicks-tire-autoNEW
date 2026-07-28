@@ -72,14 +72,18 @@ function formatMoney(cents: number): string {
 //     is highest (they declined the quote once — what makes them say yes
 //     this time?) so the relief mechanism lands hardest here.
 //   - "Still on the fence" softened to customer-language phrasing
-//   - Quote-honoring made the explicit hook (sunk-cost recovery)
+// revenue-truth-correction (2026-07-28): the fallbacks no longer claim
+// the quote is "still good" / "we'll honor that pricing" — that's a
+// pricing-policy commitment this system has no authority to make. The
+// verifiable fact is the quote is ON FILE; the re-check is where price
+// gets confirmed.
 export function buildSevenDayMessage(params: {
   name: string;
   amountCents: number;
   service: string | null;
   profile?: string | null;
 }): string {
-  if (params.profile === "P1" || params.profile === "P2" || params.profile === "P3") {
+  if (params.profile === "P0" || params.profile === "P1" || params.profile === "P2" || params.profile === "P3") {
     return buildSequenceMessage({
       touch: "7d",
       profile: params.profile,
@@ -90,7 +94,7 @@ export function buildSevenDayMessage(params: {
   }
   const fName = firstName(params.name);
   return (
-    `Hey ${fName}, Nick's Tire & Auto here. That quote we wrote up is still good this week. ` +
+    `Hey ${fName}, Nick's Tire & Auto here. That quote we wrote up is still on file. ` +
     `Free re-check, no charge, you don't pay until you say yes. ` +
     `Drop off any day. Reply STOP to opt out.`
   );
@@ -101,7 +105,7 @@ export function buildThirtyDayMessage(params: {
   amountCents: number;
   profile?: string | null;
 }): string {
-  if (params.profile === "P1" || params.profile === "P2" || params.profile === "P3") {
+  if (params.profile === "P0" || params.profile === "P1" || params.profile === "P2" || params.profile === "P3") {
     return buildSequenceMessage({
       touch: "30d",
       profile: params.profile,
@@ -112,8 +116,8 @@ export function buildThirtyDayMessage(params: {
   }
   const fName = firstName(params.name);
   return (
-    `Hey ${fName}, Nick's Tire & Auto here. We still have that quote open for you from a month ago. ` +
-    `We'll honor that pricing, free re-check first, and you don't pay until you say yes. ` +
+    `Hey ${fName}, Nick's Tire & Auto here. We still have that quote on file from a month ago. ` +
+    `Free re-check first, and you don't pay until you say yes. ` +
     `(216) 862-0005. Reply STOP to opt out.`
   );
 }
@@ -395,7 +399,12 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       // Reads cached est.recoveryProfile first; if null, computes via
       // pickProfile() and writes back so subsequent touches stay
       // consistent even if customer signals shift.
-      type ProfileCode = "P1" | "P2" | "P3";
+      // revenue-truth-correction: pickProfile is evidence-only now — with
+      // no statedConcern available here, every NEW estimate lands on the
+      // P0 neutral track. Legacy sticky P1-P3 rows keep their track (the
+      // copy is honest for any recipient) but no new psychographic
+      // assignment happens from vehicle/service/amount proxies.
+      type ProfileCode = "P0" | "P1" | "P2" | "P3";
       let profile: ProfileCode = (est.recoveryProfile as ProfileCode | null) ?? null as unknown as ProfileCode;
       if (!profile) {
         profile = pickProfile({
@@ -404,8 +413,9 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           totalVisits: customer?.totalVisits ?? 0,
           vehicleMake: customer?.vehicleMake ?? null,
           vehicleYear: customer?.vehicleYear ?? null,
-          declineRate: null, // pre-181.110 declineRate not yet wired · null = use other signals
+          declineRate: null,
           customerType: null,
+          statedConcern: null, // no decline-reason capture wired yet → P0
         });
         // Persist for future touches (don't fail the loop if write errors)
         try {
