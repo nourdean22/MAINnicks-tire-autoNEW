@@ -75,6 +75,39 @@ function run(env) {
   }
 }
 
+/**
+ * Remove copies left by processes that are no longer alive.
+ *
+ * Each run gets its own directory because the copy is itself a loaded native
+ * module: a second instance cannot overwrite the first instance's copy (same
+ * EPERM, one level down), and the supervising .cmd restarts the bridge, so
+ * two instances overlapping is normal rather than exceptional.
+ */
+function sweepStaleCopies() {
+  let entries;
+  try {
+    entries = fs.readdirSync(LOCAL_ENGINE_DIR, { withFileTypes: true });
+  } catch {
+    return; // nothing to sweep yet
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+    const pid = Number(entry.name);
+    if (pid === process.pid) continue;
+    try {
+      process.kill(pid, 0); // throws ESRCH when the pid is gone
+      continue; // still running - leave its copy alone
+    } catch (err) {
+      if (err.code === "EPERM") continue; // alive but not ours to signal
+    }
+    try {
+      fs.rmSync(path.join(LOCAL_ENGINE_DIR, entry.name), { recursive: true, force: true });
+    } catch {
+      // A live process may still hold it despite the pid check; try again next start.
+    }
+  }
+}
+
 /** Locate the generated .prisma/client directory that holds the engine. */
 function findGeneratedClientDir() {
   // @prisma/client resolves inside pnpm's virtual store; the generated client
@@ -109,10 +142,15 @@ if (process.platform !== "win32") {
       .find((f) => /^query_engine-windows\.dll\.node$/.test(f));
     if (!engineName) throw new Error(`no query engine in ${clientDir}`);
 
+    sweepStaleCopies();
+
     const source = path.join(clientDir, engineName);
-    const target = path.join(LOCAL_ENGINE_DIR, engineName);
-    fs.mkdirSync(LOCAL_ENGINE_DIR, { recursive: true });
-    // Refresh every start so a regenerated/upgraded engine is picked up.
+    // Per-process directory: the copy is a loaded native module too, so a
+    // concurrent or restarting instance must never reuse a live one's path.
+    const targetDir = path.join(LOCAL_ENGINE_DIR, String(process.pid));
+    const target = path.join(targetDir, engineName);
+    fs.mkdirSync(targetDir, { recursive: true });
+    // Fresh copy every start, so a regenerated/upgraded engine is picked up.
     fs.copyFileSync(source, target);
 
     env = { ...process.env, PRISMA_QUERY_ENGINE_LIBRARY: target };
