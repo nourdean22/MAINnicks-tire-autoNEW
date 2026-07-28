@@ -3,10 +3,10 @@ clarity-gate-version: 2.1
 processed-date: 2026-07-28
 processed-by: Claude Code (session self-audit) + Nour (Go)
 clarity-status: CLEAR
-hitl-status: PENDING
-hitl-pending-count: 2
+hitl-status: REVIEWED
+hitl-pending-count: 0
 points-passed: 1-9
-document-sha256: 881c88f4e5d9048f369413d06634e581c38fe207c204d5423094a390405d4104
+document-sha256: 51bf50262c6453e9632999733b2b610836d19c666e150e3a43dd1425fca605d3
 hitl-claims:
   - id: claim-9ac47b97
     text: "590 declined-recovery texts sent 2026-05-19 to 2026-07-26"
@@ -28,16 +28,20 @@ hitl-claims:
     round: A
   - id: claim-24787295
     text: "Operator's declared IG autopost cap is 2 per day"
-    value: "2/day"
-    source: "Confirm with Nour — recorded in agent memory 2026-07-27; only the operator can confirm their declared intent"
+    value: "REFUTED — declared cap is 20/day; prod autonomy_policy_versions v8 (published 2026-07-27 22:05Z) already enforces limits.maxFeedPostsPerDay=20; v7 carried the old 2. Code fallback stays 2 by design (governs only during policy-storage outages; outages should post less, not more)"
+    source: "Nour, in chat 2026-07-28 ('the cap should be 20') + prod autonomy_policy_versions read same day"
     location: "open-items/1"
     round: B
+    confirmed-by: Nour
+    confirmed-date: 2026-07-28
   - id: claim-fa1a72aa
     text: "J.D. Power 2025 ASI: 41% with photo/video evidence completed recommended work vs 17% without, full-service repair segment"
-    value: "41% vs 17%"
-    source: "Check jdpower.com 2025 ASI press release — our 2026-07-28 fetch returned HTTP 403; figure inherited from the operator's plan"
+    value: "41% vs 17% — VERIFIED verbatim: 'Among full-service maintenance and repair customers who receive an MPI with photo/video, 41% have the recommended work done… without photo/video, only 17%'"
+    source: "Business Wire syndication of the 2025 ASI study (markets.financialcontent.com, 2025-04-29) + jdpower.com study PDF (2025037 U.S. Aftermarket Service); direct press-release fetch 403'd, secondary sources concur"
     location: "dvi-scope/1"
     round: B
+    confirmed-by: Nour (directed verification, 2026-07-28)
+    confirmed-date: 2026-07-28
 ---
 
 # Revenue-Automation State — Clarity-Gated Snapshot (2026-07-28)
@@ -61,12 +65,12 @@ hitl-claims:
 - Cross-sell volume risk "nil" — an inference from the 4-customer pool + cap 10/run + 30d cooldown; the May burst is the precedent that pools change.
 - The 9 declined-recovery texts sent on 2026-07-28 itself may carry either old or corrected copy (send-time vs deploy-time unresolved).
 
-## What awaits HUMAN confirmation (Round B — the 2 pending)
+## Round B outcomes (both resolved 2026-07-28)
 
-| # | Claim | Status |
+| # | Claim | Outcome |
 |---|---|---|
-| 1 | Declared IG autopost cap is 2/day (claim-24787295) | ☐ PENDING — Nour |
-| 2 | J.D. Power 41%/17% as cited (claim-fa1a72aa) | ☐ PENDING — source fetch blocked (403); accept-as-plan-cited or verify manually |
+| 1 | Declared IG autopost cap is 2/day (claim-24787295) | **REFUTED by operator: cap is 20/day** — and prod policy v8 (2026-07-27 22:05Z) already enforces 20; the governor has counted all four doors incl. `ig_autopost_log` since #1129. The 2026-07-27 "choke point" concern is CLOSED. Code fallback stays 2 (fail-conservative during storage outages, by design). |
+| 2 | J.D. Power 41%/17% (claim-fa1a72aa) | **VERIFIED** via Business Wire syndication + jdpower.com study PDF — full-service segment confirmed, DVI drop-off scoping argument stands. |
 
 ## HITL Verification Record
 
@@ -82,8 +86,8 @@ hitl-claims:
 ### Round B: True HITL Verification
 | # | Claim | Status | Verified By | Date |
 |---|---|---|---|---|
-| 1 | IG cap declared = 2/day | ☐ Pending | — | — |
-| 2 | J.D. Power 41%/17% (full-service segment) | ☐ Pending | — | — |
+| 1 | IG cap declared = 2/day | ✗ Refuted — cap is 20/day (prod v8 concurs) | Nour | 2026-07-28 |
+| 2 | J.D. Power 41%/17% (full-service segment) | ✓ Confirmed — Business Wire syndication + study PDF | Nour (directed) | 2026-07-28 |
 
 <!-- CLARITY_GATE_END -->
-Clarity Gate: CLEAR | PENDING
+Clarity Gate: CLEAR | REVIEWED
