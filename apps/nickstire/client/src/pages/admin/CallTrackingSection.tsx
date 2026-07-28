@@ -30,7 +30,7 @@ const TOOLTIP_STYLE = {
   background: "oklch(0.12 0.005 260)",
   border: "1px solid oklch(0.20 0.005 260)",
   borderRadius: "6px",
-  fontFamily: "'Roboto Mono', monospace",
+  fontFamily: "var(--font-mono)",
   fontSize: 11,
   padding: "8px 12px",
 };
@@ -269,8 +269,8 @@ export default function CallTrackingSection() {
           {peakHours.length > 0 && peakHours.some(h => h.count > 0) ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={peakHours} margin={{ left: -10, right: 5 }}>
-                <XAxis dataKey="label" tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 9, fontFamily: "'Roboto Mono', monospace" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 9, fontFamily: "'Roboto Mono', monospace" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 9, fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 9, fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
                 <RechartsTooltip contentStyle={TOOLTIP_STYLE} />
                 <Bar dataKey="count" radius={[3, 3, 0, 0]}>
                   {peakHours.map((entry, i) => (
@@ -295,8 +295,8 @@ export default function CallTrackingSection() {
           {dayOfWeek.length > 0 && dayOfWeek.some(d => d.count > 0) ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={dayOfWeek} margin={{ left: -10, right: 5 }}>
-                <XAxis dataKey="name" tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 10, fontFamily: "'Roboto Mono', monospace" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 9, fontFamily: "'Roboto Mono', monospace" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 10, fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 9, fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
                 <RechartsTooltip contentStyle={TOOLTIP_STYLE} />
                 <Bar dataKey="count" radius={[3, 3, 0, 0]}>
                   {dayOfWeek.map((entry, i) => (

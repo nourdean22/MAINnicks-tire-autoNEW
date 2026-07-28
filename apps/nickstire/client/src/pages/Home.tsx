@@ -239,8 +239,10 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
         <HeroDustLayer />
       </div>
 
-      <div className="relative container">
-        <div className="max-w-full lg:max-w-[58%] mt-28 sm:mt-48 lg:mt-40">
+      {/* Desktop splits into the 58/42 grid the copy width already implied.
+          Below lg this stays a plain block, so mobile layout is unchanged. */}
+      <div className="relative container lg:grid lg:grid-cols-[58%_1fr] lg:gap-10 lg:items-start">
+        <div className="max-w-full mt-28 sm:mt-48 lg:mt-40">
           <h1
             className="font-heading font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight headline-balance"
             style={{
@@ -295,6 +297,18 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             <LiveVisitorCounter minToShow={3} />
           </div>
         </div>
+
+        {/* Hero right column — desktop only. This 42% was photo-only dead
+            space; live shop status is the highest-value thing to put in it
+            (real data via trpc.shopStatus, degrades to "call to confirm").
+            Uses the `compact` variant, which the component documents as the
+            hero-corner form — the full card assumes a wide banner and would
+            compress badly in a 42% column. Mobile keeps the same pill in the
+            strip below the hero (that section is lg:hidden), so the widget
+            renders exactly once at every breakpoint. */}
+        <aside className="hidden lg:flex lg:justify-end lg:mt-40 motion-safe:animate-[fadeIn_0.6s_ease-out_0.8s_both]">
+          <ShopStatusWidget compact />
+        </aside>
       </div>
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2">
@@ -783,8 +797,11 @@ export default function Home() {
       <Hero reviewData={reviewData} />
       {/* FCFS ritual explainer — the most defensible differentiator. */}
       <RiseInView className="parallax-rise"><ConesBlock /></RiseInView>
-      {/* Live status strip — real bay/booking data, graceful degrade. */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-6 border-t border-b border-border/30">
+      {/* Live status strip — real bay/booking data, graceful degrade.
+          lg:hidden: on desktop this same widget now rides the hero's right
+          column, so this strip would be a duplicate. Mobile has no such
+          column, so it stays the only placement there. */}
+      <section className="bg-[oklch(0.055_0.004_260)] py-6 border-t border-b border-border/30 lg:hidden">
         <div className="container flex items-center justify-center">
           <ShopStatusWidget compact />
         </div>
