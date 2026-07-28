@@ -22,6 +22,9 @@ export interface MemoryInspectorSidebarProps {
   onClose: () => void;
   hits: MemoryHit[];
   contradictions: ContradictionLog[];
+  /** When the recall shown here was fetched — UI-2: evidence without a
+   *  timestamp is a claim, not evidence. Null = not fetched yet. */
+  fetchedAt?: Date | null;
 }
 
 export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
@@ -29,8 +32,12 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   onClose,
   hits,
   contradictions,
+  fetchedAt,
 }) => {
   if (!open) return null;
+  const freshness = fetchedAt
+    ? `recalled ${Math.max(0, Math.round((Date.now() - fetchedAt.getTime()) / 1000))}s ago`
+    : "not yet fetched — open state, not evidence";
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 w-80 md:w-96 bg-zinc-950 border-l border-zinc-800 shadow-2xl flex flex-col animate-fadeSlideLeft">
@@ -38,12 +45,21 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
         <div className="flex items-center space-x-2">
           <Brain className="w-4 h-4 text-gold" />
           <span className="text-[12px] font-bold font-display uppercase tracking-widest text-zinc-100">
-            Memory Inspector
+            Context &amp; Evidence
           </span>
         </div>
         <button onClick={onClose} className="text-zinc-400 hover:text-zinc-100 bg-transparent border-none cursor-pointer">
           <X className="w-4 h-4" />
         </button>
+      </div>
+
+      {/* UI-2: the epistemics line — memory vs evidence is the
+          distinction that keeps this panel honest. */}
+      <div className="px-4 pt-3 pb-1">
+        <p className="text-[10px] text-zinc-500 leading-relaxed">
+          Memory is what Nick believes · evidence is why to trust this answer.
+        </p>
+        <p className="text-[10px] font-mono text-zinc-600 mt-0.5">{freshness}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -52,7 +68,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           <div className="flex items-center space-x-1 text-gold mb-3">
             <Sparkles className="w-3.5 h-3.5" />
             <span className="text-[10px] font-bold uppercase tracking-wider font-display">
-              Recalled Beliefs ({hits.length})
+              Remembered — what Nick believes ({hits.length})
             </span>
           </div>
           {hits.length === 0 ? (
@@ -77,7 +93,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
           <div className="flex items-center space-x-1 text-rose-400 mb-3">
             <AlertTriangle className="w-3.5 h-3.5" />
             <span className="text-[10px] font-bold uppercase tracking-wider font-display">
-              Self-Contradiction Intercepts
+              Evidence check — contradictions ({contradictions.length})
             </span>
           </div>
           {contradictions.length === 0 ? (

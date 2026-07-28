@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Brain, History, Mic, MicOff } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
@@ -45,11 +45,16 @@ export function ChatIsland() {
   const memoryInspectorOpen = useChatUiStore((state) => state.memoryInspectorOpen);
   const setMemoryInspectorOpen = useChatUiStore((state) => state.setMemoryInspectorOpen);
   const historyDrawerOpen = useChatUiStore((state) => state.historyDrawerOpen);
+  const posture = useChatUiStore((state) => state.posture);
+  const depth = useChatUiStore((state) => state.depth);
+  const actionPermission = useChatUiStore((state) => state.actionPermission);
+  const privateMode = useChatUiStore((state) => state.privateMode);
   const setHistoryDrawerOpen = useChatUiStore((state) => state.setHistoryDrawerOpen);
   const setActiveConversationId = useChatUiStore((state) => state.setActiveConversationId);
   const recalledHits = useChatUiStore((state) => state.recalledHits);
   const contradictions = useChatUiStore((state) => state.contradictions);
   const setMemoryData = useChatUiStore((state) => state.setMemoryData);
+  const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
 
   const chat = useChatStream();
   const conversations = useConversations({
@@ -89,6 +94,7 @@ export function ChatIsland() {
       const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
       if (detail?.type === "memory.recalled") {
         setMemoryData(detail.payload?.hits || [], detail.payload?.contradictions || []);
+        setMemoryFetchedAt(new Date());
       }
     };
     window.addEventListener("cockpit-event", onCockpitEvent);
@@ -128,6 +134,7 @@ export function ChatIsland() {
               : 0,
         }));
         setMemoryData(hits, contradictions);
+        setMemoryFetchedAt(new Date());
       } catch {
         // Abort and network failures preserve the last known memory view.
       }
@@ -143,7 +150,20 @@ export function ChatIsland() {
             <h1 className="text-sm font-semibold tracking-wide text-fg">NICK</h1>
             <ChatCapabilityIndicator />
           </div>
-          <p className="mt-0.5 hidden text-[10px] text-fg-tertiary sm:block">Chief of staff · live data · verified actions</p>
+          {/* UI-1 authority strip: the header answers "what mode, what
+              access" at a glance — the static tagline told the operator
+              nothing about current authority. Reads the same store the
+              composer writes; gold = non-default. */}
+          <p className="mt-0.5 text-[10px] text-fg-tertiary">
+            <span className={posture !== "auto" ? "text-gold" : undefined}>{posture === "auto" ? "auto posture" : posture}</span>
+            {" · "}
+            <span className={depth !== "auto" ? "text-gold" : undefined}>{depth === "auto" ? "auto depth" : depth}</span>
+            {" · "}
+            <span className={actionPermission === "execute" ? "text-gold" : actionPermission === "read" ? "text-sky-300" : undefined}>
+              {actionPermission === "draft" ? "draft only" : actionPermission === "read" ? "read access" : "execute enabled"}
+            </span>
+            {privateMode && <span className="text-gold"> · PRIVATE</span>}
+          </p>
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${memoryInspectorOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
@@ -179,7 +199,7 @@ export function ChatIsland() {
         <ChatComposer chat={chat} />
       </div>
 
-      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} />
+      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} />
 
       {historyDrawerOpen && (
         <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge bg-void sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>

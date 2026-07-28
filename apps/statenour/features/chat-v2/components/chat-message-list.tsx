@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TypedToolCards } from "./typed-tool-cards";
 import { useState, useCallback } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ExternalLink, Paperclip, ShieldCheck, Wrench } from "lucide-react";
@@ -271,6 +272,7 @@ export function ChatMessageList({
                 return null;
               })}
               {message.role === "assistant" && <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceIdRef?.current : null} />}
+              {message.role === "assistant" && <TypedToolCards message={message} />}
             </div>
           </div>
         );
