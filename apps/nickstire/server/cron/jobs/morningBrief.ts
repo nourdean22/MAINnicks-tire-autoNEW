@@ -155,6 +155,25 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
       enrichmentBlock += `\nPIPELINE: Est→Job ${pipeline.estimateToInvoice}%, Lead→Booking ${pipeline.leadToBooking}%. ${pipeline.staleEstimates} stale estimates.`;
     } catch (e) { log.warn("[morningBrief] enrichment data (revenue/pipeline/declined) failed:", e); }
 
+    // ─── Owner Decision Inbox: top 5 from the opportunity queue ────
+    // Wave 4: evidence-backed decision cards lead the brief. Degrades to
+    // empty until migration 0099 is applied (service returns no rows).
+    let decisionsBlock = "";
+    try {
+      const { topDecisions } = await import("../../services/opportunityQueue");
+      const top = await topDecisions(5);
+      if (top.decisions.length > 0) {
+        decisionsBlock = "\nTOP DECISIONS (opportunity queue — lead with these, verbatim):";
+        top.decisions.forEach((dec, i) => {
+          const value = dec.factors.valueDollars > 0 ? `$${dec.factors.valueDollars.toLocaleString()}` : "value unknown";
+          decisionsBlock += `\n${i + 1}. [${dec.urgency.toUpperCase()}] ${dec.recommendedAction} — ${value} · ${dec.reason} (evidence: ${dec.dataQuality}, attempts: ${dec.attempts})`;
+        });
+        if (top.excludedNoConsent > 0) {
+          decisionsBlock += `\n(${top.excludedNoConsent} opportunities excluded — no contact consent)`;
+        }
+      }
+    } catch (e) { log.warn("[morningBrief] opportunity queue load failed:", e); }
+
     // ─── Brief self-review: did yesterday's brief drive action? ────
     let briefReviewBlock = "";
     try {
@@ -265,6 +284,7 @@ FORMAT RULES:
 - Keep it under 2000 characters total
 - Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → Customer insight → Pattern from memory → Top 3 priorities → Personal check-in → Motivational closer
 - Be direct. No fluff. Like a chief of staff briefing the CEO.
+- If a TOP DECISIONS block is present, those ARE the top priorities — put them first, keep each recommended action verbatim, and never invent decisions beyond them.
 - If stale leads > 3, call it out as lost money.
 - If revenue is strong, acknowledge it. If weak, flag it.
 - Reference a SPECIFIC customer by name if there's a follow-up opportunity.
@@ -277,7 +297,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${decisionsBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,
@@ -304,6 +324,7 @@ THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0
 30-DAY: $${monthRevenue.toLocaleString()} revenue | ${jobsWon} jobs won | $${avgTicket} avg ticket | ~$${trailingDailyPace.toLocaleString()}/day pace
 
 PIPELINE: ${pendingLeadsCount} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
+${decisionsBlock}
 
 CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
 ${masterBlock}
