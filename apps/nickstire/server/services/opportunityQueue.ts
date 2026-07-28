@@ -791,6 +791,7 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
              e.service_description AS serviceDescription, e.estimated_amount AS estimatedAmount,
              e.estimate_date AS estimateDate,
              e.follow_up_7d_sent AS f7, e.follow_up_30d_sent AS f30,
+             e.estimated_parts_cost AS estimatedPartsCost,
              ${withConcern ? sql`e.stated_concern` : sql`NULL`} AS statedConcern,
              COUNT(DISTINCT c.id) AS matchCount,
              MIN(c.id) AS anyCustomerId,
@@ -848,6 +849,21 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
       anyCustomerId: r.anyCustomerId == null ? null : Number(r.anyCustomerId),
       anyOptOut: Number(r.anyOptOut ?? 0) === 1,
     });
+    // Strike-6: quote-guard's cheap checks ride every estimate
+    // opportunity into the Decision Inbox — the guard's first real
+    // consumer (repo search found zero callers of the endpoint). Only
+    // the zero-IO checks run here; the full report (supplier/overlap)
+    // stays on the on-demand endpoint.
+    const partsCostCents = Number(r.estimatedPartsCost ?? 0);
+    const amountSane = amountCents >= 2_000 && amountCents <= 2_000_000;
+    const belowPartsCost = partsCostCents > 0 && amountCents < partsCostCents;
+    const quoteFlags = {
+      amountSane,
+      partsCostCaptured: partsCostCents > 0,
+      quoteRemainderAfterPartsCostPct:
+        partsCostCents > 0 ? Math.round(((amountCents - partsCostCents) / amountCents) * 1000) / 10 : null,
+      ...(belowPartsCost ? { belowPartsCost: true } : {}),
+    };
     const res = await upsertOpportunity({
       sourceType: "unapproved_estimate",
       sourceId: String(r.id),
@@ -858,13 +874,17 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
       dataQuality: "inferred",
       urgency: amountCents >= 80_000 ? "today" : "this_week",
       recommendedAction: `Call ${name} about the $${Math.round(amountCents / 100)} ${service} quote`,
-      reason: `Estimate ${ageDays}d old with no matched invoice (unresolved — not proven declined). Recovery SMS touches so far: ${touches}.`,
+      reason:
+        `Estimate ${ageDays}d old with no matched invoice (unresolved — not proven declined). Recovery SMS touches so far: ${touches}.` +
+        (belowPartsCost ? ` QUOTE GUARD: quote is BELOW captured parts cost ($${Math.round(partsCostCents / 100)}) — review before contacting.` : "") +
+        (!amountSane ? " QUOTE GUARD: amount outside the $20-$20,000 sanity band — likely a data-entry slip." : ""),
       evidence: {
         estimateId: Number(r.id),
         estimateAgeDays: ageDays,
         serviceDescription: service,
         recoveryTouchesSent: touches,
         statedConcern: r.statedConcern ? String(r.statedConcern) : null,
+        quoteFlags,
         ...(identity.ambiguous
           ? { identityAmbiguous: true, identityMatches: Number(r.matchCount ?? 0) }
           : {}),

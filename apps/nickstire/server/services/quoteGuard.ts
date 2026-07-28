@@ -42,8 +42,17 @@ export interface GuardCheck {
 export interface QuoteGuardReport {
   checks: GuardCheck[];
   summary: { pass: number; fail: number; unknown: number };
-  /** Present ONLY when parts cost was actually captured. Never assumed. */
-  impliedPartsMarginPct: number | null;
+  /**
+   * (quote − captured parts cost) ÷ quote. Present ONLY when parts cost
+   * was actually captured. Strike-6 rename: this is NOT a parts margin
+   * and NOT job gross profit — the remainder still contains labor, fees,
+   * disposal, other operations and tax. The old name
+   * `quoteRemainderAfterPartsCostPct` overclaimed.
+   */
+  quoteRemainderAfterPartsCostPct: number | null;
+  /** Every input the checklist wanted and didn't get — the data-capture
+   *  to-do list, stated explicitly instead of buried in unknowns. */
+  missingInputs: string[];
 }
 
 /** Same conservative pattern as the demand-signal cron — twin kept small
@@ -94,27 +103,29 @@ export function evaluateQuoteChecks(input: QuoteGuardInput): QuoteGuardReport {
     checks.push({ check: "no_overlapping_estimate", status: "pass", detail: "no other open estimate for this phone in 30d" });
   }
 
-  // 3. Parts cost capture + implied margin — NEVER assumed.
-  let impliedPartsMarginPct: number | null = null;
+  // 3. Parts cost capture + quote remainder — NEVER assumed, never
+  //    called a margin (strike-6: the remainder still contains labor,
+  //    fees, disposal and tax — it is not parts gross margin).
+  let quoteRemainderAfterPartsCostPct: number | null = null;
   if (input.estimatedPartsCostCents > 0) {
-    const grossCents = input.amountCents - input.estimatedPartsCostCents;
-    impliedPartsMarginPct = Math.round((grossCents / input.amountCents) * 1000) / 10;
-    if (grossCents < 0) {
+    const remainderCents = input.amountCents - input.estimatedPartsCostCents;
+    quoteRemainderAfterPartsCostPct = Math.round((remainderCents / input.amountCents) * 1000) / 10;
+    if (remainderCents < 0) {
       checks.push({
-        check: "parts_margin",
+        check: "quote_remainder_after_parts_cost",
         status: "fail",
         detail: `quote $${Math.round(input.amountCents / 100)} is BELOW captured parts cost $${Math.round(input.estimatedPartsCostCents / 100)} — selling below cost`,
       });
     } else {
       checks.push({
-        check: "parts_margin",
+        check: "quote_remainder_after_parts_cost",
         status: "pass",
-        detail: `implied parts margin ${impliedPartsMarginPct}% (labor cost not captured — this is parts-only, not gross profit)`,
+        detail: `quote remainder after captured parts cost: ${quoteRemainderAfterPartsCostPct}% (NOT a margin — labor/fees/tax live inside the remainder)`,
       });
     }
   } else {
     checks.push({
-      check: "parts_margin",
+      check: "quote_remainder_after_parts_cost",
       status: "unknown",
       detail: "parts cost NOT CAPTURED on this estimate — profit unverifiable. Capturing estimated_parts_cost is the unlock for the whole profit column.",
     });
@@ -141,7 +152,7 @@ export function evaluateQuoteChecks(input: QuoteGuardInput): QuoteGuardReport {
       checks.push({
         check: "tire_supplier_backing",
         status: "pass",
-        detail: `quote clears cheapest ${size} supplier cost ($${Math.round(cheapestSupplierCostCents / 100)}, ${brandsChecked} brands)`,
+        detail: `quote clears the cheapest SINGLE-TIRE ${size} supplier cost ($${Math.round(cheapestSupplierCostCents / 100)}, ${brandsChecked} brands) — quantity, install, disposal and tax are NOT modeled; this is a floor check, not a quality pass`,
       });
     }
   }
@@ -165,7 +176,9 @@ export function evaluateQuoteChecks(input: QuoteGuardInput): QuoteGuardReport {
     unknown: checks.filter((c) => c.status === "unknown").length,
   };
 
-  return { checks, summary, impliedPartsMarginPct };
+  const missingInputs = checks.filter((c) => c.status === "unknown").map((c) => c.check);
+
+  return { checks, summary, quoteRemainderAfterPartsCostPct, missingInputs };
 }
 
 /**

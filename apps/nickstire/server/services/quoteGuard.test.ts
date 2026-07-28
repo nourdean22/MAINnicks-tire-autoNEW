@@ -2,7 +2,7 @@
  * Quote Guard · doctrine tests.
  *
  * The one invariant that matters most: THE GUARD NEVER FABRICATES A
- * PROFIT NUMBER. When parts cost is uncaptured (0), impliedPartsMarginPct
+ * PROFIT NUMBER. When parts cost is uncaptured (0), quoteRemainderAfterPartsCostPct
  * is null and the margin check is `unknown` — loudly, with the capture
  * instruction in the detail. Everything else is checklist mechanics.
  */
@@ -19,23 +19,23 @@ const BASE = {
 describe("no fabricated profit — the founding invariant", () => {
   it("uncaptured parts cost → margin unknown, marginPct null, capture instruction in detail", () => {
     const r = evaluateQuoteChecks({ ...BASE });
-    const margin = r.checks.find((c) => c.check === "parts_margin")!;
+    const margin = r.checks.find((c) => c.check === "quote_remainder_after_parts_cost")!;
     expect(margin.status).toBe("unknown");
     expect(margin.detail).toMatch(/NOT CAPTURED/);
-    expect(r.impliedPartsMarginPct).toBeNull();
+    expect(r.quoteRemainderAfterPartsCostPct).toBeNull();
   });
 
   it("captured parts cost → real margin, explicitly labeled parts-only", () => {
     const r = evaluateQuoteChecks({ ...BASE, estimatedPartsCostCents: 27_000 });
-    const margin = r.checks.find((c) => c.check === "parts_margin")!;
+    const margin = r.checks.find((c) => c.check === "quote_remainder_after_parts_cost")!;
     expect(margin.status).toBe("pass");
-    expect(margin.detail).toMatch(/parts-only, not gross profit/);
-    expect(r.impliedPartsMarginPct).toBe(40); // (450-270)/450
+    expect(margin.detail).toMatch(/NOT a margin/);
+    expect(r.quoteRemainderAfterPartsCostPct).toBe(40); // (450-270)/450
   });
 
   it("quote below captured parts cost → FAIL, selling below cost", () => {
     const r = evaluateQuoteChecks({ ...BASE, amountCents: 20_000, estimatedPartsCostCents: 27_000 });
-    expect(r.checks.find((c) => c.check === "parts_margin")!.status).toBe("fail");
+    expect(r.checks.find((c) => c.check === "quote_remainder_after_parts_cost")!.status).toBe("fail");
   });
 });
 
