@@ -5,16 +5,23 @@
  * Runs against a running dev server (default localhost:3001) or a deployed
  * preview via E2E_BASE_URL.
  *
- * CI GATE (2026-07-25 · closes truth-substrate audit P0 #8/#10): this suite
- * IS wired into CI — .github/workflows/e2e-statenour.yml runs it BLOCKING on
- * every statenour PR against a HERMETIC build: throwaway pgvector Postgres
- * service + `prisma db push` (empty data) + real `next build`/`next start` +
- * AUTH_FORCE_MOCK=1 for the authenticated session. No operator secrets, no
- * prod URL — the storageState variant against live bdnick.info remains an
- * optional operator-keyed extra, not a prerequisite. Locally these still run
- * manually: pnpm test:e2e (against a running app / E2E_BASE_URL).
- * Assertions must therefore stay EMPTY-DATA TOLERANT (labels and shapes, not
- * row counts).
+ * CI (2026-07-25 · closes truth-substrate audit P0 #8/#10): this suite IS
+ * wired into CI — .github/workflows/e2e-statenour.yml runs it on every
+ * statenour PR against a HERMETIC stack: throwaway pgvector Postgres service
+ * + `prisma db push` (empty data) + a `next build` type gate, after which the
+ * suite is SERVED by `next dev` with AUTH_FORCE_MOCK=1 for the authenticated
+ * session (mock auth is honored only under isDev, by design). No operator
+ * secrets, no prod URL — the storageState variant against live bdnick.info
+ * remains an optional operator-keyed extra. Locally: pnpm test:e2e.
+ *
+ * 2026-07-28 CORRECTION — this header previously said the job runs
+ * "BLOCKING" against `next build`/`next start`. Neither was true. It is
+ * served by `next dev`, and while a failure turns the check RED, nothing
+ * enforces it: this repo's plan has no branch protection and agents
+ * self-merge with `gh pr merge --squash`. Treat a red e2e as a manual stop.
+ *
+ * Assertions must stay EMPTY-DATA TOLERANT (labels and shapes, not row
+ * counts) — the hermetic database has no rows.
  */
 
 import { test, expect } from "@playwright/test";
