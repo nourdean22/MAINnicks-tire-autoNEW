@@ -71,6 +71,11 @@ errors-out.txt
 # Statenour local runtime
 .runtime/
 
+# Private Prisma query-engine copy for long-running local processes.
+# See scripts/with-local-prisma-engine.mjs — Windows pins a loaded native
+# module, which makes `prisma generate` EPERM during the pre-push build.
+.prisma-engine-local/
+
 # 2026-07-11 review cleanup - local-only surfaces, never tracked again
 # vars.json = env snapshot (secrets rotated after public exposure)
 # scratch/ = one-off debug scripts | reports/ = tool run output
