@@ -93,7 +93,8 @@ RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick p
       litellm==1.86.2 \
       toml \
       python-multipart==0.0.27 \
-      pyyaml==6.0.3
+      pyyaml==6.0.3 \
+      yt-dlp==2025.1.15
 
 # Non-root user for the runtime · standard hardening
 RUN addgroup --system --gid 1001 nodejs \
