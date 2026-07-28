@@ -68,6 +68,15 @@ export interface CronDef {
    * for these and treats them as independently-reachable.
    */
   inngest?: boolean;
+  /**
+   * Fired by the WORKER's node-cron (apps/worker/src/scheduler.ts),
+   * which HTTP-hits this app's /api/cron/<name> route. The third real
+   * dispatch path — added 2026-07-28 when the inngest-liveness watcher
+   * needed a scheduler that survives an Inngest outage. `check:crons`
+   * treats worker-fired entries as reachable; keep the worker's job
+   * list in sync manually (its file says the same).
+   */
+  worker?: boolean;
 }
 
 export const CRONS: CronDef[] = [
@@ -83,7 +92,17 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "hygiene",
     inngest: true,
-    description: "Out-of-band fan-out liveness watchdog — the canary added after the 2-day fan-out outage.",
+    description: "Out-of-band fan-out liveness watchdog — the canary added after the 2-day fan-out outage. Writes a self-row per run (proof Inngest invokes scheduled functions at all) since the 2026-07-28 drift incident.",
+  },
+  {
+    name: "inngest-liveness",
+    schedule: "0 13 * * *",
+    mode: "active",
+    category: "hygiene",
+    worker: true,
+    addedAt: "2026-07-28",
+    description:
+      "Who watches the watcher: fired by the WORKER's node-cron (not Inngest, not the mega) an hour after cron-heartbeat's slot. Reads the heartbeat self-row age; stale/absent → P0 Telegram with the re-sync runbook. Exists because the 2026-07-28 function-set drift killed the watchdog together with everything it watched.",
   },
   {
     name: "operator-morning-brief",

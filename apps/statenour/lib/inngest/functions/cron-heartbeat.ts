@@ -73,6 +73,21 @@ export const cronHeartbeat = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    // 2026-07-28 cron-truth hardening · SELF-ROW FIRST. This watchdog
+    // was itself invisible to Inngest Cloud for weeks (function-set
+    // drift, docs/audits/2026-07-28-cron-truth.md) and left no trace of
+    // its own absence. It now writes proof-of-invocation before doing
+    // anything else — the row the worker's out-of-band
+    // /api/cron/inngest-liveness check reads. If Inngest dies again,
+    // this row goes stale and a NON-Inngest scheduler notices within a
+    // day. Who watches the watcher: a different service, on purpose.
+    await step.run("self-row", async () => {
+      await prisma.cronJobLog
+        .create({ data: { jobName: "cron-heartbeat", status: "success" } })
+        .catch(() => {});
+      return true;
+    });
+
     const expected = expectedJobs();
     const names = expected.map((e) => e.name);
 

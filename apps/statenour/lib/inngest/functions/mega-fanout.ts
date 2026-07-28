@@ -94,6 +94,28 @@ function isSundayET(): boolean {
  * is to let the platform manage retries per-step instead of "let one
  * slot fail forever".
  */
+/**
+ * Per-child dispatch ceilings · 2026-07-28 cron-truth hardening.
+ *
+ * mega-evening logged `partial` SEVEN consecutive nights because two
+ * children exceed the flat 90s abort — while finishing fine server-side
+ * (their own success rows land at ~03:17 and ~03:23). The abort is a
+ * parent-visibility artifact that normalized nightly failure noise.
+ *
+ * The pair below is INFERRED from child log timestamps (the pre-fix
+ * error strings named nobody); now that failures carry their paths,
+ * the next partial names its culprits — if a DIFFERENT child appears,
+ * add it here and re-shrink this map when jobs get faster. Ceilings
+ * chosen from measured completion (~14 and ~20 min past slot start,
+ * minus queue-order slack) with headroom, capped at the 240s route
+ * maxDuration these children already honor.
+ */
+const CHILD_TIMEOUT_MS: Record<string, number> = {
+  "/api/cron/consolidate": 240_000,
+  "/api/cron/mastery-xp": 240_000,
+};
+const DEFAULT_CHILD_TIMEOUT_MS = 90_000;
+
 async function dispatchChild(path: string, cronSecret: string): Promise<{
   path: string;
   status: number;
@@ -104,7 +126,7 @@ async function dispatchChild(path: string, cronSecret: string): Promise<{
   const res = await fetch(`${baseUrl}${path}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${cronSecret}` },
-    signal: AbortSignal.timeout(90_000),
+    signal: AbortSignal.timeout(CHILD_TIMEOUT_MS[path] ?? DEFAULT_CHILD_TIMEOUT_MS),
   });
   const durationMs = Date.now() - start;
   if (!res.ok) {
