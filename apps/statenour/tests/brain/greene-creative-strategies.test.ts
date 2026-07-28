@@ -73,8 +73,14 @@ describe("Mastery Book V · creative strategies", () => {
   });
 
   it("does not reuse a matchPhrase across two strategies", () => {
-    // Overlap would make two entries fire on the same signal and split
-    // the score, pushing both under minScore.
+    // Correction (2026-07-27): an earlier version of this comment claimed
+    // overlap "splits the score, pushing both under minScore." That is
+    // wrong — the matcher counts each entry's OWN hits independently, so a
+    // shared phrase lets both fire and the higher scorer still sorts first.
+    // Uniqueness is still worth holding across these nine specifically:
+    // they are meant to fire on nine DISTINCT stuck-states, so a phrase
+    // landing on two of them means the phrase is not diagnostic of either.
+    // The wider corpus deliberately allows bounded overlap instead.
     const seen = new Map<string, string>();
     for (const entry of CREATIVE_STRATEGIES) {
       for (const p of entry.matchPhrases ?? []) {
