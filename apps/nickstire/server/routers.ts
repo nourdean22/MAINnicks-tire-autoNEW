@@ -92,6 +92,8 @@ import { closedLoopRouter } from "./routers/closedLoop";
 import { membershipsRouter } from "./routers/memberships";
 import { adStudioRouter } from "./routers/adStudio";
 import { opportunityQueueRouter } from "./routers/opportunityQueue";
+import { promisesRouter } from "./routers/promises";
+import { quoteGuardRouter } from "./routers/quoteGuard";
 
 export const appRouter = router({
   system: systemRouter,
@@ -120,6 +122,8 @@ export const appRouter = router({
   revenueOps: revenueOpsRouter,
   revenueAttribution: revenueAttributionRouter,
   opportunityQueue: opportunityQueueRouter,
+  promises: promisesRouter,
+  quoteGuard: quoteGuardRouter,
   statenourMetrics: statenourMetricsRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,

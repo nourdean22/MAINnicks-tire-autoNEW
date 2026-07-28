@@ -1704,6 +1704,19 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // Promise Ledger sweep (0102) · overdue customer promises
+        // escalate ONCE into the Decision Inbox (promise_overdue) and
+        // rot to `missed` after 48h — the ledger tells the truth about
+        // broken promises. NEVER contacts customers; keeping a promise
+        // stays a human action. No-op until 0102 is applied.
+        name: "promise-sweep",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { sweepOverduePromises } = await import("../services/promiseLedger");
+          return sweepOverduePromises();
+        },
+      },
+      {
         name: "alg-auto-discovery", // Probe ShopDriver API for new endpoints
         handler: async () => {
           // SHOP-PROTECT (wave-100, 2026-05-08): TWO gates now.
