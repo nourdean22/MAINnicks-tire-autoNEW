@@ -76,6 +76,13 @@ Migration **0100 `[VERIFIED-runtime]` — APPLIED to prod** (as was 0099): `alg_
 
 **Customer Promise Ledger** (`customer_promises`, migration **0102 `[VERIFIED-runtime]` APPLIED to prod**; `services/promiseLedger.ts`, tRPC `promises.*`, cron `promise-sweep`) — every promise gets an owner, due time, and auditable outcome. `kept` **requires evidence text** (rejected before any DB work otherwise, test-pinned). Overdue promises escalate ONCE into the Decision Inbox (`promise_overdue`, ≥4h overdue = critical) and rot to `missed` at 48h — the ledger tells the truth about broken promises. **No automated customer sends**: status messages from verified work-order transitions remain a later arc, gated on work-state timestamps being real (per the roadmap's own ordering).
 
+## Operating surfaces (shipped 2026-07-28, final PR of the arc)
+
+`/admin → Today` now carries the full working loop, in order:
+1. **Decision Inbox** — top-5 ranked opportunities (all 5 collectors feeding).
+2. **Promises panel** — 3-tap logging (type chips · one sentence · due quick-picks), **kept requires evidence**, cancel behind two-tap. Overdue rows go red; the sweep escalates them back into the inbox above.
+3. **DVI capture panel** — the audit found the inspection loop had a complete backend and **no inlet** (nothing called `inspection.create`). Now: start check → giant green/yellow/red condition buttons → camera capture (HEIC/iPhone via the existing `uploadPhoto`) → publish → copy customer link. **Sharing the link stays a human action.**
+
 ## Open items this arc did NOT cover
 
 - Runtime verification of legacy flags/last-runs (`FEATURE_DECLINED_RECOVERY` state etc.) — `[UNKNOWN-runtime]`, needs `cron_log`/`railway run`. (Migrations 0099+0100 ARE runtime-verified applied.)
