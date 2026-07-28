@@ -23,17 +23,17 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireSession } from "@/lib/auth-guard";
 import { suggestionLoopStats } from "@/lib/brain/suggestion-loop";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: Request): Promise<Response> {
-  const session = await auth();
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // 2026-07-28 · standardized from `await auth()` to the canonical
+  // requireSession so the sensitive-GET checker recognizes the gate
+  // without widening its signal list (one grep-able idiom for all).
+  try { await requireSession(req); } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); }
 
   const url = new URL(req.url);
   const daysParam = url.searchParams.get("days");
