@@ -113,6 +113,36 @@ export class BrainMemoryManager {
       where: { category_key: { category: effectiveCategory, key } },
     });
 
+    // Spine-2 SHADOW gateway: record what the commit authority WOULD
+    // decide for this write (same-source repetition = noop, changed
+    // claim = update-not-reinforce, weaker-vs-stronger = review, ...).
+    // Fire-and-forget; behavior below is UNCHANGED until the shadow
+    // week's receipts are reviewed.
+    void (async () => {
+      const { shadowMemoryCommit } = await import("./memory-commit-gateway");
+      const { isKnownCategory } = await import("./categories");
+      await shadowMemoryCommit(
+        {
+          category: effectiveCategory,
+          key,
+          content,
+          source,
+          categoryKnown: isKnownCategory(effectiveCategory),
+        },
+        existing
+          ? {
+              content: existing.content,
+              source: existing.source,
+              seenCount: existing.seenCount,
+              confidence: existing.confidence,
+            }
+          : null,
+        existing ? "reinforce" : "create",
+      );
+    })().catch(() => {
+      // shadow observation must never affect the real write path
+    });
+
     if (existing) {
       return this.reinforce(existing.id, content);
     }
