@@ -100,6 +100,14 @@ export interface DashboardStats {
     revenueToday: number;
     revenueThisWeek: number;
     revenueThisMonth: number;
+    /**
+     * When invoice data was last ingested from ALG (ISO string, null when
+     * the table is empty). The mirror is probe-driven (overnight 3 AM +
+     * evening 8 PM + on-demand), so "today" figures can legitimately lag —
+     * the UI shows this timestamp so a $0 day reads as "not synced yet",
+     * never as a silent lie.
+     */
+    dataAsOf: string | null;
     /** Average ticket from invoices */
     avgTicket: number;
     /**
@@ -168,7 +176,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
     memberships: { warning: 0 },
     tires: { new: 0 },
-    shopFloor: { invoicesToday: 0, invoicesThisWeek: 0, invoicesThisMonth: 0, revenueToday: 0, revenueThisWeek: 0, revenueThisMonth: 0, avgTicket: 0, estimatesToday: 0, estimatesThisWeek: 0, conversionRate: 0, declinedWorkCount: 0, declinedWorkValue: 0, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
+    shopFloor: { invoicesToday: 0, invoicesThisWeek: 0, invoicesThisMonth: 0, revenueToday: 0, revenueThisWeek: 0, revenueThisMonth: 0, dataAsOf: null, avgTicket: 0, estimatesToday: 0, estimatesThisWeek: 0, conversionRate: 0, declinedWorkCount: 0, declinedWorkValue: 0, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
   };
 
   if (!d) return defaultStats;
@@ -495,6 +503,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         algEstMatchedMonthRes, algEstUnmatchedMonthRes, algEstUnmatchedValueRes,
         paymentMethodsRes,
         totalCustRes, vipCustRes,
+        lastIngestRes,
       ] = await Promise.all([
         // Wave-97 fix: counts now use the SAME population as revenue
         // (paid-only AND invoiceNumber NOT LIKE 'Estimate#%' to filter
@@ -523,6 +532,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} AND paymentStatus = 'paid' AND invoiceNumber NOT LIKE 'Estimate#%' GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
+        // Freshness: when did the mirror last WRITE an invoice row? createdAt
+        // (ingest time), not invoiceDate (business date) — a 3 AM probe
+        // ingesting yesterday's tickets must read as "synced 3 AM", not
+        // "current through yesterday evening".
+        d.select({ last: sql<Date | string | null>`MAX(createdAt)` }).from(invoices),
       ]);
 
       const invoiceCountMonth = invoicesMonthRes[0]?.count ?? 0;
@@ -545,6 +559,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         revenueToday: (revTodayRes[0]?.total ?? 0) / 100,
         revenueThisWeek: (revWeekRes[0]?.total ?? 0) / 100,
         revenueThisMonth: revenueMonth,
+        dataAsOf: lastIngestRes[0]?.last ? new Date(lastIngestRes[0].last).toISOString() : null,
         avgTicket: invoiceCountMonth > 0 ? Math.round(revenueMonth / invoiceCountMonth) : 0,
         estimatesToday: algEstTodayRes[0]?.count ?? 0,
         estimatesThisWeek: algEstWeekRes[0]?.count ?? 0,
