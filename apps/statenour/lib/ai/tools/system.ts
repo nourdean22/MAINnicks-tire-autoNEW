@@ -1367,6 +1367,21 @@ export const systemTools = {
         if ("error" in res) {
           return { ok: false, error: res.error };
         }
+        // S4 · outcome ledger producer #2: surfacing the decision inbox
+        // in chat is a recommendation event — record it (fire-and-forget)
+        // so decision-surface acceptance becomes measurable.
+        void (async () => {
+          const { recordShown } = await import("@/lib/services/outcome-ledger");
+          const top = (res.data.decisions ?? [])[0] as { recommendedAction?: string } | undefined;
+          await recordShown({
+            kind: "decision_surface",
+            sourceEngine: "getTopDecisions",
+            summary: top?.recommendedAction
+              ? `top: ${String(top.recommendedAction).slice(0, 300)} (+${Math.max(0, (res.data.decisions?.length ?? 1) - 1)} more)`
+              : "decision inbox surfaced (empty top slot)",
+            shownSurface: "chat-tool",
+          });
+        })().catch(() => {});
         return { ok: true, ...res.data };
       } catch (err) {
         const { sanitizeError } = await import("@/lib/utils/sanitize-error");
