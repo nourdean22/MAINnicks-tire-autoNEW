@@ -31,7 +31,11 @@ import {
   buildSequenceMessage,
   TOUCH_ORDER,
   touchToDays,
-  variantKey
+  variantKey,
+  allowedTouches,
+  statedConcernFromDb,
+  RECOVERY_CLOSED_SIGNALS,
+  type ObservedDeclineSignal,
 } from "../../services/declinedRecoverySequence";
 
 const log = createLogger("cron:declined-recovery");
@@ -189,6 +193,9 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       followUp45dSent: algEstimates.followUp45dSent,
       followUp45dAttemptedAt: algEstimates.followUp45dAttemptedAt,
       recoveryProfile: algEstimates.recoveryProfile,
+      // Recovery 2.0 (0100): evidence routing + holdout measurement
+      statedConcern: algEstimates.statedConcern,
+      recoveryHoldout: algEstimates.recoveryHoldout,
     })
     .from(algEstimates)
     .where(
@@ -254,6 +261,8 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   let sent45d = 0;
   let skippedOptOut = 0;
   let skippedNoPhone = 0;
+  let skippedClosed = 0;   // Recovery 2.0: customer said repaired-elsewhere / sold / not-interested
+  let skippedHoldout = 0;  // Recovery 2.0: control group — never contacted, measured against
   let perRowErrors = 0;
 
   // wave-117 · per-run cap. Even with .limit(100) on the query above,
@@ -386,6 +395,38 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
         continue;
       }
 
+      // ── Recovery 2.0 · closed signals END recovery for the estimate ──
+      // The customer told us the outcome (fixed elsewhere / sold the car /
+      // not interested) — continuing to text would be texting past a
+      // stated answer.
+      if (
+        est.statedConcern &&
+        RECOVERY_CLOSED_SIGNALS.includes(est.statedConcern as ObservedDeclineSignal)
+      ) {
+        skippedClosed++;
+        continue;
+      }
+
+      // ── Recovery 2.0 · holdout assignment + skip ─────────────────────
+      // Assigned deterministically (id % 100 < 15 → control) at FIRST
+      // send-eligibility, so control and treated pools share the same
+      // entry criteria. Control rows are never contacted; lift is
+      // measured as treated-vs-holdout matched-invoice rates
+      // (services/recoveryLift.ts) instead of assumed.
+      let holdout = est.recoveryHoldout as number | null;
+      if (holdout === null || holdout === undefined) {
+        holdout = est.id % 100 < 15 ? 1 : 0;
+        try {
+          await d.update(algEstimates).set({ recoveryHoldout: holdout }).where(eq(algEstimates.id, est.id));
+        } catch (e) {
+          log.warn(`[declined-recovery] holdout persist failed for ${est.id}`, { error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      if (holdout === 1) {
+        skippedHoldout++;
+        continue;
+      }
+
       const ageMs = now.getTime() - est.estimateDate.getTime();
       const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
       const name = firstName(est.customerName);
@@ -405,7 +446,25 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       // copy is honest for any recipient) but no new psychographic
       // assignment happens from vehicle/service/amount proxies.
       type ProfileCode = "P0" | "P1" | "P2" | "P3";
+      // Recovery 2.0: a stated concern is EVIDENCE and beats any sticky
+      // legacy assignment — recompute the track whenever one exists.
+      const observedConcern = statedConcernFromDb(est.statedConcern);
       let profile: ProfileCode = (est.recoveryProfile as ProfileCode | null) ?? null as unknown as ProfileCode;
+      if (observedConcern) {
+        const evidenceProfile = pickProfile({
+          amountCents: amount,
+          serviceDescription: est.serviceDescription,
+          statedConcern: observedConcern,
+        });
+        if (evidenceProfile !== profile) {
+          profile = evidenceProfile;
+          try {
+            await d.update(algEstimates).set({ recoveryProfile: profile }).where(eq(algEstimates.id, est.id));
+          } catch (e) {
+            log.warn(`[declined-recovery] evidence profile persist failed for ${est.id}`, { error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+      }
       if (!profile) {
         profile = pickProfile({
           amountCents: amount,
@@ -415,7 +474,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           vehicleYear: customer?.vehicleYear ?? null,
           declineRate: null,
           customerType: null,
-          statedConcern: null, // no decline-reason capture wired yet → P0
+          statedConcern: null, // no stated concern on file → P0
         });
         // Persist for future touches (don't fail the loop if write errors)
         try {
@@ -430,7 +489,14 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       // Stops after one send per estimate so the daily cap of 20 spreads
       // across more customers, not five touches to one customer in one run.
       let touchSentThisRun = false;
+      // Recovery 2.0 · 1-3 adaptive touches: evidence tracks get 2
+      // targeted touches; P0 gets 2 neutral (3rd only if ≥$300 or
+      // safety service). 3d/45d retired from sending. TOUCH_ORDER is
+      // intersected (not replaced) so priority + attempted-column
+      // semantics are unchanged.
+      const allowed = allowedTouches({ profile, amountCents: amount, serviceDescription: est.serviceDescription });
       for (const touch of TOUCH_ORDER) {
+        if (!allowed.includes(touch)) continue;
         const days = touchToDays(touch);
         if (ageDays < days) continue;
 
@@ -545,6 +611,6 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
 
   return {
     recordsProcessed: total,
-    details: `Sent ${sent3d}/3d + ${sent7d}/7d + ${sent14d}/14d + ${sent30d}/30d + ${sent45d}/45d | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone | pool: ${formatMoney(totalRecoverableCents)}`,
+    details: `Sent ${sent3d}/3d + ${sent7d}/7d + ${sent14d}/14d + ${sent30d}/30d + ${sent45d}/45d | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone, ${skippedClosed} closed-signal, ${skippedHoldout} holdout | pool: ${formatMoney(totalRecoverableCents)}`,
   };
 }

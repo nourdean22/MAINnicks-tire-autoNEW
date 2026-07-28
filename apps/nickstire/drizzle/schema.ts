@@ -1441,6 +1441,19 @@ export const algEstimates = mysqlTable("alg_estimates", {
    *  if customer signals shift. Migration 0055. */
   recoveryProfile: varchar("recovery_profile", { length: 8 }),
   recoveryProfileScore: int("recovery_profile_score").default(0).notNull(),
+  /** Recovery 2.0 (migration 0100) · the customer's OWN stated objection —
+   *  "price" | "proof" | "time" | "repaired_elsewhere" | "no_longer_owns" |
+   *  "not_interested". NULL = never stated. Routing may ONLY key off this,
+   *  never off vehicle/service/amount proxies (revenue-truth doctrine). */
+  statedConcern: varchar("stated_concern", { length: 24 }),
+  /** Where the stated concern came from: "operator" | "sms_reply" | "call". */
+  statedConcernSource: varchar("stated_concern_source", { length: 24 }),
+  statedConcernAt: timestamp("stated_concern_at"),
+  /** Recovery holdout flag (0100): NULL = unassigned · 1 = control group
+   *  (never contacted by the recovery cron) · 0 = treated. Deterministic
+   *  at first eligibility (id % 100 < 15). Lift = treated vs holdout
+   *  matched-invoice rates — measured, never assumed. */
+  recoveryHoldout: tinyint("recovery_holdout"),
   /** wave-181.85 · voice recovery escalation (post-D30) · AgentPhone */
   voiceRecoveryAttemptedAt: timestamp("voice_recovery_attempted_at"),
   voiceRecoveryCallId: varchar("voice_recovery_call_id", { length: 64 }),
