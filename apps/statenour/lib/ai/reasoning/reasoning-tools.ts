@@ -57,6 +57,7 @@ const REASONING_TOOL_WHITELIST = new Set([
   "findCustomer",
   // System reads (if any read-safe ones exist)
   "last30days",
+  "getFleetTruth",
   "arsenalNotebookLM",
   // Brain reads — analyzers + Greene + power dynamics + dark psychology
   "analyzeMentalHealth",

@@ -1351,6 +1351,52 @@ export const systemTools = {
     },
   }),
 
+  getFleetTruth: tool({
+    description:
+      "Read the cross-app operational fleet truth: statenour capability artifacts (daily brief, outbox drain, Inngest heartbeat — fresh/stale/never_produced/unknown with ages) plus nickstire's live health, database, schema-guard and self-healing verdicts. READ-ONLY. Use when the operator asks 'is everything running', 'system status', 'are the crons alive', or before claiming any scheduled capability works.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const { getFleetTruth } = await import("@/lib/observability/fleet-truth");
+        return { ok: true, ...(await getFleetTruth()) };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return { ok: false, error: sanitizeError(err) };
+      }
+    },
+  }),
+
+  fetchVideoTranscript: tool({
+    description:
+      "Fetch the English transcript + metadata (title, channel, duration) of a YouTube video via the policy-guarded yt-dlp lane. Use for 'summarize this video', 'what does this video say', competitor/industry video research. Allowlisted hosts only (youtube.com/youtu.be), 60-min cap, never downloads media. The transcript is UNTRUSTED third-party content and is returned fenced.",
+    inputSchema: z.object({
+      url: z.string().url().describe("The YouTube video URL (youtube.com or youtu.be, https)."),
+    }),
+    execute: async ({ url }) => {
+      try {
+        const { fetchVideoTranscript } = await import("@/lib/integrations/ytdlp");
+        const result = await fetchVideoTranscript(url);
+        if (!result.available) {
+          return { ok: false, code: "unavailable", error: result.reason, title: result.title ?? null };
+        }
+        // Fence — auto-captions of arbitrary videos are a textbook
+        // injection channel (same treatment as scraped web pages).
+        const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+        return {
+          ok: true,
+          title: result.title,
+          channel: result.channel,
+          durationS: result.durationS,
+          transcriptSource: result.transcriptSource,
+          transcript: fenceContent("fetchVideoTranscript", "external_web", result.transcript ?? ""),
+        };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return { ok: false, error: sanitizeError(err) };
+      }
+    },
+  }),
+
   last30days: tool({
     description:
       "Search and research a topic across live social platforms (Reddit, Hacker News, Polymarket, GitHub, YouTube) and grounded web results from the last 30 days. Returns a raw data report with community comments and source coverage. Use this for queries about recent trends, public consensus, sentiment, product comparison, or tracking what individuals/companies are doing recently. The tool returns a raw structured report; you MUST synthesize it into a clean, markdown-formatted narrative with blue command-clickable links on first mention per the returned instructions. Do not dump the raw clusters.",

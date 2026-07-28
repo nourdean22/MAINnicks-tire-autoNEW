@@ -318,6 +318,8 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // v10.0.530 · Firecrawl web scraper · converts any URL into
   // clean LLM-ready markdown. Cheap (one API call), read-only.
   { name: "scrapeWebPage",                category: "research",       battle: true,  cost: "cheap",  riskClass: "low", requiredEnv: ["FIRECRAWL_API_KEY"] },
+  { name: "getFleetTruth",                category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
+  { name: "fetchVideoTranscript",         category: "research",       battle: true,  cost: "cheap",  riskClass: "low" },
 ];
 
 /** Fast lookup: name → meta. Built once. */
