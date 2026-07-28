@@ -751,3 +751,88 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
   });
 });
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ambiguous phone match — identity refused, consent preserved
+//
+// `loadCustomerContext` matches on `LIKE '%' + last-10-digits` and used
+// `.limit(1)` with no ORDER BY, so when a shared household line, a business
+// number or a recycled number matched several customers it picked one
+// arbitrarily — and the drafter then stated THAT person's name and vehicle back
+// to whoever actually texted.
+//
+// The refusal has to be asymmetric: withhold IDENTITY (unsafe to guess) while
+// keeping the opt-out signal at its MOST RESTRICTIVE value across all matches
+// (unsafe to lose). Trading a disclosure bug for a consent bug is not a fix.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("SMS orchestrator · ambiguous phone match", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolvedValues = [];
+    mockTableResponses = {
+      customers: [],
+      bookings: [],
+      callback_requests: [],
+      leads: [],
+      alg_estimates: [],
+      sms_conversations: [],
+      sms_messages: [],
+      vapi_call_logs: [],
+      invoices: [],
+    };
+    mockDb.select.mockImplementation(() => createQueryBuilder());
+    mockDb.from.mockImplementation((table) => createQueryBuilder(table));
+    mockDb.where.mockReturnThis();
+    mockDb.orderBy.mockReturnThis();
+    mockDb.limit.mockReturnThis();
+  });
+
+  it("one match -> identity attached, exactly as before", async () => {
+    mockTableResponses.customers = [
+      { id: 1, firstName: "Renee", lastName: "O", smsOptOut: 0, vehicleYear: "2016", vehicleMake: "Honda", vehicleModel: "Odyssey" },
+    ];
+    const ctx = await loadCustomerContext("2165550001");
+    expect(ctx.customerRecord?.firstName).toBe("Renee");
+    expect(ctx.ambiguousPhoneMatch).toBeFalsy();
+    expect(ctx.optOutOnAnyMatch).toBe(false);
+  });
+
+  it("two matches -> NO identity reaches the drafter", async () => {
+    // The disclosure this prevents: telling whoever texted about the other
+    // person's Odyssey, confidently, by name.
+    mockTableResponses.customers = [
+      { id: 1, firstName: "Renee", lastName: "O", smsOptOut: 0, vehicleYear: "2016", vehicleMake: "Honda", vehicleModel: "Odyssey" },
+      { id: 2, firstName: "Marcus", lastName: "T", smsOptOut: 0, vehicleYear: "2009", vehicleMake: "Ford", vehicleModel: "F-150" },
+    ];
+    const ctx = await loadCustomerContext("2165550001");
+    expect(ctx.ambiguousPhoneMatch).toBe(true);
+    expect(ctx.customerRecord).toBeUndefined();
+  });
+
+  it("two matches, ONE opted out -> the opt-out still bites", async () => {
+    // The regression this prevents: refusing the match and losing consent with
+    // it. Most-restrictive wins, and it survives the identity refusal.
+    mockTableResponses.customers = [
+      { id: 1, firstName: "Renee", smsOptOut: 0 },
+      { id: 2, firstName: "Marcus", smsOptOut: 1 },
+    ];
+    const ctx = await loadCustomerContext("2165550001");
+    expect(ctx.customerRecord).toBeUndefined();
+    expect(ctx.optOutOnAnyMatch).toBe(true);
+  });
+
+  it("no match -> unchanged: no identity, no opt-out", async () => {
+    mockTableResponses.customers = [];
+    const ctx = await loadCustomerContext("2165550001");
+    expect(ctx.customerRecord).toBeUndefined();
+    expect(ctx.ambiguousPhoneMatch).toBeFalsy();
+    expect(ctx.optOutOnAnyMatch).toBe(false);
+  });
+
+  it("a single opted-out match still reports the opt-out", async () => {
+    mockTableResponses.customers = [{ id: 1, firstName: "Renee", smsOptOut: 1 }];
+    const ctx = await loadCustomerContext("2165550001");
+    expect(ctx.customerRecord?.smsOptOut).toBe(true);
+    expect(ctx.optOutOnAnyMatch).toBe(true);
+  });
+});

@@ -64,6 +64,26 @@ export interface SmsOrchestratorResult {
 
 export interface CustomerContext {
   phone: string;
+  /**
+   * The phone matched MORE THAN ONE customer row, so no identity is attached.
+   *
+   * `loadCustomerContext` matches on `LIKE '%' + last-10-digits`. A shared
+   * household line, a business number or a recycled number can match several
+   * customers; the lookup used to take `.limit(1)` with no ORDER BY, so it
+   * picked one arbitrarily and the drafter then stated THAT person's name and
+   * vehicle back to whoever actually texted. Refusing the match makes the reply
+   * generic instead of confidently wrong about someone else.
+   */
+  ambiguousPhoneMatch?: boolean;
+  /**
+   * True when ANY customer matching this phone has opted out.
+   *
+   * Separate from `customerRecord` on purpose: identity is refused on an
+   * ambiguous match, but the safety signal must survive it and must take the
+   * MOST RESTRICTIVE value. Losing an opt-out would trade a disclosure bug for
+   * a consent bug.
+   */
+  optOutOnAnyMatch?: boolean;
   customerRecord?: {
     id: number;
     firstName: string;
@@ -182,7 +202,13 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     const { like, eq, and, desc, sql } = await import("drizzle-orm");
 
     // 1. Load customer record
-    const [cust] = await db.select({
+    // AMBIGUITY REFUSES. Same discipline as
+    // scripts/backfill-estimate-customer-link.mjs, which will not link an
+    // estimate to an arbitrary one of several phone matches. Fetch a small
+    // window rather than `.limit(1)`: with no ORDER BY, `.limit(1)` picked a
+    // non-deterministic row, so a shared household line could put one person's
+    // name and vehicle into a reply to a different person.
+    const matches = await db.select({
       id: customers.id,
       firstName: customers.firstName,
       lastName: customers.lastName,
@@ -193,7 +219,21 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     })
     .from(customers)
     .where(like(customers.phone, `%${phone10}`))
-    .limit(1);
+    .limit(5);
+
+    // The safety signal takes the most restrictive value across ALL matches and
+    // survives a refusal — identity is what is unsafe to guess, not consent.
+    ctx.optOutOnAnyMatch = matches.some((m) => m.smsOptOut === 1);
+
+    const cust = matches.length === 1 ? matches[0] : undefined;
+    if (matches.length > 1) {
+      ctx.ambiguousPhoneMatch = true;
+      log.warn("Ambiguous phone match — identity withheld from the drafter", {
+        customerPhoneSuffix: phone10.slice(-4),
+        matchCount: matches.length,
+        optOutOnAnyMatch: ctx.optOutOnAnyMatch,
+      });
+    }
 
     if (cust) {
       ctx.customerRecord = {
@@ -744,8 +784,10 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
       }
     }
 
-    if (ctx.customerRecord) {
-      if (ctx.customerRecord.smsOptOut) {
+    // `optOutOnAnyMatch` rather than `customerRecord.smsOptOut`: on an ambiguous
+    // match there is no customerRecord, and the opt-out must still bite.
+    if (ctx.customerRecord || ctx.optOutOnAnyMatch) {
+      if (ctx.optOutOnAnyMatch) {
         log.info("Orchestrator blocked send: customer opted out", { customerPhoneSuffix: normalizedPhone.slice(-4) });
         status = "blocked";
         statusReason = "customer_opted_out";
