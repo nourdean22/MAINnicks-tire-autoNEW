@@ -46,6 +46,8 @@ export type LoopVerdict =
   | "anomalous"
   /** The run itself failed. Ordinary failure handling owns this. */
   | "failed"
+  /** The job deliberately did nothing — flag off, wrong hour, credential absent. */
+  | "skipped"
   /** No run observed in the window the loop's own schedule guarantees. */
   | "missing"
   /** Not enough observations to judge. Never treat as healthy. */
@@ -79,6 +81,13 @@ export interface LoopShapeContract {
 
 export interface ObservedRun {
   loop: string;
+  /**
+   * The job deliberately did nothing this run. NOT the same as producing
+   * nothing, and the distinction is load-bearing — see `looksSkipped`.
+   */
+  skipped?: boolean;
+  /** `cron_log.details`. Used to detect a skip when `skipped` is not set. */
+  details?: string | null;
   /** The count of the thing the loop exists to produce. `null` = not measured. */
   produced: number | null;
   /** Whether the run itself completed without throwing. */
@@ -192,6 +201,59 @@ export function getLoopContract(loop: string): LoopShapeContract | undefined {
 }
 
 /**
+ * Phrasings this codebase actually uses to say "I deliberately did nothing".
+ *
+ * NOT invented — read off the live jobs. 17 files return a skip-shaped `details`
+ * with `recordsProcessed: 0`, in at least these shapes:
+ *
+ *   "Skip — gbp_auto_posting feature flag is disabled"
+ *   "Skipped · FEATURE_VOICE_RECOVERY != '1'"
+ *   "Skipped · VAPI_API_KEY missing"
+ *   "Not yet evening — skipped"
+ *   "Outside business hours — skipped"
+ *   "Feature disabled"
+ *   "daily_wins_digest flag disabled"
+ *
+ * WHY THIS EXISTS: `cron_log.records_processed` is `int DEFAULT 0`, and the
+ * scheduler writes `recordsProcessed || 0`, so a deliberate skip lands in the
+ * database as the integer 0 — indistinguishable from "ran and produced nothing".
+ * Without this, wiring `classifyRun` to `cron_log` would report every
+ * flag-disabled, outside-hours and missing-credential loop as `dormant`. That is
+ * a false-alarm firehose, and an alerting surface people mute is how `cross_sell`
+ * stayed invisible for two months in the first place (ROS-033).
+ *
+ * `details` is the only discriminator available without a schema change.
+ */
+/**
+ * WHOLE-RUN skip reasons only.
+ *
+ * The first version of this matched any occurrence of "skip", which was a
+ * self-defeating bug: `crossSellOutreach` ends EVERY run with
+ * `${sent} SMS sent, ${skipped} skipped (N v2 predictions in pool)` — a
+ * PER-ITEM count. A loose match classified every cross_sell run as a deliberate
+ * skip, which would have permanently hidden the exact ROS-033 dormancy this
+ * module exists to detect. Caught in review on #1145.
+ *
+ * So the discriminator is POSITION, not presence. A whole-run skip announces
+ * itself up front or is the entire content of the message; a per-item skip is a
+ * tally that arrives after a count of real work.
+ */
+const WHOLE_RUN_SKIP = [
+  // "Skip — gbp_auto_posting feature flag is disabled" · "Skipped · VAPI_API_KEY missing"
+  /^\s*skip(ped)?\b/i,
+  // "Not yet evening — skipped" · "Outside business hours — skipped".
+  // No digit anywhere: a per-item tally always reports counts.
+  /^[^0-9]*[·—-]\s*skipped\.?\s*$/i,
+  // "Feature disabled" · "daily_wins_digest flag disabled"
+  /^[^0-9]*\b(feature|flag)\b[^0-9]*\bdisabled\b[^0-9]*$/i,
+];
+
+export function looksSkipped(details: string | null | undefined): boolean {
+  if (!details) return false;
+  return WHOLE_RUN_SKIP.some((rx) => rx.test(details.trim()));
+}
+
+/**
  * Classify one observed run against its contract.
  *
  * Pure. No clock, no database, no alerting — pass in what was observed and get
@@ -232,12 +294,30 @@ export function classifyRun(observed: ObservedRun): LoopFinding {
     };
   }
 
+  // SCHEDULE COVERAGE IS CHECKED BEFORE SKIP STATUS. A daily loop whose only
+  // execution in seven days was a deliberate skip has still stopped running, and
+  // returning a silent `skipped` first would hide that (caught in review on
+  // #1145). Whether the one run we saw did nothing on purpose is a separate
+  // question from whether the loop is running at all.
   if (observed.runsInWindow !== undefined && observed.runsInWindow < contract.expectedRunsPerWeek / 2) {
     return {
       ...base,
       verdict: "missing",
       summary: `${contract.loop} ran ${observed.runsInWindow} times in 7 days, expected about ${contract.expectedRunsPerWeek}.`,
       actionable: true,
+    };
+  }
+
+  // A deliberate skip is not an outcome. It must not count toward the dormancy
+  // streak either — the CALLER is responsible for excluding skipped runs when it
+  // computes `priorZeroRuns`, because a loop that is switched off is not a loop
+  // that is broken.
+  if (observed.skipped || looksSkipped(observed.details)) {
+    return {
+      ...base,
+      verdict: "skipped",
+      summary: `${contract.loop} deliberately did nothing${observed.details ? ` (${observed.details})` : ""}.`,
+      actionable: false,
     };
   }
 
