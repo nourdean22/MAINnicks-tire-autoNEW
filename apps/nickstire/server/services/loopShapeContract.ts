@@ -46,6 +46,8 @@ export type LoopVerdict =
   | "anomalous"
   /** The run itself failed. Ordinary failure handling owns this. */
   | "failed"
+  /** The job deliberately did nothing — flag off, wrong hour, credential absent. */
+  | "skipped"
   /** No run observed in the window the loop's own schedule guarantees. */
   | "missing"
   /** Not enough observations to judge. Never treat as healthy. */
@@ -79,6 +81,13 @@ export interface LoopShapeContract {
 
 export interface ObservedRun {
   loop: string;
+  /**
+   * The job deliberately did nothing this run. NOT the same as producing
+   * nothing, and the distinction is load-bearing — see `looksSkipped`.
+   */
+  skipped?: boolean;
+  /** `cron_log.details`. Used to detect a skip when `skipped` is not set. */
+  details?: string | null;
   /** The count of the thing the loop exists to produce. `null` = not measured. */
   produced: number | null;
   /** Whether the run itself completed without throwing. */
@@ -192,6 +201,45 @@ export function getLoopContract(loop: string): LoopShapeContract | undefined {
 }
 
 /**
+ * Phrasings this codebase actually uses to say "I deliberately did nothing".
+ *
+ * NOT invented — read off the live jobs. 17 files return a skip-shaped `details`
+ * with `recordsProcessed: 0`, in at least these shapes:
+ *
+ *   "Skip — gbp_auto_posting feature flag is disabled"
+ *   "Skipped · FEATURE_VOICE_RECOVERY != '1'"
+ *   "Skipped · VAPI_API_KEY missing"
+ *   "Not yet evening — skipped"
+ *   "Outside business hours — skipped"
+ *   "Feature disabled"
+ *   "daily_wins_digest flag disabled"
+ *
+ * WHY THIS EXISTS: `cron_log.records_processed` is `int DEFAULT 0`, and the
+ * scheduler writes `recordsProcessed || 0`, so a deliberate skip lands in the
+ * database as the integer 0 — indistinguishable from "ran and produced nothing".
+ * Without this, wiring `classifyRun` to `cron_log` would report every
+ * flag-disabled, outside-hours and missing-credential loop as `dormant`. That is
+ * a false-alarm firehose, and an alerting surface people mute is how `cross_sell`
+ * stayed invisible for two months in the first place (ROS-033).
+ *
+ * `details` is the only discriminator available without a schema change.
+ */
+const SKIP_PHRASINGS =
+  /(^|[\s·—-])skip(ped)?\b|\bfeature (flag )?(is )?disabled\b|\bflag (is )?disabled\b|\boutside business hours\b|\bnot (yet )?evening\b|\bmissing\b.*\b(key|id|token|credential)|\bnot within\b|\balready ran\b/i;
+
+/**
+ * Best-effort detection of a deliberate skip from a `cron_log.details` string.
+ *
+ * Deliberately GENEROUS: a missed skip becomes a false dormancy alarm, while a
+ * false skip only costs one silent run — and the dormancy streak is what
+ * ultimately catches a genuinely dead loop anyway. Prefer under-alerting here.
+ */
+export function looksSkipped(details: string | null | undefined): boolean {
+  if (!details) return false;
+  return SKIP_PHRASINGS.test(details);
+}
+
+/**
  * Classify one observed run against its contract.
  *
  * Pure. No clock, no database, no alerting — pass in what was observed and get
@@ -218,6 +266,19 @@ export function classifyRun(observed: ObservedRun): LoopFinding {
       verdict: "failed",
       summary: `${contract.loop} failed. Ordinary failure handling owns this.`,
       actionable: true,
+    };
+  }
+
+  // A deliberate skip is not an outcome. It must not count toward the dormancy
+  // streak either — the CALLER is responsible for excluding skipped runs when it
+  // computes `priorZeroRuns`, because a loop that is switched off is not a loop
+  // that is broken.
+  if (observed.skipped || looksSkipped(observed.details)) {
+    return {
+      ...base,
+      verdict: "skipped",
+      summary: `${contract.loop} deliberately did nothing${observed.details ? ` (${observed.details})` : ""}.`,
+      actionable: false,
     };
   }
 
