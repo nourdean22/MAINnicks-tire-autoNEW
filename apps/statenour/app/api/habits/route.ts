@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { HABITS } from "@/lib/mastery/config";
 import { apiHandler } from "@/lib/utils/http";
 import { today } from "@/lib/utils/datetime";
+import { logError } from "@/lib/utils/error-log";
 
 /**
  * Apr 19 · MasteryHabit retired (the underlying table was dropped
@@ -35,7 +36,10 @@ export const GET = apiHandler(async (req) => {
         const enabled = parsed.filter((h: any) => h.enabled !== false).map((h: any) => h.key);
         if (enabled.length > 0) enabledKeys = new Set(enabled);
       }
-    } catch {}
+    } catch {
+      // Synthetic message — config content stays out of ErrorLog.
+      logError("api.habits", new Error("habit config JSON parse failed"), { stage: "enabled-keys" }, "warn");
+    }
   }
 
   // Loose match: habit key tokens appear in task title (case-insensitive).

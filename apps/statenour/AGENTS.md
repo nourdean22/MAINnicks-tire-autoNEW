@@ -13,7 +13,7 @@
 
 **Versioning:** the `v10.0.X` scheme is retired — commits use `fix · statenour · …` / `docs · statenour · …`.
 
-**Tests:** the vitest suite EXITS 1 even when your work is green — ~12 pre-existing unhandled-rejection errors + an intermittent `tests/ai/agents/router.test.ts` mock-order flake. (The old `tests/components/chat-composer.test.tsx` failure was REPAIRED 2026-07-22 in PR #1025 — do not treat it as a known-red.) So do NOT claim "all tests pass" and do NOT trust `$?`: read the vitest **summary line**, and confirm the files YOUR change touched are green (run them explicitly — `tsconfig` excludes `tests/`, so `tsc` never catches a broken test import). Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
+**Tests:** the suite is GREEN and exits 0 (measured 2026-07-28: 390 files, 4,419 passed | 1 skipped, exit 0). The old "EXITS 1 on ~12 pre-existing unhandled rejections" era is OVER — a non-zero exit now means a REAL failure; do not explain it away as folklore. Two standing caveats: (1) never export real API keys / prod `DATABASE_URL` into the test shell — provider-chain tests reorder with live keys present and the empty-DB smoke sees real data (phantom failures); (2) still read the vitest **summary line** and run the files YOUR change touched explicitly — `tsconfig` excludes `tests/`, so `tsc` never catches a broken test import. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
 
 ## 2 · How we work
 

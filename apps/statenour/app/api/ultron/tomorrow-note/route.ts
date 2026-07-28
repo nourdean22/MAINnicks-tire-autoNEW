@@ -10,6 +10,7 @@ import { daysAgo, toDateString } from "@/lib/utils/datetime";
 
 import { requireSession } from "@/lib/auth-guard";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 /**
  * GET  /api/ultron/tomorrow-note — latest draft for tomorrow (if cached in BrainMemory)
  * POST /api/ultron/tomorrow-note — generate a fresh draft from today's state
@@ -86,7 +87,13 @@ export async function GET(req: Request) {
     if (isStaleNote(parsed)) {
       await prisma.brainMemory
         .delete({ where: { id: row.id } })
-        .catch(() => null);
+        .catch((e: unknown) => {
+          // If the stale-note delete fails, the stale note is re-served forever.
+          if ((e as { code?: string })?.code !== "P2025") {
+            logError("ultron.tomorrow-note", e, { stage: "invalidate-stale" }, "warn");
+          }
+          return null;
+        });
       return NextResponse.json({ data: null, invalidated: "stale-score-ref" });
     }
 

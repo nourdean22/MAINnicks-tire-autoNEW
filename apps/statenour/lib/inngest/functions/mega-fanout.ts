@@ -47,6 +47,7 @@ import { onInngestFailure } from "../on-failure";
 import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../jobs";
 import { logger as rootLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("inngest/mega-fanout");
 
@@ -267,7 +268,7 @@ export const megaFanoutMorning = inngest.createFunction(
     await step.run("mega-heartbeat", async () => {
       await prisma.cronJobLog
         .create({ data: megaHeartbeatData("mega", sum) })
-        .catch(() => {});
+        .catch((e) => logError("inngest.mega-fanout", e, { stage: "heartbeat", slot: "mega" }, "warn"));
       return { logged: "mega" };
     });
     if (sum.jobsFailed > 0) {
@@ -336,7 +337,7 @@ export const megaFanoutEvening = inngest.createFunction(
     await step.run("mega-heartbeat", async () => {
       await prisma.cronJobLog
         .create({ data: megaHeartbeatData("mega-evening", sum) })
-        .catch(() => {});
+        .catch((e) => logError("inngest.mega-fanout", e, { stage: "heartbeat", slot: "mega-evening" }, "warn"));
       return { logged: "mega-evening" };
     });
     if (sum.jobsFailed > 0) {

@@ -24,6 +24,7 @@ const aiChat = makeTracedAiChat("wisdom-distiller");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 interface WisdomCandidate {
   theme: string;
@@ -429,6 +430,8 @@ export async function validateWisdom(): Promise<{
   });
 
   let validated = 0, aged = 0, contradicted = 0;
+  let confWriteFails = 0;
+  let lastConfWriteErr: unknown = null;
 
   for (const w of wisdom) {
     const ageDays = Math.round((Date.now() - w.updatedAt.getTime()) / 86400000);
@@ -439,7 +442,7 @@ export async function validateWisdom(): Promise<{
       await prisma.brainMemory.update({
         where: { id: w.id },
         data: { confidence: newConf },
-      }).catch(() => {});
+      }).catch((e) => { confWriteFails++; lastConfWriteErr = e; });
       aged++;
     }
 
@@ -448,9 +451,15 @@ export async function validateWisdom(): Promise<{
       await prisma.brainMemory.update({
         where: { id: w.id },
         data: { confidence: Math.min(0.95, w.confidence + 0.05) },
-      }).catch(() => {});
+      }).catch((e) => { confWriteFails++; lastConfWriteErr = e; });
       validated++;
     }
+  }
+
+  // Aggregated: one log per run, never per row — a DB blip during the
+  // 200-row loop must not flood ErrorLog (phase-1 rule 1).
+  if (confWriteFails > 0) {
+    logError("brain.wisdom-distiller", lastConfWriteErr, { stage: "confidence-decay-reinforce", failedWrites: confWriteFails }, "warn");
   }
 
   // Check for contradictions: wisdom that conflicts with recent counter-intuitive findings

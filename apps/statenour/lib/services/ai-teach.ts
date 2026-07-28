@@ -21,6 +21,7 @@ import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 import { prisma } from "@/lib/prisma";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("service/ai-teach");
 
@@ -94,7 +95,9 @@ export async function runTeach(input: {
             .join("\n");
       }
     }
-  } catch {}
+  } catch (e) {
+    logError("services.ai-teach", e, { stage: "recall-memories" }, "warn");
+  }
 
   const prompt = `Nour wants to learn: "${topic}".
 

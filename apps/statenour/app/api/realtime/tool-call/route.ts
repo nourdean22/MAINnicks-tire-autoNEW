@@ -27,6 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 export const runtime = "nodejs";
 
@@ -279,7 +280,10 @@ export async function POST(req: NextRequest) {
         // manual pin · Wave 34 pattern).
         void prisma.brainMemory.deleteMany({
           where: { category: "system_prompt_cache" },
-        }).catch(() => null);
+        }).catch((e) => {
+          logError("realtime.tool-call", e, { stage: "prompt-cache-flush" }, "warn");
+          return null;
+        });
 
         log.info("voice_tool_pinMemory", { callId: body.callId, pinId: row.id, label });
         return NextResponse.json({

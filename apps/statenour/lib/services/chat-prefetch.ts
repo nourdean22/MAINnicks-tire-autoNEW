@@ -25,6 +25,7 @@ import {
   warmToolEmbeddings,
   isToolEmbeddingCacheWarm,
 } from "@/lib/ai/tool-embeddings";
+import { logError } from "@/lib/utils/error-log";
 
 export interface ChatPrefetchResult {
   ok: boolean;
@@ -135,7 +136,9 @@ export async function runChatPrefetch(args: {
     try {
       const results = await prefetchIntents(draft);
       prefetchHits = results.length;
-    } catch {}
+    } catch (e) {
+      logError("services.chat-prefetch", e, { stage: "prefetch-intents" }, "warn");
+    }
   }
 
   // Kick off tool embedding warm-up in the background (no await).

@@ -20,6 +20,7 @@ const aiChat = makeTracedAiChat("conversation-memory", "chat");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/conversation-memory");
 
@@ -568,7 +569,9 @@ Rules:
     }
 
     return lines.join("\n");
-  } catch {}
+  } catch (e) {
+    logError("brain.conversation-memory", e, { stage: "past-thread-connections" }, "warn");
+  }
 
   return null;
 }

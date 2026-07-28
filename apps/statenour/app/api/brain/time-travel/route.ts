@@ -21,6 +21,7 @@ import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -169,7 +170,9 @@ export const GET = apiHandler(
         };
         healthOverall = d.overall ?? null;
         healthWarnings = d.counts?.warning ?? null;
-      } catch {}
+      } catch (e) {
+        logError("api.time-travel", e, { stage: "health-snapshot" }, "warn");
+      }
     }
 
     return {

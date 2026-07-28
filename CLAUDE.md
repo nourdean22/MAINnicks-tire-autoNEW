@@ -40,7 +40,7 @@ Root shortcuts (`package.json`): `pnpm nick <script>` / `pnpm stn <script>` / `p
 Single tests (run from the app directory):
 
 - **nickstire** — `pnpm exec vitest run path/to/file.test.ts --pool=forks --poolOptions.forks.singleFork=true`. Serial mode is mandatory (parallel rotates import-timeout flakes on Windows) and shares ONE process across files — follow the test-hygiene rules in `apps/nickstire/AGENTS.md` §3 (unmock/unstub/env-restore in `afterEach`).
-- **statenour** — `pnpm exec vitest run path/to/file.test.ts`. Build lenses first (`turbo build --filter=@statenour/lenses` from root) or strategic-frameworks imports fail. The full suite passes but EXITS 1 on pre-existing unhandled rejections — read the vitest summary line, never `$?` (and never pipe to `tail`).
+- **statenour** — `pnpm exec vitest run path/to/file.test.ts`. Build lenses first (`turbo build --filter=@statenour/lenses` from root) or strategic-frameworks imports fail. The suite exits 0 when green (measured 2026-07-28: 390 files, 4,419 passed, exit 0 — the old "passes but exits 1 on unhandled rejections" era is over); a non-zero exit is REAL. Caveat: exporting real API keys / prod DATABASE_URL into the shell reorders provider-chain tests and breaks the empty-DB smoke — run tests without sourced env.
 
 ## Per-app entry points (read before touching an app)
 

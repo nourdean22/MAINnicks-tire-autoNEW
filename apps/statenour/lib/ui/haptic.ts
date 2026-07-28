@@ -64,7 +64,9 @@ export const haptic = {
     if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(STORAGE_KEY, on ? "1" : "0");
-    } catch {}
+    } catch {
+      // Safari private mode / storage quota — the preference just doesn't persist.
+    }
   },
   /** Read current preference (defaults true if supported) */
   isEnabled,

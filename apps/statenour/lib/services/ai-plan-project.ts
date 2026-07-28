@@ -35,6 +35,7 @@ import {
   type CoachEntry,
 } from "@/lib/ai/project-plan";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("service/ai-plan-project");
 
@@ -155,7 +156,9 @@ async function loadBrainContext(title: string): Promise<{
             .join("\n");
       }
     }
-  } catch {}
+  } catch (e) {
+    logError("services.ai-plan-project", e, { stage: "recall-memories" }, "warn");
+  }
 
   let decisionContext = "";
   try {
@@ -180,7 +183,9 @@ async function loadBrainContext(title: string): Promise<{
             .join("\n");
       }
     }
-  } catch {}
+  } catch (e) {
+    logError("services.ai-plan-project", e, { stage: "recall-decisions" }, "warn");
+  }
 
   return { memoryContext, decisionContext };
 }

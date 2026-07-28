@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import { apiHandler } from "@/lib/utils/http";
 import { redactPaths } from "@/lib/research/redact";
+import { logError } from "@/lib/utils/error-log";
 
 const monorepoRoot = path.join(process.cwd(), "..", "..");
 const runtimeStatusPath = path.join(process.cwd(), ".runtime", "research-lab-status.json");
@@ -41,7 +42,9 @@ export const GET = apiHandler(
         status.packCount = fs.readdirSync(packsDir).filter((f) => {
           return fs.statSync(path.join(packsDir, f)).isDirectory();
         }).length;
-      } catch {}
+      } catch (e) {
+        logError("api.research-status", e, { stage: "pack-count" }, "warn");
+      }
     }
 
     // Redact everything just in case

@@ -18,6 +18,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
+import { logError } from "@/lib/utils/error-log";
 
 export interface MatchedLaw {
   id: string;
@@ -90,7 +91,10 @@ async function loadLawIndex(): Promise<MatchedLaw[]> {
         try {
           const parsed = JSON.parse(r.triggerPatterns);
           if (Array.isArray(parsed)) patterns = parsed.filter((x): x is string => typeof x === "string");
-        } catch {}
+        } catch {
+          // Synthetic message — stored content must not leak into ErrorLog.
+          logError("ultron.adviser", new Error("triggerPatterns JSON parse failed"), { stage: "parse-trigger-patterns" }, "warn");
+        }
       }
       return {
         id: r.id,

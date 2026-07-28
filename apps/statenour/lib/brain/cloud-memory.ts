@@ -11,6 +11,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logError } from "@/lib/utils/error-log";
 
 interface BrainSnapshot {
   timestamp: string;
@@ -215,7 +216,9 @@ export async function getBrainContinuitySummary(): Promise<string | null> {
     if (continuityScore < 50) {
       lines.push(`⚠️ Low continuity (${continuityScore}/100) — significant state changes since last session. Reorient before acting.`);
     }
-  } catch {}
+  } catch (e) {
+    logError("brain.cloud-memory", e, { stage: "continuity-score" }, "warn");
+  }
 
   return lines.join("\n");
 }
@@ -254,7 +257,9 @@ export async function detectContradictions(): Promise<string[]> {
     if (storedReviewCount?.content.includes("1,500") || storedReviewCount?.content.includes("1,600")) {
       contradictions.push("Review count memory is stale — current count is 1,700+");
     }
-  } catch {}
+  } catch (e) {
+    logError("brain.cloud-memory", e, { stage: "contradiction-check" }, "warn");
+  }
 
   return contradictions;
 }
