@@ -497,9 +497,20 @@ async function runDraft(
   const aiChat = tracedAiChat;
 
   // Greene + dark-psychology tactical context injection (2026-06-20).
-  // Deterministic keyword match · sub-millisecond · self-gating (returns ""
-  // when nothing matches). Prepended to the reasoning context so the draft
-  // step sees relevant tactical patterns alongside fanout/tool data.
+  // Deterministic phrase match · sub-millisecond · self-gating (returns ""
+  // when nothing matches), with an embedding-backed vector fallback on the
+  // miss path. Prepended to the reasoning context so the draft step sees
+  // relevant tactical patterns alongside fanout/tool data.
+  //
+  // 2026-07-28 · the previous wording said "keyword match … self-gating
+  // (returns "" when nothing matches)" and was accurate in intent but
+  // actively misleading in practice: the Greene corpus scored against
+  // sentence-form `triggers` that no operator message ever contains, so
+  // this call returned "" on EVERY turn, and self-gating made permanent
+  // failure indistinguishable from "nothing relevant matched." Retrieval
+  // here was zero from 2026-06-20 until the matchPhrases + embedOnMiss
+  // work in this change. Keeping the note so the next person reading a
+  // quiet self-gating block treats silence as a hypothesis, not a status.
   let tacticalContext = "";
   try {
     const [greeneBlock, darkPsychBlock] = await Promise.all([
