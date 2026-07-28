@@ -174,6 +174,24 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
       }
     } catch (e) { log.warn("[morningBrief] opportunity queue load failed:", e); }
 
+    // ─── Promise ledger truth (W4) — kept-rate from real resolutions ──
+    // Only renders once promises EXIST; zero-promise days say nothing
+    // (no invented rates, no nagging about an unused feature).
+    let promisesBlock = "";
+    try {
+      const { promiseLedgerStats } = await import("../../services/promiseLedger");
+      const ps = await promiseLedgerStats(30);
+      if (ps && ps.created > 0) {
+        const kept = ps.keptOnTime + ps.keptLate;
+        promisesBlock =
+          `
+PROMISES (30d, from the ledger): ${ps.created} made · ${kept} kept` +
+          `${ps.keptLate > 0 ? ` (${ps.keptLate} late${ps.avgKeptLateHours != null ? `, avg ${ps.avgKeptLateHours}h over` : ""})` : ""}` +
+          `${ps.missed > 0 ? ` · ${ps.missed} MISSED` : ""}` +
+          `${ps.open > 0 ? ` · ${ps.open} open` : ""}`;
+      }
+    } catch (e) { log.warn("[morningBrief] promise ledger stats failed:", e); }
+
     // ─── Brief self-review: did yesterday's brief drive action? ────
     let briefReviewBlock = "";
     try {
@@ -297,7 +315,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${decisionsBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${decisionsBlock}${promisesBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,

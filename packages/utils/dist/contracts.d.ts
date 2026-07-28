@@ -45,7 +45,7 @@ export declare const MEMORY_EVIDENCE_CLASSES: readonly ["operator_stated", "dire
 export type MemoryEvidenceClass = (typeof MEMORY_EVIDENCE_CLASSES)[number];
 export declare const MEMORY_DECISIONS: readonly ["add", "reinforce", "update", "supersede", "review_required", "noop"];
 export type MemoryDecision = (typeof MEMORY_DECISIONS)[number];
-export declare const TRIAGE_DECISIONS: readonly ["do_today", "schedule", "available", "someday", "kill"];
+export declare const TRIAGE_DECISIONS: readonly ["today", "schedule", "anytime", "someday", "kill", "snooze"];
 export type TriageDecision = (typeof TRIAGE_DECISIONS)[number];
 export declare const isProbeOutcome: (v: string) => v is ProbeOutcome;
 export declare const isOpportunityState: (v: string) => v is OpportunityState;

@@ -83,6 +83,13 @@ function relTime(iso: string): string {
 }
 
 export function ActiveAlertsCard() {
+  const utils = trpc.useUtils();
+  const resolveMutation = trpc.brain.resolveAlert.useMutation({
+    onSuccess: () => void utils.brain.activeAlerts.invalidate(),
+  });
+  const muteMutation = trpc.brain.muteAlertCategory.useMutation({
+    onSuccess: () => void utils.brain.activeAlerts.invalidate(),
+  });
   // v8.3 BATCH 13 · React Query drives the fetch · the card used a
   // one-shot `load()` (no interval) · same here · the FreshnessChip
   // reload maps to `refetch()` and lastFetchedAt to `dataUpdatedAt`.
@@ -93,7 +100,18 @@ export function ActiveAlertsCard() {
     : null;
 
   if (alertsQuery.isLoading && !payload) return null; // silent loading — appears once data arrives
-  if (alertsQuery.isError && !payload) return null; // silent error
+  if (alertsQuery.isError && !payload) {
+    // W3: a failed fetch is UNKNOWN state, not "no alerts" — render it.
+    return (
+      <GlassCard>
+        <p className="text-[12px] text-red-400 flex items-center gap-2">
+          <AlertTriangle size={13} />
+          Alerts couldn't load — state unknown, not empty.
+          <button onClick={() => void alertsQuery.refetch()} className="underline text-[11px]">retry</button>
+        </p>
+      </GlassCard>
+    );
+  }
   if (!payload) return null;
 
   const totalAlerts = Object.values(payload.counts).reduce((a, b) => a + b, 0);
@@ -126,6 +144,14 @@ export function ActiveAlertsCard() {
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
                   {meta.label} · {items.length}
                 </span>
+                <button
+                  onClick={() => muteMutation.mutate({ category, days: 7 })}
+                  disabled={muteMutation.isPending}
+                  title="Mute this alert type for 7 days"
+                  className="ml-auto text-[9px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-amber-300 border border-white/8 rounded px-1.5 py-0.5"
+                >
+                  mute 7d
+                </button>
               </div>
               <ul className="space-y-1.5">
                 {items.map((alert) => (
@@ -133,7 +159,17 @@ export function ActiveAlertsCard() {
                     key={alert.id}
                     className={"rounded-md border p-2.5 " + meta.tint}
                   >
-                    <p className="text-[11px] leading-snug">{alert.content}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[11px] leading-snug flex-1">{alert.content}</p>
+                      <button
+                        onClick={() => resolveMutation.mutate({ id: alert.id })}
+                        disabled={resolveMutation.isPending}
+                        title="Resolve (removes this alert)"
+                        className="text-[10px] opacity-60 hover:opacity-100 border border-white/10 rounded px-1.5 py-0.5 shrink-0"
+                      >
+                        resolve
+                      </button>
+                    </div>
                     <p className="mt-1 text-[10px] opacity-70">{relTime(alert.createdAt)}</p>
                   </li>
                 ))}

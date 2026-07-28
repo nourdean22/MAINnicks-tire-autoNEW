@@ -460,6 +460,46 @@ export const brainRouter = router({
     ),
 
   /**
+   * W3 alert lifecycle · resolve = soft-delete the alert row (alerts ARE
+   * brainMemory rows; recall + the builder already exclude deletedAt) ·
+   * receipt lives in the row's deletedAt. mute = expiring alert_mute row
+   * per category, honored server-side in buildActiveAlerts.
+   */
+  resolveAlert: operatorProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const res = await prisma.brainMemory.updateMany({
+        where: { id: input.id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      return { ok: res.count === 1 };
+    }),
+
+  muteAlertCategory: operatorProcedure
+    .input(z.object({ category: z.string().min(1).max(64), days: z.number().int().min(1).max(90).default(7) }))
+    .mutation(async ({ input, ctx }) => {
+      const { prisma } = await import("@/lib/prisma");
+      await prisma.brainMemory.upsert({
+        where: { category_key: { category: "alert_mute", key: input.category } },
+        create: {
+          category: "alert_mute",
+          key: input.category,
+          content: `muted by ${ctx.session.email ?? "operator"} for ${input.days}d`,
+          confidence: 1,
+          source: "alert-lifecycle",
+          expiresAt: new Date(Date.now() + input.days * 86_400_000),
+        },
+        update: {
+          content: `muted by ${ctx.session.email ?? "operator"} for ${input.days}d`,
+          expiresAt: new Date(Date.now() + input.days * 86_400_000),
+          deletedAt: null,
+        },
+      });
+      return { ok: true as const, until: new Date(Date.now() + input.days * 86_400_000).toISOString() };
+    }),
+
+  /**
    * Phase B.6d · owner-only · the curated belief library · active
    * beliefs + pending candidates. Replaces GET /api/beliefs ·
    * delegates to the shared `belief-harvester` lib functions the REST

@@ -102,9 +102,22 @@ export async function buildActiveAlerts(args: {
   sinceDays: number;
 }): Promise<ActiveAlertsView> {
   const since = new Date(Date.now() - args.sinceDays * 86_400_000);
+  // W3 alert lifecycle: category mutes are expiring brainMemory rows
+  // (category alert_mute, key = muted category, expiresAt = mute end).
+  // Server-side so mutes hold across devices; expiry is natural TTL.
+  const muteRows = await prisma.brainMemory.findMany({
+    where: {
+      category: "alert_mute",
+      deletedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    select: { key: true },
+  });
+  const muted = new Set(muteRows.map((m) => m.key));
+  const activeCategories = ALERT_CATEGORIES.filter((c) => !muted.has(c));
   const rows = await prisma.brainMemory.findMany({
     where: {
-      category: { in: [...ALERT_CATEGORIES] },
+      category: { in: [...activeCategories] },
       createdAt: { gte: since },
       deletedAt: null,
     },

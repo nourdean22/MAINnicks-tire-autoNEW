@@ -74,10 +74,13 @@ export const MEMORY_DECISIONS = [
     "review_required",
     "noop",
 ];
-// ─── Task triage (statenour spine-5) ────────────────────────────────
-// Source: apps/statenour/lib/services/task-triage.ts — five mandatory
-// exits mapped onto the existing TaskStatus vocabulary.
-export const TRIAGE_DECISIONS = ["do_today", "schedule", "available", "someday", "kill"];
+// ─── Task triage (statenour) ────────────────────────────────────────
+// Source: apps/statenour/lib/trpc/routers/task.ts `triage` mutation —
+// the Things-style one-item flow InboxTasksTriage drives on Home.
+// (A spine-5 parallel contract briefly existed with different words and
+// was deleted 2026-07-28 when the incumbent was rediscovered — this
+// registry exists precisely so that stops happening.)
+export const TRIAGE_DECISIONS = ["today", "schedule", "anytime", "someday", "kill", "snooze"];
 // ─── Guards ─────────────────────────────────────────────────────────
 const setOf = (arr) => new Set(arr);
 const probeSet = setOf(PROBE_OUTCOMES);

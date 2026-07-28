@@ -551,28 +551,6 @@ export const taskRouter = router({
     .input(z.record(z.string(), z.unknown()))
     .mutation(async ({ input }) => createTaskFromAPI(input)),
 
-  // ── Spine-5 · mandatory-exit triage (one item, real choices) ──
-  triageNext: operatorProcedure.query(async () => {
-    const { triageNext } = await import("@/lib/services/task-triage");
-    return triageNext();
-  }),
-
-  triageDecide: operatorProcedure
-    .input(z.object({
-      taskId: z.string().min(1),
-      decision: z.enum(["do_today", "schedule", "available", "someday", "kill"]),
-      startAt: z.coerce.date().optional(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const { triageDecide } = await import("@/lib/services/task-triage");
-      return triageDecide({
-        taskId: input.taskId,
-        decision: input.decision,
-        startAt: input.startAt ?? null,
-        by: ctx.session.email ?? "operator",
-      });
-    }),
-
   /**
    * Phase SS · owner-only · create a mission (the Inbox auto-create
    * path uses this when no mission exists yet). Delegates to
