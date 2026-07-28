@@ -1,7 +1,7 @@
 # Revenue-automation state matrix
 
 > Wave-0 deliverable of the revenue-truth-correction arc (2026-07-28).
-> **Clarity-gated:** end-of-arc snapshot with claim ledger + verification record at [`REVENUE-AUTOMATION-STATE.2026-07-28.cgd.md`](./REVENUE-AUTOMATION-STATE.2026-07-28.cgd.md) — 2 claims still awaiting operator confirmation (IG cap, J.D. Power figures).
+> **Clarity-gated: CLEAR | REVIEWED** — end-of-arc snapshot with claim ledger + verification record at [`REVENUE-AUTOMATION-STATE.2026-07-28.cgd.md`](./REVENUE-AUTOMATION-STATE.2026-07-28.cgd.md). Both Round-B claims resolved 2026-07-28: IG cap is **20/day** (operator; prod policy v8 concurs), J.D. Power 41%/17% **verified** via Business Wire syndication.
 > **Epistemic key:** `[VERIFIED]` = confirmed by reading code on 2026-07-28 · `[FIXED <PR>]` = corrected in that PR · `[UNKNOWN-runtime]` = prod flag/last-run state NOT checked — `.env` is not prod config; verify via `cron_log`, `/api/health`, or `railway run` only.
 >
 > Scope note: this matrix records what each automation's CODE does and which truth defects were found/fixed. It makes **no** claims about production flag state, last run, or measured lift — those columns stay `[UNKNOWN-runtime]` until read from prod.
@@ -84,7 +84,7 @@ Migration **0100 `[VERIFIED-runtime]` — APPLIED to prod** (as was 0099): `alg_
 - **View tracking**: `firstViewedAt` + `viewCount`, beacon fired once per page load (`inspection.recordView`). "Did they open it" is now answerable.
 - **Per-item customer decisions**: Approve / Not now / Ask a question on every yellow/red item (`inspection.decideItem`, token-join = the auth, published-only, re-decidable). `customerNote` stores THEIR words verbatim — no AI touches this path.
 - **Queue integration**: `collectInspectionDeferrals` — published packets with open (undecided/declined) yellow/red items become `deferred_service` opportunities, `data_quality: verified` (a tech physically saw the part — the strongest evidence class in the queue), red forces urgency `today`, value = summed tech estimates. A `question` decision is engagement, not a deferral (pure summarizer, test-pinned).
-- **Scope**: drop-off flow only — inspections are created against bookings by staff. The walk-in lobby keeps the under-car flashlight ritual; no packet flow was added there. *The 41%/17% photo-evidence statistic is attributed to J.D. Power's 2025 ASI study **per the operator's plan** — our fetch attempt on 2026-07-28 returned HTTP 403; externally unverified by us. The scoping argument (full-service-repair segment ≠ walk-in tire) rests on that attribution.*
+- **Scope**: drop-off flow only — inspections are created against bookings by staff. The walk-in lobby keeps the under-car flashlight ritual; no packet flow was added there. *The 41%/17% photo-evidence statistic is J.D. Power's 2025 ASI study, **externally verified 2026-07-28** via the Business Wire syndication ("Among full-service maintenance and repair customers who receive an MPI with photo/video, 41% have the recommended work done… without photo/video, only 17%") — full-service segment confirmed, so the drop-off-only scoping stands.*
 - **No sends**: sharing the packet link remains an operator action through existing channels.
 
 ## Quote Guard + Promise Ledger (shipped 2026-07-28)
