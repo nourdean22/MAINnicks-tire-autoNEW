@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Brain, History, Mic, MicOff } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
@@ -54,6 +54,7 @@ export function ChatIsland() {
   const recalledHits = useChatUiStore((state) => state.recalledHits);
   const contradictions = useChatUiStore((state) => state.contradictions);
   const setMemoryData = useChatUiStore((state) => state.setMemoryData);
+  const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
 
   const chat = useChatStream();
   const conversations = useConversations({
@@ -93,6 +94,7 @@ export function ChatIsland() {
       const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
       if (detail?.type === "memory.recalled") {
         setMemoryData(detail.payload?.hits || [], detail.payload?.contradictions || []);
+        setMemoryFetchedAt(new Date());
       }
     };
     window.addEventListener("cockpit-event", onCockpitEvent);
@@ -132,6 +134,7 @@ export function ChatIsland() {
               : 0,
         }));
         setMemoryData(hits, contradictions);
+        setMemoryFetchedAt(new Date());
       } catch {
         // Abort and network failures preserve the last known memory view.
       }
@@ -196,7 +199,7 @@ export function ChatIsland() {
         <ChatComposer chat={chat} />
       </div>
 
-      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} />
+      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} />
 
       {historyDrawerOpen && (
         <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge bg-void sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>
