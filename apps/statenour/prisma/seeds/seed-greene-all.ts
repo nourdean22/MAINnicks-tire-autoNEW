@@ -33,6 +33,7 @@ import { seed48Laws } from "./48-laws";
 import { seed33Strategies } from "./33-strategies";
 import { seedHumanNature } from "./human-nature";
 import { seedMastery, MASTERY_LAWS } from "./mastery";
+import { CREATIVE_STRATEGIES } from "../../lib/brain/greene-corpus";
 import { seedSeduction } from "./art-of-seduction";
 import {
   seedGreeneExpansion,
@@ -83,10 +84,14 @@ async function main() {
       const { errors } = await seedGreeneExpansion(prisma);
       if (errors > 0) failed = true;
 
-      // Step 3 owns its own connection + logging; invoked as a module so
-      // this runner stays a single process.
       console.log("\n=== 3/3 · BrainMemory · greene_law corpus ===\n");
-      await import("../../scripts/seed-greene-corpus");
+      // Must be an awaited CALL, not a bare `await import(...)`. A dynamic
+      // import resolves when the module finishes evaluating, so importing
+      // a module whose bottom line is `main().catch(...)` returns the
+      // instant the seed STARTS. Verification below would then race the
+      // writes and, on a fresh database, read zero and exit(1) mid-seed.
+      const { seedGreeneCorpus } = await import("../../scripts/seed-greene-corpus");
+      await seedGreeneCorpus();
     }
 
     // ── Verification ──
@@ -109,11 +114,17 @@ async function main() {
     const creativeInDb = await prisma.strategicLaw.count({
       where: { book: "MASTERY", number: { gte: 21 } },
     });
+    // Count the NINE EXACT keys, not `startsWith: "mastery_"` — that
+    // prefix also matches the legacy phase rows (mastery_apprenticeship,
+    // mastery_creative, mastery_invisible), so a stale corpus carrying
+    // only those would have satisfied a prefix count while none of the
+    // Book V entries existed.
+    const creativeKeys = CREATIVE_STRATEGIES.map((e) => e.key);
     const creativeCorpus = await prisma.brainMemory.count({
-      where: { category: "greene_law", key: { startsWith: "mastery_" }, deletedAt: null },
+      where: { category: "greene_law", key: { in: creativeKeys }, deletedAt: null },
     });
     console.log(
-      `\nBook V creative strategies · StrategicLaw ${creativeInDb}/${creativeLaws} · corpus ${creativeCorpus} mastery_* keys`,
+      `\nBook V creative strategies · StrategicLaw ${creativeInDb}/${creativeLaws} · corpus ${creativeCorpus}/${creativeKeys.length}`,
     );
     console.log(`${"=".repeat(52)}`);
 
@@ -125,11 +136,31 @@ async function main() {
       failed = true;
     }
     if (creativeInDb < creativeLaws) {
-      console.error(`\n❌ Book V incomplete in StrategicLaw.`);
+      console.error(
+        `\n❌ Book V incomplete in StrategicLaw: ${creativeInDb}/${creativeLaws}.`,
+      );
       failed = true;
     }
     if (corpus === 0) {
       console.error(`\n❌ BrainMemory greene_law corpus is empty.`);
+      failed = true;
+    }
+    // A non-empty corpus is not the same as an UP-TO-DATE corpus: without
+    // this, `--check` passed on a database holding only the pre-Book-V
+    // corpus, which is exactly the state this runner exists to detect.
+    if (creativeCorpus < creativeKeys.length) {
+      const present = new Set(
+        (
+          await prisma.brainMemory.findMany({
+            where: { category: "greene_law", key: { in: creativeKeys }, deletedAt: null },
+            select: { key: true },
+          })
+        ).map((r) => r.key),
+      );
+      console.error(
+        `\n❌ Book V incomplete in the corpus: ${creativeCorpus}/${creativeKeys.length}. ` +
+          `Missing: ${creativeKeys.filter((k) => !present.has(k)).join(", ")}`,
+      );
       failed = true;
     }
 

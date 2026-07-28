@@ -75,6 +75,71 @@ RULES:
     will read them as concrete next moves.
   · Return ONLY the JSON · no preamble, no markdown fences.`;
 
+/** Max candidate rows sent to the model · prompt cost scales linearly. */
+export const CANDIDATE_CAP = 40;
+
+/** Type preference · earlier = picked first within each round-robin pass. */
+const TYPE_PRIORITY: Record<string, number> = {
+  law: 0,
+  strategy: 1,
+  mentorship_role: 2,
+  creative_strategy: 3,
+  dark_trait: 4,
+  principle: 5,
+  fearless_law: 6,
+  phase: 7,
+  seducer_type: 8,
+  victim_type: 9,
+};
+
+/**
+ * Choose which corpus rows reach the model, capped at `cap`.
+ *
+ * 2026-07-28 · was a priority SORT followed by `slice(0, 40)`. That is
+ * degenerate whenever one type outnumbers the cap: the corpus holds 48
+ * `law` rows, all at priority 0, so the sort put 48 laws first and the
+ * slice kept 40 of them — every other type, including all nine Book V
+ * creative strategies, was deterministically cut. Raising
+ * `creative_strategy` in the priority table did nothing to fix that; a
+ * lower number cannot help when the top bucket alone overflows the cap.
+ *
+ * Round-robin instead: one row per type per pass, types visited in
+ * priority order. Every represented type gets slots, and higher-priority
+ * types still win the remainder in the final partial pass.
+ */
+export function selectCandidates<T extends { metadata: Record<string, unknown> }>(
+  rows: T[],
+  cap: number = CANDIDATE_CAP,
+): T[] {
+  if (rows.length <= cap) return rows;
+
+  const buckets = new Map<string, T[]>();
+  for (const r of rows) {
+    const t = String(r.metadata.type ?? "principle");
+    const bucket = buckets.get(t);
+    if (bucket) bucket.push(r);
+    else buckets.set(t, [r]);
+  }
+
+  const orderedTypes = [...buckets.keys()].sort(
+    (a, b) => (TYPE_PRIORITY[a] ?? 10) - (TYPE_PRIORITY[b] ?? 10),
+  );
+
+  const picked: T[] = [];
+  for (let round = 0; picked.length < cap; round++) {
+    let addedThisRound = false;
+    for (const t of orderedTypes) {
+      const bucket = buckets.get(t)!;
+      if (round >= bucket.length) continue;
+      picked.push(bucket[round]);
+      addedThisRound = true;
+      if (picked.length >= cap) break;
+    }
+    if (!addedThisRound) break; // every bucket exhausted
+  }
+  return picked;
+}
+
 export async function pickContextualLawsForPerson(
   personId: string,
 ): Promise<ContextualLawsResult> {
@@ -217,32 +282,7 @@ export async function pickContextualLawsForPerson(
       }))
       .filter((r) => Array.isArray(r.metadata.triggers));
     // Bound the candidate set sent to the model.
-    if (corpus.length > 40) {
-      // Prefer laws · then strategies · then mentorship · then dark
-      // traits · then principles · then seducers/victims.
-      // 2026-07-27 · creative_strategy sits just under mentorship_role.
-      // Unranked types fall to `?? 9` and get sliced off by the 40-row cap
-      // below — the Book V strategies would have been seeded and then
-      // never reach the model.
-      const typePriority: Record<string, number> = {
-        law: 0,
-        strategy: 1,
-        mentorship_role: 2,
-        creative_strategy: 3,
-        dark_trait: 4,
-        principle: 5,
-        fearless_law: 6,
-        phase: 7,
-        seducer_type: 8,
-        victim_type: 9,
-      };
-      corpus.sort((a, b) => {
-        const at = String(a.metadata.type ?? "principle");
-        const bt = String(b.metadata.type ?? "principle");
-        return (typePriority[at] ?? 10) - (typePriority[bt] ?? 10);
-      });
-      corpus = corpus.slice(0, 40);
-    }
+    corpus = selectCandidates(corpus, CANDIDATE_CAP);
   } catch (err) {
     log.warn("corpus_read_failed", {
       err: err instanceof Error ? err.message : String(err),

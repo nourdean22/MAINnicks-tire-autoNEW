@@ -16,7 +16,17 @@ export const naturalPowers: StrategicFramework = {
     /\b(not|isn'?t)\s+(really\s+)?(my|our)\s+strength\b/i,
     /\b(forcing|force)\s+(myself|ourselves)\s+to\b/i,
     /\b(against|cuts?\s+against)\s+(my|the)\s+(grain|nature)\b/i,
-    /\b(am\s+i|are\s+we)\s+wasting\b/i,
+    // 2026-07-28 · was `\b(am i|are we)\s+wasting\b`, which fired on
+    // "am I wasting money on Google ads?" and "are we wasting inventory?"
+    // — spend/ops questions that would then get advice about working
+    // against one's natural grain. Requires the object of the waste to be
+    // the operator's own time/life/path, which is Greene's sense.
+    /\b(am\s+i|are\s+we)\s+wasting\s+(my|our)?\s*(time|life|years|energy)\b/i,
+  ],
+  antiTriggers: [
+    // Resource-allocation questions belong to unit-economics / capital-
+    // allocation / opportunity-cost, not to a vocation lens.
+    /\bwasting\s+(my|our)?\s*(money|budget|spend|inventory|stock|parts|ad\s+spend)\b/i,
   ],
   weight: 0.85,
   lens: `Apply Natural Powers. Separate what the field rewards from what

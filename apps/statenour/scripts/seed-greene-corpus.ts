@@ -55,7 +55,27 @@ const TYPE_LABELS: Record<string, string> = {
   creative_strategy: "Creative Strategy",
 };
 
-async function main() {
+/**
+ * 2026-07-28 · exported and awaitable.
+ *
+ * This module previously only ran as a side effect of import (bare
+ * `main().catch(...)` at the bottom, never awaited). `seed-greene-all`
+ * did `await import("../../scripts/seed-greene-corpus")`, which resolves
+ * when the module finishes EVALUATING — i.e. the instant `main()` is
+ * called, not when it completes. Verification then queried the corpus
+ * while the seed was still writing, so on a fresh database the count
+ * read zero and the runner process.exit(1)'d in the middle of a
+ * perfectly good seed.
+ *
+ * The disconnect made it worse: `prisma` here is the shared singleton
+ * from @/lib/prisma, so `$disconnect()` tore down the client the calling
+ * runner was still using. Disconnecting is now the caller's job — the
+ * standalone entrypoint below does it, the combined runner does its own.
+ */
+export async function seedGreeneCorpus(): Promise<{
+  inserted: number;
+  updated: number;
+}> {
   console.log("");
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  SEED GREENE CORPUS → BRAIN · 2026-05-28");
@@ -140,10 +160,16 @@ async function main() {
   console.log("  on every render. No prose re-derivation needed.");
   console.log("");
 
-  await prisma.$disconnect();
+  return { inserted, updated };
 }
 
-main().catch((err) => {
-  console.error("❌ Greene corpus seed failed:", err);
-  process.exit(1);
-});
+/** Standalone entrypoint · only self-runs when invoked directly, so
+ *  importing this module for `seedGreeneCorpus` has no side effects. */
+if (process.argv[1]?.includes("seed-greene-corpus")) {
+  seedGreeneCorpus()
+    .then(() => prisma.$disconnect())
+    .catch((err) => {
+      console.error("❌ Greene corpus seed failed:", err);
+      process.exit(1);
+    });
+}

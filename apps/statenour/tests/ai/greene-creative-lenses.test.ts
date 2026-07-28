@@ -96,3 +96,26 @@ describe("The Open Field routes to blue-ocean rather than duplicating it", () =>
     expect(ids).not.toContain("the-open-field");
   });
 });
+
+// ── 2026-07-28 · review regression · natural-powers over-matching ──
+// The trigger was `\b(am i|are we)\s+wasting\b`, which fired on spend and
+// inventory questions and then injected advice about working against
+// one's natural grain instead of analyzing the spend. Narrowed to require
+// the wasted thing to be the operator's own time/life/path.
+describe("natural-powers · does not hijack resource questions", () => {
+  it.each([
+    "am i wasting money on google ads?",
+    "are we wasting inventory on slow-moving tires?",
+    "am i wasting budget on this campaign",
+    "are we wasting parts on comebacks",
+  ])("stays quiet for: %s", (msg) => {
+    expect(idsFor(msg)).not.toContain("natural-powers");
+  });
+
+  it.each([
+    "am i wasting my time on the shop when everyone says i should get a dev job",
+    "are we wasting years going against my grain here",
+  ])("still fires for vocation waste: %s", (msg) => {
+    expect(idsFor(msg)).toContain("natural-powers");
+  });
+});
