@@ -142,6 +142,7 @@ import {
 // structurally impossible.
 import { createCommitment } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
+import { logError } from "@/lib/utils/error-log";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 
 // The 8 valid identity axes · mirrors `VALID_AXES` in
@@ -555,8 +556,19 @@ export const operatorRouter = router({
         });
       }
 
-      // Sync overrides cache and process.env immediately
-      await loadFeatureFlagOverrides(true).catch(() => {});
+      // Spine-1: persistence and activation are DIFFERENT facts. The DB
+      // write above succeeded; the cache reload can still fail, leaving
+      // the running process on the OLD value while the response implied
+      // the change was live. Report both truthfully.
+      let runtimeApplied = true;
+      let runtimeReason: string | null = null;
+      try {
+        await loadFeatureFlagOverrides(true);
+      } catch (e) {
+        runtimeApplied = false;
+        runtimeReason = e instanceof Error ? e.message.slice(0, 200) : String(e);
+        logError("operator.feature-flags", e, { stage: "override-cache-reload", key }, "warn");
+      }
 
       const resolved = getFlag(key);
       if (!resolved) {
@@ -565,7 +577,14 @@ export const operatorRouter = router({
           message: `Flag ${key} is not registered in the registry.`,
         });
       }
-      return { flag: resolved };
+      return {
+        flag: resolved,
+        persisted: true,
+        runtimeApplied,
+        ...(runtimeReason
+          ? { runtimeReason: `cache reload failed — the returned value may reflect the PREVIOUS process state: ${runtimeReason}` }
+          : {}),
+      };
     }),
 
   // ──────────────── Settings · cold memory / Drive sync (UU.2) ────────────────

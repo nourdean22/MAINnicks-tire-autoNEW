@@ -2,8 +2,17 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-07-20**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-07-28**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
+
+## Since 2026-07-20 (verified 2026-07-28 — headline deltas)
+
+- **Inngest fleet repaired + drift-proofed**: ~16 scheduled functions were unregistered (briefing_log had NEVER filled); re-synced, then boot-time self-sync (now verifying `res.ok` + response shape), a heartbeat self-row, and a worker-scheduled out-of-band liveness check were added. Definitive per-capability proof = the artifacts themselves (briefing_log row, drain counts), not invocation.
+- **Post-turn outbox**: frozen payload before deferred work; drain replays orphans — now including rows stranded at `processing` (stale-claim reclaim), honoring `nextAttemptAt`, with loud enqueue/finish failures.
+- **Loud-failure phase 2**: 29 defect-hiding silent catches converted (write-losses, content parses, watchdog heartbeats).
+- **Suite truth**: 390 files / 4,419 passed / exit 0 — the "passes but exits 1" era is over; a non-zero exit is real.
+- **verify:hard** gained auth-scan (check:get-auth) and a dependency gate that can actually fail (CRITICALs).
+- **Home** simplified around four questions; canonical chat consolidation landed. Known gap: follow-up dismissals are still browser-local (durable agenda in progress).
 
 ## Where this runs
 
