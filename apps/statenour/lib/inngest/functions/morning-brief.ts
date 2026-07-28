@@ -131,6 +131,23 @@ async function composeBrief(): Promise<ComposedBrief> {
 }
 
 /**
+ * Pure push-body shaper · exported for tests. 2026-07-28 cron-truth
+ * audit: the composer emits HTML (`<b>Drift:</b> …`) and the AUDIO path
+ * strips tags before speaking — but the push path didn't, so the very
+ * first delivery (post Inngest re-sync) would have shown literal
+ * `<b>` tags on the phone. Strip FIRST, then trim: slicing before
+ * stripping could also cut a tag in half mid-notification.
+ */
+export function pushBodyFromBrief(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n+/g, " · ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+/**
  * Step 2 · send Web Push to the operator's subscribed devices.
  * No-ops if no subscriptions or VAPID_PRIVATE_KEY unset.
  *
@@ -147,7 +164,7 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
     title: "Morning brief",
     // Trim aggressively · push body has a hard limit ~120 chars on
     // most platforms before the OS truncates with "…".
-    body: brief.text.slice(0, 200).replace(/\n+/g, " · "),
+    body: pushBodyFromBrief(brief.text),
     level: "high",
     url: "/command",
     tag: `morning-brief-${brief.date}`,
