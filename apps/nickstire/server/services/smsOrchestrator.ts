@@ -247,6 +247,22 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
       };
     }
 
+    // AMBIGUITY REFUSES EVERYTHING PHONE-LINKED, not just the name.
+    //
+    // The first version of this cleared `customerRecord` only. That was an
+    // incomplete fix and the remainder was the worse half: every facet below is
+    // also selected by the SAME shared phone, and they are not merely disclosed
+    // — a CONFIRM, CANCEL or estimate-approval reply MUTATES the arbitrarily
+    // chosen row. So a household member texting "cancel" could cancel the other
+    // person's booking. Caught in review on #1149.
+    //
+    // Returning here leaves `phone`, `ambiguousPhoneMatch` and
+    // `optOutOnAnyMatch` set — identity and history are refused, consent is
+    // kept at its most restrictive value.
+    if (ctx.ambiguousPhoneMatch) {
+      return ctx;
+    }
+
     // 2. Load open bookings
     const activeBookings = await db.select()
       .from(bookings)

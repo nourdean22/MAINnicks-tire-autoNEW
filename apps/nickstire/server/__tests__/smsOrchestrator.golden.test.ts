@@ -809,6 +809,44 @@ describe("SMS orchestrator · ambiguous phone match", () => {
     expect(ctx.customerRecord).toBeUndefined();
   });
 
+  it("two matches -> NO phone-linked facet survives, not just the name", async () => {
+    // The worse half of the defect. Booking / lead / callback / estimate /
+    // conversation / last-VAPI-call are all selected by the SAME shared phone,
+    // and a CONFIRM, CANCEL or estimate-approval reply MUTATES the arbitrarily
+    // chosen row — so a household member texting "cancel" could cancel the
+    // other person's booking. Disclosure was only the visible part.
+    mockTableResponses.customers = [
+      { id: 1, firstName: "Renee", smsOptOut: 0 },
+      { id: 2, firstName: "Marcus", smsOptOut: 0 },
+    ];
+    mockTableResponses.bookings = [{ id: 7, service: "brakes", status: "confirmed", phone: "2165550001" }];
+    mockTableResponses.alg_estimates = [{ id: 9, externalId: "E-9", estimatedAmount: 52313 }];
+    mockTableResponses.leads = [{ id: 3, name: "Renee", problem: "grinding", status: "new", source: "web" }];
+    mockTableResponses.callback_requests = [{ id: 4, name: "Renee", status: "pending" }];
+    mockTableResponses.vapi_call_logs = [{ vapiCallId: "vc_1", summary: "asked about brakes" }];
+
+    const ctx = await loadCustomerContext("2165550001");
+    expect(ctx.ambiguousPhoneMatch).toBe(true);
+    expect(ctx.customerRecord).toBeUndefined();
+    expect(ctx.activeBooking).toBeUndefined();
+    expect(ctx.activeEstimate).toBeUndefined();
+    expect(ctx.activeLead).toBeUndefined();
+    expect(ctx.activeCallback).toBeUndefined();
+    expect(ctx.lastVapiCall).toBeUndefined();
+    expect(ctx.recentServiceMention).toBeUndefined();
+    // The phone itself and the consent signal must survive the refusal.
+    expect(ctx.phone).toBeTruthy();
+  });
+
+  it("ONE match -> the facets are still attached (refusal is not a blanket off-switch)", async () => {
+    mockTableResponses.customers = [{ id: 1, firstName: "Renee", smsOptOut: 0 }];
+    mockTableResponses.bookings = [{ id: 7, service: "brakes", status: "confirmed", phone: "2165550001" }];
+    const ctx = await loadCustomerContext("2165550001");
+    expect(ctx.ambiguousPhoneMatch).toBeFalsy();
+    expect(ctx.customerRecord?.firstName).toBe("Renee");
+    expect(ctx.activeBooking).toBeDefined();
+  });
+
   it("two matches, ONE opted out -> the opt-out still bites", async () => {
     // The regression this prevents: refusing the match and losing consent with
     // it. Most-restrictive wins, and it survives the identity refusal.
