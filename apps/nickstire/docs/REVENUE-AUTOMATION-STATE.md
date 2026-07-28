@@ -18,7 +18,7 @@
 | Morning brief | `[VERIFIED]` `cron/jobs/morningBrief.ts` | daily cron | Telegram (operator only) | `[FIXED]` — $10K hardcode, cohort-mismatched "conversion", "WALK RATE", invented "recoverable" |
 | Daily digest (intelligence report) | `[VERIFIED]` `cron/scheduler.ts` daily-digest block | daily cron | Telegram (operator only) | `[FIXED]` — "walk-away … @ 20% close" language |
 | Intelligence engines | `[VERIFIED]` `services/intelligenceEngines.ts` | called by brief/digest/brain | none directly | `[FIXED]` — two invented 20% "recoverable" figures removed; `forecastRevenue` target already dynamic (trailing×1.1) `[VERIFIED]` |
-| Cross-sell outreach | `[VERIFIED]` `cron/jobs/crossSellOutreach.ts` | flag `sms_cross_sell_outreach` (OFF pending ROS-033 operator gate: read the v3 confidence histogram first) | SMS when ON | **AUDITED 2026-07-28: CLEAN** — honest soft copy ("about due for a check", deliberately not a diagnosis), fail-closed cooldown, closed-loop impression/action rows, recovery double-text excluded by construction. One fix: log printed 0-1 confidence as "%" |
+| Cross-sell outreach | `[VERIFIED]` `cron/jobs/crossSellOutreach.ts` | flag `sms_cross_sell_outreach` — **ON in prod `[VERIFIED-runtime]`; ROS-033 histogram gate SATISFIED** (see Runtime flag truth below) | SMS (live) | **AUDITED 2026-07-28: CLEAN** — honest soft copy ("about due for a check", deliberately not a diagnosis), fail-closed cooldown, closed-loop impression/action rows, recovery double-text excluded by construction. One fix: log printed 0-1 confidence as "%" |
 | Review requests | `[VERIFIED]` `routers/reviewRequests.ts` + cron | settings.enabled + flag `sms_review_requests` | SMS | **AUDITED 2026-07-28: CLEAN + COMPLIANT** — no review gating, no incentives, no praise-conditioning (Google/FTC per plan §5); quiet hours 9-19, daily cap, cooldown, claim-before-send, gateway-offline hold. Gap closed: complaint texts now create `review_recovery` opportunities (receive-side service-recovery loop; asks never conditioned on it) |
 | Customer psycho-profiler | `[VERIFIED]` `services/customerPsychoProfile.ts` | daily cron | none (writes segments) | behavior-based (visits/decline aggregates), not vehicle-stereotype; its "future enhancement" feeding pickProfile was never wired `[VERIFIED]` — and must now stay unwired unless routed through stated-concern evidence |
 
@@ -35,6 +35,22 @@
 
 - `server/services/declinedRecoverySequence.test.ts` — evidence-only routing + banned-claims sweep across all 20 variants
 - `server/services/pricingIntelligence.test.ts` — price recommender stays dead + coaching claims trace to canon
+
+## Runtime flag truth (read from prod 2026-07-28, end of arc)
+
+Operator authorized a flag-flip; the read-first pass found **everything already ON** — resolving every `[UNKNOWN-runtime]` above:
+
+| Gate | State | Evidence |
+|---|---|---|
+| `missed_call_recovery` (DB flag) | **ON** | `feature_flags` read, prod TiDB |
+| `sms_cross_sell_outreach` (DB flag) | **ON** | same |
+| `service_affinity_v2_compute` (DB flag) | **ON** (newest prediction 2026-07-28 14:47Z — compute is running) | same |
+| `FEATURE_DECLINED_RECOVERY` (env) | **=1** | `railway variables`, service MAINnicks-tire-auto |
+| `MISSED_CALL_RECOVERY_SEND` (env) | **=1** | same |
+
+**ROS-033 histogram gate, finally read** (the file demanded it before enabling; it was enabled anyway, so here is the after-the-fact truth): 29,300 predictions — 28,499 below 0.30, 771 at 0.30-0.49, **30 at 0.50-0.69, zero ≥0.70; only 4 distinct treatment-arm customers clear the 0.5 send threshold.** Volume risk is nil (cap 10/run, 30d cooldown, 4 eligible humans); no cap change needed. The flag being ON is safe — and nearly dormant.
+
+**The uncomfortable implication:** all three SMS channels were LIVE before today. The psychographic routing, the "photos of the worn parts" claim, and "we'll honor that pricing" were **live-sending until #1146 merged** — the truth corrections were fixes to production behavior, not preventative hardening. Today's deploy carries the corrected copy + Recovery 2.0 policy into those live channels.
 
 ## Standing rule for future automations
 
