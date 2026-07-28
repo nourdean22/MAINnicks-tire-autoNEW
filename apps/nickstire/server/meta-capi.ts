@@ -29,7 +29,7 @@ import { createLogger } from "./lib/logger";
 const log = createLogger("meta-capi");
 
 // ─── Configuration ────────────────────────────────────
-// 2026-06-10 fix: the old default 1436350367898578 is the Meta APP id ("nour os"
+// 2026-06-10 fix: the old default 1436…8578 (16-digit Meta APP id) is the Meta APP id ("nour os"
 // app), not a pixel - events POSTs to it always fail (subcode 33). Real dataset id
 // verified via Graph (last_fired_time present): 958472373260171.
 const PIXEL_ID = process.env.META_CAPI_PIXEL_ID || "958472373260171";

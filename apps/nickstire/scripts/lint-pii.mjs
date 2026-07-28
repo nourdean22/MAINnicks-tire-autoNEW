@@ -53,22 +53,39 @@ const APP_ROOT = resolve(__dirname, "..");
 const AUDIT_MODE = process.argv.includes("--audit");
 
 // ─── PII PATTERNS ────────────────────────────────────────
+//
+// 2026-07-28 hardening sweep · `maskable: true` rules recognize an
+// already-masked value on the SAME LINE (maskPhone(/maskEmail(/
+// .slice(-4)/last4) and stand down. The linter previously flagged the
+// KEY NAME regardless of the value — `to: to.slice(-4)` (masked, safe)
+// counted the same as `to: phone` (raw leak), which is how the baseline
+// grew to 62 "violations" nobody could green. Masking-awareness is
+// deliberately scoped to the log-field rules ONLY: hardcoded numbers,
+// SSNs and card patterns can never be excused by a coincidental token.
+// Line-level granularity means one masked + one raw field on the SAME
+// line would slip — accepted and documented; the raw field still flags
+// the moment it's on its own line, and review covers the rest.
+const MASKED_VALUE_SIGNAL = /maskPhone\s*\(|maskEmail\s*\(|maskName\s*\(|\.slice\(\s*-4\s*\)|\blast4\b|maskPII\s*\(/;
+
 const PII_PATTERNS = [
   // ─── Direct PII-field logging in structured logs ───
   {
     pattern: /\blog\.(info|warn|error|debug)\s*\([^)]*\b(phone|customerPhone|to|recipientPhone)\b\s*[:,]/gi,
     why: "Phone number in structured log · TCPA + CCPA risk if dashboard leaks",
     fix: "Mask: pass `phone: maskPhone(phone)` → last 4 digits only · OR remove field entirely",
+    maskable: true,
   },
   {
     pattern: /\blog\.(info|warn|error|debug)\s*\([^)]*\b(email|customerEmail|recipientEmail|to_email)\b\s*[:,]/gi,
     why: "Email address in structured log · CCPA disclosure risk",
     fix: "Mask: pass `email: maskEmail(email)` → 'j***@nick***.com' · OR remove field",
+    maskable: true,
   },
   {
     pattern: /\blog\.(info|warn|error|debug)\s*\([^)]*\b(firstName|lastName|fullName|customerName|customer\.name)\b\s*[:,]/gi,
     why: "Customer name in structured log · CCPA + brand-reputation risk if logs are public-facing",
     fix: "Use opaque customer ID instead · 'customerId: c.id' not 'customerName: c.firstName'",
+    maskable: true,
   },
   {
     pattern: /\blog\.(info|warn|error|debug)\s*\([^)]*\b(vin|vehicleVIN|vehicle\.vin)\b\s*[:,]/gi,
@@ -105,6 +122,12 @@ const PII_PATTERNS = [
     pattern: /\/(phone|email)\/[\w@.\-+]/gi,
     why: "PII in URL path segment · same Railway access-log exposure",
     fix: "Use opaque IDs in URL paths · '/customer/123' not '/customer/2168620005'",
+    // 2026-07-28 · prose like "name/phone/email/problem as CSV" inside a
+    // COMMENT matched this URL-shape rule (shared/adminPermissions.ts) —
+    // a comment can't put PII in an access log. Hardcoded-number rules
+    // deliberately do NOT get this skip: a real number in a comment
+    // still leaks via the repo.
+    skipComments: true,
   },
 
   // ─── Hardcoded test PII (often committed by accident) ───
@@ -120,12 +143,26 @@ const PII_PATTERNS = [
     // still flags. Deliberately NOT allowlisted: the 216862000X
     // check-live-sms fixtures (can't prove those aren't real subscriber
     // numbers — the linter's own advice says use 555 for fiction).
-    allowDigits: new Set(["2168620005"]),
+    // 2026-07-28 hardening sweep · two more BUSINESS-OWNED lines join the
+    // shop main: the VAPI line (216-424-9249 — vapi.ts:1016 "NOT the shop
+    // main") and the Twilio number (216-769-9977 — emergency.ts "clearly
+    // NOT a customer"). Same rule as before: business-owned ≠ PII; a real
+    // customer number on the same line still flags. Additionally, any
+    // match whose EXCHANGE is 555 is fiction by NANP reservation
+    // (216-555-XXXX cannot be a subscriber) — handled in ruleViolates.
+    allowDigits: new Set(["2168620005", "2164249249", "2167699977"]),
+    fictionExchange: true,
   },
   {
     pattern: /[a-zA-Z0-9._%+-]+@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com\b/g,
     why: "Hardcoded personal-email-provider address in source · looks like real customer data",
     fix: "Use a fixture · OR use `@example.com` for tests (RFC-reserved)",
+    // 2026-07-28 · the BUSINESS'S OWN addresses are identity, not customer
+    // PII — and load-bearing (email-notify overrideTo SENDS to the shop
+    // inbox; payments copy tells the operator where to look; businessFacts
+    // is the canonical business record). Checked per matched substring,
+    // lowercased — a customer gmail on the same line still flags.
+    allowEmails: new Set(["moeseuclid@gmail.com", "nourdean22@gmail.com"]),
   },
 
   // ─── Credit card patterns (Luhn-like) ───
@@ -157,6 +194,8 @@ const IN_SCOPE = [
 ];
 
 const OUT_OF_SCOPE = [
+  // archived scripts never execute · 2026-07-28 hardening sweep
+  /^scripts\/_archive\//,
   // tests use fake data intentionally
   /\.test\.ts$/,
   /\.spec\.ts$/,
@@ -225,6 +264,16 @@ function getAddedLines(relPath) {
  * flags, but a real customer number sharing the line still does.
  */
 function ruleViolates(rule, text) {
+  // 2026-07-28 · masked values stand down (log-field rules only) and
+  // comment prose can't trip URL-shape rules. See the pattern-block
+  // comments for scope + the accepted line-level granularity trade.
+  if (rule.maskable && MASKED_VALUE_SIGNAL.test(text)) return false;
+  if (rule.skipComments && /^\s*(\/\/|\*|\/\*)/.test(text)) return false;
+  if (rule.allowEmails) {
+    const matches = [...text.matchAll(rule.pattern)];
+    rule.pattern.lastIndex = 0;
+    return matches.some((m) => !rule.allowEmails.has(m[0].toLowerCase()));
+  }
   if (!rule.allowDigits) {
     const hit = rule.pattern.test(text);
     rule.pattern.lastIndex = 0;
@@ -232,7 +281,14 @@ function ruleViolates(rule, text) {
   }
   const matches = [...text.matchAll(rule.pattern)];
   rule.pattern.lastIndex = 0;
-  return matches.some((m) => !rule.allowDigits.has(m[0].replace(/\D/g, "")));
+  return matches.some((m) => {
+    const digits = m[0].replace(/\D/g, "");
+    if (rule.allowDigits.has(digits)) return false;
+    // 555 exchange = NANP fiction reservation · 216-555-XXXX cannot be a
+    // subscriber number, so docblock/bot examples shaped that way are safe.
+    if (rule.fictionExchange && digits.length === 10 && digits.slice(3, 6) === "555") return false;
+    return true;
+  });
 }
 
 function scanFile(relPath, mode) {

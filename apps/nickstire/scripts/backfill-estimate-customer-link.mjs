@@ -5,8 +5,8 @@
  *
  * THE PROBLEM, MEASURED 2026-07-20
  *   alg_estimates.customer_id is NULL on ALL 425 rows.
- *   alg_estimates.customer_phone is E.164 ("+12162035831").
- *   customers.phone is bare 10-digit ("2162035831").
+ *   alg_estimates.customer_phone is E.164 ("+12165550142").
+ *   customers.phone is bare 10-digit ("2165550142").
  *   Raw equality matches 14 of 425. Last-ten-digits matches 341, zero fan-out,
  *   zero ambiguity.
  *
@@ -57,9 +57,9 @@ function phoneMatchKey(input) {
 // every run before a single row is read. Cheap, and it makes drift impossible to
 // ship silently.
 for (const [input, expected] of [
-  ["+12162035831", "2162035831"],
-  ["2162035831", "2162035831"],
-  ["(216) 203-5831", "2162035831"],
+  ["+12165550142", "2165550142"],
+  ["2165550142", "2165550142"],
+  ["(216) 555-0142", "2165550142"],
   ["12345678", null],
   ["1111111111", null],
   ["", null],

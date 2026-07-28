@@ -78,6 +78,19 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     schedule: "0 * * * *",
     description: "Hourly · ping LLM providers for health/latency",
   },
+  {
+    // NOT high-frequency — deliberately lives here anyway. This is the
+    // out-of-band Inngest liveness check (2026-07-28 cron-truth
+    // hardening): the fan-out watchdog is itself Inngest-scheduled, so
+    // when the Inngest Cloud manifest drifted, the watchdog died with
+    // the fleet it watched. The worker is a different service on a
+    // different scheduler — the one place a "is Inngest alive at all"
+    // check can survive an Inngest outage. Fires 13:00 UTC, one hour
+    // after cron-heartbeat's slot, so a healthy day never alerts.
+    name: "inngest-liveness",
+    schedule: "0 13 * * *",
+    description: "Daily 13:00 UTC · out-of-band Inngest scheduler liveness (reads heartbeat self-row age)",
+  },
 ];
 
 let isRendering = false;

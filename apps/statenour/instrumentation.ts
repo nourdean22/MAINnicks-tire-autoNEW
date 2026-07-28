@@ -78,6 +78,21 @@ export async function register() {
     } catch {
       // never let embedding warm-up break server boot
     }
+
+    // 2026-07-28 cron-truth hardening · Inngest deploy-time self-sync.
+    // Railway has no Inngest deploy hook, so the Cloud function manifest
+    // only updated on MANUAL PUTs — and drifted for weeks, leaving ~16
+    // scheduled functions (incl. the cron-heartbeat watchdog) invisible
+    // to the scheduler. Every boot now self-syncs once (~20s after
+    // listen), so the manifest can never drift past a single deploy.
+    // Fire-and-forget + fail-open; prod-gated inside the module.
+    // See docs/audits/2026-07-28-cron-truth.md, Finding 1.
+    try {
+      const { scheduleInngestSelfSync } = await import("@/lib/inngest/self-sync");
+      scheduleInngestSelfSync();
+    } catch {
+      // never let the sync scheduler break server boot
+    }
   }
 }
 

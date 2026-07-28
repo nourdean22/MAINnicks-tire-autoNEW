@@ -130,7 +130,7 @@ export async function completeDriveConsent(database: DB, code: string, state: st
     accessTokenExpiresAt: Date.now() + data.expires_in * 1000,
     folderMap: cfg.folderMap,
   });
-  log.info("drive vault consent stored", { email: email ?? "(unknown)" });
+  log.info("drive vault consent stored", { maskedEmail: email ? email.replace(/^(.).*(@.*)$/, "$1***$2") : "(unknown)" });
   return { email };
 }
 

@@ -237,10 +237,14 @@ const INDEPENDENT = new Set([
 let phantomActive = 0;
 for (const c of CRONS) {
   if (c.mode !== "active") continue;
-  // Inngest-native crons fire via their own Inngest cron trigger, not the fan-out.
-  if (fanoutRefs.has(c.name) || INDEPENDENT.has(c.name) || c.inngest) continue;
+  // Inngest-native crons fire via their own Inngest cron trigger, not the
+  // fan-out. Worker-fired crons (2026-07-28: the third real dispatch path,
+  // apps/worker/src/scheduler.ts node-cron → HTTP) are reachable too — the
+  // inngest-liveness watcher MUST live there so it survives an Inngest
+  // outage, which is the exact failure it watches for.
+  if (fanoutRefs.has(c.name) || INDEPENDENT.has(c.name) || c.inngest || c.worker) continue;
   fail(
-    `${c.name} is mode:"active" but is NOT in the mega fan-out (lib/inngest/jobs.ts) and fires nowhere — wire it into jobs.ts or mark it mode:"dormant"`,
+    `${c.name} is mode:"active" but is NOT in the mega fan-out (lib/inngest/jobs.ts), not inngest-native, and not worker-fired — wire it into a dispatcher or mark it mode:"dormant"`,
   );
   phantomActive++;
 }

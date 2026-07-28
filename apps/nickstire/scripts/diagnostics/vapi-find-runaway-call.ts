@@ -51,7 +51,7 @@ async function main() {
     const time = c.startedAt ? new Date(c.startedAt).toLocaleString("en-US", { timeZone: "America/New_York" }) : "?";
     console.log(`  ${time}`);
     console.log(`    duration: ${Math.floor(dur / 60)}m ${dur % 60}s · cost: $${cost.toFixed(2)} · ${c.type || "?"}`);
-    console.log(`    caller=${caller} · phone=${phone} · destination=${dest}`);
+    console.log(`    caller=***${String(caller).slice(-4)} · phone=***${String(phone).slice(-4)} · destination=${dest}`);
     console.log(`    endedReason: ${c.endedReason}`);
     console.log(`    callId: ${c.id}`);
     console.log();

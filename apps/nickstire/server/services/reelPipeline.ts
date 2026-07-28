@@ -722,7 +722,7 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
     const flipped = affectedRowCount(res);
     if (flipped === 1) {
       recovered++;
-      log.warn("recovered stuck reel job", { jobId: job.id, from: job.status, to: nextStatus, attempts });
+      log.warn("recovered stuck reel job", { jobId: job.id, from: job.status, toStatus: nextStatus, attempts });
     }
   }
   return { recovered };
