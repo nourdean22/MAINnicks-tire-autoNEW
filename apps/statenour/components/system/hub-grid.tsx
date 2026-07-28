@@ -41,6 +41,7 @@ import {
   DollarSign,
   FileText,
   Inbox,
+  MessageSquare,
   Radio,
   Search,
   Stethoscope,
@@ -236,6 +237,39 @@ const CARDS: HubCard[] = [
     group: "data",
     description: "Recent request log + AI generation stream",
     chip: () => ({ label: "view", severity: "info" }),
+  },
+  {
+    // 2026-07-28 blueprint: documented as canonical in ARCHITECTURE.md,
+    // README and DB-MIGRATION-POLICY — yet reachable only by typed URL
+    // since the Wave-AD card prune. Restored (same precedent as the
+    // Calibration card below).
+    href: "/system/schema-history",
+    title: "Schema History",
+    icon: FileText,
+    group: "data",
+    description: "Schema-change ledger — every migration with method, destructive flag + approver",
+    chip: () => ({ label: "audit trail", severity: "info" }),
+  },
+  {
+    // 2026-07-28 · S5 gallery shipped nav-orphaned the same night it was
+    // built — the exact /system/inbox orphan class this grid fixed in June.
+    href: "/system/chat-states",
+    title: "Chat States",
+    icon: MessageSquare,
+    group: "data",
+    description: "Real chat components against fixtures — eyeball after UI changes",
+    chip: () => ({ label: "gallery", severity: "info" }),
+  },
+  {
+    // 2026-07-28 blueprint: the daily 10:15 brief push was the ONLY path
+    // to /intelligence/brief — miss the push, lose the surface. The ledger
+    // (outcome tracking) hangs off the brief page.
+    href: "/intelligence/brief",
+    title: "Intelligence",
+    icon: Radio,
+    group: "ai",
+    description: "Daily executive brief + opportunity scoring + outcome ledger",
+    chip: () => ({ label: "briefs", severity: "info" }),
   },
   {
     // v-truth · calibration is a LIVE page but the prune left it with no

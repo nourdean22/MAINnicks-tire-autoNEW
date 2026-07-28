@@ -423,17 +423,36 @@ export const CRONS: CronDef[] = [
     maxDuration: 300,
   },
   {
-    // 2026-07-25 · durable-outbox drain (audit P1). Sits in EVENING_JOBS —
-    // fires nightly via the mega-evening fan-out. Replays post-turn chat
-    // work orphaned by a mid-turn crash (status=pending past the 10-min
-    // grace window, <=3 attempts, atomic first-claimant-wins).
+    // 2026-07-25 · durable-outbox drain (audit P1). 2026-07-28 blueprint:
+    // nightly-only meant a crashed turn's receipts waited up to 24h — now
+    // ALSO fired every 15 min by the worker's node-cron. Claim is atomic
+    // first-claimant-wins, so both dispatch paths coexist safely.
     name: "outbox-drain",
-    schedule: "0 3 * * *",
+    schedule: "*/15 * * * *",
     mode: "active",
     category: "hygiene",
-    description: "Nightly via mega-evening fan-out · replays orphaned post-turn chat work from post_turn_outbox.",
+    worker: true,
+    description: "Every 15 min via worker node-cron (+ nightly mega-evening backstop) · replays orphaned post-turn chat work from post_turn_outbox.",
     memory: 512,
     maxDuration: 300,
+  },
+  {
+    // 2026-07-28 · blueprint audit finding #1 — the Wave-AE prune deleted
+    // the brain-bus-backfill ROUTE but left all nine producers publishing.
+    // pollAndProcess had zero callers from 2026-05-28 onward; prod showed
+    // 393 pending events (task.completed 184 · brain_dump.finalized 161 ·
+    // cron.failure 23 · score.logged 20). Durable rows = replayable, so
+    // this drain recovers the whole backlog. Same revive precedent as
+    // refresh-identity (2026-07-11).
+    name: "brain-bus-drain",
+    schedule: "*/15 * * * *",
+    mode: "active",
+    category: "brain",
+    worker: true,
+    addedAt: "2026-07-28",
+    description: "Every 15 min via worker node-cron · drains durable BrainBusEvent queue through the handler registry (task/goal/journal/drift/cron-failure → BrainMemory).",
+    memory: 512,
+    maxDuration: 120,
   },
   {
     // 2026-07-09 · sweep · pre-Wave-AE "daily 5am" retired; the route is in
