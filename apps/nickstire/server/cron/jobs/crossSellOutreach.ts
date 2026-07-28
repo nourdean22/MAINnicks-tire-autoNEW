@@ -365,7 +365,10 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
 
       if (result.success) {
         sent++;
-        log.info(`v2 cross-sell SMS sent to ${fName} (${p.predictedService} · ${p.confidence}%)`, {
+        // confidence is a 0-1 FRACTION (see the MIN_CONFIDENCE_TO_ACT block
+        // above — the %-vs-fraction confusion is this file's founding bug);
+        // render as percent instead of logging "0.62%".
+        log.info(`v2 cross-sell SMS sent to ${fName} (${p.predictedService} · ${Math.round(p.confidence * 100)}%)`, {
           reason: p.reason,
           predictionId: p.predictionId,
         });
