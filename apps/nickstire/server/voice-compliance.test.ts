@@ -1,117 +1,68 @@
 /**
- * VOICE.md Compliance Test — automated regression guard.
+ * Voice compliance — automated regression guard over customer-facing copy.
  *
- * Scans customer-facing copy data (services.ts, seo-pages.ts, blog.ts)
- * for VOICE.md cliché kill list violations.
+ * WHAT CHANGED (Voice Kernel wave)
+ * This file used to carry its OWN `KILL_LIST` — the sixth of seven independent
+ * copies of Nick's brand voice in this repo, and narrower than all the others
+ * (bare "trusted" passed here; "reliable" was absent entirely). It now reads
+ * `shared/voice.ts`, the same kernel the brand-voice linter, the IG generator
+ * prompt and the IG critic prompt read. There is no local list to drift.
  *
- * Why this exists: today's audit caught 14 violations across 11 files
- * that built up over time. Without a test, the same regressions will
- * recur whenever someone (human or AI) writes new copy that includes
- * "trusted", "expert", "hassle-free", etc. as marketing labels.
+ * WHY A BASELINE
+ * Adopting the full kernel surfaced pre-existing copy debt that predates it.
+ * Failing the build on all of it would have forced an unrelated content wave
+ * into this change, so the suite uses a ratchet, matching the semantics the
+ * brand-voice linter already had (pre-existing violations don't block; NEW ones
+ * do):
  *
- * The test allowlists legitimate uses:
- * - Functional English (e.g. "trusted friend", "industry experts in ASE")
- * - Industry-standard part-tier ("OEM-quality parts", "quality used tires")
- * - Generational pivots from VOICE.md pattern 6
+ *   - Any violation NOT in KNOWN_COPY_DEBT fails the build.
+ *   - Any KNOWN_COPY_DEBT entry that no longer reproduces ALSO fails the build,
+ *     so fixing a line forces deleting its entry. A ratchet that only ever grows
+ *     is a rug; this one only ever shrinks.
  *
- * Anything else fails the build.
+ * Burn the list down to zero and delete the mechanism.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
-import { SERVICES } from "../shared/services";
-import { SEO_SERVICE_PAGES } from "../shared/seo-pages";
+
 import { BLOG_ARTICLES } from "../shared/blog";
 import { CITIES } from "../shared/cities";
+import { SEO_SERVICE_PAGES } from "../shared/seo-pages";
+import { SERVICES } from "../shared/services";
+import { findVoiceViolations, KILL_RULES } from "../shared/voice";
 
-// VOICE.md cliché kill list — phrases that should never appear as
-// marketing labels. Each pattern is paired with an `allowlist` of
-// substring contexts where it's accepted.
-const KILL_LIST: Array<{
-  pattern: RegExp;
-  label: string;
-  allowedContexts: string[];
-}> = [
-  {
-    pattern: /\b(?:Cleveland's?|the)\s+trusted\b/i,
-    label: "'trusted' as marketing label (e.g. 'Cleveland's trusted shop')",
-    allowedContexts: [
-      // Generational pivot from VOICE.md pattern 6 — kept on Home.tsx
-      // (this pattern doesn't appear in data files, only in JSX, so safe)
-    ],
-  },
-  {
-    pattern: /\bExpert\s+(?:advice|guide|diagnosis|tire advice|technicians|knowledge|backed)\b/i,
-    label: "'Expert X' label (replace with 'Mechanic-grade X' or specific signal)",
-    allowedContexts: [
-      // ASE certification context: "tests are developed by industry experts"
-      "industry experts",
-      "industry-experts",
-    ],
-  },
-  {
-    pattern: /\bhassle.free\b/i,
-    label: "'hassle-free' (per VOICE.md replace with 'Done before your patience runs out.')",
-    allowedContexts: [],
-  },
-  {
-    pattern: /\brest\s+assured\b/i,
-    label: "'rest assured' (patronizing per VOICE.md)",
-    allowedContexts: [],
-  },
-  {
-    pattern: /\bstate.of.the.art\b/i,
-    label: "'state-of-the-art' (per VOICE.md replace with the actual model number)",
-    allowedContexts: [],
-  },
-  {
-    pattern: /\btop.notch\b/i,
-    label: "'top-notch' (pure filler per VOICE.md)",
-    allowedContexts: [],
-  },
-  // 2026-05-06 audit-driven additions · FCFS positioning lockdown.
-  // These phrases were called out as BANNED in the foot-traffic-grade
-  // audit directive (Asset Dictionary > banned language section).
-  {
-    pattern: /\b(?:Book|Reserve|Hold Your Spot)\s+(?:Appointment|Online|Your Spot|a Bay)\b/i,
-    label: "appointment-language ('Book Appointment' / 'Reserve' / 'Hold Your Spot') — site is FCFS",
-    allowedContexts: [
-      // "Book a free consultation" is fine in admin UI. The banned uses
-      // are customer-facing copy that implies appointment scheduling.
-    ],
-  },
-  {
-    pattern: /\bSchedule\s+(?:Appointment|a Time|Time Slot)\b/i,
-    label: "'Schedule Appointment' / 'Schedule a Time' — appointment scheduling banned (FCFS only)",
-    allowedContexts: ["Schedule Drop-Off"], // "Schedule Drop-Off" is the approved CTA per HOMEPAGE_MOCKUP
-  },
-  {
-    pattern: /\bWaiting\s+Room\b/i,
-    label: "'Waiting Room' — drop-off model means no waiting room, banned",
-    allowedContexts: [],
-  },
-  {
-    pattern: /\b(?:affordable|cheap)\s+(?:tires|repair|service|auto|brake|prices?)\b/i,
-    label: "'affordable' / 'cheap' as price descriptor — banned, signals weakness",
-    allowedContexts: [
-      // "cheap [thing] cleveland" patterns are SEARCH-QUERY TARGETS that
-      // we genuinely rank for. The KILL_LIST applies to the operator's
-      // brand voice describing themselves; query-target language in
-      // blog titles + URL slugs is intentional SEO inventory we own.
-      "cheap tires near me",
-      "cheap tires cleveland",
-      "cheap tire shop",
-      "cheap brake repair",
-      "cheap oil change",
-      "cheap car repair",
-      "cheap auto repair",
-      "best cheap tires",
-    ],
-  },
-  {
-    pattern: /\bWe\s+Offer\s+Financing\b/i,
-    label: "'We Offer Financing' — banned per FCFS positioning. Use 'Payment Programs Available'.",
-    allowedContexts: [],
-  },
+/**
+ * Pre-existing violations, one `ruleId@location` per line, each with the reason
+ * it is still here. Do NOT add to this list to make a new failure go away —
+ * fix the copy. Adding an entry is a deliberate, reviewed exception.
+ */
+const KNOWN_COPY_DEBT: readonly string[] = [
+  // Real violations — small copy edits, deferred to a content pass because the
+  // metaTitle/metaDescription fields below are baked into prerendered/ and
+  // changing them requires a prerender regeneration this change does not do.
+  'bot.free-inspection@seo-pages.ts:brake-repair-cleveland.metaTitle', // "Free Inspection" -> "Free Check"
+  'cliche.expert@seo-pages.ts:check-engine-light-cleveland.metaDescription', // "OBD-II experts"
+  'cliche.quality@blog.ts:used-tires-near-me-cleveland.metaTitle', // "Quality Inspected" badge
+  'cliche.quality@blog.ts:how-we-inspect-used-tires.metaTitle', // "Quality Process"
+  'cliche.reliable@cities.ts:strongsville-auto-repair.localContent', // "residents expect reliable service"
+
+  // "reliable" describing the CUSTOMER'S VEHICLE, not the shop. VOICE.md bans
+  // the word as a self-description ("Tells the reader nothing"); a Camry having
+  // a reliable engine is ordinary English. Kept as debt rather than allowlisted
+  // because shop-sense vs vehicle-sense is not safely distinguishable by regex —
+  // a human should reword these when the content pass happens.
+  'cliche.reliable@blog.ts:cleveland-winter-driving-guide.excerpt', // "keep your car safe and reliable"
+  'cliche.reliable@blog.ts:toyota-camry-brake-issues.excerpt', // "Reliable engine and transmission"
+  'cliche.reliable@blog.ts:summer-car-care-checklist-cleveland.excerpt', // "stay reliable through the warm months"
+
+  // Customer testimonial inside a TSX page. The component scan reads raw file
+  // text and cannot tell quoted speech from shop copy the way the data-file
+  // scan can (which skips testimonial fields outright). A reviewer writing
+  // "Best tire deal in Cleveland" is evidence, not marketing — never reword it.
+  'archetype.hero-superlative@client/src/pages/LandingPage.tsx', // reviews[0].text, "Robert H."
 ];
 
 interface ScannedField {
@@ -121,9 +72,15 @@ interface ScannedField {
   value: string;
 }
 
-/** Walk every text field on every record and yield ScannedField entries. */
+/**
+ * Walk every text field on every copy record.
+ *
+ * Testimonial fields are deliberately excluded: they are quotes from real
+ * customers. The kill list governs how the SHOP describes itself, and a
+ * reviewer writing "best shop in Cleveland" is evidence, not marketing copy.
+ * Rewriting a customer's words to satisfy a style rule would be a fabrication.
+ */
 function* scanCopy(): Generator<ScannedField> {
-  // Services
   for (const s of SERVICES) {
     yield { fileName: "services.ts", recordSlug: s.slug, field: "metaTitle", value: s.metaTitle };
     yield { fileName: "services.ts", recordSlug: s.slug, field: "metaDescription", value: s.metaDescription };
@@ -135,22 +92,18 @@ function* scanCopy(): Generator<ScannedField> {
       yield { fileName: "services.ts", recordSlug: s.slug, field: `problems[${i}].a`, value: p.a };
     }
   }
-  // SEO pages
   for (const p of SEO_SERVICE_PAGES) {
     yield { fileName: "seo-pages.ts", recordSlug: p.slug, field: "metaTitle", value: p.metaTitle };
     yield { fileName: "seo-pages.ts", recordSlug: p.slug, field: "metaDescription", value: p.metaDescription };
     yield { fileName: "seo-pages.ts", recordSlug: p.slug, field: "heroSubline", value: p.heroSubline };
     yield { fileName: "seo-pages.ts", recordSlug: p.slug, field: "intro", value: p.intro };
   }
-  // Blog
   for (const a of BLOG_ARTICLES) {
     yield { fileName: "blog.ts", recordSlug: a.slug, field: "title", value: a.title };
     yield { fileName: "blog.ts", recordSlug: a.slug, field: "metaTitle", value: a.metaTitle };
     yield { fileName: "blog.ts", recordSlug: a.slug, field: "metaDescription", value: a.metaDescription };
     yield { fileName: "blog.ts", recordSlug: a.slug, field: "excerpt", value: a.excerpt };
   }
-  // Cities (added 2026-05-06 — closes the gap that allowed generic
-  // "top-rated" / "trusted" copy to ship across 21 city pages)
   for (const c of CITIES) {
     yield { fileName: "cities.ts", recordSlug: c.slug, field: "metaTitle", value: c.metaTitle };
     yield { fileName: "cities.ts", recordSlug: c.slug, field: "metaDescription", value: c.metaDescription };
@@ -159,111 +112,14 @@ function* scanCopy(): Generator<ScannedField> {
     if (c.localContent) {
       yield { fileName: "cities.ts", recordSlug: c.slug, field: "localContent", value: c.localContent };
     }
-    if (c.testimonial?.text) {
-      yield { fileName: "cities.ts", recordSlug: c.slug, field: "testimonial.text", value: c.testimonial.text };
-    }
+    // c.testimonial is intentionally NOT scanned — see the doc comment above.
   }
 }
 
-describe("VOICE.md Compliance — cliché kill list", () => {
-  for (const rule of KILL_LIST) {
-    it(`zero violations of: ${rule.label}`, () => {
-      const violations: Array<{ where: string; snippet: string }> = [];
-      for (const entry of scanCopy()) {
-        if (!entry.value || typeof entry.value !== "string") continue;
-        if (!rule.pattern.test(entry.value)) continue;
-        // Allowlist check
-        const matchedAllowed = rule.allowedContexts.some((ctx) =>
-          entry.value.toLowerCase().includes(ctx.toLowerCase()),
-        );
-        if (matchedAllowed) continue;
-        violations.push({
-          where: `${entry.fileName}:${entry.recordSlug}.${entry.field}`,
-          snippet: entry.value.slice(0, 120),
-        });
-      }
-      expect(violations).toEqual([]);
-    });
-  }
-});
-
-describe("VOICE.md Compliance — meta-title length (≤60 chars)", () => {
-  it("all SERVICES.metaTitle ≤60 chars", () => {
-    const violations = SERVICES
-      .filter((s) => s.metaTitle.length > 60)
-      .map((s) => `${s.slug}: ${s.metaTitle.length}ch`);
-    expect(violations).toEqual([]);
-  });
-
-  it("all SEO_SERVICE_PAGES.metaTitle ≤60 chars", () => {
-    const violations = SEO_SERVICE_PAGES
-      .filter((p) => p.metaTitle.length > 60)
-      .map((p) => `${p.slug}: ${p.metaTitle.length}ch`);
-    expect(violations).toEqual([]);
-  });
-
-  it("all BLOG_ARTICLES.title ≤60 chars (Google SERP truncation)", () => {
-    const violations = BLOG_ARTICLES
-      .filter((a) => a.title.length > 60)
-      .map((a) => `${a.slug}: ${a.title.length}ch`);
-    expect(violations).toEqual([]);
-  });
-
-  // 2026-05-06 · 90+ blog metaTitles still over 60ch from pre-framework
-  // era. Tracked as todo for a follow-up content audit. The 6 GSC-traffic
-  // posts already comply (ledger in shared/blog.ts framework header).
-  // Once the rest are tightened, flip this to `it(...)`.
-  it.todo("all BLOG_ARTICLES.metaTitle ≤60 chars (audit pending)");
-
-  it("all CITIES.metaTitle ≤60 chars", () => {
-    const violations = CITIES
-      .filter((c) => c.metaTitle.length > 60)
-      .map((c) => `${c.slug}: ${c.metaTitle.length}ch`);
-    expect(violations).toEqual([]);
-  });
-});
-
-describe("VOICE.md Compliance — meta-description length (≤170 chars)", () => {
-  it("all SERVICES.metaDescription ≤170 chars", () => {
-    const violations = SERVICES
-      .filter((s) => s.metaDescription.length > 170)
-      .map((s) => `${s.slug}: ${s.metaDescription.length}ch`);
-    expect(violations).toEqual([]);
-  });
-
-  it("all BLOG_ARTICLES.metaDescription ≤170 chars", () => {
-    const violations = BLOG_ARTICLES
-      .filter((a) => a.metaDescription.length > 170)
-      .map((a) => `${a.slug}: ${a.metaDescription.length}ch`);
-    expect(violations).toEqual([]);
-  });
-
-  it("all CITIES.metaDescription ≤170 chars", () => {
-    const violations = CITIES
-      .filter((c) => c.metaDescription.length > 170)
-      .map((c) => `${c.slug}: ${c.metaDescription.length}ch`);
-    expect(violations).toEqual([]);
-  });
-
-  it("all SEO_SERVICE_PAGES.metaDescription ≤170 chars", () => {
-    const violations = SEO_SERVICE_PAGES
-      .filter((p) => p.metaDescription.length > 170)
-      .map((p) => `${p.slug}: ${p.metaDescription.length}ch`);
-    expect(violations).toEqual([]);
-  });
-});
-
-// ─── Component-level scan ───────────────────────────────
-// Some hardcoded marketing copy lives in TSX components, not data files.
-// LocalBusinessSchema.tsx in particular ships a long `description` field
-// to every page — it's the single highest-leverage string for both Google
-// rich results and AI-search citation, so it MUST stay voice-compliant.
-//
-// We scan as plain text (read the file). Cheap + catches regressions
-// the data-file scan above misses.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
+// Some hardcoded marketing copy lives in TSX, not data files.
+// LocalBusinessSchema.tsx in particular ships a long `description` to every
+// page — the highest-leverage string for both Google rich results and
+// AI-search citation, so it must stay voice-compliant.
 const COMPONENT_FILES_TO_SCAN = [
   "client/src/components/LocalBusinessSchema.tsx",
   "client/src/components/InternalLinks.tsx",
@@ -274,28 +130,136 @@ const COMPONENT_FILES_TO_SCAN = [
   "client/src/pages/TireShopNearMePage.tsx",
 ];
 
-describe("VOICE.md Compliance — component-level marketing copy", () => {
-  for (const file of COMPONENT_FILES_TO_SCAN) {
-    it(`${file} has zero kill-list violations`, () => {
-      const fullPath = join(process.cwd(), file);
-      const content = readFileSync(fullPath, "utf-8");
-      const violations: Array<{ rule: string; snippet: string }> = [];
-      for (const rule of KILL_LIST) {
-        // Pull match + small surrounding context for allowlist check
-        const matches = content.matchAll(new RegExp(rule.pattern.source, "gi"));
-        for (const match of matches) {
-          if (match.index === undefined) continue;
-          const start = Math.max(0, match.index - 30);
-          const end = Math.min(content.length, match.index + match[0].length + 30);
-          const context = content.slice(start, end);
-          const matchedAllowed = rule.allowedContexts.some((ctx) =>
-            context.toLowerCase().includes(ctx.toLowerCase()),
-          );
-          if (matchedAllowed) continue;
-          violations.push({ rule: rule.label, snippet: context.replace(/\n/g, " ") });
-        }
-      }
-      expect(violations).toEqual([]);
-    });
+/** Blank out comments so line numbers survive but prose in them isn't scanned. */
+function stripComments(body: string): string {
+  return body
+    .replace(/\/\/[^\n]*/g, (m) => " ".repeat(m.length))
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, (m) => m.replace(/[^\n]/g, " "));
+}
+
+function collectAllViolations(): { key: string; detail: string }[] {
+  const found: { key: string; detail: string }[] = [];
+
+  for (const entry of scanCopy()) {
+    if (!entry.value || typeof entry.value !== "string") continue;
+    for (const v of findVoiceViolations(entry.value, { surface: "web" })) {
+      found.push({
+        key: `${v.ruleId}@${entry.fileName}:${entry.recordSlug}.${entry.field}`,
+        detail: `"${v.match}" in ${entry.value.slice(0, 110)}`,
+      });
+    }
   }
+
+  for (const file of COMPONENT_FILES_TO_SCAN) {
+    const content = stripComments(readFileSync(join(process.cwd(), file), "utf-8"));
+    for (const v of findVoiceViolations(content, { surface: "web" })) {
+      found.push({
+        key: `${v.ruleId}@${file}`,
+        detail: `"${v.match}" at line ${v.line}`,
+      });
+    }
+  }
+
+  return found;
+}
+
+describe("Voice Kernel compliance — customer-facing copy", () => {
+  it("has no violations outside the known-debt baseline", () => {
+    // Multiset, not set: a second violation of an already-baselined rule in an
+    // already-baselined file must still fail. Component keys have no line
+    // number (line numbers churn on every unrelated edit), so the count is what
+    // holds the ratchet tight.
+    const remaining = [...KNOWN_COPY_DEBT];
+    const unexpected: string[] = [];
+    for (const v of collectAllViolations()) {
+      const at = remaining.indexOf(v.key);
+      if (at === -1) unexpected.push(`${v.key}  ->  ${v.detail}`);
+      else remaining.splice(at, 1);
+    }
+    expect(unexpected).toEqual([]);
+  });
+
+  it("has no stale baseline entries (fixing copy must delete its entry)", () => {
+    const live = [...collectAllViolations().map((v) => v.key)];
+    const stale: string[] = [];
+    for (const key of KNOWN_COPY_DEBT) {
+      const at = live.indexOf(key);
+      if (at === -1) stale.push(key);
+      else live.splice(at, 1);
+    }
+    expect(stale).toEqual([]);
+  });
+
+  it("reads its rules from the kernel, not a local list", () => {
+    // Guards against someone reintroducing a local KILL_LIST in this file.
+    const self = readFileSync(__filename, "utf-8");
+    expect(self).not.toMatch(/^const KILL_LIST\b/m);
+    expect(KILL_RULES.length).toBeGreaterThan(40);
+  });
+});
+
+describe("Voice compliance — meta-title length (<=60 chars)", () => {
+  it("all SERVICES.metaTitle <=60 chars", () => {
+    const violations = SERVICES.filter((s) => s.metaTitle.length > 60).map(
+      (s) => `${s.slug}: ${s.metaTitle.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("all SEO_SERVICE_PAGES.metaTitle <=60 chars", () => {
+    const violations = SEO_SERVICE_PAGES.filter((p) => p.metaTitle.length > 60).map(
+      (p) => `${p.slug}: ${p.metaTitle.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("all BLOG_ARTICLES.title <=60 chars (Google SERP truncation)", () => {
+    const violations = BLOG_ARTICLES.filter((a) => a.title.length > 60).map(
+      (a) => `${a.slug}: ${a.title.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
+
+  // 2026-05-06 · 90+ blog metaTitles still over 60ch from the pre-framework
+  // era. Tracked for a follow-up content audit. The 6 GSC-traffic posts already
+  // comply (ledger in shared/blog.ts framework header).
+  it.todo("all BLOG_ARTICLES.metaTitle <=60 chars (audit pending)");
+
+  it("all CITIES.metaTitle <=60 chars", () => {
+    const violations = CITIES.filter((c) => c.metaTitle.length > 60).map(
+      (c) => `${c.slug}: ${c.metaTitle.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
+});
+
+describe("Voice compliance — meta-description length (<=170 chars)", () => {
+  it("all SERVICES.metaDescription <=170 chars", () => {
+    const violations = SERVICES.filter((s) => s.metaDescription.length > 170).map(
+      (s) => `${s.slug}: ${s.metaDescription.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("all BLOG_ARTICLES.metaDescription <=170 chars", () => {
+    const violations = BLOG_ARTICLES.filter((a) => a.metaDescription.length > 170).map(
+      (a) => `${a.slug}: ${a.metaDescription.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("all CITIES.metaDescription <=170 chars", () => {
+    const violations = CITIES.filter((c) => c.metaDescription.length > 170).map(
+      (c) => `${c.slug}: ${c.metaDescription.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("all SEO_SERVICE_PAGES.metaDescription <=170 chars", () => {
+    const violations = SEO_SERVICE_PAGES.filter((p) => p.metaDescription.length > 170).map(
+      (p) => `${p.slug}: ${p.metaDescription.length}ch`,
+    );
+    expect(violations).toEqual([]);
+  });
 });

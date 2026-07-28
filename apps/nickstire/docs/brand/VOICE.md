@@ -81,25 +81,30 @@ Dignified tone where you'd expect breezy = funny + memorable.
 
 ---
 
-## The cliché kill list (delete these phrases sitewide; rewrite if found)
+## The cliché kill list
 
-| Phrase | Why kill |
-|---|---|
-| "Trusted" / "trust us" | Don't claim trust. Reviews do that. |
-| "Expert" / "Experts" | Same. Confident shops don't claim it. |
-| "Quality" / "Top quality" | Empty. Shows nothing. |
-| "Family-owned" | Replace: "We close at 6 because we have families." |
-| "We pride ourselves on..." | Stop. |
-| "State-of-the-art" | Replace with the actual model number. |
-| "Hassle-free" | Replace: "Done before your patience runs out." |
-| "Customer satisfaction" | Replace with a specific number. |
-| "Service with a smile" | Visual, not copy. |
-| "Welcome to..." | Visitors didn't ask. |
-| "Our commitment to..." | Show, don't tell. |
-| "Rest assured" | Patronizing. |
-| "Top-notch" | Pure filler. |
-| "Reliable" / "Dependable" | Tells the reader nothing. |
-| "Friendly staff" | Visual. Or let the reviews say it. |
+**The list lives in code: [`shared/voice.ts`](../../shared/voice.ts) — the Voice Kernel.**
+
+It used to live here as a markdown table, and in six other places besides: the
+linter, a stale duplicate of the linter, the IG generator prompt, the IG critic
+prompt, the compliance test, and `.claude/brand-voice-guidelines.md`. No two
+agreed. "Reliable" was killed by this document and banned in both IG prompts but
+had no pattern in the CI linter, so it shipped to the live site; "comprehensive"
+was the same drift running the other way.
+
+So the table is gone on purpose. Every rule now carries its `why`, its `fix`, its
+severity, its allowlisted exceptions and the list of sources that asserted it —
+as data, in one file, imported by everything that writes or checks copy.
+
+- Reading the rules: open `shared/voice.ts`, or run `pnpm run lint:brand-voice --audit`
+- Adding or changing a rule: edit `shared/voice.ts`. Nowhere else.
+- Re-adding a word list to this document fails `voiceKernelParity.test.ts`.
+
+The positive half of this document — the recipe, the 7 patterns, the 1:3 ratio,
+the surface rules and the CTA library — is in the kernel too, so generators are
+told what a GOOD line looks like and not only which words are forbidden. The
+prose below stays because humans write copy from it; the machine reads the
+kernel.
 
 ---
 

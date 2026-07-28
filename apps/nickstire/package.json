@@ -35,7 +35,7 @@
     "lint:source": "node scripts/lint-source.mjs",
     "lint:sql": "node scripts/lint-sql-columns.mjs",
     "lint:hooks": "node scripts/audit-hook-after-return.mjs",
-    "lint:brand-voice": "node scripts/lint-brand-voice.mjs",
+    "lint:brand-voice": "tsx scripts/lint-brand-voice.ts",
     "lint:pii": "node scripts/lint-pii.mjs",
     "validate:routes": "node scripts/validate-route-registry.mjs",
     "env:validate": "node scripts/env-validate.mjs",

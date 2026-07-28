@@ -5,8 +5,10 @@
  * analyzeFirstVisitConversion, computeCustomerRiskScores
  */
 
-import { invoices, customers } from "../../../drizzle/schema";
-import { sql, gte, and } from "drizzle-orm";
+import { invoices, customers, algEstimates } from "../../../drizzle/schema";
+import { sql, gte, and, isNull } from "drizzle-orm";
+import { scoreServiceAffinity } from "./affinityScoring";
+import { createLogger } from "../../lib/logger";
 import { RawRow, extractRows, extractOne, db, categorizeService } from "./shared";
 
 // ═══════════════════════════════════════════════════════════
@@ -147,7 +149,13 @@ export async function analyzeCustomerValueTrend(): Promise<{
 // MODEL VERSION: "v2-heuristic-2026-05-24"
 //   · Bump on any weight change so the prediction table can track
 //     per-version performance via the closed-loop measurement plumbing.
-const MODEL_VERSION = "v2-heuristic-2026-05-24" as const;
+// v3 (2026-07-27, ROS-033): implements signal β (declinedRecall) and replaces
+// the `sampleSize × signalStrength` confidence product with normalized signal
+// strength plus an evidence PRECONDITION. Bumped so the closed-loop tables can
+// tell v2 predictions (which could never clear the outreach gate) from v3.
+const MODEL_VERSION = "v3-heuristic-2026-07-27" as const;
+
+const affinityLog = createLogger("service-affinity");
 
 // Seasonal demand multipliers per service category (Cleveland tire shop).
 // Tires-snow → fall · A/C → summer · brakes → winter slow-zone.
@@ -225,6 +233,95 @@ export async function buildServiceAffinityMap(): Promise<{
       }
     }
 
+    // Open declined estimates — signal β from the v2 design, implemented at
+    // last (ROS-033). `matchedInvoiceId IS NULL` means the estimate was written
+    // and never converted to a paid invoice: the customer was handed this exact
+    // work in writing and did not take it. Nothing else in this dataset states
+    // intent that plainly, and the previous model never even loaded it.
+    const openDeclined = await d.select({
+      customerId: algEstimates.customerId,
+      customerPhone: algEstimates.customerPhone,
+      serviceDescription: algEstimates.serviceDescription,
+      serviceCategory: algEstimates.serviceCategory,
+      estimateDate: algEstimates.estimateDate,
+    }).from(algEstimates)
+      .where(and(
+        // NOT `customerId IS NOT NULL`. `shopDriverEstimateSync` never sets
+        // that column — it has zero references to it — so every estimate the
+        // sync writes arrives unlinked, and the only thing that ever fills it
+        // is a hand-run backfill (scripts/backfill-estimate-customer-link.mjs).
+        // Requiring the id would have made signal β cover only whatever was
+        // backfilled once and decay to nothing as new estimates arrived: a
+        // signal that quietly stops firing, which is the exact defect this
+        // recalibration exists to remove. Fall back to the phone key below.
+        // Caught in review on #1140.
+        sql`(${algEstimates.customerId} IS NOT NULL OR (${algEstimates.customerPhone} IS NOT NULL AND ${algEstimates.customerPhone} <> ''))`,
+        isNull(algEstimates.matchedInvoiceId),
+        gte(algEstimates.estimateDate, sql`DATE_SUB(NOW(), INTERVAL 24 MONTH)`),
+        // CROSS-LOOP SUPPRESSION. `cron/jobs/declinedWorkRecovery.ts` already
+        // contacts customers about open estimates and claims each one by
+        // stamping a `followUp*AttemptedAt` before it sends. Without this
+        // filter, cross-sell would score on the same estimates and text the
+        // same person about the same work in different words — and it could not
+        // be caught downstream, because cross-sell's COOLDOWN_DAYS only sees
+        // cross-sell's own sends and the recovery loop sends with
+        // `skipPersist: true`. Excluding any estimate the recovery loop has
+        // touched makes the double-text impossible by construction rather than
+        // unlikely by cooldown. Recovery owns an estimate once it claims it.
+        isNull(algEstimates.followUp3dAttemptedAt),
+        isNull(algEstimates.followUp7dAttemptedAt),
+        isNull(algEstimates.followUp14dAttemptedAt),
+        isNull(algEstimates.followUp30dAttemptedAt),
+        isNull(algEstimates.followUp45dAttemptedAt),
+      ));
+
+    // Phone -> customer, for estimates the sync left unlinked. AMBIGUITY
+    // REFUSES: a phone matching more than one customer is dropped, never
+    // attached to an arbitrary one — the same discipline the backfill script
+    // applies, and the reason a household line cannot pull one person's
+    // declined work onto another person's prediction.
+    const phoneOwners: Record<string, Set<number>> = {};
+    for (const c of await d.select({ id: customers.id, phone: customers.phone })
+      .from(customers).where(sql`${customers.phone} IS NOT NULL AND ${customers.phone} <> ''`)) {
+      const key = String(c.phone).replace(/\D/g, "").slice(-10);
+      if (key.length < 10) continue;
+      (phoneOwners[key] ??= new Set()).add(c.id);
+    }
+
+    // customerId -> category -> days since the FRESHEST open estimate.
+    const custDeclined: Record<number, Record<string, number>> = {};
+    let linkedByPhone = 0;
+    for (const est of openDeclined) {
+      let cid = est.customerId ?? null;
+      if (cid === null) {
+        const key = String(est.customerPhone ?? "").replace(/\D/g, "").slice(-10);
+        const owners = key.length === 10 ? phoneOwners[key] : undefined;
+        if (!owners || owners.size !== 1) continue; // unknown or ambiguous
+        cid = [...owners][0];
+        linkedByPhone++;
+      }
+      // Prefer the explicit category when the sync populated it; fall back to
+      // the same categorizer the invoice side uses so both agree.
+      const cats = est.serviceCategory
+        ? [est.serviceCategory]
+        : categorizeService(est.serviceDescription || "");
+      const estDate = est.estimateDate ? new Date(est.estimateDate).getTime() : now;
+      const daysAgo = Math.max(0, Math.floor((now - estDate) / 86_400_000));
+      if (!custDeclined[cid]) custDeclined[cid] = {};
+      for (const cat of cats) {
+        const prev = custDeclined[cid][cat];
+        if (prev === undefined || daysAgo < prev) custDeclined[cid][cat] = daysAgo;
+      }
+    }
+
+    if (linkedByPhone > 0) {
+      // Observability, not decoration: this number IS the health of signal β.
+      // If it collapses to 0 while open estimates exist, the sync has started
+      // writing phones the customers table cannot match and the signal is dying
+      // quietly again.
+      affinityLog.info("linked open estimates to a customer by phone key (sync leaves customer_id null)", { linkedByPhone });
+    }
+
     const custNames = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName })
       .from(customers).where(gte(customers.totalVisits, 2));
     const nameMap: Record<number, string> = {};
@@ -252,60 +349,44 @@ export async function buildServiceAffinityMap(): Promise<{
       const totalInvoices = Object.values(svcMap).reduce((a, b) => a + b, 0);
       const invList = custInvoices[cid] ?? [];
 
-      // Score each candidate service · weighted-signal heuristic
-      type Candidate = { service: string; score: number; reasonParts: string[] };
+      // Score each candidate service. The heuristic itself lives in
+      // `affinityScoring.ts` — pure, no clock, no DB — so the recalibration is
+      // testable and the old form stays comparable (see `legacyConfidence`).
+      type Candidate = { service: string; score: number; confidence: number; reasonParts: string[] };
       const candidates: Candidate[] = [];
+      const declinedByCategory = custDeclined[cid] ?? {};
 
       for (const service of SERVICE_CATEGORIES) {
-        const reasonParts: string[] = [];
-        let score = 0;
-
-        // Signal 1 · recency-decay · longer since last visit in this
-        // category = stronger predicted-next signal · cap at 365d
         const daysSince = daysSinceCategory(invList, service);
-        if (Number.isFinite(daysSince)) {
-          // Customer has had this service before · weight by recency
-          // 30d ago = 0 score (too soon) · 365d ago = max 30 points
-          const recencyScore = Math.min(30, Math.max(0, (daysSince - 30) / (365 - 30) * 30));
-          score += recencyScore;
-          if (recencyScore >= 20) {
-            reasonParts.push(`last ${service} ${Math.floor(daysSince / 30)}mo ago`);
-          }
-        } else {
-          // Never had this service · neutral signal · don't penalize
-          // (some customers have only had tires · doesn't mean they
-          // don't need brakes)
-        }
+        const daysSinceDeclined = declinedByCategory[service] ?? Number.POSITIVE_INFINITY;
 
-        // Signal 2 · seasonal demand multiplier · range 0.7-1.5
-        const seasonal = seasonalMultiplier(service, currentMonth);
-        score *= seasonal;
-        if (seasonal > 1.1) {
-          reasonParts.push(`${service} season`);
-        }
+        const scored = scoreServiceAffinity({
+          daysSinceCategory: daysSince,
+          seasonal: seasonalMultiplier(service, currentMonth),
+          hasOpenDeclinedEstimate: Number.isFinite(daysSinceDeclined),
+          daysSinceDeclined,
+          observations: totalInvoices,
+        });
 
-        // Signal 3 · NOT-recently-had penalty · if customer had this
-        // service in last 30 days, kill the score
-        if (Number.isFinite(daysSince) && daysSince < 30) {
-          score = 0;
-          reasonParts.length = 0; // wipe reason · don't surface
-        }
+        const { score, confidence } = scored;
+        // Name the service in the recency reason, matching the previous copy.
+        const reasonParts = scored.reasonParts.map((p) =>
+          p.startsWith("last visit ") ? p.replace("last visit ", `last ${service} `) : p,
+        );
 
-        candidates.push({ service, score, reasonParts });
+        candidates.push({ service, score, confidence, reasonParts });
       }
 
       // Pick the highest-scoring candidate
       candidates.sort((a, b) => b.score - a.score);
       const winner = candidates[0];
 
-      // Confidence calibration · sample-size weight × signal-strength
-      // Sample size: totalInvoices proxies how much we know about this
-      // customer · scale to 0-1
-      const sampleSize = Math.min(1, totalInvoices / 8);
-      // Signal strength: winner score / max possible (45 = recency 30
-      // × seasonal 1.5) · scale to 0-1
-      const signalStrength = Math.min(1, winner.score / 45);
-      const confidence = Math.round(sampleSize * signalStrength * 100) / 100;
+      // Confidence comes straight from the scorer now. It used to be recomputed
+      // here as `sampleSize × signalStrength` — a product of two sub-1 quality
+      // measures, which is not a probability and capped production at 0.330
+      // against a 0.50 gate (ROS-033). Evidence sufficiency is a precondition
+      // inside the scorer, not a multiplier applied to everyone.
+      const confidence = winner.confidence;
 
       const reason = winner.reasonParts.length > 0
         ? `Predicted: ${winner.service} · ${winner.reasonParts.join(" · ")}`

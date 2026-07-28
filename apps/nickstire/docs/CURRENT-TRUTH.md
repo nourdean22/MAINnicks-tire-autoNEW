@@ -113,6 +113,36 @@ Automation success is valid only when the final system of record confirms the ac
 - **Human takeover:** if an operator manually replied to a conversation within 60 minutes (signalled by the `customer.sms_manual_send` audit row), the orchestrator suppresses AI auto-send and downgrades to a draft the operator approves — the AI never texts over a live human. STOP/opt-out is handled earlier and is unaffected. `server/services/humanTakeover.ts` (#987).
 - The SMS drafter now receives the customer identity, vehicle, open-estimate service, and last-VAPI-call gist that `loadCustomerContext` already loaded, so replies are personal, not cold (#988). The SMS persona prompt is a single shared SSOT constant (`nickSmsPersona.ts`) imported by both the live drafter and the fine-tune corpus exporter, so training data and serving cannot drift (#989).
 
+## Contracts that are executable, not prose (2026-07-27)
+
+Three governing contracts moved from markdown into typed modules that the code
+actually reads. In each case the prose remains for humans; the module is what
+runs, and a parity test fails the build if the two disagree.
+
+- **Brand voice** — `shared/voice.ts` is the sole source of the kill list, the 7
+  positive patterns, the surface rules and the CTA library. `docs/brand/VOICE.md`
+  and `.claude/brand-voice-guidelines.md` no longer carry word lists; the
+  brand-voice linter, both Instagram prompts and `voice-compliance.test.ts` all
+  import the kernel. Before this the voice existed in seven disagreeing copies
+  and "reliable" shipped to the live site (ROS-074). Adding a rule anywhere but
+  the kernel fails `voiceKernelParity.test.ts`.
+- **Metrics** — `shared/metricsContract.ts` carries the 27 canonical metrics from
+  `docs/METRICS-CONTRACT.md` with their evidence levels and ROI-safety, plus the
+  `MetricEnvelope` every executive metric response should travel in. It is a
+  registry and validator only; no existing query or admin surface was rewired to
+  it in this change (ROS-077). `Verified attributed revenue` is the single
+  ROI-safe revenue concept, pinned by test.
+- **Loop health** — `server/services/loopShapeContract.ts` declares, per loop,
+  the output a healthy run produces. A run that succeeds while producing nothing
+  is `dormant`; a run that succeeds without measuring its output is `unknown`,
+  never healthy (ROS-078). Contracts and a pure classifier only — no observer is
+  wired to it yet.
+
+Answer-engine crawlers (`OAI-SearchBot`, `ChatGPT-User`, `PerplexityBot`,
+`Claude-User`, `Google-Extended`, `meta-externalagent` and others) now receive
+prerendered HTML. `GPTBot` was already present but is OpenAI's model-training
+crawler, not the agent that answers a customer question (ROS-076).
+
 ## Manual or operator-gated systems
 
 - Applying SEO copy changes to source

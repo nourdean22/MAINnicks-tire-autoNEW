@@ -65,6 +65,40 @@ const COOLDOWN_DAYS = 30;
  */
 const MIN_CONFIDENCE_TO_ACT = 0.5;
 
+/**
+ * ─── OPERATOR GATE BEFORE ENABLING `sms_cross_sell_outreach` (ROS-033) ───
+ *
+ * The threshold above is UNCHANGED and deliberately so. What changed in the
+ * 2026-07-27 recalibration is the model underneath it: `confidence` is no longer
+ * `sampleSize × signalStrength` (a product of two sub-1 measures that capped
+ * production at 0.330 and could never clear this gate), and signal β
+ * `declinedRecall` is implemented — an unconverted `alg_estimates` row now
+ * contributes up to 40 of the 70 available points. See
+ * `services/engines/affinityScoring.ts` and `affinityScoring.test.ts`.
+ *
+ * TWO THINGS THE OPERATOR MUST DECIDE BEFORE THIS FLAG GOES ON:
+ *
+ * 1. DOUBLE-TEXT RISK — RESOLVED IN CODE, not left to the operator.
+ *    `cron/jobs/declinedWorkRecovery.ts` also contacts customers about open
+ *    estimates, and it sends with `skipPersist: true`, so the COOLDOWN_DAYS
+ *    window below could never have caught one of its sends. The affinity query
+ *    now excludes any estimate the recovery loop has claimed (any
+ *    `followUp*AttemptedAt` set), so recovery owns an estimate the moment it
+ *    touches it and cross-sell cannot score on it. The double-text is
+ *    impossible by construction rather than unlikely by cooldown.
+ *
+ * 2. VOLUME — THE ONE THING STILL UNVERIFIED. The recalibration is proven
+ *    against the model, not against production rows: no prediction has been
+ *    recomputed with v3 yet. Run `service_affinity_v2_compute` and read the
+ *    confidence histogram from `service_affinity_predictions` BEFORE enabling
+ *    sends. This job sits in the 2-hour tier: 12 runs/day x MAX_SMS_PER_RUN (10)
+ *    is up to 120 texts/day until the eligible pool burns down, and no v3
+ *    prediction has been computed anywhere yet. COOLDOWN_DAYS caps each PERSON
+ *    at one message per 30 days, so the risk is a first-week spike in volume,
+ *    not repeat-texting an individual. If the histogram looks heavy, drop
+ *    MAX_SMS_PER_RUN before flipping the flag, not after.
+ */
+
 /** Human-readable service names for SMS · keys match buildServiceAffinityMap output */
 const SERVICE_LABELS: Record<string, string> = {
   brakes: "a brake check",

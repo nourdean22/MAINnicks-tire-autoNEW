@@ -36,6 +36,7 @@
  */
 
 import { BUSINESS } from "@shared/business";
+import { renderBannedWordsForPrompt, renderCriticRubricForPrompt } from "@shared/voice";
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
 import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } from "../../drizzle/schema";
@@ -126,10 +127,16 @@ const CAPTION_WEIGHTS: Record<keyof Omit<CaptionEval, "notes">, number> = {
 // The ONLY prices that may ever appear in an autopost. Anything else —
 // especially a repair price — is a hard compliance failure. Mirrors the
 // shop's advertisable-price policy.
+// Interpolated from the BUSINESS SSOT, never restated. This list fed the
+// GENERATOR while buildEvalSystemPrompt hardcoded its own copy for the CRITIC —
+// a third and fourth copy of the used-tire price inside one file. When the
+// critic was moved onto the SSOT and this was not, the two sides of the same
+// gate stated different price contracts, so a compliant caption could be judged
+// against a contract the generator was never given. Caught in review on #1140.
 const ADVERTISABLE_PRICES = [
-  "used tires from $60 installed",
-  "oil change $49",
-  "synthetic oil change $80",
+  BUSINESS.usedTires.explanation,
+  `conventional oil change ${BUSINESS.oilChange.conventionalPrice}`,
+  `synthetic oil change ${BUSINESS.oilChange.syntheticPrice}`,
 ];
 
 // Anti-repetition dials. The generator picks one of each at random so two
@@ -512,7 +519,15 @@ function angleForArchetype(a: IgArchetype): string {
 
 /** Bump when the gen/eval prompts change · stamped on every ig_autopost_log
  * row so a content-quality shift can be tied to the prompt edit that caused it. */
-export const PROMPT_VERSION = "2026-06-20";
+// 2026-07-27 — Voice Kernel wave. The emitted prompt text changed even though
+// the intent did not: the generator's banned-phrase line and the critic's voice
+// rubric now RENDER from shared/voice.ts instead of being two hand-written
+// lists that disagreed, and the critic's price line interpolates the BUSINESS
+// SSOT instead of hardcoding "used tires from $60 installed". Scoring will shift
+// (drafts containing family-owned / state-of-the-art now fail voice; captions
+// stating the correct "from $25 installed" stop failing price-compliance), so
+// the version is bumped to keep that shift attributable in igAutopostLog.
+export const PROMPT_VERSION = "2026-07-27";
 
 function buildGenSystemPrompt(): string {
   return [
@@ -523,8 +538,12 @@ function buildGenSystemPrompt(): string {
     "- Every line that lands does three things at once: surprises (phrasing you would not expect from an auto shop), specifies (a concrete point underneath), reveals (sounds like a person thinking, not a brand communicating).",
     "- Use concrete numbers, named services, real Cleveland places, and time anchors.",
     "- One absurd/funny line per post MAXIMUM. Delightfully odd is good; stacked jokes cancel out.",
-    "- NEVER use these words anywhere: trusted, expert/experts, quality, premium, hassle-free, state-of-the-art, family-owned, best, #1, world-class, certified technicians, top-notch, reliable. They are banned brand-voice words.",
-    "- No LLM tells: no 'let's dive in', 'here's the thing', 'in conclusion', 'feel free to', 'furthermore', 'unlock/unleash/elevate your'.",
+    // Rendered from the Voice Kernel (shared/voice.ts), never hand-listed here.
+    // This line and the critic's banned-word line at buildEvalSystemPrompt used
+    // to be two hand-written lists in this same file that disagreed: the
+    // generator banned state-of-the-art / family-owned / world-class and the
+    // critic did not, so captions containing them scored full voice marks.
+    `- ${renderBannedWordsForPrompt({ surface: "social" })}`,
     "",
     "VIRAL SHAPE (the post must have all four, in order):",
     "1. HOOK — first sentence: a specific, concrete, surprising claim. NOT a question, NOT a teaser. It MUST land inside the first ~125 characters (Instagram hides the rest behind '...more'), so put the hook AND its most surprising specific up top — no slow build.",
@@ -1219,8 +1238,15 @@ function buildEvalSystemPrompt(): string {
     "",
     "DIMENSIONS:",
     "1. viralShape — does it have, in order: a concrete surprising HOOK that lands within the first ~125 characters (not a question), specific PROOF with numbers/specifics, a TURN that re-contextualizes, and a TAKE-AWAY that is exactly ONE friction-removed call-to-action (not stacked)? Bonus: is there a clearly save-worthy or send-worthy line? Missing any of the four ordered elements caps this at 0.5.",
-    "2. voice — does it surprise + specify + reveal a human voice? Concrete numbers, named services, real places? Score 0.0 if it contains ANY banned word (trusted, expert, quality, premium, hassle-free, best, #1, certified technicians, reliable, top-notch) or an LLM tell.",
-    "3. priceCompliance — 1.0 ONLY if every price stated is one of the allowed prices and NO repair price is quoted. If it quotes a price for brakes/diagnostics/AC/battery/alignment/exhaust or any non-allowed price, score 0.0. Allowed prices: used tires from $60 installed; oil change $49; synthetic oil change $80. No price stated at all = 1.0.",
+    // Rendered from the same Voice Kernel the generator uses, so the thing that
+    // writes the caption and the thing that grades it cannot drift apart.
+    `2. voice — ${renderCriticRubricForPrompt()}`,
+    // Prices interpolate the BUSINESS SSOT. They used to be hardcoded here as
+    // "used tires from $60 installed", the exact fabricated floor ROS-058
+    // removed from the SMS catalog as a reinfection vector. The consequence ran
+    // one way: this judge scored the SSOT-correct "from $25 installed" as 0.0
+    // price-compliance and passed the drifted $60. Never restate a price here.
+    `3. priceCompliance — 1.0 ONLY if every price stated is one of the allowed prices and NO repair price is quoted. If it quotes a price for brakes/diagnostics/AC/battery/alignment/exhaust or any non-allowed price, score 0.0. Allowed prices: ${BUSINESS.usedTires.explanation}; conventional oil change ${BUSINESS.oilChange.conventionalPrice}; synthetic oil change ${BUSINESS.oilChange.syntheticPrice}. No price stated at all = 1.0.`,
     "4. novelty — is the core idea clearly distinct from the supplied recent concept-keys? Near-duplicate of a recent idea = below 0.4.",
     "5. noFabrication — 1.0 if no invented customer names, fake quotes, or fake statistics. A quote that matches a supplied real review is fine. Any invented name/quote/stat = 0.0.",
     "",
