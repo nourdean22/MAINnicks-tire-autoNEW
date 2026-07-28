@@ -90,6 +90,13 @@ Automation success is valid only when the final system of record confirms the ac
 - A `media_publish` request that was **dispatched and got no answer** parks the item as `ambiguous` ("may be LIVE") everywhere — image/story/carousel/reel, both routers, and the cron — never as retryable `failed`. The operator resolves it from Publish (It IS live → published / It never posted → ready) after checking the real account.
 - `instagramAdmin.schedulePost/listScheduled/cancelScheduled` were DELETED (zero callers + integrity holes); Studio's schedule → scheduled_posts → cron is the only deferred-publish path. adStudio writes its own unlinked scheduled_posts rows (no inventory linkage) — since #1055 its post routes through `publishToSocial` (kill-switches + cadence governor apply) and claim-safety/permanent-URL checks are enforced server-side at post AND schedule time.
 
+### Every path to Meta goes through the emergency stop (2026-07-27)
+
+- **The kill switch reaches the autonomous poster.** `runIgAutopost` posted directly to Meta, so the operator's global / publishing / per-platform switches did not stop the one publisher that runs with no human watching (measured: 116 lifetime `posted` rows). It now shares the same check via `killSwitchBlockedPlatforms`. **Automated callers fail CLOSED** when switch state is unreadable — an unattended cron must not treat "we could not check" as "publish" — while operator callers still proceed loud. `dailyReelPost` and `socialInventoryPublisher` opt in the same way.
+- **The cadence governor counts all four doors**, including `ig_autopost_log`, which alone accounts for ~84% of lifetime publishing and was previously invisible to the cap. Each door is counted independently, so one unreadable source no longer zeroes the others. The autoposter now also ASSERTS the cadence itself — with a preflight before generation, so a capped day buys no LLM/image spend — and a cap hold is terminal for that slot.
+- **Autonomy policy v8** (operator-authorized 2026-07-27): `maxFeedPostsPerDay` 20, `minimumFeedSpacingHours` 0. v7 was leftover `cc2-verify` "temp" state from 2026-07-18, never a business decision (ROS-067). At 20 the cap never binds on ordinary operation — the autoposter does 3/day and the busiest normal day across all doors is 5 — so it is a runaway brake, not a content dial. The busiest day on record is 32.
+- **Not runtime-verified.** All of the above is asserted by code and pinned by tests; no cron tick or live publish has been observed since the change. Recorded as deferred scope on the `content-governor` capability rather than left implied.
+
 ### Outbound SMS delivery — operating contract
 
 - Outbound routes **shop-first** through the Capevace/F25e gateway on the shop's own Verizon line. Twilio is configured but not the primary sender.
@@ -117,24 +124,24 @@ runs, and a parity test fails the build if the two disagree.
   and `.claude/brand-voice-guidelines.md` no longer carry word lists; the
   brand-voice linter, both Instagram prompts and `voice-compliance.test.ts` all
   import the kernel. Before this the voice existed in seven disagreeing copies
-  and "reliable" shipped to the live site (ROS-065). Adding a rule anywhere but
+  and "reliable" shipped to the live site (ROS-074). Adding a rule anywhere but
   the kernel fails `voiceKernelParity.test.ts`.
 - **Metrics** — `shared/metricsContract.ts` carries the 27 canonical metrics from
   `docs/METRICS-CONTRACT.md` with their evidence levels and ROI-safety, plus the
   `MetricEnvelope` every executive metric response should travel in. It is a
   registry and validator only; no existing query or admin surface was rewired to
-  it in this change (ROS-068). `Verified attributed revenue` is the single
+  it in this change (ROS-077). `Verified attributed revenue` is the single
   ROI-safe revenue concept, pinned by test.
 - **Loop health** — `server/services/loopShapeContract.ts` declares, per loop,
   the output a healthy run produces. A run that succeeds while producing nothing
   is `dormant`; a run that succeeds without measuring its output is `unknown`,
-  never healthy (ROS-069). Contracts and a pure classifier only — no observer is
+  never healthy (ROS-078). Contracts and a pure classifier only — no observer is
   wired to it yet.
 
 Answer-engine crawlers (`OAI-SearchBot`, `ChatGPT-User`, `PerplexityBot`,
 `Claude-User`, `Google-Extended`, `meta-externalagent` and others) now receive
 prerendered HTML. `GPTBot` was already present but is OpenAI's model-training
-crawler, not the agent that answers a customer question (ROS-067).
+crawler, not the agent that answers a customer question (ROS-076).
 
 ## Manual or operator-gated systems
 

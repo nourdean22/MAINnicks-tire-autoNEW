@@ -286,11 +286,14 @@
       "evidence": {
         "codeCommit": "milestone 5 (recovered onto completion-authority branch after stranding)",
         "tests": [
-          "server/contentGovernor.test.ts (caps, spacing, repetition, publish door, stories bypass)"
+          "server/contentGovernor.test.ts (caps, spacing, repetition, publish door, stories bypass)",
+          "server/autopostCadence.test.ts (5): igAutopost calls assertPublishCadence BEFORE the Meta dispatch, aborts on GovernorDenial, and rethrows any non-denial error rather than reporting success",
+          "server/feedCapDoors.test.ts (10): ig_autopost_log counted as the fourth door; one unreadable door no longer zeroes the others"
         ],
         "deploymentId": "railway main auto-deploy (#817 merged)",
         "databaseAssertions": [
-          "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)"
+          "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)",
+          "policy v8 published to prod 2026-07-27 (operator-authorized): maxFeedPostsPerDay 2->20, minimumFeedSpacingHours 3->0, verified by independent read. v7 was leftover cc2-verify \"temp\" state, never a business decision."
         ]
       },
       "blockers": [
@@ -302,10 +305,10 @@
       ],
       "deferredScope": [
         "reservation consumption linkage",
-        "carousel/photo creator wiring",
-        "scheduling intelligence"
+        "scheduling intelligence",
+        "autopost cadence is now ASSERTED but not runtime-verified — no cron tick observed"
       ],
-      "lastVerifiedAt": "2026-07-17",
+      "lastVerifiedAt": "2026-07-27",
       "codeState": "merged",
       "operationalState": "deployed",
       "exposure": "internal"
