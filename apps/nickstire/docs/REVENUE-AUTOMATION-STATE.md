@@ -70,6 +70,12 @@ Migration **0100 `[VERIFIED-runtime]` — APPLIED to prod** (as was 0099): `alg_
 - **Scope**: drop-off flow only — inspections are created against bookings by staff. The walk-in lobby keeps the under-car flashlight ritual; no packet flow was added there (J.D. Power's 41%/17% evidence is full-service-repair, not walk-in tire).
 - **No sends**: sharing the packet link remains an operator action through existing channels.
 
+## Quote Guard + Promise Ledger (shipped 2026-07-28)
+
+**Quote Quality & Profit Guard** (`services/quoteGuard.ts`, tRPC `quoteGuard.evaluateEstimate`) — every check returns pass/fail/**unknown**, and unknown is the point: **the guard never fabricates a profit number** (test-pinned: `impliedPartsMarginPct` is null unless `estimated_parts_cost` was actually captured). Computable today: amount sanity, same-phone overlapping open estimates, captured-parts margin (labeled parts-only), and tire quotes vs **live Gateway supplier cost** (using `selling_price` — the documented field inversion: it's Nick's COST, `cost_price` is retail). Labor/calibration checks return unknown with reasons — the checklist doubles as the Wave-5 capture roadmap. No price advice anywhere.
+
+**Customer Promise Ledger** (`customer_promises`, migration **0102 `[VERIFIED-runtime]` APPLIED to prod**; `services/promiseLedger.ts`, tRPC `promises.*`, cron `promise-sweep`) — every promise gets an owner, due time, and auditable outcome. `kept` **requires evidence text** (rejected before any DB work otherwise, test-pinned). Overdue promises escalate ONCE into the Decision Inbox (`promise_overdue`, ≥4h overdue = critical) and rot to `missed` at 48h — the ledger tells the truth about broken promises. **No automated customer sends**: status messages from verified work-order transitions remain a later arc, gated on work-state timestamps being real (per the roadmap's own ordering).
+
 ## Open items this arc did NOT cover
 
 - Runtime verification of legacy flags/last-runs (`FEATURE_DECLINED_RECOVERY` state etc.) — `[UNKNOWN-runtime]`, needs `cron_log`/`railway run`. (Migrations 0099+0100 ARE runtime-verified applied.)
