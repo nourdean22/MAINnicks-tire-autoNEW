@@ -60,6 +60,16 @@ Migration **0100 `[VERIFIED-runtime]` — APPLIED to prod** (as was 0099): `alg_
 - **Capture paths**: (1) operator capture via Decision Inbox chips (`opportunityQueue.captureStatedConcern`, source `operator` — the correction authority, overwrites freely); (2) **SMS auto-classification `[VERIFIED]` (wired 2026-07-28, follow-on PR)** — `recoveryReplyCapture.captureStatedConcernFromReply` runs as a passive fail-open observer on BOTH inbound webhooks (shop gateway + Twilio). Attribution gate: last outbound to the phone within 7d must carry a `declined_*` variantKey; classify-first short-circuit (no-signal replies cost zero DB work); guarded single-statement UPDATE (`stated_concern IS NULL` — first signal wins, operator never overwritten); **zero changes to reply/send behavior** — it rides alongside `recordSmsReply`, not inside the response engine.
 - **Owner Decision Inbox panel** `[VERIFIED]`: `DecisionInboxPanel` leads `/admin` → Today. Call/Spoke/No-answer/Snooze/Lost/DNC (confirmDialog two-tap for destructive) + invoice-gated Won + stated-concern chips.
 
+## DVI evidence-to-approval — drop-off scoped (shipped 2026-07-28)
+
+**~60% already existed** `[VERIFIED]` (`vehicle_inspections` + `inspection_items` with per-item photos/conditions/costs, admin create/publish, public token page) — this arc built only the missing decision loop. Migration **0101 `[VERIFIED-runtime]` APPLIED to prod** (5 additive columns, post-checked).
+
+- **View tracking**: `firstViewedAt` + `viewCount`, beacon fired once per page load (`inspection.recordView`). "Did they open it" is now answerable.
+- **Per-item customer decisions**: Approve / Not now / Ask a question on every yellow/red item (`inspection.decideItem`, token-join = the auth, published-only, re-decidable). `customerNote` stores THEIR words verbatim — no AI touches this path.
+- **Queue integration**: `collectInspectionDeferrals` — published packets with open (undecided/declined) yellow/red items become `deferred_service` opportunities, `data_quality: verified` (a tech physically saw the part — the strongest evidence class in the queue), red forces urgency `today`, value = summed tech estimates. A `question` decision is engagement, not a deferral (pure summarizer, test-pinned).
+- **Scope**: drop-off flow only — inspections are created against bookings by staff. The walk-in lobby keeps the under-car flashlight ritual; no packet flow was added there (J.D. Power's 41%/17% evidence is full-service-repair, not walk-in tire).
+- **No sends**: sharing the packet link remains an operator action through existing channels.
+
 ## Open items this arc did NOT cover
 
 - Runtime verification of legacy flags/last-runs (`FEATURE_DECLINED_RECOVERY` state etc.) — `[UNKNOWN-runtime]`, needs `cron_log`/`railway run`. (Migrations 0099+0100 ARE runtime-verified applied.)

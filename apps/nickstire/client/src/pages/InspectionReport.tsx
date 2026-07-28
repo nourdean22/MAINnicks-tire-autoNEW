@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
@@ -37,19 +37,49 @@ const OVERALL_CONFIG = {
 export default function InspectionReport() {
   const [, params] = useRoute("/inspection/:token");
   const token = params?.token || "";
+  const utils = trpc.useUtils();
 
   const { data: inspection, isLoading , isError, error } = trpc.inspection.byToken.useQuery(
     { token },
     { enabled: !!token }
   );
 
+  // DVI view tracking — one beacon per page load, fire-and-forget.
+  // Evidence question #1 is "did they even open it"; this answers it.
+  const recordView = trpc.inspection.recordView.useMutation();
+  const viewRecorded = useRef(false);
+  useEffect(() => {
+    if (token && inspection && !viewRecorded.current) {
+      viewRecorded.current = true;
+      recordView.mutate({ token });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, !!inspection]);
+
+  // DVI per-item decisions. Optimistic-free by design: the server row is
+  // the receipt, so we refetch after each write instead of pretending.
+  const decideItem = trpc.inspection.decideItem.useMutation({
+    onSuccess: () => utils.inspection.byToken.invalidate({ token }),
+  });
+  const [noteFor, setNoteFor] = useState<number | null>(null);
+  const [noteText, setNoteText] = useState("");
+
+  const decide = (itemId: number, decision: "approved" | "declined" | "question", note?: string) => {
+    decideItem.mutate({ token, itemId, decision, note: note || undefined });
+    setNoteFor(null);
+    setNoteText("");
+  };
+
   const summary = useMemo(() => {
-    if (!inspection?.items) return { green: 0, yellow: 0, red: 0, totalCost: 0 };
+    if (!inspection?.items) return { green: 0, yellow: 0, red: 0, totalCost: 0, approvedCount: 0, approvedCost: 0 };
+    const approved = inspection.items.filter((i: any) => i.decision === "approved");
     return {
       green: inspection.items.filter((i: any) => i.condition === "green").length,
       yellow: inspection.items.filter((i: any) => i.condition === "yellow").length,
       red: inspection.items.filter((i: any) => i.condition === "red").length,
       totalCost: inspection.items.reduce((sum: number, i: any) => sum + (i.estimatedCost || 0), 0),
+      approvedCount: approved.length,
+      approvedCost: approved.reduce((sum: number, i: any) => sum + (i.estimatedCost || 0), 0),
     };
   }, [inspection]);
 
@@ -212,6 +242,87 @@ export default function InspectionReport() {
                     )}
                   </div>
                 )}
+
+                {/* DVI decision row — yellow/red items only. The customer
+                    decides per item; green items need no decision. Their
+                    choice is re-decidable (people change their minds). */}
+                {item.condition !== "green" && (
+                  <div className="pl-11 mt-3 pt-3 border-t border-border/20">
+                    {item.decision ? (
+                      <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                        {item.decision === "approved" && (
+                          <span className="inline-flex items-center gap-1 text-nick-teal font-bold">
+                            <CheckCircle className="w-4 h-4" /> You approved this fix
+                          </span>
+                        )}
+                        {item.decision === "declined" && (
+                          <span className="inline-flex items-center gap-1 text-foreground/60 font-bold">
+                            <XCircle className="w-4 h-4" /> You passed on this for now
+                          </span>
+                        )}
+                        {item.decision === "question" && (
+                          <span className="inline-flex items-center gap-1 text-primary font-bold">
+                            <AlertTriangle className="w-4 h-4" /> Question sent — we'll go over it with you
+                          </span>
+                        )}
+                        <button
+                          onClick={() => decide(item.id, item.decision === "approved" ? "declined" : "approved")}
+                          className="text-[12px] text-foreground/40 underline hover:text-foreground/70"
+                          disabled={decideItem.isPending}
+                        >
+                          change
+                        </button>
+                      </div>
+                    ) : noteFor === item.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={noteText}
+                          onChange={(e) => setNoteText(e.target.value)}
+                          maxLength={500}
+                          rows={2}
+                          placeholder="Your question or reason (optional)…"
+                          className="w-full max-w-md text-sm rounded-md border border-border/40 bg-background p-2"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => decide(item.id, "question", noteText)}
+                            disabled={decideItem.isPending}
+                            className="text-[12px] font-bold px-3 py-2 rounded bg-primary/20 text-primary border border-primary/30"
+                          >
+                            Send question
+                          </button>
+                          <button
+                            onClick={() => decide(item.id, "declined", noteText)}
+                            disabled={decideItem.isPending}
+                            className="text-[12px] font-bold px-3 py-2 rounded border border-border/40 text-foreground/60"
+                          >
+                            Not now
+                          </button>
+                          <button onClick={() => { setNoteFor(null); setNoteText(""); }} className="text-[12px] text-foreground/40 px-2">
+                            cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => decide(item.id, "approved")}
+                          disabled={decideItem.isPending}
+                          className="text-[13px] font-bold px-4 py-2.5 rounded-md bg-nick-teal/15 text-nick-teal border border-nick-teal/30 active:scale-95"
+                        >
+                          Approve this fix{item.estimatedCost > 0 ? ` · $${item.estimatedCost}` : ""}
+                        </button>
+                        <button
+                          onClick={() => setNoteFor(item.id)}
+                          disabled={decideItem.isPending}
+                          className="text-[13px] px-4 py-2.5 rounded-md border border-border/40 text-foreground/70 active:scale-95"
+                        >
+                          Not now / ask a question
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -232,6 +343,12 @@ export default function InspectionReport() {
             <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 mb-8 text-center">
               <span className="font-mono text-foreground/40 text-xs uppercase">Estimated Total for Recommended Repairs</span>
               <p className="font-bold text-4xl text-primary mt-2">${summary.totalCost.toLocaleString()}</p>
+              {summary.approvedCount > 0 && (
+                <p className="text-nick-teal font-bold text-sm mt-2">
+                  You've approved {summary.approvedCount} {summary.approvedCount === 1 ? "fix" : "fixes"}
+                  {summary.approvedCost > 0 ? ` · $${summary.approvedCost.toLocaleString()} est.` : ""}
+                </p>
+              )}
               <p className="text-foreground/50 text-sm mt-2">Final number lands after you say yes. No work starts without your OK.</p>
             </div>
           )}
