@@ -51,6 +51,22 @@ Ran the repo's own `check-sensitive-get-auth` (which was **not wired into any ga
 
 Lesson (same class as nickstire's day): a checker that exists but isn't in the gate, with blind spots nobody measured, protects nothing — the guard needed its own audit.
 
-## Not yet covered (later loop iterations)
+## Dimension 5 — cannot-fail checks (DONE)
 
-Dimension 2 remainder (pulse · scoreboard · /command surfaces) · dimension 3 dead wiring · dimension 4 prompt self-contradictions · dimension 5 cannot-fail checks.
+Swept every `check:*` script in the `verify:hard` chain for a reachable failure path. Two suspects **exonerated on precise read** (`scan-prompt-injection`, `scan-secrets` — ternary exits the count-grep missed; severity-tiered by design). One confirmed: **`audit-deps.ts` exited 0 unconditionally** — self-described "a reporter, not a gate" while sitting inside the gate chain (the nickstire "blocking dep gate had never executed" class). Fixed: **CRITICAL advisories now fail the gate**, HIGH stays advisory (reddening pushes on upstream noise is the exact 2026-07-25 dependency-PR pain), `--advisory` preserves reporter mode for cron. Validated against live deps: today's known HIGHs (brace-expansion) → exit 0; a critical → exit 1.
+
+## Dimension 3 — dead wiring (bounded probe, CLEAN)
+
+Probed the historic write-only class at its most famous addresses: **spar-mode is WIRED** (3 importers — the master plan's "ships in every deploy, never injected" finding was fixed since) and every operator-rule absolute **is injected** via `getOperatorPolicyLines()` — my per-export importer-grep initially claimed `DO_NOT_AUTO_TASKIFY` orphaned and was **refuted by the composer pattern** (name-greps miss wiring idioms — third false-positive shape this sweep). The one un-injected export (`BROADEN_AND_SUGGEST`) is deliberate, documented archaeology. Scope label: bounded probe, not an exhaustive zero-importer census.
+
+## Dimension 4 — prompt self-contradictions (policy layer, CLEAN)
+
+All 9 absolute directives in `lib/ai/prompt/policy/` checked pairwise against the prompt lib: coherent. The one apparent tension — "Never cite verbatim" (brain wisdom) vs "Cite driveViewUrl when quoting" (Drive docs) — resolves as different objects. `TRUTH_RULE_NEVER_FABRICATE` (past-tense claims require tool calls) is the strongest directive in the file and matches this audit's own doctrine. Scope label: policy layer + spot-checked static sections; the full 65K composite was not exhaustively pairwise-checked.
+
+## Dimension 2 remainder — pulse · scoreboard (CLEAN)
+
+`meta-scoreboard.ts` (341 lines) + pulse/intelligence surfaces: zero hits on every invented-number signature class (assumed rates, hardcoded targets, "industry standard" citations, fraction-as-percent). Combined with the brief composer's data-driven nulls and `compose-daily-brief`'s absolute grounding rule, the operator-number surfaces pass.
+
+## Sweep closing state
+
+Six dimensions, six source-verified verdicts: **2 P-level defects found and fixed** (Inngest fleet dead → synced live; audit-deps cannot-fail → criticals gate), **4 secondary fixes** (mega failure identity, brief HTML push, mission-surface-stats gate, checker blind spots + verify:hard wiring), **3 self-refutations recorded** (partial≠failed, NEVER_LOGGED≠dead, composer-injection vs name-grep). Bounded scopes are labeled where bounded. Follow-ups owned by runtime: `briefing_log` first row after 2026-07-29 10:15 UTC · named timeout culprits in the next mega-evening partial · heartbeat's first watch 12:00 UTC.

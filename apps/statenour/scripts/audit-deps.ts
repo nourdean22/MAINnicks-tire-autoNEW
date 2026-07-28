@@ -178,8 +178,24 @@ async function main(): Promise<void> {
       }
     }
   }
-  // Exit 0 even on findings · this is a reporter, not a gate. The
-  // ErrorLog write is the action · the operator sees alerts in /system/logs.
+  // 2026-07-28 cron-truth audit (dim 5): this exited 0 UNCONDITIONALLY —
+  // "a reporter, not a gate" — while sitting inside verify:hard, which IS
+  // the gate chain. A check that cannot fail inside a gate makes the
+  // chain claim protection it doesn't provide (the nickstire arc's
+  // "blocking dep gate had never executed" class). Policy now mirrors
+  // the nickstire security-scan precedent: CRITICAL fails the gate
+  // (rare enough to be pure signal), HIGH stays advisory (ErrorLog +
+  // /system/logs — reddening every push on upstream noise is the exact
+  // dependency-PR pain of 2026-07-25), and `--advisory` preserves the
+  // pure-reporter behavior for cron usage.
+  const advisoryMode = process.argv.includes("--advisory");
+  const criticals = findings.filter((f) => f.severity === "critical");
+  if (!advisoryMode && criticals.length > 0) {
+    console.error(
+      `✗ audit-deps · ${criticals.length} CRITICAL advisory(ies) — failing the gate (run with --advisory for reporter-only mode)`,
+    );
+    process.exit(1);
+  }
   process.exit(0);
 }
 
