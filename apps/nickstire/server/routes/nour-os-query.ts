@@ -108,6 +108,29 @@ interface QueryRequest {
 type QueryHandler = (filters: Record<string, unknown>) => Promise<unknown>;
 
 const QUERY_HANDLERS: Record<string, QueryHandler> = {
+  // ─── Decision inbox (S2, 2026-07-28) ─────────────────────────────
+  // Card-friendly top-N from the opportunity queue — the same
+  // due-aware/consented/SQL-ranked read the admin panel uses, so the
+  // statenour chat card and the Decision Inbox can never disagree.
+  "top_decisions": async () => {
+    const { topDecisions } = await import("../services/opportunityQueue");
+    const top = await topDecisions(5);
+    return {
+      decisions: top.decisions.map((d) => ({
+        id: d.id,
+        urgency: d.urgency,
+        state: d.state,
+        recommendedAction: d.recommendedAction,
+        valueDollars: d.factors.valueDollars,
+        dataQuality: d.dataQuality,
+        attempts: d.attempts,
+      })),
+      totalLive: top.totalLive,
+      excludedNoConsent: top.excludedNoConsent,
+      excludedSnoozed: top.excludedSnoozed,
+    };
+  },
+
   // ─── Revenue ──────────────────────────────────
   "revenue_today": async () => {
     const { getDb } = await import("../db");
