@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Image as ImageIcon, Mic } from "lucide-react";
@@ -219,12 +219,53 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     },
   );
 
-  // Cycle helpers for the compact authority pills — tap advances the value.
+  // UI-1 (2026-07-28): the pills used to CYCLE on tap — the operator had
+  // to memorize the rotation order and guess each value's meaning. Now a
+  // tap opens an explicit in-DOM control sheet (iOS-PWA primitive — no
+  // native popovers) with every option labeled and described; the pill
+  // is just the collapsed state.
   const POSTURES = ["auto", "execute", "counsel", "spar"] as const;
   const DEPTHS = ["auto", "standard", "deep"] as const;
   const PERMISSIONS = ["draft", "read", "execute"] as const;
-  const cycle = <T,>(list: readonly T[], cur: T): T =>
-    list[(list.indexOf(cur) + 1) % list.length];
+  const [openControl, setOpenControl] = useState<null | "posture" | "depth" | "actions">(null);
+
+  const CONTROL_OPTIONS: Record<
+    "posture" | "depth" | "actions",
+    { title: string; options: Array<{ value: string; label: string; hint: string }> }
+  > = {
+    posture: {
+      title: "Posture — how Nick engages",
+      options: [
+        { value: "auto", label: "Auto", hint: "Nick picks the stance per message" },
+        { value: "execute", label: "Execute", hint: "Direct — do the thing, minimal debate" },
+        { value: "counsel", label: "Counsel", hint: "Advise with options before acting" },
+        { value: "spar", label: "Spar", hint: "Challenge my thinking, push back hard" },
+      ],
+    },
+    depth: {
+      title: "Depth — how much thinking",
+      options: [
+        { value: "auto", label: "Auto", hint: "Nick chooses per question" },
+        { value: "standard", label: "Standard", hint: "Fast, focused answer" },
+        { value: "deep", label: "Deep", hint: "Slower, thorough multi-step analysis" },
+      ],
+    },
+    actions: {
+      title: "Permission — what Nick may do",
+      options: [
+        { value: "draft", label: "Draft only", hint: "Answer and prepare — nothing runs" },
+        { value: "read", label: "Read data", hint: "May read connected business data" },
+        { value: "execute", label: "Execute", hint: "May run approved actions (receipts always)" },
+      ],
+    },
+  };
+
+  const applyControl = (control: "posture" | "depth" | "actions", value: string) => {
+    if (control === "posture") setPosture(value as (typeof POSTURES)[number]);
+    else if (control === "depth") setDepth(value as (typeof DEPTHS)[number]);
+    else setActionPermission(value as (typeof PERMISSIONS)[number]);
+    setOpenControl(null);
+  };
 
   return (
     <form onSubmit={onSubmit} className="relative mx-auto flex w-full max-w-4xl flex-col gap-2">
@@ -236,8 +277,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
       <div className="flex items-center gap-1.5 px-1" data-testid="authority-controls">
         <button
           type="button"
-          onClick={() => setPosture(cycle(POSTURES, posture))}
-          aria-label={`Posture: ${posture} (tap to change)`}
+          onClick={() => setOpenControl(openControl === "posture" ? null : "posture")}
+          aria-label={`Posture: ${posture} (tap to choose)`}
+          aria-expanded={openControl === "posture"}
           className={cn(
             "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
             posture === "auto"
@@ -251,8 +293,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         </button>
         <button
           type="button"
-          onClick={() => setDepth(cycle(DEPTHS, depth))}
-          aria-label={`Depth: ${depth} (tap to change)`}
+          onClick={() => setOpenControl(openControl === "depth" ? null : "depth")}
+          aria-label={`Depth: ${depth} (tap to choose)`}
+          aria-expanded={openControl === "depth"}
           className={cn(
             "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
             depth === "auto" ? "border-glass text-fg-tertiary hover:text-fg-secondary" : "border-gold/40 bg-gold/10 text-gold",
@@ -262,8 +305,9 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         </button>
         <button
           type="button"
-          onClick={() => setActionPermission(cycle(PERMISSIONS, actionPermission))}
-          aria-label={`Action permission: ${actionPermission} (tap to change)`}
+          onClick={() => setOpenControl(openControl === "actions" ? null : "actions")}
+          aria-label={`Action permission: ${actionPermission} (tap to choose)`}
+          aria-expanded={openControl === "actions"}
           className={cn(
             "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
             actionPermission === "draft"
@@ -288,6 +332,50 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           {privateMode ? "private · on" : "private"}
         </button>
       </div>
+      {openControl && (() => {
+        const sheet = CONTROL_OPTIONS[openControl];
+        return (
+        <div
+          className="rounded-xl border border-glass bg-elevated p-3 space-y-1.5"
+          data-testid={`control-sheet-${openControl}`}
+          role="listbox"
+          aria-label={sheet.title}
+        >
+          <div className="flex items-center justify-between pb-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+              {sheet.title}
+            </p>
+            <span className="text-[10px] text-fg-tertiary">this conversation</span>
+          </div>
+          {sheet.options.map((opt) => {
+            const current =
+              openControl === "posture" ? posture : openControl === "depth" ? depth : actionPermission;
+            const selected = current === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => applyControl(openControl, opt.value)}
+                className={cn(
+                  "flex w-full items-baseline gap-2 rounded-lg border px-3 py-2 text-left transition",
+                  selected
+                    ? "border-gold/50 bg-gold/10"
+                    : "border-transparent hover:border-glass hover:bg-white/[0.03]",
+                )}
+              >
+                <span className={cn("text-[12px] font-semibold", selected ? "text-gold" : "text-fg-secondary")}>
+                  {opt.label}
+                </span>
+                <span className="text-[11px] text-fg-tertiary">{opt.hint}</span>
+                {selected && <span className="ml-auto text-[10px] text-gold">current</span>}
+              </button>
+            );
+          })}
+        </div>
+        );
+      })()}
       {slash.show && (
         <SlashCommandDropdown
           filtered={slash.filtered}

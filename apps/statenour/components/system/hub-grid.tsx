@@ -95,6 +95,17 @@ interface HubCard {
 // (now-dead) cards.
 const CARDS: HubCard[] = [
   {
+    href: "/system/fleet",
+    title: "Fleet Truth",
+    icon: Stethoscope,
+    group: "health",
+    description:
+      "Cross-app capability artifacts — statenour probes + nickstire health, produced not just invoked",
+    // Static chip — this card links to the live view; claiming health
+    // here without probing would be the exact lie the page exists to end.
+    chip: () => ({ label: "both apps", severity: "unknown" }),
+  },
+  {
     href: "/system/health",
     title: "Diagnostics",
     icon: Stethoscope,

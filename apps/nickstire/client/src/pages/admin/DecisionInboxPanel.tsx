@@ -131,6 +131,7 @@ export default function DecisionInboxPanel() {
           <span className="text-[10px] text-muted-foreground">
             top {decisions.length} of {data?.totalLive ?? 0} live
             {data && data.excludedNoConsent > 0 ? ` · ${data.excludedNoConsent} excluded (no consent)` : ""}
+            {data && (data as { excludedSnoozed?: number }).excludedSnoozed ? ` · ${(data as { excludedSnoozed?: number }).excludedSnoozed} snoozed` : ""}
           </span>
         </div>
         <button
