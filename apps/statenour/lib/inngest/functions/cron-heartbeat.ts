@@ -33,6 +33,7 @@ import { prisma } from "@/lib/prisma";
 import { recordCoachEvent } from "@/lib/services/coach-events";
 import { sendTelegram, formatTelegramNotification } from "@/lib/services/telegram";
 import { logger as rootLogger } from "@/lib/logger";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("inngest/cron-heartbeat");
 
@@ -84,7 +85,7 @@ export const cronHeartbeat = inngest.createFunction(
     await step.run("self-row", async () => {
       await prisma.cronJobLog
         .create({ data: { jobName: "cron-heartbeat", status: "success" } })
-        .catch(() => {});
+        .catch((e) => logError("inngest.cron-heartbeat", e, { stage: "self-row", risk: "liveness watchdog goes blind" }, "warn"));
       return true;
     });
 

@@ -25,6 +25,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
+import { logError } from "@/lib/utils/error-log";
 
 /** Result of consuming an undo token. */
 export interface UndoResult {
@@ -141,7 +142,11 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
   // Mark token consumed · subsequent calls hit the alreadyUndone branch.
   await prisma.brainMemory
     .update({ where: { id: row.id }, data: { deletedAt: new Date() } })
-    .catch(() => null);
+    .catch((e) => {
+      // Unconsumed token = the undo stays replayable — integrity, not noise.
+      logError("services.undo-token", e, { stage: "consume-token", tokenRow: row.id }, "error");
+      return null;
+    });
 
   return {
     ok: true,

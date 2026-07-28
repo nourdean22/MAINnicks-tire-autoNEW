@@ -22,6 +22,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 export const GOOGLE_DATA_SCOPES = [
   "openid",
@@ -224,7 +225,11 @@ export async function exchangeCodeForToken(
       const [, payload] = data.id_token.split(".");
       const decoded = JSON.parse(Buffer.from(payload, "base64").toString("utf-8"));
       email = decoded.email;
-    } catch {}
+    } catch {
+      // Synthetic error on purpose — a raw SyntaxError would embed JWT
+      // payload fragments into ErrorLog.message (phase-1 rule 2).
+      logError("services.google-oauth", new Error("id_token decode failed (malformed JWT payload)"), { stage: "id-token-email" }, "warn");
+    }
   }
 
   // Upsert into Integration table

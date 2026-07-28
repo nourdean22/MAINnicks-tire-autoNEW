@@ -7,6 +7,7 @@ import { today, daysAgo, toDateString, hourET, weekdayET, startOfMonthET } from 
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
+import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("brain/autonomous");
 
@@ -541,7 +542,9 @@ const RULES: ActionRule[] = [
         const leads = (data.leads_urgent as any)?.data;
         if (rev) revToday = `$${rev.totalDollars || 0}`;
         if (leads) leadsWaiting = String(leads.count || 0);
-      } catch {}
+      } catch (e) {
+        logError("brain.autonomous-engine", e, { stage: "bridge-revenue-leads" }, "warn");
+      }
 
       await sendTelegram(
         `☀️ <b>Morning Brief</b>\n\nRevenue today: ${revToday}\nLeads waiting: ${leadsWaiting}\n\n→ Open Nick for your full day plan: bdnick.info/chat`

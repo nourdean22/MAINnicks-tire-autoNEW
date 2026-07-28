@@ -10,6 +10,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 
 export async function logCronRun(
   jobName: string,
@@ -21,14 +22,14 @@ export async function logCronRun(
     const durationMs = Date.now() - start;
     await prisma.cronJobLog.create({
       data: { jobName, status: "success", duration: durationMs },
-    }).catch(() => {});
+    }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "success-row" }, "warn"));
     return { success: true, result, durationMs };
   } catch (err) {
     const durationMs = Date.now() - start;
     const error = err instanceof Error ? err.message : String(err);
     await prisma.cronJobLog.create({
       data: { jobName, status: "failed", duration: durationMs, error },
-    }).catch(() => {});
+    }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "failure-row" }, "warn"));
 
     // v10.0.20 · brain-bus producer wiring. Publish a durable event
     // for the dispatch registry to route. Dedupe key includes the

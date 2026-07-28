@@ -358,7 +358,7 @@ export async function promoteBelief(key: string, overrideStatement?: string): Pr
   });
   await prisma.brainMemory
     .delete({ where: { category_key: { category: BRAIN_CATEGORIES.BELIEF_CANDIDATE, key } } })
-    .catch(() => {});
+    .catch((e) => logError("brain.belief-harvester", e, { stage: "delete-candidate-after-promote", key }, "warn"));
   return { ...promoted, dbId: created.id, key: created.key };
 }
 
@@ -368,7 +368,14 @@ export async function dropBelief(
 ): Promise<boolean> {
   const deleted = await prisma.brainMemory
     .delete({ where: { category_key: { category: kind, key } } })
-    .catch(() => null);
+    .catch((e: unknown) => {
+      // P2025 (row absent) is the expected idempotent miss — anything else
+      // is a real failure masquerading as "wasn't there".
+      if ((e as { code?: string })?.code !== "P2025") {
+        logError("brain.belief-harvester", e, { stage: "dismiss", key, kind }, "warn");
+      }
+      return null;
+    });
   return !!deleted;
 }
 

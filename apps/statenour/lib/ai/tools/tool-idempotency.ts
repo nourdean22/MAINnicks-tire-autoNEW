@@ -74,9 +74,12 @@ export async function withToolIdempotency<T>(
         return onDuplicate();
       }
       // Expired marker (not yet pruned by the decay cron) → reclaim + proceed.
+      // A failed reclaim means the dedup guard is silently OFF for this
+      // action — log it (lazy sink: this module must not import prisma
+      // transitively at load time).
       await prisma.brainMemory
         .update({ where, data: { content: new Date().toISOString(), expiresAt: new Date(Date.now() + windowMs) } })
-        .catch(() => {});
+        .catch((e) => logIdemError("reclaim-expired-marker", dedupKey, e));
     } else {
       // Any other DB error → don't block the real action.
       return run();
@@ -88,12 +91,29 @@ export async function withToolIdempotency<T>(
     // The action ran but reported FAILURE by return value (didn't throw) — release
     // the marker so a genuine retry proceeds instead of hitting a false "already done".
     if (succeeded && !succeeded(result)) {
-      await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch(() => {});
+      // A failed release leaves the marker stuck — a genuine retry inside the
+      // window would falsely report "already done". Loud, not fatal.
+      await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch((e) => logIdemError("release-on-reported-failure", dedupKey, e));
     }
     return result;
   } catch (err) {
     // The action threw AFTER claiming — release the marker so a real retry works.
-    await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch(() => {});
+    await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch((e) => logIdemError("release-after-throw", dedupKey, e));
     throw err;
+  }
+}
+
+/**
+ * Lazy log sink — this module intentionally has no top-level prisma import
+ * (see the guarded dynamic import in withToolIdempotency), and
+ * `@/lib/utils/error-log` imports prisma transitively. Logging must never
+ * affect the action path.
+ */
+async function logIdemError(stage: string, key: string, e: unknown): Promise<void> {
+  try {
+    const { logError } = await import("@/lib/utils/error-log");
+    logError("ai.tool-idempotency", e, { fn: "withToolIdempotency", stage, key }, "warn");
+  } catch {
+    // logging failure is not allowed to become an action failure
   }
 }

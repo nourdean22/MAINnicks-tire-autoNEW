@@ -20,6 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { etDateKey, isOverBudget } from "@/lib/services/cost-slo";
 import { recordCoachEvent } from "@/lib/services/coach-events";
+import { logError } from "@/lib/utils/error-log";
 
 export const maxDuration = 60;
 
@@ -74,8 +75,15 @@ export const GET = cronHandler(async () => {
       .findUnique({ where: { key: THROTTLE_MARKER }, select: { id: true } })
       .catch(() => null);
     if (ownMarker) {
-      await prisma.userPreference.delete({ where: { key: THROTTLE_FLAG } }).catch(() => undefined);
-      await prisma.userPreference.delete({ where: { key: THROTTLE_MARKER } }).catch(() => undefined);
+      // A failed un-throttle silently leaves the cost guard stuck ON.
+      await prisma.userPreference.delete({ where: { key: THROTTLE_FLAG } }).catch((e: unknown) => {
+        if ((e as { code?: string })?.code !== "P2025") logError("cron.cost-slo", e, { stage: "unthrottle-flag" }, "warn");
+        return undefined;
+      });
+      await prisma.userPreference.delete({ where: { key: THROTTLE_MARKER } }).catch((e: unknown) => {
+        if ((e as { code?: string })?.code !== "P2025") logError("cron.cost-slo", e, { stage: "unthrottle-marker" }, "warn");
+        return undefined;
+      });
       try {
         await sendTelegram(
           `✅ Cost SLO recovered · deep-reasoning throttle lifted (env value governs again)`,

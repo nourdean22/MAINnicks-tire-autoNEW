@@ -19,6 +19,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { DeferredBackgroundCtx } from "./deferred-background-work";
+import { logError } from "@/lib/utils/error-log";
 
 /** Cap messages so a long conversation can't write a megabyte row. */
 const MAX_PAYLOAD_MESSAGES = 20;
@@ -57,7 +58,13 @@ export async function completePostTurnWork(id: string | null): Promise<void> {
   if (!id) return;
   await prisma.postTurnOutbox
     .update({ where: { id }, data: { status: "done" } })
-    .catch(() => undefined);
+    .catch((e: unknown) => {
+      // A lost completion mark makes the sweeper re-run this post-turn work.
+      if ((e as { code?: string })?.code !== "P2025") {
+        logError("chat.post-turn-outbox", e, { stage: "complete-mark", outboxId: id }, "warn");
+      }
+      return undefined;
+    });
 }
 
 /**

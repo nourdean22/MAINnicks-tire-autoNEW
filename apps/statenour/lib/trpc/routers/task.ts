@@ -76,6 +76,7 @@ import { consumeUndoToken } from "@/lib/services/undo-token";
 // service is also called by the legacy PATCH /api/tasks/[id] route —
 // drift structurally impossible.
 import { leaveMission } from "@/lib/services/task-mission";
+import { logError } from "@/lib/utils/error-log";
 
 const pendingInboxCreations = new Map<
   string,
@@ -1213,7 +1214,14 @@ export const taskRouter = router({
       const data: Record<string, unknown> = { pendingClassification: null };
       await prisma.task
         .update({ where: { id: input.taskId }, data })
-        .catch(() => null);
+        .catch((e: unknown) => {
+          // Missing row (P2025) is the idempotent contract; anything else is
+          // a real write loss hiding behind { ok: true }.
+          if ((e as { code?: string })?.code !== "P2025") {
+            logError("trpc.task", e, { stage: "clear-pending-classification", taskId: input.taskId }, "warn");
+          }
+          return null;
+        });
       return { ok: true };
     }),
 
@@ -1426,7 +1434,9 @@ export const taskRouter = router({
             if (pc && typeof pc.missionId === "string") {
               finalMissionId = pc.missionId;
             }
-          } catch {}
+          } catch (e) {
+            logError("trpc.task", e, { stage: "pending-classification-read" }, "warn");
+          }
         }
 
         data = {
