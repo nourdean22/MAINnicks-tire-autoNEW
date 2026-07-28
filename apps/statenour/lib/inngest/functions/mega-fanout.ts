@@ -129,13 +129,28 @@ type ChildResult = { path: string; status: number; durationMs: number };
  * every survivor has run, so onFailure (Telegram) fires — a partial
  * run must never be logged as healthy.
  */
-function summarizeSettled(settled: PromiseSettledResult<ChildResult>[]) {
+export function summarizeSettled(
+  settled: PromiseSettledResult<ChildResult>[],
+  paths: readonly string[],
+) {
   const ok = settled.filter(
     (s): s is PromiseFulfilledResult<ChildResult> => s.status === "fulfilled",
   );
+  // 2026-07-28 cron-truth audit · attach the CHILD'S IDENTITY to every
+  // failure string. Before this, failures kept only `reason.message` —
+  // seven consecutive nights of mega-evening "partial" logged exactly
+  // "The operation was aborted due to timeout ; The operation was
+  // aborted due to timeout" with NO WAY to know which two children
+  // timed out (short of correlating child log timestamps by hand).
+  // `settled` is index-aligned with the jobs array Promise.allSettled
+  // received, so the path is recoverable for free.
   const failures = settled
-    .filter((s): s is PromiseRejectedResult => s.status === "rejected")
-    .map((s) => String(s.reason?.message ?? s.reason));
+    .map((s, i) =>
+      s.status === "rejected"
+        ? `${paths[i] ?? `#${i}`}: ${String(s.reason?.message ?? s.reason)}`
+        : null,
+    )
+    .filter((f): f is string => f !== null);
   return {
     jobsRun: ok.length,
     jobsFailed: failures.length,
@@ -222,7 +237,7 @@ export const megaFanoutMorning = inngest.createFunction(
         step.run(stepIdFor(path), () => dispatchChild(path, cronSecret)),
       ),
     );
-    const sum = summarizeSettled(settled);
+    const sum = summarizeSettled(settled, MORNING_JOBS);
     // Slot-level heartbeat (jobName "mega") so /settings/crons + cron
     // diagnostics see the mega slot alive. step.run → written once,
     // survives replay; .catch keeps a log-write failure from breaking
@@ -294,7 +309,7 @@ export const megaFanoutEvening = inngest.createFunction(
         step.run(stepIdFor(path), () => dispatchChild(path, cronSecret)),
       ),
     );
-    const sum = summarizeSettled(settled);
+    const sum = summarizeSettled(settled, jobs);
     // Slot-level heartbeat (jobName "mega-evening") — see morning fn.
     await step.run("mega-heartbeat", async () => {
       await prisma.cronJobLog
