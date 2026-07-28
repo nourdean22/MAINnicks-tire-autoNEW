@@ -1,5 +1,7 @@
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import DecisionInboxPanel from "./DecisionInboxPanel";
+import PromisesPanel from "./PromisesPanel";
+import InspectionCapturePanel from "./InspectionCapturePanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
@@ -244,6 +246,14 @@ export default function OverviewSection() {
           the part that moves money. Degrades to an empty card until the
           queue table (0099) is applied + collectors run. */}
       <DecisionInboxPanel />
+
+      {/* Promise Ledger (0102) — log promises the moment they're made;
+          the sweep escalates overdue ones back into the inbox above. */}
+      <PromisesPanel />
+
+      {/* DVI capture (drop-off intake) — the inspection loop's inlet:
+          findings + photos → publish → hand the customer the link. */}
+      <InspectionCapturePanel />
 
       {/* A slice can fail while the request succeeds. Without this the operator
           sees a clean board built on reads that never happened. */}
