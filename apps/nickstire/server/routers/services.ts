@@ -13,6 +13,7 @@ import {
   createCustomerNotification, getPendingNotifications, markNotificationSent,
   getServicePricingByCategory, getAllServicePricing, upsertServicePricing, seedDefaultPricing,
   createInspection, getInspection, getInspectionByToken, getInspections, addInspectionItem, updateInspectionItem, deleteInspectionItem, publishInspection,
+  recordInspectionView, decideInspectionItem,
   getLoyaltyRewards, createLoyaltyReward, updateLoyaltyReward,
   getLoyaltyTransactions, awardPoints, redeemReward,
   getUserLoyaltySummary,
@@ -283,6 +284,31 @@ export const inspectionRouter = router({
     .query(async ({ input }) => {
       return getInspectionByToken(input.token);
     }),
+  /** DVI (0101) · view-tracking beacon — token IS the auth; published only. */
+  recordView: publicProcedure
+    .input(z.object({ token: z.string().min(16).max(64) }))
+    .mutation(async ({ input }) => recordInspectionView(input.token)),
+  /**
+   * DVI (0101) · per-item customer decision. The token→inspection→item
+   * join is the authorization; re-deciding is allowed (people change
+   * their minds), decisionAt tracks the latest. No AI touches this
+   * path — the decision and note are the customer's own words.
+   */
+  decideItem: publicProcedure
+    .input(z.object({
+      token: z.string().min(16).max(64),
+      itemId: z.number().int().positive(),
+      decision: z.enum(["approved", "declined", "question"]),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input }) =>
+      decideInspectionItem({
+        token: input.token,
+        itemId: input.itemId,
+        decision: input.decision,
+        note: input.note ?? null,
+      }),
+    ),
   list: adminProcedure.query(async () => {
     return getInspections();
   }),

@@ -494,6 +494,9 @@ export const vehicleInspections = mysqlTable("vehicle_inspections", {
   /** Public share token for customer access */
   shareToken: varchar("shareToken", { length: 64 }).notNull().unique(),
   isPublished: int("isPublished").default(0).notNull(),
+  /** DVI view tracking (migration 0101) — did the customer open the packet */
+  firstViewedAt: timestamp("firstViewedAt"),
+  viewCount: int("viewCount").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -520,6 +523,12 @@ export const inspectionItems = mysqlTable("inspection_items", {
   recommendedAction: text("recommendedAction"),
   /** Estimated repair cost */
   estimatedCost: int("estimatedCost"),
+  /** DVI customer decision (migration 0101): "approved" | "declined" |
+   *  "question". NULL = no decision yet. The customer's words in
+   *  customerNote — never invented, never summarized into the field. */
+  decision: varchar("decision", { length: 16 }),
+  decisionAt: timestamp("decisionAt"),
+  customerNote: varchar("customerNote", { length: 500 }),
   /** Sort order within inspection */
   sortOrder: int("sortOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

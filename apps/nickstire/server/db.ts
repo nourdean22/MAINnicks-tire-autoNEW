@@ -714,6 +714,62 @@ export async function getInspections() {
   return db.select().from(vehicleInspections).orderBy(desc(vehicleInspections.createdAt)).limit(500);
 }
 
+/**
+ * DVI view tracking (0101). Token-gated + published-only — the token IS
+ * the auth. Sets firstViewedAt once, bumps viewCount every open.
+ * Fail-soft: a missing 0101 column must never break the report page.
+ */
+export async function recordInspectionView(token: string): Promise<{ ok: boolean }> {
+  const db = await getDb();
+  if (!db) return { ok: false };
+  try {
+    await db.execute(sql`
+      UPDATE vehicle_inspections
+      SET viewCount = viewCount + 1,
+          firstViewedAt = COALESCE(firstViewedAt, NOW())
+      WHERE shareToken = ${token} AND isPublished = 1
+    `);
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * DVI per-item customer decision (0101). The item must belong to the
+ * published inspection the token unlocks — the join is the authorization.
+ * Decisions are re-decidable (customers change their minds); decisionAt
+ * always reflects the latest. customerNote stores THEIR words verbatim.
+ */
+export async function decideInspectionItem(params: {
+  token: string;
+  itemId: number;
+  decision: "approved" | "declined" | "question";
+  note?: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const db = await getDb();
+  if (!db) return { ok: false, error: "DB unavailable" };
+  try {
+    const result = await db.execute(sql`
+      UPDATE inspection_items i
+      INNER JOIN vehicle_inspections v ON v.id = i.inspectionId
+      SET i.decision = ${params.decision},
+          i.decisionAt = NOW(),
+          i.customerNote = ${params.note ? params.note.slice(0, 500) : null}
+      WHERE i.id = ${params.itemId}
+        AND v.shareToken = ${params.token}
+        AND v.isPublished = 1
+    `);
+    const raw = (Array.isArray(result) && result[0] && typeof result[0] === "object"
+      ? result[0]
+      : result) as { affectedRows?: number };
+    if ((raw.affectedRows ?? 0) === 0) return { ok: false, error: "item not found for this report" };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "decision failed" };
+  }
+}
+
 export async function addInspectionItem(data: InsertInspectionItem) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

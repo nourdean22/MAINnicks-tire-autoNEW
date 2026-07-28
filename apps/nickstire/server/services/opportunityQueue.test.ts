@@ -20,6 +20,7 @@ import {
   canTransition,
   rankOpportunity,
   captureComplaintOpportunity,
+  summarizeInspectionForQueue,
   type OpportunityState,
 } from "./opportunityQueue";
 
@@ -111,5 +112,44 @@ describe("captureComplaintOpportunity · classify-first short-circuit", () => {
   it("bad phone exits even when the text is complaint-shaped", async () => {
     const res = await captureComplaintOpportunity("123", "my brakes still grind after the repair");
     expect(res.captured).toBe(false);
+  });
+});
+
+describe("summarizeInspectionForQueue · DVI deferral semantics", () => {
+  it("undecided and declined yellow/red items are open; approved and green are not", () => {
+    const s = summarizeInspectionForQueue([
+      { condition: "red", decision: null, estimatedCost: 400 },
+      { condition: "yellow", decision: "declined", estimatedCost: 150 },
+      { condition: "yellow", decision: "approved", estimatedCost: 200 }, // approved → closed
+      { condition: "green", decision: null, estimatedCost: null },       // green → never a deferral
+    ]);
+    expect(s.openFlagged).toBe(2);
+    expect(s.redOpen).toBe(1);
+    expect(s.valueCents).toBe(55_000); // (400 + 150) dollars → cents
+    expect(s.urgency).toBe("today");   // any open red forces today
+  });
+
+  it("a question is engagement, not a deferral to chase", () => {
+    const s = summarizeInspectionForQueue([
+      { condition: "red", decision: "question", estimatedCost: 900 },
+    ]);
+    expect(s.openFlagged).toBe(0);
+  });
+
+  it("yellow-only open items stay this_week", () => {
+    const s = summarizeInspectionForQueue([
+      { condition: "yellow", decision: null, estimatedCost: 80 },
+    ]);
+    expect(s.urgency).toBe("this_week");
+    expect(s.valueCents).toBe(8_000);
+  });
+
+  it("fully approved inspection produces no deferral at all", () => {
+    const s = summarizeInspectionForQueue([
+      { condition: "red", decision: "approved", estimatedCost: 500 },
+      { condition: "yellow", decision: "approved", estimatedCost: 100 },
+    ]);
+    expect(s.openFlagged).toBe(0);
+    expect(s.valueCents).toBe(0);
   });
 });

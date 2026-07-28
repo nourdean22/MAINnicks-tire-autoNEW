@@ -861,14 +861,138 @@ export async function captureComplaintOpportunity(
   }
 }
 
+/**
+ * Pure DVI-deferral summarizer — exported for tests. Given an
+ * inspection's items, returns what the queue should know: which
+ * yellow/red items are still open (no decision, or declined), the
+ * red count, and the summed tech estimate. `question` items are NOT
+ * "open deferrals" — a question is an engagement, handled by the
+ * operator conversation, not a deferral chase.
+ */
+export function summarizeInspectionForQueue(
+  items: Array<{ condition: string; decision: string | null; estimatedCost: number | null }>,
+): { openFlagged: number; redOpen: number; valueCents: number; urgency: OpportunityUrgency } {
+  const open = items.filter(
+    (i) =>
+      (i.condition === "red" || i.condition === "yellow") &&
+      (i.decision === null || i.decision === "declined"),
+  );
+  const redOpen = open.filter((i) => i.condition === "red").length;
+  // estimatedCost is stored in DOLLARS on inspection_items
+  const valueCents = open.reduce((s, i) => s + (i.estimatedCost ?? 0) * 100, 0);
+  return {
+    openFlagged: open.length,
+    redOpen,
+    valueCents,
+    urgency: redOpen > 0 ? "today" : "this_week",
+  };
+}
+
+/**
+ * Published DVI packets with open yellow/red items → deferred_service
+ * opportunities (one per inspection, value = summed tech estimates,
+ * red items force urgency "today"). data_quality "verified" — a
+ * technician physically saw the component; this is the strongest
+ * evidence class the queue holds. Pre-0101 environments degrade
+ * gracefully (decision column absent → treated as all-open).
+ */
+export async function collectInspectionDeferrals(): Promise<{ scanned: number; upserted: number }> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { scanned: 0, upserted: 0 };
+
+  type Row = {
+    inspectionId: number; customerName: string; customerPhone: string | null;
+    vehicleInfo: string; publishedAgeDays: number;
+    condition: string; decision: string | null; estimatedCost: number | null;
+  };
+  let rows: Row[];
+  const baseQuery = (withDecision: boolean) => sql`
+    SELECT v.id AS inspectionId, v.customerName AS customerName,
+           v.customerPhone AS customerPhone, v.vehicleInfo AS vehicleInfo,
+           DATEDIFF(NOW(), v.createdAt) AS publishedAgeDays,
+           i.condition AS condition,
+           ${withDecision ? sql`i.decision` : sql`NULL`} AS decision,
+           i.estimatedCost AS estimatedCost
+    FROM vehicle_inspections v
+    INNER JOIN inspection_items i ON i.inspectionId = v.id
+    WHERE v.isPublished = 1
+      AND v.createdAt >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+      AND i.condition IN ('red', 'yellow')
+  `;
+  try {
+    rows = rowsFromExecute(await db.execute(baseQuery(true))) as unknown as Row[];
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/unknown column|1054/i.test(msg)) {
+      try {
+        rows = rowsFromExecute(await db.execute(baseQuery(false))) as unknown as Row[];
+      } catch {
+        return { scanned: 0, upserted: 0 };
+      }
+    } else {
+      log.warn("[opportunity-queue] inspection collector query failed", { error: msg });
+      return { scanned: 0, upserted: 0 };
+    }
+  }
+
+  // Group items per inspection, summarize with the pure helper.
+  const byInspection = new Map<number, { meta: Row; items: Row[] }>();
+  for (const r of rows) {
+    const entry = byInspection.get(Number(r.inspectionId)) ?? { meta: r, items: [] };
+    entry.items.push(r);
+    byInspection.set(Number(r.inspectionId), entry);
+  }
+
+  let upserted = 0;
+  for (const { meta, items } of byInspection.values()) {
+    const s = summarizeInspectionForQueue(
+      items.map((i) => ({
+        condition: String(i.condition),
+        decision: i.decision == null ? null : String(i.decision),
+        estimatedCost: i.estimatedCost == null ? null : Number(i.estimatedCost),
+      })),
+    );
+    if (s.openFlagged === 0) continue; // everything approved/answered — no deferral
+
+    const res = await upsertOpportunity({
+      sourceType: "deferred_service",
+      sourceId: `inspection:${meta.inspectionId}`,
+      customerName: meta.customerName,
+      customerPhone: meta.customerPhone,
+      expectedRevenueCents: s.valueCents > 0 ? s.valueCents : null,
+      dataQuality: "verified", // a technician physically saw the component
+      urgency: s.urgency,
+      recommendedAction: `Call ${meta.customerName} — ${s.openFlagged} flagged ${s.openFlagged === 1 ? "item" : "items"} on the ${meta.vehicleInfo} check${s.redOpen > 0 ? ` (${s.redOpen} urgent)` : ""}`,
+      reason: `Published vehicle check (${Number(meta.publishedAgeDays)}d ago) has ${s.openFlagged} yellow/red ${s.openFlagged === 1 ? "item" : "items"} with no approval — tech-verified findings, customer undecided or passed.`,
+      evidence: {
+        inspectionId: Number(meta.inspectionId),
+        openFlaggedItems: s.openFlagged,
+        redOpen: s.redOpen,
+        publishedAgeDays: Number(meta.publishedAgeDays),
+      },
+      consentOk: true, // follow-up call about their own vehicle's check
+    });
+    if (res !== "unavailable") upserted++;
+    else return { scanned: byInspection.size, upserted };
+  }
+  return { scanned: byInspection.size, upserted };
+}
+
 /** Cron entry: run all collectors. Read-only against sources; writes only the queue. */
 export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: number; details: string }> {
   const estimates = await collectUnapprovedEstimates();
   const callbacks = await collectPendingCallbacks();
   const missedCalls = await collectMissedCalls();
+  const inspections = await collectInspectionDeferrals();
   const details =
     `estimates: ${estimates.upserted}/${estimates.scanned} upserted · ` +
     `callbacks: ${callbacks.upserted}/${callbacks.scanned} upserted · ` +
-    `missed calls: ${missedCalls.upserted}/${missedCalls.scanned} upserted`;
-  return { recordsProcessed: estimates.upserted + callbacks.upserted + missedCalls.upserted, details };
+    `missed calls: ${missedCalls.upserted}/${missedCalls.scanned} upserted · ` +
+    `inspection deferrals: ${inspections.upserted}/${inspections.scanned} upserted`;
+  return {
+    recordsProcessed: estimates.upserted + callbacks.upserted + missedCalls.upserted + inspections.upserted,
+    details,
+  };
 }
