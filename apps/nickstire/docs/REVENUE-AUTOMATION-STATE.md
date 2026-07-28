@@ -9,7 +9,7 @@
 
 | Automation | Code exists | Gate (code-level) | Customer contact? | Truth status |
 |---|---|---|---|---|
-| Missed-call recovery | `[VERIFIED]` `server/cron/jobs/missedCallRecovery.ts` | not audited this arc | SMS (via shared rails) | not audited this arc |
+| Missed-call recovery | `[VERIFIED]` `server/cron/jobs/missedCallRecovery.ts` | flag `missed_call_recovery` + env `MISSED_CALL_RECOVERY_SEND=1` (shadow otherwise) | SMS (via shared rails) | **AUDITED 2026-07-28: CLEAN** — pure tested eligibility, shadow-by-default, durable claim-before-send, no invented numbers, shadow preview refuses to quote copy (anti-drift). Audience now also lands in the opportunity queue (`collectMissedCalls`, human call-back framing) |
 | Declined-work recovery (5-touch) | `[VERIFIED]` `cron/jobs/declinedWorkRecovery.ts` + `services/declinedRecoverySequence.ts` | `FEATURE_DECLINED_RECOVERY=1` env; without it: dry-run + daily Telegram nag | SMS when flag ON | `[FIXED revenue-truth-correction]` — see below |
 | Recovery targeting/scoring | `[VERIFIED]` `services/recoveryTargeting.ts` | used inside the cron above | copy feeds SMS | `[FIXED]` fabricated calibration provenance + price-guarantee copy |
 | Pricing intelligence | `[VERIFIED]` `services/pricingIntelligence.ts`, cron `pricing-intelligence` | always-on cron | Telegram (operator only) | `[FIXED]` — was invalid, rewritten as payment-status/collections signal |
@@ -18,8 +18,8 @@
 | Morning brief | `[VERIFIED]` `cron/jobs/morningBrief.ts` | daily cron | Telegram (operator only) | `[FIXED]` — $10K hardcode, cohort-mismatched "conversion", "WALK RATE", invented "recoverable" |
 | Daily digest (intelligence report) | `[VERIFIED]` `cron/scheduler.ts` daily-digest block | daily cron | Telegram (operator only) | `[FIXED]` — "walk-away … @ 20% close" language |
 | Intelligence engines | `[VERIFIED]` `services/intelligenceEngines.ts` | called by brief/digest/brain | none directly | `[FIXED]` — two invented 20% "recoverable" figures removed; `forecastRevenue` target already dynamic (trailing×1.1) `[VERIFIED]` |
-| Cross-sell outreach | code exists (memory: armed-but-idle class) | not audited this arc | SMS potential | not audited this arc |
-| Review requests | code exists | not audited this arc | SMS | not audited this arc |
+| Cross-sell outreach | `[VERIFIED]` `cron/jobs/crossSellOutreach.ts` | flag `sms_cross_sell_outreach` (OFF pending ROS-033 operator gate: read the v3 confidence histogram first) | SMS when ON | **AUDITED 2026-07-28: CLEAN** — honest soft copy ("about due for a check", deliberately not a diagnosis), fail-closed cooldown, closed-loop impression/action rows, recovery double-text excluded by construction. One fix: log printed 0-1 confidence as "%" |
+| Review requests | `[VERIFIED]` `routers/reviewRequests.ts` + cron | settings.enabled + flag `sms_review_requests` | SMS | **AUDITED 2026-07-28: CLEAN + COMPLIANT** — no review gating, no incentives, no praise-conditioning (Google/FTC per plan §5); quiet hours 9-19, daily cap, cooldown, claim-before-send, gateway-offline hold. Gap closed: complaint texts now create `review_recovery` opportunities (receive-side service-recovery loop; asks never conditioned on it) |
 | Customer psycho-profiler | `[VERIFIED]` `services/customerPsychoProfile.ts` | daily cron | none (writes segments) | behavior-based (visits/decline aggregates), not vehicle-stereotype; its "future enhancement" feeding pickProfile was never wired `[VERIFIED]` — and must now stay unwired unless routed through stated-concern evidence |
 
 ## What was wrong, in one line each (all fixed in this arc)

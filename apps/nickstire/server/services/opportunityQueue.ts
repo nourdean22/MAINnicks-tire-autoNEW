@@ -711,12 +711,164 @@ export async function collectPendingCallbacks(): Promise<{ scanned: number; upse
   return { scanned: rows.length, upserted };
 }
 
+/**
+ * Unconverted VAPI calls → missed_call opportunities. Reuses the missed-
+ * call cron's OWN pure eligibility predicate (isMissedCallEligible) so
+ * the queue and the SMS shadow can never disagree about who counts.
+ * data_quality "verified" (the customer really called), urgency "today"
+ * (a missed caller cools by the hour). The recommended action is a HUMAN
+ * CALL BACK — consent gates for SMS don't apply to returning a call, so
+ * consentOk stays true. Never sends anything.
+ */
+export async function collectMissedCalls(): Promise<{ scanned: number; upserted: number }> {
+  const { getDbTyped } = await import("../db");
+  const db = await getDbTyped();
+  if (!db) return { scanned: 0, upserted: 0 };
+
+  const { vapiCallLogs } = await import("../../drizzle/schema");
+  const { and, eq, gte, lte, isNull, isNotNull, desc } = await import("drizzle-orm");
+  const { isMissedCallEligible } = await import("../cron/jobs/missedCallRecovery");
+
+  const now = Date.now();
+  const windowStart = new Date(now - 24 * 60 * 60 * 1000);
+  const windowEnd = new Date(now - 45 * 60 * 1000);
+
+  let rows: Array<{
+    id: number; vapiCallId: string; phoneNumber: string | null; durationSeconds: number;
+    convertedToLead: number; leadId: number | null; callbackId: number | null;
+    metadata: unknown; createdAt: Date;
+  }>;
+  try {
+    rows = await db.select({
+      id: vapiCallLogs.id,
+      vapiCallId: vapiCallLogs.vapiCallId,
+      phoneNumber: vapiCallLogs.phoneNumber,
+      durationSeconds: vapiCallLogs.durationSeconds,
+      convertedToLead: vapiCallLogs.convertedToLead,
+      leadId: vapiCallLogs.leadId,
+      callbackId: vapiCallLogs.callbackId,
+      metadata: vapiCallLogs.metadata,
+      createdAt: vapiCallLogs.createdAt,
+    })
+      .from(vapiCallLogs)
+      .where(and(
+        eq(vapiCallLogs.convertedToLead, 0),
+        isNotNull(vapiCallLogs.phoneNumber),
+        isNull(vapiCallLogs.leadId),
+        isNull(vapiCallLogs.callbackId),
+        gte(vapiCallLogs.createdAt, windowStart),
+        lte(vapiCallLogs.createdAt, windowEnd),
+      ))
+      .orderBy(desc(vapiCallLogs.createdAt))
+      .limit(100);
+  } catch (err) {
+    log.warn("[opportunity-queue] missed-call collector query failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { scanned: 0, upserted: 0 };
+  }
+
+  let upserted = 0;
+  for (const r of rows) {
+    const meta = (r.metadata ?? null) as Record<string, unknown> | null;
+    const eligible = isMissedCallEligible({
+      id: r.id,
+      vapiCallId: r.vapiCallId,
+      phoneNumber: r.phoneNumber,
+      durationSeconds: r.durationSeconds,
+      convertedToLead: r.convertedToLead,
+      leadId: r.leadId,
+      callbackId: r.callbackId,
+      recoveryAlreadyStamped: false, // recovery SMS state doesn't gate a human call-back
+      createdAtMs: new Date(r.createdAt).getTime(),
+    }, now);
+    if (!eligible) continue;
+
+    const ageMin = Math.round((now - new Date(r.createdAt).getTime()) / 60_000);
+    const res = await upsertOpportunity({
+      sourceType: "missed_call",
+      sourceId: r.vapiCallId,
+      customerPhone: r.phoneNumber,
+      expectedRevenueCents: null, // unknown until spoken to — never invent
+      dataQuality: "verified",
+      urgency: "today",
+      recommendedAction: `Call back ${r.phoneNumber} — ${r.durationSeconds}s call ${ageMin}min ago, no lead or callback captured`,
+      reason: `Real conversation (${r.durationSeconds}s ≥ 15s) on the VAPI line that converted to nothing. A human call-back beats any text.`,
+      evidence: {
+        vapiCallId: r.vapiCallId,
+        durationSeconds: r.durationSeconds,
+        callAgeMinutes: ageMin,
+      },
+      consentOk: true, // returning a phone call the customer made
+    });
+    if (res !== "unavailable") upserted++;
+    else return { scanned: rows.length, upserted };
+  }
+  return { scanned: rows.length, upserted };
+}
+
+/**
+ * Inbound-SMS complaint → review_recovery opportunity (the receive side
+ * of the plan's service-recovery loop). Uses the intent router's PURE
+ * classifier with a no-state context — complaint language is detectable
+ * without booking state; the orchestrator still does the full-context
+ * version for the actual reply. One opportunity per phone per day
+ * (sourceId = phone10:YYYY-MM-DD) so a heated thread doesn't spam the
+ * inbox. NEVER sends anything; the review-request engine is untouched
+ * and review asks are never conditioned on this (no gating).
+ */
+export async function captureComplaintOpportunity(
+  phone: string,
+  body: string,
+): Promise<{ captured: boolean }> {
+  try {
+    const { routeInboundSms } = await import("./smsIntentRouter");
+    const decision = routeInboundSms(body, {
+      hasActiveBooking: false,
+      hasActiveEstimate: false,
+      hasActiveLead: false,
+    });
+    const isComplaint =
+      decision.primary === "complaint_or_comeback" ||
+      decision.secondary.includes("complaint_or_comeback");
+    if (!isComplaint) return { captured: false };
+
+    const phone10 = phone.replace(/\D/g, "").slice(-10);
+    if (phone10.length !== 10) return { captured: false };
+    const dayKey = new Date().toISOString().slice(0, 10);
+
+    const res = await upsertOpportunity({
+      sourceType: "review_recovery",
+      sourceId: `${phone10}:${dayKey}`,
+      customerPhone: phone,
+      expectedRevenueCents: null,
+      dataQuality: "verified",
+      urgency: "critical",
+      recommendedAction: `Call ${phone} — customer reported a problem after service`,
+      reason: `Inbound SMS classified complaint_or_comeback: "${body.slice(0, 120)}"`,
+      evidence: {
+        messageExcerpt: body.slice(0, 200),
+        routerSignals: decision.signals,
+      },
+      consentOk: true, // they texted us about a problem; the action is a call
+    });
+    return { captured: res !== "unavailable" };
+  } catch (err) {
+    log.warn("[opportunity-queue] complaint capture failed (fail-open)", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { captured: false };
+  }
+}
+
 /** Cron entry: run all collectors. Read-only against sources; writes only the queue. */
 export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: number; details: string }> {
   const estimates = await collectUnapprovedEstimates();
   const callbacks = await collectPendingCallbacks();
+  const missedCalls = await collectMissedCalls();
   const details =
     `estimates: ${estimates.upserted}/${estimates.scanned} upserted · ` +
-    `callbacks: ${callbacks.upserted}/${callbacks.scanned} upserted`;
-  return { recordsProcessed: estimates.upserted + callbacks.upserted, details };
+    `callbacks: ${callbacks.upserted}/${callbacks.scanned} upserted · ` +
+    `missed calls: ${missedCalls.upserted}/${missedCalls.scanned} upserted`;
+  return { recordsProcessed: estimates.upserted + callbacks.upserted + missedCalls.upserted, details };
 }

@@ -19,6 +19,7 @@ import {
   TERMINAL_STATES,
   canTransition,
   rankOpportunity,
+  captureComplaintOpportunity,
   type OpportunityState,
 } from "./opportunityQueue";
 
@@ -93,5 +94,22 @@ describe("ranking · transparent factors, no fake precision", () => {
     const verified = rankOpportunity({ expectedRevenueCents: 50_000, urgency: "this_week", dataQuality: "verified" });
     const inferred = rankOpportunity({ expectedRevenueCents: 50_000, urgency: "this_week", dataQuality: "inferred" });
     expect(verified.score).toBeGreaterThan(inferred.score);
+  });
+});
+
+describe("captureComplaintOpportunity · classify-first short-circuit", () => {
+  it("non-complaint inbound texts exit before any DB work", async () => {
+    // The intent router is pure; only complaint_or_comeback proceeds to
+    // the (DB-backed) upsert. These must all return captured:false
+    // without touching a database.
+    for (const body of ["what time do you close", "how much for an oil change", "ok thanks", ""]) {
+      const res = await captureComplaintOpportunity("+12165550142", body);
+      expect(res.captured, body).toBe(false);
+    }
+  });
+
+  it("bad phone exits even when the text is complaint-shaped", async () => {
+    const res = await captureComplaintOpportunity("123", "my brakes still grind after the repair");
+    expect(res.captured).toBe(false);
   });
 });

@@ -348,6 +348,15 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
           const { captureStatedConcernFromReply } = await import("../../services/recoveryReplyCapture");
           await captureStatedConcernFromReply(normalized, body);
         })().catch(() => undefined);
+        // Service-recovery loop (receive side) · complaint language →
+        // review_recovery opportunity in the owner Decision Inbox.
+        // OBSERVER ONLY (pure intent classifier, no-state context); the
+        // reply engine + review-request engine are untouched, and review
+        // asks are never conditioned on this. Fail-open.
+        (async () => {
+          const { captureComplaintOpportunity } = await import("../../services/opportunityQueue");
+          await captureComplaintOpportunity(normalized, body);
+        })().catch(() => undefined);
         // wave-181.101 — process inbound intent the same way the Twilio
         // webhook does (routes/webhooks/twilio.ts). CRITICAL TCPA fix:
         // before this, the F25e gateway — now the PRIMARY inbound number

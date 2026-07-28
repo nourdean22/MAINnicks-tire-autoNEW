@@ -107,6 +107,12 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
       const { captureStatedConcernFromReply } = await import("../../services/recoveryReplyCapture");
       await captureStatedConcernFromReply(from, body);
     })().catch(() => undefined);
+    // Service-recovery loop (receive side) — same observer as the shop
+    // gateway; see routes/webhooks/smsGateway.ts. Fail-open, no sends.
+    (async () => {
+      const { captureComplaintOpportunity } = await import("../../services/opportunityQueue");
+      await captureComplaintOpportunity(from, body);
+    })().catch(() => undefined);
 
     if (conversationId) {
       try {
