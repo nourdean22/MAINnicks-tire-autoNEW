@@ -100,6 +100,19 @@ Migration **0100 `[VERIFIED-runtime]` — APPLIED to prod** (as was 0099): `alg_
 2. **Promises panel** — 3-tap logging (type chips · one sentence · due quick-picks), **kept requires evidence**, cancel behind two-tap. Overdue rows go red; the sweep escalates them back into the inbox above.
 3. **DVI capture panel** — the audit found the inspection loop had a complete backend and **no inlet** (nothing called `inspection.create`). Now: start check → giant green/yellow/red condition buttons → camera capture (HEIC/iPhone via the existing `uploadPhoto`) → publish → copy customer link. **Sharing the link stays a human action.**
 
+## Operationalization Strike + evening waves (shipped 2026-07-28, #1167-#1176)
+
+The external audit's PR-1..6, executed + the day's cross-app additions. Epistemic keys unchanged.
+
+- **Same-day sales (#1167/#1168):** 8 PM ET post-close ALG probe (evening reason) + session-resume probe (real-touch semantics, auth-attempting throttle — two post-merge P1s fixed same day) + "as of h:mm" freshness label on the Money strip. `[VERIFIED-runtime]` job ticking; maiden 8 PM run = first receipt.
+- **Queue integrity (#1171):** snooze is due-aware (topDecisions excludes + counts future-due); `won` requires a MATCH — direct (source-linked invoice) / strong (phone last-10 + postdates opportunity) / manual (explicit override, never counted verified) / rejected; estimate identity join aggregated with ambiguity refusal (2+ phone matches → no linkage, conservative consent); do_not_contact is phone-scoped; collector telemetry = {scanned, inserted, refreshed} and recordsProcessed counts REAL changes only; source reconcilers close resolved rows (matched → won-direct, stated-closed/handled/aged → lost with receipts). Queue cron self-classifies via loopShapeContract.
+- **DVI evidence classes (#1171):** `verified` now requires a photo on an open flagged item; typed-only findings = technician_asserted/inferred; unlinked packets labeled; customer Approve copy states the shop confirms before work starts.
+- **Promise lifecycle (#1171 + #1174):** keep/cancel/48h-missed close their escalated inbox rows; kept-rate line (made/kept/late/MISSED/open) joins the morning brief — renders only when promises exist.
+- **Recovery experiment v3 (#1171, migration 0103 applied + independently verified):** versioned sha256 arm assignment (modulo striping dead, in-flight arms preserved), assignment-anchored ITT-primary + per-protocol-secondary readout; outcomes count only when the matched invoice postdates assignment. Legacy rows excluded from v3.
+- **Quote guard truth (#1171):** `quoteRemainderAfterPartsCost` (it was never a margin), tire check labeled a floor check, missingInputs[] surfaced; guard flags now ride every estimate opportunity into the Decision Inbox (below-parts-cost + insane-amount escalate into the reason line).
+- **Bridge (#1176):** new `top_decisions` query (NICKSTIRE-QUERY-CONTRACT §7) — statenour's chat decision card reads the SAME topDecisions(5) as the admin panel.
+- **Cross-app:** nickstire /api/health feeds statenour's fleet-truth (chat tool + /system/fleet page); ROS-059..063 registry statuses corrected with live receipts (#1170); event taxonomy doc generated (docs/analytics/EVENT-TAXONOMY.md) after the planned "gap-fill" was refuted — 30 events already wired.
+
 ## Open items this arc did NOT cover
 
 - Runtime verification of legacy flags/last-runs (`FEATURE_DECLINED_RECOVERY` state etc.) — `[UNKNOWN-runtime]`, needs `cron_log`/`railway run`. (Migrations 0099+0100 ARE runtime-verified applied.)

@@ -14,6 +14,8 @@
 - **verify:hard** gained auth-scan (check:get-auth) and a dependency gate that can actually fail (CRITICALs).
 - **Home** simplified around four questions; canonical chat consolidation landed. Known gap: follow-up dismissals are still browser-local (durable agenda in progress).
 
+- **Evening waves (same day):** durable Home agenda (FOLLOW_UP in agenda_items; localStorage dismissals dead) · memory commit gateway observing in SHADOW (review ~08-04) · alerts have resolve/mute lifecycle · chat command console (control sheet, authority strip, Context & Evidence, typed tool cards) · `getFleetTruth`/`getTopDecisions`/`fetchVideoTranscript` chat tools · execute-before-prose split (attempt-tense + receipt-backed completion messages) · intelligence_outcomes ledger live on Neon with two producers · /system/fleet + /system/chat-states pages · PR #1152 engine-lock wrapper merged.
+
 ## Where this runs
 
 - **App location:** `apps/statenour/` inside the monorepo **`nourdean22/MAINnicks-tire-autoNEW`**.
