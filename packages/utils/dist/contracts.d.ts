@@ -56,4 +56,36 @@ export declare const isOpportunityState: (v: string) => v is OpportunityState;
 export declare const isArtifactState: (v: string) => v is ArtifactState;
 export declare const isExecutionClass: (v: string) => v is ExecutionClass;
 export declare const isCommitmentStatus: (v: string) => v is CommitmentStatus;
+export declare const EVENT_ACTOR_TYPES: readonly ["operator", "agent", "system", "integration"];
+export type EventActorType = (typeof EVENT_ACTOR_TYPES)[number];
+export declare const EVENT_PRIVACY_CLASSES: readonly ["public", "internal", "sensitive", "restricted"];
+export type EventPrivacyClass = (typeof EVENT_PRIVACY_CLASSES)[number];
+export interface DomainEventEnvelope<T = unknown> {
+    specversion: "1.0";
+    /** Stable per-event id — the source row's own id (replay-stable). */
+    id: string;
+    /** Producing model, e.g. "statenour/task-event". */
+    source: string;
+    /** com.statenour.<domain>.<entity>.<verb>.v<major> */
+    type: string;
+    subject?: string;
+    /** ISO timestamp of the event's own time (not adaptation time). */
+    time: string;
+    datacontenttype: "application/json";
+    data: T;
+    schemaVersion: number;
+    /** W3C trace-context line derived deterministically from traceId. */
+    traceparent?: string;
+    /** The original correlation id, verbatim (traceparent never replaces it). */
+    correlationId?: string;
+    actorType: EventActorType;
+    actorId?: string;
+    receiptId?: string;
+    privacyClass: EventPrivacyClass;
+}
+export declare const isEventActorType: (v: string) => v is EventActorType;
+export declare const isEventPrivacyClass: (v: string) => v is EventPrivacyClass;
+/** com.statenour.<domain>.<entity>.<verb>.v<major> — lowercased, dots in
+ *  segments collapsed to hyphens so the name stays parseable. */
+export declare function eventTypeName(domain: string, entity: string, verb: string, major?: number): string;
 //# sourceMappingURL=contracts.d.ts.map
