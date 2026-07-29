@@ -921,6 +921,22 @@ async function chatPostInner(req: Request) {
     line: formatStageLog(reqId, mode, stageTracker.summary()),
   });
 
+  // WP-A durability (2026-07-29): consume the stream server-side so the
+  // full pipeline — onFinish, persist, receipts — completes even when
+  // the client disconnects mid-stream (the documented ai@6 pattern:
+  // consumeStream removes backpressure from the response reader). The
+  // active-stream registry lets the reconnect route replay the persisted
+  // reply; cleared only AFTER the durable persist resolves. Private mode
+  // registers nothing — its no-persistence semantics hold.
+  result.consumeStream();
+  if (!privateMode && convId) {
+    const { registerActiveStream, completeActiveStream } = await import(
+      "@/lib/services/chat/active-stream"
+    );
+    void registerActiveStream(convId, __traceId);
+    void onFinishPromise.then(() => completeActiveStream(convId!));
+  }
+
   const { buildChatResponse } = await import("@/lib/services/chat/response-shape");
   // 2026-07-25 · onError closes the SSE-side gap in the v10.0.111 no-echo
   // policy above: ai@6's default forwards error.message VERBATIM into the

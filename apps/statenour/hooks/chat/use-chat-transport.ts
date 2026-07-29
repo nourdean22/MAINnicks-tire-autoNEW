@@ -124,6 +124,19 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
       new DefaultChatTransport({
         api: apiPath,
         body: getBody,
+        // WP-A (2026-07-29): useChat's id is the STATIC "chat-v2", so the
+        // default reconnect URL (`${api}/chat-v2/stream`) is meaningless —
+        // the real conversation id lives in the transport body. Point the
+        // resume GET at the per-conversation route; "none" is the server's
+        // 204 sentinel (no conversation yet, or private mode).
+        prepareReconnectToStreamRequest: () => {
+          const body = getBody() as
+            | { conversationId?: string | null; privateMode?: boolean }
+            | undefined;
+          const convId =
+            body?.conversationId && !body?.privateMode ? body.conversationId : "none";
+          return { api: `${apiPath}/${encodeURIComponent(convId)}/stream` };
+        },
         fetch: async (input, init) => {
           const res = await fetch(input, init);
 

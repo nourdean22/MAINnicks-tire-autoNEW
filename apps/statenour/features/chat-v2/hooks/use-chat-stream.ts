@@ -86,6 +86,12 @@ export function useChatStream(): ChatRuntimeController {
   const chat = useChat({
     id: "chat-v2",
     transport,
+    // WP-A (2026-07-29): on mount, reconnect to a turn that was in
+    // flight when the PWA was backgrounded or the socket dropped — the
+    // transport rewrites the resume GET to the per-conversation route;
+    // no conversation / private mode resolves to a 204 no-op, so this
+    // is always safe to leave on.
+    resume: true,
     onError(error) {
       console.error("chat stream failed", error);
       setConnection("degraded");
