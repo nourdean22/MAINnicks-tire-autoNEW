@@ -437,7 +437,7 @@ export function Inbox({ onNavigate }: InboxProps) {
                                   setReplyMessage("");
                                   setSelectedTone("warm");
                                 }}
-                                className="h-7 text-xs"
+                                className="min-h-11 text-xs"
                               >
                                 Reply
                               </Button>

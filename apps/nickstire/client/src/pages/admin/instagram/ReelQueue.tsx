@@ -1,11 +1,21 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Film, RefreshCw, Send, CheckCircle2, XCircle, AlertTriangle, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Film, RefreshCw, Send, CheckCircle2, XCircle, AlertTriangle, Check, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+/**
+ * Approximate Instagram UI overlap for a 9:16 reel, as fractions of the frame:
+ * the top band (account row), the bottom band (caption + audio + actions), and
+ * the right rail (like/comment/share stack). ADVISORY — Meta publishes no
+ * official pixel contract for this chrome; these mark where captions and the
+ * subject are at risk, pending a platform-spec registry entry.
+ */
+const REEL_SAFE = { top: 0.12, bottom: 0.22, right: 0.13 };
 
 type DraftStatus = "needs_review" | "ready" | "scheduled" | "published" | "rejected";
 
@@ -50,6 +60,9 @@ export default function ReelQueue() {
   const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
   /** Two-tap publish through a panel showing the exact payload. */
   const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
+  /** Full-fidelity 9:16 review room — a reel must never be judged from the cropped card. */
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [showSafeZones, setShowSafeZones] = useState(true);
 
   const { data: drafts, isLoading, isError, error, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
@@ -122,13 +135,28 @@ export default function ReelQueue() {
   const all = (drafts || []) as any[];
   const reels = all.filter((d) => d.format === "reel" && (filter === "all" || d.status === filter));
   const legacyStatics = all.filter((d) => d.format !== "reel");
+  const reviewDraft = reviewId ? (all.find((d) => d.id === reviewId) ?? null) : null;
 
   const renderCard = (draft: any) => (
     <Card key={draft.id} className="flex flex-col h-full overflow-hidden">
       <div className="h-40 bg-muted/50 border-b relative flex items-center justify-center">
         {draft.format === "reel" ? (
           draft.assetPack?.videoUrl ? (
-            <video src={draft.assetPack.videoUrl} className="object-cover h-full w-full" controls muted playsInline />
+            <>
+              {/* object-CONTAIN, never cover: a 9:16 frame crammed into this
+                  landscape card loses its top and bottom thirds — exactly the
+                  regions where captions and covers go wrong. The card is a
+                  thumbnail; judgment happens in the review room. */}
+              <video src={draft.assetPack.videoUrl} className="object-contain h-full w-full bg-black" controls muted playsInline />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="absolute bottom-2 left-2 min-h-11 gap-1.5 bg-black/70 text-white hover:bg-black/85 border border-white/20"
+                onClick={() => setReviewId(draft.id)}
+              >
+                <Eye className="h-4 w-4" /> Review 9:16
+              </Button>
+            </>
           ) : (
             <span className="text-sm text-muted-foreground">No Video Attached</span>
           )
@@ -365,6 +393,132 @@ export default function ReelQueue() {
           )}
         </div>
       )}
+
+      {/* ── 9:16 review room ─────────────────────────────────────────────
+          Full-fidelity inspection: the frame as Instagram will show it, the
+          UI-overlap zones, the exact server-authoritative caption, and the
+          quality evidence — so approval is a judgment about the reel, not
+          about a cropped 160px card. Publishing stays on the card's two-tap
+          payload panel; this room is for LOOKING and approving. */}
+      <Dialog open={reviewDraft != null} onOpenChange={(open) => { if (!open) setReviewId(null); }}>
+        <DialogContent className="max-w-4xl max-h-[92dvh] overflow-y-auto">
+          {reviewDraft && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  <Film className="h-4 w-4" /> Reel review
+                  <Badge variant="outline" className="capitalize">{String(reviewDraft.status).replace("_", " ")}</Badge>
+                  {reviewDraft.qualityScore && (
+                    <Badge variant={reviewDraft.qualityScore.gate === "pass" ? "secondary" : reviewDraft.qualityScore.gate === "warn" ? "outline" : "destructive"}>
+                      {reviewDraft.qualityScore.gate} · {reviewDraft.qualityScore.overall}
+                    </Badge>
+                  )}
+                </DialogTitle>
+                <DialogDescription className="text-left">
+                  {reviewDraft.conceptBrief?.sourceSummary || "Generated reel draft"} · v{reviewDraft.version ?? 1}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,auto)_minmax(260px,1fr)]">
+                <div className="mx-auto w-full max-w-[min(100%,calc(62dvh*9/16))]">
+                  <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg bg-black">
+                    {reviewDraft.assetPack?.videoUrl ? (
+                      /* Sound ON is deliberate here — the card preview is muted,
+                         and a reel must be reviewed with audio at least once. */
+                      <video src={reviewDraft.assetPack.videoUrl} className="absolute inset-0 h-full w-full object-contain" controls playsInline />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">No video attached</div>
+                    )}
+                    {showSafeZones && reviewDraft.assetPack?.videoUrl && (
+                      <div className="pointer-events-none absolute inset-0" aria-hidden>
+                        <div className="absolute inset-x-0 top-0 border-b border-red-400/70 bg-red-500/10" style={{ height: `${REEL_SAFE.top * 100}%` }}>
+                          <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">UI top</span>
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 border-t border-red-400/70 bg-red-500/10" style={{ height: `${REEL_SAFE.bottom * 100}%` }}>
+                          <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">caption / actions</span>
+                        </div>
+                        <div
+                          className="absolute right-0 border-l border-red-400/70 bg-red-500/10"
+                          style={{ top: `${REEL_SAFE.top * 100}%`, bottom: `${REEL_SAFE.bottom * 100}%`, width: `${REEL_SAFE.right * 100}%` }}
+                        >
+                          <span className="absolute right-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold uppercase tracking-wide text-red-300">rail</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="outline" className="min-h-11" onClick={() => setShowSafeZones((v) => !v)}>
+                      {showSafeZones ? "Hide" : "Show"} UI-overlap zones
+                    </Button>
+                    {reviewDraft.reelJobId && (
+                      <Button size="sm" variant="outline" className="min-h-11" disabled={rerunQa.isPending}
+                        onClick={() => rerunQa.mutate({ jobId: Number(reviewDraft.reelJobId) })}>
+                        {rerunQa.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
+                        Re-run rendered QA
+                      </Button>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    Zones are approximate Instagram chrome — keep captions and the subject inside the clear area.
+                    The first frame doubles as the cover: scrub to 0:00 and judge it as the profile-grid tile.
+                    Review once with sound and once muted.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Exact publish caption</p>
+                    <p className="text-[11px] text-muted-foreground">For reels the server rebuilds the approved caption at publish — this is the authoritative copy.</p>
+                    <div className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap rounded border bg-muted/20 p-2 text-xs leading-5">
+                      {reviewDraft.publishCaption ?? captionWithHashtags(reviewDraft) ?? "(no caption)"}
+                    </div>
+                    {reviewDraft.publishCaptionError && (
+                      <p className="mt-1 text-xs text-red-400">Cannot publish yet: {reviewDraft.publishCaptionError}</p>
+                    )}
+                  </div>
+                  {reviewDraft.qualityScore?.blockers?.length > 0 && (
+                    <div className="rounded border border-red-500/40 bg-red-500/5 p-2">
+                      <p className="text-xs font-semibold text-red-500">Blocking findings</p>
+                      <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                        {reviewDraft.qualityScore.blockers.map((b: string) => <li key={b}>· {b}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {reviewDraft.status === "needs_review" && (
+                    <Button
+                      className="w-full min-h-11 bg-green-600 font-semibold text-white hover:bg-green-700"
+                      disabled={approveDraft.isPending}
+                      onClick={() => approveDraft.mutate({ id: reviewDraft.id, expectedVersion: reviewDraft.version })}
+                    >
+                      {approveDraft.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                      Approve reel
+                    </Button>
+                  )}
+                  <div className="rounded border bg-muted/10 p-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Approval standard</p>
+                    <p className="text-[11px] text-muted-foreground">Judge, don't hope. A reel is approvable only if every answer is yes:</p>
+                    <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                      <li>· Understandable muted?</li>
+                      <li>· Would someone SEND this to a friend?</li>
+                      <li>· Would someone SAVE it for later?</li>
+                      <li>· Is the mechanic truth real (sourced)?</li>
+                      <li>· Is the Cleveland angle specific?</li>
+                      <li>· First frame visually unusual?</li>
+                      <li>· Final frame loops back?</li>
+                      <li>· No fake claims, prices, or urgency?</li>
+                      <li>· No generated text or logos in-frame?</li>
+                      <li>· Trust before selling?</li>
+                    </ul>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Publishing stays on the card — close this room and use Publish… to see the exact payload before anything goes live.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

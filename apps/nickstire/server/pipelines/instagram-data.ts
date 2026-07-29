@@ -35,6 +35,11 @@ export interface PostAnalysis {
   hourOfDay: number;
   contentScore: number;
   themes: string[];
+  /** Live Graph insights — null until captured for that post. Null is UNKNOWN, never zero. */
+  reach: number | null;
+  saved: number | null;
+  views: number | null;
+  shares: number | null;
 }
 
 export interface EngagementByType {
@@ -483,6 +488,13 @@ export async function getTopPosts(opts?: { limit?: number }): Promise<PostAnalys
     hourOfDay: r.hourOfDay || 0,
     contentScore: r.contentScore || 0,
     themes: r.themesJson ? (() => { try { return JSON.parse(r.themesJson); } catch (e) { log.warn("[pipelines/instagram-data] operation failed:", e); return []; } })() : [],
+    // The sync loop has stored these since the live-Graph wave; the reader
+    // dropped them on the floor, so Learn could never show saves or reach.
+    // `?? null` keeps "never captured" distinct from a real zero.
+    reach: r.reach ?? null,
+    saved: r.saved ?? null,
+    views: r.views ?? null,
+    shares: r.shares ?? null,
   }));
 }
 

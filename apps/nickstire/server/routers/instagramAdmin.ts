@@ -202,6 +202,16 @@ export const instagramAdminRouter = router({
     };
   }),
 
+  /**
+   * Delivery issues — "created" and "delivering" are different states. Every
+   * blocker names the constrained layer and the smallest safe next action;
+   * unknown facts arrive as warnings, never as calm. Read-only.
+   */
+  getDeliveryIssues: adminProcedure.query(async () => {
+    const { getDeliveryIssues } = await import("../services/socialDeliveryIssues");
+    return getDeliveryIssues();
+  }),
+
   /*
    * getAccountInfo / reconnectToken / generatePost were DELETED 2026-07-24
    * (audit R4): zero client callers, no test coverage, and each duplicated a

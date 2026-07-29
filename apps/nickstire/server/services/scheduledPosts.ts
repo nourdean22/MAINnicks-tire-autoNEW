@@ -150,6 +150,9 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
           imageUrl: row.imageUrl ?? undefined,
           imageUrls: row.imageUrls ?? undefined,
           videoUrl: row.videoUrl ?? undefined,
+          // Scheduled execution is unattended: fail CLOSED on unreadable
+          // kill-switch state, like the reel cron and the inventory drain.
+          actor: "automated",
         });
         const succeeded = results.filter((r) => r.success);
         const failures = results.filter((r) => !r.success);

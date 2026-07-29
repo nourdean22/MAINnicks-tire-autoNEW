@@ -16,6 +16,8 @@
  *      duplication it replaced.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 type Controls = {
   globalKillSwitch: boolean;
@@ -244,4 +246,34 @@ describe("extracting it did not change publishToSocial", () => {
     await publishToSocial({ platforms: ["instagram"], caption: "hi", imageUrl: "https://x/y.png", link: "https://nickstire.org" });
     expect(postToInstagram).toHaveBeenCalledWith({ imageUrl: "https://x/y.png", caption: "hi" });
   });
+});
+
+describe("every unattended publishToSocial caller declares actor: automated", () => {
+  /**
+   * The actor rode onto PublishInput for the reel cron and the inventory
+   * drain — and MISSED the scheduled-posts executor, which ran with the
+   * operator default (fail-OPEN on unreadable switch state). This scan pins
+   * every unattended caller so the next one cannot be missed silently.
+   * Comments are stripped before counting: a source scan that reads its own
+   * documentation has flagged prose as a defect three times in this repo.
+   */
+  const UNATTENDED_CALLERS = [
+    "server/cron/jobs/dailyReelPost.ts",
+    "server/cron/jobs/socialInventoryPublisher.ts",
+    "server/services/scheduledPosts.ts",
+  ];
+  const stripComments = (src: string) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  for (const rel of UNATTENDED_CALLERS) {
+    it(`${rel} passes actor: "automated" on every publishToSocial call`, () => {
+      const src = stripComments(readFileSync(resolve(process.cwd(), rel), "utf8"));
+      const calls = src.match(/publishToSocial\(/g) ?? [];
+      // Anti-vacuity: the caller must actually call the door, or this test
+      // proves nothing about it.
+      expect(calls.length).toBeGreaterThan(0);
+      const declared = src.match(/actor:\s*"automated"/g) ?? [];
+      expect(declared.length).toBe(calls.length);
+    });
+  }
 });
