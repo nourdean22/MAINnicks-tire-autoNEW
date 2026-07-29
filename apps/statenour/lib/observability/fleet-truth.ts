@@ -161,21 +161,66 @@ export async function nickstireArtifacts(): Promise<CapabilityArtifact[]> {
   }
 }
 
+/** Row-state health for a durable queue — liveness probes prove the
+ *  DRAIN ran; this proves the ROWS aren't rotting (WP-8: a dead pile
+ *  was invisible behind a green drain probe). */
+export interface QueueHealth {
+  pending: number;
+  processing: number;
+  dead: number;
+  /** ISO timestamp of the oldest dead row, null when the queue is clean. */
+  oldestDeadAt: string | null;
+}
+
 export interface FleetTruth {
   generatedAt: string;
   statenour: CapabilityArtifact[];
   nickstire: CapabilityArtifact[];
+  /** Durable-queue row states (additive 2026-07-29 · WP-8): dead > 0 is
+   *  an attention state even when every liveness probe is fresh. */
+  queues: {
+    postTurnOutbox: QueueHealth | null;
+    brainBus: QueueHealth | null;
+  };
   /** true only when every probed capability is fresh — unknown counts as NOT ok. */
   allFresh: boolean;
+  /** true only when both queues answered AND neither holds a dead row. */
+  queuesClean: boolean;
 }
 
 export async function getFleetTruth(): Promise<FleetTruth> {
-  const [stn, nick] = await Promise.all([statenourArtifacts(), nickstireArtifacts()]);
+  const [stn, nick, outbox, bus] = await Promise.all([
+    statenourArtifacts(),
+    nickstireArtifacts(),
+    (async (): Promise<QueueHealth | null> => {
+      try {
+        const { getOutboxHealth } = await import("@/lib/services/chat/post-turn-outbox");
+        const h = await getOutboxHealth();
+        return { pending: h.pending, processing: h.processing, dead: h.dead, oldestDeadAt: h.oldestDeadAt };
+      } catch (e) {
+        log.warn("outbox_queue_health_failed", { error: e instanceof Error ? e.message : String(e) });
+        return null;
+      }
+    })(),
+    (async (): Promise<QueueHealth | null> => {
+      try {
+        const { getDurableBusHealth } = await import("@/lib/db/brain-bus-durable");
+        const h = await getDurableBusHealth();
+        return { pending: h.pending, processing: h.processing, dead: h.dead, oldestDeadAt: h.oldestStuckProcessing };
+      } catch (e) {
+        log.warn("bus_queue_health_failed", { error: e instanceof Error ? e.message : String(e) });
+        return null;
+      }
+    })(),
+  ]);
   const all = [...stn, ...nick];
   return {
     generatedAt: new Date().toISOString(),
     statenour: stn,
     nickstire: nick,
+    queues: { postTurnOutbox: outbox, brainBus: bus },
     allFresh: all.length > 0 && all.every((a) => a.state === "fresh"),
+    // A queue that failed to answer is NOT clean — unknown never passes.
+    queuesClean: outbox !== null && bus !== null && outbox.dead === 0 && bus.dead === 0,
   };
 }

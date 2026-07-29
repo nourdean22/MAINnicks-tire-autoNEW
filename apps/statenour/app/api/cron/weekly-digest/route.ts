@@ -78,6 +78,37 @@ export const GET = cronHandler(async () => {
   const sevenDaysAgo = toDateString(daysAgo(7));
   const now = today();
 
+  // Wave-7 (2026-07-29) · WP-19: revenue-side forecast from the bridge.
+  // Best-effort — a dead bridge yields an honest UNAVAILABLE line, never
+  // a silent omission. The artifact lands in the outcome ledger as a
+  // `prediction` row so the resolution loop can score it against actuals.
+  let forecastLine = "Revenue-side forecast: UNAVAILABLE (forecast step failed).";
+  try {
+    const { buildCashflowForecast, forecastDigestLine } = await import(
+      "@/lib/services/cashflow-forecast"
+    );
+    const forecast = await buildCashflowForecast();
+    forecastLine = forecastDigestLine(forecast);
+    const { recordShown } = await import("@/lib/services/outcome-ledger");
+    await recordShown({
+      kind: "prediction",
+      sourceEngine: "cashflow-forecast",
+      summary: forecastLine,
+      shownSurface: "weekly-digest",
+      confidence: forecast.confidence,
+      evidenceRefs: {
+        weekStart: forecast.weekStart,
+        basis: forecast.basis,
+        dataGaps: forecast.dataGaps,
+        freshness: forecast.freshness,
+      },
+    });
+  } catch (err) {
+    log.warn("cashflow_forecast_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   // Apr 19 · DailyScore + MasteryHabit retired. Brain-maturity
   // history + DAILY-task streak counts replace them.
   const [identityHistory, dailyTasks, driftAlerts, healthCheck, weeklyReviewRes] = await Promise.all([
@@ -366,6 +397,13 @@ export const GET = cronHandler(async () => {
       <div class="section-title">AI Weekly Review</div>
       <div class="review-box">
         ${weeklyReviewSummary}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Shop Revenue Forecast (revenue-side only)</div>
+      <div class="review-box">
+        ${forecastLine}
       </div>
     </div>
 

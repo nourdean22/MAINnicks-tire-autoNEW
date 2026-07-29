@@ -1,11 +1,14 @@
 /**
  * CLI · Cron manifest verifier.
  *
- * Asserts that `config/crons.ts` is the single source of truth:
+ * Asserts that `config/crons.ts` is the single source of truth via seven
+ * checks ([1/7]–[7/7]), the first two being:
  *   1. Every cron named as `active` or `folded` has a corresponding
  *      `app/api/cron/<name>/route.ts` (so the code is actually present).
  *   2. Every `app/api/cron/*` directory has a matching entry in CRONS
  *      (no dark code).
+ * Checks 3–7 cover schedule/class sanity, mega fan-out membership, and
+ * bidirectional worker-list validation (see the numbered sections below).
  *
  * The vercel.json drift check was removed when statenour left Vercel
  * for Railway — scheduled jobs now run via the Inngest mega fan-out,

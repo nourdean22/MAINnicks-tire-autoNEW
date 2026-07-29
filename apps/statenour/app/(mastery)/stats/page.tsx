@@ -55,6 +55,7 @@ import { GoalBoard } from "@/components/goals/goal-board";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
+import { JourneyPanel } from "@/components/stats/journey-panel";
 
 /** Below-the-fold section shimmer · holds layout while the lazy chunk loads. */
 function SectionFallback() {
@@ -264,6 +265,13 @@ export default function StatsPage() {
           ]}
         />
       </Suspense>
+
+      {/* Wave-6 (2026-07-29) · the Journey lens — months-scale becoming,
+          the chronological view the 06-10 audit named as the moat. */}
+      <div className="px-4 pb-6 max-w-2xl mx-auto">
+        <MasterySectionLabel label="JOURNEY" />
+        <JourneyPanel />
+      </div>
     </>
   );
 }

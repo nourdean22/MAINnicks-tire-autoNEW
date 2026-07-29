@@ -16,7 +16,7 @@
  *   · "subscribe_exception: …"    — raw browser error
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice — every
 // call-site here is now typed tRPC, the `authedFetch` import is gone:
@@ -57,6 +57,47 @@ export function usePushNotifications() {
       });
     }
   }, []);
+
+  // Wave-3 (2026-07-29) · iOS silently expires push subscriptions after
+  // inactivity, and a rotted server row makes every send fail while the
+  // toggle still shows enabled — the operator confirmed pushes stopped
+  // arriving. When permission is ALREADY granted this re-sync is fully
+  // silent (no prompt fires): re-save the live subscription so the
+  // server row stays fresh, or re-subscribe if the browser dropped it.
+  const resyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSupported || permission !== "granted" || resyncedRef.current) return;
+    resyncedRef.current = true;
+    void (async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          const keyResult = await utils.system.pushVapidKey
+            .fetch()
+            .catch(() => ({ publicKey: "" }));
+          const publicKey = keyResult?.publicKey;
+          if (!publicKey || publicKey.length < 20) return;
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+          });
+        }
+        const json = sub.toJSON();
+        await subscribeMutation.mutateAsync({
+          subscription: {
+            endpoint: json.endpoint ?? "",
+            keys: { p256dh: json.keys?.p256dh ?? "", auth: json.keys?.auth ?? "" },
+          },
+        });
+        setIsSubscribed(true);
+      } catch (err) {
+        // Re-sync is best-effort — a failure leaves the explicit toggle
+        // flow as the recovery path; never surface an error for it.
+        console.warn("[push] silent re-sync failed:", err);
+      }
+    })();
+  }, [isSupported, permission, utils, subscribeMutation]);
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     setLastError(null);

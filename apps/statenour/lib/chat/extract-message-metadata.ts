@@ -40,13 +40,17 @@ export function extractQuality(msg: { tokenUsage?: unknown; role?: string }): Qu
     critic?: QualityPayload["critic"];
     gate?: QualityPayload["gate"];
     factCheck?: QualityPayload["factCheck"];
+    truth?: QualityPayload["truth"];
+    receipt?: QualityPayload["receipt"];
   } | undefined;
   if (!tu) return undefined;
-  if (!tu.critic && !tu.gate && !tu.factCheck) return undefined;
+  if (!tu.critic && !tu.gate && !tu.factCheck && !tu.truth && !tu.receipt) return undefined;
   return {
     critic: tu.critic,
     gate: tu.gate,
     factCheck: tu.factCheck,
+    truth: tu.truth,
+    receipt: tu.receipt,
   };
 }
 

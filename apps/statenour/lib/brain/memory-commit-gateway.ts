@@ -167,6 +167,50 @@ export function evaluateMemoryCandidate(
   };
 }
 
+/**
+ * Wave-4 (2026-07-29) · token-Jaccard similarity on normalized content —
+ * the deterministic stand-in for semantic dedup (the audit's "39 writers,
+ * no semantic pre-dedup") that honors this module's design rule: no LLM,
+ * no embedding call, in the write path. Exported for tests.
+ */
+export function nearDuplicateScore(a: string, b: string): number {
+  const tok = (s: string) => new Set(norm(s).split(" ").filter((t) => t.length > 2));
+  const ta = tok(a);
+  const tb = tok(b);
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let hit = 0;
+  for (const t of ta) if (tb.has(t)) hit++;
+  return hit / (ta.size + tb.size - hit);
+}
+
+const DUP_SUSPECT_THRESHOLD = 0.8;
+const DUP_SCAN_LIMIT = 50;
+
+/**
+ * For an `add` verdict, scan the category's recent rows (different key)
+ * for a near-duplicate claim. Same-claim-different-key duplicates sail
+ * past the exact @@unique([category,key]) guard today — this measures
+ * how often, in shadow, before any enforcement.
+ */
+async function findDuplicateSuspect(
+  candidate: MemoryCandidate,
+): Promise<{ key: string; score: number } | null> {
+  const rows = await prisma.brainMemory.findMany({
+    where: { category: candidate.category, key: { not: candidate.key }, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: DUP_SCAN_LIMIT,
+    select: { key: true, content: true },
+  });
+  let best: { key: string; score: number } | null = null;
+  for (const r of rows) {
+    const score = nearDuplicateScore(candidate.content.slice(0, 500), r.content.slice(0, 500));
+    if (score >= DUP_SUSPECT_THRESHOLD && (!best || score > best.score)) {
+      best = { key: r.key, score: Math.round(score * 100) / 100 };
+    }
+  }
+  return best;
+}
+
 const SHADOW_CATEGORY = "memory_gateway_shadow";
 const SHADOW_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -183,6 +227,12 @@ export async function shadowMemoryCommit(
   if (candidate.category === SHADOW_CATEGORY) return;
   try {
     const verdict = evaluateMemoryCandidate(candidate, existing);
+    // Wave-4: on would-be adds, measure the semantic-dupe rate the exact
+    // unique guard can't see. Shadow-only — no write is ever blocked.
+    const dupSuspect =
+      verdict.decision === "add"
+        ? await findDuplicateSuspect(candidate).catch(() => null)
+        : null;
     const agrees =
       (legacyAction === "create" && verdict.decision === "add") ||
       (legacyAction === "reinforce" && verdict.decision === "reinforce");
@@ -203,11 +253,17 @@ export async function shadowMemoryCommit(
           category: candidate.category,
           memoryKey: candidate.key,
           source: candidate.source,
+          ...(dupSuspect ? { dupSuspectKey: dupSuspect.key, dupScore: dupSuspect.score } : {}),
         }).slice(0, 1500),
         confidence: 0.1,
         source: "memory-commit-gateway",
         expiresAt: new Date(Date.now() + SHADOW_TTL_MS),
-        metadata: { shadow: true, agrees, decision: verdict.decision } as never,
+        metadata: {
+          shadow: true,
+          agrees,
+          decision: verdict.decision,
+          dupSuspect: dupSuspect !== null,
+        } as never,
       },
     });
   } catch (err) {

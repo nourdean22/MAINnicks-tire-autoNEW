@@ -86,3 +86,30 @@ describe("evidenceClassForSource — deterministic provenance mapping", () => {
     expect(evidenceClassForSource("mystery-writer")).toBe("weak_inference");
   });
 });
+
+// Wave-4 (2026-07-29): deterministic near-duplicate scoring — the
+// no-LLM, no-embedding stand-in for semantic pre-dedup, shadow-only.
+import { nearDuplicateScore } from "@/lib/brain/memory-commit-gateway";
+
+describe("nearDuplicateScore", () => {
+  it("identical claims score 1 regardless of whitespace/case", () => {
+    expect(nearDuplicateScore("Nour owns the tire shop", "  nour OWNS the  tire shop ")).toBe(1);
+  });
+
+  it("rephrased same-claim scores above the 0.8 suspect threshold", () => {
+    const a = "customer prefers morning appointments for tire rotation service";
+    const b = "customer prefers morning appointments for tire rotation";
+    expect(nearDuplicateScore(a, b)).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it("unrelated claims score low", () => {
+    expect(
+      nearDuplicateScore("weekly revenue crossed the threshold", "journal streak reached nine days"),
+    ).toBeLessThan(0.2);
+  });
+
+  it("empty or stopword-only content scores 0, never NaN", () => {
+    expect(nearDuplicateScore("", "anything at all here")).toBe(0);
+    expect(nearDuplicateScore("a an it", "of to in")).toBe(0);
+  });
+});

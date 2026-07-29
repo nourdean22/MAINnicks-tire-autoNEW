@@ -212,7 +212,7 @@ HIDE / DEPRECATE / DELETE / EXTERNALIZE) — richer than wired/not-wired.
 
 | Platform | Verdict | Why |
 |---|---|---|
-| Trigger.dev / n8n-as-runtime | **NO** | 4 dispatch classes already; a 5th job system is the disease this blueprint treats |
+| Trigger.dev / n8n-as-runtime | **NO** | 5 dispatch classes already (Pass 1 census); a 6th job system is the disease this blueprint treats |
 | Langfuse | **NO** (self-host = web+worker+PG+ClickHouse+Redis+S3) | native receipts/traces + AgentTrace cover the need |
 | assistant-ui | **NO** | typed renderer registry shipped natively (#1176) |
 | yt-dlp | **DONE** native, policy-guarded (#1173) |

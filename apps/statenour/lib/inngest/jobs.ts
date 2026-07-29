@@ -105,8 +105,13 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/experiment-measure",
   "/api/cron/data-cleanup",
   // 2026-07-25 · durable-outbox drain — replays post-turn work orphaned
-  // by a mid-turn crash (rare; rows past the grace window, ≤3 attempts).
+  // by a mid-turn crash (rare; rows past the grace window, ≤5 attempts
+  // since WP-8 dead-lettering, 2026-07-29).
   "/api/cron/outbox-drain",
+  // 2026-07-29 · Wave-8 · operator-decided loss-aversion decay: stats
+  // idle past 7 days bleed XP via negative event rows (reversible,
+  // idempotent per stat per day).
+  "/api/cron/xp-decay",
   "/api/cron/subtask-usage-audit",
   "/api/cron/cron-healer",
   "/api/cron/journal-checkin?slot=evening",

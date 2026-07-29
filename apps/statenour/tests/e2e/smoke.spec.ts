@@ -37,8 +37,8 @@ import { test, expect } from "@playwright/test";
 // a genuine 404. Entries now target the live surfaces directly. The
 // `title` regex is a page-IDENTITY check matched against document.title
 // OR the h1 heading: the root layout sets a flat "NOUR OS" <title> and,
-// of the pages listed here, only /chat exports its own metadata (a few
-// others exist app-wide, e.g. /warroom), so most pages carry their
+// of the pages listed here, only /chat exports its own metadata, so most
+// pages carry their
 // identity in the StandardPage/PageHeader h1, not the document title.
 
 const PAGES = [

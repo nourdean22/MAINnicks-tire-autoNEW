@@ -41,6 +41,18 @@ export interface QualityPayload {
     total?: number;
     unverified?: number;
   };
+  /** WP-11 (2026-07-29) · known-truth guard flags persisted with the turn. */
+  truth?: {
+    total?: number;
+    flags?: Array<{ kind?: string; rule?: string; snippet?: string; severity?: number }>;
+  };
+  /** WP-11 (2026-07-29) · action-receipt verdict: were this reply's
+   *  action claims backed by successful tool calls? */
+  receipt?: {
+    ok?: boolean;
+    toolsFired?: Array<{ toolName?: string; status?: string }>;
+    offenders?: Array<{ toolName?: string; status?: string; label?: string }>;
+  };
 }
 
 interface Props {

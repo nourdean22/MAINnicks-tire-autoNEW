@@ -43,6 +43,55 @@ const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
 export const healthProcedures = {
   /**
+   * WP-8 (2026-07-29) · owner-only · one-tap DLQ redrive for the
+   * post-turn outbox: dead (and legacy `failed`) rows return to
+   * `pending` with attempts reset, so the 15-min drain replays them.
+   * Replay is idempotent by construction (see post-turn-outbox.ts
+   * module header). Returns the redriven count as its receipt.
+   */
+  outboxRedrive: operatorProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(200) }).optional())
+    .mutation(async ({ input }) => {
+      const { redriveDeadOutboxRows } = await import(
+        "@/lib/services/chat/post-turn-outbox"
+      );
+      const redriven = await redriveDeadOutboxRows(input?.limit ?? 50);
+      return { redriven };
+    }),
+
+  /**
+   * Wave-3 (2026-07-29) · owner-only · delivery truth from the
+   * IntelligenceOutcome ledger: shown / decided / accepted counts plus
+   * which producers wrote rows in the window. Raw counts only — no
+   * invented rates; an engine census belongs to the caller.
+   */
+  deliveryStats: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90) }).optional())
+    .query(async ({ input }) => {
+      const { outcomeStats } = await import("@/lib/services/outcome-ledger");
+      const { prisma } = await import("@/lib/prisma");
+      const windowDays = input?.windowDays ?? 7;
+      const since = new Date(Date.now() - windowDays * 86_400_000);
+      const [stats, engines] = await Promise.all([
+        outcomeStats(windowDays),
+        prisma.intelligenceOutcome.groupBy({
+          by: ["sourceEngine", "kind"],
+          where: { shownAt: { gte: since } },
+          _count: { _all: true },
+        }),
+      ]);
+      return {
+        windowDays,
+        stats,
+        producers: engines.map((e) => ({
+          sourceEngine: e.sourceEngine,
+          kind: e.kind,
+          rows: e._count._all,
+        })),
+      };
+    }),
+
+  /**
    * Owner-only · returns the same HealthReport shape the legacy REST
    * endpoint returned. Default range = 7d to match prior behavior.
    */

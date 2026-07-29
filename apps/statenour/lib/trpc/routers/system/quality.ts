@@ -53,6 +53,82 @@ import {
 
 export const qualityProcedures = {
   /**
+   * Wave-5 (2026-07-29) · recent judged comparisons for the operator
+   * label loop — unlabeled first, light payload (replies truncated for
+   * the card; the judge's pick is HIDDEN client-side until the operator
+   * labels, as the position-bias mitigation).
+   */
+  judgeRecent: operatorProcedure
+    .input(z.object({ take: z.number().int().min(1).max(50) }).optional())
+    .query(async ({ input }) => {
+      const { readComparisons } = await import("@/lib/ai/judge-eval/persistence");
+      const rows = await readComparisons({ take: input?.take ?? 20 });
+      return rows.map((r) => ({
+        id: r.id,
+        prompt: r.prompt.slice(0, 280),
+        v1Reply: r.v1Reply.slice(0, 600),
+        v2Reply: r.v2Reply.slice(0, 600),
+        judgeWinner: r.judgment.winner,
+        v2Score: r.judgment.v2Score,
+        operatorWinner: r.operatorWinner,
+        createdAt: r.createdAt,
+      }));
+    }),
+
+  /** Wave-5 · one-tap operator verdict on a judged comparison. */
+  judgeLabel: operatorProcedure
+    .input(z.object({ id: z.string().min(1), winner: z.enum(["v1", "v2", "tie"]) }))
+    .mutation(async ({ input }) => {
+      const { recordOperatorLabel } = await import("@/lib/ai/judge-eval/persistence");
+      const ok = await recordOperatorLabel(input.id, input.winner);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "comparison not found" });
+      return { ok };
+    }),
+
+  /** Wave-6 (2026-07-29) · the Journey lens — months-scale becoming,
+   *  pure read over existing identity/XP/anti-pattern/skill rows. */
+  journeyLens: operatorProcedure.query(async () => {
+    const { buildJourneyLens } = await import("@/lib/services/journey-lens");
+    return buildJourneyLens();
+  }),
+
+  /** Wave-6 · triage adoption from spine-5's own TaskEvent audit trail
+   *  (source `triage:*`) — measures the ritual, adds no new contract. */
+  triageAdoption: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90) }).optional())
+    .query(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const windowDays = input?.windowDays ?? 14;
+      const since = new Date(Date.now() - windowDays * 86_400_000);
+      const rows = await prisma.taskEvent.groupBy({
+        by: ["source"],
+        where: { source: { startsWith: "triage:" }, createdAt: { gte: since } },
+        _count: { _all: true },
+      });
+      return {
+        windowDays,
+        decisions: rows.map((r) => ({
+          decision: (r.source ?? "").replace(/^triage:/, ""),
+          count: r._count._all,
+        })),
+        total: rows.reduce((s, r) => s + r._count._all, 0),
+      };
+    }),
+
+  /** Wave-5 · judge-vs-operator agreement + per-class precision/recall. */
+  judgeCalibration: operatorProcedure.query(async () => {
+    const { readComparisons } = await import("@/lib/ai/judge-eval/persistence");
+    const { judgeCalibration } = await import("@/lib/ai/judge-eval/calibration");
+    const rows = await readComparisons({ take: 500 });
+    const labeled = rows.flatMap((r) =>
+      r.operatorWinner !== null
+        ? [{ judgeWinner: r.judgment.winner, operatorWinner: r.operatorWinner }]
+        : [],
+    );
+    return judgeCalibration(labeled);
+  }),
+
+  /**
    * Phase U.3 (2026-05-18 PM) · owner-only · strategic-frameworks
    * lens-firing aggregates over a configurable window. Delegates to
    * the shared `lib/services/lens-stats.ts` service that the legacy

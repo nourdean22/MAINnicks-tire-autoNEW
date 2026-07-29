@@ -336,6 +336,28 @@ export async function persistAssistantMessage(a: {
                     })),
                   }
                 : undefined,
+              // WP-11 (2026-07-29): the action-receipt verdict joins the same
+              // JSON blob the quality/evidence surfaces read — before this it
+              // lived ONLY in the BrainMemory chat_claim_warn row + content
+              // banner, so the panel could not show WHY a reply was rewritten.
+              receipt: receipts.length > 0 || !verdict.ok
+                ? {
+                    ok: verdict.ok,
+                    toolsFired: receipts.map((r) => ({
+                      toolName: r.toolName,
+                      status: r.status,
+                    })),
+                    ...(verdict.ok
+                      ? {}
+                      : {
+                          offenders: verdict.offenders.map((o) => ({
+                            toolName: o.toolName,
+                            status: o.status,
+                            label: o.label,
+                          })),
+                        }),
+                  }
+                : undefined,
             },
           },
         }).catch((err: unknown) => {

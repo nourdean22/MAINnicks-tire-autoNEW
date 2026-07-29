@@ -41,6 +41,8 @@ export interface ComparisonRow {
   v2Reply: string;
   judgment: Judgment;
   intentClass: string | null;
+  /** Wave-5 · the operator's binary verdict, null until labeled. */
+  operatorWinner: Winner | null;
   createdAt: string;
 }
 
@@ -122,6 +124,7 @@ export async function readComparisons(
       const intentClass = typeof m.intentClass === "string" ? m.intentClass : null;
 
       if (!judgment) return [];
+      const ow = m.operatorWinner;
       return [
         {
           id: r.key,
@@ -130,6 +133,7 @@ export async function readComparisons(
           v2Reply,
           judgment,
           intentClass,
+          operatorWinner: ow === "v1" || ow === "v2" || ow === "tie" ? ow : null,
           createdAt: r.createdAt.toISOString(),
         },
       ];
@@ -137,6 +141,40 @@ export async function readComparisons(
   } catch (e) {
     log.warn("comparison_read_failed", { err: (e as Error).message?.slice(0, 200) });
     return [];
+  }
+}
+
+/**
+ * Wave-5 (2026-07-29) · operator binary label on a judged comparison —
+ * the calibration ground truth. 30-100 such labels are enough to trust
+ * or distrust the judge (Husain/Braintrust practice); waiting for
+ * "enough samples" without labels was the trap. Stored into the SAME
+ * row's metadata (operatorWinner + labeledAt) — no migration.
+ */
+export async function recordOperatorLabel(
+  id: string,
+  operatorWinner: Winner,
+): Promise<boolean> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const row = await prisma.brainMemory.findFirst({
+      where: { category: BRAIN_CATEGORIES.PROMPT_COMPARISON_RUN, key: id, deletedAt: null },
+      select: { id: true, metadata: true },
+    });
+    if (!row) return false;
+    const merged = {
+      ...((row.metadata ?? {}) as Record<string, unknown>),
+      operatorWinner,
+      labeledAt: new Date().toISOString(),
+    };
+    await prisma.brainMemory.update({
+      where: { id: row.id },
+      data: { metadata: merged as never },
+    });
+    return true;
+  } catch (e) {
+    log.warn("operator_label_failed", { err: (e as Error).message?.slice(0, 200) });
+    return false;
   }
 }
 

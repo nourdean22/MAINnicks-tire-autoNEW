@@ -17,7 +17,6 @@ import {
   Mic,
   BookOpen,
   GraduationCap,
-  Wallet,
 } from "lucide-react";
 
 // ════════════════════════════════════════════════════════════════════
@@ -83,10 +82,10 @@ export const NAV: NavEntry[] = [
     tabs: [{ key: "memory", label: "Memory" }, { key: "board", label: "Board" }, { key: "wisdom", label: "Wisdom" }, { key: "reason", label: "Reason" }] },
   { href: "/people", label: "People", icon: Users, section: "reflect", flatRow: true },
 
-  // ── MONEY ── personal /money hub + the shop /business hub. Phase 5
-  // consolidated /finance + /wealth → /money, and /crm → /business Clients tab.
-  { href: "/money", label: "Money", icon: Wallet, section: "money",
-    tabs: [{ key: "finance", label: "Finance" }, { key: "wealth", label: "Wealth" }] },
+  // ── MONEY ── the shop /business hub. The personal /money page (former
+  // /finance + /wealth tabs) was deleted 2026-07-29 per the operator's WP-9
+  // verdict — its models died in the 2026-06-21 schema purge and the tabs had
+  // been in honest retired-state since 07-28. Shop money lives in Business.
   { href: "/business", label: "Business", icon: Store, section: "money",
     tabs: [{ key: "money", label: "Money" }, { key: "funnel", label: "Funnel" }, { key: "clients", label: "Clients" }] },
 
