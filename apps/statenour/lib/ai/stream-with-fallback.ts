@@ -96,6 +96,11 @@ export interface StreamWithFallbackResult {
     toUIMessageStreamResponse: (options?: {
       onError?: (error: unknown) => string;
     }) => Response;
+    /** WP-A (2026-07-29): drains the stream server-side so onFinish +
+     *  persist complete even when the client disconnects (the real
+     *  streamText result passes through the cast below — this method
+     *  exists at runtime; the narrow type simply hid it). */
+    consumeStream: (options?: { onError?: (error: unknown) => void }) => PromiseLike<void>;
     toolCalls: any;
   };
   model: LanguageModel;

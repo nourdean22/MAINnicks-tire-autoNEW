@@ -188,3 +188,70 @@ export const isOpportunityState = (v: string): v is OpportunityState => oppSet.h
 export const isArtifactState = (v: string): v is ArtifactState => artifactSet.has(v);
 export const isExecutionClass = (v: string): v is ExecutionClass => execSet.has(v);
 export const isCommitmentStatus = (v: string): v is CommitmentStatus => commitSet.has(v);
+
+// ─── Domain event envelope (V1 · 2026-07-29 · WP-7 executor) ────────
+// CloudEvents-SHAPED read-side envelope over statenour's eight event
+// models (TaskEvent · GoalEvent · DeviceEvent · AutonomousEvent ·
+// VisionEvent · BrainBusEvent · AuditEvent · EntityAudit). A PATTERN
+// adoption, not a schema takeover: adapters map rows INTO this shape
+// for one read projection; no producer migrates, no tables merge.
+// Zod validation lives app-side (this package stays dependency-free).
+
+export const EVENT_ACTOR_TYPES = [
+  "operator",
+  "agent",
+  "system",
+  "integration",
+] as const;
+export type EventActorType = (typeof EVENT_ACTOR_TYPES)[number];
+
+export const EVENT_PRIVACY_CLASSES = [
+  "public",
+  "internal",
+  "sensitive",
+  "restricted",
+] as const;
+export type EventPrivacyClass = (typeof EVENT_PRIVACY_CLASSES)[number];
+
+export interface DomainEventEnvelope<T = unknown> {
+  specversion: "1.0";
+  /** Stable per-event id — the source row's own id (replay-stable). */
+  id: string;
+  /** Producing model, e.g. "statenour/task-event". */
+  source: string;
+  /** com.statenour.<domain>.<entity>.<verb>.v<major> */
+  type: string;
+  subject?: string;
+  /** ISO timestamp of the event's own time (not adaptation time). */
+  time: string;
+  datacontenttype: "application/json";
+  data: T;
+  // statenour extensions
+  schemaVersion: number;
+  /** W3C trace-context line derived deterministically from traceId. */
+  traceparent?: string;
+  /** The original correlation id, verbatim (traceparent never replaces it). */
+  correlationId?: string;
+  actorType: EventActorType;
+  actorId?: string;
+  receiptId?: string;
+  privacyClass: EventPrivacyClass;
+}
+
+const actorSet = setOf(EVENT_ACTOR_TYPES);
+const privacySet = setOf(EVENT_PRIVACY_CLASSES);
+export const isEventActorType = (v: string): v is EventActorType => actorSet.has(v);
+export const isEventPrivacyClass = (v: string): v is EventPrivacyClass =>
+  privacySet.has(v);
+
+/** com.statenour.<domain>.<entity>.<verb>.v<major> — lowercased, dots in
+ *  segments collapsed to hyphens so the name stays parseable. */
+export function eventTypeName(
+  domain: string,
+  entity: string,
+  verb: string,
+  major = 1,
+): string {
+  const seg = (s: string) => s.toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+  return `com.statenour.${seg(domain)}.${seg(entity)}.${seg(verb)}.v${major}`;
+}

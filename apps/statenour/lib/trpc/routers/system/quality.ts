@@ -85,6 +85,26 @@ export const qualityProcedures = {
       return { ok };
     }),
 
+  /** Event Envelope V1 (2026-07-29 · WP-7 executor) · owner-only ·
+   *  the merge-sorted read projection over all eight event models.
+   *  Read-only; dropped/invalid envelopes surface as a count. */
+  eventTimeline: operatorProcedure
+    .input(
+      z
+        .object({
+          windowDays: z.number().int().min(1).max(30).optional(),
+          includeSensitiveData: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const { readOperatorTimeline } = await import("@/lib/events/projection");
+      return readOperatorTimeline({
+        windowDays: input?.windowDays,
+        includeSensitiveData: input?.includeSensitiveData,
+      });
+    }),
+
   /** Wave-6 (2026-07-29) · the Journey lens — months-scale becoming,
    *  pure read over existing identity/XP/anti-pattern/skill rows. */
   journeyLens: operatorProcedure.query(async () => {
