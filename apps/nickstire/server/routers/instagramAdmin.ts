@@ -212,6 +212,50 @@ export const instagramAdminRouter = router({
     return getDeliveryIssues();
   }),
 
+  /**
+   * Wave A3: 30-day reel pipeline reliability. Read-only, windowed, and
+   * spelling-honest — prod carries BOTH "posted" and "published" as success
+   * statuses, so success is their sum, never one of them. All-null = the
+   * table could not be read (unknown, not healthy).
+   */
+  getReelReliability: adminProcedure.query(async () => {
+    const database = await db();
+    const unknown = { windowDays: 30, total: null as number | null, byStatus: {} as Record<string, number>, succeeded: null as number | null, failed: null as number | null, ambiguous: null as number | null, failureRate: null as number | null };
+    if (!database) return unknown;
+    try {
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { sql } = await import("drizzle-orm");
+      const rows = await database
+        .select({ status: reelJobs.status, n: sql<number>`count(*)` })
+        .from(reelJobs)
+        .where(sql`${reelJobs.createdAt} >= DATE_SUB(NOW(), INTERVAL 30 DAY)`)
+        .groupBy(reelJobs.status);
+      const byStatus: Record<string, number> = {};
+      let total = 0;
+      for (const r of rows as Array<{ status: string | null; n: unknown }>) {
+        const n = Number(r.n);
+        if (!Number.isFinite(n)) continue;
+        byStatus[r.status ?? "unknown"] = n;
+        total += n;
+      }
+      const succeeded = (byStatus.posted ?? 0) + (byStatus.published ?? 0);
+      const failed = byStatus.failed ?? 0;
+      const ambiguous = byStatus.publish_ambiguous ?? 0;
+      return {
+        windowDays: 30,
+        total,
+        byStatus,
+        succeeded,
+        failed,
+        ambiguous,
+        failureRate: total > 0 ? Math.round((failed / total) * 100) / 100 : null,
+      };
+    } catch (err) {
+      log.warn("reel reliability query failed — reporting unknown, not healthy", err);
+      return unknown;
+    }
+  }),
+
   /*
    * getAccountInfo / reconnectToken / generatePost were DELETED 2026-07-24
    * (audit R4): zero client callers, no test coverage, and each duplicated a

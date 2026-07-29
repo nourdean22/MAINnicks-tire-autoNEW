@@ -15,9 +15,12 @@ interface PublishDrawerProps {
   } | null;
   onMarkPosted: () => void;
   isPosting: boolean;
+  /** Wave A1: the CANONICAL exit — stage into the gated Publish inventory. Carousels only. */
+  onStageCanonical?: () => void;
+  stagePending?: boolean;
 }
 
-export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, isPosting }: PublishDrawerProps) {
+export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, isPosting, onStageCanonical, stagePending }: PublishDrawerProps) {
   const [steps, setSteps] = useState({
     promptsCopied: false,
     assetsGenerated: false,
@@ -95,8 +98,26 @@ export default function PublishDrawer({ isOpen, onClose, draft, onMarkPosted, is
 
       {/* Guide Steps */}
       <div className="flex-1 overflow-y-auto p-5 space-y-6 overscroll-contain">
+        {onStageCanonical && (
+          <div className="border border-emerald-500/30 bg-emerald-500/5 rounded p-3 space-y-2">
+            <p className="text-xs text-emerald-300 leading-relaxed">
+              <strong>Canonical path.</strong> Stage this carousel's rendered slides and caption into the gated
+              Publish queue — it then flows through the same approve → publish door as everything else
+              (kill switches, attempt ledger, reconciliation), and "posted" means Meta confirmed it.
+            </p>
+            <button
+              onClick={onStageCanonical}
+              disabled={stagePending}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded bg-emerald-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {stagePending ? "Staging…" : "Stage to Publish (canonical)"}
+            </button>
+          </div>
+        )}
         <div className="border border-blue-500/20 bg-blue-500/5 rounded p-3 text-xs text-blue-300 leading-relaxed">
-          <strong>Publishing is manual.</strong> Higgsfield generation, video rendering, and posting live on social media are done by you manually. Follow this guide to prepare your assets safely.
+          <strong>Manual EXPORT FALLBACK.</strong> The steps below prepare assets for posting by hand. Note:
+          "Mark as Posted" here only updates the sheet CRM — it records no platform media id and no ledger
+          attempt. Prefer the canonical path above whenever it is available.
         </div>
 
         {/* Step 1: Higgsfield Prompts */}

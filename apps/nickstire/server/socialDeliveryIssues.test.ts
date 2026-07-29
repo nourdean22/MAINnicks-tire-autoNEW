@@ -34,12 +34,20 @@ describe("deriveDeliveryIssues", () => {
     expect(deriveDeliveryIssues(ALL_GREEN)).toEqual([]);
   });
 
-  it("missing bucket is a BLOCKER at asset_hosting whose next action names the env vars", () => {
+  it("missing bucket is a BLOCKER at asset_hosting whose next action names the env var", () => {
     const issues = deriveDeliveryIssues({ ...ALL_GREEN, storageConfigured: false, permanentUrls: false });
     const hit = issues.find((i) => i.key === "storage_bucket_not_connected");
     expect(hit?.severity).toBe("blocker");
     expect(hit?.layer).toBe("asset_hosting");
     expect(hit?.nextAction).toContain("S3_BUCKET");
+  });
+
+  it("S3 set without CloudFront is a WARNING, not a blocker — prod's measured 2026-07-29 state must not false-alarm", () => {
+    const issues = deriveDeliveryIssues({ ...ALL_GREEN, storageConfigured: true, permanentUrls: false });
+    expect(issues.find((i) => i.key === "storage_bucket_not_connected")).toBeFalsy();
+    const hit = issues.find((i) => i.key === "storage_urls_not_permanent");
+    expect(hit?.severity).toBe("warning");
+    expect(hit?.nextAction).toContain("CLOUDFRONT_DOMAIN");
   });
 
   it("Meta REJECTED is a blocker; could-not-ASK is only a warning — a transport blip must not read as a dead token", () => {

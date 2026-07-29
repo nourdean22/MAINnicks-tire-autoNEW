@@ -24,6 +24,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
   const health = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, { refetchInterval: 120_000 });
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, { refetchInterval: 120_000 });
   const delivery = trpc.instagramAdmin.getDeliveryIssues.useQuery(undefined, { refetchInterval: 120_000 });
+  const reliability = trpc.instagramAdmin.getReelReliability.useQuery(undefined, { refetchInterval: 300_000 });
 
   const counts: Record<string, number> = diagnostics.data?.counts ?? {};
   const diagnosticsOk = Boolean(diagnostics.data?.connected);
@@ -172,6 +173,37 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           </CardContent>
         </Card>
       </div>
+
+      {/* Wave A3: 30-day reel pipeline reliability. A render success is not a
+          good reel, but a 30-day stage-rate is the difference between "the
+          pipeline works" and "the pipeline works 23% of the time". */}
+      <Card className={(reliability.data?.failureRate ?? 0) >= 0.5 ? "border-amber-500/40" : undefined}>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base"><Film className="h-4 w-4" /> Reel pipeline · last 30 days</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {reliability.isLoading ? (
+            <p className="text-sm text-muted-foreground">Reading…</p>
+          ) : reliability.isError || reliability.data?.total == null ? (
+            <p className="text-xs text-amber-500">Could not read reel-job history — reliability is <strong>unknown</strong>, not healthy.</p>
+          ) : reliability.data.total === 0 ? (
+            <p className="text-sm text-muted-foreground">No reel jobs created in the last 30 days.</p>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm">
+                <span className="font-semibold tabular-nums">{reliability.data.total}</span> jobs ·{" "}
+                <span className="text-emerald-500 tabular-nums">{reliability.data.succeeded ?? 0} published</span> ·{" "}
+                <span className="text-red-400 tabular-nums">{reliability.data.failed ?? 0} failed</span>
+                {(reliability.data.ambiguous ?? 0) > 0 && <> · <span className="text-amber-500 tabular-nums">{reliability.data.ambiguous} ambiguous</span></>}
+                {reliability.data.failureRate != null && <> · <span className="font-semibold tabular-nums">{Math.round(reliability.data.failureRate * 100)}% failure</span></>}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Counts every job created in the window, by its current stage. A green render is still not a good reel — sample published output monthly.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Creation brief + pipeline health — HQ's substance, folded in rather
           than duplicated. HQ's legacy tab keys are mapped to views. */}

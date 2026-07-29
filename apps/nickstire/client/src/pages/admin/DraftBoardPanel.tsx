@@ -75,6 +75,19 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
     onError: (err) => toast.error(`Update failed: ${err.message}`),
   });
 
+  // Wave A1: the canonical exit from this board — rendered carousel → gated
+  // Publish inventory (needs_review). The copy/paste drawer stays as an
+  // explicitly-labeled export fallback.
+  const stageCarousel = trpc.contentAdmin.stageCarouselToInventory.useMutation({
+    onSuccess: (res) => {
+      toast.success(res.alreadyStaged ? "Already staged" : "Staged to Publish", {
+        description: "Review and approve it in Instagram → Publish before anything goes live.",
+      });
+      setSelectedDraftForPublish(null);
+    },
+    onError: (err) => toast.error("Could not stage", { description: err.message }),
+  });
+
   const handleRefetchAll = () => {
     refetchCarousels();
     refetchReels();
@@ -408,12 +421,17 @@ export default function DraftBoardPanel({ onNavigate }: { onNavigate?: (view: "c
         </div>
       )}
 
-      {/* Copy-to-Publish Drawer */}
+      {/* Copy-to-Publish Drawer — the manual EXPORT FALLBACK. The canonical
+          exit (carousels) stages into the gated Publish inventory instead. */}
       <PublishDrawer
         isOpen={selectedDraftForPublish !== null}
         onClose={() => setSelectedDraftForPublish(null)}
         draft={selectedDraftForPublish}
         isPosting={saveCarousel.isPending || saveReel.isPending}
+        onStageCanonical={selectedDraftForPublish?.contentType === "carousel"
+          ? () => stageCarousel.mutate({ draftId: selectedDraftForPublish.id })
+          : undefined}
+        stagePending={stageCarousel.isPending}
         onMarkPosted={() => {
           if (selectedDraftForPublish) {
             handleUpdateStatus(selectedDraftForPublish, "posted");

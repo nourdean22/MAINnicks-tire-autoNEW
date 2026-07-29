@@ -72,9 +72,13 @@ export function deriveDeliveryIssues(f: DeliveryFacts): SocialDeliveryIssue[] {
       key: "storage_bucket_not_connected",
       layer: "asset_hosting",
       severity: "blocker",
-      reason: "Meta requires a public video URL, and there is no durable public bucket — generation refuses to spend credits (fail-closed by design).",
-      evidence: "S3_BUCKET and/or CLOUDFRONT_DOMAIN unset (same check storage.ts enforces before paid generation).",
-      nextAction: "Set S3_BUCKET + CLOUDFRONT_DOMAIN on the Railway service, then retry the same job — no code change needed.",
+      reason: "Meta requires a public video URL, and there is no durable bucket — generation refuses to spend credits (fail-closed by design).",
+      // S3_BUCKET alone is what assertDurableStorageForGeneration enforces;
+      // CLOUDFRONT_DOMAIN is the separate permanent-URL warning below.
+      // Measured 2026-07-29: prod had S3 set and CloudFront unset — reporting
+      // that state as a full blocker would have been a false alarm.
+      evidence: "S3_BUCKET unset (the exact check storage.ts enforces before paid generation).",
+      nextAction: "Set S3_BUCKET on the Railway service, then retry the same job — no code change needed.",
     });
   } else if (!f.permanentUrls) {
     issues.push({
@@ -315,7 +319,9 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
   }
 
   return {
-    storageConfigured: !!process.env.S3_BUCKET && !!process.env.CLOUDFRONT_DOMAIN,
+    // Matches enforcement, not display: storage.ts hard-requires S3_BUCKET
+    // only; CLOUDFRONT_DOMAIN is the permanent-URL upgrade.
+    storageConfigured: !!process.env.S3_BUCKET,
     permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
     metaConfigured,
     metaLive,

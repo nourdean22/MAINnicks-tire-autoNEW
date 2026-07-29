@@ -852,6 +852,84 @@ export const contentAdminRouter = router({
       return [];
     }
   }),
+  /**
+   * Wave A1: route a campaign-package carousel into the CANONICAL inventory,
+   * so it flows through the same needs_review → approve → publish gates as
+   * every other draft instead of the copy/paste PublishDrawer. Additive: the
+   * Draft Board keeps working; this is the sanctioned exit from it.
+   * Idempotent per draft (stable id) — staging twice returns the same row.
+   */
+  stageCarouselToInventory: adminProcedure
+    .input(z.object({ draftId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { socialDrafts, socialContentInventory } = await import("../../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — cannot stage (outage, not a refusal)." });
+
+      const rows = await d.select().from(socialDrafts)
+        .where(and(eq(socialDrafts.id, input.draftId), eq(socialDrafts.contentType, "carousel"))).limit(1);
+      const row = rows[0];
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Carousel draft is not in the database — save it from the Draft Board first (sheet-only drafts must be saved before staging)." });
+      }
+      let brief: Record<string, unknown> = {};
+      try { brief = JSON.parse(row.briefJson || "{}"); } catch {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Draft briefJson is not valid JSON — repair the draft before staging." });
+      }
+      const slides = Array.isArray(brief.renderedSlideUrls)
+        ? (brief.renderedSlideUrls as unknown[]).filter((u): u is string => typeof u === "string" && u.length > 0)
+        : [];
+      if (slides.length < 2) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `A carousel needs at least 2 RENDERED slides before staging (found ${slides.length}). Render slides on the Draft Board first.` });
+      }
+      const caption = String(brief.selectedCaption ?? "").trim();
+      if (!caption) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Draft has no selected caption — pick one before staging." });
+      }
+      const hashtags = Array.isArray(brief.hashtags)
+        ? (brief.hashtags as unknown[]).filter((t): t is string => typeof t === "string" && t.length > 0)
+        : [];
+
+      const inventoryId = `cp_${input.draftId}`.slice(0, 64);
+      const existing = await d.select({ id: socialContentInventory.id }).from(socialContentInventory)
+        .where(eq(socialContentInventory.id, inventoryId)).limit(1);
+      if (existing.length) return { inventoryId, alreadyStaged: true };
+
+      await d.insert(socialContentInventory).values({
+        id: inventoryId,
+        platform: "instagram",
+        contentType: "carousel",
+        topic: String(row.topic || brief.topic || "carousel").slice(0, 128),
+        seriesName: "campaign_package",
+        hookCategory: String(brief.campaignKeyword ?? "campaign").slice(0, 64),
+        // hookText is what the queue shows AND what publishes — caption + tags
+        // in the same composition the queue's captionWithHashtags mirrors.
+        hookText: hashtags.length
+          ? `${caption}\n\n${hashtags.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(" ")}`
+          : caption,
+        bodyText: "",
+        visualStyle: String(brief.creativeTerritory ?? "campaign").slice(0, 64),
+        persona: "nick",
+        // "pending" maps to needs_review in the queue — nothing publishes
+        // without an operator approval, same as every other lane.
+        status: "pending",
+        assetPaths: slides,
+        briefJson: JSON.stringify({
+          source: "campaign_package",
+          carouselDraftId: input.draftId,
+          topic: row.topic,
+          selectedCaption: caption,
+          hashtags,
+          creativeTerritory: brief.creativeTerritory ?? null,
+          renderedSlideUrls: slides,
+          stagedAt: new Date().toISOString(),
+        }),
+      });
+      return { inventoryId, alreadyStaged: false };
+    }),
+
   logReel: adminProcedure
     .input(z.object({
       topic: z.string(),
