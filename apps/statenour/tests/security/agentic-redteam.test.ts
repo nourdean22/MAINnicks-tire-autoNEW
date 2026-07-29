@@ -27,7 +27,12 @@ import {
   isReadSafeTool,
   stripMutatingTools,
 } from "@/lib/ai/capability-registry";
-import { toReceipt, canClaimDone, isSideEffecting } from "@/lib/ai/receipts/action-receipt";
+import {
+  toReceipt,
+  canClaimDone,
+  isSideEffecting,
+  classifyToolEffect,
+} from "@/lib/ai/receipts/action-receipt";
 import { evaluateMemoryCandidate } from "@/lib/brain/memory-commit-gateway";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
@@ -104,18 +109,32 @@ describe("T2 · trust exploitation — completion claims need receipts", () => {
     expect(canClaimDone(receipts).ok).toBe(false);
   });
 
-  it("KNOWN ASYMMETRY (pinned, not endorsed): the receipts layer fails OPEN on unknown tools", () => {
-    // classifyTool() fails CLOSED for unknown names (T1 above), but
-    // isSideEffecting() returns false for a name absent from the
-    // catalog — so a claim about an unrecognized tool's action would
-    // NOT be blocked. Reachability is low (nourTools is pinned 1:1 to
-    // the catalog by catalog-integrity), and flipping a live honesty
-    // control's default mid-PR could turn read-only turns into false
-    // "not done" banners. Pinned here so the asymmetry is VISIBLE and
-    // any future change to it is deliberate. Reported to the operator.
-    expect(isSideEffecting("sendSMS")).toBe(false); // retired to nickstire
+  it("CLOSED (2026-07-29): an unrecognized tool cannot carry a done-claim", () => {
+    // Was a pinned KNOWN ASYMMETRY — classifyTool() failed closed while
+    // the receipts layer failed open, so a claim about an unrecognized
+    // tool's FAILED action survived. Operator called for the fix; the
+    // guard now blocks anything it cannot classify.
+    expect(classifyToolEffect("totallyMadeUpTool")).toBe("unknown");
+    expect(canClaimDone([toReceipt({ toolName: "totallyMadeUpTool", ok: false })]).ok).toBe(false);
+    // ...and with no signal at all, silence is not success.
+    expect(canClaimDone([toReceipt({ toolName: "totallyMadeUpTool" })]).ok).toBe(false);
+  });
+
+  it("the fix does NOT relabel unknown tools as writes — unclassifiable stays unclassifiable", () => {
+    // Claiming an unproven write would be its own fabrication. The
+    // receipt says `sideEffecting: false, verifiable: false`, and the
+    // guard blocks on the SECOND fact, not a fabricated first one.
+    const r = toReceipt({ toolName: "totallyMadeUpTool", ok: false });
+    expect(r.sideEffecting).toBe(false);
+    expect(r.verifiable).toBe(false);
     expect(isSideEffecting("totallyMadeUpTool")).toBe(false);
-    expect(canClaimDone([toReceipt({ toolName: "totallyMadeUpTool", ok: false })]).ok).toBe(true);
+  });
+
+  it("KNOWN pure reads still never block — no false 'not done' banners", () => {
+    const readName = TOOL_CATALOG.find((t) => t.battle && !t.sideEffecting)!.name;
+    const receipt = toReceipt({ toolName: readName, ok: false });
+    expect(receipt.verifiable).toBe(true);
+    expect(canClaimDone([receipt]).ok).toBe(true);
   });
 
   it("read-only tool failures never block a claim (no false alarms)", () => {
