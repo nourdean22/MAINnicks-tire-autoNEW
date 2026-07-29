@@ -35,6 +35,18 @@ export interface ActionReceipt {
   /** Coarse category for grouping (from the catalog when known). */
   category: string;
   sideEffecting: boolean;
+  /**
+   * Could this tool's effect be CLASSIFIED at all? False when the tool
+   * is absent from both the catalog and MUTATION_ACTIONS — we then know
+   * neither that it writes nor that it is a pure read, so a done-claim
+   * cannot rest on it (2026-07-29 fail-closed fix).
+   *
+   * Optional for backward compatibility: receipts built directly as
+   * literals (e.g. the audited action-receipt feed) omit it and are
+   * treated as verifiable — they already declare `sideEffecting`
+   * explicitly, which is a stronger statement than inference.
+   */
+  verifiable?: boolean;
   status: ReceiptStatus;
   entityType?: string;
   entityId?: string;
@@ -76,6 +88,28 @@ export interface RawActionResult {
  * any `*_write` category (createTask, completeTask, pinMemory, journalDecision,
  * …) and every action-block MUTATION. Pure reads stay false.
  */
+export type ToolEffectClass = "write" | "read" | "unknown";
+
+/**
+ * Three-state classification (2026-07-29). The boolean `isSideEffecting`
+ * below could not distinguish "known pure read" from "never heard of
+ * it", so both answered false — and an unrecognized tool that FAILED
+ * was not an offender in `canClaimDone`, letting a "done" claim survive
+ * a failed action. This function keeps the distinction the boolean lost;
+ * `classifyToolEffect(x) === "unknown"` is what fails closed downstream.
+ *
+ * NOTE the deliberate asymmetry with the boolean: we do NOT relabel
+ * unknown tools as side-effecting. Claiming an unproven write would be
+ * its own fabrication — the honest statement is "unclassifiable", and
+ * the guard treats unclassifiable as unprovable.
+ */
+export function classifyToolEffect(toolName: string): ToolEffectClass {
+  if (MUTATION_ACTIONS.has(toolName)) return "write";
+  const meta = getToolMeta(toolName);
+  if (!meta) return "unknown";
+  return meta.sideEffecting === true || meta.category.endsWith("_write") ? "write" : "read";
+}
+
 export function isSideEffecting(toolName: string): boolean {
   if (MUTATION_ACTIONS.has(toolName)) return true;
   const meta = getToolMeta(toolName);
@@ -95,16 +129,20 @@ function categoryOf(toolName: string): string {
   return getToolMeta(toolName)?.category ?? (MUTATION_ACTIONS.has(toolName) ? "action-block" : "unknown");
 }
 
-function deriveStatus(r: RawActionResult, sideEffecting: boolean): ReceiptStatus {
+function deriveStatus(
+  r: RawActionResult,
+  sideEffecting: boolean,
+  verifiable: boolean,
+): ReceiptStatus {
   if (r.needsApproval) return "needs_approval";
   if (r.skipped) return "skipped";
   if (r.error || r.ok === false) return "failed";
   if (r.partial) return "partial";
   if (r.ok === true) return "success";
-  // No explicit signal. A read returning is success; a side-effecting tool
-  // with no confirmed `ok` is treated as unverified (partial) so canClaimDone
-  // stays conservative — never assert "done" without proof.
-  return sideEffecting ? "partial" : "success";
+  // No explicit signal. A KNOWN read returning is success; a side-effecting
+  // tool — or one we cannot classify at all — is unverified (partial) so
+  // canClaimDone stays conservative: never assert "done" without proof.
+  return sideEffecting || !verifiable ? "partial" : "success";
 }
 
 const SUMMARY: Record<ReceiptStatus, (label: string) => string> = {
@@ -128,8 +166,12 @@ function safeError(error?: string): string | undefined {
 
 /** Normalize one raw result into a receipt. Handles unknown tools safely. */
 export function toReceipt(r: RawActionResult, opts: { now?: string } = {}): ActionReceipt {
-  const sideEffecting = r.sideEffecting ?? isSideEffecting(r.toolName);
-  const status = deriveStatus(r, sideEffecting);
+  const effect = classifyToolEffect(r.toolName);
+  // An explicit caller-supplied flag is a stronger statement than
+  // inference — it also makes the receipt verifiable by definition.
+  const verifiable = r.sideEffecting !== undefined || effect !== "unknown";
+  const sideEffecting = r.sideEffecting ?? effect === "write";
+  const status = deriveStatus(r, sideEffecting, verifiable);
   const createdAt = opts.now ?? new Date().toISOString();
   const label = r.label || r.entityType || r.toolName;
   return {
@@ -137,6 +179,7 @@ export function toReceipt(r: RawActionResult, opts: { now?: string } = {}): Acti
     toolName: r.toolName,
     category: categoryOf(r.toolName),
     sideEffecting,
+    verifiable,
     status,
     entityType: r.entityType,
     entityId: r.entityId,
@@ -156,12 +199,22 @@ export interface ClaimDoneVerdict {
 }
 
 /**
- * The guard: can a summary honestly claim the side-effecting work is done?
- * False if any side-effecting receipt is not status "success". Read-only
- * receipts never block. This is what a finalize step checks before letting
- * Nick say "done".
+ * The guard: can a summary honestly claim the work is done?
+ *
+ * False if any receipt that COULD have mutated state is not status
+ * "success". Two families qualify:
+ *   · known side-effecting tools (the original rule), and
+ *   · receipts explicitly marked `verifiable: false` — a tool absent
+ *     from the catalog and MUTATION_ACTIONS, where we know neither that
+ *     it wrote nor that it was a pure read (fail-closed, 2026-07-29).
+ *
+ * KNOWN pure reads still never block, so an ordinary failed read cannot
+ * produce a false "not done" banner — that containment is what made
+ * this safe to flip.
  */
 export function canClaimDone(receipts: ReadonlyArray<ActionReceipt>): ClaimDoneVerdict {
-  const offenders = receipts.filter((r) => r.sideEffecting && r.status !== "success");
+  const offenders = receipts.filter(
+    (r) => (r.sideEffecting || r.verifiable === false) && r.status !== "success",
+  );
   return { ok: offenders.length === 0, offenders };
 }

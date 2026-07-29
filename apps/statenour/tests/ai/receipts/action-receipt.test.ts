@@ -3,6 +3,7 @@ import {
   toReceipt,
   canClaimDone,
   isSideEffecting,
+  classifyToolEffect,
 } from "@/lib/ai/receipts/action-receipt";
 
 const NOW = "2026-06-09T00:00:00.000Z";
@@ -107,5 +108,65 @@ describe("canClaimDone", () => {
   it("an unverified (partial) side-effecting action blocks a done-claim", () => {
     const receipts = [toReceipt({ toolName: "task.create" }, { now: NOW })]; // no ok
     expect(canClaimDone(receipts).ok).toBe(false);
+  });
+});
+
+// ── fail-closed classification (2026-07-29, operator-requested) ──────
+// The hole: isSideEffecting() answered `false` both for "known pure
+// read" and "never heard of it", so an unrecognized tool that FAILED
+// was not an offender and a done-claim survived it.
+describe("classifyToolEffect + unverifiable receipts", () => {
+  it("distinguishes write / read / unknown where the boolean could not", () => {
+    expect(classifyToolEffect("createTask")).toBe("write");
+    expect(classifyToolEffect("task.create")).toBe("write"); // action-block
+    expect(classifyToolEffect("getCommitments")).toBe("read");
+    expect(classifyToolEffect("neverHeardOfThis")).toBe("unknown");
+    // sendSMS was retired from this catalog (Twilio → nickstire) — it is
+    // genuinely unclassifiable HERE, which is exactly the point.
+    expect(classifyToolEffect("sendSMS")).toBe("unknown");
+  });
+
+  it("an unknown tool yields verifiable:false without being relabeled a write", () => {
+    const r = toReceipt({ toolName: "neverHeardOfThis", ok: false });
+    expect(r.verifiable).toBe(false);
+    expect(r.sideEffecting).toBe(false);
+    expect(r.status).toBe("failed");
+  });
+
+  it("unknown + no signal is `partial` (unverified), never optimistic success", () => {
+    expect(toReceipt({ toolName: "neverHeardOfThis" }).status).toBe("partial");
+    expect(toReceipt({ toolName: "neverHeardOfThis" }).userVisibleSummary).toContain("Unverified");
+  });
+
+  it("known reads keep verifiable:true and success-on-silence (no behavior change)", () => {
+    const r = toReceipt({ toolName: "getCommitments" });
+    expect(r.verifiable).toBe(true);
+    expect(r.status).toBe("success");
+  });
+
+  it("an explicit sideEffecting flag makes a receipt verifiable by definition", () => {
+    const r = toReceipt({ toolName: "someBridgeOp", sideEffecting: true, ok: true });
+    expect(r.verifiable).toBe(true);
+    expect(r.sideEffecting).toBe(true);
+    expect(canClaimDone([r]).ok).toBe(true);
+  });
+
+  it("canClaimDone blocks unverifiable non-success, allows unverifiable success", () => {
+    expect(canClaimDone([toReceipt({ toolName: "neverHeardOfThis", ok: false })]).ok).toBe(false);
+    expect(canClaimDone([toReceipt({ toolName: "neverHeardOfThis", ok: true })]).ok).toBe(true);
+  });
+
+  it("legacy literal receipts without the field stay verifiable (feed rows unaffected)", () => {
+    const legacy = {
+      receiptId: "r1",
+      toolName: "task.created",
+      category: "entity-audit",
+      sideEffecting: false,
+      status: "failed" as const,
+      undoAvailable: false,
+      userVisibleSummary: "x",
+      createdAt: "2026-07-29T00:00:00Z",
+    };
+    expect(canClaimDone([legacy]).ok).toBe(true);
   });
 });

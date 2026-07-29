@@ -31,6 +31,25 @@ Wired into the live finalize seam since 2026-07-28:
 `lib/services/chat/persist-assistant-message.ts` runs `canClaimDone` and
 prepends a verifier banner when a done-claim lacks its receipt.
 
+**Fail-closed on unclassifiable tools (2026-07-29).** `isSideEffecting`
+answered `false` for BOTH "known pure read" and "never heard of it", so
+an unrecognized tool that failed was not an offender and a done-claim
+survived it. `classifyToolEffect()` now returns `write | read | unknown`;
+receipts carry `verifiable`, and `canClaimDone` blocks
+`sideEffecting || verifiable === false`. Two deliberate properties:
+
+- An unknown tool is **not** relabeled a write — asserting an unproven
+  mutation would be its own fabrication. The receipt reads
+  `sideEffecting: false, verifiable: false`, and the guard blocks on the
+  second fact.
+- **Known pure reads still never block**, so an ordinary failed read
+  cannot produce a false "not done" banner. That containment is what
+  made the flip safe.
+
+Receipts built as explicit literals (e.g. `lib/services/action-receipt-feed.ts`)
+omit `verifiable` and are treated as verifiable — they already declare
+`sideEffecting` directly, which outranks inference.
+
 ## Rules
 
 1. No past-tense action claim without a successful tool call.

@@ -153,8 +153,19 @@ export async function persistAssistantMessage(a: {
       // Shared builder + guard, matching the other two layers.
       if (!isVerifierRewritten(cleanedText)) {
         const verbs = [...new Set(verdict.offenders.map((o) => o.label || o.toolName))].slice(0, 3);
+        // 2026-07-29 · say WHICH failure mode. An offender can now be a
+        // failed call OR one we could not classify at all (fail-closed
+        // unknown tool) — calling the latter "failed" would be its own
+        // small fabrication inside the anti-fabrication banner.
+        const anyFailed = verdict.offenders.some((o) => o.status === "failed");
+        const anyUnverifiable = verdict.offenders.some((o) => o.verifiable === false);
+        const cause = anyFailed
+          ? "tool call(s) failed"
+          : anyUnverifiable
+            ? "the tool(s) could not be verified"
+            : "tool call(s) did not confirm success";
         const banner = buildVerifierBanner(
-          `The response below claimed action(s) (${verbs.join(", ")}) but tool call(s) failed.`,
+          `The response below claimed action(s) (${verbs.join(", ")}) but ${cause}.`,
         );
         cleanedText = `${banner}${cleanedText}`;
       }
