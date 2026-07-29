@@ -3078,6 +3078,29 @@ export const igMetricSnapshots = mysqlTable("ig_metric_snapshots", {
 
 export type IgMetricSnapshotRow = typeof igMetricSnapshots.$inferSelect;
 
+/**
+ * Pattern Lab (Wave C′): the STRUCTURE of winning short-form references —
+ * hook/pacing/caption/loop mechanics — captured as data, never content.
+ * `patternJson` holds the full shared/reelPatterns.ts ReelPattern; the typed
+ * columns exist for listing and future cohort joins (pattern × trial results).
+ * DDL: drizzle/0107 (hand-applied via apply-0107-reel-patterns).
+ */
+export const socialReelPatterns = mysqlTable("social_reel_patterns", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  label: varchar("label", { length: 80 }).notNull(),
+  hookType: varchar("hookType", { length: 32 }).notNull(),
+  loopType: varchar("loopType", { length: 32 }).notNull(),
+  patternJson: text("patternJson").notNull(),
+  timesUsed: int("timesUsed").default(0).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_srp_created").on(table.createdAt),
+]);
+
+export type SocialReelPatternRow = typeof socialReelPatterns.$inferSelect;
+
 // ─── REVIEW TREND SNAPSHOTS ─────────────────────────────
 /**
  * Weekly snapshots of review health for trend tracking.

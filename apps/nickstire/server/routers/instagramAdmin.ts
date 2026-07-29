@@ -306,6 +306,133 @@ export const instagramAdminRouter = router({
       return { ok: true, version: input.expectedVersion + 1 };
     }),
 
+  /**
+   * ── Pattern Lab (Wave C′ final item) ──────────────────────────────────
+   * Winning short-form STRUCTURES captured as data — never scraped content.
+   * The adaptation feeds the EXISTING Create machinery via the handoff
+   * contract; there is no second generator here.
+   */
+  listReelPatterns: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — patterns cannot be read (outage, not an empty lab)." });
+    const { socialReelPatterns } = await import("../../drizzle/schema");
+    const { desc } = await import("drizzle-orm");
+    const rows = await database.select().from(socialReelPatterns)
+      .orderBy(desc(socialReelPatterns.createdAt)).limit(100);
+    const patterns = [];
+    for (const r of rows) {
+      try {
+        patterns.push({
+          id: r.id,
+          label: r.label,
+          hookType: r.hookType,
+          loopType: r.loopType,
+          timesUsed: r.timesUsed,
+          lastUsedAt: r.lastUsedAt ? new Date(r.lastUsedAt).toISOString() : null,
+          createdAt: new Date(r.createdAt).toISOString(),
+          pattern: JSON.parse(r.patternJson),
+        });
+      } catch {
+        log.warn("skipping unparseable reel pattern row", { id: r.id });
+      }
+    }
+    return patterns;
+  }),
+
+  saveReelPattern: adminProcedure
+    .input(z.object({
+      id: z.string().max(64).optional(),
+      label: z.string().trim().min(1).max(80),
+      sourceLabel: z.string().trim().max(120).optional(),
+      // A citation for the operator's memory — the system NEVER fetches it.
+      sourceUrl: z.string().url().max(300).optional(),
+      hookType: z.enum(["impossible_object", "visual_contradiction", "satisfying_macro", "myth_vs_reality", "countdown", "tiny_story", "warning_alert", "forensic_scan"]),
+      pacing: z.object({
+        totalSeconds: z.number().min(3).max(90),
+        beatCount: z.number().int().min(1).max(10),
+        avgShotLength: z.number().min(0.3).max(30),
+        firstTextAtSecond: z.number().min(0).max(30),
+      }).strict(),
+      visualStyle: z.object({
+        lens: z.string().trim().max(120),
+        lighting: z.string().trim().max(120),
+        color: z.string().trim().max(120),
+        motion: z.string().trim().max(120),
+        texture: z.string().trim().max(120),
+      }).strict(),
+      captionStyle: z.object({
+        wordsPerBeat: z.number().int().min(1).max(12),
+        placement: z.string().trim().max(80),
+        hierarchy: z.enum(["headline_only", "headline_subline", "subtitle", "kinetic"]),
+      }).strict(),
+      audioStyle: z.object({
+        musicMood: z.string().trim().max(80),
+        voiceover: z.boolean(),
+        sfx: z.array(z.string().trim().min(1).max(40)).max(6),
+      }).strict(),
+      loopType: z.enum(["cause_loop", "object_loop", "question_loop", "motion_loop", "problem_loop", "other"]),
+      shareTrigger: z.string().trim().min(1).max(200),
+      saveTrigger: z.string().trim().min(1).max(200),
+      // Required — a pattern without a Nick adaptation is a bookmark, not a plan.
+      nickAdaptation: z.string().trim().min(10).max(600),
+    }).strict())
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — pattern not saved." });
+      const { socialReelPatterns } = await import("../../drizzle/schema");
+      const { randomUUID } = await import("crypto");
+      const id = input.id && input.id.startsWith("rp_") ? input.id : `rp_${randomUUID()}`;
+      const pattern = { ...input, id };
+      await database.insert(socialReelPatterns).values({
+        id,
+        label: input.label,
+        hookType: input.hookType,
+        loopType: input.loopType,
+        patternJson: JSON.stringify(pattern),
+      }).onDuplicateKeyUpdate({
+        set: {
+          label: input.label,
+          hookType: input.hookType,
+          loopType: input.loopType,
+          patternJson: JSON.stringify(pattern),
+        },
+      });
+      return { id };
+    }),
+
+  deleteReelPattern: adminProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — pattern not deleted." });
+      const { socialReelPatterns } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const result = await database.delete(socialReelPatterns).where(eq(socialReelPatterns.id, input.id));
+      if (affectedRowCount(result) !== 1) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pattern not found (already deleted?)." });
+      }
+      return { ok: true };
+    }),
+
+  /** Adaptation used → durable trail for the future pattern×outcome memory. */
+  recordPatternUse: adminProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — use not recorded." });
+      const { socialReelPatterns } = await import("../../drizzle/schema");
+      const { eq, sql } = await import("drizzle-orm");
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const result = await database.update(socialReelPatterns)
+        .set({ timesUsed: sql`${socialReelPatterns.timesUsed} + 1`, lastUsedAt: new Date() })
+        .where(eq(socialReelPatterns.id, input.id));
+      if (affectedRowCount(result) !== 1) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pattern not found." });
+      }
+      return { ok: true };
+    }),
+
   /*
    * getAccountInfo / reconnectToken / generatePost were DELETED 2026-07-24
    * (audit R4): zero client callers, no test coverage, and each duplicated a

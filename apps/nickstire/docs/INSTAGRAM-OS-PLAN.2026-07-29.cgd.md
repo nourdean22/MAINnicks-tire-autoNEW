@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: PENDING
 hitl-pending-count: 3
 points-passed: 1-9
-document-sha256: f91a7a50ee720168e5ed2df2637a4524eb86e3dfdb038701fd95a4c73caf4064
+document-sha256: b5d57c1ba273b386953c177d78cef2f216082cbed91798dc4d7b7377f35fe64d
 hitl-claims:
   - id: claim-feed-audit
     text: "Current public @nicks_tire_euclid feed quality is unaudited; a 20-post/20-reel authenticated sample audit is a launch prerequisite"
@@ -335,12 +335,24 @@ warnings, and registry linkage for uploaded evidence.
 - **Snapshot accrual surfaced:** `getAnalytics.snapshotStats` (count +
   earliest; null = unreadable) + the Learn source line states exactly when
   windows unlock. No windowed UI yet — that stays data-gated by design.
-- **Pattern Lab: the ONE deliberate cut.** Every honest storage option
-  (kv JSON vs a `social_reel_patterns` table) deserves its own design pass,
-  and a pattern store bolted on at the end of a 4-PR day is how scaffolding
-  ships. Design accepted (the operator's schema, transformer feeding the
-  EXISTING concept tournament, no scraping); it is the first item of the next
-  session, not a casualty.
+- **Pattern Lab: SHIPPED in its own pass (fifth PR, operator-ordered).**
+  Storage decided: first-class `social_reel_patterns` (migration **0107,
+  applied to prod pre-merge**, applicator post-checks green). Shipped:
+  `shared/reelPatterns.ts` (the accepted ReelPattern schema + the permanent
+  DO-NOT-COPY list + `formatPatternAdaptation()` composed to the handoff's
+  hard 800-char budget with the Nick adaptation prioritized under
+  truncation); four `instagramAdmin` procs (`listReelPatterns` /
+  `saveReelPattern` strict-zod with `nickAdaptation` REQUIRED /
+  `deleteReelPattern` + `recordPatternUse` fail-closed on
+  `affectedRowCount`); the Pattern Lab page behind the gear
+  (`?igview=patterns`) — manual capture by design, hook/loop/hierarchy chip
+  pickers, two-tap delete, unknown-not-empty list, and **Adapt into Create**
+  riding the EXISTING `writeCreateHandoff` contract into the same generation
+  machinery as every other source (use recorded for the future
+  pattern×outcome memory). Anti-scrape is PINNED by test: the procs block
+  contains no `fetch(` — `sourceUrl` is a citation, never an asset. The
+  shell-navigation registry pin was extended deliberately (it exists to
+  catch accidental drift, and this was not accidental).
 
 ## Standing refuted list (do not re-plan — additions from this gate)
 

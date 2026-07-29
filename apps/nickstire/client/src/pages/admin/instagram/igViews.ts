@@ -18,6 +18,7 @@ export type IgView =
   | "community"
   | "insights"
   | "planning"
+  | "patterns"
   | "actions"
   | "control"
   | "settings";
@@ -32,6 +33,7 @@ export const IG_PRIMARY_VIEWS: Array<{ key: IgView; label: string }> = [
 
 export const IG_SECONDARY_VIEWS: Array<{ key: IgView; label: string }> = [
   { key: "planning", label: "Planning board" },
+  { key: "patterns", label: "Pattern Lab" },
   { key: "actions", label: "Reel recovery (Action Center)" },
   { key: "control", label: "Autonomy control" },
   { key: "settings", label: "Settings" },
