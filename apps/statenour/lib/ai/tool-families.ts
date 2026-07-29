@@ -65,6 +65,8 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getMissions: { family: "personal-read", description: "ACTIVE missions sorted by priority", mutates: false, cost: "cheap" },
   getHabitStreaks: { family: "personal-read", description: "Habit completion summary (last 7 days)", mutates: false, cost: "cheap" },
   getBodyData: { family: "personal-read", description: "Weight and body tracking history", mutates: false, cost: "cheap" },
+  getHealthToday: { family: "personal-read", description: "Today's health snapshot (sleep, weight, steps, resting HR, HRV) with sync freshness", mutates: false, cost: "cheap" },
+  getSleepTrend: { family: "personal-read", description: "Sleep-hours series with coverage over the last N days", mutates: false, cost: "cheap" },
   getFinancialSnapshot: { family: "personal-read", description: "Latest financial snapshot", mutates: false, cost: "cheap" },
   getProjections: { family: "personal-read", description: "AI-generated forward projections", mutates: false, cost: "medium" },
   getCameraIntelligence: { family: "personal-read", description: "Live camera/traffic data for the shop", mutates: false, cost: "medium", tags: ["shop", "camera"] },

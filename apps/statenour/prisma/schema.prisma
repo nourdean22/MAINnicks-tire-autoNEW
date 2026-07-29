@@ -978,6 +978,52 @@ model BodyTracking {
   @@map("body_tracking")
 }
 
+/// H1 · 2026-07-28 late · Apple Health raw samples (blueprint health
+/// batch). Layer A of the ingestion design: raw truth with provenance,
+/// deduped at the unique constraint. The daily canonical stays
+/// BodyTracking (the incumbent every analyzer + MODE/RECOVERY + brief
+/// already consumes) — a summarizer fills its NULL fields per day;
+/// manual entries always win. No ownerId: single-operator system,
+/// consistent with every sibling model.
+model HealthSample {
+  id             String    @id @default(cuid())
+  sourceSystem   String    @default("apple_health") @map("source_system")
+  /// Exporter-supplied UUID when present; deterministic hash otherwise.
+  sourceSampleId String    @map("source_sample_id")
+  metricType     String    @map("metric_type")
+  startAt        DateTime  @map("start_at")
+  endAt          DateTime  @map("end_at")
+  numericValue   Float?    @map("numeric_value")
+  unit           String?
+  categoryValue  String?   @map("category_value")
+  sourceName     String?   @map("source_name")
+  sourceBundleId String?   @map("source_bundle_id")
+  metadata       Json?
+  batchId        String    @map("batch_id")
+  importedAt     DateTime  @default(now()) @map("imported_at")
+
+  @@unique([sourceSystem, sourceSampleId])
+  @@index([metricType, startAt])
+  @@index([batchId])
+  @@map("health_samples")
+}
+
+/// H1 · batch receipts — idempotency anchor: a replayed batchId returns
+/// the ORIGINAL receipt instead of re-ingesting.
+model HealthIngestBatch {
+  id           String   @id
+  inlet        String   /// "canonical" | "hae"
+  receivedAt   DateTime @default(now()) @map("received_at")
+  accepted     Int
+  deduplicated Int
+  rejected     Int
+  summarized   Json?    /// dates whose BodyTracking row was patched
+  committedAt  DateTime @map("committed_at")
+
+  @@index([receivedAt])
+  @@map("health_ingest_batches")
+}
+
 model FinancialSnapshot {
   id               Int      @id @default(autoincrement())
   date             String   @unique
