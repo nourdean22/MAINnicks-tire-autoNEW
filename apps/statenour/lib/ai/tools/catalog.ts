@@ -70,6 +70,8 @@ export interface ToolMeta {
 export const TOOL_CATALOG: ToolMeta[] = [
   // ── personal_read ────────────────────────────────────────────────
   { name: "getBodyData",                  category: "personal_read",  battle: true,  cost: "free" },
+  { name: "getHealthToday",               category: "personal_read",  battle: true,  cost: "free" },
+  { name: "getSleepTrend",                category: "personal_read",  battle: true,  cost: "free" },
   { name: "getCameraIntelligence",        category: "personal_read",  battle: true,  cost: "free" },
   { name: "getCommitments",               category: "personal_read",  battle: true,  cost: "free" },
   { name: "getDecisionReplays",           category: "personal_read",  battle: true,  cost: "free" },
