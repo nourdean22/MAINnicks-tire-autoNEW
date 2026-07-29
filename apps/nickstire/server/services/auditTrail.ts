@@ -37,6 +37,8 @@ export type AuditAction =
   | "flag.toggled"
   // 2026-07-29 · SMS Revenue Agent OS — global pause arm/lift (smsOps.setPause)
   | "sms.global_pause"
+  // 2026-07-29 · Autopilot Wave 1 — failed-row replay (smsOps.replayFailed)
+  | "sms.replay_failed"
   | "customer.sms_manual_send"
   | "customer.sms_autosend_reply"
   | "customer.sms_autosend_reply"
