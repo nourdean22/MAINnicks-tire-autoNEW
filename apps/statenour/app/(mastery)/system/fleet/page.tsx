@@ -32,6 +32,7 @@ interface FleetTruth {
   queues?: {
     postTurnOutbox: QueueHealth | null;
     brainBus: QueueHealth | null;
+    workItems?: QueueHealth | null;
   };
   allFresh: boolean;
   queuesClean?: boolean;
@@ -224,6 +225,9 @@ export default function FleetPage() {
                 }
               />
               <QueueRow name="brain-bus" q={truth.queues.brainBus} />
+              {/* WP-6: the runner's AI-job queue — third durable queue,
+                  invisible before 2026-07-29. */}
+              <QueueRow name="work-items (runner)" q={truth.queues.workItems ?? null} />
               {redrive.isError && (
                 <p className="mt-1 text-[12px] text-red-400">
                   redrive failed: {redrive.error.message}

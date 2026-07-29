@@ -1387,3 +1387,64 @@ export async function createAuditEvent(input: {
     }
   });
 }
+
+/**
+ * WP-6 (2026-07-29) · WorkItem queue health, in the SAME vocabulary the
+ * post-turn outbox and brain-bus already report to fleet truth.
+ *
+ * WP-6 asked "merge WorkItem into Task, or retire it". Tracing the
+ * consumers answered neither: WorkItem is a durable AI-job queue
+ * (idempotencyKey dedup · PENDING→CLAIMED→COMPLETED/FAILED · attempts ·
+ * runnerNode lease), consumed by the runner claim/complete routes and
+ * reaped by autonomic-orchestrator when a CLAIMED row stalls past 15
+ * minutes. Merging machine jobs into the operator's Task list would
+ * pollute triage and force lease columns onto Task; retiring it would
+ * delete a live lane. Its real peer group is the other two queues — so
+ * the fix is the one thing nobody had done: make it VISIBLE.
+ *
+ * `dead` = FAILED (terminal, mirroring the outbox's dead semantics).
+ * Stalled-CLAIMED rows are reported through `oldestDeadAt` only when
+ * they are genuinely stuck, so a busy queue never reads as broken.
+ */
+const WORKITEM_STALL_MS = 15 * 60 * 1000;
+
+export async function getWorkItemQueueHealth(): Promise<{
+  pending: number;
+  processing: number;
+  dead: number;
+  oldestDeadAt: string | null;
+}> {
+  const stallCutoff = new Date(Date.now() - WORKITEM_STALL_MS);
+  const [pending, processing, dead, oldestFailed, oldestStalled] = await Promise.all([
+    prisma.workItem.count({ where: { status: WorkItemStatus.PENDING } }),
+    prisma.workItem.count({ where: { status: WorkItemStatus.CLAIMED } }),
+    prisma.workItem.count({ where: { status: WorkItemStatus.FAILED } }),
+    prisma.workItem.findFirst({
+      where: { status: WorkItemStatus.FAILED },
+      orderBy: { updatedAt: "asc" },
+      select: { updatedAt: true },
+    }),
+    prisma.workItem.findFirst({
+      where: { status: WorkItemStatus.CLAIMED, claimedAt: { lt: stallCutoff } },
+      orderBy: { claimedAt: "asc" },
+      select: { claimedAt: true },
+    }),
+  ]);
+
+  // Surface whichever problem is older — a long-stalled claim is as
+  // real as a failure, and the orchestrator only rescues on its own
+  // schedule.
+  const candidates = [oldestFailed?.updatedAt, oldestStalled?.claimedAt].filter(
+    (d): d is Date => d instanceof Date,
+  );
+  const oldest = candidates.length
+    ? candidates.reduce((a, b) => (a < b ? a : b))
+    : null;
+
+  return {
+    pending,
+    processing,
+    dead,
+    oldestDeadAt: oldest?.toISOString() ?? null,
+  };
+}
