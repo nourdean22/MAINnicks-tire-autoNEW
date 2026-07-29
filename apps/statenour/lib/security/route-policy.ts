@@ -57,6 +57,15 @@ export const PUBLIC_PREFIXES = [
   // route) and carries no NextAuth cookie — the session gate 401'd it
   // before its own auth could run, so no caller could ever succeed.
   "/api/health/summary",
+  // H1 · 2026-07-28 late · raw Apple Health inlets (HAE + Shortcuts →
+  // health_samples → BodyTracking). Authed by their OWN bearer
+  // (HEALTH_INGEST_TOKEN, timing-safe in lib/security/health-ingest-auth,
+  // fail-closed 503 when unset) — EXACT same class as /api/health/summary
+  // above, and the same bug when omitted: the session gate 401'd the
+  // device before the route's auth could run (caught by the end-to-end
+  // smoke on first live POST — middleware body {"error":"Unauthorized"}
+  // instead of the route's {ok:false}).
+  "/api/integrations/apple-health",
   "/auth",            // Sign-in/sign-out pages
   "/_next",           // Next.js internals
   "/favicon",
