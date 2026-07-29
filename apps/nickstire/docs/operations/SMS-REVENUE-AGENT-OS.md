@@ -45,9 +45,11 @@ Every revenue signal — inbound texts, missed calls, callbacks, website leads, 
 | Want silence NOW | PAUSE SMS (two-tap). Nothing is lost — resume drains |
 | A won job won't close in the inbox | Check the "manual" box next to Won (mismatched-phone invoice) |
 
-## 6 · Post-deploy proof still open (from the CGD)
+## 6 · Runtime proof status (truth pass, 2026-07-29)
 
-Two Round-B runtime claims remain observational: (1) pause hold→drain end-to-end with a real send, (2) mid-run queue pickup without restart. Both prove themselves on the first real occurrence; the stuck-queue alert is the tripwire if either fails. Your first **Telegram Approve tap** is the live proof of the phone loop.
+**Live-verified in prod:** the collector spine works — `human_pending_sms` produced 3 real Decision-Inbox rows from 3 genuinely-waiting customers; the other new collectors returned honest zeros against independently-verified-empty pools (~30ms/query). Pause flag OFF, queue clean, no levers fired yet. Full observation log: the CGD's *Runtime observations* section.
+
+**Still open (first-real-occurrence only):** (1) pause hold→drain end-to-end with a real send, (2) mid-run queue pickup without restart — the stuck-queue alert is the tripwire if either misbehaves. Your first **Telegram Approve tap** is the live proof of the phone loop. Known scheduling gap: the refresh cron is under-scheduled (ROS-081) — until the cadence wave lands, the Decision Inbox's **Refresh** button is the reliable manual trigger.
 
 ## 7 · Standing truth rules this system obeys
 
