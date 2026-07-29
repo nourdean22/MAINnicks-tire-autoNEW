@@ -70,9 +70,43 @@ export const intelligenceDailyBrief = inngest.createFunction(
     // AG-40 · shared composer kills the drift pair: this step was
     // duplicated in /api/intelligence/briefs/generate, which had drifted
     // to a pre-AG-02 prompt with NO grounding rule.
+    //
+    // 2026-07-29 · bounded + degrade (first-fire postmortem). The maiden
+    // post-resync run proved steps 1-2 live (claims + opportunities
+    // written 10:18) then NEVER saved a brief and left NO error row —
+    // the compose's AI call hung and, `maxDuration` being Vercel-only
+    // semantics, Railway enforced nothing (the exact unbounded-hang
+    // class the mega children were fixed for in #1166). A brief that
+    // times out now degrades to an honest ingestion summary instead of
+    // losing the whole run: briefing_logs ALWAYS gains its row, the
+    // push still fires, and the failure is LOUD in the text itself.
     const briefContent = await step.run("compose-brief-text", async () => {
       const { composeDailyExecutiveBrief } = await import("@/lib/intelligence/compose-daily-brief");
-      return composeDailyExecutiveBrief();
+      const COMPOSE_TIMEOUT_MS = 90_000;
+      try {
+        return await Promise.race([
+          composeDailyExecutiveBrief(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`compose timed out after ${COMPOSE_TIMEOUT_MS / 1000}s`)), COMPOSE_TIMEOUT_MS),
+          ),
+        ]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.error("brief_compose_failed_degrading", { error: msg });
+        const date = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+        return {
+          date,
+          text: [
+            `# Daily Executive Brief · ${date} (degraded)`,
+            "",
+            `Compose failed (${msg.slice(0, 160)}) — this is the honest fallback, not the full brief.`,
+            "",
+            `What DID run: ${ingestionReport.sourcesIngested}/${ingestionReport.sourcesAttempted} sources ingested, ${ingestionReport.totalClaims} claims extracted, ${opportunityReport.opportunitiesCreated} opportunities scored, ${opportunityReport.draftsCreated} drafts.`,
+            "",
+            "Raw opportunities are on /intelligence — the composed narrative returns when the provider does.",
+          ].join("\n"),
+        };
+      }
     });
 
     // 4. Save Brief to BriefingLog
