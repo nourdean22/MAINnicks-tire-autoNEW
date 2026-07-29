@@ -256,6 +256,33 @@ async function loadInventoryDraft(id: string) {
 }
 
 export const instagramStudioRouter = router({
+  /**
+   * Evidence-first Create (Wave B): phone photo → durable storage → a URL the
+   * draft carries as its subject image. Mirrors services.uploadPhoto exactly
+   * (same size cap, same mime allowlist, same filename hygiene). The key
+   * prefix is ig-evidence/ — deliberately NOT the renderer's own
+   * instagram-studio/ prefix, so pickSubjectImage accepts it as a subject.
+   * Body size: _core/index.ts mounts a per-procedure 12mb json limit for this
+   * path (the booking.uploadPhoto pattern) — without it, uploads die at the
+   * global parser cap.
+   */
+  uploadEvidencePhoto: adminProcedure
+    .input(z.object({
+      base64: z.string().max(10_000_000, "File too large (max 7.5MB)"),
+      filename: z.string().max(255),
+      mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]),
+    }))
+    .mutation(async ({ input }) => {
+      const { randomInt } = await import("crypto");
+      const { storagePut } = await import("../storage");
+      const buffer = Buffer.from(input.base64, "base64");
+      const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const suffix = randomInt(100000, 999999).toString();
+      const key = `ig-evidence/${Date.now()}-${suffix}-${safeFilename}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      return { url };
+    }),
+
   generate: adminProcedure
     .input(z.object({
       source: sourceSchema,
@@ -282,6 +309,17 @@ export const instagramStudioRouter = router({
       ),
       objective: z.enum(INSTAGRAM_OBJECTIVES),
       operatorDirection: z.string().trim().max(2000).optional(),
+      /**
+       * Evidence-first Create (Wave B): real shop photos become the draft's
+       * subject imagery. Own-render URLs are refused at the door — a card we
+       * rendered is never evidence (the card-inside-a-card defect class).
+       */
+      evidenceImageUrls: z.array(
+        z.string().url().max(500).refine(
+          (u) => !u.includes("instagram-studio/"),
+          "That URL is a rendered card, not evidence — pick the original photo.",
+        ),
+      ).max(3).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       /**

@@ -42,11 +42,11 @@ describe("deriveDeliveryIssues", () => {
     expect(hit?.nextAction).toContain("S3_BUCKET");
   });
 
-  it("S3 set without CloudFront is a WARNING, not a blocker — prod's measured 2026-07-29 state must not false-alarm", () => {
+  it("S3 set without CloudFront is INFO — prod's measured state serves stable app-proxied URLs; CDN is optional", () => {
     const issues = deriveDeliveryIssues({ ...ALL_GREEN, storageConfigured: true, permanentUrls: false });
     expect(issues.find((i) => i.key === "storage_bucket_not_connected")).toBeFalsy();
     const hit = issues.find((i) => i.key === "storage_urls_not_permanent");
-    expect(hit?.severity).toBe("warning");
+    expect(hit?.severity).toBe("info");
     expect(hit?.nextAction).toContain("CLOUDFRONT_DOMAIN");
   });
 
