@@ -181,6 +181,11 @@ export interface FleetTruth {
   queues: {
     postTurnOutbox: QueueHealth | null;
     brainBus: QueueHealth | null;
+    /** WP-6 (2026-07-29): the runner's AI-job queue — the third durable
+     *  queue, invisible here until now. Its FAILED rows and its
+     *  stalled-CLAIMED rows (the ones autonomic-orchestrator rescues)
+     *  had no operator surface at all. */
+    workItems: QueueHealth | null;
   };
   /** true only when every probed capability is fresh — unknown counts as NOT ok. */
   allFresh: boolean;
@@ -189,7 +194,7 @@ export interface FleetTruth {
 }
 
 export async function getFleetTruth(): Promise<FleetTruth> {
-  const [stn, nick, outbox, bus] = await Promise.all([
+  const [stn, nick, outbox, bus, work] = await Promise.all([
     statenourArtifacts(),
     nickstireArtifacts(),
     (async (): Promise<QueueHealth | null> => {
@@ -212,15 +217,32 @@ export async function getFleetTruth(): Promise<FleetTruth> {
         return null;
       }
     })(),
+    (async (): Promise<QueueHealth | null> => {
+      try {
+        const { getWorkItemQueueHealth } = await import("@/lib/services/runner-state");
+        return await getWorkItemQueueHealth();
+      } catch (e) {
+        log.warn("workitem_queue_health_failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+      }
+    })(),
   ]);
   const all = [...stn, ...nick];
   return {
     generatedAt: new Date().toISOString(),
     statenour: stn,
     nickstire: nick,
-    queues: { postTurnOutbox: outbox, brainBus: bus },
+    queues: { postTurnOutbox: outbox, brainBus: bus, workItems: work },
     allFresh: all.length > 0 && all.every((a) => a.state === "fresh"),
     // A queue that failed to answer is NOT clean — unknown never passes.
-    queuesClean: outbox !== null && bus !== null && outbox.dead === 0 && bus.dead === 0,
+    queuesClean:
+      outbox !== null &&
+      bus !== null &&
+      work !== null &&
+      outbox.dead === 0 &&
+      bus.dead === 0 &&
+      work.dead === 0,
   };
 }

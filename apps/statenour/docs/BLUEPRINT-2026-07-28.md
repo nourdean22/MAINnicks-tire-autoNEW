@@ -107,8 +107,25 @@ Journal 4 · Devices 5 · Business/commerce + settings ~18.
 - **Task-like containers (5):** `Task` (canonical execution unit) ·
   `AgendaItem` (canonical operator agenda — owns follow-ups since Spine-4)
   · `CaptureInboxItem` (pre-triage inlet, janitor-swept) · `Commitment`
-  (promise ledger — distinct semantics, keep) · `WorkItem` — **ownership
-  unclear, WP-6 decides merge-or-retire.**
+  (promise ledger — distinct semantics, keep) · ~~`WorkItem`~~ —
+  **MISFILED HERE; WP-6 RESOLVED 2026-07-29.** Tracing the consumers
+  showed `WorkItem` is not task-like at all: it is a durable AI-job
+  queue (`idempotencyKey` dedup · PENDING→CLAIMED→COMPLETED/FAILED ·
+  `attempts` · `runnerNode` lease · `requestPayload`), written by
+  `enqueueWorkItem` (`lib/services/runner-state.ts`), claimed and
+  completed by `/api/internal/runner/*`, and reaped by
+  `autonomic-orchestrator.ts:250` when a CLAIMED row stalls past 15
+  min. Its types are machine jobs (`AI_NEXT_MOVE`,
+  `AI_DRIFT_ANALYSIS`, `AI_CLARIFY_MISSION`, `ALE_REFRESH`).
+  **Verdict: neither merge nor retire — reclassify.** Merging into
+  `Task` would push machine jobs into the operator's triage inbox (the
+  06-10 audit's named danger) and force lease columns onto `Task`;
+  retiring would delete a live lane. Its real peer group is the
+  durable-queue family in Pass 5, and the actual gap was visibility —
+  now closed: `getWorkItemQueueHealth()` reports it to fleet truth in
+  the same vocabulary as the outbox and brain-bus, and
+  `tests/observability/workitem-queue-boundary.test.ts` pins the
+  boundary so it cannot be silently re-filed.
 - **Event models (8, no shared envelope):** TaskEvent · GoalEvent ·
   DeviceEvent · AutonomousEvent · VisionEvent · BrainBusEvent · AuditEvent
   · EntityAudit. The external audit's "Universal Timeline" is **not
@@ -196,7 +213,12 @@ HIDE / DEPRECATE / DELETE / EXTERNALIZE) — richer than wired/not-wired.
 - **WP-5 · Disconnected surfaces:** warroom / research / missions-simulator
   — operator picks per surface: nav entry, deliberate URL-only (document
   it), or deletion. No code default is correct here.
-- **WP-6 · WorkItem:** trace consumers; merge into Task or retire.
+- ~~**WP-6 · WorkItem:** trace consumers; merge into Task or retire.~~
+  **CLOSED 2026-07-29 — the premise was wrong.** WorkItem is a durable
+  AI-job queue, not a task container (full receipts in Pass 4). Neither
+  option applied; it was reclassified into the queue family and its
+  missing operator surface was built (fleet-truth queue row + boundary
+  tests). Task-like containers are therefore **4**, not 5.
 - **WP-7 · Event vocabulary:** extend contracts registry to intra-app event
   types (8 models) — prerequisite for any timeline surface. Schema
   unification NOT required; a read-side projection is enough.
