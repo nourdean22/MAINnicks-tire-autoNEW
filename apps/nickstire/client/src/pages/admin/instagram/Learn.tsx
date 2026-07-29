@@ -187,7 +187,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
               <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">No measured Instagram posts are available yet. Sync the feed from HQ after publishing.</div>
             ) : winners.map((winner) => (
               <div key={winner.postId} className="rounded-xl border bg-muted/20 p-4">
-                <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{winner.postType}</Badge><Badge variant="outline">{winner.engagementRate.toFixed(2)}% engagement</Badge>{winner.contentScore > 0 && <Badge variant="outline">Score {winner.contentScore}</Badge>}{winner.saved != null && winner.reach != null && winner.reach > 0 && <Badge variant="outline">{((winner.saved / winner.reach) * 1000).toFixed(1)} saves/1k reached</Badge>}{(() => {
+                <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{winner.postType}</Badge>{winner.mediaProductType === "REELS" && <Badge variant="outline">Reel</Badge>}<Badge variant="outline">{winner.engagementRate.toFixed(2)}% engagement</Badge>{winner.contentScore > 0 && <Badge variant="outline">Score {winner.contentScore}</Badge>}{winner.saved != null && winner.reach != null && winner.reach > 0 && <Badge variant="outline">{((winner.saved / winner.reach) * 1000).toFixed(1)} saves/1k reached</Badge>}{(() => {
                   // Distribution score renders ONLY at honest coverage — it names
                   // how much of the formula was measured instead of impersonating
                   // the full number (watch time and follows are not stored yet).

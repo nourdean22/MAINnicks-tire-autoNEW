@@ -3040,6 +3040,12 @@ export const instagramAnalytics = mysqlTable("instagram_analytics", {
   /** `views` replaces Meta's deprecated `plays` metric. */
   views: int("views"),
   shares: int("shares"),
+  /**
+   * Graph `media_product_type` (e.g. REELS vs FEED) — `media_type` alone
+   * returns VIDEO for a published reel, which misclassifies it (IG-037).
+   * Nullable = not yet captured; DDL: drizzle/0106 (hand-applied).
+   */
+  mediaProductType: varchar("mediaProductType", { length: 32 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_ig_analytics_post").on(table.postId),
@@ -3047,6 +3053,30 @@ export const instagramAnalytics = mysqlTable("instagram_analytics", {
 ]);
 
 export type InstagramAnalyticsRow = typeof instagramAnalytics.$inferSelect;
+
+/**
+ * Append-only per-sync metric snapshots (Wave C substrate): windowed 24h/7d/30d
+ * comparisons need to know what a post's numbers WERE, and the analytics row
+ * only knows what they ARE. One row per post per sync tick; never updated,
+ * never deleted. DDL: drizzle/0106 (hand-applied via apply-0106-ig-insights).
+ */
+export const igMetricSnapshots = mysqlTable("ig_metric_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  postId: varchar("postId", { length: 100 }).notNull(),
+  capturedAt: timestamp("capturedAt").defaultNow().notNull(),
+  likes: int("likes").default(0).notNull(),
+  comments: int("comments").default(0).notNull(),
+  reach: int("reach"),
+  saved: int("saved"),
+  views: int("views"),
+  shares: int("shares"),
+  followerSnapshot: int("followerSnapshot"),
+}, (table) => [
+  index("idx_ig_snap_post").on(table.postId),
+  index("idx_ig_snap_captured").on(table.capturedAt),
+]);
+
+export type IgMetricSnapshotRow = typeof igMetricSnapshots.$inferSelect;
 
 // ─── REVIEW TREND SNAPSHOTS ─────────────────────────────
 /**

@@ -129,14 +129,24 @@ describe("syncInstagramPosts source selection", () => {
     expect(res.newPosts).toBe(2);
     expect(res.errors).toBe(0);
 
+    // Since 0106 the sync writes TWO lanes per post: the analytics row and an
+    // append-only metric snapshot. engagementRate exists only on analytics
+    // rows, so it is the discriminator.
     const rows = insertValues.mock.calls.map(([v]: [Record<string, unknown>]) => v);
-    expect(rows.map((r) => r.postId)).toEqual(["graph_post_1", "graph_post_2"]);
-    expect(rows[0].likes).toBe(12);
-    expect(rows[0].postType).toBe("IMAGE");
+    const analyticsRows = rows.filter((r) => "engagementRate" in r);
+    const snapshotRows = rows.filter((r) => !("engagementRate" in r));
+    expect(analyticsRows.map((r) => r.postId)).toEqual(["graph_post_1", "graph_post_2"]);
+    expect(analyticsRows[0].likes).toBe(12);
+    expect(analyticsRows[0].postType).toBe("IMAGE");
     // followers from the live profile drive the rate: (12+3)/500*10000 = 300
-    expect(rows[0].engagementRate).toBe(300);
+    expect(analyticsRows[0].engagementRate).toBe(300);
     // LLM was down → degraded default score, not a dropped row
-    expect(rows[0].contentScore).toBe(5);
+    expect(analyticsRows[0].contentScore).toBe(5);
+    // The snapshot lane wrote one history row per post and the result says so —
+    // a non-empty sync with snapshotsWritten=0 is the silent-IDLE class.
+    expect(snapshotRows.map((r) => r.postId)).toEqual(["graph_post_1", "graph_post_2"]);
+    expect(res.snapshotsWritten).toBe(2);
+    expect(res.snapshotErrors).toBe(0);
   });
 
   it("heals the JSON cache after a Graph fetch so cache readers serve real data", async () => {
