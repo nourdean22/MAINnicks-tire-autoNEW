@@ -35,6 +35,8 @@ export type AuditAction =
   | "invoice.created"
   // 2026-05-30 · control-plane actions (operator levers, not entity CRUD)
   | "flag.toggled"
+  // 2026-07-29 · SMS Revenue Agent OS — global pause arm/lift (smsOps.setPause)
+  | "sms.global_pause"
   | "customer.sms_manual_send"
   | "customer.sms_autosend_reply"
   | "customer.sms_autosend_reply"

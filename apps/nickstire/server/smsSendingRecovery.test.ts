@@ -61,17 +61,36 @@ describe("recoverStaleSendingRows", () => {
 });
 
 describe("wiring pins", () => {
-  it("the boot pass AWAITS recovery before the queued rehydrate SELECT", () => {
+  // 2026-07-29 (continuous rehydration): the rehydrate SELECT moved into
+  // rehydrateQueuedFromDb(), defined ABOVE the processor, so source order no
+  // longer proves call order. The pin now asserts the boot IIFE's actual
+  // sequence: await recovery, THEN await rehydrate — so rows recovery flips
+  // back to 'queued' are picked up in the same pass.
+  it("the boot pass AWAITS recovery before the queued rehydrate pass", () => {
     const s = read();
-    const recoveryAt = s.indexOf("await recoverStaleSendingRows()");
-    const selectAt = s.indexOf('eq(smsMessages.status, "queued")');
+    const bootAt = s.indexOf("export function startDelayedQueueProcessor");
+    expect(bootAt).toBeGreaterThan(-1);
+    const boot = s.slice(bootAt);
+    const recoveryAt = boot.indexOf("await recoverStaleSendingRows()");
+    const rehydrateAt = boot.indexOf("await rehydrateQueuedFromDb()");
     expect(recoveryAt).toBeGreaterThan(-1);
-    expect(selectAt).toBeGreaterThan(recoveryAt);
+    expect(rehydrateAt).toBeGreaterThan(recoveryAt);
   });
 
   it("the timer runs recovery throttled — an orphan never waits for a restart", () => {
     const s = read();
     expect(s).toMatch(/STALE_RECOVERY_THROTTLE_MS = 5 \* 60_000/);
     expect(s).toMatch(/Date\.now\(\) - lastStaleRecoveryAt > STALE_RECOVERY_THROTTLE_MS/);
+  });
+
+  it("every timer recovery pass is FOLLOWED by a rehydrate pass (recovered rows get a live consumer)", () => {
+    const s = read();
+    const timerAt = s.indexOf("delayedTimer = setInterval");
+    expect(timerAt).toBeGreaterThan(-1);
+    const timer = s.slice(timerAt);
+    const recoveryAt = timer.indexOf("await recoverStaleSendingRows()");
+    const rehydrateAt = timer.indexOf("await rehydrateQueuedFromDb()");
+    expect(recoveryAt).toBeGreaterThan(-1);
+    expect(rehydrateAt).toBeGreaterThan(recoveryAt);
   });
 });

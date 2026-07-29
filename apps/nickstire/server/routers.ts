@@ -94,6 +94,7 @@ import { adStudioRouter } from "./routers/adStudio";
 import { opportunityQueueRouter } from "./routers/opportunityQueue";
 import { promisesRouter } from "./routers/promises";
 import { quoteGuardRouter } from "./routers/quoteGuard";
+import { smsOpsRouter } from "./routers/smsOps";
 
 export const appRouter = router({
   system: systemRouter,
@@ -124,6 +125,7 @@ export const appRouter = router({
   opportunityQueue: opportunityQueueRouter,
   promises: promisesRouter,
   quoteGuard: quoteGuardRouter,
+  smsOps: smsOpsRouter,
   statenourMetrics: statenourMetricsRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,

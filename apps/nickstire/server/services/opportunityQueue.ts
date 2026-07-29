@@ -1064,6 +1064,95 @@ export async function collectMissedCalls(): Promise<CollectorStats> {
  * inbox. NEVER sends anything; the review-request engine is untouched
  * and review asks are never conditioned on this (no gating).
  */
+/**
+ * Stale website leads → stale_lead opportunities (2026-07-29, speed-to-lead
+ * closure). The staleLeadFollowup cron only works the 2h–24h window; leads
+ * older than 24h previously fell out of EVERY rail forever (the only trace
+ * was a display-only risk card). This collector gives them a durable
+ * Decision-Inbox row instead of a surprise text:
+ *
+ *   0–2h    → human's window (untouched — no row, no automation)
+ *   2–24h   → staleLeadFollowup cron's territory (untouched)
+ *   24h–30d → THIS collector: ranked owner decision, call-first framing
+ *   >30d    → reconciler ages the row out (and none are ever inserted)
+ *
+ * Excluded sources: 'careers' (job applicants are not revenue — AG-43) and
+ * 'callback' (callback_requests already feeds the queue via its own
+ * collector; a second row for the same ask would double-represent them).
+ * Value is estimatedValueCents when a quote was actually given, else null —
+ * never an invented average. NEVER sends anything.
+ */
+export async function collectStaleLeads(): Promise<CollectorStats> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
+
+  let rows: Array<Record<string, unknown>>;
+  try {
+    rows = rowsFromExecute(await db.execute(sql`
+      SELECT id, name, phone, vehicle, problem, source, recommendedService,
+             estimatedValueCents, urgencyScore, createdAt
+      FROM leads
+      WHERE status = 'new'
+        AND contacted = 0
+        AND source NOT IN ('careers', 'callback')
+        AND createdAt <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND createdAt > DATE_SUB(NOW(), INTERVAL 30 DAY)
+      ORDER BY createdAt DESC
+      LIMIT 100
+    `));
+  } catch (err) {
+    log.warn("[opportunity-queue] stale-lead collector query failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { scanned: 0, inserted: 0, refreshed: 0 };
+  }
+
+  let inserted = 0;
+  let refreshed = 0;
+  for (const r of rows) {
+    const name = r.name ? String(r.name) : "customer";
+    const ageDays = r.createdAt
+      ? Math.max(1, Math.round((Date.now() - new Date(r.createdAt as string).getTime()) / 86_400_000))
+      : 1;
+    const service = r.recommendedService
+      ? String(r.recommendedService)
+      : r.problem
+        ? String(r.problem).slice(0, 60)
+        : "their request";
+    const res = await upsertOpportunity({
+      sourceType: "stale_lead",
+      sourceId: String(r.id),
+      customerName: name,
+      customerPhone: r.phone == null ? null : String(r.phone),
+      expectedRevenueCents: r.estimatedValueCents == null ? null : Number(r.estimatedValueCents),
+      // The lead row is the customer's own submission — its existence is
+      // verified; the VALUE stays null unless a quote was actually recorded.
+      dataQuality: "verified",
+      // 24h–7d: still warm enough for this week; older: later. Callbacks/
+      // complaints (critical/today) always outrank these by construction.
+      urgency: ageDays <= 7 ? "this_week" : "later",
+      recommendedAction: `Call ${name} — website lead about ${service} has waited ${ageDays}d with no contact`,
+      reason: `Lead submitted ${ageDays} days ago via ${String(r.source)} and was never contacted. Speed-to-lead window is gone — a personal call beats an automated text this late.`,
+      evidence: {
+        leadId: Number(r.id),
+        source: String(r.source),
+        ageDays,
+        vehicle: r.vehicle ? String(r.vehicle) : null,
+        problem: r.problem ? String(r.problem).slice(0, 200) : null,
+        urgencyScore: r.urgencyScore == null ? null : Number(r.urgencyScore),
+        quoteOnFile: r.estimatedValueCents != null,
+      },
+      consentOk: true, // they submitted the form asking to be contacted
+    });
+    if (res === "inserted") inserted++;
+    else if (res === "refreshed") refreshed++;
+    else return { scanned: rows.length, inserted, refreshed };
+  }
+  return { scanned: rows.length, inserted, refreshed };
+}
+
 export async function captureComplaintOpportunity(
   phone: string,
   body: string,
@@ -1423,6 +1512,66 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
     }
   }
 
+  // 5. stale_lead: (a) the lead was handled outside the queue (contacted
+  //    flag / status moved) → close our copy; (b) the lead crossed 30 days
+  //    → age out (mission rule: >30d is archive territory, not a chase).
+  //    Both are queue-side only — lead rows are protected persistence and
+  //    are never mutated from here.
+  try {
+    const handled = rowsFromExecute(await db.execute(sql`
+      SELECT o.id, l.status AS leadStatus, l.contacted AS contacted
+      FROM revenue_opportunities o
+      JOIN leads l ON l.id = CAST(o.source_id AS UNSIGNED)
+      WHERE o.source_type = 'stale_lead'
+        AND o.state IN (${stateList})
+        AND (l.contacted = 1 OR l.status != 'new')
+      LIMIT 100
+    `));
+    stats.checked += handled.length;
+    for (const r of handled) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: `source resolved: lead ${Number(r.contacted) === 1 ? "contacted" : `status=${String(r.leadStatus)}`} (handled outside the queue)`,
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] stale-lead-handled reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  try {
+    const aged = rowsFromExecute(await db.execute(sql`
+      SELECT o.id
+      FROM revenue_opportunities o
+      JOIN leads l ON l.id = CAST(o.source_id AS UNSIGNED)
+      WHERE o.source_type = 'stale_lead'
+        AND o.state IN (${stateList})
+        AND l.createdAt < DATE_SUB(NOW(), INTERVAL 30 DAY)
+      LIMIT 100
+    `));
+    stats.checked += aged.length;
+    for (const r of aged) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: "aged out: lead older than 30 days (archive — reopen only on a fresh signal)",
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] stale-lead-aging reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   return stats;
 }
 
@@ -1436,14 +1585,17 @@ export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: num
   const callbacks = await collectPendingCallbacks();
   const missedCalls = await collectMissedCalls();
   const inspections = await collectInspectionDeferrals();
+  const staleLeads = await collectStaleLeads();
   const fmt = (s: CollectorStats) => `${s.inserted}new/${s.refreshed}ref/${s.scanned}scan`;
   let details =
     `reconciled: ${reconciled.won}won+${reconciled.closed}closed/${reconciled.checked} · ` +
     `estimates: ${fmt(estimates)} · callbacks: ${fmt(callbacks)} · ` +
-    `missed calls: ${fmt(missedCalls)} · deferrals: ${fmt(inspections)}`;
+    `missed calls: ${fmt(missedCalls)} · deferrals: ${fmt(inspections)} · ` +
+    `stale leads: ${fmt(staleLeads)}`;
   const recordsProcessed =
     reconciled.won + reconciled.closed +
-    estimates.inserted + callbacks.inserted + missedCalls.inserted + inspections.inserted;
+    estimates.inserted + callbacks.inserted + missedCalls.inserted + inspections.inserted +
+    staleLeads.inserted;
 
   // Strike-4: the loop judges its own shape. The contract was built to
   // catch "cron looks productive while changing nothing" — with

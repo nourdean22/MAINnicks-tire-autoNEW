@@ -157,4 +157,33 @@ export const opportunityQueueRouter = router({
 
   /** Manual collector run (the cron also does this on tier 3). */
   refresh: adminProcedure.mutation(async () => refreshOpportunityQueue()),
+
+  /**
+   * Decision Inbox 2.0 (2026-07-29): deterministic outreach draft + best
+   * channel + risk label for one opportunity. Read-only — nothing sends.
+   * Call-first source types (callback / complaint / promise) return no
+   * draft with the reason stated.
+   */
+  draftOutreach: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ input }) => {
+      const { draftOpportunityOutreach } = await import("../services/opportunityDraft");
+      const rows = await listOpportunities({ limit: 500 });
+      const opp = rows.find((r) => r.id === input.id);
+      if (!opp) return { ok: false as const, error: "opportunity not found" };
+      return draftOpportunityOutreach(opp);
+    }),
+
+  /**
+   * Operator-approved send of the (possibly edited) draft. Ladder level 1:
+   * the human taps send on the exact text; sendSms's full chokepoint
+   * (opt-out fail-closed, caps, pause, quiet-hour queue) still applies.
+   * Success transitions the opportunity to `attempted` with a receipt.
+   */
+  sendOutreach: adminProcedure
+    .input(z.object({ id: z.string().uuid(), body: z.string().min(1).max(480) }))
+    .mutation(async ({ input, ctx }) => {
+      const { sendOpportunityDraft } = await import("../services/opportunityDraft");
+      return sendOpportunityDraft({ id: input.id, body: input.body, by: ctx.user?.email ?? "admin" });
+    }),
 });
