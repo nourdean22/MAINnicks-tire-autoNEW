@@ -549,6 +549,27 @@ export const operatorRouter = router({
       const prismaModule = await import("@/lib/prisma");
       const p = prismaModule.prisma;
 
+      // Wave-8 (2026-07-29) · autonomy governance: every flag flip gets
+      // an audit row (who/when/old→new) BEFORE the write — the Unleash
+      // "non-negotiable" and the precondition for the one-flag-per-week
+      // ritual. Best-effort: an audit failure never blocks the flip,
+      // but it is logged loudly.
+      const prior = await p.userPreference
+        .findFirst({ where: { key, category: "feature_flags" }, select: { value: true } })
+        .catch(() => null);
+      await p.auditEvent
+        .create({
+          data: {
+            actor: "operator",
+            eventType: "feature_flag_override",
+            detail: `${key}: ${prior?.value ?? "(env default)"} → ${value ?? "(cleared to env default)"}`,
+            payload: { key, oldValue: prior?.value ?? null, newValue: value },
+          },
+        })
+        .catch((e: unknown) =>
+          logError("operator.feature-flags", e, { stage: "flip-audit", key }, "warn"),
+        );
+
       if (value === null) {
         await p.userPreference.deleteMany({
           where: { key, category: "feature_flags" },

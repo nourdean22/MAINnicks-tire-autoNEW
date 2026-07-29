@@ -574,6 +574,17 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "xp-decay",
+    schedule: null,
+    mode: "folded",
+    category: "review",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening · Wave-8 (2026-07-29, operator-decided): loss-aversion decay — stats idle past the 7-day grace bleed XP via NEGATIVE mastery_xp_event rows (reversible event-sourcing, idempotent per stat per day via decay:<stat>:<date> keys). Wires the decayXp math that sat tested-but-unwired since 2026-06-01.",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     name: "anticipate",
     schedule: null,
     mode: "folded",
