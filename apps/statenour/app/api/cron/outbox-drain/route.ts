@@ -15,6 +15,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import {
   claimOrphans,
   finishClaim,
+  OUTBOX_MAX_ATTEMPTS,
 } from "@/lib/services/chat/post-turn-outbox";
 import { runDeferredBackgroundWork } from "@/lib/services/chat/deferred-background-work";
 
@@ -26,16 +27,33 @@ export const GET = cronHandler(async () => {
   const claimed = await claimOrphans(25);
   let ok = 0;
   let failed = 0;
+  let newDead = 0;
   for (const row of claimed) {
     try {
       await runDeferredBackgroundWork({ log, ...row.payload });
       await finishClaim(row.id, true, row.attempts);
       ok++;
     } catch (err) {
-      await finishClaim(row.id, false, row.attempts, err);
+      const { becameDead } = await finishClaim(row.id, false, row.attempts, err);
       failed++;
+      if (becameDead) newDead++;
     }
   }
-  log.info("outbox_drain_done", { claimed: claimed.length, ok, failed });
-  return { claimed: claimed.length, ok, failed };
+  // WP-8: dead-lettering is a TRANSITION alert — fired once, here, when a
+  // row exhausts its attempts, so a standing pile never re-pages. The
+  // standing count lives on /system/fleet (queue health).
+  if (newDead > 0) {
+    log.error("outbox_rows_dead_lettered", { newDead });
+    const { sendTelegram } = await import("@/lib/services/telegram");
+    await sendTelegram(
+      `⚠️ OUTBOX: ${newDead} post-turn row(s) dead-lettered after ` +
+        `${OUTBOX_MAX_ATTEMPTS} attempts. Inspect + redrive at /system/fleet.`,
+    ).catch((e: unknown) =>
+      log.warn("outbox_dead_alert_failed", {
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+  }
+  log.info("outbox_drain_done", { claimed: claimed.length, ok, failed, newDead });
+  return { claimed: claimed.length, ok, failed, newDead };
 });

@@ -43,6 +43,23 @@ const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
 export const healthProcedures = {
   /**
+   * WP-8 (2026-07-29) · owner-only · one-tap DLQ redrive for the
+   * post-turn outbox: dead (and legacy `failed`) rows return to
+   * `pending` with attempts reset, so the 15-min drain replays them.
+   * Replay is idempotent by construction (see post-turn-outbox.ts
+   * module header). Returns the redriven count as its receipt.
+   */
+  outboxRedrive: operatorProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(200) }).optional())
+    .mutation(async ({ input }) => {
+      const { redriveDeadOutboxRows } = await import(
+        "@/lib/services/chat/post-turn-outbox"
+      );
+      const redriven = await redriveDeadOutboxRows(input?.limit ?? 50);
+      return { redriven };
+    }),
+
+  /**
    * Owner-only · returns the same HealthReport shape the legacy REST
    * endpoint returned. Default range = 7d to match prior behavior.
    */
