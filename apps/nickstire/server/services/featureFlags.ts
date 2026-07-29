@@ -106,6 +106,15 @@ export const FLAG_DEFINITIONS = [
   // a PAUSE, false (the failure value) means "not paused" → keeps sending →
   // current behaviour preserved. The safe state and the failure state match.
   { key: "vapi_forward_followup_paused", description: "OFF-SWITCH (inverted). Set TRUE to STOP the immediate follow-up SMS sent when a VAPI call is forwarded to a human. Leave FALSE for normal operation — this path ships live and false is the safe default. Unlike the missed_call_recovery cron this fires straight off the webhook, so this is the only way to stop it without a redeploy." },
+  // GLOBAL SMS PAUSE — same inverted PAUSE polarity as vapi_forward_followup_paused,
+  // same rationale. This is the shop-wide emergency stop for automated customer
+  // SMS: sendSms() HOLDS (durably queues) customer_marketing/customer_followup
+  // sends while TRUE, and the delayed-queue drain also holds. Internal alerts
+  // and customer_confirmation replies keep flowing. Read fresh (5s cache) via
+  // services/smsControl.ts, not through the 60s isEnabled cache — an emergency
+  // stop must land in seconds. Nothing is dropped: lifting the pause drains
+  // the held queue through the normal window machinery.
+  { key: "sms_global_pause", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE all automated customer SMS shop-wide (marketing + follow-ups are durably queued, not dropped; confirmations and internal alerts still send). The first real kill switch for the F25e path — SMS_KILL_SWITCH env only ever gated the dead Twilio fallback." },
   { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
 
   // ─── CREATIVE SKILL PACKS ─────────────────────────

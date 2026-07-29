@@ -187,6 +187,10 @@ export const smsOrchestratorRouter = router({
           via: row.providerUsed === "none" ? "shop" : row.providerUsed as any,
           variantKey: row.variantKey,
           skipPersist: false,
+          // Operator explicitly approved this exact message — exempt from the
+          // chokepoint takeover suppression (which their approval would
+          // otherwise trip via the manual-send audit trail).
+          humanInitiated: true,
         });
 
         await db.update(smsOrchestrations)
@@ -259,7 +263,24 @@ export const smsOrchestratorRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDbTyped();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
+
+      // Autonomy-ladder ceiling (2026-07-29): a per-event rollout key
+      // (sms_orch_<eventType>_mode) can never be flipped above the level the
+      // registry declares for that event type. The registry is the policy;
+      // this is its enforcement point.
+      const eventKeyMatch = input.key.match(/^sms_orch_(.+)_mode$/);
+      if (eventKeyMatch) {
+        const { isRolloutModeAllowed, getAutomationPolicy, maxRolloutModeForLevel } =
+          await import("../services/smsAutonomy");
+        if (!isRolloutModeAllowed(eventKeyMatch[1], input.value)) {
+          const policy = getAutomationPolicy(eventKeyMatch[1]);
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Autonomy ladder: '${eventKeyMatch[1]}' is declared level ${policy?.level} (ceiling: ${policy ? maxRolloutModeForLevel(policy.level) : "?"}) — '${input.value}' exceeds it. Raise the level in smsAutonomy.ts via PR first.`,
+          });
+        }
+      }
+
       const existing = await db.select()
         .from(appSecretKv)
         .where(eq(appSecretKv.k, input.key))

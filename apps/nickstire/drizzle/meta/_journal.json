@@ -820,6 +820,20 @@
       "when": 1784923072018,
       "tag": "0103_recovery_experiment_v3",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "5",
+      "when": 1785345000000,
+      "tag": "0104_sms_send_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "5",
+      "when": 1785350000000,
+      "tag": "0105_sms_sent_at",
+      "breakpoints": true
     }
   ]
 }

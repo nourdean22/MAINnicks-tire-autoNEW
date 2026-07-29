@@ -131,6 +131,98 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     };
   },
 
+  /**
+   * Autopilot Wave 2 (2026-07-29) · the ONE bounded customer-texting action,
+   * exposed to statenour as a draft/send pair over the existing sync-key
+   * bridge. CONTRACT (NICKSTIRE-QUERY-CONTRACT §8):
+   *
+   *   draft_opportunity_sms {opportunityId} — READ. Returns the
+   *     deterministic evidence-only draft + best channel + risk label +
+   *     masked identity. Call-first types return no draft with the reason.
+   *
+   *   send_opportunity_sms {opportunityId, body, idempotencyKey, approvedBy}
+   *     — ACTION. statenour MUST show Nour the exact body and collect an
+   *     explicit approval BEFORE calling; approvedBy records who. Guards
+   *     (all server-side here, none trusted to the caller): opportunity must
+   *     be live + consented + non-call-only; preflight guard blocks critical
+   *     findings; the send rides sendSms's FULL gate stack (opt-out
+   *     fail-closed, caps, pause, quiet-hour queue) as humanInitiated;
+   *     success receipts the opportunity as `attempted`. Idempotency: the
+   *     key is checked+recorded in audit_log — a replayed call returns
+   *     duplicate:true and sends NOTHING. Free-form texting to arbitrary
+   *     numbers is deliberately NOT exposed — the opportunity row IS the
+   *     identity resolution.
+   */
+  "draft_opportunity_sms": async (filters) => {
+    const opportunityId = String(filters.opportunityId ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(opportunityId)) return { error: "opportunityId (uuid) required" };
+    const { listOpportunities } = await import("../services/opportunityQueue");
+    const rows = await listOpportunities({ limit: 500 });
+    const opp = rows.find((r) => r.id === opportunityId);
+    if (!opp) return { error: "opportunity not found" };
+    const { draftOpportunityOutreach } = await import("../services/opportunityDraft");
+    const draft = await draftOpportunityOutreach(opp);
+    return {
+      opportunityId,
+      customerName: opp.customerName,
+      customerPhoneMasked: opp.customerPhone ? `***-${opp.customerPhone.slice(-4)}` : null,
+      sourceType: opp.sourceType,
+      state: opp.state,
+      consentOk: opp.consentOk,
+      recommendedAction: opp.recommendedAction,
+      ...draft,
+    };
+  },
+
+  "send_opportunity_sms": async (filters) => {
+    const opportunityId = String(filters.opportunityId ?? "");
+    const body = String(filters.body ?? "").trim();
+    const idempotencyKey = String(filters.idempotencyKey ?? "").trim();
+    const approvedBy = String(filters.approvedBy ?? "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(opportunityId)) return { error: "opportunityId (uuid) required" };
+    if (!body) return { error: "body required — statenour must show Nour the exact text and pass it back" };
+    if (!/^[A-Za-z0-9._-]{8,64}$/.test(idempotencyKey)) return { error: "idempotencyKey (8-64 chars, [A-Za-z0-9._-]) required" };
+    if (!approvedBy) return { error: "approvedBy required — records WHO approved the exact text" };
+
+    // Durable idempotency via the audit trail: one row per key, checked
+    // before any send. A replayed call (retry, double-tap, crashed client)
+    // returns duplicate:true and never reaches sendSms.
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "DB unavailable — refusing to send without idempotency" };
+    const marker = `bridge_send:${idempotencyKey}`;
+    const dupRows = await exec(d, sql`
+      SELECT 1 FROM audit_log
+      WHERE action = 'sms.bridge_send' AND details LIKE ${`%${marker}%`}
+      LIMIT 1
+    `);
+    if (dupRows.length > 0) return { ok: true, duplicate: true, sent: false };
+
+    const { sendOpportunityDraft } = await import("../services/opportunityDraft");
+    const result = await sendOpportunityDraft({
+      id: opportunityId,
+      body,
+      by: `statenour:${approvedBy}`,
+    });
+    if (result.ok) {
+      try {
+        const { logAdminAction } = await import("../services/auditTrail");
+        await logAdminAction({
+          action: "sms.bridge_send",
+          entityType: "revenue_opportunity",
+          entityId: opportunityId,
+          details: `${marker} · approved by ${approvedBy} · ${result.queued ? "queued for window" : "dispatched"} · "${body.slice(0, 100)}"`,
+          actor: `statenour:${approvedBy}`,
+        });
+      } catch {
+        // the send happened; a failed audit write must be loud in logs only
+        log.error("bridge send succeeded but idempotency record failed — replays will NOT dedupe", { opportunityId });
+      }
+    }
+    return { ...result, sent: result.ok, duplicate: false };
+  },
+
   // ─── Revenue ──────────────────────────────────
   "revenue_today": async () => {
     const { getDb } = await import("../db");

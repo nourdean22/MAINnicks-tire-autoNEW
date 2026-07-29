@@ -32,6 +32,7 @@ import {
   Send
 } from "lucide-react";
 import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState } from "../shared";
+import SmsOpsStrip from "./SmsOpsStrip";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   inbound_sms: "Inbound SMS",
@@ -164,6 +165,10 @@ export default function SmsOrchestratorSection() {
 
   return (
     <div className="space-y-6">
+      {/* SMS Revenue Agent OS (2026-07-29): kill switch, gateway, queue depth,
+          caps, autonomy ladder, suppression rollup — one glance, truth-ruled. */}
+      <SmsOpsStrip />
+
       {/* ROS-058 Needs Reply truth strip: waiting customers are VISIBLE — a
           held draft can never again read as "all handled". Unknown ≠ zero. */}
       {needsReplyError ? (

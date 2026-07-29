@@ -851,6 +851,18 @@ export const smsMessages = mysqlTable("sms_messages", {
    *  index remap would be required if inserted in the middle). */
   status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received", "sending"]).default("queued").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  /** 0104 (2026-07-29, hand-apply) · definitive-failure attempt count for the
+   *  durable retry loop; drain dead-letters at 5. NULL until 0104 applied —
+   *  all code paths degrade to pre-0104 (time-bounded-only) behavior. */
+  sendAttempts: int("send_attempts"),
+  /** 0104 · why a row went terminal ('max_retries_exceeded',
+   *  'stale_sending_expired', gateway error slice). */
+  failureReason: varchar("failure_reason", { length: 255 }),
+  /** 0105 (2026-07-29, hand-apply) · when the gateway ACCEPTED the send.
+   *  Completes the creation→dispatch latency the ops surface refused to
+   *  fabricate from createdAt alone. NULL until 0105 applied; stamped
+   *  best-effort (a failed stamp never fails a send). */
+  sentAt: timestamp("sent_at"),
   // ─── wave-181.51 · SMS INSTRUMENTATION ──────────────
   // Persisted per-send metrics so attribution doesn't require keyword-
   // sniffing the body. Reply tracking written by the SMS gateway

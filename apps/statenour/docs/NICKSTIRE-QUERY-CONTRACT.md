@@ -492,6 +492,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `callbacks_pending` | none | New callback requests |
 | `customer_search` | `term: string` | Top 20 matching customers |
 | `customer_detail` | `customerId: string` | `{ customer, timeline: { invoices, estimates, algEstimates, callbacks }, counts }` — added Wave-200 Phase 6 for Customer 360 |
+| `draft_opportunity_sms` | `opportunityId: uuid` | `{ opportunityId, customerName, customerPhoneMasked, sourceType, state, consentOk, recommendedAction, bestChannel, draft, noDraftReason?, riskLabel, riskReasons, guardFindings }` — deterministic evidence-only draft for a Decision-Inbox row; call-first types (callback/complaint/promise) return `draft: null` + reason. READ, never sends. Added Autopilot Wave 2, 2026-07-29 — see §8 |
 | `recent_customer_ids` | `sinceDays?: number` (default 90, max 365) | `{ customerIds: string[], count, sinceDays }` — drives statenour daily customer-preferences cron · cap 500 |
 | `feature_flags` | none | All flags + enabled state |
 | `gsc_summary` | `from?, to?` (YYYY-MM-DD; default last 30d) | `{ totalClicks, totalImpressions, avgCtr, avgPosition }` (CTR is %, position is float) |
@@ -504,6 +505,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `master_report` | none | Synthesized health score + top alert/opp/risk + 13-component breakdown + sub-reports. See "master_report shape" below. Returns `{ ok: false, error }` if generation fails. Cache TTL 60s server-side. |
 | `revenue_range` | `from?, to?` | Total + avg ticket for range |
 | `revenue_today` | none | Today's revenue (ET-anchored) |
+| `send_opportunity_sms` | `opportunityId: uuid, body: string, idempotencyKey: string (8-64, [A-Za-z0-9._-]), approvedBy: string` | `{ ok, sent, duplicate, queued?, error? }` — the ONE bounded customer-texting ACTION. See §8 for the mandatory approval contract. Added Autopilot Wave 2, 2026-07-29 |
 | `shop_pulse` | none | Live snapshot via nickIntelligence |
 | `work_orders_active` | none | Open work orders (≠ completed/cancelled) |
 
@@ -564,6 +566,31 @@ endpoint is read-only DB access by design. Mirror refreshes go through
 the admin UI's `forceSyncNow`, not here.
 
 ---
+
+## 8. Bounded customer-texting action — approval contract (2026-07-29)
+
+`send_opportunity_sms` is the ONLY way statenour may cause a customer text,
+and it is bounded by construction:
+
+- **Identity = the opportunity row.** No free-form phone targeting exists on
+  the bridge; the Decision-Inbox opportunity (consent-filtered, state-machine
+  governed) IS the resolution. Ambiguous/consentless/call-only rows are
+  refused server-side.
+- **statenour MUST show Nour the exact body** (usually from
+  `draft_opportunity_sms`, editable) **and collect an explicit approval in
+  the conversation before calling.** `approvedBy` records who approved.
+  Calling without a shown-and-approved body violates this contract even
+  though the server cannot verify it — treat it like a signing key.
+- **Idempotency is mandatory:** derive `idempotencyKey` from the approval
+  event (e.g. chat turn id). A replayed call returns
+  `{ duplicate: true, sent: false }` and sends nothing.
+- **Server-side gates still apply in full:** preflight guard (critical
+  findings block), opt-out fail-closed, per-phone + global caps, global
+  pause, quiet-hour queueing, and the opportunity receipt (`attempted`) —
+  nickstire trusts NONE of this to the caller.
+- Failures are structured: `{ ok: false, error }` — surface the error to
+  Nour verbatim; never retry with a new idempotency key without a fresh
+  approval.
 
 ## Notes on ALG / Auto Labor Experts coupling
 

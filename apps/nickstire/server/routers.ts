@@ -89,11 +89,13 @@ import { revenueAttributionRouter } from "./routers/revenueAttribution";
 import { statenourMetricsRouter } from "./routers/statenourMetrics";
 import { instagramStudioRouter } from "./routers/instagramStudio";
 import { closedLoopRouter } from "./routers/closedLoop";
+import { vehicleDataRouter } from "./routers/vehicleData";
 import { membershipsRouter } from "./routers/memberships";
 import { adStudioRouter } from "./routers/adStudio";
 import { opportunityQueueRouter } from "./routers/opportunityQueue";
 import { promisesRouter } from "./routers/promises";
 import { quoteGuardRouter } from "./routers/quoteGuard";
+import { smsOpsRouter } from "./routers/smsOps";
 
 export const appRouter = router({
   system: systemRouter,
@@ -124,6 +126,7 @@ export const appRouter = router({
   opportunityQueue: opportunityQueueRouter,
   promises: promisesRouter,
   quoteGuard: quoteGuardRouter,
+  smsOps: smsOpsRouter,
   statenourMetrics: statenourMetricsRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,
@@ -200,6 +203,8 @@ export const appRouter = router({
   closedLoop: closedLoopRouter,
   socialPipeline: socialPipelineRouter,
   metaAdsArchitect: metaAdsArchitectRouter,
+  // WP-23 · NHTSA read-only vehicle enrichment (VIN decode + recalls)
+  vehicleData: vehicleDataRouter,
 });
 
 export type AppRouter = typeof appRouter;

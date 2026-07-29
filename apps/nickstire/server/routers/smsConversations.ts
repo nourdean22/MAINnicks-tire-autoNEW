@@ -99,7 +99,10 @@ export const smsConversationsRouter = router({
         // 216-862-0005) so customers see the text from the shop's real
         // number — same line they already trust. Falls back to Twilio if
         // the gateway is offline.
-        const result = await sendSms(normalized, cleanMessage, { via: "shop" });
+        // humanInitiated (2026-07-29): operator manual sends are exempt from
+        // the chokepoint takeover suppression — without this the operator's
+        // second reply would be blocked by the takeover their first created.
+        const result = await sendSms(normalized, cleanMessage, { via: "shop", humanInitiated: true });
 
         // Record the outbound message
         await addSmsMessage({

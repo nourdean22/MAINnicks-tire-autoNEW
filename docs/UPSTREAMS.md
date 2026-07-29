@@ -42,6 +42,19 @@ verdict changes.**
 | Plausible / PostHog | analytics / experiments | **WATCH** (2026-07-28, #1173) | **Reopen trigger:** outcome ledger + fleet metrics accrue enough volume that questions outgrow first-party receipts (~weeks) |
 | Cal.com | scheduling | **WATCH** | no booking-volume evidence; nickstire booking flows exist. Reopen on real scheduling pain |
 | LangGraph | orchestration kernel | **REJECT** (2026-07-29 audit's own conclusion) | "the answer is to formalize the machinery already present" — done: execution-class vocabulary in `@nour/utils` contracts |
+| OTel GenAI semconv | trace field standards | **ADOPT-PATTERN** (audit-#12) | map AgentTrace/ai-cost fields to `gen_ai.*` names — no new infra, standards alignment only; blueprint WP-20. Never log raw prompts unredacted |
+| Braintrust | eval experiments | **ADOPTED** (verified: dep 3.10.0, `braintrust-wrap.ts` live) | extend, don't add: recall failures + claim warnings + operator verdicts → versioned eval datasets (WP-21); local no-send first |
+| Phoenix (Arize) | OSS trace/eval workbench | **WATCH** | same class as Langfuse but OSS/local; reopen only if AgentTrace + /system/ai-cost prove insufficient for a NAMED question |
+| GBP Performance API | local-search metrics | **ADOPT-CANDIDATE** (audit-#12's best nickstire find) | gbp-publisher is posting-only (verified: auth/location/post — no performance); read-only keyword-impressions ingestion joins GSC+calls+bookings; WP-22 |
+| NHTSA vPIC + recalls | vehicle data (free, gov) | **ADOPT-CANDIDATE** | VIN/YMM normalization + recall-aware lead enrichment, read-only advisor framing, cached + source-labeled; WP-23 |
+| GA4 Data API | post-click attribution | **PARTIAL-INCUMBENT** | wired (`server/analytics.ts`); the delta is the GSC×GA4×leads JOIN, not the API |
+| Lighthouse CI + CrUX | web-vitals regression + field data | **ADOPT-CANDIDATE** | public-site budget gates + field LCP/INP/CLS into the SEO cockpit; WP-22 companion |
+| ActivityWatch | local activity truth | **WATCH** (personal-OS lane) | aggregates-only ingest (never raw window titles) after the health lane proves the ingest pattern; same inlet architecture as Apple Health |
+| Home Assistant | device hub | **WATCH** | camera-bridge + SmartDevice are the incumbents; HA reopens if device count outgrows them — consume state, approval-gate commands |
+| Actual Budget | personal finance | **REGISTERED as the WP-9 answer** | if the Money tabs come back, IMPORT Actual summaries — never rebuild a finance app in-repo |
+| AI SDK 7 | agent SDK major | **WATCH** | on v6 today; reopen on a NAMED v7 feature need (tool approvals exist natively; `@ai-sdk/otel` pairs with WP-20) |
+| OWASP LLM Top-10 · NIST AI RMF · MITRE ATLAS · CSA | AI security governance | **ADOPT-AS-CHECKLIST** | threat-model references for the existing fencing/approval/injection gates — audit lens, not dependency |
+| OpenBB | finance data connectors | **REJECT-for-now** | same verdict as Fincept/Vibe; only relevant if money rebuilds as BUSINESS research |
 
 **Rules of the register:** every verdict cites a receipt or a trigger —
 no vibes; WATCH entries must state the concrete reopen condition;

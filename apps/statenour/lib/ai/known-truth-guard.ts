@@ -48,12 +48,18 @@ const SAFE_FRAMING =
   /\b(retired|deprecated|legacy|no longer|not\s+(?:anymore|any more|on)|used to|formerly|previously|was (the|our|on)|old (deploy|host|setup|stack)|migrated (away |off )?from|moved (away |off )?from|replaced|instead of|don'?t (deploy|use)|isn'?t|aren'?t|never)\b/i;
 
 // ── Evidence-free engineering-status rules ───────────────────────────
+// WP-18 (2026-07-29, audit-#10 keeper) added the ARTIFACT and BROWSER
+// clauses: "the video has been created" and "I submitted the form" are
+// the same fake-confidence failure as "tests passed" — a completion
+// claim with no receipt in the sentence. The runtime pairs these flags
+// with actual receipts (canClaimDone) before acting on them, so a claim
+// WITH its artifact id in-sentence passes via EVIDENCE below.
 const STATUS_CLAIM =
-  /\b(deployed|re-?deployed|shipped|pushed to (prod|main)|merged (to|into) main|landed on (main|origin)|tests? (passed|are green|pass(?:ing)?)|build (is )?green|build (passed|succeeded)|migration (is )?(applied|live|done)|i verified|i confirmed|it'?s (deployed|live|shipped|done)|is now live)\b/i;
+  /\b(deployed|re-?deployed|shipped|pushed to (prod|main)|merged (to|into) main|landed on (main|origin)|tests? (passed|are green|pass(?:ing)?)|build (is )?green|build (passed|succeeded)|migration (is )?(applied|live|done)|i verified|i confirmed|it'?s (deployed|live|shipped|done)|is now live|(video|image|reel|clip|report|pdf|file) (has been |was |is )?(created|generated|rendered|saved|exported)|i('ve| have)? (created|generated|rendered|exported) (the |a |your )?(video|image|reel|clip|report|pdf)|i (navigated to|clicked|filled (in|out)|logged in)|(i )?submitted the form)\b/i;
 
 // Evidence markers — concrete proof in the same sentence.
 const EVIDENCE =
-  /\b(exit (code )?0|\d+\s*\/\s*\d+\s*(tests?|passing|green)|\d+ tests? (pass|passing|green)|commit\s+`?[0-9a-f]{7}|deployment\s+[0-9a-f-]{6}|status:?\s*SUCCESS|per the (log|output|build)|verified (via|live|on)|https?:\/\/|railway (status|build|deploy)|build log|i (saw|observed|ran|checked)|screenshot|information_schema)\b/i;
+  /\b(exit (code )?0|\d+\s*\/\s*\d+\s*(tests?|passing|green)|\d+ tests? (pass|passing|green)|commit\s+`?[0-9a-f]{7}|deployment\s+[0-9a-f-]{6}|status:?\s*SUCCESS|per the (log|output|build)|verified (via|live|on)|https?:\/\/|railway (status|build|deploy)|build log|i (saw|observed|ran|checked)|screenshot|information_schema|artifact (id|path)\b|receipt (id)?\s*[:#]|\.(mp4|png|jpg|webm|pdf)\b)\b/i;
 
 // Reported speech — not Nick's own assertion.
 const REPORTED =

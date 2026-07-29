@@ -181,9 +181,15 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
     // would be refused for "cannot verify opt-out status" and never reach the
     // Twilio mock. skipOptOutCheck isolates the subject under test; the gate's
     // own behaviour is covered in server/__tests__/sms-optout-failclosed.test.ts.
-    const noGate = { skipOptOutCheck: true } as const;
+    // 2026-07-29 · same isolation for the control gates: with no DB, the
+    // global-pause state is UNREADABLE, and customer_marketing fails CLOSED
+    // (held to the queue — correct production behavior, pinned in
+    // sendSmsControlGates.test.ts). customer_followup fails OPEN by design,
+    // so classing these sends as followup lets the FOOTER (the subject under
+    // test — applied to every non-internal class) reach the Twilio mock.
+    const noGate = { skipOptOutCheck: true, messageClass: "customer_followup" } as const;
 
-    // Regular marketing send to normal customer should append footer
+    // Regular customer send should append footer
     await sms.sendSms("2165550001", "Promo message", { via: "twilio", ...noGate });
     expect(mockTwilioCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -192,7 +198,7 @@ describe("SMS Opt-Out Compliance & Footer Bypass", () => {
     );
 
     // Transactional send should bypass
-    await sms.sendSms("2165550002", "Transactional message", { via: "twilio", messageClass: "customer_confirmation", ...noGate });
+    await sms.sendSms("2165550002", "Transactional message", { via: "twilio", ...noGate, messageClass: "customer_confirmation" });
     expect(mockTwilioCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         body: "Transactional message\n\nReply STOP to opt out.",

@@ -268,19 +268,38 @@ before accepting any "connect X" recommendation.
   section). Acceptance: a gated/rewritten reply shows WHY in the panel.
 - **WP-12 · Mutation-receipt coverage count:** enumerate tRPC mutations vs
   EntityAudit/auditEvent writers; close the uncovered set or document why.
-- **WP-17 · ToolMeta `status` field** (audit-#10 keeper): optional
-  `"live" | "scaffold" | "blocked" | "retired"` on catalog entries,
-  surfaced on /system/tools — the ROS-registry stale-status defect
-  class, prevented at the metadata layer. Worth doing WITH real data
-  (classify while touching), not as empty ceremony.
-- **WP-18 · Artifact-honesty eval scenarios** (audit-#10 keeper): eval
-  cases asserting no "video created"/"browser task done" claim without
-  an artifact id or receipt — extends the S3 receipts doctrine into the
-  eval suite (moneyprinter + browser_* are the first targets).
+- **WP-17 · ToolMeta `status` field** — **CLOSED AS ALREADY EXISTING**
+  (2026-07-29, 13th incumbent catch — against my own plan this time):
+  `system.getTools` already returns per-tool `health` + `missingEnv`
+  from `getToolHealthSummary()`, which IS the measured env-derived
+  status; /system/tools renders it. A manual override field with no
+  data would be the ceremony the original note warned against.
+- **WP-18 · Artifact-honesty eval scenarios** — **DONE 2026-07-29**:
+  known-truth-guard STATUS_CLAIM extended with artifact claims ("video
+  has been created") + browser-action claims ("submitted the form");
+  evals #21-24 pin flag/no-flag both directions (honest "can't do that
+  yet" and claim-with-artifact-id both pass clean). Red-green earned
+  its keep: #21 caught my own too-loose "saved to X" evidence marker
+  ("saved to your library" read as proof) before it shipped.
 - **WP-19 · Business cash-flow forecasting** (audit-#10 keeper, reframed
   from its finance-lab): nickstire cash-flow forecast beside the
   existing weekly pricing-advisory — business finance, not personal
   trading; read-only artifacts.
+- **WP-20 · OTel GenAI field mapping** (audit-#12): rename/mirror
+  AgentTrace + ai-cost fields to `gen_ai.*` semconv names — standards
+  alignment, zero new infra, no raw-prompt logging.
+- **WP-21 · Braintrust eval-dataset spine** (audit-#12; dep verified
+  live): recall failures, claim warnings, and operator accept/dismiss
+  verdicts become versioned datasets; smoke evals on PRs, local
+  no-send first. Extends Spine-8 + WP-18, replaces nothing.
+- **WP-22 · nickstire search-conversion data spine** (audit-#12): GBP
+  Performance API ingestion (publisher is posting-only today) + the
+  GSC×GA4×leads join + LHCI/CrUX budgets — read-only, feeds the
+  existing GSC pipeline and SEO cockpit; subsumes the GSC ranked-merge
+  deferral.
+- **WP-23 · NHTSA vehicle enrichment** (audit-#12): vPIC VIN/YMM
+  normalization + recall-aware lead enrichment; read-only advisor
+  framing, cached, source-labeled.
 
 ## Honestly not audited (scope declared, not hidden)
 
