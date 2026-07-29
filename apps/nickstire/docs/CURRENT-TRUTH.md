@@ -1,8 +1,9 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` on 2026-07-21  
-**Owner:** Nick's Tire & Auto operator
+**Verified against:** `main` on 2026-07-29 (SMS Revenue Agent OS arc, PRs #1190–#1201)  
+**Owner:** Nick's Tire & Auto operator  
+**Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
