@@ -40,3 +40,13 @@ describe("route-policy · public allowlist", () => {
     expect(PUBLIC_EXACT).not.toContain("/api/health");
   });
 });
+
+describe("apple-health inlets bypass the session gate (H1 smoke-caught bug)", () => {
+  // The end-to-end smoke's first live POST hit the middleware 401
+  // ({"error":"Unauthorized"}) before the route's own bearer auth could
+  // run — the exact bug /api/health/summary had before its exemption.
+  it("both device inlets are session-exempt (own bearer auth at the route)", () => {
+    expect(isPublic("/api/integrations/apple-health/v1/hae")).toBe(true);
+    expect(isPublic("/api/integrations/apple-health/v1/batches")).toBe(true);
+  });
+});
