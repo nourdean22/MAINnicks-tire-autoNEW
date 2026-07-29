@@ -10,6 +10,7 @@ import { ChatCapabilityIndicator } from "./chat-capability-indicator";
 import { OperatorConversationDrawer } from "./operator-conversation-drawer";
 import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
+import { extractQuality } from "@/lib/chat/extract-message-metadata";
 import { useConversations } from "@/hooks/use-conversations";
 
 function useScrollToBottom<T extends HTMLElement>() {
@@ -110,6 +111,17 @@ export function ChatIsland() {
       .trim();
   }, [chat.messages]);
 
+  // WP-11 (2026-07-29): the latest assistant turn's persisted quality
+  // verdicts (gate · critic · factCheck · truth · receipt) for the
+  // Context & Evidence panel. Live-streaming turns have no blob until
+  // the server finalize writes it — the panel labels that honestly.
+  const replyQuality = useMemo(() => {
+    const lastAssistant = [...chat.messages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    return lastAssistant ? extractQuality(lastAssistant as never) : undefined;
+  }, [chat.messages]);
+
   useEffect(() => {
     if (!memoryInspectorOpen || !lastUserText) return;
     const controller = new AbortController();
@@ -199,7 +211,7 @@ export function ChatIsland() {
         <ChatComposer chat={chat} />
       </div>
 
-      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} />
+      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} />
 
       {historyDrawerOpen && (
         <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge bg-void sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>

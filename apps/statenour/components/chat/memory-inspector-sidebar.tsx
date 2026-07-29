@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Brain, Sparkles, AlertTriangle, X } from "lucide-react";
+import { Brain, Sparkles, AlertTriangle, ShieldCheck, X } from "lucide-react";
+import type { QualityPayload } from "@/components/chat/quality-bar";
 
 export interface MemoryHit {
   id: string;
@@ -25,6 +26,10 @@ export interface MemoryInspectorSidebarProps {
   /** When the recall shown here was fetched — UI-2: evidence without a
    *  timestamp is a claim, not evidence. Null = not fetched yet. */
   fetchedAt?: Date | null;
+  /** WP-11 (2026-07-29): the latest assistant turn's persisted quality
+   *  verdicts — gate · critic · factCheck · truth · receipt. Undefined
+   *  when no blob has been persisted yet (live turn, or old history). */
+  reply?: QualityPayload;
 }
 
 export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
@@ -33,6 +38,7 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   hits,
   contradictions,
   fetchedAt,
+  reply,
 }) => {
   if (!open) return null;
   // Absolute time, not "Ns ago": render stays pure (no Date.now() during
@@ -66,6 +72,106 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* WP-11 · Reply verdicts — why the last answer was allowed,
+            rewritten, warned, or flagged. Reads the SAME persisted
+            tokenUsage blob the quality bar reads — one source, no drift. */}
+        <div>
+          <div className="flex items-center space-x-1 text-sky-400 mb-3">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider font-display">
+              This reply — quality verdicts
+            </span>
+          </div>
+          {!reply ? (
+            <p className="text-[11px] text-zinc-500 italic">
+              No quality metadata persisted yet — a live turn finalizes after the
+              stream ends; older conversations may predate the verdict blob.
+            </p>
+          ) : (
+            <div className="space-y-2 text-[11px]">
+              {reply.gate && (
+                <div className="bg-zinc-900/50 border border-zinc-800 p-2.5 rounded-lg">
+                  <div className="flex justify-between text-[9px] font-mono text-zinc-500 mb-0.5">
+                    <span>reply gate</span>
+                    <span className={reply.gate.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
+                      {reply.gate.shouldRegen ? "FLAGGED FOR REGEN" : "passed"} · sev {reply.gate.severity ?? 0}
+                    </span>
+                  </div>
+                  {(reply.gate.reasons ?? []).length > 0 && (
+                    <p className="text-zinc-400">{(reply.gate.reasons ?? []).join(" · ")}</p>
+                  )}
+                </div>
+              )}
+              {reply.critic && (
+                <div className="bg-zinc-900/50 border border-zinc-800 p-2.5 rounded-lg">
+                  <div className="flex justify-between text-[9px] font-mono text-zinc-500 mb-0.5">
+                    <span>output critic</span>
+                    <span className={reply.critic.shouldRegen ? "text-amber-400" : "text-emerald-400"}>
+                      {reply.critic.overall ?? "—"}/100{reply.critic.shouldRegen ? " · would regen" : ""}
+                    </span>
+                  </div>
+                  {(reply.critic.reasons ?? []).length > 0 && (
+                    <p className="text-zinc-400">{(reply.critic.reasons ?? []).slice(0, 3).join(" · ")}</p>
+                  )}
+                </div>
+              )}
+              {reply.receipt && (
+                <div
+                  className={`border p-2.5 rounded-lg ${
+                    reply.receipt.ok === false
+                      ? "bg-rose-950/10 border-rose-900/30"
+                      : "bg-zinc-900/50 border-zinc-800"
+                  }`}
+                >
+                  <div className="flex justify-between text-[9px] font-mono text-zinc-500 mb-0.5">
+                    <span>action receipts</span>
+                    <span className={reply.receipt.ok === false ? "text-rose-400" : "text-emerald-400"}>
+                      {reply.receipt.ok === false
+                        ? "CLAIM WITHOUT RECEIPT — banner applied"
+                        : `${(reply.receipt.toolsFired ?? []).length} tool call(s) receipted`}
+                    </span>
+                  </div>
+                  {(reply.receipt.offenders ?? []).length > 0 && (
+                    <p className="text-rose-300">
+                      {(reply.receipt.offenders ?? [])
+                        .map((o) => `${o.label || o.toolName} (${o.status})`)
+                        .join(" · ")}
+                    </p>
+                  )}
+                </div>
+              )}
+              {reply.truth && (reply.truth.total ?? 0) > 0 && (
+                <div className="bg-amber-950/10 border border-amber-900/30 p-2.5 rounded-lg">
+                  <div className="text-[9px] font-mono text-amber-400 mb-0.5">
+                    known-truth flags ({reply.truth.total})
+                  </div>
+                  <p className="text-zinc-400">
+                    {(reply.truth.flags ?? [])
+                      .slice(0, 3)
+                      .map((f) => f.rule || f.kind)
+                      .join(" · ")}
+                  </p>
+                </div>
+              )}
+              {reply.factCheck && (
+                <div className="bg-zinc-900/50 border border-zinc-800 p-2.5 rounded-lg">
+                  <div className="flex justify-between text-[9px] font-mono text-zinc-500">
+                    <span>fact check</span>
+                    <span className={(reply.factCheck.unverified ?? 0) > 0 ? "text-amber-400" : "text-emerald-400"}>
+                      {reply.factCheck.unverified ?? 0}/{reply.factCheck.total ?? 0} unverified
+                    </span>
+                  </div>
+                </div>
+              )}
+              {!reply.gate && !reply.critic && !reply.receipt && !reply.truth && !reply.factCheck && (
+                <p className="text-zinc-500 italic">
+                  Blob present but carries no verdicts — nothing fired this turn.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Memory Hits Section */}
         <div>
           <div className="flex items-center space-x-1 text-gold mb-3">
