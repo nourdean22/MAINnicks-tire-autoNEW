@@ -291,6 +291,36 @@ export const smsOpsRouter = router({
     }),
 
   /**
+   * Hand a conversation back to the AI early (Autopilot Wave 6). The
+   * 60-min takeover hold self-expires; this ends it NOW — the blueprint's
+   * "unless the employee releases it", finally real. Writes the release
+   * audit row humanTakeover.ts reads; a manual reply AFTER the release
+   * re-arms the hold (most-recent signal wins). Idempotent by semantics
+   * (releasing an unheld thread is a harmless no-op row).
+   */
+  releaseTakeover: adminProcedure
+    .input(z.object({ conversationId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      // Direct fail-LOUD insert (not logAdminAction, which swallows errors
+      // by design): here the audit row IS the release mechanism — a
+      // swallowed write would report "released" while the hold persists.
+      const { getDb } = await import("../db");
+      const { auditLog } = await import("../../drizzle/schema");
+      const { randomUUID } = await import("crypto");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available — hold NOT released" });
+      await db.insert(auditLog).values({
+        id: randomUUID(),
+        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+        action: "customer.sms_takeover_released",
+        entityType: "sms_conversation",
+        entityId: String(input.conversationId),
+        changes: { note: "Operator released the takeover hold — AI may auto-reply again on this thread" },
+      });
+      return { ok: true, conversationId: input.conversationId };
+    }),
+
+  /**
    * Arm / lift the global SMS pause. Operator action from the admin UI
    * (two-tap confirmed client-side). Audit-logged. HOLD semantics — see
    * services/smsControl.ts.

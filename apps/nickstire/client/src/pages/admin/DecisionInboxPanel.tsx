@@ -65,6 +65,12 @@ export default function DecisionInboxPanel() {
   );
   const [busyId, setBusyId] = useState<string | null>(null);
   const [invoiceInputs, setInvoiceInputs] = useState<Record<string, string>>({});
+  /** Wave 6: per-row "manual match" — the backend always supported
+   *  allowManualMatch; without this toggle a legitimately-won opportunity
+   *  with a mismatched phone was un-closable from the UI. */
+  const [manualMatch, setManualMatch] = useState<Record<string, boolean>>({});
+  /** Wave 6: snooze duration choice (was a fixed 2 days). */
+  const [snoozeChoice, setSnoozeChoice] = useState<Record<string, string>>({});
   /** id whose draft editor is open + the editable text + server risk meta */
   const [draftFor, setDraftFor] = useState<string | null>(null);
   const [draftText, setDraftText] = useState("");
@@ -252,6 +258,7 @@ export default function DecisionInboxPanel() {
                       {CALL_ONLY_SOURCES.has(d.sourceType) ? "CALL-FIRST" : "call or text"}
                     </span>
                     {" · "}evidence: {d.dataQuality} · attempts: {d.attempts} · state: {d.state}
+                    {d.owner ? <> · <span className="text-nick-yellow/80">owner: {d.owner}</span></> : null}
                     {d.customerPhone ? <> · <a className="underline hover:text-foreground" href={`tel:${d.customerPhone}`}>{d.customerPhone}</a></> : null}
                   </p>
 
@@ -274,12 +281,29 @@ export default function DecisionInboxPanel() {
                       className="text-[11px] px-2.5 py-1.5 rounded border border-border/40 text-foreground/60">
                       No answer
                     </button>
-                    <button
-                      disabled={busy}
-                      onClick={() => { setBusyId(d.id); snooze.mutate({ id: d.id, untilISO: new Date(Date.now() + 2 * 864e5).toISOString() }); }}
-                      className="text-[11px] px-2.5 py-1.5 rounded border border-border/40 text-foreground/60">
-                      <CalendarClock className="w-3 h-3 inline mr-1" />Snooze 2d
-                    </button>
+                    <span className="inline-flex items-center gap-1">
+                      <select
+                        value={snoozeChoice[d.id] ?? "2d"}
+                        onChange={(e) => setSnoozeChoice((m) => ({ ...m, [d.id]: e.target.value }))}
+                        className="text-[11px] px-1.5 py-1.5 rounded border border-border/40 bg-background text-foreground/60"
+                        aria-label="Snooze duration"
+                      >
+                        <option value="2h">2h</option>
+                        <option value="1d">1d</option>
+                        <option value="2d">2d</option>
+                        <option value="7d">1wk</option>
+                      </select>
+                      <button
+                        disabled={busy}
+                        onClick={() => {
+                          const ms = { "2h": 2 * 3600e3, "1d": 864e5, "2d": 2 * 864e5, "7d": 7 * 864e5 }[snoozeChoice[d.id] ?? "2d"] ?? 2 * 864e5;
+                          setBusyId(d.id);
+                          snooze.mutate({ id: d.id, untilISO: new Date(Date.now() + ms).toISOString() });
+                        }}
+                        className="text-[11px] px-2.5 py-1.5 rounded border border-border/40 text-foreground/60">
+                        <CalendarClock className="w-3 h-3 inline mr-1" />Snooze
+                      </button>
+                    </span>
                     {DRAFTABLE_SOURCES.has(d.sourceType) && d.customerPhone && d.consentOk && (
                       <button
                         disabled={busy || (draftLoading && draftFor === d.id)}
@@ -312,10 +336,23 @@ export default function DecisionInboxPanel() {
                       />
                       <button
                         disabled={busy || !/^\d+$/.test(invoiceInputs[d.id] ?? "")}
-                        onClick={() => { setBusyId(d.id); outcome.mutate({ id: d.id, invoiceId: Number(invoiceInputs[d.id]) }); }}
+                        onClick={() => { setBusyId(d.id); outcome.mutate({ id: d.id, invoiceId: Number(invoiceInputs[d.id]), allowManualMatch: manualMatch[d.id] === true }); }}
                         className="text-[11px] px-2.5 py-1.5 rounded bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 disabled:opacity-40">
                         Won
                       </button>
+                      {/* Wave 6: explicit operator judgment for invoices the matcher
+                          can't verify (mismatched phone). Recorded as `manual`,
+                          never as independently verified — backend semantics. */}
+                      <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 select-none">
+                        <input
+                          type="checkbox"
+                          checked={manualMatch[d.id] === true}
+                          onChange={(e) => setManualMatch((m) => ({ ...m, [d.id]: e.target.checked }))}
+                          className="w-3.5 h-3.5 accent-emerald-500"
+                          aria-label="Allow manual invoice match"
+                        />
+                        manual
+                      </label>
                     </span>
                   </div>
 

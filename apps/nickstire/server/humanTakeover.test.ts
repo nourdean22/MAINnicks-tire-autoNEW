@@ -17,13 +17,16 @@ function dbReturning(rows: unknown[]) {
 describe("isConversationHumanHeld", () => {
   beforeEach(() => h.getDb.mockReset());
 
+  // Wave 6 (2026-07-29): the query became release-aware — one aggregate row
+  // {lastHold, lastRelease} instead of SELECT 1. Most-recent-signal-wins
+  // cases are pinned in takeoverRelease.test.ts; these keep the base truths.
   it("is true when a recent operator manual reply exists for the conversation", async () => {
-    h.getDb.mockResolvedValue(dbReturning([{ "1": 1 }]));
+    h.getDb.mockResolvedValue(dbReturning([{ lastHold: "2026-07-29 12:00:00", lastRelease: null }]));
     expect(await isConversationHumanHeld(42)).toBe(true);
   });
 
   it("is false when no recent operator reply exists (AI may answer)", async () => {
-    h.getDb.mockResolvedValue(dbReturning([]));
+    h.getDb.mockResolvedValue(dbReturning([{ lastHold: null, lastRelease: null }]));
     expect(await isConversationHumanHeld(42)).toBe(false);
   });
 

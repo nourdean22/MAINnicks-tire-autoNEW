@@ -48,15 +48,28 @@ export async function isConversationHumanHeld(
     const db = await getDb();
     if (!db) return false; // fail-open — can't check, don't mute
     const cutoff = new Date(Date.now() - windowMinutes * 60_000);
+    // Autopilot Wave 6 (2026-07-29) — release-aware. The blueprint always
+    // said "unless the employee releases it"; the release half now exists:
+    // an operator's explicit release (audit action
+    // 'customer.sms_takeover_released', written by smsOps.releaseTakeover)
+    // ends the hold immediately IF it postdates the latest manual reply.
+    // A manual reply AFTER a release re-arms the hold — most-recent signal
+    // wins, which matches how a human actually hands a thread back.
     const [rows] = await db.execute(sql`
-      SELECT 1 FROM audit_log
-      WHERE action = 'customer.sms_manual_send'
-        AND entity_type = 'sms_conversation'
+      SELECT
+        MAX(CASE WHEN action = 'customer.sms_manual_send' THEN created_at END) AS lastHold,
+        MAX(CASE WHEN action = 'customer.sms_takeover_released' THEN created_at END) AS lastRelease
+      FROM audit_log
+      WHERE entity_type = 'sms_conversation'
         AND entity_id = ${String(conversationId)}
         AND created_at >= ${cutoff}
-      LIMIT 1
     `);
-    return Array.isArray(rows) && rows.length > 0;
+    const first = (Array.isArray(rows) ? rows[0] : undefined) as
+      | { lastHold?: unknown; lastRelease?: unknown }
+      | undefined;
+    if (!first?.lastHold) return false;
+    if (!first.lastRelease) return true;
+    return new Date(String(first.lastHold)).getTime() > new Date(String(first.lastRelease)).getTime();
   } catch (err) {
     log.warn("human-held check failed; treating as not-held (fail-open)", {
       conversationId,
