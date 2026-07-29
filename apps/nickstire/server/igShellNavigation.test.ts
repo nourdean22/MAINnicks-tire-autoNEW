@@ -19,7 +19,9 @@ describe("view vocabulary", () => {
   });
 
   it("rare surfaces live behind the gear, not in the primary row", () => {
-    expect(IG_SECONDARY_VIEWS.map((v) => v.key)).toEqual(["planning", "actions", "control", "settings"]);
+    // "patterns" joined 2026-07-29 (Pattern Lab, Wave C′) — a deliberate
+    // registry addition; this pin exists to catch ACCIDENTAL drift.
+    expect(IG_SECONDARY_VIEWS.map((v) => v.key)).toEqual(["planning", "patterns", "actions", "control", "settings"]);
   });
 });
 
