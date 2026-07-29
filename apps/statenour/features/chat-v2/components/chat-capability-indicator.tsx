@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, WifiOff } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, WifiOff } from "lucide-react";
+import { capabilityBadge, type ProviderTone } from "../lib/capability-label";
 import { trpc } from "@/lib/trpc/client";
 import { useChatUiStore } from "../stores/chat-ui-store";
 
@@ -16,20 +17,28 @@ export function ChatCapabilityIndicator() {
     retry: 1,
   });
 
-  const providerTone = providers.data?.overallTone ?? (providers.isError ? "red" : "amber");
+  // 2026-07-29 · the tone used to default to "amber" while the health
+  // query was still in flight — and amber's label is "fallback active",
+  // so a perfectly healthy app announced a provider failure on every
+  // load. Loading now travels as `undefined` and capabilityBadge()
+  // decides what may be CLAIMED: cautious styling, honest words.
   const toolSummary = tools.data?.summary;
-  const degraded = connection !== "online" || providerTone !== "green" || Boolean(toolSummary && (toolSummary.degraded > 0 || toolSummary.down > 0));
-  const label = connection === "offline"
-    ? "chat offline"
-    : providerTone === "red"
-      ? "AI offline"
-      : providerTone === "amber"
-        ? "fallback active"
-        : toolSummary
-          ? `${toolSummary.totalTools} tools ready`
-          : "checking capabilities";
+  const badge = capabilityBadge({
+    connection,
+    providerTone: providers.data?.overallTone as ProviderTone | undefined,
+    providerErrored: providers.isError,
+    toolSummary,
+  });
+  const degraded = badge.cautious;
+  const label = badge.label;
 
-  const Icon = connection === "offline" ? WifiOff : degraded ? AlertTriangle : CheckCircle2;
+  const Icon = connection === "offline"
+    ? WifiOff
+    : badge.unknown
+      ? Loader2
+      : degraded
+        ? AlertTriangle
+        : CheckCircle2;
 
   return (
     <Link
@@ -41,7 +50,7 @@ export function ChatCapabilityIndicator() {
           : "border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-300 hover:bg-emerald-500/10"
       }`}
     >
-      <Icon size={11} />
+      <Icon size={11} className={badge.unknown ? "animate-spin" : undefined} />
       {label}
       {toolSummary && toolSummary.down > 0 ? ` · ${toolSummary.down} down` : ""}
     </Link>
