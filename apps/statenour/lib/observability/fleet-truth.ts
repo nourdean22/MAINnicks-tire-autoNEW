@@ -67,6 +67,24 @@ export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
       return r?.createdAt ?? null;
     },
   },
+  {
+    // WP-4 · 2026-07-28 · the brain-bus drain watches ITSELF here so a
+    // future dead consumer surfaces in /system/fleet instead of a future
+    // audit — the lane just spent two months dead with zero callers while
+    // nine producers published (393-event backlog, replayed to zero the
+    // night this probe landed). Cadence is */15; maxAgeH 1 = four missed
+    // ticks before stale, so a single worker restart never flaps it.
+    capability: "brain-bus-drain",
+    maxAgeH: 1,
+    probe: async () => {
+      const r = await prisma.cronJobLog.findFirst({
+        where: { jobName: "brain-bus-drain", status: "success" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
+      return r?.createdAt ?? null;
+    },
+  },
 ];
 
 export async function statenourArtifacts(): Promise<CapabilityArtifact[]> {
