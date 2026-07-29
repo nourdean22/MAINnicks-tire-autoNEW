@@ -129,8 +129,30 @@ export async function draftOpportunityOutreach(opp: OpportunityRow): Promise<Opp
   const { label, reasons } = riskLabelFor(opp);
   const { draft, noDraftReason } = buildDraftBody(opp);
 
+  // Wave 4 (identity): surface the live verdict on the draft so the operator
+  // sees "ambiguous/conflicted" BEFORE deciding — the send path enforces it.
+  let identityLabel = label;
+  if (opp.customerPhone) {
+    try {
+      const { resolveIdentity } = await import("./identityResolution");
+      const identity = await resolveIdentity(opp.customerPhone);
+      if (identity.verdict === "ambiguous" || identity.verdict === "conflicted") {
+        identityLabel = "elevated";
+        reasons.push(
+          identity.verdict === "ambiguous"
+            ? `identity AMBIGUOUS — ${identity.evidence.filter((e) => e.source === "customer").length} customers share this phone; a personalized text risks the wrong person (send is blocked; call instead)`
+            : "identity CONFLICTED — recent lead/booking names differ from the customer record; send is blocked, call instead",
+        );
+      } else if (!identity.readable) {
+        reasons.push("identity verdict UNREADABLE — send will refuse until it can be verified");
+      }
+    } catch {
+      // advisory surface only; the send path re-checks with fail-closed rules
+    }
+  }
+
   if (!draft) {
-    return { ok: true, bestChannel, draft: null, noDraftReason, riskLabel: label, riskReasons: reasons, guardFindings: [] };
+    return { ok: true, bestChannel, draft: null, noDraftReason, riskLabel: identityLabel, riskReasons: reasons, guardFindings: [] };
   }
 
   // Same deterministic guard the AI reply path runs — belt on suspenders even
@@ -147,7 +169,7 @@ export async function draftOpportunityOutreach(opp: OpportunityRow): Promise<Opp
     ok: true,
     bestChannel,
     draft: humanized,
-    riskLabel: label,
+    riskLabel: identityLabel,
     riskReasons: reasons,
     guardFindings: guard.findings.map((f) => ({ code: f.code, message: f.message })),
   };
@@ -189,6 +211,31 @@ export async function sendOpportunityDraft(params: SendDraftParams): Promise<Sen
   const body = params.body.trim();
   if (!body) return { ok: false, error: "empty message" };
   if (body.length > 480) return { ok: false, error: "message too long (480 char cap ≈ 3 SMS segments)" };
+
+  // Wave 4 · identity gate (mission P2: "block personalized autonomous
+  // outreach when identity is ambiguous"). Rules:
+  //   ambiguous/conflicted → REFUSE (2+ customers on the phone, or the
+  //     customer record's name disagrees with what the person recently
+  //     typed — a personalized text risks naming the wrong human; the CALL
+  //     is the safe channel).
+  //   unresolved → ALLOW (no customer record at all is normal for a lead;
+  //     the draft's name comes from the person's own submission).
+  //   unreadable → REFUSE (can't verify → don't personalize).
+  try {
+    const { resolveIdentity } = await import("./identityResolution");
+    const identity = await resolveIdentity(opp.customerPhone);
+    if (!identity.readable) {
+      return { ok: false, error: "identity verdict unreadable — refusing to send a personalized text; call instead" };
+    }
+    if (identity.verdict === "ambiguous" || identity.verdict === "conflicted") {
+      return {
+        ok: false,
+        error: `identity ${identity.verdict} — ${identity.verdict === "ambiguous" ? "multiple customers share this phone" : "recent lead/booking names differ from the customer record"}; a personalized text risks the wrong person. Call instead.`,
+      };
+    }
+  } catch (err) {
+    return { ok: false, error: `identity check failed (${err instanceof Error ? err.message : "unknown"}) — refusing to send unverified` };
+  }
 
   const { runNickgptPreflightGuard } = await import("./nickgptPreflightGuard");
   const guard = runNickgptPreflightGuard({
