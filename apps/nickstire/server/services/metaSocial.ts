@@ -1036,6 +1036,8 @@ export async function getMediaInsights(
 type GraphMediaNode = {
   id: string;
   media_type?: string;
+  /** REELS vs FEED — media_type alone says VIDEO for a published reel (IG-037). */
+  media_product_type?: string;
   caption?: string;
   permalink?: string;
   like_count?: number;
@@ -1055,7 +1057,7 @@ export async function fetchInstagramMedia(
     return { ok: false, error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN + META_IG_USER_ID)" };
   }
   try {
-    const fields = "id,media_type,caption,permalink,like_count,comments_count,timestamp,media_url,thumbnail_url";
+    const fields = "id,media_type,media_product_type,caption,permalink,like_count,comments_count,timestamp,media_url,thumbnail_url";
     const url = `${GRAPH_URL}/${igUserId}/media?fields=${fields}&limit=${Math.min(Math.max(limit, 1), 100)}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
     const data = await res.json().catch(() => null);
@@ -1080,6 +1082,7 @@ export async function fetchInstagramMedia(
       posted: n.timestamp ?? "",
       mediaUrl: n.media_url,
       thumbnailUrl: n.thumbnail_url,
+      mediaProductType: n.media_product_type ?? null,
     }));
     return { ok: true, posts };
   } catch (err) {

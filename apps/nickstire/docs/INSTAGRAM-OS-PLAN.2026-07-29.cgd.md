@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: PENDING
 hitl-pending-count: 3
 points-passed: 1-9
-document-sha256: 8a7d801f69a285c59711712671707ba34e424985b21a550bea47ff732b2eae50
+document-sha256: 0040f16565c519fcc2d498535024aa63a2e604f1d7843faef28429a263130fd7
 hitl-claims:
   - id: claim-feed-audit
     text: "Current public @nicks_tire_euclid feed quality is unaudited; a 20-post/20-reel authenticated sample audit is a launch prerequisite"
@@ -253,6 +253,29 @@ gate PR:
 Wave C snapshot table — both are hand-applied TiDB DDL; an unapplied
 migration merged ahead of application has already caused live errors here
 once (the 0084 era). They ship as a coordinated migration batch next.
+
+## Migration batch execution record (third PR, same day)
+
+**Migration 0106 APPLIED TO PROD 2026-07-29 (before merge — the 0084-era
+sequencing rule):** guarded additive ALTER added
+`instagram_analytics.mediaProductType` + `CREATE TABLE IF NOT EXISTS
+ig_metric_snapshots` (10 columns); applicator post-checks green
+(`scripts/apply-0106-ig-insights.mts`, journaled idx 119).
+
+- **A2 CLOSED (IG-037):** Graph fetch now requests `media_product_type`;
+  sync persists it (insert + never-clobber-with-null update); reader
+  returns it; Learn shows a "Reel" badge when `REELS`. A published reel
+  can no longer be misclassified as generic VIDEO.
+- **Wave C substrate LIVE:** append-only `ig_metric_snapshots` written on
+  every sync tick per post (likes/comments/reach/saved/views/shares/
+  followerSnapshot). Failures are counted LOUDLY in the sync result
+  (`snapshotsWritten`/`snapshotErrors`) and a non-empty sync writing zero
+  snapshots logs as an error — the silent-IDLE class, pre-blocked.
+  **Verification owed:** after the next scheduled sync, probe
+  `SELECT COUNT(*) FROM ig_metric_snapshots` (> 0 expected).
+- **Still open on this lane:** windowed 24h/7d/30d display + cohorts +
+  experiment registry — they need accrued snapshots before any UI can be
+  honest, so they land after data exists (days, not code).
 
 ## Standing refuted list (do not re-plan — additions from this gate)
 

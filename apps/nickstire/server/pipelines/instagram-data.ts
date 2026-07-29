@@ -12,7 +12,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
-import { instagramAnalytics } from "../../drizzle/schema";
+import { instagramAnalytics, igMetricSnapshots } from "../../drizzle/schema";
 import { desc, eq, gte, sql } from "drizzle-orm";
 import { getInstagramPosts, getInstagramAccount } from "../instagram";
 
@@ -40,6 +40,8 @@ export interface PostAnalysis {
   saved: number | null;
   views: number | null;
   shares: number | null;
+  /** Graph media_product_type (REELS/FEED/…) — null until captured. */
+  mediaProductType: string | null;
 }
 
 export interface EngagementByType {
@@ -98,6 +100,9 @@ export async function syncInstagramPosts(): Promise<{
   newPosts: number;
   errors: number;
   source: "graph" | "cache" | "none";
+  /** Append-only history rows written this sync — 0 with errors>0 means the snapshot lane is failing, not idle. */
+  snapshotsWritten: number;
+  snapshotErrors: number;
 }> {
   const d = await db();
   if (!d) throw new Error("Database not available");
@@ -124,6 +129,8 @@ export async function syncInstagramPosts(): Promise<{
 
   let newPosts = 0;
   let errors = 0;
+  let snapshotsWritten = 0;
+  let snapshotErrors = 0;
   // Only refresh live insights for posts whose metrics are still moving — older
   // posts are stable, so skipping them keeps Graph calls well under rate limits.
   const INSIGHTS_REFRESH_DAYS = 14;
@@ -157,13 +164,47 @@ export async function syncInstagramPosts(): Promise<{
           ? { reach: insights.reach ?? null, saved: insights.saved ?? null, views: insights.views ?? null, shares: insights.shares ?? null }
           : {};
 
+      // Append-only history (Wave C substrate): one row per post per sync tick.
+      // 24h/7d/30d windows need what the numbers WERE; the analytics row only
+      // knows what they ARE. A snapshot failure degrades history and is counted
+      // LOUDLY in the result — it never aborts the sync itself.
+      const writeSnapshot = async () => {
+        try {
+          await d.insert(igMetricSnapshots).values({
+            postId: post.id,
+            likes: post.likes,
+            comments: post.comments,
+            reach: metricCols.reach ?? null,
+            saved: metricCols.saved ?? null,
+            views: metricCols.views ?? null,
+            shares: metricCols.shares ?? null,
+            followerSnapshot: followers || null,
+          });
+          snapshotsWritten++;
+        } catch (snapErr) {
+          snapshotErrors++;
+          if (snapshotErrors === 1) {
+            log.warn("[Instagram Pipeline] metric-snapshot insert failed (history degrades; sync continues):", snapErr);
+          }
+        }
+      };
+
       // Already tracked: refresh the live-growing metrics (don't re-score — that's
       // an LLM call, and the AI content score doesn't change after publish).
       if (existing.length > 0) {
         await d
           .update(instagramAnalytics)
-          .set({ likes: post.likes, comments: post.comments, engagementRate, followerSnapshot: followers, ...metricCols })
+          .set({
+            likes: post.likes,
+            comments: post.comments,
+            engagementRate,
+            followerSnapshot: followers,
+            ...metricCols,
+            // Never clobber a known product type with null on a cache-source run.
+            ...(post.mediaProductType ? { mediaProductType: post.mediaProductType } : {}),
+          })
           .where(eq(instagramAnalytics.id, existing[0].id));
+        await writeSnapshot();
         continue;
       }
 
@@ -195,7 +236,9 @@ export async function syncInstagramPosts(): Promise<{
         themesJson: JSON.stringify(themes),
         followerSnapshot: followers,
         ...metricCols,
+        mediaProductType: post.mediaProductType ?? null,
       });
+      await writeSnapshot();
 
       newPosts++;
     } catch (error) {
@@ -204,7 +247,12 @@ export async function syncInstagramPosts(): Promise<{
     }
   }
 
-  return { processed: posts.length, newPosts, errors, source };
+  if (posts.length > 0 && snapshotsWritten === 0) {
+    // 0-written over a non-empty sync is the silent-IDLE class — say it loudly.
+    log.error(`[Instagram Pipeline] snapshot lane wrote NOTHING across ${posts.length} posts (${snapshotErrors} errors) — history is not accruing`);
+  }
+
+  return { processed: posts.length, newPosts, errors, source, snapshotsWritten, snapshotErrors };
 }
 
 // ─── AI CONTENT SCORING ─────────────────────────────────
@@ -495,6 +543,7 @@ export async function getTopPosts(opts?: { limit?: number }): Promise<PostAnalys
     saved: r.saved ?? null,
     views: r.views ?? null,
     shares: r.shares ?? null,
+    mediaProductType: r.mediaProductType ?? null,
   }));
 }
 

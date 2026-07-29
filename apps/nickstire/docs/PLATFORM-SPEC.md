@@ -24,7 +24,7 @@ Status legend: `required` (platform rejects violations) · `recommended`
 | Loudness | integrated LUFS window + true-peak ≤ −1 dBTP | none published for IG | internal | — | `audioQa.ts` AUDIO_DELIVERY | 2026-07-18 era renders |
 | Public media URL for publish | S3 bucket URL (`S3_BUCKET`), CloudFront optional for permanence | container `video_url` must be publicly retrievable | required | Meta API collection | `storage.ts` fail-closed + delivery-issue row | continuous (every publish) |
 | Publish lifecycle | container → poll status → publish → persist id; ambiguity parks + reconciler asks Meta | container/status/media_publish flow | required | Meta API collection | `metaSocial.ts` + `publishAttemptLedger` + `publishReconciler` | continuous |
-| `media_product_type` | **not persisted yet** (queued — needs one hand-applied ALTER) | use it to distinguish REELS from VIDEO post-publish | recommended | Meta API collection | — | n/a |
+| `media_product_type` | persisted per media on every sync (migration 0106, applied 2026-07-29) | use it to distinguish REELS from VIDEO post-publish | recommended | Meta API collection | `metaSocial.fetchInstagramMedia` fields + `instagram-data` sync writeback | verify first post-deploy sync |
 
 Maintenance: when a canary runs, fill `Last canary`; when Meta moves a value,
 update the row AND the enforcing code in the same PR. Rows sourced

@@ -21,6 +21,8 @@ export interface InstagramPost {
   posted: string;
   mediaUrl?: string;
   thumbnailUrl?: string;
+  /** Graph media_product_type (REELS/FEED/…) — media_type says VIDEO for reels. */
+  mediaProductType?: string | null;
 }
 
 export interface InstagramAccount {

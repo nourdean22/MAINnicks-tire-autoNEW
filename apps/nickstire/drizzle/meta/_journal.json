@@ -834,6 +834,13 @@
       "when": 1785350000000,
       "tag": "0105_sms_sent_at",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "5",
+      "when": 1785430000000,
+      "tag": "0106_ig_insight_snapshots",
+      "breakpoints": true
     }
   ]
 }
