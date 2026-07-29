@@ -32,6 +32,25 @@
 
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
+
+/** Wave-3 (2026-07-29): every FIRED proactive push lands in the outcome
+ *  ledger so delivery coverage + actionable-rate become measurable
+ *  (recordShown dedups identical summaries within 24h). Fire-and-forget —
+ *  a ledger failure must never block the push path. */
+async function recordProactiveShown(slot: string, text: string): Promise<void> {
+  try {
+    const { recordShown } = await import("@/lib/services/outcome-ledger");
+    await recordShown({
+      kind: "proactive_push",
+      sourceEngine: `proactive-${slot}`,
+      summary: text,
+      shownSurface: "telegram",
+    });
+  } catch {
+    // recordShown already logs; belt-and-suspenders so the push path
+    // can never be broken by ledger bookkeeping.
+  }
+}
 import { logger as rootLogger } from "@/lib/logger";
 import { today } from "@/lib/utils/datetime";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
@@ -293,7 +312,10 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     logError("brain.proactive-pushes", err, { fn: "fireMorningPush.sendTelegram" });
     return false;
   });
-  if (ok) await markPushSent("morning", dateKey);
+  if (ok) {
+    await markPushSent("morning", dateKey);
+    await recordProactiveShown("morning", text);
+  }
   return {
     kind: "live",
     slot: "morning",
@@ -413,7 +435,10 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
     logError("brain.proactive-pushes", err, { fn: "fireAfternoonPush.sendTelegram" });
     return false;
   });
-  if (ok) await markPushSent("afternoon", dateKey);
+  if (ok) {
+    await markPushSent("afternoon", dateKey);
+    await recordProactiveShown("afternoon", text);
+  }
   return {
     kind: "live",
     slot: "afternoon",
@@ -522,7 +547,10 @@ export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }
     logError("brain.proactive-pushes", err, { fn: "fireEveningPush.sendTelegram" });
     return false;
   });
-  if (ok) await markPushSent("evening", dateKey);
+  if (ok) {
+    await markPushSent("evening", dateKey);
+    await recordProactiveShown("evening", text);
+  }
   return {
     kind: "live",
     slot: "evening",

@@ -141,6 +141,7 @@ export default function FleetPage() {
   const [truth, setTruth] = useState<FleetTruth | null>(null);
   const [error, setError] = useState<string | null>(null);
   const redrive = trpc.system.outboxRedrive.useMutation();
+  const delivery = trpc.system.deliveryStats.useQuery({ windowDays: 7 });
   // Derived, not state: no sync setState inside the load effect
   // (react-compiler cascading-render rule), and one less thing to lie.
   const loading = truth === null && error === null;
@@ -235,6 +236,37 @@ export default function FleetPage() {
               )}
             </Panel>
           )}
+
+          <Panel>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-1">
+              delivery — shown vs acknowledged (7d)
+            </p>
+            {delivery.isLoading ? (
+              <div className="h-4 w-40 rounded bg-white/5 animate-pulse" />
+            ) : delivery.isError || !delivery.data?.stats ? (
+              <p className="text-[12px] text-zinc-400">
+                ledger unreadable — state UNKNOWN, not healthy
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center gap-4 text-[12px] tabular-nums py-1">
+                  <span className="text-fg-secondary/70">{delivery.data.stats.shown} shown</span>
+                  <span className="text-fg-secondary/70">{delivery.data.stats.decided} decided</span>
+                  <span className="text-emerald-300">{delivery.data.stats.accepted} accepted</span>
+                  <span className="text-amber-300">{delivery.data.stats.dismissed} dismissed</span>
+                  <span className="text-zinc-400">{delivery.data.stats.undecided} undecided</span>
+                </div>
+                <p className="text-[10px] text-fg-secondary/50 mt-0.5">
+                  producers writing rows:{" "}
+                  {delivery.data.producers.length === 0
+                    ? "NONE — computed intelligence is not reaching the ledger"
+                    : delivery.data.producers
+                        .map((p) => `${p.sourceEngine} (${p.rows})`)
+                        .join(" · ")}
+                </p>
+              </>
+            )}
+          </Panel>
 
           <Panel>
             <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-1">statenour</p>

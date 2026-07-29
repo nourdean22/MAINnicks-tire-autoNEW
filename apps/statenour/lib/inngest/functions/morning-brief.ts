@@ -155,6 +155,45 @@ export function pushBodyFromBrief(text: string): string {
  * with the brief pre-quoted · "walk me through this" works out of
  * the box.
  */
+/** Wave-3 (2026-07-29) · the brief is a computed recommendation — it
+ *  gets an IntelligenceOutcome row like every other delivery surface.
+ *  recordShown dedups on content hash within 24h, so Inngest retries
+ *  of this step can never double-count. */
+async function recordBriefShown(
+  brief: ComposedBrief,
+  push: { sent: number; failed: number },
+): Promise<{ id: string | null }> {
+  const { recordShown } = await import("@/lib/services/outcome-ledger");
+  const id = await recordShown({
+    kind: "daily_brief",
+    sourceEngine: "morning-brief",
+    summary: brief.text,
+    shownSurface: push.sent > 0 ? "web-push+home" : "home",
+  });
+  return { id };
+}
+
+/** Wave-3 (2026-07-29) · when web push reached zero devices, the brief
+ *  still MUST reach the phone — Telegram is the confirmed-working lane.
+ *  The message names the cause so the operator can re-enable push. */
+async function briefTelegramFallback(
+  brief: ComposedBrief,
+  push: { sent: number; failed: number },
+): Promise<{ status: "skipped_push_ok" | "sent" | "failed" }> {
+  if (push.sent > 0) return { status: "skipped_push_ok" };
+  const { sendTelegram } = await import("@/lib/services/telegram");
+  const reason =
+    push.failed > 0
+      ? "web push failed on every registered device"
+      : "no live web-push subscription";
+  const ok = await sendTelegram(
+    `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
+      `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
+      `Full brief: https://bdnick.info/command`,
+  ).catch(() => false);
+  return { status: ok ? "sent" : "failed" };
+}
+
 async function sendBriefPush(brief: ComposedBrief): Promise<{
   sent: number;
   failed: number;
@@ -363,6 +402,13 @@ export const operatorMorningBrief = inngest.createFunction(
   async ({ step }) => {
     const brief = await step.run("compose", composeBrief);
     const push = await step.run("web-push", () => sendBriefPush(brief));
+    // Wave-3 (2026-07-29) · delivery truth: the brief joins the outcome
+    // ledger (coverage + acknowledgement become measurable), and a
+    // Telegram fallback fires when web push reached ZERO devices — the
+    // operator confirmed pushes were not arriving; Telegram is the
+    // proven P0 lane (heartbeat + liveness + proactive slots all use it).
+    const ledger = await step.run("outcome-ledger", () => recordBriefShown(brief, push));
+    const fallback = await step.run("telegram-fallback", () => briefTelegramFallback(brief, push));
     const audio = await step.run("voice-file", () => generateBriefAudio(brief));
     // Phase A.3 · pin scoreboard picks for /scoreboard "as of 6am"
     const pinned = await step.run("pin-scoreboard", () =>
@@ -374,6 +420,8 @@ export const operatorMorningBrief = inngest.createFunction(
       sectionCount: brief.sectionCount,
       pushSent: push.sent,
       pushFailed: push.failed,
+      ledgerId: ledger.id,
+      telegramFallback: fallback.status,
       audioStatus: audio.status,
       audioBytes: audio.bytes ?? null,
       audioReason: audio.reason ?? null,
