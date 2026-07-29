@@ -11,6 +11,8 @@ export const GET = apiHandler(async () => {
 });
 
 /** POST /api/notifications — no-op enqueue (retired). */
+// mutation-census: exception — retired stub; validates shape and returns
+// {retired:true} without writing anything, so there is no state to guard.
 export const POST = apiHandler(async (req) => {
   const body = await req.json();
   if (!body.channel || !body.recipient || !body.body) {

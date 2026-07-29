@@ -9,7 +9,7 @@
     "analyze": "cross-env PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 ANALYZE=true NEXT_DIST_DIR=.next-prod prisma generate && cross-env ANALYZE=true NEXT_DIST_DIR=.next-prod next build",
     "build:check": "node -e \"const fs = require('fs'); try { fs.rmSync('.next-prod', { recursive: true, force: true }); } catch(e) {}\" && cross-env NEXT_DIST_DIR=.next-prod next build",
     "build:push-schema": "prisma generate && prisma db push && next build",
-    "verify:hard": "pnpm typecheck:raw && pnpm lint && pnpm test && pnpm check:env && pnpm check:runbooks && pnpm check:prompt-injection && pnpm check:audit-deps && pnpm check:lint-baseline && pnpm check:raw-sql && pnpm check:crons && pnpm check:soft-delete && pnpm check:get-auth && cross-env STALE_DOCS_STRICT=1 pnpm check:stale-docs && pnpm prompt:size-check && pnpm exec prisma validate",
+    "verify:hard": "pnpm typecheck:raw && pnpm lint && pnpm test && pnpm check:env && pnpm check:runbooks && pnpm check:prompt-injection && pnpm check:audit-deps && pnpm check:lint-baseline && pnpm check:raw-sql && pnpm check:crons && pnpm check:soft-delete && pnpm check:get-auth && pnpm check:mutations:strict && cross-env STALE_DOCS_STRICT=1 pnpm check:stale-docs && pnpm prompt:size-check && pnpm exec prisma validate",
     "release:db": "prisma migrate deploy",
     "release:app": "node -e \"const fs = require('fs'); try { fs.rmSync('.next', { recursive: true, force: true }); } catch(e) {}\" && prisma generate && next build",
     "release:full": "pnpm verify:hard && pnpm release:db && pnpm release:app",
@@ -68,6 +68,8 @@
     "research:notebooklm": "tsx scripts/ingest-notebooklm-output.ts",
     "postinstall": "prisma generate",
     "check:soft-delete": "tsx scripts/audit-soft-delete-filters.ts",
+    "check:mutations": "tsx scripts/audit-mutation-receipts.ts",
+    "check:mutations:strict": "tsx scripts/audit-mutation-receipts.ts --strict",
     "check:get-auth": "tsx scripts/check-sensitive-get-auth.ts"
   },
   "dependencies": {
