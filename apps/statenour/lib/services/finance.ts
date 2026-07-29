@@ -159,6 +159,14 @@ export function parseCSV(csvText: string): CSVTransaction[] {
  * Saves parsed transactions to the database, skipping duplicates using deterministic hashes.
  */
 export async function syncTransactions(transactions: CSVTransaction[]): Promise<{ imported: number; skipped: number }> {
-  log.warn("sync_transactions_stubbed", { reason: "FinancialTransaction model removed 2026-06-21" });
-  return { imported: 0, skipped: transactions.length };
+  // 2026-07-28 wiring audit: the silent stub above ({imported: 0, skipped: N})
+  // let the UI report "Successfully synced!" while writing nothing for five
+  // weeks. A retired capability must refuse loudly, not pretend.
+  log.warn("sync_transactions_retired", {
+    reason: "FinancialTransaction model removed 2026-06-21",
+    rejected: transactions.length,
+  });
+  throw new Error(
+    "Finance ledger retired 2026-06-21 (model purged) — CSV sync is disabled. See blueprint WP-9 to rebuild or remove.",
+  );
 }

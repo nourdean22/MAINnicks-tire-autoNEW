@@ -205,6 +205,56 @@ refuted for the other four controls.
 | Plausible / PostHog | **DEFER** | outcome ledger (07-28) must accrue before analytics tooling means anything |
 | Cal.com | **DEFER** | no booking-volume evidence yet |
 
+## Pass 7 · Internal wiring (added same night — the declared gap, closed)
+
+Method: mechanical cross-reference of every client-side data call against
+what serves it, plus verification of the externally-pasted 8-item wiring
+wave against runtime callers.
+
+| Lane | Coverage guarantee | Result |
+|---|---|---|
+| tRPC (269 client call-sites, 14 routers) | **the TypeScript compiler** — typed end-to-end; a missing procedure is a build failure, and tonight's `tsc` is green | wired by construction (a crude static parser "convicted" 92 — all parser artifacts from spread-composed routers; discarded) |
+| Raw `fetch("/api/…")` (49 distinct endpoints) | nothing — untyped strings | **2 real corpses** (below) + 1 scanner false-positive (greene-sidebar template literal — route exists) |
+| localStorage (19 keys) | n/a | 17 benign UI prefs (sort keys, collapse state); `nour:pinned-convos` + `nour:lastReview` are device-local state with server-side siblings — WP-10 candidates, not defects |
+
+**The corpses — the Money page's two tabs, dead five weeks:** the
+2026-06-21 schema purge removed the FinancialTransaction + portfolio
+models, deleted `GET/PATCH /api/finance` and all of `/api/wealth/*`, and
+stubbed `syncTransactions` to return `{imported: 0, skipped: N}` — which
+the UI rendered as **"Successfully synced!"** over a void. Fixed
+2026-07-28: honest retired-state on both tabs, stub now throws loudly.
+Rebuild-vs-remove = **WP-9** (operator call; shop money lives in Business).
+
+**The pasted 8-item wave, gated against runtime callers:**
+
+| # | Item | Verdict |
+|---|---|---|
+| 1 | Connect response contracts to the live chat route | **ALREADY WIRED** — `buildResponseContract` runs in `derive-turn-signals.ts:136`; its directive lands in the system prompt (`finalize-system-prompt.ts:244`) |
+| 2 | Connect contract-aware reply gate to persistence | **ALREADY WIRED** — `runReplyGateWithContract` executes in `persist-assistant-turn.ts:347` and its decision flows into the persisted message |
+| 3 | Run known-truth guard on real responses | **ALREADY RUNNING** (telemetry mode); `NICK_KNOWN_TRUTH_BANNER` flag (experimental, OFF) gates promotion to correction banners — a flag decision, not wiring |
+| 4 | Persist quality/verification results | Largely done (gate/critic/verifier land in message metadata + AgentTrace); coverage audit folded into WP-11 |
+| 5 | Surface those results in the evidence panel | **REAL GAP → WP-11** — Context & Evidence shows recall + contradictions, not the reply's own gate/critic/verifier verdicts |
+| 6 | Execution receipts for every mutation | Chat-tool mutations ✓ (ActionReceipt, 07-28); tRPC operator mutations partial (EntityAudit on some) → WP-12 coverage count first |
+| 7 | Standardize event/correlation IDs | = WP-7 (already in this blueprint) |
+| 8 | Remove/merge duplicate paths | Money-tab corpses handled above; warroom/research/simulator = WP-5 |
+
+Items 1–2 are the **fifth and sixth already-built incumbents** external
+audits have prescribed today — the pattern holds: verify runtime callers
+before accepting any "connect X" recommendation.
+
+- **WP-9 · Money tabs:** rebuild personal finance/wealth on fresh models,
+  or delete both tabs and the dead flows. Until decided, honest
+  retired-state ships.
+- **WP-10 · Device-local state with server siblings:** `nour:pinned-convos`
+  (vs server conversations), `nour:lastReview` (vs ReviewLog) — decide
+  which is authoritative per key.
+- **WP-11 · Reply-quality surfacing:** add the last assistant turn's gate
+  decision + critic score + verifier verdict to the Context & Evidence
+  panel (data already persists server-side; needs payload plumb + panel
+  section). Acceptance: a gated/rewritten reply shows WHY in the panel.
+- **WP-12 · Mutation-receipt coverage count:** enumerate tRPC mutations vs
+  EntityAudit/auditEvent writers; close the uncovered set or document why.
+
 ## Honestly not audited (scope declared, not hidden)
 
 The UI-system pass (design tokens, spacing, a11y, empty/error states
