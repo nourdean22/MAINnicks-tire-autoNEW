@@ -262,40 +262,64 @@ if (phantomActive === 0) ok(`all active crons are reachable (fan-out or independ
 //      (no "worker-fired" claim the worker doesn't actually fire)
 console.log("");
 console.log("[7/7]  worker HIGH_FREQ_JOBS <-> manifest + filesystem");
+
+/**
+ * Check-7 core, extracted so the red self-test below exercises the SAME
+ * code path the real check runs — not a logic replica (the original
+ * red-proof was a replica; hardened 2026-07-28 late).
+ */
+function validateWorkerList(workerSrc: string): string[] {
+  const problems: string[] = [];
+  const listMatch = workerSrc.match(/const HIGH_FREQ_JOBS[\s\S]*?\n\];/);
+  if (!listMatch) {
+    problems.push("could not locate the HIGH_FREQ_JOBS array — verifier regex needs updating");
+    return problems;
+  }
+  const workerNames = [...listMatch[0].matchAll(/name:\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
+  for (const name of workerNames) {
+    const routePath = path.join(cwd, "app/api/cron", name, "route.ts");
+    if (!fs.existsSync(routePath)) {
+      problems.push(`worker fires /api/cron/${name} but the route does NOT exist — every tick is a 404 (the Wave-AE ghost class)`);
+    }
+    const entry = CRONS.find((c) => c.name === name);
+    if (!entry) {
+      problems.push(`worker fires "${name}" but it has NO entry in config/crons.ts`);
+    } else if (!entry.worker) {
+      problems.push(`worker fires "${name}" but its manifest entry is missing worker: true`);
+    }
+  }
+  for (const c of CRONS) {
+    if (c.worker && c.mode === "active" && !workerNames.includes(c.name)) {
+      problems.push(`${c.name} is marked worker: true + active but is NOT in the worker's HIGH_FREQ_JOBS list — it never fires`);
+    }
+  }
+  return problems;
+}
+
+// Red self-test — runs EVERY invocation, in memory, against a fixture
+// carrying a Wave-AE ghost. If the check ever loses the ability to catch
+// a ghost (regex rot, refactor), THIS fails loudly before the real check
+// can emit a false green. Poka-yoke, same pattern as the skill-compiler
+// validator's --self-test.
+const RED_FIXTURE = [
+  "const HIGH_FREQ_JOBS: JobDef[] = [",
+  '  { name: "brain-bus-backfill", schedule: "*/2 * * * *", description: "ghost" },',
+  "];",
+].join("\n");
+const redProblems = validateWorkerList(RED_FIXTURE);
+if (redProblems.length === 0) {
+  fail("check-7 SELF-TEST failed: the ghost fixture produced ZERO problems — the worker-list check can no longer catch a dead route and its green is meaningless");
+} else {
+  ok(`self-test: ghost fixture caught (${redProblems.length} problem(s)) — the check can still fail`);
+}
+
 const workerSchedulerPath = path.join(cwd, "../worker/src/scheduler.ts");
 if (!fs.existsSync(workerSchedulerPath)) {
   fail(`apps/worker/src/scheduler.ts not found at ${workerSchedulerPath} — cannot validate the worker dispatch path`);
 } else {
-  const workerSrc = fs.readFileSync(workerSchedulerPath, "utf-8");
-  const listMatch = workerSrc.match(/const HIGH_FREQ_JOBS[\s\S]*?\n\];/);
-  if (!listMatch) {
-    fail("could not locate the HIGH_FREQ_JOBS array in apps/worker/src/scheduler.ts — verifier regex needs updating");
-  } else {
-    const workerNames = [...listMatch[0].matchAll(/name:\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
-    let workerErrors = 0;
-    for (const name of workerNames) {
-      const routePath = path.join(cwd, "app/api/cron", name, "route.ts");
-      if (!fs.existsSync(routePath)) {
-        fail(`worker fires /api/cron/${name} but the route does NOT exist — every tick is a 404 (the Wave-AE ghost class)`);
-        workerErrors++;
-      }
-      const entry = CRONS.find((c) => c.name === name);
-      if (!entry) {
-        fail(`worker fires "${name}" but it has NO entry in config/crons.ts`);
-        workerErrors++;
-      } else if (!entry.worker) {
-        fail(`worker fires "${name}" but its manifest entry is missing worker: true`);
-        workerErrors++;
-      }
-    }
-    for (const c of CRONS) {
-      if (c.worker && c.mode === "active" && !workerNames.includes(c.name)) {
-        fail(`${c.name} is marked worker: true + active but is NOT in the worker's HIGH_FREQ_JOBS list — it never fires`);
-        workerErrors++;
-      }
-    }
-    if (workerErrors === 0) ok(`${workerNames.length} worker jobs all route-backed + manifest-honest, both directions`);
-  }
+  const problems = validateWorkerList(fs.readFileSync(workerSchedulerPath, "utf-8"));
+  for (const p of problems) fail(p);
+  if (problems.length === 0) ok(`worker jobs all route-backed + manifest-honest, both directions`);
 }
 
 console.log("");
