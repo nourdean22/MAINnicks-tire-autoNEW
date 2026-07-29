@@ -128,6 +128,75 @@ export const brainTools = {
   // Loads the full instruction body for a bundled skill. suggestSkills
   // returns description-only; this returns the verbatim protocol (table
   // templates, hard rules) so the model executes with full fidelity.
+  captureSkillFromSource: tool({
+    description:
+      "Capture a protocol from an EXTERNAL source (a book, article, photographed page, video) as a CANDIDATE skill Nour can review and promote. Use when Nour shares source material and asks to turn it into a skill, protocol, or habit. Stores it as pending — it is explicitly UNPROVEN until actually used, so never describe it as an established skill.",
+    inputSchema: z.object({
+      sourceLabel: z
+        .string()
+        .min(2)
+        .describe("Where it came from — book title + author, URL, or 'photo: <what it shows>'."),
+      trigger: z.string().min(3).describe("The situation this applies to."),
+      steps: z
+        .array(z.string().min(2))
+        .min(1)
+        .max(12)
+        .describe("Ordered, concrete steps. Each must be followable, not a summary."),
+      keywords: z.array(z.string()).max(12).optional(),
+    }),
+    execute: async ({ sourceLabel, trigger, steps, keywords }) => {
+      try {
+        const { buildSkillFromSource, sourceProvenance } = await import(
+          "@/lib/brain/skill-from-source"
+        );
+        const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
+        const { key, skill } = buildSkillFromSource({ sourceLabel, trigger, steps, keywords });
+
+        // Idempotent: re-capturing the same protocol updates it rather
+        // than minting a duplicate candidate.
+        const existing = await prisma.brainMemory.findUnique({
+          where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } },
+          select: { id: true },
+        });
+        if (existing) {
+          await prisma.brainMemory.update({
+            where: { id: existing.id },
+            data: { content: JSON.stringify(skill), metadata: { sourceLabel } as never },
+          });
+        } else {
+          await prisma.brainMemory.create({
+            data: {
+              category: BRAIN_CATEGORIES.SKILL_PENDING,
+              key,
+              content: JSON.stringify(skill),
+              confidence: 0.5,
+              // Provenance distinct from skill_extractor: this was READ,
+              // not observed, and the difference must stay visible.
+              source: "source_capture",
+              metadata: { sourceLabel } as never,
+            },
+          });
+        }
+        return {
+          ok: true,
+          key,
+          trigger: skill.trigger,
+          steps: skill.action_sequence,
+          status: existing ? "updated_candidate" : "new_candidate",
+          provenance: sourceProvenance({ sourceLabel, trigger, steps }),
+          note: "Saved as a PENDING candidate — unproven until used. Review it under skills to promote.",
+        };
+      } catch (err) {
+        void import("@/lib/utils/error-log").then(({ logError }) =>
+          logError("ai.tools.brain", err, { fn: "captureSkillFromSource" }, "error"),
+        );
+        throw new Error(
+          err instanceof Error ? err.message : "Could not capture that skill",
+        );
+      }
+    },
+  }),
+
   getSkillProtocol: tool({
     description:
       "Load the full step-by-step protocol for a bundled skill by exact name (e.g. 'maxforge-alpha'). suggestSkills returns only a short description — when a match has hasProtocol:true, call this to fetch its actual instructions, output templates, and hard rules BEFORE executing the skill. Returns { ok, name, protocol } or { ok:false } when the skill has no bundled protocol.",
