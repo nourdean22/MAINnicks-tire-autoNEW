@@ -442,8 +442,13 @@ export async function pruneTools(
 
   // #12 · Customer SMS staging (approval-gated). stageCustomerAlert is NOT
   // in the email family. "text this customer", "stage SMS for review".
-  if (/\b(sms|text (the |this |a )?customer|send (an? )?(sms|text) to|stage (a |an )?(customer )?(alert|sms|text)|(customer )?outreach via (sms|text))\b/.test(text)) {
-    addMatching(/stageCustomerAlert/i);
+  // Wave 3 (2026-07-29): the Decision-Inbox pair rides the same trigger —
+  // opportunity rows get draft/send via the bounded bridge action (identity
+  // from the queue row), free-form numbers stay on stageCustomerAlert. The
+  // tool descriptions carry the routing rule; attach all three plus the
+  // inbox read so the model can resolve "text the stale lead" end-to-end.
+  if (/\b(sms|text (the |this |a )?customer|send (an? )?(sms|text) to|stage (a |an )?(customer )?(alert|sms|text)|(customer )?outreach via (sms|text)|text (the |that )?(lead|opportunity)|follow up with .* (lead|estimate|opportunity))\b/i.test(text)) {
+    addMatching(/stageCustomerAlert|draftOpportunitySms|sendOpportunitySms|getTopDecisions/i);
   }
 
   // #13 · Situation logging. "log this situation", "record this moment". The

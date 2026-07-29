@@ -592,6 +592,18 @@ and it is bounded by construction:
   Nour verbatim; never retry with a new idempotency key without a fresh
   approval.
 
+**statenour implementation (Autopilot Wave 3, 2026-07-29):** the caller is
+the chat-tool pair `draftOpportunitySms` / `sendOpportunitySms`
+(`lib/ai/tools/social.ts`). The send tool NEVER calls the bridge — it stages
+a PENDING `ActionReceipt` (`action: "shop.sendOpportunitySms"`, payload:
+opportunityId + exact body + content-derived idempotency key
+`opp-<opp8>-<sha256(body)16>`, **no phone**) and a Telegram Approve/Decline
+prompt. The Telegram webhook's `oppsms:` branch executes
+`send_opportunity_sms` on the Approve tap with
+`approvedBy: "nour:telegram"` — the tap IS the §8 approval. A
+`duplicate: true` response (including one caused by queryNick's own
+retry-after-timeout) reports as SUCCESS/"already sent", never as failure.
+
 ## Notes on ALG / Auto Labor Experts coupling
 
 1. **ALG is still the source of truth for counter activity.** Our

@@ -192,6 +192,12 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // v10.0.75 · sendToTelegram legacy alias retired (canonical: sendTelegram)
   { name: "sendTelegram",                 category: "comms",          sideEffecting: true, cost: "free" },
   { name: "stageCustomerAlert",           category: "comms",          sideEffecting: true, cost: "free" },
+  // Autopilot Wave 3 (2026-07-29) · Decision-Inbox texting pair. draft = a
+  // read of nickstire's deterministic evidence-only draft; send = STAGING
+  // only (PENDING receipt + Telegram Approve tap; the tap calls nickstire's
+  // bounded send_opportunity_sms which enforces consent/caps/pause/dedupe).
+  { name: "draftOpportunitySms",          category: "live_shop",      battle: true, needsBridge: true, cost: "cheap", riskClass: "low" },
+  { name: "sendOpportunitySms",           category: "comms",          sideEffecting: true, needsBridge: true, cost: "free" },
 
   // ── ai_analysis ──────────────────────────────────────────────────
   { name: "analyzeImage",                 category: "ai_analysis",    cost: "spendy" },
