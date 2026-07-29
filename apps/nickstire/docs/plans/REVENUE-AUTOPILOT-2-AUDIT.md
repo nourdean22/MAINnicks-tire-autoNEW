@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-29 · **Audited against:** `main` @ `0b6af704a` (includes PR #1190, the SMS Revenue Agent OS wave merged earlier today) · **Method:** three parallel read-only code audits of the SMS stack, lead lifecycle, opportunity queue, reply engine, metrics, and admin surfaces + direct reads of the orchestrator, queue, cron, and schema files.
 
+> **ARC CLOSED same day.** Waves shipped: **W1** #1192 (queue dead-letter + stale-lead truth) · **W2** #1194 (collectors, exception brief, sent_at, bridge §8) · **W3** #1196 (statenour phone ops w/ Telegram-tap approval) · **W4** #1197 (identity verdicts, dry-run-first — see §4's evidence-refusal) · **W5** #1199 (three-source eligibility + residual-hole re-audit w/ one claim corrected) · **W6** #1201 (abandoned-form collector, takeover release, inbox polish) · dispositions #1198. Operator runbook: [`../operations/SMS-REVENUE-AGENT-OS.md`](../operations/SMS-REVENUE-AGENT-OS.md). Every line below is either shipped or carries a named re-open trigger.
+
 **Epistemic key:** `[VERIFIED]` = read in code this session · `[VERIFIED-test]` = pinned by a test · `[UNKNOWN-runtime]` = prod state not read.
 
 ---
