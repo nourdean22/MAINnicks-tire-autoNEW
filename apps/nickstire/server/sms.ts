@@ -396,9 +396,20 @@ async function processDelayedQueue(): Promise<void> {
         const { eq } = await import("drizzle-orm");
         const db = await getDb();
         if (db) {
-          await db.update(smsMessages)
-            .set({ status: "sent" })
-            .where(eq(smsMessages.id, msg.dbId));
+          // 0105: stamp the dispatch time alongside the terminal status —
+          // createdAt→sent_at IS the queue→sent latency for held rows.
+          // Falls back to the status-only update pre-0105 (unknown column).
+          try {
+            await db.update(smsMessages)
+              .set({ status: "sent", sentAt: new Date() })
+              .where(eq(smsMessages.id, msg.dbId));
+          } catch (err) {
+            const emsg = err instanceof Error ? err.message : String(err);
+            if (!/unknown column|1054/i.test(emsg)) throw err;
+            await db.update(smsMessages)
+              .set({ status: "sent" })
+              .where(eq(smsMessages.id, msg.dbId));
+          }
         }
       } catch (err) {
         log.warn("Failed to mark delayed SMS row sent", { error: err instanceof Error ? err.message : String(err) });

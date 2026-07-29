@@ -189,6 +189,37 @@ export const smsOpsRouter = router({
       | { responded?: unknown; avgSec?: unknown; maxSec?: unknown }
       | undefined;
 
+    // 0105: creation→dispatch latency over rows the drain actually stamped.
+    // Pre-0105 (unknown column) this stays honestly unmeasurable.
+    let queueToSent:
+      | { measurable: true; dispatchedCount: number; avgSeconds: number | null; maxSeconds: number | null; basis: string }
+      | { measurable: false; why: string } = {
+      measurable: false,
+      why: "sms_messages.sent_at absent — apply migration 0105 (apply-sms-sent-at.ts) to enable this metric.",
+    };
+    try {
+      const [qRows] = await db.execute(sql`
+        SELECT COUNT(*) AS n,
+               AVG(TIMESTAMPDIFF(SECOND, createdAt, sent_at)) AS avgSec,
+               MAX(TIMESTAMPDIFF(SECOND, createdAt, sent_at)) AS maxSec
+        FROM sms_messages
+        WHERE direction = 'outbound' AND sent_at IS NOT NULL
+          AND createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      `);
+      const q = (Array.isArray(qRows) ? qRows[0] : undefined) as
+        | { n?: unknown; avgSec?: unknown; maxSec?: unknown }
+        | undefined;
+      queueToSent = {
+        measurable: true,
+        dispatchedCount: Number(q?.n ?? 0),
+        avgSeconds: q?.avgSec == null ? null : Math.round(Number(q.avgSec)),
+        maxSeconds: q?.maxSec == null ? null : Number(q.maxSec),
+        basis: "queued-row createdAt → drain-stamped sent_at (7d; held rows only — instant sends carry no queue latency)",
+      };
+    } catch {
+      // keep the unmeasurable truth
+    }
+
     return {
       leadFirstContact30d: {
         contactedCount: Number(lead?.contacted ?? 0),
@@ -203,10 +234,7 @@ export const smsOpsRouter = router({
         maxSeconds: job?.maxSec == null ? null : Number(job.maxSec),
         basis: "sms_response_jobs createdAt → terminal-update timestamp (responded only)",
       },
-      queueToSent: {
-        measurable: false,
-        why: "sms_messages has no sent-at column; a createdAt proxy would fabricate the metric. Add a column migration before reporting this.",
-      },
+      queueToSent,
     };
   }),
 

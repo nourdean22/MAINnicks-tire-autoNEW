@@ -39,6 +39,9 @@ export type AuditAction =
   | "sms.global_pause"
   // 2026-07-29 · Autopilot Wave 1 — failed-row replay (smsOps.replayFailed)
   | "sms.replay_failed"
+  // 2026-07-29 · Autopilot Wave 2 — bounded bridge send (nour-os-query
+  // send_opportunity_sms); the details field carries the idempotency marker
+  | "sms.bridge_send"
   | "customer.sms_manual_send"
   | "customer.sms_autosend_reply"
   | "customer.sms_autosend_reply"

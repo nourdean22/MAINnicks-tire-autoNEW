@@ -174,6 +174,51 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
       }
     } catch (e) { log.warn("[morningBrief] opportunity queue load failed:", e); }
 
+    // ─── Exception brief (Autopilot Wave 2) — what needs Nick, not a feed ──
+    // Only real, load-bearing exceptions: waiting customers past SLA, blocked
+    // sends, a stalled queue, delivery failures. Every line sources from a
+    // durable table; a failed read renders as UNKNOWN, never as "all clear".
+    let exceptionsBlock = "";
+    try {
+      const parts: string[] = [];
+      try {
+        const { humanPendingSummary } = await import("../../services/smsResponseJobs");
+        const hp = await humanPendingSummary();
+        if (hp.humanPending > 0) {
+          parts.push(
+            `${hp.humanPending} customer(s) waiting on a HUMAN reply` +
+            `${hp.overdue > 0 ? ` (${hp.overdue} past the 30-min SLA)` : ""}` +
+            `${hp.oldestWaitingMinutes != null ? ` — oldest ${hp.oldestWaitingMinutes}m` : ""}`,
+          );
+        }
+      } catch { parts.push("waiting-customer count UNKNOWN (read failed — check the SMS admin)"); }
+      try {
+        const { getDb } = await import("../../db");
+        const { sql } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          const [bRows] = await db.execute(sql`
+            SELECT SUM(status = 'blocked') AS blocked, SUM(status = 'drafted') AS drafted
+            FROM sms_orchestrations
+            WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          `);
+          const b = (Array.isArray(bRows) ? bRows[0] : undefined) as { blocked?: unknown; drafted?: unknown } | undefined;
+          if (Number(b?.blocked ?? 0) > 0) parts.push(`${Number(b?.blocked)} send(s) BLOCKED by safety gates in 24h`);
+          if (Number(b?.drafted ?? 0) > 0) parts.push(`${Number(b?.drafted)} AI draft(s) awaiting your approve/edit`);
+          const [qRows] = await db.execute(sql`
+            SELECT SUM(status = 'queued') AS queued, SUM(status = 'failed' AND createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS failed24h
+            FROM sms_messages WHERE direction = 'outbound'
+          `);
+          const q = (Array.isArray(qRows) ? qRows[0] : undefined) as { queued?: unknown; failed24h?: unknown } | undefined;
+          if (Number(q?.queued ?? 0) > 0) parts.push(`${Number(q?.queued)} text(s) held in the send queue`);
+          if (Number(q?.failed24h ?? 0) > 0) parts.push(`${Number(q?.failed24h)} delivery failure(s) in 24h (replayable from SMS Ops)`);
+        }
+      } catch { parts.push("queue/suppression counts UNKNOWN (read failed)"); }
+      if (parts.length > 0) {
+        exceptionsBlock = "\nEXCEPTIONS (needs Nick — everything else is handled):\n- " + parts.join("\n- ");
+      }
+    } catch (e) { log.warn("[morningBrief] exception brief failed:", e); }
+
     // ─── Promise ledger truth (W4) — kept-rate from real resolutions ──
     // Only renders once promises EXIST; zero-promise days say nothing
     // (no invented rates, no nagging about an unused feature).
@@ -315,7 +360,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${decisionsBlock}${promisesBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${exceptionsBlock}${decisionsBlock}${promisesBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,
@@ -342,7 +387,7 @@ THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0
 30-DAY: $${monthRevenue.toLocaleString()} revenue | ${jobsWon} jobs won | $${avgTicket} avg ticket | ~$${trailingDailyPace.toLocaleString()}/day pace
 
 PIPELINE: ${pendingLeadsCount} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
-${decisionsBlock}
+${exceptionsBlock}${decisionsBlock}
 
 CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
 ${masterBlock}
