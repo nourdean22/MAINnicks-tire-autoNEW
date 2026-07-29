@@ -205,6 +205,11 @@ HIDE / DEPRECATE / DELETE / EXTERNALIZE) — richer than wired/not-wired.
 
 ## Build-vs-buy (standing decisions, receipts in #1173 + tonight)
 
+> **2026-07-29:** this table graduated into the repo-wide
+> [`docs/UPSTREAMS.md`](../../../docs/UPSTREAMS.md) disposition
+> register — every adopt/reject/watch verdict with receipts and reopen
+> triggers lives THERE now; check it before proposing any platform.
+
 | Platform | Verdict | Why |
 |---|---|---|
 | Trigger.dev / n8n-as-runtime | **NO** | 4 dispatch classes already; a 5th job system is the disease this blueprint treats |
@@ -263,6 +268,19 @@ before accepting any "connect X" recommendation.
   section). Acceptance: a gated/rewritten reply shows WHY in the panel.
 - **WP-12 · Mutation-receipt coverage count:** enumerate tRPC mutations vs
   EntityAudit/auditEvent writers; close the uncovered set or document why.
+- **WP-17 · ToolMeta `status` field** (audit-#10 keeper): optional
+  `"live" | "scaffold" | "blocked" | "retired"` on catalog entries,
+  surfaced on /system/tools — the ROS-registry stale-status defect
+  class, prevented at the metadata layer. Worth doing WITH real data
+  (classify while touching), not as empty ceremony.
+- **WP-18 · Artifact-honesty eval scenarios** (audit-#10 keeper): eval
+  cases asserting no "video created"/"browser task done" claim without
+  an artifact id or receipt — extends the S3 receipts doctrine into the
+  eval suite (moneyprinter + browser_* are the first targets).
+- **WP-19 · Business cash-flow forecasting** (audit-#10 keeper, reframed
+  from its finance-lab): nickstire cash-flow forecast beside the
+  existing weekly pricing-advisory — business finance, not personal
+  trading; read-only artifacts.
 
 ## Honestly not audited (scope declared, not hidden)
 
