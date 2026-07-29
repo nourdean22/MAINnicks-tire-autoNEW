@@ -15,6 +15,37 @@ import { useState } from "react";
 import { Panel } from "@/components/panel";
 import { trpc } from "@/lib/trpc/client";
 
+/** Wave-6 (2026-07-29) · triage adoption from spine-5's own audit
+ *  events — measures the ritual, adds no new contract. */
+export function TriageAdoptionStrip() {
+  const adoption = trpc.system.triageAdoption.useQuery({ windowDays: 14 });
+  if (adoption.isLoading) return null;
+  return (
+    <Panel>
+      <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-1">
+        triage ritual — decisions in 14d
+      </p>
+      {adoption.isError || !adoption.data ? (
+        <p className="text-[12px] text-zinc-400">adoption unreadable — state UNKNOWN</p>
+      ) : adoption.data.total === 0 ? (
+        <p className="text-[11px] text-zinc-500 italic">
+          Zero triage decisions in 14 days — the flow exists (spine-5); the ritual isn&apos;t
+          happening. That is an adoption fact, not a build request.
+        </p>
+      ) : (
+        <div className="flex items-center gap-3 text-[12px] tabular-nums flex-wrap">
+          <span className="text-emerald-300">{adoption.data.total} decisions</span>
+          {adoption.data.decisions.map((d) => (
+            <span key={d.decision} className="text-fg-secondary/70">
+              {d.decision}: {d.count}
+            </span>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 export function JudgeCalibrationPanel() {
   const utils = trpc.useUtils();
   const recent = trpc.system.judgeRecent.useQuery({ take: 15 });

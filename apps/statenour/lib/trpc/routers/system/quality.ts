@@ -85,6 +85,36 @@ export const qualityProcedures = {
       return { ok };
     }),
 
+  /** Wave-6 (2026-07-29) · the Journey lens — months-scale becoming,
+   *  pure read over existing identity/XP/anti-pattern/skill rows. */
+  journeyLens: operatorProcedure.query(async () => {
+    const { buildJourneyLens } = await import("@/lib/services/journey-lens");
+    return buildJourneyLens();
+  }),
+
+  /** Wave-6 · triage adoption from spine-5's own TaskEvent audit trail
+   *  (source `triage:*`) — measures the ritual, adds no new contract. */
+  triageAdoption: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90) }).optional())
+    .query(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const windowDays = input?.windowDays ?? 14;
+      const since = new Date(Date.now() - windowDays * 86_400_000);
+      const rows = await prisma.taskEvent.groupBy({
+        by: ["source"],
+        where: { source: { startsWith: "triage:" }, createdAt: { gte: since } },
+        _count: { _all: true },
+      });
+      return {
+        windowDays,
+        decisions: rows.map((r) => ({
+          decision: (r.source ?? "").replace(/^triage:/, ""),
+          count: r._count._all,
+        })),
+        total: rows.reduce((s, r) => s + r._count._all, 0),
+      };
+    }),
+
   /** Wave-5 · judge-vs-operator agreement + per-class precision/recall. */
   judgeCalibration: operatorProcedure.query(async () => {
     const { readComparisons } = await import("@/lib/ai/judge-eval/persistence");
