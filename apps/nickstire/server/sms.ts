@@ -403,7 +403,58 @@ async function processDelayedQueue(): Promise<void> {
       } catch (err) {
         log.warn("Failed to mark delayed SMS row sent", { error: err instanceof Error ? err.message : String(err) });
       }
+    } else if (!result.success && msg.dbId != null) {
+      // Autopilot Wave 1 (2026-07-29): bounded retry. A definitive failure
+      // used to leave the row 'sending' → 10-min recovery → 'queued' →
+      // rehydrate → retry, FOREVER (only the 48h time-bound terminated it —
+      // ~190 doomed attempts). Count the attempt; dead-letter at the cap.
+      await recordSendFailure(msg.dbId, result.error ?? "unknown send failure");
     }
+  }
+}
+
+/** Attempts before a durable queued row is dead-lettered ('failed' +
+ *  failure_reason='max_retries_exceeded'). With the ~15-min recovery cycle
+ *  this is ~75 minutes of genuine retrying before giving up — and the row
+ *  stays replayable via smsOps.replayFailed. */
+export const MAX_SEND_ATTEMPTS = 5;
+
+/**
+ * Record a definitive drain-send failure on the durable row (0104 columns).
+ * MySQL/TiDB SET clauses see earlier assignments' NEW values, so the status
+ * IF() below reads the just-incremented send_attempts. Guarded to
+ * status='sending' — a row the webhook already resolved is never clobbered.
+ * Pre-0104 (unknown column 1054) → degrade silently to the legacy time-bound
+ * behavior, one warning per process.
+ */
+let sendAttemptsColumnMissing = false;
+export async function recordSendFailure(dbId: number, reason: string): Promise<void> {
+  if (sendAttemptsColumnMissing) return;
+  try {
+    const { getDb } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+    const cause = reason.slice(0, 200);
+    await db.execute(sql`
+      UPDATE sms_messages
+      SET send_attempts = COALESCE(send_attempts, 0) + 1,
+          status = IF(send_attempts >= ${MAX_SEND_ATTEMPTS} AND status = 'sending', 'failed', status),
+          failure_reason = IF(send_attempts >= ${MAX_SEND_ATTEMPTS},
+                              CONCAT('max_retries_exceeded: ', ${cause}),
+                              ${cause})
+      WHERE id = ${dbId}
+    `);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/unknown column|1054/i.test(msg)) {
+      if (!sendAttemptsColumnMissing) {
+        sendAttemptsColumnMissing = true;
+        log.warn("0104 columns absent — retry bounding inactive until apply-sms-send-attempts runs (48h time-bound still terminal)");
+      }
+      return;
+    }
+    log.warn("recordSendFailure failed", { dbId, error: msg });
   }
 }
 
@@ -437,11 +488,26 @@ export async function recoverStaleSendingRows(): Promise<{ requeued: number; fai
     const db = await getDb();
     if (!db) return out;
 
-    const ancient = await db.execute(sql`
-      UPDATE sms_messages SET status = 'failed'
-      WHERE status = 'sending' AND direction = 'outbound'
-        AND createdAt < DATE_SUB(NOW(), INTERVAL 48 HOUR)
-    `);
+    // 0104: carry WHY the row went terminal. Falls back to the legacy
+    // reason-less UPDATE while the column is unapplied (1054).
+    let ancient;
+    try {
+      ancient = await db.execute(sql`
+        UPDATE sms_messages
+        SET status = 'failed',
+            failure_reason = COALESCE(failure_reason, 'stale_sending_expired')
+        WHERE status = 'sending' AND direction = 'outbound'
+          AND createdAt < DATE_SUB(NOW(), INTERVAL 48 HOUR)
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/unknown column|1054/i.test(msg)) throw err;
+      ancient = await db.execute(sql`
+        UPDATE sms_messages SET status = 'failed'
+        WHERE status = 'sending' AND direction = 'outbound'
+          AND createdAt < DATE_SUB(NOW(), INTERVAL 48 HOUR)
+      `);
+    }
     out.failedAncient = affectedRowCount(ancient);
 
     const stale = await db.execute(sql`
@@ -573,29 +639,105 @@ export function startDelayedQueueProcessor(): void {
   });
 
   delayedTimer = setInterval(() => {
-    processDelayedQueue().catch((err) => {
-      log.warn("Delayed SMS queue processing failed", {
+    (async () => {
+      // Throttled stale-'sending' recovery FIRST (2026-07-29: recovery used
+      // to requeue orphans that NOTHING in a running process would load —
+      // rehydration was boot-only), so freshly-requeued rows are visible to
+      // the rehydrate SELECT in the same tick.
+      if (Date.now() - lastStaleRecoveryAt > STALE_RECOVERY_THROTTLE_MS) {
+        lastStaleRecoveryAt = Date.now();
+        await recoverStaleSendingRows();
+      }
+      // Autopilot Wave 1: rehydrate EVERY cycle (was 5-min throttled) — one
+      // cheap SELECT/min buys "a row queued mid-run is in memory within a
+      // minute", which the <5-min due-queued SLO needs.
+      await rehydrateQueuedFromDb();
+      await processDelayedQueue();
+      // Silent-stall detector (#962 class): gateway healthy + in hours + not
+      // paused, yet due rows sit queued >5 min → the operator hears about it.
+      await checkStuckQueueAlert();
+    })().catch((err) => {
+      log.warn("Delayed SMS queue cycle failed", {
         error: err instanceof Error ? err.message : String(err),
       });
     });
-    // Throttled stale-'sending' recovery + rehydrate (2026-07-29: recovery
-    // used to requeue orphans that NOTHING in a running process would load —
-    // rehydration was boot-only. Now every recovery pass is followed by a
-    // rehydrate pass, so an orphan created mid-run is claimed, loaded, and
-    // sent within ~2 recovery intervals instead of waiting for a restart.
-    // Ordering inside the IIFE is sequential on purpose: recover first so the
-    // freshly-requeued rows are visible to the rehydrate SELECT.)
-    if (Date.now() - lastStaleRecoveryAt > STALE_RECOVERY_THROTTLE_MS) {
-      lastStaleRecoveryAt = Date.now();
-      (async () => {
-        await recoverStaleSendingRows();
-        await rehydrateQueuedFromDb();
-      })().catch((err) => {
-        log.warn("Periodic SMS queue recovery failed", { error: err instanceof Error ? err.message : String(err) });
-      });
-    }
   }, 60_000); // Check every minute
   log.info("SMS delayed queue processor started");
+}
+
+// ─── Autopilot Wave 1 · silent-stall alert (2026-07-29) ─────────────
+// The #962 incident: 136 messages sat 'queued'/'sending' for WEEKS with zero
+// log lines. The drain-hold transition logging fixed the silent part; this
+// closes the "nobody was looking" part — a Telegram fires when the pipe is
+// HEALTHY yet due messages are stuck. Transition-aware + 60-min re-alert
+// throttle so a real stall nags hourly instead of every minute.
+let lastStuckAlertAt = 0;
+const STUCK_ALERT_REALERT_MS = 60 * 60_000;
+export const STUCK_QUEUE_THRESHOLD_MINUTES = 5;
+
+/** Pure predicate — pinned by smsStuckQueueAlert.test.ts. */
+export function shouldAlertStuckQueue(input: {
+  gatewayConfigured: boolean;
+  gatewayReachable: boolean;
+  withinSendingHours: boolean;
+  paused: boolean;
+  stuckCount: number;
+  nowMs: number;
+  lastAlertAtMs: number;
+}): boolean {
+  if (!input.gatewayConfigured || !input.gatewayReachable) return false; // offline = expected hold
+  if (!input.withinSendingHours) return false; // quiet hours = expected hold
+  if (input.paused) return false; // operator chose the hold
+  if (input.stuckCount <= 0) return false;
+  return input.nowMs - input.lastAlertAtMs >= STUCK_ALERT_REALERT_MS;
+}
+
+async function checkStuckQueueAlert(): Promise<void> {
+  try {
+    if (!isShopGatewayConfigured()) return;
+    const { getSmsPauseState } = await import("./services/smsControl");
+    const pause = await getSmsPauseState();
+    const { getDb } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+    const [rows] = await db.execute(sql`
+      SELECT COUNT(*) AS n,
+             TIMESTAMPDIFF(MINUTE, MIN(createdAt), NOW()) AS oldestMin
+      FROM sms_messages
+      WHERE direction = 'outbound' AND status = 'queued'
+        AND createdAt < DATE_SUB(NOW(), INTERVAL ${STUCK_QUEUE_THRESHOLD_MINUTES} MINUTE)
+    `);
+    const first = (Array.isArray(rows) ? rows[0] : undefined) as { n?: unknown; oldestMin?: unknown } | undefined;
+    const stuckCount = Number(first?.n ?? 0);
+    if (stuckCount === 0) {
+      lastStuckAlertAt = 0; // condition cleared — next stall alerts immediately
+      return;
+    }
+    const fire = shouldAlertStuckQueue({
+      gatewayConfigured: true,
+      gatewayReachable: await isShopGatewayReachable(),
+      withinSendingHours: isWithinSendingHours(),
+      paused: pause.readable && pause.paused,
+      stuckCount,
+      nowMs: Date.now(),
+      lastAlertAtMs: lastStuckAlertAt,
+    });
+    if (!fire) return;
+    lastStuckAlertAt = Date.now();
+    const oldestMin = Number(first?.oldestMin ?? 0);
+    log.error("[sms queue] STUCK — gateway healthy but due messages sit queued", { stuckCount, oldestMin });
+    try {
+      const { sendTelegram } = await import("./services/telegram");
+      await sendTelegram(
+        `🚨 SMS queue STUCK: ${stuckCount} due message(s) queued >${STUCK_QUEUE_THRESHOLD_MINUTES} min while the gateway is HEALTHY (oldest ${oldestMin}m). Check /admin → Outreach → SMS Operating System.`,
+      );
+    } catch {
+      // Telegram down must not break the drain cycle; the log line above stands.
+    }
+  } catch (err) {
+    log.warn("stuck-queue alert check failed", { error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 export function stopDelayedQueueProcessor(): void {

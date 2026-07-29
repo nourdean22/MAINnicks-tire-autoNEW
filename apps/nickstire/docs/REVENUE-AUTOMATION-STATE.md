@@ -128,6 +128,10 @@ One-branch batch closing the SMS-stack audit's four verified holes plus the spee
 - **Escape-hatch accounting** — every non-internal `skipOptOutCheck=true` send is now loudly logged + counted (`optOutCheckSkipped`); behavior unchanged, invisibility ended. `smsStats.queued` gauge now decrements on drain.
 - **No migrations. No new env required** (`SMS_GLOBAL_DAILY_CAP` optional). Flag row seeds via existing `seedFlags`.
 
+### Autopilot Wave 1 follow-on (same day, second PR)
+
+Evidence-first audit at [`docs/plans/REVENUE-AUTOPILOT-2-AUDIT.md`](plans/REVENUE-AUTOPILOT-2-AUDIT.md) (capability map + 12 rejected-as-already-built ideas). Shipped: **stale-lead truth fix** (the cron stamped `contacted` BEFORE the send — a blocked/failed follow-up left the lead permanently "contacted"; now claim = `lastFollowUpAt`, contact recorded only on confirmed dispatch) · **channel dedupe** (pending callback / 48h inbound skips the auto-text) · **bounded retry + dead-letter** (migration **0104 hand-apply**: `send_attempts`, `failure_reason`; cap 5, degrade-until-applied) · **per-cycle rehydration** (60s, was 5-min) · **stuck-queue Telegram alert** (healthy-but-stalled >5min, #962 class) · **`smsOps.replayFailed`** (idempotent failed→queued).
+
 Known residual holes (explicitly NOT closed here, documented for the next wave): `scripts/fire-declined-recovery.ts` still POSTs to the Capevace relay directly (zero gates — script-only path); opt-out cache is per-pod with 5-min TTL; `campaignEligiblePhoneSql` still checks only `customers.smsOptOut` (batch counts overstate reach; send-time gate still blocks); takeover has no read-signal or release mechanism.
 
 ## Open items this arc did NOT cover

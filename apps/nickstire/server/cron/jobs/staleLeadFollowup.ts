@@ -46,6 +46,11 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
           ne(leads.source, "careers"),
           gte(leads.createdAt, twentyFourHoursAgo),
           lte(leads.createdAt, twoHoursAgo),
+          // Autopilot Wave 1 (2026-07-29): the claim is now the
+          // lastFollowUpAt stamp (see below), so exclude already-claimed
+          // rows here — a lead whose attempt failed/was blocked stays
+          // status='new' (truth) but is never re-texted by this cron.
+          isNull(leads.lastFollowUpAt),
         )
       )
       .limit(20);
@@ -64,6 +69,53 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
         .map((r: { phone: string | null }) => normalizePhone(r.phone))
         .filter((p: string | null): p is string => p !== null)
     );
+    // Autopilot Wave 1 (2026-07-29) · channel dedupe. Never auto-text a lead
+    // who (a) has a PENDING CALLBACK (they asked for a call — a text answers
+    // the wrong question and double-contacts when the call happens), or
+    // (b) sent an INBOUND SMS in the last 48h (an active conversation owns
+    // the thread; the response-jobs spine is already handling them). Skipped
+    // leads keep status='new' with lastFollowUpAt untouched — if the parallel
+    // channel resolves them the lead gets updated there; if not, the 24h
+    // stale_lead collector surfaces them for a human decision.
+    const leadPhones = staleLeads
+      .map((l: { phone: string | null }) => normalizePhone(l.phone))
+      .filter((p: string | null): p is string => p !== null)
+      .map((p: string) => p.slice(-10));
+    const skipPhones = new Set<string>();
+    if (leadPhones.length > 0) {
+      try {
+        const { sql } = await import("drizzle-orm");
+        const phoneList = sql.join(leadPhones.map((p: string) => sql`${p}`), sql`, `);
+        // Pending callbacks: small set (status='new'), so normalize in JS —
+        // no REGEXP_REPLACE dependency (TiDB-version-safe).
+        const [cbRows] = await db.execute(sql`
+          SELECT phone FROM callback_requests WHERE status = 'new' LIMIT 200
+        `);
+        for (const r of Array.isArray(cbRows) ? cbRows : []) {
+          const p = normalizePhone(String((r as { phone?: unknown }).phone ?? ""));
+          if (p && leadPhones.includes(p.slice(-10))) skipPhones.add(p.slice(-10));
+        }
+        const [inboundRows] = await db.execute(sql`
+          SELECT DISTINCT c.phone AS p
+          FROM sms_messages m
+          JOIN sms_conversations c ON c.id = m.conversationId
+          WHERE m.direction = 'inbound'
+            AND m.createdAt >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+            AND c.phone IN (${phoneList})
+        `);
+        for (const r of Array.isArray(inboundRows) ? inboundRows : []) {
+          const p = (r as { p?: unknown }).p;
+          if (p) skipPhones.add(String(p));
+        }
+      } catch (err) {
+        // Dedupe guards are read-only best-effort: an unreadable guard must
+        // not block speed-to-lead entirely. Log and proceed unguarded.
+        log.warn("stale-lead dedupe guard query failed — proceeding without", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     let processed = 0;
 
     for (const lead of staleLeads) {
@@ -71,20 +123,23 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
 
       const normalizedLead = normalizePhone(lead.phone);
       if (normalizedLead && optOuts.has(normalizedLead)) continue;
+      if (normalizedLead && skipPhones.has(normalizedLead.slice(-10))) {
+        log.info("stale-lead skip — active parallel channel", { leadId: lead.id });
+        continue;
+      }
 
-      // At-most-once claim — flip status 'new' -> 'contacted' BEFORE the
-      // send. If the run crashes after the text goes out, the lead is
-      // already out of the 'new' pool, so the next 2-hourly run won't
-      // re-text it. The conditional WHERE makes overlapping runs safe.
+      // At-most-once claim — stamp lastFollowUpAt (NULL → now) BEFORE the
+      // send so an overlapping run or a crash-after-send can never re-text.
+      //
+      // TRUTH FIX (Autopilot Wave 1): this claim used to flip
+      // status='contacted', contacted=1, contactedAt=NOW() BEFORE the send —
+      // so a BLOCKED or FAILED orchestration (flag off, opt-out, gateway
+      // down) left the lead permanently recorded as contacted: invisible to
+      // every recovery rail, poisoning time-to-contact metrics. The lead is
+      // marked contacted ONLY on a confirmed dispatch below.
       const claimRes = await db.update(leads)
-        // Stamp the contacted flag + timestamps alongside the status flip so
-        // the row doesn't sit `status="contacted", contacted=0, contactedAt=null`
-        // (breaks time-to-contact analytics + the admin "No follow-up recorded"
-        // badge). This IS the contact event — an automated speed-to-lead
-        // follow-up text — so contactedAt = now. contactedBy stays null, the
-        // honest signal that no human has reached out yet.
-        .set({ status: "contacted", contacted: 1, contactedAt: new Date(), lastFollowUpAt: new Date() })
-        .where(and(eq(leads.id, lead.id), eq(leads.status, "new")));
+        .set({ lastFollowUpAt: new Date() })
+        .where(and(eq(leads.id, lead.id), eq(leads.status, "new"), isNull(leads.lastFollowUpAt)));
       if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
         continue; // already claimed by an overlapping run
       }
@@ -95,7 +150,24 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
         phone: lead.phone,
         leadId: lead.id,
       });
-      if (result.status === "sent" || result.status === "queued") processed++;
+      if (result.status === "sent" || result.status === "queued") {
+        // CONFIRMED dispatch (sent to gateway, or durably queued for the
+        // window — the queue delivers). NOW the contact is real: this IS the
+        // contact event, so contactedAt = now; contactedBy stays null — the
+        // honest signal that no human has reached out yet.
+        await db.update(leads)
+          .set({ status: "contacted", contacted: 1, contactedAt: new Date() })
+          .where(and(eq(leads.id, lead.id), eq(leads.status, "new")));
+        processed++;
+      } else {
+        // Blocked / drafted / failed / skipped: the lead was NOT contacted
+        // and stays status='new' (truth). lastFollowUpAt keeps this cron off
+        // it; the 24h stale_lead collector surfaces it to the Decision Inbox.
+        log.info("stale-lead follow-up did not dispatch — lead stays uncontacted", {
+          leadId: lead.id,
+          status: result.status,
+        });
+      }
     }
 
     if (processed > 0) {

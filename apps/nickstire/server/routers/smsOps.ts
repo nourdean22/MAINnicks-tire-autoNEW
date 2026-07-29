@@ -211,6 +211,58 @@ export const smsOpsRouter = router({
   }),
 
   /**
+   * Replay a failed/dead-lettered outbound row (Autopilot Wave 1).
+   * Idempotent by construction: the UPDATE claims `failed → queued`
+   * atomically, so a double-tap (or two admins) affects 0 rows the second
+   * time and reports replayed:false. Attempts reset so the bounded-retry
+   * cycle starts fresh; continuous rehydration delivers it within ~1 min
+   * (subject to quiet hours / gateway / pause — the normal machinery).
+   * Admin-only. Audit-logged.
+   */
+  replayFailed: adminProcedure
+    .input(z.object({ messageId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      let result;
+      try {
+        result = await db.execute(sql`
+          UPDATE sms_messages
+          SET status = 'queued', send_attempts = 0, failure_reason = NULL
+          WHERE id = ${input.messageId} AND status = 'failed' AND direction = 'outbound'
+        `);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/unknown column|1054/i.test(msg)) throw err;
+        // pre-0104: replay without the attempt-reset columns
+        result = await db.execute(sql`
+          UPDATE sms_messages
+          SET status = 'queued'
+          WHERE id = ${input.messageId} AND status = 'failed' AND direction = 'outbound'
+        `);
+      }
+      const raw = (Array.isArray(result) && result[0] && typeof result[0] === "object"
+        ? result[0]
+        : result) as { affectedRows?: number };
+      const replayed = (raw.affectedRows ?? 0) >= 1;
+      if (replayed) {
+        try {
+          const { logAdminAction } = await import("../services/auditTrail");
+          await logAdminAction({
+            action: "sms.replay_failed",
+            entityType: "sms_message",
+            entityId: input.messageId,
+            details: "Replayed failed outbound SMS (failed → queued, attempts reset)",
+            actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+          });
+        } catch { /* audit must never block the replay */ }
+      }
+      return { ok: true, replayed };
+    }),
+
+  /**
    * Arm / lift the global SMS pause. Operator action from the admin UI
    * (two-tap confirmed client-side). Audit-logged. HOLD semantics — see
    * services/smsControl.ts.
