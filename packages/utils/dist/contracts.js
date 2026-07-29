@@ -129,4 +129,33 @@ export const isOpportunityState = (v) => oppSet.has(v);
 export const isArtifactState = (v) => artifactSet.has(v);
 export const isExecutionClass = (v) => execSet.has(v);
 export const isCommitmentStatus = (v) => commitSet.has(v);
+// ─── Domain event envelope (V1 · 2026-07-29 · WP-7 executor) ────────
+// CloudEvents-SHAPED read-side envelope over statenour's eight event
+// models (TaskEvent · GoalEvent · DeviceEvent · AutonomousEvent ·
+// VisionEvent · BrainBusEvent · AuditEvent · EntityAudit). A PATTERN
+// adoption, not a schema takeover: adapters map rows INTO this shape
+// for one read projection; no producer migrates, no tables merge.
+// Zod validation lives app-side (this package stays dependency-free).
+export const EVENT_ACTOR_TYPES = [
+    "operator",
+    "agent",
+    "system",
+    "integration",
+];
+export const EVENT_PRIVACY_CLASSES = [
+    "public",
+    "internal",
+    "sensitive",
+    "restricted",
+];
+const actorSet = setOf(EVENT_ACTOR_TYPES);
+const privacySet = setOf(EVENT_PRIVACY_CLASSES);
+export const isEventActorType = (v) => actorSet.has(v);
+export const isEventPrivacyClass = (v) => privacySet.has(v);
+/** com.statenour.<domain>.<entity>.<verb>.v<major> — lowercased, dots in
+ *  segments collapsed to hyphens so the name stays parseable. */
+export function eventTypeName(domain, entity, verb, major = 1) {
+    const seg = (s) => s.toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+    return `com.statenour.${seg(domain)}.${seg(entity)}.${seg(verb)}.v${major}`;
+}
 //# sourceMappingURL=contracts.js.map
