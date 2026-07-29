@@ -113,6 +113,9 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // v10.0.524 · #6 skill suggestion + #10 anti-pattern surface
   { name: "suggestSkills",                category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
   { name: "getSkillProtocol",             category: "brain",          battle: true,  cost: "free", riskClass: "low" },
+  // 2026-07-29 · authors a PENDING candidate skill from source material
+  // (book/article/photo). Writes, so not battle-safe.
+  { name: "captureSkillFromSource",       category: "personal_write", cost: "free", riskClass: "low" },
   { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },
   // v10.0.525 · Session-recording recall (VideoDB · operator captures
   // own sessions externally, submits to /api/system/videodb-sessions)
