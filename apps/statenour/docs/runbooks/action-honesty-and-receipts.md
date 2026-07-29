@@ -19,7 +19,7 @@ never be summarized as "done".
 | L2 pre-persist rewrite | `lib/ai/chat/fabrication-rewriter.ts` | fabrication gets a verifier banner before persist |
 | L3 history neutralize | `lib/ai/chat/sanitize-history.ts` | verifier-marked turns can't compound |
 | L4 truth grounding | `lib/ai/chat/truth-grounding.ts` | real counts pre-injected as system facts |
-| L5 operator chip | `components/chat/action-claim-warning.tsx` | red inline chip shows the diagnostic |
+| L5 operator chip | `components/chat/quality-bar.tsx` (rendered via `components/chat/message-diagnostics.tsx`) | inline quality strip shows critic/gate/factCheck diagnostics |
 
 ## Action receipts (P7)
 
@@ -27,7 +27,9 @@ never be summarized as "done".
 `ActionReceipt` (status success/failed/skipped/needs_approval/partial). The
 `canClaimDone(receipts)` guard returns false if any side-effecting action lacks
 a success receipt — a summary can be checked against it before claiming done.
-v1 is additive (not yet wired into the live finalize seam).
+Wired into the live finalize seam since 2026-07-28:
+`lib/services/chat/persist-assistant-message.ts` runs `canClaimDone` and
+prepends a verifier banner when a done-claim lacks its receipt.
 
 ## Rules
 
@@ -47,4 +49,5 @@ pnpm test -- tests/ai/chat tests/lib/ai/receipts
 
 ## Rollback
 
-- Revert; receipts are additive and not yet wired into the live finalize path.
+- Revert the finalize-seam call in `persist-assistant-message.ts`; the receipt
+  module itself is additive and safe to keep.

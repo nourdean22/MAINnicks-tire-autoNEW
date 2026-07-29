@@ -63,7 +63,7 @@ When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`,
 | AutomationPolicy registry | DB · `automation_policies` · seed via `pnpm tsx scripts/seed-policies.ts` |
 | Schema-drift guard | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) (EXPECTATIONS list) |
 | Reasoning tool whitelist | [`lib/ai/reasoning/reasoning-tools.ts`](lib/ai/reasoning/reasoning-tools.ts) — 16 read-only tools gated by `NICK_DEEP_REASONING` flag |
-| Tool catalog (114 tools) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) — category, cost, risk, required env |
+| Tool catalog (count = `TOOL_CATALOG.length`, never prose) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) — category, cost, risk, required env |
 | Firecrawl web scraper | [`lib/integrations/firecrawl.ts`](lib/integrations/firecrawl.ts) — `FIRECRAWL_API_KEY` env; `scrapeWebPage` tool in `system.ts` |
 | Supply-chain security | `scripts/security-scan.ps1` — `pnpm audit --json` wrapper; report at `reports/security-audit.json` |
 | Codebase MCP server | `scripts/start-codebase-mcp.ps1` + `docs/codebase-memory-mcp.md` — filesystem MCP over `apps/`, `packages/`, `docs/` |

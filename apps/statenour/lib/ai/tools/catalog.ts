@@ -65,8 +65,10 @@ export interface ToolMeta {
 
 /**
  * The tool catalog — never state a count in prose: the old "114-tool"
- * header sat here while the real number grew to 174 (two stale external
- * audits then cited 113/138/145 from copies of different ages). The
+ * header sat here while the real number kept growing (stale external
+ * audits then cited a spread of conflicting counts from copies of
+ * different ages, and even this comment once carried a number that
+ * drifted). The
  * count is TOOL_CATALOG.length; tests/ai/catalog-integrity.test.ts pins
  * catalog ↔ nourTools equality both directions. Keep entries
  * alphabetized within each category for easy diff review.

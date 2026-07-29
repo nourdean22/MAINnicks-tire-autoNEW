@@ -1,7 +1,7 @@
 /**
  * AI Agent Tools — re-export barrel.
  *
- * AUTHORITATIVE INDEX: lib/ai/tools/catalog.ts (TOOL_CATALOG · 143 tools).
+ * AUTHORITATIVE INDEX: lib/ai/tools/catalog.ts (TOOL_CATALOG · count is TOOL_CATALOG.length, never a prose number).
  * The contract test in tests/ai/tool-catalog.test.ts asserts 1:1 alignment
  * between nourTools (this file's only export) and TOOL_CATALOG, so the
  * catalog is the source of truth.
