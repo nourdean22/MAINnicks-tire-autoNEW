@@ -1,7 +1,20 @@
 /**
  * Mission + project-planning tools.
  *
- * Includes: getMissions · addTasksToProject · createMissionPlan.
+ * Includes: getMissions · getMissionDetail · getMissionRetros ·
+ * addTasksToProject · createMissionPlan · updateMissionStatus.
+ *
+ * WP-3 (2026-07-29) — thin-module coverage. The blueprint named missions
+ * as one of the two surfaces the operator touches daily with the least
+ * Nick coverage; verified before building: exactly 3 tools existed, and
+ * the gaps were concrete rather than theoretical —
+ *   · getMissions returns ACTIVE rows with bare fields, so Nick could
+ *     not answer "how is X going?" or "which mission is stalled?"
+ *   · no status mutation at all (the enum has PAUSED/COMPLETE/KILLED),
+ *     so Nick could plan a mission but never close one out
+ *   · retros are written to BrainMemory(mission_retro) and feed the
+ *     morning brief, but nothing could READ them back in chat
+ * The three additions below close exactly those, and nothing more.
  *
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
@@ -34,6 +47,205 @@ export const missionsTools = {
       } catch (err) {
         logError("ai.tools.missions", err as Error, { fn: "getMissions" });
         throw new Error("Missions database is unavailable");
+      }
+    },
+  }),
+
+  getMissionDetail: tool({
+    description:
+      "Get ONE mission with its real progress: task counts by state, the next physical actions, deadline health, and its retro if it was archived. Use when Nour asks how a specific mission or project is going, or which one is stalled.",
+    inputSchema: z.object({
+      missionId: z.string().optional().describe("Mission id. Omit to match by title."),
+      title: z.string().optional().describe("Partial title match when the id is unknown."),
+    }),
+    execute: async ({ missionId, title }) => {
+      if (!missionId && !title) {
+        return { status: "no_data_found", message: "Provide missionId or title." };
+      }
+      try {
+        const mission = await prisma.mission.findFirst({
+          where: {
+            deletedAt: null,
+            ...(missionId
+              ? { id: missionId }
+              : { title: { contains: title!, mode: "insensitive" as const } }),
+          },
+          select: {
+            id: true,
+            title: true,
+            domain: true,
+            status: true,
+            priority: true,
+            deadline: true,
+            successMetric: true,
+            weeklyReviewNote: true,
+            systemKind: true,
+          },
+        });
+        if (!mission) {
+          return { status: "no_data_found", message: "No mission matched." };
+        }
+
+        const [counts, openTasks] = await Promise.all([
+          prisma.task.groupBy({
+            by: ["status"],
+            where: { missionId: mission.id, deletedAt: null },
+            _count: { _all: true },
+          }),
+          prisma.task.findMany({
+            where: { missionId: mission.id, deletedAt: null, status: { not: "DONE" } },
+            select: { title: true, nextPhysicalAction: true, dueDate: true },
+            orderBy: { updatedAt: "desc" },
+            take: 5,
+          }),
+        ]);
+
+        let total = 0;
+        let done = 0;
+        for (const row of counts) {
+          total += row._count._all;
+          if (row.status === "DONE") done += row._count._all;
+        }
+
+        // Deadline health is stated, never inferred into a score: a
+        // mission with no deadline is "none", not "on track".
+        const deadlineState = !mission.deadline
+          ? "none"
+          : mission.deadline.getTime() < Date.now()
+            ? "overdue"
+            : "upcoming";
+
+        return {
+          id: mission.id,
+          title: mission.title,
+          domain: mission.domain,
+          status: mission.status,
+          priority: mission.priority,
+          successMetric: mission.successMetric,
+          weeklyReviewNote: mission.weeklyReviewNote,
+          isUserProject: isUserProject(mission),
+          progress: {
+            total,
+            done,
+            open: total - done,
+            // No percentage when there are no tasks — 0/0 is not 0%.
+            percentComplete: total > 0 ? Math.round((done / total) * 100) : null,
+          },
+          deadline: mission.deadline?.toISOString() ?? null,
+          deadlineState,
+          nextActions: openTasks.map((t) => ({
+            title: t.title,
+            nextPhysicalAction: t.nextPhysicalAction,
+            dueDate: t.dueDate?.toISOString() ?? null,
+          })),
+        };
+      } catch (err) {
+        logError("ai.tools.missions", err as Error, { fn: "getMissionDetail" });
+        throw new Error("Missions database is unavailable");
+      }
+    },
+  }),
+
+  getMissionRetros: tool({
+    description:
+      "Read recent mission retrospectives (what was learned when a mission was closed out). Use when Nour asks what he learned from finished missions or wants past lessons before starting something similar.",
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(10).default(5),
+    }),
+    execute: async ({ limit }) => {
+      try {
+        const rows = await prisma.brainMemory.findMany({
+          where: { category: "mission_retro", deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          select: { content: true, createdAt: true, metadata: true },
+        });
+        return rows.map((r) => {
+          const m = (r.metadata ?? {}) as {
+            missionTitle?: string;
+            taskCount?: number;
+            openCount?: number;
+          };
+          return {
+            missionTitle: m.missionTitle ?? null,
+            retro: r.content,
+            closedAt: r.createdAt.toISOString(),
+            tasksAtClose: m.taskCount ?? null,
+            openAtClose: m.openCount ?? null,
+          };
+        });
+      } catch (err) {
+        logError("ai.tools.missions", err as Error, { fn: "getMissionRetros" });
+        throw new Error("Missions database is unavailable");
+      }
+    },
+  }),
+
+  updateMissionStatus: tool({
+    description:
+      "Change a mission's lifecycle status (PAUSED / COMPLETE / KILLED / ACTIVE). Use when Nour says a project is done, on hold, or dead. Does NOT write a retrospective — closing out with lessons is a separate deliberate step.",
+    inputSchema: z.object({
+      missionId: z.string(),
+      status: z.enum(["ACTIVE", "PAUSED", "COMPLETE", "KILLED"]),
+      note: z
+        .string()
+        .max(500)
+        .optional()
+        .describe("Short why — stored on the mission's weekly review note."),
+    }),
+    execute: async ({ missionId, status, note }) => {
+      try {
+        const existing = await prisma.mission.findFirst({
+          where: { id: missionId, deletedAt: null },
+          select: { id: true, title: true, status: true },
+        });
+        if (!existing) {
+          return { status: "no_data_found", message: "No mission with that id." };
+        }
+        if (existing.status === status) {
+          // Idempotent: report the no-op honestly rather than claiming a change.
+          return {
+            ok: true,
+            changed: false,
+            missionId,
+            title: existing.title,
+            status,
+            message: `Already ${status} — nothing changed.`,
+          };
+        }
+        const updated = await prisma.mission.update({
+          where: { id: missionId },
+          data: {
+            status,
+            updatedBy: "nick",
+            ...(note ? { weeklyReviewNote: note } : {}),
+          },
+          select: { id: true, title: true, status: true },
+        });
+        // Audit row: a lifecycle change the operator can trace back.
+        await prisma.auditEvent
+          .create({
+            data: {
+              actor: "nick",
+              eventType: "mission_status_changed",
+              detail: `${updated.title}: ${existing.status} → ${status}`,
+              payload: { missionId, from: existing.status, to: status, note: note ?? null },
+            },
+          })
+          .catch((e: unknown) =>
+            logError("ai.tools.missions", e as Error, { fn: "updateMissionStatus.audit" }, "warn"),
+          );
+        return {
+          ok: true,
+          changed: true,
+          missionId: updated.id,
+          title: updated.title,
+          previousStatus: existing.status,
+          status: updated.status,
+        };
+      } catch (err) {
+        logError("ai.tools.missions", err as Error, { fn: "updateMissionStatus" });
+        throw new Error("Mission status update failed");
       }
     },
   }),

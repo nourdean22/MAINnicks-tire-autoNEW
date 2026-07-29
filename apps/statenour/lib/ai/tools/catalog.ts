@@ -90,6 +90,11 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getHabitStreaks",              category: "personal_read",  battle: true,  cost: "free" },
   { name: "getMasteryScores",             category: "personal_read",  battle: true,  cost: "free" },
   { name: "getMissions",                  category: "personal_read",  battle: true,  cost: "free" },
+  // WP-3 · missions thin-module coverage (2026-07-29). Reads are
+  // battle-safe; the lifecycle mutation is personal_write so the
+  // capability registry strips it in read mode and it needs a receipt.
+  { name: "getMissionDetail",             category: "personal_read",  battle: true,  cost: "free" },
+  { name: "getMissionRetros",             category: "personal_read",  battle: true,  cost: "free" },
   { name: "getProjections",               category: "personal_read",  battle: true,  cost: "free" },
   { name: "getTasks",                     category: "personal_read",  battle: true,  cost: "free" },
   // v10.0.515 · #12 Calendar bidirectional
@@ -123,6 +128,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "completeTask",                 category: "personal_write", cost: "free" },
   { name: "createCommitment",             category: "personal_write", cost: "free" },
   { name: "createMissionPlan",            category: "personal_write", cost: "free" },
+  { name: "updateMissionStatus",          category: "personal_write", cost: "free", riskClass: "medium" },
   { name: "createTask",                   category: "personal_write", cost: "free" },
   { name: "journalDecision",              category: "personal_write", cost: "free" },
   { name: "logGoalProgress",              category: "personal_write", cost: "free" },
