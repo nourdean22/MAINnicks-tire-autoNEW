@@ -85,3 +85,8 @@ scratch/
 reports/
 workspace/
 eval-datasets/
+
+# Playwright per-run artifacts (failure screenshots, traces) — never committed;
+# the BASELINES live in tests/e2e/*-snapshots/ and are tracked.
+test-results/
+playwright-report/
