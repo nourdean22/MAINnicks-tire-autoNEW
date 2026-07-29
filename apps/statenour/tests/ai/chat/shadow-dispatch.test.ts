@@ -227,6 +227,9 @@ describe("POST /api/ai/chat dispatcher shadow mode", () => {
     mocks.streamWithFallback.mockResolvedValue({
       result: {
         toUIMessageStreamResponse: () => new Response("general path response"),
+        // WP-A: the wrapper interface now surfaces consumeStream — the
+        // stub tracks it so the durability call is exercised, not skipped.
+        consumeStream: () => Promise.resolve(),
       },
       attempts: [{ provider: "anthropic", errorClass: "ok" }],
     });

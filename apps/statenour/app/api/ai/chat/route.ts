@@ -928,7 +928,10 @@ async function chatPostInner(req: Request) {
   // active-stream registry lets the reconnect route replay the persisted
   // reply; cleared only AFTER the durable persist resolves. Private mode
   // registers nothing — its no-persistence semantics hold.
-  result.consumeStream();
+  // Optional-call: consumeStream is a durability ENHANCER — if a test
+  // stub or a future wrapper shape omits it, the turn must degrade to
+  // pre-WP-A behavior (client-driven completion), never crash.
+  result.consumeStream?.();
   if (!privateMode && convId) {
     const { registerActiveStream, completeActiveStream } = await import(
       "@/lib/services/chat/active-stream"
