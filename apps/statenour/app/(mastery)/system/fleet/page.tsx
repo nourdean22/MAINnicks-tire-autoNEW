@@ -51,24 +51,25 @@ function ArtifactRow({ a }: { a: Artifact }) {
 export default function FleetPage() {
   const [truth, setTruth] = useState<FleetTruth | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Derived, not state: no sync setState inside the load effect
+  // (react-compiler cascading-render rule), and one less thing to lie.
+  const loading = truth === null && error === null;
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const res = await fetch("/api/system/fleet-truth", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setTruth((await res.json()) as FleetTruth);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    // Deferred a tick — the compiler can't prove load() defers its
+    // setState past the await, so give it the guarantee structurally.
+    const t = setTimeout(() => void load(), 0);
+    return () => clearTimeout(t);
   }, [load]);
 
   return (
@@ -88,7 +89,7 @@ export default function FleetPage() {
       {!loading && error && (
         <Panel>
           <p className="text-[13px] text-red-400">
-            Fleet truth couldn't load ({error}) — state UNKNOWN, not healthy.
+            Fleet truth couldn&apos;t load ({error}) — state UNKNOWN, not healthy.
           </p>
           <button onClick={() => void load()} className="mt-2 text-[12px] text-fg-secondary underline">
             retry

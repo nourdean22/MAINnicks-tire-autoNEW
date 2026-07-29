@@ -24,6 +24,7 @@ import Link from "next/link";
 import { HomeIdentityHeader } from "./home-identity-header";
 import { CognitivePartner } from "./cognitive-partner";
 import { FollowUpsList } from "./follow-ups-list";
+import { ProposedCommitments } from "./proposed-commitments";
 import { ExecutiveActionMatrix } from "./executive-action-matrix";
 import { HomeHealthChip } from "./home-health-chip";
 import { SinceLastVisitCard } from "@/components/ultron/since-last-visit-card";
@@ -60,6 +61,8 @@ export function HomeConsole() {
       {/* Q2 · What requires my decision? */}
       <section aria-label="Decisions awaiting" className="min-w-0">
         <FollowUpsList />
+        {/* WP-16 · journal nextActions arrive here as proposals awaiting verdict */}
+        <ProposedCommitments />
       </section>
 
       {/* Q3 · What should I do now? */}

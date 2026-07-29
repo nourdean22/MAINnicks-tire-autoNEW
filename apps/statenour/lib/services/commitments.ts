@@ -66,3 +66,118 @@ export async function createCommitment(
 
   return { ok: true, id: created.id };
 }
+
+// ─── Lifecycle (WP-13 · 2026-07-28 blueprint batch) ────────────────────
+// The blueprint's doctrine centers commitments as the loop object:
+//   proposed → active → verified | abandoned  (blocked = parking state;
+//   "accepted" reserved in contracts COMMITMENT_STATUSES for future
+//   delegation flows). A PROPOSED commitment is machine-suggested (first
+//   producer: journal nextAction, WP-16) and has NO standing until the
+//   operator accepts it. Dismissal is remembered — the sourceRef
+//   idempotency check spans ALL statuses, so a dismissed proposal never
+//   re-proposes on the next enrichment sweep. Every transition is a
+//   status-guarded updateMany (no P2025, no lost-race double-flip).
+
+export interface ProposeCommitmentInput {
+  statement: string;
+  /** Provenance + idempotency key, e.g. "journal-take:<entryId>". */
+  sourceRef: string;
+  domain?: string | null;
+  deadline?: string | null;
+  successCondition?: string | null;
+}
+
+/**
+ * Idempotently propose a commitment. Returns the existing row's id when
+ * the sourceRef already exists (in ANY status). Null on failure —
+ * proposers are best-effort and must never break their host pipeline.
+ */
+export async function proposeCommitment(
+  input: ProposeCommitmentInput,
+): Promise<{ id: number; created: boolean } | null> {
+  try {
+    const statement = input.statement.trim().slice(0, 500);
+    if (!statement) return null;
+    const existing = await prisma.commitment.findFirst({
+      where: { sourceRef: input.sourceRef },
+      select: { id: true },
+    });
+    if (existing) return { id: existing.id, created: false };
+    const created = await prisma.commitment.create({
+      data: {
+        dateMade: today(),
+        toWhom: "self",
+        description: statement,
+        domain: input.domain || null,
+        deadline: sanitizeDeadline(input.deadline),
+        status: "proposed",
+        successCondition: input.successCondition ?? undefined,
+        sourceRef: input.sourceRef,
+        createdBy: "system:proposer",
+      },
+    });
+    void logCreate(
+      "commitment",
+      String(created.id),
+      created as unknown as Record<string, unknown>,
+      { source: "service:commitments.propose" },
+    );
+    return { id: created.id, created: true };
+  } catch (err) {
+    const { logError } = await import("@/lib/utils/error-log");
+    logError("commitments", err, { stage: "propose", sourceRef: input.sourceRef }, "warn");
+    return null;
+  }
+}
+
+/** Operator accepts a proposal → it goes on the books as active. */
+export async function acceptCommitment(id: number): Promise<boolean> {
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: "proposed", deletedAt: null },
+    data: { status: "active", updatedBy: "operator" },
+  });
+  return res.count === 1;
+}
+
+/** Operator dismisses a proposal — remembered, never re-proposed. */
+export async function dismissProposed(id: number): Promise<boolean> {
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: "proposed", deletedAt: null },
+    data: { status: "abandoned", updatedBy: "operator" },
+  });
+  return res.count === 1;
+}
+
+/** A commitment's success condition was met — link the evidence. */
+export async function verifyCommitment(
+  id: number,
+  outcomeRef?: string | null,
+): Promise<boolean> {
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: { in: ["active", "accepted"] }, deletedAt: null },
+    data: {
+      status: "verified",
+      verifiedAt: new Date(),
+      ...(outcomeRef ? { outcomeRef } : {}),
+      updatedBy: "operator",
+    },
+  });
+  return res.count === 1;
+}
+
+/** Proposed commitments awaiting the operator's verdict, oldest first. */
+export async function listProposed(limit = 10) {
+  return prisma.commitment.findMany({
+    where: { status: "proposed", deletedAt: null },
+    orderBy: { createdAt: "asc" },
+    take: Math.min(Math.max(limit, 1), 50),
+    select: {
+      id: true,
+      description: true,
+      domain: true,
+      sourceRef: true,
+      successCondition: true,
+      createdAt: true,
+    },
+  });
+}

@@ -140,7 +140,12 @@ import {
 // service the `/commit` chat direct-action fires. Also called by the
 // create branch of the legacy POST /api/commitments route — drift
 // structurally impossible.
-import { createCommitment } from "@/lib/services/commitments";
+import {
+  createCommitment,
+  listProposed,
+  acceptCommitment,
+  dismissProposed,
+} from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
 import { logError } from "@/lib/utils/error-log";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
@@ -1601,6 +1606,33 @@ export const operatorRouter = router({
         },
       });
       return { ok: true as const, taskId: task.id };
+    }),
+
+  /**
+   * WP-13/16 · 2026-07-28 · proposed-commitment lifecycle. Machine
+   * proposers (journal nextAction is the first) create status="proposed"
+   * rows; these three procedures are the operator's verdict surface on
+   * Home. Accept → active (on the books); dismiss → abandoned
+   * (remembered — the proposer's sourceRef idempotency spans all
+   * statuses, so a dismissal never re-proposes).
+   */
+  commitmentsProposed: operatorProcedure.query(async () => {
+    const items = await listProposed(10);
+    return { items };
+  }),
+
+  commitmentAccept: operatorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const ok = await acceptCommitment(input.id);
+      return { ok };
+    }),
+
+  commitmentDismiss: operatorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const ok = await dismissProposed(input.id);
+      return { ok };
     }),
 
   nickRemembersContext: operatorProcedure.query(async () => {

@@ -47,7 +47,13 @@ export declare const MEMORY_DECISIONS: readonly ["add", "reinforce", "update", "
 export type MemoryDecision = (typeof MEMORY_DECISIONS)[number];
 export declare const TRIAGE_DECISIONS: readonly ["today", "schedule", "anytime", "someday", "kill", "snooze"];
 export type TriageDecision = (typeof TRIAGE_DECISIONS)[number];
+export declare const EXECUTION_CLASSES: readonly ["query", "command", "job", "workflow", "agent_task", "schedule", "watch"];
+export type ExecutionClass = (typeof EXECUTION_CLASSES)[number];
+export declare const COMMITMENT_STATUSES: readonly ["proposed", "accepted", "active", "blocked", "verified", "abandoned", "completed", "stale"];
+export type CommitmentStatus = (typeof COMMITMENT_STATUSES)[number];
 export declare const isProbeOutcome: (v: string) => v is ProbeOutcome;
 export declare const isOpportunityState: (v: string) => v is OpportunityState;
 export declare const isArtifactState: (v: string) => v is ArtifactState;
+export declare const isExecutionClass: (v: string) => v is ExecutionClass;
+export declare const isCommitmentStatus: (v: string) => v is CommitmentStatus;
 //# sourceMappingURL=contracts.d.ts.map

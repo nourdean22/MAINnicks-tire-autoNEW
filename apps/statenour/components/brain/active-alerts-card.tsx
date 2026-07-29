@@ -106,7 +106,7 @@ export function ActiveAlertsCard() {
       <GlassCard>
         <p className="text-[12px] text-red-400 flex items-center gap-2">
           <AlertTriangle size={13} />
-          Alerts couldn't load — state unknown, not empty.
+          Alerts couldn&apos;t load — state unknown, not empty.
           <button onClick={() => void alertsQuery.refetch()} className="underline text-[11px]">retry</button>
         </p>
       </GlassCard>

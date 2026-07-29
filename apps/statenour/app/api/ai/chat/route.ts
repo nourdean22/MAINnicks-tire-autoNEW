@@ -716,6 +716,8 @@ async function chatPostInner(req: Request) {
     webSearchIntent: __webSearchIntent,
     queryShape,
     finalSystemPromptLength: finalSystemPrompt.length,
+    // WP-14 · read-mode hard enforcement (strips mutating tools LAST)
+    actionPermission,
     log,
   });
 

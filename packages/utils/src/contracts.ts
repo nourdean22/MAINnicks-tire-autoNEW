@@ -132,13 +132,59 @@ export type MemoryDecision = (typeof MEMORY_DECISIONS)[number];
 export const TRIAGE_DECISIONS = ["today", "schedule", "anytime", "someday", "kill", "snooze"] as const;
 export type TriageDecision = (typeof TRIAGE_DECISIONS)[number];
 
+// ─── Execution classes (WP-15, 2026-07-28) ──────────────────────────
+// Every background or foreground operation belongs to EXACTLY ONE of
+// these. The classes were MEASURED first (blueprint job-ownership
+// census: request-time services, worker node-cron, Inngest scheduled +
+// event-driven, mega fan-out, post-turn outbox) and named second — the
+// vocabulary follows the census, not the other way around. Consumers:
+// cron manifest annotations, capability registry, future scorecards.
+
+export const EXECUTION_CLASSES = [
+  "query", // read-only, fast, request-time
+  "command", // immediate mutation with receipt
+  "job", // background operation with progress (outbox, drains)
+  "workflow", // multi-step deterministic process (Inngest step fns)
+  "agent_task", // adaptive delegated work (research-on-demand)
+  "schedule", // time-triggered execution (crons, fan-outs)
+  "watch", // condition-triggered monitoring (liveness, watchdogs)
+] as const;
+export type ExecutionClass = (typeof EXECUTION_CLASSES)[number];
+
+// ─── Commitment lifecycle (WP-13, 2026-07-28) ───────────────────────
+// Source: apps/statenour prisma `Commitment` (status String, default
+// "active" — pre-existing writers: Telegram /commit, weekly-review,
+// commit-sweep). The lifecycle EXTENDS the legacy states rather than
+// replacing them: "active"/"completed"/"stale" rows predate this
+// vocabulary and remain valid. New flow: proposed → accepted → active
+// → verified | abandoned, with blocked as a parking state. A proposed
+// commitment is machine-suggested (e.g. a journal nextAction) and has
+// NO standing until the operator accepts it.
+
+export const COMMITMENT_STATUSES = [
+  "proposed",
+  "accepted",
+  "active",
+  "blocked",
+  "verified",
+  "abandoned",
+  // legacy states still present in prod rows — readers must tolerate:
+  "completed",
+  "stale",
+] as const;
+export type CommitmentStatus = (typeof COMMITMENT_STATUSES)[number];
+
 // ─── Guards ─────────────────────────────────────────────────────────
 
 const setOf = (arr: readonly string[]) => new Set(arr);
 const probeSet = setOf(PROBE_OUTCOMES);
 const oppSet = setOf(OPPORTUNITY_STATES);
 const artifactSet = setOf(ARTIFACT_STATES);
+const execSet = setOf(EXECUTION_CLASSES);
+const commitSet = setOf(COMMITMENT_STATUSES);
 
 export const isProbeOutcome = (v: string): v is ProbeOutcome => probeSet.has(v);
 export const isOpportunityState = (v: string): v is OpportunityState => oppSet.has(v);
 export const isArtifactState = (v: string): v is ArtifactState => artifactSet.has(v);
+export const isExecutionClass = (v: string): v is ExecutionClass => execSet.has(v);
+export const isCommitmentStatus = (v: string): v is CommitmentStatus => commitSet.has(v);
