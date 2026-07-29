@@ -1303,37 +1303,55 @@ export async function collectAbandonedForms(): Promise<CollectorStats> {
   if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
 
   let rows: Array<Record<string, unknown>>;
+  const convertedPhones = new Map<string, number>(); // last10 → earliest convert ts
   try {
-    // Exclude anyone who subsequently SUBMITTED (a lead or booking on the
-    // same last-10 phone at-or-after the abandonment) — they converted and
-    // live in those rails already.
+    // Runtime-truth-pass fix (2026-07-29): the first version excluded
+    // subsequent converters with correlated NOT EXISTS whose join keys were
+    // REPLACE() chains on BOTH sides — unindexable, O(forms × leads×bookings)
+    // full scans that stalled a live refresh for 20+ minutes. Same cure as
+    // the stale-lead dedupe guard: fetch the (small, windowed) lead/booking
+    // phone sets ONCE and filter in JS by last-10.
     rows = rowsFromExecute(await db.execute(sql`
-      SELECT a.sessionId, a.formType, a.name, a.phone, a.service, a.createdAt
-      FROM abandoned_forms a
-      WHERE a.phone IS NOT NULL AND LENGTH(a.phone) >= 10
-        AND a.createdAt <= DATE_SUB(NOW(), INTERVAL 2 HOUR)
-        AND a.createdAt > DATE_SUB(NOW(), INTERVAL 14 DAY)
-        AND NOT EXISTS (
-          SELECT 1 FROM leads l
-          WHERE RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(l.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-              = RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(a.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-            AND l.createdAt >= a.createdAt
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM bookings b
-          WHERE RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(b.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-              = RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(a.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-            AND b.createdAt >= a.createdAt
-        )
-      ORDER BY a.createdAt DESC
+      SELECT sessionId, formType, name, phone, service, createdAt
+      FROM abandoned_forms
+      WHERE phone IS NOT NULL AND LENGTH(phone) >= 10
+        AND createdAt <= DATE_SUB(NOW(), INTERVAL 2 HOUR)
+        AND createdAt > DATE_SUB(NOW(), INTERVAL 14 DAY)
+      ORDER BY createdAt DESC
       LIMIT 100
     `));
+    const [leadRows] = await db.execute(sql`
+      SELECT phone, createdAt FROM leads
+      WHERE phone IS NOT NULL AND createdAt > DATE_SUB(NOW(), INTERVAL 15 DAY)
+      LIMIT 500
+    `);
+    const [bookingRows] = await db.execute(sql`
+      SELECT phone, createdAt FROM bookings
+      WHERE phone IS NOT NULL AND createdAt > DATE_SUB(NOW(), INTERVAL 15 DAY)
+      LIMIT 500
+    `);
+    for (const r of [...(Array.isArray(leadRows) ? leadRows : []), ...(Array.isArray(bookingRows) ? bookingRows : [])]) {
+      const row = r as { phone?: unknown; createdAt?: unknown };
+      const p = String(row.phone ?? "").replace(/\D/g, "").slice(-10);
+      if (p.length !== 10) continue;
+      const ts = new Date(String(row.createdAt)).getTime();
+      const prev = convertedPhones.get(p);
+      if (prev === undefined || ts < prev) convertedPhones.set(p, ts);
+    }
   } catch (err) {
     log.warn("[opportunity-queue] abandoned-form collector query failed", {
       error: err instanceof Error ? err.message : String(err),
     });
     return { scanned: 0, inserted: 0, refreshed: 0 };
   }
+  // Drop partials whose person converted (lead/booking at-or-after abandonment).
+  rows = rows.filter((r) => {
+    const p = String(r.phone ?? "").replace(/\D/g, "").slice(-10);
+    const convertedAt = convertedPhones.get(p);
+    if (convertedAt === undefined) return true;
+    const abandonedAt = new Date(String(r.createdAt)).getTime();
+    return convertedAt < abandonedAt; // conversion BEFORE abandonment doesn't count
+  });
 
   let inserted = 0;
   let refreshed = 0;
@@ -1848,41 +1866,60 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
   }
 
   // 8. abandoned_form: a lead or booking appeared for the same phone after
-  //    the abandonment → they converted; close our copy. String sessionId
-  //    join (no CAST — the source PK is a varchar).
+  //    the abandonment → they converted; close our copy. Aged >14d closes
+  //    too. String sessionId join (no CAST — the source PK is a varchar).
+  //    Runtime-truth-pass fix (2026-07-29): the converted-check moved from
+  //    correlated EXISTS with REPLACE()-chained join keys (unindexable —
+  //    stalled a live refresh 20+ min) to fetch-once + JS filter, mirroring
+  //    the collector.
   try {
-    const converted = rowsFromExecute(await db.execute(sql`
-      SELECT o.id
+    const live = rowsFromExecute(await db.execute(sql`
+      SELECT o.id, a.phone AS formPhone, a.createdAt AS abandonedAt
       FROM revenue_opportunities o
       JOIN abandoned_forms a ON a.sessionId = o.source_id
       WHERE o.source_type = 'abandoned_form'
         AND o.state IN (${stateList})
-        AND (
-          EXISTS (
-            SELECT 1 FROM leads l
-            WHERE RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(l.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-                = RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(a.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-              AND l.createdAt >= a.createdAt
-          )
-          OR EXISTS (
-            SELECT 1 FROM bookings b
-            WHERE RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(b.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-                = RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(a.phone, '-', ''), ' ', ''), '(', ''), ')', ''), 10)
-              AND b.createdAt >= a.createdAt
-          )
-          OR a.createdAt < DATE_SUB(NOW(), INTERVAL 14 DAY)
-        )
       LIMIT 100
     `));
-    stats.checked += converted.length;
-    for (const r of converted) {
-      const res = await transitionOpportunity({
-        id: String(r.id),
-        to: "lost",
-        by: "reconciler",
-        note: "source resolved: subsequent lead/booking appeared, or partial aged past 14 days",
-      });
-      if (res.ok) stats.closed++;
+    if (live.length > 0) {
+      const converted = new Map<string, number>();
+      const [leadRows] = await db.execute(sql`
+        SELECT phone, createdAt FROM leads
+        WHERE phone IS NOT NULL AND createdAt > DATE_SUB(NOW(), INTERVAL 15 DAY)
+        LIMIT 500
+      `);
+      const [bookingRows] = await db.execute(sql`
+        SELECT phone, createdAt FROM bookings
+        WHERE phone IS NOT NULL AND createdAt > DATE_SUB(NOW(), INTERVAL 15 DAY)
+        LIMIT 500
+      `);
+      for (const r of [...(Array.isArray(leadRows) ? leadRows : []), ...(Array.isArray(bookingRows) ? bookingRows : [])]) {
+        const row = r as { phone?: unknown; createdAt?: unknown };
+        const p = String(row.phone ?? "").replace(/\D/g, "").slice(-10);
+        if (p.length !== 10) continue;
+        const ts = new Date(String(row.createdAt)).getTime();
+        const prev = converted.get(p);
+        if (prev === undefined || ts < prev) converted.set(p, ts);
+      }
+      const cutoff14d = Date.now() - 14 * 86_400_000;
+      for (const r of live) {
+        const p = String(r.formPhone ?? "").replace(/\D/g, "").slice(-10);
+        const abandonedAt = new Date(String(r.abandonedAt)).getTime();
+        const convertedAt = converted.get(p);
+        const didConvert = convertedAt !== undefined && convertedAt >= abandonedAt;
+        const aged = abandonedAt < cutoff14d;
+        if (!didConvert && !aged) continue;
+        stats.checked++;
+        const res = await transitionOpportunity({
+          id: String(r.id),
+          to: "lost",
+          by: "reconciler",
+          note: didConvert
+            ? "source resolved: subsequent lead/booking appeared for this phone"
+            : "aged out: partial older than 14 days",
+        });
+        if (res.ok) stats.closed++;
+      }
     }
   } catch (err) {
     if (!isMissingTableError(err)) {
