@@ -4,9 +4,9 @@ processed-date: 2026-07-29
 processed-by: Claude Fable 5 (repo-verified gate) — HITL rounds pending Nour
 clarity-status: CLEAR
 hitl-status: PENDING
-hitl-pending-count: 5
+hitl-pending-count: 3
 points-passed: 1-9
-document-sha256: e1b807008a3ab1f807c6d27c3388abfcec95ef73192619359ca48739974c18ff
+document-sha256: 8a7d801f69a285c59711712671707ba34e424985b21a550bea47ff732b2eae50
 hitl-claims:
   - id: claim-feed-audit
     text: "Current public @nicks_tire_euclid feed quality is unaudited; a 20-post/20-reel authenticated sample audit is a launch prerequisite"
@@ -15,11 +15,13 @@ hitl-claims:
     location: "pending-hitl/1"
     round: B
   - id: claim-insight-coverage
-    text: "Prod instagram_analytics row count and insight-column coverage (reach/saved/views/shares non-null share) are unknown"
-    value: "unknown"
-    source: "Probe prod TiDB: SELECT COUNT(*), COUNT(reach) FROM instagram_analytics (07-16 probe predates the live-Graph wave and showed 0 rows)"
+    text: "Prod instagram_analytics insight coverage"
+    value: "63 rows; 62/63 carry reach+saved+views+shares; earliest 2026-07-17, latest 2026-07-29 16:09Z; 50 IMAGE / 13 VIDEO. The starvation era is over — the live-Graph sync is capturing."
+    source: "Read-only prod TiDB SELECT (Nour-directed probe, 2026-07-29)"
     location: "pending-hitl/2"
     round: B
+    confirmed-by: Nour (directed probe)
+    confirmed-date: 2026-07-29
   - id: claim-draftboard-use
     text: "Whether the operator still uses the gear→Planning campaign-package lane decides route-into-inventory vs retire"
     value: "operator decision"
@@ -33,11 +35,13 @@ hitl-claims:
     location: "pending-hitl/4"
     round: B
   - id: claim-storage-envs
-    text: "Whether prod Railway has S3_BUCKET + CLOUDFRONT_DOMAIN set is unknown from the repo; the code path is built and fail-closed either way"
-    value: "unknown"
-    source: "Open Instagram → Today after deploy — the new Delivery row reports it live; or railway variables --service MAINnicks-tire-auto"
+    text: "Prod Railway storage/reel env state"
+    value: "S3_BUCKET=nickstire-media-oq6yt1u22 SET · CLOUDFRONT_DOMAIN UNSET (permanent-URL warning, not a blocker — storage.ts hard-requires S3 only) · REEL_GENERATION_ENABLED=true · REEL_PUBLISH_ENABLED=true (the autonomous reel lane is ARMED in prod)"
+    source: "railway variables --service MAINnicks-tire-auto (Nour-directed probe, 2026-07-29)"
     location: "addendum/1"
     round: B
+    confirmed-by: Nour (directed probe)
+    confirmed-date: 2026-07-29
 ---
 
 # Instagram OS Plan — Clarity-Gated Verdict Register (2026-07-29)
@@ -205,6 +209,51 @@ feed, change history). Same discipline, same anchor. Verdicts:
 **Wave C′** (post-snapshots) = Trial Reels workflow → Pattern Lab +
 pattern memory → campaign grouping → service feed.
 
+## Wave A execution record (second PR, same day)
+
+Probes (Nour-directed, read-only) and the Wave A build landed hours after the
+gate PR:
+
+**Probe findings (all Round A, evidence in the frontmatter claims):**
+- `instagram_analytics`: **63 rows, 62/63 with reach/saved/views/shares**,
+  earliest 07-17, latest 07-29 16:09Z — the analytics starvation era is over;
+  the Learn exposure lights up with real data immediately.
+- `reel_jobs` last 30 days: **48 failed / 7 posted / 5 published /
+  1 publish_ambiguous / 1 assembled ⇒ ~77% failure rate**, and one ambiguous
+  publish parked RIGHT NOW (the Delivery blocker fires live on deploy).
+  Success carries TWO status spellings (`posted`, `published`) — the
+  reliability panel sums them; normalize the vocabulary when next touching
+  the pipeline.
+- Railway: `S3_BUCKET` SET, `CLOUDFRONT_DOMAIN` UNSET, and **both
+  `REEL_GENERATION_ENABLED` and `REEL_PUBLISH_ENABLED` are true — the
+  autonomous reel lane is armed in prod.** Wave A0 shrinks to: set
+  `CLOUDFRONT_DOMAIN` (permanent URLs), optional.
+- The probe corrected the delivery deriver itself: S3-without-CloudFront is
+  the measured prod state and `storage.ts` hard-requires S3 only — the
+  deriver now reports it as the permanent-URL WARNING, not a false blocker.
+
+**Shipped in the Wave A PR:**
+- **A1** — `contentAdmin.stageCarouselToInventory`: campaign-package carousel
+  (≥2 rendered slides + caption required, idempotent id `cp_<draftId>`) →
+  `social_content_inventory` status `pending` (= needs_review in the queue) →
+  the SAME approve → publish gates as every other lane. PublishDrawer now
+  leads with "Stage to Publish (canonical)" and labels its copy/paste steps
+  the manual EXPORT FALLBACK whose "Mark as Posted" records no platform id.
+  Staged rows surface today in Publish → Reels → the legacy-statics section;
+  moving them onto the Board proper is queued polish.
+- **A3** — `instagramAdmin.getReelReliability` (30-day windowed, spelling-
+  honest, all-null = unknown) + the Today "Reel pipeline · last 30 days"
+  card (amber at ≥50% failure — currently ~77%).
+- **A4** — [`PLATFORM-SPEC.md`](./PLATFORM-SPEC.md): every externally-imposed
+  rule with source, retrieval date, required/recommended/internal/discrepancy
+  status, enforcement point, and last-canary column (AAC 192k-vs-128k logged
+  as the standing discrepancy).
+
+**Deliberately NOT in the Wave A PR:** A2 `media_product_type` and the
+Wave C snapshot table — both are hand-applied TiDB DDL; an unapplied
+migration merged ahead of application has already caused live errors here
+once (the 0084 era). They ship as a coordinated migration batch next.
+
 ## Standing refuted list (do not re-plan — additions from this gate)
 
 - Aggregate score can mask a blocker → blockers force `block` (see P1-6).
@@ -228,10 +277,10 @@ pattern memory → campaign grouping → service feed.
 | # | Claim | Why HITL needed | Confirms |
 |---|-------|-----------------|----------|
 | 1 | claim-feed-audit | Needs authenticated owner access to the live feed | [ ] |
-| 2 | claim-insight-coverage | Needs a prod TiDB probe (read-only) | [ ] |
+| 2 | claim-insight-coverage | Prod TiDB probe (read-only) | ✓ Confirmed — Nour-directed probe, 2026-07-29 (62/63 rows carry insights) |
 | 3 | claim-draftboard-use | Operator workflow fact, not derivable from code | [ ] |
 | 4 | claim-aac-canary | Needs an owner-gated live canary + transcode inspect | [ ] |
-| 5 | claim-storage-envs | Railway env state is not readable from the repo; the new Delivery row answers it live | [ ] |
+| 5 | claim-storage-envs | Railway env read | ✓ Confirmed — Nour-directed probe, 2026-07-29 (S3 set, CloudFront unset, reel lane ARMED) |
 
 <!-- CLARITY_GATE_END -->
 Clarity Gate: CLEAR | PENDING
