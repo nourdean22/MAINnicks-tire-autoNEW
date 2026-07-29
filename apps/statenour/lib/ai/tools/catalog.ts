@@ -64,8 +64,12 @@ export interface ToolMeta {
 }
 
 /**
- * The 114-tool catalog. Keep this alphabetized within each category
- * for easy diff review. New tools get appended to their category.
+ * The tool catalog — never state a count in prose: the old "114-tool"
+ * header sat here while the real number grew to 174 (two stale external
+ * audits then cited 113/138/145 from copies of different ages). The
+ * count is TOOL_CATALOG.length; tests/ai/catalog-integrity.test.ts pins
+ * catalog ↔ nourTools equality both directions. Keep entries
+ * alphabetized within each category for easy diff review.
  */
 export const TOOL_CATALOG: ToolMeta[] = [
   // ── personal_read ────────────────────────────────────────────────

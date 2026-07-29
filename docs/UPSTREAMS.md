@@ -25,12 +25,12 @@ verdict changes.**
 | yt-dlp | video transcripts | **ADOPTED** (2026-07-28) | policy-guarded, fenced like firecrawl (#1173); pinned in Dockerfile |
 | Inngest | durable workflows | **ADOPTED** (long-standing) | 24 registered functions; self-sync + heartbeat + out-of-band liveness (#1166+) |
 | Stagehand / Browserbase | agent browser automation | **ADOPTED** (2026-07-22) | live (#1030/#1032); Ollama Cloud lane |
-| Camoufox | stealth browser automation | **REJECT** (duplicate) | Stagehand lane is live; stealth adds anti-detection baggage. Footnote: acceptable **fallback engine** if Browserbase cost ever bites — that event is the only reopen trigger |
+| Camoufox | stealth browser automation | **REJECT** (duplicate) | Stagehand lane is live; stealth adds anti-detection baggage. Reopen trigger: Browserbase cost bites. Reopen MECHANISM (audit-#10's good idea): a second provider behind the EXISTING `browser_do`/`browser_navigate`/`browser_act`/`browser_observe` names, env-flagged — never `camofox_*` tool sprawl |
 | Open WebUI | AI workspace (chat/RAG/RBAC/evals) | **REJECT** (duplicate) | its own guidance: "don't replace an existing chat app." All four porting targets exist: owner auth, brain RAG (pgvector), calibration/eval arena, fleet-truth observability |
-| HyperFrames | HTML→video rendering | **REJECT** (duplicate) | `@nour/reel-engine` (Remotion) + `@nour/social-assets` (Satori) + creative compiler already produce autonomous reels; a second render engine is sprawl |
+| HyperFrames | HTML→video rendering | **REJECT** (duplicate) | `@nour/reel-engine` (Remotion) + `@nour/social-assets` (Satori) + creative compiler already produce autonomous reels, and chat-side video generation is LIVE (`moneyprinter` tool, sideEffecting, in-flight-guarded). The keeper from audit-#10 is the EVAL, not the engine: "never claim video created without an artifact id" — WP-18 |
 | Claude Ads | capability-gated ads agent | **PATTERN** (already native) | read-only default / manifests / deterministic audits / approval-gated mutations = the shipped doctrine (#1180 read-mode hard gate, receipts, approvals); ads ops live in `@nour/meta-ads-architect` + GBP publisher |
 | assistant-ui | typed generative UI | **PATTERN** (2026-07-28) | typed renderer registry built natively (#1176); grow the Surface vocabulary per A2UI below |
-| Unsloth / Axolotl | local fine-tuning | **WATCH** (prerequisite: training data) | zero labeled corpus today. **Reopen trigger:** `outcomesNeedingReview` has ~200+ real correction cases AND the recall-eval corpus shows prompt-tuning plateaued on measured recall. Standing up trainers before data exists is capability cosplay |
+| Unsloth / Axolotl | local fine-tuning | **WATCH** (prerequisite: training data) | zero labeled corpus today. **Reopen trigger:** `outcomesNeedingReview` has ~200+ real correction cases AND the recall-eval corpus shows prompt-tuning plateaued on measured recall. First-model candidates when it reopens (audit-#10): task classifier · memory-recall judge · fabrication critic · briefing compressor — small task models, Unsloth first, Axolotl only when configs get serious |
 | AutoTrain Advanced | no-code training | **DEAD** | upstream README declares itself unmaintained (verified live by the 2026-07-29 audit); recommends Axolotl/TRL |
 | Vibe-Trading / Fincept Terminal | finance research / trading | **REJECT** (wrong for this system) | personal-finance tab sits in retired-state pending WP-9; live-execution finance is out of the agent's operating bounds regardless. Fincept: AGPL — license review mandatory before any code reuse |
 | "Nano Banana" / Open-Gen-AI | multimodal launcher | **DEAD** (unverifiable) | the proposing audit could not pin the repo; neither could we |
@@ -48,3 +48,14 @@ no vibes; WATCH entries must state the concrete reopen condition;
 changing a verdict is a PR touching THIS file with the new evidence;
 external audits proposing anything listed here get pointed at the row,
 not re-litigated.
+
+**For external auditors (recurring failure modes, ten audits in):**
+1. The live repo is `C:\Users\nourd\NOURCITY` — audit-#10 read a stale
+   OneDrive copy (`…OLD\nick-opsOLDDDD\…`) and reported months-old tool
+   counts as current. 2. `apps/statenour` is not the whole system —
+   `packages/*` (reel-engine, social-assets, meta-ads-architect, utils
+   contracts) and `apps/nickstire` hold half the incumbents audits
+   propose rebuilding. 3. Prose counts are banned — the tool count is
+   `TOOL_CATALOG.length`, pinned bidirectionally by
+   `tests/ai/catalog-integrity.test.ts` (2026-07-29: header said 114,
+   truth was 174).
