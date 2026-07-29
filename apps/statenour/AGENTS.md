@@ -3,7 +3,7 @@
 > **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
 >
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-07-28 · tenth arc — the operating-spine day (11 merges: cron-truth sweep + Inngest revive, loud-failure phase 2, One-Spine 1-8, chat command console, decision card + outcome ledger + #1152). Full roll-up: RECONCILIATION top entry.
+> **Last refreshed:** 2026-07-29 · fourteenth arc — truth-guard artifact/browser claim classes, daily-brief degrade guarantee (briefing_logs always gains its row), WP-21 eval-dataset exporter. Full roll-up: RECONCILIATION top entry (sibling arcs #1195/#1200 backfill-pending there).
 
 ## 1 · Where we are right now
 

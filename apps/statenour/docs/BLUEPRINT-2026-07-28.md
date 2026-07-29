@@ -296,7 +296,12 @@ before accepting any "connect X" recommendation.
   Performance API ingestion (publisher is posting-only today) + the
   GSC×GA4×leads join + LHCI/CrUX budgets — read-only, feeds the
   existing GSC pipeline and SEO cockpit; subsumes the GSC ranked-merge
-  deferral.
+  deferral. **Status 2026-07-29:** GBP leg SHIPPED (#1193 —
+  `gbp.performance` fail-closed proc + service); runtime gated by
+  Google project quota=0 pending the Business Profile API access form
+  (state + ownership map: nickstire INTEGRATION_REGISTRY GBP note;
+  location id stored). GSC×GA4 + LHCI/CrUX legs remain — GA4
+  integration was removed historically and needs operator setup first.
 - **WP-23 · NHTSA vehicle enrichment** (audit-#12): vPIC VIN/YMM
   normalization + recall-aware lead enrichment; read-only advisor
   framing, cached, source-labeled.
