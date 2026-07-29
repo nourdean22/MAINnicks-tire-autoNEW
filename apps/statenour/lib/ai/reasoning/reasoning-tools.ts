@@ -59,6 +59,9 @@ const REASONING_TOOL_WHITELIST = new Set([
   "last30days",
   "getFleetTruth",
   "getTopDecisions",
+  // Wave 3 · draft is READ-ONLY (deterministic template + risk label). The
+  // send/staging tool stays OUT of this list — the engine observes, never acts.
+  "draftOpportunitySms",
   "arsenalNotebookLM",
   // Brain reads — analyzers + Greene + power dynamics + dark psychology
   "analyzeMentalHealth",

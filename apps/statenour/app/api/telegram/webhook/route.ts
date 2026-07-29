@@ -40,6 +40,17 @@ const smsPayloadSchema = z.object({
   customerName: z.string().optional()
 }).catchall(z.unknown());
 
+/** Autopilot Wave 3 (2026-07-29) · payload staged by sendOpportunitySms.
+ *  Identity = the nickstire opportunity row (no phone here on purpose —
+ *  §8: no free-form targeting; nickstire resolves + gates the send). */
+const oppSmsPayloadSchema = z.object({
+  kind: z.literal("opportunity_sms"),
+  opportunityId: z.string().uuid(),
+  body: z.string().min(1).max(480),
+  idempotencyKey: z.string().min(8).max(64),
+  customerLabel: z.string().optional(),
+}).catchall(z.unknown());
+
 /**
  * v9.1.14 · Constant-time secret compare. The previous `provided !==
  * EXPECTED_SECRET` was vulnerable to timing-attack inference of the
@@ -337,6 +348,109 @@ async function handleCallback(callback: {
           );
         }
         await answerCallbackQuery(callback.id, "Rejected");
+      }
+      return;
+    }
+
+    // Autopilot Wave 3 (2026-07-29) · opportunity-SMS approval. The Approve
+    // tap IS the §8 human approval: it calls nickstire's bounded
+    // send_opportunity_sms action (opportunity-row identity, full gate
+    // stack, audit-row idempotency). callback_data: oppsms:approve|deny:<receiptId>
+    if (action === "oppsms") {
+      const parts = (callback.data ?? "").split(":");
+      const decision = parts[1];
+      const receiptId = parts[2];
+
+      const oppReceipt = await prisma.actionReceipt.findUnique({ where: { id: receiptId } });
+      if (!oppReceipt) {
+        await answerCallbackQuery(callback.id, "Receipt not found.");
+        return;
+      }
+      if (oppReceipt.status !== "PENDING") {
+        if (messageId) {
+          await editTelegramMessage(messageId, `⚠️ Action already processed.`, chatId);
+        }
+        await answerCallbackQuery(callback.id, "Already processed.");
+        return;
+      }
+
+      const parsedOpp = oppSmsPayloadSchema.safeParse(oppReceipt.verificationPayload);
+      if (!parsedOpp.success) {
+        console.error("[telegram:webhook] Malformed opportunity-SMS payload on receipt:", receiptId);
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: { status: "FAILED", context: "Malformed opportunity-SMS payload" },
+        });
+        if (messageId) {
+          await editTelegramMessage(messageId, `❌ Opportunity SMS failed: malformed payload.`, chatId);
+        }
+        await answerCallbackQuery(callback.id, "Malformed payload.");
+        return;
+      }
+      const payload = parsedOpp.data;
+
+      if (decision === "approve") {
+        try {
+          const { queryNick } = await import("@/lib/nickstire/query");
+          const res = await queryNick<{ ok?: boolean; sent?: boolean; duplicate?: boolean; queued?: boolean; error?: string }>(
+            "send_opportunity_sms",
+            {
+              opportunityId: payload.opportunityId,
+              body: payload.body,
+              idempotencyKey: payload.idempotencyKey,
+              approvedBy: "nour:telegram",
+            },
+          );
+          if ("error" in res) throw new Error(res.error);
+          const data = res.data;
+          if (data.error) throw new Error(String(data.error));
+          // duplicate:true = an earlier attempt (or queryNick's own retry
+          // after a timeout) already landed — that is SUCCESS, not failure.
+          await prisma.actionReceipt.update({
+            where: { id: receiptId },
+            data: { status: "SUCCESS", executedAt: new Date() },
+          });
+          const outcome = data.duplicate
+            ? "already sent (dedupe) ✓"
+            : data.queued
+              ? "queued — delivers at the next send window ✓"
+              : "dispatched ✓";
+          if (messageId) {
+            await editTelegramMessage(
+              messageId,
+              `✅ Opportunity SMS ${outcome}\n\n<b>To:</b> ${payload.customerLabel || "customer"}\n<b>Text:</b> "${payload.body}"`,
+              chatId,
+            );
+          }
+          await answerCallbackQuery(callback.id, "Approved!");
+        } catch (err) {
+          console.error("[telegram:webhook] opportunity-SMS dispatch error:", err);
+          await prisma.actionReceipt.update({
+            where: { id: receiptId },
+            data: { status: "FAILED", context: err instanceof Error ? err.message : String(err) },
+          });
+          if (messageId) {
+            await editTelegramMessage(
+              messageId,
+              `❌ Opportunity SMS blocked/failed: ${err instanceof Error ? err.message : "unknown"}\n(Nick's Tire's gates refused or the bridge failed — nothing was sent.)`,
+              chatId,
+            );
+          }
+          await answerCallbackQuery(callback.id, "Blocked/failed.");
+        }
+      } else {
+        await prisma.actionReceipt.update({
+          where: { id: receiptId },
+          data: { status: "FAILED", context: "Rejected by operator" },
+        });
+        if (messageId) {
+          await editTelegramMessage(
+            messageId,
+            `❌ Opportunity SMS declined.\n\n<b>To:</b> ${payload.customerLabel || "customer"}\n<b>Text:</b> "${payload.body}"`,
+            chatId,
+          );
+        }
+        await answerCallbackQuery(callback.id, "Declined.");
       }
       return;
     }

@@ -106,6 +106,96 @@ export const socialTools = {
     },
   }),
 
+  draftOpportunitySms: tool({
+    description:
+      "Get the deterministic, evidence-only SMS draft for a Nick's Tire Decision-Inbox opportunity (from getTopDecisions). READ-ONLY — never sends. Returns the draft text, best channel, risk label, and masked customer identity. Call-first opportunity types (callbacks, complaints, overdue promises) return no draft with the reason — recommend the CALL instead. ALWAYS show Nour the returned draft verbatim before any talk of sending.",
+    inputSchema: z.object({
+      opportunityId: z.string().uuid().describe("The opportunity id from getTopDecisions"),
+    }),
+    execute: async ({ opportunityId }) => {
+      try {
+        const { queryNick } = await import("@/lib/nickstire/query");
+        const res = await queryNick<Record<string, unknown>>("draft_opportunity_sms", { opportunityId });
+        if ("error" in res) return { ok: false, error: res.error };
+        return { ok: true, ...res.data };
+      } catch (err) {
+        const { sanitizeError } = await import("@/lib/utils/sanitize-error");
+        return { ok: false, error: sanitizeError(err) };
+      }
+    },
+  }),
+
+  sendOpportunitySms: tool({
+    description:
+      "Stage a customer SMS for a Nick's Tire Decision-Inbox opportunity. NEVER sends directly: writes a PENDING ActionReceipt and sends Nour a Telegram Approve/Decline prompt showing the EXACT text — the real send happens only on his Approve tap (nickstire then enforces consent, caps, quiet hours, pause, and dedupe server-side; the send is receipted on the opportunity). CONTRACT: call draftOpportunitySms FIRST, show Nour the draft in chat, apply his edits, and only stage the final text he has seen. Identity comes from the opportunity row — there is no free-form phone targeting. For texting someone NOT in the Decision Inbox, use stageCustomerAlert instead.",
+    inputSchema: z.object({
+      opportunityId: z.string().uuid().describe("The opportunity id from getTopDecisions"),
+      body: z.string().min(1).max(480).describe("The exact SMS text Nour has seen in chat (edits applied)"),
+      customerLabel: z.string().optional().describe("Short label for the approval prompt, e.g. 'Sam (stale lead)'"),
+    }),
+    execute: async ({ opportunityId, body, customerLabel }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
+      const { withToolIdempotency, idempotencyKey } = await import("./tool-idempotency");
+      const { createHash } = await import("crypto");
+
+      // The bridge idempotency key derives from the approved CONTENT: the
+      // same opportunity + the same exact text can only ever send once,
+      // no matter how many times the receipt flow is replayed (§8).
+      const bridgeKey = `opp-${opportunityId.slice(0, 8)}-${createHash("sha256").update(body).digest("hex").slice(0, 16)}`;
+      const verificationPayload = {
+        kind: "opportunity_sms" as const,
+        opportunityId,
+        body,
+        idempotencyKey: bridgeKey,
+        customerLabel: customerLabel || "customer",
+      };
+
+      return withToolIdempotency<{ status: string; receiptId: string | null; message: string }>(
+        idempotencyKey("sendOpportunitySms", bridgeKey),
+        10 * 60_000,
+        async () => {
+          const receipt = await prisma.actionReceipt.create({
+            data: {
+              action: "shop.sendOpportunitySms",
+              status: "PENDING",
+              sourceSystem: "nickstire-bridge",
+              context: `Opportunity SMS approval for ${verificationPayload.customerLabel} (opp ${opportunityId.slice(0, 8)}…): "${body}"`,
+              verificationPayload,
+            },
+          });
+
+          const text =
+            `📬 <b>Opportunity SMS — approval needed</b>\n\n` +
+            `<b>To:</b> ${verificationPayload.customerLabel}\n` +
+            `<b>Text:</b> "${body}"\n\n` +
+            `Sends through Nick's Tire's full gate stack (consent, caps, quiet hours) and receipts the opportunity:`;
+
+          const buttons = [
+            [
+              { text: "✓ Approve & Send", callback_data: `oppsms:approve:${receipt.id}` },
+              { text: "✗ Decline", callback_data: `oppsms:deny:${receipt.id}` },
+            ],
+          ];
+
+          await sendTelegramWithButtons(text, buttons);
+
+          return {
+            status: "STAGED",
+            receiptId: receipt.id,
+            message: "Staged. Awaiting Nour's Approve tap on Telegram — nothing sends until then.",
+          };
+        },
+        () => ({
+          status: "DEDUPED",
+          receiptId: null,
+          message: "This exact text for this opportunity was already staged — not re-staged.",
+        }),
+        (r) => r.status === "STAGED",
+      );
+    },
+  }),
+
   arsenalGmailInbox: tool({
     description: "List recent Gmail inbox threads · supports Gmail search syntax (e.g. 'is:unread newer_than:2d', 'from:supplier@x'). Returns subject/from/snippet/unread per thread. Requires GMAIL_REFRESH_TOKEN env (see docs/gmail-setup.md).",
     inputSchema: z.object({
