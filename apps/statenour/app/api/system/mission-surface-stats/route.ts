@@ -33,6 +33,18 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("api/system/mission-surface-stats");
 
 export async function POST(req: Request): Promise<NextResponse> {
+  // WP-12 census finding (2026-07-29): this handler writes aggregated
+  // buckets into BrainMemory and was UNAUTHENTICATED, while the GET
+  // below it required a session — the mirror image of the defect class
+  // check-sensitive-get-auth.ts was built for. The only caller is the
+  // operator's own PWA (lib/telemetry/mission-surface.ts, same-origin
+  // fetch → session cookie present), so gating changes no legitimate
+  // traffic and closes an open write into the brain store.
+  try {
+    await requireSession(req);
+  } catch {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   try {
     const body = (await req.json()) as {
       version: string;
