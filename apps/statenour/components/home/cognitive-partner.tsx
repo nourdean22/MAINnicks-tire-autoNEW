@@ -129,9 +129,16 @@ export function CognitivePartner() {
   // effect after mount. The chip appears a frame later; nothing else changes.
   const [briefAvailable, setBriefAvailable] = useState(false);
   useEffect(() => {
-    try {
-      setBriefAvailable(shouldFireBrief(readBriefStamp(), todayStamp()));
-    } catch {}
+    // Deferred a tick (react-compiler cascading-render rule): the chip
+    // already appeared a frame late by design (hydration-safe SSR-false
+    // first paint, see above) — a timeout-0 keeps that contract AND the
+    // rule happy. Cleanup prevents a set-after-unmount on fast nav.
+    const t = setTimeout(() => {
+      try {
+        setBriefAvailable(shouldFireBrief(readBriefStamp(), todayStamp()));
+      } catch {}
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
   const fireBrief = useCallback(() => {
     const today = todayStamp();

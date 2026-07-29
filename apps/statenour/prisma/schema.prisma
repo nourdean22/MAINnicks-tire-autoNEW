@@ -906,12 +906,32 @@ model Commitment {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  /// WP-13 · 2026-07-28 · commitment lifecycle (blueprint). All additive,
+  /// nullable — legacy rows (Telegram /commit, weekly-review era) stay
+  /// valid. Statuses extend to the contracts COMMITMENT_STATUSES
+  /// vocabulary (proposed → accepted → active → verified|abandoned).
+  /// What must be TRUE for this commitment to count as kept.
+  successCondition String? @map("success_condition") @db.Text
+  /// EvidenceRequirement[] — what receipts/artifacts verification needs.
+  evidenceRequired Json?   @map("evidence_required")
+  /// Link to the execution that works this commitment (job/workflow/task ref).
+  executionRef     String? @map("execution_ref") @db.VarChar(128)
+  /// Link to the recorded outcome (e.g. intelligence_outcomes id).
+  outcomeRef       String? @map("outcome_ref") @db.VarChar(128)
+  /// Provenance — where this commitment came from (e.g. journal-take:<id>).
+  /// Also the idempotency key for machine proposers.
+  sourceRef        String? @map("source_ref") @db.VarChar(190)
+  /// EntityRef[] — people/missions/customers this commitment touches.
+  relatedEntities  Json?   @map("related_entities")
+  verifiedAt       DateTime? @map("verified_at")
+
   @@index([status])
   @@index([status, deadline])
   @@index([domain, status])
   @@index([deletedAt])
   @@index([createdAt])
   @@index([updatedAt])
+  @@index([sourceRef])
   @@map("commitments")
 }
 

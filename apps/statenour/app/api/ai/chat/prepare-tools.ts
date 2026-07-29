@@ -39,6 +39,8 @@ export async function prepareTools(args: {
   webSearchIntent: boolean;
   queryShape: ReturnType<typeof detectQueryShape>;
   finalSystemPromptLength: number;
+  /** WP-14 · read-mode hard enforcement strips mutating tools LAST. */
+  actionPermission?: string;
   log: Logger;
 }): Promise<{ prunedTools: typeof nourTools; maxOutputTokens: number }> {
   const {
@@ -51,6 +53,7 @@ export async function prepareTools(args: {
     webSearchIntent,
     queryShape,
     finalSystemPromptLength,
+    actionPermission,
     log,
   } = args;
 
@@ -138,6 +141,25 @@ export async function prepareTools(args: {
       if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
     }
     prunedTools = forced as unknown as typeof nourTools;
+  }
+
+  // WP-14/WP-1 · 2026-07-28 · read-mode HARD enforcement. Until now
+  // actionPermission:"read" was a prompt contract plus "don't force-add
+  // action tools" — mutating tools the pruner selected stayed callable.
+  // This strip runs LAST, after every force above, so nothing re-adds a
+  // mutating tool behind it. Fail-closed via the capability registry
+  // (no catalog entry ⇒ stripped). The stripped list is logged — a
+  // read-mode turn should say what it refused, not silently shrink.
+  if (actionPermission === "read") {
+    const { stripMutatingTools } = await import("@/lib/ai/capability-registry");
+    const result = stripMutatingTools(prunedTools as Record<string, unknown>);
+    prunedTools = result.tools as unknown as typeof nourTools;
+    if (result.stripped.length > 0) {
+      log.info("read_mode_stripped_tools", {
+        count: result.stripped.length,
+        stripped: result.stripped.slice(0, 30),
+      });
+    }
   }
 
   const toolCountAll = Object.keys(nourTools).length;

@@ -168,13 +168,22 @@ refuted for the other four controls.
 5. Reachability restored: schema-history, chat-states, intelligence hub cards.
 6. Chat-v2 parity ledger reconciled (6 rows "Pending QA" → verified with evidence).
 
-## Work packages (not tonight — each needs a decision or a wider blast radius)
+## Work packages
 
-- **WP-1 · Hard-enforce read-mode:** classify mutating tools (catalog
-  categories carry enough signal), strip them in `prepare-tools.ts` when
-  `actionPermission === "read"`. Acceptance: read-mode turn cannot execute
-  a mutating tool even if the model calls it; existing action-intent tests
-  still pass.
+**Closed later the same night (kernel batch — WP-13/14/15/16):** WP-1
+shipped as the capability registry's read-mode strip
+(`lib/ai/capability-registry.ts` + `prepare-tools.ts`, fail-closed on
+three tripwires + unknown-tool, 5 pinned tests). WP-6's answer is the
+Commitment lifecycle (WP-13): the competing task-like containers become
+commitment views over time, starting with journal nextActions (WP-16
+closed the June-10 C7 loop — proposals now await the operator's verdict
+on Home). WP-7 is partially served by WP-15's execution-class vocabulary
+in the contracts registry. Next-audit standard adopted: per-subsystem
+scorecard with a disposition verdict (KEEP / COMPLETE / MERGE / REBUILD /
+HIDE / DEPRECATE / DELETE / EXTERNALIZE) — richer than wired/not-wired.
+
+- **WP-1 · Hard-enforce read-mode:** ~~classify mutating tools, strip in
+  prepare-tools~~ **DONE 2026-07-28 late** (see above).
 - **WP-2 · Bus retire-list:** after the backlog drains, decide whether all
   9 producer topics still earn their BrainMemory writes (cron.failure
   duplicates diagnose-cron-failure's alerting; score.logged may be noise).

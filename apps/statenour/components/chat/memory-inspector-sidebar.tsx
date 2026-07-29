@@ -35,8 +35,11 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   fetchedAt,
 }) => {
   if (!open) return null;
+  // Absolute time, not "Ns ago": render stays pure (no Date.now() during
+  // render — react-compiler purity rule) and an absolute stamp is the more
+  // honest receipt anyway.
   const freshness = fetchedAt
-    ? `recalled ${Math.max(0, Math.round((Date.now() - fetchedAt.getTime()) / 1000))}s ago`
+    ? `recalled at ${fetchedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}`
     : "not yet fetched — open state, not evidence";
 
   return (
@@ -108,11 +111,11 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
                   <div className="mt-2 space-y-1.5 text-[11px]">
                     <div>
                       <span className="text-zinc-500 font-mono text-[9px]">Stated Claim:</span>
-                      <p className="text-zinc-300 font-serif italic">"{c.claim}"</p>
+                      <p className="text-zinc-300 font-serif italic">&ldquo;{c.claim}&rdquo;</p>
                     </div>
                     <div>
                       <span className="text-zinc-500 font-mono text-[9px]">Actual Reality:</span>
-                      <p className="text-zinc-300 font-sans font-semibold">"{c.reality}"</p>
+                      <p className="text-zinc-300 font-sans font-semibold">&ldquo;{c.reality}&rdquo;</p>
                     </div>
                   </div>
                 </div>

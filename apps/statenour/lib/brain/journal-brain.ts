@@ -456,6 +456,26 @@ No preamble. Specific over generic. Blank beats fabricated: null the action if n
       update: { content: takeContent },
     })
     .catch(() => {});
+
+  // WP-16 · 2026-07-28 · close the C7 loop (June-10 audit: "nextAction
+  // display-only, never becomes actionable"). A generated nextAction now
+  // ALSO lands as a PROPOSED commitment the operator accepts or dismisses
+  // on Home. Idempotent by sourceRef (the take key), so backfill re-runs
+  // and upsert refreshes never duplicate — and a dismissed proposal stays
+  // dismissed. Best-effort: a proposer failure never breaks enrichment.
+  if (nextAction) {
+    const { proposeCommitment } = await import("@/lib/services/commitments");
+    await proposeCommitment({
+      statement: nextAction.action,
+      domain: nextAction.domain,
+      sourceRef: `journal-take:${id}`,
+    }).catch((err) =>
+      log.warn("journal_commitment_propose_failed", {
+        id,
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
 }
 
 export interface JournalBackfillResult {

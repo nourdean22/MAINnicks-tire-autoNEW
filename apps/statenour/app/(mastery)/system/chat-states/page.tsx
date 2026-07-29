@@ -87,6 +87,10 @@ const unregisteredToolMessage = {
   parts: [{ type: "tool-someFutureTool", state: "output-available", output: { anything: true } }],
 } as unknown as UIMessage;
 
+// Module-level so render stays pure (react-compiler rule) — a fixture
+// stamp frozen at page load is exactly what a gallery wants anyway.
+const FRESH_FETCHED_AT = new Date(Date.now() - 12_000);
+
 const SECTIONS = [
   "Evidence panel — fresh recall",
   "Evidence panel — never fetched",
@@ -166,7 +170,7 @@ export default function ChatStatesPage() {
             ? [{ id: "c1", claim: "Review count is ~1,500", reality: "Current count is 1,700+", severity: "medium" }]
             : []
         }
-        fetchedAt={evidenceOpen === "fresh" ? new Date(Date.now() - 12_000) : null}
+        fetchedAt={evidenceOpen === "fresh" ? FRESH_FETCHED_AT : null}
       />
     </div>
   );
