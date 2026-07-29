@@ -28,6 +28,7 @@ import { Sparkline } from "@/components/ui/sparkline";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, Grid3x3, Sparkles, Award } from "lucide-react";
+import { JudgeCalibrationPanel } from "@/components/system/judge-calibration-panel";
 
 type Mood = "energized" | "neutral" | "depleted" | "scattered";
 
@@ -494,6 +495,11 @@ export default function CalibrationPage() {
         suggestions when mood=depleted · prioritize "reflection" when
         drift is high · etc).
       </p>
+
+      {/* Wave-5 (2026-07-29) · the judge-eval label loop lives beside the
+          suggestion heatmap — both are calibration: one for suggestions,
+          one for the LLM judge itself. */}
+      <JudgeCalibrationPanel />
     </StandardPage>
   );
 }
