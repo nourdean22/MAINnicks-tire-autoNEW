@@ -169,6 +169,11 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
         <p className="text-xs text-muted-foreground">
           Source: Meta analytics cache (sync via Community → Sync Feed) · window: all-time · engagement = (likes+comments)/followers at sync time.
           Reach, saves, shares, and views appear per post only when Meta insights were captured for it — absent means unknown, never zero.
+          {" "}{analytics.data?.snapshotStats == null
+            ? "Metric-history snapshots: unknown (could not read)."
+            : analytics.data.snapshotStats.rows === 0
+              ? "Metric-history snapshots: none yet — the first sync after this deploy starts them; 24h/7d/30d windows unlock as history ages."
+              : `Metric-history snapshots: ${analytics.data.snapshotStats.rows} accruing since ${analytics.data.snapshotStats.earliest ? new Date(analytics.data.snapshotStats.earliest).toLocaleDateString() : "recently"} — 24h/7d/30d windows unlock as history ages.`}
         </p>
       </div>
 

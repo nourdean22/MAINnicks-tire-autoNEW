@@ -901,6 +901,9 @@ export const contentAdminRouter = router({
         id: inventoryId,
         platform: "instagram",
         contentType: "carousel",
+        // Campaign grouping rides the EXISTING column — insights can cohort
+        // by campaign without a parallel content model.
+        campaignId: String(brief.campaignKeyword ?? "").slice(0, 64) || null,
         topic: String(row.topic || brief.topic || "carousel").slice(0, 128),
         seriesName: "campaign_package",
         hookCategory: String(brief.campaignKeyword ?? "campaign").slice(0, 64),

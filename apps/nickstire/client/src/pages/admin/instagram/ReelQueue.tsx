@@ -63,6 +63,16 @@ export default function ReelQueue() {
   /** Full-fidelity 9:16 review room — a reel must never be judged from the cropped card. */
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [showSafeZones, setShowSafeZones] = useState(true);
+  /** Trial-reel numbers as typed (strings; empty = not entered, never zero). */
+  const [trialForm, setTrialForm] = useState<Record<string, string>>({});
+
+  const recordTrial = trpc.instagramAdmin.recordTrialResult.useMutation({
+    onSuccess: () => {
+      toast.success("Trial result recorded", { description: "Durable on the draft — winner/archive decisions leave a trail." });
+      refetch();
+    },
+    onError: (err) => toast.error("Trial result NOT recorded", { description: err.message }),
+  });
 
   const { data: drafts, isLoading, isError, error, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
@@ -152,7 +162,16 @@ export default function ReelQueue() {
                 size="sm"
                 variant="secondary"
                 className="absolute bottom-2 left-2 min-h-11 gap-1.5 bg-black/70 text-white hover:bg-black/85 border border-white/20"
-                onClick={() => setReviewId(draft.id)}
+                onClick={() => {
+                  setReviewId(draft.id);
+                  // Seed the trial form from what was recorded before — typed
+                  // strings, empty for never-entered (never a fabricated 0).
+                  const t = (draft.conceptBrief?.trial ?? {}) as Record<string, unknown>;
+                  setTrialForm(Object.fromEntries(
+                    ["views24h", "avgWatchSeconds", "shares", "saves", "comments", "follows"]
+                      .map((k) => [k, typeof t[k] === "number" ? String(t[k]) : ""]),
+                  ));
+                }}
               >
                 <Eye className="h-4 w-4" /> Review 9:16
               </Button>
@@ -509,6 +528,57 @@ export default function ReelQueue() {
                       <li>· No generated text or logos in-frame?</li>
                       <li>· Trust before selling?</li>
                     </ul>
+                  </div>
+                  {/* Trial-reel tracking (manual by design): read the 24h
+                      numbers in the IG app, record them here so the
+                      winner/archive decision leaves a durable trail. */}
+                  <div className="rounded border bg-muted/10 p-2 space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Trial result · 24h (manual)</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([["views24h", "Views"], ["avgWatchSeconds", "Avg watch (s)"], ["shares", "Shares"], ["saves", "Saves"], ["comments", "Comments"], ["follows", "Follows"]] as const).map(([key, label]) => (
+                        <label key={key} className="space-y-0.5">
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+                          <Input
+                            inputMode="numeric"
+                            value={trialForm[key] ?? ""}
+                            onChange={(e) => setTrialForm((f) => ({ ...f, [key]: e.target.value }))}
+                            placeholder="—"
+                            className="h-9 text-xs"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full min-h-11"
+                      disabled={recordTrial.isPending || Object.values(trialForm).every((v) => v.trim() === "")}
+                      onClick={() => {
+                        const num = (k: string) => {
+                          const v = (trialForm[k] ?? "").trim();
+                          if (v === "") return undefined;
+                          const n = Number(v);
+                          return Number.isFinite(n) && n >= 0 ? (k === "avgWatchSeconds" ? n : Math.round(n)) : undefined;
+                        };
+                        recordTrial.mutate({
+                          id: reviewDraft.id,
+                          expectedVersion: reviewDraft.version ?? 1,
+                          trial: {
+                            postedAsTrial: true,
+                            views24h: num("views24h"),
+                            avgWatchSeconds: num("avgWatchSeconds"),
+                            shares: num("shares"),
+                            saves: num("saves"),
+                            comments: num("comments"),
+                            follows: num("follows"),
+                          },
+                        });
+                      }}
+                    >
+                      {recordTrial.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                      Record trial result
+                    </Button>
+                    <p className="text-[10px] text-muted-foreground">Empty fields stay unrecorded — never written as zero.</p>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Publishing stays on the card — close this room and use Publish… to see the exact payload before anything goes live.

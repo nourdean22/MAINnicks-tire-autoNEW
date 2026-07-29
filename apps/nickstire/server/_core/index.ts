@@ -477,6 +477,9 @@ async function startServer() {
 
   // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
   app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));
+  // Evidence-first Create (Wave B): shop photos ride the same base64-over-tRPC
+  // contract as booking.uploadPhoto, so they need the same body headroom.
+  app.use("/api/trpc/instagramStudio.uploadEvidencePhoto", express.json({ limit: "12mb" }));
 
   // tRPC API
   app.use(

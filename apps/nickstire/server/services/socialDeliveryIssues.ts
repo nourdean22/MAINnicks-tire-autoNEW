@@ -84,10 +84,14 @@ export function deriveDeliveryIssues(f: DeliveryFacts): SocialDeliveryIssue[] {
     issues.push({
       key: "storage_urls_not_permanent",
       layer: "asset_hosting",
-      severity: "warning",
-      reason: "Storage is configured but URLs are not permanent — published media references can rot.",
-      evidence: "S3_BUCKET set, CLOUDFRONT_DOMAIN unset.",
-      nextAction: "Set CLOUDFRONT_DOMAIN so archived masters keep a stable public URL.",
+      // INFO, not warning: publicObjectUrl serves {SITE_URL}/generated/{key}
+      // through the app, backed by S3 — URLs are stable while the bucket holds
+      // the object. CloudFront is a CDN/bandwidth offload, not a permanence
+      // requirement (measured 2026-07-29: prod runs exactly this shape).
+      severity: "info",
+      reason: "Media serves through the app from S3 (stable URLs). CLOUDFRONT_DOMAIN would offload bandwidth to a CDN — optional.",
+      evidence: "S3_BUCKET set, CLOUDFRONT_DOMAIN unset; /generated/* streams from object storage.",
+      nextAction: "Optional: create a CloudFront distribution over the bucket and set CLOUDFRONT_DOMAIN.",
     });
   }
 

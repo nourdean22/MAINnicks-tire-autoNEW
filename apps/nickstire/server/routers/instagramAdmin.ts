@@ -256,6 +256,56 @@ export const instagramAdminRouter = router({
     }
   }),
 
+  /**
+   * Trial-reel tracking (Wave C′): Instagram's Trial Reels show a post to
+   * non-followers first; the operator reads the 24h numbers in the IG app and
+   * records them HERE so the winner/archive decision leaves a durable trail.
+   * Manual entry by design — no Graph surface for trial metrics is wired, and
+   * a hand-entered number labeled as such beats a fabricated integration.
+   * Rides briefJson (zero DDL); CAS on version; fail-closed on unreadable
+   * driver results (the `?? 1` class).
+   */
+  recordTrialResult: adminProcedure
+    .input(z.object({
+      id: z.string().min(1),
+      expectedVersion: z.number().int().min(1),
+      trial: z.object({
+        postedAsTrial: z.boolean().optional(),
+        views24h: z.number().int().min(0).optional(),
+        avgWatchSeconds: z.number().min(0).optional(),
+        shares: z.number().int().min(0).optional(),
+        saves: z.number().int().min(0).optional(),
+        comments: z.number().int().min(0).optional(),
+        follows: z.number().int().min(0).optional(),
+        promotedToEveryone: z.boolean().optional(),
+        note: z.string().max(500).optional(),
+      }).strict(),
+    }))
+    .mutation(async ({ input }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — trial result not recorded." });
+      const { socialContentInventory } = await import("../../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const rows = await database.select({ briefJson: socialContentInventory.briefJson })
+        .from(socialContentInventory).where(eq(socialContentInventory.id, input.id)).limit(1);
+      if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found." });
+      let parsed: Record<string, unknown> = {};
+      try { parsed = rows[0].briefJson ? JSON.parse(rows[0].briefJson) : {}; } catch { parsed = {}; }
+      const prior = (parsed.trial ?? {}) as Record<string, unknown>;
+      // Merge only the fields the operator actually entered — a partial save
+      // must never null out numbers recorded earlier.
+      const entered = Object.fromEntries(Object.entries(input.trial).filter(([, v]) => v !== undefined));
+      const next = { ...parsed, trial: { ...prior, ...entered, recordedAt: new Date().toISOString() } };
+      const { affectedRowCount } = await import("../lib/db-affected");
+      const result = await database.update(socialContentInventory)
+        .set({ briefJson: JSON.stringify(next), version: input.expectedVersion + 1 })
+        .where(and(eq(socialContentInventory.id, input.id), eq(socialContentInventory.version, input.expectedVersion)));
+      if (affectedRowCount(result) !== 1) {
+        throw new TRPCError({ code: "CONFLICT", message: "The draft changed while you were typing — reopen it and re-enter the trial numbers." });
+      }
+      return { ok: true, version: input.expectedVersion + 1 };
+    }),
+
   /*
    * getAccountInfo / reconnectToken / generatePost were DELETED 2026-07-24
    * (audit R4): zero client callers, no test coverage, and each duplicated a
@@ -288,7 +338,28 @@ export const instagramAdminRouter = router({
       getTopPosts({ limit: 5 }),
       getAccountAverages(),
     ]);
-    return { engagementByType, bestPostingTimes, followerGrowth, topPosts, accountAverages };
+    // Snapshot accrual (Wave C substrate): null = unreadable (unknown, never
+    // zero). Windows/cohorts unlock as this history ages — the UI says so
+    // instead of pretending.
+    let snapshotStats: { rows: number; earliest: string | null } | null = null;
+    try {
+      const database = await db();
+      if (database) {
+        const { igMetricSnapshots } = await import("../../drizzle/schema");
+        const { sql } = await import("drizzle-orm");
+        const r = await database
+          .select({ n: sql<number>`count(*)`, earliest: sql<string | null>`min(${igMetricSnapshots.capturedAt})` })
+          .from(igMetricSnapshots);
+        const n = Number((r as Array<{ n: unknown; earliest: unknown }>)[0]?.n);
+        if (Number.isFinite(n)) {
+          const earliestRaw = (r as Array<{ earliest: unknown }>)[0]?.earliest;
+          snapshotStats = { rows: n, earliest: earliestRaw ? String(earliestRaw) : null };
+        }
+      }
+    } catch (err) {
+      log.warn("snapshot stats unreadable — reporting unknown", err);
+    }
+    return { engagementByType, bestPostingTimes, followerGrowth, topPosts, accountAverages, snapshotStats };
   }),
 
   /** On-demand narrative performance report (separate proc — may be heavier). */

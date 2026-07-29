@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: PENDING
 hitl-pending-count: 3
 points-passed: 1-9
-document-sha256: 0040f16565c519fcc2d498535024aa63a2e604f1d7843faef28429a263130fd7
+document-sha256: f91a7a50ee720168e5ed2df2637a4524eb86e3dfdb038701fd95a4c73caf4064
 hitl-claims:
   - id: claim-feed-audit
     text: "Current public @nicks_tire_euclid feed quality is unaudited; a 20-post/20-reel authenticated sample audit is a launch prerequisite"
@@ -276,6 +276,71 @@ ig_metric_snapshots` (10 columns); applicator post-checks green
 - **Still open on this lane:** windowed 24h/7d/30d display + cohorts +
   experiment registry — they need accrued snapshots before any UI can be
   honest, so they land after data exists (days, not code).
+
+## Wave B execution record (fourth PR, same day)
+
+**P0-4 substantially CLOSED — Create is evidence-first.** Unblocked by the
+storage probe (prod `S3_BUCKET` is set):
+
+- `instagramStudio.uploadEvidencePhoto` (adminProcedure) mirrors the house
+  `services.uploadPhoto` contract exactly: base64 ≤7.5MB, mime allowlist,
+  filename hygiene, `storagePut` → durable URL. Key prefix **`ig-evidence/`**
+  — deliberately NOT the renderer's `instagram-studio/` prefix, so
+  `pickSubjectImage` accepts it (the card-inside-a-card guard stays intact).
+- `_core` mounts the per-procedure 12mb json limit (the `booking.uploadPhoto`
+  pattern) — pinned by test, because without it uploads die at the global
+  parser cap.
+- `generate` accepts `evidenceImageUrls` (≤3, https, own-render URLs REFUSED
+  at the zod boundary and filtered again in the service); the draft's
+  `imageUrls` starts with the real photos, the renderer frames them as the
+  subject, and the system prompt tells the model a real photograph is the
+  visual subject.
+- StudioV2: "Shop photo (optional, up to 3)" — phone camera capture
+  (`capture="environment"`) or library, size/mime pre-checks, thumbnails with
+  44px remove targets, upload BEFORE generation ("a draft never depends on
+  your phone keeping the file"), restored on draft resume (rendered-card URLs
+  filtered out).
+- Pins: `server/igEvidence.test.ts` (subject-vs-card contract + wiring).
+  Scan lesson recorded in-file: naive comment-stripping on `_core/index.ts`
+  eats code — anchors are code-shaped strings instead.
+
+**Remaining on Wave B (polish, queued):** media-vault picker (select from
+existing `media_assets`), consent/provenance fields, blur/orientation
+warnings, and registry linkage for uploaded evidence.
+
+## Wave C′ closing record (same PR as Wave B)
+
+- **Storage truth (best-practice verdict):** `publicObjectUrl` serves
+  `{SITE_URL}/generated/{key}` through the app, S3-backed, with the
+  `/generated/(.+)` proxy explicitly handling nested keys + Range requests.
+  **CloudFront is an optional CDN offload, not a permanence requirement** —
+  prod's measured shape (S3 set, no CloudFront) is fully operational. The
+  delivery deriver's "can rot" warning was overstated and is now an INFO with
+  the honest wording. No Railway variable changes are needed; inventing a
+  CloudFront domain would have broken media URLs.
+- **Trial Reels (C′) SHIPPED:** `instagramAdmin.recordTrialResult` — manual
+  24h numbers ride `briefJson.trial` (zero DDL), CAS on version, fail-closed
+  `affectedRowCount`, partial saves never null earlier numbers; review-room
+  panel with empty-is-unrecorded inputs. Manual by design: no Graph surface
+  for trial metrics is wired, and a hand-entered number labeled as such beats
+  a fabricated integration. Pins in `server/trialReel.test.ts`.
+- **Service feed (C′) SHIPPED:** `shared/serviceFeed.ts` — 12 service objects
+  (pain / confusion / filmable objects / local angles / CTA options) wired as
+  one-tap chips under the `faq_service_education` source in Create.
+  `mechanicTruths`/`approvedClaims` ship EMPTY under the documented
+  evidence-only constraint — structural framing asserts nothing measurable.
+- **Campaign grouping (C′) SHIPPED (minimal, on the EXISTING column):**
+  staged campaign carousels write `social_content_inventory.campaignId` from
+  the campaign keyword — cohorting by campaign needs no parallel model.
+- **Snapshot accrual surfaced:** `getAnalytics.snapshotStats` (count +
+  earliest; null = unreadable) + the Learn source line states exactly when
+  windows unlock. No windowed UI yet — that stays data-gated by design.
+- **Pattern Lab: the ONE deliberate cut.** Every honest storage option
+  (kv JSON vs a `social_reel_patterns` table) deserves its own design pass,
+  and a pattern store bolted on at the end of a 4-PR day is how scaffolding
+  ships. Design accepted (the operator's schema, transformer feeding the
+  EXISTING concept tournament, no scraping); it is the first item of the next
+  session, not a casualty.
 
 ## Standing refuted list (do not re-plan — additions from this gate)
 

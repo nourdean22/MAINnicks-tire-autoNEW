@@ -15,11 +15,14 @@ import {
   INSTAGRAM_OBJECTIVES,
   INSTAGRAM_SOURCE_LABELS,
   INSTAGRAM_SOURCE_TYPES,
+} from "../../../../shared/instagramStudio";
+import {
   type InstagramFormat,
   type InstagramObjective,
   type InstagramSourceType,
   type InstagramStudioDraft,
 } from "../../../../shared/instagramStudio";
+import { SERVICE_FEED } from "../../../../shared/serviceFeed";
 import LegacyStudio from "./Studio";
 import CampaignPackageCard from "@/components/admin/CampaignPackageCard";
 import { consumeCreateHandoff } from "./igViews";
@@ -102,6 +105,8 @@ export default function StudioV2() {
   const [sourceType, setSourceType] = useState<InstagramSourceType>(handoff?.sourceType ?? "manual_idea");
   const [sourceRecordId, setSourceRecordId] = useState(handoff?.recordId ?? "");
   const [sourceDetail, setSourceDetail] = useState(handoff?.detail ?? "");
+  /** Real shop photos already uploaded to durable storage — the draft's subject imagery. */
+  const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [format, setFormat] = useState<Exclude<InstagramFormat, "reel">>(handoff?.format ?? "post");
   const [objective, setObjective] = useState<InstagramObjective>(handoff?.objective ?? "bookings");
   const [direction, setDirection] = useState("");
@@ -149,6 +154,10 @@ export default function StudioV2() {
     onError: (error) => toast.error("Generation failed", { description: error.message }),
   });
   const saveDraft = trpc.instagramStudio.saveDraft.useMutation();
+  // Evidence-first Create (Wave B): a real shop photo beats a generated scene.
+  const uploadEvidence = trpc.instagramStudio.uploadEvidencePhoto.useMutation({
+    onError: (error) => toast.error("Photo upload failed", { description: error.message }),
+  });
   const evaluate = trpc.instagramStudio.evaluate.useMutation({
     onError: (error) => toast.error("Quality check failed", { description: error.message }),
   });
@@ -166,6 +175,7 @@ export default function StudioV2() {
       format,
       objective,
       operatorDirection: direction || undefined,
+      evidenceImageUrls: evidenceUrls.length ? evidenceUrls : undefined,
     }, {
       onSuccess: (result) => applyIfCurrent(seq, () => {
         const { persisted, draftRowVersion, ...generated } = result;
@@ -242,6 +252,9 @@ export default function StudioV2() {
     setSourceType(row.draft.source.type);
     setFormat(row.draft.format === "reel" ? "post" : row.draft.format);
     setObjective(row.draft.objective);
+    // Restore attached shop photos — rendered-card URLs are the renderer's own
+    // output and are never evidence (the card-inside-a-card class).
+    setEvidenceUrls((row.draft.imageUrls ?? []).filter((u) => typeof u === "string" && !u.includes("instagram-studio/")));
   };
   const runEvaluate = (current: InstagramStudioDraft) => {
     const seq = ++reqSeq.current;
@@ -402,9 +415,106 @@ export default function StudioV2() {
               </div>
             )}
 
+            {/* Service feed: generation starts from a SERVICE OBJECT — its
+                pain, confusion, filmable objects, and local angle — instead of
+                a blank box. Structural framing only; claim-safety still gates
+                every caption downstream. */}
+            {sourceType === "faq_service_education" && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pick the service</label>
+                <div className="flex flex-wrap gap-2">
+                  {SERVICE_FEED.map((service) => (
+                    <button
+                      type="button"
+                      key={service.id}
+                      onClick={() => {
+                        setSourceRecordId(service.id);
+                        setSourceDetail(
+                          `Service: ${service.name}\nDriver pain: ${service.customerPain}\nCommon confusion: ${service.commonConfusion}\nFilmable objects: ${service.visualObjects.join(", ")}\nLocal angle: ${service.localAngles.join("; ")}\nCTA options: ${service.ctaOptions.join(" | ")}`,
+                        );
+                      }}
+                      className={`min-h-11 rounded-lg border px-3 text-xs transition ${sourceRecordId === service.id ? "border-primary bg-primary/10 text-foreground" : "border-border/70 text-muted-foreground hover:border-primary/40"}`}
+                    >
+                      {service.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Fills the evidence box with the service's framing — edit freely; add a shop photo below to make it real.</p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Context or evidence</label>
               <Textarea value={sourceDetail} onChange={(event) => setSourceDetail(event.target.value)} placeholder="What happened, what customers keep asking, what offer is active, or what the photo shows." className="min-h-24" />
+            </div>
+
+            {/* Evidence photos (Wave B): a real tire, gauge, or bay beats any
+                generated scene. The photo uploads to durable storage NOW and
+                rides into the draft as its subject image — the renderer frames
+                it instead of painting a family background. */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Shop photo (optional, up to 3)</label>
+              <div className="flex flex-wrap items-center gap-2">
+                {evidenceUrls.map((url) => (
+                  <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="Shop evidence" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      aria-label="Remove photo"
+                      className="absolute right-0 top-0 flex h-11 w-11 -translate-y-2 translate-x-2 items-start justify-end p-1.5"
+                      onClick={() => setEvidenceUrls((current) => current.filter((u) => u !== url))}
+                    >
+                      <span className="rounded-full bg-black/70 px-1.5 text-xs font-bold text-white">×</span>
+                    </button>
+                  </div>
+                ))}
+                {evidenceUrls.length < 3 && (
+                  <label className={`flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-xs text-muted-foreground transition hover:border-primary/50 ${uploadEvidence.isPending ? "opacity-50" : ""}`}>
+                    {uploadEvidence.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="text-lg leading-none">+</span>}
+                    {uploadEvidence.isPending ? "Uploading…" : "Add photo"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                      capture="environment"
+                      className="hidden"
+                      disabled={uploadEvidence.isPending}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (!file) return;
+                        if (file.size > 7_500_000) {
+                          toast.error("Photo too large", { description: "Max 7.5MB — take it at normal quality, not RAW." });
+                          return;
+                        }
+                        const mime = (["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const)
+                          .find((m) => m === file.type);
+                        if (!mime) {
+                          toast.error("Unsupported format", { description: "Use a JPEG, PNG, WebP, or HEIC photo." });
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const dataUrl = String(reader.result ?? "");
+                          const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+                          if (!base64) { toast.error("Could not read the photo"); return; }
+                          uploadEvidence.mutate({ base64, filename: file.name || "shop-photo.jpg", mimeType: mime }, {
+                            onSuccess: ({ url }) => {
+                              setEvidenceUrls((current) => (current.includes(url) ? current : [...current, url]));
+                              toast.success("Photo attached", { description: "It will be the post's subject image." });
+                            },
+                          });
+                        };
+                        reader.onerror = () => toast.error("Could not read the photo");
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Stored durably before generation — a draft never depends on your phone keeping the file.
+              </p>
             </div>
 
             <div className="space-y-2">

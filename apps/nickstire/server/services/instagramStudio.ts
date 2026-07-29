@@ -298,6 +298,8 @@ export async function generateInstagramStudioDraft(input: {
   /** From fetchRecentConceptKeys — generation scores novelty against the same
    *  recency window the router's re-score paths use. */
   recentConceptKeys?: string[];
+  /** Real shop photos (evidence-first Create) — become the draft's subject imagery. */
+  evidenceImageUrls?: string[];
 }): Promise<InstagramStudioDraft> {
   if (input.format === "reel") {
     throw new Error("Reels use the dedicated verified ReelBrief pipeline.");
@@ -328,6 +330,9 @@ ${JSON.stringify(businessFacts)}
 SOURCE TYPE: ${source.type}
 SOURCE EVIDENCE STATUS: ${source.evidenceStatus}
 SOURCE EVIDENCE: ${source.resolvedEvidence}
+SUBJECT PHOTO: ${input.evidenceImageUrls?.length
+    ? "A REAL shop photograph is attached and will be the visual subject — write artDirection that frames and annotates THIS photo, never a generated scene."
+    : "None — a branded visual-family background will be used."}
 OPERATOR DIRECTION: ${input.operatorDirection?.trim() || "Use the strongest truthful angle."}
 
 NON-NEGOTIABLE RULES:
@@ -405,7 +410,11 @@ Return only JSON matching the schema.`;
     cta: normalized.cta,
     artDirection: normalized.artDirection,
     carouselSlides,
-    imageUrls: [],
+    // Evidence-first Create: real shop photos ride in as the subject imagery.
+    // Own-render URLs are filtered here too (defense in depth beside the zod
+    // refine) — pickSubjectImage would reject them anyway, but a card URL in
+    // this field is a data bug worth stopping at the door.
+    imageUrls: (input.evidenceImageUrls ?? []).filter((u) => typeof u === "string" && !u.includes(STUDIO_ASSET_PREFIX)),
     rationale: compact(parsed.rationale, 500),
     conceptKey: normalized.conceptKey || createHash("sha1").update(normalized.caption).digest("hex").slice(0, 16),
     quality,
