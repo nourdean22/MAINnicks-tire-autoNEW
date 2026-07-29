@@ -73,8 +73,20 @@ function getApiKey(provider: RuntimeProviderName): string | undefined {
 
 export function resolveProviderModel(provider: RuntimeProviderName, taskType?: TaskType): string {
   const cfg = PROVIDERS_REGISTRY[provider];
-  if (provider === "ollama" && taskType === "vision") {
-    return cleanEnv(process.env[cfg.visionModelEnv!]) || cfg.defaultVisionModel!;
+  // 2026-07-29 · vision resolution used to be OLLAMA-ONLY. Every other
+  // provider ignored taskType "vision" and returned its default chat
+  // model, so when the ollama vision lane died — which this config
+  // records happening TWICE (qwen3-vl retired 06-16, "every image chat
+  // turn hit a dead model") — the fallback handed the image to whatever
+  // came next, including openrouter's text chat model. The provider
+  // rejected the image part and the operator saw only "Stream failed."
+  // Now any provider that DECLARES a vision model resolves it here, and
+  // isVisionCapableProvider() keeps the ones that don't out of the chain.
+  if (taskType === "vision" && cfg.defaultVisionModel) {
+    return (
+      (cfg.visionModelEnv ? cleanEnv(process.env[cfg.visionModelEnv]) : "") ||
+      cfg.defaultVisionModel
+    );
   }
   // 2026-07-12 · Ollama two-lane. Ollama Cloud is now primary for every task,
   // but the strongest / least-restricted model (deepseek-v3.1:671b · OLLAMA_
@@ -652,6 +664,23 @@ export function getRecentlyFailedProviders(): Array<{
  * TaskType tunes the per-task provider order (getPreferredOrderForTask)
  * and, where supported, reasoning effort + temperature.
  */
+/**
+ * Can this provider accept image parts? True only when it DECLARES a
+ * vision model in the registry (config/ai-providers.ts). Undeclared =
+ * text-only, because guessing is exactly how an image reaches a model
+ * that rejects it. Exported so callers can explain the constraint
+ * instead of failing opaquely.
+ */
+export function isVisionCapableProvider(provider: ProviderName): boolean {
+  // "emergency" is the last-resort stub lane — it cannot read an image,
+  // and letting it take a vision turn would answer ABOUT an image it
+  // never saw. Excluding it makes the failure explicit instead.
+  if (provider === "emergency") return false;
+  const cfg = PROVIDERS_REGISTRY[provider as RuntimeProviderName];
+  const envModel = cfg?.visionModelEnv ? cleanEnv(process.env[cfg.visionModelEnv]) : "";
+  return Boolean(envModel || cfg?.defaultVisionModel);
+}
+
 export interface GetModelOptions {
   /** Promote Ollama Cloud (1M-context models) to 1st in the chain. */
   preferLargeContext?: boolean;
@@ -691,10 +720,26 @@ export function getModel(
   // indexOf -1 and thus sorted FIRST. The preferLargeContext list omits
   // openrouter, so OPENROUTER_API_KEY promoted it to 1st — opposite of the
   // "Ollama first" intent. Rank unlisted providers LAST, not first.
-  const ordered = [...PROVIDERS].sort((a, b) => {
+  const orderedAll = [...PROVIDERS].sort((a, b) => {
     const ra = preferred.indexOf(a.name); const rb = preferred.indexOf(b.name);
     return (ra === -1 ? preferred.length : ra) - (rb === -1 ? preferred.length : rb);
   });
+  // 2026-07-29 · vision turns may only use providers that DECLARE a
+  // vision model. Before this, taskType "vision" constrained nothing:
+  // the ollama lane resolved a vision model, but every fallback hop
+  // silently handed the image to a text chat model, which the provider
+  // rejected mid-stream — surfacing as a bare "Stream failed." Fail closed.
+  const ordered =
+    taskType === "vision"
+      ? orderedAll.filter((p) => isVisionCapableProvider(p.name))
+      : orderedAll;
+  if (taskType === "vision" && ordered.length === 0) {
+    throw new Error(
+      "No vision-capable AI provider is configured — an image was sent but no " +
+        "provider declares a vision model. Set OLLAMA_VISION_MODEL (or a " +
+        "GEMINI/OPENAI/ANTHROPIC vision model) to restore image chat.",
+    );
+  }
 
   if (AI_PROVIDER) {
     const entry = ordered.find((p) => p.name === AI_PROVIDER);
