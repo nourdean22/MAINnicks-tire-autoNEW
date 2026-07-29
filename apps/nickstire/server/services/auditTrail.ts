@@ -42,6 +42,9 @@ export type AuditAction =
   // 2026-07-29 · Autopilot Wave 2 — bounded bridge send (nour-os-query
   // send_opportunity_sms); the details field carries the idempotency marker
   | "sms.bridge_send"
+  // 2026-07-29 · Autopilot Wave 6 — operator hands a thread back to the AI
+  // early (ends the 60-min takeover hold; humanTakeover.ts reads it)
+  | "customer.sms_takeover_released"
   | "customer.sms_manual_send"
   | "customer.sms_autosend_reply"
   | "customer.sms_autosend_reply"
