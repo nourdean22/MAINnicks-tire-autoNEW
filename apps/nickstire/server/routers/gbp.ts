@@ -103,6 +103,46 @@ async function createAuthClient(secrets: Awaited<ReturnType<typeof loadGbpSecret
 
 export const gbpRouter = router({
   /**
+   * WP-22 GBP leg (2026-07-29) · READ-ONLY performance metrics via the
+   * SAME business.manage grant the publisher holds — zero new
+   * credentials. Fail-closed until the one-time Connect flow has run:
+   * returns connected:false with the exact operator action instead of
+   * throwing, so the admin card renders the instruction, not an error.
+   */
+  performance: adminProcedure
+    .input(z.object({ days: z.number().int().min(7).max(90).default(30) }).optional())
+    .query(async ({ input }) => {
+      const secrets = await loadGbpSecrets();
+      if (!secrets.refreshToken || !secrets.clientId || !secrets.clientSecret) {
+        return {
+          ok: false as const,
+          connected: false as const,
+          action: "Connect Google Business Profile first: Admin → Content → GBP Posts → Connect",
+        };
+      }
+      if (!secrets.locationId) {
+        return {
+          ok: false as const,
+          connected: true as const,
+          action: "GBP is connected but no location is selected — pick the location in GBP Posts setup",
+        };
+      }
+      const client = await createAuthClient(secrets);
+      const tokenRes = await client.getAccessToken();
+      const accessToken = typeof tokenRes === "string" ? tokenRes : tokenRes?.token;
+      if (!accessToken) {
+        return { ok: false as const, connected: true as const, action: "token refresh failed — reconnect GBP" };
+      }
+      const { fetchGbpPerformance } = await import("../services/gbpPerformance");
+      const result = await fetchGbpPerformance({
+        locationId: secrets.locationId,
+        accessToken,
+        days: input?.days ?? 30,
+      });
+      return { connected: true as const, ...result };
+    }),
+
+  /**
    * Retrieves connection and configuration status.
    * Leverages loadGbpSecrets but returns only fingerprints for security.
    */
