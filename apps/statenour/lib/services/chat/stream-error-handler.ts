@@ -60,9 +60,63 @@ interface ChatLogger {
 export const CLIENT_SAFE_STREAM_ERROR_TEXT =
   "The AI provider dropped mid-response — tap Retry to continue.";
 
-/** SDK-shaped onError callback: swallow the real error, return the constant. */
-export function clientSafeStreamErrorText(_error: unknown): string {
+/**
+ * Safe, ACTIONABLE categories (2026-07-29). Raw provider text is still
+ * never echoed — v10.0.111's no-echo policy stands, because provider
+ * errors can embed API keys. But returning one constant for every
+ * failure told the operator nothing: an image turn that died because no
+ * vision model was available looked identical to a network blip, so the
+ * real defect stayed invisible until it was reported by hand.
+ *
+ * These strings are AUTHORED here and selected by matching the error's
+ * shape — nothing from the provider is passed through.
+ */
+const SAFE_STREAM_ERROR_CATEGORIES: ReadonlyArray<{
+  test: RegExp;
+  text: string;
+}> = [
+  {
+    // The reported bug: an image reached a model that can't read images,
+    // or no vision-capable provider was configured at all.
+    test: /vision|image|multimodal|media type|unsupported content|image_url/i,
+    text:
+      "That request included an image, and no available model could read it. " +
+      "Check the vision model on /system/health, then tap Retry.",
+  },
+  {
+    test: /quota|rate.?limit|429|insufficient.?(credit|funds)|billing/i,
+    text: "The AI provider hit a quota or rate limit — tap Retry in a moment.",
+  },
+  {
+    test: /timeout|timed out|ETIMEDOUT|aborted|deadline/i,
+    text: "The model took too long and the response was cut off — tap Retry.",
+  },
+  {
+    test: /context length|too many tokens|maximum context|token limit/i,
+    text: "This conversation outgrew the model's context window — start a new chat or shorten the request.",
+  },
+];
+
+/** Map an error to a SAFE category string. Exported for tests. */
+export function categorizeStreamError(error: unknown): string {
+  const raw =
+    error instanceof Error
+      ? `${error.name} ${error.message}`
+      : typeof error === "string"
+        ? error
+        : "";
+  if (raw) {
+    for (const c of SAFE_STREAM_ERROR_CATEGORIES) {
+      if (c.test.test(raw)) return c.text;
+    }
+  }
   return CLIENT_SAFE_STREAM_ERROR_TEXT;
+}
+
+/** SDK-shaped onError callback: never echo the provider's text; return
+ *  an authored category string instead of one generic constant. */
+export function clientSafeStreamErrorText(error: unknown): string {
+  return categorizeStreamError(error);
 }
 
 /**

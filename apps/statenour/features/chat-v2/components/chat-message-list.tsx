@@ -288,7 +288,20 @@ export function ChatMessageList({
       ))}
 
       {isLoading && messages[messages.length - 1]?.role === "user" && <div className="px-4 py-2 text-xs font-semibold uppercase tracking-widest text-fg-tertiary">Thinking…</div>}
-      {error && <div className="mx-auto rounded-xl border border-red-900/40 bg-red-950/25 p-4 text-center text-sm text-red-300">Stream failed. {onRetry && <button onClick={onRetry} className="ml-2 underline">Retry</button>}</div>}
+      {/* 2026-07-29 · was a hardcoded "Stream failed." that DISCARDED the
+          server's message — an image turn dying for want of a vision model
+          looked exactly like a network blip. The server authors a safe
+          category string (never raw provider text); render it. */}
+      {error && (
+        <div className="mx-auto rounded-xl border border-red-900/40 bg-red-950/25 p-4 text-center text-sm text-red-300">
+          {error.message?.trim() || "Stream failed."}
+          {onRetry && (
+            <button onClick={onRetry} className="ml-2 underline">
+              Retry
+            </button>
+          )}
+        </div>
+      )}
 
       <MessageActionSheet
         open={Boolean(actionSheetMsg)}

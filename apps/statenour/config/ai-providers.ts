@@ -24,6 +24,14 @@ export interface ProviderConfig {
   cooldownMs: number;
   baseUrlEnv?: string;
   defaultBaseUrl?: string;
+  /**
+   * Vision lane. A provider WITHOUT `defaultVisionModel` is treated as
+   * text-only and is excluded from image turns (2026-07-29) — the
+   * fail-closed default. Openrouter is intentionally left undeclared:
+   * its configured id is an uncensored *chat* model whose image support
+   * is unknown, and guessing is how an image reaches a model that
+   * rejects it. Set OPENROUTER_VISION_MODEL to opt it in.
+   */
   visionModelEnv?: string;
   defaultVisionModel?: string;
   modelSubstrings: string[];
@@ -62,6 +70,13 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     apiKeyEnv: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
     modelEnv: "GEMINI_MODEL",
     defaultModel: "gemini-3.5-flash",
+    // 2026-07-29 · vision lane declared for EVERY provider, not just
+    // ollama (see the resolveProviderModel note). Gemini's default is
+    // natively multimodal, so the vision model is the same id — but
+    // declaring it is what marks the provider vision-capable, and an
+    // undeclared provider is now excluded from image turns.
+    visionModelEnv: "GEMINI_VISION_MODEL",
+    defaultVisionModel: "gemini-3.5-flash",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
     modelSubstrings: ["gemini"],
   },
@@ -70,6 +85,8 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     apiKeyEnv: ["OPENAI_API_KEY"],
     modelEnv: "OPENAI_MODEL",
     defaultModel: "gpt-4o",
+    visionModelEnv: "OPENAI_VISION_MODEL",
+    defaultVisionModel: "gpt-4o",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
     modelSubstrings: ["gpt", "o1", "o3", "o4"],
   },
@@ -81,6 +98,8 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     // this is a 4th/5th-hop fallback lane (prod primary is Ollama), so refresh to
     // the current balanced Sonnet tier. Override via ANTHROPIC_MODEL.
     defaultModel: "claude-sonnet-5",
+    visionModelEnv: "ANTHROPIC_VISION_MODEL",
+    defaultVisionModel: "claude-sonnet-5",
     cooldownMs: AI_PROVIDER_COOLDOWN_MS,
     modelSubstrings: ["claude"],
   },
