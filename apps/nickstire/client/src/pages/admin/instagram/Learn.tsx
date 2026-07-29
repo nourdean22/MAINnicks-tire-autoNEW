@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "../shared";
 import { writeCreateHandoff } from "./igViews";
+import { scoreFromAnalyticsRow } from "../../../../shared/reelScore";
 
 export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const analytics = trpc.instagramAdmin.getAnalytics.useQuery();
@@ -167,6 +168,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
         </div>
         <p className="text-xs text-muted-foreground">
           Source: Meta analytics cache (sync via Community → Sync Feed) · window: all-time · engagement = (likes+comments)/followers at sync time.
+          Reach, saves, shares, and views appear per post only when Meta insights were captured for it — absent means unknown, never zero.
         </p>
       </div>
 
@@ -185,9 +187,26 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
               <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">No measured Instagram posts are available yet. Sync the feed from HQ after publishing.</div>
             ) : winners.map((winner) => (
               <div key={winner.postId} className="rounded-xl border bg-muted/20 p-4">
-                <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{winner.postType}</Badge><Badge variant="outline">{winner.engagementRate.toFixed(2)}% engagement</Badge>{winner.contentScore > 0 && <Badge variant="outline">Score {winner.contentScore}</Badge>}</div>
+                <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{winner.postType}</Badge><Badge variant="outline">{winner.engagementRate.toFixed(2)}% engagement</Badge>{winner.contentScore > 0 && <Badge variant="outline">Score {winner.contentScore}</Badge>}{winner.saved != null && winner.reach != null && winner.reach > 0 && <Badge variant="outline">{((winner.saved / winner.reach) * 1000).toFixed(1)} saves/1k reached</Badge>}{(() => {
+                  // Distribution score renders ONLY at honest coverage — it names
+                  // how much of the formula was measured instead of impersonating
+                  // the full number (watch time and follows are not stored yet).
+                  const dist = scoreFromAnalyticsRow({ reach: winner.reach, saved: winner.saved, shares: winner.shares, comments: winner.comments });
+                  return dist ? <Badge variant="outline">Distribution {dist.score} · {Math.round(dist.coverage * 100)}% measured</Badge> : null;
+                })()}</div>
                 <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6">{winner.caption || "Caption unavailable"}</p>
-                <div className="mt-3 flex gap-4 text-xs text-muted-foreground"><span>{winner.likes} likes</span><span>{winner.comments} comments</span><span>{new Date(winner.postedAt).toLocaleDateString()}</span></div>
+                {/* Insight fields render ONLY when Meta actually returned them for
+                    this post — a missing insight is unknown, and unknown printed
+                    as 0 would read as a verdict on the content. */}
+                <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <span>{winner.likes} likes</span>
+                  <span>{winner.comments} comments</span>
+                  {winner.reach != null && <span>{winner.reach.toLocaleString()} reached</span>}
+                  {winner.saved != null && <span>{winner.saved} saves</span>}
+                  {winner.shares != null && <span>{winner.shares} shares</span>}
+                  {winner.views != null && <span>{winner.views.toLocaleString()} views</span>}
+                  <span>{new Date(winner.postedAt).toLocaleDateString()}</span>
+                </div>
                 {/* REAL handoff (Wave 5): the winning post's type, caption
                     theme, and measured engagement ride into Create — this was
                     a bare tab switch that discarded the very evidence it sat

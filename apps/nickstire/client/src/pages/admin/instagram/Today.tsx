@@ -23,6 +23,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
   const diagnostics = trpc.instagramStudio.diagnostics.useQuery(undefined, { refetchInterval: 60_000 });
   const health = trpc.instagramAdmin.getPipelineHealth.useQuery(undefined, { refetchInterval: 120_000 });
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, { refetchInterval: 120_000 });
+  const delivery = trpc.instagramAdmin.getDeliveryIssues.useQuery(undefined, { refetchInterval: 120_000 });
 
   const counts: Record<string, number> = diagnostics.data?.counts ?? {};
   const diagnosticsOk = Boolean(diagnostics.data?.connected);
@@ -66,14 +67,36 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
   if ((rows.readyCount ?? 0) > 0) {
     decisionRows.push({ key: "ready", tone: "blue", label: `${rows.readyCount} approved draft${rows.readyCount === 1 ? "" : "s"} ready to publish or schedule`, action: "Publish", view: "publish" });
   }
+  // Delivery-issue engine rows: blockers and warnings only — deliberate stops
+  // (kill switches, disarmed gates) are INFO and live in Control/Settings, not
+  // in the decision queue. Keys Today already renders its own way are skipped
+  // so one fact never prints twice.
+  {
+    const DELIVERY_VIEW: Record<string, IgView> = {
+      asset_hosting: "settings", meta_connection: "settings", kill_switch: "control",
+      publish_gate: "settings", reconciliation: "actions", generation: "actions",
+    };
+    const ALREADY_RENDERED = new Set(["meta_token_rejected", "reel_jobs_need_attention"]);
+    for (const issue of delivery.data?.issues ?? []) {
+      if (issue.severity === "info" || ALREADY_RENDERED.has(issue.key)) continue;
+      decisionRows.push({
+        key: `delivery-${issue.key}`,
+        tone: issue.severity === "blocker" ? "red" : "amber",
+        label: issue.reason,
+        detail: `Next: ${issue.nextAction}`,
+        action: "Open",
+        view: DELIVERY_VIEW[issue.layer] ?? "settings",
+      });
+    }
+  }
 
   // EVERY contributing source counts toward "unknown", not just the two the
   // first version checked — "Nothing needs you (verified)" over an unread
   // Meta-health or reel-attention query was the exact false-green this screen
   // exists to prevent.
   const decisionsUnknown = list.isError || diagnostics.isError || !diagnosticsOk
-    || health.isError || attention.isError;
-  const loading = list.isLoading || diagnostics.isLoading || health.isLoading || attention.isLoading;
+    || health.isError || attention.isError || delivery.isError;
+  const loading = list.isLoading || diagnostics.isLoading || health.isLoading || attention.isLoading || delivery.isLoading;
 
   const toneClass = { red: "border-red-500/40 bg-red-500/5", amber: "border-amber-500/40 bg-amber-500/5", blue: "border-blue-500/40 bg-blue-500/5" } as const;
 
