@@ -1153,6 +1153,139 @@ export async function collectStaleLeads(): Promise<CollectorStats> {
   return { scanned: rows.length, inserted, refreshed };
 }
 
+/**
+ * No-show booking requests → no_show_booking opportunities (Autopilot Wave 2,
+ * 2026-07-29). A booking REQUEST (this is an FCFS walk-in shop — requests,
+ * not appointments) whose preferred date passed ≥1 day ago while the row
+ * still sits new/confirmed means the loop was never closed: nobody knows if
+ * they came, went elsewhere, or forgot. data_quality is `inferred` BY DESIGN
+ * — a preferred date is a stated intention, not a confirmed appointment, so
+ * this must never be framed as "missed appointment" to the customer.
+ * Value stays null (no invented dollars). NEVER sends.
+ */
+export async function collectNoShowBookings(): Promise<CollectorStats> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
+
+  let rows: Array<Record<string, unknown>>;
+  try {
+    // preferredDate is a free-text varchar; only ISO-shaped values are
+    // trusted (STR_TO_DATE on garbage yields NULL and drops the row).
+    rows = rowsFromExecute(await db.execute(sql`
+      SELECT id, name, phone, service, vehicle, preferredDate, createdAt
+      FROM bookings
+      WHERE status IN ('new', 'confirmed')
+        AND phone IS NOT NULL AND phone != ''
+        AND preferredDate REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+        AND STR_TO_DATE(SUBSTRING(preferredDate, 1, 10), '%Y-%m-%d') IS NOT NULL
+        AND STR_TO_DATE(SUBSTRING(preferredDate, 1, 10), '%Y-%m-%d') < DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        AND createdAt > DATE_SUB(NOW(), INTERVAL 60 DAY)
+      ORDER BY createdAt DESC
+      LIMIT 100
+    `));
+  } catch (err) {
+    log.warn("[opportunity-queue] no-show collector query failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { scanned: 0, inserted: 0, refreshed: 0 };
+  }
+
+  let inserted = 0;
+  let refreshed = 0;
+  for (const r of rows) {
+    const name = r.name ? String(r.name) : "customer";
+    const service = r.service ? String(r.service).slice(0, 50) : "service";
+    const date = String(r.preferredDate ?? "").slice(0, 10);
+    const res = await upsertOpportunity({
+      sourceType: "no_show_booking",
+      sourceId: String(r.id),
+      customerName: name,
+      customerPhone: r.phone == null ? null : String(r.phone),
+      expectedRevenueCents: null, // intention ≠ dollars — never invent
+      dataQuality: "inferred",
+      urgency: "this_week",
+      recommendedAction: `Call ${name} — asked about coming in ${date} for ${service}; the loop was never closed`,
+      reason: `Booking request said ${date}; that date passed with the request still open. Unknown whether they came, went elsewhere, or forgot — a quick call answers it.`,
+      evidence: {
+        bookingId: Number(r.id),
+        preferredDate: date,
+        service,
+        vehicle: r.vehicle ? String(r.vehicle) : null,
+      },
+      consentOk: true, // they asked to come in
+    });
+    if (res === "inserted") inserted++;
+    else if (res === "refreshed") refreshed++;
+    else return { scanned: rows.length, inserted, refreshed };
+  }
+  return { scanned: rows.length, inserted, refreshed };
+}
+
+/**
+ * Overdue human-pending SMS conversations → human_pending_sms opportunities
+ * (Autopilot Wave 2). ROS-058 made waiting customers durable
+ * (sms_response_jobs status='human_pending' with an SLA dueAt) and Telegram
+ * nags exist — but the Decision Inbox, the ONE ranked surface, never showed
+ * them. A customer waiting past SLA is the single most urgent row the queue
+ * can hold: verified (their own inbound text), critical, and rotting by the
+ * minute. NEVER sends — the operator answers from the SMS admin.
+ */
+export async function collectOverdueHumanPending(): Promise<CollectorStats> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { scanned: 0, inserted: 0, refreshed: 0 };
+
+  let rows: Array<Record<string, unknown>>;
+  try {
+    rows = rowsFromExecute(await db.execute(sql`
+      SELECT id, customerPhone, body, createdAt, dueAt
+      FROM sms_response_jobs
+      WHERE status = 'human_pending'
+        AND dueAt < NOW()
+      ORDER BY createdAt ASC
+      LIMIT 50
+    `));
+  } catch (err) {
+    log.warn("[opportunity-queue] human-pending collector query failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { scanned: 0, inserted: 0, refreshed: 0 };
+  }
+
+  let inserted = 0;
+  let refreshed = 0;
+  for (const r of rows) {
+    const waitedMin = r.createdAt
+      ? Math.max(1, Math.round((Date.now() - new Date(r.createdAt as string).getTime()) / 60_000))
+      : 1;
+    const preview = r.body ? String(r.body).slice(0, 80) : "";
+    const res = await upsertOpportunity({
+      sourceType: "human_pending_sms",
+      sourceId: String(r.id),
+      customerName: null,
+      customerPhone: r.customerPhone == null ? null : String(r.customerPhone),
+      expectedRevenueCents: null,
+      dataQuality: "verified", // the customer's own text is the evidence
+      urgency: "critical",
+      recommendedAction: `Answer the waiting text (${waitedMin}m) — "${preview}"`,
+      reason: `A customer texted ${waitedMin} minutes ago, the AI routed it to a human, and nobody has answered. Past the 30-min SLA.`,
+      evidence: {
+        responseJobId: Number(r.id),
+        waitedMinutes: waitedMin,
+        inboundPreview: preview,
+      },
+      consentOk: true, // replying to their own inbound message
+    });
+    if (res === "inserted") inserted++;
+    else if (res === "refreshed") refreshed++;
+    else return { scanned: rows.length, inserted, refreshed };
+  }
+  return { scanned: rows.length, inserted, refreshed };
+}
+
 export async function captureComplaintOpportunity(
   phone: string,
   body: string,
@@ -1572,6 +1705,66 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
     }
   }
 
+  // 6. no_show_booking: the booking left new/confirmed (completed or
+  //    cancelled) → the loop closed itself; drop our copy.
+  try {
+    const resolved = rowsFromExecute(await db.execute(sql`
+      SELECT o.id, b.status AS bStatus
+      FROM revenue_opportunities o
+      JOIN bookings b ON b.id = CAST(o.source_id AS UNSIGNED)
+      WHERE o.source_type = 'no_show_booking'
+        AND o.state IN (${stateList})
+        AND b.status NOT IN ('new', 'confirmed')
+      LIMIT 100
+    `));
+    stats.checked += resolved.length;
+    for (const r of resolved) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: `source resolved: booking status=${String(r.bStatus)}`,
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] no-show reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // 7. human_pending_sms: the response job left human_pending (someone
+  //    answered, or it was closed as no-reply-needed) → close our copy.
+  try {
+    const answered = rowsFromExecute(await db.execute(sql`
+      SELECT o.id, j.status AS jStatus
+      FROM revenue_opportunities o
+      JOIN sms_response_jobs j ON j.id = CAST(o.source_id AS UNSIGNED)
+      WHERE o.source_type = 'human_pending_sms'
+        AND o.state IN (${stateList})
+        AND j.status != 'human_pending'
+      LIMIT 100
+    `));
+    stats.checked += answered.length;
+    for (const r of answered) {
+      const res = await transitionOpportunity({
+        id: String(r.id),
+        to: "lost",
+        by: "reconciler",
+        note: `source resolved: response job status=${String(r.jStatus)} (conversation handled)`,
+      });
+      if (res.ok) stats.closed++;
+    }
+  } catch (err) {
+    if (!isMissingTableError(err)) {
+      log.warn("[opportunity-queue] human-pending reconciler failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   return stats;
 }
 
@@ -1586,16 +1779,19 @@ export async function refreshOpportunityQueue(): Promise<{ recordsProcessed: num
   const missedCalls = await collectMissedCalls();
   const inspections = await collectInspectionDeferrals();
   const staleLeads = await collectStaleLeads();
+  const noShows = await collectNoShowBookings();
+  const humanPending = await collectOverdueHumanPending();
   const fmt = (s: CollectorStats) => `${s.inserted}new/${s.refreshed}ref/${s.scanned}scan`;
   let details =
     `reconciled: ${reconciled.won}won+${reconciled.closed}closed/${reconciled.checked} · ` +
     `estimates: ${fmt(estimates)} · callbacks: ${fmt(callbacks)} · ` +
     `missed calls: ${fmt(missedCalls)} · deferrals: ${fmt(inspections)} · ` +
-    `stale leads: ${fmt(staleLeads)}`;
+    `stale leads: ${fmt(staleLeads)} · no-shows: ${fmt(noShows)} · ` +
+    `waiting texts: ${fmt(humanPending)}`;
   const recordsProcessed =
     reconciled.won + reconciled.closed +
     estimates.inserted + callbacks.inserted + missedCalls.inserted + inspections.inserted +
-    staleLeads.inserted;
+    staleLeads.inserted + noShows.inserted + humanPending.inserted;
 
   // Strike-4: the loop judges its own shape. The contract was built to
   // catch "cron looks productive while changing nothing" — with

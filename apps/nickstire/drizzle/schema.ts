@@ -858,6 +858,11 @@ export const smsMessages = mysqlTable("sms_messages", {
   /** 0104 · why a row went terminal ('max_retries_exceeded',
    *  'stale_sending_expired', gateway error slice). */
   failureReason: varchar("failure_reason", { length: 255 }),
+  /** 0105 (2026-07-29, hand-apply) · when the gateway ACCEPTED the send.
+   *  Completes the creation→dispatch latency the ops surface refused to
+   *  fabricate from createdAt alone. NULL until 0105 applied; stamped
+   *  best-effort (a failed stamp never fails a send). */
+  sentAt: timestamp("sent_at"),
   // ─── wave-181.51 · SMS INSTRUMENTATION ──────────────
   // Persisted per-send metrics so attribution doesn't require keyword-
   // sniffing the body. Reply tracking written by the SMS gateway
