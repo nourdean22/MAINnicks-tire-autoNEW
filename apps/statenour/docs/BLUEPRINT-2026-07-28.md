@@ -285,6 +285,21 @@ before accepting any "connect X" recommendation.
   from its finance-lab): nickstire cash-flow forecast beside the
   existing weekly pricing-advisory — business finance, not personal
   trading; read-only artifacts.
+- **WP-20 · OTel GenAI field mapping** (audit-#12): rename/mirror
+  AgentTrace + ai-cost fields to `gen_ai.*` semconv names — standards
+  alignment, zero new infra, no raw-prompt logging.
+- **WP-21 · Braintrust eval-dataset spine** (audit-#12; dep verified
+  live): recall failures, claim warnings, and operator accept/dismiss
+  verdicts become versioned datasets; smoke evals on PRs, local
+  no-send first. Extends Spine-8 + WP-18, replaces nothing.
+- **WP-22 · nickstire search-conversion data spine** (audit-#12): GBP
+  Performance API ingestion (publisher is posting-only today) + the
+  GSC×GA4×leads join + LHCI/CrUX budgets — read-only, feeds the
+  existing GSC pipeline and SEO cockpit; subsumes the GSC ranked-merge
+  deferral.
+- **WP-23 · NHTSA vehicle enrichment** (audit-#12): vPIC VIN/YMM
+  normalization + recall-aware lead enrichment; read-only advisor
+  framing, cached, source-labeled.
 
 ## Honestly not audited (scope declared, not hidden)
 
