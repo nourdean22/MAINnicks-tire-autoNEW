@@ -4,9 +4,9 @@ processed-date: 2026-07-29
 processed-by: Claude (Fable 5) — SMS Revenue Agent OS wave
 clarity-status: CLEAR
 hitl-status: PENDING
-hitl-pending-count: 3
+hitl-pending-count: 2
 points-passed: 1-9
-document-sha256: f19c075de7feb589ff82955d1f89683f9ca7e5cc1ca9624d380ac58eff66ba78
+document-sha256: 9ff5a0a14d9a3ca68e9f78f1f82e250b9bce3ac284c3ababa4603a08572e331b
 hitl-claims:
   - id: claim-pause-runtime
     text: "The sms_global_pause flag holds and resumes production sends end-to-end"
@@ -22,10 +22,12 @@ hitl-claims:
     round: B
   - id: claim-stale-lead-volume
     text: "The stale_lead collector's real-world volume is small (leads table held 2 rows total on 2026-07-20)"
-    value: "expected ≈0-2 rows initially"
-    source: "Post-deploy: opportunityQueue.refresh details line — stale leads: Xnew/Yref/Zscan"
+    value: "0 eligible rows observed (two independent prod reads)"
+    source: "Prod reads 2026-07-29: stale-lead window query returned 0 rows; leads 15d phone fetch returned 0"
     location: "collector/1"
     round: A
+    confirmed-by: runtime observation (read-only prod queries, operator-approved session)
+    confirmed-date: 2026-07-29
 ---
 
 # SMS Revenue Agent OS — wave truth ledger (2026-07-29)
@@ -59,13 +61,19 @@ hitl-claims:
 ## HITL Verification Record
 
 ### Round A: Derived Data Confirmation
-- stale_lead collector volume expectation (leads table: 2 rows total, measured 2026-07-20 — truth_os) — pending post-deploy confirmation
+- stale_lead collector volume expectation — **CONFIRMED by observation 2026-07-29** (two independent prod reads: 0 eligible rows in the 24h–30d window; leads pool tiny as predicted) ✓
 
 ### Round B: True HITL Verification
 | # | Claim | Status | Verified By | Date |
 |---|-------|--------|-------------|------|
-| 1 | Pause holds+drains end-to-end in prod | ☐ pending post-deploy | — | — |
-| 2 | Timer rehydrate picks up mid-run rows in prod | ☐ pending post-deploy | — | — |
+| 1 | Pause holds+drains end-to-end in prod | ☐ pending first real occurrence (flag verified seeded OFF in prod; stuck-queue alert is the tripwire) | — | — |
+| 2 | Timer rehydrate picks up mid-run rows in prod | ☐ pending first real occurrence (queue verified empty: 0 queued/0 sending — nothing to observe yet) | — | — |
+
+### Runtime observations (2026-07-29 truth pass, read-only + one manual collector run)
+- **Collectors live-verified in prod:** `human_pending_sms` produced **3 rows** from the 3 genuinely-waiting customers (verified/critical, now in the Decision Inbox); `stale_lead` / `no_show_booking` / `abandoned_form` produced honest zeros against verified-empty eligible pools (each source query independently returned 0 — zero-with-verified-empty-source, not silent idle). All arc collector queries measured ~30ms each.
+- `sms_global_pause` = 0 (OFF) confirmed; outbound queue clean (0 queued / 0 sending); no operator levers fired yet (`sms.*` audit rows: none).
+- Cadence finding: the refresh cron's own loop-shape contract flags under-scheduling ("ran 1× in 7d, expected ~7") — pre-existing, recorded for a scheduler-cadence wave.
+- Diagnosis correction (owning it): two suspected "stalls" during verification were my throwaway scripts' DB pool holding the process open after completing — not slow queries (all ~30ms), not the collector quadratic. #1215's flat-query hardening stands on its own merits.
 
 <!-- CLARITY_GATE_END -->
 Clarity Gate: CLEAR | PENDING
