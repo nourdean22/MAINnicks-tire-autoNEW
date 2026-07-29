@@ -1,4 +1,5 @@
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
+import ClosedLoopLiftPanel from "./ClosedLoopLiftPanel";
 import DecisionInboxPanel from "./DecisionInboxPanel";
 import PromisesPanel from "./PromisesPanel";
 import InspectionCapturePanel from "./InspectionCapturePanel";
@@ -250,6 +251,12 @@ export default function OverviewSection() {
       {/* Promise Ledger (0102) — log promises the moment they're made;
           the sweep escalates overdue ones back into the inbox above. */}
       <PromisesPanel />
+
+      {/* Automation lift (2026-07-29) — first admin consumer of the
+          closedLoop A/B lift math (it previously reached the operator
+          only via Telegram digest): winning / flat / hurting with the
+          wave receipts underneath. */}
+      <ClosedLoopLiftPanel />
 
       {/* DVI capture (drop-off intake) — the inspection loop's inlet:
           findings + photos → publish → hand the customer the link. */}
