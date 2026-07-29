@@ -6,7 +6,7 @@ clarity-status: CLEAR
 hitl-status: PENDING
 hitl-pending-count: 3
 points-passed: 1-9
-document-sha256: f096bb5a5c0a762120d67c5e1309aca9b56fd21261ee26b3e79ba381c59aa0d7
+document-sha256: f19c075de7feb589ff82955d1f89683f9ca7e5cc1ca9624d380ac58eff66ba78
 hitl-claims:
   - id: claim-pause-runtime
     text: "The sms_global_pause flag holds and resumes production sends end-to-end"
@@ -52,7 +52,7 @@ hitl-claims:
 
 ## Residual holes carried forward (named, not hidden)
 
-`scripts/fire-declined-recovery.ts` bypasses all gates (script-only) · per-pod 5-min opt-out cache window · `campaignEligiblePhoneSql` under-filters (send-time gate still blocks) · takeover lacks read-signal/release · queue→sent latency needs a sent-at column migration.
+~~`scripts/fire-declined-recovery.ts` bypasses all gates~~ *(corrected Wave 5: the relay call is a read-only preflight probe; sends ride the gated cron path)* · per-pod 5-min opt-out cache window · ~~`campaignEligiblePhoneSql` under-filters~~ *(fixed Wave 5: three-source predicate + parity tripwire)* · takeover lacks read-signal/release · ~~queue→sent latency needs a sent-at column~~ *(fixed Wave 2: migration 0105)*.
 
 ---
 
