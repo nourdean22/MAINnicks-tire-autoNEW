@@ -50,3 +50,38 @@ describe("runRecallEval — harness aggregation", () => {
     for (const c of SEED_CASES) expect(c.provenance).toBe("synthetic-seed");
   });
 });
+
+// Wave-4 (2026-07-29): abstention metrics — false-premise queries pass
+// only when no forbidden distractor surfaces.
+describe("abstention scoring", () => {
+  const abstainCase: RecallEvalCase = {
+    id: "abst-1",
+    query: "when is the flight to Tokyo",
+    relevantKeys: [],
+    forbiddenKeys: ["tokyo_trip_itinerary"],
+    kind: "abstention",
+    provenance: "synthetic-seed",
+    acceptableAbstention: true,
+  };
+
+  it("clean abstention: no distractor surfaced → abstentionCleanRate 1", async () => {
+    const report = await runRecallEval([abstainCase], async () => [{ key: "unrelated" }], 5);
+    expect(report.abstentionCases).toBe(1);
+    expect(report.abstentionCleanRate).toBe(1);
+  });
+
+  it("distractor surfaced → abstention dirty AND contradiction rate counts it", async () => {
+    const report = await runRecallEval(
+      [abstainCase],
+      async () => [{ key: "tokyo_trip_itinerary" }],
+      5,
+    );
+    expect(report.abstentionCleanRate).toBe(0);
+    expect(report.contradictionInjectionRate).toBe(1);
+  });
+
+  it("corpus now seeds abstention and knowledge_update kinds", () => {
+    expect(SEED_CASES.some((c) => c.kind === "abstention")).toBe(true);
+    expect(SEED_CASES.some((c) => c.kind === "knowledge_update")).toBe(true);
+  });
+});

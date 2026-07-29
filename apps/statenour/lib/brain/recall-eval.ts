@@ -25,10 +25,15 @@ export interface RecallEvalCase {
   relevantKeys: string[];
   /** Keys that must NOT appear (known-stale / contradicted / wrong-person). */
   forbiddenKeys: string[];
-  /** exact_fact | temporal | preference | contradiction | name_number */
+  /** exact_fact | temporal | preference | contradiction | name_number
+   *  | abstention | knowledge_update */
   kind: string;
   /** Where this case came from — 'synthetic-seed' until real corrections land. */
   provenance: string;
+  /** Wave-4 (2026-07-29, LongMemEval taxonomy): true for false-premise /
+   *  no-evidence queries where retrieving NOTHING relevant is correct —
+   *  the case passes when no forbidden distractor surfaces. */
+  acceptableAbstention?: boolean;
 }
 
 export interface RetrievedMemory {
@@ -58,6 +63,11 @@ export interface RecallEvalReport {
   fullRecallRate: number;
   /** Fraction of cases where ANY forbidden key surfaced. */
   contradictionInjectionRate: number;
+  /** Wave-4: abstention cases (relevantKeys empty) in the corpus. */
+  abstentionCases: number;
+  /** Wave-4: fraction of abstention cases where NO forbidden distractor
+   *  surfaced — "nothing wrong appeared when nothing was right." */
+  abstentionCleanRate: number;
   casesRun: number;
 }
 
@@ -103,6 +113,11 @@ export async function runRecallEval(
       : 0;
   const contradictionInjectionRate =
     results.length > 0 ? results.filter((r) => r.forbiddenInjected > 0).length / results.length : 0;
+  const abstention = results.filter((r) => r.relevantExpected === 0);
+  const abstentionCleanRate =
+    abstention.length > 0
+      ? abstention.filter((r) => r.forbiddenInjected === 0).length / abstention.length
+      : 1;
   return {
     corpusVersion: RECALL_EVAL_CORPUS_VERSION,
     k,
@@ -110,6 +125,8 @@ export async function runRecallEval(
     meanPrecisionAtK: Math.round(meanPrecisionAtK * 1000) / 1000,
     fullRecallRate: Math.round(fullRecallRate * 1000) / 1000,
     contradictionInjectionRate: Math.round(contradictionInjectionRate * 1000) / 1000,
+    abstentionCases: abstention.length,
+    abstentionCleanRate: Math.round(abstentionCleanRate * 1000) / 1000,
     casesRun: results.length,
   };
 }
@@ -144,6 +161,61 @@ export const SEED_CASES: readonly RecallEvalCase[] = [
     relevantKeys: [],
     forbiddenKeys: ["stale_review_count"],
     kind: "contradiction",
+    provenance: "synthetic-seed",
+  },
+  // ── Wave-4 (2026-07-29) · LongMemEval-taxonomy seeds ───────────────
+  // Abstention: false-premise queries — the retriever must not surface a
+  // distractor that would confirm a premise the store has no evidence for.
+  {
+    id: "seed-abstention-1",
+    query: "what were the trading bot's returns last month",
+    relevantKeys: [],
+    forbiddenKeys: ["trading_bot_performance"],
+    kind: "abstention",
+    provenance: "synthetic-seed",
+    acceptableAbstention: true,
+  },
+  {
+    id: "seed-abstention-2",
+    query: "when is the flight to Tokyo",
+    relevantKeys: [],
+    forbiddenKeys: ["tokyo_trip_itinerary"],
+    kind: "abstention",
+    provenance: "synthetic-seed",
+    acceptableAbstention: true,
+  },
+  {
+    id: "seed-abstention-3",
+    query: "what did the specialist say about the knee MRI",
+    relevantKeys: [],
+    forbiddenKeys: ["knee_mri_results"],
+    kind: "abstention",
+    provenance: "synthetic-seed",
+    acceptableAbstention: true,
+  },
+  // Knowledge-update: the CURRENT fact must beat its superseded version.
+  {
+    id: "seed-update-1",
+    query: "where does statenour deploy",
+    relevantKeys: ["deploy_platform_current"],
+    forbiddenKeys: ["deploy_platform_vercel_legacy"],
+    kind: "knowledge_update",
+    provenance: "synthetic-seed",
+  },
+  {
+    id: "seed-update-2",
+    query: "which model powers chat in production",
+    relevantKeys: ["chat_model_current"],
+    forbiddenKeys: ["chat_model_legacy"],
+    kind: "knowledge_update",
+    provenance: "synthetic-seed",
+  },
+  {
+    id: "seed-update-3",
+    query: "how many background dispatch classes run",
+    relevantKeys: ["dispatch_class_census"],
+    forbiddenKeys: ["dispatch_class_census_stale"],
+    kind: "knowledge_update",
     provenance: "synthetic-seed",
   },
 ];
