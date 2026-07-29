@@ -12,6 +12,7 @@
  * the old separately-fixed ticker).
  */
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -27,11 +28,49 @@ function isActiveHref(pathname: string, href: string): boolean {
 
 export function BottomTabBar() {
   const pathname = usePathname() ?? "/";
+  const chromeRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * 2026-07-29 · Publish the chrome's REAL height into --bottom-chrome-h.
+   *
+   * The token was a hardcoded 6rem (96px) that a human had to remember to
+   * update — and the stack's height is content-dependent, so the contract
+   * broke silently: measured at 390px the tab row is ~53px, leaving ~43px
+   * for the ticker, whose strip is `min-h-[32px]` (a MINIMUM, uncapped) and
+   * whose text does not truncate in row mode. A longer pulse line wraps,
+   * the strip grows past the reservation, and the chrome paints over the
+   * chat composer — which is exactly what the operator hit.
+   *
+   * Measuring makes the invariant structural instead of remembered: pages
+   * reserve exactly what is rendered, whatever the ticker says. The CSS
+   * default stays as the SSR / first-paint fallback.
+   */
+  useEffect(() => {
+    const el = chromeRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const apply = () => {
+      const h = el.getBoundingClientRect().height;
+      // Never publish 0 — a collapsed measurement would un-reserve the
+      // whole chrome and hide content behind it.
+      if (h > 0) {
+        document.documentElement.style.setProperty(
+          "--bottom-chrome-h",
+          `${Math.ceil(h)}px`,
+        );
+      }
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div
-      /* Height contract: --bottom-chrome-h (styles/tokens.css) must clear
-         this bar + ticker stack. Change the bar's height => update the token,
-         never the per-page padding. */
+      ref={chromeRef}
+      /* Height contract: --bottom-chrome-h is now MEASURED from this
+         element (see the effect above), so the bar + ticker stack can
+         change height without stranding per-page padding. */
       className="fixed bottom-0 left-0 right-0 z-[55]"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >

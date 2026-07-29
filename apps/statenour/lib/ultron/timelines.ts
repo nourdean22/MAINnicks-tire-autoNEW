@@ -50,6 +50,18 @@ const WORKOUT_TITLE_FRAGMENTS = [
   "workout", "gym", "exercise", "lift", "cardio", "run", "10x10", "10 x 10", "planet fitness",
 ] as const;
 
+/**
+ * How many open loops to ask for today, DERIVED from the backlog rather
+ * than asserted. Bounded at 3 so a large backlog never produces a
+ * demand the operator will ignore (an unmeetable target is how a nudge
+ * teaches you to tune it out), and never more than a third of a small
+ * one. Exported for tests.
+ */
+export function closeTargetFor(openLoops: number): number {
+  if (openLoops <= 0) return 0;
+  return Math.max(1, Math.min(3, Math.floor(openLoops / 3)));
+}
+
 function titleLooksLikeWorkout(title: string): boolean {
   const t = title.toLowerCase();
   return WORKOUT_TITLE_FRAGMENTS.some((frag) => t.includes(frag));
@@ -228,12 +240,19 @@ export function generateTimelines(i: Inputs): Timeline[] {
     }
   }
 
-  // Drift accumulating
+  // Drift accumulating.
+  //
+  // 2026-07-29 · the target used to be the literal "Close 3 today." at
+  // every backlog size — so at 4 open loops it demanded 75% of the
+  // backlog in a day, and at 20 the 3 was arbitrary. A precise number
+  // with nothing behind it is the same fabricated specificity the
+  // honesty stack blocks in generated text; it only survived here
+  // because it was a string literal, which no guard inspects.
   if (i.driftOpen >= 3) {
     items.push({
       id: "drift-accumulating",
       kind: "caution",
-      text: `${i.driftOpen} open loops. Close 3 today.`,
+      text: `${i.driftOpen} open loops. Close ${closeTargetFor(i.driftOpen)} today.`,
       domain: "mind",
       severity: "warn",
     });

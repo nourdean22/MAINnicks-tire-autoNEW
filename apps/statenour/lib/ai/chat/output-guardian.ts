@@ -191,7 +191,14 @@ export interface CriticScore {
   length: number;               // 0-100
   wordCount: number;
   reasons: string[];            // human-readable flags
-  shouldRegen: boolean;         // true if overall < 55
+  /**
+   * True when `overall < 55` OR any CRITICAL AXIS tripped — a detected
+   * hedge alone fires regen even at a good overall score, because the
+   * model refusing to cite data is a failure regardless of polish.
+   * (The old comment here said "true if overall < 55", which described
+   * half the rule and made a high-scoring flagged reply look like a bug.)
+   */
+  shouldRegen: boolean;
   offenders: {                  // specific phrases caught for UI display
     cliches: string[];
     antiNour: string[];
