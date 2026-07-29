@@ -205,6 +205,11 @@ HIDE / DEPRECATE / DELETE / EXTERNALIZE) — richer than wired/not-wired.
 
 ## Build-vs-buy (standing decisions, receipts in #1173 + tonight)
 
+> **2026-07-29:** this table graduated into the repo-wide
+> [`docs/UPSTREAMS.md`](../../../docs/UPSTREAMS.md) disposition
+> register — every adopt/reject/watch verdict with receipts and reopen
+> triggers lives THERE now; check it before proposing any platform.
+
 | Platform | Verdict | Why |
 |---|---|---|
 | Trigger.dev / n8n-as-runtime | **NO** | 4 dispatch classes already; a 5th job system is the disease this blueprint treats |
