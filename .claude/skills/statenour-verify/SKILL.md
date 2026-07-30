@@ -82,7 +82,29 @@ rot this repo keeps removing. So when the operator waives a finding:
   `generatedAt` is stale or `scripts/audit-skill-embeddings.ts` reports
   missing embeddings, the recall layer is blind to recently-installed
   skills. Refresh with `build-skill-registry.ts --merge` (**never
-  `--force`** — it drops entries belonging to your other machines).
+  `--force`** — it drops entries belonging to your other machines), then
+  embed. Target state is `verdict: IN SYNC ✓`.
+
+## Running an operator script that needs real credentials
+
+`.env.local` is **not** the full credential set — several keys live only
+on Railway. A provider-failure cascade is not proof of a billing problem
+until you check which lanes actually had keys.
+
+> Prefer `railway run --service statenour-web <cmd>` over hand-exporting
+> vars. It injects the real environment, so the preferred provider lane
+> actually gets tried.
+
+Proven 2026-07-30: `embed-skills.ts` failed every provider (HuggingFace
+402 credits-depleted, OpenAI 429 quota) and looked billing-blocked. The
+real cause was that **Cohere — first in the chain and the only lane pinned
+to 1024 dimensions — has no key locally but does on Railway.** Under
+`railway run` it embedded 8 skills in one second.
+
+Dimension trap in the same chain: Cohere pins `output_dimension: 1024`
+and rejects anything else, but the OpenAI fallback returns **1536** with
+no length guard. "Succeeding" on that fallback would silently poison a
+1024-dim corpus — check `embedding_dim` after any embedding backfill.
 
 ## When NOT to use
 
