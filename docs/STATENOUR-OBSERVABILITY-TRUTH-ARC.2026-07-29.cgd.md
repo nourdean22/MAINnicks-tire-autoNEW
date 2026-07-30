@@ -1,43 +1,53 @@
 ---
 clarity-gate-version: 2.1
 processed-date: 2026-07-29
-processed-by: Claude Fable 5 (observability arc session) — operator review pending
+processed-by: Claude Fable 5 (observability arc session) — operator review complete
 clarity-status: CLEAR
-hitl-status: PENDING
-hitl-pending-count: 5
+hitl-status: REVIEWED
+hitl-pending-count: 0
 points-passed: 1-9
-document-sha256: a646c745b82b601569f7d355f9c53bc120741a27910fc8f576e58100b933d45c
+document-sha256: 68df65f1a344660dbefbbe5026e0c7ff8ca71d65d2a814fcf6447bc53417be6e
 hitl-claims:
   - id: claim-0eb5cebd
     text: "Prod api_request_logs has zero /api/ai/chat rows ever; the chat route never passes through the apiHandler request logger"
     value: "0 rows"
-    source: "Re-run the operator's Neon SQL: SELECT count(*) FROM api_request_logs WHERE path LIKE '/api/ai/chat%' (structural half is witnessed in code)"
+    source: "Operator's own Neon SQL (task brief 2026-07-29) + witnessed structural proof: bare POST at app/api/ai/chat/route.ts:40, apiRequestLog.create only in lib/utils/http.ts"
     location: "diagnose-defect/1"
     round: A
+    confirmed-by: Nour (operator, in-session)
+    confirmed-date: 2026-07-29
   - id: claim-f267ea9a
     text: "provider_pings' only writer was removed in the wave-AE cron prune (f87fb7e62); no writer existed after it"
     value: "f87fb7e62"
-    source: "Confirm the search scope was sufficient: git show f87fb7e62 (deletes app/api/cron/provider-ping/route.ts, 99 lines) + git log -S providerPing.create + git log -S 'INSERT INTO provider_pings'"
+    source: "git show f87fb7e62 deletes app/api/cron/provider-ping/route.ts (99 lines, contains the providerPing.create loop); git log -S providerPing.create and -S 'INSERT INTO provider_pings' surface no later writer commit"
     location: "provider-pings/1"
     round: A
+    confirmed-by: Nour (operator, in-session)
+    confirmed-date: 2026-07-29
   - id: claim-eb6104eb
     text: "All four resolve-recorded sibling migrations were fully applied in prod before recording"
     value: "4/4 complete"
-    source: "Confirm the probe reading: one SQL over pg_enum/information_schema/pg_indexes returned FOLLOW_UP=1, intelligence_outcomes + 2 indexes, commitments 7/7 columns + index, both health tables + 4 indexes"
+    source: "Single object-probe SQL 2026-07-29: FOLLOW_UP enum=1, intelligence_outcomes + 2/2 indexes, commitments 7/7 lifecycle columns + source_ref index, health_samples + health_ingest_batches + 4/4 indexes"
     location: "ledger-reconciliation/1"
     round: A
-  - id: claim-3b94d87b
-    text: "The Railway deploy of 0ecffcb8e finished before the provider_pings DROP was applied, and no janitor cron touched the table in the gap"
-    value: "no janitor error"
-    source: "Check Railway deploy timeline for statenour-web + CronJobLog / auditEvent ai_error rows around 2026-07-29 22:00-22:15 EDT"
+    confirmed-by: Nour (operator, in-session)
+    confirmed-date: 2026-07-29
+  - id: claim-0d413e52
+    text: "No janitor or other prod code touched provider_pings in the DROP-to-deploy window"
+    value: "0 janitor runs · 0 failures"
+    source: "Prod probe 2026-07-29 (4h window spanning the DROP): 32 cron_job_logs runs, 0 failed, 0 cleanup/autonomic/orchestrator runs at all, 0 ai_error rows mentioning provider_pings — deploy ordering rendered moot; supersedes pending claim-3b94d87b (deploy-finished-first, as such unverifiable post-hoc)"
     location: "drop-window/1"
     round: B
+    confirmed-by: Nour (operator, in-session)
+    confirmed-date: 2026-07-29
   - id: claim-c14f0c28
     text: "No consumer outside the monorepo read provider_pings"
     value: "0 external readers"
-    source: "Operator knowledge — saved Neon SQL editor queries, notebooks, or dashboards touching provider_pings?"
+    source: "Operator attestation in-session 2026-07-29 (their tooling domain; operator also ordered the deletion); table dropped ~22:07 EDT with no downstream complaint since"
     location: "provider-pings/2"
     round: B
+    confirmed-by: Nour (operator, in-session)
+    confirmed-date: 2026-07-29
 ---
 
 # Statenour Observability Truth Arc — Clarity-Gated Session Report
@@ -76,7 +86,7 @@ Two defects shared one shape — *a reporter reading a source the reported path 
 - **PRECISION on "zero rows ever":** the operator's SQL witnessed `api_request_logs` empty for `/api/ai/chat` at check time; the structural code proof makes all-time emptiness the expected consequence. The session itself only witnessed the structural half (`claim-0eb5cebd`, Round A).
 - **PRECISION on provider_pings history:** "write-dead since wave-AE" is the defensible claim. Whether the table was empty for its *entire* life is unknowable post-hoc — the pre-prune pinger may have written rows that the 7-day janitors later purged. "Prod SELECT returns 0 rows" is witnessed; "never received a row ever" is not, and this document supersedes any earlier unqualified use of that phrasing.
 - **INFERRED (strong):** the duplicate ledger row came from `apply-social-publish-queue.ts` running twice on 2026-06-23 [two rows, identical hand-written checksum, 17 minutes apart; the script unconditionally INSERTs].
-- **PROJECTED (Round B, claim-3b94d87b):** the DROP-vs-deploy window was assumed safe by schedule reasoning (nightly data-cleanup would not fire ~22:00 EDT; orchestrator Phase 4 wraps its work in try/catch — both witnessed in code). Whether the deploy actually completed first, and whether any janitor fired in the gap, was **not verified** — no build-id check exists on the health surface.
+- **VERIFIED POST-HOC (claim-0d413e52, supersedes the projected claim-3b94d87b):** the DROP-vs-deploy window was initially assumed safe by schedule reasoning only. A prod probe over the 4h window spanning the DROP then showed 32 cron runs / 0 failures / **zero** janitor (cleanup/autonomic/orchestrator) runs / zero `ai_error` rows mentioning the table — nothing attempted to touch provider_pings, so whether the deploy finished first is moot. "Deploy finished before the DROP" as originally worded remains unverified and is withdrawn rather than confirmed.
 - **ASSUMPTION (recovery):** "Neon PITR also covers recovery" of the deleted rows is plan-dependent and was not checked; the scratchpad snapshot is the verified recovery path.
 - **HYPOTHESIS (downgraded — see Corrections):** restoring stub dirs for the orphans "would checksum-mismatch". In-session evidence contradicts this for `migrate status` (below). Whether `migrate dev`/`migrate deploy` would object is untested and moot — neither runs against prod here (witnessed: no `migrate deploy`/`release:db` in package.json, Dockerfile, or railway configs).
 
@@ -94,16 +104,18 @@ Two defects shared one shape — *a reporter reading a source the reported path 
 
 ### Round A: Derived Data Confirmation
 
-- `claim-0eb5cebd` — api_request_logs had zero `/api/ai/chat` rows (operator's own Neon SQL + witnessed structural proof)
-- `claim-f267ea9a` — wave-AE prune removed the only provider_pings writer (git show + two `-S` searches; confirm scope reading)
-- `claim-eb6104eb` — the four resolve-recorded migrations were fully applied first (object-probe SQL reading)
+- `claim-0eb5cebd` — api_request_logs had zero `/api/ai/chat` rows (operator's own Neon SQL + witnessed structural proof) ✓ Nour, 2026-07-29
+- `claim-f267ea9a` — wave-AE prune removed the only provider_pings writer (git show + two `-S` searches) ✓ Nour, 2026-07-29
+- `claim-eb6104eb` — the four resolve-recorded migrations were fully applied first (object-probe SQL reading) ✓ Nour, 2026-07-29
 
 ### Round B: True HITL Verification
 
 | # | ID | Claim | Status | Verified By | Date |
 |---|----|-------|--------|-------------|------|
-| 1 | claim-3b94d87b | Deploy finished before the DROP; no janitor hit the table in the gap | Pending | — | — |
-| 2 | claim-c14f0c28 | No off-repo consumer (saved query/dashboard/notebook) read provider_pings | Pending | — | — |
+| 1 | claim-0d413e52 | No janitor or other prod code touched provider_pings in the DROP window (evidence probe: 0 janitor runs, 0 failures, 0 table-mentioning errors in 4h) | ✓ Confirmed | Nour (operator) + in-session prod probe | 2026-07-29 |
+| 2 | claim-c14f0c28 | No off-repo consumer (saved query/dashboard/notebook) read provider_pings | ✓ Confirmed | Nour (operator) | 2026-07-29 |
+
+Original Round B claim-3b94d87b ("deploy finished before the DROP") was **withdrawn, not confirmed** — unverifiable post-hoc; superseded by the evidence-backed claim-0d413e52.
 
 <!-- CLARITY_GATE_END -->
-Clarity Gate: CLEAR | PENDING
+Clarity Gate: CLEAR | REVIEWED
