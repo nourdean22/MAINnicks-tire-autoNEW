@@ -12,15 +12,21 @@
  *  · NO arbitrary SQL — only migrations in the inlined MIGRATIONS registry
  *    below (operator-controlled, changes only via a deploy).
  *  · Every statement is idempotent (IF NOT EXISTS / constraint-existence
- *    guards) so re-running is a no-op. The migration is recorded in
- *    _prisma_migrations so `migrate deploy` never re-runs it (no drift).
+ *    guards) so re-running is a no-op.
+ *  · This endpoint NEVER writes _prisma_migrations. It used to insert a
+ *    `manual-endpoint-<name>` row "so migrate deploy never re-runs it" — but
+ *    nothing in this repo runs `migrate deploy`, and rows for names with no
+ *    prisma/migrations/<name>/ dir are exactly what turned `prisma migrate
+ *    status` red (2026-07-29 ledger reconciliation, 9 orphan rows deleted —
+ *    docs/STATENOUR-OBSERVABILITY-TRUTH-ARC.2026-07-29.cgd.md). Recording is
+ *    the canonical flow's job: promote the SQL to prisma/migrations/<name>/
+ *    and run `prisma migrate resolve --applied <name>`.
  *
  * To add a future migration: add `<name>: [statements]` to MIGRATIONS, deploy,
  * then POST { name }.
  */
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -420,27 +426,8 @@ export async function POST(req: Request) {
     }
   }
 
-  // Record as applied so `migrate deploy` never re-runs it (drift-safe).
-  // If this tracking insert fails the DDL is still applied (it already ran
-  // above) but Prisma has no record of it — surface that via a logged warning
-  // + a `migrationRecorded` flag in the response rather than swallowing it,
-  // so the operator can tell an un-tracked apply from a clean one.
-  const migrationRecorded = await prisma
-    .$executeRawUnsafe(
-      `INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-       VALUES (gen_random_uuid()::text, $1, NOW(), $2, NULL, NULL, NOW(), 1)
-       ON CONFLICT DO NOTHING`,
-      `manual-endpoint-${name}`,
-      name,
-    )
-    .then(() => true)
-    .catch((err) => {
-      logger.warn("apply_migration_tracking_insert_failed", {
-        name,
-        error: err instanceof Error ? err.message.slice(0, 120) : String(err),
-      });
-      return false;
-    });
+  // Deliberately NOT recorded in _prisma_migrations — see the header note.
+  // The response carries the follow-up step so it can't get lost.
 
   // Verify (only meaningful for the ambition migration, harmless otherwise).
   let verify: Record<string, unknown> = {};
@@ -458,5 +445,12 @@ export async function POST(req: Request) {
     /* verify is best-effort */
   }
 
-  return Response.json({ applied: true, name, results, verify, migrationRecorded });
+  return Response.json({
+    applied: true,
+    name,
+    results,
+    verify,
+    ledger:
+      "not recorded — promote the SQL to prisma/migrations/<name>/ and run `prisma migrate resolve --applied <name>` so `prisma migrate status` stays green",
+  });
 }
