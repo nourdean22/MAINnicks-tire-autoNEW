@@ -299,6 +299,7 @@ async function chatPostInner(req: Request) {
     pythonExecuteIntent: __pythonExecuteIntent,
     actionIntent: __actionIntent,
     webSearchIntent: __webSearchIntent,
+    webSearchRecency: __webSearchRecency,
   } = await deriveTurnSignals({
     userContent,
     messages: messages as unknown as Array<Record<string, unknown>>,
@@ -713,7 +714,9 @@ async function chatPostInner(req: Request) {
     userEmbedding,
     aiConfig,
     actionIntent: __actionIntent,
-    webSearchIntent: __webSearchIntent,
+    // 2026-07-29 · recency asks widen AVAILABILITY here; the step-0
+    // toolChoice force downstream still keys on __webSearchIntent alone.
+    webSearchIntent: __webSearchIntent || __webSearchRecency,
     queryShape,
     finalSystemPromptLength: finalSystemPrompt.length,
     // WP-14 · read-mode hard enforcement (strips mutating tools LAST)
@@ -902,6 +905,26 @@ async function chatPostInner(req: Request) {
       modelId,
       mode,
       messageCount: messages.length,
+      // 2026-07-29 · the wrapped fallback error only NAMES the last
+      // lane's failure; the 18:54Z incident left gemini/openai errors
+      // unrecorded and undiagnosable. Persist every attempt's
+      // provider · class · message head (server-side only, same
+      // exposure as the raw message/stack already stored above).
+      attempts: Array.isArray((streamErr as { attempts?: unknown }).attempts)
+        ? (
+            (streamErr as {
+              attempts: Array<{
+                provider: string | null;
+                errorClass: string | null;
+                errorMessage: string | null;
+              }>;
+            }).attempts
+          ).map((a) => ({
+            provider: a.provider,
+            errorClass: a.errorClass,
+            errorMessage: a.errorMessage ? a.errorMessage.slice(0, 160) : null,
+          }))
+        : undefined,
     });
     return Response.json(
       { error: "Chat stream failed" },

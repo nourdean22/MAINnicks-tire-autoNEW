@@ -45,6 +45,8 @@ export interface TurnSignals {
     typeof import("@/lib/ai/chat/action-intent-detector").detectActionIntent
   > | null;
   webSearchIntent: boolean;
+  /** Weaker sibling: recency-phrased ask → search tools INCLUDED, never forced. */
+  webSearchRecency: boolean;
 }
 
 export async function deriveTurnSignals(args: {
@@ -232,6 +234,23 @@ export async function deriveTurnSignals(args: {
       userContent,
     );
 
+  // 2026-07-29 · recency AVAILABILITY (weaker sibling of the force
+  // above). Telemetry from tonight: "Best top rated movies n shows …
+  // right now" carries no explicit search phrasing, the semantic pruner
+  // ranked the search family out, and the model either narrated "I
+  // don't have web search available this turn" or answered from priors
+  // and invented specifics (three unverified percentages in one reply).
+  // A time-anchored ask needs the tool IN THE SET; it does not need
+  // step-0 forcing. This signal only widens prepare-tools' include set —
+  // toolChoice forcing stays on the tight explicit regex above, exactly
+  // per its "detection stays tight" design note.
+  const webSearchRecency =
+    !pythonExecuteIntent &&
+    !webSearchIntent &&
+    /\b(right now|trending|what'?s (hot|new|popular)|(top|best)[- ]rated|(latest|newest|current|breaking) (news|movies?|shows?|series|releases?|trends?|prices?|models?)|this (week|month))\b/i.test(
+      userContent,
+    );
+
   return {
     aiConfig,
     classification,
@@ -245,5 +264,6 @@ export async function deriveTurnSignals(args: {
     pythonExecuteIntent,
     actionIntent,
     webSearchIntent,
+    webSearchRecency,
   };
 }
