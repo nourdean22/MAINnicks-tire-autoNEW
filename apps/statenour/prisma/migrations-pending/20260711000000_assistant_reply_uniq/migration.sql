@@ -34,7 +34,10 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS chat_messages_assistant_reply_uni
 ON chat_messages (conversation_id, parent_message_id, COALESCE(branch_id, ''))
 WHERE role = 'assistant' AND parent_message_id IS NOT NULL;
 
--- 3 · record as applied so migrate deploy/status stay clean
-INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-VALUES (gen_random_uuid()::text, 'manual-apply-assistant-reply-uniq-2026-07-11', NOW(), '20260711000000_assistant_reply_uniq', NULL, NULL, NOW(), 1)
-ON CONFLICT DO NOTHING;
+-- 3 · (removed 2026-07-29) this file used to self-INSERT a _prisma_migrations
+-- row here. Hand-inserted rows for names without a prisma/migrations/<name>/
+-- dir are exactly what turned `prisma migrate status` red — see
+-- docs/STATENOUR-OBSERVABILITY-TRUTH-ARC.2026-07-29.cgd.md. Steps 1-2 were
+-- applied to prod 2026-07-11. If this migration ever needs ledger recording,
+-- promote this dir into prisma/migrations/ and run:
+--   prisma migrate resolve --applied 20260711000000_assistant_reply_uniq
