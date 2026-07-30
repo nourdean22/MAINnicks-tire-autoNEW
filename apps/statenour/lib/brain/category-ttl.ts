@@ -16,7 +16,7 @@
  *     performance (operational reference)
  *   · Short (30d): chat_summary, conversation_summary, emotional_
  *     state, daily_synthesis, learning_velocity (rolls over)
- *   · Telemetric (7d): provider_ping, system_alert, system_health_
+ *   · Telemetric (7d): system_alert, system_health_
  *     digest history beyond keep window, tool_embedding (rotate
  *     fast — recent state matters)
  *   · Marker rows (1d): alert_pushed, error_pushed, token_age_
@@ -90,7 +90,6 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   data_source_probe: { days: 30, notes: "ingest cron probe results" },
 
   // ── TELEMETRIC (7d) ──────────────────────────────────────────
-  provider_ping: { days: 7, notes: "AI provider uptime probe · rotates fast" },
   system_alert: { days: 7, notes: "in-flight alerts · resolved or rolled" },
   system_health_digest: { days: 30, notes: "kept 30d for sparkline" },
   tool_embedding: { days: 7, notes: "tool catalog hash · rebuilt on changes" },
@@ -122,9 +121,8 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   // data-cleanup cron's `purgeExpired` pass.
   tool_telemetry: { days: 7, notes: "v10.0.529.106 W53 · cut over to ToolTelemetry · pruning legacy rows" },
   autonomous_event: { days: 7, notes: "v10.0.529.106 W53 · cut over to AutonomousEvent · pruning legacy rows" },
-  // provider_ping is already in TELEMETRIC (7d) above · no change needed
-  // (the 7d TTL was already correct for telemetric data · only the
-  // write path is now retired).
+  // provider_ping TTL entry removed 2026-07-30 — the category is extinct
+  // (writer pruned wave-AE, typed table dropped #1228, zero live rows).
   telemetry_tool_verb: { days: 7, notes: "v10.0.529.106 W53 · cut over to ToolVerbRatio · pruning legacy rows" },
 };
 

@@ -106,7 +106,6 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
   // schedule, not the operator's attention.
   const NOISE_CATEGORIES = new Set([
     "industry_intel",
-    "provider_ping",
     "tool_telemetry",
     "telemetry_tool_verb",
     "telemetry_temporal_warn",

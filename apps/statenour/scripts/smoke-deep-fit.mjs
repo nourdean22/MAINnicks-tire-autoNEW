@@ -1,5 +1,5 @@
 /**
- * Deep honesty probe · 9 read-only checks against live DB.
+ * Deep honesty probe · 6 read-only checks against live DB.
  *
  * Run after every AI / brain-pipeline / cron deploy. Catches the
  * class of bug where unit tests pass + types are clean but production
@@ -9,11 +9,13 @@
  *   2. BrainBusEvent stuck rows (status != done after 1h)
  *   3. AgentTrace error spike by surface (last 6h)
  *   4. Vector storage — text vs vec column population + dim uniformity
- *   5. AI provider last-success by name (which provider went silent?)
  *   6. ChatMessage write rate today vs 7d avg
  *   7. BrainMemory tombstone bloat (deleted vs live ratio)
- *   8. AutonomousEvent dual-write parity since v10.0.198 deploy
- *   9. ToolVerbRatio dual-write parity since v10.0.197 deploy
+ *
+ * (Check 5, provider-ping heartbeat, was removed 2026-07-29 with the
+ * provider_pings table. Checks 8-9, dual-write parity, were removed
+ * 2026-07-30 — the legacy BrainMemory telemetry lanes are dead, so
+ * parity could never flag again. Numbering kept for label stability.)
  *
  * Usage: node --env-file=.env.local scripts/smoke-deep-fit.mjs
  */
@@ -151,47 +153,6 @@ async function check_softDeleteOrphans() {
   });
 }
 
-// ── 8. AutonomousEvent writers anywhere ────────────────────────────
-// v10.0.213 · the v10.0.198 deploy was at 2026-05-05T14:08Z. Probes
-// run inside the 24h smoke window saw a window that was 95% pre-
-// deploy and falsely flagged the dual-write as broken. The real
-// honesty signal is: did the table get any writes since its
-// extraction commit?
-async function check_autonomousAnywhere() {
-  const DEPLOY_TS = new Date("2026-05-05T14:08:00Z");
-  const total = await prisma.autonomousEvent.count();
-  const sinceDeploy = await prisma.autonomousEvent.count({ where: { firedAt: { gte: DEPLOY_TS } } });
-  const legacySince = await prisma.brainMemory.count({
-    where: { category: "autonomous_event", deletedAt: null, createdAt: { gte: DEPLOY_TS } },
-  });
-  let sev = "ok";
-  if (legacySince > 0 && sinceDeploy === 0) sev = "fail"; // legacy writing, typed silent → real bug
-  else if (legacySince === 0 && sinceDeploy === 0) sev = "info"; // no upstream events yet
-  findings.push({
-    s: sev,
-    t: "8·AutonomousEvent post-deploy",
-    d: `total=${total} · since-v198-deploy: typed=${sinceDeploy} legacy=${legacySince}`,
-  });
-}
-
-// ── 9. ToolVerbRatio writers anywhere ──────────────────────────────
-async function check_toolVerbRatioAnywhere() {
-  const DEPLOY_TS = new Date("2026-05-05T13:51:00Z"); // v10.0.197 deploy
-  const total = await prisma.toolVerbRatio.count();
-  const sinceDeploy = await prisma.toolVerbRatio.count({ where: { createdAt: { gte: DEPLOY_TS } } });
-  const legacySince = await prisma.brainMemory.count({
-    where: { category: "telemetry_tool_verb", deletedAt: null, createdAt: { gte: DEPLOY_TS } },
-  });
-  let sev = "ok";
-  if (legacySince > 0 && sinceDeploy === 0) sev = "fail";
-  else if (legacySince === 0 && sinceDeploy === 0) sev = "info";
-  findings.push({
-    s: sev,
-    t: "9·ToolVerbRatio post-deploy",
-    d: `total=${total} · since-v197-deploy: typed=${sinceDeploy} legacy=${legacySince}`,
-  });
-}
-
 async function main() {
   console.log("\n=== Deep honesty probe ===\n");
   await check_cronHeartbeat();
@@ -200,8 +161,6 @@ async function main() {
   await check_vectorDimMix();
   await check_chatLiveness();
   await check_softDeleteOrphans();
-  await check_autonomousAnywhere();
-  await check_toolVerbRatioAnywhere();
 
   for (const f of findings) {
     console.log(`${tag(f.s)} ${f.t.padEnd(28)} ${f.d}`);
