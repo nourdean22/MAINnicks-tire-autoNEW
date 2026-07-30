@@ -99,18 +99,45 @@ describe("deriveTurnSignals · tool-mandatory intent exclusivity", () => {
     expect(s.pythonExecuteIntent).toBe(true);
     expect(s.actionIntent).toBeNull();
     expect(s.webSearchIntent).toBe(false);
+    expect(s.webSearchRecency).toBe(false);
   });
 
   it("explicit web-search phrasing fires webSearchIntent", async () => {
     const s = await callWith("search the web for the latest tire trends");
     expect(s.pythonExecuteIntent).toBe(false);
     expect(s.webSearchIntent).toBe(true);
+    // the force subsumes availability — recency stays quiet
+    expect(s.webSearchRecency).toBe(false);
   });
 
   it("an ordinary question fires none of the mandatory intents", async () => {
     const s = await callWith("what do you think about the estimate follow-ups?");
     expect(s.pythonExecuteIntent).toBe(false);
     expect(s.webSearchIntent).toBe(false);
+    expect(s.webSearchRecency).toBe(false);
+  });
+});
+
+describe("deriveTurnSignals · webSearchRecency (availability, never force)", () => {
+  it("THE REPORTED GAP: recency-phrased recommendation ask fires recency, not the force", async () => {
+    // 2026-07-29 telemetry: this exact ask got "I don't have web search
+    // available this turn", then a reply with three invented percentages.
+    const s = await callWith(
+      "Best top rated movies n shows I would find interesting right now or will get me hooked please",
+    );
+    expect(s.webSearchIntent).toBe(false);
+    expect(s.webSearchRecency).toBe(true);
+  });
+
+  it("trending / what's-hot phrasing fires recency", async () => {
+    expect((await callWith("what's hot in AI this week")).webSearchRecency).toBe(true);
+    expect((await callWith("anything trending I should know about")).webSearchRecency).toBe(true);
+  });
+
+  it("bare 'latest' without a live-content noun does NOT fire (my latest journal entry)", async () => {
+    const s = await callWith("summarize my latest journal entry");
+    expect(s.webSearchIntent).toBe(false);
+    expect(s.webSearchRecency).toBe(false);
   });
 });
 
