@@ -145,12 +145,27 @@ call — below the bar).
 > `generatedAt` now current, and the file's own `totalSkills` header
 > (which disagreed with its array, 1424 vs 1426) is consistent again.
 >
-> **Still open — external blocker:** those 8 skills remain unembedded, so
-> recall still cannot surface them. `embed-skills.ts` failed on every
-> provider: HuggingFace **402 "depleted your monthly included credits"**,
-> OpenAI **429 "exceeded your current quota"**. Not a code defect — the
-> embedding lane has no funded provider. Re-run after billing is restored;
-> the script is idempotent and will pick up exactly those 8.
+> **RESOLVED same day — it was an env gap, not a billing wall.** The first
+> run failed on HuggingFace (402, credits depleted) and OpenAI (429, quota),
+> which read as "no funded embedding provider". Wrong: the chain is
+> **Cohere → HuggingFace → OpenAI → OpenRouter**, and Cohere — the
+> *preferred* lane, pinned to `output_dimension: 1024` precisely "so vector
+> spaces don't desync on fallover" — never ran because `COHERE_API_KEY` is
+> absent from the local `.env.local`. It **is** set on Railway. Running
+> `railway run --service statenour-web pnpm tsx scripts/embed-skills.ts`
+> embedded all 8 in 1s (`8 new · 1426 skipped · 0 failed`).
+>
+> Verified in prod: all 1,434 skill embeddings are `embedding_dim = 1024`
+> (no mixed-dimension corpus), and `audit-skill-embeddings.ts` reports
+> **0 missing · 0 orphaned · verdict: IN SYNC ✓**. `graphify` and
+> `verify-receipt` are now recall-visible.
+>
+> Two traps worth keeping: OpenAI is the only chain member that would have
+> returned **1536-dim** vectors, and its branch has no length guard (the
+> Cohere branch rejects anything `!== 1024`) — so "succeeding" on the
+> OpenAI fallback would have silently poisoned a 1024-dim corpus. And a
+> provider failure cascade is not proof of a billing problem until you
+> check which lanes actually had keys.
 >
 > Lesson logged: the proposal asserted a defect size from a directory diff
 > without reading the generator that owns the semantics. Reading it first
