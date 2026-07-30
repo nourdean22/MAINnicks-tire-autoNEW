@@ -79,3 +79,64 @@ Each block is a proposal an operator approves, rejects, or defers.
   proposing NEW"). Logged here as the precedent, not a pending change.
 - **Confidence:** high
 - **Status:** applied (in the skill as written)
+
+---
+
+## 2026-07-30 · first `session-observer` run (skill-library gap-close)
+
+Three candidates survived the evidence filter. Dropped without logging:
+the Bash-cwd-reset trap (already in `AGENTS.md` § Environment) and a
+line-numbers-go-stale-after-your-own-edits note (cost one wasted tool
+call — below the bar).
+
+### P6 · `statenour-verify`
+- **Trigger (witnessed):** the operator declined a gate finding ("leave
+  purple" — the `stats/page.tsx` gradient). The `check:anti-slop` gate
+  wired hours earlier in #1237 would have stayed permanently red.
+- **Cost:** near-miss. A gate that always fails is the "documented check
+  everyone ignores" pattern this whole arc existed to remove.
+- **Proposed edit:** add a rule — "when the operator declines a gate
+  finding, make the waiver **explicit and signature-scoped** (marker on
+  the offending line, dated reason) so the gate returns green and stays
+  live. Never waive by filename — that blinds the check to every future
+  violation in that file. Verify red-green: the waiver in place is green,
+  a fresh violation in the same file still fails." Shipped as #1239.
+- **Confidence:** high
+- **Status:** proposed
+
+### P7 · `statenour-verify`
+- **Trigger (witnessed):** operator-approved probe of
+  `apps/statenour/data/skills-registry.json` — `generatedAt`
+  **2026-05-07** (84 days stale), 1,426 entries, `totalSkills: 1424`
+  (the file's own header disagrees with its array by 2). Disk today
+  holds **979** skill directories. Cross-check: **453 ghosts**
+  (recommendable but not installed) and **6 invisible** (installed but
+  unrecommendable — including `graphify`, which the operator has a
+  `/graphify` slash command for).
+- **Cost:** not yet paid, but ~32% of the recall index points at skills
+  the operator cannot use — the same "reader pointing at things that
+  aren't there" class as #1228.
+- **Proposed edit:** add to the verify gate — "check
+  `data/skills-registry.json` freshness; if `generatedAt` is >30 days old
+  or its entry count diverges from `~/.claude/skills`, the recall layer
+  is recommending from a stale snapshot. Regenerate with
+  `scripts/embed-skills.ts`." *(Product-side fix is a separate operator
+  call: regeneration means embedding spend + prod writes.)*
+- **Confidence:** high
+- **Status:** proposed
+
+### P8 · `CLAUDE.md` § SUBAGENT POLICY *(proposal only — this skill does not edit that file)*
+- **Trigger (witnessed):** two read-only mapper agents flagged
+  discriminators as having "no writer" from code-grep alone. Prod probes
+  refuted **both, in opposite directions**: `situation_logs.context LIKE
+  'trigger:%'` had **241 real rows** (an unseen free-form caller), and
+  `decision_replay_due` had **2** rows where the agent said zero.
+- **Cost:** near-miss — trusting the first would have deleted a live read
+  with 241 rows behind it.
+- **Proposed edit:** extend rule 3 (VERIFY, DON'T TRUST) — "for any claim
+  that a value/table/path is unused, code-grep is **not** evidence in
+  either direction. Confirm against the running system before deleting,
+  and before believing a 'no rows' claim. Agents get no prod credentials;
+  the orchestrator runs the probe."
+- **Confidence:** high (2 instances, same session, opposite directions)
+- **Status:** proposed
