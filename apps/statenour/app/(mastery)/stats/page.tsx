@@ -161,7 +161,7 @@ function StatsContent() {
               >
                 {tab.label}
                 {isActive && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full shadow-[0_0_8px_#3b82f6]" />
+                  <span /* anti-slop-allow · operator call 2026-07-30: blue→indigo accent bar on dark, not the purple-on-white SaaS gradient the gate hunts */ className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full shadow-[0_0_8px_#3b82f6]" />
                 )}
               </button>
             );
