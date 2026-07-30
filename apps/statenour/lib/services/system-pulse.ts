@@ -290,11 +290,15 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
       driftThresholdByName.set(c.name, 48 * 3600_000);
     }
   }
-  const cronsDrifted = cronLast48h.filter((r) => {
-    if (!r._max.createdAt) return false;
-    const threshold = driftThresholdByName.get(r.jobName) ?? 6 * 3600_000;
-    return now - new Date(r._max.createdAt).getTime() > threshold;
-  }).length;
+  // Total cron silence (zero rows in 48h) means EVERY expected cron is
+  // drifted — it must never render as "0 drifted" (2026-07-30 sweep).
+  const cronsDrifted = cronLast48h.length === 0
+    ? driftThresholdByName.size
+    : cronLast48h.filter((r) => {
+        if (!r._max.createdAt) return false;
+        const threshold = driftThresholdByName.get(r.jobName) ?? 6 * 3600_000;
+        return now - new Date(r._max.createdAt).getTime() > threshold;
+      }).length;
 
   const aiErrorRate = aiCalls24h > 0 ? Math.round((aiFailures24h / aiCalls24h) * 100) : 0;
   const aiErrorRate1h =

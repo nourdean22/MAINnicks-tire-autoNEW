@@ -122,7 +122,8 @@ export const GET = cronHandler(async () => {
         select: { key: true, content: true },
         orderBy: { key: "asc" },
       })
-      .catch(() => [] as Array<{ key: string; content: string }>),
+      // null = read failed — must render "unavailable", never a 0/10 trend
+      .catch(() => null),
     prisma.task
       .findMany({
         where: {
@@ -131,7 +132,7 @@ export const GET = cronHandler(async () => {
         },
         select: { title: true, streakCount: true, lastCompletedAt: true },
       })
-      .catch(() => [] as Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }>),
+      .catch(() => null),
     prisma.brainMemory
       .findMany({
         where: {
@@ -156,7 +157,7 @@ export const GET = cronHandler(async () => {
           };
         });
       })
-      .catch(() => [] as Array<{ ruleName: string; severity: string; message: string }>),
+      .catch(() => null),
     fetchFromAPI("/api/health"),
     // AG-03 · Read the weekly review directly from BrainMemory. The old
     // fetchFromAPI("/api/ai/weekly-review") targeted a route that does not
@@ -184,7 +185,7 @@ export const GET = cronHandler(async () => {
   // Parse brain-maturity series (replaces scoresList)
   interface BrainPoint { date: string; score: number }
   const brainPoints: BrainPoint[] = [];
-  for (const row of identityHistory) {
+  for (const row of identityHistory ?? []) {
     const date = row.key.replace("history:", "");
     try {
       const snap = JSON.parse(row.content) as { axes: Record<string, { value: number; manual: number | null }> };
@@ -205,7 +206,7 @@ export const GET = cronHandler(async () => {
 
   // Habits from DAILY task streaks
   const habitsByTitle = new Map<string, { days: Set<string>; streak: number }>();
-  for (const t of dailyTasks) {
+  for (const t of dailyTasks ?? []) {
     if (!t.lastCompletedAt) continue;
     const ds = new Date(t.lastCompletedAt).toISOString().slice(0, 10);
     const entry = habitsByTitle.get(t.title) ?? { days: new Set(), streak: t.streakCount };
@@ -221,7 +222,7 @@ export const GET = cronHandler(async () => {
     }))
     .sort((a, b) => b.pct - a.pct);
 
-  const activeDriftCount = driftAlerts.length;
+  const activeDriftCount = driftAlerts === null ? null : driftAlerts.length;
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -340,6 +341,7 @@ export const GET = cronHandler(async () => {
 
     <div class="section">
       <div class="section-title">Score Trend</div>
+      ${identityHistory === null ? '<div style="color: #b8860b; font-size: 13px;">Score data unavailable — read failed (unknown, not zero).</div>' : ""}
       ${scoresList
         .map(
           (s) =>
@@ -351,7 +353,7 @@ export const GET = cronHandler(async () => {
         .join("")}
       <div class="metric-row" style="border-top: 2px solid #333; padding-top: 12px; margin-top: 12px;">
         <span class="metric-label" style="font-weight: 600;">Weekly Average</span>
-        <span class="metric-value"><span class="score-badge">${avgScore}/10</span></span>
+        <span class="metric-value"><span class="score-badge">${identityHistory === null ? "?" : avgScore}/10</span></span>
       </div>
     </div>
 
@@ -366,15 +368,15 @@ export const GET = cronHandler(async () => {
       </div>`
         )
         .join("")}
-      ${habitSummary.length === 0 ? '<div style="color: #666; font-size: 13px;">No habit data logged.</div>' : ""}
+      ${dailyTasks === null ? '<div style="color: #b8860b; font-size: 13px;">Habit read failed — unknown, not zero.</div>' : habitSummary.length === 0 ? '<div style="color: #666; font-size: 13px;">No habit data logged.</div>' : ""}
     </div>
 
     <div class="section">
       <div class="section-title">Drift Alerts</div>
       <div style="font-size: 14px;">
-        <strong>${activeDriftCount} active</strong> unresolved alert${activeDriftCount !== 1 ? "s" : ""}
+        ${activeDriftCount === null ? "Drift-alert read failed — unknown, not zero." : `<strong>${activeDriftCount} active</strong> unresolved alert${activeDriftCount !== 1 ? "s" : ""}`}
       </div>
-      ${driftAlerts
+      ${(driftAlerts ?? [])
         .slice(0, 5)
         .map(
           (a) =>

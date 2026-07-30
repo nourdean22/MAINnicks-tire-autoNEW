@@ -174,7 +174,7 @@ export default function SystemHealthPage() {
             data.backlog.inboxTasks +
             data.backlog.activeCommitments +
             data.backlog.activeCaptures +
-            data.backlog.unackedDriftAlerts
+            (data.backlog.unackedDriftAlerts ?? 0)
           }
           label={`backlog · ${data.backlog.inboxTasks}t · ${data.backlog.activeCommitments}c`}
           goodWhen="low"
@@ -300,7 +300,8 @@ export default function SystemHealthPage() {
             <KVRow k="inbox tasks" v={data.backlog.inboxTasks} href="/missions" />
             <KVRow k="active commitments" v={data.backlog.activeCommitments} href="/missions" />
             <KVRow k="active captures" v={data.backlog.activeCaptures} href="/missions" />
-            <KVRow k="unacked drift" v={data.backlog.unackedDriftAlerts} href="/" tone={data.backlog.unackedDriftAlerts > 3 ? "warn" : undefined} />
+            {/* null = the drift read failed — "?" with warn tone, never a clean 0 */}
+            <KVRow k="unacked drift" v={data.backlog.unackedDriftAlerts ?? "?"} href="/" tone={data.backlog.unackedDriftAlerts === null || data.backlog.unackedDriftAlerts > 3 ? "warn" : undefined} />
           </dl>
         </section>
 
@@ -400,8 +401,12 @@ export default function SystemHealthPage() {
 function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
   const ev = op.eval;
   const evalBad = ev !== null && ev.total > 0 && ev.passRate < 70;
-  const dsBad = op.dataSources.failing > 0;
-  const allGood = !evalBad && !dsBad;
+  const ds = op.dataSources;
+  // ds === null means the probe READ failed — unknown never counts as
+  // all-clear (fleet-truth pattern, 2026-07-30 sweep).
+  const dsUnknown = ds === null;
+  const dsBad = ds !== null && ds.failing > 0;
+  const allGood = !evalBad && !dsBad && !dsUnknown;
   return (
     <section
       className={cn(
@@ -423,7 +428,7 @@ function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
             allGood ? "text-emerald-300" : "text-red-400",
           )}
         >
-          {allGood ? "operational · all clear" : "operational · needs attention"}
+          {allGood ? "operational · all clear" : dsUnknown && !evalBad && !dsBad ? "operational · probe read failed" : "operational · needs attention"}
         </h2>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -462,20 +467,22 @@ function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
           <div
             className={cn(
               "text-sm font-bold tabular-nums",
-              dsBad ? "text-red-400" : "text-emerald-400",
+              dsBad ? "text-red-400" : dsUnknown ? "text-amber-400" : "text-emerald-400",
             )}
           >
-            {op.dataSources.total === 0
-              ? "no probes yet"
-              : dsBad
-                ? `${op.dataSources.failing} failing`
-                : `${op.dataSources.total} OK`}
+            {ds === null
+              ? "probe read failed — unknown"
+              : ds.total === 0
+                ? "no probes yet"
+                : dsBad
+                  ? `${ds.failing} failing`
+                  : `${ds.total} OK`}
           </div>
         </div>
       </div>
-      {dsBad && (
+      {dsBad && ds !== null && (
         <ul className="mt-2 space-y-0.5">
-          {op.dataSources.probes
+          {ds.probes
             .filter((p) => !p.ok)
             .slice(0, 4)
             .map((p) => (

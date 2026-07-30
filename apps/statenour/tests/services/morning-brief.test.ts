@@ -42,6 +42,15 @@ vi.mock("@/lib/services/calendar-api", () => ({
   listEvents: vi.fn().mockResolvedValue([]),
 }));
 
+// 2026-07-30 · buildAnticipatedSlice now RETHROWS on failure (so the
+// slice-level failedSlice marker fires) instead of silently returning
+// empty. Un-mocked, its dynamic import fails in this env — the old
+// tests passed only because that failure was swallowed. Mock the happy
+// "nothing anticipated" path; the marker contract has its own test.
+vi.mock("@/lib/brain/anticipated-questions", () => ({
+  getTodaysAnticipated: vi.fn().mockResolvedValue(null),
+}));
+
 import { buildMorningBrief } from "@/lib/services/morning-brief";
 
 let mockDriftEvents: any[] = [];
@@ -324,5 +333,25 @@ describe("Morning Brief · v10.0.526 multi-slice composer", () => {
     expect(brief.text).toContain("&lt;script&gt;");
     expect(brief.text).toContain("&amp;");
     expect(brief.text).toContain("Tell &lt;b&gt;Mike&lt;/b&gt;");
+  });
+
+  it("a slice that throws renders the failed-slice marker, never silence", async () => {
+    // Shop slice reads all reject -> buildShopSlice throws (inner
+    // catches were removed 2026-07-30) -> slice-level catch renders the
+    // marker instead of the slice silently vanishing.
+    mocks.auditEvent.findFirst.mockRejectedValue(new Error("neon down"));
+    mocks.cronJobLog.count.mockRejectedValue(new Error("neon down"));
+    mocks.cronJobLog.findMany.mockRejectedValue(new Error("neon down"));
+
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("Shop slice unavailable — read failed");
+  });
+
+  it("a failed drift read renders UNAVAILABLE, not the LOW all-clear", async () => {
+    mocks.brainMemory.findMany.mockRejectedValue(new Error("neon down"));
+
+    const brief = await buildMorningBrief();
+    expect(brief.text).toContain("UNAVAILABLE (read failed)");
+    expect(brief.text).not.toContain("Drift: <b>LOW</b>");
   });
 });

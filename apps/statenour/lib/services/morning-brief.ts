@@ -94,10 +94,10 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
   });
 
   const [personal, shop, wellbeing, anticipated] = await Promise.all([
-    buildPersonalSlice(todayIso).catch((): MorningBriefSlice => emptySlice()),
-    buildShopSlice().catch((): MorningBriefSlice => emptySlice()),
-    buildWellbeingSlice(todayIso).catch((): MorningBriefSlice => emptySlice()),
-    buildAnticipatedSlice().catch((): MorningBriefSlice => emptySlice()),
+    buildPersonalSlice(todayIso).catch((): MorningBriefSlice => failedSlice("Personal")),
+    buildShopSlice().catch((): MorningBriefSlice => failedSlice("Shop")),
+    buildWellbeingSlice(todayIso).catch((): MorningBriefSlice => failedSlice("Wellbeing")),
+    buildAnticipatedSlice().catch((): MorningBriefSlice => failedSlice("Anticipated")),
   ]);
 
   // Compose · header always present · each slice appends only when it
@@ -193,9 +193,11 @@ export async function buildAnticipatedSlice(): Promise<MorningBriefSlice> {
         readyCount: payloadQs.filter((q) => q.hasAnswer).length,
       },
     };
-  } catch {
-    // Non-fatal · brief still renders the other slices.
-    return emptySlice();
+  } catch (err) {
+    // Rethrow so the slice-level catch renders the failed-slice marker —
+    // a silent emptySlice() here read as "nothing anticipated today".
+    logQueryFail("anticipated", err);
+    throw err;
   }
 }
 
@@ -239,9 +241,11 @@ export async function buildPersonalSlice(
           const severity = meta.priority === "P0" ? "critical" : meta.priority === "P1" ? "alert" : "warning";
           return { severity };
         })
-        .catch((err): null => {
+        .catch((err) => {
           logQueryFail("drift", err);
-          return null;
+          // Distinct from null ("no active alert") — a failed read must
+          // never render as the LOW all-clear (2026-07-30 sweep).
+          return "read_failed" as const;
         }),
       prisma.task
         .findMany({
@@ -288,7 +292,9 @@ export async function buildPersonalSlice(
       }),
     ]);
 
-  const driftLabel = (latestDrift?.severity ?? "LOW").toUpperCase();
+  const driftLabel = latestDrift === "read_failed"
+    ? "UNAVAILABLE (read failed)"
+    : (latestDrift?.severity ?? "LOW").toUpperCase();
 
   // Calendar conflicts = events overlapping today.
   const calendarConflicts = (
@@ -367,21 +373,18 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
         where: { eventType: "ceo_business_context" },
         orderBy: { createdAt: "desc" },
         select: { payload: true, createdAt: true },
-      })
-      .catch((): null => null),
+      }),
     prisma.cronJobLog
       .count({
         where: { status: "failed", createdAt: { gte: since24h } },
-      })
-      .catch(() => 0),
+      }),
     prisma.cronJobLog
       .findMany({
         where: { status: "failed", createdAt: { gte: since24h } },
         orderBy: { createdAt: "desc" },
         take: 3,
         select: { jobName: true },
-      })
-      .catch((): never[] => []),
+      }),
   ]);
 
   const bridgeFresh =
@@ -503,15 +506,13 @@ export async function buildWellbeingSlice(
         where: { logDate: { gte: since7d } },
         orderBy: { logDate: "desc" },
         select: { logDate: true, workoutCompleted: true, sleepHours: true },
-      })
-      .catch((): never[] => []),
+      }),
     prisma.bodyTracking
       .findMany({
         orderBy: { date: "desc" },
         take: 14,
         select: { date: true, weight: true },
-      })
-      .catch((): never[] => []),
+      }),
     prisma.brainMemory
       .findMany({
         // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
@@ -523,7 +524,6 @@ export async function buildWellbeingSlice(
         take: 200,
         select: { id: true, content: true, source: true },
       })
-      .catch((): never[] => []),
   ]);
 
   const logs = recentLogs as Array<{
@@ -626,6 +626,17 @@ export async function buildWellbeingSlice(
 
 function emptySlice(): MorningBriefSlice {
   return { lines: [], payload: {} };
+}
+
+// A slice that THREW must not vanish silently — an absent section reads
+// as "nothing to report". One marker line keeps the brief honest
+// (2026-07-30 sweep; inner reads in shop/wellbeing/anticipated now
+// rethrow so total slice failure lands here instead of rendering empty).
+function failedSlice(name: string): MorningBriefSlice {
+  return {
+    lines: [`<i>${name} slice unavailable — read failed</i>`],
+    payload: { failed: true },
+  };
 }
 
 async function tryFetchCalendarToday(): Promise<unknown[]> {

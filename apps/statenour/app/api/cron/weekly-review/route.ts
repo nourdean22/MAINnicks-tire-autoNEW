@@ -45,7 +45,8 @@ export const GET = cronHandler(async () => {
         select: { key: true, content: true },
         orderBy: { key: "asc" },
       })
-      .catch(() => [] as Array<{ key: string; content: string }>),
+      // null = read failed (rendered as "unknown", never as "no snapshots")
+      .catch(() => null),
     prisma.brainMemory
       .findMany({
         where: {
@@ -68,13 +69,13 @@ export const GET = cronHandler(async () => {
           };
         }),
       )
-      .catch(() => [] as Array<{ date: string; ruleName: string; severity: string; message: string; resolved: boolean }>),
+      .catch(() => null),
     prisma.task
       .findMany({
         where: { loopKind: "DAILY", lastCompletedAt: { gte: new Date(weekAgo) } },
         select: { title: true, streakCount: true, lastCompletedAt: true },
       })
-      .catch(() => [] as Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }>),
+      .catch(() => null),
     prisma.commitment.findMany({
       where: {
         OR: [
@@ -88,7 +89,9 @@ export const GET = cronHandler(async () => {
     }),
     prisma.brainMemory
       .count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(weekAgo) } } })
-      .catch(() => 0),
+      // null = read failed — the prompt must say "unavailable", never
+      // "No contradictions flagged." (the LLM narrates wins on top).
+      .catch(() => null),
     // Synthesis wave (audit 2026-07-15) · the review finally reads the
     // JOURNAL. Pre-wave "journal days" was a regex over DAILY task
     // titles (/journal|reflect/) — journaling via capture/Telegram
@@ -100,7 +103,7 @@ export const GET = cronHandler(async () => {
         orderBy: { createdAt: "desc" },
         take: 100,
       })
-      .catch(() => [] as Array<{ date: string; summary: string | null; rawThoughts: string }>),
+      .catch(() => null),
     prisma.reflection
       .findMany({
         where: { createdAt: { gte: new Date(weekAgo) }, deletedAt: null },
@@ -108,7 +111,7 @@ export const GET = cronHandler(async () => {
         orderBy: { createdAt: "desc" },
         take: 50,
       })
-      .catch(() => [] as Array<{ date: string; insight: string }>),
+      .catch(() => null),
     prisma.brainMemory
       .findMany({
         where: {
@@ -120,13 +123,13 @@ export const GET = cronHandler(async () => {
         orderBy: { createdAt: "desc" },
         take: 5,
       })
-      .catch(() => [] as Array<{ content: string }>),
+      .catch(() => null),
   ]);
 
   // Parse brain-maturity series
   interface Score { date: string; score: number }
   const scores: Score[] = [];
-  for (const row of identityHistory) {
+  for (const row of identityHistory ?? []) {
     const date = row.key.replace("history:", "");
     try {
       const snap = JSON.parse(row.content) as { axes: Record<string, { value: number; manual: number | null }> };
@@ -143,7 +146,7 @@ export const GET = cronHandler(async () => {
 
   // Habit check-offs from DAILY task streaks
   const habitsByTitle = new Map<string, { days: Set<string>; streak: number }>();
-  for (const t of dailyTasks) {
+  for (const t of dailyTasks ?? []) {
     if (!t.lastCompletedAt) continue;
     const ds = new Date(t.lastCompletedAt).toISOString().slice(0, 10);
     const entry = habitsByTitle.get(t.title) ?? { days: new Set(), streak: t.streakCount };
@@ -157,18 +160,18 @@ export const GET = cronHandler(async () => {
   // Synthesis wave (audit 2026-07-15) · journal days = distinct dates
   // with REAL journal rows (dumps + reflections), not task-title regex.
   const journalDates = new Set<string>();
-  for (const d of weekDumps) journalDates.add(d.date);
-  for (const r of weekReflections) journalDates.add(r.date);
+  for (const d of weekDumps ?? []) journalDates.add(d.date);
+  for (const r of weekReflections ?? []) journalDates.add(r.date);
   const journalDays = journalDates.size;
   const habitSummary = habitsByTitle;
 
   // Bounded journal content for the prompt: 5 newest entry summaries +
   // the week's AI takes (idea/challenge/nextAction JSON, trimmed).
   const journalLines = [
-    ...weekDumps.slice(0, 5).map((d) => `${d.date}: ${(d.summary ?? d.rawThoughts).slice(0, 160)}`),
-    ...weekReflections.slice(0, 3).map((r) => `${r.date} (reflection): ${r.insight.slice(0, 160)}`),
+    ...(weekDumps ?? []).slice(0, 5).map((d) => `${d.date}: ${(d.summary ?? d.rawThoughts).slice(0, 160)}`),
+    ...(weekReflections ?? []).slice(0, 3).map((r) => `${r.date} (reflection): ${r.insight.slice(0, 160)}`),
   ];
-  const takeLines = weekTakes
+  const takeLines = (weekTakes ?? [])
     .map((t) => {
       try {
         const p = JSON.parse(t.content) as { idea?: string | null; challenge?: string | null; nextAction?: { action?: string } | null };
@@ -187,21 +190,21 @@ export const GET = cronHandler(async () => {
     prompt: `Generate Nour's weekly review for the week of ${getWeekStartMonday()}.
 
 ## Brain Maturity (${scores.length}/7 days with snapshot)
-${scores.map((s) => `${s.date}: ${s.score}/100`).join("\n") || "No snapshots."}
+${identityHistory === null ? "Snapshot read FAILED — maturity unknown this week; do not infer stagnation." : scores.map((s) => `${s.date}: ${s.score}/100`).join("\n") || "No snapshots."}
 Week avg: ${avgScore}/100 | Workout days: ${workoutDays} | Journal days: ${journalDays}
-${openContradictions > 0 ? `Open contradictions: ${openContradictions}` : "No contradictions flagged."}
+${openContradictions === null ? "Contradiction count unavailable (read failed) — treat as unknown, not zero." : openContradictions > 0 ? `Open contradictions: ${openContradictions}` : "No contradictions flagged."}
 
-## Drift Alerts (${alerts.length} total, ${alerts.filter((a) => !a.resolved).length} unresolved)
-${alerts.map((a) => `${a.date} [${a.severity.toUpperCase()}] ${a.ruleName}: ${a.message}`).join("\n") || "None."}
+## Drift Alerts ${alerts === null ? "(read FAILED — unknown, not zero)" : `(${alerts.length} total, ${alerts.filter((a) => !a.resolved).length} unresolved)`}
+${alerts === null ? "Unavailable — do not narrate drift status this week." : alerts.map((a) => `${a.date} [${a.severity.toUpperCase()}] ${a.ruleName}: ${a.message}`).join("\n") || "None."}
 
 ## Habits (from DAILY task streaks)
-${[...habitSummary.entries()].map(([k, v]) => `${k}: ${v.days.size}/7 days (streak ${v.streak})`).join("\n") || "No data."}
+${dailyTasks === null ? "Habit read FAILED — do not infer skipped habits." : [...habitSummary.entries()].map(([k, v]) => `${k}: ${v.days.size}/7 days (streak ${v.streak})`).join("\n") || "No data."}
 
 ## Commitments
 ${commitments.map((c) => `${c.description} — ${c.status}`).join("\n") || "None."}
 
-## Journal (${weekDumps.length} entries · ${weekReflections.length} reflections this week)
-${journalLines.join("\n") || "No journal entries this week."}
+## Journal (${(weekDumps ?? []).length} entries · ${(weekReflections ?? []).length} reflections this week)
+${weekDumps === null || weekReflections === null ? "Journal read FAILED — do not infer journaling stopped." : journalLines.join("\n") || "No journal entries this week."}
 ${takeLines.length ? `AI takes: ${takeLines.join(" | ")}` : ""}
 
 Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 400 words. Be direct and evidence-based.`,

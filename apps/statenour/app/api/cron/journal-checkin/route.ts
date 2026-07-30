@@ -41,7 +41,9 @@ export const GET = cronHandler(async (req) => {
           gte: startOfDayET(),
         },
       },
-    }).catch(() => 0),
+      // null = read failed — the evening line must say "unavailable",
+      // never "0 tasks done today" (2026-07-30 sweep).
+    }).catch(() => null),
     prisma.brainMemory
       .findUnique({
         where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
@@ -50,7 +52,10 @@ export const GET = cronHandler(async (req) => {
       .catch(() => null),
     (async () => {
       const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
-      return (await getUnresolvedAlerts().catch(() => [])).length;
+      // null = read failed — absence of the drift line must not read as
+      // "no drift" when we simply couldn't check.
+      const alerts = await getUnresolvedAlerts().catch(() => null);
+      return alerts === null ? null : alerts.length;
     })(),
   ]);
   const openLoops = openLoopsRaw.map((t) => ({
@@ -69,9 +74,11 @@ export const GET = cronHandler(async (req) => {
       ? openLoops.map((l) => `  - ${l.priority === "critical" ? "!!" : "-"} ${l.title}`).join("\n")
       : "  No open tasks.";
 
-    const alertLine = unresolvedAlerts > 0
-      ? `\n${unresolvedAlerts} drift alert${unresolvedAlerts > 1 ? "s" : ""} unresolved.`
-      : "";
+    const alertLine = unresolvedAlerts === null
+      ? `\nDrift-alert check unavailable (read failed).`
+      : unresolvedAlerts > 0
+        ? `\n${unresolvedAlerts} drift alert${unresolvedAlerts > 1 ? "s" : ""} unresolved.`
+        : "";
 
     prompt =
       `<b>Nick here. Morning check-in.</b>\n\n` +
@@ -98,7 +105,9 @@ export const GET = cronHandler(async (req) => {
       }
     }
 
-    const doneLine = `${todayDone} task${todayDone === 1 ? "" : "s"} done today.`;
+    const doneLine = todayDone === null
+      ? "Done-count unavailable (read failed)."
+      : `${todayDone} task${todayDone === 1 ? "" : "s"} done today.`;
     const dumpLine = todayDumps > 0
       ? `${todayDumps} journal entr${todayDumps === 1 ? "y" : "ies"} today.`
       : "No journal entries today.";

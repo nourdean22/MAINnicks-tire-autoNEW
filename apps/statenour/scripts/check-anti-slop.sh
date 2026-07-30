@@ -21,7 +21,9 @@ LEAKS=""
 LEAK_COUNT=0
 
 # 1. Inter font imports — covers next/font/google + raw imports
-INTER_HITS=$(git grep -lE 'next/font/google.*Inter|fonts\.googleapis.*Inter|font-family:\s*[^;]*Inter|Inter[a-zA-Z]*_init|"Inter"' -- 'app/**' 'components/**' 'lib/**' 2>/dev/null || true)
+# Vendored tool integrations (lib/ai/last30days, lib/ai/moneyprinter) are
+# not UI surfaces — excluded 2026-07-30 so the gate reports only real leaks.
+INTER_HITS=$(git grep -lE 'next/font/google.*Inter|fonts\.googleapis.*Inter|font-family:\s*[^;]*Inter|Inter[a-zA-Z]*_init|"Inter"' -- 'app/**' 'components/**' 'lib/**' ':!lib/ai/last30days/**' ':!lib/ai/moneyprinter/**' 2>/dev/null || true)
 if [ -n "$INTER_HITS" ]; then
   LEAK_COUNT=$((LEAK_COUNT + $(echo "$INTER_HITS" | wc -l)))
   LEAKS="$LEAKS\n  Inter font imports:"
@@ -31,7 +33,7 @@ if [ -n "$INTER_HITS" ]; then
 fi
 
 # 2. Roboto / Arial defaults
-DEFAULT_FONT_HITS=$(git grep -lE 'next/font/google.*Roboto|fonts\.googleapis.*Roboto|"Roboto"|"Arial"' -- 'app/**' 'components/**' 'lib/**' 2>/dev/null || true)
+DEFAULT_FONT_HITS=$(git grep -lE 'next/font/google.*Roboto|fonts\.googleapis.*Roboto|"Roboto"|"Arial"' -- 'app/**' 'components/**' 'lib/**' ':!lib/ai/last30days/**' ':!lib/ai/moneyprinter/**' 2>/dev/null || true)
 if [ -n "$DEFAULT_FONT_HITS" ]; then
   LEAK_COUNT=$((LEAK_COUNT + $(echo "$DEFAULT_FONT_HITS" | wc -l)))
   LEAKS="$LEAKS\n  Roboto/Arial AI-default fonts:"
