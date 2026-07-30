@@ -7,8 +7,13 @@ them back when ready.
 > **Preferred path — no prod creds needed (use this).** Apply via the guarded
 > endpoint `POST /api/system/apply-pending-migration { name }`. It runs an
 > idempotent (IF NOT EXISTS) copy of the migration's statements from inside the
-> deployed app — which has the prod `DATABASE_URL` — and records it in
-> `_prisma_migrations`. Steps: add the SQL to that route's `MIGRATIONS`
+> deployed app — which has the prod `DATABASE_URL`. It deliberately does NOT
+> write `_prisma_migrations` (2026-07-29: hand-inserted rows for names with no
+> `prisma/migrations/<name>/` dir turned `prisma migrate status` red — see
+> docs/STATENOUR-OBSERVABILITY-TRUTH-ARC.2026-07-29.cgd.md). After applying,
+> promote the SQL into `prisma/migrations/<name>/` and run
+> `prisma migrate resolve --applied <name>` so status stays green.
+> Steps: add the SQL to that route's `MIGRATIONS`
 > registry → deploy → from the authed app tab run
 > `fetch('/api/system/apply-pending-migration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'<name>'}),credentials:'include'})`.
 > The dev/agent env has NO prod creds and there is NO statenour Vercel project,
