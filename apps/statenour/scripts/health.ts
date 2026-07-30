@@ -149,41 +149,10 @@ async function checkExtractedTables() {
   };
 }
 
-async function checkDualWriteParity() {
-  // v10.0.206 · for each extracted domain, compare 24h legacy
-  // BrainMemory writes vs typed-table writes. Dual-write is
-  // healthy when typed >= legacy in the same window.
-  const since = new Date(Date.now() - 24 * 3600_000);
-  const pairs: Array<{ cat: string; recentTyped: () => Promise<number> }> = [
-    { cat: "tool_telemetry", recentTyped: () => prisma.toolTelemetry.count({ where: { createdAt: { gte: since } } }) },
-    { cat: "telemetry_tool_verb", recentTyped: () => prisma.toolVerbRatio.count({ where: { createdAt: { gte: since } } }) },
-    { cat: "autonomous_event", recentTyped: () => prisma.autonomousEvent.count({ where: { firedAt: { gte: since } } }) },
-    { cat: "semantic_edge", recentTyped: () => prisma.semanticEdge.count({ where: { createdAt: { gte: since } } }) },
-  ];
-  const broken: string[] = [];
-  for (const p of pairs) {
-    const legacyRecent = await prisma.brainMemory.count({
-      where: { category: p.cat, deletedAt: null, createdAt: { gte: since } },
-    });
-    const typedRecent = await p.recentTyped();
-    // Only flag when LEGACY is writing but TYPED is silent
-    if (legacyRecent > 0 && typedRecent === 0) {
-      broken.push(`${p.cat}(${legacyRecent}↛0)`);
-    }
-  }
-  if (broken.length === 0) {
-    return {
-      severity: "ok" as const,
-      topic: "dual_write_parity",
-      detail: "all 4 dual-writes healthy or both quiet",
-    };
-  }
-  return {
-    severity: "warn" as const,
-    topic: "dual_write_parity",
-    detail: `${broken.length} dual-write(s) silent · ${broken.join(", ")}`,
-  };
-}
+// checkDualWriteParity removed 2026-07-30: the legacy BrainMemory telemetry
+// categories are dead (0 writes in 30d — Phase 3 of the extractions finished
+// long ago), so "legacy writing but typed silent" can never occur again and
+// the check was a permanently-green no-op.
 
 async function main() {
   console.log("\n=== statenour health probe ===\n");
@@ -194,7 +163,6 @@ async function main() {
   await check("vector_orphans", checkVectorOrphans);
   await check("brain_memory_top5", checkBrainMemorySize);
   await check("extracted_tables", checkExtractedTables);
-  await check("dual_write_parity", checkDualWriteParity);
 
   const order: Record<Finding["severity"], number> = { fail: 0, warn: 1, info: 2, ok: 3 };
   findings.sort((a, b) => order[a.severity] - order[b.severity]);
