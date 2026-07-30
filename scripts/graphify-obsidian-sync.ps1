@@ -27,10 +27,25 @@ Set-Location $RepoRoot
 # copies only graph.json + report + labels + manifest, never the HTML).
 $env:GRAPHIFY_VIZ_NODE_LIMIT = "60000"
 
-# Prefer the interpreter graphify itself resolved (marker file), falling back
-# to whatever `python` is on PATH.
-$pyMarker = Join-Path $RepoRoot "graphify-out\.graphify_python"
-$py = if (Test-Path $pyMarker) { (Get-Content $pyMarker -Raw).Trim() } else { "python" }
+# Use the interpreter that OWNS the graphify the CLI runs. `graphify update`
+# (step 1) executes from a uv-managed tool venv, but the .graphify_python marker
+# points at a system interpreter whose site-packages holds a SEPARATE, older
+# graphify. Step 1 was building graph.json with 0.9.8 while step 2 rendered it
+# with 0.9.6 - harmless today, but a graph.json schema change on any
+# `uv tool upgrade graphifyy` would break the render or, worse, render it wrong.
+# Resolve the venv first; fall back to the old marker path if uv is absent.
+$py = $null
+$uvToolDir = (& uv tool dir 2>$null | Out-String).Trim()
+if ($uvToolDir) {
+    $uvPython = Join-Path $uvToolDir "graphifyy\Scripts\python.exe"
+    if (Test-Path $uvPython) { $py = $uvPython }
+}
+if (-not $py) {
+    $pyMarker = Join-Path $RepoRoot "graphify-out\.graphify_python"
+    $py = if (Test-Path $pyMarker) { (Get-Content $pyMarker -Raw).Trim() } else { "python" }
+    Log "WARN: uv graphifyy venv not found - falling back to $py (may differ from the CLI's graphify version)"
+}
+Log "python for render/digest steps: $py"
 
 # 1. Incremental graph update (tree-sitter AST, no LLM, no API keys).
 graphify update . 2>&1 | Add-Content -Path $log
