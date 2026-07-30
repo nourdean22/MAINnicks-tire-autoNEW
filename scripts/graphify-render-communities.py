@@ -14,6 +14,8 @@ Default output: graphify-out/graph-communities.html
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import sys
 from collections import defaultdict
@@ -71,13 +73,23 @@ def main() -> int:
             print(f"[communities] labels unreadable ({exc}) - rendering without them")
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    to_html(
-        G,
-        dict(communities),
-        str(target),
-        community_labels=labels or None,
-        node_limit=NODE_LIMIT,
-    )
+    # to_html hardcodes the literal string "graph.html" in its aggregated-write
+    # message (export.py:703) regardless of the path it was handed, so the line
+    # names a file we did not write and reads as a regression in the sync log.
+    # Capture and relabel it rather than swallow it - the node/edge counts it
+    # reports are the only place those aggregate numbers surface.
+    captured = io.StringIO()
+    with contextlib.redirect_stdout(captured):
+        to_html(
+            G,
+            dict(communities),
+            str(target),
+            community_labels=labels or None,
+            node_limit=NODE_LIMIT,
+        )
+    for line in captured.getvalue().splitlines():
+        if line.strip():
+            print(line.replace("graph.html", target.name))
 
     if not target.exists():
         # to_html returns without writing when the aggregate would be a single

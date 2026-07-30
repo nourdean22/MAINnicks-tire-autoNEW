@@ -1,0 +1,88 @@
+# .graphifyignore - data/config JSON that graphify's extractor accepts but which
+# carries no code symbols.
+#
+# Why this file exists: graphify registers a JSON extractor for every .json, but
+# only emits nodes for manifest-shaped ones (package.json, tsconfig*.json,
+# manifest.json, railway.json, components.json, turbo.json). Everything else
+# lands in the #1666 "produced zero nodes and are absent from the graph" warning
+# on every single run - 131 files as of 2026-07-30. That warning exists to
+# surface files `affected`/`explain` are blind through, so a permanent 131-file
+# list trains you to skim the one signal that would matter the day a real .ts
+# goes empty. Excluding the known-inert data files makes it meaningful again.
+#
+# Nothing here is lost from the graph: these files already produced zero nodes.
+#
+# Syntax is gitignore (merged with .gitignore, last-match-wins). Note that this
+# file can only ever EXCLUDE more - a `!` negation cannot pull back a file that
+# .gitignore already dropped.
+#
+# TIGHT PATTERNS ONLY. Several of these directories also hold JSON that DOES
+# produce nodes, so directory-wide globs would silently shrink the graph:
+#   - last30days-skill/mcp/manifest.json          (glob on last30days-skill/**)
+#   - apps/nickstire/client/public/manifest.json  (glob on client/public/*)
+#   - reports/security-audit.json                 (glob on reports/*)
+#   - **/vendor/bird-search/package.json          (sits one level above lib/)
+# Never ignore tsconfig*.json: graphify reads it for TypeScript path-alias
+# resolution (extract.py:196), so dropping it would degrade import edges
+# repo-wide, not just remove nodes.
+
+# --- Drizzle migration snapshots (generated schema state, not code) ---
+apps/nickstire/drizzle/meta/*.json
+
+# --- Eval fixtures / scenario corpora ---
+apps/statenour/tests/eval/scenarios/*.json
+apps/nickstire/server/lib/ai/evals/**/eval-set.json
+last30days-skill/fixtures/*.json
+
+# --- Vendored third-party data (MoneyPrinterTurbo i18n + voice tables) ---
+MoneyPrinterTurbo/webui/i18n/*.json
+apps/statenour/lib/ai/moneyprinter/webui/i18n/*.json
+**/app/services/data/azure_voices.json
+
+# --- Vendored bird-search lookup tables (its package.json is one level up) ---
+**/vendor/bird-search/lib/*.json
+
+# --- Knowledge/content corpora ---
+apps/statenour/docs/vapi-kb/*.json
+apps/statenour/data/wisdom/*.json
+apps/statenour/data/*.json
+
+# --- Generated reports, ledgers and run state ---
+# Both forms are required: graphify's `**/` only matches with at least one
+# intervening directory, so the recursive pattern alone misses direct children.
+apps/nickstire/docs/execution/creative-quality/*.json
+apps/nickstire/docs/execution/creative-quality/**/*.json
+apps/nickstire/docs/operations/capability-ledger.json
+apps/nickstire/reports/backfill-skills-*.json
+apps/statenour/.runtime/*.json
+apps/statenour/.lintbaseline.json
+apps/statenour/scripts/soft-delete-baseline.json
+ad-factory/**/*.json
+reports/asset-placements-*.json
+reports/rewrites-*.json
+.completion/*.json
+
+# --- Static site payloads served to the browser (not imported by code) ---
+apps/nickstire/client/public/business-data.json
+apps/nickstire/client/public/howto-schemas.json
+apps/nickstire/client/public/reviews-schema.json
+apps/nickstire/client/public/services-schema.json
+apps/nickstire/client/public/__manus__/version.json
+apps/statenour/public/manifest-mobile.json
+
+# --- Editor / tooling config ---
+.claude/settings.json
+.claude/settings.local.json
+.vscode/settings.json
+.syncpackrc.json
+apps/statenour/.claude/launch.json
+apps/statenour/cowork-plugin.json
+apps/statenour/local-agent/eufy-ws-config.json
+
+# --- Plugin descriptors (last30days-skill/mcp/manifest.json DOES produce nodes) ---
+last30days-skill/.claude-plugin/*.json
+last30days-skill/.codex-plugin/*.json
+last30days-skill/.agents/plugins/marketplace.json
+last30days-skill/gemini-extension.json
+last30days-skill/greptile.json
+last30days-skill/hooks/hooks.json
