@@ -45,7 +45,6 @@ export interface HealthReport {
     lastReflectionHoursAgo: number | null;
     lastCaptureHoursAgo: number | null;
     lastIdentityRefreshHoursAgo: number | null;
-    lastSkillExtractionHoursAgo: number | null;
   };
   lawFeedback: {
     situationLogsWithLawId: number;
@@ -171,11 +170,9 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
       where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
       select: { updatedAt: true },
     }).catch(() => null),
-    prisma.cronJobLog.findFirst({
-      where: { jobName: "extract-skills", status: "success" },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    }).catch(() => null),
+    // lastSkillExtraction read removed 2026-07-30: no /api/cron/extract-skills
+    // route has ever existed and cron_job_logs has ZERO 'extract-skills' rows
+    // ever — the field was permanently null and nothing rendered it.
   ]);
 
   // ── Law feedback loop ──
@@ -304,7 +301,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     priorErrCount,
     topErrors,
     [activeCap, pendingCommit, inboxTasks, unackDrift],
-    [lastBrainDump, lastReflection, lastCapture, lastIdentityRefresh, lastSkillExtract],
+    [lastBrainDump, lastReflection, lastCapture, lastIdentityRefresh],
     [lawLogs, triggerLogs],
     vectorCoverage,
     lens,
@@ -418,7 +415,6 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
       lastReflectionHoursAgo: agoH(lastReflection?.createdAt),
       lastCaptureHoursAgo: agoH(lastCapture?.createdAt),
       lastIdentityRefreshHoursAgo: agoH(lastIdentityRefresh?.updatedAt),
-      lastSkillExtractionHoursAgo: agoH(lastSkillExtract?.createdAt),
     },
     lawFeedback: {
       situationLogsWithLawId: lawLogs,

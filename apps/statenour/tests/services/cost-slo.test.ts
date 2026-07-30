@@ -98,11 +98,15 @@ describe("computeTodayBurn · burn calc", () => {
     );
   });
 
-  it("returns 0 on no-data edge case (empty aggregate + DB error)", async () => {
+  it("returns 0 for genuinely-empty data but NULL when the read fails", async () => {
+    // Empty table = a real $0 burn — renderable.
     mocks.aiGeneration.aggregate.mockResolvedValueOnce({ _sum: { costCents: null } });
     expect(await computeTodayBurn()).toBe(0);
+    // Failed read = UNKNOWN, never $0 — the old catch-to-0 contract let a
+    // DB blip write the day's cost_alert idempotency row and silence
+    // budget paging for the rest of the day (2026-07-30 sweep).
     mocks.aiGeneration.aggregate.mockRejectedValueOnce(new Error("conn refused"));
-    expect(await computeTodayBurn()).toBe(0);
+    expect(await computeTodayBurn()).toBeNull();
   });
 });
 

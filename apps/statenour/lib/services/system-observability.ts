@@ -48,12 +48,21 @@ export async function buildCostSloSnapshot() {
     costByProvider(7),
   ]);
 
-  const { burnCents, forecastCents, hoursElapsed } = await computeBurnRateForecast();
+  // null = the burn read failed — render zeros but carry readFailed so
+  // the surface can say "unknown" instead of asserting $0 (2026-07-30).
+  const forecast = await computeBurnRateForecast();
+  const readFailed = forecast === null || state === null;
+  const { burnCents, forecastCents, hoursElapsed } = forecast ?? {
+    burnCents: 0,
+    forecastCents: 0,
+    hoursElapsed: 0,
+  };
   const budget = await resolveDailyAiBudgetCents();
   const threshold = Math.round(budget * 1.2);
 
   return {
     date: etDateKey(),
+    readFailed,
     today: {
       burnCents,
       hoursElapsed: Number(hoursElapsed.toFixed(2)),
@@ -61,7 +70,7 @@ export async function buildCostSloSnapshot() {
     forecast: {
       forecastCents,
       thresholdCents: threshold,
-      over: state.over,
+      over: state?.over ?? false,
     },
     budget: {
       dailyCents: budget,

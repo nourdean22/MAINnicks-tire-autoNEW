@@ -25,6 +25,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { getSetting } from "@/lib/services/settings";
 import { startOfDayET } from "@/lib/utils/datetime";
 
@@ -105,11 +106,13 @@ function hoursElapsedToday(at: Date = new Date()): number {
 /**
  * Sum of AiGeneration cost_cents for today (ET).
  *
- * Returns 0 when the table is empty / DB unreachable rather than
- * throwing — the burn-rate cron should always produce a number so the
- * SLO surface stays renderable.
+ * Returns the summed cents (0 when the table is genuinely empty) and
+ * NULL when the read itself fails — callers must treat null as
+ * "unknown", never as $0. The old catch-to-0 let a midnight DB blip
+ * render "burn $0.00" AND write the day's cost_alert idempotency row,
+ * silencing budget paging for the rest of the day (2026-07-30 sweep).
  */
-export async function computeTodayBurn(at: Date = new Date()): Promise<number> {
+export async function computeTodayBurn(at: Date = new Date()): Promise<number | null> {
   const start = todayStartUtc(at);
   try {
     const agg = await prisma.aiGeneration.aggregate({
@@ -117,8 +120,11 @@ export async function computeTodayBurn(at: Date = new Date()): Promise<number> {
       _sum: { costCents: true },
     });
     return agg._sum.costCents ?? 0;
-  } catch {
-    return 0;
+  } catch (err) {
+    logger.warn("cost_slo_burn_read_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    });
+    return null;
   }
 }
 
@@ -136,8 +142,9 @@ export async function computeTodayBurn(at: Date = new Date()): Promise<number> {
  */
 export async function computeBurnRateForecast(
   at: Date = new Date(),
-): Promise<{ burnCents: number; hoursElapsed: number; forecastCents: number }> {
+): Promise<{ burnCents: number; hoursElapsed: number; forecastCents: number } | null> {
   const burnCents = await computeTodayBurn(at);
+  if (burnCents === null) return null; // failed read — never forecast from a fabricated $0
   const hoursElapsed = hoursElapsedToday(at);
   const forecastCents = Math.round((burnCents * 24) / hoursElapsed);
   return { burnCents, hoursElapsed, forecastCents };
@@ -157,8 +164,10 @@ export async function isOverBudget(at: Date = new Date()): Promise<{
   budgetCents: number;
   thresholdCents: number;
   hoursElapsed: number;
-}> {
-  const { burnCents, forecastCents, hoursElapsed } = await computeBurnRateForecast(at);
+} | null> {
+  const forecast = await computeBurnRateForecast(at);
+  if (forecast === null) return null; // unknown burn — callers must not treat as under-budget
+  const { burnCents, forecastCents, hoursElapsed } = forecast;
   const budgetCents = await resolveDailyAiBudgetCents();
   const thresholdCents = Math.round(budgetCents * BURN_THRESHOLD_MULTIPLIER);
   return {

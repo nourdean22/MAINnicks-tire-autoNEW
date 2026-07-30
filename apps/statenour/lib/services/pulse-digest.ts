@@ -124,7 +124,6 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
       doneToday,
       autoActionsToday,
       reflectionsToday,
-      brainDigestToday,
       aiErrorBurst,
     ] = await Promise.all([
       prisma.brainMemory
@@ -190,13 +189,8 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
           }),
         },
       }),
-      prisma.brainMemory.findFirst({
-        where: {
-          category: BRAIN_CATEGORIES.BACKLOG_TRIAGE,
-          createdAt: { gte: today },
-        },
-        select: { content: true, createdAt: true },
-      }),
+      // backlog_triage "win" read removed 2026-07-30 — the category has
+      // NEVER been written (0 rows ever in prod); the win could not fire.
       prisma.auditEvent.count({
         where: {
           eventType: "ai_error",
@@ -397,17 +391,6 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         severity: "win",
         at: new Date().toISOString(),
         link: "/journal",
-      });
-    }
-    if (brainDigestToday) {
-      wins.push({
-        id: "wins-triage",
-        headline: "backlog triaged today",
-        detail: brainDigestToday.content.split("\n")[0]?.slice(0, 80),
-        kind: "win",
-        severity: "win",
-        at: brainDigestToday.createdAt.toISOString(),
-        link: "/missions",
       });
     }
 

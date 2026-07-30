@@ -59,7 +59,7 @@ export async function GET(req: Request) {
     chatStats,
     voiceP50,
   ] = await Promise.all([
-    computeTodayBurn().catch(() => 0),
+    computeTodayBurn().then((b) => b ?? 0),
     resolveDailyAiBudgetCents().catch(() => 500),
     prisma.brainMemory.findMany({
       where: {

@@ -43,6 +43,14 @@ export const GET = cronHandler(async () => {
   const today = etDateKey();
   const state = await isOverBudget();
 
+  // Unknown burn (failed read) must NEVER write the day's cost_alert row —
+  // that row is the idempotency gate, and stamping it on a failed read
+  // would silence budget paging for the rest of the day (2026-07-30 sweep).
+  // Return without a marker so the next hourly run retries.
+  if (state === null) {
+    return { ok: false, skipped: true, reason: "burn_read_failed_no_marker", date: today };
+  }
+
   // Idempotency · one alert per ET-day. Look up existing first; if
   // a row exists for today, return early regardless of `over` so a
   // mid-day retry never re-pages the operator.
