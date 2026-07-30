@@ -20,6 +20,18 @@ needs a deliberate, prod-verified apply.
 - **`prisma migrate status` against prod Neon is the source of truth** —
   not "I ran release:db". Local success messaging can lie when the prod
   DB is unreachable or auth fails silently (the v10.0.473 incident).
+- **Nothing auto-records the ledger any more.** The guarded endpoint
+  `POST /api/system/apply-pending-migration` applies its registry DDL but
+  deliberately does **not** write `_prisma_migrations` (#1231). Hand-
+  inserted rows for names with no `prisma/migrations/<name>/` dir are what
+  turned `migrate status` red in the first place — 9 orphan rows deleted
+  2026-07-30. Recording is always: promote the SQL into
+  `prisma/migrations/<name>/`, then `prisma migrate resolve --applied`.
+- **A deliberate DROP must also prune every re-apply path.** Removing a
+  table means removing its endpoint registry entry, its one-shot apply
+  scripts, and any parked SQL — otherwise `IF NOT EXISTS` machinery
+  quietly resurrects it. Found live 2026-07-30 (#1233): a registry entry
+  would have re-created three tables retired weeks earlier.
 
 ## Workflow
 
