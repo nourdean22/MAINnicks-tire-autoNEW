@@ -45,6 +45,9 @@ export interface SystemChangeDigest {
   truth: {
     staleCriticalInKeyDocs: number;
     staleWarnInKeyDocs: number;
+    /** Key docs that could not be READ — a zero stale-count over an
+     *  unreadable doc is not a clean bill (2026-07-30 sweep). */
+    keyDocsUnreadable: string[];
     evals: { total: number; passed: number; failed: number; manual: number };
     runbooksActive: number;
     runbooksOldestVerified: string | null;
@@ -91,6 +94,7 @@ export interface DigestParts {
   reconciliation: ReconEntry | null;
   staleCriticalInKeyDocs: number;
   staleWarnInKeyDocs: number;
+  keyDocsUnreadable: string[];
   evals: { total: number; passed: number; failed: number; manual: number };
   runbooksActive: number;
   runbooksOldestVerified: string | null;
@@ -102,11 +106,15 @@ export interface DigestParts {
 export function assembleDigest(p: DigestParts): SystemChangeDigest {
   const risks: string[] = [];
   if (p.staleCriticalInKeyDocs > 0) risks.push(`${p.staleCriticalInKeyDocs} critical stale-deploy claim(s) in key truth docs.`);
+  // An unreadable key doc contributes 0 findings — identical to "clean"
+  // unless we say so out loud (2026-07-30 sweep).
+  if (p.keyDocsUnreadable.length > 0) risks.push(`${p.keyDocsUnreadable.length} key truth doc(s) UNREADABLE — scan incomplete: ${p.keyDocsUnreadable.join(", ")}.`);
   if (p.evals.failed > 0) risks.push(`${p.evals.failed} failing truth eval(s).`);
   if (p.deployment.status === "unknown") risks.push("Deploy status unverified from this runtime.");
 
   let nextOwnerDecision = "Nothing pending — truth + checks are green.";
   if (p.staleCriticalInKeyDocs > 0) nextOwnerDecision = "Fix the critical stale-doc finding(s) before they mislead an agent.";
+  else if (p.keyDocsUnreadable.length > 0) nextOwnerDecision = `Restore the unreadable key doc(s) — the truth scan could not run over ${p.keyDocsUnreadable.join(", ")}.`;
   else if (p.evals.failed > 0) nextOwnerDecision = `Resolve ${p.evals.failed} failing truth eval(s).`;
   else if (p.deployment.status === "unknown") nextOwnerDecision = "Verify the live deploy on bdnick.info (runtime can't confirm it).";
 
@@ -116,6 +124,7 @@ export function assembleDigest(p: DigestParts): SystemChangeDigest {
     truth: {
       staleCriticalInKeyDocs: p.staleCriticalInKeyDocs,
       staleWarnInKeyDocs: p.staleWarnInKeyDocs,
+      keyDocsUnreadable: p.keyDocsUnreadable,
       evals: p.evals,
       runbooksActive: p.runbooksActive,
       runbooksOldestVerified: p.runbooksOldestVerified,
@@ -153,9 +162,15 @@ export async function buildSystemChangeDigest(deps: DigestDeps = {}): Promise<Sy
   // Stale-doc scan over the key truth docs only (bounded + the worst place for a regression).
   let staleCriticalInKeyDocs = 0;
   let staleWarnInKeyDocs = 0;
+  const keyDocsUnreadable: string[] = [];
   for (const rel of KEY_DOCS) {
     const content = loadDoc(rel);
-    if (content == null) continue;
+    if (content == null) {
+      // Missing OR unreadable — either way the scan did NOT cover this
+      // doc, so it must not be silently counted as clean.
+      keyDocsUnreadable.push(rel);
+      continue;
+    }
     for (const f of scanContent(rel, content)) {
       if (f.severity === "critical") staleCriticalInKeyDocs++;
       else staleWarnInKeyDocs++;
@@ -180,6 +195,7 @@ export async function buildSystemChangeDigest(deps: DigestDeps = {}): Promise<Sy
     reconciliation,
     staleCriticalInKeyDocs,
     staleWarnInKeyDocs,
+    keyDocsUnreadable,
     evals: { total: evalRun.total, passed: evalRun.passed, failed: evalRun.failed, manual: evalRun.manual },
     runbooksActive: active.length,
     runbooksOldestVerified,

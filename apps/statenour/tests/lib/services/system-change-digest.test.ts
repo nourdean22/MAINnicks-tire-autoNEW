@@ -79,6 +79,7 @@ describe("assembleDigest", () => {
     reconciliation: { date: "2026-06-09", title: "x", ships: ["a38f2d98"], verifyGate: "typecheck 0" },
     staleCriticalInKeyDocs: 0,
     staleWarnInKeyDocs: 0,
+    keyDocsUnreadable: [],
     evals: { total: 23, passed: 22, failed: 0, manual: 1 },
     runbooksActive: 8,
     runbooksOldestVerified: "2026-06-09",
@@ -107,6 +108,16 @@ describe("assembleDigest", () => {
     const d = assembleDigest({ ...base, deployment: { sha: null, branch: null, env: null, source: "none", status: "unknown", note: "n" } });
     expect(d.risks.join(" ").toLowerCase()).toContain("unverified");
     expect(d.nextOwnerDecision.toLowerCase()).toContain("verify");
+  });
+
+  // 2026-07-30 sweep · an unreadable key doc contributes ZERO stale
+  // findings, so without this the digest reported "truth + checks are
+  // green" over a doc it never actually read.
+  it("never claims green when a key truth doc could not be read", () => {
+    const d = assembleDigest({ ...base, keyDocsUnreadable: ["docs/CURRENT-TRUTH.md"] });
+    expect(d.risks.join(" ")).toContain("UNREADABLE");
+    expect(d.nextOwnerDecision.toLowerCase()).not.toContain("nothing pending");
+    expect(d.truth.keyDocsUnreadable).toEqual(["docs/CURRENT-TRUTH.md"]);
   });
 });
 

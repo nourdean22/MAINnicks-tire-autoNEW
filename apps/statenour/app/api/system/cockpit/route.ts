@@ -59,7 +59,8 @@ export async function GET(req: Request) {
     chatStats,
     voiceP50,
   ] = await Promise.all([
-    computeTodayBurn().then((b) => b ?? 0),
+    // null = burn read failed · the card says "unknown", never "$0.00"
+    computeTodayBurn(),
     resolveDailyAiBudgetCents().catch(() => 500),
     prisma.brainMemory.findMany({
       where: {
@@ -88,14 +89,26 @@ export async function GET(req: Request) {
   ]);
 
   // ─── SCORECARD 1 · cost today ──────────────────────────────────
-  const burnPct = budgetCents > 0 ? burnCents / budgetCents : 0;
+  const burnPct =
+    burnCents !== null && budgetCents > 0 ? burnCents / budgetCents : 0;
   const costCard: ScoreCard = {
     key: "cost",
     label: "cost today",
-    value: `$${(burnCents / 100).toFixed(2)}`,
-    numeric: burnCents,
-    status: burnPct > 1.0 ? "alert" : burnPct > 0.7 ? "warn" : "ok",
-    detail: `budget $${(budgetCents / 100).toFixed(0)} · ${Math.round(burnPct * 100)}% burn`,
+    value: burnCents === null ? "unknown" : `$${(burnCents / 100).toFixed(2)}`,
+    numeric: burnCents ?? 0,
+    // Unknown spend is a WARN, never a green $0 (2026-07-30 sweep).
+    status:
+      burnCents === null
+        ? "warn"
+        : burnPct > 1.0
+          ? "alert"
+          : burnPct > 0.7
+            ? "warn"
+            : "ok",
+    detail:
+      burnCents === null
+        ? "burn read failed — today's spend is unknown"
+        : `budget $${(budgetCents / 100).toFixed(0)} · ${Math.round(burnPct * 100)}% burn`,
   };
 
   // ─── SCORECARD 2 · eval pass rate (last 24h) ───────────────────

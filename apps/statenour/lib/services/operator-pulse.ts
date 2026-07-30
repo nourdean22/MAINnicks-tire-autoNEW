@@ -574,8 +574,7 @@ async function buildOperatorPulseUncached(
             deletedAt: null,
             updatedAt: { gte: startOfToday },
           },
-        })
-        .catch(() => 0),
+        }),
       prisma.task
         .count({
           where: {
@@ -583,8 +582,7 @@ async function buildOperatorPulseUncached(
             deletedAt: null,
             updatedAt: { gte: sevenDaysAgo },
           },
-        })
-        .catch(() => 0),
+        }),
       prisma.task
         .findFirst({
           where: {
@@ -600,8 +598,7 @@ async function buildOperatorPulseUncached(
             promiseTo: true,
             loopKind: true,
           },
-        })
-        .catch(() => null),
+        }),
       prisma.task
         .findFirst({
           where: {
@@ -624,8 +621,13 @@ async function buildOperatorPulseUncached(
                 ),
               }
             : null,
-        )
-        .catch(() => null),
+        ),
+      // 2026-07-30 sweep · the four inner .catch swallows here are GONE.
+      // A failed count rendered "0 done today" and a failed task read
+      // rendered "no stale promise" — both feeding the emerald "Calm"
+      // verdict below. Every read now fails loudly into the outer catch
+      // (which logs pulse_composition_failed and rethrows), matching how
+      // goals/scoreboard already behave.
     ]).catch((err) => {
       log.warn("pulse_composition_failed", {
         err: err instanceof Error ? err.message.slice(0, 200) : String(err),
