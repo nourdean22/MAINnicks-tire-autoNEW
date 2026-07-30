@@ -38,7 +38,7 @@ export interface HealthReport {
     activeCaptures: number;
     activeCommitments: number;
     inboxTasks: number;
-    unackedDriftAlerts: number;
+    unackedDriftAlerts: number | null;
   };
   freshness: {
     lastBrainDumpHoursAgo: number | null;
@@ -55,7 +55,7 @@ export interface HealthReport {
     totalFires: number;
     fallbackRate: number;
     top: Array<{ framework: string; count: number }>;
-  };
+  } | null;
   voice: {
     totalCalls: number;
     avgDurationSec: number;
@@ -76,7 +76,7 @@ export interface HealthReport {
       failing: number;
       bridgeFailing: number;
       probes: Array<{ name: string; kind: string; ok: boolean; reason: string | null }>;
-    };
+    } | null;
   };
 }
 
@@ -158,7 +158,9 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
           return !meta.ackedAt;
         }).length;
       })
-      .catch(() => 0),
+      // null = read failed — "0 unacked drift alerts" on a DB error is
+      // a fabricated all-clear (2026-07-30 sweep).
+      .catch(() => null),
   ]);
 
   // ── Brain signal freshness ──
@@ -216,7 +218,9 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
         top,
       };
     } catch {
-      return { totalFires: 0, fallbackRate: 0, top: [] };
+      // null = read failed — "0 fires · 0% fallback" on a thrown query
+      // rendered byte-identical to a healthy lens (2026-07-30 sweep).
+      return null;
     }
   })();
 
@@ -286,7 +290,9 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
         take: 40,
         select: { key: true, content: true },
       })
-      .catch((): { key: string; content: string }[] => []),
+      // null = read failed — an empty probe list rendered byte-identical
+      // to "every data source healthy" (the apiRequestLog defect shape).
+      .catch(() => null),
   ]);
 
   // ── Single concurrency join · every probe above runs in parallel ──
@@ -357,7 +363,13 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     d ? Math.round((now - d.getTime()) / (60 * 60 * 1000)) : null;
 
   const evalMeta = (latestEval?.metadata ?? {}) as Record<string, unknown>;
-  const evalHealth = latestEval
+  // Staleness gate (2026-07-30): eval_result has no live writer — prod
+  // holds 2 fossil rows. Surface a run only when it is fresh (7d); an
+  // ancient passRate rendered as current is a staleness lie.
+  const evalFresh =
+    latestEval != null &&
+    Date.now() - latestEval.createdAt.getTime() < 7 * 24 * 3600_000;
+  const evalHealth = evalFresh && latestEval
     ? {
         passRate: Math.round(Number(evalMeta.passRate ?? 0)),
         passed: Number(evalMeta.passed ?? 0),
@@ -368,7 +380,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
 
   const seenProbe = new Set<string>();
   const probes: Array<{ name: string; kind: string; ok: boolean; reason: string | null }> = [];
-  for (const row of probeRows) {
+  for (const row of probeRows ?? []) {
     let parsed: { probe?: string; kind?: string; ok?: boolean; reason?: string } = {};
     try {
       parsed = JSON.parse(row.content) as typeof parsed;
@@ -385,12 +397,14 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
       reason: parsed.reason ?? null,
     });
   }
-  const dataSources = {
-    total: probes.length,
-    failing: probes.filter((p) => !p.ok).length,
-    bridgeFailing: probes.filter((p) => p.kind === "bridge" && !p.ok).length,
-    probes,
-  };
+  const dataSources = probeRows === null
+    ? null
+    : {
+        total: probes.length,
+        failing: probes.filter((p) => !p.ok).length,
+        bridgeFailing: probes.filter((p) => p.kind === "bridge" && !p.ok).length,
+        probes,
+      };
 
   return {
     range: label,

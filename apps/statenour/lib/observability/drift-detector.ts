@@ -45,6 +45,9 @@ export interface DriftReport {
   improvements: Regression[];
   /** Highest severity among regressions; "info" when none. */
   worst: RegressionSeverity;
+  /** Metrics whose read FAILED — excluded from comparison, never "no
+   *  regression" (2026-07-30 sweep). */
+  metricsUnreadable: string[];
 }
 
 /**
@@ -80,6 +83,7 @@ export async function compareToWeekAgo(now: Date = new Date()): Promise<DriftRep
 
   const regressions: Regression[] = [];
   const improvements: Regression[] = [];
+  const metricsUnreadable: string[] = [];
 
   for (const metric of OS_SNAPSHOT_METRIC_NAMES) {
     const rows = await prisma.systemMetric
@@ -92,8 +96,14 @@ export async function compareToWeekAgo(now: Date = new Date()): Promise<DriftRep
         orderBy: { createdAt: "desc" },
         take: 200,
       })
-      .catch((): { value: number; createdAt: Date }[] => []);
+      .catch((): { value: number; createdAt: Date }[] | null => null);
 
+    if (rows === null) {
+      // A failed read silently shrank the comparison set — the dropped
+      // metric rendered as "no regression" (2026-07-30 sweep).
+      metricsUnreadable.push(metric);
+      continue;
+    }
     if (rows.length === 0) continue;
     const today = rows[0]?.value;
     if (today === undefined) continue;
@@ -162,7 +172,7 @@ export async function compareToWeekAgo(now: Date = new Date()): Promise<DriftRep
   const worst: RegressionSeverity =
     regressions[0]?.severity ?? "info";
 
-  return { date: dateIso, regressions, improvements, worst };
+  return { date: dateIso, regressions, improvements, worst, metricsUnreadable };
 }
 
 /**

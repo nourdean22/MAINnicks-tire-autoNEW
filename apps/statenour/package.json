@@ -70,7 +70,9 @@
     "check:soft-delete": "tsx scripts/audit-soft-delete-filters.ts",
     "check:mutations": "tsx scripts/audit-mutation-receipts.ts",
     "check:mutations:strict": "tsx scripts/audit-mutation-receipts.ts --strict",
-    "check:get-auth": "tsx scripts/check-sensitive-get-auth.ts"
+    "check:get-auth": "tsx scripts/check-sensitive-get-auth.ts",
+    "check:anti-slop": "bash scripts/check-anti-slop.sh",
+    "check:policy-coverage": "tsx scripts/check-policy-coverage.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.64",
