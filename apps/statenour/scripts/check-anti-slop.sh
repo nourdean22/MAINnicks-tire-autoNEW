@@ -43,7 +43,12 @@ if [ -n "$DEFAULT_FONT_HITS" ]; then
 fi
 
 # 3. Purple SaaS gradients (from-purple-* / to-purple-* / via-purple-*)
-PURPLE_HITS=$(git grep -lE 'from-purple-|to-purple-|via-purple-' -- 'app/**' 'components/**' 2>/dev/null || true)
+#
+# Waivers are BY SIGNATURE, not by filename: a line carrying an
+# `anti-slop-allow` marker is exempt, but a NEW purple gradient in that
+# same file still trips the gate. Excluding whole files would have made
+# this check permanently blind to the file it was waived for.
+PURPLE_HITS=$(git grep -nE 'from-purple-|to-purple-|via-purple-' -- 'app/**' 'components/**' 2>/dev/null | grep -v 'anti-slop-allow' | cut -d: -f1 | sort -u || true)
 if [ -n "$PURPLE_HITS" ]; then
   LEAK_COUNT=$((LEAK_COUNT + $(echo "$PURPLE_HITS" | wc -l)))
   LEAKS="$LEAKS\n  Purple-on-white SaaS gradients:"
