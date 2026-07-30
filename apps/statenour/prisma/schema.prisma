@@ -1589,33 +1589,6 @@ model ToolVerbRatio {
   @@map("tool_verb_ratios")
 }
 
-/// v10.0.196 · Provider ping log · extracted from BrainMemory.
-///
-/// Pre-extraction · provider_ping was BrainMemory(category="provider_
-/// ping") with one row per ping (every 15min × 3 providers = ~288/day).
-/// Append-only with 24h expiresAt. Storing point-in-time uptime
-/// samples as semantic memories was schema abuse + slowed every
-/// BrainMemory category query.
-///
-/// Phase 1 (this commit) · schema + dual-write. Phase 2 cuts reads
-/// (provider trend queries in /system/costs). Phase 3 drops
-/// BrainMemory writes + soft-deletes legacy rows.
-model ProviderPing {
-  id         String   @id @default(cuid())
-  /// venice | ollama | openai | anthropic | (future)
-  provider   String   @db.VarChar(40)
-  available  Boolean
-  latencyMs  Int      @map("latency_ms")
-  /// HTTP status code or short error string when !available.
-  errorClass String?  @map("error_class") @db.VarChar(80)
-  pingedAt   DateTime @default(now()) @map("pinged_at")
-
-  /// Trend queries: provider × recent window — single composite
-  /// index serves the /system/costs uptime view.
-  @@index([provider, pingedAt(sort: Desc)])
-  @@map("provider_pings")
-}
-
 /// v10.0.194 · Tool telemetry aggregate · extracted from BrainMemory.
 ///
 /// Pre-extraction lived in BrainMemory(category="tool_telemetry") with

@@ -26,7 +26,6 @@ const prisma = new PrismaClient({ adapter });
 
 const PAIRS = [
   { domain: "tool_telemetry", legacyCat: "tool_telemetry", newTable: "tool_telemetry", since: "v10.0.194" },
-  { domain: "provider_ping", legacyCat: "provider_ping", newTable: "provider_pings", since: "v10.0.196" },
   { domain: "telemetry_tool_verb", legacyCat: "telemetry_tool_verb", newTable: "tool_verb_ratios", since: "v10.0.197" },
   { domain: "autonomous_event", legacyCat: "autonomous_event", newTable: "autonomous_events", since: "v10.0.198" },
   { domain: "semantic_edge", legacyCat: "semantic_edge", newTable: "semantic_edges", since: "v10.0.198" },
@@ -56,9 +55,6 @@ async function main() {
     if (pair.newTable === "tool_telemetry") {
       typedTotal = await prisma.toolTelemetry.count();
       typedRecent = await prisma.toolTelemetry.count({ where: { createdAt: { gte: since } } });
-    } else if (pair.newTable === "provider_pings") {
-      typedTotal = await prisma.providerPing.count();
-      typedRecent = await prisma.providerPing.count({ where: { pingedAt: { gte: since } } });
     } else if (pair.newTable === "tool_verb_ratios") {
       typedTotal = await prisma.toolVerbRatio.count();
       typedRecent = await prisma.toolVerbRatio.count({ where: { createdAt: { gte: since } } });

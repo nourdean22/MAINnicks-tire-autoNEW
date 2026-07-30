@@ -77,9 +77,6 @@ vi.mock("@/lib/prisma", () => {
       stateLog: {
         deleteMany: vi.fn(),
       },
-      providerPing: {
-        deleteMany: vi.fn(),
-      },
       toolVerbRatio: {
         deleteMany: vi.fn(),
       },
@@ -135,7 +132,6 @@ describe("services/autonomic-orchestrator", () => {
     vi.mocked(prisma.apiRequestLog.deleteMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.errorLog.deleteMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.stateLog.deleteMany).mockResolvedValue({ count: 0 });
-    vi.mocked(prisma.providerPing.deleteMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.toolVerbRatio.deleteMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.systemMetric.deleteMany).mockResolvedValue({ count: 0 });
     vi.mocked(prisma.deviceEvent.deleteMany).mockResolvedValue({ count: 0 });

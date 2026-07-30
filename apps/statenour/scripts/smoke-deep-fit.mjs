@@ -120,29 +120,6 @@ async function check_vectorDimMix() {
   });
 }
 
-// ── 5. Provider last-success ────────────────────────────────────────
-async function check_providerHeartbeat() {
-  const rows = await prisma.$queryRawUnsafe(`
-    SELECT provider::text AS p,
-           MAX(CASE WHEN available THEN pinged_at END) AS last_ok,
-           COUNT(*) FILTER (WHERE available AND pinged_at >= NOW() - INTERVAL '6 hours')::int AS ok_6h,
-           COUNT(*) FILTER (WHERE NOT available AND pinged_at >= NOW() - INTERVAL '6 hours')::int AS fail_6h
-    FROM provider_pings
-    WHERE pinged_at >= NOW() - INTERVAL '24 hours'
-    GROUP BY provider
-  `);
-  const lines = rows.map(r => {
-    const ago = r.last_ok ? Math.round((Date.now() - new Date(r.last_ok).getTime()) / 60_000) : "∞";
-    return `${r.p}: last_ok=${ago}min · 6h=${r.ok_6h}ok/${r.fail_6h}fail`;
-  });
-  const dead = rows.filter(r => !r.last_ok || (Date.now() - new Date(r.last_ok).getTime()) > 60 * 60_000);
-  findings.push({
-    s: dead.length > 0 ? "warn" : "ok",
-    t: "5·providers 24h",
-    d: lines.join(" · "),
-  });
-}
-
 // ── 6. ChatMessage write rate ───────────────────────────────────────
 async function check_chatLiveness() {
   const today = await prisma.chatMessage.count({
@@ -221,7 +198,6 @@ async function main() {
   await check_busStuck();
   await check_agentTraceErrors();
   await check_vectorDimMix();
-  await check_providerHeartbeat();
   await check_chatLiveness();
   await check_softDeleteOrphans();
   await check_autonomousAnywhere();

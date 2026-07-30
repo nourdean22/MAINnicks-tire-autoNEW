@@ -50,7 +50,6 @@ export const RETENTION: Retention[] = [
   // ── v10.0.199 · TTL retention pass ────────────────────────────────
   { model: "AgentTrace",       days: 30,  why: "Per-AI-call trace. 30d hot covers all dashboards.", enforcedBy: "data-cleanup" },
   { model: "AutonomousEvent",  days: 90,  why: "Per-rule-fire event log (extracted v10.0.198).", enforcedBy: "data-cleanup" },
-  { model: "ProviderPing",     days: 7,   why: "High-volume uptime samples (extracted v10.0.196). Trend math runs 24h window.", enforcedBy: "data-cleanup" },
   { model: "ToolVerbRatio",    days: 30,  why: "Per-turn fab-defense signal (extracted v10.0.197).", enforcedBy: "data-cleanup" },
 ];
 

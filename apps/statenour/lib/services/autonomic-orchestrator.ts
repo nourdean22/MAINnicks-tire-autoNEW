@@ -149,7 +149,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
             WHERE n.nspname = 'public' AND c.relkind = 'r';
           `);
 
-          const targetTables = ["CronJobLog", "system_metrics", "AuditEvent", "api_request_logs", "error_logs", "agent_traces", "provider_pings"];
+          const targetTables = ["CronJobLog", "system_metrics", "AuditEvent", "api_request_logs", "error_logs", "agent_traces"];
           const SIZE_THRESHOLD_BYTES = 50 * 1024 * 1024; // 50MB
 
           for (const row of statsRes.rows) {
@@ -286,7 +286,7 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
   // Phase 4: Proactive Resource Optimization & Triage
   // ---------------------------------------------------------------------------
   try {
-    const highVolumeTables = ["CronJobLog", "system_metrics", "AuditEvent", "api_request_logs", "error_logs", "agent_traces", "provider_pings"];
+    const highVolumeTables = ["CronJobLog", "system_metrics", "AuditEvent", "api_request_logs", "error_logs", "agent_traces"];
     const rowCounts = await prisma.$queryRaw<Array<{ relname: string; n_live_tup: number }>>`
       SELECT relname, n_live_tup::int AS n_live_tup
       FROM pg_stat_user_tables
@@ -320,11 +320,6 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       where: { createdAt: { lt: daysAgo(pruneRetentionDays) } },
     });
     deletedCounts.agent_traces = agentTraces.count;
-
-    const providerPings = await prisma.providerPing.deleteMany({
-      where: { pingedAt: { lt: daysAgo(isAggressive ? 3 : 7) } },
-    });
-    deletedCounts.provider_pings = providerPings.count;
 
     const metrics = await prisma.systemMetric.deleteMany({
       where: { createdAt: { lt: daysAgo(metricsRetentionDays) } },
