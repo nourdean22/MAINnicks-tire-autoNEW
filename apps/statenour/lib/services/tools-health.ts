@@ -12,6 +12,36 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { TOOL_CATALOG, type ToolCategory } from "@/lib/ai/tools/catalog";
+
+/**
+ * Display label + runtime dependencies per catalog category.
+ *
+ * 2026-07-30 sweep · the tool COUNTS used to be hand-maintained literals
+ * (totalTools was 125 while TOOL_CATALOG held 177 — a 30% undercount that
+ * could only ever drift further). Counts are now derived from the catalog;
+ * only the human label and the dependency wiring live here, and a new
+ * ToolCategory fails typecheck until it is given both.
+ */
+const CATEGORY_META: Record<ToolCategory, { label: string; deps: string[] }> = {
+  personal_read: { label: "Personal Data (read)", deps: ["database"] },
+  personal_write: { label: "Personal Data (write)", deps: ["database"] },
+  planning: { label: "Weekly Planning", deps: ["database"] },
+  business_read: { label: "Business / Shop", deps: ["database", "env_business"] },
+  business_write: {
+    label: "Business writes (quote · SMS · payment)",
+    deps: ["database", "env_business", "env_communication"],
+  },
+  live_shop: { label: "Live Shop Data", deps: ["database", "env_business"] },
+  content: { label: "Content / Marketing", deps: ["database", "env_ai"] },
+  comms: { label: "Communication", deps: ["env_communication"] },
+  ai_analysis: { label: "AI / Analysis", deps: ["env_ai"] },
+  brain: { label: "Brain Intelligence", deps: ["database", "env_ai"] },
+  files: { label: "Files (Drive + GitHub)", deps: ["env_files"] },
+  routines: { label: "Command Routines", deps: ["database", "env_ai"] },
+  research: { label: "Research", deps: ["env_ai"] },
+  browser: { label: "Browser Automation", deps: ["env_ai"] },
+};
 
 type HealthStatus = "ok" | "degraded" | "down";
 
@@ -116,47 +146,22 @@ export async function buildToolsHealth(): Promise<ToolsHealthReport> {
     };
   }
 
-  // ── TOOL CATEGORY SUMMARY ──
-  const categories: Record<string, CategoryHealth> = {
-    "Personal Data (read)": { tools: 17, deps: ["database"], status: "ok" },
-    "Personal Data (write)": { tools: 15, deps: ["database"], status: "ok" },
-    "Weekly Planning": { tools: 5, deps: ["database"], status: "ok" },
-    "Business / Shop": {
-      tools: 18,
-      deps: ["database", "env_business"],
+  // ── TOOL CATEGORY SUMMARY (derived from TOOL_CATALOG) ──
+  const countByCategory = new Map<ToolCategory, number>();
+  for (const t of TOOL_CATALOG) {
+    countByCategory.set(t.category, (countByCategory.get(t.category) ?? 0) + 1);
+  }
+
+  const categories: Record<string, CategoryHealth> = {};
+  for (const [key, meta] of Object.entries(CATEGORY_META) as Array<
+    [ToolCategory, { label: string; deps: string[] }]
+  >) {
+    categories[meta.label] = {
+      tools: countByCategory.get(key) ?? 0,
+      deps: meta.deps,
       status: "ok",
-    },
-    "Live Shop Data": {
-      tools: 6,
-      deps: ["database", "env_business"],
-      status: "ok",
-    },
-    "Revenue Tracking": { tools: 5, deps: ["database"], status: "ok" },
-    "Win-Back / Retention": { tools: 3, deps: ["database"], status: "ok" },
-    "Content / Marketing": {
-      tools: 11,
-      deps: ["database", "env_ai"],
-      status: "ok",
-    },
-    Communication: { tools: 4, deps: ["env_communication"], status: "ok" },
-    "AI / Analysis": { tools: 10, deps: ["env_ai"], status: "ok" },
-    "Brain Intelligence": {
-      tools: 5,
-      deps: ["database", "env_ai"],
-      status: "ok",
-    },
-    "Files (Drive + GitHub)": {
-      tools: 11,
-      deps: ["env_files"],
-      status: "ok",
-    },
-    "Command Routines": {
-      tools: 8,
-      deps: ["database", "env_ai"],
-      status: "ok",
-    },
-    Research: { tools: 7, deps: ["env_ai"], status: "ok" },
-  };
+    };
+  }
 
   // Calculate category status from dependency health
   for (const [name, cat] of Object.entries(categories)) {
