@@ -127,11 +127,15 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
     }), [] as Array<{ jobName: string; _max: { createdAt: Date | null } }>, { label: "pulse.cronLast48h" }),
     safeQuery(
       async () => {
+        // "fatal" buckets count level='error' — no writer has EVER emitted
+        // level='fatal' (prod probe 2026-07-30: error=389 · warn=823 · fatal=0),
+        // so the old predicate made these structurally 0 and the orb blind.
+        // warn stays excluded so this remains a burst signal, not noise.
         const rows = await prisma.$queryRaw<ErrorBucket[]>`
           SELECT
             COUNT(*)                                                              AS errors_24h,
-            COUNT(*) FILTER (WHERE level = 'fatal')                               AS fatal_24h,
-            COUNT(*) FILTER (WHERE level = 'fatal' AND created_at >= ${since6h}) AS fatal_6h
+            COUNT(*) FILTER (WHERE level = 'error')                               AS fatal_24h,
+            COUNT(*) FILTER (WHERE level = 'error' AND created_at >= ${since6h}) AS fatal_6h
           FROM error_logs
           WHERE created_at >= ${since24h}
         `;
@@ -142,12 +146,17 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
     ),
     safeQuery(
       async () => {
+        // Failure = anything not 'complete' — trackGeneration writes
+        // status 'complete' or 'error'; 'failed' has NEVER existed (prod
+        // probe 2026-07-30: complete=3294, nothing else), so the old
+        // predicate kept aiFailures/aiErrorRate structurally at 0.
+        // Matches the percentile query's predicate in lib/ai/track.ts.
         const rows = await prisma.$queryRaw<AiBucket[]>`
           SELECT
             COUNT(*)                                                                 AS calls_24h,
-            COUNT(*) FILTER (WHERE status = 'failed')                                AS fails_24h,
+            COUNT(*) FILTER (WHERE status <> 'complete')                             AS fails_24h,
             COUNT(*) FILTER (WHERE created_at >= ${since1h})                         AS calls_1h,
-            COUNT(*) FILTER (WHERE created_at >= ${since1h} AND status = 'failed')   AS fails_1h
+            COUNT(*) FILTER (WHERE created_at >= ${since1h} AND status <> 'complete') AS fails_1h
           FROM ai_generations
           WHERE created_at >= ${since24h}
         `;

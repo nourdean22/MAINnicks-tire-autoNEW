@@ -320,18 +320,10 @@ export async function buildPersonalSlice(
     lines.push(`Oldest: ${escapeHtml(oldest.description.slice(0, 80))}`);
   }
 
-  // v10.0.528 · Arc B F3 · Decision-replay sub-section. Pulls up to
-  // 3 unconsumed `decision_replay_due` rows · marks them consumed in
-  // the same pass so the next morning brief doesn't repeat them. The
-  // queue is built by /api/cron/decision-replay (folded into
-  // mega-morning) · this composer is the read-of-record.
-  const replayPayload = await appendDecisionReplaySection(lines).catch(
-    (): { count: number; ids: string[]; wisdomMatches: number } => ({
-      count: 0,
-      ids: [],
-      wisdomMatches: 0,
-    }),
-  );
+  // Decision-replay sub-section removed 2026-07-30: NOTHING writes the
+  // `decision_replay_due` category — the /api/cron/decision-replay builder
+  // the v10.0.528 comment named never existed as a route. Prod holds 2
+  // fossil rows; the section could only render those ghosts or nothing.
 
   return {
     lines,
@@ -341,99 +333,8 @@ export async function buildPersonalSlice(
       taskCount,
       calendarConflicts,
       unkeptCommitments: activeCommitments.length,
-      decisionReplays: replayPayload,
     },
   };
-}
-
-// ── Decision-replay sub-section (v10.0.528 · Arc B F3) ──────────────
-
-/**
- * Reads up to 3 unconsumed `decision_replay_due` BrainMemory rows ·
- * appends a header + per-replay one-liner · upserts `consumedAt` so
- * the brief is idempotent across the day.
- *
- * Non-blocking · any failure exits silently and the brief renders
- * without the replay section.
- */
-async function appendDecisionReplaySection(
-  lines: string[],
-): Promise<{ count: number; ids: string[]; wisdomMatches: number }> {
-  const rows = await prisma.brainMemory
-    .findMany({
-      // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
-      where: activeOnly({
-        category: "decision_replay_due",
-      }),
-      orderBy: { createdAt: "asc" },
-      take: 10, // over-fetch · in-memory filter trims to unconsumed
-      select: {
-        id: true,
-        content: true,
-        metadata: true,
-        createdAt: true,
-      },
-    })
-    .catch((): never[] => []);
-
-  const unconsumed = (rows as Array<{
-    id: string;
-    content: string;
-    metadata: Record<string, unknown> | null;
-    createdAt: Date;
-  }>).filter((r) => {
-    const meta = r.metadata as Record<string, unknown> | null;
-    return !meta?.consumedAt;
-  });
-
-  if (unconsumed.length === 0) {
-    return { count: 0, ids: [], wisdomMatches: 0 };
-  }
-
-  const picked = unconsumed.slice(0, 3);
-
-  lines.push("<b>Decisions due for replay:</b>");
-  let wisdomMatches = 0;
-  for (const r of picked) {
-    const meta = (r.metadata ?? {}) as Record<string, unknown>;
-    const title = (meta.title as string | undefined) ?? "decision";
-    const ageDays = (meta.ageDays as number | undefined) ?? 30;
-    const wisdomKey = meta.wisdomKey as string | null | undefined;
-    if (wisdomKey) wisdomMatches++;
-    const lensTag = wisdomKey ? ` <i>[${escapeHtml(personaShort(wisdomKey))}]</i>` : "";
-    lines.push(
-      `· ${escapeHtml(title.slice(0, 80))} (${ageDays}d)${lensTag}`,
-    );
-  }
-
-  // Mark consumed · single bulk update via Promise.all. We rewrite
-  // metadata with the existing fields plus consumedAt set to now.
-  const consumedAt = new Date().toISOString();
-  await Promise.allSettled(
-    picked.map((r) =>
-      prisma.brainMemory.update({
-        where: { id: r.id },
-        data: {
-          metadata: {
-            ...((r.metadata ?? {}) as Record<string, unknown>),
-            consumedAt,
-          },
-        },
-      }),
-    ),
-  );
-
-  return {
-    count: picked.length,
-    ids: picked.map((p) => p.id),
-    wisdomMatches,
-  };
-}
-
-function personaShort(wisdomKey: string): string {
-  const m = wisdomKey.match(/^wisdom_([a-z]+)/i);
-  if (!m?.[1]) return "wisdom";
-  return m[1]!.charAt(0).toUpperCase() + m[1]!.slice(1);
 }
 
 // ── Slice 2 · SHOP (v10.0.526 · NEW) ────────────────────────────────

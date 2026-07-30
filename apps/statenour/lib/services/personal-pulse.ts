@@ -97,7 +97,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
       latestDump,
       mit,
       tomorrowNote,
-      latestNarratorMemory,
       overdueCommitments,
       lastReflection,
       latestWin,
@@ -127,11 +126,9 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
           select: { content: true },
         })
         .catch(() => null),
-      prisma.brainMemory.findFirst({
-        where: { source: { startsWith: "ultron_narrator" } },
-        orderBy: { createdAt: "desc" },
-        select: { content: true, category: true, createdAt: true },
-      }),
+      // narrator read removed 2026-07-30 — prod has ZERO rows with
+      // source 'ultron_narrator%', and the one writer route stores JSON
+      // feedback blobs the ticker would have rendered raw.
       prisma.commitment.findMany({
         where: { status: "active", deadline: { lt: todayStr, gte: overdueFloorStr }, deletedAt: null },
         orderBy: { deadline: "asc" },
@@ -281,20 +278,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
       });
     }
 
-    // ── Narrator — latest observation (last 12h) ──
-    if (latestNarratorMemory) {
-      const ageH = (now - latestNarratorMemory.createdAt.getTime()) / 3600_000;
-      if (ageH < 12) {
-        items.push({
-          id: `narrator-${latestNarratorMemory.createdAt.getTime()}`,
-          kind: "narrator",
-          glyph: "◆",
-          label: "NARRATOR",
-          text: latestNarratorMemory.content.slice(0, 140),
-          tone: "info",
-        });
-      }
-    }
 
     // ── Overdue commitments ──
     for (const c of overdueCommitments.slice(0, 2)) {
