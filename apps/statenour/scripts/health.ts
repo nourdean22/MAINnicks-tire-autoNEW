@@ -132,7 +132,7 @@ async function checkBrainMemorySize() {
 }
 
 async function checkExtractedTables() {
-  const tables = ["tool_telemetry", "provider_pings", "tool_verb_ratios", "autonomous_events", "semantic_edges"];
+  const tables = ["tool_telemetry", "tool_verb_ratios", "autonomous_events", "semantic_edges"];
   const counts: string[] = [];
   for (const t of tables) {
     try {
@@ -156,7 +156,6 @@ async function checkDualWriteParity() {
   const since = new Date(Date.now() - 24 * 3600_000);
   const pairs: Array<{ cat: string; recentTyped: () => Promise<number> }> = [
     { cat: "tool_telemetry", recentTyped: () => prisma.toolTelemetry.count({ where: { createdAt: { gte: since } } }) },
-    { cat: "provider_ping", recentTyped: () => prisma.providerPing.count({ where: { pingedAt: { gte: since } } }) },
     { cat: "telemetry_tool_verb", recentTyped: () => prisma.toolVerbRatio.count({ where: { createdAt: { gte: since } } }) },
     { cat: "autonomous_event", recentTyped: () => prisma.autonomousEvent.count({ where: { firedAt: { gte: since } } }) },
     { cat: "semantic_edge", recentTyped: () => prisma.semanticEdge.count({ where: { createdAt: { gte: since } } }) },
@@ -176,7 +175,7 @@ async function checkDualWriteParity() {
     return {
       severity: "ok" as const,
       topic: "dual_write_parity",
-      detail: "all 5 dual-writes healthy or both quiet",
+      detail: "all 4 dual-writes healthy or both quiet",
     };
   }
   return {

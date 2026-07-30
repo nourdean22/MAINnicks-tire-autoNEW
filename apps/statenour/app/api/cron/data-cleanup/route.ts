@@ -209,14 +209,6 @@ export const GET = cronHandler(async () => {
   });
   deletedByTable.autonomous_events = autonomousEvents.count;
 
-  // v10.0.199 · ProviderPing: 7d. High-volume (~288/day per
-  // probe), low-value beyond a week. Trend math (uptime/latency)
-  // happens within a 24h window in /system/costs.
-  const providerPings = await prisma.providerPing.deleteMany({
-    where: { pingedAt: { lt: daysAgo(7) } },
-  });
-  deletedByTable.provider_pings = providerPings.count;
-
   // v10.0.199 · ToolVerbRatio: 30d. Per-turn fab-defense signal;
   // beyond 30d it's noise.
   const toolVerbRatios = await prisma.toolVerbRatio.deleteMany({
