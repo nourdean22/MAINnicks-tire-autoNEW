@@ -13,7 +13,7 @@
  * error, a poll deadline so a stuck op can't wedge the queue, and a min-size
  * check so a truncated download never publishes as a broken clip. Model + params
  * are env-overridable so a Veo version/param change never needs a code change:
- *   REEL_VEO_MODEL (default veo-3.0-generate-001), REEL_VEO_RESOLUTION (720p),
+ *   REEL_VEO_MODEL (default veo-3.1-fast-generate-preview), REEL_VEO_RESOLUTION (720p),
  *   REEL_VEO_ASPECT_RATIO (9:16), REEL_VEO_DURATION (opt-in, numeric),
  *   REEL_VEO_PERSON_GENERATION (opt-in), REEL_VEO_POLL_INTERVAL_MS (10000),
  *   REEL_VEO_POLL_MAX_MS (360000).
@@ -23,6 +23,12 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("services:veo-studio");
 
 const VEO_BASE = "https://generativelanguage.googleapis.com/v1beta";
+// A REEL_VEO_MODEL the key cannot see fails only at call time ("Model is not
+// found"), which reads like a dead/unbilled key and has already been misread as
+// one: prod ran veo-3.1-fast-generate-001 (nonexistent — the real names carry a
+// -preview suffix), Veo was written off as broken, and REEL_VIDEO_PROVIDER was
+// pinned to the session-token Higgsfield path. Validate a model change with
+// scripts/probe-veo-generate.ts BEFORE deploying it.
 const VEO_MODEL = process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-preview";
 const POLL_INTERVAL_MS = Number(process.env.REEL_VEO_POLL_INTERVAL_MS) || 10_000;
 const POLL_MAX_MS = Number(process.env.REEL_VEO_POLL_MAX_MS) || 6 * 60_000;
