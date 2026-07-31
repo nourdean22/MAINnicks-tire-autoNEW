@@ -4298,3 +4298,51 @@ export const contentRuns = mysqlTable("content_runs", {
   costCents: int("costCents").default(0).notNull(),
   failureReason: varchar("failureReason", { length: 1000 }),
 });
+
+// ─── 0108: content experiment registry (applied 2026-07-31) ───────
+// The VERDICT is persisted including the refusals (insufficient_data /
+// no_signal / invalid_design). A refusal is a result — drop it and the next
+// evaluation silently re-decides a question that was already answered "not yet".
+export const contentExperiments = mysqlTable("content_experiments", {
+  id: int("id").autoincrement().primaryKey(),
+  experimentId: varchar("experiment_id", { length: 100 }).notNull(),
+  primaryVariable: varchar("primary_variable", { length: 40 }).notNull(),
+  objective: varchar("objective", { length: 20 }).notNull(),
+  primaryMetric: varchar("primary_metric", { length: 60 }).notNull(),
+  armsJson: json("arms_json").notNull(),
+  status: varchar("status", { length: 20 }).default("running").notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  concludedAt: timestamp("concluded_at"),
+  verdictStatus: varchar("verdict_status", { length: 24 }),
+  verdictNote: text("verdict_note"),
+}, (table) => [
+  uniqueIndex("uk_content_experiment_id").on(table.experimentId),
+  index("idx_content_exp_status").on(table.status),
+]);
+
+// One row per published episode in an experiment. Every input that could
+// explain the outcome is captured AT ASSIGNMENT TIME, so a result can never be
+// attributed to a variable nobody wrote down.
+export const contentExperimentAssignments = mysqlTable("content_experiment_assignments", {
+  id: int("id").autoincrement().primaryKey(),
+  experimentId: varchar("experiment_id", { length: 100 }).notNull(),
+  armId: varchar("arm_id", { length: 60 }).notNull(),
+  episodeKey: varchar("episode_key", { length: 160 }).notNull(),
+  mediaId: varchar("media_id", { length: 100 }),
+  reelJobId: int("reel_job_id"),
+  franchiseId: varchar("franchise_id", { length: 60 }),
+  ctaType: varchar("cta_type", { length: 20 }),
+  contentOrigin: varchar("content_origin", { length: 30 }),
+  postingSlot: varchar("posting_slot", { length: 20 }),
+  provider: varchar("provider", { length: 40 }),
+  model: varchar("model", { length: 80 }),
+  promptVersion: varchar("prompt_version", { length: 40 }),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+  publishedAt: timestamp("published_at"),
+}, (table) => [
+  // Load-bearing: assignment is deterministic on episodeKey, so this is what
+  // stops a retry reassigning an arm and corrupting a running experiment.
+  uniqueIndex("uk_exp_episode").on(table.experimentId, table.episodeKey),
+  index("idx_exp_assign_media").on(table.mediaId),
+  index("idx_exp_assign_arm").on(table.experimentId, table.armId),
+]);

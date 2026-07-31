@@ -155,8 +155,38 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       return { recordsProcessed: 0, details: `campaign complete (${MANIFEST.length}/${MANIFEST.length} posted)` };
     }
 
-    const { caption: manifestCaption } = MANIFEST[idx];
-    const topic = manifestCaption.split("\n")[0] || manifestCaption;
+    // Topic authority is the LIVE MINER, not the hardcoded manifest. The
+    // manifest is a fixed campaign list written once; it cannot know what
+    // performed, what reviews said, what season it is, or what has already been
+    // covered. It stays ONLY as a last resort so a signal outage cannot stall
+    // the daily reel — and when it is used, the result says so.
+    let topic = "";
+    let topicOrigin = "miner";
+    try {
+      const { gatherTopicSignals } = await import("../../services/contentTopicSignals");
+      const { mineTopicCandidates, autoRenderable } = await import("../../../shared/contentTopicMiner");
+      const { signals, failed } = await gatherTopicSignals();
+      const renderable = autoRenderable(mineTopicCandidates(signals));
+      if (renderable.length) {
+        topic = renderable[0].topic;
+        log.info("daily reel topic from live miner", {
+          topic,
+          franchise: renderable[0].franchiseId,
+          score: renderable[0].score,
+          candidates: renderable.length,
+          degradedSources: failed,
+        });
+      } else {
+        log.warn("miner produced no auto-renderable candidate — falling back to manifest", { degradedSources: failed });
+      }
+    } catch (err) {
+      log.warn("topic miner unavailable — falling back to manifest", { err: err instanceof Error ? err.message : String(err) });
+    }
+    if (!topic) {
+      const { caption: manifestCaption } = MANIFEST[idx];
+      topic = manifestCaption.split("\n")[0] || manifestCaption;
+      topicOrigin = "manifest_fallback";
+    }
 
     log.info(`Generating fresh dynamic storyboard brief for topic: "${topic}"`);
     // Regenerate on a preflight block: generateReelBriefAI is non-deterministic
@@ -184,7 +214,11 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
     const { jobId } = await enqueueReelJob(brief, "cron");
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId} (brief attempt ${prepared.attempts})`);
-    return { recordsProcessed: 0, details: `Enqueued new dynamic reel job (ID: ${jobId}) for today` };
+    // topicOrigin is in the cron_log line on purpose: a run that quietly fell
+    // back to the manifest looks identical to a healthy one otherwise, and
+    // "the miner has been dead for a week" is exactly the kind of silent
+    // degradation this codebase keeps having to discover the hard way.
+    return { recordsProcessed: 0, details: `Enqueued new dynamic reel job (ID: ${jobId}) for today [topic:${topicOrigin}]` };
   }
 
   if (job.status === "assembled") {
@@ -208,10 +242,16 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     try {
       const { checkReviewReply, hasBlockingFindings } = await import("@shared/reviewReplyQa");
       if (caption && hasBlockingFindings(checkReviewReply(caption))) {
-        const idx0 = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
-        const safe = MANIFEST[idx0]?.caption;
-        log.warn(`AI reel caption tripped the claim gate — falling back to the manifest caption`, { jobId: job.id });
-        if (safe) caption = safe;
+        // HOLD, do not substitute. This used to swap in MANIFEST[idx0].caption,
+        // but idx0 is the CURRENT autopost counter and need not correspond to
+        // THIS job — so the fallback could attach a caption about topic A to a
+        // video about topic B. A mismatched public caption is worse than a
+        // delayed reel: the reel retries tomorrow, a wrong caption cannot be
+        // edited on Instagram after publish.
+        log.error("reel caption tripped the claim gate — HOLDING the reel (index not advanced; fresh brief tomorrow)", {
+          jobId: job.id,
+        });
+        return { recordsProcessed: 0, details: `held — caption tripped the claim gate on job ${job.id}; not substituting an unrelated manifest caption` };
       }
     } catch (err) {
       log.warn("reel caption claim-check skipped", { err: err instanceof Error ? err.message : String(err) });
