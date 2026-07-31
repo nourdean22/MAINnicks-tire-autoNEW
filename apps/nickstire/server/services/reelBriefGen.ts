@@ -14,6 +14,8 @@ import { createLogger } from "../lib/logger";
 import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReelStudioPrompt";
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
+import { buildBrandBibleFragment } from "../../shared/brandBible";
+import { buildFranchiseFragment, type FranchiseId } from "../../shared/contentFranchises";
 import {
   CAMPAIGN_KEYWORDS,
   FACT_BUCKETS,
@@ -49,6 +51,11 @@ export interface GenerateReelBriefInput {
    *  an operator caption that carries a price or a fabricated stat must block
    *  just the same. */
   caption?: string;
+  /** Which show this episode belongs to. When set, the franchise contract
+   *  (hook shape, reveal shape, allowed metaphors, CTA set, and its NEVER list)
+   *  leads the creative section of the prompt — that is what makes the page
+   *  look like one studio rather than a stream of unrelated tips. */
+  franchiseId?: FranchiseId;
   /** Milestone 3: the LOCKED campaign truth as a STRUCTURED contract (not the
    *  lossy sourceDetail prose). When present, its readable representation leads
    *  the system prompt so the model develops this exact concept — carrying
@@ -452,6 +459,19 @@ export async function generateReelBriefAI(
     "\n\nDO NOT ask the viewer to SAVE. A save is the objective for REFERENCE content (carousels, checklists) where the value is returning to it later; on a short reel a save prompt competes with the send that actually distributes it. Name the PERSON to send it to, not the action." +
     `\n\nHASHTAGS: 0 to ${INSTAGRAM_HASHTAG_CAP} only — Instagram caps posts at ${INSTAGRAM_HASHTAG_CAP} (hard limit since December 2025) and rejects or silently strips the excess. Hashtags do not inherently increase reach, so prefer 3 highly specific local/service tags over ${INSTAGRAM_HASHTAG_CAP} generic ones; zero is acceptable.` +
     "\n\nSEARCH LANGUAGE: public posts from professional accounts are indexed by search engines. Write in the words a driver would actually search — \"grinding brakes in Cleveland\", \"used tires Euclid\", \"Ohio E-Check not ready\" — and put the SYMPTOM and the CITY in plain language in the caption body rather than relying on a vague hook.";
+
+  // The visual bible leads every generation so the page reads as ONE studio.
+  // It also carries the faceless constraint in the model's own words, which is
+  // belt-and-braces with the preflight gate: the gate rejects a violation after
+  // the fact, the bible tries to prevent one being written.
+  systemPrompt += `
+
+${buildBrandBibleFragment()}`;
+  if (input.franchiseId) {
+    systemPrompt += `
+
+${buildFranchiseFragment(input.franchiseId)}`;
+  }
 
   const skillPayload = await applyCreativeSkills({ type: "reel_brief" });
   if ("fragment" in skillPayload && skillPayload.fragment) {
