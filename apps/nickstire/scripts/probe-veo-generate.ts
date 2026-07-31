@@ -24,14 +24,21 @@
  * NOTE: veoStudio.ts reads REEL_VEO_MODEL at MODULE LOAD, so the env must be
  * set before import — hence the dynamic import below.
  */
-const APPLY = process.argv.includes("--apply");
+const FULL = process.argv.includes("--full");
+const APPLY = FULL || process.argv.includes("--apply");
 const model = process.env.REEL_VEO_MODEL || "(code default)";
 
 console.log(`\nmodel under test : ${model}`);
 console.log(`auth             : ${process.env.GEMINI_API_KEY ? "GEMINI_API_KEY" : "service account"}`);
-console.log(`mode             : ${APPLY ? "APPLY — will submit a real, billable generation" : "FREE (metadata only)"}\n`);
+console.log(`mode             : ${FULL ? "FULL — submit + poll + download + rehost (billable)" : APPLY ? "APPLY — submit + poll only (billable)" : "FREE (metadata only)"}`);
+// The rehost half is what a submit-only probe never reaches, and it fails for
+// reasons Veo cannot cause: with no S3_BUCKET, storagePut silently degrades to
+// LOCAL DISK and returns a url prod could never fetch — a green run that proves
+// nothing about production. Name the backend so a pass is unambiguous.
+console.log(`storage backend  : ${process.env.S3_BUCKET ? `S3 bucket ${process.env.S3_BUCKET}` : "LOCAL DISK — no S3_BUCKET; run under `railway run` for the real path"}\n`);
 
-const { probeVeoConnection, submitVeoRequest, pollVeoOperation } = await import("../server/services/veoStudio");
+const { probeVeoConnection, submitVeoRequest, pollVeoOperation, generateReelClipVideo } =
+  await import("../server/services/veoStudio");
 
 const probe = await probeVeoConnection();
 console.log(`probeVeoConnection: ${probe.success ? "OK" : `FAIL — ${probe.error}`}`);
@@ -51,6 +58,25 @@ const prompt =
   "Close-up cinematic shot of a new all-season tire tread rotating slowly on a clean " +
   "auto shop floor, shallow depth of field, warm garage lighting, no people.";
 
+if (FULL) {
+  // generateReelClipVideo is the exact drop-in reelPipeline calls, so this
+  // exercises every step prod depends on — including download + the 50KB
+  // min-size guard + storagePut — not just the Veo API half.
+  console.log("\nrunning the FULL production path via generateReelClipVideo() (billable)...");
+  const t0 = Date.now();
+  const publicUrl = await generateReelClipVideo(prompt);
+  console.log(`\nCLIP URL: ${publicUrl}`);
+
+  // A url the pipeline cannot fetch is not a working clip. Verify it resolves
+  // and carries real bytes, the way the assembler will.
+  const head = await fetch(publicUrl, { method: "GET", headers: { Range: "bytes=0-262143" } });
+  const bytes = head.ok ? (await head.arrayBuffer()).byteLength : 0;
+  console.log(`fetch check: HTTP ${head.status} · content-type=${head.headers.get("content-type")} · first-chunk=${bytes} bytes`);
+  console.log(`elapsed: ${Math.round((Date.now() - t0) / 1000)}s`);
+  console.log(`\n${head.ok && bytes > 0 ? "PASS — Veo produced a fetchable hosted clip end to end." : "FAIL — clip generated but the hosted url is not fetchable."}\n`);
+  process.exit(head.ok && bytes > 0 ? 0 : 1);
+}
+
 console.log("\nsubmitting ONE real generation (billable)...");
 const opName = await submitVeoRequest(prompt);
 console.log(`ACCEPTED — operation: ${opName}`);
@@ -59,4 +85,4 @@ console.log("  ^ this alone proves auth + model name + video quota are all valid
 console.log("polling to completion (up to the module's deadline)...");
 const videoUri = await pollVeoOperation(opName);
 console.log(`\nCOMPLETED — video uri: ${String(videoUri).slice(0, 120)}...`);
-console.log("\nVeo can generate reel clips with prod credentials.\n");
+console.log("\nVeo API half works. Re-run with --full to prove download + rehost too.\n");
