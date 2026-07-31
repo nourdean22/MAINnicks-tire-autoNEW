@@ -622,6 +622,72 @@ export function detectPriceClaims(text: string, where = "text"): SafetyFinding[]
   ];
 }
 
+/**
+ * A first-person shop observation stated as a statistic is UNVERIFIABLE and the
+ * model invents them. Live capture (reel 1200004, 2026-07-31): the generator
+ * wrote "In Cleveland, we see zero salt-related brake seizures" — fabricated,
+ * and backwards (road salt seizing calipers is a common Cleveland failure). It
+ * cleared every existing gate, because the claim bank checks for guarantees,
+ * prices and fearmongering, not for whether an assertion is TRUE.
+ *
+ * We cannot fact-check a claim here. What we CAN do deterministically is refuse
+ * the shape that carries fabrications: OUR OWN shop's experience quantified as
+ * an absolute ("we see zero…", "we've never had…", "9 out of 10 of our…").
+ *
+ * Deliberately narrow — it matches first-person subjects ONLY. Impersonal
+ * technical facts must keep passing: "every 10 degrees drops about 1 PSI",
+ * "rated around 50 miles", "below 2/32 inch" are the substance of the content
+ * and none of them trip this.
+ */
+// NOTE on the trailing boundary: the quantifier alternation must NOT close with
+// a single shared `\b`. The percentage arms end in "%", a NON-word character,
+// so a following `\b` requires a word char next to it and never matches — the
+// rule silently ignored every "90% of our…" claim while looking correct. Word-
+// ending arms keep their `\b`; the "%" arm deliberately has none.
+const FABRICATED_STAT_PATTERN =
+  /\b(?:we|our (?:shop|techs?|customers?|drivers?)|nick'?s)\b[^.!?]{0,70}?\b(?:see|seen|saw|find|found|get|got|have had|had|never|always)\b[^.!?]{0,40}?(?:\b(?:zero|none|no\s+\w+\s+(?:at all|ever)|every\s+single|\d+\s+out\s+of\s+\d+)\b|\d{1,3}\s?%)/i;
+
+export function detectFabricatedStats(text: string, where = "text"): SafetyFinding[] {
+  const m = text.match(FABRICATED_STAT_PATTERN);
+  if (!m) return [];
+  return [
+    {
+      severity: "block",
+      rule: "no-fabricated-stat",
+      match: m[0],
+      where,
+      fix: "Remove the invented shop statistic. State the mechanism itself ('road salt can seize a caliper'), never a quantified claim about what this shop sees — nothing here can verify it, and the model makes them up.",
+    },
+  ];
+}
+
+/**
+ * Instagram caps a post at FIVE hashtags (rolled out December 2025). It is a
+ * hard platform limit, not guidance: beyond five, the publish is rejected or
+ * the extra tags are silently stripped — and stripped-not-errored is the worse
+ * outcome, because nothing here would ever learn it happened.
+ *
+ * Measured 2026-07-31: the last 12 posts carried 8–11 tags each — 12 of 12 over
+ * the cap — while the quality score rated "Hashtags 3-12" as correct. The rule
+ * encoded the pre-2025 30-tag era, so the gate was certifying every post as
+ * compliant with a limit that no longer exists.
+ *
+ * Zero is explicitly allowed: Instagram's own guidance is that hashtags help
+ * categorisation and do NOT inherently increase reach, so an empty set is a
+ * legitimate editorial choice, not a defect.
+ */
+export const INSTAGRAM_HASHTAG_CAP = 5;
+
+export function validateHashtagCap(hashtags: string[]): { ok: boolean; reason?: string } {
+  if (hashtags.length > INSTAGRAM_HASHTAG_CAP) {
+    return {
+      ok: false,
+      reason: `${hashtags.length} hashtags — Instagram caps posts at ${INSTAGRAM_HASHTAG_CAP}; the excess is rejected or silently stripped. Keep 0-${INSTAGRAM_HASHTAG_CAP} highly relevant tags.`,
+    };
+  }
+  return { ok: true };
+}
+
 // ─── Structural validators ─────────────────────────────────────────
 
 export function validateReelLengthTarget(beats: StoryboardBeat[]): { ok: boolean; reason?: string } {
@@ -765,6 +831,7 @@ export function runSafetyChecks(brief: ReelBrief, now: () => string = () => new 
       ...detectFearmongering(text, where),
       ...detectPriceClaims(text, where),
       ...detectGenericAdLanguage(text, where),
+      ...detectFabricatedStats(text, where),
     );
   }
   // Faceless + wordless gates run over the AUTHORED design (beat visual +
@@ -858,9 +925,21 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
   // warning, not a pre-spend block (it never garbles the generated video).
   const kw = validateCampaignKeyword(brief.campaignKeyword);
   if (!kw.ok) push("structural", "warn", kw.reason ?? "campaign keyword should be a single ALL-CAPS word");
+  // BLOCK, not warn: over the cap Instagram rejects the publish or strips tags
+  // silently. A warning would let the pipeline spend render credits on a post
+  // that cannot go out intact.
+  const tags = validateHashtagCap(brief.hashtags ?? []);
+  if (!tags.ok) push("structural", "block", tags.reason ?? "too many hashtags");
 
-  // Truth
-  if (!validateSourceGrounding(brief).ok) push("truth", "warn", "no verified proof source for the mechanic truth");
+  // Truth — BLOCKS. This was a warning, which meant a reel with no proof source
+  // could clear preflight, reserve credits, render, and publish while its
+  // factual foundation was never established. That is the same defect the
+  // no-fabricated-stat rule addresses, one layer up: the claim bank catches
+  // claims that LOOK wrong, this catches claims backed by nothing at all.
+  // Failing closed is affordable here — prepareCleanReelBrief regenerates on a
+  // block, so an ungrounded brief costs one LLM call, not a render.
+  const grounding = validateSourceGrounding(brief);
+  if (!grounding.ok) push("truth", "block", grounding.reason ?? "no verified proof source for the mechanic truth");
 
   // Production + truth: claim safety, faceless, in-frame-text (over the design)
   for (const f of runReelSafety(brief)) push(f.category, f.severity, f.message);
@@ -1234,7 +1313,7 @@ export function buildInstagramPublishChecklist(brief: ReelBrief): ChecklistItem[
     { label: "Faceless verified on FINAL render", ok: null, detail: "Manual frame-scrub after Higgsfield render — heuristics are not eyes" },
     { label: "Caption keyword CTA present", ok: brief.selectedCaption.includes(brief.campaignKeyword), detail: `DM/comment "${brief.campaignKeyword}"` },
     { label: "Caption ASCII-safe", ok: /^[\x20-\x7E\n]*$/.test(brief.selectedCaption), detail: "Plain characters only — IG strips exotic glyphs" },
-    { label: "Hashtags 3-12", ok: brief.hashtags.length >= 3 && brief.hashtags.length <= 12, detail: `${brief.hashtags.length} tags` },
+    { label: `Hashtags 0-${INSTAGRAM_HASHTAG_CAP}`, ok: validateHashtagCap(brief.hashtags).ok, detail: `${brief.hashtags.length} tags` },
     { label: "Keyword/topic not repeated recently", ok: reps ? true : null, detail: reps ? `Avoided: ${reps}` : "Paste recent log in Content Memory panel" },
     { label: "Posting from correct account", ok: null, detail: `${STUDIO_BRAND.handle} — manual check` },
     { label: "Facebook cross-post OFF", ok: null, detail: "Manual check in IG composer" },

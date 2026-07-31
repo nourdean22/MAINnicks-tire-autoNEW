@@ -117,7 +117,13 @@ export function registerAdminRoutes(app: Express): void {
 
         // Regenerates internally on an M10 preflight block (in-frame-text /
         // free-claim), so callers no longer loop start themselves.
-        const { brief, attempts, rejectedForPreflight } = await prepareCleanReelBrief({ topic }, { maxAttempts });
+        // An operator-authored caption replaces the generated one. It is still
+        // preflighted (see GenerateReelBriefInput.caption) — hand-written is not
+        // a bypass, it is a substitution.
+        const caption = typeof req.body?.caption === "string" && req.body.caption.trim()
+          ? req.body.caption.trim()
+          : undefined;
+        const { brief, attempts, rejectedForPreflight } = await prepareCleanReelBrief({ topic, caption }, { maxAttempts });
         brief.id = `canary-${Date.now()}`;
         const conditioningMode = resolveConditioningMode(brief);
         const { jobId: newJobId } = await enqueueReelJob(brief, "admin");

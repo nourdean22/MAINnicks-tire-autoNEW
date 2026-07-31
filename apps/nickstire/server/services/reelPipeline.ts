@@ -252,12 +252,21 @@ export async function enqueueReelJob(
     const { getActivePolicy } = await import("./autonomyControl");
     const beatsCount = brief.storyboardBeats?.length ?? 6;
     const policy = await getActivePolicy();
+    // The provider is chosen at RUN time by selectReelVideoProvider, but this
+    // reservation used to hardcode higgsfield/seedance1_5 — so a Veo render was
+    // booked against Higgsfield. Not hypothetical: on 2026-07-31 job 1200003
+    // logged provider="veo" while generation_reservations held ZERO veo rows,
+    // silently corrupting every cost-per-reel and provider comparison.
+    // Resolve the SAME selector the worker will use, so the ledger records what
+    // actually ran. Reservation happens before the run, so a mid-flight provider
+    // flip can still diverge — settlement is where actuals must be reconciled.
+    const reservedProvider = await selectReelVideoProvider();
     try {
       await reserve({
         actionId: `reel_job_${jobId}`,
         campaignId: (brief as { genomeId?: string | null }).genomeId ?? null,
-        provider: "higgsfield",
-        model: "seedance1_5",
+        provider: reservedProvider,
+        model: reservedProvider === "veo" ? (process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-preview") : "seedance1_5",
         operation: "reel_clips",
         estimatedCostUsd: beatsCount * COST_ESTIMATES_USD.seedance_clip,
         dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,

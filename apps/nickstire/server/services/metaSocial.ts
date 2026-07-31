@@ -970,7 +970,14 @@ export async function getMediaComments(
  * Pure: map an IG /insights Graph response (`{data:[{name,values:[{value}]}]}`)
  * to the metric fields we store. Tolerates missing/extra metrics and bad shapes.
  */
-export function parseInsights(data: unknown): { reach?: number; saved?: number; views?: number; shares?: number } {
+export function parseInsights(data: unknown): {
+  reach?: number;
+  saved?: number;
+  views?: number;
+  shares?: number;
+  avgWatchTimeMs?: number;
+  skipRate?: number;
+} {
   const out: Record<string, number> = {};
   const rows = (data as { data?: unknown[] } | null)?.data;
   for (const raw of Array.isArray(rows) ? rows : []) {
@@ -980,7 +987,19 @@ export function parseInsights(data: unknown): { reach?: number; saved?: number; 
     const v = values?.[0]?.value;
     if (name && typeof v === "number") out[name] = v;
   }
-  return { reach: out.reach, saved: out.saved, views: out.views, shares: out.shares };
+  return {
+    reach: out.reach,
+    saved: out.saved,
+    views: out.views,
+    shares: out.shares,
+    // Reels-only. `ig_reels_avg_watch_time` is returned in MILLISECONDS — kept
+    // in its native unit and named accordingly, because a silent ms→s guess is
+    // how a metric ends up wrong by 1000x with nothing to catch it.
+    // Absent stays UNDEFINED, never 0: "not reported" and "nobody watched" are
+    // different facts, and collapsing them fabricates a measurement.
+    avgWatchTimeMs: out.ig_reels_avg_watch_time,
+    skipRate: out.reels_skip_rate,
+  };
 }
 
 /**
@@ -993,7 +1012,16 @@ export function parseInsights(data: unknown): { reach?: number; saved?: number; 
  */
 export async function getMediaInsights(
   mediaId: string,
-): Promise<{ ok: boolean; reach?: number; saved?: number; views?: number; shares?: number; error?: string }> {
+): Promise<{
+  ok: boolean;
+  reach?: number;
+  saved?: number;
+  views?: number;
+  shares?: number;
+  avgWatchTimeMs?: number;
+  skipRate?: number;
+  error?: string;
+}> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
   if (!token) {
@@ -1006,9 +1034,15 @@ export async function getMediaInsights(
     return { res, data };
   };
   try {
-    let { res, data } = await fetchMetrics("reach,saved,views,shares");
+    // Ladder, widest first. Reel-only metrics fail the WHOLE call on an image or
+    // carousel, so each rung drops the tier above it rather than losing
+    // everything. `ig_reels_avg_watch_time` and `reels_skip_rate` are the
+    // distribution signals for DISCOVERY content — the objective score cannot be
+    // computed without them, and nothing collected them before.
+    let { res, data } = await fetchMetrics("reach,saved,views,shares,ig_reels_avg_watch_time,reels_skip_rate");
+    if (!res.ok) ({ res, data } = await fetchMetrics("reach,saved,views,shares"));
     // Image/carousel media reject `views` (reels-only) and fail the whole call;
-    // retry once with the universally-supported subset on ANY first failure.
+    // retry once with the universally-supported subset on ANY further failure.
     if (!res.ok) {
       ({ res, data } = await fetchMetrics("reach,saved,shares"));
     }
