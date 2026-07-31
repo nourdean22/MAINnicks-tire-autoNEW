@@ -465,7 +465,18 @@ export function startTieredScheduler(): void {
           const health = await getHiggsfieldAccountHealth();
           if (!health.credsValid) {
             log.error("Higgsfield session keepalive FAILED — refresh token likely revoked; re-login required", { raw: health.raw.slice(0, 200) });
-            return { recordsProcessed: 0, details: "keepalive FAILED — re-login required" };
+            // THROW, do not return. A returned failure is recorded as
+            // status='completed', and cron/observer.ts:109 counts a run as
+            // failing only when status === 'failed'. That gap cost 4 days of
+            // reel production: 526 consecutive keepalive FAILURES between
+            // 2026-07-26 and 07-31 were all logged 'completed', so the
+            // failure observer — which exists to Telegram the operator on 2+
+            // consecutive failures — never saw one. Throwing routes this into
+            // the catch that logs status='failed', so the alert fires in ~30
+            // minutes instead of never.
+            throw new Error(
+              `Higgsfield keepalive FAILED — re-login required (refresh token revoked). ${health.raw.slice(0, 160)}`,
+            );
           }
           return { recordsProcessed: 1, details: `session refreshed${health.balanceCredits != null ? `, ${health.balanceCredits} credits` : ""}` };
         },
