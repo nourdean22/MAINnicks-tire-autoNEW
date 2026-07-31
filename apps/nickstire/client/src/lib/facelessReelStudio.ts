@@ -622,6 +622,45 @@ export function detectPriceClaims(text: string, where = "text"): SafetyFinding[]
   ];
 }
 
+/**
+ * A first-person shop observation stated as a statistic is UNVERIFIABLE and the
+ * model invents them. Live capture (reel 1200004, 2026-07-31): the generator
+ * wrote "In Cleveland, we see zero salt-related brake seizures" — fabricated,
+ * and backwards (road salt seizing calipers is a common Cleveland failure). It
+ * cleared every existing gate, because the claim bank checks for guarantees,
+ * prices and fearmongering, not for whether an assertion is TRUE.
+ *
+ * We cannot fact-check a claim here. What we CAN do deterministically is refuse
+ * the shape that carries fabrications: OUR OWN shop's experience quantified as
+ * an absolute ("we see zero…", "we've never had…", "9 out of 10 of our…").
+ *
+ * Deliberately narrow — it matches first-person subjects ONLY. Impersonal
+ * technical facts must keep passing: "every 10 degrees drops about 1 PSI",
+ * "rated around 50 miles", "below 2/32 inch" are the substance of the content
+ * and none of them trip this.
+ */
+// NOTE on the trailing boundary: the quantifier alternation must NOT close with
+// a single shared `\b`. The percentage arms end in "%", a NON-word character,
+// so a following `\b` requires a word char next to it and never matches — the
+// rule silently ignored every "90% of our…" claim while looking correct. Word-
+// ending arms keep their `\b`; the "%" arm deliberately has none.
+const FABRICATED_STAT_PATTERN =
+  /\b(?:we|our (?:shop|techs?|customers?|drivers?)|nick'?s)\b[^.!?]{0,70}?\b(?:see|seen|saw|find|found|get|got|have had|had|never|always)\b[^.!?]{0,40}?(?:\b(?:zero|none|no\s+\w+\s+(?:at all|ever)|every\s+single|\d+\s+out\s+of\s+\d+)\b|\d{1,3}\s?%)/i;
+
+export function detectFabricatedStats(text: string, where = "text"): SafetyFinding[] {
+  const m = text.match(FABRICATED_STAT_PATTERN);
+  if (!m) return [];
+  return [
+    {
+      severity: "block",
+      rule: "no-fabricated-stat",
+      match: m[0],
+      where,
+      fix: "Remove the invented shop statistic. State the mechanism itself ('road salt can seize a caliper'), never a quantified claim about what this shop sees — nothing here can verify it, and the model makes them up.",
+    },
+  ];
+}
+
 // ─── Structural validators ─────────────────────────────────────────
 
 export function validateReelLengthTarget(beats: StoryboardBeat[]): { ok: boolean; reason?: string } {
@@ -765,6 +804,7 @@ export function runSafetyChecks(brief: ReelBrief, now: () => string = () => new 
       ...detectFearmongering(text, where),
       ...detectPriceClaims(text, where),
       ...detectGenericAdLanguage(text, where),
+      ...detectFabricatedStats(text, where),
     );
   }
   // Faceless + wordless gates run over the AUTHORED design (beat visual +

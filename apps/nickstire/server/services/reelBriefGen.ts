@@ -40,6 +40,14 @@ export interface GenerateReelBriefInput {
   sourceType?: string;
   sourceId?: string;
   sourceDetail?: string;
+  /** Operator-authored caption. When set it REPLACES the generated
+   *  selectedCaption — the whole point of hand-writing one is that the model
+   *  does not get to rewrite it. It is substituted BEFORE the brief is returned,
+   *  so it still passes through the full M10 preflight and claim bank exactly
+   *  like a generated caption: authored by a human is not the same as safe, and
+   *  an operator caption that carries a price or a fabricated stat must block
+   *  just the same. */
+  caption?: string;
   /** Milestone 3: the LOCKED campaign truth as a STRUCTURED contract (not the
    *  lossy sourceDetail prose). When present, its readable representation leads
    *  the system prompt so the model develops this exact concept — carrying
@@ -424,8 +432,17 @@ export async function generateReelBriefAI(
   } catch (e) {
     log.warn("reel generation signal skipped", { e: e instanceof Error ? e.message : String(e) });
   }
+  // Measured 2026-07-31 over every reel this account has posted
+  // (`instagram_analytics`, n=8): saved = 0.00, shares = 0.38, reach ≈ 204 —
+  // i.e. reach never exceeds the follower base, so Instagram is giving these
+  // posts no distribution. Saves and shares are the distribution signal; likes
+  // are not. The share half of this instruction already existed and shares are
+  // still ~0.4, so the save ask is ADDITIVE, not a replacement — and a save is
+  // only earned by content worth returning to, which is why the caption must
+  // name the future moment rather than say "save this" on its own.
   const shareCta =
-    "\n\nSHARE CTA: the selectedCaption MUST include a natural prompt inviting the viewer to SEND the reel to someone who needs it (DM shares are a top reach lever) — e.g. \"send this to someone whose tires are bald.\" Keep it claim-safe: no prices, no guarantees, sell the visit not a quote.";
+    "\n\nSHARE CTA: the selectedCaption MUST include a natural prompt inviting the viewer to SEND the reel to someone who needs it (DM shares are a top reach lever) — e.g. \"send this to someone whose tires are bald.\" Keep it claim-safe: no prices, no guarantees, sell the visit not a quote." +
+    "\n\nSAVE CTA: the selectedCaption MUST ALSO invite the viewer to SAVE the reel, and must name the FUTURE MOMENT it will be useful — e.g. \"save this for the first cold morning\" or \"save this so you know which sound you're hearing.\" A bare \"save this\" is not enough; the moment is what earns the save. This account has never recorded a single save, and saves are what buy reach beyond existing followers, so treat this as the caption's primary job.";
 
   const skillPayload = await applyCreativeSkills({ type: "reel_brief" });
   if ("fragment" in skillPayload && skillPayload.fragment) {
@@ -613,7 +630,8 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
     ffmpegAssemblyNotes: str(parsed.ffmpegAssemblyNotes),
     voiceoverScript: str(parsed.voiceoverScript),
     captionHooks: strArr(parsed.captionHooks),
-    selectedCaption: str(parsed.selectedCaption),
+    // Operator caption wins over the generated one when supplied (see input.caption).
+    selectedCaption: input.caption?.trim() || str(parsed.selectedCaption),
     hashtags: strArr(parsed.hashtags),
     avoidedForRepetition: str(parsed.avoidedForRepetition),
     qualityScore: 0,
