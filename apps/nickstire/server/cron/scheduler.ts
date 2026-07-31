@@ -32,6 +32,22 @@ interface TieredJob {
    *  competitor-monitor accept PLACES or MAPS but were gated on PLACES
    *  only, so a MAPS-only environment silently starved review ingestion) */
   requiresEnv?: string | string[];
+  /**
+   * Like `requiresEnv`, but for BOOLEAN kill switches: the var must equal
+   * the exact string "true", matching how the service layer gates itself.
+   *
+   * Why this exists (2026-07-31): `requiresEnv` is a truthiness check, but
+   * reelPipeline gates on `REEL_GENERATION_ENABLED === "true"` exactly
+   * (reelPipeline.ts:312/537/673). Set the var to `1` / `yes` / `TRUE` and
+   * the two disagreed — the scheduler happily ran the cron every pulse while
+   * every stage returned `{processed:false}`. No error, no skip row, no
+   * signal anywhere: a cron that looks perfectly healthy and does nothing.
+   *
+   * Use `requiresEnv` for credentials/identity (VAPI_API_KEY, META_IG_USER_ID
+   * — presence is the real requirement). Use `requiresFlag` for on/off
+   * switches whose consumer compares against "true".
+   */
+  requiresFlag?: string | string[];
   /** Skip if disabled */
   enabled?: boolean;
 }
@@ -201,6 +217,19 @@ async function runTier(tier: Tier): Promise<void> {
       continue;
     }
 
+    // Boolean kill switches — must be exactly "true", same as the service
+    // layer. A var set to a truthy-but-wrong value ("1", "yes", "TRUE", or
+    // "true " with a stray space) used to pass this gate and then no-op
+    // silently inside every stage. Now it skips LOUDLY, and the reason
+    // names the observed value so the typo is legible from cron_log alone.
+    const requiredFlags = job.requiresFlag ? (Array.isArray(job.requiresFlag) ? job.requiresFlag : [job.requiresFlag]) : [];
+    const flagSkip = requiredFlags.map((k) => unarmedFlagReason(k, process.env[k])).find((r) => r !== null);
+    if (flagSkip) {
+      skipped++;
+      logTierJob(job.name, "skipped", 0, 0, flagSkip).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      continue;
+    }
+
     let jobTimer: ReturnType<typeof setTimeout> | undefined;
     const jobStart = Date.now();
 
@@ -304,6 +333,21 @@ async function logTierJob(jobName: string, status: string, durationMs: number, r
 /**
  * Register all tiers and start the consolidated scheduler.
  */
+/**
+ * Boolean-flag gate rule, extracted so it is unit-testable without booting
+ * the scheduler. Returns null when the flag is armed, else the cron_log skip
+ * reason (which names the observed value — a `1`/`yes`/`TRUE` typo used to
+ * produce a cron that ran every pulse and silently did nothing).
+ */
+export function unarmedFlagReason(key: string, raw: string | undefined): string | null {
+  if (raw === "true") return null;
+  const why =
+    raw === undefined || raw === ""
+      ? "not set"
+      : `set to ${JSON.stringify(raw.length > 12 ? `${raw.slice(0, 12)}…` : raw)} — must be exactly "true"`;
+  return `requiresFlag:${key} (${why})`;
+}
+
 export function startTieredScheduler(): void {
   // v1.7 audit fix · set a global flag so the legacy startAllJobs()
   // in cron/index.ts can detect we're active and refuse to
@@ -643,7 +687,10 @@ export function startTieredScheduler(): void {
         // finished MP4 (assembling -> assembled). The gated publish is a later
         // stage.
         name: "reel-pipeline",
-        requiresEnv: "REEL_GENERATION_ENABLED",
+        // requiresFlag (not requiresEnv): the stages compare against the
+        // exact string "true", so the gate must too — otherwise the cron
+        // runs and silently no-ops. See the requiresFlag docstring.
+        requiresFlag: "REEL_GENERATION_ENABLED",
         handler: async () => {
           const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs } = await import(
             "../services/reelPipeline"
@@ -677,7 +724,7 @@ export function startTieredScheduler(): void {
       },
       {
         name: "daily-reel-post",
-        requiresEnv: "REEL_AUTOPOST_ENABLED",
+        requiresFlag: "REEL_AUTOPOST_ENABLED", // consumer compares === "true"
         handler: async () => {
           const { runDailyReelPost } = await import("./jobs/dailyReelPost");
           return runDailyReelPost();
@@ -698,7 +745,7 @@ export function startTieredScheduler(): void {
       },
       {
         name: "social-inventory-publisher",
-        requiresEnv: "SOCIAL_INVENTORY_PUBLISH_ENABLED",
+        requiresFlag: "SOCIAL_INVENTORY_PUBLISH_ENABLED", // consumer compares === "true"
         handler: async () => {
           const { runSocialInventoryPublisher } = await import("./jobs/socialInventoryPublisher");
           return runSocialInventoryPublisher();
@@ -1134,7 +1181,7 @@ export function startTieredScheduler(): void {
       },
       {
         name: "content-reserve-replenish",
-        requiresEnv: "CONTENT_REPLENISH_ENABLED",
+        requiresFlag: "CONTENT_REPLENISH_ENABLED", // consumer compares === "true"
         handler: async () => {
           const { runContentReserveReplenish } = await import("./jobs/contentReserveReplenish");
           return runContentReserveReplenish();
