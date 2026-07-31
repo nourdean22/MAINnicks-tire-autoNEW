@@ -199,6 +199,33 @@ export function evaluateExperiment(
   };
 }
 
+/**
+ * Bucket a snapshot into its measurement horizon.
+ *
+ * `ig_metric_snapshots` is append-only and stamped with `capturedAt` — it does
+ * NOT record which horizon a row belongs to, because a sync tick does not know
+ * when the post went out. The horizon is therefore DERIVED from
+ * (capturedAt - publishedAt), and this is the single place that derivation
+ * lives so two callers cannot disagree about what "72h" means.
+ *
+ * Windows are generous on the late side and tight on the early side: a snapshot
+ * taken at 20h is not a 24h reading (the post is still accruing fast), but one
+ * taken at 30h is close enough to compare against other 24h rows. Anything
+ * outside every window returns null and is EXCLUDED from comparison rather than
+ * being forced into the nearest bucket, which would silently compare a 5-hour
+ * reading against a 24-hour one.
+ */
+export function horizonForSnapshot(publishedAt: Date, capturedAt: Date): 24 | 72 | 168 | null {
+  const hours = (capturedAt.getTime() - publishedAt.getTime()) / 3_600_000;
+  if (hours < 20) return null;          // too early to be any horizon
+  if (hours <= 36) return 24;
+  if (hours < 60) return null;          // between windows — not comparable
+  if (hours <= 96) return 72;
+  if (hours < 144) return null;
+  if (hours <= 216) return 168;
+  return null;                          // past 9 days, no longer a 7-day reading
+}
+
 /** Deterministic arm assignment — same episode always lands in the same arm,
  *  so a re-run or a retry cannot silently reassign and corrupt the result. */
 export function assignArm(def: ExperimentDefinition, episodeKey: string): ExperimentArm {
