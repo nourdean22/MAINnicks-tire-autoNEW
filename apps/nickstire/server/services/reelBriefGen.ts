@@ -17,6 +17,7 @@ import { applyCreativeSkills } from "./skillRouter";
 import {
   CAMPAIGN_KEYWORDS,
   FACT_BUCKETS,
+  INSTAGRAM_HASHTAG_CAP,
   REEL_ARCHETYPES,
   MOTION_LENSES,
   OBJECT_CHARACTERS,
@@ -432,17 +433,25 @@ export async function generateReelBriefAI(
   } catch (e) {
     log.warn("reel generation signal skipped", { e: e instanceof Error ? e.message : String(e) });
   }
-  // Measured 2026-07-31 over every reel this account has posted
-  // (`instagram_analytics`, n=8): saved = 0.00, shares = 0.38, reach ≈ 204 —
-  // i.e. reach never exceeds the follower base, so Instagram is giving these
-  // posts no distribution. Saves and shares are the distribution signal; likes
-  // are not. The share half of this instruction already existed and shares are
-  // still ~0.4, so the save ask is ADDITIVE, not a replacement — and a save is
-  // only earned by content worth returning to, which is why the caption must
-  // name the future moment rather than say "save this" on its own.
+  // Measured 2026-07-31 (`instagram_analytics`, n=8 reels): saved = 0.00,
+  // shares = 0.38, reach ≈ 204 against 3,288 followers — 6.2% of the follower
+  // base, so these reels are not reaching non-followers at all.
+  //
+  // A universal SAVE instruction sat here for one commit and is deliberately
+  // GONE: it was an overcorrection from reading "saves are the distribution
+  // signal" off a zero baseline. Reels are discovery content — watch time and
+  // sends are what Instagram distributes on. Saves belong to reference formats
+  // (carousels, checklists) where returning later IS the value. Optimising a
+  // 20-second reel for saves trades away the signal that actually carries it.
+  //
+  // Corollary: the CTA is optional. The last beat is watch-time-critical, so a
+  // CTA that does not read naturally costs more than it returns.
   const shareCta =
     "\n\nSHARE CTA: the selectedCaption MUST include a natural prompt inviting the viewer to SEND the reel to someone who needs it (DM shares are a top reach lever) — e.g. \"send this to someone whose tires are bald.\" Keep it claim-safe: no prices, no guarantees, sell the visit not a quote." +
-    "\n\nSAVE CTA: the selectedCaption MUST ALSO invite the viewer to SAVE the reel, and must name the FUTURE MOMENT it will be useful — e.g. \"save this for the first cold morning\" or \"save this so you know which sound you're hearing.\" A bare \"save this\" is not enough; the moment is what earns the save. This account has never recorded a single save, and saves are what buy reach beyond existing followers, so treat this as the caption's primary job.";
+    "\n\nOBJECTIVE — DISCOVERY: this is a REEL. Reels earn reach through WATCH TIME and SENDS (one viewer forwarding it to a specific person), which is how they reach non-followers. Optimise the FIRST TWO SECONDS above everything else: open on the physical problem, never on a title card or a greeting. Omit the CTA entirely if it does not read naturally — NONE is a valid choice and beats a bolted-on ask that costs watch time on the final beat." +
+    "\n\nDO NOT ask the viewer to SAVE. A save is the objective for REFERENCE content (carousels, checklists) where the value is returning to it later; on a short reel a save prompt competes with the send that actually distributes it. Name the PERSON to send it to, not the action." +
+    `\n\nHASHTAGS: 0 to ${INSTAGRAM_HASHTAG_CAP} only — Instagram caps posts at ${INSTAGRAM_HASHTAG_CAP} (hard limit since December 2025) and rejects or silently strips the excess. Hashtags do not inherently increase reach, so prefer 3 highly specific local/service tags over ${INSTAGRAM_HASHTAG_CAP} generic ones; zero is acceptable.` +
+    "\n\nSEARCH LANGUAGE: public posts from professional accounts are indexed by search engines. Write in the words a driver would actually search — \"grinding brakes in Cleveland\", \"used tires Euclid\", \"Ohio E-Check not ready\" — and put the SYMPTOM and the CITY in plain language in the caption body rather than relying on a vague hook.";
 
   const skillPayload = await applyCreativeSkills({ type: "reel_brief" });
   if ("fragment" in skillPayload && skillPayload.fragment) {

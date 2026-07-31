@@ -65,7 +65,12 @@ const pressureBrief: ReelBrief = {
   ],
   selectedCaption:
     "The biggest number on your tire is a trap.\nThe sidewall shows the tire's MAX - your car's real setting lives on the driver-door sticker.\nComment PRESSURE and we'll check it when you stop by.\nNick's Tire & Auto - 17625 Euclid Ave, Cleveland - (216) 862-0005 - nickstire.org",
-  hashtags: ["#ClevelandDrivers", "#TirePressure", "#CarTipsCleveland", "#EuclidAve", "#TireShopCleveland", "#CarEducation"],
+  // 4 tags: Instagram caps a post at 5 (hard limit since Dec 2025) and these
+  // samples are the app's reference examples of correct output — at 6 they were
+  // teaching the obsolete 30-tag-era contract. Specific local/service tags only;
+  // generic ones (#CarEducation, #CarTipsCleveland) dropped, since volume does
+  // not increase reach.
+  hashtags: ["#TirePressure", "#ClevelandDrivers", "#EuclidAve", "#TireShopCleveland"],
   avoidedForRepetition: "Penny-test topic (used in a recent carousel sample); satisfying_loop archetype",
   qualityScore: 0,
   assetPlan: "Cover frame: beat 3 door-sticker glow with 'Your number lives here' framing; export 1080x1920 JPEG.",
@@ -125,7 +130,7 @@ const potholeBrief: ReelBrief = {
   ],
   selectedCaption:
     "Your car remembers the pothole you forgot.\nCrooked wheel. One shoulder wearing fast. A new shake. Three clues worth checking - do not guess.\nComment POTHOLE and we'll take a look when you stop by.\nNick's Tire & Auto - 17625 Euclid Ave, Cleveland - (216) 862-0005 - nickstire.org",
-  hashtags: ["#ClevelandPotholes", "#EuclidAve", "#WheelAlignment", "#ClevelandDrivers", "#CarCluesCleveland", "#TireShopCleveland", "#PotholeSeason"],
+  hashtags: ["#ClevelandPotholes", "#WheelAlignment", "#EuclidAve", "#TireShopCleveland"],
   avoidedForRepetition: "Road-salt villain topic; weather_radar_overlay lens (saved for a winter reel)",
   qualityScore: 0,
   assetPlan: "Cover frame: beat 5 evidence board with red string converging; export 1080x1920 JPEG.",
@@ -185,7 +190,7 @@ const brakeBrief: ReelBrief = {
   ],
   selectedCaption:
     "That squeal is a feature, not a failure.\nMost pads carry a built-in metal tab that sings when material runs low - one clue, heard early, keeps the job small. Worth checking, not worth guessing.\nComment BRAKES and we'll take a listen when you stop by.\nNick's Tire & Auto - 17625 Euclid Ave, Cleveland - (216) 862-0005 - nickstire.org",
-  hashtags: ["#BrakeCheck", "#ClevelandDrivers", "#EuclidAve", "#CarSoundsExplained", "#BrakesCleveland", "#CarEducation"],
+  hashtags: ["#BrakeCheck", "#BrakesCleveland", "#EuclidAve", "#CarSoundsExplained"],
   avoidedForRepetition: "Check-engine smoke-alarm character (recently used in a carousel sample); diagnostic_hud_reveal lens (used by the PRESSURE sample)",
   qualityScore: 0,
   assetPlan: "Cover frame: beat 3 bright contact point with sound rings; export 1080x1920 JPEG.",

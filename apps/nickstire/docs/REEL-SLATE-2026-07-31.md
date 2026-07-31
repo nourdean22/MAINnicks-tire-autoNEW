@@ -1,12 +1,30 @@
-# Reel slate — 20 save-optimized reels (2026-07-31)
+# Reel slate — 20 topics (2026-07-31)
 
-**Why this slate exists.** All 8 reels this account has ever posted measured
+> **CORRECTED 2026-07-31.** Two factual errors in the first version of this
+> header are fixed below, and the title no longer says "save-optimized". Both
+> errors were mine, and both are the same class of defect this slate's captions
+> are screened for — which is the point of writing the correction down instead
+> of quietly editing it out.
+
+**Why this slate exists.** All 8 reels this account has posted measured
 `saved = 0.00`, `shares = 0.38`, `reach ≈ 204` (`instagram_analytics`, n=8,
-2026-07-03 → 07-31). Reach ≈ follower count means Instagram is giving these
-posts no distribution beyond existing followers. Saves and shares are the
-distribution signal; likes are not. **Every topic below was chosen because it is
-useful LATER** — diagnostic, seasonal, or decision-making — which is what earns
-a save.
+2026-07-03 → 07-31).
+
+- **CORRECTION 1** — the first version said "reach ≈ follower count". False.
+  Followers are **3,288**, so reach is **6.2%** of the base. The conclusion (no
+  meaningful distribution) survives, but it was reached through a wrong premise.
+- **CORRECTION 2** — the first version reported engagement rates of "12%" and
+  "3%". Those are the RAW stored integers; `engagementRate` is persisted as
+  `(likes + comments) / followers × 10000`. Real reel ER is **0.049%** — roughly
+  100× lower than stated.
+
+**Objective, corrected.** The first version aimed every caption at a SAVE. That
+was an overcorrection from reading "saves are the distribution signal" off a zero
+baseline. Reels earn discovery through **watch time and sends**; saves are the
+objective for REFERENCE formats (carousels, checklists) where returning later IS
+the value. The topics below are still chosen for genuine usefulness — that is
+what makes a reel worth sending — but the CTA is a SEND, or none at all when it
+does not read naturally.
 
 **Cadence.** 2/day at 7:00 AM ET and 2:00 PM ET, held FIXED. Those two slots are
 where the two best-performing reels landed (reach 354 and 307) — but n=1 each,
@@ -44,20 +62,20 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this and check all four before your next long drive.
 >
-> #clevelandohio #euclidohio #tiresafety #cartips #wintersafety #nickstire
+> #clevelandohio #euclidohio #tiresafety #cartips
 
 ## 2 · Squealing vs grinding brakes
 
 > Grinding when you brake is not "almost time." It is past time.
 >
-> Squealing is the wear indicator doing its job. You have weeks.
+> Squealing is usually the wear indicator doing its job — an early warning.
 > Grinding is metal on metal. You are cutting into the rotor right now.
 >
 > One is a brake job. The other is a brake job plus rotors.
 >
-> 📌 Save this so you know which sound you are hearing.
+> Send this to someone whose car is making one of these sounds.
 >
-> #brakes #cartips #clevelandohio #carmaintenance #euclidohio #autorepair
+> #brakes #cartips #clevelandohio #carmaintenance
 
 ## 3 · Cold weather and the tire light
 
@@ -70,7 +88,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this for the first frost.
 >
-> #tirepressure #ohioweather #cartips #clevelandohio #winterdriving #nickstire
+> #tirepressure #ohioweather #cartips #clevelandohio
 
 ## 4 · Alignment vs balance
 
@@ -83,7 +101,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this before your next appointment.
 >
-> #wheelalignment #cartips #clevelandohio #autorepair #euclidohio #carcare
+> #wheelalignment #cartips #clevelandohio #autorepair
 
 ## 5 · How far you can drive on a spare
 
@@ -96,7 +114,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this now, before you need it on the shoulder.
 >
-> #flattire #roadside #cartips #clevelandohio #euclidohio #tiresafety
+> #flattire #roadside #cartips #clevelandohio
 
 ## 6 · Tires have an expiration date
 
@@ -109,7 +127,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this and go read your sidewall.
 >
-> #tiresafety #cartips #clevelandohio #carmaintenance #euclidohio #nickstire
+> #tiresafety #cartips #clevelandohio #carmaintenance
 
 ## 7 · Solid vs flashing check engine light
 
@@ -121,7 +139,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this. The difference is thousands of dollars.
 >
-> #checkenginelight #cartips #autorepair #clevelandohio #euclidohio #carcare
+> #checkenginelight #cartips #autorepair #clevelandohio
 
 ## 8 · What a bad wheel bearing sounds like
 
@@ -134,7 +152,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this and test it on your next drive.
 >
-> #cartips #autorepair #clevelandohio #carmaintenance #euclidohio #carcare
+> #cartips #autorepair #clevelandohio #carmaintenance
 
 ## 9 · Oil change intervals
 
@@ -147,7 +165,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this and check your manual before the next sticker.
 >
-> #oilchange #cartips #carmaintenance #clevelandohio #euclidohio #carcare
+> #oilchange #cartips #carmaintenance #clevelandohio
 
 ## 10 · Pothole damage you cannot see
 
@@ -160,7 +178,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this. Cleveland roads are not done with us.
 >
-> #potholes #clevelandohio #euclidohio #cartips #wheelalignment #tiresafety
+> #potholes #clevelandohio #euclidohio #cartips
 
 ## 11 · All-season vs winter tires
 
@@ -173,7 +191,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this for when the forecast turns.
 >
-> #wintertires #ohioweather #clevelandohio #winterdriving #cartips #tiresafety
+> #wintertires #ohioweather #clevelandohio #winterdriving
 
 ## 12 · Battery warnings before it strands you
 
@@ -185,7 +203,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this if yours is over three years old.
 >
-> #carbattery #wintercar #cartips #clevelandohio #euclidohio #carmaintenance
+> #carbattery #wintercar #cartips #clevelandohio
 
 ## 13 · Why the car pulls to one side
 
@@ -198,7 +216,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this before you book anything.
 >
-> #cartips #wheelalignment #autorepair #clevelandohio #euclidohio #carcare
+> #cartips #wheelalignment #autorepair #clevelandohio
 
 ## 14 · Cabin filter vs engine air filter
 
@@ -210,7 +228,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this if your vents lost their punch.
 >
-> #cartips #carmaintenance #clevelandohio #euclidohio #carcare #autorepair
+> #cartips #carmaintenance #clevelandohio #euclidohio
 
 ## 15 · What "you need struts" actually means
 
@@ -223,7 +241,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this and try it in your driveway.
 >
-> #suspension #cartips #autorepair #clevelandohio #euclidohio #carcare
+> #suspension #cartips #autorepair #clevelandohio
 
 ## 16 · Tread depth for rain vs snow
 
@@ -236,7 +254,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save both numbers. They matter at different times of year.
 >
-> #tiresafety #cartips #winterdriving #clevelandohio #euclidohio #nickstire
+> #tiresafety #cartips #winterdriving #clevelandohio
 
 ## 17 · Tire rotation
 
@@ -249,7 +267,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this and check when yours were last rotated.
 >
-> #tirerotation #carmaintenance #cartips #clevelandohio #euclidohio #nickstire
+> #tirerotation #carmaintenance #cartips #clevelandohio
 
 ## 18 · Coolant color
 
@@ -262,7 +280,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this for the next mystery puddle in your driveway.
 >
-> #cartips #autorepair #carmaintenance #clevelandohio #euclidohio #carcare
+> #cartips #autorepair #carmaintenance #clevelandohio
 
 ## 19 · Noises that mean stop driving now
 
@@ -275,7 +293,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this one. It is the one you will want at the worst moment.
 >
-> #cartips #autorepair #carsafety #clevelandohio #euclidohio #carmaintenance
+> #cartips #autorepair #carsafety #clevelandohio
 
 ## 20 · Questions to ask before authorizing any repair
 
@@ -288,7 +306,7 @@ Cleveland, OH 44112 · nickstire.org
 >
 > 📌 Save this and bring it to your next appointment. Anywhere, not just here.
 >
-> #autorepair #cartips #clevelandohio #euclidohio #carcare #consumertips
+> #autorepair #cartips #clevelandohio #euclidohio
 
 ---
 

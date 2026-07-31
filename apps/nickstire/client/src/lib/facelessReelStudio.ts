@@ -661,6 +661,33 @@ export function detectFabricatedStats(text: string, where = "text"): SafetyFindi
   ];
 }
 
+/**
+ * Instagram caps a post at FIVE hashtags (rolled out December 2025). It is a
+ * hard platform limit, not guidance: beyond five, the publish is rejected or
+ * the extra tags are silently stripped — and stripped-not-errored is the worse
+ * outcome, because nothing here would ever learn it happened.
+ *
+ * Measured 2026-07-31: the last 12 posts carried 8–11 tags each — 12 of 12 over
+ * the cap — while the quality score rated "Hashtags 3-12" as correct. The rule
+ * encoded the pre-2025 30-tag era, so the gate was certifying every post as
+ * compliant with a limit that no longer exists.
+ *
+ * Zero is explicitly allowed: Instagram's own guidance is that hashtags help
+ * categorisation and do NOT inherently increase reach, so an empty set is a
+ * legitimate editorial choice, not a defect.
+ */
+export const INSTAGRAM_HASHTAG_CAP = 5;
+
+export function validateHashtagCap(hashtags: string[]): { ok: boolean; reason?: string } {
+  if (hashtags.length > INSTAGRAM_HASHTAG_CAP) {
+    return {
+      ok: false,
+      reason: `${hashtags.length} hashtags — Instagram caps posts at ${INSTAGRAM_HASHTAG_CAP}; the excess is rejected or silently stripped. Keep 0-${INSTAGRAM_HASHTAG_CAP} highly relevant tags.`,
+    };
+  }
+  return { ok: true };
+}
+
 // ─── Structural validators ─────────────────────────────────────────
 
 export function validateReelLengthTarget(beats: StoryboardBeat[]): { ok: boolean; reason?: string } {
@@ -898,9 +925,21 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
   // warning, not a pre-spend block (it never garbles the generated video).
   const kw = validateCampaignKeyword(brief.campaignKeyword);
   if (!kw.ok) push("structural", "warn", kw.reason ?? "campaign keyword should be a single ALL-CAPS word");
+  // BLOCK, not warn: over the cap Instagram rejects the publish or strips tags
+  // silently. A warning would let the pipeline spend render credits on a post
+  // that cannot go out intact.
+  const tags = validateHashtagCap(brief.hashtags ?? []);
+  if (!tags.ok) push("structural", "block", tags.reason ?? "too many hashtags");
 
-  // Truth
-  if (!validateSourceGrounding(brief).ok) push("truth", "warn", "no verified proof source for the mechanic truth");
+  // Truth — BLOCKS. This was a warning, which meant a reel with no proof source
+  // could clear preflight, reserve credits, render, and publish while its
+  // factual foundation was never established. That is the same defect the
+  // no-fabricated-stat rule addresses, one layer up: the claim bank catches
+  // claims that LOOK wrong, this catches claims backed by nothing at all.
+  // Failing closed is affordable here — prepareCleanReelBrief regenerates on a
+  // block, so an ungrounded brief costs one LLM call, not a render.
+  const grounding = validateSourceGrounding(brief);
+  if (!grounding.ok) push("truth", "block", grounding.reason ?? "no verified proof source for the mechanic truth");
 
   // Production + truth: claim safety, faceless, in-frame-text (over the design)
   for (const f of runReelSafety(brief)) push(f.category, f.severity, f.message);
@@ -1274,7 +1313,7 @@ export function buildInstagramPublishChecklist(brief: ReelBrief): ChecklistItem[
     { label: "Faceless verified on FINAL render", ok: null, detail: "Manual frame-scrub after Higgsfield render — heuristics are not eyes" },
     { label: "Caption keyword CTA present", ok: brief.selectedCaption.includes(brief.campaignKeyword), detail: `DM/comment "${brief.campaignKeyword}"` },
     { label: "Caption ASCII-safe", ok: /^[\x20-\x7E\n]*$/.test(brief.selectedCaption), detail: "Plain characters only — IG strips exotic glyphs" },
-    { label: "Hashtags 3-12", ok: brief.hashtags.length >= 3 && brief.hashtags.length <= 12, detail: `${brief.hashtags.length} tags` },
+    { label: `Hashtags 0-${INSTAGRAM_HASHTAG_CAP}`, ok: validateHashtagCap(brief.hashtags).ok, detail: `${brief.hashtags.length} tags` },
     { label: "Keyword/topic not repeated recently", ok: reps ? true : null, detail: reps ? `Avoided: ${reps}` : "Paste recent log in Content Memory panel" },
     { label: "Posting from correct account", ok: null, detail: `${STUDIO_BRAND.handle} — manual check` },
     { label: "Facebook cross-post OFF", ok: null, detail: "Manual check in IG composer" },

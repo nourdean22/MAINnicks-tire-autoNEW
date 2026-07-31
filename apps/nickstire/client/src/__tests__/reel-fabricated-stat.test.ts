@@ -18,7 +18,8 @@
  * reel, which is worse than the defect it fixes.
  */
 import { describe, it, expect } from "vitest";
-import { detectFabricatedStats } from "../lib/facelessReelStudio";
+import { detectFabricatedStats, validateHashtagCap, INSTAGRAM_HASHTAG_CAP, runReelPreflight } from "../lib/facelessReelStudio";
+import { SAMPLE_REEL_BRIEFS } from "../lib/facelessReelStudioSamples";
 
 describe("detectFabricatedStats — blocks invented shop statistics", () => {
   it("blocks the exact caption that shipped past every other gate (reel 1200004)", () => {
@@ -65,5 +66,68 @@ describe("detectFabricatedStats — must NOT block real technical content", () =
     "Come see us on Euclid Ave.",
   ])("passes ordinary first-person copy carrying no statistic: %s", (text) => {
     expect(detectFabricatedStats(text)).toEqual([]);
+  });
+});
+
+/**
+ * Instagram's 5-hashtag cap (hard limit since December 2025). Verified against
+ * production 2026-07-31: the last 12 posts carried 8-11 tags each — 12 of 12
+ * over the cap — while `calculateReelQualityScore` rated "Hashtags 3-12" as
+ * correct. The gate was certifying every post as compliant with a limit that
+ * had not existed for eight months.
+ *
+ * This blocks rather than warns: over the cap Instagram rejects the publish or
+ * SILENTLY STRIPS the excess, and silent stripping is the worse outcome because
+ * nothing downstream would ever learn it happened.
+ */
+describe("validateHashtagCap — Instagram allows at most 5", () => {
+  const tags = (n: number) => Array.from({ length: n }, (_, i) => `#tag${i}`);
+
+  it("allows zero — hashtags do not inherently increase reach", () => {
+    expect(validateHashtagCap([]).ok).toBe(true);
+  });
+
+  it.each([1, 3, 5])("allows %i tags", (n) => {
+    expect(validateHashtagCap(tags(n)).ok).toBe(true);
+  });
+
+  it.each([6, 8, 11])("rejects %i tags with a reason naming the cap", (n) => {
+    const r = validateHashtagCap(tags(n));
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain(String(INSTAGRAM_HASHTAG_CAP));
+  });
+
+  it("rejects the real 11-tag count observed in production", () => {
+    expect(validateHashtagCap(tags(11)).ok).toBe(false);
+  });
+});
+
+/**
+ * Truth gate: a reel with no proof source must BLOCK, not warn.
+ *
+ * Before this, `validateSourceGrounding` produced a WARNING, so a brief whose
+ * factual foundation was never established could clear preflight, reserve
+ * credits, render and publish. Failing closed is affordable — prepareCleanReelBrief
+ * regenerates on a block, so an ungrounded brief costs one LLM call, not a render.
+ */
+describe("runReelPreflight — ungrounded claims fail closed", () => {
+  it("BLOCKS a brief with no proof source (was only a warning)", () => {
+    const b = structuredClone(SAMPLE_REEL_BRIEFS[0]);
+    b.sourceNotes = b.sourceNotes.filter((s) => s.kind !== "proof");
+    const r = runReelPreflight(b);
+    expect(r.status).toBe("block");
+    expect(r.blocking.some((f) => f.category === "truth")).toBe(true);
+  });
+
+  it("BLOCKS a brief whose mechanic truth is empty", () => {
+    const b = structuredClone(SAMPLE_REEL_BRIEFS[0]);
+    b.mechanicTruth = "   ";
+    expect(runReelPreflight(b).status).toBe("block");
+  });
+
+  it("still PASSES the grounded sample brief — the gate must not block everything", () => {
+    const r = runReelPreflight(SAMPLE_REEL_BRIEFS[0]);
+    expect(r.status).toBe("pass");
+    expect(r.blocking).toEqual([]);
   });
 });
