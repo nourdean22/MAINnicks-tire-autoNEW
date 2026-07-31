@@ -3071,6 +3071,14 @@ export const igMetricSnapshots = mysqlTable("ig_metric_snapshots", {
   views: int("views"),
   shares: int("shares"),
   followerSnapshot: int("followerSnapshot"),
+  // 0108. MILLISECONDS, matching `ig_reels_avg_watch_time` from the Graph API —
+  // stored in native units and named for it, because a silent ms->s conversion
+  // is how a metric ends up wrong by 1000x with nothing to catch it.
+  // NULL means NOT REPORTED and must never be read as zero: "nobody watched"
+  // and "Instagram did not return this" are different facts, and these two
+  // columns are what a DISCOVERY objective is actually scored on.
+  avgWatchTimeMs: int("avg_watch_time_ms"),
+  skipRate: decimal("skip_rate", { precision: 6, scale: 4 }),
 }, (table) => [
   index("idx_ig_snap_post").on(table.postId),
   index("idx_ig_snap_captured").on(table.capturedAt),

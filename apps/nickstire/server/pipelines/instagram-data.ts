@@ -159,9 +159,23 @@ export async function syncInstagramPosts(): Promise<{
       const insights = Number.isFinite(ageDays) && ageDays <= INSIGHTS_REFRESH_DAYS
         ? await getMediaInsights(post.id)
         : { ok: false as const };
-      const metricCols: { reach?: number | null; saved?: number | null; views?: number | null; shares?: number | null } =
+      // avgWatchTimeMs/skipRate are REELS-ONLY and absent for images — they stay
+      // null rather than 0, because "Instagram did not report this" and "nobody
+      // watched" are different facts and a DISCOVERY score built on the latter
+      // would be fabricated.
+      const metricCols: {
+        reach?: number | null; saved?: number | null; views?: number | null; shares?: number | null;
+        avgWatchTimeMs?: number | null; skipRate?: string | null;
+      } =
         insights.ok
-          ? { reach: insights.reach ?? null, saved: insights.saved ?? null, views: insights.views ?? null, shares: insights.shares ?? null }
+          ? {
+              reach: insights.reach ?? null,
+              saved: insights.saved ?? null,
+              views: insights.views ?? null,
+              shares: insights.shares ?? null,
+              avgWatchTimeMs: insights.avgWatchTimeMs ?? null,
+              skipRate: insights.skipRate === undefined ? null : String(insights.skipRate),
+            }
           : {};
 
       // Append-only history (Wave C substrate): one row per post per sync tick.
@@ -178,6 +192,8 @@ export async function syncInstagramPosts(): Promise<{
             saved: metricCols.saved ?? null,
             views: metricCols.views ?? null,
             shares: metricCols.shares ?? null,
+            avgWatchTimeMs: metricCols.avgWatchTimeMs ?? null,
+            skipRate: metricCols.skipRate ?? null,
             followerSnapshot: followers || null,
           });
           snapshotsWritten++;
