@@ -14,6 +14,7 @@
  */
 import { createLogger } from "../lib/logger";
 import type { ReelAssemblyBrief } from "./reelAssembly";
+import type { CtaType } from "../../shared/instagramStudio";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -88,10 +89,20 @@ export async function selectReelVideoProvider(): Promise<"veo" | "higgsfield"> {
 }
 
 /** Minimal structural view of a client ReelBrief — only the fields gen needs. */
+/** Instagram's published caption ceiling, including hashtags. */
+export const INSTAGRAM_CAPTION_LIMIT = 2200;
+
 export interface ReelJobBrief {
   id?: string;
   topic?: string;
   campaignKeyword?: string;
+  /**
+   * The action the caption actually asks for. Distinct from campaignKeyword:
+   * "BRAKES" is a topic, "SEND" is a call to action. The governor's repetition
+   * check needs the latter — fed the keyword, it was deduplicating topics while
+   * believing it was varying CTAs, so every reel could carry the same ask.
+   */
+  ctaType?: CtaType;
   selectedCaption?: string;
   hashtags?: string[];
   storyboardBeats?: Array<{ 
@@ -194,7 +205,10 @@ export async function enqueueReelJob(
       windowStart: now,
       windowEnd: new Date(now.getTime() + 24 * 3600_000),
       topic: brief.topic,
-      cta: brief.campaignKeyword,
+      // The real CTA when the brief carries one. Falls back to the keyword only
+      // so pre-existing briefs keep reserving rather than silently losing their
+      // slot; new briefs should always set ctaType.
+      cta: brief.ctaType ?? brief.campaignKeyword,
       campaignId: (brief as { genomeId?: string | null }).genomeId ?? null,
     });
     if (reservation) (brief as { contentReservationId?: string }).contentReservationId = reservation.reservationId;
@@ -209,9 +223,23 @@ export async function enqueueReelJob(
     log.warn("failed to rebuild prompt packs server-side in enqueueReelJob", e);
   }
 
-  const caption = brief.selectedCaption
-    ? `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim().slice(0, 2200)
-    : null;
+  // FAIL, don't truncate. A hard slice to the limit silently amputated whatever
+  // sat at the end of the composed caption — which is exactly where the CTA, the
+  // required claim qualifier, and the AI disclosure live. A caption that cannot
+  // be published intact is a brief defect to repair upstream, not something to
+  // quietly shorten on its way into a job row. Same rule the markdown ingester
+  // already applies (scripts/ingest-reels-markdown.ts:112).
+  let caption: string | null = null;
+  if (brief.selectedCaption) {
+    const composed = `${brief.selectedCaption}\n\n${(brief.hashtags ?? []).join(" ")}`.trim();
+    if (composed.length > INSTAGRAM_CAPTION_LIMIT) {
+      throw new Error(
+        `caption + hashtags is ${composed.length} chars, over Instagram's ${INSTAGRAM_CAPTION_LIMIT} limit — ` +
+          `shorten the caption or drop hashtags upstream; refusing to truncate and lose the CTA/disclosure`,
+      );
+    }
+    caption = composed;
+  }
   // Compensation boundary: the content reservation was created above. If THIS
   // insert throws (constraint, connection, an oversized field), release the
   // reserved slot before rethrowing so it doesn't leak and eat the feed
