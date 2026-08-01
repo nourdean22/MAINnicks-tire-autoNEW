@@ -104,21 +104,17 @@ import {
   handleCameraGetPlates,
 } from "@/lib/ai/agent-actions/camera-actions";
 
+import type { AgentAction, ActionResult } from "@/lib/ai/agent-actions/types";
+
 import { checkApprovalGate } from "@/lib/ai/runtime/approval-gate";
 
 import { publishCockpitEvent } from "@/lib/ai/runtime/event-protocol";
 
-export interface AgentAction {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-export interface ActionResult {
-  action: string;
-  success: boolean;
-  result?: unknown;
-  error?: string;
-}
+// Declared in agent-actions/types.ts (the leaf contract module) and
+// re-exported here so existing `from "@/lib/ai/nick-agent"` imports keep
+// working. Declaring them here instead made types.ts import this file,
+// which put all nine agent-action handler modules in an import cycle.
+export type { AgentAction, ActionResult } from "@/lib/ai/agent-actions/types";
 
 /**
  * Parse agent actions from Nick AI response text.
