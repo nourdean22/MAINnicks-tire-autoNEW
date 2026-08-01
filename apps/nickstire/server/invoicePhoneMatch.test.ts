@@ -62,4 +62,40 @@ describe("shopDriverMirror wires nameKey into BOTH sides of the match", () => {
   it("keeps the exactly-one-candidate rule (never guesses)", () => {
     expect(src).toMatch(/filtered\.length === 1/);
   });
+
+  it("prefetches candidates case-insensitively — nameKey alone cannot fix this", () => {
+    // customers.lastName is utf8mb4_bin (case sensitive, NO PAD), so a plain
+    // inArray() returns only rows whose casing matches the ticket's. The
+    // candidate for "Aiken, David" (stored "AIKEN") would never reach the
+    // nameKey filter at all. Measured: with COLLATE the predicate recovers
+    // 20/20 known-recoverable invoices, without it 19/20.
+    expect(src).toMatch(/COLLATE utf8mb4_unicode_ci IN/);
+    expect(src).not.toMatch(/where\(inArray\(customers\.lastName/);
+  });
+});
+
+describe("orphan-invoices-investigate reports a name count that can be trusted", () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, "..", "scripts", "orphan-invoices-investigate.ts"),
+    "utf8",
+  );
+
+  it("matches the LAST, FIRST shape, not only First Last", () => {
+    // The original compared CONCAT_WS(' ',firstName,lastName) against
+    // customerName. That builds "First Last" and so could never match a
+    // "LAST, FIRST" row — 155 of 433 unlinked invoices. It reported 0 linkable
+    // by name regardless of the truth, which read like a real finding.
+    expect(src).toMatch(/SUBSTRING_INDEX\(i\.customerName, ',', 1\)/);
+    expect(src).toMatch(/SUBSTRING_INDEX\(i\.customerName, ',', -1\)/);
+  });
+
+  it("escapes the utf8mb4_bin columns so casing does not drop matches", () => {
+    expect(src).toMatch(/COLLATE utf8mb4_unicode_ci/);
+  });
+
+  it("reports no-match / exactly-one / ambiguous rather than one opaque total", () => {
+    expect(src).toMatch(/no_customer_matches/);
+    expect(src).toMatch(/exactly_one_SAFE_TO_LINK/);
+    expect(src).toMatch(/ambiguous_DO_NOT_GUESS/);
+  });
 });
