@@ -49,6 +49,12 @@ export const MORNING_JOBS: readonly string[] = [
   // 2026-05-29 · data-source canary · probes the nickstire bridge +
   // service feeders so /system/health can flag a dead bridge / $0 feeder.
   "/api/cron/data-source-health",
+  // 2026-08-01 · Ollama Cloud model canary. That provider retires models
+  // with no warning (two lost on this key) and a retired id 410s forever.
+  // Probes what resolveProviderModel actually returns, so a stale env pin
+  // is caught — the registry alone looked healthy for the six weeks the
+  // vision lane was dead in prod.
+  "/api/cron/ollama-model-liveness",
   "/api/cron/task-resurface",
   "/api/cron/ingest-drive",
   // 2026-05-30 · re-wired · Wave AE kept gmail + calendar as "active"
