@@ -43,7 +43,26 @@ export interface PublicSourceRecord {
   retrievalStatus: "fetch_verified" | "search_confirmed" | "fetch_blocked_search_confirmed";
   /** at least one topic keyword must appear in the label for a match */
   topics: string[];
+  /**
+   * Extra strings that identify this family in a generated label, matched on
+   * word boundaries.
+   *
+   * Needed because the family NAME is not what a writer types. Three families
+   * carry an " education" suffix — "Michelin education", "Goodyear education",
+   * "Bridgestone education" — and the substring match below requires the whole
+   * string, so a label reading "Michelin: Tire Repair and Patching" could never
+   * resolve. Those families were unmatchable by construction.
+   */
+  matchAliases?: string[];
   curatedAt: string;
+  /**
+   * When the canonical URL was last confirmed to return usable PROSE through
+   * our own extractor — not merely a 200. Recorded per record because a page
+   * that answers but renders client-side is unusable for entailment, and a
+   * source that starts blocking must be visible as stale rather than assumed
+   * fine. Verify with scripts/verify-public-sources.mjs.
+   */
+  textVerifiedAt?: string;
 }
 
 export const PUBLIC_SOURCE_REGISTRY: PublicSourceRecord[] = [
@@ -73,8 +92,67 @@ export const PUBLIC_SOURCE_REGISTRY: PublicSourceRecord[] = [
     retrievalStatus: "fetch_verified",
     topics: ["battery", "wiper", "fluid", "brake", "maintenance", "winter", "inspection", "belt", "hose"],
     curatedAt: "2026-07-17",
+    textVerifiedAt: "2026-08-01",
+  },
+  // ─── Added 2026-08-01 ────────────────────────────────────────────────────
+  // The registry held 3 records while the generator kept citing Michelin,
+  // Goodyear, Tire Rack and AAA — every one rejected as unresolvable, which is
+  // why 11 of 12 real briefs carried an uncitable claim.
+  //
+  // Seven candidates were checked with scripts/verify-public-sources.mjs; only
+  // these three produced usable prose through our own extractor. The four
+  // rejects are recorded below so nobody re-adds them from memory.
+  {
+    id: "michelin_tire_repair",
+    family: "Michelin education",
+    title: "Michelin: when a punctured tire can be repaired",
+    canonicalUrl: "https://www.michelinman.com/auto/auto-tips-and-advice/tire-maintenance/can-my-tire-be-repaired",
+    retrievalStatus: "fetch_verified",
+    topics: ["repair", "puncture", "patch", "plug", "nail", "sidewall", "tread", "flat"],
+    matchAliases: ["michelin"],
+    curatedAt: "2026-08-01",
+    textVerifiedAt: "2026-08-01", // 7,584 chars extracted
+  },
+  {
+    id: "michelin_replace_tires",
+    family: "Michelin education",
+    title: "Michelin: when to replace tires (wear, age, safety)",
+    canonicalUrl: "https://www.michelinman.com/auto/auto-tips-and-advice/tire-buying-guide/when-do-i-need-new-tires",
+    retrievalStatus: "fetch_verified",
+    topics: ["replace", "wear", "tread depth", "age", "aging", "worn", "new tires"],
+    matchAliases: ["michelin"],
+    curatedAt: "2026-08-01",
+    textVerifiedAt: "2026-08-01", // 10,449 chars extracted
+  },
+  {
+    id: "aaa_road_salt_corrosion",
+    family: "AAA",
+    title: "AAA: winter road salt causes hidden vehicle corrosion",
+    canonicalUrl: "https://newsroom.acg.aaa.com/aaa-warns-drivers-winter-road-salt-can-cause-hidden-costly-vehicle-damage/",
+    retrievalStatus: "fetch_verified",
+    topics: ["salt", "rust", "corrosion", "winter", "undercarriage", "brake line", "de-icer"],
+    matchAliases: ["aaa"],
+    curatedAt: "2026-08-01",
+    textVerifiedAt: "2026-08-01", // 2,603 chars extracted
   },
 ];
+
+/**
+ * Candidates REJECTED by live verification on 2026-08-01. Listed so they are
+ * not re-added from memory — the reason each failed is a property of the
+ * source, not of the fetch attempt:
+ *
+ *   Tire Rack   tirerack.com/tires/tiretech/techpage.jsp?techid=187  200, but
+ *               only 284 chars of extractable prose (also true of
+ *               /upgrade-garage/can-flat-tires-be-repaired)
+ *   Goodyear    goodyear.com/en-US/tire-guide/tire-care/tire-air-pressure
+ *               200, 64 chars — client-rendered
+ *   Bridgestone bridgestonetire.com/learn/maintenance/*   HTTP 403
+ *   Ohio BMV    bmv.ohio.gov/vr-registration.aspx         HTTP 404
+ *
+ * A 200 that yields no prose is worse than a rejection: it looks verified
+ * while being useless for entailment.
+ */
 
 export type ParsedEvidenceHandle =
   | { type: "review"; id: string }
@@ -95,8 +173,17 @@ export function parseEvidenceHandle(handle: string): ParsedEvidenceHandle {
     return { type: "declined_work", id };
   }
   const lower = trimmed.toLowerCase();
+  // Aliases match on WORD BOUNDARIES, not substring: "AAA" as a bare substring
+  // would fire inside unrelated words, and a family name is not evidence of a
+  // family.
+  const identifiesFamily = (r: PublicSourceRecord): boolean => {
+    if (lower.includes(r.family.toLowerCase())) return true;
+    return (r.matchAliases ?? []).some((a) =>
+      new RegExp(`(?:^|[^a-z0-9])${a.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z0-9])`).test(lower),
+    );
+  };
   const record = PUBLIC_SOURCE_REGISTRY.find(
-    (r) => lower.includes(r.family.toLowerCase()) && r.topics.some((t) => lower.includes(t)),
+    (r) => identifiesFamily(r) && r.topics.some((t) => lower.includes(t)),
   );
   if (record) return { type: "public_source", record, label: trimmed };
   const family = PROOF_SOURCE_FAMILIES.find((f) => lower.includes(f.toLowerCase()));
