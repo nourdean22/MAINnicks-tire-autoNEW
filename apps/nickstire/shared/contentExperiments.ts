@@ -33,6 +33,62 @@ export const EXPERIMENT_REGISTRY_VERSION = "content-experiments-v1" as const;
 /** Below this many posts per arm, no verdict is issued. */
 export const MIN_SAMPLES_PER_ARM = 4;
 
+/**
+ * HOW A METRIC COMBINES ACROSS POSTS — declared, never assumed.
+ *
+ * The first version of this file divided EVERY metric by reach. That is right
+ * for a count (20 shares off 1,000 reach beats 20 off 5,000) and wrong for
+ * anything already normalised: dividing an average watch time of 3.0s by a
+ * reach of 5,000 does not produce a rate, it produces a number that shrinks as
+ * an arm reaches more people — so the better-distributed arm loses. Reach
+ * itself collapsed to reach/reach = 1 for every arm, i.e. a guaranteed tie.
+ *
+ * Aggregation is therefore a property of the metric, and an unknown metric is
+ * refused rather than guessed at.
+ */
+export type MetricAggregation =
+  /** A count of events; divide by reach to get a rate. */
+  | "COUNT_PER_REACH"
+  /** Already an average per viewer; average the values, never divide by reach. */
+  | "RAW_AVERAGE"
+  /** An average whose posts deserve unequal weight; weight by reach. */
+  | "WEIGHTED_AVERAGE"
+  /** Already a ratio or percentage; average as-is. */
+  | "RATIO"
+  /** A total that is the outcome itself (reach, views); never divide by reach. */
+  | "RAW_TOTAL";
+
+export type MetricDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
+
+export interface MetricSpec {
+  aggregation: MetricAggregation;
+  direction: MetricDirection;
+}
+
+/**
+ * Metric names match the Instagram insight fields the snapshot writer stores.
+ * `ig_reels_avg_watch_time` is milliseconds-per-viewer and `reels_skip_rate` is
+ * a rate where lower wins — both were previously ranked as if higher-per-reach
+ * were better.
+ */
+export const METRIC_SPECS: Record<string, MetricSpec> = {
+  shares: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
+  saved: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
+  comments: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
+  likes: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
+  follows: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
+  profile_visits: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
+  ig_reels_avg_watch_time: { aggregation: "WEIGHTED_AVERAGE", direction: "HIGHER_IS_BETTER" },
+  reels_skip_rate: { aggregation: "RAW_AVERAGE", direction: "LOWER_IS_BETTER" },
+  reach: { aggregation: "RAW_TOTAL", direction: "HIGHER_IS_BETTER" },
+  views: { aggregation: "RAW_TOTAL", direction: "HIGHER_IS_BETTER" },
+};
+
+/** An unregistered metric has no defensible aggregation — say so, don't guess. */
+export function metricSpec(name: string): MetricSpec | null {
+  return METRIC_SPECS[name] ?? null;
+}
+
 /** The single dimension an experiment is allowed to vary. */
 export type PrimaryVariable =
   | "hook_style"
@@ -57,6 +113,14 @@ export interface ExperimentArm {
   provider?: string;
   model?: string;
   promptVersion?: string;
+  // These four are declarable primary variables, so without matching arm fields
+  // findConfounds() could not tell whether a hook_style test also moved the
+  // narrative format — it would pass an unconfounded verdict on a confounded
+  // design. A variable you can name must be a field you can check.
+  hookStyle?: string;
+  narrativeFormat?: string;
+  lengthBand?: string;
+  voiceMode?: string;
 }
 
 export interface ExperimentDefinition {
@@ -94,13 +158,20 @@ export type ExperimentVerdict =
 export function findConfounds(def: ExperimentDefinition): string[] {
   const controlled: (keyof ExperimentArm)[] = [
     "franchiseId", "ctaType", "postingSlot", "contentOrigin", "provider", "model", "promptVersion",
+    "hookStyle", "narrativeFormat", "lengthBand", "voiceMode",
   ];
-  // The field the experiment is legitimately varying is exempt.
-  const varying: Partial<Record<PrimaryVariable, keyof ExperimentArm>> = {
+  // The field the experiment is legitimately varying is exempt. Every
+  // PrimaryVariable must appear here, or its own arm field would be reported as
+  // a confound and the experiment could never return a verdict.
+  const varying: Record<PrimaryVariable, keyof ExperimentArm> = {
     cta_type: "ctaType",
     posting_slot: "postingSlot",
     franchise: "franchiseId",
     content_origin: "contentOrigin",
+    hook_style: "hookStyle",
+    narrative_format: "narrativeFormat",
+    length_band: "lengthBand",
+    voice_mode: "voiceMode",
   };
   const exempt = varying[def.primaryVariable];
   const confounds: string[] = [];
@@ -112,27 +183,57 @@ export function findConfounds(def: ExperimentDefinition): string[] {
   return confounds;
 }
 
-/** Per-arm rate on the primary metric, normalised by reach where reach exists.
- *  Rate beats raw totals: an arm that simply got more reach is not a better arm. */
+/**
+ * Per-arm score on the primary metric, combined according to the metric's own
+ * declared aggregation (see METRIC_SPECS). A count becomes a per-reach rate so
+ * an arm that merely got more distribution is not credited for it; an average
+ * or ratio is combined as an average, because dividing it by reach would
+ * penalise the arm that reached more people.
+ */
 export function armRates(
   def: ExperimentDefinition,
   observations: ArmObservation[],
   horizonHours: 24 | 72 | 168 = 72,
 ): Map<string, { n: number; rate: number | null; reported: number }> {
   const out = new Map<string, { n: number; rate: number | null; reported: number }>();
+  const spec = metricSpec(def.primaryMetric);
+
   for (const arm of def.arms) {
     const obs = observations.filter((o) => o.armId === arm.armId && o.horizonHours === horizonHours);
     const reported = obs.filter((o) => o.metricValue !== null);
-    if (reported.length === 0) {
-      out.set(arm.armId, { n: obs.length, rate: null, reported: 0 });
+    if (reported.length === 0 || !spec) {
+      // No spec means no defensible way to combine — null, not a guessed number.
+      out.set(arm.armId, { n: obs.length, rate: null, reported: spec ? 0 : reported.length });
       continue;
     }
-    let sum = 0;
-    for (const o of reported) {
-      const r = o.reach && o.reach > 0 ? (o.metricValue as number) / o.reach : (o.metricValue as number);
-      sum += r;
+
+    let rate: number;
+    if (spec.aggregation === "COUNT_PER_REACH") {
+      let sum = 0;
+      for (const o of reported) {
+        sum += o.reach && o.reach > 0 ? (o.metricValue as number) / o.reach : (o.metricValue as number);
+      }
+      rate = sum / reported.length;
+    } else if (spec.aggregation === "WEIGHTED_AVERAGE") {
+      // Weight each post's average by the audience it was averaged over, so a
+      // 3.0s average off 5,000 viewers outweighs 3.4s off 40. Falls back to an
+      // unweighted mean when reach is unreported rather than dropping the post.
+      let num = 0;
+      let den = 0;
+      for (const o of reported) {
+        const w = o.reach && o.reach > 0 ? o.reach : 1;
+        num += (o.metricValue as number) * w;
+        den += w;
+      }
+      rate = num / den;
+    } else {
+      // RAW_AVERAGE, RATIO, RAW_TOTAL — already comparable; mean them.
+      let sum = 0;
+      for (const o of reported) sum += o.metricValue as number;
+      rate = sum / reported.length;
     }
-    out.set(arm.armId, { n: obs.length, rate: sum / reported.length, reported: reported.length });
+
+    out.set(arm.armId, { n: obs.length, rate, reported: reported.length });
   }
   return out;
 }
@@ -158,6 +259,17 @@ export function evaluateExperiment(
     };
   }
 
+  // An unregistered metric has no declared aggregation or direction. Ranking it
+  // would mean assuming both — and assuming "higher per reach is better" is
+  // exactly the bug this guard replaces.
+  const spec = metricSpec(def.primaryMetric);
+  if (!spec) {
+    return {
+      status: "invalid_design",
+      note: `"${def.primaryMetric}" has no entry in METRIC_SPECS — register its aggregation and direction before ranking arms on it`,
+    };
+  }
+
   const rates = armRates(def, observations, horizonHours);
   const smallest = Math.min(...[...rates.values()].map((r) => r.reported));
   if (smallest < MIN_SAMPLES_PER_ARM) {
@@ -169,9 +281,11 @@ export function evaluateExperiment(
     };
   }
 
+  // Best-first, where "best" depends on the metric: skip rate wins by being
+  // LOW. Sorting every metric descending silently crowned the worst arm.
   const scored = [...rates.entries()]
     .map(([armId, r]) => ({ armId, rate: r.rate ?? 0 }))
-    .sort((a, b) => b.rate - a.rate);
+    .sort((a, b) => (spec.direction === "LOWER_IS_BETTER" ? a.rate - b.rate : b.rate - a.rate));
 
   // Cold start: every arm at zero is not a tie between equals, it is an
   // absence of signal. Ranking zeros produces a confident arbitrary winner.
@@ -183,7 +297,12 @@ export function evaluateExperiment(
   }
 
   const [top, second] = scored;
-  const lift = second.rate === 0 ? Infinity : (top.rate - second.rate) / second.rate;
+  // Lift is the MAGNITUDE of the improvement, measured in the metric's own
+  // direction. Subtracting blind gives a negative lift whenever lower is
+  // better (0.4 vs 0.9 skip rate reads as -55%), which then trips the tie
+  // guard below and throws away a decisive result.
+  const gap = spec.direction === "LOWER_IS_BETTER" ? second.rate - top.rate : top.rate - second.rate;
+  const lift = second.rate === 0 ? Infinity : gap / second.rate;
   // A margin under 10% across this few posts is not a result.
   if (Number.isFinite(lift) && lift < 0.1) {
     return { status: "tie", note: `top two arms within ${(lift * 100).toFixed(1)}% — not separable at this sample size` };
