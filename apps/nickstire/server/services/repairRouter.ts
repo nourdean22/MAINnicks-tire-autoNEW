@@ -41,6 +41,11 @@ const CODE_ROUTES: Record<RenderedDefectCode, { method: RepairMethod; unit: Repa
   MALFORMED_GEOMETRY:     { method: "regenerate", unit: "generated_beat", paid: true },
   GENERATED_TEXT_ARTIFACT:{ method: "regenerate", unit: "generated_beat", paid: true },
   HUMAN_PRESENT:          { method: "regenerate", unit: "generated_beat", paid: true },
+  // Same route as HUMAN_PRESENT — a drawn body cannot be regraded or recut
+  // away, the beat has to be generated again. Kept as its own code because the
+  // repair INSTRUCTION differs: recast the presence as light and motion rather
+  // than simply remove a person.
+  NARRATOR_EMBODIED:      { method: "regenerate", unit: "generated_beat", paid: true },
   // Deterministic — no provider spend:
   CAPTION_OBSTRUCTION:    { method: "reassemble", unit: "caption_segment", paid: false },
   LIGHTING_DRIFT:         { method: "regrade",    unit: "color_grade",    paid: false },

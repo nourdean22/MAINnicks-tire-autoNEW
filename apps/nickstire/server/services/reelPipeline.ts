@@ -283,6 +283,19 @@ export async function enqueueReelJob(
     }
   }
   log.info("reel job enqueued", { jobId, briefId: brief.id, beats: brief.storyboardBeats?.length ?? 0 });
+  // Place the episode in the running experiment, if there is one. NO-OP by
+  // default (no experiment running), never throws — an unassigned episode is a
+  // measurement gap; a thrown error here would be a lost reel. Assignment
+  // happens at ENQUEUE rather than at publish so the arm is fixed before any
+  // generation decision could be influenced by it.
+  {
+    const { assignEpisodeToActiveExperiment } = await import("./contentExperimentStore");
+    // provider is intentionally omitted: it is resolved inside the reservation
+    // block above and is not in scope here, and guessing it would put a WRONG
+    // provider on the experiment record — the exact defect fixed in #1257.
+    await assignEpisodeToActiveExperiment(jobId, { contentOrigin: "ai_generated" });
+  }
+
   return { jobId };
 }
 
