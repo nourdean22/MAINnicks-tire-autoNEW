@@ -397,10 +397,24 @@ export function startTieredScheduler(): void {
             const d = await getDb();
             if (!d) return { details: "No DB" };
 
-            // Check for orphaned invoices (no matching customer phone)
-            const [orphanedInvoices] = await d.execute(sql`SELECT COUNT(*) as cnt FROM invoices WHERE customerPhone IS NULL OR customerPhone = ''`);
-            const orphanCount = (orphanedInvoices as Record<string, unknown>[])?.[0]?.cnt || (orphanedInvoices as Record<string, unknown>)?.cnt || 0;
-            if (Number(orphanCount) > 0) issues.push(`${orphanCount} invoices missing customer phone`);
+            // Invoices missing a customer phone.
+            //
+            // The lifetime total is NOT the right alarm. Measured 2026-08-01 against
+            // the whole backlog: of 175 such invoices, only 20 had a customer record
+            // anywhere to recover a phone from. The other 155 are walk-ins the shop
+            // never captured a number for — 74 with a surname absent from the customer
+            // base, 76 where the surname exists but the person doesn't (47 Williamses,
+            // no Terrence), 5 with a junk name. Nothing to fix, so a `> 0` alarm on the
+            // total could never clear; it sat red permanently and taught everyone to
+            // scroll past this panel.
+            //
+            // What IS actionable is a RECENT invoice arriving without a phone: that
+            // means the ALG import or the name-match phone backfill in
+            // shopDriverMirror.ts is broken right now. Alert on that; report the
+            // historical residue as context only.
+            const [recentMissing] = await d.execute(sql`SELECT COUNT(*) as cnt FROM invoices WHERE (customerPhone IS NULL OR customerPhone = '') AND invoiceDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)`);
+            const recentMissingCount = Number((recentMissing as Record<string, unknown>[])?.[0]?.cnt || (recentMissing as Record<string, unknown>)?.cnt || 0);
+            if (recentMissingCount > 0) issues.push(`${recentMissingCount} invoices missing customer phone in the last 7d (import may be broken)`);
 
             // Check for stale leads (new status > 7 days old)
             const [staleLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
