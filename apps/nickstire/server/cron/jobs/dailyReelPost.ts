@@ -196,7 +196,13 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // REEL_AUTO_VISUAL_WORLD) + builds the prompt pack for a brief that passed.
     let prepared;
     try {
-      prepared = await prepareCleanReelBrief({ topic }, { maxAttempts: 3 });
+      // 6, not 3. The truth gate now BLOCKS an ungrounded brief instead of
+      // warning, and measured compliance on real briefs was 5/12 — at ~42% per
+      // attempt, 3 tries skip the day's reel roughly once a week (0.58^3 ≈ 20%);
+      // 6 tries put that near 4%. This is affordable precisely because a
+      // rejected brief costs ONE LLM CALL: prepareCleanReelBrief attaches the
+      // visual world (which spends an image credit) only AFTER a brief passes.
+      prepared = await prepareCleanReelBrief({ topic }, { maxAttempts: 6 });
     } catch (err) {
       if (err instanceof PreflightExhaustedError) {
         // Deliberate benign skip: every candidate deterministically preflight-
