@@ -659,6 +659,18 @@ function normalizePhone(raw: string): string {
   return digits;
 }
 
+/**
+ * Key for name-based customer matching. ALG sends casing inconsistently
+ * ("WILLIAMS, RORY" beside "Pryor, Donald") and some imported customer rows
+ * carry trailing spaces ("Erica ", "CHERYL "). Comparing raw strings drops
+ * matches that are otherwise unambiguous, which left the invoice with no phone.
+ * Measured 2026-08-01 against the 175-row backlog: raw comparison found 17 of
+ * the 20 recoverable invoices; trimmed + case-folded finds all 20.
+ */
+export function nameKey(raw: string | null | undefined): string {
+  return String(raw ?? "").trim().toLowerCase();
+}
+
 function parseDollarsToCents(str: string): number {
   const cleaned = str.replace(/[^0-9.]/g, "");
   const num = parseFloat(cleaned);
@@ -851,10 +863,11 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
     const rows = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName, phone: customers.phone })
       .from(customers).where(inArray(customers.lastName, lastNamesForLookup));
     for (const r of rows) {
-      if (!r.lastName) continue;
-      const arr = customersByLastName.get(r.lastName) ?? [];
+      const key = nameKey(r.lastName);
+      if (!key) continue;
+      const arr = customersByLastName.get(key) ?? [];
       arr.push(r);
-      customersByLastName.set(r.lastName, arr);
+      customersByLastName.set(key, arr);
     }
   }
 
@@ -909,10 +922,12 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         const firstName = nameParts[1] || "";
 
         if (lastName) {
-          const candidates = customersByLastName.get(lastName) ?? [];
+          const candidates = customersByLastName.get(nameKey(lastName)) ?? [];
           const filtered = firstName
-            ? candidates.filter(c => c.firstName === firstName)
+            ? candidates.filter(c => nameKey(c.firstName) === nameKey(firstName))
             : candidates;
+          // Still exactly-one-or-nothing: a surname with several given names
+          // (47 Williamses, no Terrence) must stay unmatched, never guessed.
           if (filtered.length === 1) {
             customerId = filtered[0].id;
             matchedCustomerPhone = filtered[0].phone ?? null;
