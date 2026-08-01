@@ -19,6 +19,17 @@
 import { generateImageWithFallback } from "@/lib/ai/gemini-image";
 import { trackGeneration } from "@/lib/ai/track";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
+import { PROVIDERS_REGISTRY } from "@/config/ai-providers";
+
+// 2026-08-01 · was hardcoded to qwen3-vl:235b-instruct, RETIRED on Ollama
+// Cloud 2026-06-16 (HTTP 410). Unconditional — so the ollama leg of this
+// pipeline had been dead since, failing quietly into the fallback because
+// the request is wrapped in `if (res.ok)` + try/catch. Sourced from the
+// registry now, so a future retirement is a one-line config change.
+const OLLAMA_VISION_MODEL =
+  process.env.OLLAMA_VISION_MODEL?.trim() ||
+  PROVIDERS_REGISTRY.ollama.defaultVisionModel ||
+  PROVIDERS_REGISTRY.ollama.defaultModel;
 
 const ANALYZE_INSTRUCTION = `You are Nick, a marketing consultant for Nick's Tire & Auto in Cleveland.
 
@@ -117,7 +128,7 @@ async function analyzeWithVision(imageContent: ImageContent): Promise<{
           Authorization: `Bearer ${ollamaKey}`,
         },
         body: JSON.stringify({
-          model: "qwen3-vl:235b-instruct",
+          model: OLLAMA_VISION_MODEL,
           messages: [
             {
               role: "user",
@@ -138,7 +149,7 @@ async function analyzeWithVision(imageContent: ImageContent): Promise<{
         if (text) {
           return {
             analysis: parseAnalysis(text),
-            model: "qwen3-vl:235b-instruct",
+            model: OLLAMA_VISION_MODEL,
             durationMs: Date.now() - t0,
           };
         }

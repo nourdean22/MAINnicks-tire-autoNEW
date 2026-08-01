@@ -25,8 +25,9 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "deepseek-r1-671b": { input: 0.90, output: 2.50 },           // legacy entry
   "dolphin-2.9.3-mistral-7b": { input: 0.07, output: 0.07 },   // legacy entry
   // ── Ollama Cloud Pro — $20/mo flat, $0 per-call ──────────────────────
-  "qwen3-vl": { input: 0, output: 0 },
-  "qwen3-vl:235b-instruct": { input: 0, output: 0 },
+  "qwen3-vl": { input: 0, output: 0 },              // retired 2026-06-16; kept for historical rows
+  "qwen3-vl:235b-instruct": { input: 0, output: 0 }, // retired 2026-06-16; kept for historical rows
+  "gemma4:31b": { input: 0, output: 0 },             // current vision default (succeeded qwen3-vl)
   "qwen3-coder-next": { input: 0, output: 0 },
   "deepseek-v4-flash": { input: 0, output: 0 },
   "deepseek-v4-pro": { input: 0, output: 0 },
