@@ -145,6 +145,53 @@ export async function assignEpisodeToActiveExperiment(
   }
 }
 
+/**
+ * Which opening-line arm this episode belongs to, resolved BEFORE generation.
+ *
+ * Returns "direct" for the treatment arm and undefined for control (or when no
+ * hook experiment is running, which is the default). Deterministic on
+ * episodeKey, so a regeneration or retry re-derives the SAME arm instead of
+ * re-rolling — a re-roll would silently reassign an episode mid-experiment and
+ * contaminate the comparison.
+ *
+ * Separate from assignEpisodeToActiveExperiment on purpose: that one runs at
+ * enqueue and RECORDS an arm, which is all an observational study needs. Testing
+ * a hook style is interventional — the arm has to reach the prompt, and by
+ * enqueue the brief already exists.
+ */
+export async function hookArmForEpisode(episodeKey: string): Promise<"direct" | undefined> {
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return undefined;
+    const { contentExperiments } = await import("../../drizzle/schema");
+    const { and, eq, asc } = await import("drizzle-orm");
+    const rows = await d
+      .select()
+      .from(contentExperiments)
+      .where(and(eq(contentExperiments.status, "running"), eq(contentExperiments.primaryVariable, "hook_style")))
+      .orderBy(asc(contentExperiments.startedAt))
+      .limit(1);
+    if (!rows.length) return undefined;
+
+    const row = rows[0] as unknown as { experimentId: string; primaryVariable: string; objective: string; primaryMetric: string; armsJson: unknown; startedAt: Date };
+    const def: ExperimentDefinition = {
+      experimentId: row.experimentId,
+      primaryVariable: "hook_style",
+      objective: row.objective as ExperimentDefinition["objective"],
+      primaryMetric: row.primaryMetric,
+      arms: (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"],
+      startedAt: new Date(row.startedAt).toISOString(),
+    };
+    if (def.arms.length < 2) return undefined;
+    const arm = assignArm(def, episodeKey);
+    return arm.variantValue === "direct" ? "direct" : undefined;
+  } catch (err) {
+    log.warn("hook arm lookup failed — treating as control", { episodeKey, err: err instanceof Error ? err.message : String(err) });
+    return undefined;
+  }
+}
+
 /** Attach the published media id + time, which is what makes the episode
  *  measurable — a horizon cannot be derived without a publish timestamp. */
 export async function attachPublishedMedia(

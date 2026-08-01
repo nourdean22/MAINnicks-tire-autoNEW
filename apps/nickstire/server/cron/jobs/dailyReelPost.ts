@@ -202,7 +202,21 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // 6 tries put that near 4%. This is affordable precisely because a
       // rejected brief costs ONE LLM CALL: prepareCleanReelBrief attaches the
       // visual world (which spends an image credit) only AFTER a brief passes.
-      prepared = await prepareCleanReelBrief({ topic }, { maxAttempts: 6 });
+      // Resolve the experiment arm BEFORE generating. Assignment at enqueue
+      // (reelPipeline) records what happened; only this can change what is made.
+      // Deterministic on the brief id, so a retry re-derives the same arm rather
+      // than re-rolling and quietly contaminating the comparison.
+      let hookStyle;
+      try {
+        const { hookArmForEpisode } = await import("../../services/contentExperimentStore");
+        hookStyle = await hookArmForEpisode(briefId);
+        if (hookStyle) log.info("daily reel: hook experiment arm", { briefId, hookStyle });
+      } catch (err) {
+        // An experiment that cannot be read must not stop the day's reel. The
+        // episode simply runs as control and is recorded as such.
+        log.warn("hook arm lookup failed — generating as control", { err: err instanceof Error ? err.message : String(err) });
+      }
+      prepared = await prepareCleanReelBrief({ topic, hookStyle }, { maxAttempts: 6 });
     } catch (err) {
       if (err instanceof PreflightExhaustedError) {
         // Deliberate benign skip: every candidate deterministically preflight-

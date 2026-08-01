@@ -51,6 +51,22 @@ export interface GenerateReelBriefInput {
    *  an operator caption that carries a price or a fabricated stat must block
    *  just the same. */
   caption?: string;
+  /**
+   * Experiment arm for the OPENING LINE. Must be decided BEFORE generation —
+   * `assignEpisodeToActiveExperiment` runs at enqueue, which is after the brief
+   * exists, so it can record an arm but cannot influence one. Testing a hook
+   * style needs the intervention to reach the prompt.
+   *
+   *  "direct"  — the opener may not warm up; it states the thing immediately.
+   *  undefined — CONTROL. Current behaviour, untouched.
+   *
+   * There is deliberately no "warmup" arm. The hypothesis is that warm-up
+   * openers lose viewers (the account's two worst reels, 83.6 and 82.6 skip,
+   * are its only two warm-up openers) — and deliberately shipping content we
+   * expect to underperform, to a real audience, to prove a point we can already
+   * test one-sided, is not a trade worth making.
+   */
+  hookStyle?: "direct";
   /** Which show this episode belongs to. When set, the franchise contract
    *  (hook shape, reveal shape, allowed metaphors, CTA set, and its NEVER list)
    *  leads the creative section of the prompt — that is what makes the page
@@ -479,6 +495,20 @@ ${buildBrandBibleFragment()}`;
     systemPrompt += `
 
 ${buildFranchiseFragment(input.franchiseId)}`;
+  }
+
+  // EXPERIMENT ARM — opening line. Appended last so it outranks earlier guidance.
+  // Measured 2026-08-01: the account's two worst reels (83.6 and 82.6 skip, ~3s
+  // watch) are its only two warm-up openers; its best (39.8, 42.3) open with a
+  // question. n=2 per side — a hypothesis, which is why this is an EXPERIMENT
+  // and not a new rule in the master prompt.
+  if (input.hookStyle === "direct") {
+    systemPrompt +=
+      "\n\nOPENING LINE — EXPERIMENT ARM \"direct\": beat 1's onScreenText MUST state the thing itself in its first words. " +
+      "FORBIDDEN openers: scene-setting (\"Cleveland winters bring more than just snow...\"), \"ever wonder\", \"did you know\", " +
+      "\"let's talk about\", a place-name preamble (\"In Cleveland, ...\"), and any trailing ellipsis. " +
+      "Open with the symptom, the defect, or a direct question about it — e.g. \"Grinding means metal on metal\" or " +
+      "\"What is hiding under your car?\". A viewer who leaves in three seconds never reaches the caption, so the first words carry the whole reel.";
   }
 
   const skillPayload = await applyCreativeSkills({ type: "reel_brief" });
