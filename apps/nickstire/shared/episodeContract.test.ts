@@ -98,11 +98,19 @@ describe("the rule that makes this worth having", () => {
     expect(r.blocks).toContain("EVIDENCE_EXPIRED");
   });
 
-  it("blocks a claim citing evidence that isn't in the packet", () => {
+  it("REPORTS a claim citing evidence that is not in the packet", () => {
+    // Staged, not enforced: measured over 12 real briefs, enforcing this
+    // blocked 11 of them — the generator cites sources the curated registry
+    // does not cover, which is a curation backlog, not a lying episode.
     const r = preflightEpisode(contract({
       claims: [{ ...contract().claims[0], evidenceIds: ["ghost"] }],
     }));
-    expect(r.blocks).toContain("CLAIM_WITHOUT_EVIDENCE");
+    expect(r.warnings).toContain("CLAIM_WITHOUT_EVIDENCE");
+    const strict = preflightEpisode(
+      contract({ claims: [{ ...contract().claims[0], evidenceIds: ["ghost"] }] }),
+      new Date(), { requireClaimEvidence: true },
+    );
+    expect(strict.blocks).toContain("CLAIM_WITHOUT_EVIDENCE");
   });
 });
 
