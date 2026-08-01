@@ -114,6 +114,27 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
+
+  // Reload ONCE when a new service worker takes control.
+  //
+  // sw.js already calls skipWaiting() + clients.claim(), so a new worker
+  // activates immediately — but an ALREADY-OPEN tab keeps running against the
+  // page the old worker served. That tab is exactly the one at risk: it is
+  // holding a shell from the previous build.
+  //
+  // The `vite:preloadError` self-heal below cannot cover this. It fires when a
+  // lazy chunk 404s AFTER the app has mounted; if the shell itself is stale, no
+  // app code ever runs and there is nothing to catch the failure (measured
+  // 2026-08-01: rootChars=0, no console error, black screen).
+  //
+  // `refreshing` guards against a reload loop — controllerchange can fire again
+  // during the reload itself.
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
 }
 
 // wave-181.56 · self-heal on stale lazy-chunk failures
