@@ -458,7 +458,15 @@ export async function generateReelBriefAI(
     "\n\nOBJECTIVE — DISCOVERY: this is a REEL. Reels earn reach through WATCH TIME and SENDS (one viewer forwarding it to a specific person), which is how they reach non-followers. Optimise the FIRST TWO SECONDS above everything else: open on the physical problem, never on a title card or a greeting. Omit the CTA entirely if it does not read naturally — NONE is a valid choice and beats a bolted-on ask that costs watch time on the final beat." +
     "\n\nDO NOT ask the viewer to SAVE. A save is the objective for REFERENCE content (carousels, checklists) where the value is returning to it later; on a short reel a save prompt competes with the send that actually distributes it. Name the PERSON to send it to, not the action." +
     `\n\nHASHTAGS: 0 to ${INSTAGRAM_HASHTAG_CAP} only — Instagram caps posts at ${INSTAGRAM_HASHTAG_CAP} (hard limit since December 2025) and rejects or silently strips the excess. Hashtags do not inherently increase reach, so prefer 3 highly specific local/service tags over ${INSTAGRAM_HASHTAG_CAP} generic ones; zero is acceptable.` +
-    "\n\nSEARCH LANGUAGE: public posts from professional accounts are indexed by search engines. Write in the words a driver would actually search — \"grinding brakes in Cleveland\", \"used tires Euclid\", \"Ohio E-Check not ready\" — and put the SYMPTOM and the CITY in plain language in the caption body rather than relying on a vague hook.";
+    "\n\nSEARCH LANGUAGE: public posts from professional accounts are indexed by search engines. Write in the words a driver would actually search — \"grinding brakes in Cleveland\", \"used tires Euclid\", \"Ohio E-Check not ready\" — and put the SYMPTOM and the CITY in plain language in the caption body rather than relying on a vague hook." +
+    // HARD REQUIREMENT, restated at the end on purpose. The master prompt has
+    // asked for a proof source since it was written, and compliance measured
+    // 5/12 on real briefs (2026-07-31) — which was tolerable while the truth
+    // gate only warned, and is not now that it BLOCKS. At 42% per attempt and
+    // maxAttempts=3 the daily reel would skip roughly one day in five.
+    // Instructions nearest the output directive bind hardest, so it lives here
+    // as well as in the master prompt.
+    "\n\nHARD REQUIREMENT — SOURCE GROUNDING: at least ONE entry in sourceNotes MUST have kind exactly \"proof\" (lowercase). A brief without a proof-kind source note is REJECTED before rendering and the whole generation is wasted. The label alone is enough; a URL is optional. If you genuinely cannot ground the mechanic truth, say so in mechanicTruth rather than emitting a brief with no proof note.";
 
   // The visual bible leads every generation so the page reads as ONE studio.
   // It also carries the faceless constraint in the model's own words, which is
