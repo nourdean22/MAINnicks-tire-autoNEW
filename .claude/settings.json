@@ -2,6 +2,19 @@
   "enabledPlugins": {
     "vrcel@claude-plugins-official": false
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -File \"$CLAUDE_PROJECT_DIR\\scripts\\graphify-session-context.ps1\""
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(git fetch *)",
