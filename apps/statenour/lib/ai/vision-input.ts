@@ -8,7 +8,7 @@
  * question using the photo as visual context" path.
  *
  * Provider order:
- *   1. Ollama qwen3-vl:235b-instruct  (preferred — 1M context, Nour's local)
+ *   1. Ollama    (preferred — model from PROVIDERS_REGISTRY.ollama)
  *   2. OpenAI gpt-4o                  (fallback — best vision quality)
  *   3. Anthropic claude-haiku-4.5     (fallback — fast vision)
  *
@@ -20,6 +20,10 @@
  * 50+ call sites. Keeping vision-input as a dedicated helper avoids
  * the cross-cutting refactor.
  */
+
+// Pure-data module (zero imports of its own) — safe to pull into this
+// otherwise dependency-free helper without dragging in the AI SDKs.
+import { PROVIDERS_REGISTRY } from "@/config/ai-providers";
 
 // AiResponse isn't exported from provider.ts (it's internal there).
 // Inline a structurally-compatible type so callers can unify on shape.
@@ -58,10 +62,20 @@ interface ProviderResult {
   model: string;
 }
 
+// 2026-08-01 · This chain had BOTH failure modes the vision work of
+// 2026-07-12 / 07-29 was meant to end, in a module those passes missed:
+//   · the literal fallback was qwen3-vl:235b-instruct, RETIRED on Ollama
+//     Cloud 2026-06-16 (HTTP 410), and
+//   · the step before it fell back to OLLAMA_MODEL — the *chat* model
+//     (gpt-oss:120b locally) — so a vision turn was handed to a text
+//     model, which rejects the image part. That is the exact reported
+//     production defect ("Stream failed." on a photographed book).
+// Both are gone: the vision env override wins, otherwise the registry's
+// declared vision model. There is no chat-model fallback on this path.
 const OLLAMA_VISION_MODEL =
   cleanEnv(process.env.OLLAMA_VISION_MODEL) ||
-  cleanEnv(process.env.OLLAMA_MODEL) ||
-  "qwen3-vl:235b-instruct";
+  PROVIDERS_REGISTRY.ollama.defaultVisionModel ||
+  PROVIDERS_REGISTRY.ollama.defaultModel;
 const OPENAI_VISION_MODEL = "gpt-4o";
 const ANTHROPIC_VISION_MODEL = "claude-haiku-4-5-20251001";
 

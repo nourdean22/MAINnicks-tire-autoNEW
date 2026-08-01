@@ -75,9 +75,14 @@ commit_journal) and only after ≥8 approvals at ≥80% acceptance — and is cu
   DISABLES failover (this was the root cause of a prod chat stall; it was removed).
 - `OLLAMA_MODEL=glm-5.1` — chat model (operator-chosen: strongest + least-restricted GLM;
   tool-calling verified live).
-- `OLLAMA_VISION_MODEL=qwen3-vl:235b-instruct` — `createOllamaModel` routes `taskType:"vision"`
-  here so image turns stay multimodal while chat uses the stronger text model.
-- Revert model: `railway variables --set OLLAMA_MODEL=qwen3-vl:235b-instruct --service statenour-web`.
+- `OLLAMA_VISION_MODEL` — routes `taskType:"vision"` so image turns stay multimodal while chat
+  uses the stronger text model. **Leave it UNSET** unless pinning a verified-live model; unset
+  means the registry default in `config/ai-providers.ts` (`gemma4:31b`) applies.
+  ⚠️ 2026-08-01 · this line used to read `qwen3-vl:235b-instruct`. That model was RETIRED on
+  Ollama Cloud 2026-06-16 (HTTP 410) — pinning it silently kills every image turn.
+- Revert model: `railway variables --set OLLAMA_MODEL=<verified-live-model> --service statenour-web`.
+  ⚠️ This line used to name `qwen3-vl:235b-instruct`; following it would have pinned the PROD
+  **chat** lane to a retired model. Verify a model answers on the key before setting it.
 
 ---
 

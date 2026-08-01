@@ -18,9 +18,34 @@
  *   2. a provider that declares none can never serve an image turn.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PROVIDERS_REGISTRY } from "@/config/ai-providers";
 import { resolveProviderModel, isVisionCapableProvider } from "@/lib/ai/provider";
+
+const VISION_ENV_KEYS = Object.values(PROVIDERS_REGISTRY)
+  .map((cfg) => cfg.visionModelEnv)
+  .filter((k): k is string => Boolean(k));
+
+/**
+ * 2026-08-01 · These cases assert the REGISTRY DEFAULT resolves. That is
+ * only true when no operator override is set — and `resolveProviderModel`
+ * is documented to prefer `visionModelEnv` when it is.
+ *
+ * Ambient env reaches this suite: importing anything that transitively
+ * pulls `@/lib/prisma` runs `loadEnvConfig(process.cwd())` at module load
+ * (lib/prisma.ts), which loads the operator's untracked `.env` into
+ * process.env. So a developer with `OLLAMA_VISION_MODEL` set saw these
+ * fail while CI — which has no `.env` — stayed green. Clearing the
+ * override keys makes the default contract testable regardless of the
+ * machine; the override contract gets its own case below.
+ */
+beforeEach(() => {
+  for (const key of VISION_ENV_KEYS) vi.stubEnv(key, "");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("vision model resolution (all providers, not just ollama)", () => {
   it("every provider declaring a vision model resolves it for taskType vision", () => {
@@ -57,6 +82,34 @@ describe("vision model resolution (all providers, not just ollama)", () => {
     expect(resolveProviderModel("ollama", "vision")).not.toBe(
       PROVIDERS_REGISTRY.ollama.defaultModel,
     );
+  });
+
+  it("an operator override wins over the registry default", () => {
+    // The other half of the contract, previously untested — and the
+    // reason the default cases must clear the env first. A pinned
+    // override is legitimate (the registry comment invites it), so it
+    // must NOT be treated as a regression.
+    vi.stubEnv("OLLAMA_VISION_MODEL", "minimax-m3");
+    expect(resolveProviderModel("ollama", "vision")).toBe("minimax-m3");
+  });
+
+  it("a blank or whitespace override falls back to the registry default", () => {
+    // Fail-safe: an empty env var must not resolve to "" and hand the
+    // provider an unnamed model.
+    vi.stubEnv("OLLAMA_VISION_MODEL", "   ");
+    expect(resolveProviderModel("ollama", "vision")).toBe(
+      PROVIDERS_REGISTRY.ollama.defaultVisionModel,
+    );
+  });
+
+  it("the retired qwen3-vl model is not the default on any lane", () => {
+    // Regression pin for 2026-08-01: qwen3-vl:235b-instruct was RETIRED
+    // on Ollama Cloud 2026-06-16 (410) but survived as a hardcoded
+    // literal in vision-input.ts and photo-improver.ts for weeks after
+    // the registry was corrected. Nothing may default to it again.
+    for (const cfg of Object.values(PROVIDERS_REGISTRY)) {
+      expect(cfg.defaultVisionModel).not.toBe("qwen3-vl:235b-instruct");
+    }
   });
 
   it("non-vision task types are untouched by the change", () => {
