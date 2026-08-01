@@ -110,7 +110,29 @@ export function InstagramAdmin() {
         {/* h-auto is load-bearing (see Wave 3): the base TabsList fixes h-9. */}
         <TabsList className="grid h-auto w-full grid-cols-5 gap-1">
           {IG_PRIMARY_VIEWS.map((view) => (
-            <TabsTrigger key={view.key} value={view.key} className="min-h-11">{view.label}</TabsTrigger>
+            // onClick is BELT-AND-BRACES with Tabs' onValueChange, not a
+            // duplicate. Verified in production 2026-08-01: clicking a trigger
+            // left aria-selected and ?igview unchanged, so onValueChange was
+            // never reaching navigate(). Reproduced four ways — synthetic
+            // click, real trusted browser click, after clearing the service
+            // worker, and on a cache-busted fresh load — with the button
+            // enabled, 145x44, hit-testable and nothing overlaying it.
+            //
+            // Source, the shadcn wrapper (which spreads {...props}) and the
+            // deployed bundle all check out, so the cause sits somewhere in
+            // Radix 1.1.13's activation path that I could not isolate from
+            // outside. Rather than ship a speculative fix for the WHY, this
+            // makes the control do its job either way: navigate() is
+            // idempotent, so if onValueChange does fire we simply set the same
+            // view twice.
+            <TabsTrigger
+              key={view.key}
+              value={view.key}
+              className="min-h-11"
+              onClick={() => navigate(view.key)}
+            >
+              {view.label}
+            </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
