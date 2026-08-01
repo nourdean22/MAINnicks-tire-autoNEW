@@ -550,9 +550,48 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     return { processed: true, jobId: job.id, status: "assets_ready" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Retry on the next pulse until MAX_ATTEMPTS, then park as failed.
-    const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "queued";
-    await d.update(reelJobs).set({ status: nextStatus, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    // WHAT failed decides what to do about it. One blanket "retry until
+    // MAX_ATTEMPTS" resubmitted safety-blocked prompts unchanged (paying to be
+    // rejected identically), spent retries on rate limits that never ran, and
+    // treated an expired key as a flaky provider. See shared/providerErrors.ts.
+    const { classifyProviderError, nextStatusFor, stampError } = await import("../../shared/providerErrors");
+    // Whether a timeout is RESUMABLE or AMBIGUOUS is decided by whether an
+    // operation handle survived, and the handle lives on a beat inside the
+    // payload — which the Veo path rewrites immediately after submitting,
+    // BEFORE it polls. `job.payload` here is the copy read at claim time, so it
+    // predates that write; re-read the row or every Veo timeout is misread as
+    // the ambiguous Higgsfield case and goes terminal instead of resuming.
+    let hasRemoteOperationId = false;
+    try {
+      const [fresh] = await d
+        .select({ payload: reelJobs.payload })
+        .from(reelJobs)
+        .where(eq(reelJobs.id, job.id))
+        .limit(1);
+      const parsed = JSON.parse(fresh?.payload ?? "{}") as { storyboardBeats?: Array<{ veoOperationName?: string }> };
+      hasRemoteOperationId = (parsed.storyboardBeats ?? []).some(
+        (b) => typeof b?.veoOperationName === "string" && b.veoOperationName.length > 0,
+      );
+    } catch { /* unreadable payload — treat as no handle, i.e. the cautious branch */ }
+
+    const verdict = classifyProviderError(err, {
+      isLocalTimeout: isLocalTimeout(err),
+      hasRemoteOperationId,
+    });
+    const decided = nextStatusFor(verdict, attempt, MAX_ATTEMPTS, "queued");
+    const nextStatus = decided.status;
+    await d
+      .update(reelJobs)
+      .set({ status: nextStatus, attempts: decided.attempts, error: stampError(verdict, msg).slice(0, 1000) })
+      .where(eq(reelJobs.id, job.id));
+    log.warn("reel job failure classified", {
+      jobId: job.id,
+      errorClass: verdict.errorClass,
+      action: verdict.action,
+      mayDoubleSpend: verdict.mayDoubleSpend,
+      attempt,
+      nextStatus,
+    });
     if (nextStatus === "failed") {
       // Terminal failure: keep the conservative reservation as the spend
       // record (clips may have partially generated and burned credits).
