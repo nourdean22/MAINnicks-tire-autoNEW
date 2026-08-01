@@ -130,6 +130,30 @@ export interface PreflightResult {
   blocks: BlockCode[];
   /** One human-readable line per block, in the same order. */
   detail: string[];
+  /** Findings that are real but not yet enforced — see PENDING_WIRING. */
+  warnings: BlockCode[];
+}
+
+/**
+ * The two findings that mean "this pipeline does not carry evidence YET", as
+ * opposed to "this episode is unsafe".
+ *
+ * No evidence record currently reaches a reel brief — the evidence layer exists
+ * but was never wired into this path. Enforcing these today would block every
+ * reel the shop produces, so they are reported and not enforced until
+ * REEL_REQUIRE_CLAIM_EVIDENCE is turned on.
+ *
+ * Everything ELSE enforces immediately, including every claim-related block:
+ * CLAIM_CONTRADICTED, CLAIM_UNSUPPORTED, EVIDENCE_EXPIRED, QUALIFIER_DROPPED
+ * and CLAIM_WITHOUT_EVIDENCE can only fire once an episode actually declares
+ * claims — and at that point they describe a real defect, not a missing
+ * integration.
+ */
+export const PENDING_WIRING: readonly BlockCode[] = ["NO_CLAIMS", "ENTAILMENT_MISSING"];
+
+export interface PreflightOptions {
+  /** Promote PENDING_WIRING findings to hard blocks. */
+  requireClaimEvidence?: boolean;
 }
 
 /**
@@ -142,6 +166,7 @@ export interface PreflightResult {
 export function preflightEpisode(
   episode: EpisodeContract,
   now: Date = new Date(),
+  options: PreflightOptions = {},
 ): PreflightResult {
   const blocks: BlockCode[] = [];
   const detail: string[] = [];
@@ -226,7 +251,32 @@ export function preflightEpisode(
     add("EXPERIMENT_INCOMPLETE", "experimentId and armId must be set together or not at all");
   }
 
-  return { allowed: blocks.length === 0, blocks: [...new Set(blocks)], detail };
+  const unique = [...new Set(blocks)];
+  const enforced = options.requireClaimEvidence
+    ? unique
+    : unique.filter((b) => !PENDING_WIRING.includes(b));
+  const warnings = unique.filter((b) => !enforced.includes(b));
+
+  return { allowed: enforced.length === 0, blocks: enforced, detail, warnings };
+}
+
+/**
+ * What only the CALLER can know, and must therefore state.
+ *
+ * This is the required argument to enqueueReelJob. It is deliberately not a
+ * whole contract: passing a pre-built contract would let a caller satisfy the
+ * type by calling `fromReelJobBrief` and changing nothing, which is ceremony.
+ * Naming these four fields forces a real decision at each enqueue site —
+ * above all `disclosureMode`, which decides whether Meta AI disclosure is
+ * mandatory and must never be inherited from a default.
+ */
+export interface EpisodeDeclaration {
+  objective: EpisodeObjective;
+  disclosureMode: DisclosureMode;
+  ctaType: EpisodeContract["script"]["ctaType"];
+  claims?: EpisodeClaim[];
+  evidence?: EpisodeEvidence[];
+  experiment?: Partial<EpisodeContract["experiment"]>;
 }
 
 /**
@@ -282,4 +332,36 @@ export function fromReelJobBrief(
   };
 
   return { contract, missing };
+}
+
+/** Build the contract an enqueue is governed by, from the brief plus the caller's declaration. */
+export function contractFromDeclaration(
+  brief: Record<string, unknown>,
+  decl: EpisodeDeclaration,
+): EpisodeContract {
+  return fromReelJobBrief(brief, {
+    objective: decl.objective,
+    disclosureMode: decl.disclosureMode,
+    claims: decl.claims ?? [],
+    evidence: decl.evidence ?? [],
+    experiment: {
+      experimentId: decl.experiment?.experimentId ?? null,
+      armId: decl.experiment?.armId ?? null,
+      primaryVariable: decl.experiment?.primaryVariable ?? null,
+    },
+    script: {
+      caption: typeof brief.selectedCaption === "string" ? brief.selectedCaption : "",
+      voiceover: typeof brief.voiceoverScript === "string" ? brief.voiceoverScript : "",
+      ctaType: decl.ctaType,
+      hashtags: Array.isArray(brief.hashtags) ? (brief.hashtags as string[]) : [],
+    },
+    publication: {
+      idempotencyKey: `ep_${String(brief.id ?? "unknown")}`,
+      // Derived from the declared mode, never passed in — a caller cannot
+      // declare photorealistic output and then opt out of disclosing it.
+      disclosureRequired: requiresAiDisclosure(decl.disclosureMode),
+      captionHash: null,
+      mediaHash: null,
+    },
+  }).contract;
 }

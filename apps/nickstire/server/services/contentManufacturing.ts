@@ -1004,7 +1004,11 @@ export async function runManufacturingPipeline(
             // no-op + zero cost until enabled, non-fatal on failure.
             await attachAutonomousVisualWorld(brief);
 
-            const { jobId } = await enqueueReelJob(brief, "cron");
+            const { jobId } = await enqueueReelJob(brief, "cron", {
+              objective: "DISCOVERY",
+              disclosureMode: "visibly_animated",
+              ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+            });
 
             finalStatus = "generating";
             assetPaths = [];

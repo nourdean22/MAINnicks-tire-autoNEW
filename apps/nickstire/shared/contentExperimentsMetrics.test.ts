@@ -10,6 +10,7 @@ import {
   type ExperimentDefinition,
   type ArmObservation,
 } from "./contentExperiments";
+import { DISTRIBUTION_OBJECTIVE_METRICS } from "./instagramStudio";
 
 /**
  * Locks the metric-aggregation fix (2026-08-01).
@@ -97,6 +98,18 @@ describe("metric direction decides the winner", () => {
     ]);
     expect(v.status).toBe("winner");
     if (v.status === "winner") expect(v.armId).toBe("a");
+  });
+});
+
+describe("the registry covers the vocabulary the system actually declares", () => {
+  it("every DISTRIBUTION_OBJECTIVE_METRICS name has a spec", () => {
+    // The unknown-metric guard is only safe if the registry covers the names in
+    // use. It shipped registering "shares" while every experiment declares
+    // "shares_per_reach", so the guard rejected the one metric anyone used and
+    // turned a safety check into an outage. Assert coverage, don't assume it.
+    const declared = new Set(Object.values(DISTRIBUTION_OBJECTIVE_METRICS).flat());
+    const unregistered = [...declared].filter((m) => !metricSpec(m));
+    expect(unregistered).toEqual([]);
   });
 });
 

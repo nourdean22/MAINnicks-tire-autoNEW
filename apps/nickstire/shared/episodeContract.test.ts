@@ -44,12 +44,38 @@ describe("a clean episode passes", () => {
 });
 
 describe("the rule that makes this worth having", () => {
-  it("BLOCKS on not_evaluated — 'we never checked' is not evidence of support", () => {
-    const r = preflightEpisode(contract({
-      evidence: [{ ...contract().evidence[0], entailment: "not_evaluated" }],
-    }));
+  it("BLOCKS on not_evaluated once claim evidence is required", () => {
+    const r = preflightEpisode(
+      contract({ evidence: [{ ...contract().evidence[0], entailment: "not_evaluated" }] }),
+      new Date(),
+      { requireClaimEvidence: true },
+    );
     expect(r.allowed).toBe(false);
     expect(r.blocks).toContain("ENTAILMENT_MISSING");
+  });
+
+  it("reports it as a WARNING while the evidence layer is unwired", () => {
+    // No evidence record reaches a reel brief yet. Enforcing today would stop
+    // every reel the shop produces, so this is reported, not enforced — and it
+    // must stay visible rather than silently disappearing.
+    const r = preflightEpisode(
+      contract({ evidence: [{ ...contract().evidence[0], entailment: "not_evaluated" }] }),
+    );
+    expect(r.allowed).toBe(true);
+    expect(r.warnings).toContain("ENTAILMENT_MISSING");
+    expect(r.blocks).not.toContain("ENTAILMENT_MISSING");
+  });
+
+  it("staging covers ONLY the unwired findings — a real claim defect still blocks", () => {
+    // The distinction that matters: "not wired yet" is staged, "this claim is
+    // wrong" never is. Contradicted evidence can only appear once an episode
+    // actually declares claims, and at that point it is a defect.
+    const base = contract();
+    const r = preflightEpisode(contract({
+      evidence: [{ ...base.evidence[0], entailment: "contradicted" }],
+    }));
+    expect(r.allowed).toBe(false);
+    expect(r.blocks).toContain("CLAIM_CONTRADICTED");
   });
 
   it("blocks a contradicted source even if another supports it", () => {
@@ -144,10 +170,16 @@ describe("adoption seam", () => {
     expect(missing).toEqual(expect.arrayContaining(["objective", "disclosureMode", "claims", "evidence", "ctaType"]));
   });
 
-  it("a brief-derived contract fails preflight for exactly the reasons it should", () => {
+  it("a brief-derived contract surfaces its gaps for exactly the reasons it should", () => {
     const { contract: c } = fromReelJobBrief({ id: "42", selectedCaption: "hi" });
-    const r = preflightEpisode(c);
-    expect(r.allowed).toBe(false);
-    expect(r.blocks).toContain("NO_CLAIMS");
+
+    // Today: reported, so production keeps moving while the gap stays visible.
+    const staged = preflightEpisode(c);
+    expect(staged.warnings).toContain("NO_CLAIMS");
+
+    // With the flag on: blocked. Same finding, enforced.
+    const strict = preflightEpisode(c, new Date(), { requireClaimEvidence: true });
+    expect(strict.allowed).toBe(false);
+    expect(strict.blocks).toContain("NO_CLAIMS");
   });
 });

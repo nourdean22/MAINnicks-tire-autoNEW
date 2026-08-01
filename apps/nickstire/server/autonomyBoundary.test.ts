@@ -117,7 +117,9 @@ describe("trajectory: visualWorld + genomeId survive the SERVICE enqueue into th
     vi.resetModules();
     const { enqueueReelJob } = await import("./services/reelPipeline");
 
-    const { jobId } = await enqueueReelJob(briefClean as never, "admin");
+    const { jobId } = await enqueueReelJob(briefClean as never, "admin", {
+      objective: "DISCOVERY", disclosureMode: "visibly_animated", ctaType: "NONE",
+    });
 
     expect(jobId).toBe(42);
     const jobRow = captured.find((c) => typeof c.payload === "string");
@@ -140,6 +142,8 @@ describe("trajectory: visualWorld + genomeId survive the SERVICE enqueue into th
     vi.resetModules();
     const { enqueueReelJob } = await import("./services/reelPipeline");
     const base = SAMPLE_REEL_BRIEFS[0];
-    await expect(enqueueReelJob({ ...base, id: "x" } as never, "cron")).rejects.toThrow(/fail closed/);
+    await expect(enqueueReelJob({ ...base, id: "x" } as never, "cron", {
+      objective: "DISCOVERY", disclosureMode: "visibly_animated", ctaType: "NONE",
+    })).rejects.toThrow(/fail closed/);
   });
 });
