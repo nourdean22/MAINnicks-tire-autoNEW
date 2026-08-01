@@ -7,9 +7,22 @@
  * - Stale-while-revalidate for pages (show cached, fetch fresh)
  */
 
-// Bump this version on any structural change to assets (new CSS/JS bundle hashes,
-// schema changes, major image swaps). Old caches are pruned in the activate handler.
-const CACHE_NAME = "nicks-v2-perf-2026-05-05";
+// Old caches are pruned in the activate handler.
+//
+// THIS CONSTANT IS NO LONGER LOAD-BEARING FOR CORRECTNESS, and that is the fix.
+// It previously read "bump this on any structural change (new CSS/JS bundle
+// hashes)" — a cache-invalidation scheme that depends on a human remembering.
+// Nobody did: it sat at 2026-05-05 while bundle hashes rotated on every deploy.
+//
+// 2026-08-01, measured in prod: the admin rendered a BLANK PAGE. The SW served a
+// cached index.html from an old build, whose hashed <script> tags 404'd because
+// those files no longer existed. rootChars=0, buttons=0, no console error — a
+// silent black screen with nothing to report.
+//
+// Navigations are now NETWORK-FIRST (see fetch), so the shell is always fresh and
+// only ever requests hashes that exist. Hash rotation is harmless when the HTML
+// is current; the entire failure mode required a stale shell.
+const CACHE_NAME = "nicks-v3-network-first-shell";
 const STATIC_ASSETS = [
   "/",
   "/tires",
@@ -48,13 +61,18 @@ self.addEventListener("fetch", (event) => {
   // API calls — network first, no cache
   if (url.pathname.startsWith("/api/")) return;
 
-  // Static assets — cache first
+  // Static assets — cache first. Safe BECAUSE the filenames are content-hashed:
+  // a given hash is immutable, so a cache hit can never be stale. Only `ok`
+  // responses are cached — a 404 or a 5xx must never be stored, or one bad
+  // deploy moment gets frozen into the cache and served forever.
   if (url.pathname.match(/\.(js|css|png|jpg|webp|svg|woff2|ico)$/)) {
     event.respondWith(
       caches.match(event.request).then((cached) =>
         cached || fetch(event.request).then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
           return response;
         })
       )
@@ -62,17 +80,32 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pages — stale while revalidate
+  // Navigations / pages — NETWORK FIRST. This is the fix.
+  //
+  // Was stale-while-revalidate (`return cached || fetching`), which hands back
+  // the CACHED index.html immediately and only refreshes the cache for NEXT
+  // time. On a SPA that means: old shell now, referencing bundle hashes that
+  // were deleted by the latest deploy -> every <script> 404s -> blank page. The
+  // revalidate "fixes" a load the user already lost, and they see black.
+  //
+  // Network-first costs one round trip and removes the entire failure class:
+  // the shell is always current, so it only ever asks for hashes that exist.
+  // The cache is retained purely as an OFFLINE fallback, which is what a PWA
+  // actually needs it for.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetching = fetch(event.request).then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
         return response;
-      }).catch(() => cached);
-
-      return cached || fetching;
-    })
+      })
+      // Offline (or the request genuinely failed) — fall back to the cached
+      // shell, then to the cached root so a deep link still opens the app.
+      .catch(() =>
+        caches.match(event.request).then((cached) => cached || caches.match("/"))
+      )
   );
 });
 
