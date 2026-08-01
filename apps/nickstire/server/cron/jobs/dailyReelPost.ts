@@ -232,11 +232,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const { brief } = prepared;
     brief.id = briefId;
 
+    // The brief's factual spine, joined to real evidence records. mechanicTruth
+    // becomes the claim; proof-kind sourceNotes become handles the resolver
+    // turns into entailment-bearing records. Nothing is invented here — a brief
+    // with no resolvable proof yields a claim with no citations, and preflight
+    // is what decides whether that may ship.
+    const { buildClaimsFromBrief } = await import("../../services/episodeClaims");
+    const claimPacket = await buildClaimsFromBrief(brief as never);
+    log.info("episode claim packet", {
+      briefId,
+      claims: claimPacket.claims.length,
+      evidence: claimPacket.evidence.length,
+      entailment: claimPacket.evidence.map((e) => e.entailment),
+      rejected: claimPacket.rejected,
+    });
+
     // Declared, not defaulted. `visibly_animated` is a real assertion about
     // this pipeline's output — fully generated, no photorealistic human
     // footage — and it is what decides whether Meta AI disclosure is mandatory.
-    // Claims/evidence are not wired into this path yet; preflight reports that
-    // as a warning rather than silently accepting it.
     const { jobId } = await enqueueReelJob(brief, "cron", {
       objective: "DISCOVERY",
       disclosureMode: "visibly_animated",
@@ -244,6 +257,8 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // caption carries its ask in prose. Declared NONE rather than guessed, so
       // the governor's repetition check is not fed a fabricated CTA.
       ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+      claims: claimPacket.claims,
+      evidence: claimPacket.evidence,
     });
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId} (brief attempt ${prepared.attempts})`);
     // topicOrigin is in the cron_log line on purpose: a run that quietly fell
