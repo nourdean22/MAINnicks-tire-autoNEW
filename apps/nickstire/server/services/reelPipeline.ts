@@ -162,6 +162,23 @@ export async function enqueueReelJob(
   // brief rather than a bypass: the derived contract is held to the same rules,
   // and what the brief could not supply shows up as findings instead of being
   // assumed away.
+  // Instagram's cap is 5 and the generator routinely emits 10-12; every post
+  // this account has made violated it. Trimming here is NOT the silent
+  // truncation this file refuses to do for captions: tags 6..n were never
+  // publishable, so dropping them removes an already-illegal tail rather than
+  // amputating meaning. Blocking instead would have been worse — a measured
+  // dry-run showed it stopping 10 of 12 real briefs.
+  {
+    const { HASHTAG_CAP } = await import("../../shared/episodeContract");
+    const tags = brief.hashtags ?? [];
+    if (tags.length > HASHTAG_CAP) {
+      log.warn("hashtags over the platform cap — trimming", {
+        briefId: brief.id, had: tags.length, cap: HASHTAG_CAP, dropped: tags.slice(HASHTAG_CAP),
+      });
+      brief.hashtags = tags.slice(0, HASHTAG_CAP);
+    }
+  }
+
   {
     const { contractFromDeclaration, preflightEpisode } = await import("../../shared/episodeContract");
     const contract = contractFromDeclaration(brief as Record<string, unknown>, episode);

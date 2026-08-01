@@ -71,9 +71,13 @@ describe("what it refuses to do", () => {
     });
     expect(r.claims).toHaveLength(1);
     expect(r.claims[0].evidenceIds).toEqual([]);
-    // An uncited claim must be visible to the gate, not quietly discarded.
+    // An uncited claim must be visible to the gate, not quietly discarded —
+    // reported today (enforcing it stopped 11 of 12 real briefs), blocking
+    // once the registry covers the sources the generator cites.
     const { contract } = fromReelJobBrief({ id: "1" }, { claims: r.claims, evidence: r.evidence });
-    expect(preflightEpisode(contract).blocks).toContain("CLAIM_WITHOUT_EVIDENCE");
+    expect(preflightEpisode(contract).warnings).toContain("CLAIM_WITHOUT_EVIDENCE");
+    expect(preflightEpisode(contract, new Date(), { requireClaimEvidence: true }).blocks)
+      .toContain("CLAIM_WITHOUT_EVIDENCE");
   });
 
   it("never fabricates a qualifier for a partially-supported claim", async () => {

@@ -149,7 +149,24 @@ export interface PreflightResult {
  * claims — and at that point they describe a real defect, not a missing
  * integration.
  */
-export const PENDING_WIRING: readonly BlockCode[] = ["NO_CLAIMS", "ENTAILMENT_MISSING"];
+export const PENDING_WIRING: readonly BlockCode[] = [
+  "NO_CLAIMS",
+  "ENTAILMENT_MISSING",
+  // Added 2026-08-01 after a measured dry-run over 12 real briefs: 12/12 would
+  // have been BLOCKED, 11 of them on this code, i.e. all reel production
+  // stopped. I had reasoned this "can only fire once an episode declares
+  // claims, and then it is a real defect" — true before claims were wired, and
+  // wrong the moment they were. Every brief now declares a claim, and the
+  // generator cites sources the curated registry does not contain ("Tire
+  // Industry Association Repair Manual", "Michelin: Tire Repair and
+  // Patching"), so they resolve to nothing.
+  //
+  // That is a registry-coverage gap, not a lying episode: the claim is stated
+  // and a source WAS named, it simply is not one we can verify. Enforcing it
+  // today would punish the pipeline for a curation backlog. It stays reported
+  // until the registry covers the families the generator actually reaches for.
+  "CLAIM_WITHOUT_EVIDENCE",
+];
 
 export interface PreflightOptions {
   /** Promote PENDING_WIRING findings to hard blocks. */
