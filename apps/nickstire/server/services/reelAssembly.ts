@@ -692,14 +692,36 @@ export async function assembleReel(
     for (let i = 0; i < segs.length; i++) {
       const p = path.join(workDir, `clip-${i}.mp4`);
       const url = clipUrls[i];
-      if (url.includes("/generated/")) {
-        const filename = url.split("/").pop();
-        const localPath = path.join(process.cwd(), "data", "generated", filename!);
+      // A `/generated/` url is NO LONGER a promise of a local file.
+      //
+      // It used to be: storagePut wrote to data/generated/ and Express served
+      // that directory, so copying from disk was a free shortcut. Once object
+      // storage landed, `/generated/` became a PROXY route that streams out of
+      // S3 (storage.ts: publicObjectUrl + storageGetStream) — the bytes live in
+      // the bucket and the container's disk is empty. The shortcut kept
+      // assuming otherwise.
+      //
+      // Job 1200003 died on exactly this, having already PAID for four clips:
+      //   ENOENT: copyfile '/app/apps/nickstire/data/generated/veo-…mp4'
+      //           -> '/tmp/reel-1200003-…/clip-0.mp4'
+      // Its Higgsfield clips (remote CloudFront urls) took the fetch branch and
+      // were fine; only the proxied ones failed — which is why this looked like
+      // a Veo problem and was not one.
+      //
+      // Existence is now CHECKED rather than assumed. A genuinely local file
+      // (assets written before the store existed) still short-circuits; anything
+      // else goes over HTTP, which is the path that already worked.
+      const filename = url.split("/").pop();
+      const localPath = url.includes("/generated/") && filename
+        ? path.join(process.cwd(), "data", "generated", filename)
+        : null;
+      if (localPath && fs.existsSync(localPath)) {
         await fs.promises.copyFile(localPath, p);
       } else {
         const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`failed to fetch clip ${i}`);
+        if (!resp.ok) throw new Error(`failed to fetch clip ${i} (HTTP ${resp.status}) from ${url.split("/").pop()}`);
         const buf = Buffer.from(await resp.arrayBuffer());
+        if (buf.length < 1024) throw new Error(`clip ${i} fetched only ${buf.length} bytes — refusing to assemble a truncated clip`);
         await fs.promises.writeFile(p, buf);
       }
       clipPaths.push(p);
