@@ -97,6 +97,23 @@ describe("recovery routing", () => {
     expect(next.terminal).toBe(true);
   });
 
+  it("a safety block does not retry an identical prompt", () => {
+    // The prompt pack is compiled once at enqueue and read from the payload on
+    // every attempt, so a requeue resubmits the SAME text against a
+    // deterministic rejection — two more paid submissions to fail identically.
+    // Terminal until a real prompt-regeneration path exists.
+    const v = classifyProviderError(new Error("blocked by responsible AI"));
+    expect(v.action).toBe("REGENERATE_PROMPT");
+    const next = nextStatusFor(v, 1, MAX, "queued");
+    expect(next.status).toBe("failed");
+    expect(next.terminal).toBe(true);
+  });
+
+  it("an invalid request likewise stops rather than repeating unchanged", () => {
+    const v = classifyProviderError(new Error("400 invalid argument: unsupported duration"));
+    expect(nextStatusFor(v, 1, MAX, "queued").terminal).toBe(true);
+  });
+
   it("a transient failure still retries normally up to the cap", () => {
     const v = classifyProviderError(new Error("ECONNRESET"));
     expect(nextStatusFor(v, 1, MAX, "queued").status).toBe("queued");
