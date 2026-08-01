@@ -860,8 +860,18 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
   )];
   const customersByLastName = new Map<string, Array<{ id: number; firstName: string | null; lastName: string | null; phone: string | null }>>();
   if (lastNamesForLookup.length > 0) {
+    // COLLATE is load-bearing, not decoration. customers.lastName is declared
+    // utf8mb4_bin — case SENSITIVE and NO PAD — regardless of the connection
+    // collation. A plain inArray() therefore prefetches only rows whose casing
+    // happens to match this ticket's: "Aiken, David" never retrieves the stored
+    // "AIKEN". The candidate then never reaches the nameKey() filter below, so
+    // folding case in JS alone does not fix it. Verified 2026-08-01 against
+    // customer #1696: lastName = "Aiken" -> 0 rows, "AIKEN" -> 1 row.
+    // utf8mb4_unicode_ci is also PAD SPACE, which covers the trailing spaces
+    // some imported rows carry ("Erica ").
     const rows = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName, phone: customers.phone })
-      .from(customers).where(inArray(customers.lastName, lastNamesForLookup));
+      .from(customers)
+      .where(sql`${customers.lastName} COLLATE utf8mb4_unicode_ci IN (${sql.join(lastNamesForLookup.map(n => sql`${n}`), sql`, `)})`);
     for (const r of rows) {
       const key = nameKey(r.lastName);
       if (!key) continue;
