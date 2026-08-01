@@ -1583,7 +1583,10 @@ export const contentAdminRouter = router({
           expiresAt: z.string(),
           snapshotHash: z.string().nullable(),
           snapshotStatus: z.enum(["fetched", "fetch_blocked", "db_row", "not_attempted"]),
-          entailment: z.literal("not_evaluated"),
+          // Was z.literal("not_evaluated") — a real verdict would have been
+          // rejected by the very schema meant to carry it.
+          entailment: z.enum(["supported", "partially_supported", "contradicted", "not_supported", "not_evaluated"]),
+          entailmentReasons: z.array(z.string()).optional(),
           confidence: z.number(),
           sensitivity: z.enum(["public", "internal"]),
         })).optional(),
