@@ -220,35 +220,67 @@ export const instagramAdminRouter = router({
    */
   getReelReliability: adminProcedure.query(async () => {
     const database = await db();
-    const unknown = { windowDays: 30, total: null as number | null, byStatus: {} as Record<string, number>, succeeded: null as number | null, failed: null as number | null, ambiguous: null as number | null, failureRate: null as number | null };
+    // `closedFailures` is null here, NOT 0 — the shapes must match or a consumer
+    // reads undefined on the error path, and "we could not count" must never
+    // render as "there were none".
+    const unknown = { windowDays: 30, total: null as number | null, byStatus: {} as Record<string, number>, succeeded: null as number | null, failed: null as number | null, closedFailures: null as number | null, ambiguous: null as number | null, failureRate: null as number | null };
     if (!database) return unknown;
     try {
       const { reelJobs } = await import("../../drizzle/schema");
       const { sql } = await import("drizzle-orm");
+      // A failure the operator already closed is not a reliability problem.
+      // Measured 2026-08-01: this panel read "67 jobs · 48 failed · 72% failure"
+      // while 11 of those failures were the resolved Higgsfield outage plus
+      // operator discards and supersessions. The arithmetic was correct and the
+      // signal was wrong — the same defect the attention badge had, in a second
+      // panel, telling you the pipeline is broken when the causes are fixed.
+      //
+      // Counted SEPARATELY rather than dropped, so closing a job cannot quietly
+      // improve the score with nobody able to see it.
+      const { OPERATOR_CLOSED_MARKERS } = await import("../services/reelRecoverability");
+      const closedPattern = OPERATOR_CLOSED_MARKERS.map((m) => `%${m}%`);
+      const isClosed = sql`(${reelJobs.error} IS NOT NULL AND (${sql.join(
+        closedPattern.map((p) => sql`${reelJobs.error} LIKE ${p}`),
+        sql` OR `,
+      )}))`;
       const rows = await database
-        .select({ status: reelJobs.status, n: sql<number>`count(*)` })
+        .select({
+          status: reelJobs.status,
+          closed: sql<number>`CASE WHEN ${isClosed} THEN 1 ELSE 0 END`,
+          n: sql<number>`count(*)`,
+        })
         .from(reelJobs)
         .where(sql`${reelJobs.createdAt} >= DATE_SUB(NOW(), INTERVAL 30 DAY)`)
-        .groupBy(reelJobs.status);
+        .groupBy(reelJobs.status, sql`CASE WHEN ${isClosed} THEN 1 ELSE 0 END`);
       const byStatus: Record<string, number> = {};
       let total = 0;
-      for (const r of rows as Array<{ status: string | null; n: unknown }>) {
+      let closedFailures = 0;
+      for (const r of rows as Array<{ status: string | null; closed: unknown; n: unknown }>) {
         const n = Number(r.n);
         if (!Number.isFinite(n)) continue;
-        byStatus[r.status ?? "unknown"] = n;
+        const key = r.status ?? "unknown";
+        byStatus[key] = (byStatus[key] ?? 0) + n;
         total += n;
+        if (key === "failed" && Number(r.closed) === 1) closedFailures += n;
       }
       const succeeded = (byStatus.posted ?? 0) + (byStatus.published ?? 0);
-      const failed = byStatus.failed ?? 0;
+      // Unresolved failures only. `closedFailures` is surfaced beside it so the
+      // difference stays visible rather than being quietly netted out.
+      const failed = Math.max(0, (byStatus.failed ?? 0) - closedFailures);
       const ambiguous = byStatus.publish_ambiguous ?? 0;
+      // Denominator drops the closed ones too: leaving them in would make the
+      // rate look better simply because more jobs were closed, which is the
+      // mirror image of the bug being fixed.
+      const denominator = Math.max(0, total - closedFailures);
       return {
         windowDays: 30,
         total,
         byStatus,
         succeeded,
         failed,
+        closedFailures,
         ambiguous,
-        failureRate: total > 0 ? Math.round((failed / total) * 100) / 100 : null,
+        failureRate: denominator > 0 ? Math.round((failed / denominator) * 100) / 100 : null,
       };
     } catch (err) {
       log.warn("reel reliability query failed — reporting unknown, not healthy", err);
