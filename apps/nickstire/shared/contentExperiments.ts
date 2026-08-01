@@ -71,15 +71,43 @@ export interface MetricSpec {
  * a rate where lower wins — both were previously ranked as if higher-per-reach
  * were better.
  */
+const COUNT: MetricSpec = { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" };
+
+/**
+ * Names come from DISTRIBUTION_OBJECTIVE_METRICS — the system's own vocabulary
+ * — not from invented ones. The first version registered "shares" while every
+ * experiment in the repo declares "shares_per_reach", so the unknown-metric
+ * guard rejected the only metric actually in use. A registry that does not
+ * cover the declared vocabulary turns a safety check into an outage; the test
+ * below asserts coverage rather than trusting this list to stay in sync.
+ *
+ * `*_per_reach` names describe the OUTPUT, not the input: observations carry a
+ * raw count plus reach, and COUNT_PER_REACH is what performs the division.
+ */
 export const METRIC_SPECS: Record<string, MetricSpec> = {
-  shares: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
-  saved: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
-  comments: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
-  likes: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
-  follows: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
-  profile_visits: { aggregation: "COUNT_PER_REACH", direction: "HIGHER_IS_BETTER" },
+  // discovery
+  avg_watch_time: { aggregation: "WEIGHTED_AVERAGE", direction: "HIGHER_IS_BETTER" },
+  skip_rate: { aggregation: "RAW_AVERAGE", direction: "LOWER_IS_BETTER" },
+  shares_per_reach: COUNT,
+  follows_per_reach: COUNT,
+  // utility
+  saves_per_reach: COUNT,
+  profile_visits_per_reach: COUNT,
+  // trust / conversion / community
+  dms: COUNT,
+  direction_taps: COUNT,
+  calls: COUNT,
+  profile_link_taps: COUNT,
+  booking_actions: COUNT,
+  comments: COUNT,
+  replies: COUNT,
+  poll_participation: COUNT,
+  // raw Instagram insight field names, for experiments declared against them
   ig_reels_avg_watch_time: { aggregation: "WEIGHTED_AVERAGE", direction: "HIGHER_IS_BETTER" },
   reels_skip_rate: { aggregation: "RAW_AVERAGE", direction: "LOWER_IS_BETTER" },
+  shares: COUNT,
+  saved: COUNT,
+  likes: COUNT,
   reach: { aggregation: "RAW_TOTAL", direction: "HIGHER_IS_BETTER" },
   views: { aggregation: "RAW_TOTAL", direction: "HIGHER_IS_BETTER" },
 };

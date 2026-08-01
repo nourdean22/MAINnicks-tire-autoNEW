@@ -15,6 +15,7 @@
 import { createLogger } from "../lib/logger";
 import type { ReelAssemblyBrief } from "./reelAssembly";
 import type { CtaType } from "../../shared/instagramStudio";
+import type { EpisodeContract, EpisodeDeclaration } from "../../shared/episodeContract";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -103,6 +104,8 @@ export interface ReelJobBrief {
    * believing it was varying CTAs, so every reel could carry the same ask.
    */
   ctaType?: CtaType;
+  /** The contract this job is governed by, stamped at enqueue. */
+  episodeContract?: EpisodeContract;
   selectedCaption?: string;
   hashtags?: string[];
   storyboardBeats?: Array<{ 
@@ -130,14 +133,57 @@ export interface ReelJobBrief {
  * Enqueue a reel for background generation. Returns immediately with a jobId;
  * the pulse cron processes it. Does NOT generate or publish here.
  */
+/**
+ * Enqueue a reel.
+ *
+ * `episode` is REQUIRED. It is the authority for what this episode claims,
+ * says, and discloses; the brief is now an input to that contract rather than a
+ * parallel source of truth. Callers build it with `fromReelJobBrief` (which
+ * reports what the brief could not supply) plus whatever the caller genuinely
+ * knows — objective, disclosure mode, CTA, claims, evidence.
+ *
+ * The contract is preflighted BEFORE the spend boundary and persisted with the
+ * job, so every later stage derives from one stored artifact instead of
+ * re-deriving from a bag of optional fields.
+ */
 export async function enqueueReelJob(
   brief: ReelJobBrief,
-  source: "admin" | "cron" = "admin",
+  source: "admin" | "cron",
+  episode: EpisodeDeclaration,
 ): Promise<{ jobId: number }> {
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) throw new Error("DB not available");
   const { reelJobs } = await import("../../drizzle/schema");
+
+  // Contract preflight runs FIRST — before the legacy preflight, before the
+  // spend boundary, before the governor reservation — so a contract defect
+  // costs nothing. A caller that supplies no contract gets one derived from the
+  // brief rather than a bypass: the derived contract is held to the same rules,
+  // and what the brief could not supply shows up as findings instead of being
+  // assumed away.
+  {
+    const { contractFromDeclaration, preflightEpisode } = await import("../../shared/episodeContract");
+    const contract = contractFromDeclaration(brief as Record<string, unknown>, episode);
+    const pre = preflightEpisode(contract, new Date(), {
+      requireClaimEvidence: process.env.REEL_REQUIRE_CLAIM_EVIDENCE === "true",
+    });
+    if (pre.warnings.length) {
+      // Real findings the pipeline cannot yet enforce because no evidence
+      // record reaches a reel brief. Logged every time so the gap stays visible
+      // rather than becoming invisible acceptance.
+      log.warn("episode contract findings NOT enforced (claim/evidence layer unwired)", {
+        briefId: brief.id, source, warnings: pre.warnings,
+      });
+    }
+    if (!pre.allowed) {
+      log.warn("episode contract BLOCKED enqueue — no spend reserved", {
+        briefId: brief.id, source, blocks: pre.blocks,
+      });
+      throw new Error(`Episode contract blocked (${pre.blocks.length}): ${pre.detail.join("; ")}`);
+    }
+    (brief as { episodeContract?: EpisodeContract }).episodeContract = contract;
+  }
 
   // M10: deterministic preflight — do NOT reserve paid generation for a brief
   // with a predictable defect. Runs BEFORE the spend boundary + governor

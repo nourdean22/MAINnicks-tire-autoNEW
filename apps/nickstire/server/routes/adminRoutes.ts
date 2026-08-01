@@ -126,7 +126,11 @@ export function registerAdminRoutes(app: Express): void {
         const { brief, attempts, rejectedForPreflight } = await prepareCleanReelBrief({ topic, caption }, { maxAttempts });
         brief.id = `canary-${Date.now()}`;
         const conditioningMode = resolveConditioningMode(brief);
-        const { jobId: newJobId } = await enqueueReelJob(brief, "admin");
+        const { jobId: newJobId } = await enqueueReelJob(brief, "admin", {
+          objective: "DISCOVERY",
+          disclosureMode: "visibly_animated",
+          ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+        });
         res.json({
           ok: true, action, jobId: newJobId, conditioningMode, attempts,
           preflightRejections: rejectedForPreflight.length,

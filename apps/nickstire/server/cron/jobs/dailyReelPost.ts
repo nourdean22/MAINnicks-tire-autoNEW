@@ -232,7 +232,19 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const { brief } = prepared;
     brief.id = briefId;
 
-    const { jobId } = await enqueueReelJob(brief, "cron");
+    // Declared, not defaulted. `visibly_animated` is a real assertion about
+    // this pipeline's output — fully generated, no photorealistic human
+    // footage — and it is what decides whether Meta AI disclosure is mandatory.
+    // Claims/evidence are not wired into this path yet; preflight reports that
+    // as a warning rather than silently accepting it.
+    const { jobId } = await enqueueReelJob(brief, "cron", {
+      objective: "DISCOVERY",
+      disclosureMode: "visibly_animated",
+      // ReelBrief (the generator's shape) has no ctaType yet — the generated
+      // caption carries its ask in prose. Declared NONE rather than guessed, so
+      // the governor's repetition check is not fed a fabricated CTA.
+      ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+    });
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId} (brief attempt ${prepared.attempts})`);
     // topicOrigin is in the cron_log line on purpose: a run that quietly fell
     // back to the manifest looks identical to a healthy one otherwise, and

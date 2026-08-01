@@ -178,6 +178,7 @@ describe("golden campaign (deterministic mode)", () => {
     const { jobId } = await enqueueReelJob(
       { ...draft.brief, id: "golden_1", genomeId: "genome_golden", visualWorld: world } as never,
       "admin",
+      { objective: "DISCOVERY", disclosureMode: "visibly_animated", ctaType: "NONE" },
     );
     expect(jobId).toBe(42);
 

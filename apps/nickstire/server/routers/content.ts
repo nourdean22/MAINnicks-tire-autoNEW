@@ -1695,7 +1695,11 @@ export const contentAdminRouter = router({
       const { enqueueReelJob } = await import("../services/reelPipeline");
       let jobId: number;
       try {
-        ({ jobId } = await enqueueReelJob(briefWithId, "admin"));
+        ({ jobId } = await enqueueReelJob(briefWithId, "admin", {
+          objective: "DISCOVERY",
+          disclosureMode: "visibly_animated",
+          ctaType: (briefWithId as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+        }));
       } catch (err) {
         if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
           throw new TRPCError({ code: "FORBIDDEN", message: err.message });
@@ -2267,7 +2271,11 @@ export const contentAdminRouter = router({
       // authorizes this canary; the pipeline reads the real flags, which must
       // already be armed in the test environment for generation to proceed.
       {
-        const { jobId } = await enqueueReelJob(bestBrief, "admin");
+        const { jobId } = await enqueueReelJob(bestBrief, "admin", {
+          objective: "DISCOVERY",
+          disclosureMode: "visibly_animated",
+          ctaType: (bestBrief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+        });
         log.info(`Enqueued reel job ID: ${jobId}`);
 
         // Run clip generation
@@ -2831,7 +2839,11 @@ export const contentAdminRouter = router({
       const { GovernorDenial } = await import("../services/contentGovernor");
       const { jobId: newJobId } = await withOperatorAction(
         { action: "regenerate", operatorId: ctx.user?.id ?? null, jobId: input.jobId, costsMoney: true },
-        () => enqueueReelJob(brief as never, "admin"),
+        () => enqueueReelJob(brief as never, "admin", {
+          objective: "DISCOVERY",
+          disclosureMode: "visibly_animated",
+          ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+        }),
         {
           /**
            * The system REFUSING is not the system breaking, and this is the
