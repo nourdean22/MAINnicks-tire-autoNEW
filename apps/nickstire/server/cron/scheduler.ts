@@ -400,13 +400,13 @@ export function startTieredScheduler(): void {
             // Invoices missing a customer phone.
             //
             // The lifetime total is NOT the right alarm. Measured 2026-08-01 against
-            // the whole backlog: of 175 such invoices, only 20 had a customer record
-            // anywhere to recover a phone from. The other 155 are walk-ins the shop
-            // never captured a number for — 74 with a surname absent from the customer
-            // base, 76 where the surname exists but the person doesn't (47 Williamses,
-            // no Terrence), 5 with a junk name. Nothing to fix, so a `> 0` alarm on the
-            // total could never clear; it sat red permanently and taught everyone to
-            // scroll past this panel.
+            // the whole backlog of 175: 20 were recoverable from a customers row, and
+            // a further 19 from alg_estimates, leaving 136. Those 136 have no phone in
+            // ANY of the 30 tables carrying both a name and a phone column — walk-ins
+            // whose number the shop never took, plus names that exist but belong to
+            // different people (22 Williamses, no Terrence) and 5 junk names.
+            // Nothing to fix, so a `> 0` alarm on the total could never clear; it sat
+            // red permanently and everyone learned to scroll past this panel.
             //
             // What IS actionable is a RECENT invoice arriving without a phone: that
             // means the ALG import or the name-match phone backfill in
