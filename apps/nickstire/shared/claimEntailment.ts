@@ -118,6 +118,93 @@ function universalsIn(s: string): string[] {
 }
 
 /**
+ * Pick the passage of a document that actually bears on the claim.
+ *
+ * WHY THIS IS NOT OPTIONAL
+ * Entailment against a whole page is a false-confidence machine. A retrieved
+ * government page is ~10,000 characters of prose plus navigation chrome; almost
+ * any claim's vocabulary appears SOMEWHERE in it, so token overlap approaches
+ * 1.0 and `evaluateEntailment` returns `supported` for statements the page
+ * never makes. Stray numbers scattered across the page satisfy the
+ * number-presence check for the same reason.
+ *
+ * Scoping to the best-matching window fixes both, and produces the thing a
+ * citation should have been all along: the specific sentences a reader can
+ * check. Returns null when nothing in the document is even topically close —
+ * which must stay a refusal, not a fallback to the whole page.
+ */
+export function selectSupportingPassage(
+  documentText: string,
+  claimText: string,
+  opts: { maxChars?: number; minOverlap?: number } = {},
+): { passage: string; overlap: number; sentenceCount: number } | null {
+  const maxChars = opts.maxChars ?? 600;
+  const minOverlap = opts.minOverlap ?? 0.3;
+
+  const claimTokens = tokens(claimText);
+  if (!claimTokens.length) return null;
+  const claimSet = new Set(claimTokens);
+
+  // Sentence-ish units, so a passage is quotable rather than mid-clause.
+  const sentences = String(documentText ?? "")
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 25);
+  if (!sentences.length) return null;
+
+  // Slide a small window so a claim split across two sentences still matches.
+  // The span is reported, not hidden: a window that collects the claim's terms
+  // from SEPARATE sentences is an inference, and entailAgainstPassage caps it
+  // below `supported` for that reason.
+  let best: { passage: string; overlap: number; sentenceCount: number } | null = null;
+  for (let i = 0; i < sentences.length; i++) {
+    for (let span = 1; span <= 3 && i + span <= sentences.length; span++) {
+      const passage = sentences.slice(i, i + span).join(" ");
+      if (passage.length > maxChars) break;
+      const passageSet = new Set(tokens(passage));
+      const hit = claimTokens.filter((t) => passageSet.has(t)).length / claimTokens.length;
+      // Ties go to the SMALLER span: the tightest passage that explains the
+      // claim is the honest citation.
+      if (!best || hit > best.overlap) best = { passage, overlap: hit, sentenceCount: span };
+    }
+  }
+
+  if (!best || best.overlap < minOverlap) return null;
+  void claimSet;
+  return best;
+}
+
+/**
+ * Entail a claim against a selected passage, capped by how that passage was
+ * assembled.
+ *
+ * A single sentence can entail a claim. A window stitched from several
+ * sentences cannot: "Brake pads wear gradually…" plus "Engine oil is changed
+ * every 30,000 miles" contains every term of "Brake pads should be changed
+ * every 30,000 miles" while the document says no such thing. Bag-of-words
+ * matching cannot tell those apart, so a multi-sentence match tops out at
+ * `partially_supported` — which requires a qualifier — instead of passing as
+ * verified.
+ */
+export function entailAgainstPassage(
+  claimText: string,
+  selected: { passage: string; overlap: number; sentenceCount: number },
+): EntailmentResult {
+  const res = evaluateEntailment(claimText, selected.passage);
+  if (res.verdict === "supported" && selected.sentenceCount > 1) {
+    return {
+      ...res,
+      verdict: "partially_supported",
+      reasons: [
+        ...res.reasons,
+        `the claim's terms are spread across ${selected.sentenceCount} separate sentences — that is an inference, not a statement the source makes`,
+      ],
+    };
+  }
+  return res;
+}
+
+/**
  * Compare one claim against the exact excerpt cited for it.
  *
  * `sourceExcerpt` must be the text actually retrieved from the source. Passing
@@ -181,9 +268,26 @@ export function evaluateEntailment(claimText: string, sourceExcerpt: string | nu
     return { verdict: "partially_supported", reasons, unsupportedUniversals, unsupportedNumbers };
   }
 
-  if (overlap >= 0.6) {
-    reasons.push(`every number in the claim appears in the source and ${Math.round(overlap * 100)}% of its terms match`);
+  // COVERAGE, not just proportion. Overlap treats every token alike, so a
+  // claim can score 67% while missing its own SUBJECT: "Brake pads should be
+  // changed every 30,000 miles" matched a sentence reading "Engine oil is
+  // typically changed every 30,000 miles" — four of six terms, both numbers
+  // present, subject absent, verdict `supported`. Requiring near-total term
+  // coverage for `supported` closes that; anything thinner is partial, which
+  // demands a qualifier rather than passing silently.
+  const missing = claimTokens.filter((t) => !srcTokens.has(t));
+  if (overlap >= 0.75 && missing.length <= 1) {
+    reasons.push(
+      `every number in the claim appears in the source and ${Math.round(overlap * 100)}% of its terms match` +
+        (missing.length ? ` (only "${missing[0]}" absent)` : ""),
+    );
     return { verdict: "supported", reasons, unsupportedNumbers, unsupportedUniversals };
+  }
+  if (missing.length > 1 && overlap >= 0.6) {
+    reasons.push(
+      `the source is close but never states "${missing.join('", "')}" — verify before publishing unqualified`,
+    );
+    return { verdict: "partially_supported", reasons, unsupportedNumbers, unsupportedUniversals };
   }
 
   reasons.push(`partial term overlap (${Math.round(overlap * 100)}%) with no contradicted specifics — verify the wording before publishing unqualified`);
