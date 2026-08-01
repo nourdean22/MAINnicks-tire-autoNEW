@@ -88,6 +88,63 @@ export async function assignEpisode(
   return { armId: arm.armId, variantValue: arm.variantValue };
 }
 
+/**
+ * Assign a reel job to whichever experiment is currently RUNNING, if any.
+ *
+ * This is the pipeline's entry point, and it is deliberately a NO-OP when no
+ * experiment is running — which is the default state. Wiring it in therefore
+ * changes nothing until an operator starts an experiment, and a failure here
+ * must never take down a reel: an unassigned episode is a measurement gap, a
+ * thrown error is a lost reel. Logged, swallowed, returns null.
+ *
+ * Picks the OLDEST running experiment so two overlapping ones cannot silently
+ * fight over the same episode.
+ */
+export async function assignEpisodeToActiveExperiment(
+  reelJobId: number,
+  context: { franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string } = {},
+): Promise<{ experimentId: string; armId: string; variantValue: string } | null> {
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return null;
+    const { contentExperiments } = await import("../../drizzle/schema");
+    const { eq, asc } = await import("drizzle-orm");
+    const rows = await d
+      .select()
+      .from(contentExperiments)
+      .where(eq(contentExperiments.status, "running"))
+      .orderBy(asc(contentExperiments.startedAt))
+      .limit(1);
+    if (!rows.length) return null;
+
+    const row = rows[0] as unknown as {
+      experimentId: string; primaryVariable: string; objective: string; primaryMetric: string;
+      armsJson: unknown; startedAt: Date;
+    };
+    const def: ExperimentDefinition = {
+      experimentId: row.experimentId,
+      primaryVariable: row.primaryVariable as ExperimentDefinition["primaryVariable"],
+      objective: row.objective as ExperimentDefinition["objective"],
+      primaryMetric: row.primaryMetric,
+      arms: (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"],
+      startedAt: new Date(row.startedAt).toISOString(),
+    };
+    if (def.arms.length < 2) return null;
+
+    // The episode key must be STABLE for this job — assignment is derived from
+    // it, so a changing key would re-roll the arm on every retry.
+    const assigned = await assignEpisode(def, `reel_job_${reelJobId}`, { reelJobId, ...context });
+    if (!assigned) return null;
+    log.info("episode assigned to experiment", { reelJobId, experimentId: def.experimentId, arm: assigned.armId });
+    return { experimentId: def.experimentId, ...assigned };
+  } catch (err) {
+    // An unassigned episode is a measurement gap. A thrown error is a lost reel.
+    log.warn("experiment assignment skipped (reel continues)", { reelJobId, err: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
 /** Attach the published media id + time, which is what makes the episode
  *  measurable — a horizon cannot be derived without a publish timestamp. */
 export async function attachPublishedMedia(

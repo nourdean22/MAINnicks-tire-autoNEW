@@ -22,6 +22,7 @@
  * the approve gate, not a silent destroyer.
  */
 import { spawn } from "child_process";
+import { NOIR_PALETTE, BRAND_BIBLE_VERSION } from "../../shared/brandBible";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
@@ -36,6 +37,13 @@ export const RENDERED_DEFECT_CODES = {
   DAMAGE_LOCATION_DRIFT: { severity: "block", meaning: "damage/wear moves or changes type between beats" },
   ENVIRONMENT_DRIFT: { severity: "block", meaning: "location/background/weather changes without a deliberate transition" },
   HUMAN_PRESENT: { severity: "block", meaning: "human face/hands/figure appears (faceless contract)" },
+  // Distinct from HUMAN_PRESENT on purpose. A stray human is a faceless-contract
+  // breach; the NARRATOR acquiring a body is a BRAND breach — NICK-01 is defined
+  // as a gold scanning beam and an icy-blue reticle, light and motion only. The
+  // repair differs too: HUMAN_PRESENT means remove the person, this means recast
+  // the presence as light. Design-level QA catches this in the prompt; this
+  // catches the render deciding to draw a figure anyway.
+  NARRATOR_EMBODIED: { severity: "block", meaning: "the narrator presence is drawn as a body/figure/uniform instead of light and motion" },
   GENERATED_TEXT_ARTIFACT: { severity: "block", meaning: "model-generated lettering/garbled text baked into a frame" },
   MALFORMED_GEOMETRY: { severity: "block", meaning: "physically impossible automotive part (warped wheel, fused geometry)" },
   LIGHTING_DRIFT: { severity: "warn", meaning: "lighting direction/temperature shifts noticeably between beats" },
@@ -43,6 +51,12 @@ export const RENDERED_DEFECT_CODES = {
   WEAK_COMPOSITION: { severity: "warn", meaning: "subject too small / centered awkwardly / dead framing" },
   CAPTION_OBSTRUCTION: { severity: "warn", meaning: "burned-in caption collides with the subject or safe zones" },
 } as const;
+
+/** Palette comes from the VERSIONED bible, not a hardcoded phrase. The critic
+ *  prompt used to say "the graphite+gold world", which drifts the moment the
+ *  bible changes and leaves the pixel judge grading against a different spec
+ *  than the generator was given. */
+const BRAND_PALETTE_PROMPT = Object.values(NOIR_PALETTE).map((c) => c.prompt).join(", ") + ` (${BRAND_BIBLE_VERSION})`;
 
 export type RenderedDefectCode = keyof typeof RENDERED_DEFECT_CODES;
 
@@ -249,7 +263,7 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
       messages: [
         {
           role: "system",
-          content: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it.`,
+          content: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world is ${BRAND_PALETTE_PROMPT}. Judge PALETTE_DRIFT against THAT list, not against a generic "cinematic" look.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it.`,
         },
         {
           role: "user",
