@@ -36,7 +36,10 @@ describe("resolveEvidenceRecords", () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) =>
       String(url).includes("nhtsa.gov")
         ? Promise.resolve({ ok: false, status: 403 } as Response)
-        : Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new TextEncoder().encode("page content").buffer) } as unknown as Response),
+        // Retrieval now reads TEXT, not just bytes: a content hash proved the
+        // page existed while saying nothing about what it said, which is why
+        // public sources were stuck at entailment "not_evaluated".
+        : Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("page content") } as unknown as Response),
     ) as typeof fetch;
 
     const blocked = await resolveEvidenceRecords(["NHTSA tire pressure guidance"], "claim x");
