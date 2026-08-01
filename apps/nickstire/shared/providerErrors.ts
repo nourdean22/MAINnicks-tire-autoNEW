@@ -191,6 +191,16 @@ export function nextStatusFor(
   if (verdict.action === "RECONCILE_BEFORE_RETRY" || verdict.action === "PAUSE_PROVIDER") {
     return { status: "failed", attempts: attempt, terminal: true };
   }
+  // REGENERATE_PROMPT names what SHOULD happen, and no regeneration mechanism
+  // exists yet: the prompt pack is compiled once at enqueue and read from the
+  // payload on every attempt, so a requeue resubmits the identical text.
+  // Retrying an unchangeable prompt against a deterministic rejection is pure
+  // spend, so it goes terminal now and the stamped error tells the operator the
+  // brief needs repair. When a real escalation path exists, this becomes a
+  // requeue and the tests below should change with it.
+  if (verdict.action === "REGENERATE_PROMPT") {
+    return { status: "failed", attempts: attempt, terminal: true };
+  }
   if (!verdict.consumesAttempt) {
     // Give the attempt back: the work never ran, so it should not count against
     // the budget that exists for failures that did.
