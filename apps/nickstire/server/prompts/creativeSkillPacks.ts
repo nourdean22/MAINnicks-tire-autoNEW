@@ -1,5 +1,3 @@
-import { ServiceCoverageInfo } from "../services/contentManufacturing";
-
 export function buildAdCreativeSkill(): string {
   return `
 [SKILL PACK: AD_CREATIVE]
