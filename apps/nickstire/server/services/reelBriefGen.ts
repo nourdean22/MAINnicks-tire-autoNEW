@@ -15,6 +15,7 @@ import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReel
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
 import { buildBrandBibleFragment } from "../../shared/brandBible";
+import { PUBLIC_SOURCE_REGISTRY } from "./evidenceResolver";
 import { buildFranchiseFragment, type FranchiseId } from "../../shared/contentFranchises";
 import {
   CAMPAIGN_KEYWORDS,
@@ -244,6 +245,37 @@ function coerceKeyword(v: string): CampaignKeyword {
   return (CAMPAIGN_KEYWORDS as readonly string[]).includes(up)
     ? (up as CampaignKeyword)
     : (CAMPAIGN_KEYWORDS[0] as CampaignKeyword);
+}
+
+/**
+ * The sources a brief is allowed to cite, rendered from the registry itself.
+ *
+ * WHY THIS EXISTS
+ * The prompt used to say "the label alone is enough", and the generator did
+ * exactly what that permits: it invented plausible source NAMES — "Tire
+ * Industry Association Repair Manual", "Goodyear Tire Care Information",
+ * "Ohio Department of Transportation - Salt Usage". None resolve, so measured
+ * over 12 real briefs, 11 carried a claim with no citable evidence. Curating
+ * more records cannot fix a citation that was made up.
+ *
+ * Rendered from PUBLIC_SOURCE_REGISTRY rather than hardcoded, so the list the
+ * model sees is the list the resolver will actually accept. A prompt that
+ * drifts from the registry would reintroduce the same failure quietly.
+ *
+ * The label format matters: parseEvidenceHandle matches a family name (or
+ * alias) AND a topic word, so "NHTSA tire pressure guidance" resolves while
+ * "NHTSA says so" does not.
+ */
+function renderCitableSources(): string {
+  const lines = PUBLIC_SOURCE_REGISTRY.map((r) => {
+    const name = r.matchAliases?.[0] ?? r.family;
+    return `  - "${name} ${r.topics[0]} ..." — ${r.title}. Topics it covers: ${r.topics.slice(0, 6).join(", ")}.`;
+  });
+  return (
+    "\n\nCITE ONLY FROM THIS LIST. A proof note's `label` MUST name one of these sources AND include one of that source's topic words, or it will not resolve and the brief is rejected:\n" +
+    lines.join("\n") +
+    "\n\nWrite the label as \"<source name> <topic> guidance\" — e.g. \"NHTSA tire pressure guidance\", \"Michelin tread repair guidance\". Do NOT invent a source, a report title, a manual name, or a study that is not on this list; a citation nobody can check is worse than none."
+  );
 }
 
 export interface ResolvedSource {
@@ -482,7 +514,9 @@ export async function generateReelBriefAI(
     // maxAttempts=3 the daily reel would skip roughly one day in five.
     // Instructions nearest the output directive bind hardest, so it lives here
     // as well as in the master prompt.
-    "\n\nHARD REQUIREMENT — SOURCE GROUNDING: at least ONE entry in sourceNotes MUST have kind exactly \"proof\" (lowercase). A brief without a proof-kind source note is REJECTED before rendering and the whole generation is wasted. The label alone is enough; a URL is optional. If you genuinely cannot ground the mechanic truth, say so in mechanicTruth rather than emitting a brief with no proof note.";
+    "\n\nHARD REQUIREMENT — SOURCE GROUNDING: at least ONE entry in sourceNotes MUST have kind exactly \"proof\" (lowercase). A brief without a proof-kind source note is REJECTED before rendering and the whole generation is wasted." +
+    renderCitableSources() +
+    "\n\nIf no source in that list can ground your mechanic truth, say so in mechanicTruth and pick a different angle. An honest \"I cannot ground this\" is worth more than a citation nobody can check.";
 
   // The visual bible leads every generation so the page reads as ONE studio.
   // It also carries the faceless constraint in the model's own words, which is
