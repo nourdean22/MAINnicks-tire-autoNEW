@@ -478,6 +478,16 @@ export const CRONS: CronDef[] = [
     addedAt: "2026-05-29",
   },
   {
+    name: "ollama-model-liveness",
+    schedule: null,
+    mode: "folded",
+    category: "hygiene",
+    foldedInto: "mega",
+    description:
+      "FOLDED into mega (morning) · proof-of-life for the Ollama Cloud lanes (chat/fast/vision). Calls resolveProviderModel — the same function a real turn uses — so it tests the env override, not the registry. Ollama Cloud retires models with no warning and this key has lost two (qwen3-vl 2026-06-16, deepseek-v3.1 2026-07-15); the vision lane then ran DEAD in prod ~6 weeks after the registry was corrected, because a stale Railway OLLAMA_VISION_MODEL pin beat the default. Any non-200 raises Telegram; 410 is called out as permanent.",
+    addedAt: "2026-08-01",
+  },
+  {
     name: "subtask-usage-audit",
     schedule: "0 3 * * *", // matches the mega-evening slot it actually rides
     mode: "active",
