@@ -265,9 +265,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
     // Autonomous publish must clear the CONSOLIDATED rendered-QA gate — the same
     // evaluateReelPublishGate every reel door uses. A real non-"proceed" verdict
-    // HOLDS the reel (index not advanced, retries a fresh brief tomorrow). A QA
-    // infra failure proceeds with a loud warn rather than blocking the daily reel
-    // on flaky extraction (the upstream compiler + preflight already gate defects).
+    // HOLDS the reel (index not advanced, retries a fresh brief tomorrow).
+    //
+    // A QA INFRA FAILURE ALSO HOLDS. This comment used to say the opposite —
+    // that infra failure "proceeds with a loud warn" — which was true of an
+    // earlier version and became false when the catch below was changed to hold
+    // (see its own comment). A stale comment claiming fail-OPEN above code that
+    // fails CLOSED is worse than no comment: this is the autonomous door, there
+    // is no human reviewing the post, and the comment is what the next reader
+    // will believe about the safety model.
     try {
       const { evaluateReelPublishGate } = await import("../../services/qualityGate");
       const g = await evaluateReelPublishGate(job.id);
