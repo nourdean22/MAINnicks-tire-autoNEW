@@ -334,6 +334,33 @@ export const ATTENTION_STATUSES = [
 export const FAILED_ATTENTION_DAYS = 14;
 
 /**
+ * Failures the OPERATOR already closed. These stay `failed` forever (there is
+ * no "closed" status), so without this they are re-counted as outstanding work
+ * every time the badge polls — for the whole 14-day window.
+ *
+ * Measured 2026-08-01: the badge read "12 reel job(s) need attention" while 4 of
+ * those 12 carried an explicit closure the operator had already written. A badge
+ * that counts finished work as pending trains you to ignore it, which costs more
+ * than the badge is worth.
+ *
+ * DELIBERATELY NARROW — matches only markers this codebase WRITES on an explicit
+ * close, never a failure category. In particular it does NOT suppress
+ * "Session expired": that root cause was fixed on 2026-07-31, but a FUTURE
+ * expiry is real, urgent, and must show. Suppressing by cause would hide the
+ * next outage; suppressing by explicit closure cannot.
+ */
+export const OPERATOR_CLOSED_MARKERS = [
+  "discarded by operator",
+  "superseded by regenerated job",
+  // Written per-row when a failure's root cause has since been fixed and the job
+  // itself is stale (topic aged out, cheaper to regenerate than resurrect).
+  // Per-ROW and explicit on purpose: closing by CATEGORY would mean a rule like
+  // "session-expired failures don't count", which would hide the next real
+  // outage. A row with no marker still shows, however familiar its error text.
+  "closed — root cause resolved",
+] as const;
+
+/**
  * Statuses where NO WORKER IS TOUCHING THE JOB, so paying to regenerate it is safe.
  *
  * This is an ALLOWLIST on purpose. The previous guard was a three-status denylist
@@ -363,17 +390,42 @@ export function isRegenerable(status: string | null | undefined): boolean {
 /** Rows every attention surface should consider, newest first. */
 export async function selectReelJobsNeedingAttention(database: DB, limit = 50) {
   const { reelJobs } = await import("../../drizzle/schema");
-  const { inArray, desc, and, eq, gte, or } = await import("drizzle-orm");
-  const cutoff = new Date(Date.now() - FAILED_ATTENTION_DAYS * 24 * 60 * 60 * 1000);
+  const { desc } = await import("drizzle-orm");
   return database
     .select()
     .from(reelJobs)
-    .where(
-      or(
-        inArray(reelJobs.status, [...ATTENTION_STATUSES]),
-        and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, cutoff)),
-      ),
-    )
+    .where(await buildAttentionPredicate())
     .orderBy(desc(reelJobs.id))
     .limit(limit);
+}
+
+/**
+ * THE definition of "needs attention", as a reusable SQL predicate.
+ *
+ * Exists because the badge count and the detail list previously each built their
+ * own WHERE clause over the same idea, and drifted: HQ counted every failed job
+ * ever (61) while the list excluded failed entirely and reported nothing stuck.
+ * The shared constants closed half that gap; two hand-copied clauses kept the
+ * other half open. One predicate, both callers — the drift cannot recur.
+ */
+export async function buildAttentionPredicate() {
+  const { reelJobs } = await import("../../drizzle/schema");
+  const { inArray, and, eq, gte, or, not, like, isNull } = await import("drizzle-orm");
+  const cutoff = new Date(Date.now() - FAILED_ATTENTION_DAYS * 24 * 60 * 60 * 1000);
+
+  // A failure the operator already closed is not outstanding work. There is no
+  // "closed" status, so the closure lives in `error` — exclude those rather than
+  // re-counting finished decisions for the whole 14-day window.
+  //
+  // `isNull` is load-bearing: NOT LIKE is NULL-unsafe in SQL, so without it every
+  // failure with no error text would evaluate NULL and silently drop OUT of the
+  // count — hiding exactly the failures nobody has diagnosed yet.
+  const notOperatorClosed = and(
+    ...OPERATOR_CLOSED_MARKERS.map((m) => or(isNull(reelJobs.error), not(like(reelJobs.error, `%${m}%`)))),
+  );
+
+  return or(
+    inArray(reelJobs.status, [...ATTENTION_STATUSES]),
+    and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, cutoff), notOperatorClosed),
+  );
 }

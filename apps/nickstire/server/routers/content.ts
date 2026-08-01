@@ -2697,16 +2697,15 @@ export const contentAdminRouter = router({
 
     try {
       const { reelJobs } = await import("../../drizzle/schema");
-      const { inArray, and, eq, gte, or, sql } = await import("drizzle-orm");
-      const { ATTENTION_STATUSES, FAILED_ATTENTION_DAYS } = await import("../services/reelRecoverability");
-      const cutoff = new Date(Date.now() - FAILED_ATTENTION_DAYS * 24 * 60 * 60 * 1000);
+      const { sql } = await import("drizzle-orm");
+      // ONE predicate, shared with the detail list. This clause used to be
+      // hand-copied here, which is how the badge and the list drifted apart
+      // before — same idea, two implementations, two different answers.
+      const { buildAttentionPredicate } = await import("../services/reelRecoverability");
       const [row] = await d
         .select({ n: sql<number>`COUNT(*)`.as("n") })
         .from(reelJobs)
-        .where(or(
-          inArray(reelJobs.status, [...ATTENTION_STATUSES]),
-          and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, cutoff)),
-        ));
+        .where(await buildAttentionPredicate());
       heldReels = Number(row?.n ?? 0);
     } catch (err) {
       log.warn("operationsSignal: could not count held reels", err);
