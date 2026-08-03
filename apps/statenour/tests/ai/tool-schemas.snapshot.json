@@ -1,0 +1,4250 @@
+[
+  {
+    "name": "addTasksToProject",
+    "description": "Create multiple tasks under missions (projects) in bulk. Use when Nour needs to break down a project into several specific tasks at once, or lock in a daily/weekly routine with multiple schedule blocks.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "missionId": {
+          "description": "Fallback mission ID if not specified per-task",
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "properties": {
+              "context": {
+                "default": "ANYWHERE",
+                "enum": [
+                  "DESK",
+                  "PHONE",
+                  "SHOP",
+                  "CAR",
+                  "HOME",
+                  "ANYWHERE"
+                ],
+                "type": "string"
+              },
+              "dueDate": {
+                "description": "ISO date string",
+                "type": "string"
+              },
+              "effort": {
+                "default": "M30",
+                "enum": [
+                  "M5",
+                  "M15",
+                  "M30",
+                  "H1",
+                  "H2PLUS"
+                ],
+                "type": "string"
+              },
+              "goalId": {
+                "description": "Associated goal ID",
+                "type": "string"
+              },
+              "loopKind": {
+                "default": "ONCE",
+                "enum": [
+                  "ONCE",
+                  "DAILY",
+                  "PROMISE",
+                  "WEEKLY"
+                ],
+                "type": "string"
+              },
+              "missionId": {
+                "description": "Specific mission ID for this task. Use to route different tasks to different missions (e.g. Health, Business, Personal)",
+                "type": "string"
+              },
+              "nextPhysicalAction": {
+                "description": "The literal first physical step",
+                "type": "string"
+              },
+              "personId": {
+                "description": "Associated person ID",
+                "type": "string"
+              },
+              "promiseTo": {
+                "description": "Promised to who (e.g. 'Dania', 'myself')",
+                "type": "string"
+              },
+              "recurringDays": {
+                "description": "For WEEKLY loopKind · 0=Sunday .. 6=Saturday",
+                "items": {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "nextPhysicalAction"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "tasks"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeCompetitiveIntel",
+    "description": "Analyze competitive landscape for Nick's Tire. Identifies competitor vulnerabilities (Chanakya-style), GSC keyword opportunities, and threats. Returns market position, exploit strategies, and guidance.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeComposure",
+    "description": "Analyze the operator's emotional regulation and composure. Scores mood stability, drift control, decision quality under stress, recovery speed, and trigger management. Returns a 0-100 composure score with specific guidance.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 14,
+          "description": "Look-back window in days",
+          "maximum": 90,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeFitness",
+    "description": "Analyze Nour's workout CONSISTENCY from his OWN logged daily workout flags (daily check-in + /body, merged) over a window. Returns active-day count + rate (% of logged days), current streak, longest streak, average workouts/week, and a recent-vs-prior trend. This is workout-FREQUENCY ONLY — statenour logs a daily yes/no, NOT type, intensity, duration, or load — so it reads consistency, not training quality. Use when Nour asks about his workout consistency, whether he's training enough, or his streak. Honest about thin data.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "description": "Lookback window in days",
+          "maximum": 180,
+          "minimum": 7,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeGoals",
+    "description": "Analyze Nour's active LifeGoals with the SMART framework (Specific/Measurable/Achievable/Relevant/Time-bound, each 1-5 -> S/A/B/C grade) plus progress and pace. Names each goal's weaknesses (e.g. targetValue=0 -> not measurable; no deadline -> not time-bound) with a concrete fix, and flags weak/unmeasurable goals across the portfolio. Use when Nour asks about his goals, whether they're well-formed/SMART, goal progress or quality, or 'are my goals any good / what's wrong with my goals'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeImage",
+    "description": "Analyze an image — ALG screenshots, tire damage photos, receipts, competitor ads, shop photos. Extracts text (OCR), identifies objects, reads invoices/estimates. Send the image in the chat message, then call this tool to process it.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "extractNumbers": {
+          "description": "Try to extract dollar amounts, counts, dates from the image",
+          "type": "boolean"
+        },
+        "imageContext": {
+          "description": "What is this image? E.g., 'ALG invoice screenshot', 'tire damage photo', 'competitor ad', 'receipt'",
+          "type": "string"
+        }
+      },
+      "required": [
+        "imageContext"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeMentalHealth",
+    "description": "Analyze Nour's mental/emotional wellbeing from his OWN logged data (mood, energy, sleep, stress, workouts, journal patterns) over a window. Returns a grounded mood trend, volatility, sleep/workout correlations, a NON-clinical 'concern level' with factors, and safe guidance. Use when Nour asks how he's doing emotionally, about mood/stress/burnout patterns, or 'am I okay'. NOT a diagnosis — it surfaces crisis resources and never predicts self-harm.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "description": "Lookback window in days",
+          "maximum": 180,
+          "minimum": 7,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzePowerDynamics",
+    "description": "Analyze Nour's power position across all relationships. Returns leverage scores (avg power balance, strongest/weakest positions, dependency ratio), influence metrics (plays executed, XP), network health (active/neglected/mentors/rivals), threats (drainers, rivals, unstable alliances), and concrete next moves. Use when Nour asks about power dynamics, leverage, relationship strategy, or 'who has power over me'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "description": "Lookback window in days",
+          "maximum": 180,
+          "minimum": 7,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeSentiment",
+    "description": "Analyze sentiment of customer messages, reviews, or feedback",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "text": {
+          "description": "Text to analyze",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeSleep",
+    "description": "Analyze Nour's sleep from his OWN logged nightly hours (daily check-in, with /body tracking as fallback) over a window. Returns average, consistency (SD), short-night count + %, accumulated sleep-debt vs a 7.5h target, the trend/direction, and best/worst night. Use when Nour asks how his sleep is, whether he's sleep-deprived, about his sleep trend or sleep debt. Honest about thin data (<5 nights).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "description": "Lookback window in days",
+          "maximum": 180,
+          "minimum": 7,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeTrends",
+    "description": "Detect what's changing across ALL of Nour's tracked daily metrics (mood, energy, sleep, dailyScore, deep-work, drift, workouts + body: weight, body-fat, waist, stress) over a window. Returns per-metric direction (rising/flat/falling) + per-30-day change + a recent-vs-prior change-point, the TOP MOVERS (biggest normalized change), and notable pairwise correlations (|r|>=0.5, e.g. sleep<->mood). Honest about thin data (per-metric insufficient flag when <5 points). Use when Nour asks 'what's changing / trending / what's off lately / what moves together' across his metrics. Reports direction without moralizing (e.g. weight is context-dependent).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "description": "Lookback window in days",
+          "maximum": 180,
+          "minimum": 7,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeWeek",
+    "description": "Analyze the past 7 days — identity-snapshot history, tasks completed, drift patterns, daily-loop habit streaks",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeWeightTrend",
+    "description": "Analyze Nour's weight + body-composition TREND from his OWN BodyTracking logs over a window. Returns weight trend + per-week rate, body-fat trend, waist trend, net change, and — if he has an active weight LifeGoal — the distance from his latest weight to the target. Reports direction WITHOUT judging it good/bad/healthy (whether up or down is 'progress' depends on his goal, not a moral prior). No BMR/TDEE/calorie math (statenour stores no height/age). Use when Nour asks about his weight, body-composition trend, or whether he's making progress on weight. Honest about thin data.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "description": "Lookback window in days",
+          "maximum": 180,
+          "minimum": 7,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "analyzeWorkHealth",
+    "description": "Analyze Nour's work-pattern health from his OWN logs (deep-work blocks + drift incidents from the daily check-in; stress + energy from /body) over a window. Returns each metric's average + trend plus a NON-clinical 'strain signal' (low/elevated/high) that rises when high stress, high drift, and low energy co-occur. The strain signal is an explicit heuristic, NOT a burnout diagnosis or clinical assessment (it ships a disclaimer). Use when Nour asks about his work-pattern health, burnout risk, or whether he's overworking. Honest about thin data.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "description": "Lookback window in days",
+          "maximum": 180,
+          "minimum": 7,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "archiveGoal",
+    "description": "Archive a LifeGoal (soft-delete · preserves CoachLog + GoalEvent history · recoverable). Use when Nour says 'drop this goal' / 'archive that goal'. Pre-Wave-28 the UI hard-deleted goals · now both UI + Nick use soft-delete.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "goalId": {
+          "type": "string"
+        },
+        "titleQuery": {
+          "description": "Fuzzy match against active goal titles if goalId unknown.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalBoardConsult",
+    "description": "Convene an advisor board (parallel multi-lens council) on a major decision. Boards: strategic, invest, product, operator, full, team (the in-house working team: thought partner, researcher, strategist, tactician, consultant).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "boardId": {
+          "description": "Which preset board to convene",
+          "enum": [
+            "strategic",
+            "invest",
+            "product",
+            "operator",
+            "full",
+            "team"
+          ],
+          "type": "string"
+        },
+        "question": {
+          "description": "The decision or question to put before the board",
+          "minLength": 8,
+          "type": "string"
+        }
+      },
+      "required": [
+        "boardId",
+        "question"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalDeepResearch",
+    "description": "Multi-round autonomous research with citations.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "question": {
+          "description": "The research question to investigate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalFindLeads",
+    "description": "Use Apollo.io to find fleet/business contacts in Cleveland area. Powered by the Arsenal integration chain.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "industries": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "default": 10,
+          "type": "number"
+        },
+        "locations": {
+          "default": [
+            "Cleveland",
+            "Ohio"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "titles": {
+          "description": "Job titles to search for, e.g. ['Fleet Manager', 'Operations Director']",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalGmailInbox",
+    "description": "List recent Gmail inbox threads · supports Gmail search syntax (e.g. 'is:unread newer_than:2d', 'from:supplier@x'). Returns subject/from/snippet/unread per thread. Requires GMAIL_REFRESH_TOKEN env (see docs/gmail-setup.md).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "maxResults": {
+          "description": "Max threads to return · default 20",
+          "type": "number"
+        },
+        "query": {
+          "description": "Gmail search query · e.g. 'is:unread' or 'from:foo@bar.com'",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalGmailReadThread",
+    "description": "Fetch a full Gmail thread · all messages decoded. Use after listing inbox to read specific threads.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "threadId": {
+          "description": "Gmail thread ID from arsenalGmailInbox",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalMultiAgent",
+    "description": "Spawn N parallel sub-agents + synthesize. Max 8. Staff sub-agents with persona keys: research-analyst, contrarian-critic, execution-planner, thought-partner, strategist, tactician, business-consultant, ghostwriter.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "goal": {
+          "description": "The overall operator goal · seen by every sub-agent as context",
+          "type": "string"
+        },
+        "subAgents": {
+          "description": "Array of sub-agent task assignments · max 8",
+          "items": {
+            "properties": {
+              "name": {
+                "description": "Stable name for this sub-agent · e.g. 'pricing_analysis' or 'review_themes'",
+                "type": "string"
+              },
+              "outputHint": {
+                "description": "Optional output-shape hint · e.g. 'bulleted list' or 'JSON with {a,b,c}'",
+                "type": "string"
+              },
+              "persona": {
+                "description": "Optional persona key from the typed library · e.g. 'research-analyst', 'contrarian-critic', 'thought-partner', 'tactician', 'business-consultant', 'ghostwriter'",
+                "type": "string"
+              },
+              "task": {
+                "description": "Specific task for this sub-agent · 1-2 sentences · ≤800 chars",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "task"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "goal",
+        "subAgents"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalNotebookLM",
+    "description": "Use Google NotebookLM via the connected MCP server. Allows deep grounding against custom uploaded source documents. Use 'notebookAlias' to route to specialized Memory Vaults.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "action": {
+          "description": "The NotebookLM MCP tool to call (e.g., 'ask_question', 'list_notebooks')",
+          "type": "string"
+        },
+        "notebookAlias": {
+          "description": "Target a specific memory vault. If provided, the system will inject the correct notebook_id.",
+          "enum": [
+            "statenour-intel",
+            "competitor-research",
+            "financial-models"
+          ],
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {},
+          "description": "Arguments for the MCP tool",
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalPreTaskFanout",
+    "description": "Pre-task 3-lens fan-out (research+risk+plan).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "brainContext": {
+          "description": "Optional brain context to ground the lenses",
+          "type": "string"
+        },
+        "question": {
+          "description": "The hard question to fan out on",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalResearch",
+    "description": "Use Grok (xAI) for real-time analysis and research. Powered by the Arsenal integration chain.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "query": {
+          "description": "Research question or topic to analyze",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "arsenalWebSearch",
+    "description": "Web search with AI summarization. Prefers Perplexica (self-hosted, free, unlimited); falls back to Perplexity/Google, then to the multi-source quorum if the primary is unavailable. Powered by the Arsenal integration chain.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "query": {
+          "description": "Web search query",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "browseAndDo",
+    "description": "Run a COMPLETE browser task autonomously: opens a cloud browser, plans + executes the steps (navigate, click, type, read), and returns a structured receipt with a session replay URL. THE preferred tool whenever Nour asks Nick to do something on a website ('go check X', 'find Y on site Z', 'fill the form but don't submit'). permission: 'read' = look only · 'draft' (default) = interact but STOP before any consequential submission (submit/send/purchase/delete) · 'execute' = allowed to fire the final action. Costs real money per step — keep goals specific.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "goal": {
+          "description": "Specific, self-contained description of what to accomplish, including the site if known.",
+          "minLength": 8,
+          "type": "string"
+        },
+        "keepSessionOpen": {
+          "description": "Leave the session open (live-view) instead of closing it at the end.",
+          "type": "boolean"
+        },
+        "maxSteps": {
+          "description": "Step cap · default 6.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "permission": {
+          "default": "draft",
+          "description": "Action permission. Use 'execute' ONLY when Nour explicitly authorized the final consequential action.",
+          "enum": [
+            "read",
+            "draft",
+            "execute"
+          ],
+          "type": "string"
+        },
+        "startUrl": {
+          "description": "URL to open first (skips one planning step).",
+          "format": "uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "goal"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "browser_act",
+    "description": "Execute a natural-language action on the open session's current page: click a button, fill a form field, select an option. Stagehand plans the DOM interaction. Examples: 'click the Sign In button', 'type nour@bdnick.info into the email field', 'select Auto Repair from the category dropdown'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "instruction": {
+          "description": "Plain-English description of the single action to perform. Keep it one action per call.",
+          "minLength": 4,
+          "type": "string"
+        },
+        "sessionId": {
+          "description": "Session id from a prior browser_do call.",
+          "minLength": 6,
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "instruction"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "browser_do",
+    "description": "LOW-LEVEL: start a live cloud browser session (headless Chrome) and return its id + live-view URL — you then drive it manually with browser_navigate/browser_act/browser_extract. For complete tasks ('go check X online', 'pull data from Z') PREFER browseAndDo, which runs the whole workflow in one call. Use this only for surgical multi-tool control or debugging.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "goal": {
+          "description": "Plain-English description of what the browser agent should accomplish. Will be stored on the session for later reference.",
+          "minLength": 4,
+          "type": "string"
+        },
+        "keepAlive": {
+          "description": "If true (default), session stays open even when idle so Nour can watch. Close it manually via /api/browser/session DELETE.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "goal"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "browser_extract",
+    "description": "Pull structured data from the open session's current page. Provide an instruction (what to look for) plus a shape (fields + types). Returns a typed object. Use when Nour needs specific values read off a page — prices, dates, statuses, table rows.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "enum": [
+              "string",
+              "number",
+              "boolean"
+            ],
+            "type": "string"
+          },
+          "description": "Shape of the expected return: { fieldName: 'string'|'number'|'boolean' }. Example: { price: 'string', deliveryDate: 'string' }.",
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "instruction": {
+          "description": "What to extract. Example: 'get the shipping price and delivery date'.",
+          "minLength": 4,
+          "type": "string"
+        },
+        "sessionId": {
+          "description": "Session id from a prior browser_do call.",
+          "minLength": 6,
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "instruction",
+        "fields"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "browser_navigate",
+    "description": "Navigate the active cloud browser session to a URL. Requires a sessionId from a prior browser_do call. Returns the final resolved URL + page title. Use this before browser_act or browser_extract when you need to reach a specific page.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "sessionId": {
+          "description": "Session id from a prior browser_do call.",
+          "minLength": 6,
+          "type": "string"
+        },
+        "url": {
+          "description": "Full URL to navigate to (including https://).",
+          "format": "uri",
+          "type": "string"
+        },
+        "waitUntil": {
+          "description": "When to consider navigation complete. Default: networkidle.",
+          "enum": [
+            "load",
+            "domcontentloaded",
+            "networkidle"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "url"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "browser_observe",
+    "description": "Reconnaissance on the open session's current page. Returns a list of actionable elements (buttons, forms, links) with short descriptions. Use before browser_act when you're unsure what's clickable, or after a failed act to debug.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "instruction": {
+          "description": "Optional hint to narrow the observation, e.g. 'find the login form'. Omit for a full page scan.",
+          "type": "string"
+        },
+        "sessionId": {
+          "description": "Session id from a prior browser_do call.",
+          "minLength": 6,
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "buildArchitectureMemory",
+    "description": "Scan a repo feature and store its architecture in brain memory. Use when learning about a part of the codebase for the first time — stores it so you remember next conversation.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "feature": {
+          "description": "Feature name (e.g., 'chat system', 'lead pipeline', 'morning autopilot')",
+          "type": "string"
+        },
+        "filePaths": {
+          "description": "Key files that make up this feature",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "summary": {
+          "description": "How this feature works in 2-3 sentences",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "feature",
+        "filePaths",
+        "summary"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "captureSkillFromSource",
+    "description": "Capture a protocol from an EXTERNAL source (a book, article, photographed page, video) as a CANDIDATE skill Nour can review and promote. Use when Nour shares source material and asks to turn it into a skill, protocol, or habit. Stores it as pending — it is explicitly UNPROVEN until actually used, so never describe it as an established skill.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "type": "array"
+        },
+        "sourceLabel": {
+          "description": "Where it came from — book title + author, URL, or 'photo: <what it shows>'.",
+          "minLength": 2,
+          "type": "string"
+        },
+        "steps": {
+          "description": "Ordered, concrete steps. Each must be followable, not a summary.",
+          "items": {
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array"
+        },
+        "trigger": {
+          "description": "The situation this applies to.",
+          "minLength": 3,
+          "type": "string"
+        }
+      },
+      "required": [
+        "sourceLabel",
+        "trigger",
+        "steps"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "checkAntiPattern",
+    "description": "Check the anti-pattern library for lessons that match the current intent. Call BEFORE any side-effecting tool (sendSMS, createPaymentLink, triggerFollowUp, createQuote, runDeviceCommand) if Nour's intent rhymes with a past failure. Returns zero-or-more matching lessons with severity and lesson text — surface them to Nour before acting. Zero cost per call (pure DB).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "domain": {
+          "description": "Restrict to one domain if you know it; omit to search all.",
+          "enum": [
+            "business",
+            "personal",
+            "tech",
+            "health",
+            "relationships",
+            "other"
+          ],
+          "type": "string"
+        },
+        "intent": {
+          "description": "One-sentence description of the action about to be taken, or the decision context.",
+          "maxLength": 500,
+          "minLength": 3,
+          "type": "string"
+        },
+        "tags": {
+          "description": "Optional tag hints for filtering (e.g. ['pricing','quote']).",
+          "items": {
+            "maxLength": 40,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "intent"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "checkCommitments",
+    "description": "Check all active commitments — what's on track, what's overdue, what needs follow-up. Use proactively to hold Nour accountable.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "classifyThought",
+    "description": "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "clearMit",
+    "description": "Clear today's MIT so Nour can pick a new one. Usually only called if Nour explicitly says the MIT is wrong.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "compareCompetitors",
+    "description": "Compare Nick's Tire & Auto against local competitors on reviews and ratings",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "compareLiveRevenue",
+    "description": "Compare live revenue across two date ranges using nickstire data. Use for 'this week vs last week' or 'this month vs last month'",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "period1From": {
+          "description": "First period start YYYY-MM-DD",
+          "type": "string"
+        },
+        "period1To": {
+          "description": "First period end YYYY-MM-DD",
+          "type": "string"
+        },
+        "period2From": {
+          "description": "Second period start YYYY-MM-DD",
+          "type": "string"
+        },
+        "period2To": {
+          "description": "Second period end YYYY-MM-DD",
+          "type": "string"
+        }
+      },
+      "required": [
+        "period1From",
+        "period1To",
+        "period2From",
+        "period2To"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "completeCommitment",
+    "description": "Mark a commitment as completed. Use when Nour confirms he did something he promised.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "commitmentId": {
+          "description": "The commitment ID to complete",
+          "type": "number"
+        },
+        "outcome": {
+          "description": "What actually happened",
+          "type": "string"
+        }
+      },
+      "required": [
+        "commitmentId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "completeTask",
+    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "composeEmail",
+    "description": "Draft an email for Nour to review and explicitly send. NEVER auto-sends — returns a draft card the user clicks Send on. If Gmail is configured, also creates a draft in Nour's Gmail drafts directly via the Gmail API. Use when Nour says 'email X about Y', 'draft a note to ...', or asks for a written follow-up. If subject/body are not provided, the tool uses the `intent` to ask Nick to draft them in his next reply turn (preferred path: Nick writes the draft inline and passes it here as subject + body).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "body": {
+          "description": "Plain-text email body. Markdown is OK; will render as plain text.",
+          "maxLength": 50000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "subject": {
+          "description": "Email subject line",
+          "maxLength": 998,
+          "minLength": 1,
+          "type": "string"
+        },
+        "to": {
+          "description": "Recipient email address",
+          "format": "email",
+          "maxLength": 254,
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+          "type": "string"
+        },
+        "tone": {
+          "default": "warm",
+          "description": "Tone hint shown on the draft card so Nour can sanity-check at a glance",
+          "enum": [
+            "formal",
+            "casual",
+            "firm",
+            "warm"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "createCommitment",
+    "description": "Create a new commitment",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "deadline": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "toWhom": {
+          "default": "self",
+          "type": "string"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "createMissionPlan",
+    "description": "Create a mission with multiple linked tasks in one call. Use when Nour describes a multi-step project or goal.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "domain": {
+          "enum": [
+            "BUSINESS",
+            "PERSONAL",
+            "HEALTH",
+            "CONTENT",
+            "FINANCE"
+          ],
+          "type": "string"
+        },
+        "priority": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "successMetric": {
+          "description": "How to measure success",
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "properties": {
+              "context": {
+                "default": "ANYWHERE",
+                "enum": [
+                  "DESK",
+                  "PHONE",
+                  "SHOP",
+                  "CAR",
+                  "HOME",
+                  "ANYWHERE"
+                ],
+                "type": "string"
+              },
+              "dueDate": {
+                "description": "ISO date string",
+                "type": "string"
+              },
+              "effort": {
+                "default": "M30",
+                "enum": [
+                  "M5",
+                  "M15",
+                  "M30",
+                  "H1",
+                  "H2PLUS"
+                ],
+                "type": "string"
+              },
+              "goalId": {
+                "description": "Associated goal ID",
+                "type": "string"
+              },
+              "loopKind": {
+                "default": "ONCE",
+                "enum": [
+                  "ONCE",
+                  "DAILY",
+                  "PROMISE",
+                  "WEEKLY"
+                ],
+                "type": "string"
+              },
+              "nextPhysicalAction": {
+                "description": "The literal first physical step",
+                "type": "string"
+              },
+              "personId": {
+                "description": "Associated person ID",
+                "type": "string"
+              },
+              "promiseTo": {
+                "description": "Promised to who",
+                "type": "string"
+              },
+              "recurringDays": {
+                "description": "For WEEKLY loopKind · 0=Sunday .. 6=Saturday",
+                "items": {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "nextPhysicalAction"
+            ],
+            "type": "object"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        },
+        "title": {
+          "description": "Mission title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "domain",
+        "tasks"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "createQuickQuote",
+    "description": "Quote creation belongs on nickstire admin (laborOperations, tires, and quotes tables all live there). Returns a clear redirect message; the quoteCalc surface on nickstire.org/admin is the canonical path.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "customerName": {
+          "type": "string"
+        },
+        "customerPhone": {
+          "type": "string"
+        },
+        "services": {
+          "description": "Labor operation names to include",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tireQty": {
+          "default": 4,
+          "type": "number"
+        },
+        "tireSize": {
+          "description": "Tire size like 225/65R17",
+          "type": "string"
+        },
+        "vehicleMake": {
+          "type": "string"
+        },
+        "vehicleModel": {
+          "type": "string"
+        },
+        "vehicleYear": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "vehicleYear",
+        "vehicleMake",
+        "vehicleModel",
+        "services"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "createTask",
+    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "context": {
+          "default": "ANYWHERE",
+          "enum": [
+            "DESK",
+            "PHONE",
+            "SHOP",
+            "CAR",
+            "HOME",
+            "ANYWHERE"
+          ],
+          "type": "string"
+        },
+        "dueDate": {
+          "description": "ISO date · only for ONCE + PROMISE · DAILY ignores this",
+          "type": "string"
+        },
+        "effort": {
+          "default": "M30",
+          "enum": [
+            "M5",
+            "M15",
+            "M30",
+            "H1",
+            "H2PLUS"
+          ],
+          "type": "string"
+        },
+        "goalId": {
+          "description": "Link this task to a LifeGoal · completing it auto-lifts the goal's currentValue",
+          "type": "string"
+        },
+        "loopKind": {
+          "default": "ONCE",
+          "description": "ONCE = one-shot · DAILY = repeats every day · PROMISE = commitment to someone",
+          "enum": [
+            "ONCE",
+            "DAILY",
+            "PROMISE"
+          ],
+          "type": "string"
+        },
+        "missionId": {
+          "description": "Optional project/mission id (from getMissions). Omit to auto-file into the Inbox.",
+          "type": "string"
+        },
+        "nextPhysicalAction": {
+          "description": "The literal first physical step",
+          "type": "string"
+        },
+        "promiseTo": {
+          "description": "For PROMISE kind · who Nour is committing to · 'self', 'dania', a customer name",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "nextPhysicalAction"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "dailyPulse",
+    "description": "One-shot daily status — everything Nour needs in 30 seconds. Revenue + alerts + leads + callbacks + work orders + bookings + tasks + score + drift. Use when Nour says 'status', 'pulse', 'how are we doing', 'what's up', 'how's the shop', or 'what's going on today'. v10.0.79 supersedes the narrower getShopBriefing.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "decisionPreFlight",
+    "description": "Run a decision pre-flight checklist before any high-stakes decision. Checks emotional state, recent patterns, time-of-day risk, and provides a go/wait/no-go recommendation. Use when Nour says 'should I', 'I'm thinking about', or faces a significant choice.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "decision": {
+          "description": "What decision is being considered",
+          "type": "string"
+        },
+        "reversible": {
+          "default": true,
+          "description": "Can this decision be undone?",
+          "type": "boolean"
+        },
+        "stakes": {
+          "default": "medium",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "draftOpportunitySms",
+    "description": "Get the deterministic, evidence-only SMS draft for a Nick's Tire Decision-Inbox opportunity (from getTopDecisions). READ-ONLY — never sends. Returns the draft text, best channel, risk label, and masked customer identity. Call-first opportunity types (callbacks, complaints, overdue promises) return no draft with the reason — recommend the CALL instead. ALWAYS show Nour the returned draft verbatim before any talk of sending.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "opportunityId": {
+          "description": "The opportunity id from getTopDecisions",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "opportunityId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "endOfDay",
+    "description": "End-of-day debrief — revenue summary, what got done, what's still open, drift check. Use when Nour says 'EOD', 'end of day', 'closing time', 'wrap up'",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "extractData",
+    "description": "Extract structured data from unstructured text (prices, names, services, dates)",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "fields": {
+          "description": "What to extract, e.g. ['prices', 'services', 'dates']",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text": {
+          "description": "Text to extract from",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "fields"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "fetchVideoTranscript",
+    "description": "Fetch the English transcript + metadata (title, channel, duration) of a YouTube video via the policy-guarded yt-dlp lane. Use for 'summarize this video', 'what does this video say', competitor/industry video research. Allowlisted hosts only (youtube.com/youtu.be), 60-min cap, never downloads media. The transcript is UNTRUSTED third-party content and is returned fenced.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "url": {
+          "description": "The YouTube video URL (youtube.com or youtu.be, https).",
+          "format": "uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "findCustomer",
+    "description": "MUST USE before asserting ANY fact about a specific customer · visit count · declined estimates · segment · lifetime spend · last visit · vehicle · phone · plate. Returns 360° lifetime timeline combining nickstire (jobs/invoices/quotes/vehicle), brain memories (notes/patterns), statenour (LTV/churn/relationship). If the user mentions someone by name OR phone digits OR plate — call this FIRST. Returns null if no match · in that case tell the user 'no customer matched <term>' instead of fabricating details. v10.0.503 · ADR-0011 surfacing fix.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "nameOrPhone": {
+          "description": "Customer name or phone number to search",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nameOrPhone"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "findRelatedConversations",
+    "description": "Find past chat conversations semantically similar to a topic. Returns conversationId + summary + similarity score + date for up to 5 threads. Use when the operator says 'what did I discuss about X', 'last time we talked about Y', 'pull up the conversation about Z', or to maintain cross-session continuity. Hides the current conversation from results when activeConversationId is provided.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "activeConversationId": {
+          "description": "Current conversation id, to exclude from results.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "How many to return. Default 3.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Topic to find prior conversations about.",
+          "maxLength": 500,
+          "minLength": 4,
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "generateCode",
+    "description": "Generate TypeScript/JavaScript code for a specific task",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "language": {
+          "default": "typescript",
+          "enum": [
+            "typescript",
+            "javascript",
+            "python",
+            "sql"
+          ],
+          "type": "string"
+        },
+        "task": {
+          "description": "What the code should do",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "generateImage",
+    "description": "Generate an AI image using Venice AI. Use for social media content, marketing visuals, concept art, memes, or anything Nour asks you to visualize. Nick's Tire brand context is auto-injected.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "prompt": {
+          "description": "Detailed image description — be specific about style, colors, composition",
+          "type": "string"
+        },
+        "size": {
+          "default": "1024x1024",
+          "description": "Image dimensions — 512x512 fastest · 1024x1024 default · 1536x1024 landscape · 1024x1536 portrait (matches Venice flux-2-pro accepted enum)",
+          "enum": [
+            "512x512",
+            "1024x1024",
+            "1536x1024",
+            "1024x1536"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "generateSQL",
+    "description": "Convert a natural language question into a SQL query for the NOUR OS database",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "question": {
+          "description": "Natural language question about the data",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "getAttentionAlerts",
+    "description": "What needs Nour's attention NOW — stale leads, unanswered callbacks, overdue WOs, unpaid invoices",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getBlindSpots",
+    "description": "Get severity-ranked blind spots — the things Nour is NOT paying attention to. Returns overdue commitments, stale leads, workout gaps, scoring gaps, neglected people, drift alerts. Use this when Nour asks 'what am I missing' or when you need to proactively surface a gap.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 5,
+          "description": "Max blind spots to return",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        },
+        "severity": {
+          "default": "all",
+          "description": "Filter by severity",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "all"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getBodyData",
+    "description": "Get recent body tracking entries",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 30,
+          "maximum": 365,
+          "minimum": 1,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getBrainHealth",
+    "description": "Get a full brain health report — memory count, learning velocity, prediction accuracy, wisdom promotions, contradiction resolution. Shows how smart the brain is getting.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getCameraIntelligence",
+    "description": "Get camera intelligence — shop traffic, vehicle counts, alerts, bay utilization, employee arrivals",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getCommitments",
+    "description": "Get active commitments",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getContextualGreeneLaws",
+    "description": "Get the top 3 Robert Greene laws applicable to a specific person right now, with rationale and concrete actions. Use when reasoning about relationship strategy for a specific contact.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "personId": {
+          "description": "PersonProfile ID",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "personId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "getCronStatus",
+    "description": "Get status and health of all cron jobs",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getDarkPsychologyTactics",
+    "description": "Look up dark psychology tactics (cognitive biases, manipulation techniques, social engineering patterns) relevant to the operator's current situation. Returns matching entries with triggers, actions, and applicability. Use when Nour asks about persuasion, influence, manipulation, cognitive biases, or tactical social dynamics.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "description": "How many to return. Default 3.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Situation or topic to find matching tactics for",
+          "maxLength": 300,
+          "minLength": 3,
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "getDashboardSummary",
+    "description": "Get full business dashboard summary — revenue, customers, reviews, open jobs",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getDecisionReplays",
+    "description": "Get decisions that are due for review. These are past decisions logged for 30/60/90 day replay to evaluate outcomes.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "includeFuture": {
+          "default": false,
+          "description": "Also show decisions not yet due",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getDecisionsDueForReplay",
+    "description": "List decisions whose 30-day automatic replay is due. Each item carries the pre-composed coaching prompt and (when matched) a wisdom citation. Use when the operator asks 'any decisions due for review' or wants to reflect on past choices.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "includeConsumed": {
+          "default": false,
+          "description": "Also show replays already surfaced in today's morning brief",
+          "type": "boolean"
+        },
+        "limit": {
+          "default": 5,
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getDriftAlerts",
+    "description": "Get unresolved drift alerts",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getEmotionalState",
+    "description": "Get Nour's current emotional arc — stress trajectory, dominant state, triggers, decision risk. Shows how emotions are affecting performance.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getEstimateLeaks",
+    "description": "Find revenue leaks — estimates that never became invoices (customers who got a quote but didn't convert). This is money walking out the door.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "daysBack": {
+          "default": 7,
+          "description": "How many days back to check",
+          "maximum": 90,
+          "minimum": 1,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getFinancialSnapshot",
+    "description": "Get the latest financial snapshot",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getFleetTruth",
+    "description": "Read the cross-app operational fleet truth: statenour capability artifacts (daily brief, outbox drain, Inngest heartbeat — fresh/stale/never_produced/unknown with ages) plus nickstire's live health, database, schema-guard and self-healing verdicts. READ-ONLY. Use when the operator asks 'is everything running', 'system status', 'are the crons alive', or before claiming any scheduled capability works.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getGscSummary",
+    "description": "Real Google Search Console totals for nickstire.org over a date range — clicks, impressions, CTR, average position. Use whenever Nour asks how SEO is performing, traffic, search visibility, or rankings overall. Defaults to last 30 days if no dates given. Numbers are derived from raw click+impression sums (not avg-of-avg) so multi-day totals are accurate. Position is impression-weighted.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "from": {
+          "description": "Start date YYYY-MM-DD (default: 30 days ago)",
+          "type": "string"
+        },
+        "to": {
+          "description": "End date YYYY-MM-DD (default: today)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getGscTopQueries",
+    "description": "Top search queries driving organic traffic to nickstire.org from Google Search. Returns each query's clicks, impressions, CTR, and average position. Use whenever Nour asks 'what searches bring people in', 'top keywords', 'what people search for', or 'which queries convert'. Defaults to top 10 over the last 30 days.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "from": {
+          "description": "Start date YYYY-MM-DD (default: 30 days ago)",
+          "type": "string"
+        },
+        "limit": {
+          "description": "How many top queries (default: 10, max: 50)",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "to": {
+          "description": "End date YYYY-MM-DD (default: today)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getHabitRevenueCorrelation",
+    "description": "Show how personal habits (workouts, discipline, energy) correlate with business outcomes (revenue, conversion, lead response). e.g. 'weeks with 4+ workouts = 23% higher revenue'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getHabitStreaks",
+    "description": "Get habit completion data — current streaks for daily-loop tasks (workouts, journal, etc).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getHealthToday",
+    "description": "Today's health snapshot: sleep, weight, workout (BodyTracking) plus steps, resting heart rate and HRV from Apple Health samples, with last-sync freshness",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getInstagramAutopostStatus",
+    "description": "Get the current status of the Instagram/Facebook autopost system, including the active configuration and a history of the 5 most recent posts (statuses, scores, captions, errors, and image URLs).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getMarketingAttribution",
+    "description": "Source-by-source attribution for Nick's Tire & Auto leads. Returns lead count + conversion count + conversion rate + revenue + avg ticket per source (popup / chat / booking / callback / sms / etc.) ranked by total dollars. Use whenever Nour asks 'what's working', 'which channel is converting', 'ROI per source', 'where are leads coming from', or 'what's our best marketing'. Defaults to last 30 days.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "from": {
+          "description": "Start date YYYY-MM-DD (default: 30 days ago)",
+          "type": "string"
+        },
+        "to": {
+          "description": "End date YYYY-MM-DD (default: today)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getMasteryScores",
+    "description": "Get current mastery domain scores",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getMissionDetail",
+    "description": "Get ONE mission with its real progress: task counts by state, the next physical actions, deadline health, and its retro if it was archived. Use when Nour asks how a specific mission or project is going, or which one is stalled.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "missionId": {
+          "description": "Mission id. Omit to match by title.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Partial title match when the id is unknown.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getMissionRetros",
+    "description": "Read recent mission retrospectives (what was learned when a mission was closed out). Use when Nour asks what he learned from finished missions or wants past lessons before starting something similar.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 5,
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getMissions",
+    "description": "Get active missions",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getPendingRevenueMoves",
+    "description": "List revenue-moves drafted by the Revenue-Decision Channel that are still pending operator approval. Use when the operator asks 'what business moves are open', 'what's waiting on me', or wants to review today's drafted decisions before approving on Telegram.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "daysBack": {
+          "default": 7,
+          "description": "Lookback window in days. Default 7.",
+          "maximum": 30,
+          "minimum": 1,
+          "type": "number"
+        },
+        "includeDecided": {
+          "default": false,
+          "description": "If true, also include approved/rejected moves in the window. Default false (pending only).",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getPowerBalanceSummary",
+    "description": "Get power-balance scores for the top 5 people by interaction count. Returns each person's name, power balance (-1 to +1), and whether it's manually locked. Use when reasoning about relationship leverage across the network.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getProjections",
+    "description": "Get current life-goal progress + business revenue projection. Goals come from the LifeGoal table; revenue projection comes from the nickstire bridge (revenue-trend extrapolation when available).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "domain": {
+          "description": "Filter by domain: business, energy, habits, finance",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getRecentReflections",
+    "description": "Get recent reflections generated by the cron reflection engine. These are meta-cognitive insights (what patterns changed this week, what's drifting, what predictions came true). Use when Nour asks 'what have I been learning' or 'what's my pattern lately'. Returns actionable + unacknowledged first.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 5,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        },
+        "onlyActionable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "scope": {
+          "default": "all",
+          "enum": [
+            "daily",
+            "weekly",
+            "monthly",
+            "triggered",
+            "all"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getRepoMap",
+    "description": "Get the key file paths and architecture of a repo. Use when you need to understand where things are before making changes. Returns the project structure map.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "repo": {
+          "description": "Which repo",
+          "enum": [
+            "statenour",
+            "nickstire"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "getRevenueStats",
+    "description": "Get revenue statistics for a given period",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "period": {
+          "default": "month",
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "year"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getReviewStats",
+    "description": "Get Google Reviews statistics for Nick's Tire & Auto",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getShopSnapshot",
+    "description": "Get real-time shop data from the nickstire bridge — bookings, leads, revenue, callbacks, sync health",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getSkillProtocol",
+    "description": "Load the full step-by-step protocol for a bundled skill by exact name (e.g. 'maxforge-alpha'). suggestSkills returns only a short description — when a match has hasProtocol:true, call this to fetch its actual instructions, output templates, and hard rules BEFORE executing the skill. Returns { ok, name, protocol } or { ok:false } when the skill has no bundled protocol.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "name": {
+          "description": "Exact skill name from suggestSkills, e.g. 'maxforge-alpha'.",
+          "maxLength": 100,
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "getSleepTrend",
+    "description": "Sleep-hours series over the last N days (BodyTracking canonical, Apple Health-fed) with coverage count",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "default": 14,
+          "maximum": 90,
+          "minimum": 3,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getTasks",
+    "description": "Get active tasks with their missions",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getTodaySchedule",
+    "description": "Get the operator's Google Calendar events for today and the next few days. Returns event titles, times, locations, attendees. Use when answering 'what's on my schedule', 'when is X meeting', or reasoning about availability.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "daysAhead": {
+          "description": "How many days forward to fetch. Default 1 (today + tomorrow).",
+          "maximum": 14,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getTopDecisions",
+    "description": "Read the shop's top revenue decisions from the nickstire opportunity queue — the same due-aware, consent-filtered, SQL-ranked top-5 the admin Decision Inbox shows. READ-ONLY. Use when the operator asks 'what should I decide', 'what's in the inbox', 'top opportunities', or before recommending any revenue action.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "getTopServices",
+    "description": "Get top services by revenue at Nick's Tire & Auto",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 10,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "getWeeklyTargets",
+    "description": "Get this week's 3 targets to check progress. Use mid-week to reference what was set on Monday.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubCreateIssue",
+    "description": "Create a GitHub issue for tracking bugs, features, or tasks.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "body": {
+          "description": "Issue description",
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "repo": {
+          "description": "Repo name",
+          "type": "string"
+        },
+        "title": {
+          "description": "Issue title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "title",
+        "body"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubCreatePR",
+    "description": "Create a pull request on a GitHub repo. Use after pushing changes to a branch.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "base": {
+          "description": "Target branch (default: main)",
+          "type": "string"
+        },
+        "body": {
+          "description": "PR description",
+          "type": "string"
+        },
+        "head": {
+          "description": "Source branch with changes",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repo name",
+          "type": "string"
+        },
+        "title": {
+          "description": "PR title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "title",
+        "body",
+        "head"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubListFiles",
+    "description": "List files in a directory of a GitHub repo. Use to explore repo structure.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "path": {
+          "description": "Directory path (empty = root)",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repo name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubListRepos",
+    "description": "List Nour's GitHub repos sorted by most recently updated.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubReadFile",
+    "description": "Read a file from any of Nour's GitHub repos. Use to inspect code, configs, or data files.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "branch": {
+          "description": "Branch name (default: main)",
+          "type": "string"
+        },
+        "path": {
+          "description": "File path in the repo (e.g., 'lib/ai/tools.ts', 'package.json')",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repo name: statenour-os, MAINnicks-tire-autoNEW, easy-nickstire",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubReadMultiple",
+    "description": "Read multiple files at once from a repo. Use to understand a full feature — read the route, the service, the component, and the types together. Much faster than reading one at a time.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "paths": {
+          "description": "Array of file paths to read",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "repo": {
+          "description": "Repo name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "paths"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubRecentCommits",
+    "description": "Get recent commits from a repo. Use to see what changed recently.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "count": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repo name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "githubSearchCode",
+    "description": "Search for code across a GitHub repo. Use to find functions, variables, patterns.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "query": {
+          "description": "Search query (code, function name, variable, etc.)",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repo name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "ingestDocumentFromUrl",
+    "description": "Fetch a public document from a URL and ingest it into the operator's document index. Returns the documentId and a chunk count. Use when the operator says 'read this PDF' / 'index this doc' and shares a link. Supports PDF, DOCX, XLSX, TXT, MD. Max 20MB.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "filename": {
+          "description": "Optional override for the stored filename. Defaults to the URL path.",
+          "type": "string"
+        },
+        "url": {
+          "description": "Direct download URL for the document.",
+          "format": "uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "journalDecision",
+    "description": "Log a decision Nour just made during this conversation. Records the what, why, stakes, and chosen option so the Decision Pattern Analyzer can learn from it. Use this whenever Nick helps Nour make a choice.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "chosen": {
+          "description": "What was chosen and why",
+          "type": "string"
+        },
+        "options": {
+          "description": "What options were considered",
+          "type": "string"
+        },
+        "reasoning": {
+          "description": "The reasoning behind the choice",
+          "type": "string"
+        },
+        "stakes": {
+          "description": "How important is this decision",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "description": "Short name for the decision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "options",
+        "chosen",
+        "stakes",
+        "reasoning"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "last30days",
+    "description": "Search and research a topic across live social platforms (Reddit, Hacker News, Polymarket, GitHub, YouTube) and grounded web results from the last 30 days. Returns a raw data report with community comments and source coverage. Use this for queries about recent trends, public consensus, sentiment, product comparison, or tracking what individuals/companies are doing recently. The tool returns a raw structured report; you MUST synthesize it into a clean, markdown-formatted narrative with blue command-clickable links on first mention per the returned instructions. Do not dump the raw clusters.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "deep": {
+          "description": "Higher-recall retrieval profile.",
+          "type": "boolean"
+        },
+        "deepResearch": {
+          "description": "Use Perplexity Deep Research (requires API key setup, spendy).",
+          "type": "boolean"
+        },
+        "githubUser": {
+          "description": "Optional target GitHub username for person-mode.",
+          "type": "string"
+        },
+        "quick": {
+          "description": "Lower-latency retrieval profile.",
+          "type": "boolean"
+        },
+        "subreddits": {
+          "description": "Comma-separated broad/category subreddit names to search.",
+          "type": "string"
+        },
+        "topic": {
+          "description": "The research topic or search query.",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        "xHandle": {
+          "description": "Optional target X handle for a person/product.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "learnCodingPreference",
+    "description": "Store a coding preference or pattern that Nour likes. Use when Nour says 'I prefer X' or 'always do Y' or 'never do Z' about code. These preferences guide future code generation.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "context": {
+          "description": "When/where this applies",
+          "type": "string"
+        },
+        "preference": {
+          "description": "The coding preference or pattern",
+          "type": "string"
+        }
+      },
+      "required": [
+        "preference",
+        "context"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "listRecentDriveFiles",
+    "description": "List recently modified files in Nour's Google Drive. Use when he says 'what files have I been working on' or 'show me recent docs'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 10,
+          "description": "How many files to show",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "listTools",
+    "description": "List all available tools organized by category. Use when Nour asks 'what can you do?' or 'show me your tools' or 'what tools do you have?'",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "category": {
+          "description": "Filter by category: personal, business, shop, revenue, planning, brain, files, communication, analysis, research, commands, content, winback, meta. Leave empty for all.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "logGoalProgress",
+    "description": "Log progress on a LifeGoal · bumps currentValue + recalculates progress % + appends a GoalEvent(kind=progress_logged). Auto-flips to 'achieved' when currentValue reaches targetValue. Use when Nour says 'logged 200lb bench' or 'hit $500 in sales today'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "delta": {
+          "description": "How much to ADD to currentValue · positive · the increment, not the absolute total",
+          "type": "number"
+        },
+        "goalId": {
+          "type": "string"
+        },
+        "note": {
+          "description": "Short note on this progress · stored in GoalEvent.payload",
+          "type": "string"
+        },
+        "titleQuery": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delta"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "logSituation",
+    "description": "Log a real situation for strategic analysis — AI matches relevant Greene laws and provides tactical advice",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "context": {
+          "enum": [
+            "business",
+            "personal",
+            "negotiation",
+            "conflict",
+            "decision"
+          ],
+          "type": "string"
+        },
+        "situation": {
+          "description": "What happened or what decision you're facing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "situation",
+        "context"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "markCommitmentBroken",
+    "description": "Mark a commitment as broken and record WHY. Use when Nour admits he didn't keep a commitment. The reason feeds the decision-pattern learning engine.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "commitmentId": {
+          "description": "The commitment id",
+          "type": "number"
+        },
+        "reason": {
+          "description": "Why did you break it — be honest",
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "commitmentId",
+        "reason"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "moneyprinter",
+    "description": "Generate high-definition short videos automatically from a subject topic or a custom script. Uses MoneyPrinterTurbo to write the video script, select royalty-free B-roll clips, synthesize voice narration (Azure edge_tts), and render subtitle overlays. Returns a success status with the generated video filepath. Use when Nour asks to create a video, generate a TikTok/Reel, write and synthesize B-roll, or output a short video on a topic.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "aspect": {
+          "description": "Video aspect ratio: 9:16 (portrait, default) or 16:9 (landscape).",
+          "enum": [
+            "9:16",
+            "16:9"
+          ],
+          "type": "string"
+        },
+        "language": {
+          "description": "Video script/voice language code (e.g. 'en', 'zh'). Defaults to auto-detect.",
+          "type": "string"
+        },
+        "paragraphCount": {
+          "description": "Optional paragraph count for script segments. Default: 3.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "script": {
+          "description": "Optional custom video script text. By default, script is auto-generated by AI.",
+          "type": "string"
+        },
+        "subject": {
+          "description": "The main topic/keyword of the video. E.g., 'Why exercise is important'.",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "pinMemory",
+    "description": "Pin a fact to long-term memory · creates a BrainMemory(category=pinned_user) row · surfaces in the brain's pinned context panel + chat recall. Use when Nour says 'remember this' / 'pin this' / 'this is important'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "confidence": {
+          "default": 0.95,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "content": {
+          "description": "The fact or note to pin · plain English · 1-2 sentences ideal",
+          "type": "string"
+        },
+        "key": {
+          "description": "Optional dedup key · defaults to slug of content first 60 chars",
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "pricingAdvisorySummary",
+    "description": "Read the most recent weekly pricing-strategy advisory: which service categories have low ALG win rates, competitor pricing signal, and the 3 drafted price experiments per outlier. Cite the operator's wisdoms (Munger inversion, Buffett pricing power). Operator-approval only — this tool NEVER changes shop pricing. Use when asked 'what's the pricing advisory', 'where are we losing on price', 'pricing experiments to run', 'win rate by service'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "proposeCalendarEvent",
+    "description": "Create or propose a new Google Calendar event. If Google Calendar API is configured, writes the event directly to the calendar via the Google Calendar API. If not configured, returns a 'create event' URL with all fields pre-filled for the operator to click and create. Use when Nour wants to schedule something concrete (a focus block, a meeting, a follow-up).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "attendees": {
+          "description": "Attendee email addresses.",
+          "items": {
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "description": {
+          "description": "Event description / agenda / notes.",
+          "maxLength": 1000,
+          "type": "string"
+        },
+        "endISO": {
+          "description": "Event end in ISO 8601. If omitted, defaults to startISO + 60 minutes.",
+          "type": "string"
+        },
+        "location": {
+          "description": "Physical or virtual location.",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "startISO": {
+          "description": "Event start in ISO 8601 (e.g. '2026-05-13T14:00:00-04:00'). If timezone omitted, operator's local zone is assumed.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Event title.",
+          "maxLength": 120,
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "startISO"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "queryNickstire",
+    "description": "Query live data from nickstire.org. Queries: revenue_today, revenue_range, leads_today, leads_pipeline, leads_urgent, bookings_today, bookings_status, customer_search, callbacks_pending, work_orders_active, attention_needed, shop_pulse, feature_flags, gsc_summary, gsc_top_queries",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "from": {
+          "description": "Start date YYYY-MM-DD (revenue_range, gsc_*)",
+          "type": "string"
+        },
+        "query": {
+          "description": "Query name from the list above",
+          "type": "string"
+        },
+        "term": {
+          "description": "Search term (for customer_search)",
+          "type": "string"
+        },
+        "to": {
+          "description": "End date YYYY-MM-DD (revenue_range, gsc_*)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "queueDeepResearch",
+    "description": "Queue deep research to run in the background — returns immediately; the cited report arrives as a push notification in ~2 minutes. Use when the operator says 'go research X' / 'look into X and get back to me' and doesn't need the answer in this reply.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "question": {
+          "description": "The research question to investigate",
+          "minLength": 8,
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "rankNextActions",
+    "description": "Rank the top N open tasks by impact × ease × freshness. Use when Nour says 'what should I do next' or when there are more than 5 open tasks. Returns a sorted list with score + reasoning.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 5,
+          "description": "How many to return",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "readDriveFile",
+    "description": "Read the content of a Google Drive document by file ID. Use after searchDriveFiles to read a specific file. Works with Google Docs, Sheets, and text files.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "fileId": {
+          "description": "Google Drive file ID",
+          "type": "string"
+        },
+        "mimeType": {
+          "description": "File MIME type (auto-detected if not provided)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fileId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "recallFromSession",
+    "description": "Search the operator's captured session recordings within a date range. Same as searchSessionRecordings but constrained to sessions captured between {sinceDate, untilDate}. Use when the operator says 'in last week's session', 'yesterday on screen', 'show me what I saw on Tuesday', or any recall question with a time window. Dates are ISO YYYY-MM-DD. If VIDEO_DB_API_KEY is missing, returns code='missing_api_key'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "description": "How many hits. Default 5.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "What to find.",
+          "maxLength": 500,
+          "minLength": 2,
+          "type": "string"
+        },
+        "sinceDate": {
+          "description": "Earliest capture date (YYYY-MM-DD). Inclusive. Use today() - 7 if the operator says 'this week'.",
+          "type": "string"
+        },
+        "untilDate": {
+          "description": "Latest capture date (YYYY-MM-DD). Inclusive. Defaults to today.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query",
+        "sinceDate"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "recommendNextMove",
+    "description": "Tactician: compose the single best concrete next move for a power/negotiation/rivalry situation — verbatim moves from the Greene corpus plus live person power-state when the other party is tracked. Use when the operator asks 'what's my move' / 'how do I play this' / 'how do I counter'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "situation": {
+          "description": "The situation in the operator's words — include the other party's name if tracked",
+          "minLength": 12,
+          "type": "string"
+        }
+      },
+      "required": [
+        "situation"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "renderInlineChart",
+    "description": "Render an inline chart in the chat reply. Use whenever Nour asks for a trend / distribution / comparison and the data fits a small (≤60 points) chart. Types: line (continuous over time), sparkline (compact line, no axes — for in-paragraph trend hints), bar (categorical comparison), pie (parts-of-whole, ≤8 slices). Returns markdown that includes a fenced ```chart code block — INCLUDE THE RETURNED MARKDOWN IN YOUR REPLY for it to render.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "color": {
+          "default": "gold",
+          "description": "Accent color (pie chart auto-rotates a palette regardless)",
+          "enum": [
+            "gold",
+            "emerald",
+            "rose",
+            "blue",
+            "violet"
+          ],
+          "type": "string"
+        },
+        "data": {
+          "description": "Data points. Pie: ≤8 slices is readable. Line/bar: ≤30 ideal.",
+          "items": {
+            "properties": {
+              "label": {
+                "description": "X-axis label or slice name",
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              "value": {
+                "description": "Y-axis value",
+                "type": "number"
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "type": "object"
+          },
+          "maxItems": 60,
+          "minItems": 1,
+          "type": "array"
+        },
+        "title": {
+          "description": "Optional chart title shown above",
+          "maxLength": 80,
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "line",
+            "bar",
+            "sparkline",
+            "pie"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "resolveAlert",
+    "description": "Resolve a drift alert",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "alertId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "required": [
+        "alertId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "resolveContradiction",
+    "description": "Persist the operator's chosen side after a CONTRADICTION ALERT. Call this when the operator confirms which belief is current (e.g. 'the new one is right', 'I still believe the old one', 'both are true in different contexts', 'never mind that wasn't really a contradiction'). Required: contradictionKey from the alert block. side='current_wins' (today's statement is canonical), 'old_wins' (prior statement is canonical), 'both_valid' (context-dependent), or 'dismissed' (false positive). Optional currentBelief is a 1-2 sentence summary of the canonical position. Updates the contradiction status, deprecates the losing memory, and writes a resolved_contradiction memory for downstream recall.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "contradictionKey": {
+          "description": "The key from the CONTRADICTION ALERT block (e.g. 'a1b2c3d4...').",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "currentBelief": {
+          "description": "Optional 1-2 sentence summary of the canonical belief for future recall.",
+          "maxLength": 400,
+          "type": "string"
+        },
+        "note": {
+          "description": "Optional operator note explaining the resolution.",
+          "maxLength": 400,
+          "type": "string"
+        },
+        "side": {
+          "description": "Which side is canonical. current_wins = today's statement. old_wins = prior statement. both_valid = context-dependent. dismissed = not actually a contradiction.",
+          "enum": [
+            "current_wins",
+            "old_wins",
+            "both_valid",
+            "dismissed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "contradictionKey",
+        "side"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "reviewDecisionReplay",
+    "description": "Review a past decision — record what happened, score the outcome, and extract the lesson.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "lesson": {
+          "description": "What was learned from this decision",
+          "type": "string"
+        },
+        "outcome": {
+          "description": "What actually happened since the decision",
+          "type": "string"
+        },
+        "outcomeScore": {
+          "description": "Net outcome score: -10 (terrible) to +10 (excellent)",
+          "maximum": 10,
+          "minimum": -10,
+          "type": "number"
+        },
+        "replayId": {
+          "description": "Decision replay ID to review",
+          "type": "string"
+        }
+      },
+      "required": [
+        "replayId",
+        "outcome",
+        "outcomeScore",
+        "lesson"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "runCode",
+    "description": "Execute JavaScript in a sandbox. Use for calculations, data analysis, projections, formatting. Has Math, Date, JSON, Array. No network/filesystem. Returns last expression.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "code": {
+          "description": "JavaScript code. Last expression value is returned.",
+          "type": "string"
+        },
+        "description": {
+          "description": "What this code does",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "runDeviceCommand",
+    "description": "Queue a smart-home command to a physical device (lights, locks, cameras, thermostats). Use when Nour says things like 'lock the front door', 'turn off the shop lights', 'take a snapshot'. Identify the device by name OR location + type — Nick resolves to the closest match.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "command": {
+          "description": "Verb — turn_on | turn_off | toggle | lock | unlock | snapshot | record | arm | disarm | siren_on | siren_off | set_temp | set_brightness | speak.",
+          "type": "string"
+        },
+        "deviceId": {
+          "description": "Preferred — the SmartDevice.id if Nick already has it.",
+          "type": "string"
+        },
+        "deviceType": {
+          "description": "Narrow by type: LIGHT, LOCK, CAMERA, THERMOSTAT, SPEAKER, HEATER, APPLIANCE. Combines with locationQuery.",
+          "type": "string"
+        },
+        "locationQuery": {
+          "description": "Fuzzy match against SmartDevice.location. 'shop' → matches 'shop', 'home-shop', etc.",
+          "type": "string"
+        },
+        "nameQuery": {
+          "description": "Fuzzy match against SmartDevice.name (case-insensitive). 'front door' → matches 'Front Door Lock'.",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {},
+          "description": "Optional. E.g. { brightness: 70 } or { celsius: 22 } or { text: 'you forgot your keys' }.",
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "runPython",
+    "description": "ALWAYS CALL THIS TOOL when the operator asks you to RUN, EXECUTE, COMPUTE, CALCULATE, or PLOT anything in Python. Do not paste back Python code as a code block · ACTUALLY RUN IT. Returns stdout, stderr, and matplotlib charts as base64 PNGs. Available libraries: numpy, pandas, matplotlib, scipy, requests. No network access by default. 60s timeout. If E2B_API_KEY is missing the tool returns code='missing_api_key' · surface that error to the operator instead of pretending to execute.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "code": {
+          "description": "Python code to execute. Print results with `print()` so they appear in stdout. To return charts, use matplotlib `plt.show()` (they come back as base64 PNGs in the `charts` field).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "runSimulation",
+    "description": "Run a 'what if' simulation — predict the cascade of consequences for a specific scenario. e.g. 'What if I hire a second tech?' or 'What if I raise prices 10%?'",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "scenario": {
+          "description": "The scenario to simulate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "scheduleFollowUp",
+    "description": "Schedule a customer follow-up task with a deadline. Use when Nour says 'follow up with X in N days' or 'remind me to call customer Y'. Creates a task in the Inbox mission with a due date.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "customerName": {
+          "description": "Customer to follow up with",
+          "minLength": 1,
+          "type": "string"
+        },
+        "daysFromNow": {
+          "default": 3,
+          "description": "How many days from now the follow-up is due",
+          "maximum": 180,
+          "minimum": 0,
+          "type": "number"
+        },
+        "effort": {
+          "default": "M15",
+          "enum": [
+            "M5",
+            "M15",
+            "M30",
+            "H1",
+            "H2PLUS"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "description": "What the follow-up is about",
+          "type": "string"
+        }
+      },
+      "required": [
+        "customerName"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "scoreLocation",
+    "description": "Evaluate a candidate address for a second shop. Returns a 0-100 score, tier (A=ship · F=don't), strongest + weakest dimension, and operator-facing reasoning. Five dimensions: footTrafficPercentile (0-100) · reviewDensity (reviews per nearby competitor) · competitorCluster (count within 2mi · lower=better) · driveTimeToHomeMinutes (to Euclid HQ · lower=better) · zoningFriction (0-100 · lower=better). Missing dimensions are scored neutrally (0.5) with an explicit warning. Use this when the operator says 'score this location', 'evaluate Cleveland address', 'second location', 'expansion address', or asks whether a specific spot is viable. Pure compute · no external data fetched · operator supplies the measured params.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "address": {
+          "description": "Candidate address · street + city is enough",
+          "type": "string"
+        },
+        "competitorCluster": {
+          "description": "Count of auto-repair shops within 2 miles · LOWER is better",
+          "minimum": 0,
+          "type": "number"
+        },
+        "driveTimeToHomeMinutes": {
+          "description": "Drive time in minutes from Euclid HQ · LOWER is better · capped at 60",
+          "minimum": 0,
+          "type": "number"
+        },
+        "footTrafficPercentile": {
+          "description": "Foot-traffic percentile 0-100 · higher is better",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "reviewDensity": {
+          "description": "Reviews per nearby competitor · higher is better · saturates ~20",
+          "minimum": 0,
+          "type": "number"
+        },
+        "zoningFriction": {
+          "description": "Estimated municipal hassle 0-100 · LOWER is better",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "scrapeWebPage",
+    "description": "Scrape a web page and convert it to clean markdown. Use when the operator shares a URL and says 'read this', 'what does this page say', 'summarize this link', or when Nick needs to understand the content of a specific web page. Returns the page content as markdown with title and description. Requires FIRECRAWL_API_KEY — returns a clear error if not configured.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "excludeTags": {
+          "description": "CSS selectors to exclude from output. e.g. ['nav', 'footer', '.ads'].",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "url": {
+          "description": "The URL to scrape and convert to markdown.",
+          "format": "uri",
+          "type": "string"
+        },
+        "waitFor": {
+          "description": "Wait time in ms for JS-heavy pages to render. Default 0. Use 3000-5000 for SPAs.",
+          "maximum": 15000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchBuildYourOwnX",
+    "description": "Search the Build Your Own X tutorial catalog (450+ curated step-by-step guides for re-creating canonical technologies from scratch — programming languages, databases, blockchains, web servers, neural networks, etc). Use when Nour asks 'how do I build a X', 'show me tutorials for Y', 'where do I learn Z'. Returns a list of {title, language, url, category}. Browse the full catalog at /learn.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "language": {
+          "description": "Filter by programming language (case-insensitive substring). e.g. 'python', 'rust', 'go'.",
+          "maxLength": 20,
+          "minLength": 1,
+          "type": "string"
+        },
+        "limit": {
+          "default": 8,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        },
+        "topic": {
+          "description": "Topic / category / title keywords. e.g. 'database', 'lisp', 'neural network', 'docker'.",
+          "maxLength": 80,
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchColdMemory",
+    "description": "Semantic search across Nour's cold memory corpus — archived Google Drive docs, old brain memories, and ingested knowledge. Unlike searchMemories (keyword), this is meaning-based: 'my pipeline is drying up' correctly finds getRevenueAging-style memories without needing the literal word. USE THIS when Nour asks about something you don't see in the hot system prompt, when he references an old document, or when the question requires reaching back into historical knowledge. Returns top matches with similarity scores and Drive view URLs when available.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 5,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        },
+        "minScore": {
+          "default": 0.25,
+          "description": "Minimum hybrid score cutoff — below this is noise",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "query": {
+          "description": "Natural language query — describe what you're looking for",
+          "type": "string"
+        },
+        "scope": {
+          "default": "drive",
+          "description": "Source bucket to search. 'drive' = Google Drive ingested docs only. 'ingest' = drive + gmail + calendar. 'all' = every brain memory. Default is 'drive' for focused archival lookup.",
+          "enum": [
+            "drive",
+            "ingest",
+            "archive",
+            "all"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchConversations",
+    "description": "Search past chat conversations by keyword. Use to recall what was discussed, decisions made, or advice given.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 10,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "description": "Keyword to search in message content",
+          "type": "string"
+        },
+        "role": {
+          "default": "any",
+          "description": "Filter by message role",
+          "enum": [
+            "user",
+            "assistant",
+            "any"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchDocuments",
+    "description": "Search across documents the operator has uploaded (PDFs, Word docs, spreadsheets, text files). Returns the top matching chunks with their source filename and a similarity score. Use when the operator references 'that PDF', 'the spreadsheet', or asks a question that likely answers from an uploaded document.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "description": "How many top chunks to return. Default 5.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "The natural-language question or topic to search for.",
+          "maxLength": 500,
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchDriveFiles",
+    "description": "Search Nour's Google Drive for files by name, content, or type. Use this when Nour says 'find my notes', 'check my drive', 'look up that document', etc.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "query": {
+          "description": "Search query — file name, content keyword, or type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchGreeneLaws",
+    "description": "Search the 189 Greene strategic laws by keyword. Returns matching laws with essence and shop/personal application.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "book": {
+          "description": "Filter by book: FORTY_EIGHT_LAWS, THIRTY_THREE_STRATEGIES, HUMAN_NATURE, MASTERY, ART_OF_SEDUCTION, FIFTIETH_LAW",
+          "type": "string"
+        },
+        "query": {
+          "description": "Search term — title, concept, or situation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchMemories",
+    "description": "Search Nick's brain memories by keyword, category, or confidence threshold. Use to recall past insights, patterns, and stored knowledge.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "category": {
+          "description": "Filter by category: insight, pattern, preference, lesson, fact",
+          "type": "string"
+        },
+        "limit": {
+          "default": 10,
+          "maximum": 50,
+          "minimum": 1,
+          "type": "number"
+        },
+        "minConfidence": {
+          "default": 0.3,
+          "description": "Minimum confidence threshold",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "query": {
+          "description": "Keyword to search in memory content and keys",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchReflections",
+    "description": "Search Nour's reflective writing — Reflection insights AND BrainDump entries (raw thoughts + summaries + detected patterns). Use when Nour asks 'have I thought about this before', 'what did I say about X last week', or wants past brainstorms / vents. Returns matches with source (reflection vs brain_dump) + date. Optional date range narrows the scope.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "endDate": {
+          "description": "End date filter (YYYY-MM-DD). Inclusive.",
+          "type": "string"
+        },
+        "limit": {
+          "default": 8,
+          "maximum": 20,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "startDate": {
+          "description": "Start date filter (YYYY-MM-DD). Inclusive.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchSessionRecordings",
+    "description": "Search across the operator's captured session recordings (their own chat + computer-use sessions). Returns up to 5 hits with sessionId, videoId, timestamp (seconds), snippet, and similarity. Use when the operator says 'what did I see on screen', 'from that recording', 'in that session', 'recall from video', or 'earlier on screen'. If VIDEO_DB_API_KEY is missing, returns code='missing_api_key' · surface that to the operator instead of pretending to search.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "description": "How many top hits to return. Default 5.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Natural-language query · what to find in the recordings.",
+          "maxLength": 500,
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchSkills",
+    "description": "Semantic search across the indexed Claude skill registry. Returns top-K skills most relevant to a query · use when Nour asks 'what skill helps with X' or 'find me a skill for Y', when you need a specific framework/approach (e.g. 'kaizen', 'database design', 'mobile UX audit'), OR when a workflow could benefit from invoking a known skill protocol. Each match includes name, description, similarity score, category, and tags. Skills are pulled from ~/.claude/skills/ + plugin marketplaces · multi-language coverage (skills authored in Chinese/Portuguese still match English queries via their English summaries).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "query": {
+          "description": "Natural language query · what kind of skill/protocol/framework you're looking for",
+          "type": "string"
+        },
+        "topK": {
+          "default": 5,
+          "maximum": 10,
+          "minimum": 1,
+          "type": "number"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchWebVerified",
+    "description": "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding + Perplexica). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "domains": {
+          "description": "Allowed domains for sources that support filtering.",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "query": {
+          "description": "The natural-language question or claim to verify.",
+          "maxLength": 500,
+          "minLength": 3,
+          "type": "string"
+        },
+        "recency": {
+          "description": "Time bound for results. Default any.",
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "year",
+            "any"
+          ],
+          "type": "string"
+        },
+        "sources": {
+          "description": "Restrict to these sources. Default: all configured sources.",
+          "items": {
+            "enum": [
+              "perplexity",
+              "tavily",
+              "exa",
+              "google",
+              "perplexica"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "sendOpportunitySms",
+    "description": "Stage a customer SMS for a Nick's Tire Decision-Inbox opportunity. NEVER sends directly: writes a PENDING ActionReceipt and sends Nour a Telegram Approve/Decline prompt showing the EXACT text — the real send happens only on his Approve tap (nickstire then enforces consent, caps, quiet hours, pause, and dedupe server-side; the send is receipted on the opportunity). CONTRACT: call draftOpportunitySms FIRST, show Nour the draft in chat, apply his edits, and only stage the final text he has seen. Identity comes from the opportunity row — there is no free-form phone targeting. For texting someone NOT in the Decision Inbox, use stageCustomerAlert instead.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "body": {
+          "description": "The exact SMS text Nour has seen in chat (edits applied)",
+          "maxLength": 480,
+          "minLength": 1,
+          "type": "string"
+        },
+        "customerLabel": {
+          "description": "Short label for the approval prompt, e.g. 'Sam (stale lead)'",
+          "type": "string"
+        },
+        "opportunityId": {
+          "description": "The opportunity id from getTopDecisions",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "opportunityId",
+        "body"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "sendTelegram",
+    "description": "Send a Telegram message to Nour. Use for proactive alerts, reminders, or important notifications that need to reach his phone.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "message": {
+          "description": "Message content",
+          "type": "string"
+        },
+        "title": {
+          "description": "Optional title/header for the message",
+          "type": "string"
+        },
+        "urgency": {
+          "default": "medium",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "setInstagramAutopostConfig",
+    "description": "Enable or disable the global Instagram/Facebook live autoposter configuration.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "enabled": {
+          "description": "Set to true to allow scheduled live autoposting, or false to restrict to dry-runs only.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "setLifeGoal",
+    "description": "Set a life or business goal for Nour to track. Examples: revenue target, weight goal, savings goal, habit streak goal.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "deadline": {
+          "description": "ISO date string for deadline",
+          "type": "string"
+        },
+        "domain": {
+          "enum": [
+            "business",
+            "fitness",
+            "finance",
+            "personal",
+            "career"
+          ],
+          "type": "string"
+        },
+        "metric": {
+          "description": "The metric to track: revenue, weight, savings, streak",
+          "type": "string"
+        },
+        "targetValue": {
+          "type": "number"
+        },
+        "title": {
+          "description": "Human-readable goal title",
+          "type": "string"
+        },
+        "unit": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "domain",
+        "title",
+        "metric",
+        "targetValue"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "setMit",
+    "description": "Lock today's Most Important Thing (MIT). Nour picks ONE commitment per day; this tool writes it. Example args: { text: 'Close the Smith estimate before EOD' }",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "text": {
+          "description": "The single most important thing to get done today",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "setOKRs",
+    "description": "Set quarterly OKRs (Objectives and Key Results). Use when planning the quarter or when Nour asks about goals/OKRs.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "objectives": {
+          "description": "1-3 objectives with 2-4 key results each",
+          "items": {
+            "properties": {
+              "keyResults": {
+                "items": {
+                  "properties": {
+                    "current": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "metric": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "number"
+                    },
+                    "unit": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "target"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "keyResults"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "quarter": {
+          "description": "e.g., Q2 2026",
+          "type": "string"
+        }
+      },
+      "required": [
+        "quarter",
+        "objectives"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "setTaskPriority",
+    "description": "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where lower = more urgent (0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday).",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "priority": {
+          "description": "0-100. 0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday.",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason": {
+          "description": "Why Nour set this priority — logged to autoPriorityExplanation for later review.",
+          "type": "string"
+        },
+        "taskId": {
+          "description": "Preferred — the task's id",
+          "type": "string"
+        },
+        "titleQuery": {
+          "description": "Fuzzy match against active task titles if taskId unknown. Picks the most recently-touched match.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "priority"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "setWeeklyTargets",
+    "description": "Set this week's 3 targets. Call on Monday or when Nour wants to set goals. Stores them so you can reference mid-week.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "health": {
+          "description": "Health/body target for the week",
+          "type": "string"
+        },
+        "personal": {
+          "description": "Personal/growth target for the week",
+          "type": "string"
+        },
+        "revenue": {
+          "description": "Revenue/business target for the week",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revenue",
+        "personal",
+        "health"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "snoozeTask",
+    "description": "Snooze a task until a future date. Status flips to WAITING + snoozedUntil set · the task-resurface cron flips it back to READY at the wake-up time. Use when Nour says 'snooze this until tomorrow / friday / next week'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "days": {
+          "description": "Days from now to wake up · 1 = tomorrow · 7 = next week",
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "taskId": {
+          "type": "string"
+        },
+        "titleQuery": {
+          "description": "Fuzzy match against active task titles if taskId unknown.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "days"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "solveMath",
+    "description": "Solve math problems, financial calculations, pricing, margins, ROI",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "problem": {
+          "description": "The math problem or financial calculation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "problem"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "stageCustomerAlert",
+    "description": "Stage an SMS outreach to a customer for approval. Writes a PENDING ActionReceipt and sends a Telegram approval prompt to Nour.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "customerName": {
+          "description": "Optional customer name for context",
+          "type": "string"
+        },
+        "message": {
+          "description": "SMS message content, <= 160 characters",
+          "type": "string"
+        },
+        "phone": {
+          "description": "Phone number in E.164 format or standard 10-digit digits",
+          "type": "string"
+        }
+      },
+      "required": [
+        "phone",
+        "message"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "suggestMIT",
+    "description": "Suggest the Most Important Task right now based on all available data — critical tasks, urgent leads, daily score",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "suggestSkills",
+    "description": "Find the best Claude skills (from the indexed skill registry) for the operator's current task or question. Returns skill name + description + similarity score for top 3 matches. Use when the operator says 'which skill applies here', 'is there a skill for X', or when Nick wants to recommend a specialist lens before answering.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "description": "How many to return. Default 3.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Task or question to find skills for.",
+          "maxLength": 300,
+          "minLength": 3,
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "summarize",
+    "description": "Quickly summarize text, emails, documents, or chat threads",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "style": {
+          "default": "bullets",
+          "enum": [
+            "bullets",
+            "oneliner",
+            "paragraph"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "description": "Text to summarize",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "surfaceAntiPatterns",
+    "description": "Pull the operator's recent anti-patterns (decisions that scored D/F + recurring drift loops + commitments operator has broken). Returns up to 5 with severity + description + when it last fired. Use when Nick suspects the operator is about to repeat a known failure mode, or when the operator asks 'what do I keep getting wrong'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "description": "How many to return. Default 5.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "topic": {
+          "description": "Optional topic to filter by · keyword match against description.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "syncCalendar",
+    "description": "Manually trigger a Google Calendar ingest — pulls the past 7 days + next 14 days of events into BrainMemory (long-term recall) right now instead of waiting for the scheduled cron. Use when Nour says 'sync my calendar', 'refresh my calendar', or 'pull my latest events'. Returns ingest stats; if OAuth is expired it returns an actionable re-grant hint.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "syncDriveMemory",
+    "description": "Manually trigger a Google Drive ingest run — pulls the latest Drive documents, extracts their content, generates embeddings, and stores them as cold memories searchable via searchColdMemory. Use when Nour says 'sync my drive', 'refresh my knowledge base', 'ingest my latest docs', or similar. Returns stats on what was ingested.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "force": {
+          "default": false,
+          "description": "If true, bypass any recency check and re-pull all candidate files. Use sparingly — embeds cost API calls.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "syncGmail",
+    "description": "Manually trigger a Gmail ingest — pulls recent messages into statenour-os (classification + BrainMemory) right now instead of waiting for the scheduled cron. Use when Nour says 'sync my gmail', 'refresh my inbox', or 'pull my latest emails'. Returns ingest stats; if OAuth is expired it returns an actionable re-grant hint.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "syncKnowledge",
+    "description": "Run the knowledge sync pipeline on demand. Three idempotent stages: (1) promote substantial new chat messages to BrainDumps (AI classification of raw BrainDumps is currently disabled — no provider), (2) rebalance priorities on backfill/journal-sourced tasks, (3) index substantial assistant chat messages as nick_advice memories. Use when Nour says 'sync my knowledge', 'process new thoughts', 'ingest recent chats', or 'catch up the brain'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "toolHealth",
+    "description": "Check the health of Nick's tools and their dependencies. Shows which tools are operational, degraded, or down. Use when Nour asks about system health, tool status, or 'is everything working?'",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "triageStaleLead",
+    "description": "Triage a stale lead requires nickstire admin access (the lead table lives there). Returns a structured redirect — Nick relays the message and the admin URL.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "leadId": {
+          "description": "The lead id from the nickstire admin",
+          "type": "string"
+        },
+        "outcome": {
+          "description": "What's the triage decision",
+          "enum": [
+            "dead",
+            "recovered",
+            "followup",
+            "booked"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why this outcome (for the learning loop)",
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "leadId",
+        "outcome",
+        "reason"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "triggerInstagramAutopost",
+    "description": "Run the Instagram Autopost pipeline immediately. Supports triggering dry-runs (evaluates but doesn't post) or live publishes. Optionally steer with a specific content archetype.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "dryRun": {
+          "default": true,
+          "description": "If true, only generates and evaluates. If false, posts live to Instagram/Facebook immediately.",
+          "type": "boolean"
+        },
+        "forceArchetype": {
+          "description": "Force a content archetype angle for the generated post.",
+          "enum": [
+            "educational",
+            "promo",
+            "behind_scenes",
+            "testimonial",
+            "meme",
+            "tips",
+            "showcase"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "updateCommitment",
+    "description": "Update a commitment status (kept, broken, deferred)",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "commitmentId": {
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "kept",
+            "broken",
+            "deferred"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "commitmentId",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "updateMasteryScore",
+    "description": "Update a mastery domain score with evidence",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "domain": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "score": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "domain",
+        "score",
+        "evidence"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "updateMissionStatus",
+    "description": "Change a mission's lifecycle status (PAUSED / COMPLETE / KILLED / ACTIVE). Use when Nour says a project is done, on hold, or dead. Does NOT write a retrospective — closing out with lessons is a separate deliberate step.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "missionId": {
+          "type": "string"
+        },
+        "note": {
+          "description": "Short why — stored on the mission's weekly review note.",
+          "maxLength": 500,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ACTIVE",
+            "PAUSED",
+            "COMPLETE",
+            "KILLED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "updateTask",
+    "description": "Update task fields · partial mutate (only provided fields change). Covers reframe (title / finishCondition), move (missionId), link/unlink goal (goalId), change kind (loopKind), reschedule (dueDate). Use when Nour says 'reframe this as X', 'move to project Y', 'link to goal Z', 'change to a daily'.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "dueDate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "ISO · null to clear"
+        },
+        "finishCondition": {
+          "type": "string"
+        },
+        "goalId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Set to null to UNLINK from goal · pass an id to link"
+        },
+        "loopKind": {
+          "enum": [
+            "ONCE",
+            "DAILY",
+            "PROMISE"
+          ],
+          "type": "string"
+        },
+        "missionId": {
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "titleQuery": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "weeklyReview",
+    "description": "Weekly performance review — 7-day revenue trend, task completion rate, habit streaks, drift patterns, wins and misses",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "writeCreative",
+    "description": "Write creative content: social posts, ad copy, email subject lines, slogans",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "count": {
+          "default": 3,
+          "description": "Number of variations",
+          "type": "number"
+        },
+        "tone": {
+          "default": "professional",
+          "enum": [
+            "professional",
+            "casual",
+            "urgent",
+            "funny",
+            "inspirational"
+          ],
+          "type": "string"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "social_post",
+            "ad_copy",
+            "email_subject",
+            "slogan",
+            "description"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "topic"
+      ],
+      "type": "object"
+    }
+  }
+]

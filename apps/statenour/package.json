@@ -44,6 +44,7 @@
     "export:traces": "tsx scripts/export-otel-traces.ts",
     "harvest:evals": "tsx scripts/harvest-eval-corpus.ts",
     "snapshot:mcp-surface": "cross-env UPDATE_MCP_SURFACE=1 vitest run tests/security/mcp-surface.test.ts",
+    "snapshot:tool-schemas": "cross-env UPDATE_TOOL_SCHEMAS=1 vitest run tests/ai/tool-schemas.snapshot.test.ts",
     "eval": "tsx tests/eval/run-suite.ts",
     "eval:memory": "tsx scripts/run-memory-evals.ts",
     "eval:live": "tsx tests/eval/run-suite.ts --live",
