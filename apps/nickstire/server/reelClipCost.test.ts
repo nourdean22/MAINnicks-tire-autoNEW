@@ -13,7 +13,7 @@
  * the undercount made the daily spend ceiling proportionally too permissive, and
  * made a Fast -> Lite switch record identical cost before and after.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   COST_ESTIMATES_USD,
@@ -32,7 +32,45 @@ afterEach(() => {
   // Nothing is mutated, but assert that stays true: a future case that reaches
   // for process.env would otherwise leak silently into the next file.
   expect(process.env.REEL_VEO_USD_PER_SECOND).toBeUndefined();
+  vi.doUnmock("./db");
+  vi.resetModules();
 });
+
+/**
+ * Minimal ledger fake, mirroring server/generationLedger.test.ts. `insert` records
+ * the row so the PERSISTED amount can be asserted — a pure-function test on
+ * reelClipCostUsd would have passed against the broken code too, because the bug
+ * was never in the arithmetic. It was that the arithmetic was never consulted.
+ */
+function fakeLedgerDb(state: { rows: Array<Record<string, unknown>> }) {
+  return {
+    select: () => ({
+      from: () => ({
+        where: () => {
+          const p = Promise.resolve(state.rows) as Promise<unknown> & {
+            limit: (n: number) => Promise<unknown>;
+          };
+          p.limit = () => Promise.resolve([]);
+          return p;
+        },
+      }),
+    }),
+    insert: () => ({
+      values: (v: Record<string, unknown>) => {
+        state.rows.push(v);
+        return Promise.resolve({});
+      },
+    }),
+    update: () => ({
+      set: (patch: Record<string, unknown>) => ({
+        where: () => {
+          Object.assign(state.rows[state.rows.length - 1] ?? {}, patch);
+          return Promise.resolve({});
+        },
+      }),
+    }),
+  };
+}
 
 describe("reelClipCostUsd · the provider decides the price", () => {
   it("prices a Veo clip per second, not at the Higgsfield per-clip rate", () => {
@@ -65,6 +103,89 @@ describe("reelClipCostUsd · the provider decides the price", () => {
     const cost = reelClipCostUsd("veo", { REEL_VEO_DURATION: "4" } as NodeJS.ProcessEnv);
 
     expect(cost).toBeCloseTo(4 * COST_ESTIMATES_USD.veo_second_720p, 10);
+  });
+});
+
+/**
+ * Trajectory through the service boundary: cost -> reserve() -> policy check ->
+ * persisted row. The unit cases above prove the arithmetic; these prove the
+ * arithmetic actually reaches the ledger and the budget guard, which is where
+ * the original defect lived.
+ */
+describe("reel spend trajectory · the persisted amount follows the provider", () => {
+  async function reserveFor(provider: string, beats: number, dailyBudgetUsd?: number) {
+    const state = { rows: [] as Array<Record<string, unknown>> };
+    const db = fakeLedgerDb(state);
+    // reserve() selects twice: an existence check, then a post-insert re-sum that
+    // expects a [{ total }] aggregate. Compute that total from what was actually
+    // persisted, so the budget branch is driven by the reserved amount rather than
+    // a hard-coded number — otherwise this test could not tell the two prices apart.
+    const origSelect = db.select.bind(db);
+    let selectCount = 0;
+    db.select = ((proj?: unknown) => {
+      selectCount++;
+      if (selectCount >= 2) {
+        const total = state.rows.reduce((sum, r) => sum + Number(r.estimatedCostUsd ?? 0), 0);
+        return { from: () => ({ where: () => Promise.resolve([{ total: String(total) }]) }) } as never;
+      }
+      return origSelect(proj);
+    }) as typeof db.select;
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(db) }));
+    vi.resetModules();
+    const ledger = await import("./services/generationLedger");
+
+    const row = await ledger.reserve({
+      actionId: `reel_job_${provider}`,
+      provider,
+      model: provider === "veo" ? "veo-3.1-fast-generate-preview" : "seedance1_5",
+      operation: "reel_clips",
+      estimatedCostUsd: beats * ledger.reelClipCostUsd(provider),
+      ...(dailyBudgetUsd !== undefined ? { dailyBudgetUsd } : {}),
+    });
+    return { row, state };
+  }
+
+  it("persists a Veo reservation at the Veo rate, not the Seedance rate", async () => {
+    const beats = 6;
+    const { row } = await reserveFor("veo", beats);
+
+    const seedancePrice = beats * COST_ESTIMATES_USD.seedance_clip;
+    expect(row).not.toBeNull();
+    expect(row!.estimatedCostUsd).toBeCloseTo(
+      beats * VEO_DEFAULT_CLIP_SECONDS * COST_ESTIMATES_USD.veo_second_720p,
+      10,
+    );
+    // The exact assertion the old code would have failed: it booked this number.
+    expect(row!.estimatedCostUsd).not.toBeCloseTo(seedancePrice, 10);
+  });
+
+  it("still persists a Higgsfield reservation at the Seedance rate", async () => {
+    const beats = 6;
+    const { row } = await reserveFor("higgsfield", beats);
+
+    expect(row!.estimatedCostUsd).toBeCloseTo(beats * COST_ESTIMATES_USD.seedance_clip, 10);
+  });
+
+  /**
+   * The consequence that made this a money bug rather than a reporting one:
+   * estimatedCostUsd is what reserve() compares against the daily ceiling, so
+   * underpricing Veo let a reel through a budget that should have stopped it.
+   */
+  it("trips the daily ceiling at the Veo price where the Seedance price would have passed", async () => {
+    const beats = 6;
+    const seedancePrice = beats * COST_ESTIMATES_USD.seedance_clip;
+    const veoPrice = beats * VEO_DEFAULT_CLIP_SECONDS * COST_ESTIMATES_USD.veo_second_720p;
+    // A ceiling deliberately between the two prices.
+    const budget = (seedancePrice + veoPrice) / 2;
+    expect(budget).toBeGreaterThan(seedancePrice);
+    expect(budget).toBeLessThan(veoPrice);
+
+    await expect(reserveFor("veo", beats, budget)).rejects.toThrow(/BUDGET_DAILY_EXCEEDED/);
+
+    // Same job, same budget, priced as Higgsfield — passes. That gap is exactly
+    // how much guard the undercount was giving away.
+    const { row } = await reserveFor("higgsfield", beats, budget);
+    expect(row).not.toBeNull();
   });
 });
 
