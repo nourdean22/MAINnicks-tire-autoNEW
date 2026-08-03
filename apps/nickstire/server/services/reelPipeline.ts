@@ -79,14 +79,50 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
  */
 export async function selectReelVideoProvider(): Promise<"veo" | "higgsfield"> {
   const explicit = process.env.REEL_VIDEO_PROVIDER?.toLowerCase();
-  if (explicit === "veo" || explicit === "higgsfield") return explicit;
-  const { veoCredentialsPresent } = await import("./veoStudio");
-  if (veoCredentialsPresent()) return "veo";
+  if (explicit === "veo" || explicit === "higgsfield") {
+    // The pin still wins — that is its job, and the tests pin that contract.
+    // But it is announced when the pinned provider has no credentials at all,
+    // because this selector is how prod ended up generating into a dead provider:
+    // on 2026-08-03 REEL_VIDEO_PROVIDER=higgsfield was live with generation,
+    // autopost and publish all enabled while that session had been expired since
+    // 07-31, and nothing between the env var and the failing CLI call said so.
+    //
+    // Deliberately a warn and NOT a throw: socialDeliveryIssues.ts calls this
+    // OUTSIDE its try block, so throwing here would take down the whole Today
+    // delivery panel to report a config problem.
+    //
+    // NOT a liveness check, and it would NOT have caught the incident above:
+    // getHiggsfieldCredentialsJson returns the stored blob without parsing it, so
+    // an EXPIRED session reads as present. Liveness belongs to the keepalive probe
+    // and to the operator-facing readiness signal, not to a hot selector.
+    if (!(await reelProviderCredentialsPresent(explicit))) {
+      log.warn("REEL_VIDEO_PROVIDER pins a provider with no credentials present", {
+        pinned: explicit,
+        hint: "unset REEL_VIDEO_PROVIDER to auto-select, or load that provider's credentials",
+      });
+    }
+    return explicit;
+  }
+  if (await reelProviderCredentialsPresent("veo")) return "veo";
+  if (await reelProviderCredentialsPresent("higgsfield")) return "higgsfield";
+  return "veo";
+}
+
+/**
+ * Presence, NOT liveness — the same contract veoCredentialsPresent documents for
+ * itself. A stored-but-expired Higgsfield session reads as present here.
+ */
+export async function reelProviderCredentialsPresent(provider: "veo" | "higgsfield"): Promise<boolean> {
+  if (provider === "veo") {
+    const { veoCredentialsPresent } = await import("./veoStudio");
+    return veoCredentialsPresent();
+  }
   try {
     const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");
-    if (await getHiggsfieldCredentialsJson()) return "higgsfield";
-  } catch { /* fall through */ }
-  return "veo";
+    return Boolean(await getHiggsfieldCredentialsJson());
+  } catch {
+    return false;
+  }
 }
 
 /** Minimal structural view of a client ReelBrief — only the fields gen needs. */
@@ -339,7 +375,7 @@ export async function enqueueReelJob(
   // Settled at assets_ready with clips × per-clip estimate; failed jobs keep
   // the conservative reservation as their spend record.
   {
-    const { reserve, COST_ESTIMATES_USD } = await import("./generationLedger");
+    const { reserve, reelClipCostUsd } = await import("./generationLedger");
     const { getActivePolicy } = await import("./autonomyControl");
     const beatsCount = brief.storyboardBeats?.length ?? 6;
     const policy = await getActivePolicy();
@@ -359,7 +395,10 @@ export async function enqueueReelJob(
         provider: reservedProvider,
         model: reservedProvider === "veo" ? (process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-preview") : "seedance1_5",
         operation: "reel_clips",
-        estimatedCostUsd: beatsCount * COST_ESTIMATES_USD.seedance_clip,
+        // Priced by the provider actually resolved above, not a flat Seedance
+        // constant — this figure is what reserve() checks against the daily
+        // ceiling, so pricing Veo at Higgsfield's rate loosened the guard.
+        estimatedCostUsd: beatsCount * reelClipCostUsd(reservedProvider),
         dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
       });
     } catch (err) {
@@ -606,8 +645,11 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // Provider spend is complete at this point — settle the reservation with
     // clips × per-clip estimate (flagged estimate; no USD feed from the CLI).
     try {
-      const { settle, COST_ESTIMATES_USD } = await import("./generationLedger");
-      await settle(`reel_job_${job.id}`, clipUrls.length * COST_ESTIMATES_USD.seedance_clip);
+      const { settle, reelClipCostUsd } = await import("./generationLedger");
+      // videoProvider is the provider this run actually used, resolved above —
+      // settling at a flat Seedance rate is what made a mid-flight provider flip
+      // undetectable in the ledger.
+      await settle(`reel_job_${job.id}`, clipUrls.length * reelClipCostUsd(videoProvider));
     } catch { /* ledger degraded — reservation's estimate stands */ }
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });
     return { processed: true, jobId: job.id, status: "assets_ready" };

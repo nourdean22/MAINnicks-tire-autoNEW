@@ -2700,7 +2700,7 @@ export const contentAdminRouter = router({
   operationsSignal: adminProcedure.query(async () => {
     const { getDb } = await import("../db");
     const d = await getDb();
-    if (!d) return { heldReels: 0, openPublishes: 0, total: 0, unknown: true };
+    if (!d) return { heldReels: 0, openPublishes: 0, total: 0, unknown: true, videoProviderBlocked: null as number | null };
 
     let heldReels = 0;
     let openPublishes = 0;
@@ -2744,11 +2744,54 @@ export const contentAdminRouter = router({
     // itself unknown and a "correction" would be arithmetic on a guess.
     const overlap = unknown ? 0 : Math.min(overlappingJobIds.size, heldReels, openPublishes);
 
+    // Is the provider that would actually render even credentialed?
+    //
+    // Rides this already-polled query on purpose — no new poll, and it lands on
+    // Today, which is where the operator starts. On 2026-08-03 prod had
+    // REEL_VIDEO_PROVIDER pinned to higgsfield with generation, autopost and
+    // publish all enabled while that session had been expired since 07-31. Every
+    // count on this screen was correct and none of them could say that the thing
+    // producing reels could not run.
+    //
+    // Counts PROBLEMS, not health: exceptionFeed drops `count === 0`, so 0 means
+    // "nothing to report" and disappears, while 1 surfaces. Encoding it the other
+    // way round ("1 = online") would make a healthy pipeline a permanent alarm.
+    //
+    // Presence FIRST, then liveness where liveness is knowable. Presence alone is
+    // not enough for Higgsfield: getHiggsfieldCredentialsJson returns the stored
+    // blob without parsing it, so the session that expired on 2026-07-31 kept
+    // reading as configured while every render died at the CLI.
+    //
+    // Liveness comes from the keepalive's durable verdict in cron_log, not a
+    // fresh CLI spawn — this runs on a display path polled every 60s. null =
+    // could not determine, which reading() maps to `unknown` rather than a false
+    // all-clear.
+    let videoProviderBlocked: number | null = null;
+    try {
+      const { selectReelVideoProvider, reelProviderCredentialsPresent } = await import("../services/reelPipeline");
+      const provider = await selectReelVideoProvider();
+      if (!(await reelProviderCredentialsPresent(provider))) {
+        videoProviderBlocked = 1;
+      } else if (provider === "higgsfield") {
+        const { higgsfieldSessionHealth } = await import("../services/higgsfieldStudio");
+        const { healthy } = await higgsfieldSessionHealth();
+        // healthy === null stays null: "the keepalive cannot vouch for this" is
+        // an unknown, not a pass and not a failure.
+        videoProviderBlocked = healthy === null ? null : healthy ? 0 : 1;
+      } else {
+        // Veo has no equivalent session to expire; presence is the whole answer.
+        videoProviderBlocked = 0;
+      }
+    } catch {
+      videoProviderBlocked = null;
+    }
+
     return {
       heldReels,
       openPublishes,
       total: heldReels + openPublishes - overlap,
       unknown,
+      videoProviderBlocked,
     };
   }),
   /**

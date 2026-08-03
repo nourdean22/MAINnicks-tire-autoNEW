@@ -181,6 +181,7 @@ export default function OverviewSection() {
         opsFailed,
         opsUnknown: opsSignal?.unknown === true,
         opsTotal: opsSignal?.total,
+        opsVideoProviderBlocked: opsSignal?.videoProviderBlocked,
       }),
     [isError, bundle?.slices, bookings, leads, callbacks, stats, opsFailed, opsSignal],
   );

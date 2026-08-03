@@ -90,8 +90,16 @@ export default function ActivityPulse({ disabled = false, className = "" }: { di
   return (
     <>
       <AdminErrorTelemetryBridge />
+      {/* The mobile bottom offset below clears the quick-actions button in
+          CommandSearch.tsx, which occupies bottom-right on `lg:hidden`. This
+          container is pointer-events-none, but each pill is pointer-events-auto
+          and up to three stack at once for 6s each — so without the offset an SSE
+          burst would both hide that button and swallow taps aimed at it, on the
+          busiest screen in the admin. `flex-col-reverse` anchored at `bottom`
+          grows the stack upward, away from it. Desktop keeps the original inset
+          because the button is `lg:hidden`. */}
       {!disabled && pulses.length > 0 && (
-        <div className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0))] right-4 z-40 flex flex-col-reverse gap-2 pointer-events-none ${className}`} aria-live="polite">
+        <div className={`fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0))] lg:bottom-[calc(1rem+env(safe-area-inset-bottom,0))] right-4 z-40 flex flex-col-reverse gap-2 pointer-events-none ${className}`} aria-live="polite">
           <AnimatePresence mode="sync">
             {pulses.map((pulse) => {
               const config = KIND_CONFIG[pulse.kind];

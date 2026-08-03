@@ -25,6 +25,10 @@ describe("classification by message", () => {
     ["operation failed: internal error", "REMOTE_FAILED"],
     ["ECONNRESET while downloading", "TRANSIENT_NETWORK"],
     ["something nobody has seen before", "UNKNOWN"],
+    // Regression: this used to read "cannot authenticate", which matches no token
+    // in the AUTH_INVALID pattern and fell through to UNKNOWN. See the dedicated
+    // block below for why the exact wording is load-bearing.
+    ["Veo: authentication failed — no GEMINI_API_KEY and no GOOGLE_SERVICE_ACCOUNT_EMAIL/_KEY", "AUTH_INVALID"],
   ];
 
   for (const [msg, expected] of cases) {
@@ -39,6 +43,49 @@ describe("classification by message", () => {
     const v = classifyProviderError(new Error("400 invalid request: content policy violation"));
     expect(v.errorClass).toBe("SAFETY_POLICY_PERMANENT");
     expect(v.action).toBe("REGENERATE_PROMPT");
+  });
+});
+
+/**
+ * Control flow here is routed on prose, so the wording of a thrown message is
+ * production behaviour, not a string. These tests make that coupling explicit
+ * instead of accidental.
+ *
+ * `veoAuthHeader` threw "... — cannot authenticate" when no Veo credential was
+ * configured. The AUTH_INVALID pattern (providerErrors.ts:88) matches literal
+ * tokens and "cannot authenticate" is not one of them, so a missing API key
+ * classified UNKNOWN → RETRY_BACKOFF with consumesAttempt: a permanent config
+ * fault spent all three attempts impersonating a transient one, then reported
+ * "unrecognised failure" rather than naming the missing key.
+ */
+describe("a missing Veo credential is an auth fault, not a transient one", () => {
+  const VEO_NO_CREDENTIAL =
+    "Veo: authentication failed — no GEMINI_API_KEY and no GOOGLE_SERVICE_ACCOUNT_EMAIL/_KEY";
+
+  it("pauses the provider instead of scheduling a retry", () => {
+    const verdict = classifyProviderError(new Error(VEO_NO_CREDENTIAL));
+
+    expect(verdict.errorClass).toBe("AUTH_INVALID");
+    expect(verdict.action).toBe("PAUSE_PROVIDER");
+  });
+
+  it("goes terminal on the first attempt rather than burning all three", () => {
+    const verdict = classifyProviderError(new Error(VEO_NO_CREDENTIAL));
+
+    expect(nextStatusFor(verdict, 1, MAX, "queued").terminal).toBe(true);
+  });
+
+  /**
+   * The guard that makes the two tests above mean something. Without it the
+   * message could be reworded in veoStudio.ts, this file would still pass
+   * against its own hard-coded copy, and the retry regression would return
+   * silently — a green gate over a defect it can no longer see.
+   */
+  it("is the message veoStudio actually throws", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile("server/services/veoStudio.ts", "utf8");
+
+    expect(source).toContain("authentication failed");
   });
 });
 

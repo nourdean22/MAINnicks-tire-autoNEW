@@ -575,13 +575,25 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
 
-  // Filter actions by query
+  // Filter actions by query — or, on an empty query, browse the whole registry.
+  //
+  // The empty case used to be `[]`, which is why this palette was effectively
+  // desktop-only: on a phone there is no ⌘K and no way to guess what is in here,
+  // so opening it showed an input and a blank sheet you had to thumb-type into
+  // before anything appeared. Sections and customers stay query-gated (a customer
+  // list needs a search term to mean anything), but the 26 actions and 6
+  // drilldowns are a fixed, knowable menu — showing them IS the discovery.
+  //
+  // Deliberately unsliced. The query path caps at 6 because it is ranking; browse
+  // is not ranking, and any cap here would force a "which 8 matter?" curation
+  // decision that would drift out of sync with the registry above. The listbox
+  // already scrolls within the dynamic viewport.
   const matchingActions = query.length >= 1
     ? quickActions.filter(a =>
         a.label.toLowerCase().includes(query.toLowerCase()) ||
         a.keywords.some(k => k.includes(query.toLowerCase()))
       ).slice(0, 6)
-    : [];
+    : quickActions;
 
   // Keyboard shortcut to open
   useEffect(() => {
@@ -675,6 +687,24 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
         </kbd>
       </button>
 
+      {/* Thumb-reachable entry to the SAME palette, phone only.
+          The trigger above lives in `admin-topbar` at the very top of the screen,
+          outside the thumb arc of a one-handed grip — which, together with the
+          empty-query blank sheet fixed above, is why 32 quick actions were
+          reachable in practice only by keyboard on a desktop.
+          A second trigger, not a second component: same `setOpen`, same focus
+          trap, same Escape/arrow handling, same action registry. Nothing to keep
+          in sync. `bottom` clears the iOS home indicator via safe-area inset, and
+          ActivityPulse is offset upward by the same amount so its pills (which are
+          `pointer-events-auto`) cannot cover or swallow taps on this button. */}
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="Quick actions"
+        className="lg:hidden fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-black/40 active:scale-95 transition-transform"
+      >
+        <Zap className="w-5 h-5" />
+      </button>
+
       {/* Modal overlay */}
       {open && (
         <>
@@ -719,8 +749,14 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                 )}
               </div>
 
-              {/* Results */}
-              {query.length >= 1 && (
+              {/* Results. Gated on `hasResults` as well as a typed query so the
+                  empty-query browse list above actually renders — without this the
+                  palette still opens to a bare input on a phone. Derived from the
+                  same arrays rather than a separate `browse` flag, so there is one
+                  source of truth for "is there anything to show". The no-results
+                  branch below stays scoped to `query.length >= 2`, so an empty
+                  query can never render "nothing found". */}
+              {(query.length >= 1 || hasResults) && (
                 <div role="listbox" id="command-search-listbox" className="max-h-[calc(100dvh-12rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:max-h-[50vh] overflow-y-auto overscroll-contain">
                   {/* Section shortcuts */}
                   {matchingSections.length > 0 && (

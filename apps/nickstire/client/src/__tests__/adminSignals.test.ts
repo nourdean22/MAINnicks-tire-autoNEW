@@ -13,7 +13,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { foldSignals, signalsForSection } from "@shared/adminSignal";
+import { exceptionFeed, foldSignals, signalsForSection } from "@shared/adminSignal";
 
 import { type AdminSignalInputs, buildAdminSignals } from "../lib/adminSignals";
 
@@ -37,6 +37,7 @@ const inputs = (over: Partial<AdminSignalInputs> = {}): AdminSignalInputs => ({
   opsFailed: false,
   opsUnknown: false,
   opsTotal: 7,
+  opsVideoProviderBlocked: 0,
   ...over,
 });
 
@@ -204,5 +205,63 @@ describe("unwired sections emit nothing at all", () => {
     const all = buildAdminSignals(inputs());
     expect(signalsForSection(all, section)).toHaveLength(0);
     expect(badgeFor(all, section)).toEqual({ state: "not_measured" });
+  });
+});
+
+/**
+ * The reel pipeline can be fully enabled and still produce nothing, because every
+ * other signal on this screen measures WORK and none measured whether the thing
+ * doing the work can run.
+ *
+ * On 2026-08-03 prod had REEL_VIDEO_PROVIDER pinned to higgsfield — expired since
+ * 07-31 — with generation, autopost and publish all true. Held-reel and
+ * open-publish counts were both accurate and both silent about it.
+ */
+describe("reel video provider readiness is a signal, not a silence", () => {
+  const providerSignal = (over: Partial<AdminSignalInputs> = {}) =>
+    buildAdminSignals(inputs(over)).find((s) => s.id === "video-provider-blocked")!;
+
+  it("surfaces a provider with no credentials as an urgent exception", () => {
+    const signal = providerSignal({ opsVideoProviderBlocked: 1 });
+
+    expect(signal.reading).toEqual({ state: "counted", count: 1 });
+    expect(signal.severity).toBe("urgent");
+    expect(exceptionFeed([signal])).toHaveLength(1);
+  });
+
+  /**
+   * The encoding decision, pinned. It counts PROBLEMS, so a healthy provider is 0
+   * and exceptionFeed drops it. Encoding health instead ("1 = online") would have
+   * made a working pipeline a permanent alarm, which is how alarms get ignored.
+   */
+  it("says nothing at all when the provider is credentialed", () => {
+    const signal = providerSignal({ opsVideoProviderBlocked: 0 });
+
+    expect(signal.reading).toEqual({ state: "counted", count: 0 });
+    expect(exceptionFeed([signal])).toHaveLength(0);
+  });
+
+  it("reports unknown — not a clean bill — when readiness could not be determined", () => {
+    const signal = providerSignal({ opsVideoProviderBlocked: null });
+
+    expect(signal.reading.state).toBe("unknown");
+    // An unreadable provider state is itself an exception; staying silent here
+    // would rebuild the false all-clear this signal exists to remove.
+    expect(exceptionFeed([signal])).toHaveLength(1);
+  });
+
+  it("reports unknown when the whole operationsSignal query failed", () => {
+    expect(providerSignal({ opsFailed: true }).reading.state).toBe("unknown");
+  });
+
+  it("is not_measured before the first response, rather than a zero", () => {
+    const signal = providerSignal({ opsVideoProviderBlocked: undefined });
+
+    expect(signal.reading.state).toBe("not_measured");
+    expect(exceptionFeed([signal])).toHaveLength(0);
+  });
+
+  it("names its source so the number can be traced", () => {
+    expect(providerSignal().source).toBe("contentAdmin.operationsSignal");
   });
 });
