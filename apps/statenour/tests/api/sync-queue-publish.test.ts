@@ -226,3 +226,58 @@ describe("publishSocialPost · hands the worker a claimable row", () => {
     expect(inngestSend.mock.calls[0][0].data.draftId).toBe("row-1");
   });
 });
+
+/**
+ * `imageUrl` means the VIDEO on a reel row — render-complete writes the
+ * compiled video into it, /render treats null as "not rendered yet", and
+ * dispatchQueuedPublish reads a reel's video back out of it. This producer
+ * alone stored the COVER there, so a reel row lied twice: /render skipped it as
+ * already-rendered, and re-dispatching it handed Meta a JPEG as the Reel video.
+ */
+describe("queue rows use one meaning for imageUrl", () => {
+  it("a reel row stores the VIDEO in imageUrl, not the cover", async () => {
+    await publishSocialPost(
+      {
+        platforms: ["instagram"],
+        videoUrl: "https://cdn.example.com/reel.mp4",
+        imageUrl: "https://cdn.example.com/cover.jpg",
+        caption: "hi",
+      },
+      undefined,
+    );
+
+    const data = create.mock.calls[0][0].data;
+    expect(data.kind).toBe("reel");
+    expect(data.imageUrl).toBe("https://cdn.example.com/reel.mp4");
+    // /render claims reels whose imageUrl is null. A reel row carrying its
+    // video can never be mistaken for one still awaiting a render.
+    expect(data.imageUrl).not.toBeNull();
+    // The cover is preserved rather than lost.
+    expect(data.sourceMetadata).toEqual({ coverUrl: "https://cdn.example.com/cover.jpg" });
+  });
+
+  it("a plain post still stores its image in imageUrl", async () => {
+    await publishSocialPost(
+      { platforms: ["instagram"], imageUrl: "https://cdn.example.com/a.jpg", caption: "hi" },
+      undefined,
+    );
+    const data = create.mock.calls[0][0].data;
+    expect(data.kind).toBe("post");
+    expect(data.imageUrl).toBe("https://cdn.example.com/a.jpg");
+  });
+
+  it("dispatching a queued reel sends its video AND its stored cover", async () => {
+    findUnique.mockResolvedValue({
+      ...ROW,
+      imageUrl: "https://cdn.example.com/reel.mp4",
+      sourceMetadata: { coverUrl: "https://cdn.example.com/cover.jpg" },
+    });
+
+    await post({ id: "row-1", action: "publish" });
+
+    const sent = inngestSend.mock.calls[0][0].data;
+    expect(sent.videoUrl).toBe("https://cdn.example.com/reel.mp4");
+    // Previously the cover was dropped on every queue dispatch.
+    expect(sent.imageUrl).toBe("https://cdn.example.com/cover.jpg");
+  });
+});

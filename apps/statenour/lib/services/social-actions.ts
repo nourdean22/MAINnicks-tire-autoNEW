@@ -292,10 +292,20 @@ export async function publishSocialPost(
           data: {
             content: input.caption || input.message || "",
             status: "pending",
-            imageUrl: absoluteImageUrl || null,
+            // For a REEL, `imageUrl` holds the VIDEO url. That is the column's
+            // meaning everywhere else: render-complete writes the compiled
+            // video into it, /render treats null as "not rendered yet", and
+            // dispatchQueuedPublish reads a reel's video back out of it.
+            // This producer alone stored the COVER image here, which made a
+            // reel row lie twice — /render skipped it as already-rendered, and
+            // re-dispatching it handed Meta a JPEG as the Reel video.
+            // The cover survives in sourceMetadata rather than being lost.
+            imageUrl: absoluteVideoUrl || absoluteImageUrl || null,
             platforms,
             kind: absoluteVideoUrl ? "reel" : "post",
             source: "manual",
+            sourceMetadata:
+              absoluteVideoUrl && absoluteImageUrl ? { coverUrl: absoluteImageUrl } : {},
           },
         })
       ).id;
@@ -452,12 +462,19 @@ export async function dispatchQueuedPublish(
     );
   }
 
+  // A reel's cover lives in sourceMetadata.coverUrl (imageUrl is the video).
+  // Without this the cover was silently dropped on every queue dispatch, so a
+  // reel published from the queue lost the thumbnail it was created with.
+  const meta = (item.sourceMetadata ?? {}) as Record<string, unknown>;
+  const coverUrl = typeof meta.coverUrl === "string" ? meta.coverUrl : undefined;
+  const isReel = item.kind === "reel";
+
   await publishSocialPost(
     {
       draftId: item.id,
       platforms: [...platforms],
-      imageUrl: item.kind !== "reel" ? item.imageUrl || undefined : undefined,
-      videoUrl: item.kind === "reel" ? item.imageUrl || undefined : undefined,
+      imageUrl: isReel ? coverUrl : item.imageUrl || undefined,
+      videoUrl: isReel ? item.imageUrl || undefined : undefined,
       caption: item.content,
     },
     requestHost,
