@@ -146,6 +146,10 @@ describe("the hide list cannot silently swallow a signal", () => {
     opsFailed: false,
     opsUnknown: false,
     opsTotal: 1,
+    // 1, not 0: this list is an anti-drift check on the PRODUCED signal ids, and
+    // a healthy provider still produces its signal (with count 0) — but keeping a
+    // real problem here makes the intent obvious if the encoding ever flips.
+    opsVideoProviderBlocked: 1,
   }).map((s) => s.id);
 
   const hiddenIdsFromSource = (constName: string) => {

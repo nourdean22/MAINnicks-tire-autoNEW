@@ -178,6 +178,7 @@ export default function Admin() {
         opsFailed,
         opsUnknown: opsSignal?.unknown === true,
         opsTotal: opsSignal?.total,
+        opsVideoProviderBlocked: opsSignal?.videoProviderBlocked,
       }),
     [overviewUnavailable, bundle?.slices, actionableCounts, stats, opsFailed, opsSignal],
   );

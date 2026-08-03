@@ -70,6 +70,15 @@ export interface AdminSignalInputs {
   opsFailed: boolean;
   opsUnknown: boolean;
   opsTotal: number | undefined;
+  /**
+   * Problem COUNT for the reel video provider, from the same already-polled
+   * operationsSignal: 0 = credentialed, 1 = the provider that would render has no
+   * credentials, null = could not determine, undefined = not reported yet.
+   *
+   * Counts problems rather than health because `exceptionFeed` drops `count === 0`
+   * — so a healthy provider disappears instead of becoming a standing alarm.
+   */
+  opsVideoProviderBlocked: number | null | undefined;
 }
 
 const BUNDLE = "adminDashboard.overviewMediumBundle";
@@ -154,6 +163,30 @@ export function buildAdminSignals(inputs: AdminSignalInputs): AdminSignal[] {
       source: OPS,
       updatedAt: null,
       reading: opsReading,
+    },
+    {
+      /**
+       * The reel pipeline can be fully enabled and still produce nothing, because
+       * every gate above it measures WORK and none measures whether the thing
+       * doing the work can run. On 2026-08-03 prod had REEL_VIDEO_PROVIDER pinned
+       * to higgsfield — expired since 07-31 — with generation, autopost and
+       * publish all true. Held-reel and open-publish counts were both accurate
+       * and both silent about it.
+       *
+       * Same query as ops-overview, so this costs no extra poll.
+       */
+      id: "video-provider-blocked",
+      section: "instagram",
+      label: "reel video provider not credentialed",
+      severity: "urgent",
+      source: OPS,
+      updatedAt: null,
+      reading: reading({
+        failed: inputs.opsFailed,
+        value: inputs.opsVideoProviderBlocked,
+        sourceLabel: OPS,
+        notMeasuredReason: `${OPS} has not reported provider readiness yet`,
+      }),
     },
 
     // ── Sales Pipeline ─────────────────────────────────────────────────────

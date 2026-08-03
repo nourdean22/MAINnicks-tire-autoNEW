@@ -79,14 +79,50 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
  */
 export async function selectReelVideoProvider(): Promise<"veo" | "higgsfield"> {
   const explicit = process.env.REEL_VIDEO_PROVIDER?.toLowerCase();
-  if (explicit === "veo" || explicit === "higgsfield") return explicit;
-  const { veoCredentialsPresent } = await import("./veoStudio");
-  if (veoCredentialsPresent()) return "veo";
+  if (explicit === "veo" || explicit === "higgsfield") {
+    // The pin still wins — that is its job, and the tests pin that contract.
+    // But it is announced when the pinned provider has no credentials at all,
+    // because this selector is how prod ended up generating into a dead provider:
+    // on 2026-08-03 REEL_VIDEO_PROVIDER=higgsfield was live with generation,
+    // autopost and publish all enabled while that session had been expired since
+    // 07-31, and nothing between the env var and the failing CLI call said so.
+    //
+    // Deliberately a warn and NOT a throw: socialDeliveryIssues.ts calls this
+    // OUTSIDE its try block, so throwing here would take down the whole Today
+    // delivery panel to report a config problem.
+    //
+    // NOT a liveness check, and it would NOT have caught the incident above:
+    // getHiggsfieldCredentialsJson returns the stored blob without parsing it, so
+    // an EXPIRED session reads as present. Liveness belongs to the keepalive probe
+    // and to the operator-facing readiness signal, not to a hot selector.
+    if (!(await reelProviderCredentialsPresent(explicit))) {
+      log.warn("REEL_VIDEO_PROVIDER pins a provider with no credentials present", {
+        pinned: explicit,
+        hint: "unset REEL_VIDEO_PROVIDER to auto-select, or load that provider's credentials",
+      });
+    }
+    return explicit;
+  }
+  if (await reelProviderCredentialsPresent("veo")) return "veo";
+  if (await reelProviderCredentialsPresent("higgsfield")) return "higgsfield";
+  return "veo";
+}
+
+/**
+ * Presence, NOT liveness — the same contract veoCredentialsPresent documents for
+ * itself. A stored-but-expired Higgsfield session reads as present here.
+ */
+export async function reelProviderCredentialsPresent(provider: "veo" | "higgsfield"): Promise<boolean> {
+  if (provider === "veo") {
+    const { veoCredentialsPresent } = await import("./veoStudio");
+    return veoCredentialsPresent();
+  }
   try {
     const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");
-    if (await getHiggsfieldCredentialsJson()) return "higgsfield";
-  } catch { /* fall through */ }
-  return "veo";
+    return Boolean(await getHiggsfieldCredentialsJson());
+  } catch {
+    return false;
+  }
 }
 
 /** Minimal structural view of a client ReelBrief — only the fields gen needs. */
