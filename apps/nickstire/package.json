@@ -151,7 +151,7 @@
     "jsdom": "^29.0.2",
     "mysql-memory-server": "1.14.1",
     "pnpm": "^10.34.5",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.25",
     "prettier": "^3.9.6",
     "tailwindcss": "catalog:",
     "tsx": "^4.23.1",
