@@ -1016,7 +1016,14 @@ export const operatorRouter = router({
         }
         return { ok: true as const, draft };
       }
-      await rejectDraft(input.key, input.reason);
+      try {
+        await rejectDraft(input.key, input.reason);
+      } catch (err) {
+        if (err instanceof DraftStateError) {
+          throw new TRPCError({ code: "CONFLICT", message: err.message });
+        }
+        throw err;
+      }
       return { ok: true as const, rejected: true as const };
     }),
 
@@ -1269,7 +1276,17 @@ export const operatorRouter = router({
       }
 
       if (action === "reject") {
-        await rejectDraft(id, reason);
+        // rejectDraft throws DraftStateError now; without this catch the
+        // sanitizing errorFormatter flattens it into a generic 500 + errorId —
+        // the exact failure mode already fixed for PublishDispatchError.
+        try {
+          await rejectDraft(id, reason);
+        } catch (err) {
+          if (err instanceof DraftStateError) {
+            throw new TRPCError({ code: "CONFLICT", message: err.message });
+          }
+          throw err;
+        }
         return { ok: true as const, rejected: true as const };
       }
 
@@ -1323,12 +1340,18 @@ export const operatorRouter = router({
       }
       
       if (action === "delete") {
-        await prisma.socialPublishQueue.update({
-          where: { id },
-          data: {
-            deletedAt: new Date(),
-          },
+        // Guarded like reject — soft-deleting a row the worker holds hides a
+        // post that may already be live (finalize does not filter deletedAt).
+        const removed = await prisma.socialPublishQueue.updateMany({
+          where: { id, deletedAt: null, status: { notIn: ["rendering", "published"] } },
+          data: { deletedAt: new Date() },
         });
+        if (removed.count !== 1) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Cannot delete a queue item that is rendering, published, or already deleted — a worker owns it.",
+          });
+        }
         return { ok: true as const, deleted: true as const };
       }
       

@@ -21,6 +21,38 @@ import { hasPerplexica } from "@/lib/integrations/perplexica";
 // a time, or an overlapping write corrupts the in-flight job's credentials.
 let moneyprinterInFlight = false;
 
+/**
+ * Pull the rendered video paths out of MoneyPrinterTurbo's CLI output.
+ *
+ * cli.py ends with a single JSON line — `{"task_id": ..., "result": {...}}` —
+ * and the render paths live at `result.videos` (app/services/task.py:465).
+ * Everything before it is loguru progress noise, so scan from the END for the
+ * last parseable JSON object rather than trying to match log lines.
+ *
+ * Exported for tests: this is a parser over another project's output format,
+ * which is exactly the kind of contract that breaks silently on an upgrade.
+ */
+export function parseMoneyprinterResult(stdout: string): { taskId: string | null; videoPaths: string[] } {
+  const lines = stdout.split(/\r?\n/).filter((l) => l.trim().startsWith("{"));
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const parsed = JSON.parse(lines[i]) as {
+        task_id?: unknown;
+        result?: { videos?: unknown } | null;
+      };
+      const videos = parsed?.result?.videos;
+      const paths = Array.isArray(videos)
+        ? videos.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        : [];
+      const taskId = typeof parsed?.task_id === "string" ? parsed.task_id : null;
+      if (taskId || paths.length) return { taskId, videoPaths: paths };
+    } catch {
+      // Not the result line — keep scanning backwards.
+    }
+  }
+  return { taskId: null, videoPaths: [] };
+}
+
 // arsenalNotebookLM is whitelisted for the deep-reasoning engine, whose
 // contract is OBSERVE-only. The MCP sidecar may expose mutating tools, so the
 // LLM-supplied action must pass this code-level read-only allowlist — the
@@ -1656,10 +1688,34 @@ export const systemTools = {
         // surgical fix so the tool stops failing on every attempt.)
         const { stdout, stderr } = await execFilePromise(pythonCmd, args, { env, timeout: 420000, maxBuffer: 10 * 1024 * 1024 });
 
+        // The description has always promised "the generated video filepath"
+        // and the tool has never returned one — callers got raw stdout and had
+        // to guess. cli.py's LAST line is
+        // `{"task_id": "...", "result": {..., "videos": ["<abs>/final-1.mp4"]}}`
+        // (moneyprinter cli.py run_cli / app/services/task.py:465), so parse it
+        // rather than scraping log text.
+        const { taskId, videoPaths } = parseMoneyprinterResult(stdout);
+        if (videoPaths.length === 0) {
+          // A render that produced no file is a FAILURE, not a success with an
+          // empty list — returning ok:true here is what let "video generated"
+          // reach Nour with nothing behind it.
+          return {
+            ok: false,
+            error: "MoneyPrinterTurbo finished without emitting a video path — check stderr for the failing stage.",
+            taskId,
+            stdout: stdout.slice(-2000),
+            stderr: stderr.slice(-2000),
+          };
+        }
+
         return {
           ok: true,
-          stdout,
-          stderr,
+          taskId,
+          /** Absolute path(s) on THIS machine. Ingest into nickstire inventory
+           *  with its mp4Ingest service rather than posting from here. */
+          videoPaths,
+          videoPath: videoPaths[0],
+          stderr: stderr.slice(-2000),
         };
       } catch (err) {
         const { sanitizeError } = await import("@/lib/utils/sanitize-error");

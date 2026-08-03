@@ -139,7 +139,15 @@ export const instagramAdminRouter = router({
         const provider = await selectReelVideoProvider();
         const { veoCredentialsPresent } = await import("../services/veoStudio");
         const higgsfieldConfigured = !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson());
-        const configured = provider === "higgsfield" ? higgsfieldConfigured : veoCredentialsPresent();
+        // template_stock renders locally with ffmpeg — it has NO credentials to
+        // check, so it is always configured. Reporting Veo's key state for it
+        // would paint the card red while the lane runs perfectly.
+        const configured =
+          provider === "template_stock"
+            ? true
+            : provider === "higgsfield"
+              ? higgsfieldConfigured
+              : veoCredentialsPresent();
         return {
           provider,
           configured,
