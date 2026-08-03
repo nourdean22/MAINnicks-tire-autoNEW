@@ -28,8 +28,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$sync = Join-Path $RepoRoot 'scripts\graphify-obsidian-sync.ps1'
-if (-not (Test-Path $sync)) { throw "sync script not found: $sync" }
+# The task fires the LAUNCHER, not the sync. Aiming it at the sync directly was
+# measured dead on 2026-08-03: killed at ~106s with 0xC000013A after full AST
+# extraction, having written nothing. See graphify-sync-launcher.ps1's header.
+$launcher = Join-Path $RepoRoot 'scripts\graphify-sync-launcher.ps1'
+if (-not (Test-Path $launcher)) { throw "launcher not found: $launcher" }
+if (-not (Test-Path (Join-Path $RepoRoot 'scripts\graphify-obsidian-sync.ps1'))) {
+    throw "sync script not found next to launcher in $RepoRoot"
+}
 
 if ($RepoRoot -match '\\\.claude\\worktrees\\') {
     Write-Warning "RepoRoot looks like a worktree: $RepoRoot"
@@ -40,7 +46,7 @@ if ($RepoRoot -match '\\\.claude\\worktrees\\') {
 # non-interactive run. -ExecutionPolicy Bypass: the task has no console to
 # approve an unsigned local script.
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$sync`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcher`""
 
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $DayOfWeek -At $At
 
@@ -57,13 +63,16 @@ $settings = New-ScheduledTaskSettingsSet `
 $desc = 'Weekly rebuild of the graphify code knowledge graph + Obsidian vault digests. ' +
         'Refreshes graphify-out/GRAPH_REPORT.md in the primary checkout, which ' +
         'scripts/graphify-session-context.ps1 reads at every Claude Code session start. ' +
-        'Defined by scripts/register-graphify-sync-task.ps1.'
+        'Fires scripts/graphify-sync-launcher.ps1, which spawns the sync detached - so ' +
+        'this task going green means the LAUNCH succeeded, not the sync. The outcome is ' +
+        'in graphify-out/obsidian-sync.log. Defined by scripts/register-graphify-sync-task.ps1.'
 
 # -Force makes this an upsert rather than a duplicate-name failure on re-run.
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Settings $settings -Description $desc -Force | Out-Null
 
 $info = Get-ScheduledTask -TaskName $TaskName | Get-ScheduledTaskInfo
-Write-Output "registered '$TaskName' -> $sync"
+Write-Output "registered '$TaskName' -> $launcher"
 Write-Output "  schedule: weekly $DayOfWeek at $($At.ToString('HH:mm')) (next run: $($info.NextRunTime))"
 Write-Output "  run it now with: Start-ScheduledTask -TaskName '$TaskName'"
+Write-Output "  the task reports the LAUNCH; watch graphify-out/obsidian-sync.log for the sync itself"
