@@ -63,9 +63,12 @@ function allClientTsx(dir = "client/src"): string[] {
  */
 describe("no full-viewport backdrop blur on phone-only overlays", () => {
   const offenders: Array<{ file: string; line: number; text: string }> = [];
+  const scanned = allClientTsx();
+  let linesScanned = 0;
 
-  for (const file of allClientTsx()) {
+  for (const file of scanned) {
     const lines = read(file).split("\n");
+    linesScanned += lines.length;
     lines.forEach((text, i) => {
       // Comments explaining WHY the blur was removed must not count as violations.
       const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/, "");
@@ -78,6 +81,18 @@ describe("no full-viewport backdrop blur on phone-only overlays", () => {
       }
     });
   }
+
+  /**
+   * The guard on the guard. `expect([]).toEqual([])` is also what an empty sweep
+   * returns, so a broken walker, a moved directory or a renamed extension would
+   * turn this suite green while scanning nothing — a fresh instance of exactly the
+   * all-clear-on-failure class this file exists to prevent. Floors measured on
+   * 2026-08-03: 142 files, ~38k lines.
+   */
+  it("actually scanned the client tree", () => {
+    expect(scanned.length).toBeGreaterThan(100);
+    expect(linesScanned).toBeGreaterThan(20_000);
+  });
 
   it("has no phone-only full-screen scrim carrying a backdrop-blur", () => {
     expect(offenders.map((o) => `${o.file}:${o.line} — ${o.text}`)).toEqual([]);
@@ -119,6 +134,25 @@ describe("phone-reachable controls meet the 48px touch minimum", () => {
     // w-12/h-12 is 48px in this Tailwind scale, and is the house pattern.
     expect(s).toMatch(/w-12 h-12/);
     expect(s).toMatch(/aria-label="Dismiss bad-link notice"/);
+  });
+
+  /**
+   * Found by an adversarial sweep AFTER the review catch, and both were worse than
+   * the control review flagged: insight.tsx was a bare button with no padding at
+   * all around a 16px glyph (a 16x16px target, the smallest in the admin), and
+   * AdminAlertBar was p-1 around a 14px glyph (22x22px). Same widget kind —
+   * dismissable notice — same one-handed-phone surface.
+   */
+  it("the shared insight-card dismiss is at least 48px", () => {
+    const s = read("client/src/pages/admin/shared/insight.tsx");
+    expect(s).toMatch(/w-12 h-12[^"]*aria-label="Dismiss"|aria-label="Dismiss"/);
+    expect(s).toMatch(/w-12 h-12/);
+  });
+
+  it("the admin alert bar dismiss is at least 48px", () => {
+    const s = read("client/src/components/admin/AdminAlertBar.tsx");
+    expect(s).toMatch(/w-12 h-12/);
+    expect(s).not.toMatch(/className=\{`p-1 rounded hover:bg-black\/10/);
   });
 
   it("the mobile quick-actions trigger is at least 48px and phone-only", () => {
