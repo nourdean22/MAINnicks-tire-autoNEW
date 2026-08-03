@@ -33,7 +33,8 @@ import { Link } from "wouter";
 import { SectionContent, useAdminNavigation } from "./admin/registry";
 import {
   type AdminSection,
-  NAV_GROUPS,
+  getSidebarGroups,
+  sectionsForRole,
   SECTION_TITLES,
   openCustomerDrawer,
 } from "./admin/shared";
@@ -53,14 +54,13 @@ const TOPBAR_ACTIONS: TopbarAction[] = [
   { href: "/admin/ad-studio", title: "Ad Studio", icon: <Megaphone className="w-4 h-4" />, mobileHidden: true },
 ];
 
-const ROLE_SECTIONS: Record<AdminRole, readonly AdminSection[]> = {
-  owner: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
-  manager: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
-  front_desk: ["overview", "customers", "leads", "tireOrders", "voiceReceptionist", "callTrackingView"],
-  tech: ["overview", "customers", "tireOrders"],
-  accountant: ["overview", "revenue", "memberships", "opsHub", "trafficFunnel"],
-  viewer: ["overview", "intelligence", "opsHub"],
-};
+// ROLE_SECTIONS lived here until 2026-08-03. It was a Record<AdminRole, ...>
+// whose `owner` and `manager` values were byte-identical 16-element arrays
+// maintained by hand — two copies of one list, so every change had to be made
+// twice and correctly, and nothing compared them. Role access now comes from
+// `allowedRoles` on each registry entry via sectionsForRole(); the sidebar
+// comes from getSidebarGroups(). One source, and adminRegistryTruth.test.ts
+// fails if a routable section becomes unreachable for owner or manager.
 
 /**
  * `ops` is the publishing side of the business — held reels, ambiguous publishes.
@@ -173,11 +173,8 @@ export default function Admin() {
     opsFailed || opsSignal?.unknown ? null : (opsSignal?.total ?? 0);
 
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
-  const allowedSections = ROLE_SECTIONS[adminRole];
-  const visibleGroups = useMemo(
-    () => NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((item) => allowedSections.includes(item.id)) })).filter((group) => group.items.length > 0),
-    [allowedSections],
-  );
+  const allowedSections = useMemo(() => sectionsForRole(adminRole), [adminRole]);
+  const visibleGroups = useMemo(() => getSidebarGroups(adminRole), [adminRole]);
 
   useEffect(() => {
     if (security && !allowedSections.includes(section)) setSection(allowedSections[0] ?? "overview");

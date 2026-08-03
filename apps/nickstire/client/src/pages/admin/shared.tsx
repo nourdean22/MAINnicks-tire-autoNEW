@@ -21,7 +21,7 @@ export {
 } from "./shared/constants";
 
 // ─── NAV ────────────────────────────────────────────────
-export { NAV_GROUPS, NAV_ITEMS } from "./shared/nav";
+export { getSidebarGroups, sectionsForRole, ADMIN_NAV_GROUPS, type AdminNavGroup } from "./shared/nav";
 
 // ─── DATE FORMATTING ────────────────────────────────────
 export { formatDate, formatDateTime, formatRelativeDate } from "./shared/format";
