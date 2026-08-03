@@ -88,12 +88,21 @@ export const POST = apiHandler(
     }
 
     if (action === "delete") {
-      await prisma.socialPublishQueue.update({
-        where: { id },
-        data: {
-          deletedAt: new Date(),
-        },
+      // Same guard as reject: soft-deleting a row the publish worker holds in
+      // "rendering" hides a post that may already have gone live — the worker's
+      // finalize does not filter deletedAt, so it still stamps published +
+      // publishUrls onto a row listDrafts can no longer show. DELETE renders as
+      // a button right beside REJECT, so this is the same tap away.
+      const deleted = await prisma.socialPublishQueue.updateMany({
+        where: { id, deletedAt: null, status: { notIn: ["rendering", "published"] } },
+        data: { deletedAt: new Date() },
       });
+      if (deleted.count !== 1) {
+        throw new ServiceError(
+          "Cannot delete a queue item that is rendering, published, or already deleted — a worker owns it.",
+          409,
+        );
+      }
       return { ok: true, deleted: true };
     }
 

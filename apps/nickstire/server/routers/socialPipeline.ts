@@ -39,6 +39,17 @@ const ENV_GATES = [
   // converts "I don't know" into a confident "nothing is running".
   { key: "REEL_COMMENT_RESPONDER_ENABLED", description: "Autonomous IG comment responder — LLM drafts replies to comments on reels", defaultOff: true },
   { key: "REEL_COMMENT_RESPONDER_LIVE", description: "PUBLICLY POSTS those AI-drafted comment replies. With ENABLED, this publishes to IG with no human review.", defaultOff: true },
+  // Registered WITH the feature, not after it. This panel's own header promises
+  // visibility into every gate controlling the content stack, and the two
+  // entries above are here because they were live in prod while listed nowhere.
+  //
+  // NOTE FOR THE NEXT FLAG ADDED HERE: gitleaks' generic-api-key rule matches
+  // `key: "SOME_NAME"` and the secret-scan gate scans only the PR's ADDED lines
+  // — so every pre-existing entry is invisible to it and yours will be the one
+  // that trips. These are feature-flag NAMES, already rendered in the admin
+  // panel, never credentials. Annotate the line as below rather than renaming
+  // the flag or weakening the gate.
+  { key: "MP4_INGEST_ENABLED", description: "Ingest a FINISHED mp4 (MoneyPrinter, hand-edited cut) into content inventory as a review_ready draft. Creates the reel_jobs row the publish gate needs; still subject to every approval/publish gate.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
 ] as const;
 
 /** DB feature flags relevant to the social/content pipeline. */

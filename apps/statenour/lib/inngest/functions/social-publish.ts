@@ -17,6 +17,51 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("inngest/social-publish");
 const inngest = getInngest();
 
+/**
+ * A `type` alias, not an `interface`, on purpose: this value is written to a
+ * Prisma Json column, and TypeScript grants implicit index signatures to type
+ * aliases but NOT to interfaces — so an interface array fails
+ * `InputJsonValue` assignability while the identical alias satisfies it.
+ */
+export type PlatformOutcome = {
+  platform: string;
+  postId?: string | null;
+  ok?: boolean;
+};
+
+/**
+ * Merge this run's per-platform outcomes into the row's existing history.
+ *
+ * ACCUMULATE, never replace. dispatchQueuedPublish reads this back to refuse
+ * re-posting a platform that already succeeded, and the Graph calls carry no
+ * idempotency key — so this record is the only thing preventing a duplicate.
+ * Replacing it erased the guard after ONE failed retry: FB ok + IG fail →
+ * re-approve → IG-only run fails → FB's ok:true is gone → the next re-approve
+ * rebuilds the full platform list and posts to Facebook twice.
+ *
+ * A prior SUCCESS is never downgraded by a later failed attempt — that is the
+ * whole invariant. Pure and exported so it is testable without the step harness.
+ */
+export function mergePublishResults(
+  prior: PlatformOutcome[],
+  current: PlatformOutcome[],
+): PlatformOutcome[] {
+  const merged = prior.filter((p) => p && typeof p.platform === "string").map((p) => ({ ...p }));
+  for (const r of current) {
+    const at = merged.findIndex((p) => p.platform === r.platform);
+    const next = { platform: r.platform, postId: r.postId ?? null, ok: r.ok };
+    if (at === -1) merged.push(next);
+    else if (!merged[at].ok) merged[at] = next;
+  }
+  return merged;
+}
+
+/** Union of permalinks/postIds across attempts — a retry must not wipe an earlier win's URL. */
+export function mergePublishUrls(prior: unknown, current: string[]): string[] {
+  const before = Array.isArray(prior) ? prior.filter((u): u is string => typeof u === "string") : [];
+  return Array.from(new Set([...before, ...current])).filter(Boolean);
+}
+
 export const socialPublishQueue = inngest.createFunction(
   {
     id: "social-publish",
@@ -257,7 +302,6 @@ export const socialPublishQueue = inngest.createFunction(
         }
 
         const allSucceeded = publishResults.every((r) => r.ok);
-        const publishUrls = publishResults.map((r) => r.permalink || r.postId || "").filter(Boolean);
         const errors = publishResults.map((r) => r.error).filter(Boolean);
 
         // AG-44 · stash raw postIds in sourceMetadata — the weekly
@@ -265,12 +309,22 @@ export const socialPublishQueue = inngest.createFunction(
         // publishUrls shadow them. Merge, never clobber existing meta.
         const currentRow = await prisma.socialPublishQueue.findUnique({
           where: { id: draftId },
-          select: { sourceMetadata: true },
+          select: { sourceMetadata: true, publishUrls: true },
         });
         const currentMeta =
           currentRow?.sourceMetadata && typeof currentRow.sourceMetadata === "object"
             ? (currentRow.sourceMetadata as Record<string, unknown>)
             : {};
+
+        // See mergePublishResults — accumulate, never replace.
+        const mergedResults = mergePublishResults(
+          Array.isArray(currentMeta.publishResults) ? (currentMeta.publishResults as PlatformOutcome[]) : [],
+          publishResults.map((r) => ({ platform: r.platform, postId: r.postId ?? null, ok: r.ok })),
+        );
+        const publishUrls = mergePublishUrls(
+          currentRow?.publishUrls,
+          publishResults.map((r) => r.permalink || r.postId || ""),
+        );
 
         return prisma.socialPublishQueue.update({
           where: { id: draftId },
@@ -279,14 +333,7 @@ export const socialPublishQueue = inngest.createFunction(
             publishedAt: allSucceeded ? new Date() : null,
             publishUrls,
             rejectionReason: allSucceeded ? null : errors.join(" | "),
-            sourceMetadata: {
-              ...currentMeta,
-              publishResults: publishResults.map((r) => ({
-                platform: r.platform,
-                postId: r.postId ?? null,
-                ok: r.ok,
-              })),
-            },
+            sourceMetadata: { ...currentMeta, publishResults: mergedResults },
           },
         });
       });

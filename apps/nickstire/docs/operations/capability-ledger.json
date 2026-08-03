@@ -1293,6 +1293,86 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "template-stock-reel-lane",
+      "name": "template_stock — zero-cost local reel clip lane",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "this branch — a third REEL_VIDEO_PROVIDER that renders each storyboard beat with local ffmpeg (no API, no credits, no credentials)",
+        "tests": [
+          "server/templateStockStudio.test.ts (11): the filtergraph is asserted PURE — bare-filename font (an absolute Windows path puts a drive-letter colon inside a colon-delimited option), textfile= captions rather than inline text=, one drawtext per wrapped line, real MOTION on both the gradient and still paths (Instagram restricts static videos), zoompan restating frame size so it cannot fall back to 1x1, vertical/yuv420p/silent output, and that sanitizeCaption KEEPS apostrophes (stripping them turned TIRES into TIRES and changed meaning, observed live 2026-07-16)",
+          "server/reelVideoProvider.test.ts (10): the explicit pin is honoured AND template_stock is NEVER auto-selected — it is the one provider that can always run, so auto-detect would prefer it over a funded paid provider; the deliberate higgsfield prod pin and the pre-existing defaults-to-veo contract both still pass. clipCostUsd bills it at 0 while the paid lanes stay at the seedance rate."
+        ],
+        "liveRuns": [
+          "LOCAL RENDER PROBE 2026-08-03 — generateTemplateStockClip() run for real (no database: the lane needs none; no money: local ffmpeg 8.1). Two captions, one single-line and one two-line carrying an apostrophe, a percent sign and a backslash. ffprobe on the output: 1080x1920, h264, yuv420p, duration exactly 3.000s, ONE stream (silent by design — assembly lays the voiceover over the stitched clips), 30/1 fps, ~190-230KB, ~540ms per clip. storagePut with no S3 wrote to data/generated and returned the https://nickstire.org/generated/... URL the pipeline requires (clipUrls[i] must start with http or the resume-skip re-renders it forever). Probe script and emitted files deleted after — data/generated is NOT gitignored."
+        ],
+        "renderedAssets": [
+          "First frames inspected VISUALLY, both cases. Brand yellow on dark reads clearly at 1080x1920; the apostrophe in DONT survives (the 2026-07-16 TIRES regression, where stripping it changed the meaning, does not recur) while percent and backslash are stripped; a long caption wraps to two abutting panels with no overlap and no stray glyph."
+        ],
+        "deploymentId": "not deployed — provider is opt-in via REEL_VIDEO_PROVIDER=template_stock and is never auto-selected"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "The LANE has rendered; the PIPELINE has not. Nothing has driven a template_stock beat through processNextReelJob -> assets_ready -> assembly -> assembled, because that needs a database and the repo DATABASE_URL points at production TiDB. apps/nickstire/.claude/skills/verifier-reel-pipeline documents the safe path (scripts/dev-db.mjs, mysql-memory-server, no Docker) — that is the next verification and what would move this past integration_verified.",
+          "source": "this branch"
+        },
+        {
+          "severity": "P2",
+          "description": "No reel produced by this lane has ever been published, so there is no evidence a rendered text card performs. Instagram restricts static videos and text montages; these carry motion by construction (gradient sweep or push-in), but whether the FORMAT earns reach is unmeasured. Keep it draft-first.",
+          "source": "this branch"
+        },
+        {
+          "severity": "P3",
+          "description": "Only the gradient background path has been rendered. The still-image push-in branch (zoompan over a supplied hero frame) is unit-tested but has never run against a real image.",
+          "source": "this branch"
+        }
+      ],
+      "deferredScope": [
+        "VERIFIED BY RENDERING, not by reading: three defects that every unit test passed straight through — filtergraph spaces breaking the shell:true spawn (ffmpeg read a bare dash as the output filename), per-line caption boxes overlapping, and a newline-joined textfile drawing a tofu glyph. Both regressions are now pinned (no whitespace anywhere in the filtergraph; stride >= fontSize + 2x boxborderw). If this lane is extended, RENDER IT AND LOOK AT THE FRAME — the args array looks correct in a unit test in all three failure modes.",
+        "No stock-footage sourcing. The lane uses a supplied still (the brief visualWorld hero frame, when it is an image) or an animated gradient. Wiring Pexels/Pixabay or the shop photo library is a separate change and the licensing question is real.",
+        "selectiveRepair.ts and visualWorld.ts still reserve ledger spend with a HARDCODED provider:higgsfield and call higgsfieldStudio directly — neither consults selectReelVideoProvider. A repair of a template_stock reel is therefore still generated and BILLED through Higgsfield. Pre-existing, out of scope here, but it means the lane is not yet end-to-end free.",
+        "ESTIMATED_REEL_RENDER_COST_USD (autonomyControl) is a flat per-reel constant used at the enqueue budget boundary and is NOT provider-aware — only the per-clip reserve/settle path was made provider-aware here. A local reel is still counted at the flat rate against the enqueue guard."
+      ],
+      "lastVerifiedAt": "2026-08-03",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "mp4-ingest",
+      "name": "Finished-MP4 ingestion into the content inventory",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "this branch — ingestFinishedMp4() lands an externally produced mp4 as a review_ready draft behind every existing gate",
+        "tests": [
+          "server/mp4Ingest.test.ts (12): OFF unless MP4_INGEST_ENABLED is exactly true (the repo requiresFlag convention — 1/yes/TRUE do not arm it); refuses a non-mp4 by ISO-BMFF ftyp header so a fetched 404 page cannot become a draft; refuses a presigned URL UP FRONT rather than at the last publish gate; creates the reel_jobs row with briefId = the inventory id, which is exactly what reelPublishAuthority.resolveReelJobId looks up; keeps the status inside reel_jobs.status varchar(20); stamps reelJobId into the brief; puts the caption in selectedCaption so it becomes hookText; does NOT set bodyText unless supplied; and refuses to leave an UNLINKED draft when the job insert returns no id."
+        ],
+        "liveRuns": [],
+        "renderedAssets": [],
+        "deploymentId": "not deployed — gated OFF by default behind MP4_INGEST_ENABLED, registered in the socialPipeline ENV_GATES panel"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "NO runtime verification and no operator entry point yet. ingestFinishedMp4 is a service function with tests; nothing in the admin UI or a router calls it. Grep for importers before assuming it is reachable — BUILT-TESTED-UNWIRED is a repeat pattern in this repo.",
+          "source": "this branch"
+        },
+        {
+          "severity": "P2",
+          "description": "Rendered QA is NOT run on the ingested file. The reel_jobs row makes the publish gate able to RESOLVE quality evidence (without it the gate warn-and-proceeds and is hard-blocked once REEL_GATE_REQUIRE_JOB is armed), but the file itself has only been checked for a valid ftyp header — not duration, dimensions, or dead air.",
+          "source": "this branch"
+        }
+      ],
+      "deferredScope": [
+        "The statenour -> nickstire handoff is NOT built. MoneyPrinterTurbo is a statenour tool and the two apps are separate Railway services with separate databases (Neon Postgres vs TiDB MySQL). This branch fixed the PREREQUISITE — the moneyprinter tool now returns real video paths instead of raw stdout — but transporting the file across the two services is its own design.",
+        "No dedupe. Ingesting the same file twice creates two drafts."
+      ],
+      "lastVerifiedAt": "2026-08-03",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
