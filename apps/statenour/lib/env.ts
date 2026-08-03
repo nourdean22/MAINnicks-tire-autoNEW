@@ -93,9 +93,6 @@ export const ENV_SPEC: Spec[] = [
   { key: "BRAINTRUST_PROJECT_NAME", tier: "runtime", description: "Wave-200 Phase 0 · Braintrust project name (default: statenour-nick)" },
   { key: "INNGEST_EVENT_KEY",       tier: "runtime", description: "Wave-200 Phase 3 · Inngest event-send key (paste from app.inngest.com → app → keys)" },
   { key: "INNGEST_SIGNING_KEY",     tier: "runtime", description: "Wave-200 Phase 3 · Inngest signing key (paste from app.inngest.com → app → keys)" },
-  { key: "LIVEKIT_URL",             tier: "runtime", description: "Wave-200 Phase 4 · LiveKit Cloud project URL (used by /api/voice/token + apps/voice worker)" },
-  { key: "LIVEKIT_API_KEY",         tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API key" },
-  { key: "LIVEKIT_API_SECRET",      tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API secret" },
 
   // ── Operational / Tooling (read by scripts + runtime surfaces) ───────
   { key: "APP_BASE_URL",              tier: "runtime", description: "Internal base URL for cron-generated links (falls back to NEXT_PUBLIC_APP_URL)" },
