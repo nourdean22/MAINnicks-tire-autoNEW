@@ -55,6 +55,20 @@ verdict changes.**
 | AI SDK 7 | agent SDK major | **WATCH** | on v6 today; reopen on a NAMED v7 feature need (tool approvals exist natively; `@ai-sdk/otel` pairs with WP-20) |
 | OWASP LLM Top-10 · NIST AI RMF · MITRE ATLAS · CSA | AI security governance | **ADOPT-AS-CHECKLIST** | threat-model references for the existing fencing/approval/injection gates — audit lens, not dependency |
 | OpenBB | finance data connectors | **REJECT-for-now** | same verdict as Fincept/Vibe; only relevant if money rebuilds as BUSINESS research |
+| Promptfoo | prompt/agent eval + red-team | **WATCH** (audit-#13) | incumbent lane is WP-21 (Braintrust dataset spine) + native `tests/eval/run-suite.ts`, `lib/evals/`, `pnpm eval:memory`. **Reopen trigger:** WP-21 ships AND a NAMED adversarial question the native suite cannot express (injection/tool-poisoning corpora are the strongest candidate) |
+| `@openrouter/ai-sdk-provider` | official OpenRouter provider | **WATCH** (audit-#13) | the manual glue is 14 lines and load-bearing: `provider.ts` must call `openrouter.chat()` because @ai-sdk/openai v3's bare callable defaults to the **Responses API** — that shipped the prod `invalid_prompt`/`invalid_union` 400s (poison-pill incident), and `build-model-messages.ts`'s item_reference sanitizer targets Chat Completions. "Official is tidier" is not a reason to re-open a lane that already bled. **Reopen trigger:** an actual OpenRouter response-shape drift the manual provider mishandles |
+| BAML | cross-model structured output | **WATCH** (audit-#13) | zod v4 + `zod-to-json-schema` are the incumbents. **Reopen trigger:** a NAMED extraction lane measurably failing across models |
+| Ax (DSPy-for-TS) | optimized typed programs | **WATCH — same prerequisite as Unsloth/Axolotl** (audit-#13) | audit-#13 proposed Ax for *verbatim the same four* first-model candidates already listed in the Unsloth row (task classifier · memory-recall judge · fabrication critic · briefing compressor). Same blocker: zero labeled corpus. Inherits that row's reopen trigger exactly — do not treat "different framework" as a different prerequisite |
+| MarkItDown | fast Office/PDF/HTML→Markdown | **WATCH** (audit-#13) | `pdf-parse` + `mammoth` + `exceljs` already cover the common path; MarkItDown's win is breadth, not quality. **Reopen trigger:** an ingest format the incumbents drop |
+| Docling | scanned-PDF / layout / table OCR | **ADOPT-CANDIDATE (sidecar)** (audit-#13) | genuinely additive — the incumbents have no OCR/table-structure lane at all. Python CLI sidecar ONLY (never a Next.js dep), read-only, output normalized to one SourceDocument shape with chunk provenance. Same inlet architecture as Apple Health |
+| Crawl4AI | self-hosted crawling | **WATCH** (audit-#13) | Firecrawl is the live lane (`lib/integrations/firecrawl.ts`, SSRF-guarded + fenced). **Reopen trigger:** Firecrawl cost/quota bites — and then via the **Camoufox mechanism**: a second provider behind the EXISTING tool names, env-flagged, never `crawl4ai_*` tool sprawl |
+| Graphiti | bi-temporal knowledge graph | **PATTERN** (audit-#13) | take the supersession/invalidation/provenance *design* into BrainMemory's schema; do not add a Python graph dependency to a pgvector system that works. Adoption question only survives if the benchmark row below says pgvector lost |
+| mem0 `memory-benchmarks` | LOCOMO / LongMemEval corpora | **ADOPT-AS-BENCHMARK** (audit-#13) | the keeper of this audit alongside Docling: test *data*, not a dependency — the thing that converts "should we swap memory?" from vibes into a measured answer. Gate every memory-stack proposal (Graphiti, GraphRAG, LightRAG) behind it |
+| GraphRAG / LightRAG | graph-structured RAG | **WATCH** (audit-#13) | **Reopen trigger:** the mem0 benchmark above shows pgvector recall capped on a NAMED curated corpus. Never index the whole monorepo/brain blindly |
+| mcp-scan | MCP tool-poisoning scanner | **ADOPT-CANDIDATE** (audit-#13) | cheap, read-only, `uvx`-runnable; extends the existing `check:prompt-injection` + `fenceContent()` doctrine to external MCP surfaces. Same genre as the OWASP checklist row |
+| OpenAI Agents JS | multi-agent runtime | **REJECT** (duplicate) (audit-#13) | guardrails/handoffs/approvals/tracing all exist natively (guardian, approval policies, AgentTrace, capability registry); Inngest owns durability. Identical to the LangGraph verdict — "formalize the machinery already present" |
+| LiveKit Agents | voice agent framework | **ADOPTED — already running** (audit-#13) | `apps/voice/` **is** a Python LiveKit Agents loop (Deepgram STT → statenour `/api/agent` → Cartesia TTS), own Dockerfile + requirements.txt. Audit-#13 proposed `pnpm add @livekit/agents` without seeing it — incumbent collision #13 |
+| Pipecat | voice/multimodal framework | **WATCH** (audit-#13) | study-only alternative to the live LiveKit lane. **Reopen trigger:** LiveKit Agents blocks a named voice requirement |
 
 **Rules of the register:** every verdict cites a receipt or a trigger —
 no vibes; WATCH entries must state the concrete reopen condition;
@@ -71,4 +85,19 @@ not re-litigated.
    propose rebuilding. 3. Prose counts are banned — the tool count is
    `TOOL_CATALOG.length`, pinned bidirectionally by
    `tests/ai/catalog-integrity.test.ts` (2026-07-29: header said 114,
-   truth was 174).
+   truth was 174). 4. **A stale-looking status field may be a kill
+   switch.** Audit-#13 correctly found `browser.*` claiming "Stagehand
+   SDK not installed" while the SDK had been a pinned dep since
+   2026-07-22 — then prescribed "fix registry truth: active/restricted
+   if env present." `status: "inert"` is a HARD EXECUTION GATE
+   (`tool-policy.ts` denies inert/scaffolded outright), and `browser.act`
+   is riskClass "critical" with `externalMutation: true`; that "fix"
+   arms it on env presence alone. The entry welded a rotted clause to a
+   deliberate one. **Correct the false clause, never the gate** — the
+   operator owns activation. Both halves are now pinned by
+   `tests/tools/registry-claims.test.ts`. 5. `TOOL_CATALOG` (174, full
+   tool list) and `TOOL_REGISTRY` (28, curated operator-facing risk
+   registry) are **different scopes, not duplicates** — audit-#13 read
+   them as drifting copies and proposed unifying them. WP-17 already
+   rejected adding a manual status field as "the ceremony the original
+   note warned against"; `getToolHealthSummary()` is the measured lane.
