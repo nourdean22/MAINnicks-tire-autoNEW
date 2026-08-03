@@ -10,13 +10,31 @@ Generated: 2026-03-29
 - Mobile: Overlay sidebar with backdrop blur
 - Stats polling: `trpc.adminDashboard.stats` at 60s interval (for badge counts)
 
-### Section Config: `client/src/pages/admin/shared.tsx`
-- `AdminSection` union type: 30 sections
-- `NAV_GROUPS`: 6 groups (Dashboard, Sales Pipeline, Customers & SMS, Marketing, Operations, System)
-- `SECTION_TITLES`: Display names for all 30 sections
-- `NAV_ITEMS`: Flat list from NAV_GROUPS
+### Section Config: `client/src/pages/admin/registry.tsx` (CORRECTED 2026-08-03)
 
-### All 30 Admin Sections
+`ADMIN_REGISTRY` is the single source of truth for sidebar shape, grouping,
+ordering, role access, labels and deep-link aliases.
+
+- **16 sections** — 14 `showInSidebar: true`, 2 reachable by alias/command only
+  (`callTrackingView`, `trafficFunnel`)
+- **5 groups**, in render order: `Daily`, `Reach`, `Automation`, `Truth`, `System`
+- `getSidebarGroups(role)` builds the sidebar; `sectionsForRole(role)` gates access
+- `SECTION_TITLES` (in `shared/constants.tsx`) mirrors the registry labels and is
+  pinned to them by `adminRegistryTruth.test.ts`
+
+What this block claimed until 2026-08-03, all of it false: "30 sections", a
+`NAV_GROUPS` of "6 groups (Dashboard, Sales Pipeline, Customers & SMS,
+Marketing, Operations, System)" — a set of names the registry never held — and
+`NAV_ITEMS`, which was exported through the shared barrel with no consumer
+anywhere in the app. The real `NAV_GROUPS` was ONE group with `label: ""`.
+Both symbols are now deleted.
+
+### Admin Sections (table below is HISTORICAL — read the registry for truth)
+
+The row count and grouping in the following table describe a much older admin
+and were never updated. It is kept only for archaeology. `ADMIN_REGISTRY` is
+authoritative; `adminRegistryTruth.test.ts` fails if it and the rendered
+sidebar disagree.
 
 | Group | Section ID | Label | Component |
 |-------|-----------|-------|-----------|

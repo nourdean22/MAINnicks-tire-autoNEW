@@ -2,8 +2,28 @@ import React, { lazy, Suspense, useState, useEffect } from "react";
 import { Brain, Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, PhoneCall, Send, Settings, Shield, Sparkles, TrendingUp, UserCheck } from "lucide-react";
 import type { AdminSection, NavGroup } from "./shared/types";
 import type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
+import { ADMIN_ROLES, type AdminRole } from "@shared/adminPermissions";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
 import { Loader2 } from "lucide-react";
+
+/**
+ * Sidebar groups, in the order they render.
+ *
+ * WHY THESE NAMES: the old `group` values (Operations / Outreach / Revenue /
+ * Money / Sales / System) were never rendered — `shared/nav.tsx` collapsed
+ * every section into one unlabelled group — so nothing ever contradicted them
+ * and they rotted. On main they had `intelligence` under "Outreach",
+ * `customers` under "Revenue", `voiceReceptionist` under "Money", and both
+ * `instagram` and `growth` under "Operations", plus TWO names for one concept
+ * ("Revenue" and "Money"). Rendering those values as-is would have shipped a
+ * visibly wrong sidebar, so every section was reassigned in the same change
+ * that made the field load-bearing.
+ *
+ * The lesson is the reason `adminRegistryTruth.test.ts` exists: metadata that
+ * nothing reads is not documentation, it is drift waiting to be trusted.
+ */
+export const ADMIN_NAV_GROUPS = ["Daily", "Reach", "Automation", "Truth", "System"] as const;
+export type AdminNavGroup = (typeof ADMIN_NAV_GROUPS)[number];
 
 export interface RegistrySection {
   id: AdminSection;
@@ -12,9 +32,23 @@ export interface RegistrySection {
   component: React.ComponentType<any>;
   aliases?: string[];
   keywords?: string[];
-  group?: string;
-  showInSidebar?: boolean;
+  /** Sidebar group. Required — an unassigned section cannot be placed. */
+  group: AdminNavGroup;
+  /** Order within the group, ascending. Ties fall back to registry order. */
+  priority: number;
+  /** Required: `false` means reachable only by alias, command search or deep link. */
+  showInSidebar: boolean;
+  /**
+   * Roles that may reach this section. This is the ONLY role list — `Admin.tsx`
+   * previously carried a hand-maintained `ROLE_SECTIONS` map whose `owner` and
+   * `manager` entries were byte-identical 16-element arrays, so every change
+   * had to be made twice and correctly or the two silently diverged.
+   */
+  allowedRoles: readonly AdminRole[];
 }
+
+/** Every role that can reach the whole admin. Both entries were duplicated by hand before. */
+const FULL_ACCESS: readonly AdminRole[] = ["owner", "manager"] as const;
 
 // Lazy-load sections relative to this file's position (client/src/pages/admin/)
 const OverviewSection = lazy(() => import("./OverviewSection"));
@@ -42,8 +76,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: OverviewSection,
     aliases: ["dashboard", "home", "today", "bookings", "chats", "workorders", "wo", "work-orders", "dispatch", "activity", "exports", "exportview"],
     keywords: ["dashboard", "overview", "home", "today"],
-    group: "Operations",
+    group: "Daily",
+    priority: 10,
     showInSidebar: true,
+    allowedRoles: ADMIN_ROLES,
   },
   {
     id: "intelligence",
@@ -52,8 +88,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: IntelligenceHQSection,
     aliases: ["intell", "intelligencehq"],
     keywords: ["intelligence", "brain", "hq", "scoreboard"],
-    group: "Outreach",
+    group: "Automation",
+    priority: 20,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "viewer"],
   },
   {
     id: "customers",
@@ -62,8 +100,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: CustomersSection,
     aliases: ["referrals", "jobs", "loyalty", "warranty", "waitlist"],
     keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral"],
-    group: "Revenue",
+    group: "Daily",
+    priority: 20,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "front_desk", "tech"],
   },
   {
     id: "leads",
@@ -72,8 +112,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: LeadsSection,
     aliases: ["pipeline", "walkincalc", "walkin", "quote", "noshowrisk", "noshow"],
     keywords: ["lead", "crm", "prospect", "new customer", "no-show", "risk"],
-    group: "Sales",
+    group: "Daily",
+    priority: 30,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "front_desk"],
   },
   {
     id: "tireOrders",
@@ -82,8 +124,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: TireOrdersSection,
     aliases: ["tires", "tireorders"],
     keywords: ["tires", "orders", "inventory", "stock"],
-    group: "Operations",
+    group: "Daily",
+    priority: 50,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "front_desk", "tech"],
   },
   {
     // Nav-orphan fix 2026-07-25: Money was reachable ONLY via Cmd+K or an
@@ -96,8 +140,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: RevenueSection,
     aliases: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"],
     keywords: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"],
-    group: "Money",
+    group: "Daily",
+    priority: 40,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "accountant"],
   },
   {
     id: "growth",
@@ -106,8 +152,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: GrowthSection,
     aliases: ["gbp", "local", "localseo", "social"],
     keywords: ["marketing", "growth", "seo", "local", "reviews", "replies"],
-    group: "Operations",
+    group: "Reach",
+    priority: 10,
     showInSidebar: true,
+    allowedRoles: FULL_ACCESS,
   },
   {
     id: "content",
@@ -116,8 +164,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: ContentSection,
     aliases: ["content", "content-and-ai", "specials", "coupons", "qa", "seoengine"],
     keywords: ["content", "post", "social", "blog", "ai", "seo", "specials"],
-    group: "Outreach",
+    group: "Reach",
+    priority: 20,
     showInSidebar: true,
+    allowedRoles: FULL_ACCESS,
   },
   {
     // Promoted out of Growth's 7th inner pill. Instagram autonomously generates,
@@ -130,8 +180,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: InstagramSection,
     aliases: ["ig", "instagram", "reels", "reel", "igstudio", "ig-studio", "actions", "actioncenter", "publishing"],
     keywords: ["instagram", "ig", "reel", "post", "publish", "caption", "story", "carousel", "actions", "stuck", "held"],
-    group: "Operations",
+    group: "Reach",
+    priority: 30,
     showInSidebar: true,
+    allowedRoles: FULL_ACCESS,
   },
   {
     id: "campaigns",
@@ -140,8 +192,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: CampaignsSection,
     aliases: ["reengagement", "reengage", "autofollowup", "reviewrequests", "reviews", "winback", "sms", "followups"],
     keywords: ["campaign", "outreach", "sms", "email", "review", "follow-up", "re-engage", "winback", "dormant", "inactive"],
-    group: "Outreach",
+    group: "Reach",
+    priority: 40,
     showInSidebar: true,
+    allowedRoles: FULL_ACCESS,
   },
   {
     id: "memberships",
@@ -150,8 +204,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: MembershipsSection,
     aliases: ["membership", "member", "nonstop", "subscription"],
     keywords: ["membership", "member", "nonstop", "nick", "subscription", "plan", "vehicle", "bind", "7.99", "9.99"],
-    group: "Money",
+    group: "Daily",
+    priority: 45,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "accountant"],
   },
   {
     id: "voiceReceptionist",
@@ -160,8 +216,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: VoiceReceptionistSection,
     aliases: ["voicereceptionist", "voice", "vapi", "receptionist"],
     keywords: ["vapi", "voice", "nick", "receptionist", "ai", "agent", "incoming calls", "phone agent"],
-    group: "Money",
+    group: "Automation",
+    priority: 10,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "front_desk"],
   },
   {
     id: "opsHub",
@@ -170,8 +228,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: OpsHubSection,
     aliases: ["opshub", "reports", "ops"],
     keywords: ["opshub", "reports", "ops"],
-    group: "Operations",
+    group: "Truth",
+    priority: 10,
     showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "accountant", "viewer"],
   },
   {
     id: "settings",
@@ -181,7 +241,9 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     aliases: ["settings", "conversionpreview", "preview", "health", "syshealth", "compliance", "integrations", "system", "shopdriver", "alg", "nour-os-bridge", "commandcenter", "command"],
     keywords: ["setting", "config", "sync", "shopdriver", "health", "compliance", "integrations"],
     group: "System",
+    priority: 10,
     showInSidebar: true,
+    allowedRoles: FULL_ACCESS,
   },
   // Non-sidebar targets
   {
@@ -191,8 +253,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: CallTrackingSection,
     aliases: ["callbacks", "calls", "calltracking", "call-tracking"],
     keywords: ["call", "phone", "tracking", "missed", "callback"],
-    group: "Money",
+    group: "Automation",
+    priority: 30,
     showInSidebar: false,
+    allowedRoles: [...FULL_ACCESS, "front_desk"],
   },
   {
     id: "trafficFunnel",
@@ -201,10 +265,42 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     component: TrafficFunnelSection,
     aliases: ["funnel", "traffic", "traffic-revenue"],
     keywords: ["funnel", "traffic", "seo", "conversion", "clicks"],
-    group: "Operations",
+    group: "Truth",
+    priority: 20,
     showInSidebar: false,
+    allowedRoles: [...FULL_ACCESS, "accountant"],
   },
 ];
+
+/**
+ * Sections this role may reach, derived from the registry.
+ *
+ * Replaces the hand-maintained `ROLE_SECTIONS` map in `Admin.tsx`, whose
+ * `owner` and `manager` entries were byte-identical 16-element arrays. Two
+ * copies of one list is two chances to be wrong, and nothing compared them.
+ */
+export function sectionsForRole(role: AdminRole): readonly AdminSection[] {
+  return ADMIN_REGISTRY.filter((s) => s.allowedRoles.includes(role)).map((s) => s.id);
+}
+
+/**
+ * The sidebar, grouped and ordered — the ONLY place sidebar shape is decided.
+ *
+ * Groups render in `ADMIN_NAV_GROUPS` order; sections sort by `priority` within
+ * a group, falling back to registry order on a tie. A group whose sections are
+ * all filtered out for this role is dropped, so a role never sees an empty
+ * heading.
+ */
+export function getSidebarGroups(role: AdminRole): NavGroup[] {
+  return ADMIN_NAV_GROUPS.map((group) => ({
+    label: group,
+    items: ADMIN_REGISTRY.filter(
+      (s) => s.showInSidebar && s.group === group && s.allowedRoles.includes(role),
+    )
+      .sort((a, b) => a.priority - b.priority)
+      .map((s) => ({ id: s.id, label: s.label, icon: s.icon })),
+  })).filter((g) => g.items.length > 0);
+}
 
 export const COMPOUND_REDIRECTS: Record<string, { section: AdminSection; innerKey: string; innerValue: string }> = {
   declinedestimates: { section: "revenue", innerKey: "moneyTab", innerValue: "declined" },
