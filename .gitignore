@@ -161,3 +161,7 @@ apps/nickstire/data/*customers*.csv
 
 # runtime-produced media (registry + Drive vault are the durable layers)
 apps/nickstire/data/generated/
+
+# Python bytecode from skill scripts (.claude/skills/skill-fire-audit/scripts)
+__pycache__/
+*.pyc
