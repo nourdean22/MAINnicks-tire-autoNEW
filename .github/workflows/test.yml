@@ -29,7 +29,6 @@ jobs:
       statenour: ${{ steps.filter.outputs.statenour }}
       nickstire: ${{ steps.filter.outputs.nickstire }}
       worker: ${{ steps.filter.outputs.worker }}
-      voice: ${{ steps.filter.outputs.voice }}
       packages: ${{ steps.filter.outputs.packages }}
       node: ${{ steps.filter.outputs.node }}
       workflow: ${{ steps.filter.outputs.workflow }}
@@ -69,9 +68,6 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
-              - '.github/workflows/**'
-            voice:
-              - 'apps/voice/**'
               - '.github/workflows/**'
             packages:
               - 'packages/**'
@@ -350,40 +346,10 @@ jobs:
       - name: Dependency audit (critical severity · blocking)
         run: node scripts/audit-advisories.mjs --audit-level=critical
 
-  voice:
-    needs: changes
-    if: ${{ needs.changes.outputs.voice == 'true' || needs.changes.outputs.workflow == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r apps/voice/requirements.txt
-
-      - name: Syntax check
-        run: python -m py_compile apps/voice/agent.py apps/voice/bridge_preflight.py
-
-      # A syntax check cannot notice that the endpoint the agent POSTs to was
-      # deleted from the other app — which is what happened: /api/agent went
-      # away 2026-06-02 and this job stayed green for two months. These are
-      # real assertions and need no LiveKit/Deepgram/Cartesia credentials.
-      - name: Bridge preflight tests
-        working-directory: apps/voice
-        run: python -m unittest discover -s . -p 'test_*.py' -v
 
   railway-smoke:
-    needs: [changes, node, voice]
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.node.result == 'success' || needs.node.result == 'skipped') && (needs.voice.result == 'success' || needs.voice.result == 'skipped')
+    needs: [changes, node]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.node.result == 'success' || needs.node.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -432,7 +398,7 @@ jobs:
   # the one thing a summary must never do.
   #
   # (b) The "Fail on critical upstream failure" step was deleted. It could
-  # never turn a green run red: node/voice failures already fail their own
+  # never turn a green run red: node failures already fail their own
   # jobs and railway-smoke self-fails under strict mode. Verified across 60
   # runs — notify went red iff node was already failure/cancelled, zero
   # exceptions — and it gates no merge (branch protection is unavailable on
@@ -446,7 +412,7 @@ jobs:
   # three hardcoded error strings appear regardless of which branch runs.
   # Packing three of them into one step is what made the log unreadable.
   notify:
-    needs: [changes, node, security, voice, railway-smoke]
+    needs: [changes, node, security, railway-smoke]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -457,12 +423,10 @@ jobs:
           
           **Changes Detected:**
           - Node/Turbo affected: \`${{ needs.changes.outputs.node }}\`
-          - Voice agent affected: \`${{ needs.changes.outputs.voice }}\`
           - Docs only: \`${{ needs.changes.outputs.docs_only }}\`
           
           **Job Results:**
           - Node Job: \`${{ needs.node.result }}\`
-          - Voice Job: \`${{ needs.voice.result }}\`
           - Smoke Tests: \`${{ needs.railway-smoke.result }}\`
           - Security (advisories): \`${{ needs.security.result }}\`
           EOF
@@ -473,7 +437,7 @@ jobs:
         run: |
           if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
             status="SUCCESS"
-            if [[ "${{ needs.node.result }}" == "failure" || "${{ needs.voice.result }}" == "failure" ]]; then
+            if [[ "${{ needs.node.result }}" == "failure" ]]; then
               status="FAILED"
             fi
             

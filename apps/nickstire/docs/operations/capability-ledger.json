@@ -1256,6 +1256,43 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "admin-signal-ledger",
+      "name": "Admin Signal ledger (three-state badge truth)",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "shared/adminSignal.ts (pure kernel: counted | unknown | not_measured, reading/foldSignals/exceptionFeed/describeBadge) + client/src/lib/adminSignals.ts (maps the shell's EXISTING fetches onto it) replacing getBadgeCount() in client/src/pages/Admin.tsx",
+        "tests": [
+          "server/adminSignal.test.ts (26) + client/src/__tests__/adminSignals.test.ts (26), mutation-verified. getBadgeCount() handled 5 of 16 sections and fell through to `return 0`, while its own docblock said a count that could not be read 'must not render as zero: a failed query showing 0 is a green light the system never gave'. Two different silences both rendered as a confident zero: WE COULD NOT COUNT (must show '?') and NOTHING MEASURES THIS (must show no badge at all). The second is the worse one — '0' on a never-wired section is a green light for a question the system never asked. Hence three states, not a nullable number.",
+          "PER-SLICE, the bug nothing had ever caught: getOverviewMediumBundle runs five reads through Promise.allSettled and returns a `slices` availability map (server/services/adminBundle.ts:122-146, whose own comment is 'An empty list is only real when its slice is available'). The client fetched that map and discarded it. A PARTIAL failure therefore resolved the tRPC query fine — isError false, DegradedDataBanner silent — while getAdminActionableCounts turned the failed slice's undefined into [] and reported 0. adminBundle.ts:85-92 records the exact case: 'a leads-only or callbacks-only failure rendered a clean queue'. Each signal is now gated on ITS OWN slice, so a leads failure makes leads unknown while tireOrders still reports its real count.",
+          "Mutation-verified, restored byte-identical after each: ignoring per-slice availability fails 4 tests; collapsing not_measured into a zero count fails 12; letting a stale value win over a failed fetch fails 9."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "NOT observed in production. The badge numbers on the healthy path are unchanged by construction (overview still sums bookings + leads + callbacks + ops), so the visible proof is the FAILURE path: a degraded slice must render '?' rather than a number. That cannot be forced from a test. Until an operator sees it, this stays unit_verified.",
+          "source": "measurement"
+        },
+        {
+          "severity": "P2",
+          "description": "10 of 16 sections still emit NO signal and therefore no badge: customers, revenue, growth, content, campaigns, voiceReceptionist, opsHub, settings, intelligence, trafficFunnel. That is the honest state, not a regression — they previously rendered a fabricated 0. Wiring them needs new queries and is deliberately a separate change so each poll's cost is reviewed on its own.",
+          "source": "design"
+        }
+      ],
+      "deferredScope": [
+        "CONFIRMED CHEAP AND ALREADY FETCHED BY THE SHELL, not wired here because each adds NEW badge semantics that need operator review, not just plumbing: nourOsBridge.shopFloor.{blocked,overdue,readyForPickup} (unknown-aware) and bundle.stats.shopFloor.declinedWorkCount (NOT unknown-aware) for `revenue`.",
+        "CONFIRMED CHEAP BUT NEEDS A NEW POLL: smsConversations.humanPendingSummary — the only signal in the SMS/voice domain that is both cheap and unknown-aware (index-backed aggregate, throws on DB-down, yields count + SLA breach + oldest wait in one call) for `campaigns`. adminDashboard.integrationFailures for `settings`.",
+        "REJECTED ON COST after adversarial verification — do NOT re-propose these as badge sources: bundle.stats.content.* (three SELECT-all-columns LIMIT 500 queries plus JS filters), bundle.stats.callbacks.* (SELECT * of up to 500 fat rows), bundle.health/getSiteHealth (unbounded SELECT over dynamicArticles with no LIMIT), instagramAdmin.getPipelineHealth (an expensive duplicate of operationsSignal.heldReels).",
+        "`intelligence` and `opsHub` have NO cheap unknown-aware source at all. That is the finding, not a gap to paper over.",
+        "contentAdmin.operationsSignal's own docblock claims 'Counts only — two COUNT(*) queries'. Its heldReels half is one COUNT(*), but openPublishes materializes rows from autonomy_audit_events, a table with no secondary index. The shell polls this on every page load. Unverified by me directly and NOT changed here; flagged for its own investigation.",
+        "exceptionFeed() is implemented and tested but has no consumer yet — the Today command-brain surface is the next change. Grep for importers before assuming it is live."
+      ],
+      "lastVerifiedAt": "2026-08-03",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

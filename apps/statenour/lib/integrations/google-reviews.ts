@@ -127,19 +127,46 @@ export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCoun
   return { fetched: reviews.length, newCount };
 }
 
+/** Beyond this, the cache is old enough that quoting it as current is wrong. */
+const REVIEW_CACHE_STALE_AFTER_DAYS = 7;
+
 export async function getReviewStats(): Promise<{
   total: number;
   average: number;
   breakdown: Record<number, number>;
   responded: number;
   unresponded: number;
+  /** false when the store could not be READ — distinct from "no reviews". */
+  ok: boolean;
+  /** ISO timestamp of the most recently written review row, or null. */
+  lastWriteAt: string | null;
+  ageDays: number | null;
+  stale: boolean;
+  /** One line a caller (or the model) can quote verbatim about freshness. */
+  freshnessNote: string;
 }> {
-  const rows = await prisma.brainMemory
-    .findMany({
+  // A read failure must NOT render as "0 reviews". The previous `.catch(() => [])`
+  // made an unreachable database and a shop with no reviews produce byte-identical
+  // output — and `alternate-paths.ts` hands this straight to the model under a
+  // "reason from THESE numbers" instruction.
+  let rows: Array<{ content: string; updatedAt: Date }> | null = null;
+  try {
+    rows = await prisma.brainMemory.findMany({
       where: { category: "google_review", deletedAt: null },
-      select: { content: true },
-    })
-    .catch((): Array<{ content: string }> => []);
+      select: { content: true, updatedAt: true },
+    });
+  } catch {
+    rows = null;
+  }
+
+  if (rows === null) {
+    return {
+      total: 0, average: 0, breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      responded: 0, unresponded: 0,
+      ok: false, lastWriteAt: null, ageDays: null, stale: true,
+      freshnessNote: "Review store UNREADABLE — these zeros are not a measurement. Do not quote a review count.",
+    };
+  }
 
   const reviews: StoredReview[] = [];
   for (const row of rows) {
@@ -157,12 +184,34 @@ export async function getReviewStats(): Promise<{
     if (r.responded) responded++;
   }
 
+  // Freshness comes from when a row was last WRITTEN, not from the review dates
+  // themselves — a shop can genuinely go weeks without a new review, but the
+  // writer should still be touching rows. `fetchAndStoreReviews` currently has
+  // ZERO callers, so in practice this is the age of whatever last wrote here.
+  const newestWriteMs = rows.reduce((max, r) => Math.max(max, r.updatedAt.getTime()), 0);
+  const lastWriteAt = newestWriteMs > 0 ? new Date(newestWriteMs).toISOString() : null;
+  const ageDays = newestWriteMs > 0
+    ? Math.floor((Date.now() - newestWriteMs) / 86_400_000)
+    : null;
+  const stale = ageDays === null || ageDays > REVIEW_CACHE_STALE_AFTER_DAYS;
+
+  const freshnessNote = lastWriteAt === null
+    ? "No review rows have EVER been written — there is no review data to quote."
+    : stale
+      ? `Review cache is ${ageDays} days old (last written ${lastWriteAt.slice(0, 10)}). Quote it as "as of" that date, never as current.`
+      : `Review cache is current (last written ${lastWriteAt.slice(0, 10)}).`;
+
   return {
     total,
     average: Math.round(average * 10) / 10,
     breakdown,
     responded,
     unresponded: total - responded,
+    ok: true,
+    lastWriteAt,
+    ageDays,
+    stale,
+    freshnessNote,
   };
 }
 

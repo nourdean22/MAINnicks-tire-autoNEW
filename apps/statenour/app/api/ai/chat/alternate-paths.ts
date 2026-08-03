@@ -186,7 +186,17 @@ export async function runAlternatePaths(args: {
           const snap = await getDashboardSummary();
           liveSnapshot =
             `## LIVE DATA SNAPSHOT (real, as of this turn — reason from THESE numbers; do NOT invent figures)\n` +
-            `${JSON.stringify(snap)}\n(snapshot captured ${new Date().toISOString()} — most figures are live, but review counts are cron-cached; call getReviewStats before quoting an exact review number)\n\n`;
+            `${JSON.stringify(snap)}\n(snapshot captured ${new Date().toISOString()} — most figures are live. ` +
+            // The old wording said review counts were "cron-cached" and told the
+            // model to call getReviewStats "before quoting an exact number",
+            // which reads as "that tool is the authority". It is not: the only
+            // writer, fetchAndStoreReviews, has ZERO callers, so the tool serves
+            // a frozen cache. getReviewStats now returns `stale`/`ageDays`/
+            // `freshnessNote`; the model must relay that rather than treat the
+            // number as current.
+            `REVIEW COUNTS ARE NOT LIVE — no cron currently writes them. If asked about reviews, ` +
+            `call getReviewStats and quote its freshnessNote alongside any number, or say the data is unavailable. ` +
+            `Never present a review count as current.)\n\n`;
         } catch {
           /* snapshot is best-effort — proceed without it */
         }
