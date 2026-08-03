@@ -127,3 +127,48 @@ function stubHourPart(value: string): void {
     return { formatToParts: () => [{ type: "hour", value }] };
   };
 }
+
+describe("invoice_paid · every emitter must dispatch DOLLARS, not cents", () => {
+  // THE REGRESSION THIS EXISTS FOR: removing a double `/100` in liveFeed was
+  // justified by grepping emitters for `/ 100` — a search that by construction
+  // can only return emitters which DIVIDE. snapFinanceSync passed raw
+  // `amountCents` and so was invisible to it, which would have made a $250
+  // financing approval add 25,000 to daily revenue and announce "$25000".
+  //
+  // A source scan is the right shape here: the bus payload is loosely typed
+  // (`data: any` in the bridge map), so nothing else can catch a new producer
+  // that passes the wrong unit.
+  it("no dispatch site passes a *Cents identifier as totalAmount", async () => {
+    const { readFileSync, readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const walk = (dir: string, acc: string[] = []): string[] => {
+      for (const entry of readdirSync(dir)) {
+        if (entry === "node_modules" || entry === "dist") continue;
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) walk(full, acc);
+        else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) acc.push(full);
+      }
+      return acc;
+    };
+
+    const offenders: string[] = [];
+    for (const file of walk("server")) {
+      const src = readFileSync(file, "utf8");
+      // Scope the scan to the dispatch CALL, not the whole file. The same file
+      // legitimately writes `totalAmount: amountCents` into the invoices row —
+      // the DB column stores cents and must keep doing so. Only the value that
+      // crosses the event bus is required to be dollars.
+      for (const call of src.matchAll(/dispatch\("invoice_paid",\s*\{/g)) {
+        const block = src.slice(call.index, call.index + 600);
+        const end = block.indexOf("});");
+        const args = end === -1 ? block : block.slice(0, end);
+        for (const m of args.matchAll(/totalAmount:\s*([A-Za-z_$][\w$.]*)\s*,/g)) {
+          if (/cents$/i.test(m[1])) offenders.push(`${file}: totalAmount: ${m[1]}`);
+        }
+      }
+    }
+
+    expect(offenders, `emitters passing cents as dollars:\n${offenders.join("\n")}`).toEqual([]);
+  });
+});

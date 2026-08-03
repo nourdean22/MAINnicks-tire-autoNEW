@@ -69,45 +69,67 @@ export async function runSelfHealingChecks(): Promise<{
   // `continue`d on all ~288 runs a day and this branch has never evaluated a
   // single job. A watchdog that cannot observe is worse than no watchdog,
   // because its silence reads as "healthy".
-  const jobs = getJobStatuses();
+  const { getJobCadences } = await import("../cron/scheduler");
+  const cadences = getJobCadences();
   const lastCompletions = await loadLastCompletions();
 
-  if (lastCompletions === null) {
+  if (cadences.size === 0) {
+    // `tiers` is populated by startTieredScheduler(); an empty map means the
+    // scheduler has not started in THIS process, not that every job is unwired.
+    // Without this branch the "wired to no tier" check below would fire on every
+    // registered job at once — turning a watchdog into an alert storm.
+    issues.push("CRON CADENCE UNKNOWN: tiered scheduler has not started in this process — cron health not evaluated");
+  } else if (lastCompletions === null) {
     // Unreadable is NOT the same as healthy, and NOT the same as stale. Saying
     // so explicitly keeps a DB blip from masquerading as an all-clear AND from
     // firing a false alert on every registered job at once.
     issues.push("CRON STALENESS UNKNOWN: cron_log unreadable — staleness not evaluated this pass");
   } else {
-    for (const job of jobs) {
-      if (!job.enabled) continue;
-      const expectedIntervalMs = job.intervalMin * 60 * 1000;
-      const lastRunIso = lastCompletions.get(job.name) ?? job.lastRun;
+    // Cadence comes from the TIER that owns each job, never from the legacy
+    // registry's own intervalMin — those numbers no longer describe reality
+    // (review-monitor declares 6h but runs daily, sms-scheduler declares 5min
+    // but runs in the 15min tier), so comparing against them reports healthy
+    // jobs as stale on every 5-minute pass.
+    for (const [name, cadence] of cadences) {
+      const intervalMs = cadence.intervalMin * 60 * 1000;
+      // A businessHoursOnly job is SUPPOSED to be silent overnight. Without
+      // this grace the watchdog alerts on every one of them, every night.
+      const overnightGraceMs = cadence.businessHoursOnly ? 15 * 60 * 60 * 1000 : 0;
+      const allowanceMs = intervalMs * 3 + overnightGraceMs;
+      const lastRunIso = lastCompletions.get(name);
 
       if (!lastRunIso) {
-        // Never completed once. This is how a job registered against the retired
-        // startAllJobs() path looks — armed in the registry, absent from every
-        // tier, silent forever. Only report once the process has been up long
-        // enough that a run was actually due, so a fresh boot stays quiet.
-        if (process.uptime() * 1000 > expectedIntervalMs * 2) {
+        // Never completed once. Only report after the process has been up long
+        // enough that a run was genuinely due, so a fresh boot stays quiet.
+        if (process.uptime() * 1000 > allowanceMs) {
           issues.push(
-            `CRON NEVER OBSERVED: ${job.name} has no completed cron_log row (expected every ${job.intervalMin}min) — registered but wired to no tier?`
+            `CRON NEVER OBSERVED: ${name} has no completed cron_log row (tier ${cadence.tier}, every ${cadence.intervalMin}min)`
           );
         }
         continue;
       }
 
       const staleness = Date.now() - new Date(lastRunIso).getTime();
-      if (staleness > expectedIntervalMs * 3) {
+      if (staleness > allowanceMs) {
         issues.push(
-          `CRON STALE: ${job.name} hasn't run in ${Math.round(staleness / 60000)}min (expected every ${job.intervalMin}min)`
+          `CRON STALE: ${name} hasn't completed in ${Math.round(staleness / 60000)}min (tier ${cadence.tier}, every ${cadence.intervalMin}min${cadence.businessHoursOnly ? ", business hours only" : ""})`
         );
         // AUTO-FIX: Reset the stuck job's running flag on the ORIGINAL object
         try {
           const { resetJobRunningFlag } = await import("../cron/index");
-          if (resetJobRunningFlag(job.name)) {
-            actions.push(`AUTO-FIX: Reset ${job.name} running flag — will run on next tick`);
+          if (resetJobRunningFlag(name)) {
+            actions.push(`AUTO-FIX: Reset ${name} running flag — will run on next tick`);
           }
         } catch (e) { log.warn("[services/selfHealing] operation failed:", e); }
+      }
+    }
+
+    // A job armed in the legacy registry but present in NO tier cannot run at
+    // all — that is what the crons stranded on the retired startAllJobs() path
+    // look like. Reported separately because it is a WIRING fault, not staleness.
+    for (const job of getJobStatuses()) {
+      if (job.enabled && !cadences.has(job.name)) {
+        issues.push(`CRON WIRED TO NO TIER: ${job.name} is enabled in the registry but belongs to no scheduler tier — it cannot run`);
       }
     }
   }
@@ -213,7 +235,10 @@ export async function runSelfHealingChecks(): Promise<{
     recordsProcessed: issues.length + actions.length,
     details:
       issues.length === 0 && actions.length === 0
-        ? `All healthy. ${jobs.length} crons, ${heapUsedMB}MB heap, ${uptimeMin}min uptime`
+        // Count the jobs the TIERS own — i.e. the ones that can actually run.
+        // The legacy registry count included crons wired to no tier, so the
+        // "all healthy" line used to overstate how much was really covered.
+        ? `All healthy. ${cadences.size} scheduled crons, ${heapUsedMB}MB heap, ${uptimeMin}min uptime`
         : `${issues.length} issues, ${actions.length} auto-fixes: ${[...issues, ...actions].join("; ")}`,
   };
 }

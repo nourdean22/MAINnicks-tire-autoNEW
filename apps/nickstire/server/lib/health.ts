@@ -127,8 +127,12 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
       fallbackRate: failureRate,
     };
 
-    // AI gateway issues = degraded, not unhealthy
-    if (!aiKeyPresent && overallStatus === "healthy") {
+    // AI gateway issues = degraded, not unhealthy.
+    // `allRecentFailed` must be here too, not only on checks.aiGateway.status:
+    // monitors consume the TOP-LEVEL status, so degrading only the sub-check
+    // would let /api/health answer "healthy" during the exact observed outage
+    // this change exists to surface.
+    if ((!aiKeyPresent || allRecentFailed) && overallStatus === "healthy") {
       overallStatus = "degraded";
     }
   } catch (err) {
