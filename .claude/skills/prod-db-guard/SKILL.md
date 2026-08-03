@@ -21,6 +21,10 @@ A prod-touching script was executed as *verification* — to confirm its guard
 worked. The guard did not work. **870 production rows were deleted.** The
 dry-run flag existed; it was checked after the delete path had already run.
 
+Recorded in `apps/nickstire/docs/runbooks/tidb-backup-restore.md` and
+`apps/statenour/docs/runbooks/neon-branching.md` — both apps carry the warning
+because the incident class is not app-specific.
+
 **Running a script is not how you verify a script.**
 
 ## Procedure
