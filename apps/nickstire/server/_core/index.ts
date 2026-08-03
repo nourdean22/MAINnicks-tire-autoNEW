@@ -100,6 +100,7 @@ import { createPrerenderMiddleware } from "../prerender-middleware";
 import { SITE_URL } from "@shared/business";
 import { startTieredScheduler } from "../cron/scheduler";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
+import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
 
 const serverLog = createLogger("server");
 
@@ -324,10 +325,23 @@ async function startServer() {
 
   // ─── Deploy Version Endpoint ──────────────────────────
   // Proves which commit is actually running on Railway
+  // Deployment TRUTH, not just liveness. `{status:"ok", uptime:N}` could not
+  // answer the only question this endpoint exists for — "is what I merged what
+  // is live?" — because uptime says the process restarted, not what it
+  // restarted INTO. No secrets: SHA/branch/env plus booleans for which surfaces
+  // are CONFIGURED (never their values, never whether they WORK; probes belong
+  // to /api/health).
   app.get("/api/version", (_req, res) => {
+    // `build` is nested rather than spread: the identity carries its own
+    // `status` (identified | unknown) and spreading it would silently overwrite
+    // the service's `status: "ok"` — two different questions, one field name.
     res.json({
+      service: "nickstire",
       status: "ok",
       uptime: Math.round(process.uptime()),
+      startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+      build: resolveNickDeployIdentity(process.env),
+      configured: resolveConfiguredSurfaces(process.env),
     });
   });
 
