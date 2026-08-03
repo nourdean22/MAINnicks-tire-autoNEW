@@ -339,7 +339,7 @@ export async function enqueueReelJob(
   // Settled at assets_ready with clips × per-clip estimate; failed jobs keep
   // the conservative reservation as their spend record.
   {
-    const { reserve, COST_ESTIMATES_USD } = await import("./generationLedger");
+    const { reserve, reelClipCostUsd } = await import("./generationLedger");
     const { getActivePolicy } = await import("./autonomyControl");
     const beatsCount = brief.storyboardBeats?.length ?? 6;
     const policy = await getActivePolicy();
@@ -359,7 +359,10 @@ export async function enqueueReelJob(
         provider: reservedProvider,
         model: reservedProvider === "veo" ? (process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-preview") : "seedance1_5",
         operation: "reel_clips",
-        estimatedCostUsd: beatsCount * COST_ESTIMATES_USD.seedance_clip,
+        // Priced by the provider actually resolved above, not a flat Seedance
+        // constant — this figure is what reserve() checks against the daily
+        // ceiling, so pricing Veo at Higgsfield's rate loosened the guard.
+        estimatedCostUsd: beatsCount * reelClipCostUsd(reservedProvider),
         dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
       });
     } catch (err) {
@@ -606,8 +609,11 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // Provider spend is complete at this point — settle the reservation with
     // clips × per-clip estimate (flagged estimate; no USD feed from the CLI).
     try {
-      const { settle, COST_ESTIMATES_USD } = await import("./generationLedger");
-      await settle(`reel_job_${job.id}`, clipUrls.length * COST_ESTIMATES_USD.seedance_clip);
+      const { settle, reelClipCostUsd } = await import("./generationLedger");
+      // videoProvider is the provider this run actually used, resolved above —
+      // settling at a flat Seedance rate is what made a mid-flight provider flip
+      // undetectable in the ledger.
+      await settle(`reel_job_${job.id}`, clipUrls.length * reelClipCostUsd(videoProvider));
     } catch { /* ledger degraded — reservation's estimate stands */ }
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });
     return { processed: true, jobId: job.id, status: "assets_ready" };

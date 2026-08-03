@@ -30,7 +30,44 @@ export const COST_ESTIMATES_USD = {
   gpt_image_2: 0.1,
   elevenlabs_vo: 0.05,
   gemini_brief: 0.01,
+  /** Veo, 720p, per SECOND of generated video. Google publishes this one. */
+  veo_second_720p: 0.1,
 } as const;
+
+/** Veo's own default clip length when `durationSeconds` is not sent. */
+export const VEO_DEFAULT_CLIP_SECONDS = 8;
+
+/**
+ * What ONE reel clip costs, by the provider that actually rendered it.
+ *
+ * There was no veo entry at all, and both reel cost sites multiplied by
+ * `seedance_clip` regardless of provider. `reelPipeline` had already been fixed
+ * once for this exact bug — the comment above its reservation describes job
+ * 1200003 logging provider="veo" while the ledger held zero veo rows — but that
+ * fix corrected the `provider` and `model` columns and left the dollar amount
+ * behind. So the columns said Veo and the money said Higgsfield.
+ *
+ * That figure is not cosmetic: it is what `reserve()` compares against
+ * `policy.limits.maxGenerationCostPerDayUsd`, so an undercount makes the daily
+ * spend ceiling proportionally too permissive. It also makes a provider or model
+ * switch unmeasurable — moving Veo Fast to Lite would have recorded the identical
+ * cost before and after, which is precisely the shape of a metric that lies.
+ *
+ * Veo bills per SECOND, so a flat per-clip constant cannot price it. Both inputs
+ * are env-tunable so a rate change or a duration change does not need a deploy,
+ * matching the operator-tunable doctrine of the estimates above. Still an
+ * ESTIMATE: rows remain flagged isEstimate until a real provider-usage feed
+ * exists, because this multiplies a published rate by an assumed duration rather
+ * than reading what Google actually billed.
+ */
+export function reelClipCostUsd(provider: string, env: NodeJS.ProcessEnv = process.env): number {
+  if (provider !== "veo") return COST_ESTIMATES_USD.seedance_clip;
+  // Number(undefined) and Number("abc") are NaN, Number("") is 0 — all falsy,
+  // so a missing or malformed override falls back rather than booking a zero.
+  const seconds = Number(env.REEL_VEO_DURATION) || VEO_DEFAULT_CLIP_SECONDS;
+  const perSecond = Number(env.REEL_VEO_USD_PER_SECOND) || COST_ESTIMATES_USD.veo_second_720p;
+  return seconds * perSecond;
+}
 
 export interface ReserveInput {
   /** idempotency key — one reservation per action, retries return the original */
