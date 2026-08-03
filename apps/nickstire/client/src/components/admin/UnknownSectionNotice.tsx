@@ -41,9 +41,13 @@ export default function UnknownSectionNotice({ slug, onDismiss }: Props) {
           for the section you wanted rather than trusting it again.
         </p>
       </div>
+      {/* 48x48 hit area (AGENTS.md "iOS PWA · Minimum 48x48px touch targets"),
+          with the glyph left at 16px. The negative margins pull the box back into
+          the banner's own padding so the row does not grow to fit the target —
+          the target is bigger than it looks, which is the point. */}
       <button
         onClick={onDismiss}
-        className="shrink-0 text-amber-300/60 hover:text-amber-200 p-1 -m-1 rounded-md"
+        className="shrink-0 -my-2 -mr-2 w-12 h-12 inline-flex items-center justify-center text-amber-300/60 hover:text-amber-200 rounded-md"
         aria-label="Dismiss bad-link notice"
       >
         <X className="w-4 h-4" />
