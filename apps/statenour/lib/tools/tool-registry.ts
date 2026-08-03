@@ -96,8 +96,16 @@ export interface ToolHealthInfo {
  * Flipping the status ACTIVATES it. That is an operator decision, never
  * an agent's.
  */
+/**
+ * No version number here, deliberately. The first draft of this fix said
+ * "@browserbasehq/stagehand@3.7.0" — which reintroduces the exact disease
+ * it cures: the note goes false the moment the dep is upgraded, and the
+ * integrity test would not catch it (that test validates "not installed"
+ * claims, not version claims). An operator-facing note should assert only
+ * what stays true. The installed version lives in package.json.
+ */
 const BROWSER_PARKED_NOTE =
-  "Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work. Parked is a deliberate choice, not a missing dependency: @browserbasehq/stagehand@3.7.0 has been installed since 2026-07-22.";
+  "Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work. Parked is a deliberate choice, not a missing dependency: @browserbasehq/stagehand has been a pinned dependency since 2026-07-22.";
 
 export const TOOL_REGISTRY: Record<string, ToolCapability> = {
   "web.search.verified": {
