@@ -521,10 +521,21 @@ export async function recoverStaleSendingRows(): Promise<{ requeued: number; fai
     }
     out.failedAncient = affectedRowCount(ancient);
 
+    // A row parked by a gateway TIMEOUT must never be requeued: the gateway
+    // was handed the message and never answered, so re-sending is a coin flip
+    // that lands on a duplicate customer text. The timeout path deliberately
+    // persists `sending` for exactly this reason, but before this exclusion the
+    // sweep could not tell it apart from an ordinary crash-orphaned row and
+    // requeued it ~10 minutes later, every time.
+    //
+    // The 48h -> 'failed' sweep above intentionally still applies: that is
+    // terminal and sends nothing, so an uncertain row does not sit in-flight
+    // forever.
     const stale = await db.execute(sql`
       UPDATE sms_messages SET status = 'queued'
       WHERE status = 'sending' AND direction = 'outbound'
         AND createdAt < DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+        AND (failure_reason IS NULL OR failure_reason <> ${GATEWAY_TIMEOUT_UNCERTAIN})
     `);
     out.requeued = affectedRowCount(stale);
 
@@ -1225,12 +1236,26 @@ async function alertShopGatewayFallback(reason: string, to: string): Promise<voi
  * Fire-and-forget by contract: a failed DB write must never fail an SMS
  * that already left the gateway. Errors are logged, not thrown.
  */
+/**
+ * Marks a `sending` row whose delivery is genuinely UNKNOWN — the gateway was
+ * handed the message and never answered.
+ *
+ * Why this is a `failure_reason` string and not a new status: `sms_messages.status`
+ * is a mysqlEnum, and TiDB runs with STRICT_TRANS_TABLES, so an out-of-enum
+ * write is REJECTED AND THE ROW IS LOST — not truncated, not defaulted. Adding
+ * an "uncertain" status would have destroyed exactly the rows it was meant to
+ * protect, on a path that is already a failure path. `failure_reason` is
+ * varchar(255) and already exists, so this needs no DDL at all.
+ */
+export const GATEWAY_TIMEOUT_UNCERTAIN = "gateway_timeout_delivery_uncertain";
+
 async function persistOutboundShopSms(
   to: string,
   body: string,
   status: "sent" | "sending",
   gatewayMessageId?: string,
   variantKey?: string | null,
+  failureReason?: string,
 ): Promise<void> {
   try {
     const { getOrCreateConversation, addSmsMessage } = await import("./db");
@@ -1241,6 +1266,7 @@ async function persistOutboundShopSms(
       body,
       twilioSid: gatewayMessageId || undefined,
       status,
+      failureReason: failureReason ?? null,
       // 2026-07-07 · opts.variantKey was honored on the offline-queue path
       // but dropped here on the online path, so every default-persist cron
       // send landed untagged and invisible to per-campaign attribution
@@ -1790,8 +1816,14 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       await alertShopGatewayFallback("timeout — delivery uncertain, not retried", normalizedEarly);
       addToThread(normalizedEarly, "outbound", body);
       if (!opts?.skipPersist) {
-        persistOutboundShopSms(normalizedEarly, body, "sending", undefined, opts?.variantKey)
-          .catch(() => undefined);
+        // Stamp the uncertainty ON the row. Without it this row is
+        // indistinguishable from an ordinary in-flight `sending`, and the
+        // 10-minute stale sweep below requeues it — turning "we must not
+        // re-send this" into a guaranteed duplicate customer text on every
+        // gateway timeout. The sweep now excludes rows carrying this marker.
+        persistOutboundShopSms(
+          normalizedEarly, body, "sending", undefined, opts?.variantKey, GATEWAY_TIMEOUT_UNCERTAIN,
+        ).catch(() => undefined);
       }
       // `uncertain` so callers can tell "not retried" apart from "delivered".
       // The row above is persisted as `sending`, and the alert says "delivery
