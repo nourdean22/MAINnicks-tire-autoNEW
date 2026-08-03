@@ -48,7 +48,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # App code.
-COPY agent.py .
+# agent.py imports bridge_preflight at module scope, so BOTH must be in the
+# image. Copying only agent.py shipped a container that crash-looped on
+# `ModuleNotFoundError: No module named 'bridge_preflight'` — CI was green
+# because it runs from the repo, where the file is always present. A COPY list
+# is a second, invisible dependency manifest: anything agent.py imports at
+# module scope has to be named here too.
+COPY agent.py bridge_preflight.py ./
 
 # Run the LiveKit worker · `start` mode joins production
 # (vs `dev` which polls for local jobs).
