@@ -14,7 +14,6 @@ import {
   Radar,
   Users,
   Link2,
-  Mic,
   BookOpen,
   GraduationCap,
 } from "lucide-react";
@@ -64,7 +63,6 @@ export const NAV: NavEntry[] = [
   { href: "/stats",    label: "Stats",    icon: Target,        section: "reflect", flatRow: true },
 
   // ── CAPTURE ──
-  { href: "/voice", label: "Voice",         icon: Mic, section: "capture", flatRow: true },
   { href: "/pins",  label: "Pinned Memory", icon: Pin, section: "capture", flatRow: true },
 
   // ── EXECUTE ──
