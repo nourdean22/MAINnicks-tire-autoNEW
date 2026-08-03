@@ -1305,7 +1305,8 @@
           "server/reelVideoProvider.test.ts (10): the explicit pin is honoured AND template_stock is NEVER auto-selected — it is the one provider that can always run, so auto-detect would prefer it over a funded paid provider; the deliberate higgsfield prod pin and the pre-existing defaults-to-veo contract both still pass. clipCostUsd bills it at 0 while the paid lanes stay at the seedance rate."
         ],
         "liveRuns": [
-          "LOCAL RENDER PROBE 2026-08-03 — generateTemplateStockClip() run for real (no database: the lane needs none; no money: local ffmpeg 8.1). Two captions, one single-line and one two-line carrying an apostrophe, a percent sign and a backslash. ffprobe on the output: 1080x1920, h264, yuv420p, duration exactly 3.000s, ONE stream (silent by design — assembly lays the voiceover over the stitched clips), 30/1 fps, ~190-230KB, ~540ms per clip. storagePut with no S3 wrote to data/generated and returned the https://nickstire.org/generated/... URL the pipeline requires (clipUrls[i] must start with http or the resume-skip re-renders it forever). Probe script and emitted files deleted after — data/generated is NOT gitignored."
+          "LOCAL RENDER PROBE 2026-08-03 — generateTemplateStockClip() run for real (no database: the lane needs none; no money: local ffmpeg 8.1). Two captions, one single-line and one two-line carrying an apostrophe, a percent sign and a backslash. ffprobe on the output: 1080x1920, h264, yuv420p, duration exactly 3.000s, ONE stream (silent by design — assembly lays the voiceover over the stitched clips), 30/1 fps, ~190-230KB, ~540ms per clip. storagePut with no S3 wrote to data/generated and returned the https://nickstire.org/generated/... URL the pipeline requires (clipUrls[i] must start with http or the resume-skip re-renders it forever). Probe script and emitted files deleted after — data/generated is NOT gitignored.",
+          "FULL PIPELINE VERIFICATION 2026-08-03 — scripts/verify-template-stock-pipeline.mts (committed, re-runnable) drove a real 2-beat job through the actual stages against a DISPOSABLE mysql-memory-server DB, never the repo DATABASE_URL. Results: the durable-storage precondition REFUSED correctly with no S3 (job requeued, error names S3_BUCKET); with REEL_ALLOW_EPHEMERAL_STORAGE=true both beats rendered and the job reached assets_ready with 2 clip URLs, all http (the prefix the resume-skip requires) in 1.66s; processNextAssemblyJob took it to assembled in 3.49s. Master: 786,681 bytes, 1080x1920, exactly 9.000s, BOTH video and audio streams. reelAssembly logged 'render integrity verified' (270 frames, 5 distinct) and 'audio integrity verified' (silentGaps: 0). Emitted files deleted; exit 0."
         ],
         "renderedAssets": [
           "First frames inspected VISUALLY, both cases. Brand yellow on dark reads clearly at 1080x1920; the apostrophe in DONT survives (the 2026-07-16 TIRES regression, where stripping it changed the meaning, does not recur) while percent and backslash are stripped; a long caption wraps to two abutting panels with no overlap and no stray glyph."
@@ -1315,21 +1316,22 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "The LANE has rendered; the PIPELINE has not. Nothing has driven a template_stock beat through processNextReelJob -> assets_ready -> assembly -> assembled, because that needs a database and the repo DATABASE_URL points at production TiDB. apps/nickstire/.claude/skills/verifier-reel-pipeline documents the safe path (scripts/dev-db.mjs, mysql-memory-server, no Docker) — that is the next verification and what would move this past integration_verified.",
+          "description": "Verified LOCALLY, never in production. The pipeline run used mysql-memory-server and REEL_ALLOW_EPHEMERAL_STORAGE=true; prod has no S3_BUCKET configured, so on prod today this lane would REFUSE at the durable-storage precondition exactly as step 1 of the verification shows. Configuring S3_BUCKET (+ CLOUDFRONT_DOMAIN for permanent URLs) is the prerequisite to running it there — that is an operator action, not engineering.",
           "source": "this branch"
         },
         {
           "severity": "P2",
-          "description": "No reel produced by this lane has ever been published, so there is no evidence a rendered text card performs. Instagram restricts static videos and text montages; these carry motion by construction (gradient sweep or push-in), but whether the FORMAT earns reach is unmeasured. Keep it draft-first.",
+          "description": "No reel produced by this lane has ever been PUBLISHED, so whether the format earns reach is unmeasured. Instagram restricts static videos and text montages; these carry motion by construction and assembly adds the caption layer, but that is an argument, not evidence. Keep it draft-first.",
           "source": "this branch"
         },
         {
           "severity": "P3",
-          "description": "Only the gradient background path has been rendered. The still-image push-in branch (zoompan over a supplied hero frame) is unit-tested but has never run against a real image.",
+          "description": "Only the gradient background path has been rendered end to end. The still-image push-in branch (zoompan over a supplied hero frame) is unit-tested but has never run against a real image.",
           "source": "this branch"
         }
       ],
       "deferredScope": [
+        "RE-RUN scripts/verify-template-stock-pipeline.mts after touching this lane or the beat loop. It is safe (disposable DB, local ffmpeg, no credentials, no spend) and it is the only thing that has ever caught a defect here: the unit suite was fully green while the lane could not render a single frame.",
         "VERIFIED BY RENDERING, not by reading: three defects that every unit test passed straight through — filtergraph spaces breaking the shell:true spawn (ffmpeg read a bare dash as the output filename), per-line caption boxes overlapping, and a newline-joined textfile drawing a tofu glyph. Both regressions are now pinned (no whitespace anywhere in the filtergraph; stride >= fontSize + 2x boxborderw). If this lane is extended, RENDER IT AND LOOK AT THE FRAME — the args array looks correct in a unit test in all three failure modes.",
         "No stock-footage sourcing. The lane uses a supplied still (the brief visualWorld hero frame, when it is an image) or an animated gradient. Wiring Pexels/Pixabay or the shop photo library is a separate change and the licensing question is real.",
         "selectiveRepair.ts and visualWorld.ts still reserve ledger spend with a HARDCODED provider:higgsfield and call higgsfieldStudio directly — neither consults selectReelVideoProvider. A repair of a template_stock reel is therefore still generated and BILLED through Higgsfield. Pre-existing, out of scope here, but it means the lane is not yet end-to-end free.",

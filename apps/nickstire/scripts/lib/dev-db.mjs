@@ -38,7 +38,13 @@ const NICKSTIRE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 // search_performance truncation trap; MORE tables means this pin is stale and
 // a human should look. Loosening it to `<` would silence the half that just
 // fired correctly.
-export const EXPECTED_TABLE_COUNT = 139;
+//
+// 2026-08-03: 139 → 143. Looked, as instructed. Push applied 143 and the guard
+// rejected it, blocking the reel-pipeline verification the verifier skill
+// documents as the SAFE way to exercise this code — so on main today, nobody
+// could run it. `grep -c "= mysqlTable(" drizzle/schema.ts` reports 143 on
+// origin/main as well, so this is drift on main, not something a branch added.
+export const EXPECTED_TABLE_COUNT = 143;
 
 // The full column set drizzle expects for search_performance, but with the page
 // index as a PREFIX (page(768)) instead of the full varchar(1000) that blows
