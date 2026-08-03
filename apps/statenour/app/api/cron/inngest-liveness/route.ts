@@ -47,15 +47,20 @@ export const GET = cronHandler(async () => {
       const lines = missing
         .map((m) => `${m.capability}: ${m.state}${m.ageH != null ? ` (${Math.round(m.ageH)}h)` : ""}`)
         .join(" · ");
-      await sendTelegram(
+      // `alerted` must reflect DELIVERY. sendTelegram reports failure by
+      // returning false (never throwing), so hardcoding `alerted: true`
+      // recreated the very blind spot this watchdog exists to end — one
+      // layer up. Same shape as cost-slo-check/route.ts:181.
+      const alerted = await sendTelegram(
         formatTelegramNotification(
           "Scheduled capability missing its artifact",
           `Inngest heartbeat is fresh, but: ${lines}. The scheduler is alive and the capability still isn't producing — check the function's own logs.`,
           "high",
         ),
       );
+      if (!alerted) log.error("liveness_alert_undelivered", { reason: "capability_artifact_missing" });
       log.warn("capability_artifact_missing", { missing });
-      return { ok: false, heartbeatAgeH: Math.round(ageH * 10) / 10, artifacts, alerted: true };
+      return { ok: false, heartbeatAgeH: Math.round(ageH * 10) / 10, artifacts, alerted };
     }
     log.info("inngest_alive", { heartbeatAgeH: Math.round(ageH * 10) / 10, artifacts });
     return { ok: true, heartbeatAgeH: Math.round(ageH * 10) / 10, artifacts };
@@ -73,7 +78,11 @@ export const GET = cronHandler(async () => {
     `Runbook: curl -X PUT https://bdnick.info/api/inngest (re-sync), then verify ` +
     `briefing_log gains a row after the next 10:15 UTC. ` +
     `History: docs/audits/2026-07-28-cron-truth.md.`;
-  await sendTelegram(formatTelegramNotification(title, body, "high"));
+  const alerted = await sendTelegram(formatTelegramNotification(title, body, "high"));
+  if (!alerted) {
+    // The scheduler is down AND the alarm about it did not reach anyone.
+    log.error("liveness_alert_undelivered", { reason: "inngest_stale", heartbeatAge: ageLabel });
+  }
   log.warn("inngest_stale", { heartbeatAge: ageLabel });
-  return { ok: false, heartbeatAge: ageLabel, artifacts, alerted: true };
+  return { ok: false, heartbeatAge: ageLabel, artifacts, alerted };
 });

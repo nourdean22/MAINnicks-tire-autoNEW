@@ -22,9 +22,12 @@ export const MAX_RENDER_ATTEMPTS = 3;
  * Generated content simply left the publication path.
  *
  * WHY RECLAIM IS SAFE, which is the subtle part: "rendering" is OVERLOADED.
- * lib/inngest/functions/social-publish.ts and lib/services/social-actions.ts
- * both set the SAME status to mean "publishing underway". Reclaiming any stale
- * "rendering" row would steal rows mid-publish.
+ * lib/inngest/functions/social-publish.ts sets the SAME status to mean
+ * "publishing underway". Reclaiming any stale "rendering" row would steal rows
+ * mid-publish. (lib/services/social-actions.ts used to write it too — that was
+ * the bug fixed alongside this note: rows born in "rendering" fell outside the
+ * publish worker's own claim set and were never published at all. Only the
+ * worker's compare-and-set writes "rendering" on the publish lane now.)
  *
  * The lease columns are the discriminator. Those other paths never write a
  * lease, so their rows keep renderLeaseExpiresAt = NULL — and the reclaim

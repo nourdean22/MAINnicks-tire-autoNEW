@@ -155,7 +155,14 @@ export function PublishTab() {
       });
       setResults(json.results ?? []);
       if (json.ok) {
-        setSuccess(`Published to ${json.succeeded} channel${json.succeeded === 1 ? "" : "s"}`);
+        // `queued` means the durable worker has it and Meta has NOT been
+        // contacted — saying "Published" here announced an outcome nobody had
+        // observed yet.
+        setSuccess(
+          json.queued
+            ? "Queued for publishing — the worker posts it and updates the queue row with the result."
+            : `Published to ${json.succeeded} channel${json.succeeded === 1 ? "" : "s"}`,
+        );
         setCaption("");
         setImageUrl("");
         setVideoUrl("");

@@ -1,6 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
+import { ServiceError } from "@/lib/utils/service-error";
 import { listDrafts, approveDraft, rejectDraft, markScheduled } from "@/lib/content/drafts";
+
+import type { PublishDispatchRefusal } from "@/lib/services/social-actions";
+
+/** Transport mapping for the dispatcher's refusals. */
+const REFUSAL_STATUS: Record<PublishDispatchRefusal, number> = {
+  not_found: 404,
+  unclaimable: 409,
+  no_platforms: 400,
+};
 
 export const dynamic = "force-dynamic";
 
@@ -54,38 +64,25 @@ export const POST = apiHandler(
     }
 
     if (action === "publish") {
-      const updated = await prisma.socialPublishQueue.update({
-        where: { id },
-        data: {
-          status: "published",
-          publishedAt: new Date(),
-        },
-      });
-
-      // Trigger actual publish to Meta Graph API
-      const publishPlatforms: ("instagram" | "facebook")[] = [];
-      if (updated.platforms.includes("instagram")) publishPlatforms.push("instagram");
-      if (updated.platforms.includes("facebook")) publishPlatforms.push("facebook");
-
-      if (publishPlatforms.length > 0) {
-        try {
-          const { publishSocialPost } = await import("@/lib/services/social-actions");
-          const requestHost = req.headers.get("host") || undefined;
-          await publishSocialPost(
-            {
-              platforms: publishPlatforms,
-              imageUrl: updated.kind !== "reel" ? (updated.imageUrl || undefined) : undefined,
-              videoUrl: updated.kind === "reel" ? (updated.imageUrl || undefined) : undefined,
-              caption: updated.content,
-            },
-            requestHost
-          );
-        } catch (pubErr) {
-          console.error("[sync/queue] Failed to publish to Meta:", pubErr);
+      // No terminal status is written here — see dispatchQueuedPublish. Let
+      // dispatch failures propagate: the previous try/catch logged to the
+      // console and still returned ok:true, so the caller could not tell a
+      // failed publish from a successful one.
+      const { dispatchQueuedPublish, PublishDispatchError } = await import(
+        "@/lib/services/social-actions"
+      );
+      const requestHost = req.headers.get("host") || undefined;
+      try {
+        const item = await dispatchQueuedPublish(id, requestHost);
+        // "dispatched", not "published" — the outcome lands on THIS row when
+        // the worker finishes.
+        return { ok: true, dispatched: true, item };
+      } catch (err) {
+        if (err instanceof PublishDispatchError) {
+          throw new ServiceError(err.message, REFUSAL_STATUS[err.reason]);
         }
+        throw err;
       }
-
-      return { ok: true, published: true, item: updated };
     }
 
     if (action === "delete") {

@@ -11,6 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { ServiceError } from "@/lib/utils/service-error";
 import { randomUUID } from "node:crypto";
 
 // v10.0.529.106 · Wave 76 · use built-in crypto.randomUUID for ID
@@ -145,6 +146,29 @@ export async function listDrafts(opts: {
 }
 
 /**
+ * Statuses whose row must not be re-stated by an operator action.
+ *
+ * `rendering` is held by a worker (the Remotion render lane AND the durable
+ * publish worker both use it). Moving it out from under the publish worker
+ * trips its finalize lock (social-publish.ts `social_publish_db_lock_abort`),
+ * so a post that DID go live on Instagram never records publishedAt/
+ * publishUrls — and the row lands back in the claim set, where the next
+ * dispatch double-posts it. `published` is terminal.
+ *
+ * `rejected` is deliberately NOT here: re-approving a rejected draft is a
+ * legitimate retry.
+ */
+const UNTOUCHABLE_STATUSES = ["rendering", "published"];
+
+/** An operator action tried to re-state a row a worker owns. 409 via apiHandler. */
+export class DraftStateError extends ServiceError {
+  constructor(action: string, status: string) {
+    super(`Cannot ${action} a draft that is "${status}" — a worker owns it.`, 409);
+    this.name = "DraftStateError";
+  }
+}
+
+/**
  * Approve a draft · marks it as approved + sets approvedAt.
  */
 export async function approveDraft(key: string): Promise<ContentDraft | null> {
@@ -153,16 +177,25 @@ export async function approveDraft(key: string): Promise<ContentDraft | null> {
     where: { id, deletedAt: null },
   });
   if (!existing) return null;
+  if (UNTOUCHABLE_STATUSES.includes(existing.status)) {
+    throw new DraftStateError("approve", existing.status);
+  }
 
-  const row = await prisma.socialPublishQueue.update({
-    where: { id },
+  // Compare-and-set, not a bare update: the read above can go stale between
+  // the check and the write, which is exactly the window that double-posts.
+  const claimed = await prisma.socialPublishQueue.updateMany({
+    where: { id, deletedAt: null, status: { notIn: UNTOUCHABLE_STATUSES } },
     data: {
       status: "approved",
       approvedAt: new Date(),
     },
   });
+  if (claimed.count !== 1) {
+    throw new DraftStateError("approve", "claimed by a worker mid-update");
+  }
 
-  return mapQueueItemToDraft(row);
+  const row = await prisma.socialPublishQueue.findUnique({ where: { id } });
+  return row ? mapQueueItemToDraft(row) : null;
 }
 
 /**
@@ -236,14 +269,20 @@ export async function markScheduled(key: string, scheduledFor: string): Promise<
     where: { id, deletedAt: null },
   });
   if (!existing) return;
+  if (UNTOUCHABLE_STATUSES.includes(existing.status)) {
+    throw new DraftStateError("schedule", existing.status);
+  }
 
-  await prisma.socialPublishQueue.update({
-    where: { id },
+  const claimed = await prisma.socialPublishQueue.updateMany({
+    where: { id, deletedAt: null, status: { notIn: UNTOUCHABLE_STATUSES } },
     data: {
       status: "scheduled",
       scheduledFor: new Date(scheduledFor),
     },
   });
+  if (claimed.count !== 1) {
+    throw new DraftStateError("schedule", "claimed by a worker mid-update");
+  }
 }
 
 /**

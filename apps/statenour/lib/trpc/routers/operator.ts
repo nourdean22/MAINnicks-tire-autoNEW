@@ -95,6 +95,7 @@ import {
 import { getContentHistory } from "@/lib/services/content-history";
 import {
   approveDraft,
+  DraftStateError,
   rejectDraft,
   createDraft,
   listDrafts,
@@ -995,7 +996,18 @@ export const operatorRouter = router({
     )
     .mutation(async ({ input }) => {
       if (input.action === "approve") {
-        const draft = await approveDraft(input.key);
+        // The sanitizing errorFormatter would flatten DraftStateError into a
+        // generic message, so map it here — the operator needs to know a
+        // worker owns the row, not just that "something failed".
+        let draft;
+        try {
+          draft = await approveDraft(input.key);
+        } catch (err) {
+          if (err instanceof DraftStateError) {
+            throw new TRPCError({ code: "CONFLICT", message: err.message });
+          }
+          throw err;
+        }
         if (!draft) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -1222,7 +1234,15 @@ export const operatorRouter = router({
       const { id, action, reason, scheduledFor } = input;
       
       if (action === "approve") {
-        const draft = await approveDraft(id);
+        let draft;
+        try {
+          draft = await approveDraft(id);
+        } catch (err) {
+          if (err instanceof DraftStateError) {
+            throw new TRPCError({ code: "CONFLICT", message: err.message });
+          }
+          throw err;
+        }
         if (!draft) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -1231,12 +1251,12 @@ export const operatorRouter = router({
         }
         return { ok: true as const, draft };
       }
-      
+
       if (action === "reject") {
         await rejectDraft(id, reason);
         return { ok: true as const, rejected: true as const };
       }
-      
+
       if (action === "schedule") {
         if (!scheduledFor) {
           throw new TRPCError({
@@ -1244,43 +1264,39 @@ export const operatorRouter = router({
             message: "scheduledFor is required for scheduling",
           });
         }
-        await markScheduled(id, scheduledFor);
+        try {
+          await markScheduled(id, scheduledFor);
+        } catch (err) {
+          if (err instanceof DraftStateError) {
+            throw new TRPCError({ code: "CONFLICT", message: err.message });
+          }
+          throw err;
+        }
         return { ok: true as const, scheduled: true as const };
       }
       
       if (action === "publish") {
-        const updated = await prisma.socialPublishQueue.update({
-          where: { id },
-          data: {
-            status: "published",
-            publishedAt: new Date(),
-          },
-        });
-
-        // Trigger actual publish to Meta Graph API
-        const publishPlatforms: ("instagram" | "facebook")[] = [];
-        if (updated.platforms.includes("instagram")) publishPlatforms.push("instagram");
-        if (updated.platforms.includes("facebook")) publishPlatforms.push("facebook");
-
-        if (publishPlatforms.length > 0) {
-          try {
-            const { publishSocialPost } = await import("@/lib/services/social-actions");
-            const hostHeader = ctx.headers?.get("host") || undefined;
-            await publishSocialPost(
-              {
-                platforms: publishPlatforms,
-                imageUrl: updated.kind !== "reel" ? (updated.imageUrl || undefined) : undefined,
-                videoUrl: updated.kind === "reel" ? (updated.imageUrl || undefined) : undefined,
-                caption: updated.content,
-              },
-              hostHeader
-            );
-          } catch (pubErr) {
-            console.error("[operator:actOnPublishQueueItem] Failed to publish to Meta:", pubErr);
+        // Shares ONE dispatcher with POST /api/sync/queue. Both surfaces used
+        // to carry byte-identical copies of this block, and both stamped
+        // status:"published" before dispatching — which moved the row out of
+        // the worker's claim set, so it could never be picked up. Writing the
+        // status is the worker's job; this only hands the row over.
+        const { dispatchQueuedPublish, PublishDispatchError } = await import(
+          "@/lib/services/social-actions"
+        );
+        const hostHeader = ctx.headers?.get("host") || undefined;
+        try {
+          const item = await dispatchQueuedPublish(id, hostHeader);
+          return { ok: true as const, dispatched: true as const, item };
+        } catch (err) {
+          if (err instanceof PublishDispatchError) {
+            throw new TRPCError({
+              code: err.reason === "not_found" ? "NOT_FOUND" : "BAD_REQUEST",
+              message: err.message,
+            });
           }
+          throw err;
         }
-
-        return { ok: true as const, published: true as const, item: updated };
       }
       
       if (action === "delete") {
