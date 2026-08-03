@@ -130,7 +130,21 @@ export function formatReelReliability(r: IgReelReliability): string {
 export function formatAutopostLane(data: {
   livePostingEnabled: boolean;
   latestLogs: IgAutopostRow[];
+  /** false = the log table could not be read. Absent = older producer, assume readable. */
+  dbReadable?: boolean;
 }): string {
+  // An empty log means "no runs" only if we could actually read the table.
+  // Without this the one subcommand reading a pre-existing handler would
+  // render a database outage as a calm idle lane — the exact failure the
+  // other two are built to prevent.
+  if (data.dbReadable === false) {
+    return (
+      `📅 <b>IG autopost lane</b>\n\n` +
+      `Lane unreadable — <b>UNKNOWN, not healthy</b>.\n` +
+      `<i>An empty log and an unreadable one are not the same thing.</i>`
+    );
+  }
+
   const rows = (data.latestLogs ?? []).map((l) => {
     // Prod carries BOTH spellings as success. Treating only one as success is
     // the exact bug the nickstire service documents.

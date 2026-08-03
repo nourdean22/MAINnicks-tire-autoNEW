@@ -181,6 +181,21 @@ describe("formatAutopostLane", () => {
     expect(out).toContain("Reels publish separately");
   });
 
+  it("says UNKNOWN when the log table could not be read, not 'no runs'", () => {
+    // An empty log and an unreadable one are not the same thing. Three
+    // independent reviewers flagged this as the one path that could still
+    // render an outage as calm.
+    const out = formatAutopostLane({ livePostingEnabled: true, latestLogs: [], dbReadable: false });
+    expect(out).toContain("UNKNOWN, not healthy");
+    expect(out).not.toContain("No autopost runs recorded.");
+  });
+
+  it("treats an absent dbReadable as readable, so older producers behave as before", () => {
+    const out = formatAutopostLane({ livePostingEnabled: false, latestLogs: [] });
+    expect(out).toContain("No autopost runs recorded.");
+    expect(out).not.toContain("UNKNOWN");
+  });
+
   it("surfaces the error text on a failed run", () => {
     const out = formatAutopostLane({
       livePostingEnabled: true,
