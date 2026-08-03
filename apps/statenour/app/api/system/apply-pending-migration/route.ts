@@ -33,6 +33,21 @@ export const maxDuration = 60;
 
 /** Inlined, idempotent migration statements (operator-controlled · deploy-gated). */
 const MIGRATIONS: Record<string, string[]> = {
+  // Render lease for social_publish_queue · 2026-08-03 · additive, zero data
+  // loss. Matches prisma/migrations-pending/20260803120000_render_lease/
+  // migration.sql. A reel claimed by /api/sync/queue/render was stuck in
+  // status='rendering' forever if the worker died mid-render; these columns let
+  // an expired lease be reclaimed. They are ALSO the discriminator that keeps
+  // reclaim safe — 'rendering' is overloaded with the publish path, whose rows
+  // never carry a lease and so can never be stolen.
+  "20260803120000_render_lease": [
+    `ALTER TABLE "social_publish_queue" ADD COLUMN IF NOT EXISTS "render_claimed_at" TIMESTAMP(3)`,
+    `ALTER TABLE "social_publish_queue" ADD COLUMN IF NOT EXISTS "render_lease_expires_at" TIMESTAMP(3)`,
+    `ALTER TABLE "social_publish_queue" ADD COLUMN IF NOT EXISTS "render_attempts" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "social_publish_queue" ADD COLUMN IF NOT EXISTS "last_render_error" TEXT`,
+    `CREATE INDEX IF NOT EXISTS "social_publish_queue_render_lease_expires_at_idx" ON "social_publish_queue"("render_lease_expires_at")`,
+  ],
+
   // Ambition Engine P1 · /stats goals redesign · additive · zero data loss.
   // Matches prisma/migrations-pending/0003_ambition_engine/migration.sql.
   "0003_ambition_engine": [

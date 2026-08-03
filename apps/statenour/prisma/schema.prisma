@@ -3025,6 +3025,22 @@ model SocialPublishQueue {
   rejectionReason String?   @map("rejection_reason") @db.Text
   missionId       String?   @map("mission_id")
   mission         Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
+  /// Render LEASE (2026-08-03). /api/sync/queue/render claims a reel by setting
+  /// status="rendering". If the worker dies after that write, the row was stuck
+  /// in "rendering" forever — never re-claimed, never published, and invisible
+  /// because a stuck row looks identical to one being actively worked.
+  ///
+  /// These four columns are also the DISCRIMINATOR that makes reclaim safe.
+  /// "rendering" is OVERLOADED: social-publish.ts and social-actions.ts set the
+  /// same status to mean "publishing underway". Those paths never touch a lease,
+  /// so their rows have renderLeaseExpiresAt = NULL and can never be reclaimed
+  /// by the render lane. Only a row THIS lane leased is eligible.
+  renderClaimedAt      DateTime? @map("render_claimed_at")
+  renderLeaseExpiresAt DateTime? @map("render_lease_expires_at")
+  renderAttempts       Int       @default(0) @map("render_attempts")
+  lastRenderError      String?   @map("last_render_error") @db.Text
+
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   deletedAt       DateTime? @map("deleted_at")
@@ -3033,6 +3049,8 @@ model SocialPublishQueue {
   @@index([missionId])
   @@index([createdAt])
   @@index([deletedAt])
+  /// Drives the reclaim scan: find expired leases without a table scan.
+  @@index([renderLeaseExpiresAt])
   @@map("social_publish_queue")
 }
 
