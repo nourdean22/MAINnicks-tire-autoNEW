@@ -63,7 +63,15 @@ async function veoAuthHeader(): Promise<Record<string, string>> {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "").replace(/\\n/g, "\n").replace(/^"|"$/g, "");
   if (!email || !key) {
-    throw new Error("Veo: no GEMINI_API_KEY and no GOOGLE_SERVICE_ACCOUNT_EMAIL/_KEY — cannot authenticate");
+    // "authentication failed", not "cannot authenticate". The wording is load-bearing:
+    // shared/providerErrors.ts:88 classifies AUTH_INVALID by matching literal tokens,
+    // and "cannot authenticate" matches none of them. A missing Veo credential
+    // therefore fell through to UNKNOWN, whose policy is RETRY_BACKOFF with
+    // consumesAttempt (providerErrors.ts:112) — so a config problem that no retry can
+    // ever fix burned all three attempts pretending to be a transient fault, then
+    // failed with "unrecognised failure" instead of naming the missing key.
+    // AUTH_INVALID routes to PAUSE_PROVIDER and goes terminal on the first attempt.
+    throw new Error("Veo: authentication failed — no GEMINI_API_KEY and no GOOGLE_SERVICE_ACCOUNT_EMAIL/_KEY");
   }
   const { google } = await import("googleapis");
   const jwt = new google.auth.JWT({ email, key, scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
