@@ -177,19 +177,23 @@
       "name": "First-party evidence ingestion (reviews + work orders)",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "review-monitor/competitor-monitor either-key env gates fixed in #816 milestone 2"
+        "codeCommit": "review-monitor/competitor-monitor either-key env gates fixed in #816 milestone 2",
+        "tests": [
+          "server/failLoudGuards.test.ts (10) — the Places REJECTION is now observable. Google signals REQUEST_DENIED inside a 200 body, so the !response.ok guard could not see it: data.result was undefined, reviews was [], and reviewMonitor returned recordsProcessed:0 / details:\"No reviews returned from API\" and SUCCEEDED. That is why this capability P1 read as \"tables empty\" rather than \"credential denied\" — the cron reported the shop having no new reviews. The guard now lives in the shared client (_core/map.ts) so gbp-reviews.ts, competitorMonitor and every other caller inherit it, plus reviewMonitor own fetch. Mutation-verified: neutering the status check turns 3 of the 10 tests red (REQUEST_DENIED, the provider error text, OVER_QUERY_LIMIT). ZERO_RESULTS is asserted NOT to throw, so a legitimately empty lookup stays distinguishable from a rejection."
+        ]
       },
       "blockers": [
         {
           "severity": "P1",
-          "description": "prod evidence tables EMPTY: review_pipeline 0 / review_replies 0 / work_order_items 0 — Places key REQUEST_DENIED (operator GCP fix) + no work orders ever entered; DB-backed grounding impossible until data flows",
-          "source": "live probe 2026-07-17"
+          "description": "prod evidence tables EMPTY: review_pipeline 0 / review_replies 0 / work_order_items 0 — Places key REQUEST_DENIED (operator GCP fix) + no work orders ever entered; DB-backed grounding impossible until data flows. UNCHANGED as a blocker: the 2026-08-03 fix makes the denial LOUD (the job throws and lands a failed cron_log row instead of reporting success); it does NOT make reviews flow. The operator GCP fix remains the only thing that unblocks ingestion.",
+          "source": "live probe 2026-07-17; failure-visibility fixed 2026-08-03"
         }
       ],
       "deferredScope": [
-        "work-order entry workflow"
+        "work-order entry workflow",
+        "re-probe prod once the GCP key is fixed — the first honest signal is now a FAILED cron_log row for review-monitor, not a silent completed one"
       ],
-      "lastVerifiedAt": "2026-07-17",
+      "lastVerifiedAt": "2026-08-03",
       "codeState": "merged",
       "operationalState": "unverified",
       "exposure": "disabled"
