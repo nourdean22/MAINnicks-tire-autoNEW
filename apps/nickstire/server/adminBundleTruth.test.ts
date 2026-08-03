@@ -59,8 +59,27 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
   });
 
   it("the Needs-action card renders an em dash, not a zero, when untrusted", () => {
-    expect(overview).toMatch(/queueTrustworthy \? queue\.length : "—"/);
+    // The value expression gained a saturation branch (`30+` when the capped
+    // work-order page is full), so this asserts the GUARANTEE — untrusted still
+    // renders the em dash — rather than one exact line.
+    expect(overview).toMatch(/value=\{queueTrustworthy \?[\s\S]{0,90}: "—"\}/);
     expect(overview).toMatch(/Unable to determine/);
+  });
+
+  /**
+   * The queue's own empty state used to test `filteredQueue.length === 0` and
+   * nothing else, so a failed work-order read produced a large emerald "No
+   * pending actions in this view" on the same render where the card above
+   * already said "Unable to determine" — and no banner on the page covers that
+   * query.
+   */
+  it("an empty queue is only an all-clear when the queue was actually readable", () => {
+    expect(overview).toMatch(/!queueTrustworthy \? \(/);
+    expect(overview).toMatch(/UNKNOWN, not clear/);
+  });
+
+  it("the Active work orders card cannot show a count from a failed read", () => {
+    expect(overview).toMatch(/value=\{workOrdersFailed \? "—"/);
   });
 
   it("SummaryCard can express UNKNOWN at all", () => {

@@ -31,7 +31,15 @@ const DUE_QUICK_PICKS: Array<{ label: string; hours: number }> = [
 
 export default function PromisesPanel() {
   const utils = trpc.useUtils();
-  const { data: open, isLoading } = trpc.promises.listOpen.useQuery({ limit: 50 }, { staleTime: 60_000, retry: 1 });
+  /**
+   * `isError` is captured and rendered — it used to be dropped.
+   *
+   * The empty branch below tests `!open || open.length === 0`, and a FAILED
+   * query leaves `open` undefined. So a dead read rendered "No open promises."
+   * — a confident all-clear about the ledger that tracks every "we'll call you
+   * back" this shop has made. With `retry: 1` it reached that state fast.
+   */
+  const { data: open, isLoading, isError } = trpc.promises.listOpen.useQuery({ limit: 50 }, { staleTime: 60_000, retry: 1 });
 
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ promiseType: "callback", promisedAction: "", customerName: "", customerPhone: "", dueHours: 2 });
@@ -155,6 +163,10 @@ export default function PromisesPanel() {
       {isLoading ? (
         <div className="px-4 py-4 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading promises…
+        </div>
+      ) : isError ? (
+        <div className="px-4 py-4 text-sm text-amber-600" role="status">
+          Promises unavailable — this is UNKNOWN, not zero. Open promises may exist that this panel could not read.
         </div>
       ) : !open || open.length === 0 ? (
         <div className="px-4 py-4 text-sm text-muted-foreground">
