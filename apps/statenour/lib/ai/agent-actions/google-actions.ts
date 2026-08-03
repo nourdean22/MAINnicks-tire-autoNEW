@@ -219,7 +219,11 @@ export async function handleGoogleGetReviewStats(params: ActionParams, type: str
   const stats = await getReviewStats();
   return {
     action: type,
-    success: true,
+    // An unreadable review store is a FAILED tool call, not a successful one
+    // reporting zeros. Reporting success here is how a database outage reaches
+    // the model as "this shop has 0 reviews".
+    success: stats.ok,
+    error: stats.ok ? undefined : stats.freshnessNote,
     result: stats,
   };
 }
