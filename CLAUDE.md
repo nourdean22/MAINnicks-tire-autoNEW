@@ -8,14 +8,13 @@ Canonical cross-cutting agent rules live in **[`AGENTS.md`](./AGENTS.md)** — b
 
 ## Repo topology (refreshed 2026-07-14)
 
-One pnpm + Turborepo workspace · four Railway services · one deploy branch (`main`). (Root `AGENTS.md` still opens with "two apps" — `apps/worker` and `apps/voice` were added since; the count below is current, matching the root `README.md`.)
+One pnpm + Turborepo workspace · **three** Railway services · one deploy branch (`main`). (Root `AGENTS.md` still opens with "two apps" — `apps/worker` was added since. `apps/voice` was RETIRED 2026-08-03, see below.)
 
 | Path | Package | Stack · role | Deploys to |
 |---|---|---|---|
 | `apps/nickstire/` | `nicks-tire-auto` | Vite 7 + React 19 PWA client · Express 4 + tRPC 11 server · Drizzle ORM → TiDB Cloud (MySQL). Public tire-shop site + autonomous SMS/voice/AI ops + `/admin` console. | nickstire.org |
 | `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router) · Prisma 7 → Neon Postgres (pgvector/tsvector via raw SQL only) · AI SDK v6 · Tailwind 4. "NOUR OS" personal operating system + the Nick agent. | bdnick.info |
 | `apps/worker/` | `@statenour/worker` | Express 4 + node-cron. Thin secret-gated cron dispatcher — forwards ticks over Railway's internal network to statenour-web `/api/cron/*`. No business logic, no DB client. | Railway internal |
-| `apps/voice/` | `statenour-voice` | Python LiveKit Agents voice loop (Deepgram STT → statenour `/api/agent` → Cartesia TTS). **Not a pnpm/Turbo package** — own Dockerfile + `requirements.txt`; `turbo --affected` never sees it. | Railway internal |
 
 The two web products are independent (different frameworks, databases, domains) — they share only this repo, the tooling, `main`, a small bridge contract, and the workspace packages.
 
@@ -46,7 +45,8 @@ Single tests (run from the app directory):
 
 - `apps/nickstire/` → [`AGENTS.md`](apps/nickstire/AGENTS.md) (commands, layout, test hygiene) · [`CLAUDE.md`](apps/nickstire/CLAUDE.md) (operator context) · `truth_os.md` (what's live in prod) · `PROTECTED-CORE.md` (no-touch list) · `docs/CURRENT-TRUTH.md`.
 - `apps/statenour/` → [`AGENTS.md`](apps/statenour/AGENTS.md) · `docs/CURRENT-TRUTH.md` (guarded by `pnpm check:stale-docs`) · `docs/RECONCILIATION.md` (wave-by-wave ship history) · `docs/runbooks/index.md`.
-- `apps/worker/` + `apps/voice/` → each has its own `DEPLOY.md` deploy contract.
+- `apps/worker/` → has its own `DEPLOY.md` deploy contract.
+- **`apps/voice/` is RETIRED (2026-08-03).** The Python LiveKit worker POSTed every turn to statenour `/api/agent`, a route deleted in `33a035257` (2026-06-03), and nothing in statenour reads `VOICE_BRIDGE_TOKEN` — the machine-caller auth path died with it. The Railway `statenour-voice` service is scaled to 0 replicas (config and env vars preserved). **The statenour half still exists and is now orphaned:** `app/voice/page.tsx` and `app/api/voice/token/route.ts` still mint LiveKit tokens for a room no agent joins. Decide whether to revive the bridge or delete those too before treating voice as fully gone.
 
 ## Claude-specific extras
 
