@@ -7,6 +7,7 @@ import { GbpOAuthCatcher } from "./admin/content/GbpOAuthCatcher";
 import { CommandSearch } from "@/components/admin/CommandSearch";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
+import UnknownSectionNotice from "@/components/admin/UnknownSectionNotice";
 import DensityToggle from "@/components/admin/DensityToggle";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
 import ThemeToggle from "@/components/admin/ThemeToggle";
@@ -89,7 +90,7 @@ const TOPBAR_ACTIONS: TopbarAction[] = [
 
 export default function Admin() {
   const { user, loading: authLoading, error: authError } = useAuth();
-  const { section, setSection } = useAdminNavigation();
+  const { section, setSection, unresolvedSlug, dismissUnresolvedSlug } = useAdminNavigation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isAdmin = !!user && user.role === "admin";
   const utils = trpc.useUtils();
@@ -280,9 +281,31 @@ export default function Admin() {
       {/* Shell-level: Google's OAuth redirect can land on ANY tab, so the
           code exchange cannot live inside the GBP sub-tab component. */}
       <GbpOAuthCatcher />
-      <div className="admin-shell min-h-screen bg-background flex">
-        {sidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-        <aside className={`admin-sidebar fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen w-[260px] flex flex-col transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`} aria-label="Admin navigation">
+      {/* min-h-dvh, not min-h-screen. Scoped claim, because the obvious rationale
+          is wrong: manifest.json:7 is `display: standalone`, and true iOS standalone
+          has no retractable browser chrome, so there 100vh === 100dvh and this
+          changes nothing. It bites in the cases that DO have moving chrome — Safari
+          as a tab, the `minimal-ui` fallback declared at manifest.json:8, and
+          installed Android PWAs — where min-h-screen overshoots by the toolbar
+          height and leaves a dead scroll region under every section. dvh is a
+          strictly smaller minimum, so it can only remove spurious height, never
+          clip content. */}
+      <div className="admin-shell min-h-dvh bg-background flex">
+        {/* No backdrop-blur here: this scrim is full-screen and renders ONLY on the
+            `lg:hidden` breakpoint, i.e. exclusively on the weakest device that ever
+            opens this admin. bg-black/60 already carries the contrast a scrim needs;
+            the blur bought nothing and cost a full-viewport filter pass per frame of
+            the 200ms sidebar transition. */}
+        {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+        {/* h-dvh carries the real fix, not the min-h-dvh above. On mobile this aside
+            is `fixed top-0 h-screen`; the nav below is `flex-1 overflow-y-auto` and
+            the footer block is `shrink-0`, so when 100vh exceeds the visible viewport
+            the overflow lands exactly on that footer — the user name, role and "Back
+            to site" link render under the browser toolbar and cannot be tapped.
+            h-dvh tracks the visible viewport so the footer stays reachable. On `lg`
+            the aside is `sticky` on a chrome-less desktop viewport where dvh === vh,
+            so desktop is unaffected. */}
+        <aside className={`admin-sidebar fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-dvh w-[260px] flex flex-col transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`} aria-label="Admin navigation">
           <div className="h-14 flex items-center px-4 border-b border-sidebar-border shrink-0">
             <Link href="/" className="flex items-center gap-2.5 group flex-1 min-w-0"><div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" aria-hidden /><div className="flex flex-col min-w-0"><span className="font-semibold text-foreground text-[13.5px] leading-tight tracking-tight group-hover:text-primary transition-colors truncate">Nick&apos;s Admin</span><span className="text-[10px] text-muted-foreground/70 tracking-[0.06em]">{adminRole.replace("_", " ")}</span></div></Link>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground/60 hover:text-foreground p-1.5 rounded-md" aria-label="Close sidebar"><X className="w-4 h-4" /></button>
@@ -308,7 +331,7 @@ export default function Admin() {
             <DensityToggle /><ThemeToggle />
             {TOPBAR_ACTIONS.filter((action) => !action.sectionTrigger || allowedSections.includes(action.sectionTrigger)).map((action) => <Link key={action.href} href={action.href} title={action.title} aria-label={action.title} onClick={(event) => { if (action.sectionTrigger) { event.preventDefault(); window.history.replaceState({}, "", action.href); setSection(action.sectionTrigger); } }} className={`${action.mobileHidden ? "hidden lg:inline-flex" : "inline-flex"} items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary`}>{action.icon}</Link>)}
           </header>
-          <div className="admin-content"><div className="px-4 pt-4 space-y-3"><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} /></div><SectionContent section={section} /></div>
+          <div className="admin-content"><div className="px-4 pt-4 space-y-3"><UnknownSectionNotice slug={unresolvedSlug} onDismiss={dismissUnresolvedSlug} /><DegradedDataBanner stats={stats} unavailable={overviewUnavailable} unavailableMessage={overviewError?.message} /></div><SectionContent section={section} /></div>
         </main>
         <DrilldownDrawer /><ConfirmDialog /><WalkInQuoteDrawer /><ActivityPulse />
       </div>

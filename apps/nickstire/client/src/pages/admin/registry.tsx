@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useEffect } from "react";
+import React, { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { Brain, Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, PhoneCall, Send, Settings, Shield, Sparkles, TrendingUp, UserCheck } from "lucide-react";
 import type { AdminSection, NavGroup } from "./shared/types";
 import type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
@@ -325,11 +325,22 @@ export function resolveSection(raw: string): AdminSection | null {
   return null;
 }
 
-export function resolveInitialSection(): AdminSection {
-  if (typeof window === "undefined") return "overview";
+export interface InitialSectionResolution {
+  section: AdminSection;
+  /**
+   * The raw `?tab=` / `?section=` slug when it matched no id, alias or compound
+   * redirect — otherwise null. Note that NO slug at all resolves to `overview`
+   * with `unresolvedSlug: null`: landing on Today from a bare `/admin` is the
+   * correct outcome, not a failure, and must not raise a notice.
+   */
+  unresolvedSlug: string | null;
+}
+
+export function resolveInitialSection(): InitialSectionResolution {
+  if (typeof window === "undefined") return { section: "overview", unresolvedSlug: null };
   const params = new URLSearchParams(window.location.search);
   const raw = (params.get("tab") || params.get("section") || "").toLowerCase().trim();
-  if (!raw) return "overview";
+  if (!raw) return { section: "overview", unresolvedSlug: null };
 
   if (raw in COMPOUND_REDIRECTS) {
     const r = COMPOUND_REDIRECTS[raw];
@@ -338,10 +349,20 @@ export function resolveInitialSection(): AdminSection {
     const url = new URL(window.location.href);
     url.search = params.toString();
     window.history.replaceState({}, "", url.toString());
-    return r.section;
+    return { section: r.section, unresolvedSlug: null };
   }
 
-  return resolveSection(raw) ?? "overview";
+  const resolved = resolveSection(raw);
+  if (!resolved) {
+    // The `admin:navigate-section` listener below has warned on an unknown slug
+    // since it was written; this URL path stayed silent and returned `overview`,
+    // so a mistyped, renamed or stale deep link was indistinguishable from the
+    // operator simply opening Today. That is the all-clear-on-failure shape this
+    // admin has been pulling out elsewhere — a bad link now says it is bad.
+    console.warn("[admin] unknown ?tab= slug, falling back to Today:", raw);
+    return { section: "overview", unresolvedSlug: raw };
+  }
+  return { section: resolved, unresolvedSlug: null };
 }
 
 function SectionSpinner() {
@@ -369,7 +390,20 @@ export function SectionContent({ section }: { section: AdminSection }) {
 }
 
 export function useAdminNavigation() {
-  const [section, setSection] = useState<AdminSection>(resolveInitialSection);
+  const [initial] = useState(resolveInitialSection);
+  const [section, setSectionState] = useState<AdminSection>(initial.section);
+  const [unresolvedSlug, setUnresolvedSlug] = useState<string | null>(initial.unresolvedSlug);
+
+  /**
+   * Every deliberate navigation answers the bad-link notice, so it cannot outlive
+   * the moment it describes. Kept value-only (never a functional updater) because
+   * every call site passes a section id directly.
+   */
+  const setSection = useCallback((next: AdminSection) => {
+    setUnresolvedSlug(null);
+    setSectionState(next);
+  }, []);
+  const dismissUnresolvedSlug = useCallback(() => setUnresolvedSlug(null), []);
 
   // Sync tab state to browser URL search params
   useEffect(() => {
@@ -386,13 +420,28 @@ export function useAdminNavigation() {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const raw = params.get("tab") || params.get("section") || "";
+      const raw = (params.get("tab") || params.get("section") || "").toLowerCase().trim();
+      // No slug is the legitimate "went back to bare /admin" case, not a failure.
+      if (!raw) {
+        setSection("overview");
+        return;
+      }
       const resolved = resolveSection(raw);
-      setSection(resolved ?? "overview");
+      if (!resolved) {
+        // Same honesty as the initial-load path: history can carry a slug that has
+        // since been renamed away, and landing on Today without saying so hides it.
+        // setSectionState/setUnresolvedSlug directly, because the setSection wrapper
+        // clears the very notice being raised here.
+        console.warn("[admin] unknown ?tab= slug on history navigation, falling back to Today:", raw);
+        setSectionState("overview");
+        setUnresolvedSlug(raw);
+        return;
+      }
+      setSection(resolved);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [setSection]);
 
   // Section-navigation event bridge listener
   useEffect(() => {
@@ -416,7 +465,7 @@ export function useAdminNavigation() {
     };
     window.addEventListener("admin:navigate-section", handler);
     return () => window.removeEventListener("admin:navigate-section", handler);
-  }, []);
+  }, [setSection]);
 
   // Customer drawer event bridge listener with history pollution prevention
   useEffect(() => {
@@ -442,7 +491,7 @@ export function useAdminNavigation() {
     };
     window.addEventListener("admin:open-customer-drawer", handler);
     return () => window.removeEventListener("admin:open-customer-drawer", handler);
-  }, []);
+  }, [setSection]);
 
-  return { section, setSection };
+  return { section, setSection, unresolvedSlug, dismissUnresolvedSlug };
 }
