@@ -1454,6 +1454,23 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     };
   },
 
+  // Read-only IG reads for the operator's Telegram surface (/ig). Both
+  // delegate to the SAME services the admin console reads, so the phone and
+  // the console can never disagree. Neither writes anything.
+  //
+  // Their "unknown is not zero" contract has to survive the trip: nullable
+  // counts mean the fact could not be read, and a formatter that renders null
+  // as 0 turns a database outage into a clean bill of health.
+  "instagram_delivery_issues": async () => {
+    const { getDeliveryIssues } = await import("../services/socialDeliveryIssues");
+    return getDeliveryIssues();
+  },
+
+  "instagram_reel_reliability": async () => {
+    const { getReelReliability } = await import("../services/reelReliability");
+    return getReelReliability();
+  },
+
   "instagram_autopost_run": async (filters) => {
     const { runIgAutopost } = await import("../services/igAutopost");
     const { isEnabled, setFlag } = await import("../services/featureFlags");
