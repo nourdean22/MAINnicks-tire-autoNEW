@@ -11,8 +11,10 @@ import DensityToggle from "@/components/admin/DensityToggle";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
 import ThemeToggle from "@/components/admin/ThemeToggle";
 import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
-import { getAdminActionableCounts, type AdminActionableCounts } from "@/lib/adminActionableCounts";
+import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
+import { buildAdminSignals } from "@/lib/adminSignals";
 import { trpc } from "@/lib/trpc";
+import { describeBadge, foldSignals, signalsForSection } from "@shared/adminSignal";
 import type { AdminRole } from "@shared/adminPermissions";
 import {
   ArrowLeft,
@@ -63,41 +65,27 @@ const TOPBAR_ACTIONS: TopbarAction[] = [
 // fails if a routable section becomes unreachable for owner or manager.
 
 /**
- * `ops` is the publishing side of the business — held reels, ambiguous publishes.
- * It was absent from this function entirely, which is the mechanical reason three
- * reels could sit blocked for 32 hours with a silent sidebar: the badge pipeline
- * was built around the SALES funnel (bookings/leads/callbacks) and the publishing
- * system grew later without ever joining it.
+ * getBadgeCount() stood here until 2026-08-03. It was a five-branch switch whose
+ * fallback was `return 0` for the other 11 sections — and its own docblock said a
+ * count that could not be read "must not render as zero: a failed query showing 0
+ * is a green light the system never gave". The doctrine was stated and violated in
+ * the same function.
  *
- * It lands on BOTH "overview" and "growth": overview is where the operator starts,
- * growth is where Instagram lives, and a signal that only appears once you have
- * already navigated to the right place is not a signal.
- */
-/**
- * `null` means WE COULD NOT COUNT — it is not zero, and it must not render as a
- * missing badge.
+ * It also never received `overviewUnavailable`, so when the overview bundle failed
+ * getAdminActionableCounts turned undefined into [] and leads / tireOrders /
+ * memberships / overview rendered confident zeros beside the DegradedDataBanner
+ * announcing that the data was degraded.
  *
- * operationsSignal returns `unknown: true` when a count failed, and its own
- * docblock says: "Callers must render that as 'unable to determine', never as
- * zero: a failed query showing 0 is a green light the system never gave." This
- * function is that only caller, and it used to do `opsSignal?.total ?? 0` —
- * so a database the sidebar could not reach looked exactly like a clean shop.
- * Three reels once sat held for 32 hours behind a silent sidebar; this is the
- * same silence arriving by a different route.
+ * Badges now come from buildAdminSignals() + foldSignals(), which carry three
+ * states instead of a nullable number: counted (incl. a real 0), unknown ("?"),
+ * and not_measured (NO badge — the case `return 0` was faking). See
+ * shared/adminSignal.ts for why that third state is the load-bearing one.
+ *
+ * The publishing signal still lands on BOTH overview and instagram: overview is
+ * where the operator starts, and a signal you only see after navigating to the
+ * right place is not a signal. Three reels once sat held for 32 hours behind a
+ * silent sidebar.
  */
-function getBadgeCount(
-  id: string,
-  stats: any,
-  counts: AdminActionableCounts,
-  opsTotal: number | null,
-): number | null {
-  if (id === "overview") return opsTotal === null ? null : counts.total + opsTotal;
-  if (id === "instagram") return opsTotal;
-  if (id === "leads") return counts.newLeads;
-  if (id === "tireOrders") return stats?.tires?.new ?? 0;
-  if (id === "memberships") return stats?.memberships?.warning ?? 0;
-  return 0;
-}
 
 export default function Admin() {
   const { user, loading: authLoading, error: authError } = useAuth();
@@ -165,12 +153,33 @@ export default function Admin() {
     staleTime: 90_000,
     refetchIntervalInBackground: false,
   });
-  // Three states, not two: a number, "still loading", and "we could not tell".
-  // Only the first is a count. `undefined` while the first fetch is in flight is
-  // genuinely nothing-to-show; a transport error or a server-side `unknown` is a
-  // fact the operator needs, so it becomes null and renders as "?".
-  const opsTotal: number | null =
-    opsFailed || opsSignal?.unknown ? null : (opsSignal?.total ?? 0);
+  /**
+   * Three states, not two: a number, "still loading", and "we could not tell".
+   * Only the first is a count. A transport error or a server-side `unknown` is a
+   * fact the operator needs, so it becomes "?" rather than a zero.
+   *
+   * `overviewUnavailable` is passed in for the same reason and used to be
+   * missing: the shell knew the bundle had failed (it renders the
+   * DegradedDataBanner from exactly this flag) but never told the badges, so
+   * `getAdminActionableCounts` turned undefined into [] and leads / tireOrders /
+   * memberships / overview showed confident zeros right beside the banner.
+   */
+  const signals = useMemo(
+    () =>
+      buildAdminSignals({
+        bundleFailed: overviewUnavailable,
+        // Per-SLICE, not per-query. A leads-only failure resolves the tRPC query
+        // fine, so `overviewUnavailable` stays false and the banner never fires —
+        // adminBundle.ts:85-92 records that exact case rendering a clean queue.
+        slices: bundle?.slices,
+        counts: actionableCounts,
+        stats,
+        opsFailed,
+        opsUnknown: opsSignal?.unknown === true,
+        opsTotal: opsSignal?.total,
+      }),
+    [overviewUnavailable, bundle?.slices, actionableCounts, stats, opsFailed, opsSignal],
+  );
 
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;
   const allowedSections = useMemo(() => sectionsForRole(adminRole), [adminRole]);
@@ -281,8 +290,12 @@ export default function Admin() {
           <nav className="flex-1 py-4 px-2 space-y-5 overflow-y-auto" aria-label="Admin sections">
             {visibleGroups.map((group) => <div key={group.label || "_flat"}>{group.label && <div className="admin-sidebar-group-label">{group.label}</div>}<div className="space-y-0.5 mt-0.5">{group.items.map((item) => {
               const isActive = section === item.id;
-              const badge = getBadgeCount(item.id, stats, actionableCounts, opsTotal);
-              return <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }} aria-current={isActive ? "page" : undefined} className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}><span className={`shrink-0 ${isActive ? "text-primary" : "text-foreground/45"}`}>{item.icon}</span><span className="flex-1 text-left truncate">{item.label}</span>{badge === null ? <span className="shrink-0 text-[10px] font-semibold min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-amber-600 flex items-center justify-center" title="Could not read outstanding work — this is unknown, not zero" aria-label="outstanding work unknown">?</span> : badge > 0 ? <span className="shrink-0 text-[10px] font-semibold tabular-nums min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/12 text-destructive flex items-center justify-center">{badge > 99 ? "99+" : badge}</span> : null}</button>;
+              const sectionSignals = signalsForSection(signals, item.id);
+              const badge = foldSignals(sectionSignals);
+              // Every number on screen names its source, so a badge can be traced
+              // without reading the code that produced it.
+              const badgeTitle = describeBadge(badge, sectionSignals);
+              return <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }} aria-current={isActive ? "page" : undefined} className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}><span className={`shrink-0 ${isActive ? "text-primary" : "text-foreground/45"}`}>{item.icon}</span><span className="flex-1 text-left truncate">{item.label}</span>{badge.state === "unknown" ? <span className="shrink-0 text-[10px] font-semibold min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-amber-600 flex items-center justify-center" title={badgeTitle} aria-label="outstanding work unknown">?</span> : badge.state === "counted" && badge.count > 0 ? <span className="shrink-0 text-[10px] font-semibold tabular-nums min-w-[18px] h-[18px] px-1 rounded-full bg-destructive/12 text-destructive flex items-center justify-center" title={badgeTitle}>{badge.count > 99 ? "99+" : badge.count}</span> : null}</button>;
             })}</div></div>)}
           </nav>
           <div className="px-3 py-3 border-t border-sidebar-border shrink-0 space-y-2"><div className="px-2"><p className="text-[12px] font-medium text-foreground truncate">{user.name || "Admin"}</p><p className="text-[10px] text-muted-foreground/70">{adminRole.replace("_", " ")}</p></div><Link href="/" className="px-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"><ArrowLeft className="w-3 h-3" />Back to site</Link></div>
