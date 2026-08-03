@@ -1228,6 +1228,34 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "cron-once-per-shop-day-cadence",
+      "name": "Once-per-shop-day cron cadence (boot-phase-proof)",
+      "owner": "system",
+      "evidence": {
+        "codeCommit": "ROS-081 — four businessHoursOnly jobs moved out of the 24h daily tier into the 2h hourly tier, plus a new per-JOB `oncePerShopDay` claim (claimOncePerShopDay) in server/cron/scheduler.ts",
+        "tests": [
+          "server/__tests__/cron-cadence.test.ts (26), mutation-verified. The daily tier is a 24h setInterval whose PHASE is set by process start, so a pod booted at 03:00 ET fired it at 03:00 ET every day — outside 07:00-20:59, so runTier() skipped every businessHoursOnly job in it indefinitely. 10 of 24 possible boot hours starve it. Worse, that pass still called resetSkipCount('daily') BEFORE the job loop, so it also told the boot guard 'daily already ran today' and suppressed the next startup fire — a tier reporting a completed run having produced nothing (ROS-078 class). Prod cron_log 2026-07-29: opportunity-queue-refresh ran 1 times in 7 days, expected about 7. Affected: referral-loop-closer and vip-auto-recognition (BOTH send customer SMS), opportunity-queue-refresh (Decision Inbox feed), promise-sweep (Promise Ledger escalation). The fix has two halves and BOTH are load-bearing: relocation gives every job a firing inside business hours from all 24 boot hours, and the per-JOB claim makes 'the tier fired' no longer readable as 'the job ran'. Tests pin the ET calendar boundary including the DST shift (a hardcoded -05:00 would be an hour wrong all summer), the starvation simulation across all 24 boot hours, the tier-placement invariant scoped to the daily block, and the ordering that keeps the claim INSIDE acquireCronLock — two pods that each read 'not yet run today' would both claim and both send, the v1.7 duplicate-SMS class. Three mutations verified to turn the suite RED: job back in the daily tier (1 fail), claim moved before the lock (2 fails), hardcoded -05:00 offset (5 fails).",
+          "Derived defect pinned in the same change: selfHealing judged these jobs on the raw 120min tier interval (120x3 + 15h overnight grace = 21h allowance against a normal ~24h gap), which would have fired a false CRON STALE every day AND auto-reset the job's running flag. It now uses an explicit two-shop-day allowance and reports the cadence the job actually keeps."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "NOT observed in production yet. The proof is prod cron_log showing ~7 runs in 7 days for each of the four jobs, and loopShapeContract reporting a shape other than `missing` for opportunity-queue-refresh. Until that read exists this stays unit_verified — a green suite is not a running cron. Note the observation is phase-sensitive: prod booted 09:09 ET on 2026-08-03, inside business hours, which is exactly why the defect looked healthy on a same-day spot check. PROMOTION PATH: exposure is held at `internal` ONLY because the ledger forbids claiming `production` before live_verified — the four crons it governs already run autonomously in prod. Promote to live_verified + production together, with evidence.liveRuns carrying the cron_log read; do not promote on the strength of the test suite.",
+          "source": "measurement"
+        }
+      ],
+      "deferredScope": [
+        "the tier-level resetSkipCount() stamp still runs BEFORE the job loop — harmless now that no businessHoursOnly job sits in the daily tier, but the conflation itself is untouched and would return the moment one is added back (cron-cadence.test.ts fails if that happens)",
+        "the two-shop-day staleness allowance in selfHealing is a heuristic, not a derived bound — it catches a dead daily loop on the second miss, not the first",
+        "the other tiers were not audited for phase sensitivity; only the daily tier had businessHoursOnly jobs"
+      ],
+      "lastVerifiedAt": "2026-08-03",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

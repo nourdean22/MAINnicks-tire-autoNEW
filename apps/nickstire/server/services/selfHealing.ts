@@ -91,11 +91,26 @@ export async function runSelfHealingChecks(): Promise<{
     // but runs in the 15min tier), so comparing against them reports healthy
     // jobs as stale on every 5-minute pass.
     for (const [name, cadence] of cadences) {
-      const intervalMs = cadence.intervalMin * 60 * 1000;
+      // ROS-081 · a `oncePerShopDay` job sits in the 2h tier so it gets enough
+      // chances to land inside business hours, but it deliberately runs ONCE a
+      // day. Judged on the raw tier interval it would be "stale" after ~21h
+      // (120min x3 + overnight grace) against a perfectly normal ~24h gap —
+      // a daily false alert that also auto-reset the job's running flag. Give
+      // it an explicit two-shop-day allowance instead of the x3 heuristic:
+      // tight enough to catch a genuinely dead daily loop on the second miss,
+      // loose enough that a healthy 24h gap never fires.
+      //
       // A businessHoursOnly job is SUPPOSED to be silent overnight. Without
-      // this grace the watchdog alerts on every one of them, every night.
+      // that grace the watchdog alerts on every one of them, every night.
       const overnightGraceMs = cadence.businessHoursOnly ? 15 * 60 * 60 * 1000 : 0;
-      const allowanceMs = intervalMs * 3 + overnightGraceMs;
+      const allowanceMs = cadence.oncePerShopDay
+        ? 48 * 60 * 60 * 1000
+        : cadence.intervalMin * 60 * 1000 * 3 + overnightGraceMs;
+      // Report the cadence the job actually keeps, not the tier's raw tick —
+      // "every 120min" on a once-a-day job sends the reader to the wrong bug.
+      const cadenceLabel = cadence.oncePerShopDay
+        ? "once per shop day"
+        : `every ${cadence.intervalMin}min`;
       const lastRunIso = lastCompletions.get(name);
 
       if (!lastRunIso) {
@@ -103,7 +118,7 @@ export async function runSelfHealingChecks(): Promise<{
         // enough that a run was genuinely due, so a fresh boot stays quiet.
         if (process.uptime() * 1000 > allowanceMs) {
           issues.push(
-            `CRON NEVER OBSERVED: ${name} has no completed cron_log row (tier ${cadence.tier}, every ${cadence.intervalMin}min)`
+            `CRON NEVER OBSERVED: ${name} has no completed cron_log row (tier ${cadence.tier}, ${cadenceLabel})`
           );
         }
         continue;
@@ -112,7 +127,7 @@ export async function runSelfHealingChecks(): Promise<{
       const staleness = Date.now() - new Date(lastRunIso).getTime();
       if (staleness > allowanceMs) {
         issues.push(
-          `CRON STALE: ${name} hasn't completed in ${Math.round(staleness / 60000)}min (tier ${cadence.tier}, every ${cadence.intervalMin}min${cadence.businessHoursOnly ? ", business hours only" : ""})`
+          `CRON STALE: ${name} hasn't completed in ${Math.round(staleness / 60000)}min (tier ${cadence.tier}, ${cadenceLabel}${cadence.businessHoursOnly ? ", business hours only" : ""})`
         );
         // AUTO-FIX: Reset the stuck job's running flag on the ORIGINAL object
         try {
