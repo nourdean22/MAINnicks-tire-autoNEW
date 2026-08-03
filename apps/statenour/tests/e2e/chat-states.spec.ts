@@ -3,8 +3,14 @@
  * (2026-07-29 · next-queue item 5).
  *
  * ─────────────────────────────────────────────────────────────────
- * BASELINES ARE COMMITTED (2026-07-29, six PNGs alongside this file).
- * Regenerate after an intentional UI change:
+ * BASELINES ARE PER-PLATFORM. Playwright names them
+ * `{name}-{project}-{platform}.png`, so a baseline generated on Windows
+ * (`-win32`) is invisible to CI (`-linux`) — the suffix exists precisely
+ * because font rasterization and antialiasing differ per OS, and a
+ * cross-platform pixel comparison is not meaningful.
+ *
+ * Regenerate after an intentional UI change, ON THE PLATFORM YOU ARE
+ * ADDING A BASELINE FOR:
  *
  *   pnpm test:e2e:install     # one-time chromium download
  *   pnpm dev                  # separate shell — config assumes :3001
@@ -15,8 +21,28 @@
  * is honored only under dev, and a dummy DB keeps real operator data
  * out of images that live in git forever.
  *
- * This spec gates nothing automatically: `verify:hard` runs vitest only,
- * never test:e2e. Run it by hand after touching chat surfaces.
+ * CORRECTED 2026-08-03. This header used to say "this spec gates nothing
+ * automatically: verify:hard runs vitest only, never test:e2e." The first
+ * clause was FALSE, and it cost five days of red CI. verify:hard indeed
+ * does not run it — but `.github/workflows/e2e-statenour.yml` runs
+ * `playwright test`, and playwright.config.ts sets `testDir: ./tests/e2e`,
+ * so EVERY spec in this directory is a blocking CI gate. Only `-win32`
+ * baselines were ever committed, so on ubuntu all six comparisons failed
+ * with "A snapshot doesn't exist", every run on every branch from
+ * 2026-07-29T14:58 (0ad000b79, the commit that added this file) onward.
+ *
+ * The guard below makes the intent true instead of merely asserted: a
+ * visual case SKIPS when no baseline exists for the current platform, and
+ * runs unchanged when one does. Commit `-linux` baselines and CI starts
+ * enforcing them automatically — no config to remember.
+ *
+ * KNOWN, before anyone adds `-linux` baselines: the two full-page cases
+ * are not yet pixel-stable. In run 30822603355 Playwright's own
+ * stability retry captured two consecutive shots of `chat-states-desktop`
+ * that differed (143,993 vs 148,030 bytes, with a -diff.png), while the
+ * masked evidence cases were stable. Whatever moves on the full page is
+ * unmasked — find and mask it BEFORE committing a linux baseline, or the
+ * gate will flake.
  *
  * The target page renders REAL components against module-level fixtures
  * (no network, no DB), and every selector below is a literal from
@@ -27,7 +53,38 @@
  * naive screenshot would flake every run. See `timestampMask` below.
  * ─────────────────────────────────────────────────────────────────
  */
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { test, expect, type Locator, type Page } from "@playwright/test";
+
+/**
+ * Skip a visual case when this platform has no committed baseline.
+ *
+ * NOT a loosened assertion — where a baseline exists the comparison runs
+ * exactly as before, so a real regression still fails. This only replaces
+ * Playwright's "A snapshot doesn't exist, writing actual" failure, which
+ * in ephemeral CI can never resolve on its own: the written file is
+ * discarded with the runner, so the same case fails forever while
+ * reporting a missing FILE rather than the real problem (no baseline was
+ * ever generated for this OS).
+ *
+ * Self-healing by design: commit `<name>-chromium-linux.png` and CI
+ * begins enforcing it on the next run with no config change.
+ */
+// __dirname, not import.meta.url: Playwright transpiles specs as CJS here
+// (no "type": "module" in the nearest package.json), so import.meta is a
+// SyntaxError that fails the WHOLE file to load — caught by
+// `playwright test --list` before this shipped.
+const SNAPSHOT_DIR = path.join(__dirname, "chat-states.spec.ts-snapshots");
+
+function requireBaseline(name: string): void {
+  const file = `${name}-chromium-${process.platform}.png`;
+  test.skip(
+    !existsSync(path.join(SNAPSHOT_DIR, file)),
+    `no committed baseline "${file}" for platform "${process.platform}" — ` +
+      `regenerate on this OS (see header) and commit it; the case runs automatically once it exists`,
+  );
+}
 
 /**
  * Click-then-assert with retry. A bare click can land BEFORE React
@@ -107,6 +164,7 @@ for (const vp of viewports) {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
     test("full page — typed cards, unregistered-tool fallback, receipts", async ({ page }) => {
+      requireBaseline(`chat-states-${vp.name}`);
       await page.goto(PAGE);
       await expect(page.getByRole("heading", { name: "Chat States" })).toBeVisible();
       // The fixture page is static after hydration; waiting on the last
@@ -119,6 +177,7 @@ for (const vp of viewports) {
     });
 
     test("evidence panel — fresh recall (open state)", async ({ page }) => {
+      requireBaseline(`evidence-fresh-${vp.name}`);
       await page.goto(PAGE);
       await openPanel(page, "Open — fresh recall", "Context & Evidence");
       await expect(page).toHaveScreenshot(`evidence-fresh-${vp.name}.png`, {
@@ -128,6 +187,7 @@ for (const vp of viewports) {
     });
 
     test("evidence panel — never fetched (honest empty state)", async ({ page }) => {
+      requireBaseline(`evidence-unfetched-${vp.name}`);
       await page.goto(PAGE);
       // The honesty contract this baseline protects: an unfetched panel
       // must say so rather than rendering as evidence.
