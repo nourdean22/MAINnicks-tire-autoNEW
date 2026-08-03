@@ -1,10 +1,15 @@
 /**
  * Runtime-safe replacement for the ES2024 `Map.groupBy` static method.
  *
- * Prod runs on Node 20 (`node:20-alpine`, see apps/statenour/Dockerfile), whose
- * V8 predates `Map.groupBy` (added in Node 21 / V8 12.3). Calling `Map.groupBy`
- * there throws "Map.groupBy is not a function" at runtime — it fired 19 times in
- * 48h from the persona scorer + reasoning telemetry before this helper existed.
+ * HISTORY: prod ran on Node 20, whose V8 predates `Map.groupBy` (Node 21 / V8
+ * 12.3). Calling it there threw "Map.groupBy is not a function" at runtime — 19
+ * times in 48h from the persona scorer + reasoning telemetry (#1009).
+ *
+ * Prod moved to Node 24 on 2026-08-03, so `Map.groupBy` IS now available. This
+ * helper is retained deliberately, not by oversight: it is the rollback safety
+ * net. If the runtime is ever pinned back to 20, code calling `Map.groupBy`
+ * directly starts throwing again at RUNTIME, with nothing at build time to warn
+ * you. Prefer this helper; do not migrate call sites back to the native static.
  *
  * Same semantics as `Map.groupBy`: iterates `items` in order, calls `keyFn` for
  * each element, and returns a `Map<K, T[]>` whose keys and buckets preserve

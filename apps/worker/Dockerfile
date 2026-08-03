@@ -8,7 +8,7 @@
 # Tier-2-F (2026-05-19): adopted BuildKit cache mounts for pnpm store.
 
 # ── 0 · prune ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS pruner
+FROM node:24-alpine AS pruner
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 RUN npm install -g turbo@2.9.14
@@ -16,7 +16,7 @@ COPY . .
 RUN turbo prune @statenour/worker --docker
 
 # ── 1 · deps ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS deps
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /repo
@@ -33,7 +33,7 @@ COPY apps/nickstire/patches ./apps/nickstire/patches
 RUN pnpm install --frozen-lockfile --filter @statenour/worker...
 
 # ── 2 · build ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /repo
 RUN corepack enable
 
@@ -54,7 +54,7 @@ RUN pnpm run build
 RUN pnpm deploy --filter @statenour/worker --prod --legacy /deploy
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 RUN apk add --no-cache libc6-compat
 
 # Add Chromium and dependencies for Remotion
