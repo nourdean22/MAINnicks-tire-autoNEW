@@ -329,6 +329,25 @@ before accepting any "connect X" recommendation.
   live): recall failures, claim warnings, and operator accept/dismiss
   verdicts become versioned datasets; smoke evals on PRs, local
   no-send first. Extends Spine-8 + WP-18, replaces nothing.
+  **Status 2026-08-03 · harvest WIRED + third signal added.**
+  `recall-corpus-builder.ts` (2026-07-29) could already turn rejected
+  outcomes and claim warnings into cases — and **nothing called it**
+  (imported only by itself and its own test), the same built-tested-
+  unwired shape as the WP-20 mapper. `pnpm harvest:evals` is the
+  caller, writing to the gitignored `eval-datasets/` (harvested cases
+  carry real operator content; "local no-send first" holds — nothing
+  uploads). Third signal added: `AgentTrace.errorClass` was WRITTEN by
+  stream-with-fallback + traced-aichat and READ by no eval lane, so a
+  failed tool call now becomes an abstention case ("nothing may later
+  assert this succeeded"), honest in its provenance that the query is
+  synthesized from the tool label since AgentTrace stores no user text.
+  The blanket `.catch(() => [])` is gone: a broken source and an empty
+  table produced byte-identical output, so `describeCorpus()` reported
+  "SYNTHETIC ONLY" either way and **a stopped flywheel read exactly
+  like one nobody had fed yet**. Sources now report per-source status,
+  the CLI exits non-zero when degraded, and that distinction is
+  mutation-tested. **Remaining:** promotion of reviewed cases into the
+  committed corpus, and the Braintrust dataset push (still local-only).
 - **WP-22 · nickstire search-conversion data spine** (audit-#12): GBP
   Performance API ingestion (publisher is posting-only today) + the
   GSC×GA4×leads join + LHCI/CrUX budgets — read-only, feeds the

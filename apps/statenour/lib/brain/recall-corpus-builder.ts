@@ -84,6 +84,39 @@ export function caseFromClaimWarning(row: {
   };
 }
 
+/**
+ * Pure: a tool call that ERRORED becomes an abstention case — nothing
+ * in memory may later assert that this action succeeded. Same logic as
+ * caseFromClaimWarning (unproven action -> surface no distractor),
+ * reached from the other direction: the claim detector catches the
+ * model SAYING it acted, this catches the tool actually FAILING.
+ *
+ * Exported for tests.
+ *
+ * Honest about its own limits: AgentTrace deliberately stores no user
+ * text (see otel-export.ts for why that matters), so the query is
+ * synthesized from the tool label rather than replayed from the real
+ * turn. The provenance says so — this case proves the retriever does
+ * not manufacture a success record, NOT that it handles the original
+ * phrasing.
+ */
+export function caseFromFailedToolCall(row: {
+  traceId: string;
+  label: string;
+  errorClass: string | null;
+}): RecallEvalCase {
+  const why = row.errorClass ?? "unknown error";
+  return {
+    id: `real-toolfail-${slug(`${row.label}-${row.traceId}`)}`,
+    query: `Did ${row.label} complete successfully?`,
+    relevantKeys: [],
+    forbiddenKeys: [],
+    kind: "abstention",
+    provenance: `trace:${row.traceId} · ${row.label} failed (${why}) · query synthesized from label, not the real turn`,
+    acceptableAbstention: true,
+  };
+}
+
 export interface CorpusComposition {
   synthetic: number;
   real: number;
@@ -110,12 +143,57 @@ export function describeCorpus(cases: readonly RecallEvalCase[]): CorpusComposit
   };
 }
 
-/** Read both real sources and build cases. Never throws — a dead source
- *  yields fewer cases, and the composition report shows it. */
-export async function buildRealRecallCases(): Promise<RecallEvalCase[]> {
-  const [outcomes, warnings] = await Promise.all([
-    prisma.intelligenceOutcome
-      .findMany({
+/** Per-source outcome, so "no cases" can never be mistaken for "no data". */
+export interface SourceReport {
+  source: string;
+  ok: boolean;
+  cases: number;
+  /** Set only when the query threw. */
+  error?: string;
+}
+
+export interface RealCorpusResult {
+  cases: RecallEvalCase[];
+  sources: SourceReport[];
+  /** True when ANY source failed — the corpus is then incomplete, not empty. */
+  degraded: boolean;
+}
+
+/**
+ * Read every real source and build cases.
+ *
+ * Still never throws — one dead source must not cost the corpus the
+ * other two. But it no longer swallows the failure: the previous
+ * `.catch(() => [])` made a broken query and a genuinely empty table
+ * produce byte-identical output, so describeCorpus() would report
+ * "SYNTHETIC ONLY" and the operator would read that as "not enough
+ * corrections yet" rather than "the harvest is broken". A flywheel that
+ * has stopped turning must not look like a flywheel that is merely new.
+ */
+export async function buildRealRecallCases(): Promise<RealCorpusResult> {
+  async function read<T>(source: string, run: () => Promise<T[]>): Promise<{
+    rows: T[];
+    report: SourceReport;
+  }> {
+    try {
+      const rows = await run();
+      return { rows, report: { source, ok: true, cases: rows.length } };
+    } catch (err) {
+      return {
+        rows: [],
+        report: {
+          source,
+          ok: false,
+          cases: 0,
+          error: err instanceof Error ? err.message : String(err),
+        },
+      };
+    }
+  }
+
+  const [outcomes, warnings, toolFailures] = await Promise.all([
+    read("intelligence_outcomes(dismissed|not-useful)", () =>
+      prisma.intelligenceOutcome.findMany({
         where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
         orderBy: { shownAt: "desc" },
         take: MAX_PER_SOURCE,
@@ -127,20 +205,38 @@ export async function buildRealRecallCases(): Promise<RecallEvalCase[]> {
           decision: true,
           outcomeUseful: true,
         },
-      })
-      .catch(() => []),
-    prisma.brainMemory
-      .findMany({
+      }),
+    ),
+    read("brain_memory(chat_claim_warn)", () =>
+      prisma.brainMemory.findMany({
         where: { category: "chat_claim_warn", deletedAt: null },
         orderBy: { createdAt: "desc" },
         take: MAX_PER_SOURCE,
         select: { key: true, content: true, metadata: true },
-      })
-      .catch(() => []),
+      }),
+    ),
+    // Third signal, previously harvested by nothing: errorClass was
+    // written by stream-with-fallback and traced-aichat and read by no
+    // eval lane at all.
+    read("agent_traces(errorClass)", () =>
+      prisma.agentTrace.findMany({
+        where: { errorClass: { not: null } },
+        orderBy: { createdAt: "desc" },
+        take: MAX_PER_SOURCE,
+        select: { traceId: true, label: true, errorClass: true },
+      }),
+    ),
   ]);
 
-  return [
-    ...outcomes.map(caseFromRejectedOutcome),
-    ...warnings.map(caseFromClaimWarning),
-  ];
+  const sources = [outcomes.report, warnings.report, toolFailures.report];
+
+  return {
+    cases: [
+      ...outcomes.rows.map(caseFromRejectedOutcome),
+      ...warnings.rows.map(caseFromClaimWarning),
+      ...toolFailures.rows.map(caseFromFailedToolCall),
+    ],
+    sources,
+    degraded: sources.some((s) => !s.ok),
+  };
 }
