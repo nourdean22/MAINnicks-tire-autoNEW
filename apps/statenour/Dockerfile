@@ -18,7 +18,7 @@
 # the Railway side, NOT editing this comment.
 
 # ── 0 · prune ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS pruner
+FROM node:24-alpine AS pruner
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 RUN npm install -g turbo@2.9.14
@@ -26,7 +26,7 @@ COPY . .
 RUN turbo prune @statenour/web --docker
 
 # ── 1 · deps ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS deps
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /repo
@@ -49,7 +49,7 @@ COPY apps/statenour/prisma/schema.prisma ./apps/statenour/prisma/schema.prisma
 RUN pnpm install --frozen-lockfile --filter @statenour/web...
 
 # ── 2 · build ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /repo
@@ -78,7 +78,7 @@ WORKDIR /repo/apps/statenour
 RUN pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick py3-pip py3-wheel \
  && pip install --no-cache-dir --break-system-packages \
       moviepy==2.2.1 \
