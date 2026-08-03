@@ -10,6 +10,8 @@ const REFUSAL_STATUS: Record<PublishDispatchRefusal, number> = {
   not_found: 404,
   unclaimable: 409,
   no_platforms: 400,
+  not_ready: 409,
+  invalid_input: 400,
 };
 
 export const dynamic = "force-dynamic";

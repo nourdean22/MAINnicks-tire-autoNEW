@@ -88,7 +88,23 @@ export const socialTools = {
             ]
           ];
 
-          await sendTelegramWithButtons(text, buttons);
+          // Telegram reports failure by RETURNING false, never by throwing.
+          // Discarding it staged a PENDING receipt, told the operator to go
+          // approve it, and — worse — committed the 10-minute dedup marker, so
+          // a retry answered "already staged" while no approval prompt existed
+          // anywhere. Nothing sweeps PENDING receipts. Same shape as the
+          // sendTelegram tool above (:36/:40).
+          // NB: this returns { ok, messageId }, not a boolean — an object is
+          // always truthy, so it must be unwrapped.
+          const prompted = await sendTelegramWithButtons(text, buttons);
+          if (!prompted.ok) {
+            return {
+              status: "UNDELIVERED",
+              receiptId: receipt.id,
+              message:
+                "SMS staged but the Telegram approval prompt could not be delivered — approve it from the receipts surface, or retry.",
+            };
+          }
 
           return {
             status: "STAGED",
@@ -101,7 +117,8 @@ export const socialTools = {
           receiptId: null,
           message: "An identical SMS to this customer was already staged moments ago — not re-staged.",
         }),
-        (r) => r.status === "STAGED", // only a committed receipt holds the dedup marker
+        // Hold the marker ONLY when the operator actually got the prompt.
+        (r) => r.status === "STAGED",
       );
     },
   }),
@@ -178,7 +195,20 @@ export const socialTools = {
             ],
           ];
 
-          await sendTelegramWithButtons(text, buttons);
+          // See stageCustomerAlert: a discarded boolean here both misreports
+          // delivery AND commits the dedup marker, so the retry is refused
+          // while no approval prompt exists.
+          // NB: this returns { ok, messageId }, not a boolean — an object is
+          // always truthy, so it must be unwrapped.
+          const prompted = await sendTelegramWithButtons(text, buttons);
+          if (!prompted.ok) {
+            return {
+              status: "UNDELIVERED",
+              receiptId: receipt.id,
+              message:
+                "Staged but the Telegram approval prompt could not be delivered — approve it from the receipts surface, or retry.",
+            };
+          }
 
           return {
             status: "STAGED",

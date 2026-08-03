@@ -45,12 +45,23 @@ vi.mock("@/lib/prisma", () => ({
       },
       update: async () => ({}),
       delete: async () => ({}),
-      deleteMany: async () => ({ count: 0 }),
+      // Actually release the marker. As a no-op returning count:0 this mock
+      // modelled a deleteMany that never deletes, so the idempotency layer's
+      // release-on-reported-failure path (tool-idempotency.ts:96) was
+      // untestable — a stuck marker looked identical to a released one.
+      deleteMany: async ({ where }: { where: { category: string; key: string } }) => {
+        const k = `${where.category}:${where.key}`;
+        return { count: markers.delete(k) ? 1 : 0 };
+      },
     },
   },
 }));
 
-const buttonsSpy = vi.fn(async () => true);
+// Matches the REAL signature: sendTelegramWithButtons returns
+// { ok, messageId }, never a bare boolean (lib/services/telegram.ts:93). The
+// old `async () => true` mock made an undelivered prompt indistinguishable
+// from a delivered one, which is how the discarded-return defect survived.
+const buttonsSpy = vi.fn(async () => ({ ok: true, messageId: 1 }));
 vi.mock("@/lib/services/telegram", () => ({
   sendTelegramWithButtons: (...args: unknown[]) => buttonsSpy(...args),
   sendTelegram: async () => true,
@@ -134,5 +145,24 @@ describe("sendOpportunitySms (staging only)", () => {
     expect(second.status).toBe("DEDUPED");
     expect(receiptCreate).toHaveBeenCalledTimes(1);
     expect(buttonsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("an undelivered approval prompt does NOT hold the dedup marker", async () => {
+    // sendTelegramWithButtons reports failure by returning {ok:false} and never
+    // throws. Discarding it staged a PENDING receipt, told the operator to go
+    // approve it, and committed the 10-minute marker — so the retry answered
+    // "already staged" while no approval prompt existed anywhere, and nothing
+    // sweeps PENDING receipts.
+    buttonsSpy.mockResolvedValueOnce({ ok: false, messageId: 0 });
+
+    const args = { opportunityId: OPP_ID, body: "Undelivered text", customerLabel: "Sam" };
+    const exec = socialTools.sendOpportunitySms.execute as (a: unknown, b: unknown) => Promise<Record<string, unknown>>;
+
+    const first = await exec(args, {});
+    expect(first.status).toBe("UNDELIVERED");
+
+    // Marker released → the retry actually re-stages instead of being refused.
+    const second = await exec(args, {});
+    expect(second.status).toBe("STAGED");
   });
 });
