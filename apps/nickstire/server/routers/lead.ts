@@ -15,7 +15,7 @@ import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
-import { sendSms, leadConfirmationSms } from "../sms";
+import { sendSmsOrThrow, leadConfirmationSms } from "../sms";
 import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
@@ -269,7 +269,7 @@ export const leadRouter = router({
       } else {
         withRetry(
           // Wave-108: lead confirmation via shop gateway (transactional)
-          () => sendSms(input.phone, leadConfirmationSms(input.name), { via: "shop" }),
+          () => sendSmsOrThrow(input.phone, leadConfirmationSms(input.name), { via: "shop" }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
         )
           .then((r) => recordLeadDelivery({ leadId, channel: "sms", status: "sent", provider: "shop", providerRef: r?.sid ?? null }))

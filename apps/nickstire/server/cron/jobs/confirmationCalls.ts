@@ -50,9 +50,11 @@ export async function runConfirmationCalls(): Promise<RunResult> {
 
   // Quiet-hours guard — confirmations fire 3-6 PM ET (afternoon before
   // tomorrow's visit). Calling at 3 AM or 9 AM to confirm tomorrow is rude.
-  const etHourPart = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false })
-    .formatToParts(new Date()).find((p) => p.type === "hour")?.value ?? "0";
-  const etHour = parseInt(etHourPart, 10);
+  // Uses the shared helper because the inlined `parseInt` this replaced could
+  // yield NaN, and NaN fails every range comparison — opening the guard instead
+  // of holding it. See getBusinessHour().
+  const { getBusinessHour } = await import("../../lib/timezoneAssert");
+  const etHour = getBusinessHour();
   if (etHour < 15 || etHour >= 18) {
     return { recordsProcessed: 0, details: `Outside confirmation window (Cleveland ${etHour}:00, window 15-18)` };
   }

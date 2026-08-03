@@ -8,7 +8,7 @@ import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { emergencyRequests } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeName } from "../sanitize";
-import { sendSms } from "../sms";
+import { sendSmsOrThrow } from "../sms";
 import { syncLeadToSheet } from "../sheets-sync";
 import { withRetry } from "../retry";
 import { logIntegrationFailure } from "../integration-failures";
@@ -212,7 +212,7 @@ export const emergencyRouter = router({
         // different number (Twilio 216-769-9977 = clearly NOT a customer).
         withRetry(
           () =>
-            sendSms(
+            sendSmsOrThrow(
               STORE_OWNER_PHONE,
               `🚨 AFTER-HOURS REQUEST: ${name} (${phone}) — ${vehicle || "Vehicle info not provided"} — ${problem}`,
               { messageClass: "internal" }
@@ -233,7 +233,7 @@ export const emergencyRouter = router({
         // Wave-108: customer-facing → shop gateway so they see it from 216-862-0005
         withRetry(
           () =>
-            sendSms(
+            sendSmsOrThrow(
               phone,
               `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at ${BUSINESS.phone.display}. - Nick's Tire & Auto`,
               { via: "shop", messageClass: "internal" }

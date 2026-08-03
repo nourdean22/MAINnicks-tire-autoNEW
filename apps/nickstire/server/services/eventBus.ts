@@ -307,7 +307,8 @@ async function ensureInitialized(): Promise<void> {
           tag: "lead",
         });
       } else if (event.type === "invoice_paid") {
-        const amount = event.data.totalAmount ? `$${Math.round(event.data.totalAmount / 100)}` : "";
+        // Already dollars at every emit site — see liveFeed.ts for the full list.
+        const amount = event.data.totalAmount ? `$${Math.round(event.data.totalAmount)}` : "";
         await pushToAdmins({
           title: `Payment Received ${amount}`,
           body: `${name} paid their invoice`,

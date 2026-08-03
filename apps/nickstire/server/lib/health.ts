@@ -103,11 +103,27 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
       : "n/a";
 
     const aiKeyPresent = !!(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY);
+
+    // A key STRING being set says nothing about whether the account behind it
+    // works. An out-of-credit key returns 402 on every call and still reported
+    // `openaiHealthy: true` here purely because the variable was non-empty —
+    // which is how a dead LLM account stays invisible while everything that
+    // depends on it fails. Presence and function are separate facts now.
+    //
+    // Deliberately monotonic: with no observed traffic this still reports what
+    // it always did (key presence), so no existing consumer changes behaviour.
+    // It can only newly go FALSE, and only on evidence — every request in the
+    // window having failed.
+    const recent = aiHealth.stats.last5min;
+    const allRecentFailed = recent.total > 0 && recent.failures >= recent.total;
+    const gatewayHealthy = aiKeyPresent && !allRecentFailed;
+
     checks.aiGateway = {
-      status: aiKeyPresent ? "up" : "down",
-      openaiHealthy: aiKeyPresent,
-      recentRequests: aiHealth.stats.last5min.total,
-      recentFailures: aiHealth.stats.last5min.failures,
+      status: !aiKeyPresent ? "down" : allRecentFailed ? "degraded" : "up",
+      keyConfigured: aiKeyPresent,
+      openaiHealthy: gatewayHealthy,
+      recentRequests: recent.total,
+      recentFailures: recent.failures,
       fallbackRate: failureRate,
     };
 

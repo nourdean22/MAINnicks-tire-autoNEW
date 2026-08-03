@@ -18,6 +18,41 @@ const log = createLogger("self-healing");
 // Track consecutive failures for escalation
 const failureHistory: Record<string, number> = {};
 
+/**
+ * Last successful completion per job name, read from cron_log — the only record
+ * that actually reflects whether a job ran.
+ *
+ * Returns null when the log cannot be read. Callers MUST treat null as "cannot
+ * tell", never as "nothing ran": an empty map would make every registered job
+ * look permanently silent and fire an alert for all of them on a transient DB
+ * fault. Same shape as the failure observer's query in cron/observer.ts.
+ */
+async function loadLastCompletions(): Promise<Map<string, string> | null> {
+  try {
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) return null;
+    const { sql } = await import("drizzle-orm");
+    const [raw] = await db.execute(sql`
+      SELECT job_name AS jobName, MAX(completed_at) AS lastCompletedAt
+      FROM cron_log
+      WHERE status = 'completed' AND completed_at IS NOT NULL
+      GROUP BY job_name
+    `);
+    const out = new Map<string, string>();
+    for (const row of raw as Array<Record<string, unknown>>) {
+      const at = row.lastCompletedAt;
+      if (at == null) continue;
+      const parsed = at instanceof Date ? at : new Date(String(at));
+      if (!Number.isNaN(parsed.getTime())) out.set(String(row.jobName), parsed.toISOString());
+    }
+    return out;
+  } catch (err) {
+    log.warn("[self-healing] cron_log completion read failed:", err);
+    return null;
+  }
+}
+
 export async function runSelfHealingChecks(): Promise<{
   recordsProcessed: number;
   details: string;
@@ -26,23 +61,54 @@ export async function runSelfHealingChecks(): Promise<{
   const actions: string[] = [];
 
   // 1. Check for stale crons — and restart them
+  //
+  // Truth comes from cron_log, NOT the in-memory registry. `getJobStatuses()`
+  // reports `lastRun` from cron/index.ts, which is only ever assigned inside
+  // runJob() — a function nothing has called since the tiered scheduler replaced
+  // it. Every job therefore reported `lastRun: null`, so the guard below
+  // `continue`d on all ~288 runs a day and this branch has never evaluated a
+  // single job. A watchdog that cannot observe is worse than no watchdog,
+  // because its silence reads as "healthy".
   const jobs = getJobStatuses();
-  for (const job of jobs) {
-    if (!job.enabled || !job.lastRun) continue;
-    const lastRunMs = new Date(job.lastRun).getTime();
-    const expectedIntervalMs = job.intervalMin * 60 * 1000;
-    const staleness = Date.now() - lastRunMs;
-    if (staleness > expectedIntervalMs * 3) {
-      issues.push(
-        `CRON STALE: ${job.name} hasn't run in ${Math.round(staleness / 60000)}min (expected every ${job.intervalMin}min)`
-      );
-      // AUTO-FIX: Reset the stuck job's running flag on the ORIGINAL object
-      try {
-        const { resetJobRunningFlag } = await import("../cron/index");
-        if (resetJobRunningFlag(job.name)) {
-          actions.push(`AUTO-FIX: Reset ${job.name} running flag — will run on next tick`);
+  const lastCompletions = await loadLastCompletions();
+
+  if (lastCompletions === null) {
+    // Unreadable is NOT the same as healthy, and NOT the same as stale. Saying
+    // so explicitly keeps a DB blip from masquerading as an all-clear AND from
+    // firing a false alert on every registered job at once.
+    issues.push("CRON STALENESS UNKNOWN: cron_log unreadable — staleness not evaluated this pass");
+  } else {
+    for (const job of jobs) {
+      if (!job.enabled) continue;
+      const expectedIntervalMs = job.intervalMin * 60 * 1000;
+      const lastRunIso = lastCompletions.get(job.name) ?? job.lastRun;
+
+      if (!lastRunIso) {
+        // Never completed once. This is how a job registered against the retired
+        // startAllJobs() path looks — armed in the registry, absent from every
+        // tier, silent forever. Only report once the process has been up long
+        // enough that a run was actually due, so a fresh boot stays quiet.
+        if (process.uptime() * 1000 > expectedIntervalMs * 2) {
+          issues.push(
+            `CRON NEVER OBSERVED: ${job.name} has no completed cron_log row (expected every ${job.intervalMin}min) — registered but wired to no tier?`
+          );
         }
-      } catch (e) { log.warn("[services/selfHealing] operation failed:", e); }
+        continue;
+      }
+
+      const staleness = Date.now() - new Date(lastRunIso).getTime();
+      if (staleness > expectedIntervalMs * 3) {
+        issues.push(
+          `CRON STALE: ${job.name} hasn't run in ${Math.round(staleness / 60000)}min (expected every ${job.intervalMin}min)`
+        );
+        // AUTO-FIX: Reset the stuck job's running flag on the ORIGINAL object
+        try {
+          const { resetJobRunningFlag } = await import("../cron/index");
+          if (resetJobRunningFlag(job.name)) {
+            actions.push(`AUTO-FIX: Reset ${job.name} running flag — will run on next tick`);
+          }
+        } catch (e) { log.warn("[services/selfHealing] operation failed:", e); }
+      }
     }
   }
 

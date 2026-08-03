@@ -26,6 +26,24 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
     }
 
     const data = await response.json();
+
+    // The Places API signals auth/quota failures INSIDE a 200 response body, so
+    // `response.ok` above cannot see them. Without this check a REQUEST_DENIED
+    // fell through as `result = {}` → `reviews = []` → "No reviews returned from
+    // API" → job SUCCEEDS. That reads as "the shop had no new reviews" when the
+    // truth is "Google rejected our credentials", and it kept review_pipeline /
+    // review_replies at zero rows indefinitely. Same guard as competitorMonitor.
+    // ZERO_RESULTS is a real answer (no data), not a failure — keep them apart.
+    if (data.status === "ZERO_RESULTS") {
+      return { recordsProcessed: 0, details: "Places returned ZERO_RESULTS for the configured place id" };
+    }
+    if (data.status !== "OK") {
+      throw new Error(
+        `Places API rejected the request: ${data.status ?? "missing status"}` +
+          (data.error_message ? ` — ${data.error_message}` : ""),
+      );
+    }
+
     const result = data.result || {};
     const reviews: any[] = result.reviews || [];
 
