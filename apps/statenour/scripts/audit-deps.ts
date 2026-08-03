@@ -2,7 +2,7 @@
 /**
  * scripts/audit-deps.ts · Phase K (2026-05-18 PM)
  *
- * Dependency CVE scanner · pnpm audit --json + write
+ * Dependency CVE scanner · repo-root bulk advisory scan + write
  * critical/high-severity findings to ErrorLog so they surface in the
  * existing /system/logs unified tail + the alerts pipeline.
  *
@@ -15,32 +15,13 @@
  *   pnpm tsx scripts/audit-deps.ts --dry-run  # don't write to DB
  */
 
-import { execSync } from "node:child_process";
-
-interface PnpmAdvisory {
-  id?: number;
-  cve?: string;
-  module_name: string;
-  severity: "info" | "low" | "moderate" | "high" | "critical";
-  title?: string;
-  url?: string;
-  vulnerable_versions?: string;
-  patched_versions?: string;
-  recommendation?: string;
-  cwe?: string[];
-}
-
-interface PnpmAuditOutput {
-  advisories?: Record<string, PnpmAdvisory>;
-  metadata?: {
-    vulnerabilities: Record<string, number>;
-    totalDependencies: number;
-  };
-}
+import { execFileSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 interface AuditFinding {
   module: string;
-  severity: PnpmAdvisory["severity"];
+  severity: "info" | "low" | "moderate" | "high" | "critical";
   cve?: string;
   cwe?: string[];
   title: string;
@@ -50,42 +31,78 @@ interface AuditFinding {
   url?: string;
 }
 
-function runPnpmAudit(): PnpmAuditOutput {
+/**
+ * Shape emitted by `scripts/audit-advisories.mjs --json` (repo root).
+ */
+interface BulkAdvisoryHit {
+  name: string;
+  severity: AuditFinding["severity"];
+  title: string;
+  vulnerable_versions?: string;
+  affected?: string;
+  url?: string;
+}
+interface BulkAdvisoryOutput {
+  level: string;
+  scanned: number;
+  versions: number;
+  hits: BulkAdvisoryHit[];
+}
+
+/**
+ * Run the REPO-ROOT bulk-advisory scanner and return its findings.
+ *
+ * This used to shell out to `pnpm audit --json`. That path calls npm's retired
+ * legacy audit endpoint, so the gate failed for SCANNER reasons rather than
+ * because any dependency was risky — the worst kind of gate, because a red
+ * check that nobody believes stops being read at all. The root CI workflow had
+ * already worked around it with scripts/audit-advisories.mjs, which posts to
+ * npm's bulk advisory endpoint; statenour was the last caller left on the old
+ * path. One scanner, one severity model, one place to fix.
+ *
+ * The bulk endpoint does not return `cve`, `cwe`, `patched_versions` or
+ * `recommendation`. Those fields are dropped rather than faked — `url` carries
+ * the operator to the full advisory, and inventing a patched-version range we
+ * did not receive is exactly the class of confident-but-unfounded reporting
+ * this repo keeps getting bitten by.
+ */
+function runBulkAdvisoryScan(): BulkAdvisoryOutput | null {
+  // Resolved from this file so it works regardless of cwd.
+  const scanner = resolve(dirname(fileURLToPath(import.meta.url)), "../../../scripts/audit-advisories.mjs");
   try {
-    const out = execSync("pnpm audit --json", {
+    const out = execFileSync(process.execPath, [scanner, "--audit-level=high", "--advisory", "--json"], {
       encoding: "utf8",
       maxBuffer: 50 * 1024 * 1024,
     });
-    return JSON.parse(out) as PnpmAuditOutput;
+    return JSON.parse(out) as BulkAdvisoryOutput;
   } catch (err) {
-    // pnpm audit exits non-zero when vulns exist · stdout still has JSON
-    const stdout = (err as { stdout?: string }).stdout ?? "";
-    if (stdout) {
+    // --advisory means the scanner never exits non-zero for findings, so a
+    // throw here is a genuine scanner failure. Report it; do not treat an
+    // unreadable scan as "no vulnerabilities".
+    const e = err as { stdout?: string; message?: string };
+    if (e.stdout) {
       try {
-        return JSON.parse(stdout) as PnpmAuditOutput;
+        return JSON.parse(e.stdout) as BulkAdvisoryOutput;
       } catch {
-        // fallthrough
+        /* fall through to the loud failure below */
       }
     }
-    console.error("✗ audit-deps · pnpm audit failed:", err);
-    return {};
+    console.error("✗ audit-deps · bulk advisory scan FAILED:", e.message ?? err);
+    return null;
   }
 }
 
-function extractFindings(audit: PnpmAuditOutput): AuditFinding[] {
+function extractFindings(scan: BulkAdvisoryOutput | null): AuditFinding[] {
+  if (!scan) return [];
   const findings: AuditFinding[] = [];
-  for (const adv of Object.values(audit.advisories ?? {})) {
-    if (adv.severity !== "high" && adv.severity !== "critical") continue;
+  for (const hit of scan.hits ?? []) {
+    if (hit.severity !== "high" && hit.severity !== "critical") continue;
     findings.push({
-      module: adv.module_name,
-      severity: adv.severity,
-      cve: adv.cve,
-      cwe: adv.cwe,
-      title: adv.title ?? `${adv.module_name} vulnerability`,
-      vulnerable: adv.vulnerable_versions ?? "unknown",
-      patched: adv.patched_versions,
-      recommendation: adv.recommendation,
-      url: adv.url,
+      module: hit.name,
+      severity: hit.severity,
+      title: hit.title ?? `${hit.name} vulnerability`,
+      vulnerable: hit.vulnerable_versions ?? hit.affected ?? "unknown",
+      url: hit.url,
     });
   }
   return findings;
@@ -139,9 +156,14 @@ async function main(): Promise<void> {
   const dryRun = argv.includes("--dry-run");
 
   const startedAt = Date.now();
-  const audit = runPnpmAudit();
-  const findings = extractFindings(audit);
-  const meta = audit.metadata;
+  const scan = runBulkAdvisoryScan();
+  const findings = extractFindings(scan);
+  // The bulk endpoint reports what it SCANNED, not a severity census of the
+  // whole tree the way `pnpm audit` metadata did. Report the real numbers
+  // rather than reconstructing a shape the scanner never returned.
+  const scanned = scan?.scanned ?? 0;
+  const versions = scan?.versions ?? 0;
+  const scanOk = scan !== null;
 
   const { written } = await writeFindings(findings, dryRun);
   const durationMs = Date.now() - startedAt;
@@ -151,8 +173,9 @@ async function main(): Promise<void> {
       JSON.stringify(
         {
           findings,
-          totals: meta?.vulnerabilities ?? {},
-          totalDependencies: meta?.totalDependencies ?? 0,
+          scanOk,
+          scannedPackages: scanned,
+          distinctVersions: versions,
           written,
           dryRun,
           durationMs,
@@ -164,7 +187,7 @@ async function main(): Promise<void> {
   } else {
     if (findings.length === 0) {
       console.log(
-        `✓ audit-deps · no critical/high findings · scanned ${meta?.totalDependencies ?? "?"} deps · ${durationMs}ms`,
+        `✓ audit-deps · no critical/high findings · scanned ${scanned} prod packages (${versions} versions) · ${durationMs}ms`,
       );
     } else {
       console.log(
