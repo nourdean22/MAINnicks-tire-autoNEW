@@ -52,7 +52,20 @@ export interface AdminSignalInputs {
   slices: BundleSlices | undefined;
   /** Derived from the bundle. Its fields are 0 when a slice failed — hence `slices`. */
   counts: AdminActionableCounts;
-  stats: { tires?: { new?: number } | null; memberships?: { warning?: number } | null } | null;
+  stats: {
+    tires?: { new?: number } | null;
+    memberships?: { warning?: number } | null;
+    /**
+     * Counts whose own query threw inside getDashboardStats().
+     *
+     * Slice availability is NOT enough for these. Those catches swallow and
+     * leave the field at 0, so the stats promise still FULFILLS and
+     * `slices.stats.available` stays true — the fabricated zero would be marked
+     * `counted`, recreating exactly the false all-clear this model exists to
+     * remove, one layer deeper (admin-stats.ts:578-600).
+     */
+    _unavailableCounts?: string[];
+  } | null;
   /** contentAdmin.operationsSignal */
   opsFailed: boolean;
   opsUnknown: boolean;
@@ -70,10 +83,14 @@ function bundleSignal(
   value: number | undefined,
   severity: SignalSeverity,
   inputs: AdminSignalInputs,
+  /** Key in stats._unavailableCounts, for fields whose own query can fail inside a fulfilled slice. */
+  countKey?: string,
 ): AdminSignal {
   const sliceState = inputs.slices?.[slice];
   const sliceFailed = sliceState?.available === false;
-  const sourceLabel = `${BUNDLE} (${slice})`;
+  // A per-count failure hides INSIDE a fulfilled slice — see _unavailableCounts.
+  const countFailed = countKey !== undefined && inputs.stats?._unavailableCounts?.includes(countKey) === true;
+  const sourceLabel = countFailed ? `${BUNDLE} (${countKey})` : `${BUNDLE} (${slice})`;
 
   return {
     id,
@@ -83,7 +100,7 @@ function bundleSignal(
     source: sourceLabel,
     updatedAt: null,
     reading: reading({
-      failed: inputs.bundleFailed || sliceFailed,
+      failed: inputs.bundleFailed || sliceFailed || countFailed,
       // Not loaded yet: no badge, rather than a confident 0 built from the `?? []`
       // fallbacks while the first request is still in flight.
       value: inputs.slices === undefined ? undefined : value,
@@ -143,7 +160,7 @@ export function buildAdminSignals(inputs: AdminSignalInputs): AdminSignal[] {
     bundleSignal("new-leads", "leads", "new leads", "leads", counts.newLeads, "warning", inputs),
 
     // ── Tires ──────────────────────────────────────────────────────────────
-    bundleSignal("new-tire-orders", "tireOrders", "new tire orders", "stats", inputs.stats?.tires?.new, "warning", inputs),
+    bundleSignal("new-tire-orders", "tireOrders", "new tire orders", "stats", inputs.stats?.tires?.new, "warning", inputs, "tires.new"),
 
     // ── Nonstop Nick ───────────────────────────────────────────────────────
     bundleSignal(
@@ -154,6 +171,7 @@ export function buildAdminSignals(inputs: AdminSignalInputs): AdminSignal[] {
       inputs.stats?.memberships?.warning,
       "warning",
       inputs,
+      "memberships.warning",
     ),
 
     // ── Instagram ──────────────────────────────────────────────────────────

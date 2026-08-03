@@ -27,6 +27,18 @@ export interface DashboardStats {
   // throws. Consumers should check _degraded before trusting any field.
   _degraded?: boolean;
   _errorId?: string;
+  /**
+   * Individual counts whose own query threw. A field named here is UNKNOWN,
+   * not zero.
+   *
+   * `_degraded` covers the WHOLE pipeline failing. It cannot cover these,
+   * because each of these counts has its own try/catch that swallows the error
+   * and leaves the field at 0 — so the function fulfills, the outer catch never
+   * sees anything, and `slices.stats.available` in getOverviewMediumBundle()
+   * stays true. Without this list a failed COUNT(*) is indistinguishable from a
+   * genuine zero. Empty array = every listed count was read successfully.
+   */
+  _unavailableCounts?: string[];
   bookings: {
     total: number;
     new: number;
@@ -575,6 +587,22 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       log.error("[AdminStats] Shop floor stats error:", err instanceof Error ? err.message : err);
     }
 
+    /**
+     * Which individual counts could NOT be read.
+     *
+     * The two catches below swallow their errors and leave the field at 0, so
+     * the function still FULFILLS — which means `slices.stats.available` stays
+     * true in getOverviewMediumBundle() and the caller cannot tell a real zero
+     * from a failed count. The whole-pipeline `_degraded` stamp never fires for
+     * these either, precisely because the inner catch prevents the outer one
+     * from seeing anything.
+     *
+     * Additive, same shape as the bundle's `slices`: existing consumers are
+     * unaffected, and a consumer that cares can render "?" instead of a
+     * fabricated 0. Empty array = every count below was read successfully.
+     */
+    const unavailableCounts: string[] = [];
+
     // Memberships warning count: past_due or incomplete
     let membershipsWarning = 0;
     try {
@@ -586,6 +614,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       membershipsWarning = Number(membRes?.count ?? 0);
     } catch (err) {
       log.error("[AdminStats] Memberships warning check failed:", err instanceof Error ? err.message : err);
+      unavailableCounts.push("memberships.warning");
     }
 
     // Tires new count: status = 'received'
@@ -598,6 +627,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       tiresNew = Number(tiresRes?.count ?? 0);
     } catch (err) {
       log.error("[AdminStats] Tires new check failed:", err instanceof Error ? err.message : err);
+      unavailableCounts.push("tires.new");
     }
 
     return {
@@ -617,6 +647,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       memberships: { warning: membershipsWarning },
       tires: { new: tiresNew },
       shopFloor: shopFloorStats,
+      /** Counts whose query threw. A field named here is UNKNOWN, not zero. */
+      _unavailableCounts: unavailableCounts,
     };
   } catch (error) {
     // wave-181.3 silent-failure audit finding #2 · the entire dashboard

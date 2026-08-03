@@ -97,6 +97,55 @@ describe("PARTIAL bundle failure — the case that rendered a clean queue", () =
   });
 });
 
+describe("PER-COUNT failure hiding inside a fulfilled slice (PR #1316 review, P1)", () => {
+  // getDashboardStats catches each count's error, logs it, and leaves the field
+  // at 0 (admin-stats.ts:578-600). The function still FULFILLS, so
+  // slices.stats.available stays true AND the whole-pipeline `_degraded` stamp
+  // never fires — the inner catch prevents the outer one from seeing anything.
+  // Slice availability alone would mark that fabricated zero as `counted`.
+  it("a failed tire count is unknown even though its slice is available", () => {
+    const all = buildAdminSignals(
+      inputs({ stats: { tires: { new: 0 }, memberships: { warning: 6 }, _unavailableCounts: ["tires.new"] } }),
+    );
+    expect(badgeFor(all, "tireOrders").state).toBe("unknown");
+  });
+
+  it("...and its sibling count in the SAME slice still reports its real number", () => {
+    const all = buildAdminSignals(
+      inputs({ stats: { tires: { new: 0 }, memberships: { warning: 6 }, _unavailableCounts: ["tires.new"] } }),
+    );
+    expect(badgeFor(all, "memberships")).toMatchObject({ state: "counted", count: 6 });
+  });
+
+  it("both counts failing takes both badges, and leaves leads alone", () => {
+    const all = buildAdminSignals(
+      inputs({
+        stats: { tires: { new: 0 }, memberships: { warning: 0 }, _unavailableCounts: ["tires.new", "memberships.warning"] },
+      }),
+    );
+    expect(badgeFor(all, "tireOrders").state).toBe("unknown");
+    expect(badgeFor(all, "memberships").state).toBe("unknown");
+    expect(badgeFor(all, "leads")).toMatchObject({ state: "counted", count: 3 });
+  });
+
+  it("an empty _unavailableCounts is the healthy path, not a failure", () => {
+    const all = buildAdminSignals(
+      inputs({ stats: { tires: { new: 4 }, memberships: { warning: 6 }, _unavailableCounts: [] } }),
+    );
+    expect(badgeFor(all, "tireOrders")).toMatchObject({ state: "counted", count: 4 });
+    expect(badgeFor(all, "memberships")).toMatchObject({ state: "counted", count: 6 });
+  });
+
+  it("names the failed COUNT, not just the slice, so the '?' points somewhere", () => {
+    const all = buildAdminSignals(
+      inputs({ stats: { tires: { new: 0 }, _unavailableCounts: ["tires.new"] } }),
+    );
+    const badge = badgeFor(all, "tireOrders");
+    expect(badge.state).toBe("unknown");
+    if (badge.state === "unknown") expect(badge.reason).toContain("tires.new");
+  });
+});
+
 describe("whole-query failure and loading", () => {
   it("a failed bundle makes every bundle-derived badge unknown", () => {
     const all = buildAdminSignals(inputs({ bundleFailed: true }));
