@@ -2757,15 +2757,31 @@ export const contentAdminRouter = router({
     // "nothing to report" and disappears, while 1 surfaces. Encoding it the other
     // way round ("1 = online") would make a healthy pipeline a permanent alarm.
     //
-    // PRESENCE, not liveness — an expired-but-stored Higgsfield session still
-    // reads as present, so this catches "no credentials at all", not "credentials
-    // that stopped working". null = could not determine, which reading() maps to
-    // `unknown` rather than a false all-clear.
+    // Presence FIRST, then liveness where liveness is knowable. Presence alone is
+    // not enough for Higgsfield: getHiggsfieldCredentialsJson returns the stored
+    // blob without parsing it, so the session that expired on 2026-07-31 kept
+    // reading as configured while every render died at the CLI.
+    //
+    // Liveness comes from the keepalive's durable verdict in cron_log, not a
+    // fresh CLI spawn — this runs on a display path polled every 60s. null =
+    // could not determine, which reading() maps to `unknown` rather than a false
+    // all-clear.
     let videoProviderBlocked: number | null = null;
     try {
       const { selectReelVideoProvider, reelProviderCredentialsPresent } = await import("../services/reelPipeline");
       const provider = await selectReelVideoProvider();
-      videoProviderBlocked = (await reelProviderCredentialsPresent(provider)) ? 0 : 1;
+      if (!(await reelProviderCredentialsPresent(provider))) {
+        videoProviderBlocked = 1;
+      } else if (provider === "higgsfield") {
+        const { higgsfieldSessionHealth } = await import("../services/higgsfieldStudio");
+        const { healthy } = await higgsfieldSessionHealth();
+        // healthy === null stays null: "the keepalive cannot vouch for this" is
+        // an unknown, not a pass and not a failure.
+        videoProviderBlocked = healthy === null ? null : healthy ? 0 : 1;
+      } else {
+        // Veo has no equivalent session to expire; presence is the whole answer.
+        videoProviderBlocked = 0;
+      }
     } catch {
       videoProviderBlocked = null;
     }

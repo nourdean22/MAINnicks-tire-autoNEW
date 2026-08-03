@@ -16,6 +16,84 @@ export function clearRuntimeHiggsfieldCache(): void {
   credentialsLoadAttempted = false;
 }
 
+/**
+ * How stale the keepalive's last verdict may be before it stops counting as
+ * evidence. The job runs every 15 minutes, so an hour tolerates a few missed
+ * ticks; past that, the KEEPALIVE ITSELF is not running and its last "healthy"
+ * says nothing about now.
+ */
+const KEEPALIVE_FRESH_WINDOW_MS = 60 * 60 * 1000;
+const KEEPALIVE_JOB = "higgsfield-session-keepalive";
+
+/**
+ * Is the stored Higgsfield session actually WORKING — as opposed to merely
+ * present?
+ *
+ * `getHiggsfieldCredentialsJson` returns the stored blob without parsing it, so
+ * an EXPIRED session is indistinguishable from a live one at every presence
+ * check in this codebase. That is not a hypothetical: the session expired on
+ * 2026-07-31 while `socialDeliveryIssues` kept reporting `generatorConfigured:
+ * true` and reels kept failing at the CLI.
+ *
+ * Liveness is already measured — `higgsfield-session-keepalive` runs
+ * `getHiggsfieldAccountHealth()` every 15 minutes and THROWS on an invalid
+ * session, so its verdict is durably recorded in `cron_log`. This reads that row
+ * instead of spawning the CLI, because callers are request-path display surfaces
+ * and a per-render subprocess would be far worse than the problem.
+ *
+ * Returns `healthy: null` — never `false` — when the answer is not knowable:
+ * no row, an unreadable DB, or a verdict too old to vouch for. Callers map that
+ * to `unknown`, so a blind spot never renders as a clean bill.
+ */
+export async function higgsfieldSessionHealth(): Promise<{
+  healthy: boolean | null;
+  reason: string;
+  checkedAt: Date | null;
+}> {
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) return { healthy: null, reason: "database unavailable", checkedAt: null };
+
+    const { cronLog } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+    const rows = await d
+      .select({ status: cronLog.status, startedAt: cronLog.startedAt, errorMessage: cronLog.errorMessage })
+      .from(cronLog)
+      .where(eq(cronLog.jobName, KEEPALIVE_JOB))
+      .orderBy(desc(cronLog.startedAt))
+      .limit(1);
+
+    const last = rows[0];
+    if (!last) return { healthy: null, reason: `${KEEPALIVE_JOB} has never run`, checkedAt: null };
+
+    const startedAt = last.startedAt instanceof Date ? last.startedAt : new Date(last.startedAt as unknown as string);
+    const ageMs = Date.now() - startedAt.getTime();
+    if (!Number.isFinite(ageMs) || ageMs > KEEPALIVE_FRESH_WINDOW_MS) {
+      // The keepalive stopping is itself a fault, but it is a DIFFERENT fault
+      // from an expired session, and reporting a stale pass as "healthy" is how
+      // the 526-failure blind spot lasted four days.
+      return {
+        healthy: null,
+        reason: `${KEEPALIVE_JOB} last ran too long ago to vouch for the session`,
+        checkedAt: startedAt,
+      };
+    }
+
+    if (last.status === "failed") {
+      return {
+        healthy: false,
+        reason: last.errorMessage?.slice(0, 200) || "keepalive reported an invalid session",
+        checkedAt: startedAt,
+      };
+    }
+    return { healthy: true, reason: "keepalive refreshed the session", checkedAt: startedAt };
+  } catch (err) {
+    log.warn("could not read Higgsfield keepalive history", { err: err instanceof Error ? err.message : String(err) });
+    return { healthy: null, reason: "keepalive history unreadable", checkedAt: null };
+  }
+}
+
 export async function getHiggsfieldCredentialsJson(): Promise<string | null> {
   if (credentialsLoadAttempted) {
     return cachedHiggsfieldCredentialsJson || process.env.HIGGSFIELD_CREDENTIALS_JSON || null;
