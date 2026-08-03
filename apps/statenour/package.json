@@ -41,6 +41,7 @@
     "inngest:dev": "inngest-cli dev -u http://localhost:3001/api/inngest",
     "test": "vitest run",
     "test:watch": "vitest",
+    "export:traces": "tsx scripts/export-otel-traces.ts",
     "eval": "tsx tests/eval/run-suite.ts",
     "eval:memory": "tsx scripts/run-memory-evals.ts",
     "eval:live": "tsx tests/eval/run-suite.ts --live",

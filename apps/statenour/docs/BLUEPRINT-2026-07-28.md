@@ -310,6 +310,21 @@ before accepting any "connect X" recommendation.
 - **WP-20 · OTel GenAI field mapping** (audit-#12): rename/mirror
   AgentTrace + ai-cost fields to `gen_ai.*` semconv names — standards
   alignment, zero new infra, no raw-prompt logging.
+  **Status 2026-08-03 · export lane SHIPPED.** The mapper
+  (`lib/observability/otel-genai-map.ts`) had shipped pure — its own
+  header said "no exporter, no SDK, no network" — and **nothing
+  imported it**, so the correct field names never left the process.
+  `lib/observability/otel-export.ts` + `pnpm export:traces` now emit
+  NDJSON any OTel collector / Phoenix / Braintrust import can read, with
+  no new dependency, port or daemon. Two privacy layers, because one is
+  a single point of failure: an explicit Prisma select keeps the
+  content-bearing columns (`errorMessage` @db.Text, `metadata` Json)
+  from ever being READ, and a runtime allowlist check THROWS on an
+  unapproved attribute rather than dropping it — a silent skip ships an
+  incomplete file that still reports success. Both pinned by
+  mutation-tested assertions, plus a source-scan proving the CLI holds
+  no write call (the 870-row incident is why a script pointed at a prod
+  `DATABASE_URL` earns a guard).
 - **WP-21 · Braintrust eval-dataset spine** (audit-#12; dep verified
   live): recall failures, claim warnings, and operator accept/dismiss
   verdicts become versioned datasets; smoke evals on PRs, local
