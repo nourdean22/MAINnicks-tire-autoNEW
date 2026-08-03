@@ -1202,7 +1202,10 @@ export const operatorRouter = router({
         content: z.string().max(4000).optional(),
         platforms: z.array(z.string().max(32)).max(10).optional(),
         scheduledFor: z.string().max(64).nullish(),
-        status: z.enum(["pending", "approved", "rejected", "scheduled", "published"]).optional(),
+        // "published" is deliberately NOT accepted: it is the durable worker's
+        // verdict. Setting it by hand stamps a result nobody observed, leaves
+        // publishedAt null, and permanently locks the row out of approveDraft.
+        status: z.enum(["pending", "approved", "rejected", "scheduled"]).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -1214,11 +1217,24 @@ export const operatorRouter = router({
         updateData.scheduledFor = data.scheduledFor ? new Date(data.scheduledFor) : null;
       }
       if (data.status !== undefined) updateData.status = data.status;
-      
-      return prisma.socialPublishQueue.update({
-        where: { id },
+
+      // A bare update here could re-state a row the publish worker is holding
+      // in "rendering": that trips its finalize lock (a live post records no
+      // publishedAt/publishUrls) AND returns the row to the claim set, where
+      // the next dispatch posts it again. Compare-and-set instead, matching
+      // approveDraft/markScheduled/rejectDraft.
+      const claimed = await prisma.socialPublishQueue.updateMany({
+        where: { id, deletedAt: null, status: { notIn: ["rendering", "published"] } },
         data: updateData,
       });
+      if (claimed.count !== 1) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Cannot edit a queue item that is rendering, published, or deleted — a worker owns it.",
+        });
+      }
+
+      return prisma.socialPublishQueue.findUnique({ where: { id } });
     }),
 
   actOnPublishQueueItem: operatorProcedure
@@ -1290,10 +1306,17 @@ export const operatorRouter = router({
           return { ok: true as const, dispatched: true as const, item };
         } catch (err) {
           if (err instanceof PublishDispatchError) {
-            throw new TRPCError({
-              code: err.reason === "not_found" ? "NOT_FOUND" : "BAD_REQUEST",
-              message: err.message,
-            });
+            // Mirror the REST refusal map (sync/queue/route.ts) rather than
+            // collapsing every non-404 to BAD_REQUEST — a state conflict and a
+            // malformed row are different answers to the operator.
+            const code = {
+              not_found: "NOT_FOUND",
+              unclaimable: "CONFLICT",
+              not_ready: "CONFLICT",
+              no_platforms: "BAD_REQUEST",
+              invalid_input: "BAD_REQUEST",
+            }[err.reason] as "NOT_FOUND" | "CONFLICT" | "BAD_REQUEST";
+            throw new TRPCError({ code, message: err.message });
           }
           throw err;
         }

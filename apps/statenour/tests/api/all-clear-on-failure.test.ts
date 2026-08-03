@@ -57,7 +57,7 @@ vi.mock("@/lib/services/email", () => ({ sendEmail }));
 
 import { POST as webhookPOST } from "@/app/api/webhooks/nickstire/route";
 import { sendEmailWithAudit } from "@/lib/services/email-send";
-import { approveDraft, markScheduled, DraftStateError } from "@/lib/content/drafts";
+import { approveDraft, markScheduled, rejectDraft, DraftStateError } from "@/lib/content/drafts";
 
 function webhook(events: unknown[]): Promise<Response> {
   return webhookPOST(
@@ -164,6 +164,22 @@ describe("drafts · operator actions cannot re-state a row a worker owns", () =>
       updatedAt: new Date(),
     });
     await expect(approveDraft("d1")).resolves.toBeTruthy();
+    expect(updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to REJECT a row the publish worker holds — reject also soft-deletes", async () => {
+    // rejectDraft was the one sibling that never got the guard. Rejecting
+    // mid-publish trips the worker's finalize lock AND soft-deletes the row,
+    // so a live Instagram post vanishes from listDrafts with no publishedAt
+    // and no publishUrls — the provenance is simply gone.
+    findFirst.mockResolvedValue({ id: "d1", status: "rendering", deletedAt: null });
+    await expect(rejectDraft("d1", "nope")).rejects.toBeInstanceOf(DraftStateError);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("still allows rejecting a pending draft", async () => {
+    findFirst.mockResolvedValue({ id: "d1", status: "pending", deletedAt: null });
+    await expect(rejectDraft("d1", "not good")).resolves.toBeUndefined();
     expect(updateMany).toHaveBeenCalledTimes(1);
   });
 

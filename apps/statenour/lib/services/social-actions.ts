@@ -411,7 +411,14 @@ export async function publishSocialPost(
 export const CLAIMABLE_STATUSES = ["pending", "approved", "scheduled"] as const;
 
 /** Why a queued row cannot be dispatched · callers map these onto their own transport error. */
-export type PublishDispatchRefusal = "not_found" | "unclaimable" | "no_platforms";
+export type PublishDispatchRefusal =
+  | "not_found"
+  | "unclaimable"
+  | "no_platforms"
+  /** Media isn't ready yet — e.g. a reel still waiting on the render lane. */
+  | "not_ready"
+  /** The row can never be published as-is (empty caption, unresolvable URL). */
+  | "invalid_input";
 
 export class PublishDispatchError extends Error {
   reason: PublishDispatchRefusal;
@@ -452,16 +459,6 @@ export async function dispatchQueuedPublish(
     );
   }
 
-  const platforms = (["instagram", "facebook"] as const).filter((p) =>
-    item.platforms.includes(p),
-  );
-  if (platforms.length === 0) {
-    throw new PublishDispatchError(
-      "no_platforms",
-      "Queue item has no publishable platform (instagram or facebook).",
-    );
-  }
-
   // A reel's cover lives in sourceMetadata.coverUrl (imageUrl is the video).
   // Without this the cover was silently dropped on every queue dispatch, so a
   // reel published from the queue lost the thumbnail it was created with.
@@ -469,16 +466,73 @@ export async function dispatchQueuedPublish(
   const coverUrl = typeof meta.coverUrl === "string" ? meta.coverUrl : undefined;
   const isReel = item.kind === "reel";
 
-  await publishSocialPost(
-    {
-      draftId: item.id,
-      platforms: [...platforms],
-      imageUrl: isReel ? coverUrl : item.imageUrl || undefined,
-      videoUrl: isReel ? item.imageUrl || undefined : undefined,
-      caption: item.content,
-    },
-    requestHost,
+  // NEVER re-post a platform that already succeeded.
+  //
+  // The worker has no representation for partial success: if Facebook posts
+  // and Instagram times out, the row lands in "rejected" — which drafts.ts
+  // deliberately leaves re-approvable ("a legitimate retry"). Rebuilding the
+  // platform list from item.platforms alone would then post to Facebook a
+  // SECOND time. The worker already records per-platform outcomes in
+  // sourceMetadata.publishResults; this reads them back so a retry only
+  // targets what actually failed. There is no idempotency key on the Graph
+  // calls, so this is the only thing standing between a retry and a duplicate.
+  const priorResults = Array.isArray(meta.publishResults) ? meta.publishResults : [];
+  const alreadyPosted = new Set(
+    priorResults
+      .filter((r): r is { platform: string; ok: boolean } =>
+        !!r && typeof r === "object" && (r as { ok?: unknown }).ok === true,
+      )
+      .map((r) => r.platform),
   );
+
+  const requested = (["instagram", "facebook"] as const).filter((p) =>
+    item.platforms.includes(p),
+  );
+  if (requested.length === 0) {
+    throw new PublishDispatchError(
+      "no_platforms",
+      "Queue item has no publishable platform (instagram or facebook).",
+    );
+  }
+
+  const platforms = requested.filter((p) => !alreadyPosted.has(p));
+  if (platforms.length === 0) {
+    throw new PublishDispatchError(
+      "unclaimable",
+      `Queue item already posted to ${requested.join(", ")}; re-dispatching would duplicate it.`,
+    );
+  }
+
+  try {
+    await publishSocialPost(
+      {
+        draftId: item.id,
+        platforms: [...platforms],
+        imageUrl: isReel ? coverUrl : item.imageUrl || undefined,
+        videoUrl: isReel ? item.imageUrl || undefined : undefined,
+        caption: item.content,
+      },
+      requestHost,
+    );
+  } catch (err) {
+    // publishSocialPost's input errors are REFUSALS, not server faults. Letting
+    // them escape gave the operator an opaque 500 and planted a level:"error"
+    // row in /system/errors for what is really "this row isn't publishable
+    // yet" — and the commonest case is entirely routine: an approved reel with
+    // imageUrl still null because the render lane hasn't produced the MP4.
+    if (err instanceof SocialPublishInputError) {
+      throw new PublishDispatchError(
+        err.message === "instagram_requires_media" ? "not_ready" : "invalid_input",
+        err.message === "instagram_requires_media"
+          ? "Queue item has no media yet — a reel must finish rendering before it can be published."
+          : `Queue item cannot be published: ${err.message}.`,
+      );
+    }
+    if (err instanceof SocialImageUrlUnresolvedError) {
+      throw new PublishDispatchError("invalid_input", err.message);
+    }
+    throw err;
+  }
 
   return item;
 }

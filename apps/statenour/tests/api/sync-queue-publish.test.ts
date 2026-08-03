@@ -175,6 +175,52 @@ describe("POST /api/sync/queue publish · refuses instead of no-opping", () => {
     expect((await post({ id: "row-1", action: "publish" })).status).toBe(404);
   });
 
+  it("409s an unrendered reel rather than 500ing on it", async () => {
+    // status "approved" + imageUrl null IS the render lane's fresh-work state
+    // (render/route.ts claims exactly that), and the PUBLISH LIVE button is
+    // rendered for any approved row. publishSocialPost throws
+    // SocialPublishInputError here; letting it escape gave an opaque 500 and
+    // planted a level:"error" row in /system/errors for a routine "not yet".
+    findUnique.mockResolvedValue({ ...ROW, imageUrl: null, sourceMetadata: null });
+    const res = await post({ id: "row-1", action: "publish" });
+    expect(res.status).toBe(409);
+    expect(inngestSend).not.toHaveBeenCalled();
+    expect(JSON.stringify(await res.json())).toContain("finish rendering");
+  });
+
+  it("never re-posts a platform that already succeeded", async () => {
+    // Partial failure lands the row in "rejected", which drafts.ts leaves
+    // re-approvable on purpose. Rebuilding the platform list from
+    // item.platforms alone would post to Facebook a SECOND time — the Graph
+    // calls carry no idempotency key, so this filter is the only guard.
+    findUnique.mockResolvedValue({
+      ...ROW,
+      platforms: ["instagram", "facebook"],
+      sourceMetadata: {
+        publishResults: [
+          { platform: "facebook", postId: "fb_1", ok: true },
+          { platform: "instagram", postId: null, ok: false },
+        ],
+      },
+    });
+
+    await post({ id: "row-1", action: "publish" });
+
+    expect(inngestSend).toHaveBeenCalledTimes(1);
+    expect(inngestSend.mock.calls[0][0].data.platforms).toEqual(["instagram"]);
+  });
+
+  it("refuses entirely when every requested platform already posted", async () => {
+    findUnique.mockResolvedValue({
+      ...ROW,
+      platforms: ["instagram"],
+      sourceMetadata: { publishResults: [{ platform: "instagram", postId: "ig_1", ok: true }] },
+    });
+    const res = await post({ id: "row-1", action: "publish" });
+    expect(res.status).toBe(409);
+    expect(inngestSend).not.toHaveBeenCalled();
+  });
+
   it("surfaces a dispatch failure instead of swallowing it into ok:true", async () => {
     inngestSend.mockRejectedValue(new Error("inngest unreachable"));
     const res = await post({ id: "row-1", action: "publish" });

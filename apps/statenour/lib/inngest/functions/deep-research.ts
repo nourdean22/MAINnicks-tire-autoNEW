@@ -44,10 +44,10 @@ export const researchOnDemand = inngest.createFunction(
       if (!report.synthesis) {
         // Honest empty: never deliver a fabricated report.
         const { sendTelegram } = await import("@/lib/services/telegram");
-        await sendTelegram(
+        const sent = await sendTelegram(
           `🔎 Research came back empty for: "${question.slice(0, 120)}" — no sources returned usable content.`,
         );
-        return { delivered: "empty-notice" };
+        return { delivered: sent ? "empty-notice" : "undelivered" };
       }
       if (deliverTo === "push") {
         const { sendPush } = await import("@/lib/notifications/push");
@@ -66,10 +66,15 @@ export const researchOnDemand = inngest.createFunction(
       }
       const { sendTelegram } = await import("@/lib/services/telegram");
       const cachedTag = report.cached ? " (cached <7d)" : "";
-      await sendTelegram(
+      // sendTelegram returns false (never throws) on failure. Returning the
+      // literal "telegram" claimed a delivery nobody observed — and the
+      // /research ack already promised the operator the report would land
+      // here, with nothing to re-notify them if it did not. The `push` branch
+      // above returns real {sent, failed}; this is the same function.
+      const sent = await sendTelegram(
         `🔎 <b>Research</b>${cachedTag}\n\n${report.synthesis.slice(0, 3400)}\n\n<i>${report.citations.length} source(s).</i>`,
       );
-      return { delivered: "telegram" };
+      return { delivered: sent ? "telegram" : "undelivered" };
     });
 
     return { question: question.slice(0, 120), cached: report.cached, delivery };

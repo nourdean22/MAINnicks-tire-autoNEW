@@ -196,8 +196,11 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
   await prisma.auditEvent.create({
     data: {
       actor: "push-notification",
-      eventType: "push_sent",
-      detail: `${payload.level}: ${payload.title}`,
+      // The counts already ride in the payload; the LABEL said "sent" even
+      // when every delivery failed, so /system/events read as a successful
+      // push. Derive it from the outcome like everything else.
+      eventType: sent > 0 ? "push_sent" : "push_undelivered",
+      detail: `${payload.level}: ${payload.title}${sent > 0 ? "" : ` — 0 delivered, ${failed} failed`}`,
       payload: { title: payload.title, body: payload.body, level: payload.level, sent, failed } as any,
     },
   }).catch((err) => recordError("notifications:audit", err, { level: payload.level, sent, failed }));

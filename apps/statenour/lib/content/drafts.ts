@@ -237,9 +237,18 @@ export async function rejectDraft(key: string, reason?: string): Promise<void> {
     where: { id, deletedAt: null },
   });
   if (!existing) return;
+  // Same guard as approveDraft/markScheduled — this one was missed. Rejecting
+  // a row the publish worker holds in "rendering" trips its finalize lock, and
+  // because reject ALSO soft-deletes, a post that went live on Instagram
+  // vanishes from listDrafts with no publishedAt and no publishUrls: the
+  // provenance is simply gone. Both queue UIs render REJECT for "pending",
+  // which is exactly the state a just-dispatched row occupies.
+  if (UNTOUCHABLE_STATUSES.includes(existing.status)) {
+    throw new DraftStateError("reject", existing.status);
+  }
 
-  await prisma.socialPublishQueue.update({
-    where: { id },
+  const claimed = await prisma.socialPublishQueue.updateMany({
+    where: { id, deletedAt: null, status: { notIn: UNTOUCHABLE_STATUSES } },
     data: {
       status: "rejected",
       rejectedAt: new Date(),
@@ -247,6 +256,9 @@ export async function rejectDraft(key: string, reason?: string): Promise<void> {
       deletedAt: new Date(),
     },
   });
+  if (claimed.count !== 1) {
+    throw new DraftStateError("reject", "claimed by a worker mid-update");
+  }
 
   if (reason) {
     await prisma.auditEvent.create({
