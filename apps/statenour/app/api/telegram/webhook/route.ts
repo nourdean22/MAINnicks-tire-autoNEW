@@ -491,10 +491,15 @@ async function handleCallback(callback: {
         }
 
         const payload = parsedPayload.data;
-        const { callNickstire } = await import("@/lib/ai/agent-actions/shop-actions");
+        const { callNickstire, isBridgeError } = await import("@/lib/ai/agent-actions/shop-actions");
         try {
           const res = await callNickstire("smsBot.send", { phone: String(payload.phone), message: String(payload.message) });
-          if (res) {
+          // callNickstire RESOLVES to a truthy { error } object on every failure
+          // path, so the `if (res)` this replaced was always true — approving a
+          // staged SMS wrote a SUCCESS receipt and told the operator "Dispatched!"
+          // while nothing was sent. The sibling recall branch above was hardened
+          // for exactly this in an earlier pass; this branch was missed.
+          if (!isBridgeError(res)) {
             await prisma.actionReceipt.update({
               where: { id: receiptId },
               data: {
@@ -511,7 +516,10 @@ async function handleCallback(callback: {
             }
             await answerCallbackQuery(callback.id, "SMS Dispatched!");
           } else {
-            throw new Error("smsBot.send returned falsy response");
+            const bridgeError = (res as { error?: unknown } | null)?.error;
+            throw new Error(
+              bridgeError ? String(bridgeError) : "smsBot.send returned no result"
+            );
           }
         } catch (err) {
           console.error("[telegram:webhook] SMS dispatch error:", err);
