@@ -60,6 +60,20 @@ const WORK_ORDER_QUEUE_LIMIT = 30;
  */
 const QUEUE_COVERED_SIGNAL_IDS = ["new-bookings", "actionable-leads", "pending-callbacks", "new-leads"] as const;
 
+/**
+ * Aliases of a signal that is already in the feed under another id.
+ *
+ * `buildAdminSignals()` deliberately emits the publishing count TWICE — once as
+ * `ops-overview` and once as `ops-instagram` — so the sidebar can badge both
+ * Today and Instagram from one reading. On Today that would print "publishing
+ * items held" as two identical rows, which reads as two problems. The operator
+ * taps expecting two things to fix and finds one: the same inflation
+ * `operationsSignal` already de-overlaps for on the server.
+ *
+ * `ops-overview` is the one kept, because this IS Today.
+ */
+const DUPLICATE_ALIAS_SIGNAL_IDS = ["ops-instagram"] as const;
+
 function requestLabel(item: ActionItem): string {
   return item.type === "workOrder" ? "work order" : item.type;
 }
@@ -389,7 +403,7 @@ export default function OverviewSection() {
         below covers bookings / leads / callbacks / work orders and knows
         nothing about the rest, so these had no surface on Today at all.
       */}
-      <ExceptionFeed signals={signals} hideIds={QUEUE_COVERED_SIGNAL_IDS} />
+      <ExceptionFeed signals={signals} hideIds={[...QUEUE_COVERED_SIGNAL_IDS, ...DUPLICATE_ALIAS_SIGNAL_IDS]} />
 
       <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="freshness-title">
         <div className="flex items-center justify-between gap-3">

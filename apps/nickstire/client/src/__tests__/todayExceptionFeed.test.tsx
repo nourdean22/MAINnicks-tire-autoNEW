@@ -68,8 +68,16 @@ describe("resolveFeedState · 'we looked' vs 'nobody reported'", () => {
     expect(resolveFeedState([], [])).toBe("nothing_measured");
   });
 
-  it("one real count beside an unmeasured sibling still earns the all-clear", () => {
+  it("one reported source is NOT enough — every visible source must have reported", () => {
+    // PR #1319 review, P2. A first draft used `.some(counted)`, so tire and
+    // membership stats finishing before operationsSignal produced "Nothing
+    // outstanding" while publishing had not been read at all.
     const signals = [counted("a", 0), unmeasured("b")];
+    expect(resolveFeedState(signals, exceptionFeed(signals))).toBe("nothing_measured");
+  });
+
+  it("all visible sources counted zero IS the all-clear", () => {
+    const signals = [counted("a", 0), counted("b", 0), counted("c", 0)];
     expect(resolveFeedState(signals, exceptionFeed(signals))).toBe("nothing_outstanding");
   });
 });
@@ -140,13 +148,39 @@ describe("the hide list cannot silently swallow a signal", () => {
     opsTotal: 1,
   }).map((s) => s.id);
 
-  it("every hidden id is a signal that actually exists", () => {
-    // A rename would otherwise leave a dead entry here AND make the renamed
-    // signal appear twice on Today.
-    const hideList = OVERVIEW_SRC.match(/QUEUE_COVERED_SIGNAL_IDS = \[([^\]]+)\]/)?.[1] ?? "";
-    const ids = [...hideList.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-    expect(ids.length).toBeGreaterThan(0);
-    for (const id of ids) expect(producedIds, `hidden id "${id}" no longer exists`).toContain(id);
+  const hiddenIdsFromSource = (constName: string) => {
+    const list = OVERVIEW_SRC.match(new RegExp(`${constName} = \\[([^\\]]+)\\]`))?.[1] ?? "";
+    return [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  };
+
+  it.each(["QUEUE_COVERED_SIGNAL_IDS", "DUPLICATE_ALIAS_SIGNAL_IDS"])(
+    "every id in %s is a signal that actually exists",
+    (constName) => {
+      // A rename would otherwise leave a dead entry here AND make the renamed
+      // signal appear on Today unfiltered.
+      const ids = hiddenIdsFromSource(constName);
+      expect(ids.length).toBeGreaterThan(0);
+      for (const id of ids) expect(producedIds, `hidden id "${id}" no longer exists`).toContain(id);
+    },
+  );
+
+  it("the duplicate publishing alias is hidden, but the Today one is kept", () => {
+    // buildAdminSignals emits the SAME publishing reading twice so the sidebar
+    // can badge Today and Instagram from one source. Printing both here would
+    // show one problem as two — the inflation operationsSignal already
+    // de-overlaps for on the server.
+    expect(hiddenIdsFromSource("DUPLICATE_ALIAS_SIGNAL_IDS")).toContain("ops-instagram");
+    expect(hiddenIdsFromSource("QUEUE_COVERED_SIGNAL_IDS")).not.toContain("ops-overview");
+    expect(OVERVIEW_SRC).toMatch(/hideIds=\{\[\.\.\.QUEUE_COVERED_SIGNAL_IDS, \.\.\.DUPLICATE_ALIAS_SIGNAL_IDS\]\}/);
+  });
+
+  it("the feed renders publishing once, not twice", () => {
+    const both = [
+      counted("ops-overview", 3, { label: "publishing items held" }),
+      counted("ops-instagram", 3, { label: "publishing items held" }),
+    ];
+    render(<ExceptionFeed signals={both} hideIds={["ops-instagram"]} />);
+    expect(screen.getAllByText("publishing items held")).toHaveLength(1);
   });
 
   it("the publishing signal is NOT hidden — the queue does not cover it", () => {

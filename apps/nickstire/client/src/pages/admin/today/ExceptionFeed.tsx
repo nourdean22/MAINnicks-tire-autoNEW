@@ -69,7 +69,20 @@ export function resolveFeedState(
   feed: readonly AdminSignal[],
 ): FeedState {
   if (feed.length > 0) return "exceptions";
-  return visible.some((s) => s.reading.state === "counted") ? "nothing_outstanding" : "nothing_measured";
+  if (visible.length === 0) return "nothing_measured";
+  /**
+   * EVERY visible source must have reported, not just one.
+   *
+   * A first draft used `.some(counted)`, which handed out an all-clear as soon
+   * as a single source reported zero — so tire and membership stats finishing
+   * before `operationsSignal` produced "Nothing outstanding" while publishing
+   * had not been read at all. That is the same defect this strip exists to
+   * remove, rebuilt inside the sentence that announces its absence.
+   *
+   * Unknowns cannot reach here (they land in `feed`, which returns "exceptions"
+   * above), so the only remaining states are counted and not_measured.
+   */
+  return visible.every((s) => s.reading.state === "counted") ? "nothing_outstanding" : "nothing_measured";
 }
 
 /**
