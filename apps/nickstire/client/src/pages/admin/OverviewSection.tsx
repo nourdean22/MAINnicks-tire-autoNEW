@@ -5,6 +5,8 @@ import PromisesPanel from "./PromisesPanel";
 import InspectionCapturePanel from "./InspectionCapturePanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
+import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
+import { buildAdminSignals } from "@/lib/adminSignals";
 import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
 import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
 import { trpc } from "@/lib/trpc";
@@ -27,11 +29,50 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { navigateToAdminSection } from "./shared";
+import ExceptionFeed from "./today/ExceptionFeed";
 import { getQueueActionDefinition } from "./today/queueActions";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem, WorkOrderItem } from "./today/types";
 
 const ACTIVE_LEAD_STATUSES = new Set(["new", "contacted"]);
 const ACTIVE_WORK_ORDER_STATUSES = new Set(["new", "scheduled", "in_progress", "waiting_parts", "quality_check"]);
+
+/**
+ * Page size for the work-order read that feeds the action queue.
+ *
+ * Named because the queue count depends on it: a full page means the real
+ * number is "at least this", not "exactly this". `queueSaturated` below turns
+ * that into a visible "30+" rather than a precise-looking lie.
+ */
+const WORK_ORDER_QUEUE_LIMIT = 30;
+
+/**
+ * Signals the action queue below already renders, hidden from the exception
+ * strip so Today does not say the same thing twice.
+ *
+ * Listed by ID rather than by section on purpose: `ops-overview` shares the
+ * "overview" section with these three but is NOT in the queue — the queue reads
+ * bookings, leads, callbacks and work orders, and knows nothing about
+ * publishing. Excluding by section would have silently swallowed it, which is
+ * the class of mistake this whole arc keeps finding.
+ *
+ * `todayExceptionFeed.test.ts` fails if any id here stops being produced, so a
+ * renamed signal cannot quietly become invisible.
+ */
+const QUEUE_COVERED_SIGNAL_IDS = ["new-bookings", "actionable-leads", "pending-callbacks", "new-leads"] as const;
+
+/**
+ * Aliases of a signal that is already in the feed under another id.
+ *
+ * `buildAdminSignals()` deliberately emits the publishing count TWICE — once as
+ * `ops-overview` and once as `ops-instagram` — so the sidebar can badge both
+ * Today and Instagram from one reading. On Today that would print "publishing
+ * items held" as two identical rows, which reads as two problems. The operator
+ * taps expecting two things to fix and finds one: the same inflation
+ * `operationsSignal` already de-overlaps for on the server.
+ *
+ * `ops-overview` is the one kept, because this IS Today.
+ */
+const DUPLICATE_ALIAS_SIGNAL_IDS = ["ops-instagram"] as const;
 
 function requestLabel(item: ActionItem): string {
   return item.type === "workOrder" ? "work order" : item.type;
@@ -53,10 +94,32 @@ export default function OverviewSection() {
     staleTime: 25_000,
     refetchIntervalInBackground: false,
   });
-  const { data: workOrders } = trpc.workOrders.list.useQuery(
-    { limit: 30 },
+  /**
+   * `isError` is captured here and NOT discarded — it used to be.
+   *
+   * Work orders are a SEPARATE query from the bundle, so `unavailableSlices`
+   * below cannot see them. When this failed, `workOrders` was undefined,
+   * `currentWorkOrders` became [] and the action queue silently dropped every
+   * work order — while `queueTrustworthy` still reported true, because it only
+   * inspected the bundle's slices. Work orders carry urgency 5 when overdue or
+   * blocked, so the HIGHEST-priority items were the ones that vanished, and the
+   * summary card kept showing a confident count of what was left.
+   */
+  const { data: workOrders, isError: workOrdersFailed } = trpc.workOrders.list.useQuery(
+    { limit: WORK_ORDER_QUEUE_LIMIT },
     { refetchInterval: 30_000, refetchIntervalInBackground: false },
   );
+  /**
+   * Same key AND the same options as the shell's query in Admin.tsx, so this
+   * second observer reads the shared react-query cache instead of triggering a
+   * refetch of its own. A shorter staleTime here would double the poll rate on
+   * a procedure the sidebar already runs on every page load.
+   */
+  const { data: opsSignal, isError: opsFailed } = trpc.contentAdmin.operationsSignal.useQuery(undefined, {
+    refetchInterval: 120_000,
+    staleTime: 90_000,
+    refetchIntervalInBackground: false,
+  });
   const { data: freshness, refetch: refetchFreshness, isFetching: freshnessFetching } =
     trpc.adminSecurity.integrationFreshness.useQuery(undefined, {
       refetchInterval: 60_000,
@@ -89,8 +152,38 @@ export default function OverviewSection() {
    * a failed slice inside it, which is exactly why DegradedDataBanner never fired.
    */
   const unavailable = bundle?.unavailableSlices ?? [];
-  const queueTrustworthy = !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks");
   const currentWorkOrders = (workOrders ?? []) as WorkOrderItem[];
+  /**
+   * Every source the queue is built from must be able to veto "All clear" —
+   * including the work-order query, which is not part of the bundle and was
+   * therefore invisible to this check.
+   */
+  const queueTrustworthy =
+    !workOrdersFailed && !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks");
+  /**
+   * The work-order read is capped, so a full page is a LOWER BOUND, not a count.
+   * Saying "37" when the true number could be anything above 30 is the same
+   * false-precision problem as saying "0" for an unread source.
+   */
+  const queueSaturated = currentWorkOrders.length >= WORK_ORDER_QUEUE_LIMIT;
+
+  /**
+   * Built from the SAME builder the sidebar badges use, so a section cannot be
+   * outstanding in the sidebar and absent from Today, or the reverse.
+   */
+  const signals = useMemo(
+    () =>
+      buildAdminSignals({
+        bundleFailed: isError,
+        slices: bundle?.slices,
+        counts: getAdminActionableCounts({ bookings, leads, callbacks }),
+        stats,
+        opsFailed,
+        opsUnknown: opsSignal?.unknown === true,
+        opsTotal: opsSignal?.total,
+      }),
+    [isError, bundle?.slices, bookings, leads, callbacks, stats, opsFailed, opsSignal],
+  );
   const todayKey = getBusinessDateKey();
 
   const queue = useMemo<ActionItem[]>(() => {
@@ -274,11 +367,43 @@ export default function OverviewSection() {
       )}
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Today summary">
-        <SummaryCard label="Needs action" value={queueTrustworthy ? queue.length : "—"} detail={!queueTrustworthy ? "Unable to determine" : queue.length ? "Open queue items" : "All clear"} alert={queue.length > 0 || !queueTrustworthy} />
+        <SummaryCard
+          label="Needs action"
+          value={queueTrustworthy ? (queueSaturated ? `${queue.length}+` : queue.length) : "—"}
+          detail={
+            !queueTrustworthy
+              ? "Unable to determine"
+              : queueSaturated
+                ? "At least this many — work-order list is capped"
+                : queue.length
+                  ? "Open queue items"
+                  : "All clear"
+          }
+          alert={queue.length > 0 || !queueTrustworthy}
+        />
         <SummaryCard label="Bookings today" value={todaysBookings.length} detail={`Cleveland date · ${todayKey}`} />
         <SummaryCard label="Urgent leads" value={leads.filter((lead) => !isCallbackDuplicateLead(lead) && ACTIVE_LEAD_STATUSES.has(lead.status) && (lead.urgencyScore ?? 0) >= 4).length} detail="Included once" />
-        <SummaryCard label="Active work orders" value={currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length} detail="Shop floor" />
+        {/*
+          Fed by the SAME query as the "Needs action" card. It used to render a
+          neutral "0" while that card, on the identical failure, correctly read
+          "— / Unable to determine" — two cards side by side disagreeing about
+          whether the shop floor had been read at all.
+        */}
+        <SummaryCard
+          label="Active work orders"
+          value={workOrdersFailed ? "—" : currentWorkOrders.filter((wo) => ACTIVE_WORK_ORDER_STATUSES.has(wo.status ?? "")).length}
+          detail={workOrdersFailed ? "Unable to determine" : "Shop floor"}
+          alert={workOrdersFailed}
+        />
       </section>
+
+      {/*
+        Cross-domain exceptions: publishing holds, tire orders and membership
+        warnings, plus anything the system could not read. The action queue
+        below covers bookings / leads / callbacks / work orders and knows
+        nothing about the rest, so these had no surface on Today at all.
+      */}
+      <ExceptionFeed signals={signals} hideIds={[...QUEUE_COVERED_SIGNAL_IDS, ...DUPLICATE_ALIAS_SIGNAL_IDS]} />
 
       <section className="rounded-lg border border-border/40 bg-card p-4" aria-labelledby="freshness-title">
         <div className="flex items-center justify-between gap-3">
@@ -312,7 +437,31 @@ export default function OverviewSection() {
         </div>
 
         {filteredQueue.length === 0 ? (
-          <div className="py-10 text-center text-emerald-400"><CheckCircle2 className="w-7 h-7 mx-auto mb-2" /><p className="text-sm font-medium">No pending actions in this view</p></div>
+          /*
+           * An empty queue is only an all-clear if every source that feeds it
+           * was actually read.
+           *
+           * This branch used to test `filteredQueue.length === 0` and nothing
+           * else — not queueTrustworthy, not workOrdersFailed, not the bundle's
+           * unavailable slices. So on a work-order failure the operator got a
+           * large emerald check reading "No pending actions in this view" on
+           * the SAME render where the card above said "— / Unable to
+           * determine", and no banner on the page covers that query. With the
+           * type filter selected it was worse still: a green check asserting
+           * work orders specifically were clear, sourced from a query that had
+           * failed.
+           */
+          !queueTrustworthy ? (
+            <div className="py-10 text-center text-amber-600" role="status">
+              <AlertTriangle className="w-7 h-7 mx-auto mb-2" />
+              <p className="text-sm font-medium">Queue unreadable — this is UNKNOWN, not clear</p>
+              <p className="text-xs mt-1 text-amber-600/80">
+                At least one source failed. Work may be waiting that this list could not load.
+              </p>
+            </div>
+          ) : (
+            <div className="py-10 text-center text-emerald-400"><CheckCircle2 className="w-7 h-7 mx-auto mb-2" /><p className="text-sm font-medium">No pending actions in this view</p></div>
+          )
         ) : (
           <div className="space-y-2">
             {filteredQueue.map((item) => {
