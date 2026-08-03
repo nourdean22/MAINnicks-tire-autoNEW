@@ -96,5 +96,50 @@ class TestOutputShape(unittest.TestCase):
         self.assertNotIn(secret, rendered)
 
 
+
+class TestDockerImageCompleteness(unittest.TestCase):
+    """
+    Every LOCAL module agent.py imports at module scope must be COPYed into the
+    image.
+
+    This exists because splitting bridge_preflight.py out of agent.py shipped a
+    container that crash-looped on ModuleNotFoundError. CI stayed green the whole
+    time — it runs from the repo, where the file is always present. A Dockerfile
+    COPY list is a second, invisible dependency manifest, and nothing was
+    checking the two agreed.
+    """
+
+    def test_every_local_import_is_copied_into_the_image(self):
+        import pathlib
+        import re
+
+        here = pathlib.Path(__file__).parent
+        agent_src = (here / "agent.py").read_text(encoding="utf-8")
+        dockerfile = (here / "Dockerfile").read_text(encoding="utf-8")
+
+        # Local modules == a .py file sitting beside agent.py.
+        local_modules = {p.stem for p in here.glob("*.py")} - {"agent"}
+
+        imported: set[str] = set()
+        for line in agent_src.splitlines():
+            m = re.match(r"\s*(?:from|import)\s+([A-Za-z_][\w]*)", line)
+            if m and m.group(1) in local_modules:
+                imported.add(m.group(1))
+
+        self.assertIn(
+            "bridge_preflight",
+            imported,
+            "premise check — agent.py should still import bridge_preflight",
+        )
+
+        copy_lines = "\n".join(l for l in dockerfile.splitlines() if l.strip().startswith("COPY"))
+        missing = sorted(m for m in imported if f"{m}.py" not in copy_lines)
+        self.assertEqual(
+            missing,
+            [],
+            f"agent.py imports {missing} but the Dockerfile never COPYs them — "
+            "the image will crash with ModuleNotFoundError at startup.",
+        )
+
 if __name__ == "__main__":
     unittest.main()
