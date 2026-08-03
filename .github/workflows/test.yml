@@ -371,7 +371,15 @@ jobs:
           pip install -r apps/voice/requirements.txt
 
       - name: Syntax check
-        run: python -m py_compile apps/voice/agent.py
+        run: python -m py_compile apps/voice/agent.py apps/voice/bridge_preflight.py
+
+      # A syntax check cannot notice that the endpoint the agent POSTs to was
+      # deleted from the other app — which is what happened: /api/agent went
+      # away 2026-06-02 and this job stayed green for two months. These are
+      # real assertions and need no LiveKit/Deepgram/Cartesia credentials.
+      - name: Bridge preflight tests
+        working-directory: apps/voice
+        run: python -m unittest discover -s . -p 'test_*.py' -v
 
   railway-smoke:
     needs: [changes, node, voice]

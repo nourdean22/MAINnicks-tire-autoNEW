@@ -48,6 +48,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from typing import Any, AsyncIterator
 
 # LiveKit Agents framework
@@ -72,6 +73,8 @@ except ImportError as exc:
 
 import httpx  # type: ignore[import-untyped]
 
+from bridge_preflight import STATENOUR_AGENT_URL_DEFAULT, preflight_bridge
+
 logger = logging.getLogger("statenour-voice")
 logging.basicConfig(
     level=logging.INFO,
@@ -83,7 +86,7 @@ logging.basicConfig(
 # Where to POST chat turns. Defaults to the local dev endpoint · in
 # prod set STATENOUR_AGENT_URL=https://autonicks.com/api/agent
 STATENOUR_AGENT_URL = os.environ.get(
-    "STATENOUR_AGENT_URL", "http://localhost:3001/api/agent"
+    "STATENOUR_AGENT_URL", STATENOUR_AGENT_URL_DEFAULT
 )
 # 2026-05-17 · prod default points at the Railway deploy
 # (autonicks.com domain was dropped · Railway is canonical).
@@ -264,4 +267,18 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
 if __name__ == "__main__":
+    # Refuse to register with LiveKit when the bridge cannot possibly work.
+    # Starting anyway means LiveKit routes real calls to a worker whose only
+    # possible output is a spoken apology.
+    _problems = preflight_bridge(dict(os.environ))
+    if _problems:
+        logger.error("voice bridge preflight FAILED — refusing to start:")
+        for _p in _problems:
+            logger.error("  · %s", _p)
+        logger.error(
+            "Set the required env on the Railway `statenour-voice` service, "
+            "or stop the service if the voice bridge is intentionally retired."
+        )
+        sys.exit(1)
+
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))

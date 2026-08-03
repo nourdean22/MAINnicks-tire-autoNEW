@@ -33,13 +33,15 @@ export const PUBLIC_PREFIXES = [
   // probe gets through. The 503+hint wrapper in the route handles
   // the unconfigured case.
   "/api/inngest",
-  // 2026-05-17 · WAVE-200 Phase 4 follow-up · Mastra agent endpoint.
-  // The /api/agent route handles its own auth via resolveOperator():
-  // either VOICE_BRIDGE_TOKEN Bearer (for the apps/voice Python worker)
-  // OR requireSession() (browser useChat() callers). Both gates work
-  // regardless of middleware. Whitelisting here lets the Bearer-only
-  // bridge path through.
-  "/api/agent",
+  // 2026-08-03 · "/api/agent" REMOVED from this whitelist. The route was
+  // deleted in 33a035257 (2026-06-02) along with src/mastra/**, and the
+  // `resolveOperator()` the old comment cited as its auth exists nowhere in
+  // the codebase — its only remaining occurrence was that comment. An
+  // auth-exemption for a route that does not exist is dead surface: it cannot
+  // help anything, and it would silently exempt a future route that happened
+  // to reuse the path. The apps/voice worker that used it now refuses to start
+  // (apps/voice/bridge_preflight.py); if the bridge is repointed at a live
+  // endpoint, whitelist THAT path explicitly and state which auth it runs.
   "/api/actions/",    // GPT Custom Actions bridge (own Bearer auth). forensic-audit LOW · trailing slash so it no longer also exempts the unrelated /api/actions-brain route.
   "/api/mcp",         // MCP bridge (own Bearer auth)
   // forensic-audit HIGH · header-token-authenticated server-to-server
@@ -47,7 +49,7 @@ export const PUBLIC_PREFIXES = [
   // / x-sync-key), but they carry no NextAuth cookie, so the session
   // middleware 401'd them before that auth could run — breaking the Windows
   // device agent, nickstire camera sync, and live VAPI voice-tool calls.
-  // Same whitelist pattern as /api/agent and /api/actions above.
+  // Same whitelist pattern as /api/actions above.
   "/api/devices",     // device RPC queue/ack/upsert (own x-sync-key auth)
   "/api/vapi",        // VAPI voice webhooks + tools (own X-Vapi-Secret auth)
   "/api/nour-os",     // nour-os bridge query (own x-sync-key auth)
