@@ -77,6 +77,36 @@ export interface ToolHealthInfo {
   riskClass: ToolRiskClass;
 }
 
+/**
+ * Shared limitation note for the four `browser.*` capabilities.
+ *
+ * 2026-08-03 · This string used to end with "Stagehand SDK not
+ * installed." That clause was true when the entries were written and
+ * went stale on 2026-07-22, when @browserbasehq/stagehand@3.7.0 landed
+ * as a pinned dep (see the INSTALLED note atop lib/integrations/
+ * stagehand.ts and the ADOPTED row in docs/UPSTREAMS.md). It survived
+ * because it was copy-pasted into four entries, so nothing read as a
+ * single fact that had rotted.
+ *
+ * DO NOT "fix" this by flipping `status` to active/restricted.
+ * `status: "inert"` is a HARD EXECUTION GATE — tool-policy.ts denies
+ * inert/scaffolded tools outright. Parking is the operator's standing
+ * choice (they drive browsers via Claude-in-Chrome + computer-use), and
+ * `browser.act` is riskClass "critical" with externalMutation: true.
+ * Flipping the status ACTIVATES it. That is an operator decision, never
+ * an agent's.
+ */
+/**
+ * No version number here, deliberately. The first draft of this fix said
+ * "@browserbasehq/stagehand@3.7.0" — which reintroduces the exact disease
+ * it cures: the note goes false the moment the dep is upgraded, and the
+ * integrity test would not catch it (that test validates "not installed"
+ * claims, not version claims). An operator-facing note should assert only
+ * what stays true. The installed version lives in package.json.
+ */
+const BROWSER_PARKED_NOTE =
+  "Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work. Parked is a deliberate choice, not a missing dependency: @browserbasehq/stagehand has been a pinned dependency since 2026-07-22.";
+
 export const TOOL_REGISTRY: Record<string, ToolCapability> = {
   "web.search.verified": {
     id: "web.search.verified",
@@ -199,7 +229,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "screenshot_required",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: true,
-    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
+    currentLimitations: [BROWSER_PARKED_NOTE],
     costClass: "medium"
   },
   "browser.observe": {
@@ -216,7 +246,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "none",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: false,
-    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
+    currentLimitations: [BROWSER_PARKED_NOTE],
     costClass: "medium"
   },
   "browser.extract": {
@@ -233,7 +263,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "none",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: false,
-    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
+    currentLimitations: [BROWSER_PARKED_NOTE],
     costClass: "medium"
   },
   "browser.act": {
@@ -250,7 +280,7 @@ export const TOOL_REGISTRY: Record<string, ToolCapability> = {
     approvalPolicy: "screenshot_required",
     requiredEnv: ["BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"],
     auditLogRequired: true,
-    currentLimitations: ["Intentionally parked - operator uses Claude-in-Chrome + computer-use for browser work; Stagehand SDK not installed."],
+    currentLimitations: [BROWSER_PARKED_NOTE],
     costClass: "high"
   },
   "memory.pin": {
