@@ -206,7 +206,17 @@ export function shopDayStartMs(now: Date = new Date()): number {
   const part = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
   // Some ICU builds render midnight as hour "24" under hour12:false.
   const etHour = part("hour") % 24;
-  const msSinceEtMidnight = ((etHour * 60 + part("minute")) * 60 + part("second")) * 1000;
+  // The formatted parts stop at seconds, so the fractional millisecond has to
+  // come back from `now` — otherwise the boundary inherits it and lands at
+  // 07:00:00.xxx instead of 07:00:00.000. That matters because
+  // `cron_tier_skip_state.last_run_at` is a NON-FRACTIONAL TIMESTAMP: a claim
+  // written by NOW() at 07:00:00.xxx is stored as 07:00:00.000, which would
+  // then compare as EARLIER than the boundary and let a oncePerShopDay job
+  // run a second time. Two of the four jobs on this path send customer SMS.
+  // Every real UTC offset is a whole number of minutes, so the millisecond
+  // component is zone-independent and can be read straight off `now`.
+  const msSinceEtMidnight =
+    ((etHour * 60 + part("minute")) * 60 + part("second")) * 1000 + now.getMilliseconds();
   return now.getTime() - (msSinceEtMidnight - SHOP_DAY_START_HOUR_ET * 3600_000);
 }
 

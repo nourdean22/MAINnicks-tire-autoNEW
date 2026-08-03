@@ -85,6 +85,41 @@ describe("shopDayStartMs · resolves 07:00 ET without fixed-offset arithmetic", 
     const sevenEt = new Date("2026-08-03T11:00:00Z");
     expect(shopDayStartMs(sevenEt)).toBe(sevenEt.getTime());
   });
+
+  it("lands on an exact millisecond-zero boundary even when `now` is fractional", () => {
+    // The Intl parts stop at seconds. If the fractional millisecond is not
+    // subtracted, the boundary inherits it and lands at 07:00:00.xxx.
+    for (const iso of [
+      "2026-08-03T11:00:00.400Z",
+      "2026-08-03T13:09:30.456Z",
+      "2026-01-15T14:30:59.999Z",
+    ]) {
+      const start = new Date(shopDayStartMs(new Date(iso)));
+      expect(start.getMilliseconds(), `ms for ${iso}`).toBe(0);
+      expect(start.getSeconds(), `sec for ${iso}`).toBe(0);
+      expect(start.getMinutes(), `min for ${iso}`).toBe(0);
+    }
+  });
+});
+
+describe("the fractional-boundary double-send regression", () => {
+  // cron_tier_skip_state.last_run_at is a NON-FRACTIONAL TIMESTAMP, so a claim
+  // written by NOW() at 07:00:00.400 is READ BACK as 07:00:00.000. If the
+  // boundary carried the caller's milliseconds it would sit at 07:00:00.400,
+  // the stored claim would compare as earlier, and the job would run a second
+  // time — a duplicate customer SMS on referral-loop-closer and
+  // vip-auto-recognition.
+  it("a claim stored at the truncated second still counts as today's run", () => {
+    const storedByMysql = new Date("2026-08-03T11:00:00.000Z"); // NOW() truncated
+    const nextPass = new Date("2026-08-03T11:00:00.400Z"); // same second, later ms
+    expect(hasRunThisShopDay(storedByMysql, nextPass)).toBe(true);
+  });
+
+  it("and still counts hours later in the same shop day", () => {
+    const storedByMysql = new Date("2026-08-03T11:00:00.000Z");
+    const laterThatDay = new Date("2026-08-03T18:42:07.913Z");
+    expect(hasRunThisShopDay(storedByMysql, laterThatDay)).toBe(true);
+  });
 });
 
 // ───────────────────────────────────────────────────────────────────────
