@@ -34,3 +34,8 @@ if (present && health.healthy === false) {
   console.log("\nVERDICT: cannot tell — treated as UNKNOWN, never as a clean bill.");
 }
 console.log("");
+
+// The mysql pool keeps the event loop alive, so without this the process never
+// exits — and when stdout is piped, nothing is flushed either, so the run looks
+// like a hang with zero output rather than a completed probe.
+process.exit(0);
