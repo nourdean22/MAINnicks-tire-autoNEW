@@ -66,6 +66,11 @@ export const MORNING_JOBS: readonly string[] = [
   // not required. This closes the ingest-gmail-cadence flag.
   "/api/cron/ingest-calendar",
   "/api/cron/ingest-gmail",
+  // 2026-08-03 · ingest-reviews joins the same daily slot. Its writer
+  // (fetchAndStoreReviews) had NO caller at all, so BrainMemory
+  // google_review rows were frozen at whatever last wrote them while
+  // getReviewStats kept serving them to Nick as current.
+  "/api/cron/ingest-reviews",
   // 2026-06-02 · operator-authorized activation of two parked daily
   // relationship/brain crons that had impls + route.ts but were never
   // wired to any trigger (manifest mode:"dormant"). Both are daily by

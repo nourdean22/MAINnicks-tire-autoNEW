@@ -252,6 +252,20 @@ export const CRONS: CronDef[] = [
 
   // ── INGEST ──────────────────────────────────────────────────────────
   {
+    // 2026-08-03 · fetchAndStoreReviews had ZERO callers since it was written:
+    // the read side (getReviewStats) is wired across 8+ files and was serving a
+    // FROZEN cache into Nick's chat snapshot. #1312 made the staleness visible;
+    // this makes something actually write. Daily because Places returns at most
+    // the 5 most recent reviews for a place — polling faster just re-reads them.
+    name: "ingest-reviews",
+    schedule: "0 9 * * *",
+    mode: "active",
+    category: "ingest",
+    description: "Google Places review pull into BrainMemory(google_review) — the only writer behind getReviewStats. 1x/day via mega-morning fan-out",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     // AG-41 · 2026-07-09 · cadence honesty. This entry claimed
     // "every 30min 8-22 UTC" but the route has fired 1×/day via the
     // mega-morning fan-out since Wave AE — and on 2026-05-30 the
