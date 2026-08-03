@@ -109,6 +109,48 @@ describe("shop handlers report failure honestly", () => {
   });
 });
 
+describe("the failure REASON reaches ActionResult.error", () => {
+  // guardian.ts, action-receipt.ts, action-result-verifier.ts and nick-agent.ts
+  // all read ActionResult.error to tell the operator why something failed. Those
+  // branches were dead while success was hardcoded-true; now that they are live,
+  // handing them nothing would turn a missing env var, a 403 and a timeout into
+  // one indistinguishable "unknown error".
+  it("carries the bridge error text, not a generic string", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Forbidden", { status: 403 })));
+    const { handleShopGetLeads } = await loadModule({ BRIDGE_API_KEY: "test-key" });
+    const out = await handleShopGetLeads({}, "shop_get_leads");
+    expect(out.success).toBe(false);
+    expect(out.error).toContain("403");
+  });
+
+  it("names the missing env var when no bridge key is configured", async () => {
+    const { handleShopGetLeads } = await loadModule({
+      BRIDGE_API_KEY: undefined,
+      STATENOUR_SYNC_KEY: undefined,
+    });
+    const out = await handleShopGetLeads({}, "shop_get_leads");
+    expect(out.error).toContain("BRIDGE_API_KEY");
+  });
+
+  it("falls back to a real sentence rather than the string 'undefined' on a null body", async () => {
+    // isBridgeError(null) is true, but null?.error is undefined — without the
+    // ?? fallback this is where "unknown error" would come back.
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(null)));
+    const { handleShopGetLeads } = await loadModule({ BRIDGE_API_KEY: "test-key" });
+    const out = await handleShopGetLeads({}, "shop_get_leads");
+    expect(out.success).toBe(false);
+    expect(out.error).toBe("nickstire bridge unavailable");
+  });
+
+  it("leaves error unset on success", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ result: { data: { json: [] } } })));
+    const { handleShopGetLeads } = await loadModule({ BRIDGE_API_KEY: "test-key" });
+    const out = await handleShopGetLeads({}, "shop_get_leads");
+    expect(out.success).toBe(true);
+    expect(out.error).toBeUndefined();
+  });
+});
+
 describe("bridge URL construction", () => {
   it("targets /api/trpc, not /trpc", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ result: { data: { json: [] } } }));

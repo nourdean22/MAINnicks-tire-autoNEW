@@ -63,6 +63,34 @@ const NICKSTIRE_API = (
 export function isBridgeError(res: unknown): boolean {
   return !res || (typeof res === "object" && "error" in (res as object));
 }
+
+/**
+ * Build the ActionResult for a bridge call, carrying the REASON on failure.
+ *
+ * `success: false` alone is not enough. Four surfaces exist to tell the operator
+ * WHY an action failed and all of them read `ActionResult.error`:
+ * lib/tools/guardian.ts:134 (which writes it into approvalRequest.resultPayload),
+ * lib/ai/receipts/action-receipt.ts:188, lib/ai/chat/action-result-verifier.ts:118,
+ * and lib/ai/nick-agent.ts:192. While `success` was hardcoded-true by `!!res`
+ * those branches were dead; correcting the flag makes them live, so they have to
+ * be handed something better than "unknown error". Every sibling action module
+ * (task-actions, camera-actions, google-actions) already populates `error`.
+ *
+ * The `??` fallback is load-bearing: isBridgeError(null) is true, but
+ * `null?.error` is undefined, which would reintroduce "unknown error" for
+ * exactly the null case.
+ */
+function bridgeResult(action: string, res: unknown): ActionResult {
+  const failed = isBridgeError(res);
+  return {
+    action,
+    success: !failed,
+    result: res,
+    error: failed
+      ? String((res as { error?: unknown } | null)?.error ?? "nickstire bridge unavailable")
+      : undefined,
+  };
+}
 // v9.1.14 · type as `string | undefined` instead of `?? ""`. The
 // previous `|| ""` pattern was caught by the env-secret bypass gate.
 // Outbound calls now no-op cleanly if neither key is configured —
@@ -105,45 +133,45 @@ export async function callNickstire(procedure: string, input: Record<string, unk
 
 export async function handleShopGetLabor(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("autoLabor.estimate", { service: String(params.service || ""), vehicleYear: params.year ? Number(params.year) : undefined, vehicleMake: params.make ? String(params.make) : undefined, vehicleModel: params.model ? String(params.model) : undefined });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopGetLeads(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("lead.list", { limit: Number(params.limit ?? 10) });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopUpdateLead(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("lead.update", { id: Number(params.id), status: params.status ? String(params.status) : undefined, notes: params.notes ? String(params.notes) : undefined });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopGetEstimates(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("estimates.list", { limit: Number(params.limit ?? 10) });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopGetCustomers(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("customers.list", { limit: Number(params.limit ?? 10), search: params.search ? String(params.search) : undefined });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopSendSms(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("smsBot.send", { phone: String(params.phone || ""), message: String(params.message || "") });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopGetBookings(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("booking.list", { limit: Number(params.limit ?? 10) });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopShopStatus(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("shopStatus.current", {});
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
 
 export async function handleShopGetRevenue(params: ActionParams, type: string): Promise<ActionResult> {
   const res = await callNickstire("controlCenter.revenue", { period: String(params.period || "today") });
-  return { action: type, success: !isBridgeError(res), result: res };
+  return bridgeResult(type, res);
 }
