@@ -30,8 +30,16 @@ export interface SendEmailArgs {
 }
 
 export interface SendEmailResult {
-  ok: true;
+  /**
+   * Derived from whether Resend actually accepted the message. This was typed
+   * as the LITERAL `true`, so no caller could branch on failure even if it
+   * wanted to — and `sendEmail` returns null (not a throw) when the provider
+   * is unconfigured, which is precisely the case that needs branching.
+   */
+  ok: boolean;
   id: string | null;
+  /** Provider not configured · nothing was attempted. */
+  skipped?: boolean;
 }
 
 export async function sendEmailWithAudit(args: SendEmailArgs): Promise<SendEmailResult> {
@@ -42,6 +50,14 @@ export async function sendEmailWithAudit(args: SendEmailArgs): Promise<SendEmail
     html: args.html,
   });
 
+  // A null id means Resend is not configured — nothing left the building.
+  // Writing "email_sent" there put a delivery in the audit trail that never
+  // happened, and /system/events renders it as a send.
+  const delivered = id !== null;
+  if (!delivered) {
+    log.error("email_not_sent", { reason: "provider_not_configured", to: args.to });
+  }
+
   // Audit trail — non-fatal · matches the v8.x universal audit pattern.
   // Body excerpt only · never persist the full body for privacy (the
   // long-term PII review surface flags anything >800 chars).
@@ -49,8 +65,10 @@ export async function sendEmailWithAudit(args: SendEmailArgs): Promise<SendEmail
     .create({
       data: {
         actor: "user:email-draft-card",
-        eventType: "email_sent",
-        detail: `Sent "${args.subject.slice(0, 80)}" → ${args.to}`,
+        eventType: delivered ? "email_sent" : "email_send_skipped",
+        detail: delivered
+          ? `Sent "${args.subject.slice(0, 80)}" → ${args.to}`
+          : `NOT sent (email provider not configured) "${args.subject.slice(0, 80)}" → ${args.to}`,
         payload: {
           to: args.to,
           subject: args.subject,
@@ -66,5 +84,5 @@ export async function sendEmailWithAudit(args: SendEmailArgs): Promise<SendEmail
       });
     });
 
-  return { ok: true, id };
+  return { ok: delivered, id, skipped: !delivered };
 }

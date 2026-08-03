@@ -16,22 +16,38 @@ const log = rootLogger.withSurface("webhooks/nickstire");
 // is structured-logged so it surfaces in /system/errors, and emergency
 // events RE-THROW so the webhook returns 500 and nickstire's retry
 // logic kicks in.
+// 2026-08-03 · Wave 58 did NOT actually work, on two layers:
+//
+//   1. `sendTelegram` reports failure by RETURNING false — unconfigured bot,
+//      missing chat id, non-2xx from Telegram, network error — and never
+//      throws (lib/services/telegram.ts:19,27,49,55). So the catch below was
+//      unreachable: `telegram_alert_failed` never emitted once, and every
+//      event still recorded status "sent".
+//   2. Even a real throw could not produce the documented 500 → the
+//      per-event isolation catch added later swallows it and the route
+//      returns 200 with the batch.
+//
+// Delivery is now taken from the RETURN VALUE, and an undelivered EMERGENCY
+// is escalated past the isolation catch by the caller.
 async function notifyOrLog(
-  send: () => Promise<unknown>,
+  send: () => Promise<boolean>,
   context: { eventType: string; isEmergency: boolean },
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await send();
+    const delivered = await send();
+    if (!delivered) {
+      log.error("telegram_alert_failed", {
+        eventType: context.eventType,
+        reason: "send_returned_false",
+      });
+    }
+    return delivered;
   } catch (err) {
     log.error("telegram_alert_failed", {
       eventType: context.eventType,
       error: err instanceof Error ? err.message : String(err),
     });
-    if (context.isEmergency) {
-      // emergency events MUST surface · re-throw so the webhook returns
-      // 500 and nickstire retries
-      throw err;
-    }
+    return false;
   }
 }
 
@@ -73,6 +89,10 @@ export async function POST(req: Request) {
     const events = body.events || [body];
 
     const results = [];
+    // An EMERGENCY alert that never reached Telegram must not ride out on a
+    // 200. Tracked here rather than thrown, because the per-event isolation
+    // catch below would swallow a throw and still return the batch.
+    let emergencyUndelivered = false;
 
     for (const event of events) {
       // forensic-audit MEDIUM · default data + per-event isolation. A missing
@@ -92,7 +112,7 @@ export async function POST(req: Request) {
           const problem = data.problem || data.service || "";
           const value = data.estimatedValue ? `$${data.estimatedValue}` : "";
 
-          await notifyOrLog(
+          const delivered = await notifyOrLog(
             () => sendTelegram(
               `🔴 <b>NEW LEAD — ${name}</b>\n\n` +
               `📞 ${phone}\n` +
@@ -104,12 +124,12 @@ export async function POST(req: Request) {
             { eventType: type, isEmergency: false },
           );
 
-          results.push({ type, action: "telegram_alert", status: "sent" });
+          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
           break;
         }
 
         case "nickstire:callback": {
-          await notifyOrLog(
+          const delivered = await notifyOrLog(
             () => sendTelegram(
               `📞 <b>CALLBACK REQUEST</b>\n\n` +
               `${data.name || "Customer"} — ${data.phone || "no phone"}\n` +
@@ -118,15 +138,15 @@ export async function POST(req: Request) {
             ),
             { eventType: type, isEmergency: false },
           );
-          results.push({ type, action: "telegram_alert", status: "sent" });
+          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
           break;
         }
 
         case "nickstire:emergency": {
-          // EMERGENCY events MUST surface · notifyOrLog re-throws on
-          // emergency, which sends the webhook to the catch below and
-          // returns 500 so nickstire retries.
-          await notifyOrLog(
+          // EMERGENCY events MUST surface · an undelivered one flips
+          // emergencyUndelivered, and the route answers non-2xx so
+          // nickstire's retry logic actually kicks in.
+          const delivered = await notifyOrLog(
             () => sendTelegram(
               `🚨 <b>EMERGENCY REQUEST</b>\n\n` +
               `${data.name || "Customer"} — ${data.phone || "no phone"}\n` +
@@ -135,14 +155,15 @@ export async function POST(req: Request) {
             ),
             { eventType: type, isEmergency: true },
           );
-          results.push({ type, action: "telegram_alert", status: "sent" });
+          if (!delivered) emergencyUndelivered = true;
+          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
           break;
         }
 
         case "nickstire:booking:complete":
         case "nickstire:invoice": {
           const amount = data.totalCents ? (data.totalCents / 100) : data.total || 0;
-          await notifyOrLog(
+          const delivered = await notifyOrLog(
             () => sendTelegram(
               `✅ <b>JOB COMPLETE — $${amount.toFixed(0)}</b>\n\n` +
               `${data.customerName || ""} — ${data.vehicle || ""}\n` +
@@ -150,14 +171,14 @@ export async function POST(req: Request) {
             ),
             { eventType: type, isEmergency: false },
           );
-          results.push({ type, action: "telegram_alert", status: "sent" });
+          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
           break;
         }
 
         case "nickstire:review": {
           const stars = data.rating || data.stars || 0;
           const emoji = stars >= 4 ? "⭐" : stars >= 3 ? "😐" : "⚠️";
-          await notifyOrLog(
+          const delivered = await notifyOrLog(
             () => sendTelegram(
               `${emoji} <b>NEW REVIEW — ${stars}/5</b>\n\n` +
               `${data.customerName || "Customer"}\n` +
@@ -166,7 +187,7 @@ export async function POST(req: Request) {
             ),
             { eventType: type, isEmergency: false },
           );
-          results.push({ type, action: "telegram_alert", status: "sent" });
+          results.push({ type, action: "telegram_alert", status: delivered ? "sent" : "undelivered" });
           break;
         }
 
@@ -201,6 +222,15 @@ export async function POST(req: Request) {
         });
         results.push({ type, action: "error", status: "failed" });
       }
+    }
+
+    if (emergencyUndelivered) {
+      // Non-2xx so nickstire retries — the alert did not reach a human.
+      log.error("emergency_alert_undelivered", { received: events.length });
+      return NextResponse.json(
+        { received: events.length, results, error: "emergency_alert_undelivered" },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({ received: events.length, results });

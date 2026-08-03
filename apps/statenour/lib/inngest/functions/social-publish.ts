@@ -314,6 +314,22 @@ export const socialPublishQueue = inngest.createFunction(
       }
     });
 
-    return { ok: true, publishResults };
+    // `ok` is derived from the OUTCOME, not from having reached the end.
+    // Returning a hardcoded true recorded an all-platforms-failed run as a
+    // green Inngest run, so the only trace was `publish_failed_*` audit rows
+    // that nothing gates on — while the row itself was correctly set to
+    // "rejected" 40 lines above.
+    const allSucceeded =
+      publishResults.length > 0 && publishResults.every((r) => r.ok);
+    if (!allSucceeded) {
+      log.error("social_publish_failed", {
+        draftId,
+        failures: publishResults
+          .filter((r) => !r.ok)
+          .map((r) => ({ platform: r.platform, error: r.error })),
+      });
+    }
+
+    return { ok: allSucceeded, publishResults };
   }
 );

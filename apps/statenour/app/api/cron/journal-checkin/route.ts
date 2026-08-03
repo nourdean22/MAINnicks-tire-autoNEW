@@ -131,8 +131,14 @@ export const GET = cronHandler(async (req) => {
   await prisma.auditEvent.create({
     data: {
       actor: "journal_checkin",
-      eventType: "journal_prompt_sent",
-      detail: `${slot} check-in sent via Telegram`,
+      // `sent` was already captured and carried in the payload, but the
+      // eventType and detail asserted delivery unconditionally — so
+      // /system/events rendered "sent via Telegram" for prompts that never
+      // arrived.
+      eventType: sent ? "journal_prompt_sent" : "journal_prompt_undelivered",
+      detail: sent
+        ? `${slot} check-in sent via Telegram`
+        : `${slot} check-in NOT delivered (Telegram send failed or unconfigured)`,
       payload: { slot, sent, openLoops: openLoops.length, todayDumps, unresolvedAlerts },
     },
   }).catch(() => {});

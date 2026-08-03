@@ -211,6 +211,13 @@ export interface PublishSocialInput {
   caption?: string;
   message?: string;
   linkUrl?: string;
+  /**
+   * Existing socialPublishQueue row to publish. Callers that ALREADY hold a
+   * queue row (the /api/sync/queue publish action) must pass it — creating a
+   * second row here left the caller's row permanently unclaimed while the
+   * worker finalized the duplicate.
+   */
+  draftId?: string;
 }
 
 export interface PublishSocialResult {
@@ -218,6 +225,12 @@ export interface PublishSocialResult {
   succeeded: number;
   failed: number;
   results: PublishResult[];
+  /**
+   * The post was HANDED to the durable worker, not published yet. Nothing has
+   * contacted Meta, so `succeeded`/`failed` are both 0 — an outcome nobody has
+   * observed. Callers must say "queued", never "published".
+   */
+  queued?: boolean;
 }
 
 /**
@@ -261,22 +274,36 @@ export async function publishSocialPost(
     const { getInngest } = await import("@/lib/inngest/client");
     const inngest = getInngest();
 
-    // Create database entry first in rendering/pending state
-    const row = await prisma.socialPublishQueue.create({
-      data: {
-        content: input.caption || input.message || "",
-        status: "rendering",
-        imageUrl: absoluteImageUrl || null,
-        platforms,
-        kind: absoluteVideoUrl ? "reel" : "post",
-        source: "manual",
-      },
-    });
+    // The row is created CLAIMABLE, never in "rendering".
+    //
+    // "rendering" is the durable worker's own in-flight marker: it claims with
+    // a compare-and-set over status IN (pending, approved, scheduled) and skips
+    // anything else (#658 added that guard for idempotency but left this
+    // producer writing "rendering"). A row born in "rendering" therefore never
+    // matched the claim — the worker logged `already_claimed_or_completed` and
+    // returned, nothing published, and this function still reported ok:true.
+    //
+    // Reuse the caller's row when it has one, so the queue keeps exactly one
+    // row per publish and the operator's row is the one that gets finalized.
+    const draftId =
+      input.draftId ??
+      (
+        await prisma.socialPublishQueue.create({
+          data: {
+            content: input.caption || input.message || "",
+            status: "pending",
+            imageUrl: absoluteImageUrl || null,
+            platforms,
+            kind: absoluteVideoUrl ? "reel" : "post",
+            source: "manual",
+          },
+        })
+      ).id;
 
     await inngest.send({
       name: "social/publish",
       data: {
-        draftId: row.id,
+        draftId,
         platforms,
         imageUrl: absoluteImageUrl,
         videoUrl: absoluteVideoUrl,
@@ -286,16 +313,17 @@ export async function publishSocialPost(
       },
     });
 
+    // Nothing has contacted Meta yet — the worker will. Reporting
+    // `succeeded: platforms.length` here derived the count from the INPUT
+    // array, so `failed` was structurally incapable of being non-zero and the
+    // UI announced "Published to 1 channel" for a post that had not been
+    // attempted. `queued` is the honest answer; the outcome lands on the row.
     return {
       ok: true,
-      succeeded: platforms.length,
+      queued: true,
+      succeeded: 0,
       failed: 0,
-      results: platforms.map((p) => ({
-        ok: true,
-        platform: p,
-        postId: row.id,
-        permalink: undefined,
-      })),
+      results: [],
     };
   }
 
@@ -360,6 +388,82 @@ export async function publishSocialPost(
   const failed = results.length - succeeded;
 
   return { ok: failed === 0, succeeded, failed, results };
+}
+
+// ──────────────── publish an EXISTING queue row ────────────────
+
+/**
+ * Statuses the durable `social/publish` worker will claim — read its
+ * compare-and-set in lib/inngest/functions/social-publish.ts. A row in any
+ * other status is skipped by the worker, so dispatching one is a guaranteed
+ * no-op that would still look successful to the caller.
+ */
+export const CLAIMABLE_STATUSES = ["pending", "approved", "scheduled"] as const;
+
+/** Why a queued row cannot be dispatched · callers map these onto their own transport error. */
+export type PublishDispatchRefusal = "not_found" | "unclaimable" | "no_platforms";
+
+export class PublishDispatchError extends Error {
+  reason: PublishDispatchRefusal;
+  constructor(reason: PublishDispatchRefusal, message: string) {
+    super(message);
+    this.name = "PublishDispatchError";
+    this.reason = reason;
+  }
+}
+
+/**
+ * Hand an EXISTING socialPublishQueue row to the durable publish worker.
+ *
+ * This function deliberately writes NO status. `rendering` is the worker's
+ * in-flight marker and `published`/`rejected` are its verdicts; a caller that
+ * writes either is claiming to know an outcome nobody has observed.
+ *
+ * Both the sync REST route and the operator tRPC procedure previously carried
+ * byte-identical copies of this logic, and both stamped `status:"published"`
+ * up front — which also moved the row OUT of CLAIMABLE_STATUSES, so the
+ * operator's row could never be claimed while a duplicate row created inside
+ * publishSocialPost was finalized in its place. One implementation now, so the
+ * two surfaces cannot drift from the worker independently again.
+ */
+export async function dispatchQueuedPublish(
+  id: string,
+  requestHost: string | undefined,
+) {
+  const item = await prisma.socialPublishQueue.findUnique({ where: { id } });
+  if (!item || item.deletedAt) {
+    throw new PublishDispatchError("not_found", "Queue item not found.");
+  }
+
+  if (!CLAIMABLE_STATUSES.includes(item.status as (typeof CLAIMABLE_STATUSES)[number])) {
+    throw new PublishDispatchError(
+      "unclaimable",
+      `Queue item is "${item.status}"; only ${CLAIMABLE_STATUSES.join(", ")} can be published.`,
+    );
+  }
+
+  const platforms = (["instagram", "facebook"] as const).filter((p) =>
+    item.platforms.includes(p),
+  );
+  if (platforms.length === 0) {
+    throw new PublishDispatchError(
+      "no_platforms",
+      "Queue item has no publishable platform (instagram or facebook).",
+    );
+  }
+
+  await publishSocialPost(
+    {
+      draftId: item.id,
+      platforms: [...platforms],
+      imageUrl: item.kind !== "reel" ? item.imageUrl || undefined : undefined,
+      videoUrl: item.kind === "reel" ? item.imageUrl || undefined : undefined,
+      caption: item.content,
+    },
+    requestHost,
+  );
+
+  return item;
 }
 
 // ──────────────── POST /api/social/schedule ────────────────
