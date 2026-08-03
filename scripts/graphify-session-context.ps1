@@ -1,12 +1,19 @@
 <#
   Emits a compact code-graph briefing at Claude Code session start.
 
-  Pulls three sections out of graphify-out/GRAPH_REPORT.md (the one graphify
-  artifact that is committed - see .gitignore's "!graphify-out/GRAPH_REPORT.md")
-  and prints them with a staleness verdict.
+  Reads graphify-out/GRAPH_REPORT.md - preferring the PRIMARY checkout's copy
+  over the local one, newest mtime wins - and prints it with a staleness verdict.
+
+  Why reach across to the primary: GRAPH_REPORT.md is the single graphify
+  artifact git tracks (see .gitignore's "!graphify-out/GRAPH_REPORT.md"), so a
+  worktree checks out whatever was last COMMITTED, while the scheduled rebuild
+  only ever refreshes the primary checkout's WORKING copy. Reading across is
+  what keeps every session on the newest graph without a commit step at all.
+  Measured 2026-08-03: the committed copy was 87 commits behind HEAD, the
+  primary's live copy 14.
 
   Sections are located by HEADING, never by line number: the report is
-  regenerated daily and the community nav list above these sections grows with
+  regenerated weekly and the community nav list above these sections grows with
   the community count, so fixed offsets silently drift onto the wrong content.
 
   "Surprising Connections" is deliberately excluded - it is the INFERRED tier
@@ -20,13 +27,51 @@
 $ErrorActionPreference = 'Stop'
 
 # How many commits behind HEAD before the graph is called stale. The graph is
-# rebuilt by a daily scheduled task, so a handful of commits behind is normal;
-# raise this if you commit in bursts and find the warning noisy.
+# rebuilt by the weekly "NOURCITY-Graphify-Sync" scheduled task, so a run of
+# commits behind is normal; raise this if you merge in bursts and find the
+# warning noisy.
 $StaleCommitThreshold = 25
 
 try {
     $repo = Split-Path -Parent $PSScriptRoot
+
+    # Native git writes progress/errors to stderr, and under EAP=Stop those become
+    # thrown exceptions - which would hit the outer catch and kill the whole
+    # briefing on the exact failure this staleness check exists to report. Run git
+    # with errors suppressed and branch on $LASTEXITCODE instead.
+    #
+    # The catch is NOT redundant with EAP=SilentlyContinue: a missing git raises
+    # CommandNotFoundException at command-RESOLUTION time, which is terminating no
+    # matter what EAP says, so it unwinds straight past the preference to the outer
+    # catch. Verified by running with git off PATH - without this, the node/edge
+    # counts (which need no git at all) were lost to "briefing unavailable".
+    function Invoke-Git {
+        param([string[]]$GitArgs)
+        $prev = $ErrorActionPreference
+        $ErrorActionPreference = 'SilentlyContinue'
+        try { $out = (& git @GitArgs 2>$null | Out-String).Trim(); return @{ Ok = ($LASTEXITCODE -eq 0); Out = $out } }
+        catch { return @{ Ok = $false; Out = '' } }
+        finally { $ErrorActionPreference = $prev }
+    }
+
+    # Prefer the primary checkout's copy - see the header for why. --git-common-dir
+    # resolves to the ONE .git shared by every worktree, so its parent is the primary
+    # root from wherever this runs; --path-format=absolute (git 2.31+) stops it
+    # returning a bare relative ".git" when run in the primary itself. Newest mtime
+    # wins, so a rebuild run inside a worktree still beats a staler primary. Any
+    # failure here simply leaves the local copy selected.
     $report = Join-Path $repo 'graphify-out\GRAPH_REPORT.md'
+    $via = ''
+    $common = Invoke-Git @('-C', $repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')
+    if ($common.Ok -and $common.Out) {
+        $primaryReport = Join-Path (Split-Path -Parent $common.Out) 'graphify-out\GRAPH_REPORT.md'
+        if ((Test-Path $primaryReport) -and (
+                -not (Test-Path $report) -or
+                (Get-Item $primaryReport).LastWriteTime -gt (Get-Item $report).LastWriteTime)) {
+            $report = $primaryReport
+            $via = ' [via primary checkout]'
+        }
+    }
     if (-not (Test-Path $report)) { exit 0 }
 
     # The report is UTF-8 and full of middots. Windows PowerShell 5.1 defaults to
@@ -60,18 +105,6 @@ try {
     # Both stay one grep away; see the drill-down line below.
     $summary = Get-Section -Lines $lines -StartsWith '## Summary' -MaxLines 8
 
-    # Native git writes progress/errors to stderr, and under EAP=Stop those become
-    # thrown exceptions - which would hit the outer catch and silently kill the whole
-    # briefing on the exact failure this staleness check exists to report. Run git
-    # with errors suppressed and branch on $LASTEXITCODE instead.
-    function Invoke-Git {
-        param([string[]]$GitArgs)
-        $prev = $ErrorActionPreference
-        $ErrorActionPreference = 'SilentlyContinue'
-        try { $out = (& git @GitArgs 2>$null | Out-String).Trim(); return @{ Ok = ($LASTEXITCODE -eq 0); Out = $out } }
-        finally { $ErrorActionPreference = $prev }
-    }
-
     # Staleness: the report records the commit it was built from.
     $builtFrom = $null
     foreach ($l in $lines) {
@@ -80,6 +113,9 @@ try {
 
     $verdict = 'graph freshness: unknown (no build commit in report)'
     if ($builtFrom) {
+        # Distinct from the no-build-commit case above: we know what it was built
+        # from, git just could not tell us how far HEAD has moved since.
+        $verdict = "graph freshness: unknown (built from $builtFrom; git unavailable to compare)"
         $head = Invoke-Git @('-C', $repo, 'rev-parse', 'HEAD')
         if ($head.Ok -and $head.Out) {
             if ($head.Out.StartsWith($builtFrom)) {
@@ -100,9 +136,16 @@ try {
     }
 
     Write-Output '=== CODE GRAPH (graphify) ==='
-    Write-Output $verdict
+    Write-Output ($verdict + $via)
     if ($summary) { $summary | Where-Object { $_ -match '^- ' } | Select-Object -First 1 | Write-Output }
-    Write-Output 'Query: grep a symbol in graphify-out/GRAPH_REPORT.md to find its community + neighbours (638 KB - never read whole). Sections: God Nodes, Import Cycles, Communities.'
+    # Point grep at the file this briefing actually DESCRIBES. When the primary's
+    # copy won, a worktree's own graphify-out/GRAPH_REPORT.md is the stale committed
+    # one - naming the relative path there would send every lookup to a different
+    # graph than the numbers above. Size is read live; it was hardcoded at 638 KB
+    # and had already drifted.
+    $kb = [int]((Get-Item $report).Length / 1KB)
+    $grepTarget = if ($via) { $report } else { 'graphify-out/GRAPH_REPORT.md' }
+    Write-Output "Query: grep a symbol in $grepTarget to find its community + neighbours ($kb KB - never read whole). Sections: God Nodes, Import Cycles, Communities."
     Write-Output 'Per-community digests (~3 KB each) in the Obsidian vault under "NOURCITY Codebase Graph/".'
     Write-Output 'Caveat: markdown headings are graph nodes too, so degree ranks mix doc sections with code symbols. Community IDs are unseeded and reshuffle between runs - do not cite a community number across sessions.'
 }
