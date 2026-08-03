@@ -79,10 +79,29 @@ const SNAPSHOT_DIR = path.join(__dirname, "chat-states.spec.ts-snapshots");
 
 function requireBaseline(name: string): void {
   const file = `${name}-chromium-${process.platform}.png`;
+  if (existsSync(path.join(SNAPSHOT_DIR, file))) return;
+
+  // NEVER block generation. Under `--update-snapshots` Playwright is here
+  // precisely to CREATE the missing baseline, and skipping first would be a
+  // catch-22: the only way to produce a platform's first baseline is to run
+  // the case, so a guard that skips it makes that baseline impossible and
+  // leaves CI skipped forever instead of eventually enforcing. Caught in
+  // review on PR #1314 — the first draft skipped unconditionally.
+  //
+  // Only the EXPLICIT update modes bypass. Measured with a probe rather
+  // than assumed: the default is "missing" (not "none"), and
+  // `--update-snapshots` yields "changed". A `!== "none"` test therefore
+  // never skips at all — which is exactly the default-mode behaviour that
+  // made CI fail in the first place, since "missing" writes the actual and
+  // still fails the run on an ephemeral runner.
+  const updating = test.info().config.updateSnapshots;
+  if (updating === "all" || updating === "changed") return;
+
   test.skip(
-    !existsSync(path.join(SNAPSHOT_DIR, file)),
+    true,
     `no committed baseline "${file}" for platform "${process.platform}" — ` +
-      `regenerate on this OS (see header) and commit it; the case runs automatically once it exists`,
+      `generate with \`pnpm exec playwright test chat-states --update-snapshots --workers=1\` ` +
+      `on this OS and commit it; the case runs automatically once it exists`,
   );
 }
 
