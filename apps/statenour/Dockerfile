@@ -18,7 +18,15 @@
 # the Railway side, NOT editing this comment.
 
 # ── 0 · prune ──────────────────────────────────────────────────────────
-FROM node:24-alpine AS pruner
+# ALPINE PINNED DELIBERATELY — do not relax to bare `node:24-alpine`.
+# The runtime stage installs python3 from the alpine repos for the vendored
+# MoneyPrinter tool, so the ALPINE release decides the PYTHON version:
+#   alpine 3.23 -> python 3.12.13   (litellm requires >=3.10,<3.14)  OK
+#   alpine 3.24 -> python 3.14.5    -> "No matching distribution found for
+#                                       litellm==1.86.2" and the build dies.
+# `node:24-alpine` floats to the newest alpine, which is how the Node 20->24
+# bump broke a PYTHON dependency and failed the statenour deploy (2026-08-03).
+FROM node:24-alpine3.23 AS pruner
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 RUN npm install -g turbo@2.9.14
@@ -26,7 +34,7 @@ COPY . .
 RUN turbo prune @statenour/web --docker
 
 # ── 1 · deps ───────────────────────────────────────────────────────────
-FROM node:24-alpine AS deps
+FROM node:24-alpine3.23 AS deps
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /repo
@@ -49,7 +57,7 @@ COPY apps/statenour/prisma/schema.prisma ./apps/statenour/prisma/schema.prisma
 RUN pnpm install --frozen-lockfile --filter @statenour/web...
 
 # ── 2 · build ──────────────────────────────────────────────────────────
-FROM node:24-alpine AS build
+FROM node:24-alpine3.23 AS build
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /repo
@@ -78,7 +86,7 @@ WORKDIR /repo/apps/statenour
 RUN pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
-FROM node:24-alpine AS runtime
+FROM node:24-alpine3.23 AS runtime
 RUN apk add --no-cache libc6-compat python3 ca-certificates ffmpeg imagemagick py3-pip py3-wheel \
  && pip install --no-cache-dir --break-system-packages \
       moviepy==2.2.1 \
