@@ -39,10 +39,20 @@ its previous state with no error recorded.
 
 `reel_jobs.status` is **`varchar(20)`** ([drizzle/schema.ts:3249](../../../apps/nickstire/drizzle/schema.ts)) —
 the narrowest status column in the schema, and an outlier against the
-`varchar(32)` convention. Current values top out at `assets_ready` (12), so
-there are 8 characters of headroom. A longer status added here throws inside
-the reel failure handler. Widen the column in the same migration that adds the
-value.
+`varchar(32)` convention.
+
+**Do not size against the column's own doc comment.** It lists eight values
+topping out at `assets_ready` (12), which suggests 8 characters of headroom.
+The code writes values the comment omits — `publish_ambiguous` (17) is set at
+`server/cron/jobs/dailyReelPost.ts:381`, alongside `assembled`, `needs_review`
+and `review_ready`. **Real headroom is 3 characters.**
+
+Nothing currently written exceeds the limit (verified 2026-08-03: the longest
+status reaching any column is 17 chars). But `publish_ambiguous` is itself a
+failure path, so the margin is thinnest exactly where a rejected write costs
+the most — the job is parked with no state recorded. Enumerate the values the
+**code** writes, not the ones the comment lists, and widen the column in the
+same migration that adds a longer one.
 
 ## DDL that TiDB accepts
 
