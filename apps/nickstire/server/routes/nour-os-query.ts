@@ -1451,6 +1451,12 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return {
       livePostingEnabled,
       latestLogs,
+      // ADDITIVE. `latestLogs` is [] both when the lane genuinely had no runs
+      // and when the database could not be read, so a reader cannot tell an
+      // idle lane from an outage. Consumers that ignore this field keep their
+      // existing behaviour; /ig today uses it to say UNKNOWN instead of
+      // rendering a calm empty lane.
+      dbReadable: !!db,
     };
   },
 
