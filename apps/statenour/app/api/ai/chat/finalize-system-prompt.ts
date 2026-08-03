@@ -29,6 +29,7 @@
 import { prisma } from "@/lib/prisma";
 import { getFlag } from "@/lib/feature-flags";
 import { trimPromptToBudget } from "@/lib/ai/system-prompt";
+import { TOOL_DATA_FENCING_RULE } from "@/lib/ai/tool-result-fencing";
 import { toolFirstDirective } from "@/lib/ai/query-shape";
 import {
   buildChainOfThoughtPrompt,
@@ -392,6 +393,20 @@ Speak as Nour's operator. Direct, specific, grounded in his data.`;
     systemPrompt +=
       "\n\n# ACTION LANGUAGE CONTRACT\nWhen this response includes an action block, describe it in ATTEMPT tense - 'Sending...', 'Kicking off...', 'Queued...' - never completion tense ('Sent', 'Done', 'Created'). Actions execute AFTER this message streams; a separate receipt-confirmed follow-up message reports the real outcome. Claiming completion in this message would be unverifiable.";
   }
+
+  // 2026-08-03 · fenceContent() has wrapped untrusted tool output in
+  // <tool_data source="..."> fences across 7 production modules since it
+  // shipped — but the addendum that TEACHES the model those fences are
+  // inert data had zero production importers. Definition plus its own
+  // test, nothing else. So every fenced result reached the model as a
+  // wrapper it was never told how to read: the detection half of the
+  // injection control shipped, the instruction half did not.
+  //
+  // Appended HERE, after trimPromptToBudget above, deliberately. Inside
+  // the budget this ~1.4KB rule is trimmable, and a defense that
+  // silently disappears on long conversations is worse than none —
+  // it would be exactly how this became unwired the first time.
+  systemPrompt += `\n\n${TOOL_DATA_FENCING_RULE}`;
 
   return { systemPrompt, greeneSummary, strategicLawCount: strategicLaws.length };
 }

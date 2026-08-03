@@ -1,0 +1,1828 @@
+[
+  {
+    "name": "add_tasks_to_project",
+    "camelName": "addTasksToProject",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "cd2ee91e6c5b0733",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_competitive_intel",
+    "camelName": "analyzeCompetitiveIntel",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "7593957c1309a1a0",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_composure",
+    "camelName": "analyzeComposure",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "c755413eb8520b4b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_fitness",
+    "camelName": "analyzeFitness",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "887b96661c403e6d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_goals",
+    "camelName": "analyzeGoals",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b23e84a8a05a6f0b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_image",
+    "camelName": "analyzeImage",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "8504364b7b774dfe",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_mental_health",
+    "camelName": "analyzeMentalHealth",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9bf32d2fe1dd4a53",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_power_dynamics",
+    "camelName": "analyzePowerDynamics",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "6c8f6f4c03035100",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_sentiment",
+    "camelName": "analyzeSentiment",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "d3a537cc9f151463",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_sleep",
+    "camelName": "analyzeSleep",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "dd3ab0e7fa40204d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_trends",
+    "camelName": "analyzeTrends",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "ea54ed40e262c2fb",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_week",
+    "camelName": "analyzeWeek",
+    "category": "routines",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "a3a387d5cb78fa43",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_weight_trend",
+    "camelName": "analyzeWeightTrend",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b3210ce0ecee795a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "analyze_work_health",
+    "camelName": "analyzeWorkHealth",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "007aaae85ba1ed96",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "archive_goal",
+    "camelName": "archiveGoal",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0d634266b98658e2",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_board_consult",
+    "camelName": "arsenalBoardConsult",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0f035c82a9d7ea8c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_deep_research",
+    "camelName": "arsenalDeepResearch",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "96a0b2da5f15453e",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_find_leads",
+    "camelName": "arsenalFindLeads",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5f0ecf2ba3eed0ae",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_gmail_inbox",
+    "camelName": "arsenalGmailInbox",
+    "category": "comms",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "049ba2726b44bd34",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_gmail_read_thread",
+    "camelName": "arsenalGmailReadThread",
+    "category": "comms",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "baa0ebda7718b785",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_multi_agent",
+    "camelName": "arsenalMultiAgent",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "92125de7a1860efd",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_notebook_l_m",
+    "camelName": "arsenalNotebookLM",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "a38a18f7dae0d182",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_pre_task_fanout",
+    "camelName": "arsenalPreTaskFanout",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0219a272cdeebaea",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_research",
+    "camelName": "arsenalResearch",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "c025bbce410dce70",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "arsenal_web_search",
+    "camelName": "arsenalWebSearch",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "678a6d0e162fa11c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "browse_and_do",
+    "camelName": "browseAndDo",
+    "category": "browser",
+    "riskClass": "high",
+    "sideEffecting": true,
+    "requiredEnv": [
+      "BROWSERBASE_API_KEY",
+      "BROWSERBASE_PROJECT_ID"
+    ],
+    "descriptionSha256": "dd7e596c8bff7d31",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "browser_act",
+    "camelName": "browser_act",
+    "category": "browser",
+    "riskClass": "high",
+    "sideEffecting": true,
+    "requiredEnv": [
+      "BROWSERBASE_API_KEY",
+      "BROWSERBASE_PROJECT_ID"
+    ],
+    "descriptionSha256": "fb4e5896b5ef2184",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "browser_do",
+    "camelName": "browser_do",
+    "category": "browser",
+    "riskClass": "high",
+    "sideEffecting": true,
+    "requiredEnv": [
+      "BROWSERBASE_API_KEY",
+      "BROWSERBASE_PROJECT_ID"
+    ],
+    "descriptionSha256": "882f948e3b4f9a19",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "browser_extract",
+    "camelName": "browser_extract",
+    "category": "browser",
+    "riskClass": "high",
+    "sideEffecting": true,
+    "requiredEnv": [
+      "BROWSERBASE_API_KEY",
+      "BROWSERBASE_PROJECT_ID"
+    ],
+    "descriptionSha256": "d7d36065fc1ed982",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "browser_navigate",
+    "camelName": "browser_navigate",
+    "category": "browser",
+    "riskClass": "high",
+    "sideEffecting": true,
+    "requiredEnv": [
+      "BROWSERBASE_API_KEY",
+      "BROWSERBASE_PROJECT_ID"
+    ],
+    "descriptionSha256": "42007d8426ccba90",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "browser_observe",
+    "camelName": "browser_observe",
+    "category": "browser",
+    "riskClass": "high",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "BROWSERBASE_API_KEY",
+      "BROWSERBASE_PROJECT_ID"
+    ],
+    "descriptionSha256": "7da03127842c7df6",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "build_architecture_memory",
+    "camelName": "buildArchitectureMemory",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "44795d0423a6bca2",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "capture_skill_from_source",
+    "camelName": "captureSkillFromSource",
+    "category": "personal_write",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "c48bc8dc65612009",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "check_anti_pattern",
+    "camelName": "checkAntiPattern",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "788c801dae706091",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "check_commitments",
+    "camelName": "checkCommitments",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "8aacad1225d4eede",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "classify_thought",
+    "camelName": "classifyThought",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "6e23e913cf2ff46c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "clear_mit",
+    "camelName": "clearMit",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "e668730ad2b0e246",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "compare_competitors",
+    "camelName": "compareCompetitors",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "3878e7eac9c2dd2f",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "compare_live_revenue",
+    "camelName": "compareLiveRevenue",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9e393190626e5039",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "complete_commitment",
+    "camelName": "completeCommitment",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "cbcfc3cea5048c9a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "complete_task",
+    "camelName": "completeTask",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "84b17a65245c673d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "compose_email",
+    "camelName": "composeEmail",
+    "category": "comms",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f4bc2cfe439d9f0c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "create_commitment",
+    "camelName": "createCommitment",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "975ed746cb026f02",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "create_mission_plan",
+    "camelName": "createMissionPlan",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "4202c675526242fc",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "create_quick_quote",
+    "camelName": "createQuickQuote",
+    "category": "business_write",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "24a1110392a3c0a0",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "create_task",
+    "camelName": "createTask",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "4b2fab3141725705",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "daily_pulse",
+    "camelName": "dailyPulse",
+    "category": "routines",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b2ddc11209868606",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "decision_pre_flight",
+    "camelName": "decisionPreFlight",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f2a5b4b2daf1ff2d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "draft_opportunity_sms",
+    "camelName": "draftOpportunitySms",
+    "category": "live_shop",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "8bc519d8848a8e4b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "end_of_day",
+    "camelName": "endOfDay",
+    "category": "routines",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "3c3dbbdc44ec868d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "extract_data",
+    "camelName": "extractData",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9af6309d74fd07b4",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "fetch_video_transcript",
+    "camelName": "fetchVideoTranscript",
+    "category": "research",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5765e45c137fc932",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "find_customer",
+    "camelName": "findCustomer",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "caecf80338e777e7",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "find_related_conversations",
+    "camelName": "findRelatedConversations",
+    "category": "brain",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "efeb9ee4cf6c5c83",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "generate_code",
+    "camelName": "generateCode",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f4e47a1a4b8b8ccb",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "generate_image",
+    "camelName": "generateImage",
+    "category": "content",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "aaa5167efc10bf4e",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "generate_s_q_l",
+    "camelName": "generateSQL",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0f54dcaeaa402ccc",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_attention_alerts",
+    "camelName": "getAttentionAlerts",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f76ad476babc60a1",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_blind_spots",
+    "camelName": "getBlindSpots",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "bdf79b029910f2f6",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_body_data",
+    "camelName": "getBodyData",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "71155420205d7e5b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_brain_health",
+    "camelName": "getBrainHealth",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "6a56e39f04415c62",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_camera_intelligence",
+    "camelName": "getCameraIntelligence",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "25a1cae24c4ed73a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_commitments",
+    "camelName": "getCommitments",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "cd589513c8c75fbe",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_contextual_greene_laws",
+    "camelName": "getContextualGreeneLaws",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b806af9fa6c1162b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_cron_status",
+    "camelName": "getCronStatus",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "3271aea04c823484",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_dark_psychology_tactics",
+    "camelName": "getDarkPsychologyTactics",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9becf3d7ccb98ed1",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_dashboard_summary",
+    "camelName": "getDashboardSummary",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "77821de448e55539",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_decision_replays",
+    "camelName": "getDecisionReplays",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "e5ead75bb90a4d50",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_decisions_due_for_replay",
+    "camelName": "getDecisionsDueForReplay",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "869c540ef3da3f6a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_drift_alerts",
+    "camelName": "getDriftAlerts",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "a447b9e9374bc6a9",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_emotional_state",
+    "camelName": "getEmotionalState",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "d09fe549236cce59",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_estimate_leaks",
+    "camelName": "getEstimateLeaks",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f4ac85ee11733528",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_financial_snapshot",
+    "camelName": "getFinancialSnapshot",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5f57a11635147c5e",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_fleet_truth",
+    "camelName": "getFleetTruth",
+    "category": "ai_analysis",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "522410a9cb9b2016",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_gsc_summary",
+    "camelName": "getGscSummary",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "a5fb42e0b832e77a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_gsc_top_queries",
+    "camelName": "getGscTopQueries",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f4d3fcb3165fa415",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_habit_revenue_correlation",
+    "camelName": "getHabitRevenueCorrelation",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "1dffcafd9000f0ed",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_habit_streaks",
+    "camelName": "getHabitStreaks",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "4160c9c6d45e5b3a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_health_today",
+    "camelName": "getHealthToday",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "282500842d48c83a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_instagram_autopost_status",
+    "camelName": "getInstagramAutopostStatus",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9c37e2f89d61d2ab",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_marketing_attribution",
+    "camelName": "getMarketingAttribution",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "52c8aea6465a434c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_mastery_scores",
+    "camelName": "getMasteryScores",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "ab4348857f4ca1dc",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_mission_detail",
+    "camelName": "getMissionDetail",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b770a7df7ee2fc06",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_mission_retros",
+    "camelName": "getMissionRetros",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f216be884d9f2d8b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_missions",
+    "camelName": "getMissions",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "7507caaf8f6dd036",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_pending_revenue_moves",
+    "camelName": "getPendingRevenueMoves",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5b27d6e1b6e96218",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_power_balance_summary",
+    "camelName": "getPowerBalanceSummary",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5b647d137e1aa428",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_projections",
+    "camelName": "getProjections",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "1ae1ea2145ac18cb",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_recent_reflections",
+    "camelName": "getRecentReflections",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "33a1113d27805c46",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_repo_map",
+    "camelName": "getRepoMap",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "85ff3964d909e2fd",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_revenue_stats",
+    "camelName": "getRevenueStats",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "ce63695d302d2163",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_review_stats",
+    "camelName": "getReviewStats",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "99aa4b99c7070ebd",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_shop_snapshot",
+    "camelName": "getShopSnapshot",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b921ca1a46d99f9e",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_skill_protocol",
+    "camelName": "getSkillProtocol",
+    "category": "brain",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "6ce5283a1a1824ba",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_sleep_trend",
+    "camelName": "getSleepTrend",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "66cea3b8fe0e67a7",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_tasks",
+    "camelName": "getTasks",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "622612d07164cfb0",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_today_schedule",
+    "camelName": "getTodaySchedule",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "085c2fed3b1d3deb",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_top_decisions",
+    "camelName": "getTopDecisions",
+    "category": "business_read",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "d2045371c1c3ae97",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_top_services",
+    "camelName": "getTopServices",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b9969070b112f980",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_weekly_targets",
+    "camelName": "getWeeklyTargets",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "4c141443023b6324",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_create_issue",
+    "camelName": "githubCreateIssue",
+    "category": "files",
+    "riskClass": "high",
+    "sideEffecting": true,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "3f70fd4563b4f8c3",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_create_p_r",
+    "camelName": "githubCreatePR",
+    "category": "files",
+    "riskClass": "high",
+    "sideEffecting": true,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "3d1e986c606d4ac4",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_list_files",
+    "camelName": "githubListFiles",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "de234251b8648ab6",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_list_repos",
+    "camelName": "githubListRepos",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "41ee911916a8288c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_read_file",
+    "camelName": "githubReadFile",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "b82d563637b62b6b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_read_multiple",
+    "camelName": "githubReadMultiple",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "0f4af6751f276a53",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_recent_commits",
+    "camelName": "githubRecentCommits",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "f2c3fa4877b88cbe",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "github_search_code",
+    "camelName": "githubSearchCode",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "GITHUB_TOKEN"
+    ],
+    "descriptionSha256": "1c3a4ab763246b38",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "ingest_document_from_url",
+    "camelName": "ingestDocumentFromUrl",
+    "category": "research",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "1fadf92f580b657c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "journal_decision",
+    "camelName": "journalDecision",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f5b7050cf6cb4c68",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "last30days",
+    "camelName": "last30days",
+    "category": "research",
+    "riskClass": "medium",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0ee60995b0227fbc",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "learn_coding_preference",
+    "camelName": "learnCodingPreference",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "de564c68b2a3a4b9",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "list_recent_drive_files",
+    "camelName": "listRecentDriveFiles",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "AUTH_GOOGLE_CLIENT_ID",
+      "AUTH_GOOGLE_CLIENT_SECRET"
+    ],
+    "descriptionSha256": "d63cd3ed345a90d9",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "list_tools",
+    "camelName": "listTools",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "bf7e6081074d83b9",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "log_goal_progress",
+    "camelName": "logGoalProgress",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "573060e205e97e2c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "log_situation",
+    "camelName": "logSituation",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9f7986f847acbc16",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "mark_commitment_broken",
+    "camelName": "markCommitmentBroken",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "38ab6da77158b9a4",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "moneyprinter",
+    "camelName": "moneyprinter",
+    "category": "research",
+    "riskClass": "medium",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "579edbd749af440e",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "pin_memory",
+    "camelName": "pinMemory",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "176fc2fe66a7a686",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "pricing_advisory_summary",
+    "camelName": "pricingAdvisorySummary",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "dd62570d71d79029",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "propose_calendar_event",
+    "camelName": "proposeCalendarEvent",
+    "category": "personal_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "ad594569a76f3f64",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "query_nickstire",
+    "camelName": "queryNickstire",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "1bf77015f9c3f3e0",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "queue_deep_research",
+    "camelName": "queueDeepResearch",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "633b1970d06ab4be",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "rank_next_actions",
+    "camelName": "rankNextActions",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "8513ae8cb0369231",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "read_drive_file",
+    "camelName": "readDriveFile",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "AUTH_GOOGLE_CLIENT_ID",
+      "AUTH_GOOGLE_CLIENT_SECRET"
+    ],
+    "descriptionSha256": "81c96d6685108f57",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "recall_from_session",
+    "camelName": "recallFromSession",
+    "category": "research",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "VIDEO_DB_API_KEY"
+    ],
+    "descriptionSha256": "dea3a626ea044cdf",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "recommend_next_move",
+    "camelName": "recommendNextMove",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9140972ca89f8b04",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "render_inline_chart",
+    "camelName": "renderInlineChart",
+    "category": "content",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "81626f282d2d8f8b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "resolve_alert",
+    "camelName": "resolveAlert",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "e0cb5bcb6420cb3b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "resolve_contradiction",
+    "camelName": "resolveContradiction",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "0fa81102921fc33d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "review_decision_replay",
+    "camelName": "reviewDecisionReplay",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "3552c9daf24d412d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "run_code",
+    "camelName": "runCode",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5108bdb643f7966d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "run_device_command",
+    "camelName": "runDeviceCommand",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "c56d803979344835",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "run_python",
+    "camelName": "runPython",
+    "category": "ai_analysis",
+    "riskClass": "critical",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "E2B_API_KEY"
+    ],
+    "descriptionSha256": "30cbc09f6712872e",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "run_simulation",
+    "camelName": "runSimulation",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "2f6ecb1700867f1f",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "schedule_follow_up",
+    "camelName": "scheduleFollowUp",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "da26914586d018b9",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "score_location",
+    "camelName": "scoreLocation",
+    "category": "business_read",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0dae9e703eb27f6c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "scrape_web_page",
+    "camelName": "scrapeWebPage",
+    "category": "research",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "FIRECRAWL_API_KEY"
+    ],
+    "descriptionSha256": "cdcb409b76de6622",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_build_your_own_x",
+    "camelName": "searchBuildYourOwnX",
+    "category": "research",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "72c8076dfd71bf00",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_cold_memory",
+    "camelName": "searchColdMemory",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "ab2178e1d9d4a650",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_conversations",
+    "camelName": "searchConversations",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "69ff967abd55b897",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_documents",
+    "camelName": "searchDocuments",
+    "category": "research",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "AUTH_GOOGLE_CLIENT_ID",
+      "AUTH_GOOGLE_CLIENT_SECRET"
+    ],
+    "descriptionSha256": "3f23f7420595de61",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_drive_files",
+    "camelName": "searchDriveFiles",
+    "category": "files",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "AUTH_GOOGLE_CLIENT_ID",
+      "AUTH_GOOGLE_CLIENT_SECRET"
+    ],
+    "descriptionSha256": "6c91b747c38022f7",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_greene_laws",
+    "camelName": "searchGreeneLaws",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "9456531cc967a8b1",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_memories",
+    "camelName": "searchMemories",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "295b86545e834ab4",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_reflections",
+    "camelName": "searchReflections",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "1aa56b13744c30d5",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_session_recordings",
+    "camelName": "searchSessionRecordings",
+    "category": "research",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [
+      "VIDEO_DB_API_KEY"
+    ],
+    "descriptionSha256": "9ad3042ba5c30237",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_skills",
+    "camelName": "searchSkills",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "ffd4b635dc57ef44",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_web_verified",
+    "camelName": "searchWebVerified",
+    "category": "research",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "7ecb4472a755361d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "send_opportunity_sms",
+    "camelName": "sendOpportunitySms",
+    "category": "comms",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "bcd7c384119fa649",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "send_telegram",
+    "camelName": "sendTelegram",
+    "category": "comms",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "8a8b934f322a5473",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "set_instagram_autopost_config",
+    "camelName": "setInstagramAutopostConfig",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "bb31f3f04c349f38",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "set_life_goal",
+    "camelName": "setLifeGoal",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "8228034f2969b92c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "set_mit",
+    "camelName": "setMit",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0c13499ef9b9ad92",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "set_o_k_rs",
+    "camelName": "setOKRs",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f9e7f251a61bd796",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "set_task_priority",
+    "camelName": "setTaskPriority",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "c3c12324adb936e8",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "set_weekly_targets",
+    "camelName": "setWeeklyTargets",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5035f50a66c303f1",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "snooze_task",
+    "camelName": "snoozeTask",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "de0fc6b852d7ed9d",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "solve_math",
+    "camelName": "solveMath",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "7ed8689cccfa783c",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "stage_customer_alert",
+    "camelName": "stageCustomerAlert",
+    "category": "comms",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "e70211a227cb64cb",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "suggest_m_i_t",
+    "camelName": "suggestMIT",
+    "category": "planning",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "a6c4cfb452917978",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "suggest_skills",
+    "camelName": "suggestSkills",
+    "category": "brain",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f285bcb3b4eb6965",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "summarize",
+    "camelName": "summarize",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "51b33e341c9a91d6",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "surface_anti_patterns",
+    "camelName": "surfaceAntiPatterns",
+    "category": "brain",
+    "riskClass": "low",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "5506948d633fc895",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "sync_calendar",
+    "camelName": "syncCalendar",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "74a5e67e7f009c44",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "sync_drive_memory",
+    "camelName": "syncDriveMemory",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "5069d8f6db63d493",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "sync_gmail",
+    "camelName": "syncGmail",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "096232027520732a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "sync_knowledge",
+    "camelName": "syncKnowledge",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "78a59301c7667116",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "tool_health",
+    "camelName": "toolHealth",
+    "category": "brain",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0dbd62ba05f52a9a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "triage_stale_lead",
+    "camelName": "triageStaleLead",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "0303c62cea7f6043",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "trigger_instagram_autopost",
+    "camelName": "triggerInstagramAutopost",
+    "category": "live_shop",
+    "riskClass": "(unset)",
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "bbfe42fdc2e7f18b",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "update_commitment",
+    "camelName": "updateCommitment",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "3bc91f50c25c2124",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "update_mastery_score",
+    "camelName": "updateMasteryScore",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "75ebb7e111081a8e",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "update_mission_status",
+    "camelName": "updateMissionStatus",
+    "category": "personal_write",
+    "riskClass": "medium",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "eddec7570746278a",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "update_task",
+    "camelName": "updateTask",
+    "category": "personal_write",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "b20af7045d16d6e5",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "weekly_review",
+    "camelName": "weeklyReview",
+    "category": "routines",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "e20aad40c46d4b97",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "write_creative",
+    "camelName": "writeCreative",
+    "category": "ai_analysis",
+    "riskClass": "(unset)",
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "bb1cf599fece3d75",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  }
+]
