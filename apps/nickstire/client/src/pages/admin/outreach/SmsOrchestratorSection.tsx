@@ -326,22 +326,28 @@ export default function SmsOrchestratorSection() {
                       </div>
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-border/20 justify-between">
                         <div className="flex gap-2">
+                          {/* disabled while in flight — this sends a real SMS to a
+                              real customer and the server has no repeat guard, so
+                              a double-tap on flaky signal sent the text twice. */}
                           <button
                             onClick={() => handleActionReview(item.id, currentEditVal === item.messageBody ? "send" : "edit_and_send")}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold hover:bg-emerald-500/20 transition-all rounded text-[10px]"
+                            disabled={actionHumanReviewMutation.isPending}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold hover:bg-emerald-500/20 transition-all rounded text-[10px] disabled:opacity-40 disabled:pointer-events-none"
                           >
-                            <Send className="w-3 h-3" /> APPROVE & SEND
+                            <Send className="w-3 h-3" /> {actionHumanReviewMutation.isPending ? "SENDING..." : "APPROVE & SEND"}
                           </button>
                           <button
                             onClick={() => handleActionReview(item.id, "bad_suggestion")}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 font-bold hover:bg-red-500/20 transition-all rounded text-[10px]"
+                            disabled={actionHumanReviewMutation.isPending}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 font-bold hover:bg-red-500/20 transition-all rounded text-[10px] disabled:opacity-40 disabled:pointer-events-none"
                           >
                             <X className="w-3 h-3" /> REJECT
                           </button>
                         </div>
                         <button
                           onClick={() => handleActionReview(item.id, "resolve")}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-foreground/5 border border-border/40 text-foreground/50 font-semibold hover:bg-foreground/10 transition-all rounded text-[10px]"
+                          disabled={actionHumanReviewMutation.isPending}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-foreground/5 border border-border/40 text-foreground/50 font-semibold hover:bg-foreground/10 transition-all rounded text-[10px] disabled:opacity-40 disabled:pointer-events-none"
                         >
                           DISMISS
                         </button>

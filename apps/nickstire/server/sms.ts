@@ -1487,6 +1487,53 @@ export async function isShopGatewayReachable(): Promise<boolean> {
   return value;
 }
 
+/**
+ * Refusal reasons that are deliberate policy decisions, not transport faults.
+ * These must be surfaced but never retried — retrying an opt-out cannot succeed
+ * and, for the opt-out case specifically, must not be attempted at all.
+ */
+const TERMINAL_SMS_FAILURES = [
+  "opted out",
+  "Cannot verify opt-out status",
+  "Invalid phone number",
+  "Daily SMS limit reached",
+  "Global daily SMS cap reached",
+  "human_takeover_active",
+  "not configured",
+] as const;
+
+export class SmsSendError extends Error {
+  /** Read by withRetry — a terminal failure stops the loop immediately. */
+  readonly terminal: boolean;
+  readonly result: SmsResult;
+
+  constructor(result: SmsResult) {
+    super(result.error ?? "SMS send failed");
+    this.name = "SmsSendError";
+    this.result = result;
+    const reason = result.error ?? "";
+    this.terminal = TERMINAL_SMS_FAILURES.some((t) => reason.includes(t));
+  }
+}
+
+/**
+ * sendSms RESOLVES on failure (`{ success: false }`) rather than throwing.
+ *
+ * That made every `withRetry(() => sendSms(...))` in this codebase a no-op and
+ * every `.catch()` attached to one unreachable — including the branches that
+ * call logIntegrationFailure(). The visible symptom: the after-hours emergency
+ * route returned "the owner has been notified" while no text was sent and no
+ * failure row was written anywhere.
+ *
+ * Use this wrapper wherever a caller wants retry or failure recording. Plain
+ * sendSms remains correct for callers that inspect `.success` themselves.
+ */
+export async function sendSmsOrThrow(to: string, body: string, opts?: SendSmsOptions): Promise<SmsResult> {
+  const result = await sendSms(to, body, opts);
+  if (!result.success) throw new SmsSendError(result);
+  return result;
+}
+
 export async function sendSms(to: string, body: string, opts?: SendSmsOptions): Promise<SmsResult> {
   // Normalize phone first — both routes need it
   const normalizedEarly = normalizePhone(to);

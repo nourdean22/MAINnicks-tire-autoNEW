@@ -121,7 +121,14 @@ export async function notifyClosedJob(invoice: {
 }): Promise<void> {
   ensureDayReset();
 
-  const amount = (Number(invoice.totalAmount) || 0) / 100;
+  // `totalAmount` arrives in DOLLARS — every emit site divides cents by 100
+  // before dispatch (invoices.ts:155/172/227, booking.ts:123/138/150,
+  // gatewayTire.ts:510/743/760, payments.ts:227). Dividing again made every
+  // figure on this feed 100x low: a $517 ticket read $5.17 and the revenue
+  // milestones [500..3000] could never fire. Proof this side was the wrong one:
+  // ensureDayReset() below refills this same `daily.revenue` from getShopPulse(),
+  // which is already dollars — one variable, two units, depending on restart.
+  const amount = Number(invoice.totalAmount) || 0;
   daily.revenue += amount;
   daily.jobCount++;
 

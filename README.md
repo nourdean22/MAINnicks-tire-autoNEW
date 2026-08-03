@@ -87,7 +87,7 @@ NOURCITY/
 │  └─ chrome-extension/ # @statenour/chrome-extension — MV3 brain-capture extension
 ├─ docs/                # MIGRATION_PLAN.md, MIGRATION_AUDIT.md, RAILWAY_PROVISION.md, adr/
 ├─ scripts/             # repo-level helper scripts
-├─ .husky/              # pre-commit + pre-push git hooks (the REAL gates)
+├─ lefthook.yml         # pre-commit + pre-push git hooks (the REAL gates)
 ├─ .github/workflows/   # test.yml · lighthouse-ci.yml · prerender-refresh.yml
 ├─ .worktrees/          # git worktrees used by concurrent agent sessions
 ├─ package.json         # root scripts (turbo wrappers) + pnpm patches/overrides
@@ -140,7 +140,7 @@ Git natively struggles as monorepos grow. To prevent degraded local I/O performa
 
 - **Node.js `>=20`** (match the Railway runtime — Node 20). Use `nvm`/`fnm`/`volta`.
 - **pnpm `10.4.1`** — `corepack enable && corepack prepare pnpm@10.4.1 --activate` (the repo pins it; do not use a different major).
-- **Git** with the hooks path set (the root `prepare` script does `git config core.hooksPath .husky` automatically on install).
+- **Git** — hooks are installed by **lefthook** into the default `.git/hooks`. Do **not** set `core.hooksPath`; pointing it at a directory lefthook does not own silently disables every hook, including the pre-push build gate.
 - **Database access** is only needed for full runtime, not for `pnpm install`/build:
   - nickstire → a **TiDB Cloud (MySQL)** connection string.
   - statenour → a **Neon Postgres** connection string (pooled + direct).
@@ -437,9 +437,14 @@ pnpm --filter @statenour/web test:e2e   # statenour Playwright E2E
 
 ## Verify gates & git hooks
 
-Hooks are wired via `core.hooksPath=.husky` (set by the root `prepare` script).
+Hooks are wired by **lefthook** (`lefthook.yml` at the repo root), installed into the
+default `.git/hooks`. There is no `.husky/` directory and no `prepare` script — an
+earlier version of this README told you to run `git config core.hooksPath .husky`,
+which points git at a path that does not exist and silently disables every hook,
+including the pre-push `turbo build --affected` gate. If you ran it, clear it with
+`git config --unset core.hooksPath`.
 
-### Pre-commit (`.husky/pre-commit`)
+### Pre-commit (`lefthook.yml` → `pre-commit`)
 
 Runs **only when `apps/nickstire/**` files are staged** (statenour-only commits skip it).
 In cost order: `lint:brand-voice` → `lint:source` → `lint:hooks` → `validate:routes` →

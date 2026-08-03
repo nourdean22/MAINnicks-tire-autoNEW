@@ -2138,6 +2138,36 @@ export function stopTieredScheduler(): void {
 /**
  * Get tier statuses for admin dashboard.
  */
+/**
+ * The cadence each job ACTUALLY runs at, taken from the tier that owns it.
+ *
+ * The legacy registry in cron/index.ts still carries its own `intervalMin` per
+ * job, and those numbers no longer describe reality: `review-requests` declares
+ * 30 minutes but sits in the 2-hour tier, `review-monitor` declares 6 hours but
+ * sits in the daily tier, `sms-scheduler` declares 5 minutes but sits in the
+ * 15-minute business-hours tier. Anything comparing observed run times against
+ * the legacy numbers will call healthy jobs stale.
+ *
+ * `businessHoursOnly` is returned alongside because such a job legitimately does
+ * not run overnight — a staleness check that ignores it fires every night.
+ *
+ * A job absent from this map is in NO tier, which means it cannot run at all,
+ * regardless of what the legacy registry says about it.
+ */
+export function getJobCadences(): Map<string, { intervalMin: number; businessHoursOnly: boolean; tier: string }> {
+  const out = new Map<string, { intervalMin: number; businessHoursOnly: boolean; tier: string }>();
+  for (const t of tiers) {
+    for (const j of t.jobs) {
+      out.set(j.name, {
+        intervalMin: Math.round(t.intervalMs / 60000),
+        businessHoursOnly: j.businessHoursOnly === true,
+        tier: t.name,
+      });
+    }
+  }
+  return out;
+}
+
 export function getTierStatuses(): Array<{ name: string; intervalMin: number; jobCount: number; running: boolean; lastRun: string | null }> {
   return tiers.map(t => ({
     name: t.name,

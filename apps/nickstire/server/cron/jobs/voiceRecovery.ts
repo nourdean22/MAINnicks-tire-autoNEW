@@ -54,9 +54,10 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   // phone hours (10 AM-5 PM ET). Not too early (people are busy), not too
   // late (dinner/evening). Tighter than the cadence 9-18 window because
   // these are cold leads who didn't respond to SMS.
-  const etHourPart = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false })
-    .formatToParts(new Date()).find((p) => p.type === "hour")?.value ?? "0";
-  const etHour = parseInt(etHourPart, 10);
+  // Shared helper — the inlined `parseInt` this replaced could yield NaN, and
+  // NaN fails every range comparison, opening the guard rather than holding it.
+  const { getBusinessHour } = await import("../../lib/timezoneAssert");
+  const etHour = getBusinessHour();
   if (etHour < 10 || etHour >= 17) {
     return { recordsProcessed: 0, details: `Outside recovery window (Cleveland ${etHour}:00, window 10-17)` };
   }

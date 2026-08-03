@@ -7,6 +7,12 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Loader2, Search, ToggleLeft, ToggleRight } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import {
+  isCustomerFacingFlag,
+  isInvertedFlag,
+  requiresConfirmation,
+  confirmationCopy,
+} from "@shared/flagPolicy";
 
 // ─── FEATURE FLAG CATEGORIES ──────────────────────────
 type FlagCategory = {
@@ -55,17 +61,13 @@ function categorizeFlags(flags: Array<{ key: string; value: boolean; description
 }
 
 /**
- * Flags that hit customer-facing channels (SMS / email / VAPI / GBP) ·
- * flipping these requires explicit confirmation per nickstire-ios-pwa
- * skill (window.confirm is silently suppressed in iOS PWA).
+ * Flag safety classification now lives in `@shared/flagPolicy` — see that file
+ * for why a key-shape regex was the wrong mechanism (it inverted the copy on the
+ * shop-wide SMS kill switch and missed eight flags that contact customers).
  *
- * Pattern · `confirmDialog({ ... })` wraps the toggle so flipping ON
- * a flag that activates a campaign requires explicit operator intent.
- * Flipping OFF is unrestricted (safe direction).
+ * `confirmDialog({ ... })` remains the delivery mechanism: window.confirm is
+ * silently suppressed in the iOS PWA, per the nickstire-ios-pwa skill.
  */
-function isCustomerFacingFlag(key: string): boolean {
-  return /(sms_|email_|gbp_|vapi_|drip_|outreach|review_request|retention|cross_sell|win_?back|emergency_)/i.test(key);
-}
 
 export default function FeatureFlagsPanel() {
   const utils = trpc.useUtils();
@@ -82,17 +84,12 @@ export default function FeatureFlagsPanel() {
   const [searchQ, setSearchQ] = useState("");
   const [filter, setFilter] = useState<"all" | "on" | "off" | "risky">("all");
 
-  // Verification gate · only flipping ON customer-facing flags asks for confirm
+  // Verification gate · confirms the direction that can REACH CUSTOMERS, which
+  // for an off-switch like sms_global_pause is OFF, not ON.
   const handleFlagToggle = async (key: string, currentValue: boolean) => {
     const newValue = !currentValue;
-    if (newValue === true && isCustomerFacingFlag(key)) {
-      const ok = await confirmDialog({
-        title: `Flip ${key} ON?`,
-        message: "This flag activates customer-contacting messages (SMS / email / outreach). Once on, the next cron tick may send to real customers. Verify guardrails before continuing.",
-        confirmLabel: "Flip ON",
-        cancelLabel: "Keep OFF",
-        tone: "danger",
-      });
+    if (requiresConfirmation(key, newValue)) {
+      const ok = await confirmDialog({ ...confirmationCopy(key, newValue), tone: "danger" });
       if (!ok) return;
     }
     toggleMut.mutate({ key, value: newValue });
@@ -221,7 +218,13 @@ export default function FeatureFlagsPanel() {
                     }`}
                     aria-label={`Toggle ${flag.key}${isCustomerFacingFlag(flag.key) ? " (customer-facing · confirm required)" : ""}`}
                     aria-pressed={flag.value}
-                    title={isCustomerFacingFlag(flag.key) ? "Customer-facing flag · flipping ON asks for confirmation" : undefined}
+                    title={
+                      !isCustomerFacingFlag(flag.key)
+                        ? undefined
+                        : isInvertedFlag(flag.key)
+                          ? "OFF-SWITCH · TRUE pauses sending · confirmation is asked when turning it OFF (resuming)"
+                          : "Customer-facing flag · flipping ON asks for confirmation"
+                    }
                   >
                     <span className="shrink-0">
                       {toggleMut.isPending && toggleMut.variables?.key === flag.key ? (

@@ -79,7 +79,23 @@ export async function makeRequest<T = unknown>(
     );
   }
 
-  return (await response.json()) as T;
+  const payload = (await response.json()) as unknown;
+
+  // Google's legacy Maps/Places APIs report auth, quota and request errors in a
+  // `status` field INSIDE a 200 body, so the `!response.ok` guard above cannot
+  // see them. Before this check a REQUEST_DENIED flowed on as an empty result
+  // set and read as "no data" — which is how a denied Places key reached the
+  // operator as "No reviews returned from API" while review_pipeline sat at zero
+  // rows. ZERO_RESULTS is a genuine answer and must stay distinguishable from a
+  // rejection. Endpoints with no `status` envelope pass through unchanged.
+  const envelope = payload as { status?: unknown; error_message?: unknown } | null;
+  const status = typeof envelope?.status === "string" ? envelope.status : null;
+  if (status !== null && status !== "OK" && status !== "ZERO_RESULTS") {
+    const detail = typeof envelope?.error_message === "string" ? ` — ${envelope.error_message}` : "";
+    throw new Error(`Google Maps API rejected ${endpoint}: ${status}${detail}`);
+  }
+
+  return payload as T;
 }
 
 // ============================================================================

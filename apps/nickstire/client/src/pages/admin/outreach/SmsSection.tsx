@@ -481,9 +481,10 @@ function ThreadView({
                       toast.error(err instanceof Error ? err.message : "Send failed");
                     }
                   }}
-                  className="px-2.5 py-1 rounded bg-foreground/10 hover:bg-foreground/20 text-foreground transition-colors font-semibold text-[11px]"
+                  disabled={send.isPending}
+                  className="px-2.5 py-1 rounded bg-foreground/10 hover:bg-foreground/20 text-foreground transition-colors font-semibold text-[11px] disabled:opacity-40 disabled:pointer-events-none"
                 >
-                  Send Draft
+                  {send.isPending ? "Sending..." : "Send Draft"}
                 </button>
                 <button
                   type="button"

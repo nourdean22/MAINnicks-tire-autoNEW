@@ -43,6 +43,33 @@ export interface TimezoneCheck {
 }
 
 /**
+ * The shop's current wall-clock hour (0-23) in business time.
+ *
+ * Every send/call window gate compares against this, so it MUST fail closed: an
+ * unparseable hour has to land on a value the callers' range checks REJECT, not
+ * on NaN. `NaN < 15 || NaN >= 18` evaluates to `false`, so a bare `parseInt`
+ * silently OPENS a quiet-hours guard instead of holding it shut. Two inlined
+ * copies of this logic did exactly that (confirmationCalls, voiceRecovery) while
+ * the two named copies fell back to 0 and held. 0 is midnight, which sits
+ * outside every business window here, so it is the correct closed value.
+ *
+ * `hour12: false` can also emit "24" rather than "00" just past midnight on some
+ * engines, hence the `% 24`.
+ */
+export function getBusinessHour(now: Date = new Date()): number {
+  const part =
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: BUSINESS.timezone,
+      hour: "2-digit",
+      hour12: false,
+    })
+      .formatToParts(now)
+      .find((p) => p.type === "hour")?.value ?? "0";
+  const n = parseInt(part, 10);
+  return Number.isFinite(n) ? n % 24 : 0;
+}
+
+/**
  * Compute the runtime's current UTC offset for the business timezone.
  *
  * Uses the difference between the same instant formatted as UTC and as the

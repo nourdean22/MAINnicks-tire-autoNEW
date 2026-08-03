@@ -12,7 +12,7 @@ import {
 import { storagePut } from "../storage";
 import { notifyNewBooking, notifyInvoiceCreated } from "../email-notify";
 import { syncBookingToSheet, syncInvoiceToSheet } from "../sheets-sync";
-import { sendSms, bookingConfirmationSms, statusUpdateSms } from "../sms";
+import { sendSms, sendSmsOrThrow, bookingConfirmationSms, statusUpdateSms } from "../sms";
 import { sendLeadEvent, sendScheduleEvent } from "../meta-capi";
 import { scheduleReviewRequest } from "./reviewRequests";
 import { scheduleRemindersForBooking, getNextInvoiceNumber, createInvoice } from "../db";
@@ -383,7 +383,7 @@ export const bookingRouter = router({
       withRetry(
         // Wave-103 — booking confirm rides on the shop's real line
         // so customer recognizes the number on follow-up texts.
-        () => sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode), { via: "shop" }),
+        () => sendSmsOrThrow(input.phone, bookingConfirmationSms(input.name, input.service, refCode), { via: "shop" }),
         { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (booking confirmation)" }
       ).catch(err => {
         log.error("[SMS] Booking confirmation failed:", err);
@@ -704,7 +704,7 @@ export const bookingRouter = router({
           if (booking.phone) {
             withRetry(
               // Wave-108: status update via shop gateway (transactional)
-              () => sendSms(booking.phone, statusUpdateSms(booking.name, input.stage, booking.referenceCode || undefined), { via: "shop" }),
+              () => sendSmsOrThrow(booking.phone, statusUpdateSms(booking.name, input.stage, booking.referenceCode || undefined), { via: "shop" }),
               { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (status update)" }
             ).catch(err => {
               log.error("[SMS] Status update failed:", err);

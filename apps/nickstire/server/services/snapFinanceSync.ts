@@ -78,7 +78,13 @@ export async function recordSnapPayment(data: SnapPaymentRecord): Promise<{ succ
       const { dispatch } = await import("./eventBus");
       await dispatch("invoice_paid", {
         invoiceId: result.id,
-        totalAmount: amountCents,
+        // DOLLARS on the bus, cents in the column. Every other invoice_paid
+        // emitter divides by 100 before dispatch (invoices.ts, booking.ts,
+        // gatewayTire.ts, payments.ts); this one passed the raw cents, so a
+        // $250 financing approval announced itself as $25,000 to any consumer
+        // that trusted the majority convention. The invoices row above keeps
+        // cents — only the event is normalised.
+        totalAmount: amountCents / 100,
         paymentMethod: "snap_finance",
         name: data.customerName,
         phone: data.customerPhone,
