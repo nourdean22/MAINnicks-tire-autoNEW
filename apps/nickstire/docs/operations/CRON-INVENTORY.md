@@ -92,6 +92,25 @@ sync, then intelligence engines, then auto-actions, then engagement.
 | `safety-check` | Operational safety + compliance checks |
 | `post-invoice-followup` | 7-day thank-you + review + referral SMS |
 
+### once per shop day (ROS-081)
+
+These four are logically daily but CANNOT live in the 24h daily tier. That
+tier's phase is set by process start, so a pod booted outside 07:00-20:59 ET
+fires it outside business hours every day and `runTier()` skips every
+`businessHoursOnly` job in it — 10 of the 24 possible boot hours starve it.
+Prod cron_log 2026-07-29: `opportunity-queue-refresh ran 1 times in 7 days,
+expected about 7`. Here the 2h tier gives each ~7 chances to land inside
+business hours, and the `oncePerShopDay` flag claims the first and declines
+the rest, so the real cadence is once a day — proven per JOB, not inferred
+from a tier-level stamp. **Do not move these back to `daily`.**
+
+| Job | Purpose |
+|---|---|
+| `referral-loop-closer` | Match referred customers to bookings/invoices, SMS both parties |
+| `vip-auto-recognition` | Notify new VIP customers (3+ visits, $2000+ spent) |
+| `opportunity-queue-refresh` | Consolidate missed-revenue opportunities into the Decision Inbox queue |
+| `promise-sweep` | Escalate overdue customer promises; rot to `missed` after 48h |
+
 ---
 
 ## daily (24 hours)
@@ -132,8 +151,6 @@ shouldn't run more often than daily.
 | `review-auto-draft` | Fetch reviews + generate AI reply drafts |
 | `low-stock-alerts` | Telegram when inventory hits reorder threshold |
 | `content-auto-gen` | Blog article draft (Wed + Sat, 2×/week) |
-| `referral-loop-closer` | Match referred customers to bookings/invoices |
-| `vip-auto-recognition` | Notify new VIP customers (3+ visits, $2000+ spent) |
 | `pricing-intelligence` | Approval rate analysis — raise/lower alerts |
 | `alg-auto-discovery` | Probe ShopDriver API for new endpoints |
 | `pipelines-auto-run` | GBP reviews + GSC + Instagram — all due pipelines |

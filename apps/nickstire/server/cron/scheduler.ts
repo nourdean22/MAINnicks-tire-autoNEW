@@ -27,6 +27,19 @@ interface TieredJob {
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
   /** Only run during business hours (7 AM - 9 PM ET) */
   businessHoursOnly?: boolean;
+  /**
+   * Run AT MOST ONCE per shop day, claimed per JOB rather than per tier.
+   *
+   * Why this exists (ROS-081): `businessHoursOnly` on its own starved four
+   * jobs for months. See `claimOncePerShopDay()` for the full mechanism —
+   * the short version is that a tier's stamp answers "did the tier fire?",
+   * which is not the same question as "did this job run?".
+   *
+   * A job carrying this flag MUST live in a tier whose interval is short
+   * enough to land inside business hours regardless of boot phase;
+   * `cron-cadence.test.ts` pins that invariant.
+   */
+  oncePerShopDay?: boolean;
   /** Only run if this env var is set (array = at least ONE must be set,
    *  matching handlers that accept alternative keys — review-monitor and
    *  competitor-monitor accept PLACES or MAPS but were gated on PLACES
@@ -169,6 +182,115 @@ async function shouldRunWallClockJob(jobName: string, targetHourEt: number): Pro
   }
 }
 
+/** First ET hour of the shop day — the lower bound of `isBusinessHours()`. */
+const SHOP_DAY_START_HOUR_ET = 7;
+
+/**
+ * Epoch ms of 07:00 ET on the shop day that `now` falls in.
+ *
+ * Reads the REAL ET wall clock via Intl rather than doing fixed-offset
+ * arithmetic, so it stays correct across the DST boundary — a `-05:00`
+ * constant would silently shift the whole gate by an hour every spring.
+ *
+ * Callers are gated by `isBusinessHours()`, so the returned instant is
+ * always in the past.
+ */
+export function shopDayStartMs(now: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS.timezone,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(now);
+  const part = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
+  // Some ICU builds render midnight as hour "24" under hour12:false.
+  const etHour = part("hour") % 24;
+  const msSinceEtMidnight = ((etHour * 60 + part("minute")) * 60 + part("second")) * 1000;
+  return now.getTime() - (msSinceEtMidnight - SHOP_DAY_START_HOUR_ET * 3600_000);
+}
+
+/**
+ * Has this job already run during the CURRENT shop day?
+ *
+ * Pure, so the calendar logic is testable without a database. A null
+ * `lastRun` means the job has no recorded run at all — not "ran long ago".
+ */
+export function hasRunThisShopDay(lastRun: Date | null, now: Date = new Date()): boolean {
+  if (!lastRun) return false;
+  return lastRun.getTime() >= shopDayStartMs(now);
+}
+
+/**
+ * Claim this job's single slot for the current shop day. `true` = you own
+ * the slot and must run; `false` = do not run.
+ *
+ * WHY THIS EXISTS — ROS-081, prod cron_log 2026-07-29:
+ * `opportunity-queue-refresh ran 1 times in 7 days, expected about 7`.
+ *
+ * The daily tier is a 24h `setInterval` whose PHASE is set by process
+ * start. A pod that booted at 03:00 ET therefore fired that tier at
+ * 03:00 ET every day — outside 07:00-20:59, so `runTier()` skipped every
+ * `businessHoursOnly` job in it, every day, indefinitely. Worse, the
+ * 03:00 pass still called `resetSkipCount("daily")` BEFORE the job loop,
+ * so it also told the boot guard "daily already ran today" and suppressed
+ * the next startup fire. Four jobs were affected, two of them customer
+ * SMS rails (`referral-loop-closer`, `vip-auto-recognition`).
+ *
+ * The fix has two halves and BOTH are load-bearing:
+ *   1. the job moves to a tier that fires many times a day, so it gets
+ *      more than one chance to land inside business hours; and
+ *   2. this per-JOB claim replaces the tier-level stamp, so "the tier
+ *      fired" can never again be read as "the job ran" (the ROS-078
+ *      class: a completion status is not an output).
+ *
+ * Half 1 alone would let a job fire several times a day. Half 2 alone
+ * cannot help a tier that never fires inside business hours at all.
+ *
+ * CONCURRENCY: callers MUST hold `acquireCronLock(job.name)`. Two pods
+ * that both read "not yet run today" would both claim and both fire —
+ * that is the v1.7 duplicate-SMS regression this repo already paid for.
+ * The lock makes the read-then-write below safe; it is not safe alone.
+ *
+ * Fails CLOSED. A job that cannot prove it has not already run today does
+ * not run: these send customer SMS, and a duplicate text costs more than
+ * a missed day.
+ */
+async function claimOncePerShopDay(jobName: string): Promise<boolean> {
+  if (!isBusinessHours()) return false;
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return false;
+
+    const kvKey = `dailyonce:${jobName}`;
+    const [rows] = await d.execute(sql`
+      SELECT last_run_at FROM cron_tier_skip_state WHERE tier_name = ${kvKey}
+    `);
+    const raw = Array.isArray(rows) && rows[0] ? (rows[0] as { last_run_at: Date | string | null }) : null;
+    const lastRun = raw?.last_run_at ? new Date(raw.last_run_at) : null;
+    if (hasRunThisShopDay(lastRun)) return false;
+
+    await d.execute(sql`
+      INSERT INTO cron_tier_skip_state (tier_name, consecutive_skips, last_run_at, updated_at)
+      VALUES (${kvKey}, 0, NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        last_run_at = NOW(),
+        updated_at = NOW()
+    `);
+    return true;
+  } catch (err) {
+    // Fail closed and say so — a silent false here looks identical to
+    // "already ran today", which is the exact ambiguity ROS-081 was.
+    log.warn(`oncePerShopDay claim failed for ${jobName} — not running`, {
+      error: err instanceof Error ? err.message : String(err),
+      errorId: "CRON_DAILY_CLAIM_FAILED",
+    });
+    return false;
+  }
+}
+
 async function runTier(tier: Tier): Promise<void> {
   if (tier.running) {
     const skips = await bumpSkipCount(tier.name);
@@ -247,6 +369,19 @@ async function runTier(tier: Tier): Promise<void> {
     if (lockResult.status === "held-by-other") {
       skipped++;
       logTierJob(job.name, "skipped", 0, 0, "cross-dyno lock held by another process").catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      continue;
+    }
+
+    // ROS-081 · at-most-once-per-shop-day jobs claim their slot per JOB.
+    // This MUST sit inside the cross-dyno lock above: two pods that each
+    // read "not yet run today" would both claim and both fire, which is
+    // the v1.7 duplicate-SMS class. Deliberately NOT written to cron_log —
+    // these jobs are re-offered several times a day by design, and logging
+    // each pass would bury the real run under ~6 skip rows a day per job
+    // (the same log-volume reasoning as the requiresEnv skip above).
+    if (job.oncePerShopDay && !(await claimOncePerShopDay(job.name))) {
+      skipped++;
+      if (lockResult.status === "acquired") await releaseCronLock(lockResult);
       continue;
     }
 
@@ -1212,6 +1347,64 @@ export function startTieredScheduler(): void {
           return runContentReserveReplenish();
         },
       },
+
+      // ═══ ONCE-PER-SHOP-DAY (ROS-081) ═══
+      // These four are logically daily, but they CANNOT live in the daily
+      // tier: it is a 24h interval phased by process start, so a pod that
+      // booted outside 07:00-20:59 ET skipped every businessHoursOnly job
+      // in it, every day. Prod cron_log 2026-07-29:
+      //   opportunity-queue-refresh ran 1 times in 7 days, expected about 7.
+      //
+      // Here the 2h tier offers each of them ~7 chances inside business
+      // hours, and `oncePerShopDay` claims the first one and declines the
+      // rest — so the cadence is exactly once a day, proven per JOB instead
+      // of inferred from a tier-level stamp.
+      {
+        name: "referral-loop-closer", // Match referred customers to bookings/invoices, SMS both parties
+        businessHoursOnly: true,
+        oncePerShopDay: true,
+        handler: async () => {
+          const { closeReferralLoop } = await import("./jobs/crudAutomation");
+          return closeReferralLoop();
+        },
+      },
+      {
+        name: "vip-auto-recognition", // Notify new VIP customers (3+ visits, $2000+ spent)
+        businessHoursOnly: true,
+        oncePerShopDay: true,
+        handler: async () => {
+          const { notifyNewVips } = await import("./jobs/crudAutomation");
+          return notifyNewVips();
+        },
+      },
+      {
+        // Wave 4 (REVENUE-OPS-ROADMAP) · consolidates missed-revenue
+        // opportunities (unresolved estimates, pending callbacks) into
+        // the durable revenue_opportunities queue. READ-ONLY against
+        // sources; writes only its own table; NEVER contacts customers.
+        // Degrades to a no-op until migration 0099 is hand-applied.
+        name: "opportunity-queue-refresh",
+        businessHoursOnly: true,
+        oncePerShopDay: true,
+        handler: async () => {
+          const { refreshOpportunityQueue } = await import("../services/opportunityQueue");
+          return refreshOpportunityQueue();
+        },
+      },
+      {
+        // Promise Ledger sweep (0102) · overdue customer promises
+        // escalate ONCE into the Decision Inbox (promise_overdue) and
+        // rot to `missed` after 48h — the ledger tells the truth about
+        // broken promises. NEVER contacts customers; keeping a promise
+        // stays a human action. No-op until 0102 is applied.
+        name: "promise-sweep",
+        businessHoursOnly: true,
+        oncePerShopDay: true,
+        handler: async () => {
+          const { sweepOverduePromises } = await import("../services/promiseLedger");
+          return sweepOverduePromises();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -1768,22 +1961,11 @@ export function startTieredScheduler(): void {
           return autoGenerateContent();
         },
       },
-      {
-        name: "referral-loop-closer", // Match referred customers to bookings/invoices, SMS both parties
-        businessHoursOnly: true,
-        handler: async () => {
-          const { closeReferralLoop } = await import("./jobs/crudAutomation");
-          return closeReferralLoop();
-        },
-      },
-      {
-        name: "vip-auto-recognition", // Notify new VIP customers (3+ visits, $2000+ spent)
-        businessHoursOnly: true,
-        handler: async () => {
-          const { notifyNewVips } = await import("./jobs/crudAutomation");
-          return notifyNewVips();
-        },
-      },
+      // ROS-081 · `referral-loop-closer` and `vip-auto-recognition` were
+      // MOVED OUT of this tier to the 2h hourly tier. Both are
+      // businessHoursOnly, and this tier is a 24h interval phased by
+      // process start — a pod that booted outside 07:00-20:59 ET skipped
+      // them every single day. Do not move them back.
       {
         name: "pricing-intelligence", // Payment-status collections signal (name kept for cron_log continuity; no price advice — see services/pricingIntelligence.ts header)
         handler: async () => {
@@ -1791,32 +1973,10 @@ export function startTieredScheduler(): void {
           return runPricingIntelligenceJob();
         },
       },
-      {
-        // Wave 4 (REVENUE-OPS-ROADMAP) · consolidates missed-revenue
-        // opportunities (unresolved estimates, pending callbacks) into
-        // the durable revenue_opportunities queue. READ-ONLY against
-        // sources; writes only its own table; NEVER contacts customers.
-        // Degrades to a no-op until migration 0099 is hand-applied.
-        name: "opportunity-queue-refresh",
-        businessHoursOnly: true,
-        handler: async () => {
-          const { refreshOpportunityQueue } = await import("../services/opportunityQueue");
-          return refreshOpportunityQueue();
-        },
-      },
-      {
-        // Promise Ledger sweep (0102) · overdue customer promises
-        // escalate ONCE into the Decision Inbox (promise_overdue) and
-        // rot to `missed` after 48h — the ledger tells the truth about
-        // broken promises. NEVER contacts customers; keeping a promise
-        // stays a human action. No-op until 0102 is applied.
-        name: "promise-sweep",
-        businessHoursOnly: true,
-        handler: async () => {
-          const { sweepOverduePromises } = await import("../services/promiseLedger");
-          return sweepOverduePromises();
-        },
-      },
+      // ROS-081 · `opportunity-queue-refresh` and `promise-sweep` were also
+      // MOVED OUT of this tier to the 2h hourly tier, for the same reason.
+      // Prod cron_log 2026-07-29 caught the first one: it ran 1 time in 7
+      // days against a contract expecting 7.
       {
         name: "alg-auto-discovery", // Probe ShopDriver API for new endpoints
         handler: async () => {
@@ -2151,16 +2311,29 @@ export function stopTieredScheduler(): void {
  * `businessHoursOnly` is returned alongside because such a job legitimately does
  * not run overnight — a staleness check that ignores it fires every night.
  *
+ * `oncePerShopDay` is returned for the same reason, and matters MORE: those
+ * jobs sit in the 2h tier so they get enough chances to land inside business
+ * hours (ROS-081), but they deliberately run only once a day. A consumer that
+ * judged them on the raw 120-minute interval would call a perfectly healthy
+ * job stale within hours — see the two-shop-day allowance in `selfHealing`.
+ *
  * A job absent from this map is in NO tier, which means it cannot run at all,
  * regardless of what the legacy registry says about it.
  */
-export function getJobCadences(): Map<string, { intervalMin: number; businessHoursOnly: boolean; tier: string }> {
-  const out = new Map<string, { intervalMin: number; businessHoursOnly: boolean; tier: string }>();
+export function getJobCadences(): Map<
+  string,
+  { intervalMin: number; businessHoursOnly: boolean; oncePerShopDay: boolean; tier: string }
+> {
+  const out = new Map<
+    string,
+    { intervalMin: number; businessHoursOnly: boolean; oncePerShopDay: boolean; tier: string }
+  >();
   for (const t of tiers) {
     for (const j of t.jobs) {
       out.set(j.name, {
         intervalMin: Math.round(t.intervalMs / 60000),
         businessHoursOnly: j.businessHoursOnly === true,
+        oncePerShopDay: j.oncePerShopDay === true,
         tier: t.name,
       });
     }
