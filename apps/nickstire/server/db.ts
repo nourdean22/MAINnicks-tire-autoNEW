@@ -1075,7 +1075,12 @@ export async function isPhoneOnReviewCooldown(phone: string, cooldownDays: numbe
  */
 export async function getReviewRequestsSentToday() {
   const db = await getDb();
-  if (!db) return 0;
+  // ROS-084 · this number is the daily-cap DENOMINATOR, read at
+  // routers/reviewRequests.ts:160 and compared against settings.maxPerDay on the
+  // very next line. A fabricated 0 does not mean "no sends yet" — it means the
+  // cap cannot fire at all, on the one path that texts customers. Unknown must
+  // stop the run, not license it.
+  if (!db) throw new Error("Database unavailable — review sends so far today are unknown, not zero; the daily cap cannot be evaluated.");
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const [result] = await db.select({
@@ -1131,13 +1136,30 @@ export async function getReviewRequestStats() {
  */
 export async function getReviewSettings() {
   const db = await getDb();
-  if (!db) return { id: 1, enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
+  // ROS-084 · this used to invent `enabled: 1` on an unreadable database. That
+  // is not a neutral default — it is the operator's OFF SWITCH, and every gate
+  // on the send path reads it (scheduleReviewRequest:69, scheduleCallReviewRequest,
+  // processReviewRequestQueue:144). A shop that had deliberately turned review
+  // texts off had them turned back on for the duration of any outage, by a
+  // literal in this file.
+  //
+  // isPhoneOnReviewCooldown, twelve lines up on the same path, already answers
+  // this question the right way: `if (!db) return true; // Fail safe: don't send
+  // if DB is down`. Two reads, same outage, opposite directions — this one now
+  // matches the one that was right.
+  if (!db) throw new Error("Database unavailable — review settings are unknown, not the defaults; whether review texts are enabled cannot be determined.");
   const [existing] = await db.select().from(reviewSettings).limit(1);
   if (existing) return existing;
-  // Create defaults
+  // Create defaults. This branch has a LIVE database — bootstrapping a fresh
+  // install is a real, intended write, and the throw above does not touch it.
   await db.insert(reviewSettings).values({ enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30 });
   const [created] = await db.select().from(reviewSettings).limit(1);
-  return created || { id: 1, enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
+  // An insert that reports success followed by a read that returns nothing is a
+  // broken database, not an empty one. Handing back the same invented row would
+  // reproduce the defect one layer in — and worse, it would look like a
+  // successful bootstrap.
+  if (!created) throw new Error("Review settings row could not be read back after insert — settings are unknown, not defaults.");
+  return created;
 }
 
 /**
