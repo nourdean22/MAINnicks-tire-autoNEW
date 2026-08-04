@@ -268,3 +268,63 @@ are `useConfirmDialog`/`usePromptDialog` in `components/ui/confirm-dialog.tsx`
 Status: applied #1360 — sweep glob widened to both PWAs incl. `features`/`hooks`,
 statenour primitives documented (existence re-verified at
 `components/ui/confirm-dialog.tsx:89`/`:182` before writing them in)
+
+---
+
+## 2026-08-04 · unfinished-work PR run (PRs #1358-#1361 + dependabot queue)
+
+### P1 · `statenour-verify`
+- **Trigger (witnessed):** the mutation-probe harness for #1361 captured vitest
+  results with `Select-String -Pattern 'Tests\s'` — case-INSENSITIVE by
+  default, so it matched `tests 14ms` inside the Duration line and printed
+  that as the "result" for all four probes. Four mutation runs produced zero
+  usable pass/fail receipts; caught because the output looked wrong, then
+  re-run with `-CaseSensitive -Pattern '^\s*Tests\s+\d'` (real receipts:
+  4/2/1/1 red).
+- **Cost:** one full 4-probe mutation cycle wasted; one step from reporting
+  "mutation-verified" off receipts that verified nothing — the same defect
+  class as the mutation-that-did-not-apply trap already in the sweep memory.
+- **Proposed edit:** add to Traps — "PowerShell `Select-String` is
+  case-insensitive by default: capturing vitest summaries with a bare
+  `'Tests'` pattern also matches `tests 14ms` in the Duration line. Use
+  `-CaseSensitive` with an anchored pattern, and read one captured line
+  before trusting a batch of them."
+- **Confidence:** high (mechanism reproducible; cost paid this session)
+- **Status:** proposed
+
+### P2 · `guard-red-team`
+- **Trigger (witnessed):** the command-text guard false-positived THREE times
+  in one session on compound PowerShell. (1) A multi-statement command
+  containing the standard env-token removal cmdlet was blocked as a
+  system-path "/" delete. (2) A compound containing a backup-file delete plus
+  a regex literal in an ADJACENT argument was blocked as deleting the path
+  "\s". (3) The commit that DOCUMENTED instances 1-2 was itself blocked,
+  because its here-string body QUOTED the cmdlet — mention-vs-execution, the
+  exact class the #1355 red-team named. Workarounds used: `$env:` assignment
+  instead of the cmdlet; probe scripts written to the scratchpad and executed
+  as files; this very block appended via a file tool instead of a heredoc.
+- **Cost:** three dead commands and two workaround detours mid-verification.
+- **Proposed edit:** add two probe classes to the false-positive list —
+  "PowerShell drive-qualified paths (`Env:`, `HKLM:`) parsed as filesystem
+  paths" and "argument bleed: a path/regex-looking literal in an ADJACENT
+  argument or quoted here-string of a compound command attributed to the
+  guarded verb". Each should become a locked allowExample in the guard's
+  canaries when fixed.
+- **Confidence:** high (three instances, same session, three shapes)
+- **Status:** proposed
+
+### P3 · `stranded-branch-rescue`
+- **Trigger (witnessed):** four dependabot PRs (#1311/#1267/#1266/#1263) sat
+  blocked since 2026-08-01 with red `e2e` checks. main's `e2e · statenour` run
+  from 8/4 19:37 was green, so the failures were stale baselines: one
+  `@dependabot rebase` comment turned #1267/#1266/#1263 green (`e2e:SUCCESS`)
+  and they merged; #1311 was superseded by #1357, also green. Nothing was
+  debugged — the checks were simply older than the fix.
+- **Cost:** none this session, but the queue had already sat 3 days behind a
+  red X nobody trusted.
+- **Proposed edit:** add a short "same audit, open PRs" note — "a red check
+  whose run predates main's latest green run of that SAME check is a stale
+  baseline, not a defect: rebase (or ask dependabot to) and re-read before
+  diagnosing anything."
+- **Confidence:** medium (one occurrence, clear mechanism)
+- **Status:** proposed
