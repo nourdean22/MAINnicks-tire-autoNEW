@@ -61,25 +61,51 @@ function allClientTsx(dir = "client/src"): string[] {
  * `lg:hidden` appear on the same element. Desktop-visible modal scrims are
  * untouched, which is why this passes at zero violations rather than forty.
  */
+/**
+ * Every `className` VALUE in a file, whole — not per physical line.
+ *
+ * Review caught the first version of this guard matching only when all three
+ * tokens landed on one source line, so splitting a long class string across lines
+ * (which prettier does routinely) would let the blur back in with the test still
+ * green. Class strings are extracted as complete expressions and whitespace-
+ * normalised, so line breaks inside one attribute no longer hide anything.
+ *
+ * Still not an AST: a class assembled by a helper or spread from a variable is
+ * invisible here. That limit is stated rather than papered over — the guard
+ * catches the literal form, which is the form every offender so far has used.
+ */
+function classNameValues(src: string): string[] {
+  // Comments first: the notes explaining why a blur was REMOVED must never count
+  // as violations.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const out: string[] = [];
+  const re = /className=(?:\{`([^`]*)`\}|"([^"]*)"|\{"([^"]*)"\})/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(code)) !== null) {
+    out.push((m[1] ?? m[2] ?? m[3] ?? "").replace(/\s+/g, " "));
+  }
+  return out;
+}
+
 describe("no full-viewport backdrop blur on phone-only overlays", () => {
   const offenders: Array<{ file: string; line: number; text: string }> = [];
   const scanned = allClientTsx();
   let linesScanned = 0;
+  let classesScanned = 0;
 
   for (const file of scanned) {
-    const lines = read(file).split("\n");
-    linesScanned += lines.length;
-    lines.forEach((text, i) => {
-      // Comments explaining WHY the blur was removed must not count as violations.
-      const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/, "");
+    const src = read(file);
+    linesScanned += src.split("\n").length;
+    for (const value of classNameValues(src)) {
+      classesScanned++;
       if (
-        stripped.includes("fixed inset-0") &&
-        stripped.includes("backdrop-blur") &&
-        stripped.includes("lg:hidden")
+        value.includes("fixed inset-0") &&
+        value.includes("backdrop-blur") &&
+        value.includes("lg:hidden")
       ) {
-        offenders.push({ file, line: i + 1, text: text.trim().slice(0, 120) });
+        offenders.push({ file, line: 0, text: value.slice(0, 140) });
       }
-    });
+    }
   }
 
   /**
@@ -92,10 +118,13 @@ describe("no full-viewport backdrop blur on phone-only overlays", () => {
   it("actually scanned the client tree", () => {
     expect(scanned.length).toBeGreaterThan(100);
     expect(linesScanned).toBeGreaterThan(20_000);
+    // The corpus the rule actually reads. If the className extractor breaks, the
+    // two assertions above still pass while this guard silently inspects nothing.
+    expect(classesScanned).toBeGreaterThan(2_000);
   });
 
   it("has no phone-only full-screen scrim carrying a backdrop-blur", () => {
-    expect(offenders.map((o) => `${o.file}:${o.line} — ${o.text}`)).toEqual([]);
+    expect(offenders.map((o) => `${o.file} — ${o.text}`)).toEqual([]);
   });
 });
 
@@ -137,24 +166,22 @@ describe("phone-reachable controls meet the 48px touch minimum", () => {
   });
 
   /**
-   * Found by an adversarial sweep AFTER the review catch, and both were worse than
-   * the control review flagged: insight.tsx was a bare button with no padding at
-   * all around a 16px glyph (a 16x16px target, the smallest in the admin), and
-   * AdminAlertBar was p-1 around a 14px glyph (22x22px). Same widget kind —
-   * dismissable notice — same one-handed-phone surface.
+   * DELIBERATELY NOT PINNED HERE: the dismiss controls in `InsightStrip`
+   * (shared/insight.tsx) and `AdminAlertBar`.
+   *
+   * Both were resized in this branch, and review then established that NEITHER
+   * COMPONENT IS RENDERED. `AdminAlertBar` has zero render sites; `InsightStrip`
+   * is barrel-exported from shared.tsx but never mounted — the admin sections all
+   * render `SectionInsightStrip`, a different component with no dismiss control.
+   *
+   * The size fixes are kept because they are correct and free if either is ever
+   * wired, but pinning them here would be a green assertion over code production
+   * cannot reach — the exact "test that cannot fail" this file exists to avoid,
+   * and the exact last-mile problem the deletion commit in this branch is about.
+   * Both components are dead-code candidates; that is a separate decision.
+   *
+   * What IS pinned below are the two controls that genuinely render.
    */
-  it("the shared insight-card dismiss is at least 48px", () => {
-    const s = read("client/src/pages/admin/shared/insight.tsx");
-    expect(s).toMatch(/w-12 h-12[^"]*aria-label="Dismiss"|aria-label="Dismiss"/);
-    expect(s).toMatch(/w-12 h-12/);
-  });
-
-  it("the admin alert bar dismiss is at least 48px", () => {
-    const s = read("client/src/components/admin/AdminAlertBar.tsx");
-    expect(s).toMatch(/w-12 h-12/);
-    expect(s).not.toMatch(/className=\{`p-1 rounded hover:bg-black\/10/);
-  });
-
   it("the mobile quick-actions trigger is at least 48px and phone-only", () => {
     const s = read("client/src/components/admin/CommandSearch.tsx");
     expect(s).toMatch(/aria-label="Quick actions"/);
