@@ -945,10 +945,16 @@ export async function createReviewRequest(data: InsertReviewRequest) {
 
 /**
  * Get all review requests, newest first.
+ *
+ * ROS-083 · throws rather than returning []. This list is not decoration: the
+ * Process Queue confirm dialog derives "~N due now" by filtering it client
+ * side, and that number is the operator's only sanity check before firing a
+ * batch of real outbound SMS. An [] here rendered "~0 due now" — a measurement
+ * that was never taken, presented as a reassuring one.
  */
 export async function getReviewRequests(limit = 100) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) throw new Error("Database unavailable — review requests are unknown, not empty.");
   return db.select().from(reviewRequests)
     .orderBy(desc(reviewRequests.createdAt))
     .limit(limit);
@@ -956,10 +962,18 @@ export async function getReviewRequests(limit = 100) {
 
 /**
  * Get review requests that are pending and past their scheduled time.
+ *
+ * ROS-083 · throws rather than returning []. This is the cron's read, and an []
+ * made an unreadable database indistinguishable from a genuinely drained queue:
+ * processReviewRequestQueue returned { processed: 0, sent: 0, failed: 0 } and
+ * the scheduler logged the run as `completed`. The throw is safe because it
+ * happens BEFORE the send loop and before any row is claimed, and the cron
+ * wrapper in cron/jobs/reviewRequests.ts already catches and log.errors — so
+ * the outage becomes a loud failed run instead of a quiet successful one.
  */
 export async function getPendingReviewRequests() {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) throw new Error("Database unavailable — the pending review queue is unknown, not empty.");
   return db.select().from(reviewRequests)
     .where(and(
       eq(reviewRequests.status, "pending"),
@@ -1079,7 +1093,9 @@ export async function getReviewRequestsSentToday() {
  */
 export async function getReviewRequestStats() {
   const db = await getDb();
-  if (!db) return { total: 0, sent: 0, clicked: 0, failed: 0, pending: 0, clickRate: 0 };
+  // ROS-083 · a zeroed stat block reads as "nothing failed, nothing pending",
+  // which is a claim about the outreach programme, not a fact about the read.
+  if (!db) throw new Error("Database unavailable — review request stats are unknown, not zero.");
   const [total] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests);
   const [sent] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "sent"));
   const [clicked] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "clicked"));

@@ -30,8 +30,23 @@ export default function ReviewRequestsSection() {
   const utils = trpc.useUtils();
 
   // Data queries
-  const { data: stats, isLoading: statsLoading } = trpc.reviewRequests.stats.useQuery();
-  const { data: requests, isLoading: requestsLoading } = trpc.reviewRequests.list.useQuery({ limit: 100 });
+  const { data: stats, isLoading: statsLoading, isError: statsError } = trpc.reviewRequests.stats.useQuery();
+  const {
+    data: requests,
+    isLoading: requestsLoading,
+    isError: requestsError,
+    error: requestsErrorObj,
+  } = trpc.reviewRequests.list.useQuery({ limit: 100 });
+
+  /**
+   * ROS-083 · this page's numbers gate a REAL outbound SMS run, so an
+   * unreadable list is the one state that must never render as a calm zero.
+   * `unknown` is tested BEFORE `!requests` because the query keeps its last
+   * good data while isError is true — a `!requests` guard never fires on a
+   * failed refetch, which is the common case.
+   */
+  const requestsUnknown = requestsError;
+  const statsUnknown = statsError;
   const { data: settings, isLoading: settingsLoading } = trpc.reviewRequests.getSettings.useQuery();
   const { data: backfillPreview, isLoading: backfillLoading } = trpc.reviewRequests.backfillPreview.useQuery();
 
@@ -138,36 +153,41 @@ export default function ReviewRequestsSection() {
         subtitle="SMS review-asks fired post-service · proof bank · backfill controls. Review velocity = compounding social proof."
         icon={<Star className="w-5 h-5" />}
       />
+      {statsUnknown && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+          <strong>Review request stats could not be read.</strong> The tiles below are unknown — NOT zero. Nothing here means no request is pending and nothing has failed.
+        </div>
+      )}
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
           label="Total Requests"
-          value={statsLoading ? "..." : stats?.total ?? 0}
+          value={statsUnknown ? "—" : statsLoading ? "..." : stats?.total ?? 0}
           icon={<MessageSquare className="w-5 h-5" />}
         />
         <StatCard
           label="Sent"
-          value={statsLoading ? "..." : stats?.sent ?? 0}
+          value={statsUnknown ? "—" : statsLoading ? "..." : stats?.sent ?? 0}
           icon={<Send className="w-5 h-5" />}
           color="text-amber-400"
         />
         <StatCard
           label="Clicked"
-          value={statsLoading ? "..." : stats?.clicked ?? 0}
+          value={statsUnknown ? "—" : statsLoading ? "..." : stats?.clicked ?? 0}
           icon={<MousePointerClick className="w-5 h-5" />}
-          color="text-emerald-400"
+          color={statsUnknown ? "text-amber-400" : "text-emerald-400"}
         />
         <StatCard
           label="Click Rate"
-          value={statsLoading ? "..." : `${stats?.clickRate ?? 0}%`}
+          value={statsUnknown ? "—" : statsLoading ? "..." : `${stats?.clickRate ?? 0}%`}
           icon={<Star className="w-5 h-5" />}
-          color="text-primary"
+          color={statsUnknown ? "text-amber-400" : "text-primary"}
         />
         <StatCard
           label="Pending"
-          value={statsLoading ? "..." : stats?.pending ?? 0}
+          value={statsUnknown ? "—" : statsLoading ? "..." : stats?.pending ?? 0}
           icon={<Clock className="w-5 h-5" />}
-          color="text-blue-400"
+          color={statsUnknown ? "text-amber-400" : "text-blue-400"}
         />
       </div>
 
@@ -198,7 +218,7 @@ export default function ReviewRequestsSection() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-[12px] text-foreground/50 tracking-wide">
-              {requests?.length ?? 0} review requests
+              {requestsUnknown ? "Review requests could not be read" : `${requests?.length ?? 0} review requests`}
             </span>
             <button
               onClick={async () => {
@@ -206,10 +226,23 @@ export default function ReviewRequestsSection() {
                 // a real outbound SMS run with no confirmation.
                 // review_requests.status enum = pending/sent/clicked/failed/skipped (no "scheduled");
                 // the due column is scheduledAt. Mirror server-side getPendingReviewRequests().
-                const due = requests?.filter((r: ReviewRequest) => r.status === "pending" && new Date(r.scheduledAt) <= new Date()).length ?? 0;
+                //
+                // ROS-083 · the `?? 0` used to turn an unreadable list into
+                // "~0 due now" INSIDE the dialog that authorises a real SMS
+                // batch — the single most expensive false-green on this page,
+                // because it is the number the operator reads before deciding
+                // it is safe to click. The button stays enabled on purpose:
+                // the server is the authority on what is actually due, and
+                // disabling it would hide a queue that may be real. What
+                // changes is that the dialog now says it does not know.
+                const due = requestsUnknown
+                  ? null
+                  : requests?.filter((r: ReviewRequest) => r.status === "pending" && new Date(r.scheduledAt) <= new Date()).length ?? 0;
                 const ok = await confirmDialog({
                   title: `Process the review-request queue?`,
-                  message: `This runs ALL scheduled review requests that are due (currently ~${due} due now). Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`,
+                  message: due === null
+                    ? `This runs ALL scheduled review requests that are due. The queue could NOT be read just now, so how many are due is UNKNOWN — it is not zero, and it may be a full batch. Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`
+                    : `This runs ALL scheduled review requests that are due (currently ~${due} due now). Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`,
                   confirmLabel: "Process queue",
                   cancelLabel: "Cancel",
                   tone: "danger",
@@ -228,6 +261,10 @@ export default function ReviewRequestsSection() {
           {requestsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : requestsUnknown ? (
+            <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+              <strong>The review-request queue could not be read.</strong> This is unknown — NOT empty. Nothing here means no customer is waiting on a review text. {requestsErrorObj?.message}
             </div>
           ) : !requests?.length ? (
             <div className="text-center py-12 text-foreground/40">
