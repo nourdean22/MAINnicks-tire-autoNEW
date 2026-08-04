@@ -1358,7 +1358,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "NO runtime verification and no operator entry point yet. ingestFinishedMp4 is a service function with tests; nothing in the admin UI or a router calls it. Grep for importers before assuming it is reachable — BUILT-TESTED-UNWIRED is a repeat pattern in this repo.",
+          "description": "WIRING HALF CLOSED (this branch): contentAdmin.ingestFinishedMp4 (adminProcedure mutation) now calls the service, and Action Center — the reel operator surface — calls that route behind a two-tap in-DOM arm at 48px touch targets. server/mp4IngestDoor.test.ts (15) asserts the WIRING rather than the service, because a unit test of the service could never have caught this: it was already fully tested and still unreachable. ★ MAKING IT REACHABLE TURNED TWO LATENT DEFECTS LIVE, both caught in review and fixed here: loadSource used a plain fetch (which follows a 302 to 169.254.169.254 or any private host — a blind SSRF, since only the SUBMITTED url would ever have been checked) and arrayBuffer() (which materialises an indefinitely streamed body and exhausts the Railway process before the 120s timeout). Both now go through lib/publicFetch.ts — EXTRACTED from higgsfieldStudio's start-image download rather than copied, so the two callers cannot drift apart on which IPv4 blocks are refused or whether each redirect hop is re-validated. The local-path branch is stat-bounded too; a path is operator-supplied just like a URL. server/publicFetch.test.ts (17) exercises the redirect LOOP and the streaming cap, not just the pure host checks — a first pass asserted only the pure ones and both security mutations survived it. STILL OPEN — NO RUNTIME VERIFICATION. Nothing has been ingested end to end, in any environment. The flag has never been armed, no mp4 has passed the ftyp check against a real file, and no ingested draft has reached the publish gate. Reachable is not proven, and this entry stays at unit_verified until an actual file has gone through.",
           "source": "this branch"
         },
         {
@@ -1369,7 +1369,9 @@
       ],
       "deferredScope": [
         "The statenour -> nickstire handoff is NOT built. MoneyPrinterTurbo is a statenour tool and the two apps are separate Railway services with separate databases (Neon Postgres vs TiDB MySQL). This branch fixed the PREREQUISITE — the moneyprinter tool now returns real video paths instead of raw stdout — but transporting the file across the two services is its own design.",
-        "No dedupe. Ingesting the same file twice creates two drafts."
+        "No dedupe. Ingesting the same file twice creates two drafts.",
+        "The ingest form takes topic + caption but NOT bodyText, though the service accepts it. Deliberate: three fields fit the operator's phone and bodyText is the optional second caption paragraph. The router passes it through, so a caller that wants it has it — only the form omits it.",
+        "lib/publicFetch.ts does NOT defeat DNS rebinding — it validates the LITERAL host on every hop, so a public NAME that resolves into private space still gets through. Closing that needs resolution-time checking or network egress rules, and a test asserts the gap rather than leaving the guard to read as complete."
       ],
       "lastVerifiedAt": "2026-08-03",
       "codeState": "merged",

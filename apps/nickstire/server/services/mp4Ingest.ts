@@ -86,13 +86,51 @@ async function runIngestAudioQa(bytes: Buffer): Promise<Record<string, unknown>>
   }
 }
 
+/**
+ * Instagram's own reel ceiling is well under this; the cap exists to bound the
+ * process, not to enforce a content policy. A reel that legitimately exceeds it
+ * is a different problem from a source that never stops sending.
+ */
+const MP4_MAX_BYTES = 512 * 1024 * 1024;
+const MP4_MAX_REDIRECTS = 3;
+
+/**
+ * Read the source into memory, refusing anything that could take the process
+ * down or reach inside the deploy's own network.
+ *
+ * BOTH GUARDS EXIST BECAUSE THIS BECAME REACHABLE. While nothing called
+ * ingestFinishedMp4, `fetch` + `arrayBuffer()` was latent; once an admin-facing
+ * mutation could pass a URL straight through, it was a blind SSRF (a plain
+ * fetch follows a 302 to 169.254.169.254 or any private host) and an
+ * unbounded allocation (arrayBuffer materialises whatever arrives, so one
+ * indefinitely streamed body exhausts the Railway process before the timeout).
+ *
+ * fetchPublicBounded is the same code path the reel generator's start-image
+ * download already used — extracted rather than copied, so the two cannot
+ * drift. It re-validates EVERY redirect hop, which is the part that matters:
+ * checking only the submitted URL leaves the whole private network one redirect
+ * away. It does NOT defeat DNS rebinding; that needs egress rules.
+ *
+ * The local-path branch is bounded too, by stat before read — a path is
+ * operator-supplied and /dev/zero or a multi-gigabyte render would otherwise
+ * be read whole into a Buffer.
+ */
 async function loadSource(source: string): Promise<Buffer> {
   if (/^https?:\/\//i.test(source)) {
-    const res = await fetch(source, { signal: AbortSignal.timeout(120_000) });
-    if (!res.ok) throw new Error(`mp4 ingest: source fetch failed (${res.status})`);
-    return Buffer.from(await res.arrayBuffer());
+    const { fetchPublicBounded } = await import("../lib/publicFetch");
+    return fetchPublicBounded(source, {
+      maxBytes: MP4_MAX_BYTES,
+      timeoutMs: 120_000,
+      maxRedirects: MP4_MAX_REDIRECTS,
+      label: "mp4 ingest",
+    });
   }
   const fs = await import("fs/promises");
+  const stat = await fs.stat(source);
+  if (!stat.isFile()) throw new Error("mp4 ingest: source is not a regular file");
+  if (stat.size > MP4_MAX_BYTES) {
+    throw new Error(`mp4 ingest: file too large (${stat.size} bytes, cap ${MP4_MAX_BYTES})`);
+  }
   return fs.readFile(source);
 }
 
