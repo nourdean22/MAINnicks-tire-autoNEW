@@ -186,3 +186,57 @@ call — below the bar).
   the orchestrator runs the probe."
 - **Confidence:** high (2 instances, same session, opposite directions)
 - **Status:** proposed
+
+## 2026-08-04 · Agent OS v1 (canonical policy + adapters + enforcement hooks) — PRs #1355, #1354
+
+### P1 · NEW: guard-red-team
+- **Trigger (witnessed):** the first draft of `config/agent-os/policy.json` went green on its own
+  canaries, then a 4-lens adversarial review ran 31 end-to-end probes through the real
+  `pretool.mjs` and proved **22 bypasses + 7 false positives** — a `git -C <path>` global-option
+  prefix defeated every git rule at once, an implicit-destination push (`HEAD`/bare) reached main
+  unnamed, `prisma migrate reset` slipped past the `--accept-data-loss` ban, and branch names
+  containing `main` (`chore/shared-main-push`) were wrongly blocked. Separately, the hook blocked
+  its own author three times on mention-vs-execution (e2e test command; commit message in a
+  PowerShell here-string; this very proposals-file append via heredoc). All fixed in v2
+  (PR #1355); every verified bypass is now a locked denyExample.
+- **Cost:** without the red-team pass, an enforcement layer providing false safety would have
+  merged; with it, ~1 hour of matching-layer rebuild mid-run.
+- **Proposed edit:** a skill triggered whenever authoring/modifying any deny-list, guard regex,
+  lint rule, or hook: (1) never trust a green first run — the check may be mis-scoped; (2) spawn
+  an adversarial reviewer that probes the REAL binary end-to-end (exit codes, not regex reasoning),
+  trying at minimum: tool global-option prefixes, implicit/default arguments, flag families and
+  bundled short flags, quoting/here-strings/heredocs, chaining, and mention-vs-execution false
+  positives; (3) every verified bypass becomes a locked deny test, every false positive a locked
+  allow test.
+- **Confidence:** high (three independent instances in one session: red-team 22×, canaries' first
+  run caught 2 defects, the new parity guard's first run caught a 4th "main (protected)" instance).
+- **Status:** proposed
+
+### P2 · harness-worktree-setup
+- **Trigger (witnessed):** `git push` from this harness worktree died at the default 2-minute tool
+  timeout (exit 143) because the lefthook pre-push `build:affected` gate alone took 103s; the retry
+  with a 10-minute timeout succeeded (PR #1355 push).
+- **Cost:** one dead push, ambiguous remote state to re-verify.
+- **Proposed edit:** add one line to the skill: "`git push` runs the pre-push build gate
+  (~2-5 min when an app is affected) — always give push commands an explicit >=5-minute timeout."
+- **Confidence:** medium (once, clear mechanism).
+- **Status:** proposed
+
+### P3 · NEW: stranded-branch-rescue
+- **Trigger (witnessed):** `nickstire/admin-health-strip-and-guards` sat with 11 unmerged commits,
+  walkthrough + capability evidence, and no PR — the authoring session died before `gh pr create`
+  (same stranding class as the nickstire-admin-waves-breakage memory). Rescued as PR #1354 via:
+  `git cherry origin/main <branch>` (11x `+` = genuinely unmerged) → no attached worktree → PR with
+  provenance note → merge only on CI-green + SHA-unchanged. The same cherry check exposed three
+  OTHER branches (`statenour/render-queue-lease`, `statenour/wire-reviews-cron`,
+  `chore/record-render-lease-migration`) as `-` = content already merged — zombie branches that
+  would otherwise invite a duplicate-merge mistake.
+- **Cost:** a finished, evidence-carrying arc invisible on main for ~6 hours; three zombie branches
+  inviting re-merges.
+- **Proposed edit:** a skill encoding the rescue protocol: cherry-check FIRST (a `-` branch is a
+  zombie, never re-merge it), require no-attached-worktree + SHA-stability before touching a
+  sibling's branch, put provenance in the PR body, and resolve `.completion/evidence.json`
+  conflicts by its own documented last-writer-wins rule (the merging branch's walkthrough wins).
+- **Confidence:** medium (one full occurrence, but the stranding class is memory-documented as
+  recurring).
+- **Status:** proposed
