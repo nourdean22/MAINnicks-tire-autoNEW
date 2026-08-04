@@ -250,7 +250,7 @@ export default function MemoryInboxPage() {
                       return claims.map((claim, idx) => (
                         <div
                           key={idx}
-                          className="bg-zinc-900/60 border border-zinc-850 p-3 rounded-lg flex items-start justify-between gap-4"
+                          className="bg-zinc-900/60 border border-zinc-800 p-3 rounded-lg flex items-start justify-between gap-4"
                         >
                           <div className="text-xs text-zinc-300 font-sans leading-relaxed">
                             {claim.text}

@@ -12,6 +12,7 @@ import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { BUSINESS } from "@shared/business";
 
 interface EmergencyFormData {
   name: string;
@@ -35,22 +36,32 @@ export function EmergencyMode() {
   const [submitted, setSubmitted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
+  // Close resets the success state so the next open starts fresh. The
+  // confirmation stays on screen until the customer dismisses it — the
+  // old 3s auto-close could remove it before a stressed customer at the
+  // roadside finished reading.
+  const closeForm = () => {
+    setShowForm(false);
+    // Reset unconditionally. Guarding on `submitted` left a stale success
+    // panel behind if the customer closed while the submit was still in
+    // flight: onSuccess then set the flag on a closed modal, and because the
+    // component stays mounted the whole time the shop is closed, the next
+    // tap opened straight onto "REQUEST RECEIVED!" with no form.
+    setSubmitted(false);
+    setFormData({ name: "", phone: "", vehicle: "", issue: "", urgency: "emergency" });
+  };
+
   // a11y: trap focus inside the emergency modal, autofocus first field,
-  // Escape closes (unless mid-success), restore focus to opener on close.
+  // Escape closes, restore focus to opener on close.
   useFocusTrap(dialogRef, showForm, {
     onEscape: () => {
-      if (!submitted) setShowForm(false);
+      closeForm();
     },
   });
 
   const submitEmergency = trpc.emergency.submit.useMutation({
     onSuccess: () => {
       setSubmitted(true);
-      setTimeout(() => {
-        setShowForm(false);
-        setSubmitted(false);
-        setFormData({ name: "", phone: "", vehicle: "", issue: "", urgency: "emergency" });
-      }, 3000);
     },
     // 2026-05-23 · was silent on failure — worst possible class on the
     // emergency form (after-hours stuck customer · most stakes). Now
@@ -129,8 +140,8 @@ export function EmergencyMode() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => !submitted && setShowForm(false)}
+            className="fixed inset-0 z-[10001] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={closeForm}
           >
             <motion.div
               ref={dialogRef}
@@ -151,8 +162,8 @@ export function EmergencyMode() {
                   <h2 id="emergency-request-title" className="font-bold text-foreground text-lg tracking-wide">EMERGENCY REQUEST</h2>
                 </div>
                 <button
-                  onClick={() => setShowForm(false)}
-                  className="text-foreground/70 hover:text-foreground transition-colors"
+                  onClick={closeForm}
+                  className="flex h-11 w-11 items-center justify-center text-foreground/70 hover:text-foreground transition-colors sm:h-8 sm:w-8"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" aria-hidden="true" />
@@ -164,10 +175,26 @@ export function EmergencyMode() {
                   <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-green-400 text-2xl">✓</span>
                   </div>
-                  <h3 className="font-bold text-foreground mb-2">REQUEST SUBMITTED!</h3>
+                  <h3 className="font-bold text-foreground mb-2">REQUEST RECEIVED!</h3>
+                  {/* No "appointment" — the shop is first-come, first-served.
+                      Promising an appointment here misstates the service
+                      contract the rest of the site is built around. */}
                   <p className="text-foreground/60 text-sm">
-                    We'll contact you first thing at {nextOpenTime} to confirm your appointment.
+                    We'll contact you when the shop opens at {nextOpenTime} to confirm next steps — no appointment needed, we're first-come, first-served.
                   </p>
+                  <p className="text-foreground/60 text-sm mt-3">
+                    Need help right now?{" "}
+                    <a href={BUSINESS.phone.href} className="text-primary font-semibold hover:underline">
+                      Call {BUSINESS.phone.display}
+                    </a>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={closeForm}
+                    className="mt-6 w-full border border-border/60 text-foreground/80 hover:text-foreground hover:border-border py-3 font-bold text-sm tracking-wide transition-colors"
+                  >
+                    CLOSE
+                  </button>
                 </motion.div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -286,7 +313,13 @@ export function EmergencyMode() {
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         onClick={() => setShowForm(true)}
-        className="fixed bottom-6 right-6 z-40 bg-red-500 hover:bg-red-600 text-white p-4 rounded-full font-bold text-sm tracking-wide transition-colors shadow-lg flex items-center gap-2 lg:bottom-8 lg:right-8"
+        aria-label="Open emergency request form"
+        // bottom-52 clears both the CTA bar (68px + safe-area) and the closed
+        // ChatWidget bubble (bottom-36, 48px tall). z-[85] deliberately sits
+        // BELOW the chat panel's z-[90]: when chat is open its 480px panel
+        // occupies this same column, and the chat should win rather than have
+        // an opaque red bubble steal taps meant for the conversation.
+        className="fixed bottom-52 right-4 z-[85] bg-red-500 hover:bg-red-600 text-white p-4 rounded-full font-bold text-sm tracking-wide transition-colors shadow-lg flex items-center gap-2 lg:bottom-6 lg:right-24"
       >
         <motion.span
           animate={{ scale: [1, 1.2, 1] }}

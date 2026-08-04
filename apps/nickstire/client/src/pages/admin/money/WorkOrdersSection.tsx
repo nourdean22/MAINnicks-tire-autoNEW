@@ -2,7 +2,8 @@
  * Work Orders Section — Kanban board + detail drawer.
  * Columns grouped by lifecycle phase, cards show priority/timer/blocker/tech.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { PageHeader, ErrorState } from "../shared";
@@ -11,6 +12,7 @@ import type { ShopFloorData } from "../today/types";
 type AdminDashboardStats = RouterOutputs["adminDashboard"]["stats"];
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import { SkeletonTable, SkeletonPanel } from "@/components/admin/AdminSkeletons";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Timer, Phone, MapPin,
@@ -236,16 +238,30 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const utils = trpc.useUtils();
   const advanceStatus = trpc.workOrders.advanceStatus.useMutation({
     onSuccess: () => { utils.workOrders.list.invalidate(); utils.workOrders.getById.invalidate({ id }); },
+    onError: (e) => toast.error(`Status update failed: ${e.message}`),
   });
   const updateFields = trpc.workOrders.updateFields.useMutation({
     onSuccess: () => { utils.workOrders.getById.invalidate({ id }); },
+    onError: (e) => toast.error(`Save failed: ${e.message}`),
   });
 
   const updatePart = trpc.workOrders.updatePartStatus.useMutation({
     onSuccess: () => { utils.workOrders.getById.invalidate({ id }); utils.workOrders.pendingParts.invalidate(); },
+    onError: (e) => toast.error(`Part status update failed: ${e.message}`),
   });
   const [techInput, setTechInput] = useState("");
   const [bayInput, setBayInput] = useState("");
+  // Dialog semantics (SideDrawer pattern): focus trap + Escape once the
+  // loaded panel mounts, body scroll locked for the drawer's lifetime.
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(drawerRef, !isLoading && !!wo, { onEscape: onClose });
+  // Restore the prior value rather than hard-clearing, so a nested overlay
+  // closing does not unlock the page underneath it.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   if (isLoading) return (
     <div className="fixed inset-0 z-[62] flex">
@@ -256,7 +272,35 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
     </div>
   );
 
-  if (!wo) return null;
+  // A work order that fails to load says so. `return null` used to render
+  // nothing while the body scroll lock above stayed applied — an invisible
+  // modal that froze the page with no backdrop and no close button.
+  if (!wo) return (
+    <div className="fixed inset-0 z-[62] flex">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Work order unavailable"
+        className="ml-auto w-full max-w-lg bg-background border-l border-border/40 p-6 overflow-y-auto relative z-10"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Couldn't load this work order</p>
+              <p className="mt-1 text-xs text-foreground/60">
+                It may have been deleted, or the lookup failed. This is not an empty work order.
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 -mr-2 sm:-mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   const promise = formatPromiseTime(wo.promisedAt);
   const prio = PRIORITY_CONFIG[wo.priority] || PRIORITY_CONFIG.normal;
@@ -286,7 +330,13 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
       {/* wave-133 — pb-[env(safe-area-inset-bottom)] so iOS home-indicator
           area doesn't obscure the bottom action buttons (operator runs
           from his iPhone). Backdrop also matches wave-131 drawers (0.40). */}
-      <div className="ml-auto w-full max-w-lg bg-background border-l border-border/40 overflow-y-auto relative z-10 pb-[env(safe-area-inset-bottom)]">
+      <div
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Work order ${wo.orderNumber}`}
+        className="ml-auto w-full max-w-lg bg-background border-l border-border/40 overflow-y-auto relative z-10 pb-[env(safe-area-inset-bottom)]"
+      >
         {/* Header */}
         <div className="sticky top-0 bg-background/95 backdrop-blur border-b border-border/30 px-5 py-4 flex items-center justify-between">
           <div>
@@ -295,7 +345,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               {prio.label}
             </span>
           </div>
-          <button onClick={onClose} aria-label="Close" className="inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"><XCircle className="w-4 h-4" /></button>
+          <button onClick={onClose} aria-label="Close" className="inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 -mr-2 sm:-mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"><XCircle className="w-4 h-4" /></button>
         </div>
 
         <div className="p-5 space-y-5">
@@ -343,11 +393,14 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                 className="w-full bg-card border border-border/30 rounded px-2.5 py-1.5 text-xs"
                 placeholder={wo.assignedTech || "Assign tech..."}
                 value={techInput}
+                disabled={updateFields.isPending}
                 onChange={e => setTechInput(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === "Enter" && techInput.trim()) {
-                    updateFields.mutate({ id, assignedTech: techInput.trim() });
-                    setTechInput("");
+                    // Clear only on success — an optimistic clear made a
+                    // failed assignment look accepted (per-call handler; the
+                    // shared mutation object serves both inputs).
+                    updateFields.mutate({ id, assignedTech: techInput.trim() }, { onSuccess: () => setTechInput("") });
                   }
                 }}
               />
@@ -357,11 +410,11 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                 className="w-full bg-card border border-border/30 rounded px-2.5 py-1.5 text-xs"
                 placeholder={wo.assignedBay || "Bay #"}
                 value={bayInput}
+                disabled={updateFields.isPending}
                 onChange={e => setBayInput(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === "Enter" && bayInput.trim()) {
-                    updateFields.mutate({ id, assignedBay: bayInput.trim() });
-                    setBayInput("");
+                    updateFields.mutate({ id, assignedBay: bayInput.trim() }, { onSuccess: () => setBayInput("") });
                   }
                 }}
               />
@@ -564,6 +617,7 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
   const utils = trpc.useUtils();
   const updatePart = trpc.workOrders.updatePartStatus.useMutation({
     onSuccess: () => { utils.workOrders.pendingParts.invalidate(); utils.workOrders.list.invalidate(); },
+    onError: (e) => toast.error(`Part status update failed: ${e.message}`),
   });
 
   if (isLoading) return <SkeletonTable rows={5} cells={4} />;
@@ -721,6 +775,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
   const utils = trpc.useUtils();
   const advance = trpc.workOrders.advanceStatus.useMutation({
     onSuccess: () => { utils.workOrders.pickupQueue.invalidate(); utils.workOrders.list.invalidate(); utils.workOrders.stats.invalidate(); },
+    onError: (e) => toast.error(`Status update failed: ${e.message}`),
   });
 
   if (isLoading) return <SkeletonPanel rows={4} />;

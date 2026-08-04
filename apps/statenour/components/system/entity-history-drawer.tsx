@@ -120,16 +120,19 @@ export function EntityHistoryDrawer({
 
   return (
     <>
-      <span onClick={() => setOpen((v) => !v)} className="cursor-pointer">
-        {trigger ?? (
-          <button
-            type="button"
-            className="text-xs text-zinc-400 hover:text-zinc-100 underline-offset-2 hover:underline"
-          >
-            History
-          </button>
-        )}
-      </span>
+      {trigger ? (
+        <span onClick={() => setOpen((v) => !v)} className="cursor-pointer">
+          {trigger}
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="text-xs text-zinc-400 hover:text-zinc-100 underline-offset-2 hover:underline"
+        >
+          History
+        </button>
+      )}
 
       {open && (
         <div

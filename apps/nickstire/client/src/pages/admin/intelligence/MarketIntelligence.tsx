@@ -1,6 +1,7 @@
 import React from "react";
 import { trpc } from "@/lib/trpc";
 import { TrendingUp, BarChart3, Globe, Crosshair } from "lucide-react";
+import { LoadingState } from "../shared";
 
 export function MarketIntelligence() {
   const { data: report, isLoading } = trpc.intelligence.masterReport.useQuery(undefined, {
@@ -8,7 +9,7 @@ export function MarketIntelligence() {
   });
 
   if (isLoading) {
-    return <div className="h-48 flex items-center justify-center text-muted-foreground text-xs animate-pulse">Loading market intelligence...</div>;
+    return <LoadingState label="Loading market intelligence..." />;
   }
 
   const content = report?.marketing?.contentPerformance as any;

@@ -399,7 +399,7 @@ export default function SystemPage() {
                 )}
               </div>
 
-              <div className="border-t border-zinc-850 pt-2 text-[10px] font-mono text-zinc-500 flex justify-between">
+              <div className="border-t border-zinc-800 pt-2 text-[10px] font-mono text-zinc-500 flex justify-between">
                 <span>Docs Grounded: {memoryEvalsQuery.data.sourcesFound}/{memoryEvalsQuery.data.sourcesExpected}</span>
               </div>
             </div>

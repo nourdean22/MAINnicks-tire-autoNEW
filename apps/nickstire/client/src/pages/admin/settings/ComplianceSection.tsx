@@ -166,7 +166,7 @@ export default function ComplianceSection() {
                 <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
                   Recent consent events
                 </h3>
-                <div className="overflow-hidden border border-border/30 bg-card/50">
+                <div className="overflow-x-auto border border-border/30 bg-card/50">
                   <table className="w-full text-xs">
                     <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
                       <tr>

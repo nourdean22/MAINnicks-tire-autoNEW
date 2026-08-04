@@ -1,6 +1,7 @@
 import React from "react";
 import { trpc } from "@/lib/trpc";
 import { Clock, Zap, AlertCircle, PhoneIncoming } from "lucide-react";
+import { LoadingState } from "../shared";
 
 export function LeadSLAMonitor() {
   const { data: report, isLoading, isError, error } = trpc.intelligence.masterReport.useQuery(undefined, {
@@ -8,7 +9,7 @@ export function LeadSLAMonitor() {
   });
 
   if (isLoading) {
-    return <div className="h-48 flex items-center justify-center text-muted-foreground text-xs animate-pulse">Loading SLA metrics...</div>;
+    return <LoadingState label="Loading SLA metrics..." />;
   }
 
   // UNKNOWN IS NOT ZERO. A failed report used to fall through `|| 0` into an

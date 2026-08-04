@@ -207,7 +207,11 @@ export function ChatIsland() {
         {isVoiceDocked && <RealtimeVoiceOverlay open={isVoiceDocked} onClose={toggleVoiceDock} />}
       </div>
 
-      <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-safe pt-3 backdrop-blur-xl sm:px-4">
+      {/* pb-3, not pb-safe. The route shell now reserves the MEASURED
+          --bottom-chrome-h; .pb-safe adds a hardcoded 96px on top of it,
+          which measured as 111px of dead gap between the input and the tab
+          bar. One reservation, and it is the self-measuring one. */}
+      <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-3 pt-3 backdrop-blur-xl sm:px-4">
         <ChatComposer chat={chat} />
       </div>
 

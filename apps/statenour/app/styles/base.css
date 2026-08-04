@@ -267,3 +267,26 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
 ):not([data-no-anchor]):not(button):not(a):not([class*=" p-"]):not([class^="p-"]) {
   padding: 1.25rem;
 }
+
+/* ═══════════════════════════════════════════════════════
+   iOS focus auto-zoom floor.
+
+   Paired with removing `maximumScale: 1` from the root viewport (which
+   blocked pinch zoom in the standalone PWA and failed WCAG 1.4.4). That
+   cap was also the only thing suppressing Safari's OTHER behaviour:
+   focusing a form control whose font-size is under 16px auto-zooms the
+   viewport and leaves it zoomed. chat-composer.tsx already pins its
+   textarea at text-[16px] for exactly this reason; the other ~49 sub-16px
+   inputs across 27 files were never brought along.
+
+   A 16px floor on coarse pointers satisfies both: zoom stays available,
+   and focusing an input no longer yanks the viewport. Desktop keeps its
+   denser type — this is scoped to the phone width the PWA runs at.
+   ═══════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

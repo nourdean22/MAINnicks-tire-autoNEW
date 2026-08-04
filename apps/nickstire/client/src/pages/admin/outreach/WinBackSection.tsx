@@ -2,7 +2,7 @@
  * Win-Back Campaigns Admin Section
  * Create, manage, and monitor automated SMS win-back sequences.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { StatCard, PageHeader, useUrlFilter, ErrorState, formatDate, formatDateTime } from "../shared";
@@ -10,6 +10,7 @@ import { StatCard, PageHeader, useUrlFilter, ErrorState, formatDate, formatDateT
 // PENDING + RESUME (each fires real SMS to potentially hundreds of
 // customers · previously ungated). iOS-PWA-safe primitive.
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 // tRPC-inferred types — server router was fixed in same commit
 // (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
@@ -253,8 +254,19 @@ function SafetyGateModal({
   const [check2, setCheck2] = useState(false);
   const [check3, setCheck3] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: readiness, isLoading: readinessLoading } = trpc.winback.campaignReadiness.useQuery({
+  // Focus trap + Escape close + focus restore — same a11y contract every
+  // other overlay gets via useFocusTrap. Modal only mounts while open.
+  useFocusTrap(panelRef, true, { onEscape: onClose });
+
+  // Lock body scroll while the modal is mounted (same pattern as SiteNavbar).
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const { data: readiness, isLoading: readinessLoading, isError: readinessError } = trpc.winback.campaignReadiness.useQuery({
     targetSegment: campaign.targetSegment as any,
     customMessages: messages.map(m => ({ step: m.step, delayDays: m.delayDays, body: m.body })),
   });
@@ -281,11 +293,19 @@ function SafetyGateModal({
    * rendering. Weakening it to case-insensitive costs nothing: the whole point
    * is deliberate intent, and nobody types "confirm" by accident.
    */
-  const canExecute = check1 && check2 && check3 && confirmText.trim().toUpperCase() === "CONFIRM";
+  // Fail-closed: an errored/absent readiness lookup keeps the destructive
+  // ACTIVATE locked — an unknown audience is not an audience of zero.
+  const canExecute = check1 && check2 && check3 && confirmText.trim().toUpperCase() === "CONFIRM" && !readinessError && readiness != null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-      <div className="w-full max-w-xl bg-card border border-border/40 rounded-xl p-6 shadow-2xl space-y-5 flex flex-col max-h-[90vh] overflow-y-auto">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Win-back campaign safety gate"
+        className="w-full max-w-xl bg-card border border-border/40 rounded-xl p-6 shadow-2xl space-y-5 flex flex-col max-h-[90vh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border/10 pb-3">
           <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
@@ -300,6 +320,16 @@ function SafetyGateModal({
         {readinessLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : readinessError || !readiness ? (
+          /* Truthful fail-closed: a failed readiness lookup must NOT render
+             as "0 Customers" / "$0" tiles — unknown is not zero. canExecute
+             is gated on this too, so ACTIVATE stays locked. */
+          <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-400/30 rounded-lg">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-200 leading-relaxed">
+              Audience unreadable — this is a failed lookup, NOT zero customers. Fix the connection before activating.
+            </p>
           </div>
         ) : (
           <div className="space-y-4 text-sm">

@@ -98,7 +98,7 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
       {/* Body */}
       <div className="mt-4">
         <h3 className="text-base font-bold text-slate-100">{opportunity.title}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-slate-350">{opportunity.description}</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-300">{opportunity.description}</p>
       </div>
 
       {/* Metrics breakdown */}

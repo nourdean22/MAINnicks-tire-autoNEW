@@ -92,14 +92,13 @@ export function StampLetters({
       initial="hidden"
       animate="visible"
       custom={{ delay, stagger }}
-      aria-label={text}
     >
-      {/* wave-181.3 SEO audit · defensive fallback for crawlers that
-          tokenize by text node and don't respect aria-label. The motion
-          spans below carry aria-hidden, so AT users get the aria-label —
-          but bare-text scrapers see "P u l l u p f o r t i r e s". A
-          single sr-only text node here gives them a clean phrase to read.
-          Position-absolute keeps it out of the visual flow. */}
+      {/* The sr-only span below is the ONE semantic text source. It serves
+          both assistive tech and text-node crawlers; the motion spans carry
+          aria-hidden so the animated layer contributes no text. (An
+          aria-label here used to duplicate the accessible name on top of
+          this span — and aria-label on a role-less span is prohibited by
+          ARIA 1.2 anyway.) */}
       <span
         style={{
           position: "absolute",

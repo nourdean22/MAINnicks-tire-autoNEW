@@ -14,8 +14,10 @@
  *   - LocalStorage flag suppresses for 24h after dismiss.
  *
  * Per the conversion-overhaul spec (`docs/CONVERSION-OVERHAUL-V1.1.md`):
- *   - All numbers are REAL (from `trpc.conversion.shopCapacity`).
- *   - Hides outside business hours rather than fake an open status.
+ *   - Counts are REAL (from `trpc.conversion.shopCapacity`); the wait is a
+ *     45min-per-active-WO heuristic and is labeled "Est." accordingly.
+ *   - Hides outside business hours — and when open-state is UNKNOWN
+ *     (isOpen null on DB failure) — rather than fake an open status.
  *   - Doesn't show on /admin or /booking (don't double-prompt the user
  *     who's already converting).
  */
@@ -123,9 +125,10 @@ export default function UrgencyWidget() {
 
   // Hide cases:
   //   - on suppressed path
-  //   - shop closed (don't lie about availability)
+  //   - shop closed OR open-state unknown (isOpen is null when the DB was
+  //     unreachable — unknown must hide the widget, not imply open)
   //   - no capacity data yet (cold start)
-  if (onSuppressedPath || !visible || !capacity || capacity.isOpen === false) return null;
+  if (onSuppressedPath || !visible || !capacity || capacity.isOpen !== true) return null;
 
   // "slots" stays as the internal capacity heuristic (display gate below);
   // it must never surface as customer-facing reservation language.
@@ -187,7 +190,7 @@ export default function UrgencyWidget() {
 
                 <div className="text-[11px] text-foreground/60 mb-3 space-y-0.5">
                   {waitMin > 0 && (
-                    <div>Current wait: ~{Math.round(waitMin / 60 * 10) / 10}h</div>
+                    <div>Est. wait: ~{Math.round(waitMin / 60 * 10) / 10}h</div>
                   )}
                   {capacity.activeJobs != null && (
                     <div>{capacity.activeJobs} car{capacity.activeJobs !== 1 ? "s" : ""} in shop right now</div>

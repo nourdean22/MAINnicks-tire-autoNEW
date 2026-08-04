@@ -14,6 +14,7 @@ import { SERVICE_TYPES, SERVICE_CATEGORIES } from "@shared/serviceTypes";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   DollarSign,
   Search,
@@ -163,6 +164,11 @@ export default function CostEstimator() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       console.error("Estimate failed:", e);
+      // showResult gates the whole result pane — leaving it false on
+      // failure re-rendered the form and made the estimate.isError branch
+      // unreachable, so the primary CTA silently did nothing.
+      setShowResult(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -243,6 +249,7 @@ export default function CostEstimator() {
                       <select
                         value={year}
                         onChange={(e) => setYear(e.target.value)}
+                        aria-label="Vehicle year"
                         className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/10 text-white placeholder-white/50 appearance-none cursor-pointer hover:bg-white/15 hover:border-white/20 transition-all"
                       >
                         <option value="">Year</option>
@@ -260,6 +267,7 @@ export default function CostEstimator() {
                       <select
                         value={make}
                         onChange={(e) => setMake(e.target.value)}
+                        aria-label="Vehicle make"
                         disabled={!year}
                         className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/10 text-white placeholder-white/50 appearance-none cursor-pointer hover:bg-white/15 hover:border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -278,6 +286,7 @@ export default function CostEstimator() {
                       <input
                         type="text"
                         placeholder="Model"
+                        aria-label="Vehicle model"
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
                         disabled={!make}
@@ -306,6 +315,7 @@ export default function CostEstimator() {
                     <input
                       type="text"
                       placeholder="Search services..."
+                      aria-label="Search services"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/10 text-white placeholder-white/50 hover:bg-white/15 hover:border-white/20 transition-all"
@@ -456,17 +466,22 @@ export default function CostEstimator() {
 
                   {/* CTAs */}
                   <div className="space-y-3 pt-4">
-                    <Link href="/booking">
-                      <button className="w-full py-4 rounded-lg bg-primary text-black font-bold hover:bg-primary/90 transition-all">
-                        Drop It Off — See the Final Number
-                      </button>
+                    {/* Interactive-inside-interactive (button in a link) is
+                        invalid HTML and flaky on iOS taps — the link IS the
+                        button, styled directly. */}
+                    <Link
+                      href="/booking"
+                      className="block w-full py-4 rounded-lg bg-primary text-black text-center font-bold hover:bg-primary/90 transition-all"
+                    >
+                      Drop It Off — See the Final Number
                     </Link>
 
-                    <a href={BUSINESS.phone.href}>
-                      <button className="w-full py-3 rounded-lg border-2 border-primary text-primary font-semibold hover:bg-primary/10 transition-all flex items-center justify-center gap-2">
-                        <Phone className="w-4 h-4" />
-                        Call for Exact Quote: {BUSINESS.phone.display}
-                      </button>
+                    <a
+                      href={BUSINESS.phone.href}
+                      className="w-full py-3 rounded-lg border-2 border-primary text-primary font-semibold hover:bg-primary/10 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Call for Exact Quote: {BUSINESS.phone.display}
                     </a>
 
                     <FinancingCTA variant="card" />
@@ -481,6 +496,7 @@ export default function CostEstimator() {
                         <input
                           type="text"
                           placeholder="Your name"
+                          aria-label="Your name"
                           value={leadName}
                           onChange={e => setLeadName(e.target.value)}
                           className="w-full bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-primary/50"
@@ -488,6 +504,7 @@ export default function CostEstimator() {
                         <input
                           type="tel"
                           placeholder="Phone number"
+                          aria-label="Phone number"
                           value={leadPhone}
                           onChange={e => setLeadPhone(e.target.value)}
                           className="w-full bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-primary/50"
@@ -507,7 +524,13 @@ export default function CostEstimator() {
                                 landingPage: "/cost-estimator",
                               });
                               setLeadSubmitted(true);
-                            } catch { /* handled by tRPC */ }
+                            } catch {
+                              // Nothing else handles this — the comment that
+                              // used to say "handled by tRPC" described code
+                              // that didn't exist, so a failed save looked
+                              // identical to success minus the confirmation.
+                              toast.error(`Couldn't save your info — call ${BUSINESS.phone.display} and we'll take it down.`);
+                            }
                             setLeadSaving(false);
                           }}
                           className="w-full py-3 rounded-lg bg-emerald-500 text-black font-bold text-sm hover:bg-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
