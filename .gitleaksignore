@@ -1,0 +1,33 @@
+# gitleaks fingerprint allowlist.
+#
+# Format: <commit-sha>:<path>:<rule-id>:<line>. Each entry is pinned to ONE
+# commit, ONE file and ONE line, so an entry here can never suppress a finding
+# anywhere else — including a real secret added later to the same file.
+#
+# ONLY for a finding that is already IN HISTORY and provably not a secret. The
+# CI gate scans the whole PR range (BASE_SHA..HEAD_SHA), so once a line is
+# committed, fixing it in a later commit does NOT clear the gate — the original
+# added line stays in range. If the finding is in a commit you have not pushed,
+# amend it out instead of adding it here.
+#
+# Never add an entry for something that IS a credential. Rotate it.
+
+# A test assertion about a FEATURE-FLAG NAME rendered in the admin env-gates
+# panel. The generic-api-key rule matched it because the assertion was written
+# as an object-key-and-quoted-string literal; socialPipeline.ts carries a
+# comment predicting exactly this and annotates its own entry gitleaks:allow.
+# The assertion has since been rewritten to build the string from the
+# MP4_INGEST_FLAG constant, so the pattern no longer appears in the tree — this
+# entry only covers the superseded line still sitting in commit 41a048fb5.
+#
+# NOTE FOR THE NEXT ENTRY: do NOT paste the offending text into your comment.
+# The first version of this note quoted the matched literal verbatim and the
+# scanner flagged the ignore file itself, on the line explaining the ignore.
+# Describe the shape; never reproduce it.
+41a048fb5ea7c688ee5ee824c45d9acb857aee0e:apps/nickstire/server/mp4IngestDoor.test.ts:generic-api-key:85
+
+# THIS FILE, one commit later — the note above, before it was reworded. Proof
+# that the rule two lines up is not hypothetical: the explanation of an ignore
+# is scanned exactly like code, and quoting the match to explain it recreates
+# the match. Both lines are gone from the tree; the range gate still sees them.
+104810333ad1fed3446eab9c717040edceefbbe8:.gitleaksignore:generic-api-key:15

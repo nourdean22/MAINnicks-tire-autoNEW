@@ -120,7 +120,7 @@ export default function OverviewSection() {
     staleTime: 90_000,
     refetchIntervalInBackground: false,
   });
-  const { data: freshness, refetch: refetchFreshness, isFetching: freshnessFetching } =
+  const { data: freshness, refetch: refetchFreshness, isFetching: freshnessFetching, isError: freshnessFailed } =
     trpc.adminSecurity.integrationFreshness.useQuery(undefined, {
       refetchInterval: 60_000,
       refetchIntervalInBackground: false,
@@ -258,6 +258,13 @@ export default function OverviewSection() {
     connected: freshness?.connected,
     lastSuccessfulAt: freshness?.lastSuccessfulAt,
     staleAfterMinutes: 24 * 60,
+    // ROS-083 · without these two the card can only answer "how old is the last
+    // success", which reads emerald "Fresh" for a full day of live auth
+    // failures. `freshnessFailed` covers the case where the query itself did
+    // not resolve, which no server field can report.
+    readable: freshnessFailed ? false : freshness?.readable,
+    failuresSinceLastSuccess: freshness?.failuresSinceLastSuccess,
+    lastAttemptOutcome: freshness?.lastAttemptOutcome,
   });
 
   async function logReceipt(item: ActionItem, action: string, changes: Record<string, unknown>) {
@@ -410,8 +417,12 @@ export default function OverviewSection() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 id="freshness-title" className="text-sm font-semibold flex items-center gap-2"><Plug className="w-4 h-4 text-primary" />Integration freshness</h2>
-            <p className={`mt-1 text-xs ${integration.state === "fresh" ? "text-emerald-400" : integration.state === "stale" ? "text-amber-400" : "text-red-400"}`}>
+            <p className={`mt-1 text-xs ${integration.state === "fresh" ? "text-emerald-400" : integration.state === "stale" || integration.state === "unknown" ? "text-amber-400" : "text-red-400"}`}>
               ALG / ShopDriver · {integration.label}
+              {/* Keep the last-success timestamp on a FAILING card. It is the
+                  most useful number there — it says how long the outage has
+                  been running — but it must never be the only thing shown,
+                  which is what made a live failure read as freshly synced. */}
               {freshness?.lastSuccessfulAt ? ` · last success ${new Date(freshness.lastSuccessfulAt).toLocaleString()}` : ""}
             </p>
             <p className="mt-1 text-[10px] text-muted-foreground">Source: {freshness?.source ?? "unknown"} · checked {freshness?.generatedAt ? new Date(freshness.generatedAt).toLocaleTimeString() : "—"}</p>

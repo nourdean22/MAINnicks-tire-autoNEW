@@ -3,6 +3,7 @@
  * AUDIT-FIXED: Rate limiting, session cleanup, invoice CRUD, optimized KPI, auto-stage
  */
 import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { BUSINESS } from "../../../shared/business";
 
@@ -735,7 +736,18 @@ export const invoicesRouter = router({
     }).optional())
     .query(async ({ input }) => {
       const d = await db();
-      if (!d) return { estimates: [], total: 0, recoverable: 0, recovered: 0, recoveryRate: 0 };
+      if (!d) {
+        // ROS-083 · DB-unavailable must NOT resolve as a successful all-zero
+        // payload. It did, so tRPC returned HTTP 200, react-query's isError
+        // stayed false, and the Declined Work surface rendered "$0 RECOVERABLE"
+        // — money you could still collect, reported as nothing to collect,
+        // exactly when the system cannot see it. A client-side `isError` guard
+        // is INERT unless this throws.
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Database unavailable — declined-estimate totals are unknown, not zero.",
+        });
+      }
 
       const days = input?.days ?? 30;
       const cutoff = new Date();

@@ -1451,7 +1451,30 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return {
       livePostingEnabled,
       latestLogs,
+      // ADDITIVE. `latestLogs` is [] both when the lane genuinely had no runs
+      // and when the database could not be read, so a reader cannot tell an
+      // idle lane from an outage. Consumers that ignore this field keep their
+      // existing behaviour; /ig today uses it to say UNKNOWN instead of
+      // rendering a calm empty lane.
+      dbReadable: !!db,
     };
+  },
+
+  // Read-only IG reads for the operator's Telegram surface (/ig). Both
+  // delegate to the SAME services the admin console reads, so the phone and
+  // the console can never disagree. Neither writes anything.
+  //
+  // Their "unknown is not zero" contract has to survive the trip: nullable
+  // counts mean the fact could not be read, and a formatter that renders null
+  // as 0 turns a database outage into a clean bill of health.
+  "instagram_delivery_issues": async () => {
+    const { getDeliveryIssues } = await import("../services/socialDeliveryIssues");
+    return getDeliveryIssues();
+  },
+
+  "instagram_reel_reliability": async () => {
+    const { getReelReliability } = await import("../services/reelReliability");
+    return getReelReliability();
   },
 
   "instagram_autopost_run": async (filters) => {

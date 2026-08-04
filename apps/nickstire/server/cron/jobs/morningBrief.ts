@@ -17,6 +17,64 @@ import { BUSINESS } from "@shared/business";
 import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:morning-brief");
 
+/**
+ * ROS-083 · the TOP DECISIONS block, and why it is a named function.
+ *
+ * It used to be built inline and left as "" whenever the opportunity queue came
+ * back empty — which collapsed THREE different states into one: the queue was
+ * read and is genuinely clear, the queue could not be consulted (no database
+ * handle, or migration 0099 unapplied so revenue_opportunities does not exist),
+ * and the read threw.
+ *
+ * An absent block does not read as "nothing to decide" to the model. The FORMAT
+ * RULES in the system prompt mandate a "Top 3 priorities" section, so with no
+ * block the LLM writes the operator's priorities for the day FROM SCRATCH, out
+ * of whatever else happens to be in the data blob — and sends them to Telegram
+ * every morning, indistinguishable from a real queue-backed list.
+ *
+ * So the block is now ALWAYS present and always says which of the three states
+ * produced it. The exceptions block further down this same file already does
+ * exactly this ("waiting-customer count UNKNOWN (read failed ...)"); this is
+ * that idiom, not a new one.
+ *
+ * Extracted so the three branches can be asserted directly — the surrounding
+ * function is ~400 lines of sequential reads and cannot be exercised in a unit
+ * test, which is the reason this went unnoticed.
+ */
+export const DECISIONS_UNAVAILABLE_READ_FAILED =
+  "\nTOP DECISIONS: UNAVAILABLE — reading the opportunity queue FAILED. This is NOT the same as an empty queue.";
+
+export function buildDecisionsBlock(top: {
+  decisions: Array<{
+    urgency: string;
+    recommendedAction: string;
+    reason: string;
+    dataQuality: string;
+    attempts: number;
+    factors: { valueDollars: number };
+  }>;
+  excludedNoConsent: number;
+  excludedSnoozed: number;
+  totalLive: number;
+  queryable: boolean;
+}): string {
+  if (!top.queryable) {
+    return "\nTOP DECISIONS: UNAVAILABLE — the opportunity queue could not be consulted (no database handle, or revenue_opportunities is missing). This is NOT the same as an empty queue.";
+  }
+  if (top.decisions.length === 0) {
+    return `\nTOP DECISIONS: none — the opportunity queue was read successfully and holds no actionable decisions right now (${top.totalLive} live, ${top.excludedNoConsent} excluded for no contact consent, ${top.excludedSnoozed} snoozed).`;
+  }
+  let block = "\nTOP DECISIONS (opportunity queue — lead with these, verbatim):";
+  top.decisions.forEach((dec, i) => {
+    const value = dec.factors.valueDollars > 0 ? `$${dec.factors.valueDollars.toLocaleString()}` : "value unknown";
+    block += `\n${i + 1}. [${dec.urgency.toUpperCase()}] ${dec.recommendedAction} — ${value} · ${dec.reason} (evidence: ${dec.dataQuality}, attempts: ${dec.attempts})`;
+  });
+  if (top.excludedNoConsent > 0) {
+    block += `\n(${top.excludedNoConsent} opportunities excluded — no contact consent)`;
+  }
+  return block;
+}
+
 export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; details?: string }> {
   const { sendTelegram } = await import("../../services/telegram");
   const d = await db();
@@ -156,23 +214,29 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
     } catch (e) { log.warn("[morningBrief] enrichment data (revenue/pipeline/declined) failed:", e); }
 
     // ─── Owner Decision Inbox: top 5 from the opportunity queue ────
-    // Wave 4: evidence-backed decision cards lead the brief. Degrades to
-    // empty until migration 0099 is applied (service returns no rows).
-    let decisionsBlock = "";
+    // Wave 4: evidence-backed decision cards lead the brief.
+    //
+    // ROS-083 · this block used to collapse THREE different states into the
+    // same empty string: the queue was read and is genuinely clear, the queue
+    // could not be consulted (no DB, or migration 0099 unapplied), and the read
+    // threw. An absent block does not mean "nothing to decide" to the model —
+    // the FORMAT RULES below mandate a "Top 3 priorities" section, so with no
+    // block the LLM writes the operator's priorities for the day FROM SCRATCH,
+    // out of whatever else happens to be in the data blob. Every morning, in
+    // Telegram, indistinguishable from a real queue-backed list.
+    //
+    // So the block is now always present and always says which of the three it
+    // is. The exceptions block twenty lines below already does exactly this
+    // ("waiting-customer count UNKNOWN (read failed ...)"); this is the same
+    // idiom, not a new one.
+    let decisionsBlock: string;
     try {
       const { topDecisions } = await import("../../services/opportunityQueue");
-      const top = await topDecisions(5);
-      if (top.decisions.length > 0) {
-        decisionsBlock = "\nTOP DECISIONS (opportunity queue — lead with these, verbatim):";
-        top.decisions.forEach((dec, i) => {
-          const value = dec.factors.valueDollars > 0 ? `$${dec.factors.valueDollars.toLocaleString()}` : "value unknown";
-          decisionsBlock += `\n${i + 1}. [${dec.urgency.toUpperCase()}] ${dec.recommendedAction} — ${value} · ${dec.reason} (evidence: ${dec.dataQuality}, attempts: ${dec.attempts})`;
-        });
-        if (top.excludedNoConsent > 0) {
-          decisionsBlock += `\n(${top.excludedNoConsent} opportunities excluded — no contact consent)`;
-        }
-      }
-    } catch (e) { log.warn("[morningBrief] opportunity queue load failed:", e); }
+      decisionsBlock = buildDecisionsBlock(await topDecisions(5));
+    } catch (e) {
+      log.warn("[morningBrief] opportunity queue load failed:", e);
+      decisionsBlock = DECISIONS_UNAVAILABLE_READ_FAILED;
+    }
 
     // ─── Exception brief (Autopilot Wave 2) — what needs Nick, not a feed ──
     // Only real, load-bearing exceptions: waiting customers past SLA, blocked
@@ -347,7 +411,7 @@ FORMAT RULES:
 - Keep it under 2000 characters total
 - Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → Customer insight → Pattern from memory → Top 3 priorities → Personal check-in → Motivational closer
 - Be direct. No fluff. Like a chief of staff briefing the CEO.
-- If a TOP DECISIONS block is present, those ARE the top priorities — put them first, keep each recommended action verbatim, and never invent decisions beyond them.
+- A TOP DECISIONS block is ALWAYS present and says one of three things. If it LISTS decisions, those ARE the top priorities — put them first, keep each recommended action verbatim, and never invent decisions beyond them. If it says "none", the queue was read and is genuinely clear: say so in one short line and draw the remaining priorities only from data that IS present. If it says "UNAVAILABLE", the queue could not be read: write "Priority queue unavailable this morning — these are not queue-backed" as the first line of the Top 3 priorities section, and do NOT present anything as a ranked or evidence-backed priority. Never fill an unavailable queue with priorities you inferred.
 - If stale leads > 3, call it out as lost money.
 - If revenue is strong, acknowledge it. If weak, flag it.
 - Reference a SPECIFIC customer by name if there's a follow-up opportunity.

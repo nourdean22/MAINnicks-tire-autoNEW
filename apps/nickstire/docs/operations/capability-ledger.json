@@ -1293,6 +1293,90 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "template-stock-reel-lane",
+      "name": "template_stock — zero-cost local reel clip lane",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "this branch — a third REEL_VIDEO_PROVIDER that renders each storyboard beat with local ffmpeg (no API, no credits, no credentials)",
+        "tests": [
+          "server/templateStockStudio.test.ts (11): the filtergraph is asserted PURE — bare-filename font (an absolute Windows path puts a drive-letter colon inside a colon-delimited option), textfile= captions rather than inline text=, one drawtext per wrapped line, real MOTION on both the gradient and still paths (Instagram restricts static videos), zoompan restating frame size so it cannot fall back to 1x1, vertical/yuv420p/silent output, and that sanitizeCaption KEEPS apostrophes (stripping them turned TIRES into TIRES and changed meaning, observed live 2026-07-16)",
+          "server/reelVideoProvider.test.ts (10): the explicit pin is honoured AND template_stock is NEVER auto-selected — it is the one provider that can always run, so auto-detect would prefer it over a funded paid provider; the deliberate higgsfield prod pin and the pre-existing defaults-to-veo contract both still pass. clipCostUsd bills it at 0 while the paid lanes stay at the seedance rate."
+        ],
+        "liveRuns": [
+          "LOCAL RENDER PROBE 2026-08-03 — generateTemplateStockClip() run for real (no database: the lane needs none; no money: local ffmpeg 8.1). Two captions, one single-line and one two-line carrying an apostrophe, a percent sign and a backslash. ffprobe on the output: 1080x1920, h264, yuv420p, duration exactly 3.000s, ONE stream (silent by design — assembly lays the voiceover over the stitched clips), 30/1 fps, ~190-230KB, ~540ms per clip. storagePut with no S3 wrote to data/generated and returned the https://nickstire.org/generated/... URL the pipeline requires (clipUrls[i] must start with http or the resume-skip re-renders it forever). Probe script and emitted files deleted after — data/generated is NOT gitignored.",
+          "FULL PIPELINE VERIFICATION 2026-08-03 — scripts/verify-template-stock-pipeline.mts (committed, re-runnable) drove a real 2-beat job through the actual stages against a DISPOSABLE mysql-memory-server DB, never the repo DATABASE_URL. Results: the durable-storage precondition REFUSED correctly with no S3 (job requeued, error names S3_BUCKET); with REEL_ALLOW_EPHEMERAL_STORAGE=true both beats rendered and the job reached assets_ready with 2 clip URLs, all http (the prefix the resume-skip requires) in 1.66s; processNextAssemblyJob took it to assembled in 3.49s. Master: 786,681 bytes, 1080x1920, exactly 9.000s, BOTH video and audio streams. reelAssembly logged 'render integrity verified' (270 frames, 5 distinct) and 'audio integrity verified' (silentGaps: 0). Emitted files deleted; exit 0."
+        ],
+        "renderedAssets": [
+          "First frames inspected VISUALLY, both cases. Brand yellow on dark reads clearly at 1080x1920; the apostrophe in DONT survives (the 2026-07-16 TIRES regression, where stripping it changed the meaning, does not recur) while percent and backslash are stripped; a long caption wraps to two abutting panels with no overlap and no stray glyph."
+        ],
+        "deploymentId": "not deployed — provider is opt-in via REEL_VIDEO_PROVIDER=template_stock and is never auto-selected"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Verified LOCALLY, never in production. The pipeline run used mysql-memory-server and REEL_ALLOW_EPHEMERAL_STORAGE=true; prod has no S3_BUCKET configured, so on prod today this lane would REFUSE at the durable-storage precondition exactly as step 1 of the verification shows. Configuring S3_BUCKET (+ CLOUDFRONT_DOMAIN for permanent URLs) is the prerequisite to running it there — that is an operator action, not engineering.",
+          "source": "this branch"
+        },
+        {
+          "severity": "P2",
+          "description": "No reel produced by this lane has ever been PUBLISHED, so whether the format earns reach is unmeasured. Instagram restricts static videos and text montages; these carry motion by construction and assembly adds the caption layer, but that is an argument, not evidence. Keep it draft-first.",
+          "source": "this branch"
+        },
+        {
+          "severity": "P3",
+          "description": "Only the gradient background path has been rendered end to end. The still-image push-in branch (zoompan over a supplied hero frame) is unit-tested but has never run against a real image.",
+          "source": "this branch"
+        }
+      ],
+      "deferredScope": [
+        "RE-RUN scripts/verify-template-stock-pipeline.mts after touching this lane or the beat loop. It is safe (disposable DB, local ffmpeg, no credentials, no spend) and it is the only thing that has ever caught a defect here: the unit suite was fully green while the lane could not render a single frame.",
+        "VERIFIED BY RENDERING, not by reading: three defects that every unit test passed straight through — filtergraph spaces breaking the shell:true spawn (ffmpeg read a bare dash as the output filename), per-line caption boxes overlapping, and a newline-joined textfile drawing a tofu glyph. Both regressions are now pinned (no whitespace anywhere in the filtergraph; stride >= fontSize + 2x boxborderw). If this lane is extended, RENDER IT AND LOOK AT THE FRAME — the args array looks correct in a unit test in all three failure modes.",
+        "No stock-footage sourcing. The lane uses a supplied still (the brief visualWorld hero frame, when it is an image) or an animated gradient. Wiring Pexels/Pixabay or the shop photo library is a separate change and the licensing question is real.",
+        "FIXED (this branch) for selectiveRepair.ts: the repair path now calls selectReelVideoProvider(), reserves and settles at reelClipCostUsd(provider) with reelLedgerModel(provider), routes template_stock to local ffmpeg, and REFUSES a provider it has no branch for by name rather than falling through to Higgsfield. A repair of a template_stock reel is now free and stays local. visualWorld.ts is NOT the same defect and was deliberately left alone: it generates reference IMAGES via generateCarouselSlideImage at the gpt_image_2 rate, REEL_VIDEO_PROVIDER selects a VIDEO provider, and template_stock has no image generator at all — so its provider:\"higgsfield\" label is ACCURATE today, not a mislabel. If an image-provider lane is ever added, that call site acquires this same defect and must be revisited then. STILL TRUE: ESTIMATED_REEL_RENDER_COST_USD (autonomyControl) is a flat per-reel constant at the reel enqueue boundary and is still not provider-aware — only the per-clip reserve/settle path and the repair enqueue guard are.",
+        "ESTIMATED_REEL_RENDER_COST_USD (autonomyControl) is a flat per-reel constant used at the enqueue budget boundary and is NOT provider-aware — only the per-clip reserve/settle path was made provider-aware here. A local reel is still counted at the flat rate against the enqueue guard."
+      ],
+      "lastVerifiedAt": "2026-08-03",
+      "codeState": "merged",
+      "operationalState": "integration_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "mp4-ingest",
+      "name": "Finished-MP4 ingestion into the content inventory",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "this branch — ingestFinishedMp4() lands an externally produced mp4 as a review_ready draft behind every existing gate",
+        "tests": [
+          "server/mp4Ingest.test.ts (12): OFF unless MP4_INGEST_ENABLED is exactly true (the repo requiresFlag convention — 1/yes/TRUE do not arm it); refuses a non-mp4 by ISO-BMFF ftyp header so a fetched 404 page cannot become a draft; refuses a presigned URL UP FRONT rather than at the last publish gate; creates the reel_jobs row with briefId = the inventory id, which is exactly what reelPublishAuthority.resolveReelJobId looks up; keeps the status inside reel_jobs.status varchar(20); stamps reelJobId into the brief; puts the caption in selectedCaption so it becomes hookText; does NOT set bodyText unless supplied; and refuses to leave an UNLINKED draft when the job insert returns no id."
+        ],
+        "liveRuns": [],
+        "renderedAssets": [],
+        "deploymentId": "not deployed — gated OFF by default behind MP4_INGEST_ENABLED, registered in the socialPipeline ENV_GATES panel"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "WIRING HALF CLOSED (this branch): contentAdmin.ingestFinishedMp4 (adminProcedure mutation) now calls the service, and Action Center — the reel operator surface — calls that route behind a two-tap in-DOM arm at 48px touch targets. server/mp4IngestDoor.test.ts (15) asserts the WIRING rather than the service, because a unit test of the service could never have caught this: it was already fully tested and still unreachable. ★ MAKING IT REACHABLE TURNED TWO LATENT DEFECTS LIVE, both caught in review and fixed here: loadSource used a plain fetch (which follows a 302 to 169.254.169.254 or any private host — a blind SSRF, since only the SUBMITTED url would ever have been checked) and arrayBuffer() (which materialises an indefinitely streamed body and exhausts the Railway process before the 120s timeout). Both now go through lib/publicFetch.ts — EXTRACTED from higgsfieldStudio's start-image download rather than copied, so the two callers cannot drift apart on which IPv4 blocks are refused or whether each redirect hop is re-validated. The local-path branch is stat-bounded too; a path is operator-supplied just like a URL. server/publicFetch.test.ts (17) exercises the redirect LOOP and the streaming cap, not just the pure host checks — a first pass asserted only the pure ones and both security mutations survived it. STILL OPEN — NO RUNTIME VERIFICATION. Nothing has been ingested end to end, in any environment. The flag has never been armed, no mp4 has passed the ftyp check against a real file, and no ingested draft has reached the publish gate. Reachable is not proven, and this entry stays at unit_verified until an actual file has gone through.",
+          "source": "this branch"
+        },
+        {
+          "severity": "P2",
+          "description": "Rendered QA is NOT run on the ingested file. The reel_jobs row makes the publish gate able to RESOLVE quality evidence (without it the gate warn-and-proceeds and is hard-blocked once REEL_GATE_REQUIRE_JOB is armed), but the file itself has only been checked for a valid ftyp header — not duration, dimensions, or dead air.",
+          "source": "this branch"
+        }
+      ],
+      "deferredScope": [
+        "The statenour -> nickstire handoff is NOT built. MoneyPrinterTurbo is a statenour tool and the two apps are separate Railway services with separate databases (Neon Postgres vs TiDB MySQL). This branch fixed the PREREQUISITE — the moneyprinter tool now returns real video paths instead of raw stdout — but transporting the file across the two services is its own design.",
+        "No dedupe. Ingesting the same file twice creates two drafts.",
+        "The ingest form takes topic + caption but NOT bodyText, though the service accepts it. Deliberate: three fields fit the operator's phone and bodyText is the optional second caption paragraph. The router passes it through, so a caller that wants it has it — only the form omits it.",
+        "lib/publicFetch.ts does NOT defeat DNS rebinding — it validates the LITERAL host on every hop, so a public NAME that resolves into private space still gets through. Closing that needs resolution-time checking or network egress rules, and a test asserts the gap rather than leaving the guard to read as complete."
+      ],
+      "lastVerifiedAt": "2026-08-03",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

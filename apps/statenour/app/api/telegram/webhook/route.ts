@@ -491,10 +491,15 @@ async function handleCallback(callback: {
         }
 
         const payload = parsedPayload.data;
-        const { callNickstire } = await import("@/lib/ai/agent-actions/shop-actions");
+        const { callNickstire, isBridgeError } = await import("@/lib/ai/agent-actions/shop-actions");
         try {
           const res = await callNickstire("smsBot.send", { phone: String(payload.phone), message: String(payload.message) });
-          if (res) {
+          // callNickstire RESOLVES to a truthy { error } object on every failure
+          // path, so the `if (res)` this replaced was always true — approving a
+          // staged SMS wrote a SUCCESS receipt and told the operator "Dispatched!"
+          // while nothing was sent. The sibling recall branch above was hardened
+          // for exactly this in an earlier pass; this branch was missed.
+          if (!isBridgeError(res)) {
             await prisma.actionReceipt.update({
               where: { id: receiptId },
               data: {
@@ -511,7 +516,10 @@ async function handleCallback(callback: {
             }
             await answerCallbackQuery(callback.id, "SMS Dispatched!");
           } else {
-            throw new Error("smsBot.send returned falsy response");
+            const bridgeError = (res as { error?: unknown } | null)?.error;
+            throw new Error(
+              bridgeError ? String(bridgeError) : "smsBot.send returned no result"
+            );
           }
         } catch (err) {
           console.error("[telegram:webhook] SMS dispatch error:", err);
@@ -635,6 +643,13 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
         return await cmdSearch(args.join(" "), chatId);
       case "/stats":
         return await cmdStats(chatId);
+      // Read-only Instagram, over the nickstire query bridge. Reads the SAME
+      // services the admin console reads; writes nothing. Note the sibling
+      // handlers instagram_autopost_run / _set_config in that same bridge map
+      // DO mutate — they are deliberately not reachable from here.
+      case "/ig":
+      case "/instagram":
+        return await cmdIg(args, chatId);
       // 2026-05-17 · Wave-200 follow-up · bulk-SMS approval gate
       // (see src/inngest/functions/bulk-sms-approval.ts). Operator
       // approves/rejects pending campaigns straight from Telegram.
@@ -680,8 +695,12 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `\n<b>NICK QUEUE (Wave AG · 2026-05-28)</b>\n` +
             `/qa 1 3 — approve today's queued moves #1 and #3\n` +
             `/qa all — approve every move in today's queue\n` +
-            `/qa none — reject every move in today's queue\n\n` +
-            `<i>Shop ops (pace, staffing, customers) live in nickstire.org/admin.</i>`,
+            `/qa none — reject every move in today's queue\n` +
+            `\n<b>INSTAGRAM (read-only)</b>\n` +
+            `/ig — delivery blockers + the smallest next action\n` +
+            `/ig reels — 30-day pipeline reliability\n` +
+            `/ig today — the autopost lane's last runs\n\n` +
+            `<i>Other shop ops (pace, staffing, customers) live in nickstire.org/admin.</i>`,
           chatId
         ).then(() => {});
       default: {
@@ -1606,6 +1625,70 @@ async function cmdAlerts(chatId: string): Promise<void> {
     `<b>Recent active alerts (${alerts.length})</b>\n\n${lines.join("\n\n")}`,
     chatId,
   );
+}
+
+// ── /ig · read-only Instagram, over the nickstire query bridge ──
+//
+// The IG pipeline lives in nickstire; this surface only READS it, via
+// queryNick (x-sync-key -> POST /api/nour-os/query). Both new queries delegate
+// to the SAME services the admin console reads, so phone and console cannot
+// disagree. Rendering is pure and lives in lib/telegram/ig-format.ts.
+//
+// The rule this wiring exists to honour: queryNick RESOLVES to { error } and
+// never throws, so narrowing on "error" BEFORE touching .data is what stops a
+// dead bridge from rendering as a calm "0 blockers".
+//
+// Note the sibling handlers instagram_autopost_run / _set_config in that same
+// bridge map DO mutate. They are deliberately not reachable from here.
+
+/** The bridge resolves to { error } on every failure; it never rejects. */
+function igBridgeError(res: unknown): string | null {
+  return res && typeof res === "object" && "error" in res
+    ? String((res as { error: unknown }).error)
+    : null;
+}
+
+/**
+ * One read, one render. 20s rather than the 12s default: a cold container
+ * re-checks Meta liveness with up to two Graph GETs before returning, and this
+ * route's maxDuration is 30.
+ */
+async function igRead<T>(
+  query: string,
+  render: (data: T) => string,
+  label: string,
+  chatId: string,
+): Promise<void> {
+  const { queryNick } = await import("@/lib/nickstire/query");
+  const res = await queryNick<T>(query, {}, 20000);
+  const err = igBridgeError(res);
+  if (err) {
+    await sendTelegram(`⚠️ IG ${label} read failed: ${escapeHtml(err)}`, chatId);
+    return;
+  }
+  await sendTelegram(render((res as { data: T }).data).slice(0, 3900), chatId);
+}
+
+async function cmdIg(args: string[], chatId: string): Promise<void> {
+  const { formatDeliveryIssues, formatReelReliability, formatAutopostLane, igUsage } =
+    await import("@/lib/telegram/ig-format");
+  const sub = (args[0] ?? "").toLowerCase();
+  try {
+    switch (sub) {
+      case "":
+      case "failures":
+      case "delivery":
+        return await igRead("instagram_delivery_issues", formatDeliveryIssues, "delivery", chatId);
+      case "reels":
+        return await igRead("instagram_reel_reliability", formatReelReliability, "reel", chatId);
+      case "today":
+        return await igRead("instagram_autopost_status", formatAutopostLane, "autopost", chatId);
+      default:
+        await sendTelegram(igUsage(), chatId);
+    }
+  } catch (err) {
+    await sendTelegram(`⚠️ IG read failed: ${escapeHtml((err as Error).message)}`, chatId);
+  }
 }
 
 // ── Multi-modal input handlers ────────────────────────────

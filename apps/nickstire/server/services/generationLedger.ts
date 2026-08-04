@@ -27,6 +27,8 @@ const log = createLogger("services:generation-ledger");
  *  isEstimate until a real provider-usage feed replaces them. */
 export const COST_ESTIMATES_USD = {
   seedance_clip: 0.25, // ASSUMPTION (unverified): believed ~12 credits/clip; Higgsfield publishes no per-call USD - operator-tunable
+  /** template_stock renders with local ffmpeg — no API call, no credits, no marginal cost. */
+  template_stock_clip: 0,
   gpt_image_2: 0.1,
   elevenlabs_vo: 0.05,
   gemini_brief: 0.01,
@@ -61,6 +63,12 @@ export const VEO_DEFAULT_CLIP_SECONDS = 8;
  * than reading what Google actually billed.
  */
 export function reelClipCostUsd(provider: string, env: NodeJS.ProcessEnv = process.env): number {
+  // template_stock renders with local ffmpeg — no API call, no credits, no
+  // marginal cost. Billing it at the Seedance rate would consume
+  // maxGenerationCostPerDayUsd and start throwing BUDGET_DAILY_EXCEEDED for
+  // renders that cost nothing, and would corrupt every provider-comparison
+  // figure the paragraph above exists to protect.
+  if (provider === "template_stock") return COST_ESTIMATES_USD.template_stock_clip;
   if (provider !== "veo") return COST_ESTIMATES_USD.seedance_clip;
   // Number(undefined) and Number("abc") are NaN, Number("") is 0 — all falsy,
   // so a missing or malformed override falls back rather than booking a zero.

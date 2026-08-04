@@ -304,7 +304,17 @@ export const leadRouter = router({
 
   list: adminProcedure.query(async () => {
     const d = await db();
-    if (!d) return [];
+    if (!d) {
+      // ROS-083 · returning [] made DB-unavailable resolve as HTTP 200, so the
+      // Leads page rendered five confident zeros and a Kanban of empty columns
+      // with react-query's isError false. Every client-side unknown guard is
+      // inert unless this throws. adminProcedure only — the public submit path
+      // above keeps its own error handling.
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Database unavailable — the lead pipeline is unknown, not empty.",
+      });
+    }
     return d.select().from(leads).orderBy(desc(leads.createdAt)).limit(1000);
   }),
 

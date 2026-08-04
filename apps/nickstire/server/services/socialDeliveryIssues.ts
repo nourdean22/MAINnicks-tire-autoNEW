@@ -311,7 +311,13 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
   const generatorProvider = await selectReelVideoProvider();
   let generatorConfigured = false;
   try {
-    if (generatorProvider === "higgsfield") {
+    if (generatorProvider === "template_stock") {
+      // Local ffmpeg lane — no credentials exist to be missing. Falling through
+      // to the Veo branch raised a false generator_credentials_missing warning
+      // on the operator's Today screen whose nextAction told them to switch
+      // REEL_VIDEO_PROVIDER away from a lane that was working.
+      generatorConfigured = true;
+    } else if (generatorProvider === "higgsfield") {
       const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");
       generatorConfigured = !!(await getHiggsfieldCredentialsJson());
     } else {

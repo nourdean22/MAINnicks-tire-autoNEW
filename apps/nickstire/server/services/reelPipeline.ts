@@ -77,9 +77,35 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
  * no key but Higgsfield does, use Higgsfield. So "Higgsfield loaded, Gemini key
  * dead" generates today with zero config.
  */
-export async function selectReelVideoProvider(): Promise<"veo" | "higgsfield"> {
+export type ReelVideoProvider = "veo" | "higgsfield" | "template_stock";
+
+/** What each provider is recorded as in generation_reservations.model. */
+const PROVIDER_LEDGER_MODEL: Record<ReelVideoProvider, () => string> = {
+  veo: () => process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-preview",
+  higgsfield: () => "seedance1_5",
+  template_stock: () => "ffmpeg_local",
+};
+
+/**
+ * What a provider is recorded as in generation_reservations.model.
+ *
+ * Exported because selectiveRepair reserves against the SAME ledger for the
+ * same kind of work, and used to hardcode "seedance1_5" — so a repair on a
+ * template_stock or Veo job filed its spend under Higgsfield's name. One map,
+ * one source of truth: adding a provider now cannot leave the repair path
+ * mislabelling it.
+ */
+export function reelLedgerModel(provider: ReelVideoProvider): string {
+  return PROVIDER_LEDGER_MODEL[provider]();
+}
+
+export async function selectReelVideoProvider(): Promise<ReelVideoProvider> {
   const explicit = process.env.REEL_VIDEO_PROVIDER?.toLowerCase();
-  if (explicit === "veo" || explicit === "higgsfield") {
+  // template_stock is EXPLICIT-PIN ONLY and is never auto-selected below. It
+  // needs no credentials, so auto-detect would happily prefer it over a funded
+  // paid provider and quietly change what the shop publishes. The prod pin
+  // (higgsfield, a deliberate cost decision) must also survive this lane.
+  if (explicit === "veo" || explicit === "higgsfield" || explicit === "template_stock") {
     // The pin still wins — that is its job, and the tests pin that contract.
     // But it is announced when the pinned provider has no credentials at all,
     // because this selector is how prod ended up generating into a dead provider:
@@ -112,7 +138,11 @@ export async function selectReelVideoProvider(): Promise<"veo" | "higgsfield"> {
  * Presence, NOT liveness — the same contract veoCredentialsPresent documents for
  * itself. A stored-but-expired Higgsfield session reads as present here.
  */
-export async function reelProviderCredentialsPresent(provider: "veo" | "higgsfield"): Promise<boolean> {
+export async function reelProviderCredentialsPresent(provider: ReelVideoProvider): Promise<boolean> {
+  // The local lane renders with ffmpeg and has no credentials to be missing, so
+  // it is always "present" — otherwise pinning it would log the no-credentials
+  // warning on every selection for a provider that is working correctly.
+  if (provider === "template_stock") return true;
   if (provider === "veo") {
     const { veoCredentialsPresent } = await import("./veoStudio");
     return veoCredentialsPresent();
@@ -393,11 +423,17 @@ export async function enqueueReelJob(
         actionId: `reel_job_${jobId}`,
         campaignId: (brief as { genomeId?: string | null }).genomeId ?? null,
         provider: reservedProvider,
-        model: reservedProvider === "veo" ? (process.env.REEL_VEO_MODEL || "veo-3.1-fast-generate-preview") : "seedance1_5",
+        // The model string was a binary ternary, so a third provider was
+        // recorded as seedance1_5 — nothing validates it, and every
+        // cost-per-reel and provider-comparison figure would have inherited
+        // the lie.
+        model: PROVIDER_LEDGER_MODEL[reservedProvider](),
         operation: "reel_clips",
         // Priced by the provider actually resolved above, not a flat Seedance
         // constant — this figure is what reserve() checks against the daily
-        // ceiling, so pricing Veo at Higgsfield's rate loosened the guard.
+        // ceiling, so pricing Veo at Higgsfield's rate loosened the guard, and
+        // pricing the free local lane at it would throw BUDGET_DAILY_EXCEEDED
+        // for renders that cost nothing.
         estimatedCostUsd: beatsCount * reelClipCostUsd(reservedProvider),
         dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
       });
@@ -511,8 +547,12 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // hosted CDN URL (parseResultUrl) — durable without any S3, the same way the
     // carousel image path already trusts Higgsfield URLs — so it needs no
     // precondition. This is why "Higgsfield loaded" generates with zero infra.
-    if (videoProvider === "veo") {
-      assertDurableStorageForGeneration(`reel job ${job.id} Veo clip generation`);
+    // template_stock re-hosts through storagePut exactly like Veo (it renders to
+    // local disk first), so it carries the same precondition — without durable
+    // storage the clip lands on ephemeral disk and a redeploy destroys it.
+    // Higgsfield is the only provider that returns its own durable CDN URL.
+    if (videoProvider === "veo" || videoProvider === "template_stock") {
+      assertDurableStorageForGeneration(`reel job ${job.id} ${videoProvider} clip generation`);
     }
 
     let clipUrls: string[] = [];
@@ -547,6 +587,34 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
 
       let finalClipUrl = "";
 
+      if (videoProvider === "template_stock") {
+        // Local ffmpeg render — no API, no credits, no credentials. Same
+        // per-beat contract as Higgsfield: one blocking call returning one
+        // public URL, persisted immediately below so a retry resume-skips it.
+        // That per-beat write is also the pipeline's stuck-job heartbeat, so a
+        // lane that rendered every beat before writing once would be swept.
+        // NOTE: `prompt` is deliberately NOT passed. It is a provider
+        // scene-generation instruction, and assembly already burns the beat's
+        // onScreenText over the stitched clips — sending it here exposed
+        // internal prompts on screen and produced a duplicate caption layer.
+        const { generateTemplateStockClip } = await import("./templateStockStudio");
+        const hero = brief.visualWorld?.heroFrameUrl;
+        finalClipUrl = await withTimeout(
+          generateTemplateStockClip({
+            beatNumber: beat.beatNumber,
+            backgroundImageUrl: hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined,
+          }),
+          GEN_CLIP_TIMEOUT_MS,
+          `template_stock beat ${beat.beatNumber}`,
+        );
+        clipUrls[i] = finalClipUrl;
+        await d.update(reelJobs)
+          .set({ clipUrlsJson: JSON.stringify(clipUrls), updatedAt: new Date() })
+          .where(eq(reelJobs.id, job.id));
+        log.info("reel clip rendered (template_stock) and saved progressively", { jobId: job.id, beat: beat.beatNumber, of: beats.length });
+        continue;
+      }
+
       if (videoProvider === "higgsfield") {
         // Higgsfield/Seedance is a single blocking call (submit+poll+rehost
         // internally) — no resumable op name. Each beat's URL is persisted right
@@ -575,6 +643,16 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           .where(eq(reelJobs.id, job.id));
         log.info("reel clip generated (higgsfield) and saved progressively", { jobId: job.id, beat: beat.beatNumber, of: beats.length });
         continue;
+      }
+
+      // Veo is the LAST branch, and it is reached only by elimination. That was
+      // an implicit else for two providers: widening the union does not make
+      // this a compile error, so an unhandled provider silently ran Veo and
+      // spent real money under another provider's name. Fail loudly instead.
+      if (videoProvider !== "veo") {
+        throw new Error(
+          `unhandled REEL_VIDEO_PROVIDER "${videoProvider}" — add an explicit branch before the Veo path`,
+        );
       }
 
       const { submitVeoRequest, pollVeoOperation, downloadAndRehostVeoVideo } = await import("./veoStudio");
@@ -648,7 +726,8 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       const { settle, reelClipCostUsd } = await import("./generationLedger");
       // videoProvider is the provider this run actually used, resolved above —
       // settling at a flat Seedance rate is what made a mid-flight provider flip
-      // undetectable in the ledger.
+      // undetectable in the ledger, and would settle a free local reel as if it
+      // had spent Seedance money.
       await settle(`reel_job_${job.id}`, clipUrls.length * reelClipCostUsd(videoProvider));
     } catch { /* ledger degraded — reservation's estimate stands */ }
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });

@@ -139,7 +139,15 @@ export const instagramAdminRouter = router({
         const provider = await selectReelVideoProvider();
         const { veoCredentialsPresent } = await import("../services/veoStudio");
         const higgsfieldConfigured = !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson());
-        const configured = provider === "higgsfield" ? higgsfieldConfigured : veoCredentialsPresent();
+        // template_stock renders locally with ffmpeg — it has NO credentials to
+        // check, so it is always configured. Reporting Veo's key state for it
+        // would paint the card red while the lane runs perfectly.
+        const configured =
+          provider === "template_stock"
+            ? true
+            : provider === "higgsfield"
+              ? higgsfieldConfigured
+              : veoCredentialsPresent();
         return {
           provider,
           configured,
@@ -219,73 +227,8 @@ export const instagramAdminRouter = router({
    * table could not be read (unknown, not healthy).
    */
   getReelReliability: adminProcedure.query(async () => {
-    const database = await db();
-    // `closedFailures` is null here, NOT 0 — the shapes must match or a consumer
-    // reads undefined on the error path, and "we could not count" must never
-    // render as "there were none".
-    const unknown = { windowDays: 30, total: null as number | null, byStatus: {} as Record<string, number>, succeeded: null as number | null, failed: null as number | null, closedFailures: null as number | null, ambiguous: null as number | null, failureRate: null as number | null };
-    if (!database) return unknown;
-    try {
-      const { reelJobs } = await import("../../drizzle/schema");
-      const { sql } = await import("drizzle-orm");
-      // A failure the operator already closed is not a reliability problem.
-      // Measured 2026-08-01: this panel read "67 jobs · 48 failed · 72% failure"
-      // while 11 of those failures were the resolved Higgsfield outage plus
-      // operator discards and supersessions. The arithmetic was correct and the
-      // signal was wrong — the same defect the attention badge had, in a second
-      // panel, telling you the pipeline is broken when the causes are fixed.
-      //
-      // Counted SEPARATELY rather than dropped, so closing a job cannot quietly
-      // improve the score with nobody able to see it.
-      const { OPERATOR_CLOSED_MARKERS } = await import("../services/reelRecoverability");
-      const closedPattern = OPERATOR_CLOSED_MARKERS.map((m) => `%${m}%`);
-      const isClosed = sql`(${reelJobs.error} IS NOT NULL AND (${sql.join(
-        closedPattern.map((p) => sql`${reelJobs.error} LIKE ${p}`),
-        sql` OR `,
-      )}))`;
-      const rows = await database
-        .select({
-          status: reelJobs.status,
-          closed: sql<number>`CASE WHEN ${isClosed} THEN 1 ELSE 0 END`,
-          n: sql<number>`count(*)`,
-        })
-        .from(reelJobs)
-        .where(sql`${reelJobs.createdAt} >= DATE_SUB(NOW(), INTERVAL 30 DAY)`)
-        .groupBy(reelJobs.status, sql`CASE WHEN ${isClosed} THEN 1 ELSE 0 END`);
-      const byStatus: Record<string, number> = {};
-      let total = 0;
-      let closedFailures = 0;
-      for (const r of rows as Array<{ status: string | null; closed: unknown; n: unknown }>) {
-        const n = Number(r.n);
-        if (!Number.isFinite(n)) continue;
-        const key = r.status ?? "unknown";
-        byStatus[key] = (byStatus[key] ?? 0) + n;
-        total += n;
-        if (key === "failed" && Number(r.closed) === 1) closedFailures += n;
-      }
-      const succeeded = (byStatus.posted ?? 0) + (byStatus.published ?? 0);
-      // Unresolved failures only. `closedFailures` is surfaced beside it so the
-      // difference stays visible rather than being quietly netted out.
-      const failed = Math.max(0, (byStatus.failed ?? 0) - closedFailures);
-      const ambiguous = byStatus.publish_ambiguous ?? 0;
-      // Denominator drops the closed ones too: leaving them in would make the
-      // rate look better simply because more jobs were closed, which is the
-      // mirror image of the bug being fixed.
-      const denominator = Math.max(0, total - closedFailures);
-      return {
-        windowDays: 30,
-        total,
-        byStatus,
-        succeeded,
-        failed,
-        closedFailures,
-        ambiguous,
-        failureRate: denominator > 0 ? Math.round((failed / denominator) * 100) / 100 : null,
-      };
-    } catch (err) {
-      log.warn("reel reliability query failed — reporting unknown, not healthy", err);
-      return unknown;
-    }
+    const { getReelReliability } = await import("../services/reelReliability");
+    return getReelReliability();
   }),
 
   /**
@@ -500,19 +443,47 @@ export const instagramAdminRouter = router({
     // Snapshot accrual (Wave C substrate): null = unreadable (unknown, never
     // zero). Windows/cohorts unlock as this history ages — the UI says so
     // instead of pretending.
-    let snapshotStats: { rows: number; earliest: string | null } | null = null;
+    // withWatchTime/withSkipRate are COUNTS of non-null rows, deliberately not
+    // the values. Migration 0108 has been storing avg_watch_time_ms and
+    // skip_rate since 2026-07-31 and nothing has ever read them back, so the
+    // first honest question is not "what is the number" but "do we have any".
+    // A count cannot be misread: it carries no units, and skip_rate's units
+    // (percent vs fraction) are still unconfirmed against a live Graph payload.
+    // Both columns are REELS-ONLY (instagram-data.ts:162), so on an
+    // image-heavy account a low count is expected, not a fault.
+    let snapshotStats: {
+      rows: number;
+      earliest: string | null;
+      withWatchTime: number | null;
+      withSkipRate: number | null;
+    } | null = null;
     try {
       const database = await db();
       if (database) {
         const { igMetricSnapshots } = await import("../../drizzle/schema");
         const { sql } = await import("drizzle-orm");
         const r = await database
-          .select({ n: sql<number>`count(*)`, earliest: sql<string | null>`min(${igMetricSnapshots.capturedAt})` })
+          .select({
+            n: sql<number>`count(*)`,
+            earliest: sql<string | null>`min(${igMetricSnapshots.capturedAt})`,
+            watch: sql<number>`sum(case when ${igMetricSnapshots.avgWatchTimeMs} is not null then 1 else 0 end)`,
+            skip: sql<number>`sum(case when ${igMetricSnapshots.skipRate} is not null then 1 else 0 end)`,
+          })
           .from(igMetricSnapshots);
-        const n = Number((r as Array<{ n: unknown; earliest: unknown }>)[0]?.n);
+        const row = (r as Array<{ n: unknown; earliest: unknown; watch: unknown; skip: unknown }>)[0];
+        const n = Number(row?.n);
         if (Number.isFinite(n)) {
-          const earliestRaw = (r as Array<{ earliest: unknown }>)[0]?.earliest;
-          snapshotStats = { rows: n, earliest: earliestRaw ? String(earliestRaw) : null };
+          const earliestRaw = row?.earliest;
+          // SUM() returns null on an empty table; keep that as unknown rather
+          // than coercing to 0, matching the contract the rest of this file uses.
+          const watch = Number(row?.watch);
+          const skip = Number(row?.skip);
+          snapshotStats = {
+            rows: n,
+            earliest: earliestRaw ? String(earliestRaw) : null,
+            withWatchTime: Number.isFinite(watch) ? watch : null,
+            withSkipRate: Number.isFinite(skip) ? skip : null,
+          };
         }
       }
     } catch (err) {

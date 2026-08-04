@@ -12,6 +12,7 @@
  * - Owner notification on new orders
  * - Admin order management (view, update status, notes)
  */
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyTireOrder } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
@@ -1114,7 +1115,17 @@ export const gatewayTireRouter = router({
     }).optional())
     .query(async ({ input }) => {
       const d = await db();
-      if (!d) return { orders: [], total: 0 };
+      if (!d) {
+        // ROS-083 · TireOrdersSection ALREADY has the right error branch — it
+        // renders "Failed to load orders" on isError. It just could never fire,
+        // because returning [] here resolves HTTP 200 and react-query keeps
+        // isError false, so the operator got "No tire orders found" instead:
+        // a positive statement about paid orders we may be sitting on.
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Database unavailable — the tire order list is unknown, not empty.",
+        });
+      }
 
       const conditions = [];
       if (input?.status && input.status !== "all") {
@@ -1319,7 +1330,15 @@ export const gatewayTireRouter = router({
 
   orderStats: adminProcedure.query(async () => {
     const d = await db();
-    if (!d) return { total: 0, received: 0, confirmed: 0, ordered: 0, inTransit: 0, delivered: 0, scheduled: 0, installed: 0, cancelled: 0, totalRevenue: 0 };
+    if (!d) {
+      // ROS-083 · the six cockpit tiles read these straight through
+      // `stats?.x ?? 0`, so this object rendered "Tire Revenue $0" and five
+      // zeroed pipeline stages as if the week had genuinely been empty.
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Database unavailable — tire order counts and revenue are unknown, not zero.",
+      });
+    }
 
     const stats = await d.select({
       status: tireOrders.status,

@@ -378,8 +378,9 @@ async function chatPostInner(req: Request) {
       "gmail.createDraft",
       "google.proposeEvent",
       "telegram.send",
-      "shop.sendSms",
-      "shop.updateLead"
+      // shop.updateLead went with its handler; shop.sendSms stays because live
+      // code still stamps receipts and approvals under that name.
+      "shop.sendSms"
     ]);
 
     const isHighStakesMutation =
