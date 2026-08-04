@@ -377,11 +377,25 @@ export async function topDecisions(n = 5): Promise<{
   excludedNoConsent: number;
   excludedSnoozed: number;
   totalLive: number;
+  /**
+   * ROS-083 · false when the queue could not be CONSULTED at all — no database
+   * handle, or revenue_opportunities does not exist because migration 0099 has
+   * not been applied. Both of those already returned the same empty result as
+   * "asked, and there is genuinely nothing to do", and the difference matters:
+   * the morning brief tells the LLM that an absent TOP DECISIONS block means
+   * there are no queued decisions, and it then writes the operator's top-3
+   * priorities from scratch. An unmeasured queue must not read as a quiet one.
+   *
+   * Additive and optional-by-convention: shared/bridgeShapes.ts TopDecisionsShape
+   * is a non-strict z.object, so existing consumers that never look at this
+   * field keep parsing unchanged.
+   */
+  queryable: boolean;
 }> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
-  if (!db) return { decisions: [], excludedNoConsent: 0, excludedSnoozed: 0, totalLive: 0 };
+  if (!db) return { decisions: [], excludedNoConsent: 0, excludedSnoozed: 0, totalLive: 0, queryable: false };
 
   const stateList = sql.join(LIVE_STATES.map((s) => sql`${s}`), sql`, `);
   try {
@@ -420,11 +434,12 @@ export async function topDecisions(n = 5): Promise<{
       excludedNoConsent: Number(counts.noConsent ?? 0),
       excludedSnoozed: Number(counts.snoozed ?? 0),
       totalLive: Number(counts.totalLive ?? 0),
+      queryable: true,
     };
   } catch (err) {
     if (isMissingTableError(err)) {
       warnMissingOnce("topDecisions");
-      return { decisions: [], excludedNoConsent: 0, excludedSnoozed: 0, totalLive: 0 };
+      return { decisions: [], excludedNoConsent: 0, excludedSnoozed: 0, totalLive: 0, queryable: false };
     }
     throw err;
   }
