@@ -45,8 +45,8 @@ Nour's life, habits, business, and growth strategy.
 | UI | React 19 + Tailwind CSS 4 |
 | ORM | Prisma 7 |
 | Database | Neon Postgres (+ pgvector + tsvector) |
-| AI | AI SDK v6 · Venice (primary) · Ollama (local fallback) · OpenAI |
-| Tests | Vitest (~3007 tests / 211 files) |
+| AI | AI SDK v6 · Ollama Cloud (primary, operator directive) · Gemini · OpenAI · Anthropic · OpenRouter. **Venice is RETIRED** |
+| Tests | Vitest (~430 files / ~4,800 tests) |
 | Workflows | Inngest (durable crons + fan-out) |
 | Deploy | Railway Docker |
 
@@ -75,7 +75,10 @@ cd [REPO_ROOT]/apps/statenour
 pnpm typecheck          # tsc --noEmit — MUST be 0 errors
 pnpm lint               # eslint — ~359 pre-existing `any` warnings are non-blocking; only errors fail
 pnpm test               # vitest — READ THE SUMMARY LINE, not $?
-                        # ~12 pre-existing unhandled-rejection errors + 1 intermittent flake = expected
+                        # A NON-ZERO EXIT IS REAL. The "passes but exits 1 on unhandled
+                        # rejections" era is over — do not ship on red. (This line
+                        # used to say ~12 errors were expected; that is no longer true
+                        # and following it meant shipping over genuine failures.)
                         # needs @statenour/lenses built first (or ~5 strategic-frameworks files fail)
 pnpm verify:hard        # MASTER GATE: typecheck · lint · test · raw-SQL · crons · prompt-size · prisma validate
 pnpm check:stale-docs   # verify no retired terms used as current instructions
@@ -114,12 +117,17 @@ Both declared as Unsupported(...) in schema — Prisma sees them but won't drop 
 ## AI Provider Rules
 
 ```
-AI_PROVIDER env selects: venice | ollama (default: venice)
+AI_PROVIDER env selects one of RUNTIME_PROVIDERS (lib/ai/provider.ts):
+ollama | gemini | openai | anthropic | openrouter. Ollama Cloud is ranked
+first for every task type per operator directive. "venice" is NOT valid and
+provider.ts THROWS "Unknown AI_PROVIDER" on it.
 DO NOT hardcode AI_PROVIDER in production Railway config — disables failover
 Model names are env-driven — do not assert a specific model name in docs (it drifts)
 
 Structured JSON schema → use OpenAI invokeLLM() only (Ollama can't do strict schemas)
-Image generation → Venice flux-2-pro ($0.04/img — do not switch to gpt-image-1 without billing check)
+Image generation → lib/ai/gemini-image.ts (Replicate FLUX when REPLICATE_FLUX=true
+and REPLICATE_API_KEY is set, else direct Gemini, else OpenRouter).
+lib/ai/venice-image.ts no longer exists.
 ```
 
 ---
