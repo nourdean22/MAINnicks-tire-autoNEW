@@ -1,10 +1,34 @@
 /**
- * Shop action handlers — cross-system calls to nickstire.org via tRPC.
+ * The nickstire cross-system HTTP client.
  *
- * Extracted VERBATIM from lib/ai/nick-agent.ts executeAction (2026-06-02
- * structural split). The callNickstire HTTP client (+ NICKSTIRE_API /
- * BRIDGE_KEY constants) moved here too — these shop handlers were its
- * only callers. Byte-identical move; no behavior change.
+ * Was "shop action handlers"; the nine handleShop* handlers were DELETED
+ * 2026-08-03 (see below). What remains is the client itself plus its success
+ * predicate, which three other modules import directly:
+ *   app/api/telegram/webhook/route.ts (two branches) · lib/inngest/functions/audit-todays-leads.ts
+ *
+ * 2026-08-03 · WHY THE NINE HANDLERS ARE GONE. They could not work, and had
+ * never worked. Five of the nine named procedures DO NOT EXIST in nickstire —
+ * autoLabor.estimate, estimates.list, shopStatus.current, controlCenter.revenue,
+ * and smsBot.send (there is no smsBot router at all, verified against
+ * server/routers.ts). The other four — lead.list, lead.update, customers.list,
+ * booking.list — exist but are adminProcedure, and nickstire's tRPC derives
+ * ctx.user ONLY from the app_session_id cookie (server/_core/sdk.ts:206), so a
+ * Bearer token can never satisfy them. Every one of the nine therefore failed
+ * 100% of the time; #1330 only made that failure honest instead of silent.
+ * Several also sent inputs the target would have discarded (lead.list and
+ * booking.list declare no .input() at all).
+ *
+ * Every capability they nominally provided is ALREADY reachable over a surface
+ * that actually authenticates — leads, revenue, estimates, customers, bookings
+ * and shop pulse all have live handlers on POST /api/nour-os/query (x-sync-key),
+ * several of which the agent already calls today.
+ *
+ * NOT deleted, deliberately: the name "shop.sendSms" survives in the tool
+ * registry and the write-classification lists, because lib/ai/tools/social.ts
+ * still stamps PENDING ActionReceipt rows with it and audit-todays-leads still
+ * writes it as an approval toolId. The NAME labels real pending work even
+ * though execution is gone; removing the classification would leave a
+ * high-risk label unclassified.
  *
  * 2026-08-03 · TRANSPORT TRUTH. Two independent defects made every call
  * through this client fail while REPORTING SUCCESS:
@@ -36,7 +60,8 @@
  *   - REST  `/api/bridge/*`      · header `x-bridge-key` · lib/services/bridge.ts
  *   - Query `/api/nour-os/query` · header `x-sync-key`   · lib/nickstire/query.ts
  */
-import type { ActionParams, ActionResult } from "./types";
+// ActionParams/ActionResult are gone with the handlers — this module is now
+// purely the cross-system HTTP client.
 
 // ─── Cross-System HTTP Client ────────────────────────────
 
@@ -64,33 +89,6 @@ export function isBridgeError(res: unknown): boolean {
   return !res || (typeof res === "object" && "error" in (res as object));
 }
 
-/**
- * Build the ActionResult for a bridge call, carrying the REASON on failure.
- *
- * `success: false` alone is not enough. Four surfaces exist to tell the operator
- * WHY an action failed and all of them read `ActionResult.error`:
- * lib/tools/guardian.ts:134 (which writes it into approvalRequest.resultPayload),
- * lib/ai/receipts/action-receipt.ts:188, lib/ai/chat/action-result-verifier.ts:118,
- * and lib/ai/nick-agent.ts:192. While `success` was hardcoded-true by `!!res`
- * those branches were dead; correcting the flag makes them live, so they have to
- * be handed something better than "unknown error". Every sibling action module
- * (task-actions, camera-actions, google-actions) already populates `error`.
- *
- * The `??` fallback is load-bearing: isBridgeError(null) is true, but
- * `null?.error` is undefined, which would reintroduce "unknown error" for
- * exactly the null case.
- */
-function bridgeResult(action: string, res: unknown): ActionResult {
-  const failed = isBridgeError(res);
-  return {
-    action,
-    success: !failed,
-    result: res,
-    error: failed
-      ? String((res as { error?: unknown } | null)?.error ?? "nickstire bridge unavailable")
-      : undefined,
-  };
-}
 // v9.1.14 · type as `string | undefined` instead of `?? ""`. The
 // previous `|| ""` pattern was caught by the env-secret bypass gate.
 // Outbound calls now no-op cleanly if neither key is configured —
@@ -129,49 +127,4 @@ export async function callNickstire(procedure: string, input: Record<string, unk
   } catch (err) {
     return { error: err instanceof Error ? err.message : "nickstire API call failed" };
   }
-}
-
-export async function handleShopGetLabor(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("autoLabor.estimate", { service: String(params.service || ""), vehicleYear: params.year ? Number(params.year) : undefined, vehicleMake: params.make ? String(params.make) : undefined, vehicleModel: params.model ? String(params.model) : undefined });
-  return bridgeResult(type, res);
-}
-
-export async function handleShopGetLeads(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("lead.list", { limit: Number(params.limit ?? 10) });
-  return bridgeResult(type, res);
-}
-
-export async function handleShopUpdateLead(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("lead.update", { id: Number(params.id), status: params.status ? String(params.status) : undefined, notes: params.notes ? String(params.notes) : undefined });
-  return bridgeResult(type, res);
-}
-
-export async function handleShopGetEstimates(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("estimates.list", { limit: Number(params.limit ?? 10) });
-  return bridgeResult(type, res);
-}
-
-export async function handleShopGetCustomers(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("customers.list", { limit: Number(params.limit ?? 10), search: params.search ? String(params.search) : undefined });
-  return bridgeResult(type, res);
-}
-
-export async function handleShopSendSms(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("smsBot.send", { phone: String(params.phone || ""), message: String(params.message || "") });
-  return bridgeResult(type, res);
-}
-
-export async function handleShopGetBookings(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("booking.list", { limit: Number(params.limit ?? 10) });
-  return bridgeResult(type, res);
-}
-
-export async function handleShopShopStatus(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("shopStatus.current", {});
-  return bridgeResult(type, res);
-}
-
-export async function handleShopGetRevenue(params: ActionParams, type: string): Promise<ActionResult> {
-  const res = await callNickstire("controlCenter.revenue", { period: String(params.period || "today") });
-  return bridgeResult(type, res);
 }
