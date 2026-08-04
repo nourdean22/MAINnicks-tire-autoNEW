@@ -1318,18 +1318,16 @@ export function startTieredScheduler(): void {
           return processServiceAffinityCompute();
         },
       },
-      {
-        // Cross-sell SMS · reads service_affinity_predictions written by
-        // the compute job IMMEDIATELY above. businessHoursOnly because
-        // we don't text customers at midnight. Cooldown lookup failure
-        // ABORTS the run (audit #101 fix) to protect opt-out compliance.
-        name: "cross-sell-outreach",
-        businessHoursOnly: true,
-        handler: async () => {
-          const { processCrossSellOutreach } = await import("./jobs/crossSellOutreach");
-          return processCrossSellOutreach();
-        },
-      },
+      // RETIRED 2026-08-04 · cross-sell-outreach (ROS-033, operator decision).
+      // The loop ran 12x/day reporting `completed` while structurally unable
+      // to send: MAX(confidence) ever recorded is 0.330 against the >= 0.50
+      // eligibility gate (29,300 predictions, 4 customers >= 0.5; the only
+      // sends ever were a 3-day May burst of 575). The operator chose
+      // "accept dormant and stop calling it live" over recalibration.
+      // jobs/crossSellOutreach.ts, its sms_cross_sell_outreach flag, and all
+      // prediction data remain intact; service-affinity-compute above STAYS
+      // (closedLoop lift resolution + nick intelligence read its table).
+      // Re-enable = re-add the tier entry here, AFTER a model recalibration.
       {
         // wave-146 · THE FLYWHEEL · 7/30/60-day trust-call cadence after a
         // completed job. It was only registered via the legacy registerJob()

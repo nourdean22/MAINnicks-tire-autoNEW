@@ -35,6 +35,12 @@
  * CORRECT observation, and ROS-033's resolution is explicitly an operator
  * decision (recalibrate, or accept it as dormant and stop calling it live).
  * The contract's job is to make the operator see it in a day, not a quarter.
+ *
+ * ROS-033 RESOLVED 2026-08-04: the operator chose retirement. The
+ * cross-sell-outreach tier entry was removed from the scheduler; the
+ * cross_sell contract below STAYS as history and classifier fixture, with
+ * expectedRunsPerWeek: 0 — the literal schedule of a deliberately
+ * unscheduled loop, so no future cadence sweep reads it as "missing".
  */
 
 export type LoopVerdict =
@@ -123,9 +129,12 @@ export const LOOP_CONTRACTS: readonly LoopShapeContract[] = Object.freeze([
     produces: "cross-sell messages sent to eligible customers",
     healthyPerRun: { min: 1 },
     dormantAfterRuns: 3,
-    expectedRunsPerWeek: 7,
+    // 0 is literal: RETIRED 2026-08-04 (operator decision on ROS-033) — the
+    // job is unscheduled, so zero runs per week is the intended schedule,
+    // not a missing-cadence alarm.
+    expectedRunsPerWeek: 0,
     firstCheck:
-      "Compare MAX(confidence) in the predictions table against the eligibility gate. In July 2026 the max ever recorded was 0.330 against a >= 0.50 gate, so nothing could clear it. Do NOT ship a threshold change as a quick win — dropping to 0.25 makes only 6 customers eligible.",
+      "Compare MAX(confidence) in the predictions table against the eligibility gate. In July 2026 the max ever recorded was 0.330 against a >= 0.50 gate, so nothing could clear it. Do NOT ship a threshold change as a quick win — dropping to 0.25 makes only 6 customers eligible. RETIRED 2026-08-04: the operator accepted dormancy and the tier entry was removed; re-enabling requires a recalibrated model first.",
     ros: "ROS-033",
   },
   {
