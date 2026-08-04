@@ -629,17 +629,33 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
 
 // ─── Blockers & Overdue View ────────────────────────────
 function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
-  const { data: blocked } = trpc.workOrders.blocked.useQuery(undefined, { refetchInterval: 15000 });
-  const { data: overdue } = trpc.workOrders.overdue.useQuery(undefined, { refetchInterval: 15000 });
+  const { data: blocked, isError: blockedError } = trpc.workOrders.blocked.useQuery(undefined, { refetchInterval: 15000 });
+  const { data: overdue, isError: overdueError } = trpc.workOrders.overdue.useQuery(undefined, { refetchInterval: 15000 });
+
+  /**
+   * ROS-083 · these two read through `?? 0` / `!length` into "OVERDUE (0) · No
+   * overdue work orders" and "BLOCKED (0) · No blocked work orders" — promises
+   * to customers and jobs that cannot move, both reported as clear when the
+   * read failed. workOrderService already THROWS on an unavailable DB (it uses
+   * getDbAndSchema, not an `if (!db) return []`), so isError genuinely fires
+   * here and no server change is needed for this view.
+   *
+   * Static amber only: these queries refetch every 15s, so a transient blip
+   * flips isError repeatedly — a pulse or toast here would be noise.
+   */
 
   return (
     <div className="space-y-6">
       {/* Overdue */}
       <div>
         <div className="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5" /> OVERDUE ({overdue?.length || 0})
+          <Clock className="w-3.5 h-3.5" /> OVERDUE ({overdueError ? "—" : overdue?.length || 0})
         </div>
-        {!overdue?.length ? (
+        {overdueError ? (
+          <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-400">
+            Overdue work orders could not be read — unknown, NOT zero.
+          </div>
+        ) : !overdue?.length ? (
           <div className="text-[10px] text-foreground/30 py-4 text-center">No overdue work orders</div>
         ) : (
           <div className="space-y-1.5">
@@ -667,9 +683,13 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
       {/* Blocked */}
       <div>
         <div className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5" /> BLOCKED ({blocked?.length || 0})
+          <AlertTriangle className="w-3.5 h-3.5" /> BLOCKED ({blockedError ? "—" : blocked?.length || 0})
         </div>
-        {!blocked?.length ? (
+        {blockedError ? (
+          <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-400">
+            Blocked work orders could not be read — unknown, NOT zero.
+          </div>
+        ) : !blocked?.length ? (
           <div className="text-[10px] text-foreground/30 py-4 text-center">No blocked work orders</div>
         ) : (
           <div className="space-y-1.5">
@@ -697,13 +717,22 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
 
 // ─── Pickup Queue View ──────────────────────────────────
 function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
-  const { data: queue, isLoading } = trpc.workOrders.pickupQueue.useQuery(undefined, { refetchInterval: 15000 });
+  const { data: queue, isLoading, isError: queueError } = trpc.workOrders.pickupQueue.useQuery(undefined, { refetchInterval: 15000 });
   const utils = trpc.useUtils();
   const advance = trpc.workOrders.advanceStatus.useMutation({
     onSuccess: () => { utils.workOrders.pickupQueue.invalidate(); utils.workOrders.list.invalidate(); utils.workOrders.stats.invalidate(); },
   });
 
   if (isLoading) return <SkeletonPanel rows={4} />;
+  // ROS-083 · before the empty state, not after: "No vehicles ready for pickup"
+  // on a failed read tells the operator nobody is waiting on a finished car.
+  if (queueError) {
+    return (
+      <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+        <strong>The pickup queue could not be read.</strong> This is unknown — NOT empty, and nothing here means no vehicle is waiting.
+      </div>
+    );
+  }
   if (!queue?.length) return <div className="text-center py-20 text-foreground/30 text-sm">No vehicles ready for pickup</div>;
 
   return (

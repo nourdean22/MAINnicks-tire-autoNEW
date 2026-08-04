@@ -63,7 +63,7 @@ export function MoneyBrief({ period, onDeclinedAction }: MoneyBriefProps) {
   const { data: stats } = trpc.invoices.stats.useQuery({ days: period }, { staleTime: 60_000 });
   const { data: kpi } = trpc.kpi.current.useQuery(undefined, { staleTime: 60_000 });
   const { data: shopFloor } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { staleTime: 60_000 });
-  const { data: declined } = trpc.invoices.declined.useQuery({ days: 60 }, { staleTime: 60_000 });
+  const { data: declined, isError: declinedError } = trpc.invoices.declined.useQuery({ days: 60 }, { staleTime: 60_000 });
   const { data: intel } = trpc.invoices.intelligence.useQuery({ period: "30d" }, { staleTime: 60_000 });
 
   // wave-181.x Money Phase 2 · R1 fix · the all-or-nothing gate
@@ -147,6 +147,19 @@ export function MoneyBrief({ period, onDeclinedAction }: MoneyBriefProps) {
             {periodTarget > 0 ? ` · pacing ${pacingPercent}% of ${formatDollars(periodTarget)} target` : ""}
           </span>
         </div>
+
+        {/* ROS-083 · a failed declined read used to leave recoverableDollars at
+            0, which BOTH silenced the recoverable clause here AND self-hid the
+            Action line below — the brief read as "nothing to chase" precisely
+            when it could not see. Unknown is not zero. */}
+        {declinedError && (
+          <div className="flex items-center gap-2.5">
+            <DollarSign className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-[12.5px] text-amber-400 leading-tight">
+              Declined work could not be read — recoverable money is unknown, NOT zero.
+            </span>
+          </div>
+        )}
 
         {/* Line 2 · pipeline · skip when nothing in flight */}
         {(valueInShop > 0 || recoverableDollars > 0) && (

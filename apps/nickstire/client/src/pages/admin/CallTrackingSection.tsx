@@ -38,7 +38,16 @@ const TOOLTIP_STYLE = {
 export default function CallTrackingSection() {
   const { data: stats, isLoading: statsLoading } = trpc.adminDashboard.stats.useQuery();
   const { data: calls, isLoading: callsLoading } = trpc.callTracking.list.useQuery();
-  const { data: callbacks } = trpc.callback.list.useQuery();
+  const { data: callbacks, isError: callbacksError, error: callbacksErr } = trpc.callback.list.useQuery();
+  /**
+   * ROS-083 · UNKNOWN IS NOT ZERO — and this is the worst place for it.
+   *
+   * A failed read left `pendingCallbacks` empty, which painted the card emerald
+   * with the trendLabel "All clear" AND hid the entire Missed Call Queue block
+   * below (it is gated on `length > 0`). The surface asserted every caller had
+   * been reached at exactly the moment it could not see a single one.
+   */
+  const callbacksUnknown = callbacksError;
   const utils = trpc.useUtils();
 
   const callbackUpdateStatus = trpc.callback.updateStatus.useMutation({
@@ -152,11 +161,11 @@ export default function CallTrackingSection() {
           trendLabel="phone clicks"
         />
         <StatCard
-          label="Missed / Pending" value={pendingCallbacks.length}
+          label="Missed / Pending" value={callbacksUnknown ? "—" : pendingCallbacks.length}
           icon={<AlertTriangle className="w-4 h-4" />}
-          color={pendingCallbacks.length > 0 ? "text-red-400" : "text-emerald-400"}
-          trend={pendingCallbacks.length > 0 ? "up" : "neutral"}
-          trendLabel={pendingCallbacks.length > 0 ? "Needs follow-up" : "All clear"}
+          color={callbacksUnknown ? "text-amber-400" : pendingCallbacks.length > 0 ? "text-red-400" : "text-emerald-400"}
+          trend={!callbacksUnknown && pendingCallbacks.length > 0 ? "up" : "neutral"}
+          trendLabel={callbacksUnknown ? "Unknown — read failed" : pendingCallbacks.length > 0 ? "Needs follow-up" : "All clear"}
           onClick={() => {
             const q = document.getElementById("missed-call-queue");
             if (q) {
@@ -177,8 +186,16 @@ export default function CallTrackingSection() {
         />
       </div>
 
+      {/* The queue block self-hides on `length > 0`, so an unreadable queue was
+          indistinguishable from an empty one. Say so where the block would be. */}
+      {callbacksUnknown && (
+        <div id="missed-call-queue" className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+          <strong>The callback queue could not be read.</strong> Missed calls are unknown — NOT zero, and nothing here means every caller has been reached. {callbacksErr?.message}
+        </div>
+      )}
+
       {/* ─── MISSED CALL QUEUE ─── */}
-      {pendingCallbacks.length > 0 && (
+      {!callbacksUnknown && pendingCallbacks.length > 0 && (
         <div id="missed-call-queue" className="stat-card !p-5 !border-red-500/20">
           <h3 className="text-xs font-semibold text-red-400 tracking-wide uppercase mb-3 flex items-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5" />
