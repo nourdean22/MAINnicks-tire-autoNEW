@@ -201,10 +201,19 @@ export default function DecisionInboxPanel() {
         <div className="flex items-center gap-2">
           <Inbox className="w-4 h-4 text-nick-yellow" />
           <h2 className="text-sm font-bold uppercase tracking-wide">Decision Inbox</h2>
+          {/* An unreadable queue reports totalLive: 0, so "top 0 of 0 live" is the
+              same false all-clear as the empty state below — a confident number
+              standing in for a read that never happened. Em dash instead. */}
           <span className="text-[10px] text-muted-foreground">
-            top {decisions.length} of {data?.totalLive ?? 0} live
-            {data && data.excludedNoConsent > 0 ? ` · ${data.excludedNoConsent} excluded (no consent)` : ""}
-            {data && (data as { excludedSnoozed?: number }).excludedSnoozed ? ` · ${(data as { excludedSnoozed?: number }).excludedSnoozed} snoozed` : ""}
+            {isError || data?.queryable === false ? (
+              "count unknown — queue unreadable"
+            ) : (
+              <>
+                top {decisions.length} of {data?.totalLive ?? 0} live
+                {data && data.excludedNoConsent > 0 ? ` · ${data.excludedNoConsent} excluded (no consent)` : ""}
+                {data && (data as { excludedSnoozed?: number }).excludedSnoozed ? ` · ${(data as { excludedSnoozed?: number }).excludedSnoozed} snoozed` : ""}
+              </>
+            )}
           </span>
         </div>
         <button
@@ -224,7 +233,28 @@ export default function DecisionInboxPanel() {
         </div>
       )}
 
-      {!isError && decisions.length === 0 && (
+      {/*
+        `isError` is not enough, and this is the gap #1340 opened while closing
+        exactly this class elsewhere. `topDecisions()` returns
+        `{ decisions: [], queryable: false }` when the database is unreachable
+        (opportunityQueue.ts:398) or the query throws (:442) — the tRPC call
+        SUCCEEDS carrying that shape, so `isError` stays false, `decisions` is
+        empty, and the branch below used to print "Either the queue is clear...".
+        An unconsultable queue read as a clear one.
+
+        The flag was added for this and wired only to the cron/LLM consumer
+        (morningBrief.ts:235, nour-os-query.ts:117). It travels to this panel on
+        the same payload and was being discarded.
+      */}
+      {!isError && data?.queryable === false && (
+        <div role="alert" className="px-4 py-3 text-xs text-amber-300">
+          Queue could NOT be read — this is not an empty queue. The decision table
+          was unreachable, so anything waiting is invisible right now. Check the
+          database, then tap Refresh.
+        </div>
+      )}
+
+      {!isError && data?.queryable !== false && decisions.length === 0 && (
         <div className="px-4 py-6 text-sm text-muted-foreground">
           No live decisions. Either the queue is clear, or the collectors haven't run since the
           table was applied — tap Refresh to collect now.
