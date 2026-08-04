@@ -7,7 +7,8 @@
  * surface sees a different slice:
  *
  *   - `smsOrchestrator.loadCustomerContext` builds a rich SMS-shaped view.
- *   - `vapi-personalization` builds its own for voice.
+ *   - `vapi-bdi` builds its own for voice (its predecessor
+ *     `vapi-personalization` was deleted as dead code — zero importers).
  *   - `customerIntelligence`, `retentionCohorts`, `journeyTracker` and
  *     `customerPsychoProfile` each build a fourth, fifth, sixth.
  *

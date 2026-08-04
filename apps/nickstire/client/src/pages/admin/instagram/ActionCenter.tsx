@@ -583,7 +583,27 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                         </p>
                       )}
                       {job.lastError && (
-                        <p className="text-[11px] text-destructive/80 font-mono break-all">{String(job.lastError).slice(0, 160)}</p>
+                        <>
+                          {/* The class, once, as a label — then 160 chars spent on
+                              the part that actually differs between jobs. */}
+                          {job.errorClass && (
+                            <p className="text-[10px] uppercase tracking-wide text-destructive/70 font-semibold">{job.errorClass.replace(/_/g, " ")}</p>
+                          )}
+                          {/* MEASURED: the stamp is "[CLASS] <reason> :: " and the
+                              reason is a per-class constant. Two of the eleven
+                              prefixes are longer than this 160-char slice on their
+                              own — LOCAL_TIMEOUT_REMOTE_UNKNOWN at 176 and
+                              SAFETY_POLICY_PERMANENT at 175 — so for those the
+                              operator saw the boilerplate and ZERO characters of the
+                              provider's actual complaint. STORAGE_OR_ASSEMBLY left
+                              13 characters. Those are the classes where the detail
+                              matters most: one needs the provider's wording to
+                              reword the prompt, and LOCAL_TIMEOUT_REMOTE_UNKNOWN is
+                              the only class flagged mayDoubleSpend.
+                              Falls back to lastError so the stages that write raw,
+                              unstamped text still render. */}
+                          <p className="text-[11px] text-destructive/80 font-mono break-all">{String(job.lastErrorMessage ?? job.lastError).slice(0, 160)}</p>
+                        </>
                       )}
                     </div>
                   </div>

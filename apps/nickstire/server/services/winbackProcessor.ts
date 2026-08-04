@@ -12,9 +12,10 @@ const log = createLogger("winback-processor");
  * Every outbound message carries its own way out.
  *
  * This codebase already treats a STOP notice as mandatory everywhere else:
- * aiContentGenerator states it as a FORMAT RULE for sms-blast ("Must include
- * 'Reply STOP to opt out'"), and declinedRecoverySequence and crossSellOutreach
- * put it in every variant they send.
+ * declinedRecoverySequence and crossSellOutreach put it in every variant they
+ * send. (A third citation here named aiContentGenerator, which stated it as a
+ * FORMAT RULE for sms-blast — that module was deleted as dead code, having had
+ * zero importers; the rule it documented lives on in the two senders above.)
  *
  * The four winback message bodies did not have it and nothing appended one — so
  * the single sequence aimed at people who have NOT been in for three to six

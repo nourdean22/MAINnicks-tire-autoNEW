@@ -1,4 +1,5 @@
 import type { DB } from "../db";
+import { parseErrorClass, parseErrorMessage, type ProviderErrorClass } from "../../shared/providerErrors";
 /**
  * What can actually still be done with a stuck reel job — and what it would cost.
  *
@@ -235,6 +236,15 @@ export interface JobAssessment extends RecoveryAssessment {
   /** Why the pipeline stopped here, in the operator's words — not a status code. */
   holdReason: string;
   lastError: string | null;
+  /**
+   * Failure class recovered from the stamped error, or null when the stage that
+   * failed does not stamp — assembly, the budget breach, the stuck sweeper and
+   * operator closure all write raw text. Absence of a class means UNCLASSIFIED,
+   * never "healthy": a renderer must show nothing rather than an all-clear.
+   */
+  errorClass: ProviderErrorClass | null;
+  /** The provider's own message, stamp removed — the part that differs job to job. */
+  lastErrorMessage: string | null;
   stalledHours: number | null;
 }
 
@@ -292,6 +302,11 @@ export async function assessReelJob(
     // system having quietly stopped.
     holdReason: opts.gateReason || assessment.explanation,
     lastError: job.error,
+    // Decorates a read already in hand — `error` is selected by the existing
+    // query and already returned. The class was being computed nowhere and the
+    // message was being buried behind it.
+    errorClass: parseErrorClass(job.error),
+    lastErrorMessage: parseErrorMessage(job.error),
     stalledHours,
   };
 }

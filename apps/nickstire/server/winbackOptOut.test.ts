@@ -2,9 +2,9 @@
  * Every outbound message carries its own way out.
  *
  * This codebase already treats a STOP notice as MANDATORY everywhere else:
- * aiContentGenerator states it as a format rule for sms-blast ("Must include
- * 'Reply STOP to opt out'"), and declinedRecoverySequence and crossSellOutreach
- * put it in every variant they send.
+ * declinedRecoverySequence and crossSellOutreach put it in every variant they
+ * send. (aiContentGenerator was cited here as a third example; it was deleted as
+ * dead code — zero importers — and the rule it stated survives in those two.)
  *
  * The four winback message bodies did not have it, and nothing appended one — so
  * the single sequence aimed at people who have NOT been in for three to six

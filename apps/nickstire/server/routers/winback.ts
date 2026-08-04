@@ -36,7 +36,7 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
       .from(invoices)
       .where(
         and(
-          sql`${invoices.customerId} IN (${sql.join(chunk)})`,
+          sql`${invoices.customerId} IN (${sql.join(chunk, sql`, `)})`,
           sql`(${invoices.serviceDescription} LIKE '%tire%' OR ${invoices.serviceDescription} LIKE '%tires%')`,
           sql`${invoices.serviceDescription} NOT LIKE '%repair%'`,
           sql`${invoices.serviceDescription} NOT LIKE '%rotation%'`,
@@ -58,7 +58,7 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
       .from(tireOrders)
       .where(
         and(
-          sql`${tireOrders.customerId} IN (${sql.join(chunk)})`,
+          sql`${tireOrders.customerId} IN (${sql.join(chunk, sql`, `)})`,
           sql`(${tireOrders.paymentStatus} = 'paid' OR ${tireOrders.status} NOT IN ('cancelled', 'received'))`
         )
       );
@@ -74,7 +74,7 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
       .from(serviceHistory)
       .where(
         and(
-          sql`${serviceHistory.userId} IN (${sql.join(chunk)})`,
+          sql`${serviceHistory.userId} IN (${sql.join(chunk, sql`, `)})`,
           sql`(${serviceHistory.serviceType} LIKE '%tire%' OR ${serviceHistory.serviceType} LIKE '%tires%' OR ${serviceHistory.description} LIKE '%tire%' OR ${serviceHistory.description} LIKE '%tires%')`,
           sql`${serviceHistory.serviceType} NOT LIKE '%repair%'`,
           sql`${serviceHistory.serviceType} NOT LIKE '%rotation%'`,
@@ -265,8 +265,14 @@ function buildSegmentFilter(segment: string) {
         sql`${customers.lastVisitDate} IS NOT NULL`,
         sql`${customers.lastVisitDate} < ${d180}`,
         eq(customers.smsOptOut, 0),
-        sql`EXISTS (
-          SELECT 1 FROM invoices 
+        // The whole OR chain is ONE parenthesised group. Without the outer parens
+        // drizzle emits `A and B and optOut = 0 and EXISTS(X) OR EXISTS(Y) OR
+        // EXISTS(Z)`, and MySQL binds AND tighter than OR — so the opt-out guard
+        // above and the 180-day recency guard applied ONLY to the first EXISTS
+        // branch. A customer with a tire order or service-history match was
+        // selected regardless of whether they had sent STOP.
+        sql`(EXISTS (
+          SELECT 1 FROM invoices
           WHERE invoices.customerId = ${customers.id} 
             AND (invoices.serviceDescription LIKE '%tire%' OR invoices.serviceDescription LIKE '%tires%')
             AND invoices.serviceDescription NOT LIKE '%repair%'
@@ -297,7 +303,7 @@ function buildSegmentFilter(segment: string) {
               AND service_history.description NOT LIKE '%patch%'
               AND service_history.description NOT LIKE '%plug%'
             ))
-        )`
+        ))`
       )!;
     case "vip":
       // totalSpent is stored in CENTS. VIP = lifetime spend > $2,000 (200000c).
