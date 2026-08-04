@@ -47,7 +47,38 @@ export default function ReviewRequestsSection() {
    */
   const requestsUnknown = requestsError;
   const statsUnknown = statsError;
-  const { data: settings, isLoading: settingsLoading } = trpc.reviewRequests.getSettings.useQuery();
+  const {
+    data: settings,
+    isLoading: settingsLoading,
+    isError: settingsError,
+    error: settingsErrorObj,
+  } = trpc.reviewRequests.getSettings.useQuery();
+
+  /**
+   * ROS-084 · a settings FORM cannot use the em-dash idiom — an em dash on a
+   * toggle means nothing, and a blank number input still submits. So the form is
+   * DISABLED instead, Save included.
+   *
+   * The reason is a silent overwrite, not a display lie. The server used to
+   * invent { enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30 }
+   * on an unreadable database; the useEffect below seeds the form from whatever
+   * `settings` resolves to; and Save posts the form. So a shop with the
+   * programme deliberately OFF and a cap of 5 could have one tap during a blip
+   * write ON and 20 over its real stored settings — losing the operator's own
+   * decision to a literal in db.ts. Disabling the controls is what makes that
+   * impossible rather than merely unlikely.
+   *
+   * ★ DATA-SHAPED, NOT ERROR-SHAPED, and that distinction is the whole guard.
+   * `isError` alone leaves a hole on the operator's actual device: react-query
+   * v5 defaults to networkMode "online", so an offline PWA PAUSES the query —
+   * status pending, fetchStatus paused, therefore isLoading FALSE (it is
+   * isPending && isFetching), isError FALSE, data undefined. The form would
+   * render, the toggle would compute `(null ?? undefined) === 1` and paint
+   * itself OFF, and one tap would fire updateSettings({ enabled: 1 }) — turning
+   * the programme ON from a control that was showing OFF, on the exact device
+   * and connection this admin is used from.
+   */
+  const settingsUnknown = settingsError || (!settingsLoading && !settings);
   const { data: backfillPreview, isLoading: backfillLoading } = trpc.reviewRequests.backfillPreview.useQuery();
 
   // Mutations
@@ -346,6 +377,26 @@ export default function ReviewRequestsSection() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
+          ) : settingsUnknown ? (
+            <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-2">
+              <p>
+                <strong>Review settings have not been read.</strong> They are unknown — the form is hidden rather than
+                showing defaults, because saving invented values would overwrite your real stored settings, including
+                whether review texts are enabled at all. Nothing here is changed until this reads again.
+              </p>
+              {/* The two shapes mean OPPOSITE things about the shop and must not
+                  be collapsed. An error means the server could not read the row,
+                  and the send loop reads the same row — so nothing is going out.
+                  A paused query means THIS DEVICE is offline while the shop's
+                  automation carries on exactly as configured. Telling the
+                  operator "nothing is being sent" in the second case would be a
+                  new false statement in place of the one being removed. */}
+              <p className="text-amber-400/80">
+                {settingsError
+                  ? `The server could not read them, so the send loop cannot either — no review texts are going out while this persists. ${settingsErrorObj?.message ?? ""}`
+                  : "This device has not reached the server. The shop's automation is unaffected and is still running on its stored settings."}
+              </p>
+            </div>
           ) : (
             <>
               {/* Enable/Disable Toggle */}
@@ -356,7 +407,7 @@ export default function ReviewRequestsSection() {
                 </div>
                 <button
                   onClick={() => {
-                    const newVal = (formEnabled ?? settings?.enabled ?? 1) === 1 ? 0 : 1;
+                    const newVal = (formEnabled ?? settings?.enabled) === 1 ? 0 : 1;
                     setFormEnabled(newVal);
                     updateSettings.mutate({ enabled: newVal });
                   }}
@@ -378,7 +429,7 @@ export default function ReviewRequestsSection() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  value={formDelay !== "" ? formDelay : String(settings?.delayMinutes ?? 120)}
+                  value={formDelay !== "" ? formDelay : settings ? String(settings.delayMinutes) : ""}
                   onChange={(e) => setFormDelay(e.target.value)}
                   min={0}
                   max={10080}
@@ -397,7 +448,7 @@ export default function ReviewRequestsSection() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  value={formMaxPerDay !== "" ? formMaxPerDay : String(settings?.maxPerDay ?? 20)}
+                  value={formMaxPerDay !== "" ? formMaxPerDay : settings ? String(settings.maxPerDay) : ""}
                   onChange={(e) => setFormMaxPerDay(e.target.value)}
                   min={1}
                   max={100}
@@ -416,7 +467,7 @@ export default function ReviewRequestsSection() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  value={formCooldown !== "" ? formCooldown : String(settings?.cooldownDays ?? 30)}
+                  value={formCooldown !== "" ? formCooldown : settings ? String(settings.cooldownDays) : ""}
                   onChange={(e) => setFormCooldown(e.target.value)}
                   min={1}
                   max={365}

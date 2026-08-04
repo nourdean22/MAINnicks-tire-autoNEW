@@ -141,7 +141,10 @@ function getClevelandHour(): number {
  */
 export async function processReviewRequestQueue() {
   const settings = await getReviewSettings();
-  if (!settings.enabled) return { processed: 0, sent: 0, failed: 0 };
+  // The only one of the four early exits that used to carry no `reason`, so the
+  // cron logged a bare 0 with empty details and "switched off on purpose" was
+  // indistinguishable from "declined for some reason nobody recorded".
+  if (!settings.enabled) return { processed: 0, sent: 0, failed: 0, reason: "review requests are disabled in settings" };
 
   // Wave BH · 2026-05-29 · gateway-offline gate. Hold (don't claim) review
   // requests while the F25e cloud is down — they stay pending and drain
