@@ -30,6 +30,15 @@ gh pr list --head <branch> --state all --json number,state,title
   `+0` there means an empty branch (nothing to rescue); `+N` means real
   unlanded commits.
 
+## Same audit, open PRs — stale-baseline red checks
+
+A red check whose run PREDATES main's latest green run of that same
+check is a stale baseline, not a defect. Witnessed 2026-08-04: four
+dependabot PRs sat 3 days behind red `e2e` checks; main's e2e had gone
+green since; one `@dependabot rebase` comment turned every one
+`e2e:SUCCESS` with zero debugging. Compare run dates before diagnosing
+anything on an old PR.
+
 ## Step 2 — is it truly abandoned?
 
 Only rescue when ALL of these hold:
