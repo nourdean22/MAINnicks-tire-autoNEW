@@ -87,6 +87,31 @@ describe("hub chips honour measured flags", () => {
     ).toBe("unmeasured");
   });
 
+  it("error severity uses calibrated thresholds — never a bare >0 critical", () => {
+    // fatal24h counts level='error' since the 2026-08-04 repoint (no writer
+    // ever emits 'fatal'; the old >0-critical branch could never fire).
+    // Baseline ~12.6/day: an ordinary day stays healthy.
+    expect(
+      chip("/system/logs?view=errors", payload({ errors: { count24h: 12, fatal24h: 12, measured: true } })),
+    ).toEqual({ label: "12 24h", severity: "healthy" });
+    // Warning band via count>20.
+    expect(
+      chip("/system/logs?view=errors", payload({ errors: { count24h: 25, fatal24h: 25, measured: true } }))
+        .severity,
+    ).toBe("warning");
+    // Critical only at >=40 errors/24h (~3x mean).
+    expect(
+      chip("/system/logs?view=errors", payload({ errors: { count24h: 41, fatal24h: 40, measured: true } })),
+    ).toEqual({ label: "40 errors 24h", severity: "critical" });
+    // Diagnostics degrades on warning-level volume, not the dead fatal branch.
+    expect(
+      chip("/system/health", payload({ errors: { count24h: 25, fatal24h: 25, measured: true } })),
+    ).toEqual({ label: "degraded", severity: "warning" });
+    expect(
+      chip("/system/health", payload({ errors: { count24h: 12, fatal24h: 12, measured: true } })),
+    ).toEqual({ label: "healthy", severity: "healthy" });
+  });
+
   it("a legacy payload without measured keeps the old behaviour (deploy window)", () => {
     const legacy = payload({
       crons: { declared: 12, silent: 0, logRows48h: 300, killed: 0 },

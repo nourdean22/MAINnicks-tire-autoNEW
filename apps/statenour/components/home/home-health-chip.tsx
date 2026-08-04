@@ -48,10 +48,14 @@ export function homeHealthState(
   ) {
     return { state: "unknown", detail: "sections unmeasured — db quota or scan failure" };
   }
-  if (d.errors.fatal24h > 0) {
+  // fatal24h counts level='error' (no writer ever emits 'fatal'; the old
+  // >0 branch could never fire). "Needs attention" on the HOME page means
+  // clearly elevated: >=40/24h is ~3x the live 2026-08-04 baseline of
+  // ~12.6 errors/day. A bare >0 would paint most ordinary days red.
+  if (d.errors.fatal24h >= 40) {
     return {
       state: "broken",
-      detail: `${d.errors.fatal24h} fatal error${d.errors.fatal24h === 1 ? "" : "s"} in 24h`,
+      detail: `${d.errors.fatal24h} errors in 24h — well above baseline`,
     };
   }
   if (d.crons.silent > 0 || d.devices.offline > 0) {
@@ -67,7 +71,7 @@ export function homeHealthState(
   }
   return {
     state: "healthy",
-    detail: `${d.errors.count24h} non-fatal errors · ${d.crons.declared} crons declared`,
+    detail: `${d.errors.count24h} error-log rows 24h · ${d.crons.declared} crons declared`,
   };
 }
 

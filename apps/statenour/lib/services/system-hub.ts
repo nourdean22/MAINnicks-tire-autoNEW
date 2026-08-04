@@ -41,19 +41,21 @@ export async function buildSystemHub() {
     safeQuery(
       async () => {
         // ErrorLog has `level` (error/warn/fatal), not `severity`.
-        // KNOWN DEAD DISCRIMINATOR, left deliberately: no writer has ever
-        // emitted level='fatal' (prod probe 2026-07-30: error=389 · warn=823 ·
-        // fatal=0 — see system-pulse.ts:130, which repointed its buckets to
-        // level='error'). Mirroring that here would flip the hub Diagnostics
-        // and home health chips' `fatal24h > 0` branches PERMANENTLY red at
-        // historic error volume — trading a false green for a false red.
-        // Repointing needs an operator threshold decision; registered.
+        // `fatal24h` counts level='error' — the FIELD NAME is kept for the
+        // consumers (same precedent as system-pulse.ts:130) but no writer has
+        // ever emitted level='fatal' (re-verified live 2026-08-04: fatal=0
+        // rows ever), so the old FILTER was a dead discriminator and the
+        // critical branches keyed on it could structurally never fire.
+        // Operator-approved repoint 2026-08-04, thresholds calibrated from
+        // the live baseline (9/24h · 88/7d ≈ 12.6 errors/day): consumers
+        // treat >20/24h as warning-worthy and >=40/24h (~3x mean) as
+        // critical — never bare >0, which would flag most ordinary days.
         const rows = await prisma.$queryRaw<
           Array<{ errors: bigint; fatal: bigint }>
         >`
           SELECT
             COUNT(*)::bigint AS errors,
-            COUNT(*) FILTER (WHERE level = 'fatal')::bigint AS fatal
+            COUNT(*) FILTER (WHERE level = 'error')::bigint AS fatal
           FROM error_logs
           WHERE created_at >= ${since24h}
         `;

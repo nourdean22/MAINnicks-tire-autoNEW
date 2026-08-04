@@ -136,11 +136,13 @@ export const CARDS: HubCard[] = [
     // claim about BOTH sources — if either scan did not run, the claim is
     // not available (2026-08-04: the quota circuit fed this chip fabricated
     // zeros and it printed "healthy" in green on a live page).
+    // The old `fatal24h > 0` half was a dead branch (no writer ever emits
+    // 'fatal'); degraded now keys on warning-level error volume instead.
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
       if (d.errors.measured === false || d.crons.measured === false)
         return UNMEASURED_CHIP;
-      const bad = d.errors.fatal24h > 0 || d.crons.silent > 2;
+      const bad = d.errors.count24h > 20 || d.crons.silent > 2;
       return bad
         ? { label: "degraded", severity: "warning" }
         : { label: "healthy", severity: "healthy" };
@@ -195,11 +197,15 @@ export const CARDS: HubCard[] = [
     icon: AlertTriangle,
     group: "health",
     description: "Fingerprinted error log with frequency + stack grouping",
+    // fatal24h counts level='error' (no writer ever emits 'fatal' — the old
+    // >0-critical branch could never fire). Thresholds from the live
+    // 2026-08-04 baseline (~12.6 errors/day): >=40/24h (~3x mean) critical,
+    // >20/24h warning. Bare >0 would flag most ordinary days.
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
       if (d.errors.measured === false) return UNMEASURED_CHIP;
-      if (d.errors.fatal24h > 0)
-        return { label: `${d.errors.fatal24h} fatal 24h`, severity: "critical" };
+      if (d.errors.fatal24h >= 40)
+        return { label: `${d.errors.fatal24h} errors 24h`, severity: "critical" };
       if (d.errors.count24h > 20)
         return { label: `${d.errors.count24h} errs 24h`, severity: "warning" };
       return { label: `${d.errors.count24h} 24h`, severity: "healthy" };
