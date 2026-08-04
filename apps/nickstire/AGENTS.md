@@ -1,7 +1,7 @@
 # AGENTS.md · nickstire-dev
 **Last refreshed:** 2026-07-10 · Veo 3.1 Fast / Audio-Off wave: default veo model is veo-3.1-fast-generate-001 + native dynamic audio disable support.
 
-> **Read first:** [`CLAUDE.md`](./CLAUDE.md) — operator context, identity, core rules, mode detection. Then [`truth_os.md`](./truth_os.md) for what is live in prod. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) for the no-touch list.
+> **Read first:** [`truth_os.md`](./truth_os.md) — what is live in prod. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) — the no-touch list. [`CLAUDE.md`](./CLAUDE.md) is a thin adapter; the operator persona loads on demand from [`docs/OPERATOR-DIRECTIVE.md`](./docs/OPERATOR-DIRECTIVE.md), not for routine engineering.
 >
 > **Cross-cutting repo rules** (branching, shared main, Windows PowerShell, pnpm): root [`AGENTS.md`](../../AGENTS.md) + [`CIITTY v2.1`](../../.agents/frameworks/ciitty/SKILL.md).
 
@@ -16,9 +16,10 @@
 - **Server:** Express 4 + tRPC 11
 - **DB:** Drizzle ORM → MySQL (TiDB Cloud)
 - **Auth/SMS/Voice:** VAPI · Twilio · Stripe
-- **Infra:** Railway (Nixpacks) · pnpm 9+ · Node 20+ · Vitest
+- **Infra:** Railway (Nixpacks) · pnpm 10 · Node 24+ · Vitest
 
-**Two companion apps share this monorepo:** `apps/statenour` (bdnick.info). Changes to `packages/` or `pnpm-lock.yaml` affect both.
+**Two sibling apps share this monorepo:** `apps/statenour` (bdnick.info) and `apps/worker` (Railway
+internal). Changes to `packages/` or `pnpm-lock.yaml` affect all of them.
 
 ---
 
@@ -55,7 +56,7 @@ apps/nickstire/
 
 ## 3 · Package Manager & Commands
 
-Use **pnpm 9+** exclusively (never npm, never yarn).
+Use **pnpm 10** exclusively (never npm, never yarn).
 
 | Task | Command |
 |------|---------|
@@ -87,7 +88,7 @@ Use **pnpm 9+** exclusively (never npm, never yarn).
 
 ### Branch Model (Trunk-Based)
 ```
-main (protected) ← squash-merge only, operator gates
+main ← squash-merge via PR only (NO branch protection — red CI = stop by convention)
   └── nickstire/<task>    ← all nickstire work
   └── chore/<task>
   └── docs/<task>
@@ -100,7 +101,8 @@ main (protected) ← squash-merge only, operator gates
 - Scope every commit to the assigned task ONLY
 
 ### CI Gate (Pre-Push)
-`.husky/pre-push` runs `turbo build --affected`. This MUST pass before push.
+Repo-root `lefthook.yml` (`pre-push`) runs `pnpm run build:affected`. This MUST pass before push.
+(Husky is retired — there is no `.husky/` directory.)
 
 Full verify gate (run before pushing):
 ```powershell
@@ -120,14 +122,17 @@ cd apps/nickstire; pnpm run verify
 
 ## 5 · Code Ownership & Governance
 
-There is no `CODEOWNERS` file. Ownership is enforced by:
+`.github/CODEOWNERS` exists (real owner `@nourdean22` since 2026-07-21) and ROUTES review requests —
+`/apps/nickstire/drizzle/` and `/apps/nickstire/server/` are listed there. It becomes REQUIRED only
+once branch protection on `main` enables "Require review from Code Owners" (a repo setting, not
+settable from code). Ownership is otherwise enforced by:
 
 | Layer | Mechanism |
 |-------|-----------|
 | App-level rules | This file (`apps/nickstire/AGENTS.md`) |
 | Protected code | [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) — never modify without explicit approval |
 | Cross-cutting rules | Root [`AGENTS.md`](../../AGENTS.md) + CIITTY v2.1 |
-| PR gate | Operator merges all PRs — no direct main push |
+| PR gate | Named branch + PR — agents create and squash-merge their own PRs (root `AGENTS.md` → Branching); NEVER a direct push to `main` |
 | DB schema | `drizzle/schema.ts` is source of truth — migrations are hand-applied SQL |
 | External side effects | All owner-gated (see §6) |
 

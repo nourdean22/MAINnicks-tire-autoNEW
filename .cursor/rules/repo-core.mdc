@@ -1,0 +1,14 @@
+---
+description: NOURCITY canonical repo policy — always apply
+alwaysApply: true
+---
+
+Canonical agent policy lives in `AGENTS.md` at the repo root (Cursor also reads it natively) — treat it as binding.
+
+- NEVER push `main`. Named branches (`nickstire/<task>` · `statenour/<task>` · `docs/<task>` · `chore/<task>`) + PR only.
+- Stage only your files by explicit path — never `git add -A`, never `--no-verify`, never force-push shared history.
+- Read the nearest `apps/<app>/AGENTS.md` before editing inside an app (routing map: root `AGENTS.md` → "Context routing").
+- Windows shell is PowerShell: chain with `;`, never `&&`.
+- Concurrent agent sessions share this repo — scope changes to your assigned task only.
+
+Full detail: `AGENTS.md` → "Agent adapters". Parity guarded by `pnpm agent:parity`.

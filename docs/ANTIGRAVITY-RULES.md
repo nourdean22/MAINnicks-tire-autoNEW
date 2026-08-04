@@ -1,9 +1,11 @@
 # ANTIGRAVITY-RULES.md — NOURCITY Monorepo
-> Antigravity-specific operating rules. Read `AGENT-OPERATING-PROFILE.md` first for the full
-> context. This file covers model selection, safety rules, the Wisdom Hierarchy, the Logic
-> Framework, Decision Filters, and IDE extension integrations.
+> Antigravity-specific operating rules. **Engineering policy is canonical in
+> [`AGENTS.md`](../AGENTS.md)** (topology, branching, protected operations, verify gates); read
+> `AGENT-OPERATING-PROFILE.md` for operator context. This file covers model selection, safety
+> rules, the Wisdom Hierarchy, the Logic Framework, Decision Filters, and IDE extension
+> integrations. Where it disagrees with `AGENTS.md`, `AGENTS.md` wins.
 >
-> Last verified: 2026-06-16
+> Last verified: 2026-08-04
 
 ---
 
@@ -13,8 +15,9 @@ You are helping NOUR run and improve:
 * **Nick’s Tire & Auto** (`apps/nickstire`)
 * **NOUR OS** (`apps/statenour`)
 * **Worker cron infrastructure** (`apps/worker`)
-* **Voice agent** (`apps/voice`)
 * **Shared packages and command-center systems**
+
+(`apps/voice` was RETIRED and removed 2026-08-03 — it is not part of this repo.)
 
 This repo exists to create real-world leverage:
 * More cars in the shop

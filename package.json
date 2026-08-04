@@ -2,7 +2,7 @@
   "name": "nour-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Monorepo · apps/nickstire (Vite+Express+Drizzle/TiDB · nickstire.org) + apps/statenour (Next.js+Prisma/Neon · admin) + apps/worker (Express+node-cron · long-running). See docs/MIGRATION_PLAN.md.",
+  "description": "Monorepo · apps/nickstire (Vite+Express+Drizzle/TiDB · nickstire.org) + apps/statenour (Next.js+Prisma/Neon · admin) + apps/worker (Express+node-cron · long-running). See AGENTS.md.",
   "scripts": {
     "nick": "pnpm --filter nicks-tire-auto",
     "stn": "pnpm --filter @statenour/web",
@@ -24,6 +24,8 @@
     "verify:state": "pnpm --filter @statenour/web verify:hard",
     "verify:affected": "turbo run check lint test --affected",
     "ci:affected": "turbo run check lint test build --affected",
+    "agent:verify": "node scripts/agent-os/verify.mjs",
+    "agent:parity": "node scripts/agent-os/check-adapters.mjs",
     "obsidian:plugins": "powershell scripts/install-cockpit-plugins.ps1",
     "obsidian:doctor": "pnpm --filter @statenour/web obsidian:doctor",
     "obsidian:ingest": "pnpm --filter @statenour/web obsidian:ingest",

@@ -45,19 +45,23 @@ the gotchas that bite everyone.
 | `apps/nickstire/` | `nicks-tire-auto` | Vite 7 + React 19 PWA front-end · Express 4 + tRPC 11 back-end · Drizzle ORM on **TiDB Cloud (MySQL)**. The public tire-shop site + autonomous SMS/voice/AI ops backend + `/admin` console for **Nick's Tire & Auto** (Cleveland, OH). | Railway `MAINnicks-tire-auto` → **nickstire.org** |
 | `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router, standalone) · Prisma 7 on **Neon Postgres + pgvector**. "NOUR OS" — a single-operator personal operating system (goals/missions/tasks, journals, people, an XP "character sheet", and an autonomous AI agent with grounded recall). | Railway `statenour-web` → **bdnick.info** |
 | `apps/worker/` | `@statenour/worker` | Express 4 + `node-cron`. A thin, secret-gated **cron dispatcher** — it forwards scheduled ticks over Railway's internal network to `statenour-web`'s `/api/cron/*` handlers. Holds no business logic and no database client. | Railway `statenour-worker` (internal only) |
-| `apps/voice/` | `statenour-voice` | **Python** LiveKit Agents + OpenAI Realtime voice agent. Not a pnpm/Turbo package — it has its own Dockerfile and `requirements.txt`. | Railway `statenour-voice` (internal only) |
+
+> `apps/voice/` (Python LiveKit Agents) was **RETIRED and removed 2026-08-03** — the statenour
+> route it POSTed to was deleted, taking the machine-caller auth path with it. The Railway
+> service is scaled to 0 replicas. Do not look for it; `pnpm-lock.yaml` still carries an empty
+> `apps/voice: {}` importer entry, which is inert.
 
 > The two **web products are independent** — different frameworks, different databases,
 > different domains. They share only this repo, the Turbo/pnpm tooling, the `main` branch,
-> a small bridge contract, and three workspace packages.
+> a small bridge contract, and the workspace packages.
 
 ---
 
 ## Tech stack
 
 **Shared / monorepo**
-- **Language:** TypeScript `5.9.x` (the three Node apps); Python 3.x (`apps/voice`)
-- **Runtime:** Node `>=20`
+- **Language:** TypeScript `5.9.x` (all three apps)
+- **Runtime:** Node `>=24` (root `package.json` `engines`; prod moved to Node 24 in #1318)
 - **Package manager:** `pnpm@10.4.1` (Corepack-pinned with an integrity hash in `package.json`)
 - **Task runner:** Turborepo (pinned `^2.5.8`)
 - **Workspaces:** `pnpm-workspace.yaml` → `apps/*` + `packages/*`
@@ -66,9 +70,9 @@ the gotchas that bite everyone.
 
 **`apps/statenour`** — Next.js `^16.2` (App Router, `output: "standalone"`) · React `^19.2` · Prisma `^7.5` + `@prisma/adapter-neon` → Neon Postgres · tRPC `^11` · Vercel AI SDK `ai@6.0.162` (patched) with `@ai-sdk/anthropic` + `@ai-sdk/openai` · NextAuth `^5` (Google) · Inngest `^4.4` (cron fan-out) · Three.js / R3F · Tailwind CSS `^4.2` · Vitest `^3.2` · Playwright.
 
-**`apps/worker`** — Express `^4.21` + `node-cron` `^3`. Two source files, two runtime deps. No DB, no ORM, no AI SDK.
-
-**`apps/voice`** — Python, LiveKit Agents + OpenAI Realtime (`agent.py`, `requirements.txt`).
+**`apps/worker`** — Express `^4.21` + `node-cron` `^3` + `@aws-sdk/client-s3` + `@nour/reel-engine`.
+Three source files. No DB client, no ORM, no AI SDK — every read/write goes over authenticated HTTP
+to statenour-web. See [`apps/worker/AGENTS.md`](apps/worker/AGENTS.md).
 
 ---
 
@@ -138,14 +142,13 @@ Git natively struggles as monorepos grow. To prevent degraded local I/O performa
 
 ## Prerequisites
 
-- **Node.js `>=20`** (match the Railway runtime — Node 20). Use `nvm`/`fnm`/`volta`.
+- **Node.js `>=24`** (match the Railway runtime — Node 24, since #1318). Use `nvm`/`fnm`/`volta`.
 - **pnpm `10.4.1`** — `corepack enable && corepack prepare pnpm@10.4.1 --activate` (the repo pins it; do not use a different major).
 - **Git** — hooks are installed by **lefthook** into the default `.git/hooks`. Do **not** set `core.hooksPath`; pointing it at a directory lefthook does not own silently disables every hook, including the pre-push build gate.
 - **Database access** is only needed for full runtime, not for `pnpm install`/build:
   - nickstire → a **TiDB Cloud (MySQL)** connection string.
   - statenour → a **Neon Postgres** connection string (pooled + direct).
-- **Python 3.x** only if you work on `apps/voice` (it is otherwise self-contained).
-- **Optional:** Docker (to reproduce the statenour/worker/voice production images locally).
+- **Optional:** Docker (to reproduce the statenour/worker production images locally).
 
 ---
 
@@ -297,13 +300,6 @@ A deliberately thin **cron dispatcher** — not where jobs run.
   `apps/statenour/config/crons.ts`; the worker's table is a per-deploy snapshot.
 - Operator controls (kill-switch / run-now / status) live on statenour-web's cron deck.
 
-### `apps/voice` (statenour-voice)
-
-A Python LiveKit Agents voice agent (`agent.py`) using OpenAI Realtime. Self-contained:
-its own `Dockerfile` (build context `apps/voice/` only) and `requirements.txt`. It is
-**outside the pnpm/Turbo graph** — `pnpm install`/`turbo` ignore it; it builds and deploys
-independently on Railway. See `apps/voice/README.md` + `apps/voice/DEPLOY.md`.
-
 ---
 
 ## How the apps talk to each other
@@ -451,7 +447,7 @@ In cost order: `lint:brand-voice` → `lint:source` → `lint:hooks` → `valida
 `check` (tsc). The full test suite is deliberately **not** in pre-commit. There are no
 statenour-side pre-commit checks.
 
-### Pre-push (`.husky/pre-push`) — the real gate
+### Pre-push (`lefthook.yml` → `pre-push`) — the real gate
 
 Skips if there's no upstream tracking branch or you're pushing a tag. Self-heals stale
 `apps/*/.next/lock`, then runs:
@@ -512,12 +508,11 @@ flip `SMS_KILL_SWITCH=true` / `VAPI_KILL_SWITCH=true`.
 `main` is worked by **concurrent Claude agent sessions** (a statenour session and a
 nickstire session, often in parallel `.worktrees/`). The protocol that keeps this safe:
 
-```bash
-# preferred: one command that fetch → rebase → warm-build → push, with race recovery
-bash ~/push-main.sh            # local helper (not committed)
-```
+**Never push `main` directly.** Work a named branch, then `gh pr create` + `gh pr merge --squash
+--delete-branch` (root [`AGENTS.md`](AGENTS.md) → "Branching"). The old `~/push-main.sh` helper
+pushed straight to `main` and is retired.
 
-If pushing manually:
+When pushing your branch:
 
 - **`git fetch origin` before every push.** `git log origin/main..HEAD` shows what rides
   along — commits that aren't yours are expected (the other session ships its own work).
