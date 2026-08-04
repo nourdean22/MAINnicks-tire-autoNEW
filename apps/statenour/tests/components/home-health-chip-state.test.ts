@@ -35,10 +35,18 @@ describe("homeHealthState", () => {
     }
   });
 
-  it("fatal errors → broken", () => {
-    expect(homeHealthState(slice({ errors: { count24h: 9, fatal24h: 2, measured: true } })).state).toBe(
-      "broken",
-    );
+  it("broken needs clearly-elevated error volume (>=40/24h), not a bare >0", () => {
+    // fatal24h counts level='error' since the 2026-08-04 repoint; the live
+    // baseline is ~12.6/day, so an ordinary day must NOT read as broken.
+    expect(
+      homeHealthState(slice({ errors: { count24h: 12, fatal24h: 12, measured: true } })).state,
+    ).toBe("healthy");
+    expect(
+      homeHealthState(slice({ errors: { count24h: 39, fatal24h: 39, measured: true } })).state,
+    ).not.toBe("broken"); // 39 lands in degraded-band territory via count>20, never broken
+    const broken = homeHealthState(slice({ errors: { count24h: 40, fatal24h: 40, measured: true } }));
+    expect(broken.state).toBe("broken");
+    expect(broken.detail).toMatch(/40 errors in 24h/);
   });
 
   it("silent crons or offline devices → degraded, with both named when both fire", () => {
@@ -56,7 +64,7 @@ describe("homeHealthState", () => {
   it("measured and clean → healthy with the real counts in the detail", () => {
     const r = homeHealthState(slice());
     expect(r.state).toBe("healthy");
-    expect(r.detail).toBe("3 non-fatal errors · 12 crons declared");
+    expect(r.detail).toBe("3 error-log rows 24h · 12 crons declared");
   });
 
   it("a legacy payload without measured keeps the old behaviour (deploy window)", () => {
