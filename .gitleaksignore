@@ -25,3 +25,9 @@
 # scanner flagged the ignore file itself, on the line explaining the ignore.
 # Describe the shape; never reproduce it.
 41a048fb5ea7c688ee5ee824c45d9acb857aee0e:apps/nickstire/server/mp4IngestDoor.test.ts:generic-api-key:85
+
+# THIS FILE, one commit later — the note above, before it was reworded. Proof
+# that the rule two lines up is not hypothetical: the explanation of an ignore
+# is scanned exactly like code, and quoting the match to explain it recreates
+# the match. Both lines are gone from the tree; the range gate still sees them.
+104810333ad1fed3446eab9c717040edceefbbe8:.gitleaksignore:generic-api-key:15
