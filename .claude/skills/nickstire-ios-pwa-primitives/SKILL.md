@@ -1,6 +1,6 @@
 ---
 name: nickstire-ios-pwa-primitives
-description: Use when writing or editing nickstire client code (apps/nickstire/client/) that needs a confirm dialog, text capture, or alert — and as a periodic sweep — because window.prompt/alert/confirm is silently suppressed in iOS PWA standalone mode (the admin's actual operating environment) and customer-facing PWAs.
+description: Use when writing or editing client code in EITHER PWA (apps/nickstire/client/ or apps/statenour) that needs a confirm dialog, text capture, or alert — and as a periodic sweep — because window.prompt/alert/confirm is silently suppressed in iOS PWA standalone mode (the operator's actual operating environment on both apps) and customer-facing PWAs.
 ---
 
 # nickstire-ios-pwa-primitives
@@ -28,10 +28,18 @@ Use this skill when:
 
 ## The full sweep (run periodically)
 
-From repo root:
+From repo root — BOTH apps, and note the statenour list includes
+`features` and `hooks`. The one live `window.prompt` that survived five
+prior sweep waves (operator-conversation-drawer.tsx, fixed 2026-08-04)
+lived in `apps/statenour/features/` — a source root OUTSIDE the
+`{app,components,lib}` glob every earlier audit used. A sweep whose glob
+misses a source root is structurally blind to regressions there.
 
 ```bash
-grep -rn '\(window\.\)\?\(prompt\|alert\|confirm\)(' apps/nickstire/client/src \
+grep -rn '\(window\.\)\?\(prompt\|alert\|confirm\)(' \
+  apps/nickstire/client/src \
+  apps/statenour/app apps/statenour/components apps/statenour/lib \
+  apps/statenour/features apps/statenour/hooks \
   --include="*.tsx" --include="*.ts" 2>/dev/null \
   | grep -v 'confirmDialog\|confirmEmail\|window\.confirm\.\|//' \
   | head -30
@@ -39,6 +47,11 @@ grep -rn '\(window\.\)\?\(prompt\|alert\|confirm\)(' apps/nickstire/client/src \
 
 Filter the noise: comments mentioning the bug class are fine; the
 `confirmDialog` import is the fix, not a hit.
+
+**statenour replacement primitives** (this skill applies there too —
+statenour is also an installed iOS PWA): `useConfirmDialog` and
+`usePromptDialog` in `apps/statenour/components/ui/confirm-dialog.tsx`.
+nickstire's remain `confirmDialog` + sonner toasts as documented below.
 
 ## Replacement patterns (use what exists; don't invent new primitives)
 

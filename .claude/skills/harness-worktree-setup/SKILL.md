@@ -58,6 +58,7 @@ rather than `cd`-ing toward wherever the `.env` lives.
 
 | Trap | Why |
 |---|---|
+| `git push` at the default 2-minute tool timeout | The lefthook pre-push `build:affected` gate alone can take 2-5 min when an app is affected (103s witnessed on PR #1355; the push died at exit 143 and left ambiguous remote state). Always give push commands an explicit >=5-minute timeout |
 | `pnpm install --filter <app>` in the **primary** checkout | Prunes the shared junctioned `node_modules` every worktree points at. Use `--filter "<app>..."` **with** the `...` suffix, or phantom import failures follow |
 | `git worktree remove` on its own | Junctions point OUT of the tree; a recursive delete runs over links into the primary. Use `scripts/worktree-teardown.ps1 -targetDir <path>` |
 | Bash `cd` persisting | It resets to `C:\` between calls — prefix each command, and re-anchor by pattern after your own edits shift line numbers |
