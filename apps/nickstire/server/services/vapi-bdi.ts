@@ -1,9 +1,10 @@
 /**
  * VAPI BDI (Belief · Desire · Intention) first-message composer
  *
- * Wave-181.x · Tier S compounding move. The existing
+ * Wave-181.x · Tier S compounding move. Its predecessor
  * `vapi-personalization.ts` got us from "stranger" → "name + vehicle" on
- * inbound calls. This goes the next mile · when the caller is a known
+ * inbound calls — that module has since been deleted as dead code (zero
+ * importers; this file superseded it). This goes the next mile · when the caller is a known
  * customer with an unconverted estimate from the last 120 days, Nick
  * opens the call with the recovery hook instead of waiting for the
  * caller to remember + bring it up themselves.

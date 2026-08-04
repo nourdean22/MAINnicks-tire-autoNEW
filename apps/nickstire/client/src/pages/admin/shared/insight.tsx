@@ -103,10 +103,14 @@ export function InsightStrip({
           {cta.label} →
         </button>
       )}
+      {/* The dismiss below carries a 48x48 hit area behind its 16px glyph. It was
+          a bare button with NO padding at all — a 16x16px target, the smallest
+          control in the admin, on a one-handed-phone surface. Negative margins keep
+          the ~40px row from growing to fit it. */}
       {onDismiss && (
         <button
           onClick={onDismiss}
-          className="shrink-0 text-foreground/30 hover:text-foreground/60 transition-colors"
+          className="shrink-0 -my-2 -mr-2 w-12 h-12 inline-flex items-center justify-center rounded-md text-foreground/30 hover:text-foreground/60 transition-colors"
           aria-label="Dismiss"
         >
           <XCircle className="w-4 h-4" />
