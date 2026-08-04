@@ -36,6 +36,11 @@ pre-commit:
     statenour-secrets-staged:
       root: "apps/statenour"
       run: pnpm exec tsx scripts/scan-secrets.ts --staged
+    # Agent OS: adapter parity + policy canaries, only when instruction/policy files are staged.
+    # Node-only (no pnpm install needed) — see docs/agent-os/README.md.
+    agent-os-verify:
+      glob: "{AGENTS.md,CLAUDE.md,GEMINI.md,AGENT-OPERATING-PROFILE.md,apps/*/AGENTS.md,apps/*/CLAUDE.md,.github/copilot-instructions.md,.cursor/rules/*,scripts/agent-os/*,config/agent-os/*,docs/codebase-memory-mcp.md,scripts/start-codebase-mcp.ps1}"
+      run: node scripts/agent-os/verify.mjs
 
 pre-push:
   commands:

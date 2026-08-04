@@ -26,11 +26,14 @@ pnpm reapplies on every `pnpm install`.
 
 ## Pre-deploy validation (local, automatic)
 
-The `.husky/pre-commit` hook runs the nickstire-scoped checks (brand-voice lint, source
-lint, hook-after-return lint, route registry, typecheck) when nickstire files are staged.
+Git hooks are **lefthook** (repo-root `lefthook.yml`) — Husky is retired and there is no
+`.husky/` directory.
 
-The `.husky/pre-push` hook runs `turbo run build --affected` covering the Vite+esbuild
-build + maybe-prerender step.
+The `pre-commit` hook runs the nickstire-scoped checks (brand-voice lint, source lint,
+hook-after-return lint, route registry, typecheck) when nickstire files are staged.
+
+The `pre-push` hook runs `pnpm run build:affected` covering the Vite+esbuild build +
+maybe-prerender step.
 
 Manual verify:
 

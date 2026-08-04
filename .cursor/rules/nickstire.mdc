@@ -1,0 +1,13 @@
+---
+description: Nick's Tire app rules (apps/nickstire)
+globs:
+  - "apps/nickstire/**"
+alwaysApply: false
+---
+
+Read `apps/nickstire/AGENTS.md` first. `PROTECTED-CORE.md` is the no-touch list; `truth_os.md` records what is live in prod.
+
+- Tests MUST run serial on Windows: `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true`. Serial mode shares ONE process across files — unmock/unstub/env-restore in `afterEach` (AGENTS.md §3) or leaks resurface in unrelated files.
+- New routes register in `shared/routes.ts` — `pnpm run validate:routes` fails otherwise. New admin sections touch `shared/types.ts`, `shared/nav.tsx`, `shared/constants.tsx`, and `Admin.tsx`.
+- iOS PWA: never `window.confirm/alert/prompt` — in-DOM two-tap confirms.
+- Master gate before any push: `pnpm run verify` from `apps/nickstire/`.

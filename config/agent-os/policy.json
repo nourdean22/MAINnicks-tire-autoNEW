@@ -1,0 +1,243 @@
+{
+  "$comment": [
+    "Machine-readable enforcement policy — Agent OS v1, 2026-08-04.",
+    "Matching layer rebuilt 2026-08-04 after an adversarial review proved 22 end-to-end bypasses",
+    "and 7 false positives in the first draft. Every verified bypass string below is now a",
+    "denyExample and every verified false positive an allowExample — the canary locks both.",
+    "",
+    "Consumers:  scripts/agent-os/pretool.mjs (the hook) · scripts/agent-os/policy.test.mjs (canaries).",
+    "Macros:     __GIT__<verb> expands (in policy.mjs) to a git stem that tolerates global options",
+    "            (git -C <path> push, git -c k=v push, --git-dir=…), which otherwise defeat every rule.",
+    "Preprocess: quoted -m/--message/--title/--body arguments are replaced with <ARG> before matching",
+    "            (mention ≠ execution), and a single unchained read-only command (rg/grep/git log…)",
+    "            skips command rules entirely.",
+    "Every rule MUST carry >=1 denyExamples and >=1 allowExamples; policy.test.mjs fails otherwise,",
+    "so a rule cannot ship untested and cannot be silently loosened without a red.",
+    "There is deliberately NO environment-variable bypass. If a rule must be broken, edit this file",
+    "in a PR where the diff is visible, or run the command outside the agent."
+  ],
+  "version": 2,
+  "rules": [
+    {
+      "id": "push-to-main",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "__GIT__push\\b(?=[\\s\\S]*?[\\s:\"'=](?:refs\\/heads\\/)?main(?=[\\s\"']|$))",
+      "why": "AGENTS.md > Branching: NEVER push or commit directly to main. Named branch + PR, always.",
+      "fix": "git push -u origin <type>/<task>, then: gh pr create --head <branch> ; gh pr merge <n> --squash --delete-branch",
+      "denyExamples": [
+        "git push origin main",
+        "git push -u origin main",
+        "git push origin HEAD:main",
+        "git  push   origin   main --no-verify",
+        "git -C /c/Users/nourd/NOURCITY push origin main",
+        "git -c user.email=x@x.com push origin main",
+        "git push \"origin\" \"main\"",
+        "cd /c/repo && git push origin main",
+        "git fetch origin ; git push origin main"
+      ],
+      "allowExamples": [
+        "git push -u origin chore/agent-os-v1",
+        "git push origin statenour/fix-thing",
+        "git push -u origin chore/shared-main-push",
+        "git push -u origin nickstire/main-nav-fix",
+        "git push origin chore/main.ts-refactor",
+        "git commit -m \"docs: forbid git push origin main\"",
+        "gh pr merge 1350 --squash --delete-branch",
+        "git log origin/main..HEAD"
+      ]
+    },
+    {
+      "id": "force-push",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "__GIT__push\\b[^\\n]*?(?:--force(?:-with-lease|-if-includes)?\\b|\\s-[a-eg-uw-z]*f[a-z]*\\b|\\s\\+[^\\s:+])",
+      "why": "AGENTS.md > Branching: never force-push shared history (any form: --force, --force-with-lease, bundled -uf, or a +refspec). Sibling sessions push to these branches.",
+      "fix": "Rebase and push normally. If a rider commit is in the way, disclose it in the PR body — never rewrite it away.",
+      "denyExamples": [
+        "git push --force origin feature/thing",
+        "git push --force-with-lease",
+        "git push -f origin chore/x",
+        "git push -uf origin chore/x",
+        "git push origin +feature/thing",
+        "git -C . push --force origin chore/x"
+      ],
+      "allowExamples": [
+        "git push origin chore/x",
+        "git push --set-upstream origin chore/x",
+        "git push -u origin chore/agent-os-v1"
+      ]
+    },
+    {
+      "id": "push-implicit-dest",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "__GIT__push(?:\\s+--?[\\w=./-]+)*\\s*$|__GIT__push(?:\\s+--?[\\w=./-]+)*\\s+[A-Za-z][\\w.-]*\\s*$|__GIT__push\\b[^\\n]*\\s(?:HEAD|@)(?=[\\s\"']|$)",
+      "why": "Red-team 2026-08-04: `git push`, `git push origin`, and `git push origin HEAD` resolve the destination from the CURRENT branch — which may be main. The push-to-main rule blocks a spelling; this rule blocks the destination being left implicit at all.",
+      "fix": "Name the full destination explicitly: git push -u origin <branch>  (or  git push origin HEAD:<branch>).",
+      "denyExamples": [
+        "git push",
+        "git push origin",
+        "git push origin HEAD",
+        "git push -u origin HEAD",
+        "git -C . push"
+      ],
+      "allowExamples": [
+        "git push -u origin chore/agent-os-v2",
+        "git push origin HEAD:chore/agent-os-v1",
+        "git push origin statenour/fix-thing"
+      ]
+    },
+    {
+      "id": "add-all",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "__GIT__add\\b[^\\n]*?(?:\\s-[a-zA-Z]*A[a-zA-Z]*\\b|\\s--all\\b|\\s\\.(?=[\\s\"']|$))",
+      "why": "AGENTS.md > Branching: stage only your files by explicit path. Concurrent sessions share this tree; -A/--all/. cross-contaminates apps and sweeps in sibling-session files.",
+      "fix": "git add path/to/one.ts path/to/two.ts",
+      "denyExamples": [
+        "git add -A",
+        "git add --all",
+        "git add .",
+        "git -C . add -A",
+        "pnpm test && git add -A && git commit -m x"
+      ],
+      "allowExamples": [
+        "git add apps/statenour/lib/foo.ts",
+        "git add AGENTS.md CLAUDE.md",
+        "git add ./apps/nickstire/AGENTS.md",
+        "git add -p apps/nickstire/server/x.ts"
+      ]
+    },
+    {
+      "id": "no-verify",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "--no-verify\\b",
+      "why": "AGENTS.md > Branching: never --no-verify. The lefthook pre-commit/pre-push gate is the last check before shared history.",
+      "fix": "Fix what the hook is complaining about. If the check itself is wrong, change the check in a PR.",
+      "denyExamples": ["git commit --no-verify -m x", "git push -u origin chore/x --no-verify"],
+      "allowExamples": [
+        "git commit -m 'fix: thing'",
+        "rg -n -- \"--no-verify\" scripts/",
+        "git commit -m \"docs(agent-os): ban --no-verify\""
+      ]
+    },
+    {
+      "id": "destructive-restore",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "__GIT__(?:reset\\s+--hard\\b|checkout\\s+--\\s|clean\\s+-[a-zA-Z]*[dfxX][a-zA-Z]*\\b|restore\\b(?!(?=[^\\n]*--staged\\b)(?![^\\n]*--worktree\\b)))",
+      "why": "Memory git-sync-never-reset-hard: a sibling session's uncommitted work can be sitting in this tree, and none of these leave a reflog entry for unstaged changes. Covers reset --hard, checkout -- <path>, git clean -d/-f/-x, and worktree-writing git restore.",
+      "fix": "Sync with: git fetch origin main ; git merge --ff-only origin/main. To discard YOUR OWN edit, copy the file aside first (cp file file.bak). git restore --staged <file> (unstage only) stays allowed.",
+      "denyExamples": [
+        "git reset --hard origin/main",
+        "git reset --hard HEAD~1",
+        "git -C . reset --hard",
+        "git checkout -- .",
+        "git clean -xdf",
+        "git restore app.ts",
+        "git restore --staged --worktree app.ts"
+      ],
+      "allowExamples": [
+        "git reset HEAD~1",
+        "git restore --staged apps/statenour/lib/foo.ts",
+        "git clean -n",
+        "git checkout -b chore/thing",
+        "git checkout main",
+        "git fetch origin main",
+        "git merge --ff-only origin/main",
+        "git commit -m \"chore: use merge --ff-only, not git reset --hard\""
+      ]
+    },
+    {
+      "id": "stash-pop",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "__GIT__stash\\s+(?:pop|apply|branch)\\b",
+      "why": "Memory git-stash-pop-steals-sibling-stash: the stash is shared across worktrees. A no-op 'stash push' still exits 0, so pop/apply/branch can restore ANOTHER session's stash into your tree.",
+      "fix": "Copy the file aside instead (cp file file.bak), or address the stash by explicit ref after confirming it is yours (git stash list).",
+      "denyExamples": ["git stash pop", "git stash apply stash@{0}", "git stash branch tmp stash@{0}"],
+      "allowExamples": ["git stash list", "git status"]
+    },
+    {
+      "id": "worktree-remove",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "__GIT__worktree\\s+remove\\b",
+      "why": "AGENTS.md > Branching: node_modules in a worktree are NTFS junctions pointing OUT at the primary checkout. A recursive delete walks the links and can strip the shared node_modules every session depends on.",
+      "fix": "powershell scripts/worktree-teardown.ps1 -targetDir .worktrees/<name>   (unlinks junctions first, verifies targets, then removes)",
+      "denyExamples": ["git worktree remove .worktrees/foo", "git -C . worktree remove --force .worktrees/foo"],
+      "allowExamples": ["git worktree list", "powershell scripts/worktree-teardown.ps1 -targetDir .worktrees/foo"]
+    },
+    {
+      "id": "worktree-recursive-delete",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "(?:\\brm\\b\\s+-[a-zA-Z]*[rR][a-zA-Z]*\\b[^\\n]*|\\bRemove-Item\\b(?=[^\\n]*-Recurse)[^\\n]*)(?:\\.worktrees|\\.claude[\\\\/]worktrees)",
+      "flags": "i",
+      "why": "Same junction landmine as worktree-remove, reached through the shell instead of git: rm -r / Remove-Item -Recurse on a worktree directory walks the node_modules junctions into the primary checkout.",
+      "fix": "powershell scripts/worktree-teardown.ps1 -targetDir <worktree>   — it unlinks the junctions first.",
+      "denyExamples": [
+        "rm -rf .worktrees/foo",
+        "rm -r C:/Users/nourd/NOURCITY/.claude/worktrees/foo",
+        "Remove-Item -Recurse -Force .worktrees\\foo"
+      ],
+      "allowExamples": [
+        "rm -rf node_modules/.cache",
+        "Remove-Item -Recurse -Force dist",
+        "powershell scripts/worktree-teardown.ps1 -targetDir .worktrees/bar",
+        "git worktree list"
+      ]
+    },
+    {
+      "id": "destructive-prisma",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "(?:--accept-data-loss\\b|--force-reset\\b|\\bprisma\\s+migrate\\s+reset\\b)",
+      "why": "AGENTS.md > Protected operations: statenour migrations are hand-applied; pgvector/tsvector columns are Unsupported(...) to Prisma. --accept-data-loss silently drops them, and prisma migrate reset / db push --force-reset destroy strictly more (red-team 2026-08-04).",
+      "fix": "Hand-apply the migration and verify with prisma migrate status. Skill: statenour-migration.",
+      "denyExamples": [
+        "pnpm prisma db push --accept-data-loss",
+        "npx prisma db push --accept-data-loss",
+        "pnpm prisma migrate reset --force",
+        "npx prisma db push --force-reset"
+      ],
+      "allowExamples": ["pnpm prisma migrate status", "pnpm prisma validate", "pnpm prisma db push"]
+    },
+    {
+      "id": "destructive-sql",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "(?=[\\s\\S]*\\b(?:mysql|psql|railway\\s+run|prisma\\s+db\\s+execute|Invoke-Sqlcmd)\\b)[\\s\\S]*\\b(?:DROP\\s+(?:DATABASE|SCHEMA|TABLE)|TRUNCATE\\s+(?:TABLE\\s+)?\\w)",
+      "flags": "i",
+      "why": "AGENTS.md > Protected operations: destructive schema commands need an explicit operator instruction. Memory agent-destructive-script-incident: a 'verification' run deleted 870 rows. The rule requires a DB client on the same command so that grepping/auditing SQL text stays legal — mention is not execution.",
+      "fix": "Ask the operator. If this is migration SQL, write it to a migration file (Write is not blocked) rather than executing it from a shell.",
+      "denyExamples": [
+        "mysql -e 'DROP TABLE leads'",
+        "psql -c \"TRUNCATE TABLE brain_memory\"",
+        "echo 'drop database nick' | mysql",
+        "railway run -- psql -c 'DROP TABLE provider_pings'"
+      ],
+      "allowExamples": [
+        "git log --oneline -5",
+        "grep -rn 'DROP TABLE' drizzle/",
+        "rg 'TRUNCATE' apps/statenour/prisma/",
+        "pnpm test"
+      ]
+    },
+    {
+      "id": "install-in-junctioned-worktree",
+      "tools": ["Bash", "PowerShell"],
+      "pattern": "\\b(?:pnpm|npm|yarn)\\s+(?:install|i|add|remove|update|prune)\\b",
+      "flags": "i",
+      "onlyWhenCwdMatches": "(\\.worktrees|\\.claude[\\\\/]worktrees)",
+      "why": "Memory never-pnpm-install-in-a-junctioned-worktree: node_modules here are junctions to the PRIMARY checkout. pnpm offers to WIPE them (prompt defaults to yes), breaking every concurrent session at once.",
+      "fix": "Worktrees are pre-junctioned — no install needed. If deps genuinely changed, run it in the primary checkout with the '...' suffix: pnpm install --frozen-lockfile --filter \"<app>...\"",
+      "denyExamples": ["pnpm install", "pnpm install --frozen-lockfile", "npm i", "pnpm add zod"],
+      "allowExamples": ["pnpm test", "pnpm build:affected", "pnpm exec vitest run x.test.ts", "pnpm agent:verify"]
+    },
+    {
+      "id": "secret-file-write",
+      "tools": ["Write", "Edit", "NotebookEdit"],
+      "pathPattern": "(^|[\\\\/])\\.env(?!\\.example)(\\.[A-Za-z0-9_-]+)?$",
+      "why": "AGENTS.md > Protected operations: .env files hold live credentials. Agents must not author them; .env.example is the tracked contract.",
+      "fix": "Add the variable to .env.example and to the env validator, then ask the operator to set the real value.",
+      "denyExamples": [".env", "apps/statenour/.env.local", "C:\\\\repo\\\\apps\\\\nickstire\\\\.env.production"],
+      "allowExamples": [
+        "apps/statenour/.env.example",
+        "apps/nickstire/scripts/env-validate.mjs",
+        "docs/agent-os/README.md"
+      ]
+    }
+  ]
+}

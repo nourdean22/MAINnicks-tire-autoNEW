@@ -1,0 +1,42 @@
+name: Agent policy
+
+# Guards the agent control plane: instruction-adapter parity + policy canaries.
+#
+# Deliberately self-contained — Node only, no pnpm install, no turbo. It runs on
+# EVERY PR (a stale-instruction fix can land anywhere) and finishes in seconds.
+# New checks are added by dropping a scripts/agent-os/*.test.mjs file; verify.mjs
+# discovers them, so this workflow file does not need editing. That matters here:
+# editing .github/workflows/** flips test.yml's path filter into a full turbo
+# sweep (~50 min). See docs/agent-os/README.md.
+#
+# NOTE: this repo has no branch protection, so a red run does not mechanically
+# block `gh pr merge`. Red means stop, by convention.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-policy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: adapter parity + canaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: agent-os verify
+        run: node scripts/agent-os/verify.mjs
