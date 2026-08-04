@@ -210,7 +210,7 @@ call — below the bar).
   allow test.
 - **Confidence:** high (three independent instances in one session: red-team 22×, canaries' first
   run caught 2 defects, the new parity guard's first run caught a 4th "main (protected)" instance).
-- **Status:** proposed
+- **Status:** applied #1360 — new skill `.claude/skills/guard-red-team/SKILL.md`
 
 ### P2 · harness-worktree-setup
 - **Trigger (witnessed):** `git push` from this harness worktree died at the default 2-minute tool
@@ -220,7 +220,7 @@ call — below the bar).
 - **Proposed edit:** add one line to the skill: "`git push` runs the pre-push build gate
   (~2-5 min when an app is affected) — always give push commands an explicit >=5-minute timeout."
 - **Confidence:** medium (once, clear mechanism).
-- **Status:** proposed
+- **Status:** applied #1360 — trap row added to `harness-worktree-setup`
 
 ### P3 · NEW: stranded-branch-rescue
 - **Trigger (witnessed):** `nickstire/admin-health-strip-and-guards` sat with 11 unmerged commits,
@@ -239,7 +239,10 @@ call — below the bar).
   conflicts by its own documented last-writer-wins rule (the merging branch's walkthrough wins).
 - **Confidence:** medium (one full occurrence, but the stranding class is memory-documented as
   recurring).
-- **Status:** proposed
+- **Status:** applied #1360 — new skill `.claude/skills/stranded-branch-rescue/SKILL.md`, refined
+  by the applying session's own measurement: `git cherry` false-positived on 5 of 6 merged-PR
+  branches (squash + post-review edits break patch-id matching) while `gh pr list --head` was
+  right 6 of 6, so the PR-record check is now step 1 and cherry is a secondary signal only.
 
 ---
 
@@ -262,4 +265,6 @@ are `useConfirmDialog`/`usePromptDialog` in `components/ui/confirm-dialog.tsx`
 (nickstire's remain `confirmDialog` + sonner). Without the glob fix the next
 `features/` regression is structurally invisible to the audit.
 
-Status: proposed
+Status: applied #1360 — sweep glob widened to both PWAs incl. `features`/`hooks`,
+statenour primitives documented (existence re-verified at
+`components/ui/confirm-dialog.tsx:89`/`:182` before writing them in)
