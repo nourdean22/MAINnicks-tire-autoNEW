@@ -25,6 +25,12 @@ non-obvious and two of them silently lie if run carelessly.
   status is `tail`'s (0), not vitest's. Read the actual
   `Test Files … failed` summary line, or run `pnpm test; echo "EXIT=$?"`
   with no pipe.
+- **PowerShell `Select-String` is case-insensitive by default.** A vitest
+  summary capture with a bare `'Tests'` pattern also matches `tests 14ms`
+  inside the Duration line — witnessed 2026-08-04: four mutation probes
+  printed Duration lines as their "results" and verified nothing. Use
+  `-CaseSensitive` with an anchored pattern (`'^\s*Tests\s+\d'`), and read
+  one captured line before trusting a batch of them.
 - **`typecheck` does NOT cover `tests/`.** A green `tsc --noEmit` says
   nothing about test-fixture correctness — only a test run does. Proven
   2026-07-30 (#1238): a test fixture omitted a newly-required field on

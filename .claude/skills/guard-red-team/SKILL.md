@@ -24,7 +24,13 @@ guard guards.
 1. **Probe the REAL binary end-to-end.** Feed candidate commands through
    the actual hook/linter process and assert on **exit codes**, not on
    your reading of the regex. A regex you reason about is a regex you
-   excuse.
+   excuse. **Attribute before fixing:** this machine runs MULTIPLE guard
+   layers (repo pretool + the Claude-harness sandbox), and a block banner
+   without the repo's "BLOCKED by repo policy: <id>" attribution is NOT
+   the repo policy. Witnessed 2026-08-04: all three false positives that
+   session were the harness layer — the repo policy probed clean and the
+   only correct repo change was defensive allowExamples (#1364), not a
+   "fix" to a rule that never fired.
 2. **Run the minimum probe set** — every class below produced a verified
    bypass or false positive in the #1355 red-team:
    - **Tool global-option prefixes** — `git -C <path> push origin main`
@@ -45,7 +51,18 @@ guard guards.
    - **Mention vs execution** — text that only QUOTES a forbidden string
      (docs, commit messages, test fixtures) must pass. A guard that
      blocks its own documentation will be disabled by a frustrated
-     human, and then it guards nothing.
+     human, and then it guards nothing. Witnessed at its purest
+     2026-08-04: the commit DOCUMENTING two false positives was itself
+     blocked because its here-string quoted the cmdlet.
+   - **Drive-qualified paths** — PowerShell `Env:`, `HKLM:`, `Cert:` are
+     provider paths, not filesystem paths. Witnessed 2026-08-04: a
+     compound command containing the standard env-token removal cmdlet
+     was blocked as a system-path "/" delete.
+   - **Argument bleed across a compound** — a path/regex-looking literal
+     in an ADJACENT argument or statement must not be attributed to the
+     guarded verb. Witnessed 2026-08-04: a backup-file delete plus an
+     unrelated `'^\s*Tests'` regex in the same command was blocked as
+     deleting the path "\s".
 3. **Lock every verdict.** Every verified bypass becomes a permanent
    deny-example test; every false positive becomes a permanent
    allow-example test. The probe set only grows.
