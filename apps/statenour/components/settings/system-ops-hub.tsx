@@ -42,7 +42,24 @@ import type { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 
 type SystemPulseShape = ReturnType<typeof useSystemPulse>;
 
+/**
+ * What the header timestamp may claim. When the Neon quota circuit is open,
+ * `buildSystemPulse` short-circuits with fabricated zeros AND a genuinely
+ * fresh generatedAt on the same object — so "live · last refresh HH:MM:SS"
+ * beside all-zero badges was a confident freshness claim about counts that
+ * were never read. Same class as the home strip's "calm" (#1346); this is
+ * the second consumer of dbQuotaExhausted. PURE and exported for the pin.
+ */
+export function opsHubFreshness(
+  pulse: { generatedAt?: string; dbQuotaExhausted?: boolean } | null | undefined,
+): "loading" | "degraded" | "live" {
+  if (!pulse?.generatedAt) return "loading";
+  if (pulse.dbQuotaExhausted === true) return "degraded";
+  return "live";
+}
+
 export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
+  const freshness = opsHubFreshness(pulse);
   const groups: Array<{
     heading: string;
     tint: string;
@@ -152,8 +169,17 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
     <GlassCard>
       <div className="mb-3 flex items-center justify-between">
         <p className="section-label">System ops</p>
-        <span className="text-[10px] text-[var(--text-tertiary)]">
-          {pulse?.generatedAt ? `live · last refresh ${new Date(pulse.generatedAt).toLocaleTimeString()}` : "loading pulse…"}
+        <span
+          className={cn(
+            "text-[10px]",
+            freshness === "degraded" ? "text-amber-300/80" : "text-[var(--text-tertiary)]",
+          )}
+        >
+          {freshness === "degraded"
+            ? "db quota circuit open · counts unmeasured"
+            : pulse?.generatedAt
+              ? `live · last refresh ${new Date(pulse.generatedAt).toLocaleTimeString()}`
+              : "loading pulse…"}
         </span>
       </div>
 

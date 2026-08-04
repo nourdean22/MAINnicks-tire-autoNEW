@@ -41,6 +41,13 @@ export interface SystemHealthDigest {
     critical: number;
     warning: number;
     healthy: number;
+    /**
+     * Probes that did not produce a reading this run (scan threw, or the
+     * quota circuit swallowed the read). Optional because digests persisted
+     * before 2026-08-04 lack it. A probe counted here is NOT healthy — that
+     * conflation is exactly what this field exists to end.
+     */
+    unmeasured?: number;
   };
   highlights: Array<{
     severity: "critical" | "warning" | "info";
@@ -53,6 +60,13 @@ export interface SystemHealthDigest {
     cronLogRows48h: number;
     staleRows: number;
     googleOauth: boolean;
+    /**
+     * True when the OAuth STATUS READ itself failed — a claim about our own
+     * database, not about Google. `googleOauth: false` alone is ambiguous
+     * between "token expired" and "we could not ask", and the card was
+     * rendering the second as the literal word "expired".
+     */
+    googleOauthProbeFailed: boolean;
     envReady: number;
     envTotal: number;
     /** v10.0.88 — what code generated this digest. Pulled from
@@ -105,6 +119,33 @@ function collectDeployInfo(): SystemHealthDigest["stats"]["deploy"] {
   };
 }
 
+/** One probe's reading for the digest tally. */
+export interface ProbeReading {
+  name: string;
+  /** Did the scan produce a result at all? A crashed/circuit-swallowed scan did not. */
+  ran: boolean;
+  /** Highlights this probe contributed this run. */
+  issueCount: number;
+}
+
+/**
+ * Count healthy probes from what actually ran. PURE and exported so it can
+ * be pinned directly (same reasoning as googleOauthHighlight below —
+ * computeHealthDigest fans out five prisma-touching scans, and driving this
+ * arithmetic through it is how `healthy: 6 - critical - warning` shipped:
+ * a probe total that was wrong (5 scans, not 6), a count that could reach
+ * -2 (8 highlights are reachable), and crashed scans tallied as healthy.
+ */
+export function summarizeProbes(readings: ProbeReading[]): {
+  healthy: number;
+  unmeasured: string[];
+} {
+  return {
+    healthy: readings.filter((r) => r.ran && r.issueCount === 0).length,
+    unmeasured: readings.filter((r) => !r.ran).map((r) => r.name),
+  };
+}
+
 export async function computeHealthDigest(): Promise<SystemHealthDigest> {
   const [cron, stale, env, googleStatus, slowRoutes] = await Promise.all([
     scanCronHealth().catch(() => null),
@@ -123,16 +164,31 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
         probeFailed: true,
       }),
     ),
-    countSlowRoutes24h().catch(() => 0),
+    countSlowRoutes24h().catch((): number | null => null),
   ]);
   const googleOauth = googleStatus.state === "healthy";
+  const googleOauthProbeFailed = googleStatus.probeFailed === true;
 
   const highlights: SystemHealthDigest["highlights"] = [];
+
+  // Per-probe issue tally, fed to summarizeProbes below. A probe is healthy
+  // only if it RAN and contributed zero highlights — the old arithmetic
+  // (`6 - critical - warning`) counted highlights against a probe total that
+  // was wrong (5 scans, not 6), could go NEGATIVE (up to 8 highlights are
+  // reachable), and silently counted a crashed scan as healthy.
+  const issuesByProbe: Record<string, number> = {};
+  const pushFor = (
+    probe: string,
+    h: SystemHealthDigest["highlights"][number],
+  ): void => {
+    issuesByProbe[probe] = (issuesByProbe[probe] ?? 0) + 1;
+    highlights.push(h);
+  };
 
   // ── Critical signals (urgent, push to top) ──
   if (cron && cron.diagnoses) {
     for (const d of cron.diagnoses.filter((d) => d.severity === "critical").slice(0, 2)) {
-      highlights.push({
+      pushFor("cron", {
         severity: "critical",
         headline: d.headline,
         link: "/system/health",
@@ -147,11 +203,11 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
   // ingest hasn't been writing rows lately, which is a different
   // class of problem (cron drift / disabled cron / API quota).
   const googleHighlight = googleOauthHighlight(googleStatus);
-  if (googleHighlight) highlights.push(googleHighlight);
+  if (googleHighlight) pushFor("google-oauth", googleHighlight);
 
   // ── Warning signals ──
   if (cron && cron.summary.silentDeclaredCrons > 0) {
-    highlights.push({
+    pushFor("cron", {
       severity: "warning",
       headline: `${cron.summary.silentDeclaredCrons} crons silent in last 48h`,
       link: "/system/cron-diagnostics",
@@ -159,7 +215,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
   }
 
   if (cron && cron.summary.killedIndividually > 0) {
-    highlights.push({
+    pushFor("cron", {
       severity: "warning",
       headline: `${cron.summary.killedIndividually} cron${cron.summary.killedIndividually === 1 ? "" : "s"} manually disabled`,
       link: "/system/cron-diagnostics",
@@ -167,7 +223,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
   }
 
   if (stale && stale.totalStaleRows > 50) {
-    highlights.push({
+    pushFor("stale-data", {
       severity: "warning",
       headline: `${stale.totalStaleRows} stale rows accumulating across ${stale.categories.filter((c) => c.count > 0).length} categories`,
       link: "/system/stale",
@@ -175,18 +231,47 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
   }
 
   if (env && env.total - env.ready > 2) {
-    highlights.push({
+    pushFor("env", {
       severity: "warning",
       headline: `${env.total - env.ready} env groups not configured`,
       link: "/system/health",
     });
   }
 
-  if (slowRoutes > 0) {
-    highlights.push({
+  if (slowRoutes !== null && slowRoutes > 0) {
+    pushFor("slow-routes", {
       severity: "warning",
       headline: `${slowRoutes} route${slowRoutes === 1 ? "" : "s"} slow (p95 > 2s, last 24h)`,
       link: "/system/performance",
+    });
+  }
+
+  const readings: ProbeReading[] = [
+    { name: "cron", ran: cron !== null, issueCount: issuesByProbe["cron"] ?? 0 },
+    { name: "stale-data", ran: stale !== null, issueCount: issuesByProbe["stale-data"] ?? 0 },
+    { name: "env", ran: env !== null, issueCount: issuesByProbe["env"] ?? 0 },
+    {
+      name: "google-oauth",
+      ran: !googleOauthProbeFailed,
+      issueCount: issuesByProbe["google-oauth"] ?? 0,
+    },
+    { name: "slow-routes", ran: slowRoutes !== null, issueCount: issuesByProbe["slow-routes"] ?? 0 },
+  ];
+  const probeSummary = summarizeProbes(readings);
+
+  // A probe that produced no reading must not vanish into the healthy count.
+  // One warning names them, which also forces `overall` off "healthy" —
+  // "all clear" is not a claim this digest may make about scans that never
+  // ran. google-oauth is excluded from the HEADLINE only: its probeFailed
+  // case already emitted its own targeted warning (with the reason) above,
+  // and naming it twice would read as two problems. It still counts in
+  // counts.unmeasured.
+  const unnamedUnmeasured = probeSummary.unmeasured.filter((n) => n !== "google-oauth");
+  if (unnamedUnmeasured.length > 0) {
+    highlights.push({
+      severity: "warning",
+      headline: `${unnamedUnmeasured.length} probe${unnamedUnmeasured.length === 1 ? "" : "s"} unmeasured (${unnamedUnmeasured.join(", ")}) — treat as unknown, not clear`,
+      link: "/system/health",
     });
   }
 
@@ -211,7 +296,8 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     counts: {
       critical: criticalCount,
       warning: warningCount,
-      healthy: 6 - criticalCount - warningCount, // 6 probes total
+      healthy: probeSummary.healthy,
+      unmeasured: probeSummary.unmeasured.length,
     },
     highlights: highlights.slice(0, 5),
     stats: {
@@ -220,6 +306,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
       cronLogRows48h: cron?.summary.totalLogRowsLast48h ?? 0,
       staleRows: stale?.totalStaleRows ?? 0,
       googleOauth,
+      googleOauthProbeFailed,
       envReady: env?.ready ?? 0,
       envTotal: env?.total ?? 0,
       deploy: collectDeployInfo(),
@@ -323,7 +410,10 @@ async function computeTrend(
  * latency for those is TTFT (first-token-latency), tracked separately
  * on ChatMessage.firstTokenLatencyMs (v7.6).
  */
-async function countSlowRoutes24h(): Promise<number> {
+async function countSlowRoutes24h(): Promise<number | null> {
+  // null = the read did not happen (quota circuit open, or the query threw).
+  // The old fallback was a fabricated 0 — a failed count is not a low count,
+  // and the digest now files it as unmeasured instead of clean.
   const rows = await safeQuery(
     () =>
       prisma.$queryRaw<Array<{ c: bigint }>>`
@@ -344,9 +434,10 @@ async function countSlowRoutes24h(): Promise<number> {
              AND percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) > 2000
         ) s
       `,
-    [{ c: BigInt(0) }] as Array<{ c: bigint }>,
+    null,
     { label: "health-digest.slow-routes" },
   );
+  if (rows === null) return null;
   return Number(rows?.[0]?.c ?? 0);
 }
 
