@@ -16,6 +16,13 @@ import type { AdminSection } from "@/pages/admin/shared";
 interface Props {
   onNavigate: (section: AdminSection) => void;
   onSelectCustomer: (customerId: number) => void;
+  /**
+   * Sections this role may reach — the SAME `sectionsForRole(adminRole)` array
+   * Admin.tsx uses to gate `onNavigate`. The palette must not offer a door the
+   * gate will refuse: before this prop existed, a front_desk user was shown all
+   * 16 sections and selecting a forbidden one silently did nothing.
+   */
+  allowedSections: readonly AdminSection[];
 }
 
 function useDebounce(value: string, delay: number) {
@@ -47,6 +54,28 @@ const SECTION_SHORTCUTS = ADMIN_REGISTRY.map(s => ({
   group: s.group ?? "Operations",
 }));
 
+/**
+ * Section shortcuts this role may actually open. Exported for
+ * commandPaletteRoleTruth.test.ts — the pin is that the palette derives its
+ * offering from the registry's role data, never from a second hand-kept list.
+ */
+export function visibleSectionShortcuts(allowedSections: readonly AdminSection[]) {
+  return SECTION_SHORTCUTS.filter(s => allowedSections.includes(s.id));
+}
+
+/**
+ * Whether a quick action is usable by a role. An action with no `section`
+ * performs no navigation (drilldown drawers, direct mutations) and stays
+ * visible to everyone; an action that navigates is hidden from roles whose
+ * `onNavigate` would silently refuse its target.
+ */
+export function actionVisibleToRole(
+  action: { section?: AdminSection },
+  allowedSections: readonly AdminSection[],
+): boolean {
+  return action.section === undefined || allowedSections.includes(action.section);
+}
+
 // 2026-05-06 — Quick Actions registry for ⌘K palette.
 // Each action either opens a drilldown, triggers a mutation, or fires
 // a side effect. Type-safe action handler is set up at runtime.
@@ -56,11 +85,19 @@ interface QuickAction {
   keywords: string[];
   icon: React.ReactNode;
   group: "Drilldown" | "Action";
+  /**
+   * The admin section this action's run() navigates to, if any. REQUIRED on
+   * any action that calls onNavigate — it is what hides the action from roles
+   * that cannot reach the target (Admin.tsx gates onNavigate with
+   * allowedSections, so an unlisted target would render a button that
+   * silently does nothing). Leave unset only for pure drilldowns/mutations.
+   */
+  section?: AdminSection;
   /** Set at component runtime — closure over hooks/dispatchers */
   run: () => void | Promise<void>;
 }
 
-export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
+export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,9 +135,12 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     onError: (err) => toast.error("GBP generation failed", { description: err.message }),
   });
 
-  // Filter section shortcuts
+  // Filter section shortcuts — role-scoped first, then by query. Offering a
+  // section outside allowedSections would render a result whose selection
+  // Admin.tsx silently refuses.
+  const roleSections = useMemo(() => visibleSectionShortcuts(allowedSections), [allowedSections]);
   const matchingSections = query.length >= 1
-    ? SECTION_SHORTCUTS.filter(s =>
+    ? roleSections.filter(s =>
         s.label.toLowerCase().includes(query.toLowerCase()) ||
         s.keywords.some(k => k.includes(query.toLowerCase()))
       ).slice(0, 4)
@@ -175,6 +215,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-jump-overview",
+      section: "overview",
       label: "Jump to Today's Brief",
       keywords: ["brief", "today", "morning", "overview", "dashboard", "home"],
       icon: <Zap className="w-4 h-4 text-yellow-500" />,
@@ -198,6 +239,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-winback",
+      section: "campaigns",
       label: "Win-Back lapsed customers",
       keywords: ["winback", "win-back", "lapsed", "reengage", "re-engage", "dormant"],
       icon: <RefreshCw className="w-4 h-4 text-blue-500" />,
@@ -214,6 +256,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // of Money. These actions land Cmd+K users on the right tab.
     {
       id: "action-declined-work",
+      section: "revenue",
       // No hardcoded dollar figure: a stale amount in a command label reads
       // as live data. The Declined tab itself shows the real number.
       label: "Declined Work · recovery pipeline",
@@ -229,6 +272,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-snap-finance",
+      section: "revenue",
       label: "Snap Finance dashboard",
       keywords: ["snap", "financing", "finance", "acima", "koalafi", "payment", "loan"],
       icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
@@ -244,6 +288,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // Cmd+K shortcuts for the new Settings sub-tabs.
     {
       id: "action-settings-status",
+      section: "settings",
       label: "Settings · Status (open issues)",
       keywords: ["status", "open issues", "alert", "warning", "attention", "morning brief", "health"],
       icon: <Activity className="w-4 h-4 text-emerald-500" />,
@@ -257,6 +302,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-settings-shopdriver",
+      section: "settings",
       label: "Settings · ShopDriver HQ (ALG sync)",
       keywords: ["shopdriver", "alg", "sync", "invoice", "customer", "probe"],
       icon: <RefreshCw className="w-4 h-4 text-cyan-500" />,
@@ -270,6 +316,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-settings-flags",
+      section: "settings",
       label: "Find a feature flag",
       keywords: ["flag", "feature flag", "toggle", "enable", "disable", "FEATURE_", "sms_", "engine_", "search flag"],
       icon: <Zap className="w-4 h-4 text-amber-500" />,
@@ -290,6 +337,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-settings-health",
+      section: "settings",
       label: "Settings · System Health",
       keywords: ["health", "uptime", "db", "database", "memory", "vendor status", "system"],
       icon: <Activity className="w-4 h-4 text-blue-500" />,
@@ -304,6 +352,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // wave-181.x Customers Phase 4 · jumps for the Customers page.
     {
       id: "action-customers-lapsed",
+      section: "customers",
       label: "Customers · show lapsed cohort",
       keywords: ["customers", "lapsed", "dormant", "win-back", "churn", "at-risk"],
       icon: <Users className="w-4 h-4 text-amber-500" />,
@@ -317,6 +366,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-customers-vips",
+      section: "customers",
       label: "Customers · show VIPs (3+ visits)",
       keywords: ["customers", "vip", "loyalty", "best", "regulars", "3+", "visits"],
       icon: <Crown className="w-4 h-4 text-amber-500" />,
@@ -336,6 +386,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // command. "Declined Work · recovery pipeline" lands on the real surface.
     {
       id: "action-flip-declined-recovery",
+      section: "settings",
       label: "Flip FEATURE_DECLINED_RECOVERY (declined-work SMS)",
       keywords: ["declined", "recovery", "flag", "flip", "sms", "FEATURE_DECLINED"],
       icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
@@ -361,6 +412,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // longer needs to drill through the sidebar to reach them.
     {
       id: "action-outreach-campaigns",
+      section: "campaigns",
       label: "Outreach · Send a campaign",
       keywords: ["outreach", "campaign", "blast", "bulk sms", "send", "broadcast", "segment"],
       icon: <Send className="w-4 h-4 text-blue-500" />,
@@ -377,6 +429,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-outreach-reviews",
+      section: "campaigns",
       label: "Outreach · Process review request queue",
       keywords: ["outreach", "reviews", "review request", "google review", "queue", "process", "due"],
       icon: <Star className="w-4 h-4 text-amber-500" />,
@@ -393,6 +446,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-outreach-winback",
+      section: "campaigns",
       label: "Outreach · Win-Back sequences",
       keywords: ["outreach", "winback", "win-back", "lapsed", "re-engagement", "reactivation", "sequence"],
       icon: <RotateCcw className="w-4 h-4 text-emerald-500" />,
@@ -413,6 +467,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // in LeadsSection's useUrlFilter (status, source, view).
     {
       id: "action-leads-kanban",
+      section: "leads",
       label: "Leads · Kanban board",
       keywords: ["leads", "kanban", "board", "pipeline", "drag", "drop"],
       icon: <LayoutGrid className="w-4 h-4 text-blue-500" />,
@@ -426,6 +481,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-leads-urgent",
+      section: "leads",
       label: "Leads · Uncontacted backlog (urgent)",
       keywords: ["leads", "urgent", "uncontacted", "sla", "new", "backlog", "ghost"],
       icon: <AlertTriangle className="w-4 h-4 text-red-500" />,
@@ -448,6 +504,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-leads-vapi",
+      section: "leads",
       label: "Leads · Nick AI (VAPI) source filter",
       keywords: ["leads", "vapi", "nick", "ai", "voice", "source", "call"],
       icon: <PhoneCall className="w-4 h-4 text-amber-500" />,
@@ -464,6 +521,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // compresses 3-4 sidebar clicks into one keystroke.
     {
       id: "action-money-declined-fire",
+      section: "revenue",
       label: "Money · Declined work · FIRE bulk recovery",
       keywords: ["money", "declined", "fire", "recovery", "bulk", "sms"],
       icon: <DollarSign className="w-4 h-4 text-amber-500" />,
@@ -486,6 +544,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-money-create-invoice",
+      section: "revenue",
       label: "Money · Create invoice",
       keywords: ["money", "invoice", "create", "new", "bill", "charge"],
       icon: <FileText className="w-4 h-4 text-emerald-500" />,
@@ -499,6 +558,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-money-top-declined",
+      section: "revenue",
       label: "Money · Top declined ≥$500 by amount",
       keywords: ["money", "declined", "top", "high-ticket", "$500", "amount", "sort"],
       icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
@@ -519,6 +579,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     // VoiceReceptionistSection on the LiveCallsCard wrapper.
     {
       id: "action-voice-live",
+      section: "voiceReceptionist",
       label: "Voice · Live in-flight calls",
       keywords: ["voice", "nick", "vapi", "live", "in-flight", "active", "calls"],
       icon: <PhoneCall className="w-4 h-4 text-violet-500" />,
@@ -536,6 +597,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-voice-stuck",
+      section: "voiceReceptionist",
       label: "Voice · Stuck calls (Nick fumbled · needs review)",
       keywords: ["voice", "nick", "stuck", "tool", "fumble", "review", "verify"],
       icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
@@ -558,6 +620,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
     {
       id: "action-voice-today",
+      section: "voiceReceptionist",
       label: "Voice · Today's calls (reset filters)",
       keywords: ["voice", "nick", "today", "calls", "reset", "filter"],
       icon: <Phone className="w-4 h-4 text-blue-500" />,
@@ -575,25 +638,34 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
 
+  // Role-scope the actions before any query filtering: an action that
+  // navigates to a section this role cannot reach is a button that silently
+  // does nothing (Admin.tsx gates onNavigate with the same allowedSections).
+  const permittedActions = useMemo(
+    () => quickActions.filter(a => actionVisibleToRole(a, allowedSections)),
+    [quickActions, allowedSections],
+  );
+
   // Filter actions by query — or, on an empty query, browse the whole registry.
   //
   // The empty case used to be `[]`, which is why this palette was effectively
   // desktop-only: on a phone there is no ⌘K and no way to guess what is in here,
   // so opening it showed an input and a blank sheet you had to thumb-type into
   // before anything appeared. Sections and customers stay query-gated (a customer
-  // list needs a search term to mean anything), but the 26 actions and 6
-  // drilldowns are a fixed, knowable menu — showing them IS the discovery.
+  // list needs a search term to mean anything), but the actions and drilldowns
+  // this role can actually run are a fixed, knowable menu — showing them IS the
+  // discovery.
   //
   // Deliberately unsliced. The query path caps at 6 because it is ranking; browse
   // is not ranking, and any cap here would force a "which 8 matter?" curation
   // decision that would drift out of sync with the registry above. The listbox
   // already scrolls within the dynamic viewport.
   const matchingActions = query.length >= 1
-    ? quickActions.filter(a =>
+    ? permittedActions.filter(a =>
         a.label.toLowerCase().includes(query.toLowerCase()) ||
         a.keywords.some(k => k.includes(query.toLowerCase()))
       ).slice(0, 6)
-    : quickActions;
+    : permittedActions;
 
   // Keyboard shortcut to open
   useEffect(() => {
