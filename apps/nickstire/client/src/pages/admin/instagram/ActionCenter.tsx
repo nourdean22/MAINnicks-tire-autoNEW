@@ -76,6 +76,23 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
    *  opposite-outcome decisions, adjacent to each other, on a phone. */
   const [armedResolve, setArmedResolve] = useState<string | null>(null);
 
+  /**
+   * The door for a finished mp4 produced outside the pipeline (MoneyPrinter, a
+   * hand-edited cut). ingestFinishedMp4 shipped with twelve tests and zero
+   * importers — reachable only from its own spec — which is the P2 registered
+   * on the mp4-ingest capability. This is that missing half.
+   *
+   * It lives on Action Center rather than in a new tab because everything here
+   * is "a reel exists and needs a decision", and an ingested file arrives in
+   * exactly that state: a review_ready draft that still has to pass every
+   * approval and publish gate. Nothing about ingesting shortcuts them.
+   */
+  const [ingestOpen, setIngestOpen] = useState(false);
+  const [ingestSource, setIngestSource] = useState("");
+  const [ingestTopic, setIngestTopic] = useState("");
+  const [ingestCaption, setIngestCaption] = useState("");
+  const [ingestArmed, setIngestArmed] = useState(false);
+
   const attention = trpc.contentAdmin.reelJobsNeedingAttention.useQuery(undefined, {
     // Probing artifact reachability costs real HTTP calls, so do not hammer it.
     refetchInterval: 60_000,
@@ -99,6 +116,22 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
       attention.refetch();
     },
     onError: (err) => toast.error("Could not correct the queue", { description: err.message }),
+  });
+
+  const ingestMp4 = trpc.contentAdmin.ingestFinishedMp4.useMutation({
+    onSuccess: (r) => {
+      setIngestArmed(false);
+      setIngestSource(""); setIngestTopic(""); setIngestCaption("");
+      setIngestOpen(false);
+      toast.success(`Ingested as ${r.inventoryId}`, {
+        description: `${(r.bytes / 1_000_000).toFixed(1)} MB · reel job ${r.reelJobId}. It is a DRAFT — approve and publish it in Publish → Reels.`,
+      });
+      attention.refetch();
+    },
+    // The server's messages are passed through verbatim on purpose. Each one
+    // names a specific refusal the operator can act on — the flag is off, that
+    // is not an mp4, that URL expires — and "ingest failed" would hide it.
+    onError: (e) => { setIngestArmed(false); toast.error("Not ingested", { description: e.message }); },
   });
 
   /**
@@ -198,6 +231,92 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
 
   return (
     <div className="space-y-4">
+      {/* The mp4 door. Collapsed by default — this is an occasional action and
+          Action Center's job is to surface what is stuck, not to lead with a
+          form. Everything it produces is a DRAFT that still passes every
+          approval and publish gate; the copy says so, because "ingest" reads
+          like "publish" if nothing tells you otherwise. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="text-base flex items-center gap-2"><Film className="h-4 w-4" />Bring in a finished MP4</CardTitle>
+              <CardDescription>
+                A MoneyPrinter render or a hand-edited cut. It lands as a review-ready draft — it does NOT publish, and it
+                still passes every approval and publish gate. Requires MP4_INGEST_ENABLED.
+              </CardDescription>
+            </div>
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => { setIngestOpen(!ingestOpen); setIngestArmed(false); }}>
+              {ingestOpen ? "Close" : "Open"}
+            </Button>
+          </div>
+        </CardHeader>
+        {ingestOpen && (
+          <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="mp4-source">File path or public URL</label>
+              <Input
+                id="mp4-source"
+                value={ingestSource}
+                onChange={(e) => { setIngestSource(e.target.value); setIngestArmed(false); }}
+                placeholder="/data/renders/winter-tires.mp4 or https://…/final.mp4"
+              />
+              {/* Said here rather than only in the server's rejection: a presigned
+                  URL works right up until the publish gate fetches it, hours
+                  later, when the operator is no longer watching. */}
+              <p className="text-[11px] text-muted-foreground">
+                Must be permanent. A presigned or expiring link is refused up front, not at publish time.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="mp4-topic">Topic</label>
+              <Input
+                id="mp4-topic"
+                value={ingestTopic}
+                onChange={(e) => { setIngestTopic(e.target.value); setIngestArmed(false); }}
+                placeholder="Winter tire changeover"
+                maxLength={128}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="mp4-caption">Caption</label>
+              <Input
+                id="mp4-caption"
+                value={ingestCaption}
+                onChange={(e) => { setIngestCaption(e.target.value); setIngestArmed(false); }}
+                placeholder="The caption this reel publishes with"
+                maxLength={2200}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Two-tap, in-DOM. window.confirm is silently suppressed in the
+                  operator's standalone iOS PWA, so a confirm() gate here would
+                  be no gate at all. */}
+              <Button
+                className="min-h-11"
+                variant={ingestArmed ? "default" : "outline"}
+                disabled={ingestMp4.isPending || !ingestSource.trim() || !ingestTopic.trim() || !ingestCaption.trim()}
+                onClick={() => {
+                  if (!ingestArmed) { setIngestArmed(true); return; }
+                  ingestMp4.mutate({
+                    source: ingestSource.trim(),
+                    topic: ingestTopic.trim(),
+                    caption: ingestCaption.trim(),
+                    origin: "manual",
+                  });
+                }}
+              >
+                {ingestMp4.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {ingestArmed ? "Tap again to ingest" : "Ingest as draft"}
+              </Button>
+              {ingestArmed && (
+                <Button size="sm" variant="ghost" className="min-h-11" onClick={() => setIngestArmed(false)}>Cancel</Button>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
       {/* Ambiguous publishes lead: a post that may or may not be live is the only
           thing here that can cost the business twice if acted on blindly. */}
       {/* A queue that shows dead work as reviewable is worse than an empty one:

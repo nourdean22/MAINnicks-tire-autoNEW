@@ -1358,7 +1358,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "NO runtime verification and no operator entry point yet. ingestFinishedMp4 is a service function with tests; nothing in the admin UI or a router calls it. Grep for importers before assuming it is reachable — BUILT-TESTED-UNWIRED is a repeat pattern in this repo.",
+          "description": "WIRING HALF CLOSED (this branch): contentAdmin.ingestFinishedMp4 (adminProcedure mutation) now calls the service, and Action Center — the reel operator surface — calls that route behind a two-tap in-DOM arm. server/mp4IngestDoor.test.ts (10) asserts the WIRING rather than the service, because a unit test of the service could never have caught this: it was already fully tested and still unreachable. Mutation-verified: removing the router procedure turns 4 cases red, removing the client caller turns 1 red, removing the two-tap arm turns 1 red. STILL OPEN — NO RUNTIME VERIFICATION. Nothing has been ingested end to end, in any environment. The flag has never been armed, no mp4 has passed the ftyp check against a real file, and no ingested draft has reached the publish gate. Reachable is not the same as proven, and this entry stays at unit_verified until an actual file has gone through.",
           "source": "this branch"
         },
         {
@@ -1369,7 +1369,8 @@
       ],
       "deferredScope": [
         "The statenour -> nickstire handoff is NOT built. MoneyPrinterTurbo is a statenour tool and the two apps are separate Railway services with separate databases (Neon Postgres vs TiDB MySQL). This branch fixed the PREREQUISITE — the moneyprinter tool now returns real video paths instead of raw stdout — but transporting the file across the two services is its own design.",
-        "No dedupe. Ingesting the same file twice creates two drafts."
+        "No dedupe. Ingesting the same file twice creates two drafts.",
+        "The ingest form takes topic + caption but NOT bodyText, though the service accepts it. Deliberate: three fields fit the operator's phone and bodyText is the optional second caption paragraph. The router passes it through, so a caller that wants it has it — only the form omits it."
       ],
       "lastVerifiedAt": "2026-08-03",
       "codeState": "merged",

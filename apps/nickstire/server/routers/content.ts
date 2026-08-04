@@ -2431,6 +2431,46 @@ export const contentAdminRouter = router({
       }
       return query.orderBy(desc(socialContentInventory.createdAt));
     }),
+  /**
+   * The door for a finished mp4 — MoneyPrinter output, a hand-edited cut,
+   * anything produced outside the reel pipeline.
+   *
+   * ingestFinishedMp4 shipped with twelve tests and ZERO importers: grep found
+   * it referenced only by its own spec. BUILT-TESTED-UNWIRED is a repeat
+   * pattern in this repo and it is registered as a P2 on the mp4-ingest
+   * capability, so this is the missing half, not a new feature — the service
+   * already enforces the flag, the ftyp header check, the presigned-URL
+   * refusal and the linked-draft guarantee.
+   *
+   * NOT on socialPipeline, which registers MP4_INGEST_ENABLED but declares
+   * itself READ-ONLY in its own header ("It never writes, posts, or mutates").
+   * It lives beside listInventory / actOnInventoryItem because what it produces
+   * is an inventory row those two already manage.
+   *
+   * The errors are deliberately passed through verbatim. Every one of them
+   * names a specific refusal the operator can act on — the flag is off, that is
+   * not an mp4, that URL expires — and flattening them into "ingest failed"
+   * would turn a legible gate into a mystery.
+   */
+  ingestFinishedMp4: adminProcedure
+    .input(z.object({
+      source: z.string().min(1).max(2048),
+      topic: z.string().min(1).max(128),
+      caption: z.string().min(1).max(2200),
+      bodyText: z.string().max(2200).optional(),
+      origin: z.string().min(1).max(40).default("manual"),
+    }))
+    .mutation(async ({ input }) => {
+      const { ingestFinishedMp4 } = await import("../services/mp4Ingest");
+      try {
+        return await ingestFinishedMp4(input);
+      } catch (err) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err instanceof Error ? err.message : "mp4 ingest failed",
+        });
+      }
+    }),
   actOnInventoryItem: adminProcedure
     .input(z.object({
       id: z.string(),
