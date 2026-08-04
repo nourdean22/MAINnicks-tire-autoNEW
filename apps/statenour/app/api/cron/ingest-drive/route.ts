@@ -24,6 +24,18 @@ export const GET = cronHandler(async () => {
     source: "drive_cron",
   });
 
+  // A skip is filed as a SUCCESSFUL cron run. That is right for "the operator
+  // has not granted consent yet" — nothing is wrong and a daily `failed` row
+  // would be noise. It is wrong for "the integration table could not be read":
+  // that is a real outage, and reporting it as a green run blaming a
+  // configuration that is correct is exactly the class #1348 closed on the
+  // calendar cron. cronHandler records a throw as failed.
+  if (result.probeFailed) {
+    throw new Error(
+      `Drive ingest could not determine OAuth status — ${result.hint ?? result.reason}`,
+    );
+  }
+
   if (result.skipped) {
     return {
       skipped: true,
