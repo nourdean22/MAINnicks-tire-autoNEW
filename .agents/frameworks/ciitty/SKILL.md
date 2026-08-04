@@ -99,7 +99,7 @@ NOURCITY/
 
 ### Branch Model (Trunk-Based)
 ```
-main (protected) ← squash-merge only via PR
+main ← squash-merge via PR only (NO branch protection — red CI = stop by convention)
   └── <app>/<task>   ← e.g. statenour/fix-chat-stream
   └── nickstire/<task>
   └── chore/<task>
@@ -113,7 +113,8 @@ main (protected) ← squash-merge only via PR
 - Scope commits to the assigned task ONLY
 
 ### CI Gate (Pre-Push)
-The `.husky/pre-push` hook runs `turbo build --affected`. This must pass before any push lands.
+The repo-root `lefthook.yml` `pre-push` hook runs `pnpm run build:affected`. This must pass before
+any push lands. (Husky is retired — there is no `.husky/` directory.)
 
 | App | Full verification command |
 |-----|--------------------------|
@@ -164,10 +165,11 @@ Build interfaces that are clear, useful, and enjoyable to use. Design should sup
 ## 6. Code Ownership & Governance
 
 ### Ownership Model (This Repo)
-Instead of CODEOWNERS files, this repo uses:
-- **Per-app `AGENTS.md`** files as the authoritative source of rules for each app
-- **Operator-gated merges** — agent pushes branches, operator merges PRs
-- **`.agents/frameworks/ciitty/SKILL.md`** (this file) as the cross-cutting ruleset
+- **Root `AGENTS.md`** is the canonical cross-agent policy; vendor files are thin adapters
+- **Per-app `AGENTS.md`** files are authoritative for each app
+- **`.github/CODEOWNERS`** routes review requests (real owner since 2026-07-21). It only becomes
+  REQUIRED once branch protection on `main` turns on "Require review from Code Owners"
+- **`.agents/frameworks/ciitty/SKILL.md`** (this file) as the cross-cutting reasoning ruleset
 
 ### Change Attribution
 All AI-generated commits MUST include:

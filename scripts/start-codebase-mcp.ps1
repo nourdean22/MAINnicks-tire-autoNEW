@@ -3,10 +3,19 @@
   Start the codebase-memory MCP filesystem server for NOURCITY.
 
 .DESCRIPTION
-  Launches the @anthropic/mcp-server-filesystem server pointed at the
-  NOURCITY monorepo. This gives AI agents read-access to the codebase
+  Launches the official @modelcontextprotocol/server-filesystem server
+  pointed at the NOURCITY monorepo. This gives AI agents codebase access
   via the Model Context Protocol, enabling code-aware reasoning without
   manual file-by-file reading.
+
+  ACCESS POSTURE: READ-WRITE. This server exposes write_file / edit_file /
+  create_directory / move_file and has NO --read-only flag (verified against
+  the official README 2026-08-04). Restrict at the CLIENT (tool allowlist) or
+  via a Docker `ro` bind mount if a read-only surface is required. See
+  docs/codebase-memory-mcp.md.
+
+  The package version is PINNED below — unpinned `npx -y` resolves whatever
+  was published most recently, executing unreviewed code at agent startup.
 
   The server runs on stdio (standard MCP transport) and is configured
   as an MCP server entry in the IDE or agent config.
@@ -69,9 +78,14 @@ if (-not $npxCmd) {
   exit 1
 }
 
-# Launch the server via npx
-# @modelcontextprotocol/server-filesystem is the official MCP filesystem server
-$args_list = @("-y", "@modelcontextprotocol/server-filesystem") + $existingDirs
+# Launch the server via npx.
+# @modelcontextprotocol/server-filesystem is the official MCP filesystem server.
+# PINNED on purpose (supply chain): bump this literal and docs/codebase-memory-mcp.md
+# together, after reviewing the release. Never loosen to a bare package name.
+$ServerPackage = "@modelcontextprotocol/server-filesystem@2026.7.10"
+$args_list = @("-y", $ServerPackage) + $existingDirs
+
+Write-Host "[codebase-mcp] Access posture: READ-WRITE (no --read-only flag exists upstream)." -ForegroundColor Yellow
 
 Write-Host "[codebase-mcp] Running: npx $($args_list -join ' ')" -ForegroundColor DarkGray
 & npx @args_list
