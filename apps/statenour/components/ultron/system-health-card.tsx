@@ -38,6 +38,25 @@ import { cn } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
 import { trpc } from "@/lib/trpc/client";
+
+/**
+ * Three states, not two. `googleOauth: false` alone is ambiguous between
+ * "the token is expired" and "the status read itself failed" — and this
+ * cell used to render the second as the literal word "expired", sending
+ * the operator to re-grant a token that was very likely fine (the exact
+ * claim the digest's probeFailed work set out to stop making). PURE and
+ * exported so the branch is pinnable without rendering the card.
+ */
+export function googleOauthCell(stats: {
+  googleOauth: boolean;
+  googleOauthProbeFailed?: boolean;
+}): { value: string; warn: boolean } {
+  if (stats.googleOauthProbeFailed === true) return { value: "unknown", warn: true };
+  return stats.googleOauth
+    ? { value: "ok", warn: false }
+    : { value: "expired", warn: true };
+}
+
 interface HealthDigest {
   generatedAt: string;
   overall: "healthy" | "warning" | "critical";
@@ -53,6 +72,8 @@ interface HealthDigest {
     cronLogRows48h: number;
     staleRows: number;
     googleOauth: boolean;
+    /** True when the status READ failed — "unknown", never "expired". */
+    googleOauthProbeFailed?: boolean;
     envReady: number;
     envTotal: number;
   };
@@ -172,6 +193,7 @@ export function SystemHealthCard() {
     cronLogRows48h: 0,
     staleRows: 0,
     googleOauth: false,
+    googleOauthProbeFailed: false,
     envReady: 0,
     envTotal: 0,
   };
@@ -365,8 +387,8 @@ export function SystemHealthCard() {
           />
           <StatCell
             label="google oauth"
-            value={stats.googleOauth ? "ok" : "expired"}
-            warn={!stats.googleOauth}
+            value={googleOauthCell(stats).value}
+            warn={googleOauthCell(stats).warn}
           />
           <StatCell
             label="env groups"
