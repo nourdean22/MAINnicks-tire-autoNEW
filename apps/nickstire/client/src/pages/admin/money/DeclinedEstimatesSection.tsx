@@ -70,7 +70,18 @@ export default function DeclinedEstimatesSection() {
   const [bulkMode, setBulkMode] = useState<boolean>(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const { data, isLoading } = trpc.invoices.declined.useQuery({ days });
+  const { data, isLoading, isError, error } = trpc.invoices.declined.useQuery({ days });
+  /**
+   * ROS-083 · UNKNOWN IS NOT ZERO.
+   *
+   * A failed read fell through `?? 0` into "$0 RECOVERABLE" on an emerald card,
+   * while the aged-money banner below SELF-HID (it returns null on
+   * `agedDollars <= 0`). So the surface actively asserted "there is no declined
+   * money to chase" at exactly the moment it could not see any. Same idiom as
+   * money/UnpaidInvoicesSection.tsx:29 — em dash on the cards, amber banner
+   * above, and the genuine `0` (a real counted zero) left alone.
+   */
+  const unknown = isError;
   const utils = trpc.useUtils();
 
   const bulkFollowUpMutation = trpc.invoices.bulkFollowUp.useMutation({
@@ -196,7 +207,16 @@ export default function DeclinedEstimatesSection() {
        * estimates (≥7d old) only · fresh leads don't decay yet ·
        * including them was alarmist (code-review agent #3 catch).
        * Banner self-hides when no aged work pending (clarity-gate). */}
+      {unknown && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+          <strong>Declined work could not be read.</strong> The numbers below are unknown — NOT zero, and nothing here means there is no money to recover. {error?.message}
+        </div>
+      )}
+
       {(() => {
+        // Never render the aged-money urgency block off an unknown read — its
+        // self-hiding null IS the false all-clear, so the banner above covers it.
+        if (unknown) return null;
         const agedDollars = agedRecoverableDollars(rawEstimates);
         if (agedDollars <= 0) return null;
         const burn = dailyBurnDollars(agedDollars);
@@ -225,27 +245,28 @@ export default function DeclinedEstimatesSection() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="DECLINED ESTIMATES"
-          value={total}
+          value={unknown ? "—" : total}
           icon={<AlertTriangle className="w-4 h-4" />}
-          color={total > 0 ? "text-amber-400" : "text-foreground"}
+          color={!unknown && total > 0 ? "text-amber-400" : "text-foreground"}
           onClick={() => { setFilter("all"); setSortMode("date"); setMinAmount(0); }}
         />
         <StatCard
           label="RECOVERABLE REVENUE"
-          value={`$${recoverable.toLocaleString()}`}
+          value={unknown ? "—" : `$${recoverable.toLocaleString()}`}
           icon={<DollarSign className="w-4 h-4" />}
-          color="text-emerald-400"
+          // Emerald on an unreadable value is the false-green itself.
+          color={unknown ? "text-foreground" : "text-emerald-400"}
           onClick={() => { setFilter("all"); setSortMode("amount"); }}
         />
         <StatCard
           label="RECOVERY RATE"
-          value={`${recoveryRate}%`}
+          value={unknown ? "—" : `${recoveryRate}%`}
           icon={<TrendingUp className="w-4 h-4" />}
-          color={recoveryRate >= 30 ? "text-emerald-400" : "text-red-400"}
+          color={unknown ? "text-foreground" : recoveryRate >= 30 ? "text-emerald-400" : "text-red-400"}
         />
         <StatCard
           label="AVG ESTIMATE"
-          value={`$${avgEstimate.toLocaleString()}`}
+          value={unknown ? "—" : `$${avgEstimate.toLocaleString()}`}
           icon={<DollarSign className="w-4 h-4" />}
           onClick={() => setSortMode("amount")}
         />
@@ -441,6 +462,14 @@ export default function DeclinedEstimatesSection() {
       {/* Table */}
       {isLoading ? (
         <LoadingState label="Loading declined estimates..." />
+      ) : unknown ? (
+        // Before the empty state, never after: "Every estimate converted" is the
+        // single most confident sentence on this page and it was rendered off a
+        // read that failed.
+        <div className="text-center py-12 text-amber-400/80">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-3 opacity-40" />
+          <p className="text-[13px]">Declined estimates could not be read — this list is unknown, not empty.</p>
+        </div>
       ) : estimates.length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <DollarSign className="w-8 h-8 mx-auto mb-3 opacity-30" />

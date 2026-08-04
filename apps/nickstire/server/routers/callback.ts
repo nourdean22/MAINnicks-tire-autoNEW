@@ -196,6 +196,19 @@ export const callbackRouter = router({
     }),
 
   list: adminProcedure.query(async () => {
+    // ROS-083 · getCallbackRequests returns [] when the DB is unavailable, and
+    // that is DELIBERATE at the helper: adminBundle.ts calls it inside a
+    // Promise.allSettled and server/adminBundleTruth.test.ts pins the [] shape.
+    // So the honesty has to happen HERE, at the admin read, or CallTracking
+    // renders an emerald "0 · All clear" over MISSED CALLS — customers who
+    // asked to be called back, reported as all reached.
+    const { getDb } = await import("../db");
+    if (!(await getDb())) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Database unavailable — the callback queue is unknown, not empty.",
+      });
+    }
     return getCallbackRequests();
   }),
 

@@ -1,5 +1,5 @@
 /**
- * LeadsSection — extracted from Admin.tsx for maintainability.
+ * LeadsSection â extracted from Admin.tsx for maintainability.
  * Includes Kanban board view and traditional list view.
  */
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -12,20 +12,20 @@ import {
   useUrlFilter, FilterChips,
   type LeadStatus,
 } from "./shared";
-// wave-181.x Leads Phase 1 cleanup · trimmed 8 unused imports
-// (ActivityIcon · StatusDot · BOOKING_STATUS_CONFIG · TIME_LABELS ·
-// CHART_COLORS · ChevronRight · ExternalLink · FileSpreadsheet).
+// wave-181.x Leads Phase 1 cleanup Â· trimmed 8 unused imports
+// (ActivityIcon Â· StatusDot Â· BOOKING_STATUS_CONFIG Â· TIME_LABELS Â·
+// CHART_COLORS Â· ChevronRight Â· ExternalLink Â· FileSpreadsheet).
 // Verified via grep that each had zero body references.
 import {
   AlertTriangle, Car, CheckCircle2, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List, Calculator
 } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
-// wave-181.x Leads Phase 2 · 3-line LeadsBrief above the StatCard grid
+// wave-181.x Leads Phase 2 Â· 3-line LeadsBrief above the StatCard grid
 // (velocity / pipeline / SLA-breach action). Composes from the same
-// trpc.lead.list query the parent already runs · no extra round-trip.
+// trpc.lead.list query the parent already runs Â· no extra round-trip.
 import { LeadsBrief } from "./leads/LeadsBrief";
-// lead-source hygiene — distinct CALLBACK/PHONE badges vs real web leads
+// lead-source hygiene â distinct CALLBACK/PHONE badges vs real web leads
 // + the read-only source rollup (counts, duplicates, phone overlap).
 import { summarizeLeadSourceHygiene, isCallbackDuplicateLead } from "@shared/leadSource";
 import {
@@ -40,7 +40,7 @@ import { LostReasonButton } from "./leads/LostReasonButton";
 import { LeadDeliveryLog } from "./leads/LeadDeliveryLog";
 
 export default function LeadsSection() {
-  // 2026-05-06 — URL-persistent filters via useUrlFilter.
+  // 2026-05-06 â URL-persistent filters via useUrlFilter.
   // Reload, back-button, shared links all preserve filter state.
   // ?status= ?q= ?source= ?view= ?cat= keys; defaults are NOT in URL.
   const [leadFilter, setLeadFilter] = useUrlFilter<LeadStatus | "all">(
@@ -57,11 +57,21 @@ export default function LeadsSection() {
     { validate: (v) => (v === "kanban" || v === "list" ? v : null) },
   );
   const utils = trpc.useUtils();
-  const { data: leadsData, isLoading } = trpc.lead.list.useQuery(undefined, {
+  const { data: leadsData, isLoading, isError, error } = trpc.lead.list.useQuery(undefined, {
     refetchInterval: 30000,
   });
+  /**
+   * ROS-083 Â· this page had ZERO isError references across 697 lines. A failed
+   * read collapsed to five zeros plus a Kanban of empty columns â the landing
+   * view for leads, asserting no one has contacted the shop.
+   *
+   * `unknown` must be tested BEFORE `!leadsData`: with refetchInterval, react-
+   * query keeps the last successful data while isError is true, so a
+   * `!leadsData`-only guard never fires on the common refetch-failure path.
+   */
+  const unknown = isError;
 
-  // wave-116d — was `refetch()` on the local query instance. That only
+  // wave-116d â was `refetch()` on the local query instance. That only
   // refreshed THIS component's lead list, so OverviewSection's lead
   // queue (which is a sibling subscription) stayed stale. Switched to
   // utils.lead.list.invalidate() which propagates to every mounted
@@ -87,12 +97,12 @@ export default function LeadsSection() {
   // standalone mode); the reason is now captured by LostReasonButton
   // in the list view.
   //
-  // wave-181.x Leads Phase 1 · code-review agent caught H2: terminal
+  // wave-181.x Leads Phase 1 Â· code-review agent caught H2: terminal
   // status transitions (lost / completed / closed) were firing with no
   // confirm gate. A misclick on the small Kanban dropdown silently
-  // mutated state — lead drops out of working pipeline + may trigger
+  // mutated state â lead drops out of working pipeline + may trigger
   // downstream D7/D14 retention SMS via cron. Forward-motion
-  // transitions (new → contacted → booked) stay un-gated because
+  // transitions (new â contacted â booked) stay un-gated because
   // they're reversible and high-frequency.
   const handleStatusChange = async (id: number, status: LeadStatus) => {
     const isTerminal = status === "lost" || status === "completed" || status === "closed";
@@ -100,7 +110,7 @@ export default function LeadsSection() {
       const lead = leadsData?.find((l: LeadItem) => l.id === id);
       const leadName = lead?.name ?? "this lead";
       const messageExtra = status === "lost"
-        ? " The list-view's \"Mark Lost\" button is a better path — it captures the lost-reason for the analytics pipeline."
+        ? " The list-view's \"Mark Lost\" button is a better path â it captures the lost-reason for the analytics pipeline."
         : "";
       const ok = await confirmDialog({
         title: `Move ${leadName} to ${status.toUpperCase()}?`,
@@ -114,27 +124,27 @@ export default function LeadsSection() {
     updateLead.mutate({ id, status });
   };
 
-  // wave-181.x Leads Phase 5 · `applyCategory` + `categoryFilteredLeads`
+  // wave-181.x Leads Phase 5 Â· `applyCategory` + `categoryFilteredLeads`
   // both removed when the dual filter taxonomy was deleted. Chat /
   // Callbacks were duplicates of `sourceFilter`; the search box already
   // indexes the `problem` field so "Cost estimate:" prefix is reachable
-  // via search. One taxonomy · one source of truth.
+  // via search. One taxonomy Â· one source of truth.
   const filteredLeads = useMemo(() => {
     if (!leadsData) return [];
     let list = [...leadsData];
     if (leadFilter !== "all") list = list.filter(l => l.status === leadFilter);
     if (sourceFilter !== "all") list = list.filter(l => l.source === sourceFilter);
-    // AG-20 · job applicants are not sales leads. The default ("all")
+    // AG-20 Â· job applicants are not sales leads. The default ("all")
     // view now excludes source==="careers" rows so applicants stop
     // inflating pipeline counts and drip-selection views; picking the
     // "careers" source in the filter IS the Applicants view (the option
-    // is always offered — see sourceSet above — and KanbanBoard already
+    // is always offered â see sourceSet above â and KanbanBoard already
     // badges these rows JOB APPLICANT).
     else list = list.filter(l => l.source !== "careers");
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      // wave-133 — was `l.phone.includes(q)`. LeadItem.phone is
-      // string|null; a null phone (valid — phone is optional)
+      // wave-133 â was `l.phone.includes(q)`. LeadItem.phone is
+      // string|null; a null phone (valid â phone is optional)
       // crashed the whole list with "Cannot read properties of
       // null (reading 'includes')" the moment the operator typed
       // anything in the search box.
@@ -148,8 +158,8 @@ export default function LeadsSection() {
     return list;
   }, [leadsData, leadFilter, sourceFilter, searchQuery]);
 
-  // revenue-attribution wave 2026-06 · leads-by-source rollup over the
-  // already-fetched array (zero new queries) — copies CallTrackingSection's
+  // revenue-attribution wave 2026-06 Â· leads-by-source rollup over the
+  // already-fetched array (zero new queries) â copies CallTrackingSection's
   // sourceBreakdown pattern. Null utmSource buckets as "direct/untagged"
   // (matches the existing "direct" convention in Call Tracking). Honest by
   // construction: re-presents fetched rows only, no fabricated history.
@@ -167,8 +177,11 @@ export default function LeadsSection() {
   }, [leadsData]);
 
   const leadStats = useMemo(() => {
+    // null, not zeros â the caller renders an em dash. Unknown before missing:
+    // stale data survives a failed refetch, so `!leadsData` alone never fires.
+    if (unknown) return null;
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
-    // wave-128 — operator screenshot bug: a booked lead with
+    // wave-128 â operator screenshot bug: a booked lead with
     // urgencyScore=4 was counted in "Urgent". Urgency only matters
     // while the lead is in-flight; once it's booked/completed/closed/
     // lost the lead has been actioned and shouldn't bleed into the
@@ -186,20 +199,20 @@ export default function LeadsSection() {
     return { new: newCount, contacted, urgent, total: newCount + contacted + booked, booked };
   }, [leadsData]);
 
-  // Urgent uncontacted leads — the money bleeder
+  // Urgent uncontacted leads â the money bleeder
   const uncontactedLeads = useMemo(() => {
     if (!leadsData) return [];
     return leadsData
-      // Callback-linked duplicates are excluded — the same person is already
+      // Callback-linked duplicates are excluded â the same person is already
       // an actionable item in the Callbacks queue; listing them here told
       // the operator to call twice. Voice leads (callbackId null) stay.
       .filter((l: LeadItem) => l.status === "new" && !isCallbackDuplicateLead(l))
       .sort((a: LeadItem, b: LeadItem) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [leadsData]);
 
-  // Source hygiene rollup — read-only. Reuses lead.list (above) + callback.list.
+  // Source hygiene rollup â read-only. Reuses lead.list (above) + callback.list.
   // No refetchInterval: the Admin shell already polls callback.list at 30s
-  // (Admin.tsx), and this observer shares that cache entry — adding our own
+  // (Admin.tsx), and this observer shares that cache entry â adding our own
   // interval would only fire redundant off-phase fetches.
   const { data: callbacksData } = trpc.callback.list.useQuery();
   const sourceHygiene = useMemo(() => {
@@ -211,7 +224,7 @@ export default function LeadsSection() {
     <div className="space-y-6">
       <PageHeader
         title="Leads & Estimates"
-        subtitle="Inbound leads · estimate forms · phone-call captures · Vapi tire inquiries · golden 4-hour response window"
+        subtitle="Inbound leads Â· estimate forms Â· phone-call captures Â· Vapi tire inquiries Â· golden 4-hour response window"
         icon={<Users className="w-5 h-5" />}
         actions={
           <button
@@ -226,17 +239,23 @@ export default function LeadsSection() {
         }
       />
       <SectionInsightStrip section="leads" />
+
+      {unknown && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+          <strong>Leads could not be read.</strong> Everything below is unknown — NOT zero, and nothing here means nobody has contacted the shop. {error?.message}
+        </div>
+      )}
       <LeadsBrief
         onSlaAction={() => {
-          // wave-181.x Leads Phase 2 · SLA-breach CTA · code-review agent
+          // wave-181.x Leads Phase 2 Â· SLA-breach CTA Â· code-review agent
           // caught M1 (false-affordance risk): banner only renders when
           // uncontactedLeads.length > 0, AND `uncontactedLeads` filters on
           // status==="new" without an age gate. So a 3h-old uncontacted
           // lead would inflate the count and SLA-breach would fire on a
-          // sibling 5h lead — visible flash is correct. But if the
+          // sibling 5h lead â visible flash is correct. But if the
           // banner is hidden (zero uncontacted but stale older leads)
           // the scroll target is missing and the CTA silently no-ops.
-          // Defensive fallback · flip filters to ?status=new&view=list
+          // Defensive fallback Â· flip filters to ?status=new&view=list
           // so the operator lands on the right cohort even if the
           // urgent banner isn't currently rendered.
           setLeadFilter("new");
@@ -251,7 +270,7 @@ export default function LeadsSection() {
           }, 100);
         }}
       />
-      {/* 2026-05-06 — Active filter chips with one-click clear */}
+      {/* 2026-05-06 â Active filter chips with one-click clear */}
       <FilterChips
         chips={[
           { label: "Status", value: leadFilter, default: "all", onClear: () => setLeadFilter("all"), displayValue: leadFilter === "all" ? undefined : leadFilter.charAt(0).toUpperCase() + leadFilter.slice(1) },
@@ -266,11 +285,11 @@ export default function LeadsSection() {
           setViewMode("kanban");
         }}
       />
-      {/* CRITICAL ALERT — Uncontacted leads with ticking timer.
+      {/* CRITICAL ALERT â Uncontacted leads with ticking timer.
        *
-       * wave-181.x Leads Phase 1 · was `animate-pulse-slow` (no Tailwind
-       * def · silently no-op) · replaced with no animation. The red
-       * border + red tint is already operator-attention-grabbing · a
+       * wave-181.x Leads Phase 1 Â· was `animate-pulse-slow` (no Tailwind
+       * def Â· silently no-op) Â· replaced with no animation. The red
+       * border + red tint is already operator-attention-grabbing Â· a
        * constant pulse on top would be AI-slop visual noise that
        * desensitizes the operator over time. */}
       {uncontactedLeads.length > 0 && (
@@ -278,7 +297,7 @@ export default function LeadsSection() {
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-4 h-4 text-red-400" />
             <span className="text-[13px] font-bold text-red-400 tracking-wide">
-              {uncontactedLeads.length} LEAD{uncontactedLeads.length > 1 ? "S" : ""} — NOT YET CONTACTED
+              {uncontactedLeads.length} LEAD{uncontactedLeads.length > 1 ? "S" : ""} â NOT YET CONTACTED
             </span>
             <span className="text-[10px] text-red-400/60 ml-auto">Every hour = -15% conversion</span>
           </div>
@@ -317,48 +336,48 @@ export default function LeadsSection() {
         </div>
       )}
 
-      {/* Stats — wave-127 — clickable filters. Each card sets the
+      {/* Stats â wave-127 â clickable filters. Each card sets the
           status filter + flips to list view. Urgent scrolls to the
           red banner (which already surfaces uncontacted leads by age). */}
-      {/* wave-181.x Leads Phase 3 · audit agent caught grid orphan
-          on tablet portrait (iPad common nick admin device) · 2-col
+      {/* wave-181.x Leads Phase 3 Â· audit agent caught grid orphan
+          on tablet portrait (iPad common nick admin device) Â· 2-col
           drops "Urgent" tile alone on row 3. Adding md:grid-cols-3
-          balances the layout · 5 cards split 3+2 on tablet, 5 on
+          balances the layout Â· 5 cards split 3+2 on tablet, 5 on
           desktop, 2-row stack on phone. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           label="Active Leads"
-          value={leadStats.total}
+          value={leadStats ? leadStats.total : "—"}
           icon={<Hash className="w-4 h-4" />}
           color="text-foreground"
           onClick={() => { setLeadFilter("all"); setViewMode("list"); }}
         />
         <StatCard
           label="New (Uncalled)"
-          value={leadStats.new}
+          value={leadStats ? leadStats.new : "—"}
           icon={<Users className="w-4 h-4" />}
           color="text-blue-400"
           onClick={() => { setLeadFilter("new"); setViewMode("list"); }}
         />
         <StatCard
           label="Contacted"
-          value={leadStats.contacted}
+          value={leadStats ? leadStats.contacted : "—"}
           icon={<PhoneCall className="w-4 h-4" />}
           color="text-primary"
           onClick={() => { setLeadFilter("contacted"); setViewMode("list"); }}
         />
         <StatCard
           label="Booked"
-          value={leadStats.booked}
+          value={leadStats ? leadStats.booked : "—"}
           icon={<CheckCircle2 className="w-4 h-4" />}
-          color="text-emerald-400"
+          color={leadStats ? "text-emerald-400" : "text-foreground"}
           onClick={() => { setLeadFilter("booked"); setViewMode("list"); }}
         />
         <StatCard
           label="Urgent (4-5)"
-          value={leadStats.urgent}
+          value={leadStats ? leadStats.urgent : "—"}
           icon={<AlertTriangle className="w-4 h-4" />}
-          color="text-red-400"
+          color={leadStats ? "text-red-400" : "text-foreground"}
           onClick={() => {
             const banner = document.getElementById("leads-urgent-banner");
             if (banner) {
@@ -366,7 +385,7 @@ export default function LeadsSection() {
               banner.classList.add("ring-2", "ring-red-400/60");
               setTimeout(() => banner.classList.remove("ring-2", "ring-red-400/60"), 1500);
             } else {
-              // No urgent banner means no uncontacted urgent leads —
+              // No urgent banner means no uncontacted urgent leads â
               // fall back to list view so operator can scan all leads.
               setLeadFilter("all");
               setViewMode("list");
@@ -375,18 +394,18 @@ export default function LeadsSection() {
         />
       </div>
 
-      {/* wave-181.x Leads Phase 5 · Category Tabs deleted (chat /
-       * callbacks were duplicates of sourceFilter · estimates is
-       * reachable via search · ~30 LOC removed). Operator opt-in. */}
+      {/* wave-181.x Leads Phase 5 Â· Category Tabs deleted (chat /
+       * callbacks were duplicates of sourceFilter Â· estimates is
+       * reachable via search Â· ~30 LOC removed). Operator opt-in. */}
 
-      {/* SOURCE HYGIENE — read-only rollup: where leads come from, which
+      {/* SOURCE HYGIENE â read-only rollup: where leads come from, which
           rows are caller artifacts, and how many people exist on BOTH the
           Leads and Callbacks surfaces. No actions, no mutations. */}
       {sourceHygiene && sourceHygiene.totalLeads > 0 && (
         <div className="bg-card border border-border/30 rounded-lg px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span
-              title="How each lead ENTERED the system (web form, phone, callback artifact) — origin/type cleanliness, not marketing attribution"
+              title="How each lead ENTERED the system (web form, phone, callback artifact) â origin/type cleanliness, not marketing attribution"
               className="text-[10px] font-bold tracking-wider text-foreground/40 uppercase cursor-help"
             >
               Source hygiene
@@ -395,7 +414,7 @@ export default function LeadsSection() {
               .sort((a, b) => b[1] - a[1])
               .map(([label, count]) => (
                 <span key={label} className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider">
-                  {/* raw enum values read as developer-speak (FINANCING_PREAPPROVAL) — display with spaces */}
+                  {/* raw enum values read as developer-speak (FINANCING_PREAPPROVAL) â display with spaces */}
                   {label.replace(/_/g, " ")} <span className="text-foreground font-bold">{count}</span>
                 </span>
               ))}
@@ -404,7 +423,7 @@ export default function LeadsSection() {
             <div className="mt-2 space-y-1">
               {sourceHygiene.linkedCallbackDuplicates > 0 && (
                 <p className="text-[11px] text-amber-400/80">
-                  {sourceHygiene.linkedCallbackDuplicates} callback-linked duplicate{sourceHygiene.linkedCallbackDuplicates > 1 ? "s" : ""} — same person also under Call Tracking; excluded from money-risk counts
+                  {sourceHygiene.linkedCallbackDuplicates} callback-linked duplicate{sourceHygiene.linkedCallbackDuplicates > 1 ? "s" : ""} â same person also under Call Tracking; excluded from money-risk counts
                 </p>
               )}
               {sourceHygiene.phoneOverlapCount > 0 && (
@@ -414,7 +433,7 @@ export default function LeadsSection() {
               )}
               {sourceHygiene.blankSourceLeads > 0 && (
                 <p className="text-[11px] text-red-400/80">
-                  {sourceHygiene.blankSourceLeads} lead{sourceHygiene.blankSourceLeads > 1 ? "s" : ""} with a blank source (legacy capture bug) — fix shipped; old rows unaffected
+                  {sourceHygiene.blankSourceLeads} lead{sourceHygiene.blankSourceLeads > 1 ? "s" : ""} with a blank source (legacy capture bug) â fix shipped; old rows unaffected
                 </p>
               )}
             </div>
@@ -450,13 +469,13 @@ export default function LeadsSection() {
         </div>
       </div>
 
-      {/* Leads by source · revenue-attribution wave 2026-06 · compact strip
+      {/* Leads by source Â· revenue-attribution wave 2026-06 Â· compact strip
           over the loaded set (both views). Self-hides when nothing is loaded. */}
       {leadSourceRollup.length > 0 && (
         <div className="bg-card border border-border/30 px-4 py-3">
           <div className="flex items-center gap-3 flex-wrap">
             <span
-              title="Marketing attribution — which campaign/channel tag (utm_source) each lead carried; direct/untagged = arrived with no campaign tag"
+              title="Marketing attribution â which campaign/channel tag (utm_source) each lead carried; direct/untagged = arrived with no campaign tag"
               className="text-[10px] font-bold tracking-wider uppercase text-foreground/45 shrink-0 cursor-help"
             >
               Leads by source
@@ -474,10 +493,20 @@ export default function LeadsSection() {
         </div>
       )}
 
-      {/* Kanban View · post-Phase-5 uses raw leadsData (Kanban shows
-       * all columns as bird's-eye-view · list-view applies filters). */}
+      {/* Kanban View Â· post-Phase-5 uses raw leadsData (Kanban shows
+       * all columns as bird's-eye-view Â· list-view applies filters). */}
       {viewMode === "kanban" ? (
-        <KanbanBoard leadsData={leadsData} onUpdate={handleStatusChange} isLoading={isLoading} />
+        // Kanban is the DEFAULT view, so an unhandled unknown here is the
+        // landing screen: six columns of "0 leads" under a banner saying the
+        // data could not be read. Suppress the board rather than render columns
+        // whose emptiness is unverified.
+        unknown ? (
+          <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+            The pipeline board is unavailable — column counts would be unknown, not zero.
+          </div>
+        ) : (
+          <KanbanBoard leadsData={leadsData} onUpdate={handleStatusChange} isLoading={isLoading} />
+        )
       ) : (
         <>
           {/* List View Filters */}
@@ -526,6 +555,14 @@ export default function LeadsSection() {
           {/* Leads List */}
           {isLoading ? (
             <LoadingState label="Loading leads..." />
+          ) : unknown ? (
+            // All five stat cards are clickable filters that land here, so
+            // without this branch the "No leads" lie is one tap away.
+            <EmptyState
+              icon={<Users className="w-8 h-8" />}
+              title="Leads unavailable"
+              subtitle="This list could not be read — it is unknown, not empty."
+            />
           ) : filteredLeads.length === 0 ? (
             <EmptyState
               icon={<Users className="w-8 h-8" />}
@@ -642,9 +679,9 @@ export default function LeadsSection() {
                       {(lead.status === "booked" || lead.status === "completed" || lead.status === "closed" || lead.status === "lost") && (
                         <button
                           onClick={async () => {
-                            // wave-181.x Leads Phase 1 · audit agent
+                            // wave-181.x Leads Phase 1 Â· audit agent
                             // flagged this as a one-tap operator footgun
-                            // — reopens a terminal lead back to "new"
+                            // â reopens a terminal lead back to "new"
                             // AND clears the contacted flag, sending it
                             // back to the uncontacted-lead banner +
                             // resetting the audit trail. Gate it.
@@ -692,5 +729,5 @@ export default function LeadsSection() {
   );
 }
 
-// ─── CONTENT SECTION ────────────────────────────────────
+// âââ CONTENT SECTION ââââââââââââââââââââââââââââââââââââ
 
