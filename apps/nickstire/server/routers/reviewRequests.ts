@@ -103,8 +103,30 @@ export async function scheduleReviewRequest(bookingId: number, name: string, pho
     // Review request scheduled
     return { scheduled: true };
   } catch (error: any) {
-    log.error("[ReviewRequest] Failed to schedule:", error.message);
-    return { scheduled: false, reason: error.message };
+    // ROS-084 follow-up · this used to `return { scheduled: false, reason }`,
+    // which RESOLVES — so booking.ts:582's .catch never fired and
+    // logIntegrationFailure (booking.ts:585) was never called.
+    //
+    // ★ THAT IS THE ONLY SITE IN THE REPO THAT CAN WRITE A `review_request`
+    // ROW. Site Health's integration-failures panel names the category in its
+    // own doc comment — "sheets_sync / email / sms / capi / review_request /
+    // reminders / invoice. Surfaces silent breakage that can lose leads"
+    // (routers/admin/dashboard/health.ts:52) — and could never receive one.
+    // The panel existed; the feed into it did not.
+    //
+    // Re-throwing is safe BECAUSE every business outcome above is a RETURN, not
+    // a throw: disabled, invalid phone and on-cooldown all return
+    // { scheduled: false, reason }. Only a genuine failure reaches here — a
+    // query against an unreachable database, or createReviewRequest rejecting
+    // (its bookingId carries an FK to bookings.id). So this cannot flood the
+    // ledger with ordinary decisions.
+    //
+    // The caller is detached and already has both halves wired (booking.ts:578-591),
+    // and logIntegrationFailure is itself try/caught with a console fallback when
+    // the DB is unreadable (integration-failures.ts:32-59), so no unhandled
+    // rejection is introduced.
+    log.error("[ReviewRequest] Failed to schedule:", error?.message ?? error);
+    throw error;
   }
 }
 

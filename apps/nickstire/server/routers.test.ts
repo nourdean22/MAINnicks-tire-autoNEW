@@ -470,12 +470,32 @@ describe.skipIf(!HAS_DB)("scheduleReviewRequest", () => {
     expect(result.reason).toContain("Invalid phone");
   });
 
-  it("schedules for valid input", async () => {
+  it("schedules for valid input, or REJECTS if the write genuinely fails", async () => {
     const { scheduleReviewRequest } = await import("./routers/reviewRequests");
-    const result = await scheduleReviewRequest(99999, "Test User", "2165551234", "Brake Repair");
-    // Should either schedule or skip due to cooldown — both are valid
+    // bookingId 99999 does not exist and review_requests.bookingId carries an FK
+    // to bookings.id (drizzle/schema.ts:676), so createReviewRequest can reject
+    // here. That used to be swallowed into { scheduled: false, reason } by the
+    // catch; it now propagates, on purpose — it is exactly the failure
+    // booking.ts:585 records as a `review_request` integration failure.
+    //
+    // NOT EXECUTED IN THIS CHANGE: the whole describe is skipIf(!HAS_DB), which
+    // needs the operator's local-write opt-in, so this was updated by reading
+    // the FK rather than by running it.
+    let result: Awaited<ReturnType<typeof scheduleReviewRequest>> | null = null;
+    let rejected: unknown = null;
+    try {
+      result = await scheduleReviewRequest(99999, "Test User", "2165551234", "Brake Repair");
+    } catch (err) {
+      rejected = err;
+    }
+    if (rejected) {
+      expect(rejected).toBeInstanceOf(Error);
+      return;
+    }
+    // Otherwise: scheduled, or skipped for a BUSINESS reason (disabled / invalid
+    // phone / cooldown). Those are still returns, never throws.
     expect(result).toHaveProperty("scheduled");
-    if (!result.scheduled) {
+    if (result && !result.scheduled) {
       expect(result).toHaveProperty("reason");
     }
   });

@@ -79,7 +79,25 @@ export default function ReviewRequestsSection() {
    * and connection this admin is used from.
    */
   const settingsUnknown = settingsError || (!settingsLoading && !settings);
-  const { data: backfillPreview, isLoading: backfillLoading } = trpc.reviewRequests.backfillPreview.useQuery();
+  const {
+    data: backfillPreview,
+    isLoading: backfillLoading,
+    isError: backfillError,
+    error: backfillErrorObj,
+  } = trpc.reviewRequests.backfillPreview.useQuery();
+
+  /**
+   * ROS-084 follow-up · the Backfill tab is a preview plus ONE dangerous button,
+   * so it needs a different treatment from both the stat cards and the settings
+   * form. The false-green being fixed is the emerald CheckCircle2 reading "All
+   * eligible customers have already been contacted" — a positive claim about
+   * every customer served in the past year, rendered from a database nobody read.
+   *
+   * DATA-shaped, not error-shaped, for the reason established on the settings
+   * query above: react-query v5 PAUSES a query on an offline device, which leaves
+   * isLoading and isError both false with data undefined.
+   */
+  const backfillUnknown = backfillError || (!backfillLoading && !backfillPreview);
 
   // Mutations
   const updateSettings = trpc.reviewRequests.updateSettings.useMutation({
@@ -549,18 +567,22 @@ export default function ReviewRequestsSection() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <StatCard
                   label="Eligible Customers"
-                  value={backfillPreview?.count ?? 0}
+                  value={backfillUnknown ? "—" : backfillPreview?.count ?? 0}
                   icon={<Star className="w-5 h-5" />}
-                  color="text-primary"
+                  color={backfillUnknown ? "text-amber-400" : "text-primary"}
                 />
                 <StatCard
                   label="Preview (First 50)"
-                  value={backfillPreview?.bookings?.length ?? 0}
+                  value={backfillUnknown ? "—" : backfillPreview?.bookings?.length ?? 0}
                   icon={<MessageSquare className="w-5 h-5" />}
                 />
               </div>
 
-              {backfillPreview?.bookings && backfillPreview.bookings.length > 0 && (
+              {/* `!backfillUnknown &&` for the same reason as the button below:
+                  react-query retains data on a failed refetch, so without it a
+                  STALE list of named customers renders directly under em-dash
+                  tiles and an amber banner saying the count is unknown. */}
+              {!backfillUnknown && backfillPreview?.bookings && backfillPreview.bookings.length > 0 && (
                 <div className="border border-border/30 overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
@@ -587,7 +609,14 @@ export default function ReviewRequestsSection() {
                 </div>
               )}
 
-              {(backfillPreview?.count ?? 0) > 0 ? (
+              {/* `!backfillUnknown &&` is load-bearing, not defensive. react-query
+                  RETAINS data on a failed refetch and this page refetches on
+                  window focus, so testing the count first would see a STALE
+                  `count: 12` while the read was failing and render "Send to 12
+                  Customers" — putting a real SMS batch behind a number nobody
+                  could confirm. Ask whether the count is knowable before
+                  trusting it. */}
+              {!backfillUnknown && (backfillPreview?.count ?? 0) > 0 ? (
                 <div className="flex items-center gap-4">
                   <button
                     onClick={async () => {
@@ -619,9 +648,43 @@ export default function ReviewRequestsSection() {
                     <span className="text-[12px] text-foreground/40">Scheduling review requests...</span>
                   )}
                 </div>
+              ) : backfillUnknown ? (
+                <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400 space-y-2">
+                  <p>
+                    <strong>Backfill eligibility could not be read.</strong> How many past customers were never asked for a
+                    review is unknown — not zero.
+                  </p>
+                  {/* Said outright, because hiding a button can imply the same
+                      thing the green checkmark used to say. The button is absent
+                      because there is no count to authorise, NOT because the work
+                      is done — and a "Send to — customers" control would ask the
+                      operator to approve a batch of unknown size, which is worse
+                      than showing nothing. */}
+                  <p className="text-amber-400/80">
+                    The send button is hidden because there is no count to authorise, not because everyone has been
+                    contacted.
+                  </p>
+                  {/* The two shapes are split for the same reason as the settings
+                      banner above, and getting this wrong here would have been
+                      the exact failure this whole change exists to prevent: an
+                      unconditional "nothing is scheduled" is FALSE when only the
+                      DEVICE is offline. The server is fine in that case —
+                      booking.ts:578 is still firing scheduleReviewRequest on
+                      every completion and the queue is still sending. Denying
+                      the removed claim about the shop's HISTORY ("everyone has
+                      been contacted") must not be done with a new claim about
+                      its PRESENT that the code cannot support. */}
+                  <p className="text-amber-400/80">
+                    {backfillError
+                      ? `The server could not read it, so the backfill list cannot be built — nothing can be sent from this tab while this persists. ${backfillErrorObj?.message ?? ""}`
+                      : "This device has not reached the server. The shop's automation is unaffected and is still running on its stored settings."}
+                  </p>
+                </div>
               ) : (
                 <div className="text-center py-8 text-foreground/40">
                   <CheckCircle2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  {/* A COUNTED zero is real information and keeps its green tick.
+                      This branch is now only reached when the read succeeded. */}
                   <p className="text-[13px]">All eligible customers have already been contacted</p>
                 </div>
               )}
