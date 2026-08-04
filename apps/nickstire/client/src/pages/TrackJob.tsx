@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { SEOHead } from "@/components/SEO";
+import { QueryError } from "@/components/QueryState";
 import { Loader2, CheckCircle2, Clock, Wrench, Truck, Search, ArrowRight } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 
@@ -27,7 +28,7 @@ export default function TrackJob() {
   const [phone, setPhone] = useState("");
   const [searched, setSearched] = useState(false);
 
-  const { data, isLoading, refetch } = trpc.dispatch.track.useQuery(
+  const { data, isLoading, isError, isSuccess, fetchStatus, refetch } = trpc.dispatch.track.useQuery(
     { orderNumber, phone },
     { enabled: searched && orderNumber.length > 0 && phone.length >= 10 }
   );
@@ -58,6 +59,7 @@ export default function TrackJob() {
           <input
             type="text"
             placeholder="Order Number (e.g. WO-2026-123456)"
+            aria-label="Order number"
             value={orderNumber}
             onChange={e => { setOrderNumber(e.target.value); setSearched(false); }}
             className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-lg text-foreground placeholder:text-foreground/30 focus:border-primary/50 focus:outline-none"
@@ -65,6 +67,7 @@ export default function TrackJob() {
           <input
             type="tel"
             placeholder="Phone Number"
+            aria-label="Phone number"
             value={phone}
             onChange={e => { setPhone(e.target.value); setSearched(false); }}
             className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-lg text-foreground placeholder:text-foreground/30 focus:border-primary/50 focus:outline-none"
@@ -79,8 +82,26 @@ export default function TrackJob() {
           </button>
         </form>
 
-        {/* Results */}
-        {searched && !isLoading && !data && (
+        {/* Four states, never two. A failed OR offline-paused lookup must not
+            read as "your order number is wrong" — and with the default
+            networkMode:"online" an offline query is neither error nor
+            success nor loading, so without this branch the offline PWA gave
+            no feedback at all. */}
+        {searched && fetchStatus === "paused" && (
+          <QueryError
+            message="You appear to be offline — we couldn't check your order. Reconnect and try again."
+            onRetry={() => refetch()}
+            className="py-8"
+          />
+        )}
+        {searched && isError && (
+          <QueryError
+            message="We couldn't check your order right now — that's a connection problem on our end, not a wrong order number."
+            onRetry={() => refetch()}
+            className="py-8"
+          />
+        )}
+        {searched && isSuccess && !data && (
           <div className="text-center py-8">
             <p className="text-muted-foreground">No matching order found. Please check your order number and phone number.</p>
           </div>

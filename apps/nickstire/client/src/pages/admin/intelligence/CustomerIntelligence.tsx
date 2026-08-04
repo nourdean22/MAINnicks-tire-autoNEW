@@ -1,6 +1,7 @@
 import React from "react";
 import { trpc } from "@/lib/trpc";
 import { Users, PhoneCall, MessageSquare, AlertTriangle, RefreshCw } from "lucide-react";
+import { LoadingState } from "../shared";
 
 export function CustomerIntelligence() {
   const { data: nbaData, isLoading: nbaLoading, isError: nbaError } = trpc.intelligence.nextBestActions.useQuery(undefined, {
@@ -12,7 +13,7 @@ export function CustomerIntelligence() {
   });
 
   if (nbaLoading || reportLoading) {
-    return <div className="h-48 flex items-center justify-center text-muted-foreground text-xs animate-pulse">Loading customer signals...</div>;
+    return <LoadingState label="Loading customer signals..." />;
   }
 
   // A FAILED read must not render as "Retention looks solid". Before this, a

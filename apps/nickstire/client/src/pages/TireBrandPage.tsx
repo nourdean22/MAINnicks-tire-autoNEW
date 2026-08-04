@@ -63,7 +63,9 @@ function BrandHero({ brand }: { brand: TireBrand }) {
       <SEOHead title={title} description={description} canonicalPath={canonicalPath} />
       <LocalBusinessSchema />
 
-      <main id="main-content">
+      {/* div, not <main> — PageLayout already provides the single
+          main#main-content landmark. */}
+      <div>
         {/* HERO */}
         <section className="relative pt-32 lg:pt-40 pb-12 lg:pb-16 bg-[oklch(0.06_0.004_260)]">
           <div className="container">
@@ -262,7 +264,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
         </section>
 
         <InternalLinks title="Related Tire Pages" />
-      </main>
+      </div>
     </PageLayout>
   );
 }

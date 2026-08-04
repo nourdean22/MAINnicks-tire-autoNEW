@@ -329,7 +329,7 @@ export function ExecutionPanel({
               onClick={handleStartPause}
               disabled={submitting != null}
               className={cn(
-                "flex items-center justify-center gap-2 rounded-lg py-3.5 border text-xs font-semibold uppercase tracking-wider transition-all active:scale-[0.98]",
+                "flex items-center justify-center gap-2 rounded-lg py-3.5 border text-xs font-semibold uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50",
                 isDoing
                   ? "bg-amber-400/10 border-amber-500/40 text-amber-300 hover:bg-amber-400/20"
                   : "bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20",
@@ -351,7 +351,7 @@ export function ExecutionPanel({
               type="button"
               onClick={handleComplete}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-2 rounded-lg py-3.5 bg-[var(--gold)]/20 border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/30 text-xs font-semibold uppercase tracking-wider transition-all active:scale-[0.98]"
+              className="flex items-center justify-center gap-2 rounded-lg py-3.5 bg-[var(--gold)]/20 border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/30 text-xs font-semibold uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
             >
               <Check size={14} strokeWidth={3} /> Complete Task
             </button>
@@ -361,7 +361,7 @@ export function ExecutionPanel({
               type="button"
               onClick={() => setShowBlockForm(true)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-violet-500/20 bg-violet-500/5 text-violet-300 hover:bg-violet-500/10 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98]"
+              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-violet-500/20 bg-violet-500/5 text-violet-300 hover:bg-violet-500/10 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
             >
               ⏸ Mark Blocked
             </button>
@@ -371,7 +371,7 @@ export function ExecutionPanel({
               type="button"
               onClick={() => setShowSnoozeOptions(true)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900/60 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98]"
+              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900/60 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
             >
               <Clock size={12} /> Snooze / Defer
             </button>
@@ -381,7 +381,7 @@ export function ExecutionPanel({
               type="button"
               onClick={() => onEdit(task)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900/60 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98]"
+              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900/60 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
             >
               <Pencil size={12} /> Break / Edit
             </button>
@@ -391,7 +391,7 @@ export function ExecutionPanel({
               type="button"
               onClick={() => setShowAbandonConfirm(true)}
               disabled={submitting != null}
-              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-rose-500/20 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98]"
+              className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 border border-rose-500/20 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 text-xs font-medium uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50"
             >
               <Trash2 size={12} /> Abandon Task
             </button>

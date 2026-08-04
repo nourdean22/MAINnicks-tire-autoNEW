@@ -126,14 +126,31 @@ export function BottomPulseTicker() {
 
   const [idx, setIdx] = useState(0);
   const [open, setOpen] = useState(false);
+  const [paused, setPaused] = useState(false);
+  // OS reduced-motion must stop the rotation itself — the CSS kill-switch in
+  // effects.css silences the fade but no CSS can stop a JS setInterval.
+  // Same SSR-safe matchMedia pattern as components/3d/scene-canvas.tsx.
+  const [reducedMotion, setReducedMotion] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReducedMotion(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   // Auto-advance every 10s (fade-on-change via the item key). Pauses while the
-  // feed sheet is open. Motion only on change — no continuous scroll.
+  // feed sheet is open, when the operator pauses it (WCAG 2.2.2), and under
+  // prefers-reduced-motion. Motion only on change — no continuous scroll.
+  // The priority sort means a frozen strip shows the highest-priority item,
+  // and the tap-to-open feed still lists everything — nothing is hidden.
   useEffect(() => {
-    if (open || items.length <= 1) return;
+    if (open || paused || reducedMotion || items.length <= 1) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 10_000);
     return () => clearInterval(t);
-  }, [open, items.length]);
+  }, [open, paused, reducedMotion, items.length]);
 
   // Escape closes the sheet.
   useEffect(() => {
@@ -157,7 +174,10 @@ export function BottomPulseTicker() {
       aria-live="off"
       className="relative min-h-[32px] sm:h-5 border-t border-[var(--border-default)] bg-[var(--bg-void)]/60"
     >
-      <div className="flex items-center gap-2 px-3 h-full min-h-[32px] sm:min-h-0">
+      {/* gap-3: the snooze button uses the pulled-margin pattern (p-3 -m-3),
+          so its hit box extends 12px past its footprint — at gap-2 it
+          overlapped the pause button's edge. */}
+      <div className="flex items-center gap-3 px-3 h-full min-h-[32px] sm:min-h-0">
         {/* The one item · tap anywhere to open the full pulse feed. */}
         <button
           type="button"
@@ -172,12 +192,22 @@ export function BottomPulseTicker() {
         </button>
 
         {items.length > 1 && (
-          <span
-            className="shrink-0 text-[9px] tabular-nums text-[var(--text-tertiary)] select-none"
-            aria-hidden
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPaused((p) => !p);
+            }}
+            aria-pressed={paused}
+            /* Static label + aria-pressed. Swapping the label AND setting
+               aria-pressed announces "Resume rotation, pressed" when frozen,
+               which states the opposite of the truth. */
+            aria-label="Pause rotation"
+            className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center rounded px-1 text-[9px] tabular-nums text-[var(--text-tertiary)] outline-none hover:text-[var(--text-secondary)] focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 sm:min-h-8 sm:min-w-8"
           >
+            {paused ? "⏸ " : ""}
             {safeIdx + 1}/{items.length}
-          </span>
+          </button>
         )}
 
         {/* Visible, touch-friendly snooze for the current item. */}

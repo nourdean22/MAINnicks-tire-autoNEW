@@ -100,7 +100,7 @@ export function MegaConfirmDialog({
         aria-modal="true"
         aria-labelledby="mega-confirm-title"
         aria-describedby="mega-confirm-message"
-        className="max-w-md w-full mx-4 rounded-lg border border-[var(--gold)]/30 bg-[var(--bg-base)] shadow-2xl p-6 space-y-4"
+        className="max-w-md w-full mx-4 max-h-[85vh] overflow-y-auto rounded-lg border border-[var(--gold)]/30 bg-[var(--bg-base)] shadow-2xl p-6 space-y-4"
       >
         <h2
           id="mega-confirm-title"

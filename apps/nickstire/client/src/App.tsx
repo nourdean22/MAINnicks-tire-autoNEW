@@ -3,7 +3,7 @@ import EmergencyMode from "./components/EmergencyMode";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, useLocation, Redirect } from "wouter";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
@@ -460,11 +460,16 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark" switchable>
         <TooltipProvider>
-          <SkipToContent />
-          <Toaster />
-          <Router />
-          <EmergencyMode />
-          {/* Analytics removed — runs on Railway, not Vercel */}
+          {/* reducedMotion="user": Framer Motion writes inline styles per
+              frame, so the CSS prefers-reduced-motion kill-switch in
+              index.css cannot stop motion.* animations — only this can. */}
+          <MotionConfig reducedMotion="user">
+            <SkipToContent />
+            <Toaster />
+            <Router />
+            <EmergencyMode />
+            {/* Analytics removed — runs on Railway, not Vercel */}
+          </MotionConfig>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

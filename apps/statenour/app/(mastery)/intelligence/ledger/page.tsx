@@ -85,7 +85,7 @@ export default function DecisionLedgerPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-850 mb-6 overflow-x-auto scrollbar-none gap-2">
+      <div className="flex border-b border-slate-800 mb-6 overflow-x-auto scrollbar-none gap-2">
         {tabs.map((tab) => {
           const isSelected = activeTab === tab.key;
           return (
@@ -116,7 +116,7 @@ export default function DecisionLedgerPage() {
           <div className="rounded-full bg-slate-900/80 p-4 border border-slate-800 text-slate-500 mb-4">
             <LayoutList className="h-8 w-8" />
           </div>
-          <h3 className="text-sm font-semibold text-slate-250 capitalize">No {activeTab} Opportunities</h3>
+          <h3 className="text-sm font-semibold text-slate-200 capitalize">No {activeTab} Opportunities</h3>
           <p className="text-xs text-slate-500 max-w-sm mt-1">
             {activeTab === "pending"
               ? "All opportunities have been processed. Tap compile on the briefing page to check for new ones."

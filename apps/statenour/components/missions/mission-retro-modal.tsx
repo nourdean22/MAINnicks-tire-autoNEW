@@ -112,6 +112,7 @@ export function MissionRetroModal({
         onClick={(e) => e.stopPropagation()}
         className={cn(
           "w-full lg:max-w-md bg-[var(--bg-base)] border-t lg:border border-[var(--gold)]/30 rounded-t-2xl lg:rounded-2xl",
+          "max-h-[90vh] overflow-y-auto",
           "shadow-[0_-20px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(253,185,19,0.1)]",
           "pb-[env(safe-area-inset-bottom,0px)]",
         )}

@@ -169,7 +169,7 @@ export default function LeadPopup() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          className="fixed inset-0 z-[10001] flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="lead-popup-title"

@@ -683,7 +683,9 @@ export default function DiagnosePage() {
         canonicalPath="/diagnose"
       />
 
-      <main id="main-content">
+      {/* div, not <main> — PageLayout already provides the single
+          main#main-content landmark. */}
+      <div>
         {/* Hero */}
         <section className="relative pt-32 pb-12 overflow-hidden">
           <div className="absolute inset-0">
@@ -1360,7 +1362,7 @@ export default function DiagnosePage() {
           </div>
         </section>
 
-      </main>
+      </div>
 
     </PageLayout>
   );

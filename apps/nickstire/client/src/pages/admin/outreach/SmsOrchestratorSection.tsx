@@ -246,11 +246,18 @@ export default function SmsOrchestratorSection() {
                 <span className="font-semibold text-foreground/60 text-xs">Global Mode Override:</span>
                 <select
                   value={rolloutModes?.find(m => m.k === "sms_orchestrator_global_mode")?.v || "shadow"}
+                  disabled={setRolloutModeMutation.isPending}
                   onChange={async (e) => {
-                    await setRolloutModeMutation.mutateAsync({
-                      key: "sms_orchestrator_global_mode",
-                      value: e.target.value as any
-                    });
+                    try {
+                      await setRolloutModeMutation.mutateAsync({
+                        key: "sms_orchestrator_global_mode",
+                        value: e.target.value as any
+                      });
+                    } catch (err) {
+                      // A failed change snaps the select back on refetch — say so,
+                      // or the autonomy ladder silently stays where it was.
+                      toast.error("Failed to change rollout mode", { description: err instanceof Error ? err.message : String(err) });
+                    }
                   }}
                   className="bg-card border border-border/50 text-[11px] font-bold text-primary focus:outline-none rounded px-2 py-0.5"
                 >
@@ -270,11 +277,16 @@ export default function SmsOrchestratorSection() {
                     <span className="font-semibold text-foreground/75 truncate">{label}</span>
                     <select
                       value={currentMode}
+                      disabled={setRolloutModeMutation.isPending}
                       onChange={async (e) => {
-                        await setRolloutModeMutation.mutateAsync({
-                          key: flagKey,
-                          value: e.target.value as any
-                        });
+                        try {
+                          await setRolloutModeMutation.mutateAsync({
+                            key: flagKey,
+                            value: e.target.value as any
+                          });
+                        } catch (err) {
+                          toast.error("Failed to change rollout mode", { description: err instanceof Error ? err.message : String(err) });
+                        }
                       }}
                       className="bg-card border border-border/45 text-[11px] font-semibold text-foreground/70 focus:outline-none rounded px-1.5 py-0.5"
                     >

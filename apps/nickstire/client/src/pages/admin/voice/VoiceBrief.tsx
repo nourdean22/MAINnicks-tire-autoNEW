@@ -49,12 +49,16 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
     { sinceISO, maxDays: 14 },
     { staleTime: 60_000, refetchInterval: 60_000 },
   );
-  const { data: live } = trpc.vapi.activeCallStates.useQuery(
+  const { data: live, isError: liveError } = trpc.vapi.activeCallStates.useQuery(
     { maxAgeMinutes: 10 },
     { staleTime: 10_000 },
   );
 
-  if (scorecardLoading || !live) {
+  // A failed live-call query must not pin the whole brief on the shimmer
+  // forever (after retries exhaust, `live` stays undefined). Block only
+  // while genuinely loading; an errored live slice renders as an explicit
+  // "unknown" note in the footer instead.
+  if (scorecardLoading || (!live && !liveError)) {
     return (
       <div className="border border-border/40 bg-card p-4">
         <div className="animate-pulse text-[11px] font-bold uppercase tracking-[0.18em] text-foreground/30">
@@ -73,10 +77,15 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
   }
 
   const counts = scorecard.counts;
-  const inFlightCount = live.count ?? 0;
-  const stuckCount = live.byState?.tool_called ?? 0;
+  const liveUnknown = liveError || !live;
+  const inFlightCount = live?.count ?? 0;
+  const stuckCount = live?.byState?.tool_called ?? 0;
   const noVersionedData = counts.versionedCalls === 0;
-  const manualReviewCount = (callReview?.counts.manual_review ?? 0) + (callReview?.counts.ambiguous ?? 0);
+  // null = query has no data — renders "—" (house pattern, see the verified
+  // revenue tile), never a fabricated 0.
+  const manualReviewCount = callReview == null
+    ? null
+    : (callReview.counts.manual_review ?? 0) + (callReview.counts.ambiguous ?? 0);
 
   return (
     <section className="space-y-3 border border-border/40 bg-card p-4" aria-label="Revenue operations voice scorecard">
@@ -132,20 +141,20 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
             {attribution ? formatCurrency(attribution.totals.verifiedRevenueCents) : "—"}
           </p>
           <p className="text-[11px] text-foreground/45">
-            {attribution?.totals.uniquelyLinkedPaidInvoices ?? 0} uniquely linked paid invoice{attribution?.totals.uniquelyLinkedPaidInvoices === 1 ? "" : "s"}
+            {attribution ? attribution.totals.uniquelyLinkedPaidInvoices : "—"} uniquely linked paid invoice{attribution?.totals.uniquelyLinkedPaidInvoices === 1 ? "" : "s"}
           </p>
         </div>
         <div className="border border-amber-400/20 bg-amber-500/5 p-3">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-300/80">
             <SearchCheck className="h-3.5 w-3.5" /> Attribution review
           </div>
-          <p className="mt-1 text-xl font-bold tabular-nums">{manualReviewCount}</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{manualReviewCount ?? "—"}</p>
           <p className="text-[11px] text-foreground/45">phone/time/service matches remain inferred</p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Excluded from revenue</p>
           <p className="mt-1 text-xl font-bold tabular-nums">
-            {(attribution?.totals.ambiguousInvoiceCount ?? 0) + (attribution?.totals.unpaidOrMissingInvoiceLinks ?? 0)}
+            {attribution ? (attribution.totals.ambiguousInvoiceCount ?? 0) + (attribution.totals.unpaidOrMissingInvoiceLinks ?? 0) : "—"}
           </p>
           <p className="text-[11px] text-foreground/45">ambiguous, unpaid, refunded, partial, or missing links</p>
         </div>
@@ -168,14 +177,21 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/30 pt-3">
         <div className="flex items-center gap-2 text-xs text-foreground/60">
-          {inFlightCount > 0 ? <Activity className="h-3.5 w-3.5 animate-pulse text-emerald-400" /> : <Phone className="h-3.5 w-3.5" />}
-          {inFlightCount > 0 ? `${inFlightCount} call${inFlightCount === 1 ? "" : "s"} live` : "No calls in flight"}
+          {liveUnknown ? (
+            /* Errored live query — say "unknown", never fabricate "no calls in flight". */
+            <span className="text-amber-300/80">live-call state unknown</span>
+          ) : (
+            <>
+              {inFlightCount > 0 ? <Activity className="h-3.5 w-3.5 animate-pulse text-emerald-400" /> : <Phone className="h-3.5 w-3.5" />}
+              {inFlightCount > 0 ? `${inFlightCount} call${inFlightCount === 1 ? "" : "s"} live` : "No calls in flight"}
+            </>
+          )}
           <span>·</span>
           <span>{counts.walkInsDirected} walk-ins directed, not arrivals</span>
           <span>·</span>
           <span>{counts.paidInvoicesVerified} call records directly verified to paid invoices</span>
         </div>
-        {stuckCount > 0 ? (
+        {!liveUnknown && stuckCount > 0 ? (
           <button
             type="button"
             onClick={onStuckCallsAction}

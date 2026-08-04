@@ -421,7 +421,10 @@ export default function NotificationBar() {
     // never visually crowd the floating ChatWidget bubble (right-aligned
     // at right-4, w-12 = needs ~64px+ of right-side clearance). At
     // 360px viewport: (360 - 16 left-4 - 64 right-clearance) = 280px.
-    <div className="fixed bottom-4 left-4 z-50 w-[calc(100vw-5rem)] max-w-[360px] sm:max-w-[420px]">
+    // max-lg: clear the SiteMobileCTA bar (68px + safe-area, z-[9999]) —
+    // at bottom-4 the card's dots and CTA sat underneath it once the bar
+    // appeared at scrollY>400.
+    <div className="fixed bottom-4 max-lg:bottom-[calc(84px+env(safe-area-inset-bottom,0px))] left-4 z-50 w-[calc(100vw-5rem)] max-w-[360px] sm:max-w-[420px]">
       <AnimatePresence mode="wait">
         <motion.div
           key={current.id}

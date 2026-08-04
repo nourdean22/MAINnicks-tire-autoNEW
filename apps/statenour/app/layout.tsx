@@ -66,7 +66,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: capping zoom at 1 disables pinch zoom in standalone
+  // iOS PWAs (browsers override the cap; home-screen installs honor it),
+  // which fails WCAG 1.4.4 — and this app leans on 9-11px text.
   viewportFit: "cover",
   themeColor: "#050505",
 };
