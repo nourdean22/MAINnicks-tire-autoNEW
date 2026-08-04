@@ -150,7 +150,14 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className={`lg:hidden fixed inset-0 ${hasEmergencyBanner ? "top-[116px] sm:top-[108px]" : "top-[60px]"} bg-[oklch(0.06_0.004_260/0.98)] backdrop-blur-2xl z-40`}
+            /* No backdrop-blur here. The surface is already oklch(…/0.98) — 98%
+               opaque — so a blur behind it is very close to invisible, while
+               backdrop-filter on a `fixed inset-0` element forces a full-viewport
+               backdrop re-snapshot every frame of the 200ms open animation above.
+               This is `lg:hidden`, i.e. it renders ONLY on phones, and it is on the
+               PUBLIC site, so the cost landed on every customer opening the menu.
+               backdrop-blur-2xl was also the heaviest tier in the codebase. */
+            className={`lg:hidden fixed inset-0 ${hasEmergencyBanner ? "top-[116px] sm:top-[108px]" : "top-[60px]"} bg-[oklch(0.06_0.004_260/0.98)] z-40`}
           >
             <div className="container py-10 flex flex-col gap-1">
               {/* aria-modal="true" makes everything outside this panel inert

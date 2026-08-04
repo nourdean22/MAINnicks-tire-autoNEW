@@ -168,10 +168,40 @@ export function stampError(verdict: ProviderErrorVerdict, message: string): stri
   return `[${verdict.errorClass}] ${verdict.reason} :: ${message}`;
 }
 
+/**
+ * The union at runtime, derived from POLICY so it cannot drift from the type.
+ */
+export const PROVIDER_ERROR_CLASSES = Object.keys(POLICY) as ProviderErrorClass[];
+
 /** Recover the class from a stamped error string. */
 export function parseErrorClass(stamped: string | null | undefined): ProviderErrorClass | null {
   const m = /^\[([A-Z_]+)\]/.exec(String(stamped ?? ""));
-  return (m?.[1] as ProviderErrorClass) ?? null;
+  const token = m?.[1];
+  // The token is VALIDATED, not cast. `reel_jobs.error` is a mixed column: only
+  // the generation stage stamps it. Assembly, the budget breach, the stuck
+  // sweeper and operator closure all write raw provider text, and a message that
+  // merely starts with a bracketed word — "[ERROR] ffmpeg exited with code 1" —
+  // used to come back as the string "ERROR" wearing the ProviderErrorClass type.
+  // Every `Record<ProviderErrorClass, …>` lookup on that reads undefined, which
+  // is how a lie becomes a blank instead of an error.
+  return token && (PROVIDER_ERROR_CLASSES as string[]).includes(token)
+    ? (token as ProviderErrorClass)
+    : null;
+}
+
+/**
+ * The provider's own message, with the machine-readable stamp removed.
+ *
+ * Lives beside stampError because stampError owns the " :: " separator — no
+ * caller should have to know the format to undo it. Returns the whole string
+ * unchanged when it carries no stamp, so the unstamped writers above still
+ * render their text rather than nothing.
+ */
+export function parseErrorMessage(stamped: string | null | undefined): string | null {
+  const s = String(stamped ?? "");
+  if (!s) return null;
+  const i = s.indexOf(" :: ");
+  return i >= 0 ? s.slice(i + 4) : s;
 }
 
 /**

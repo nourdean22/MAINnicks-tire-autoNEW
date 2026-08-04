@@ -60,7 +60,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
     decisionRows.push({ key: "review", tone: "amber", label: `${rows.needsReview} draft${rows.needsReview === 1 ? "" : "s"} waiting for your review`, action: "Review", view: "publish" });
   }
   if ((reelCount ?? 0) > 0) {
-    decisionRows.push({ key: "reels", tone: "amber", label: `${reelCount} reel job${reelCount === 1 ? "" : "s"} need attention`, action: "Open recovery", view: "actions" });
+    decisionRows.push({ key: "reels", tone: "amber", label: `${reelCount} reel job${reelCount === 1 ? "" : "s"} need attention`, detail: "Held jobs of any age, plus failures active in the last 14 days — a different population from the 30-day reliability panel below, so the two numbers are not meant to reconcile.", action: "Open recovery", view: "actions" });
   }
   if (meta && meta.connected && meta.live === false) {
     decisionRows.push({ key: "meta", tone: "red", label: "Meta rejected the access token — publishing is down", detail: meta.liveError ?? undefined, action: "Open Settings", view: "settings" });
@@ -196,9 +196,15 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
                 <span className="text-red-400 tabular-nums">{reliability.data.failed ?? 0} failed</span>
                 {(reliability.data.ambiguous ?? 0) > 0 && <> · <span className="text-amber-500 tabular-nums">{reliability.data.ambiguous} ambiguous</span></>}
                 {reliability.data.failureRate != null && <> · <span className="font-semibold tabular-nums">{Math.round(reliability.data.failureRate * 100)}% failure</span></>}
+                {(reliability.data.closedFailures ?? 0) > 0 && <> · <span className="text-muted-foreground tabular-nums">{reliability.data.closedFailures} closed by you (excluded)</span></>}
               </p>
               <p className="text-xs text-muted-foreground">
-                Counts every job created in the window, by its current stage. A green render is still not a good reel — sample published output monthly.
+                Windowed on job CREATION date, by current stage — a fixed cohort, so the rate cannot
+                move just because a row was touched. Deliberately NOT the same population as
+                &ldquo;needs attention&rdquo; above, which is scoped by last activity. It is also a
+                trailing mean with no incident weighting: one bad day can dominate it for a month and
+                then vanish on its own, so read a spike against the day it came from before acting.
+                A green render is still not a good reel — sample published output monthly.
               </p>
             </div>
           )}

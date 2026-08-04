@@ -9,7 +9,31 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -File \"$CLAUDE_PROJECT_DIR\\scripts\\graphify-session-context.ps1\""
+            "command": "powershell -NoProfile -File \"${CLAUDE_PROJECT_DIR}\\scripts\\graphify-session-context.ps1\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}\\scripts\\agent-os\\pretool.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}\\scripts\\agent-os\\stop-check.mjs\"",
+            "timeout": 15
           }
         ]
       }
@@ -21,6 +45,8 @@
       "Bash(pnpm typecheck)",
       "Bash(pnpm typecheck *)",
       "Bash(pnpm lint)",
+      "Bash(pnpm agent:verify)",
+      "Bash(node scripts/agent-os/verify.mjs)",
       "Bash(railway status)",
       "Bash(railway logs *)"
     ]

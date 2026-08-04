@@ -91,7 +91,10 @@ export default function AdminAlertBar({ alerts }: AdminAlertBarProps) {
               <button
                 type="button"
                 onClick={() => setDismissed(new Set([...dismissed, alert.id]))}
-                className={`p-1 rounded hover:bg-black/10 ${style.text}`}
+                /* 48x48 hit area behind a 14px glyph — p-1 gave this 22x22px, and
+                   it is a top-of-page banner the operator dismisses one-handed.
+                   Negative margins keep the alert row from growing. */
+                className={`-my-2 -mr-1 w-12 h-12 inline-flex items-center justify-center rounded hover:bg-black/10 ${style.text}`}
                 aria-label="Dismiss alert"
               >
                 <X className="w-3.5 h-3.5" />

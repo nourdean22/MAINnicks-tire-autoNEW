@@ -37,6 +37,20 @@ export const GET = cronHandler(async () => {
   // with an actionable re-grant nudge instead of a stack-traced failure.
   // "stale"/"healthy" still run — running the cron is what un-stales it.
   const oauth = await getGoogleOauthStatus();
+  // We could not ASK whether OAuth is configured — the integration row was
+  // unreadable. That is NOT the same as "not configured", and it must not take
+  // the graceful-skip path below: a skip is filed as a SUCCESSFUL run, so an
+  // outage became a green cron row blaming a configuration that is correct.
+  //
+  // The skip exists to avoid ~8 non-actionable `failed` rows a day when the
+  // operator genuinely has not granted consent. A database that cannot be read
+  // is the opposite of non-actionable, so it throws and is recorded as failed.
+  if (oauth.probeFailed) {
+    throw new Error(
+      `Calendar ingest could not determine OAuth status — ${oauth.reason}. ` +
+        "This is a database read failure, NOT a missing Google grant; do not re-grant.",
+    );
+  }
   if (oauth.state === "missing" || oauth.state === "expired") {
     return {
       skipped: true,

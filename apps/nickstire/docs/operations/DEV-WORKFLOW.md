@@ -1,24 +1,26 @@
 # Dev Workflow — Local + CI Guardrails
 
-> **Refreshed 2026-05-07 wave-78** — husky already initialized (the
-> bootstrap "Enable it once" section was removed since it confused
-> contributors); pre-commit hook gained `pnpm lint:hooks` (wave-76)
-> for React Rules-of-Hooks enforcement.
+> **Refreshed 2026-08-04** — the hook runner is **lefthook**, configured in the
+> repo-root `lefthook.yml`. Husky is retired: there is no `.husky/` directory and
+> no `prepare` script. An earlier version of this page described the husky layout
+> and told contributors to bypass with `--no-verify`; both are corrected below.
 
 ## Local hooks
 
-**Husky pre-commit** at `.husky/pre-commit` runs:
-1. `pnpm run lint:source` — custom source linter (no console.* in server, any/sql counts)
-2. `pnpm run check` — TypeScript
-3. `pnpm run test --bail=1` — bail on first test failure
-4. `pnpm run lint:hooks` — `audit-hook-after-return.mjs` (wave-76, prevents
+**`pre-commit`** (repo-root `lefthook.yml`, `root: "apps/nickstire"`, staged-glob
+scoped) runs, in parallel with the statenour jobs:
+1. `pnpm run lint:brand-voice` — claim safety
+2. `pnpm run lint:source` — custom source linter (no console.* in server, any/sql counts)
+3. `pnpm run lint:hooks` — `audit-hook-after-return.mjs` (wave-76, prevents
    the wave-65-style hook-after-early-return crash)
+4. `pnpm run validate:routes` — route registry
+5. `pnpm run check` — TypeScript
 
-The hook is already active. Running `pnpm install` re-applies it via the
-`prepare` script if it ever falls off.
+**`pre-push`** runs `pnpm run build:affected`.
 
-If a hook run is too slow, bypass with `git commit --no-verify` (avoid
-unless you have a very good reason; CI will still block on push).
+**Never bypass with `--no-verify`.** It is forbidden by the canonical policy
+(root `AGENTS.md` → "Branching") — a slow hook is a reason to fix the hook, not
+to skip the gate. If a check is genuinely wrong, change the check in a PR.
 
 ## CI workflow
 

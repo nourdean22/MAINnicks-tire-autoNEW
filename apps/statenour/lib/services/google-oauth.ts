@@ -409,17 +409,60 @@ export async function getAccessToken(accountKey: string = "primary"): Promise<st
  * distinguishes missing/expired/stale/healthy. This function stays
  * for backwards compat with cron routes that just want a yes/no.
  */
-export async function isGoogleOauthConfigured(accountKey: string = "primary"): Promise<boolean> {
+/**
+ * Configured-or-not, PLUS whether we could actually ask.
+ *
+ * `isGoogleOauthConfigured` below collapses "no refresh token stored" and "the
+ * database blew up" into the same `false`. That is the identical defect #1348
+ * fixed one level up in getGoogleOauthStatus: callers then report a
+ * CONFIGURATION problem on evidence about our own infrastructure, and the
+ * operator is sent to re-grant a token that is fine.
+ *
+ * A separate function rather than a changed return type on purpose — six
+ * callers read that boolean, and widening it would touch all of them for a
+ * distinction only some of them care about.
+ */
+export async function probeGoogleOauthConfigured(
+  accountKey: string = "primary",
+): Promise<{ configured: boolean; probeFailed: boolean; reason: string }> {
   try {
     const integration = await prisma.integration.findUnique({
       where: { name: integrationNameFor(accountKey) },
     });
-    if (!integration?.config) return false;
+    if (!integration?.config) {
+      return {
+        configured: false,
+        probeFailed: false,
+        reason: "Google OAuth not configured — grant access at /api/oauth/google-data/start",
+      };
+    }
     const stored = integration.config as unknown as StoredToken;
-    return !!stored.refreshToken;
+    return stored.refreshToken
+      ? { configured: true, probeFailed: false, reason: "" }
+      : {
+          configured: false,
+          probeFailed: false,
+          reason: "Integration row exists but stores no refresh token — re-grant access",
+        };
   } catch {
-    return false;
+    return {
+      configured: false,
+      probeFailed: true,
+      reason: "Integration table unreadable — check DB connectivity, NOT the Google grant",
+    };
   }
+}
+
+/**
+ * Boolean convenience wrapper, unchanged in behaviour and signature.
+ *
+ * It cannot distinguish "not configured" from "could not ask" — that is the
+ * point of the probe above. Prefer `probeGoogleOauthConfigured` in any caller
+ * that reports a REASON to the operator or files a cron outcome; a plain
+ * boolean is fine where the only question is whether to attempt a Google call.
+ */
+export async function isGoogleOauthConfigured(accountKey: string = "primary"): Promise<boolean> {
+  return (await probeGoogleOauthConfigured(accountKey)).configured;
 }
 
 /**
@@ -448,6 +491,20 @@ export interface GoogleOauthStatus {
   email: string | null;
   /** Human-readable explanation suitable for surfacing in a card. */
   reason: string;
+  /**
+   * True when we could not ASK — the integration row could not be read, or the
+   * probe itself threw. It is NOT a statement about Google.
+   *
+   * Without this, an unreadable database was indistinguishable from a genuinely
+   * unconfigured integration: both returned `state: "missing"`, so the health
+   * digest told the operator to go re-grant a token that was perfectly fine,
+   * and the calendar cron filed a green "skipped: google_oauth_not_configured"
+   * run blaming a configuration that was correct.
+   *
+   * Additive and optional: the three consumers all read fields rather than
+   * switching exhaustively, so nothing breaks by not setting it.
+   */
+  probeFailed?: boolean;
 }
 
 const STALE_AFTER_MS = 7 * 86400_000;
@@ -465,6 +522,10 @@ export async function getGoogleOauthStatus(): Promise<GoogleOauthStatus> {
       consecutiveFailures: 0,
       email: null,
       reason: "Integration table unreadable — check DB connectivity",
+      // The reason above was already honest; the STATE was not, and every
+      // consumer branches on the state. This is what makes the two cases
+      // distinguishable without changing the state enum out from under them.
+      probeFailed: true,
     };
   }
 

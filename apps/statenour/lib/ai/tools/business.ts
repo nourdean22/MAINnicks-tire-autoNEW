@@ -85,7 +85,21 @@ export const businessTools = {
     }),
     execute: async ({ period }) => {
       const { getRevenueStats } = await import("@/lib/services/business-intel");
-      return getRevenueStats(period);
+      const stats = await getRevenueStats(period);
+      // A dead shop bridge produced a SUCCESS-SHAPED payload of zeros:
+      // totalRevenue "0.00", jobCount 0, avgTicket "0.00". The service marks it
+      // with bridgeAvailable, but that flag had no consumer anywhere, and the
+      // chat rule only permits "I don't have access" after a tool returns null,
+      // errors, or is unavailable — a zeros payload is none of those three, so
+      // the model was directed to report the fabricated zero as fact.
+      //
+      // Replaced wholesale rather than annotated: leaving the zeros in the
+      // payload beside a flag is what failed the first time.
+      if (!stats.bridgeAvailable) {
+        const { revenueUnavailable } = await import("@/lib/ai/tools/bridge-honesty");
+        return revenueUnavailable(period);
+      }
+      return stats;
     },
   }),
 
@@ -103,7 +117,14 @@ export const businessTools = {
     inputSchema: z.object({}),
     execute: async () => {
       const { getDashboardSummary } = await import("@/lib/services/business-intel");
-      return getDashboardSummary();
+      const summary = await getDashboardSummary();
+      // Each sub-read degrades independently, so this is PARTIAL rather than
+      // all-or-nothing. The decision of what to blank is a pure function so it
+      // can be pinned directly — driving it through getDashboardSummary means
+      // mocking three concurrent bridge reads, which is exactly the machinery
+      // this repo keeps getting wrong.
+      const { redactUnreadableSections } = await import("@/lib/ai/tools/bridge-honesty");
+      return redactUnreadableSections(summary);
     },
   }),
 

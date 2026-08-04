@@ -99,12 +99,23 @@ export async function processCronSkipWatchdog(): Promise<{
       if (skips.length === 0) continue;
       if (completes.length > 0) continue; // had at least one successful run — not silently stuck
 
-      // Verify the skip reason is env-related (not business-hours or admin-inactive)
-      const envSkip = skips.find((s) => (s.details || "").includes("requiresEnv:"));
+      // Verify the skip reason is config-related (not business-hours or admin-inactive).
+      //
+      // BOTH prefixes, deliberately. The scheduler has two gates: the original
+      // `requiresEnv` (presence) emits "requiresEnv:KEY", and the newer strict
+      // `requiresFlag` emits "requiresFlag:KEY (why)" via unarmedFlagReason. This
+      // watchdog only ever matched the first, so every job behind `requiresFlag`
+      // — which is the whole reel and social PUBLISHING pipeline
+      // (REEL_GENERATION_ENABLED, REEL_AUTOPOST_ENABLED,
+      // SOCIAL_INVENTORY_PUBLISH_ENABLED, CONTENT_REPLENISH_ENABLED) — could go
+      // unarmed with no alarm from the one system built to catch exactly that.
+      // Not hypothetical: a Railway variable for that pipeline was deleted on
+      // 2026-08-03, and `variable delete` does not restart the container.
+      const envSkip = skips.find((s) => /requires(Env|Flag):/.test(s.details || ""));
       if (!envSkip) continue;
 
       // Extract the env var name from the details column
-      const envMatch = (envSkip.details || "").match(/requiresEnv:([A-Z0-9_]+)/);
+      const envMatch = (envSkip.details || "").match(/requires(?:Env|Flag):([A-Z0-9_]+)/);
       const envVar = envMatch ? envMatch[1] : "(unknown)";
 
       affected.push({

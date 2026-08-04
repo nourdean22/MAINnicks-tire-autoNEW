@@ -19,7 +19,7 @@
 
 ### Branching (operator rule 2026-06-11 — supersedes any older "push main" notes)
 
-- **NEVER push `main`.** Named branches (`statenour/<task>` · `docs/<task>` · `chore/<task>`) + PR; the operator merges. Prefer a fresh `.worktrees/<name>` worktree off origin/main (concurrent sessions share this repo).
+- **NEVER push `main`.** Named branches (`statenour/<task>` · `docs/<task>` · `chore/<task>`) + PR; create and squash-merge the PR yourself per root `AGENTS.md` → Branching (autonomous merging allowed). Prefer a fresh `.worktrees/<name>` worktree off origin/main (concurrent sessions share this repo).
 - Stage only your files by explicit path · never `git add -A` · never `--no-verify` · scope to the assigned task only.
 - `apps/statenour/scripts/pre-push-check.sh` is a stale Vercel-era artifact — NOT the active hook; ignore it. The real hook is the repo-root `lefthook.yml` (`pre-push` -> `turbo build --affected`; Husky is not used).
 
@@ -64,7 +64,9 @@ When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`,
 | Schema-drift guard | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) (EXPECTATIONS list) |
 | Reasoning tool whitelist | [`lib/ai/reasoning/reasoning-tools.ts`](lib/ai/reasoning/reasoning-tools.ts) — 16 read-only tools gated by `NICK_DEEP_REASONING` flag |
 | Tool catalog (count = `TOOL_CATALOG.length`, never prose) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) — category, cost, risk, required env |
-| Firecrawl web scraper | [`lib/integrations/firecrawl.ts`](lib/integrations/firecrawl.ts) — `FIRECRAWL_API_KEY` env; `scrapeWebPage` tool in `system.ts` |
+| Firecrawl web scraper | [`lib/integrations/firecrawl.ts`](lib/integrations/firecrawl.ts) — `FIRECRAWL_API_KEY` env; `scrapeWebPage` tool in `system.ts`. SSRF defense via `assertPublicUrl()`, output wrapped in `fenceContent()` |
+| last30days research engine | `lib/ai/last30days` — `last30days` tool in `system.ts`; deep search across Reddit/HN/Polymarket/GitHub/YouTube. Needs `python3` (installed in the Dockerfile) + output tracing in `next.config.ts`; whitelisted in `reasoning-tools.ts` |
+| MoneyPrinterTurbo video generator | `lib/ai/moneyprinter` — `moneyprinter` tool in `system.ts` (sideEffecting, in-flight-guarded). Dockerfile installs `ffmpeg`, `imagemagick`, `py3-pip`; credentials mapped into `config.toml` at runtime |
 | Supply-chain security | `scripts/security-scan.ps1` — `pnpm audit --json` wrapper; report at `reports/security-audit.json` |
 | Codebase MCP server | `scripts/start-codebase-mcp.ps1` + `docs/codebase-memory-mcp.md` — filesystem MCP over `apps/`, `packages/`, `docs/` |
 
@@ -93,11 +95,14 @@ Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-cla
 
 ## 6 · How to resume in a fresh session
 
-```bash
+```powershell
 cd C:\Users\nourd\NOURCITY                       # repo root
-git fetch origin && git worktree add .worktrees/<name> -b statenour/<task> origin/main
-cd .worktrees/<name> && pnpm install --frozen-lockfile && cd apps/statenour
-git log --oneline -10 && head -30 docs/RECONCILIATION.md   # current state
+git fetch origin
+powershell scripts/worktree-setup.ps1 -branchName statenour/<task> -targetDir .worktrees/<name>
+# ^ copies env files + JUNCTIONS node_modules. Do NOT run `pnpm install` in a junctioned
+#   worktree: it offers to WIPE the shared node_modules (default Y) that every worktree points at.
+cd .worktrees/<name>/apps/statenour
+git log --oneline -10 ; Get-Content docs/RECONCILIATION.md -TotalCount 30   # current state
 pnpm test                                        # read the summary line, not $?
 pnpm verify:hard                                 # full local gate before any push
 ```
@@ -137,20 +142,25 @@ These are the targets to hold. If any go red, stop and diagnose before pushing m
 
 ## 9 · Code Ownership Model
 
-There is no `CODEOWNERS` file. Ownership is enforced by:
+`.github/CODEOWNERS` exists (real owner `@nourdean22` since 2026-07-21) and ROUTES review
+requests — `/apps/statenour/prisma/`, `/lib/ai/`, `/lib/automation/`, `middleware.ts`, `auth.ts`
+and the security paths are listed there. It only becomes REQUIRED once branch protection on
+`main` enables "Require review from Code Owners" (repo setting, not settable from code).
+Ownership is otherwise enforced by:
 
 | Layer | Mechanism |
 |-------|-----------|
 | App-level rules | This file (`apps/statenour/AGENTS.md`) — read first |
+| Review routing | [`.github/CODEOWNERS`](../../.github/CODEOWNERS) |
 | Cross-cutting rules | Root [`AGENTS.md`](../../AGENTS.md) + [`CIITTY v2.1`](../../.agents/frameworks/ciitty/SKILL.md) |
-| PR gate | Operator merges all PRs — no direct main push |
+| PR gate | Named branch + PR — agents create and squash-merge their own PRs (root `AGENTS.md` → Branching); NEVER a direct push to `main` |
 | DB constraints | `check:raw-sql` audits raw-SQL column casing; the `--accept-data-loss` ban is policy (no automated gate); pgvector via raw SQL only |
 | Schema drift | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) EXPECTATIONS list |
 
 **Governance checks (automated):**
 - `pnpm check:stale-docs` — guards `docs/CURRENT-TRUTH.md` freshness
 - `pnpm check:crons` — validates cron manifest against `config/crons.ts`
-- `pnpm check:raw-sql` — blocks dangerous Prisma flags
+- `pnpm check:raw-sql` — audits camelCase column references in raw SQL. It does NOT scan for `--accept-data-loss`; no automated gate does, and the flag ban is policy enforced by review (see §5 and the DB-constraints row above, which already say so — this line used to contradict both)
 - `pnpm check:prompt-size` — keeps system prompt under token limit
 
 **PR final report format** (required on every PR):
@@ -176,5 +186,5 @@ Key rules from CIITTY that always apply here:
 - **Cache invalidation** — after mutations, invalidate `dashboard_brief`, `ultron_command_center_state_v1` keys
 - **iOS PWA** — never `window.confirm/alert/prompt`; two-tap DOM pattern only
 
-For clarity-gate usage, full spec lives in: [`~/.gemini/config/skills/clarity-gate/`](~/.gemini/config/skills/clarity-gate/)
+Clarity Gate (pre-ingestion epistemic verification) is invoked as a skill — see root `AGENTS.md` → Operating frameworks.
 
