@@ -185,7 +185,10 @@ call — below the bar).
   and before believing a 'no rows' claim. Agents get no prod credentials;
   the orchestrator runs the probe."
 - **Confidence:** high (2 instances, same session, opposite directions)
-- **Status:** proposed
+- **Status:** applied 2026-08-04 — operator approved the queue in chat; edit
+  made directly to `~/.claude/CLAUDE.md` § SUBAGENT POLICY rule 3 (the file
+  is outside this repo, so this stamp is its only in-repo trace; recorded
+  alongside #1363)
 
 ## 2026-08-04 · Agent OS v1 (canonical policy + adapters + enforcement hooks) — PRs #1355, #1354
 
@@ -290,7 +293,7 @@ statenour primitives documented (existence re-verified at
   `-CaseSensitive` with an anchored pattern, and read one captured line
   before trusting a batch of them."
 - **Confidence:** high (mechanism reproducible; cost paid this session)
-- **Status:** proposed
+- **Status:** applied #1363 — added to `statenour-verify` Traps
 
 ### P2 · `guard-red-team`
 - **Trigger (witnessed):** the command-text guard false-positived THREE times
@@ -311,7 +314,9 @@ statenour primitives documented (existence re-verified at
   guarded verb". Each should become a locked allowExample in the guard's
   canaries when fixed.
 - **Confidence:** high (three instances, same session, three shapes)
-- **Status:** proposed
+- **Status:** applied #1363 — probe classes added to `guard-red-team`; the
+  enforcement fix (policy.json + locked allowExamples) ships separately,
+  red-teamed per the skill
 
 ### P3 · `stranded-branch-rescue`
 - **Trigger (witnessed):** four dependabot PRs (#1311/#1267/#1266/#1263) sat
@@ -327,4 +332,5 @@ statenour primitives documented (existence re-verified at
   baseline, not a defect: rebase (or ask dependabot to) and re-read before
   diagnosing anything."
 - **Confidence:** medium (one occurrence, clear mechanism)
-- **Status:** proposed
+- **Status:** applied #1363 — "Same audit, open PRs" section added to
+  `stranded-branch-rescue`
