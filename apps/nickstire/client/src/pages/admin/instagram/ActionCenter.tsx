@@ -246,7 +246,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                 still passes every approval and publish gate. Requires MP4_INGEST_ENABLED.
               </CardDescription>
             </div>
-            <Button size="sm" variant="outline" className="min-h-11" onClick={() => { setIngestOpen(!ingestOpen); setIngestArmed(false); }}>
+            <Button size="sm" variant="outline" className="min-h-12" onClick={() => { setIngestOpen(!ingestOpen); setIngestArmed(false); }}>
               {ingestOpen ? "Close" : "Open"}
             </Button>
           </div>
@@ -257,6 +257,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
               <label className="text-xs font-medium text-muted-foreground" htmlFor="mp4-source">File path or public URL</label>
               <Input
                 id="mp4-source"
+                className="h-12"
                 value={ingestSource}
                 onChange={(e) => { setIngestSource(e.target.value); setIngestArmed(false); }}
                 placeholder="/data/renders/winter-tires.mp4 or https://…/final.mp4"
@@ -272,6 +273,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
               <label className="text-xs font-medium text-muted-foreground" htmlFor="mp4-topic">Topic</label>
               <Input
                 id="mp4-topic"
+                className="h-12"
                 value={ingestTopic}
                 onChange={(e) => { setIngestTopic(e.target.value); setIngestArmed(false); }}
                 placeholder="Winter tire changeover"
@@ -282,6 +284,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
               <label className="text-xs font-medium text-muted-foreground" htmlFor="mp4-caption">Caption</label>
               <Input
                 id="mp4-caption"
+                className="h-12"
                 value={ingestCaption}
                 onChange={(e) => { setIngestCaption(e.target.value); setIngestArmed(false); }}
                 placeholder="The caption this reel publishes with"
@@ -293,7 +296,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                   operator's standalone iOS PWA, so a confirm() gate here would
                   be no gate at all. */}
               <Button
-                className="min-h-11"
+                className="min-h-12"
                 variant={ingestArmed ? "default" : "outline"}
                 disabled={ingestMp4.isPending || !ingestSource.trim() || !ingestTopic.trim() || !ingestCaption.trim()}
                 onClick={() => {
@@ -310,7 +313,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
                 {ingestArmed ? "Tap again to ingest" : "Ingest as draft"}
               </Button>
               {ingestArmed && (
-                <Button size="sm" variant="ghost" className="min-h-11" onClick={() => setIngestArmed(false)}>Cancel</Button>
+                <Button size="sm" variant="ghost" className="min-h-12" onClick={() => setIngestArmed(false)}>Cancel</Button>
               )}
             </div>
           </CardContent>

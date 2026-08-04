@@ -93,6 +93,18 @@ describe("the gate is unchanged by being reachable", () => {
     expect(PANEL).toContain(`key: ${JSON.stringify(MP4_INGEST_FLAG)}`);
   });
 
+  it("every interactive control in the card clears the 48px touch target", () => {
+    // apps/nickstire/AGENTS.md: "Minimum 48×48px touch targets". min-h-11 is
+    // 44px and the Input primitive's default h-9 is 36px — both were below it
+    // on a two-tap flow that fires a real ingest.
+    const card = CLIENT.slice(CLIENT.indexOf("{/* The mp4 door."), CLIENT.indexOf("{/* Ambiguous publishes lead:"));
+    expect(card).toMatch(/min-h-12/);
+    expect(card).not.toMatch(/min-h-11/);
+    // All three Inputs carry an explicit height rather than inheriting h-9.
+    expect((card.match(/<Input\b/g) || []).length).toBe(3);
+    expect((card.match(/className="h-12"/g) || []).length).toBe(3);
+  });
+
   it("the router does not pre-empt the service's own checks", () => {
     // Every refusal belongs to the service, which is where the tests for them
     // live. A router that duplicated the ftyp or presigned check would create a
@@ -100,5 +112,51 @@ describe("the gate is unchanged by being reachable", () => {
     const block = ROUTER.slice(ROUTER.indexOf("ingestFinishedMp4: "), ROUTER.indexOf("actOnInventoryItem: adminProcedure"));
     expect(block).not.toMatch(/ftyp|presigned|MP4_INGEST_ENABLED/);
     expect(block).toMatch(/await ingestFinishedMp4\(input\)/);
+  });
+});
+
+describe("what being reachable turned from latent into live", () => {
+  const SERVICE = readFileSync(join(__dirname, "services", "mp4Ingest.ts"), "utf8");
+
+  /**
+   * The loadSource BODY, not the whole file — the comment above it explains
+   * what `fetch` + arrayBuffer() used to do, and a file-wide negative match
+   * fails on the very prose documenting the fix. (Second time this shape has
+   * bitten in one PR; the .gitleaksignore note says the same thing.)
+   */
+  const loadSourceBody = SERVICE.slice(
+    SERVICE.indexOf("async function loadSource("),
+    SERVICE.indexOf("export async function ingestFinishedMp4("),
+  );
+
+  it("fetches through the shared guard, not a bare fetch", () => {
+    // A plain fetch follows a 302 anywhere, so validating only the SUBMITTED
+    // URL leaves the whole private network one redirect away — the shape of a
+    // blind SSRF against a cloud metadata endpoint. fetchPublicBounded
+    // re-validates every hop.
+    expect(loadSourceBody).toMatch(/fetchPublicBounded\(source, \{/);
+    expect(loadSourceBody).not.toMatch(/await fetch\(source/);
+    expect(loadSourceBody).not.toMatch(/arrayBuffer\(\)/);
+  });
+
+  it("caps the remote body while it streams, not after", () => {
+    expect(SERVICE).toMatch(/maxBytes: MP4_MAX_BYTES/);
+    expect(SERVICE).toMatch(/maxRedirects: MP4_MAX_REDIRECTS/);
+  });
+
+  it("caps the LOCAL path too — a path is operator-supplied like a URL", () => {
+    // /dev/zero or a multi-gigabyte render would otherwise be read whole into a
+    // Buffer. stat before read, and refuse anything that is not a regular file.
+    expect(SERVICE).toMatch(/const stat = await fs\.stat\(source\)/);
+    expect(SERVICE).toMatch(/stat\.isFile\(\)/);
+    expect(SERVICE).toMatch(/stat\.size > MP4_MAX_BYTES/);
+  });
+
+  it("the guard is SHARED with the reel start-image download, not copied", () => {
+    // Two hardened copies diverge one bypass at a time. One module, two callers.
+    const HF = readFileSync(join(__dirname, "services", "higgsfieldStudio.ts"), "utf8");
+    expect(HF).toMatch(/fetchPublicBounded\(url, \{/);
+    expect(HF).not.toMatch(/function assertPublicIPv4/);
+    expect(HF).not.toMatch(/function assertFetchableImageHost/);
   });
 });
