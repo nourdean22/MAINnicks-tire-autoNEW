@@ -51,23 +51,38 @@ import {
 type Severity = "healthy" | "warning" | "critical" | "info" | "unknown";
 type CardGroup = "health" | "governance" | "ai" | "data";
 
+/**
+ * `measured` is optional ONLY for the deploy window (an old server payload
+ * lacks it). The load-bearing check everywhere below is `=== false` — a
+ * section the server explicitly marked unmeasured must never render as a
+ * count, a "healthy", or a "no devices". Its zeros are shape filler from
+ * a crashed scan or the open quota circuit, not observations.
+ */
 interface HubPayload {
   crons: {
     declared: number;
     silent: number;
     logRows48h: number;
     killed: number;
+    measured?: boolean;
   };
-  errors: { count24h: number; fatal24h: number };
-  stale: { totalRows: number; categories: number };
-  brain: { totalMemories: number; permanent: number; avgConfidence: number };
-  devices: { online: number; offline: number; total: number };
-  pulse: { priorityCount: number };
-  ai: { calls24h: number; costCents7d: number };
-  power: { paused: boolean };
-  governance: { pendingCount: number };
+  errors: { count24h: number; fatal24h: number; measured?: boolean };
+  stale: { totalRows: number; categories: number; measured?: boolean };
+  brain: {
+    totalMemories: number;
+    permanent: number;
+    avgConfidence: number;
+    measured?: boolean;
+  };
+  devices: { online: number; offline: number; total: number; measured?: boolean };
+  pulse: { priorityCount: number; measured?: boolean };
+  ai: { calls24h: number; costCents7d: number; measured?: boolean };
+  power: { paused: boolean; measured?: boolean };
+  governance: { pendingCount: number; measured?: boolean };
   generatedAt: string;
 }
+
+const UNMEASURED_CHIP = { label: "unmeasured", severity: "unknown" as Severity };
 
 interface HubCard {
   href: string;
@@ -94,7 +109,10 @@ interface HubCard {
 // hub). "Brain Categories" repointed /brain/categories (404) → /brain.
 // Hardcoded "114 tools"/"1,423 skills" count chips went with their
 // (now-dead) cards.
-const CARDS: HubCard[] = [
+// Exported for tests/components/hub-grid-chips.test.ts — the chips are the
+// decision layer, and pinning them through a render would need a trpc mock
+// for what are already pure functions of the payload.
+export const CARDS: HubCard[] = [
   {
     href: "/system/fleet",
     title: "Fleet Truth",
@@ -114,9 +132,14 @@ const CARDS: HubCard[] = [
     description:
       "Unified probe hub — env · crons · errors · backlog · vectors · pulse",
     featured: true,
-    // Live chip merged in from the former "OS Health" card.
+    // Live chip merged in from the former "OS Health" card. "healthy" is a
+    // claim about BOTH sources — if either scan did not run, the claim is
+    // not available (2026-08-04: the quota circuit fed this chip fabricated
+    // zeros and it printed "healthy" in green on a live page).
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
+      if (d.errors.measured === false || d.crons.measured === false)
+        return UNMEASURED_CHIP;
       const bad = d.errors.fatal24h > 0 || d.crons.silent > 2;
       return bad
         ? { label: "degraded", severity: "warning" }
@@ -140,6 +163,9 @@ const CARDS: HubCard[] = [
     // must warn, never render "0 online" in green.
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
+      // Before the total===0 check: "no devices" off an UNREAD fleet is a
+      // claim about the shop's cameras made by a query that never ran.
+      if (d.devices.measured === false) return UNMEASURED_CHIP;
       if (d.devices.total === 0) return { label: "no devices", severity: "unknown" };
       return d.devices.online < d.devices.total
         ? { label: `${d.devices.online}/${d.devices.total} online`, severity: "warning" }
@@ -154,6 +180,7 @@ const CARDS: HubCard[] = [
     description: "Live cron control surface — enable/disable per job + run now",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
+      if (d.crons.measured === false) return UNMEASURED_CHIP;
       if (d.crons.killed > 0)
         return { label: `${d.crons.killed} killed`, severity: "warning" };
       return { label: `${d.crons.declared} total`, severity: "healthy" };
@@ -170,6 +197,7 @@ const CARDS: HubCard[] = [
     description: "Fingerprinted error log with frequency + stack grouping",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
+      if (d.errors.measured === false) return UNMEASURED_CHIP;
       if (d.errors.fatal24h > 0)
         return { label: `${d.errors.fatal24h} fatal 24h`, severity: "critical" };
       if (d.errors.count24h > 20)
@@ -209,6 +237,8 @@ const CARDS: HubCard[] = [
     description: "Per-model + per-feature burn rate with daily budget",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
+      // A fabricated "$0.00 7d" reads as a spend observation; it is not.
+      if (d.ai.measured === false) return UNMEASURED_CHIP;
       const usd = (d.ai.costCents7d / 100).toFixed(2);
       return { label: `$${usd} 7d`, severity: "info" };
     },
@@ -224,6 +254,7 @@ const CARDS: HubCard[] = [
     description: "Brain hub — memories, categories, recall + people intelligence",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
+      if (d.brain.measured === false) return UNMEASURED_CHIP;
       return {
         label: `${d.brain.totalMemories.toLocaleString()} rows`,
         severity: "info",
@@ -301,6 +332,7 @@ const CARDS: HubCard[] = [
     // 24h AI-call count as telemetry ("info"), never an unearned "healthy".
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
+      if (d.ai.measured === false) return UNMEASURED_CHIP;
       return { label: `${d.ai.calls24h} calls · 24h`, severity: "info" };
     },
   },

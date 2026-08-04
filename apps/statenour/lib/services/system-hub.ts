@@ -41,6 +41,13 @@ export async function buildSystemHub() {
     safeQuery(
       async () => {
         // ErrorLog has `level` (error/warn/fatal), not `severity`.
+        // KNOWN DEAD DISCRIMINATOR, left deliberately: no writer has ever
+        // emitted level='fatal' (prod probe 2026-07-30: error=389 · warn=823 ·
+        // fatal=0 — see system-pulse.ts:130, which repointed its buckets to
+        // level='error'). Mirroring that here would flip the hub Diagnostics
+        // and home health chips' `fatal24h > 0` branches PERMANENTLY red at
+        // historic error volume — trading a false green for a false red.
+        // Repointing needs an operator threshold decision; registered.
         const rows = await prisma.$queryRaw<
           Array<{ errors: bigint; fatal: bigint }>
         >`
@@ -56,7 +63,7 @@ export async function buildSystemHub() {
           fatal24h: Number(r?.fatal ?? 0),
         };
       },
-      { count24h: 0, fatal24h: 0 },
+      null,
       { label: "hub.errors" },
     ),
 
@@ -78,7 +85,7 @@ export async function buildSystemHub() {
           avgConfidence: Number(r?.avg ?? 0),
         };
       },
-      { totalMemories: 0, permanent: 0, avgConfidence: 0 },
+      null,
       { label: "hub.brain" },
     ),
 
@@ -91,7 +98,7 @@ export async function buildSystemHub() {
         const offline = rows.filter((r) => r.status === "OFFLINE").length;
         return { online, offline, total: rows.length };
       },
-      { online: 0, offline: 0, total: 0 },
+      null,
       { label: "hub.devices" },
     ),
 
@@ -111,7 +118,7 @@ export async function buildSystemHub() {
           costCents7d: Number(r?.cost_cents ?? 0),
         };
       },
-      { calls24h: 0, costCents7d: 0 },
+      null,
       { label: "hub.ai" },
     ),
 
@@ -126,7 +133,7 @@ export async function buildSystemHub() {
         `;
         return Number(rows[0]?.c ?? 0);
       },
-      0,
+      null,
       { label: "hub.pulse" },
     ),
 
@@ -137,33 +144,64 @@ export async function buildSystemHub() {
         });
         return count;
       },
-      0,
+      null,
       { label: "hub.governance" }
     ),
   ]);
 
+  // Every section carries `measured`. A sub-rollup that crashed or was
+  // swallowed by the quota circuit resolves to null above, and its zeros
+  // below are FILLER for shape stability — a chip that renders "healthy"
+  // (or "no devices", or "$0.00") off filler is fabricating an all-clear,
+  // which is exactly what the 2026-08-04 false-green sweep registered
+  // against this payload. Consumers must branch on `measured === false`.
   return {
     crons: {
       declared: cronReport?.summary.declaredActiveCrons ?? 0,
       silent: cronReport?.summary.silentDeclaredCrons ?? 0,
       logRows48h: cronReport?.summary.totalLogRowsLast48h ?? 0,
       killed: cronReport?.summary.killedIndividually ?? 0,
+      measured: cronReport !== null,
     },
-    errors: errorStats,
+    errors: {
+      count24h: errorStats?.count24h ?? 0,
+      fatal24h: errorStats?.fatal24h ?? 0,
+      measured: errorStats !== null,
+    },
     stale: {
       totalRows: staleReport?.totalStaleRows ?? 0,
       categories:
         staleReport?.categories.filter((c) => c.count > 0).length ?? 0,
+      measured: staleReport !== null,
     },
-    brain: brainStats,
-    devices: deviceStats,
-    pulse: { priorityCount: pulsePriority },
-    ai: aiStats,
+    brain: {
+      totalMemories: brainStats?.totalMemories ?? 0,
+      permanent: brainStats?.permanent ?? 0,
+      avgConfidence: brainStats?.avgConfidence ?? 0,
+      measured: brainStats !== null,
+    },
+    devices: {
+      online: deviceStats?.online ?? 0,
+      offline: deviceStats?.offline ?? 0,
+      total: deviceStats?.total ?? 0,
+      measured: deviceStats !== null,
+    },
+    pulse: {
+      priorityCount: pulsePriority ?? 0,
+      measured: pulsePriority !== null,
+    },
+    ai: {
+      calls24h: aiStats?.calls24h ?? 0,
+      costCents7d: aiStats?.costCents7d ?? 0,
+      measured: aiStats !== null,
+    },
     power: {
       paused: powerSettings?.pauseAllCrons ?? false,
+      measured: powerSettings !== null,
     },
     governance: {
-      pendingCount: governanceCount,
+      pendingCount: governanceCount ?? 0,
+      measured: governanceCount !== null,
     },
     generatedAt: new Date().toISOString(),
   };
