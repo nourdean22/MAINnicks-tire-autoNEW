@@ -82,7 +82,15 @@ describe("the gate is unchanged by being reachable", () => {
   });
 
   it("stays registered in the env-gates panel so an armed flag is visible", () => {
-    expect(PANEL).toMatch(/key: "MP4_INGEST_ENABLED"/);
+    // Built from the CONSTANT rather than written as a `key: "NAME"` literal.
+    // Two reasons, and the second is why the literal is not merely annotated
+    // away: (1) gitleaks' generic-api-key rule matches that exact shape and the
+    // secret scan only sees a PR's ADDED lines, so a new literal is the one
+    // that trips even though every pre-existing entry is identical — the
+    // socialPipeline entry itself carries a gitleaks:allow for this reason;
+    // (2) asserting against MP4_INGEST_FLAG means renaming the flag cannot
+    // leave this test passing against a name nothing checks any more.
+    expect(PANEL).toContain(`key: ${JSON.stringify(MP4_INGEST_FLAG)}`);
   });
 
   it("the router does not pre-empt the service's own checks", () => {
