@@ -42,10 +42,13 @@ export function EmergencyMode() {
   // roadside finished reading.
   const closeForm = () => {
     setShowForm(false);
-    if (submitted) {
-      setSubmitted(false);
-      setFormData({ name: "", phone: "", vehicle: "", issue: "", urgency: "emergency" });
-    }
+    // Reset unconditionally. Guarding on `submitted` left a stale success
+    // panel behind if the customer closed while the submit was still in
+    // flight: onSuccess then set the flag on a closed modal, and because the
+    // component stays mounted the whole time the shop is closed, the next
+    // tap opened straight onto "REQUEST RECEIVED!" with no form.
+    setSubmitted(false);
+    setFormData({ name: "", phone: "", vehicle: "", issue: "", urgency: "emergency" });
   };
 
   // a11y: trap focus inside the emergency modal, autofocus first field,
@@ -311,7 +314,12 @@ export function EmergencyMode() {
         animate={{ opacity: 1, scale: 1 }}
         onClick={() => setShowForm(true)}
         aria-label="Open emergency request form"
-        className="fixed bottom-52 right-4 z-[95] bg-red-500 hover:bg-red-600 text-white p-4 rounded-full font-bold text-sm tracking-wide transition-colors shadow-lg flex items-center gap-2 lg:bottom-6 lg:right-24"
+        // bottom-52 clears both the CTA bar (68px + safe-area) and the closed
+        // ChatWidget bubble (bottom-36, 48px tall). z-[85] deliberately sits
+        // BELOW the chat panel's z-[90]: when chat is open its 480px panel
+        // occupies this same column, and the chat should win rather than have
+        // an opaque red bubble steal taps meant for the conversation.
+        className="fixed bottom-52 right-4 z-[85] bg-red-500 hover:bg-red-600 text-white p-4 rounded-full font-bold text-sm tracking-wide transition-colors shadow-lg flex items-center gap-2 lg:bottom-6 lg:right-24"
       >
         <motion.span
           animate={{ scale: [1, 1.2, 1] }}

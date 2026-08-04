@@ -174,7 +174,10 @@ export function BottomPulseTicker() {
       aria-live="off"
       className="relative min-h-[32px] sm:h-5 border-t border-[var(--border-default)] bg-[var(--bg-void)]/60"
     >
-      <div className="flex items-center gap-2 px-3 h-full min-h-[32px] sm:min-h-0">
+      {/* gap-3: the snooze button uses the pulled-margin pattern (p-3 -m-3),
+          so its hit box extends 12px past its footprint — at gap-2 it
+          overlapped the pause button's edge. */}
+      <div className="flex items-center gap-3 px-3 h-full min-h-[32px] sm:min-h-0">
         {/* The one item · tap anywhere to open the full pulse feed. */}
         <button
           type="button"
@@ -196,8 +199,11 @@ export function BottomPulseTicker() {
               setPaused((p) => !p);
             }}
             aria-pressed={paused}
-            aria-label={paused ? "Resume rotation" : "Pause rotation"}
-            className="shrink-0 rounded px-1 text-[9px] tabular-nums text-[var(--text-tertiary)] outline-none hover:text-[var(--text-secondary)] focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+            /* Static label + aria-pressed. Swapping the label AND setting
+               aria-pressed announces "Resume rotation, pressed" when frozen,
+               which states the opposite of the truth. */
+            aria-label="Pause rotation"
+            className="shrink-0 inline-flex min-h-11 min-w-11 items-center justify-center rounded px-1 text-[9px] tabular-nums text-[var(--text-tertiary)] outline-none hover:text-[var(--text-secondary)] focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 sm:min-h-8 sm:min-w-8"
           >
             {paused ? "⏸ " : ""}
             {safeIdx + 1}/{items.length}

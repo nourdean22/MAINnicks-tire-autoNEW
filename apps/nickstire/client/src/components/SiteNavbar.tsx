@@ -153,6 +153,17 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
             className={`lg:hidden fixed inset-0 ${hasEmergencyBanner ? "top-[116px] sm:top-[108px]" : "top-[60px]"} bg-[oklch(0.06_0.004_260/0.98)] backdrop-blur-2xl z-40`}
           >
             <div className="container py-10 flex flex-col gap-1">
+              {/* aria-modal="true" makes everything outside this panel inert
+                  to assistive tech, so the X in the bar above is unreachable
+                  to VoiceOver — which has no Escape key. The dialog needs its
+                  own close control. */}
+              <button
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+                className="self-end -mt-4 mb-2 inline-flex items-center justify-center w-11 h-11 text-foreground/60 hover:text-foreground transition-colors"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
               {NAV_LINKS.map((l, i) => (
                 <motion.div
                   key={l.href}

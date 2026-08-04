@@ -255,9 +255,12 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   // loaded panel mounts, body scroll locked for the drawer's lifetime.
   const drawerRef = useRef<HTMLDivElement>(null);
   useFocusTrap(drawerRef, !isLoading && !!wo, { onEscape: onClose });
+  // Restore the prior value rather than hard-clearing, so a nested overlay
+  // closing does not unlock the page underneath it.
   useEffect(() => {
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    return () => { document.body.style.overflow = prev; };
   }, []);
 
   if (isLoading) return (
@@ -269,7 +272,35 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
     </div>
   );
 
-  if (!wo) return null;
+  // A work order that fails to load says so. `return null` used to render
+  // nothing while the body scroll lock above stayed applied — an invisible
+  // modal that froze the page with no backdrop and no close button.
+  if (!wo) return (
+    <div className="fixed inset-0 z-[62] flex">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Work order unavailable"
+        className="ml-auto w-full max-w-lg bg-background border-l border-border/40 p-6 overflow-y-auto relative z-10"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Couldn't load this work order</p>
+              <p className="mt-1 text-xs text-foreground/60">
+                It may have been deleted, or the lookup failed. This is not an empty work order.
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 -mr-2 sm:-mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   const promise = formatPromiseTime(wo.promisedAt);
   const prio = PRIORITY_CONFIG[wo.priority] || PRIORITY_CONFIG.normal;

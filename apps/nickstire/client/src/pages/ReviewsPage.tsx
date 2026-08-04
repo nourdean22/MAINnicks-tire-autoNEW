@@ -17,6 +17,7 @@ import { trpc } from "@/lib/trpc";
 import { GBP_REVIEW_URL } from "@shared/const";
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
+import { useBusinessHours } from "@/hooks/useBusinessHours";
 
 // 2026-05-06 wave-16 · pro photo pack: reviews page top banner = full-sign
 // storefront per PLACEMENT_GUIDE.md "Reviews page" row — overlay copy
@@ -179,6 +180,9 @@ function ReviewCard({ review }: { review: { authorName: string; rating: number; 
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function ReviewsPage() {
   const { data: reviewData, isLoading, isError } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000 });
+  // Drives the sticky filter-bar offset — the navbar shifts down by the
+  // after-hours banner's height, so a fixed offset is right only half the day.
+  const { isOpen: shopOpen } = useBusinessHours();
 
   const [serviceFilter, setServiceFilter] = useState<ServiceType>("All");
   const [starFilter, setStarFilter] = useState<number | null>(null);
@@ -459,9 +463,15 @@ export default function ReviewsPage() {
         )}
 
         {/* ─── FILTER BAR ─── */}
-        {/* top-[60px]: the fixed SiteNavbar is 60px tall — at top-0 this bar
-            stuck underneath it and the filter pills vanished on scroll. */}
-        <section className="bg-[oklch(0.06_0.004_260)] border-y border-border/20 sticky top-[60px] z-30">
+        {/* Offset must match the navbar's own, which shifts down when the
+            after-hours banner is up (SiteNavbar: top-[56px] sm:top-[48px] +
+            60px tall). At a flat top-0 the filter pills slid behind the nav;
+            at a flat top-[60px] they still would after hours. */}
+        <section
+          className={`bg-[oklch(0.06_0.004_260)] border-y border-border/20 sticky z-30 ${
+            shopOpen ? "top-[60px]" : "top-[116px] sm:top-[108px]"
+          }`}
+        >
           <div className="container py-4">
             {/* Service type pills */}
             <div className="flex flex-wrap gap-2 mb-3">

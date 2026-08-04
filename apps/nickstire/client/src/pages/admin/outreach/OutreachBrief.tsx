@@ -83,7 +83,16 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   // forever, so without this branch the shimmer below would pin the brief
   // on "Loading outreach state…" for good. Same amber row style as the
   // recovery-unknown line further down.
-  if (reviewStatsError || campaignStatsError || recoveryError) {
+  // Error AND no data. react-query sets status:"error" on a failed
+  // BACKGROUND refetch while keeping the good cached data, and
+  // refetchOnWindowFocus is on — so an isError-only check would replace a
+  // fully-rendered brief with "unreadable" the moment the operator tabbed
+  // back after one flaky refetch.
+  if (
+    (reviewStatsError && !reviewStats) ||
+    (campaignStatsError && !campaignStats) ||
+    (recoveryError && !recovery)
+  ) {
     return (
       <div className="bg-card border border-border/40 p-4">
         <div className="flex items-center gap-2.5">

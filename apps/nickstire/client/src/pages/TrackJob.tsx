@@ -28,7 +28,7 @@ export default function TrackJob() {
   const [phone, setPhone] = useState("");
   const [searched, setSearched] = useState(false);
 
-  const { data, isLoading, isError, isSuccess, refetch } = trpc.dispatch.track.useQuery(
+  const { data, isLoading, isError, isSuccess, fetchStatus, refetch } = trpc.dispatch.track.useQuery(
     { orderNumber, phone },
     { enabled: searched && orderNumber.length > 0 && phone.length >= 10 }
   );
@@ -82,8 +82,18 @@ export default function TrackJob() {
           </button>
         </form>
 
-        {/* Results — three states, never two: a failed or offline-paused
-            lookup must not read as "your order number is wrong". */}
+        {/* Four states, never two. A failed OR offline-paused lookup must not
+            read as "your order number is wrong" — and with the default
+            networkMode:"online" an offline query is neither error nor
+            success nor loading, so without this branch the offline PWA gave
+            no feedback at all. */}
+        {searched && fetchStatus === "paused" && (
+          <QueryError
+            message="You appear to be offline — we couldn't check your order. Reconnect and try again."
+            onRetry={() => refetch()}
+            className="py-8"
+          />
+        )}
         {searched && isError && (
           <QueryError
             message="We couldn't check your order right now — that's a connection problem on our end, not a wrong order number."
