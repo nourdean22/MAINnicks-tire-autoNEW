@@ -448,6 +448,20 @@ export interface GoogleOauthStatus {
   email: string | null;
   /** Human-readable explanation suitable for surfacing in a card. */
   reason: string;
+  /**
+   * True when we could not ASK — the integration row could not be read, or the
+   * probe itself threw. It is NOT a statement about Google.
+   *
+   * Without this, an unreadable database was indistinguishable from a genuinely
+   * unconfigured integration: both returned `state: "missing"`, so the health
+   * digest told the operator to go re-grant a token that was perfectly fine,
+   * and the calendar cron filed a green "skipped: google_oauth_not_configured"
+   * run blaming a configuration that was correct.
+   *
+   * Additive and optional: the three consumers all read fields rather than
+   * switching exhaustively, so nothing breaks by not setting it.
+   */
+  probeFailed?: boolean;
 }
 
 const STALE_AFTER_MS = 7 * 86400_000;
@@ -465,6 +479,10 @@ export async function getGoogleOauthStatus(): Promise<GoogleOauthStatus> {
       consecutiveFailures: 0,
       email: null,
       reason: "Integration table unreadable — check DB connectivity",
+      // The reason above was already honest; the STATE was not, and every
+      // consumer branches on the state. This is what makes the two cases
+      // distinguishable without changing the state enum out from under them.
+      probeFailed: true,
     };
   }
 
