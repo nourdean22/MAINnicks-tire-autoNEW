@@ -275,13 +275,13 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-        <span className={`cursor-pointer hover:text-foreground ${step === "source" ? "text-foreground font-medium" : ""}`} onClick={() => setStep("source")}>
+        <button type="button" className={`cursor-pointer hover:text-foreground ${step === "source" ? "text-foreground font-medium" : ""}`} onClick={() => setStep("source")}>
           1. Source
-        </span>
+        </button>
         <ChevronRight className="h-4 w-4" />
-        <span className={`cursor-pointer hover:text-foreground ${step === "format" ? "text-foreground font-medium" : ""}`} onClick={() => source && setStep("format")}>
+        <button type="button" disabled={!source} className={`cursor-pointer hover:text-foreground disabled:opacity-40 disabled:cursor-default ${step === "format" ? "text-foreground font-medium" : ""}`} onClick={() => source && setStep("format")}>
           2. Format
-        </span>
+        </button>
         <ChevronRight className="h-4 w-4" />
         <span className={`${step === "draft" ? "text-foreground font-medium" : ""}`}>
           3. Studio

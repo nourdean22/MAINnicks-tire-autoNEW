@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "../shared";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
@@ -32,6 +33,7 @@ function GraceButton({ membershipId, onComplete }: { membershipId: number; onCom
       await mutation.mutateAsync({ membershipId, days: 3 });
     } catch (err) {
       console.error(err);
+      toast.error("Couldn't grant grace period — try again.", { description: err instanceof Error ? err.message : undefined });
     } finally {
       setLoading(false);
     }

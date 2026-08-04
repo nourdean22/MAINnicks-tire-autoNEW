@@ -14,6 +14,7 @@
  *
  * DEGRADATION
  *   · All queries loading            → short shimmer line
+ *   · Any signal query errored       → amber "unreadable" row (error ≠ empty)
  *   · Zero queue + recovery live     → green "all clear" tone
  *   · Recovery DRY-RUN + $0          → action line hidden (no real signal)
  *
@@ -52,9 +53,9 @@ function greeting(): string {
 }
 
 export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
-  const { data: reviewStats } = trpc.reviewRequests.stats.useQuery(undefined, { staleTime: 60_000 });
-  const { data: campaignStats } = trpc.campaigns.stats.useQuery(undefined, { staleTime: 60_000 });
-  const { data: recovery } = trpc.shopdriver.declinedRecoveryStatus.useQuery(undefined, { staleTime: 60_000 });
+  const { data: reviewStats, isError: reviewStatsError } = trpc.reviewRequests.stats.useQuery(undefined, { staleTime: 60_000 });
+  const { data: campaignStats, isError: campaignStatsError } = trpc.campaigns.stats.useQuery(undefined, { staleTime: 60_000 });
+  const { data: recovery, isError: recoveryError } = trpc.shopdriver.declinedRecoveryStatus.useQuery(undefined, { staleTime: 60_000 });
   const { data: gw } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
 
   const reviewsPending = reviewStats?.pending ?? 0;
@@ -78,6 +79,23 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   // resolved, leaking a false-zero "no scheduled work" line during
   // initial page load. All three signal-bearing queries must resolve
   // before we trust Line 1 + Line 3 · `gw` is cosmetic and excluded.
+  // Error is not empty · a failed signal query leaves its data undefined
+  // forever, so without this branch the shimmer below would pin the brief
+  // on "Loading outreach state…" for good. Same amber row style as the
+  // recovery-unknown line further down.
+  if (reviewStatsError || campaignStatsError || recoveryError) {
+    return (
+      <div className="bg-card border border-border/40 p-4">
+        <div className="flex items-center gap-2.5">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400/70 shrink-0" />
+          <span className="text-[12.5px] text-amber-200/70 leading-tight">
+            Outreach state unreadable — a data query failed; this is not a quiet day.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   if (!reviewStats || !campaignStats || !recovery) {
     return (
       <div className="bg-card border border-border/40 p-4">

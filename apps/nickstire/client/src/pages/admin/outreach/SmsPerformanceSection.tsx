@@ -20,7 +20,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 
 type RecentSend = NonNullable<RouterOutputs["smsPerformance"]["recentSends"]>[number];
 import { useState, useRef } from "react";
-import { BarChart3, MessageSquare, CheckCircle2, XCircle, Loader2, DollarSign } from "lucide-react";
+import { BarChart3, MessageSquare, CheckCircle2, XCircle, DollarSign } from "lucide-react";
 import { PageHeader, LoadingState, EmptyState, formatDateTime } from "../shared";
 import { sendsPerInvoice } from "@shared/loopScoreboard";
 
@@ -217,8 +217,9 @@ export default function SmsPerformanceSection() {
         )}
       </div>
 
-      {/* Per-tier table */}
-      <div className="bg-card border border-border/30 overflow-hidden">
+      {/* Per-tier table — overflow-x-auto so the 7-column table scrolls on
+          phone (overflow-hidden made the right columns unreachable). */}
+      <div className="bg-card border border-border/30 overflow-x-auto">
         <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-foreground/60" />
           <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">By tier · 30d</span>
@@ -267,7 +268,7 @@ export default function SmsPerformanceSection() {
       </div>
 
       {/* Recent-sends drill-in */}
-      <div ref={drillInRef} className="bg-card border border-border/30 overflow-hidden">
+      <div ref={drillInRef} className="bg-card border border-border/30 overflow-x-auto">
         <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-foreground/60" />
@@ -285,9 +286,7 @@ export default function SmsPerformanceSection() {
           )}
         </div>
         {recentLoading ? (
-          <div className="py-10 flex items-center justify-center">
-            <Loader2 className="w-4 h-4 animate-spin text-primary/60" />
-          </div>
+          <LoadingState label="Loading recent sends..." />
         ) : !recent || recent.length === 0 ? (
           <EmptyState
             icon={<MessageSquare className="w-8 h-8 text-foreground/30" />}
