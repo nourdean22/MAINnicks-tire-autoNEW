@@ -13,6 +13,7 @@ import { getSessionId } from "@/lib/session";
 import { getUtmData } from "@/lib/utm";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 function priceBreakdown(subtotalCents: number) {
   const tax = Math.round(subtotalCents * 0.08);
@@ -162,6 +163,23 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Body scroll lock while the modal is mounted — on iOS the inner
+  // overflow-y-auto otherwise chains to the page, so scrolling the form
+  // to its end started moving the whole page behind the backdrop.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // Focus trap per panel. The success and form panels are mutually
+  // exclusive renders, so each gets its own ref + activation flag —
+  // one shared ref would keep trapping the detached panel after the swap.
+  const formPanelRef = useRef<HTMLDivElement | null>(null);
+  const successPanelRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(formPanelRef, !orderResult);
+  useFocusTrap(successPanelRef, !!orderResult);
+
   const tirePrice = tire ? tire.shopPrice : 0;
   const tirePriceCents = tire ? tire.pricePerTireCents : 0;
   const tireBrandName = tire ? tire.brand : "Custom Request";
@@ -173,18 +191,25 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
   // Success state
   if (orderResult) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      // z-[10001]: above SiteMobileCTA (z-[9999]) and ScrollProgressBar
+      // (z-[10000]) — at z-50 the opaque CTA bar floated lit and tappable
+      // on top of the dimmed backdrop and clipped the modal bottom.
+      <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
         <motion.div
+          ref={successPanelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tire-order-success-title"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto"
         >
-          <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+          <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground sm:h-8 sm:w-8">
             <X className="w-5 h-5" />
           </button>
 
-          <h3 className="text-2xl font-bold text-foreground mb-1 text-center">Tire Request Submitted</h3>
+          <h3 id="tire-order-success-title" className="text-2xl font-bold text-foreground mb-1 text-center">Tire Request Submitted</h3>
           <p className="text-xs text-muted-foreground mb-6 text-center">
             Order <span className="font-mono text-primary font-semibold">#{orderResult.orderNumber}</span>
             {orderResult.invoiceNumber && ` · Invoice ${orderResult.invoiceNumber}`}
@@ -340,18 +365,23 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+    // z-[10001] — see the success-state comment above.
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
       <motion.div
+        ref={formPanelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tire-order-title"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative bg-card border border-border/50 rounded-lg p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto"
       >
-        <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+        <button onClick={onClose} aria-label="Close" title="Close" className="absolute top-4 right-4 flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground sm:h-8 sm:w-8">
           <X className="w-5 h-5" />
         </button>
 
-        <h3 className="text-xl font-semibold text-foreground mb-1">Request Tires</h3>
+        <h3 id="tire-order-title" className="text-xl font-semibold text-foreground mb-1">Request Tires</h3>
         <p className="text-muted-foreground text-sm mb-6">{quantity}x {tireBrandName} {tireModelName} {tireSize ? `(${tireSize})` : ""}</p>
 
         {/* Price breakdown — the psychology */}
@@ -454,8 +484,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
         {/* Form */}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">Full Name *</label>
+            <label htmlFor="order-name" className="block text-sm text-muted-foreground mb-1.5">Full Name *</label>
             <input
+              id="order-name"
               type="text" value={name} onChange={(e) => setName(e.target.value)}
               onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
@@ -463,8 +494,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             />
           </div>
           <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">Phone Number *</label>
+            <label htmlFor="order-phone" className="block text-sm text-muted-foreground mb-1.5">Phone Number *</label>
             <input
+              id="order-phone"
               type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
               onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
@@ -472,8 +504,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             />
           </div>
           <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">Email (for order updates)</label>
+            <label htmlFor="order-email" className="block text-sm text-muted-foreground mb-1.5">Email (for order updates)</label>
             <input
+              id="order-email"
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               onBlur={debouncedTrackPartialOrder}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
@@ -482,8 +515,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">Vehicle Year *</label>
+              <label htmlFor="order-vehicle-year" className="block text-xs text-muted-foreground mb-1">Vehicle Year *</label>
               <input
+                id="order-vehicle-year"
                 type="text"
                 value={vehicleYear}
                 onChange={(e) => setVehicleYear(e.target.value)}
@@ -493,8 +527,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
               />
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">Vehicle Make *</label>
+              <label htmlFor="order-vehicle-make" className="block text-xs text-muted-foreground mb-1">Vehicle Make *</label>
               <input
+                id="order-vehicle-make"
                 type="text"
                 value={vehicleMake}
                 onChange={(e) => setVehicleMake(e.target.value)}
@@ -506,8 +541,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">Vehicle Model *</label>
+              <label htmlFor="order-vehicle-model" className="block text-xs text-muted-foreground mb-1">Vehicle Model *</label>
               <input
+                id="order-vehicle-model"
                 type="text"
                 value={vehicleModel}
                 onChange={(e) => setVehicleModel(e.target.value)}
@@ -517,8 +553,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
               />
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">Option / Trim (optional)</label>
+              <label htmlFor="order-vehicle-option" className="block text-xs text-muted-foreground mb-1">Option / Trim (optional)</label>
               <input
+                id="order-vehicle-option"
                 type="text"
                 value={vehicleOption}
                 onChange={(e) => setVehicleOption(e.target.value)}
@@ -529,8 +566,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             </div>
           </div>
           <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">Tire Size *</label>
+            <label htmlFor="order-tire-size" className="block text-sm text-muted-foreground mb-1.5">Tire Size *</label>
             <input
+              id="order-tire-size"
               type="text"
               value={tireSize}
               onChange={(e) => setTireSize(e.target.value)}
@@ -544,8 +582,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
           </div>
           {deliveryMethod === "ship" && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1.5">Shipping Address *</label>
+              <label htmlFor="order-shipping-address" className="block text-sm text-muted-foreground mb-1.5">Shipping Address *</label>
               <textarea
+                id="order-shipping-address"
                 value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} rows={2}
                 className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors resize-none"
                 placeholder="123 Main St, Cleveland, OH 44112"
@@ -554,8 +593,9 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
             </div>
           )}
           <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">Notes (optional)</label>
+            <label htmlFor="order-notes" className="block text-sm text-muted-foreground mb-1.5">Notes (optional)</label>
             <textarea
+              id="order-notes"
               value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors resize-none"
               placeholder={deliveryMethod === "ship" ? "Any special shipping instructions..." : "Preferred day/time for installation..."}

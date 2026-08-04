@@ -2,7 +2,7 @@
  * Premium Navbar — Tesla-grade minimal design.
  * Wordmark left, nav center, actions right. Glass morphism on scroll.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { trackPhoneClick } from "@/components/SEO";
 import { Phone, Menu, X, ArrowRight } from "lucide-react";
@@ -11,6 +11,7 @@ import { BUSINESS } from "@shared/business";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import BrandMark from "@/components/BrandMark";
 import NonstopNickTopBar from "@/components/NonstopNickTopBar";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 // Tires sits FIRST — highest customer intent. Without this entry, tire-
 // buyers landing on the homepage had no nav-level path to /tires (they
@@ -32,6 +33,13 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isOpen } = useBusinessHours();
   const hasEmergencyBanner = !isOpen;
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Focus trap + Escape + initial focus + focus restoration for the mobile
+  // menu — same contract every other overlay gets via useFocusTrap.
+  useFocusTrap(menuRef, mobileOpen, {
+    onEscape: () => setMobileOpen(false),
+  });
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -123,6 +131,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
           className="lg:hidden text-foreground/70 hover:text-foreground p-2 -mr-2 transition-colors"
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
           aria-expanded={mobileOpen}
+          aria-controls="mobile-nav-menu"
         >
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -132,6 +141,11 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
+            ref={menuRef}
+            id="mobile-nav-menu"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site menu"
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}

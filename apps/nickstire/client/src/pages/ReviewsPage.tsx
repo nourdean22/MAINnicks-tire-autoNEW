@@ -340,7 +340,10 @@ export default function ReviewsPage() {
       />
       <LocalBusinessSchema />
 
-      <main id="main-content">
+      {/* PageLayout already renders the page's single <main id="main-content">
+          landmark — a second nested one is invalid HTML and made the
+          skip-link target ambiguous. */}
+      <div>
         {/* ─── HERO ─── */}
         <section className="relative min-h-[50vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
@@ -387,7 +390,7 @@ export default function ReviewsPage() {
                       href={GBP_REVIEW_URL}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-6 py-3 font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
+                      className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-6 py-3 rounded-md font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
                     >
                       <Star className="w-4 h-4 fill-current" />
                       LEAVE A GOOGLE REVIEW
@@ -456,7 +459,9 @@ export default function ReviewsPage() {
         )}
 
         {/* ─── FILTER BAR ─── */}
-        <section className="bg-[oklch(0.06_0.004_260)] border-y border-border/20 sticky top-0 z-30">
+        {/* top-[60px]: the fixed SiteNavbar is 60px tall — at top-0 this bar
+            stuck underneath it and the filter pills vanished on scroll. */}
+        <section className="bg-[oklch(0.06_0.004_260)] border-y border-border/20 sticky top-[60px] z-30">
           <div className="container py-4">
             {/* Service type pills */}
             <div className="flex flex-wrap gap-2 mb-3">
@@ -664,7 +669,7 @@ export default function ReviewsPage() {
             </FadeIn>
           </div>
         </section>
-      </main>
+      </div>
 
       <ReviewCTA />
 

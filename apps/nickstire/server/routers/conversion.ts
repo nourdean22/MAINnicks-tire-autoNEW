@@ -21,6 +21,7 @@ import { z } from "zod";
 
 import { createLogger } from "../lib/logger";
 import { safeCount, safeRowQuery, safeAggregate } from "../lib/sql-safe";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("routers:conversion");
 
@@ -203,11 +204,12 @@ export const conversionRouter = router({
         const { getDb } = await import("../db");
         const d = await getDb();
         if (!d) {
+          // Fail closed: an unreadable DB must not assert the shop is open —
+          // isOpen:true here let an outage manufacture urgency.
           return {
             slotsRemainingToday: null,
             estimatedWaitMinutes: null,
-            nextAvailableAt: null,
-            isOpen: true,
+            isOpen: null,
             asOf: new Date().toISOString(),
           };
         }
@@ -230,26 +232,25 @@ export const conversionRouter = router({
         const used = activeWOs + todayBookings;
         const slotsRemainingToday = Math.max(0, DAILY_CAPACITY - used);
 
-        // Estimated wait — 45 min per active WO, capped at 4 hr
+        // Estimated wait — 45 min per active WO, capped at 4 hr. This is a
+        // planning heuristic, not a measurement; the client must label it
+        // as an estimate. (The fabricated "next available" timestamp is
+        // gone: FCFS has no bookable slot, and nothing consumed it.)
         const estimatedWaitMinutes = activeWOs === 0 ? 0 : Math.min(240, activeWOs * 45);
 
-        // Next available — current time + estimated wait, rounded to next 15 min
-        const next = new Date();
-        next.setMinutes(next.getMinutes() + estimatedWaitMinutes);
-        const min15 = Math.ceil(next.getMinutes() / 15) * 15;
-        next.setMinutes(min15, 0, 0);
-
-        // Open hours: M-Sat 8-6, Sun 9-4 (per BUSINESS spec)
+        // Open hours: M-Sat 8-6, Sun 9-4 — evaluated in shop-local time.
+        // Railway runs UTC, so process-local getHours() flipped isOpen
+        // false from ~1-2PM ET onward (and true overnight). Same ET
+        // pattern as services/shopStatus.ts.
         const now = new Date();
-        const dow = now.getDay(); // 0=Sun
-        const hour = now.getHours();
+        const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
+        const dow = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone })).getDay(); // 0=Sun
         const isOpen = (dow >= 1 && dow <= 6 && hour >= 8 && hour < 18) ||
                        (dow === 0 && hour >= 9 && hour < 16);
 
         return {
           slotsRemainingToday,
           estimatedWaitMinutes,
-          nextAvailableAt: next.toISOString(),
           isOpen,
           activeJobs: activeWOs,
           todayBookings,
@@ -257,11 +258,11 @@ export const conversionRouter = router({
         };
       } catch (err) {
         log.warn("[conversion.shopCapacity] failed:", err);
+        // Fail closed — see the !d branch above.
         return {
           slotsRemainingToday: null,
           estimatedWaitMinutes: null,
-          nextAvailableAt: null,
-          isOpen: true,
+          isOpen: null,
           asOf: new Date().toISOString(),
         };
       }

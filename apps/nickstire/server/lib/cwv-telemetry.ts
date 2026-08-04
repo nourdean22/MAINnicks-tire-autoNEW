@@ -104,7 +104,7 @@ export interface CwvReport {
     p50: number;
     p75: number;
     p95: number;
-    rating: "good" | "needs-improvement" | "poor";
+    rating: "good" | "needs-improvement" | "poor" | "unavailable";
     threshold: { good: number; needsImprovement: number };
   }>;
   topSlowRoutes: Array<{ route: string; metric: CwvMetric; p75: number; samples: number }>;
@@ -123,7 +123,10 @@ export function getCwvReport(windowMinutes: number = 60): CwvReport {
       p50: Math.round(percentile(vals, 50) * 1000) / 1000,
       p75: Math.round(p75 * 1000) / 1000,
       p95: Math.round(percentile(vals, 95) * 1000) / 1000,
-      rating: classify(m, p75),
+      // An empty buffer (fresh deploy, restart, idle window) must read as
+      // unknown — percentile() returns 0 for no samples and 0 <= good, so
+      // classify() alone rated a metric nobody measured as "good".
+      rating: vals.length === 0 ? "unavailable" : classify(m, p75),
       threshold: THRESHOLDS[m],
     };
     return acc;

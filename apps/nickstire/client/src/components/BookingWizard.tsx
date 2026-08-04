@@ -81,7 +81,10 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
           <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] text-foreground/60">
             <span className="inline-flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-primary" />
-              Mon–Sat 8a–6p
+              {/* Hours from the source of truth — the old hardcoded
+                  "Mon–Sat 8a–6p" dropped Sunday on 40+ pages while the
+                  site sells Sunday service. */}
+              {BUSINESS.hours.display}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-primary" />
