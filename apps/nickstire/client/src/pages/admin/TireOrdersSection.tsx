@@ -65,7 +65,21 @@ export default function TireOrdersSection() {
     limit: 100,
   }, { refetchInterval: 60_000 });
 
-  const { data: stats, refetch: refetchStats } = trpc.gatewayTire.orderStats.useQuery(undefined, { refetchInterval: 60_000 });
+  const {
+    data: stats,
+    isError: statsError,
+    error: statsErrorObj,
+    refetch: refetchStats,
+  } = trpc.gatewayTire.orderStats.useQuery(undefined, { refetchInterval: 60_000 });
+
+  /**
+   * ROS-083 · every tile below reads `stats?.x ?? 0`, so a failed read used to
+   * paint six confident zeros — including "Tire Revenue $0". Same idiom as
+   * money/UnpaidInvoicesSection.tsx:29: em dash on the numbers, one static
+   * amber strip. Static and not a toast because this query refetches every
+   * 60s on the counter screen.
+   */
+  const statsUnknown = statsError;
   const { data: gatewayStatus } = trpc.gatewayTire.status.useQuery();
 
   // Mutation for updating order fields
@@ -219,43 +233,49 @@ export default function TireOrdersSection() {
     >
       {/* Stripe and payment backlog banners removed (separate register) */}
 
+      {statsUnknown && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
+          <strong>Tire order counts could not be read.</strong> The tiles below are unknown — NOT zero. No stage is confirmed clear and no revenue figure is confirmed. {statsErrorObj?.message}
+        </div>
+      )}
+
       {/* Metric Tiles Grid */}
       <MetricGrid cols={6}>
         <StatCard
           label="New Requests"
-          value={stats?.received ?? 0}
+          value={statsUnknown ? "—" : stats?.received ?? 0}
           icon={<Clock className="w-4 h-4" />}
           color="text-amber-400"
         />
         <StatCard
           label="Confirmed"
-          value={stats?.confirmed ?? 0}
+          value={statsUnknown ? "—" : stats?.confirmed ?? 0}
           icon={<Wrench className="w-4 h-4" />}
           color="text-blue-400"
         />
         <StatCard
           label="Ordered/In Transit"
-          value={(stats?.ordered ?? 0) + (stats?.inTransit ?? 0)}
+          value={statsUnknown ? "—" : (stats?.ordered ?? 0) + (stats?.inTransit ?? 0)}
           icon={<Truck className="w-4 h-4" />}
           color="text-indigo-400"
         />
         <StatCard
           label="Ready to Install"
-          value={(stats?.delivered ?? 0) + (stats?.scheduled ?? 0)}
+          value={statsUnknown ? "—" : (stats?.delivered ?? 0) + (stats?.scheduled ?? 0)}
           icon={<CheckCircle2 className="w-4 h-4" />}
           color="text-cyan-400"
         />
         <StatCard
           label="Installed"
-          value={stats?.installed ?? 0}
+          value={statsUnknown ? "—" : stats?.installed ?? 0}
           icon={<CheckCircle2 className="w-4 h-4" />}
-          color="text-emerald-400"
+          color={statsUnknown ? "text-amber-400" : "text-emerald-400"}
         />
         <StatCard
           label="Tire Revenue"
-          value={formatDollars(stats?.totalRevenue ?? 0)}
+          value={statsUnknown ? "—" : formatDollars(stats?.totalRevenue ?? 0)}
           icon={<DollarSign className="w-4 h-4" />}
-          color="text-primary"
+          color={statsUnknown ? "text-amber-400" : "text-primary"}
         />
       </MetricGrid>
 
