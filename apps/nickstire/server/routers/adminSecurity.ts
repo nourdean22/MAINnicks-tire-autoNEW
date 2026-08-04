@@ -1,9 +1,10 @@
 import { TRPCError } from "@trpc/server";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { algProbeLog } from "../../drizzle/schema";
 import { ADMIN_ROLES, permissionsForAdminRole } from "../../shared/adminPermissions";
 import { adminIdentityProcedure, adminPermissionProcedure, adminProcedure, router } from "../_core/trpc";
+import { AUTH_ATTEMPTING_OUTCOMES } from "../lib/adminActivity";
 import { db } from "../lib/db-helper";
 import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "../lib/totp";
 import { getRecentAdminActions, recordAdminAction, reportAdminClientError } from "../services/adminAudit";
@@ -18,6 +19,14 @@ import {
   setAdminRole,
   storePendingMfaSecret,
 } from "../services/adminSecurity";
+
+/**
+ * How many recent auth-attempting probes to inspect when counting the failure
+ * streak. Bounded because the card only needs "is it failing right now and
+ * roughly how badly" — the exact depth of a long outage is the probe log's job,
+ * not this card's, and an unbounded scan on a hot 60s-refetch query is not.
+ */
+const ATTEMPT_WINDOW = 20;
 
 function requestIp(req: { headers?: Record<string, unknown>; ip?: string } | undefined): string | null {
   const forwarded = req?.headers?.["x-forwarded-for"];
@@ -135,21 +144,68 @@ export const adminSecurityRouter = router({
     .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
     .query(({ input }) => getRecentAdminActions(input?.limit ?? 50)),
 
+  /**
+   * ROS-083 · this read used to look ONLY at `outcome = 'success'`, so a live
+   * ALG failure was structurally invisible to it. The card is classified from
+   * the age of the last success against a 24-hour staleAfterMinutes, which
+   * means a total authentication outage kept rendering emerald "Fresh · Nm old"
+   * for a FULL DAY after the last good probe, while every probe in between was
+   * writing an `auth_failed` row this query never selected.
+   *
+   * So it now also reports the most recent probe that ATTEMPTED an auth, and
+   * how many of those have failed since the last success. AUTH_ATTEMPTING_OUTCOMES
+   * is reused rather than redefined — it already encodes the distinction that
+   * matters here, and getting it wrong in the other direction is worse: widening
+   * `lastSuccessfulAt` to include `dedup` (a probe that was SKIPPED and never
+   * reached auth) would make a permanently-dead integration look freshly synced.
+   */
   integrationFreshness: adminProcedure.query(async () => {
     const database = await db();
     const generatedAt = new Date();
     if (!database) {
-      return { connected: false, lastSuccessfulAt: null, generatedAt, source: "alg_probe_log" as const };
+      // `readable: false` rather than `connected: false`. They are different
+      // failures and used to be reported as the same one: connected:false made
+      // the card say "Offline", blaming ALG for an outage in OUR database.
+      return {
+        readable: false,
+        connected: null,
+        lastSuccessfulAt: null,
+        lastAttemptAt: null,
+        lastAttemptOutcome: null,
+        failuresSinceLastSuccess: 0,
+        generatedAt,
+        source: "alg_probe_log" as const,
+      };
     }
-    const rows = await database
-      .select({ completedAt: algProbeLog.completedAt })
-      .from(algProbeLog)
-      .where(eq(algProbeLog.outcome, "success"))
-      .orderBy(desc(algProbeLog.completedAt))
-      .limit(1);
+    const [rows, attempts] = await Promise.all([
+      database
+        .select({ completedAt: algProbeLog.completedAt })
+        .from(algProbeLog)
+        .where(eq(algProbeLog.outcome, "success"))
+        .orderBy(desc(algProbeLog.completedAt))
+        .limit(1),
+      database
+        .select({ outcome: algProbeLog.outcome, startedAt: algProbeLog.startedAt })
+        .from(algProbeLog)
+        .where(inArray(algProbeLog.outcome, [...AUTH_ATTEMPTING_OUTCOMES]))
+        .orderBy(desc(algProbeLog.startedAt))
+        .limit(ATTEMPT_WINDOW),
+    ]);
+    // Consecutive failures from the head. Stops at the first non-failing
+    // attempt, so an old failure that has since been followed by a good probe
+    // does not keep the card red.
+    let failuresSinceLastSuccess = 0;
+    for (const a of attempts) {
+      if (a.outcome === "auth_failed" || a.outcome === "error") failuresSinceLastSuccess++;
+      else break;
+    }
     return {
+      readable: true,
       connected: rows.length > 0,
       lastSuccessfulAt: rows[0]?.completedAt ?? null,
+      lastAttemptAt: attempts[0]?.startedAt ?? null,
+      lastAttemptOutcome: attempts[0]?.outcome ?? null,
+      failuresSinceLastSuccess,
       generatedAt,
       source: "alg_probe_log" as const,
     };
