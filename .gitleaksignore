@@ -12,11 +12,16 @@
 #
 # Never add an entry for something that IS a credential. Rotate it.
 
-# `key: "MP4_INGEST_ENABLED"` — a test assertion about a FEATURE-FLAG NAME
-# rendered in the admin env-gates panel, matched by the generic-api-key rule
-# because it has the `key: "…"` shape. socialPipeline.ts carries a comment
-# predicting exactly this and its own entry is annotated `// gitleaks:allow`.
+# A test assertion about a FEATURE-FLAG NAME rendered in the admin env-gates
+# panel. The generic-api-key rule matched it because the assertion was written
+# as an object-key-and-quoted-string literal; socialPipeline.ts carries a
+# comment predicting exactly this and annotates its own entry gitleaks:allow.
 # The assertion has since been rewritten to build the string from the
 # MP4_INGEST_FLAG constant, so the pattern no longer appears in the tree — this
 # entry only covers the superseded line still sitting in commit 41a048fb5.
+#
+# NOTE FOR THE NEXT ENTRY: do NOT paste the offending text into your comment.
+# The first version of this note quoted the matched literal verbatim and the
+# scanner flagged the ignore file itself, on the line explaining the ignore.
+# Describe the shape; never reproduce it.
 41a048fb5ea7c688ee5ee824c45d9acb857aee0e:apps/nickstire/server/mp4IngestDoor.test.ts:generic-api-key:85
