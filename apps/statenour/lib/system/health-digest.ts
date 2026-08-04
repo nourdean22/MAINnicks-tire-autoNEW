@@ -117,6 +117,10 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
         consecutiveFailures: 0,
         email: null,
         reason: "OAuth status probe failed",
+        // This local fallback manufactured the same "missing" state as a
+        // genuinely unconfigured integration, so a crashing probe also sent
+        // the operator off to re-grant a working token.
+        probeFailed: true,
       }),
     ),
     countSlowRoutes24h().catch(() => 0),
@@ -142,29 +146,8 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
   // they're critical. "stale" is a warning — the token works but
   // ingest hasn't been writing rows lately, which is a different
   // class of problem (cron drift / disabled cron / API quota).
-  if (googleStatus.state === "missing") {
-    highlights.push({
-      severity: "critical",
-      headline:
-        "Google OAuth not configured — Drive/Gmail/Calendar ingest disabled",
-      link: "/api/oauth/google-data/start",
-    });
-  } else if (googleStatus.state === "expired") {
-    highlights.push({
-      severity: "critical",
-      headline:
-        googleStatus.consecutiveFailures > 0
-          ? `Google OAuth expired (${googleStatus.consecutiveFailures}× refresh failures) — re-grant access`
-          : "Google OAuth expired — re-grant Drive/Gmail/Calendar access",
-      link: "/api/oauth/google-data/start",
-    });
-  } else if (googleStatus.state === "stale") {
-    highlights.push({
-      severity: "warning",
-      headline: googleStatus.reason,
-      link: "/system/health",
-    });
-  }
+  const googleHighlight = googleOauthHighlight(googleStatus);
+  if (googleHighlight) highlights.push(googleHighlight);
 
   // ── Warning signals ──
   if (cron && cron.summary.silentDeclaredCrons > 0) {
@@ -470,4 +453,52 @@ export async function loadLatestHealthDigest(): Promise<SystemHealthDigest | nul
   } catch {
     return null;
   }
+}
+
+
+/**
+ * Map a Google OAuth status to at most one digest highlight.
+ *
+ * PURE and exported so it can be pinned directly. computeHealthDigest fans out
+ * five prisma-touching scans in a Promise.all, so driving this decision through
+ * it would need a five-way mock — which is precisely why the probeFailed case
+ * went unnoticed for as long as it did.
+ *
+ * probeFailed is checked FIRST and deliberately. Every other branch here makes
+ * a claim about GOOGLE; probeFailed means we could not ask, which is a claim
+ * about our own database. Reporting it as "not configured" sent the operator to
+ * /api/oauth/google-data/start to re-grant a token that was very likely fine.
+ */
+export function googleOauthHighlight(
+  status: GoogleOauthStatus,
+): SystemHealthDigest["highlights"][number] | null {
+  if (status.probeFailed) {
+    return {
+      severity: "warning",
+      headline: `Google OAuth status unknown — ${status.reason}`,
+      // NOT the re-grant flow. There is nothing for the operator to re-grant.
+      link: "/system/health",
+    };
+  }
+  if (status.state === "missing") {
+    return {
+      severity: "critical",
+      headline: "Google OAuth not configured — Drive/Gmail/Calendar ingest disabled",
+      link: "/api/oauth/google-data/start",
+    };
+  }
+  if (status.state === "expired") {
+    return {
+      severity: "critical",
+      headline:
+        status.consecutiveFailures > 0
+          ? `Google OAuth expired (${status.consecutiveFailures}× refresh failures) — re-grant access`
+          : "Google OAuth expired — re-grant Drive/Gmail/Calendar access",
+      link: "/api/oauth/google-data/start",
+    };
+  }
+  if (status.state === "stale") {
+    return { severity: "warning", headline: status.reason, link: "/system/health" };
+  }
+  return null;
 }
