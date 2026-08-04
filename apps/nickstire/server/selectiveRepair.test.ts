@@ -6,12 +6,32 @@
  *     reservation is never reused.
  * Plus: kill-switch deferral, attempt-cap parking, duplicate-claim safety.
  */
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { buildRepairPrompt } from "./services/selectiveRepair";
+
+/**
+ * These worker cases exercise the HIGGSFIELD repair path — they assert on the
+ * prompt handed to generateReelClipVideo — but they never said so, because the
+ * code hardcoded that provider and there was nothing to say.
+ *
+ * When the repair path started selecting per run (reelRepairLaneTruth.test.ts),
+ * these went red, and that is the finding rather than a chore: with no
+ * REEL_VIDEO_PROVIDER set they were silently exercising whatever
+ * selectReelVideoProvider auto-picks, which is not the lane they assert on.
+ * A suite that has no opinion about the provider cannot notice a repair
+ * rendering on the wrong one, which is exactly how the defect survived.
+ *
+ * So the pin is explicit now, and unstubbed in afterEach — this suite runs
+ * single-fork on Windows and a leaked env var would follow into other files.
+ */
+beforeEach(() => {
+  vi.stubEnv("REEL_VIDEO_PROVIDER", "higgsfield");
+});
 
 afterEach(() => {
   vi.doUnmock("./db");
   vi.doUnmock("./services/higgsfieldStudio");
+  vi.unstubAllEnvs();
   vi.resetModules();
 });
 

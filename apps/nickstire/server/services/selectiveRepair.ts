@@ -126,13 +126,19 @@ export async function requestBeatRepair(input: {
   // Repair cap counts LOGICAL repairs on this job — provider retries within
   // a repair do not consume the cap, failed repair requests do.
   const { enforceAtBoundary } = await import("./autonomyControl");
-  const { COST_ESTIMATES_USD, dailySpendUsd } = await import("./generationLedger");
+  const { reelClipCostUsd, dailySpendUsd } = await import("./generationLedger");
+  // Price the request at the lane that will actually render it. Hardcoding the
+  // Seedance figure here meant the policy gate could REFUSE a template_stock
+  // repair — one that costs nothing — on the grounds of a budget it would not
+  // touch, and under-price a Veo repair by whatever the per-second rate makes
+  // it. The gate is only as good as the number it is handed.
+  const { selectReelVideoProvider } = await import("./reelPipeline");
   const spend = await dailySpendUsd();
   await enforceAtBoundary(
     {
       type: "enqueue_render",
       format: "reel",
-      estimatedCostUsd: COST_ESTIMATES_USD.seedance_clip,
+      estimatedCostUsd: reelClipCostUsd(await selectReelVideoProvider()),
       today: {
         repairAttemptsForAsset: queue.length,
         ...(spend !== null ? { generationCostUsd: spend } : {}),
@@ -249,20 +255,43 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
     return { processed: true, jobId: job.id, status: "repair_failed" };
   }
 
+  // WHICH LANE IS THIS JOB ACTUALLY ON?
+  //
+  // Both the provider and the price below were hardcoded to Higgsfield, on a
+  // path that runs for EVERY reel regardless of which provider generated it.
+  // Two separate consequences, and the second is the expensive one:
+  //
+  //   1. The ledger mislabelled the spend. A repair on a Veo job was filed as
+  //      Higgsfield/seedance1_5 at the Seedance price, so every provider
+  //      comparison and the daily budget both counted the wrong number — and a
+  //      repair on a template_stock job, which costs nothing at all, consumed
+  //      real budget and could push maxGenerationCostPerDayUsd over for renders
+  //      that are free.
+  //   2. It actually CALLED Higgsfield. A shop pinned to the free local lane
+  //      got a real paid API render the moment any beat needed repair — the
+  //      provider pin is a deliberate cost decision and the repair path was
+  //      quietly overriding it.
+  //
+  // The generation pipeline already selects per run and already fails loudly on
+  // a provider it has no branch for (reelPipeline.ts). Repair now does both.
+  const { selectReelVideoProvider, reelLedgerModel } = await import("./reelPipeline");
+  const repairProvider = await selectReelVideoProvider();
+
   // P2: fresh, immutable, per-attempt reservation — failed attempts remain
   // failed spend on the ledger and are never reused.
-  const { reserve, settle, fail: failReservation, COST_ESTIMATES_USD } = await import("./generationLedger");
+  const { reserve, settle, fail: failReservation, reelClipCostUsd } = await import("./generationLedger");
   const { getActivePolicy } = await import("./autonomyControl");
   const policy = await getActivePolicy();
+  const repairCostUsd = reelClipCostUsd(repairProvider);
   const reservationId = `${entry.logicalRepairId}_p${attemptNumber}`;
   try {
     await reserve({
       actionId: reservationId,
       campaignId: payload.genomeId ?? null,
-      provider: "higgsfield",
-      model: "seedance1_5",
+      provider: repairProvider,
+      model: reelLedgerModel(repairProvider),
       operation: "beat_repair",
-      estimatedCostUsd: COST_ESTIMATES_USD.seedance_clip,
+      estimatedCostUsd: repairCostUsd,
       dailyBudgetUsd: policy.limits.maxGenerationCostPerDayUsd,
     });
   } catch (err) {
@@ -282,12 +311,41 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   };
 
   try {
-    const { generateReelClipVideo } = await import("./higgsfieldStudio");
-    const newClipUrl = await generateReelClipVideo({
-      prompt: buildRepairPrompt(beatPrompt.prompt, entry.instruction),
-      negativePrompt: beatPrompt.negativePrompt,
-    });
-    await settle(reservationId, COST_ESTIMATES_USD.seedance_clip);
+    let newClipUrl: string;
+    if (repairProvider === "template_stock") {
+      // Local ffmpeg re-render. It writes to disk first and re-hosts through
+      // storagePut, exactly like the generation path — so it carries the same
+      // durable-storage precondition. Without it the repaired clip lands on
+      // ephemeral disk and the next deploy destroys it, which on a repair is
+      // worse than on a first render: the ORIGINAL clip has already been
+      // invalidated by the time we get here.
+      //
+      // The repair PROMPT is deliberately not passed. This lane takes no text
+      // — it renders a gradient sweep and assembly burns the beat's
+      // onScreenText over the stitched clips. Sending a prompt here would put
+      // internal instructions on screen, which is the exact defect the free
+      // lane shipped with and had removed.
+      const { assertDurableStorageForGeneration } = await import("../storage");
+      assertDurableStorageForGeneration(`reel job ${job.id} template_stock beat repair`);
+      const { generateTemplateStockClip } = await import("./templateStockStudio");
+      newClipUrl = await generateTemplateStockClip({ beatNumber: entry.beatNumber });
+    } else if (repairProvider === "higgsfield") {
+      const { generateReelClipVideo } = await import("./higgsfieldStudio");
+      newClipUrl = await generateReelClipVideo({
+        prompt: buildRepairPrompt(beatPrompt.prompt, entry.instruction),
+        negativePrompt: beatPrompt.negativePrompt,
+      });
+    } else {
+      // Veo has never had a repair branch. It was not "unsupported" — it
+      // silently ran Higgsfield and billed it as Seedance, which is spending
+      // real money under another provider's name. Same failure the generation
+      // path already refuses by name; refuse it here too rather than inherit a
+      // default that costs money.
+      throw new Error(
+        `beat repair has no branch for REEL_VIDEO_PROVIDER "${repairProvider}" — it must not fall through to another provider`,
+      );
+    }
+    await settle(reservationId, repairCostUsd);
     attempt.outcome = "succeeded";
     entry.attempts.push(attempt);
 

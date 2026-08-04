@@ -86,6 +86,19 @@ const PROVIDER_LEDGER_MODEL: Record<ReelVideoProvider, () => string> = {
   template_stock: () => "ffmpeg_local",
 };
 
+/**
+ * What a provider is recorded as in generation_reservations.model.
+ *
+ * Exported because selectiveRepair reserves against the SAME ledger for the
+ * same kind of work, and used to hardcode "seedance1_5" — so a repair on a
+ * template_stock or Veo job filed its spend under Higgsfield's name. One map,
+ * one source of truth: adding a provider now cannot leave the repair path
+ * mislabelling it.
+ */
+export function reelLedgerModel(provider: ReelVideoProvider): string {
+  return PROVIDER_LEDGER_MODEL[provider]();
+}
+
 export async function selectReelVideoProvider(): Promise<ReelVideoProvider> {
   const explicit = process.env.REEL_VIDEO_PROVIDER?.toLowerCase();
   // template_stock is EXPLICIT-PIN ONLY and is never auto-selected below. It
