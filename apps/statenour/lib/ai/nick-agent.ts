@@ -45,17 +45,6 @@ import {
 } from "@/lib/ai/agent-actions/memory-actions";
 import { handlePersonUpdate, handlePersonCreate } from "@/lib/ai/agent-actions/person-actions";
 import {
-  handleShopGetLabor,
-  handleShopGetLeads,
-  handleShopUpdateLead,
-  handleShopGetEstimates,
-  handleShopGetCustomers,
-  handleShopSendSms,
-  handleShopGetBookings,
-  handleShopShopStatus,
-  handleShopGetRevenue,
-} from "@/lib/ai/agent-actions/shop-actions";
-import {
   handleSystemHealth,
   handleSystemBrainStats,
   handleSystemSyncNow,
@@ -270,33 +259,6 @@ export async function executeActionWithoutTracing(action: AgentAction): Promise<
       // ═══════════════════════════════════════════
       // CROSS-SYSTEM: nickstire.org actions via tRPC
       // ═══════════════════════════════════════════
-
-      case "shop.getLabor":
-        return await handleShopGetLabor(params, type);
-
-      case "shop.getLeads":
-        return await handleShopGetLeads(params, type);
-
-      case "shop.updateLead":
-        return await handleShopUpdateLead(params, type);
-
-      case "shop.getEstimates":
-        return await handleShopGetEstimates(params, type);
-
-      case "shop.getCustomers":
-        return await handleShopGetCustomers(params, type);
-
-      case "shop.sendSms":
-        return await handleShopSendSms(params, type);
-
-      case "shop.getBookings":
-        return await handleShopGetBookings(params, type);
-
-      case "shop.shopStatus":
-        return await handleShopShopStatus(params, type);
-
-      case "shop.getRevenue":
-        return await handleShopGetRevenue(params, type);
 
       // ── System Operator Commands (God-Mode) ──────
       case "system.health":

@@ -56,8 +56,12 @@ export const MUTATION_ACTIONS: ReadonlySet<string> = new Set([
   // People
   "person.update",
   "person.create",
-  // Cross-system shop writes
-  "shop.updateLead",
+  // Cross-system shop writes.
+  // shop.updateLead was removed with its handler — nothing can emit it any more.
+  // shop.sendSms STAYS: the handler is gone, but lib/ai/tools/social.ts still
+  // stamps PENDING ActionReceipt rows with that name and audit-todays-leads
+  // still writes it as an approval toolId, so it must keep its write
+  // classification even though execution now fails loudly.
   "shop.sendSms",
   // System operator writes
   "system.syncNow",
