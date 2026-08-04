@@ -150,7 +150,7 @@ There is no `CODEOWNERS` file. Ownership is enforced by:
 **Governance checks (automated):**
 - `pnpm check:stale-docs` — guards `docs/CURRENT-TRUTH.md` freshness
 - `pnpm check:crons` — validates cron manifest against `config/crons.ts`
-- `pnpm check:raw-sql` — blocks dangerous Prisma flags
+- `pnpm check:raw-sql` — audits camelCase column references in raw SQL. It does NOT scan for `--accept-data-loss`; no automated gate does, and the flag ban is policy enforced by review (see §5 and the DB-constraints row above, which already say so — this line used to contradict both)
 - `pnpm check:prompt-size` — keeps system prompt under token limit
 
 **PR final report format** (required on every PR):
