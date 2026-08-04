@@ -1183,7 +1183,13 @@ export async function updateReviewSettings(data: { enabled?: number; delayMinute
  */
 export async function getCompletedBookingsWithoutReview(lookbackDays = 365) {
   const db = await getDb();
-  if (!db) return [];
+  // ROS-084 follow-up · an empty eligibility list is not a neutral value here.
+  // The Backfill tab renders `count > 0 ? <Send to N Customers> : <green
+  // CheckCircle2 + "All eligible customers have already been contacted">`, so
+  // returning [] painted a green checkmark asserting that every customer served
+  // in the past year has already been asked for a review — from a database
+  // nobody read. Unknown is not "all done".
+  if (!db) throw new Error("Database unavailable — backfill eligibility is unknown, not empty; no conclusion can be drawn about who has already been asked.");
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - lookbackDays);
   // Get all completed bookings from the past year
