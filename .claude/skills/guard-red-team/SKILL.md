@@ -24,7 +24,13 @@ guard guards.
 1. **Probe the REAL binary end-to-end.** Feed candidate commands through
    the actual hook/linter process and assert on **exit codes**, not on
    your reading of the regex. A regex you reason about is a regex you
-   excuse.
+   excuse. **Attribute before fixing:** this machine runs MULTIPLE guard
+   layers (repo pretool + the Claude-harness sandbox), and a block banner
+   without the repo's "BLOCKED by repo policy: <id>" attribution is NOT
+   the repo policy. Witnessed 2026-08-04: all three false positives that
+   session were the harness layer — the repo policy probed clean and the
+   only correct repo change was defensive allowExamples (#1364), not a
+   "fix" to a rule that never fired.
 2. **Run the minimum probe set** — every class below produced a verified
    bypass or false positive in the #1355 red-team:
    - **Tool global-option prefixes** — `git -C <path> push origin main`

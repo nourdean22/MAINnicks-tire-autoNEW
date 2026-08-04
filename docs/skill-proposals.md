@@ -314,9 +314,14 @@ statenour primitives documented (existence re-verified at
   guarded verb". Each should become a locked allowExample in the guard's
   canaries when fixed.
 - **Confidence:** high (three instances, same session, three shapes)
-- **Status:** applied #1363 — probe classes added to `guard-red-team`; the
-  enforcement fix (policy.json + locked allowExamples) ships separately,
-  red-teamed per the skill
+- **Status:** applied #1363 — probe classes added to `guard-red-team`.
+  **CORRECTION (same day, by probe):** feeding the three exact shapes
+  through the REAL `pretool.mjs` returned ALLOW on all three (deny canary
+  still blocks), so the false positives came from the HARNESS sandbox
+  layer, not the repo policy — there was no repo "enforcement fix" to
+  ship. #1364 locks the shapes as defensive allowExamples instead, so a
+  future rule-widening cannot start catching them. The harness layer is
+  not repo-editable; workarounds live in the skill text.
 
 ### P3 · `stranded-branch-rescue`
 - **Trigger (witnessed):** four dependabot PRs (#1311/#1267/#1266/#1263) sat
