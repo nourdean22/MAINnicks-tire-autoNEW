@@ -94,7 +94,7 @@ export default function DailyBriefPage() {
 
       if (trimmed.startsWith("* **")) {
         return (
-          <div key={index} className="mt-3 pl-4 border-l border-slate-800 py-1 text-sm text-slate-250 leading-relaxed">
+          <div key={index} className="mt-3 pl-4 border-l border-slate-800 py-1 text-sm text-slate-300 leading-relaxed">
             {trimmed}
           </div>
         );
@@ -102,7 +102,7 @@ export default function DailyBriefPage() {
 
       if (trimmed.startsWith("- ")) {
         return (
-          <li key={index} className="ml-6 list-disc text-sm text-slate-350 leading-relaxed mt-1">
+          <li key={index} className="ml-6 list-disc text-sm text-slate-300 leading-relaxed mt-1">
             {trimmed.slice(2)}
           </li>
         );
@@ -163,7 +163,7 @@ export default function DailyBriefPage() {
             </button>
             <a
               href="/intelligence/ledger"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-xs font-semibold text-white transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-xs font-semibold text-white transition-all"
             >
               OPEN DECISION LEDGER
             </a>
@@ -183,7 +183,7 @@ export default function DailyBriefPage() {
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-xs font-semibold text-white transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-xs font-semibold text-white transition-all disabled:opacity-50"
           >
             {generating ? (
               <>

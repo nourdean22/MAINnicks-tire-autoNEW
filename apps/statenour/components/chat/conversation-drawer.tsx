@@ -191,7 +191,7 @@ export function ConversationDrawer({
           <button
             onClick={(e) => { e.stopPropagation(); onTogglePin(c.id); }}
             className={cn(
-              "h-8 w-8 flex items-center justify-center rounded hover:bg-[var(--bg-raised)]",
+              "flex h-11 w-11 items-center justify-center rounded hover:bg-[var(--bg-raised)] sm:h-8 sm:w-8",
               isPinned
                 ? "text-[var(--gold)]"
                 : "text-[var(--text-tertiary)] hover:text-[var(--gold)]",

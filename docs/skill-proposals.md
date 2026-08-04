@@ -186,3 +186,26 @@ call — below the bar).
   the orchestrator runs the probe."
 - **Confidence:** high (2 instances, same session, opposite directions)
 - **Status:** proposed
+
+---
+
+## 2026-08-04 · UI/UX improvement pass (worktree ui-ux-improvement-pass)
+
+### P1 · `nickstire-ios-pwa-primitives`
+
+**Witnessed trigger:** the definitive cross-app sweep this session found exactly
+ONE live `window.prompt` call — `apps/statenour/features/chat-v2/components/operator-conversation-drawer.tsx:85`
+(Rename silently no-oped on the phone; fixed this wave). It survived 5 prior
+sweep waves because it lives in `features/` — a fourth statenour source root
+that is OUTSIDE the `{app,components,lib}` glob the skill's sweep command and
+every prior audit used. 113 raw grep hits, 1 real finding, and the 1 was in
+the 1 hit outside the documented glob.
+
+**Proposal:** widen the skill's sweep command to cover
+`apps/statenour/{app,components,lib,features,hooks}` alongside
+`apps/nickstire/client/src`, and note that statenour's replacement primitives
+are `useConfirmDialog`/`usePromptDialog` in `components/ui/confirm-dialog.tsx`
+(nickstire's remain `confirmDialog` + sonner). Without the glob fix the next
+`features/` regression is structurally invisible to the audit.
+
+Status: proposed

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Archive, History, Pin, Plus, Search, Trash2, X } from "lucide-react";
+import { usePromptDialog } from "@/components/ui/confirm-dialog";
 import type { Convo } from "@/hooks/use-conversations";
 
 export function OperatorConversationDrawer({
@@ -37,6 +38,10 @@ export function OperatorConversationDrawer({
 }) {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"active" | "pinned">("active");
+  // window.prompt is silently suppressed in iOS standalone PWAs — the
+  // Rename tap would no-op on the phone. usePromptDialog is the app
+  // standard (same pattern as todo-desk / brain-maturity-header).
+  const { prompt: promptDialog, dialog: renameDialog } = usePromptDialog();
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return convos.filter((conversation) => {
@@ -81,15 +86,30 @@ export function OperatorConversationDrawer({
               <p className="mt-1 text-[9px] text-fg-tertiary">{conversation._count.messages} messages · {new Date(conversation.createdAt).toLocaleDateString()}</p>
             </button>
             <div className="mt-2 flex items-center gap-1 opacity-70 transition group-hover:opacity-100">
-              <button onClick={() => onTogglePin(conversation.id)} title={pinnedIds.has(conversation.id) ? "Unpin" : "Pin"} className="flex h-8 w-8 items-center justify-center rounded-md text-fg-tertiary hover:bg-elevated hover:text-gold"><Pin size={12} fill={pinnedIds.has(conversation.id) ? "currentColor" : "none"} /></button>
-              <button onClick={() => { const next = window.prompt("Rename conversation", conversation.title || ""); if (next?.trim()) onRename(conversation.id, next.trim()); }} title="Rename" className="min-h-8 rounded-md px-2 text-[10px] text-fg-tertiary hover:bg-elevated hover:text-fg">Rename</button>
-              <button onClick={() => onArchive(conversation.id)} title="Archive" className="ml-auto flex h-8 w-8 items-center justify-center rounded-md text-fg-tertiary hover:bg-elevated hover:text-fg"><Archive size={12} /></button>
-              <button onClick={(event) => onDelete(conversation.id, event)} title="Delete" className="flex h-8 w-8 items-center justify-center rounded-md text-fg-tertiary hover:bg-red-500/10 hover:text-red-400"><Trash2 size={12} /></button>
+              <button onClick={() => onTogglePin(conversation.id)} title={pinnedIds.has(conversation.id) ? "Unpin" : "Pin"} aria-label={pinnedIds.has(conversation.id) ? "Unpin conversation" : "Pin conversation"} className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-elevated hover:text-gold sm:h-8 sm:w-8"><Pin size={12} fill={pinnedIds.has(conversation.id) ? "currentColor" : "none"} /></button>
+              <button
+                onClick={async () => {
+                  const next = await promptDialog({
+                    title: "Rename conversation",
+                    defaultValue: conversation.title || "",
+                    placeholder: "Conversation title",
+                    confirmLabel: "Rename",
+                  });
+                  if (next?.trim()) onRename(conversation.id, next.trim());
+                }}
+                title="Rename"
+                className="min-h-11 rounded-md px-2 text-[10px] text-fg-tertiary hover:bg-elevated hover:text-fg sm:min-h-8"
+              >
+                Rename
+              </button>
+              <button onClick={() => onArchive(conversation.id)} title="Archive" aria-label="Archive conversation" className="ml-auto flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-elevated hover:text-fg sm:h-8 sm:w-8"><Archive size={12} /></button>
+              <button onClick={(event) => onDelete(conversation.id, event)} title="Delete" aria-label="Delete conversation" className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-red-500/10 hover:text-red-400 sm:h-8 sm:w-8"><Trash2 size={12} /></button>
             </div>
           </div>
         ))}
         {hasMore && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-10 w-full rounded-lg border border-edge text-xs text-fg-secondary disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
       </div>
+      {renameDialog}
     </aside>
   );
 }
