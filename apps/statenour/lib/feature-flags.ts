@@ -113,10 +113,10 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── Wave AJ · Replicate FLUX image generation backend ────────
   {
     key: "REPLICATE_FLUX",
-    description: "Routes image generation through Replicate's flux-schnell (~$0.003/img · 4-step distilled) instead of Venice flux-2-pro ($0.04/img). 12-20x cost reduction at comparable quality for marketing/OG/programmatic-SEO images. lib/ai/venice-image.ts checks this flag and delegates to lib/ai/replicate-flux.ts when ON; falls back to Venice on Replicate failure. Requires REPLICATE_API_KEY.",
+    description: "Routes image generation through Replicate's flux-schnell (~$0.003/img · 4-step distilled). lib/ai/gemini-image.ts checks this flag and delegates to lib/ai/replicate-flux.ts when ON. Requires REPLICATE_API_KEY. (Venice was the comparison point when this flag was written; Venice is RETIRED — lib/ai/venice-image.ts no longer exists and `venice` is not in RUNTIME_PROVIDERS.)",
     status: "experimental",
     onValue: "true",
-    defaultBehavior: "Venice flux-2-pro is the primary; Replicate is only reached when this flag is on AND REPLICATE_API_KEY is set.",
+    defaultBehavior: "With the flag off, image generation falls through the Gemini chain (direct Gemini, then OpenRouter). Replicate is reached only when this flag is on AND REPLICATE_API_KEY is set.",
     ownerDoc: "docs/runbooks/replicate-flux-cutover.md",
   },
 

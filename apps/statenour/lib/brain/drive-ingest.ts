@@ -26,7 +26,7 @@ import {
   getFileContent,
   type DriveDoc,
 } from "@/lib/services/drive-api";
-import { isGoogleOauthConfigured } from "@/lib/services/google-oauth";
+import { probeGoogleOauthConfigured } from "@/lib/services/google-oauth";
 import { recordError } from "@/lib/errors/record-error";
 
 export interface DriveIngestOptions {
@@ -41,6 +41,15 @@ export interface DriveIngestOptions {
 export interface DriveIngestResult {
   ok: boolean;
   skipped?: boolean;
+  /**
+   * True when we could not ASK whether OAuth is configured — the integration
+   * table was unreadable. NOT a statement about the Google grant.
+   *
+   * Callers with a human watching (the manual sync route, the operator router)
+   * can keep degrading on this; the CRON must not, because a skip is filed as a
+   * successful run and an outage would be invisible.
+   */
+  probeFailed?: boolean;
   reason?: string;
   stored: number;
   skippedCount: number;
@@ -59,8 +68,27 @@ export async function runDriveIngest(
 
   const t0 = Date.now();
 
-  const configured = await isGoogleOauthConfigured();
-  if (!configured) {
+  // probeGoogleOauthConfigured, not isGoogleOauthConfigured: the boolean form
+  // collapses "no refresh token stored" and "the integration table could not be
+  // read" into the same false, so a DB blip was reported as a CONFIGURATION
+  // problem and filed as a successful skip. Same defect #1348 fixed one level
+  // up in getGoogleOauthStatus.
+  const probe = await probeGoogleOauthConfigured();
+  if (probe.probeFailed) {
+    return {
+      ok: false,
+      skipped: true,
+      probeFailed: true,
+      reason: "google_oauth_status_unreadable",
+      stored: 0,
+      skippedCount: 0,
+      categoryCounts: {},
+      errors: [],
+      durationMs: Date.now() - t0,
+      hint: `${probe.reason} Do NOT re-grant — the Google token is not implicated.`,
+    };
+  }
+  if (!probe.configured) {
     return {
       ok: false,
       skipped: true,

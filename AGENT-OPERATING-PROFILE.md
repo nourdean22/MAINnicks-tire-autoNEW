@@ -3,7 +3,11 @@
 > repo reads this file before touching anything. It tells you who you're working for, how to work
 > safely, what each app is, and what the hard rules are.
 >
-> Last verified: 2026-06-10. Live code and git always win over prose.
+> Last verified: 2026-08-04. Live code and git always win over prose.
+>
+> **This file is the OPERATOR PROFILE — who you work for and how to communicate.**
+> Engineering policy (branching, verify gates, context routing, Windows rules) is canonical
+> in [`AGENTS.md`](./AGENTS.md); where the two ever disagree, `AGENTS.md` wins.
 
 ---
 
@@ -150,9 +154,9 @@ Prioritize long-term, high-leverage outcomes over immediate emotional reactions:
 | **Local path** | `[REPO_ROOT]` |
 | **GitHub repo** | `nourdean22/MAINnicks-tire-autoNEW` |
 | **Package manager** | `pnpm@10.4.1` |
-| **Node** | `>=20.0.0` |
-| **Build system** | Turborepo v2.5.8 |
-| **Active branch** | `main` (only branch; both apps share it concurrently) |
+| **Node** | `>=24.0.0` (root `package.json` `engines`) |
+| **Build system** | Turborepo v2 (`turbo` `^2.10.7`) |
+| **Deploy branch** | `main` — **never pushed directly**; named branches + PR (see `AGENTS.md`) |
 
 ### Apps in This Monorepo
 
@@ -160,44 +164,46 @@ Prioritize long-term, high-leverage outcomes over immediate emotional reactions:
 |---|---|---|---|
 | Nick's Tire & Auto | `apps/nickstire/` | `MAINnicks-tire-auto` | nickstire.org |
 | Statenour OS (NOUR OS) | `apps/statenour/` | `statenour-web` | bdnick.info |
-| Worker | `apps/worker/` | background | — |
-| Voice | `apps/voice/` | background | — |
+| Worker | `apps/worker/` | `statenour-worker` | Railway internal |
+
+`apps/voice/` was **RETIRED and removed 2026-08-03** — do not look for it.
 
 ### Packages
 
-| Package | Path |
-|---|---|
-| `@statenour/lenses` | `packages/lenses/` (strategic frameworks) |
-| `packages/chrome-extension/` | Chrome extension (v0.2.1) |
+Canonical list: `AGENTS.md` → "Repo topology". Nine workspace packages under `packages/*`,
+consumed via `workspace:*`; changes there affect BOTH web apps.
 
 ---
 
 ## 3. Hard Rules — Git & Push
 
+Canonical rules: [`AGENTS.md`](./AGENTS.md) → "Branching". Short form:
+
 ```bash
 # ALWAYS before pushing:
 git fetch origin
-git log origin/main..HEAD          # see what rides along — expected from the other session
+git log origin/<branch>..HEAD      # see what rides along — sibling sessions ship too
 
 # Stage ONLY explicit paths — NEVER git add -A:
 git add apps/nickstire/path/to/file.ts
-git add apps/statenour/path/to/file.ts
 
 # FORBIDDEN:
-git push --force                   # never on shared main
-git push --no-verify               # only with full written justification
+git push origin main               # never push main — named branch + PR, always
+git push --force                   # never on shared history
+git commit --no-verify             # never
 git add -A                         # never — cross-contaminates apps
 
-# Safe push (use this):
-bash ~/push-main.sh                # fetch → rebase → affected-build gate → push
-                                   # auto-recovers from ref-lock races
+# Ship: push the branch, then PR (gh pr create / gh pr merge --squash --delete-branch)
 ```
+
+**`~/push-main.sh` is RETIRED** — it pushed `main` directly, which the 2026-06-11 operator rule
+forbids. Any doc still recommending it is stale.
 
 ### Concurrent Session Reality
 
-`main` is worked by **two concurrent Claude/agent sessions** (nickstire + statenour). When you see
-commits between your HEAD and origin/main that aren't yours — that's expected. They ship. Rebase
-cleanly; don't overwrite.
+`main` is worked by **several concurrent agent sessions**. Commits between your HEAD and
+origin/main that aren't yours are expected — they ship. Rebase cleanly; never overwrite, never
+rewrite a rider commit; disclose riders in the PR body.
 
 ---
 
@@ -251,7 +257,8 @@ pnpm verify:affected    # check + lint + test affected
 
 ### Pre-Push Hook (Automatic)
 
-`.husky/pre-push` → `turbo run build --filter=...[upstream]` — runs for affected apps before every push.
+Repo-root `lefthook.yml` (`pre-push`) → `pnpm run build:affected` — runs for affected apps before
+every push. (**Husky is retired; there is no `.husky/` directory.**)
 A Next.js prerender error in statenour or a build failure in nickstire will block the push.
 **Windows pre-push symlink warnings ("IO error: provided value is too long") = non-fatal noise. Build still passes.**
 
@@ -287,7 +294,7 @@ Do NOT claim the feature is broken when it's env-gated. The distinction matters.
 
 - Never commit secrets (env files, tokens, API keys, passwords)
 - `.env.example` is the contract reference — use it to understand what vars are needed
-- If a new required var is needed, add it to `scripts/env-validate.mjs` + `.env.example`
+- If a new required var is needed, add it to the app's env validator (`apps/nickstire/scripts/env-validate.mjs`) + `.env.example`
 - When referencing Railway env vars, list what's needed — don't read or log their values
 
 ---
@@ -318,7 +325,8 @@ When multiple agents are running concurrently:
 
 1. **Scope isolation:** Each agent owns one app (`apps/nickstire` OR `apps/statenour`) — never both
 2. **No shared mutable state:** Don't write to `docs/RECONCILIATION.md` mid-flight from two agents
-3. **Git serialization:** One agent pushes at a time via `push-main.sh`; the other rebases
+3. **Git serialization:** each agent works its own branch + worktree and opens its own PR; rebase on
+   `origin/main` rather than racing a shared push
 4. **Memory conflicts:** Root `CLAUDE.md` warns that cross-session memory files are concurrently
    edited — re-read before editing
 5. **Test isolation:** Never run both apps' test suites simultaneously (OOM risk on this machine)
@@ -348,7 +356,7 @@ At end of every session, your report must include:
 - pnpm typecheck → 0 errors
 - pnpm test → N tests, all pass
 - turbo build → green
-- push-main.sh → success / attempt N
+- PR → <link> · merged / awaiting review
 ```
 
 ---
@@ -356,14 +364,16 @@ At end of every session, your report must include:
 ## 13. Context Loading Order (Read These, In This Order)
 
 **For nickstire work:**
-1. This file
-2. `apps/nickstire/CLAUDE.md` (primary context + MASTER OPERATING DIRECTIVE)
+1. Root `AGENTS.md` (canonical policy) — then this file for operator context
+2. `apps/nickstire/AGENTS.md` (commands, layout, test hygiene)
 3. `apps/nickstire/.remember/remember.md` (last-session handoff)
-4. `apps/nickstire/truth_os.md` (what's live in prod)
+4. `apps/nickstire/truth_os.md` (what's live in prod) + `PROTECTED-CORE.md` (no-touch list)
 5. `apps/nickstire/docs/AGENT-CONTEXT.md` (quick context for Antigravity)
+6. `apps/nickstire/docs/OPERATOR-DIRECTIVE.md` — ON DEMAND only (advisory persona, moved out of
+   the always-loaded adapter 2026-08-04)
 
 **For statenour work:**
-1. This file
+1. Root `AGENTS.md` (canonical policy) — then this file for operator context
 2. `apps/statenour/AGENTS.md` (primary context)
 3. `apps/statenour/docs/CURRENT-TRUTH.md` (one-screen reality check)
 4. `apps/statenour/docs/RECONCILIATION.md` (top entry = latest wave)
@@ -372,12 +382,10 @@ At end of every session, your report must include:
 7. `apps/statenour/docs/OPERATOR-BIOGRAPHY.md` (operator biography & context backfill)
 
 **Cross-cutting:**
-- Root `CLAUDE.md` — always-must-know gotchas
-- `c:\Users\nourd\.gemini\config\skills\ciitty\SKILL.md` — CIITTY Operating Rules (elite reasoning, Visual Kinetics UI/UX aesthetics, resilient systems, PowerShell command reliability)
-- `docs/ANTIGRAVITY-PROFILE.md` — Antigravity Operating Profile
-- `docs/ANTIGRAVITY-RULES.md` — Antigravity-specific rules and constraints
-- `docs/MIGRATION_PLAN.md` — cross-app migration context
-- `TASKS.md` — active task log
+- Root `AGENTS.md` — **canonical**: topology, branching, source-of-truth hierarchy, verify gates
+- `.agents/frameworks/ciitty/SKILL.md` — CIITTY v2.1 operating rules (in-repo; the old
+  `~/.gemini/config/skills/...` path was machine-local and is not the source of truth)
+- `docs/agent-os/README.md` — how the agent control plane is wired (adapters + parity check)
 
 ---
 
@@ -395,4 +403,4 @@ Call these out to Nour when you see them:
 
 ---
 
-*This file is a living document. Update after major work waves. Last updated: 2026-06-10.*
+*This file is a living document. Update after major work waves; the "Last verified" stamp in the header is the maintained one.*

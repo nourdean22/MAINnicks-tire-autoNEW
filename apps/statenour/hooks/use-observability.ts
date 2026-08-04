@@ -103,24 +103,58 @@ interface TrpcQuery<T> {
   data: T | undefined;
   isLoading: boolean;
   refetch: () => void;
+  /**
+   * react-query has always set this at runtime; the interface simply never
+   * declared it, so `classify` could not see a failed fetch even though the
+   * information was right there on the object. Optional and read as
+   * `=== true`, so a wrong field name would be inert rather than wrong.
+   */
+  isError?: boolean;
 }
 
 /**
- * Classify a tRPC useQuery result into the four-state model the
- * tiles consume. Empty = the endpoint returned 200 but with no signal
- * to display (e.g. no eval has run yet). Error = network/HTTP failure.
+ * Classify a tRPC useQuery result into the four-state model the tiles consume.
+ *
+ * Empty = the endpoint returned 200 with no signal to display (no eval has run
+ * yet). Error = we could not read the value, so it is UNKNOWN.
+ *
+ * Until now this function had exactly three outcomes and never constructed
+ * `{ kind: "error" }` — which made `TileState`'s error variant and the
+ * `ErrorTile` branch in all four tiles unreachable dead code. The consequences
+ * were two different lies, neither of them red:
+ *
+ *  - a transport failure fell through `data === undefined` into "empty", so the
+ *    tile said "no spend recorded yet · endpoint quiet";
+ *  - a server-side read failure came back as a 200 whose `readFailed` flag
+ *    nobody consumed, and because `sparkline7d` is padded with seven zero-days
+ *    the emptiness test was FALSE — so the tile classified as READY and drew
+ *    $0.00 spend, "0% of cap" and a flat emerald band during an outage.
+ *
+ * Exported so the decision can be pinned directly; the existing tile test
+ * hand-constructs an error state and asserts the RENDERER, which is why this
+ * went unnoticed — no production path could produce that literal.
  */
-function classify<T, U>(
+export function classify<T, U>(
   raw: TrpcQuery<T>,
   isEmpty: (d: T) => boolean,
   mapFn?: (d: T) => U,
+  isFailed?: (d: T) => boolean,
 ): TileState<U> {
   if (raw.isLoading && raw.data === undefined) return { kind: "loading" };
+  // BEFORE the data-undefined fall-through, or a failed fetch keeps landing in
+  // "empty" and reads as a quiet endpoint rather than a broken one.
+  if (raw.isError === true) {
+    return { kind: "error", message: "read failed — this value is unknown" };
+  }
   if (raw.data === undefined) {
     return { kind: "empty" };
   }
+  // BEFORE isEmpty, because the padded sparkline makes an outage look non-empty.
+  if (isFailed?.(raw.data)) {
+    return { kind: "error", message: "burn read failed — spend is unknown, not $0" };
+  }
   if (isEmpty(raw.data)) return { kind: "empty" };
-  
+
   const mapped = mapFn ? mapFn(raw.data) : (raw.data as unknown as U);
   return { kind: "ready", data: mapped };
 }
@@ -170,7 +204,11 @@ export function useObservability(): UseObservabilityResult {
           label: c.key,
           usd: c.costCents / 100,
         })) || [],
-      })
+      }),
+      // The server has always computed and shipped `readFailed`; it had zero
+      // consumers anywhere in the app. Reading it is the whole fix — an outage
+      // now renders red instead of a green $0.00.
+      (d) => d.readFailed === true,
     ),
     voice: classify(
       voiceQuery,

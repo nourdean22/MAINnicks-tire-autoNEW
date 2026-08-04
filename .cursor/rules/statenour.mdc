@@ -1,0 +1,13 @@
+---
+description: statenour app rules (apps/statenour)
+globs:
+  - "apps/statenour/**"
+alwaysApply: false
+---
+
+Read `apps/statenour/AGENTS.md` first. `docs/CURRENT-TRUTH.md` is the one-screen reality check (guarded by `pnpm check:stale-docs`).
+
+- Prisma migrations are hand-applied — NEVER `prisma db push --accept-data-loss` (silently drops pgvector). pgvector/tsvector are queried via raw SQL only (`lib/db/pgvector.ts`); Prisma sees them as `Unsupported(...)`.
+- Operator-private GET routes need `auth: "owner"`; mutating routes need an explicit auth wrapper.
+- Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from repo root) or strategic-frameworks imports fail in tests.
+- Full local gate before any push: `pnpm verify:hard` from `apps/statenour/`.

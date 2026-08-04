@@ -1,6 +1,6 @@
 # statenour-worker · deploy contract
 
-**Role** · long-running cron + bridge between statenour-web and nickstire.
+**Role** · secret-gated cron tick dispatcher + in-process Remotion render loop for statenour-web. No DB client — every read/write goes over authenticated HTTP (see `AGENTS.md`).
 
 ## Railway service
 
@@ -34,28 +34,47 @@ The pre-push hook covers this via `turbo run build --affected`.
 ```
 deps  → install pnpm@10.4.1 workspace deps
 build → tsc -p tsconfig.json · emit dist/
-runtime → node 20 + dist/index.js + node-cron schedules
+runtime → node 24 + dist/index.js + node-cron schedules
 ```
 
 ## Env vars (Railway-managed)
 
-CRITICAL:
-- `DATABASE_URL` · Neon Postgres (shared with statenour-web)
-- `NICKSTIRE_DATABASE_URL` · TiDB Cloud (cross-app reads)
-- `STATENOUR_SYNC_KEY` · HMAC for signed bridge calls
-- `CRON_SECRET`
+> **Corrected 2026-08-04** against `src/`. This service has **no database client** and reads no
+> `DATABASE_URL`. The previous "CRITICAL" list described an earlier design in which the worker
+> talked to Neon and TiDB directly; it never shipped that way. Canonical contract:
+> [`AGENTS.md`](./AGENTS.md).
 
-Common:
-- `OPENAI_API_KEY` · for AI-driven cron jobs (drift detection, etc)
-- `VENICE_API_KEY` · fallback provider
-- `TELEGRAM_BOT_TOKEN` · ops alerts
+REQUIRED (the process refuses to boot or silently no-ops without these):
+- `CRON_SECRET` · Bearer secret for `/cron/*`, compared with `timingSafeEqual`; **fail-closed** —
+  the server refuses to start when it is empty
+- `STATENOUR_WEB_URL` · internal base URL every tick is forwarded to
 
-## Cron jobs hosted here
+USED:
+- `PORT` · listener (default 8080) · `SERVICE_ROLE`
+- `STATENOUR_SYNC_KEY` · signed bridge calls — must match statenour-web AND nickstire
+- `AWS_REGION`, `S3_BUCKET`, `CLOUDFRONT_DOMAIN`, `SITE_URL` · video-render upload path; with
+  `S3_BUCKET` unset, renders fall back to local `data/generated/`
 
-Live registry: GET `/api/cron/list` on statenour-web. Examples:
-- `nightly-drift-scan` · 02:00 UTC
-- `mastery-score-refresh` · every 6h
-- `nickstire-bridge-sync` · every 30m (reads TiDB → writes Neon snapshot)
+NOT read by this service: `DATABASE_URL`, `NICKSTIRE_DATABASE_URL`, `OPENAI_API_KEY`,
+`VENICE_API_KEY`, `TELEGRAM_BOT_TOKEN`. They may still be set on the Railway service; the code
+ignores them.
+
+## Cron jobs
+
+The worker **forwards ticks**; the jobs themselves execute as statenour-web route handlers.
+Live registry: GET `/api/cron/list` on statenour-web; manifest of record:
+`apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`).
+
+Registered here in `src/scheduler.ts`:
+- `brain-bus-drain` · every 15m → GET `/api/cron/brain-bus-drain`
+- `outbox-drain` · every 15m → GET `/api/cron/outbox-drain`
+- `inngest-liveness` · daily 13:00 UTC → GET `/api/cron/inngest-liveness`
+- `POST /cron/mega` and `/cron/mega-evening` → `/api/cron/mega?slot=morning|evening`
+
+Plus one job that runs **in-process** rather than forwarding: a 2-minute video-render loop that
+polls `/api/sync/queue/render`, renders MP4 via `@nour/reel-engine` (Remotion), uploads through
+`src/storage.ts`, and POSTs `/api/sync/queue/render-complete` (reverting the item to `approved` on
+failure).
 
 Operator surface: `/system/cron-deck` (kill switch · run-now · per-job status).
 
@@ -70,11 +89,13 @@ service · prevents the rollback from re-triggering the bad cron immediately.
 
 | Symptom | Diagnosis | Fix |
 |---|---|---|
-| Worker crash loop | Unhandled promise rejection in a cron job | Check Railway logs · most jobs use `withGuardian` wrapper · find the one that doesn't |
+| Worker crash loop | Unhandled promise rejection in a tick or the render loop | Check Railway logs · identify the failing job and add the missing catch |
 | Cron silently stopped | Service replica count 0 OR `CRON_KILL_SWITCH=true` | Check Railway replica + `/system/cron-deck` |
 | Nickstire bridge 401 | `STATENOUR_SYNC_KEY` drift between services | Sync the env var across statenour-web + nickstire + worker (all 3 must match) |
 
 ## Related docs
 
-- `apps/worker/src/cron/**` · job definitions
-- `apps/statenour/lib/cron/registry.ts` · cron registry used by /system/cron-deck
+- [`apps/worker/AGENTS.md`](./AGENTS.md) · what this service actually is (verified against `src/`)
+- `apps/worker/src/{index,scheduler,storage}.ts` · the entire implementation — there is no
+  `src/cron/` directory
+- `apps/statenour/config/crons.ts` · cron manifest of record (`pnpm check:crons`)
