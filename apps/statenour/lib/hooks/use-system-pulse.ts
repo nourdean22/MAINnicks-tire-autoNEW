@@ -53,6 +53,21 @@ export interface SystemPulse {
   nickQualityDelta?: number | null;
   nickQualityDirection?: "rising" | "falling" | "flat" | "unknown";
   nickQualityReplies7d?: number;
+  /**
+   * True when the Neon quota circuit was OPEN and buildSystemPulse
+   * short-circuited — every count above is then a fabricated zero, not a
+   * measurement.
+   *
+   * The server has always sent this (lib/services/system-pulse.ts sets it on
+   * both the short-circuit and the normal path, and the tRPC procedure returns
+   * SystemPulseView verbatim). It was simply never DECLARED here, and the hook
+   * casts the payload with a plain `as`, so no consumer could see it — which is
+   * how the home strip came to render a green "calm" from queries that never ran.
+   *
+   * Optional because the module-level cache can still hold a payload minted
+   * before this field was read; treat undefined as false.
+   */
+  dbQuotaExhausted?: boolean;
   generatedAt: string;
 }
 
