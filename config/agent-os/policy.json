@@ -178,7 +178,10 @@
         "rm -rf node_modules/.cache",
         "Remove-Item -Recurse -Force dist",
         "powershell scripts/worktree-teardown.ps1 -targetDir .worktrees/bar",
-        "git worktree list"
+        "git worktree list",
+        "Remove-Item Env:\\GITHUB_TOKEN -ErrorAction SilentlyContinue; gh pr list --state open",
+        "Copy-Item \"$f.mutbak\" $f -Force; Remove-Item \"$f.mutbak\" -Force",
+        "git commit -m \"docs: note Remove-Item Env:\\GITHUB_TOKEN false-positived in the harness sandbox\""
       ]
     },
     {
