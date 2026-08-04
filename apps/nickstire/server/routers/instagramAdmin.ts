@@ -443,19 +443,47 @@ export const instagramAdminRouter = router({
     // Snapshot accrual (Wave C substrate): null = unreadable (unknown, never
     // zero). Windows/cohorts unlock as this history ages — the UI says so
     // instead of pretending.
-    let snapshotStats: { rows: number; earliest: string | null } | null = null;
+    // withWatchTime/withSkipRate are COUNTS of non-null rows, deliberately not
+    // the values. Migration 0108 has been storing avg_watch_time_ms and
+    // skip_rate since 2026-07-31 and nothing has ever read them back, so the
+    // first honest question is not "what is the number" but "do we have any".
+    // A count cannot be misread: it carries no units, and skip_rate's units
+    // (percent vs fraction) are still unconfirmed against a live Graph payload.
+    // Both columns are REELS-ONLY (instagram-data.ts:162), so on an
+    // image-heavy account a low count is expected, not a fault.
+    let snapshotStats: {
+      rows: number;
+      earliest: string | null;
+      withWatchTime: number | null;
+      withSkipRate: number | null;
+    } | null = null;
     try {
       const database = await db();
       if (database) {
         const { igMetricSnapshots } = await import("../../drizzle/schema");
         const { sql } = await import("drizzle-orm");
         const r = await database
-          .select({ n: sql<number>`count(*)`, earliest: sql<string | null>`min(${igMetricSnapshots.capturedAt})` })
+          .select({
+            n: sql<number>`count(*)`,
+            earliest: sql<string | null>`min(${igMetricSnapshots.capturedAt})`,
+            watch: sql<number>`sum(case when ${igMetricSnapshots.avgWatchTimeMs} is not null then 1 else 0 end)`,
+            skip: sql<number>`sum(case when ${igMetricSnapshots.skipRate} is not null then 1 else 0 end)`,
+          })
           .from(igMetricSnapshots);
-        const n = Number((r as Array<{ n: unknown; earliest: unknown }>)[0]?.n);
+        const row = (r as Array<{ n: unknown; earliest: unknown; watch: unknown; skip: unknown }>)[0];
+        const n = Number(row?.n);
         if (Number.isFinite(n)) {
-          const earliestRaw = (r as Array<{ earliest: unknown }>)[0]?.earliest;
-          snapshotStats = { rows: n, earliest: earliestRaw ? String(earliestRaw) : null };
+          const earliestRaw = row?.earliest;
+          // SUM() returns null on an empty table; keep that as unknown rather
+          // than coercing to 0, matching the contract the rest of this file uses.
+          const watch = Number(row?.watch);
+          const skip = Number(row?.skip);
+          snapshotStats = {
+            rows: n,
+            earliest: earliestRaw ? String(earliestRaw) : null,
+            withWatchTime: Number.isFinite(watch) ? watch : null,
+            withSkipRate: Number.isFinite(skip) ? skip : null,
+          };
         }
       }
     } catch (err) {

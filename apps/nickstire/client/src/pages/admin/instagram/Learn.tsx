@@ -174,6 +174,22 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
             : analytics.data.snapshotStats.rows === 0
               ? "Metric-history snapshots: none yet — the first sync after this deploy starts them; 24h/7d/30d windows unlock as history ages."
               : `Metric-history snapshots: ${analytics.data.snapshotStats.rows} accruing since ${analytics.data.snapshotStats.earliest ? new Date(analytics.data.snapshotStats.earliest).toLocaleDateString() : "recently"} — 24h/7d/30d windows unlock as history ages.`}
+          {/* Migration 0108 has stored reel watch-time and skip-rate since
+              2026-07-31 and nothing ever read them back. This reports COVERAGE
+              (how many snapshots carry the fields), not the values: a count has
+              no units to misread, and skip_rate's units are still unconfirmed
+              against a live Graph payload. Both fields are REELS-ONLY, so a low
+              count on an image-heavy account is expected, not a fault. */}
+          {analytics.data?.snapshotStats != null && analytics.data.snapshotStats.rows > 0 && (
+            <>
+              {" "}
+              {analytics.data.snapshotStats.withWatchTime == null
+                ? "Reel watch-time coverage: unknown (could not count)."
+                : analytics.data.snapshotStats.withWatchTime === 0
+                  ? "Reel watch-time: stored by the pipeline since 2026-07-31, but no snapshot carries it yet (reels-only) — so no watch-time view is offered rather than an empty one."
+                  : `Reel watch-time: ${analytics.data.snapshotStats.withWatchTime} of ${analytics.data.snapshotStats.rows} snapshots carry it (reels-only); per-post display is not offered until the value's units are confirmed.`}
+            </>
+          )}
         </p>
       </div>
 
@@ -195,7 +211,12 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
                 <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{winner.postType}</Badge>{winner.mediaProductType === "REELS" && <Badge variant="outline">Reel</Badge>}<Badge variant="outline">{winner.engagementRate.toFixed(2)}% engagement</Badge>{winner.contentScore > 0 && <Badge variant="outline">Score {winner.contentScore}</Badge>}{winner.saved != null && winner.reach != null && winner.reach > 0 && <Badge variant="outline">{((winner.saved / winner.reach) * 1000).toFixed(1)} saves/1k reached</Badge>}{(() => {
                   // Distribution score renders ONLY at honest coverage — it names
                   // how much of the formula was measured instead of impersonating
-                  // the full number (watch time and follows are not stored yet).
+                  // the full number. Watch time IS stored now — migration 0108 put
+                  // avg_watch_time_ms on ig_metric_snapshots (2026-07-31) — but it
+                  // is not fed in here: scoreFromAnalyticsRow reads an
+                  // instagram_analytics row, a different table, and reelScore wants
+                  // a 0..1 watched FRACTION which needs a reel duration column that
+                  // does not exist anywhere. Follows are still not stored at all.
                   const dist = scoreFromAnalyticsRow({ reach: winner.reach, saved: winner.saved, shares: winner.shares, comments: winner.comments });
                   return dist ? <Badge variant="outline">Distribution {dist.score} · {Math.round(dist.coverage * 100)}% measured</Badge> : null;
                 })()}</div>
