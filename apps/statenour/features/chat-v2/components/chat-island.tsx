@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Brain, History, Mic, MicOff } from "lucide-react";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
+import { resolveIslandHeight } from "../lib/island-height";
 import { ChatComposer } from "./chat-composer";
 import { ChatMessageList } from "./chat-message-list";
 import { ChatCapabilityIndicator } from "./chat-capability-indicator";
@@ -65,18 +66,61 @@ export function ChatIsland() {
   const { containerRef, endRef } = useScrollToBottom<HTMLDivElement>();
   const islandRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Keep the island clear of the iOS soft keyboard.
+   *
+   * This used to assign `viewport.height` outright, which ignored the
+   * bottom-chrome reservation the shell owns as padding-bottom. An inline
+   * height beats `h-full`, so the island rendered exactly --bottom-chrome-h
+   * too tall on every load — keyboard or not — and the composer sat that far
+   * under the tab bar. See resolveIslandHeight for the measurements.
+   *
+   * Now the pin only engages when the visual viewport is genuinely shorter
+   * than the shell's content box; otherwise the inline height is REMOVED so
+   * `h-full` stays authoritative and keeps tracking the measured token.
+   */
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
     const viewport = window.visualViewport;
+
     const syncHeight = () => {
-      if (islandRef.current) islandRef.current.style.height = `${viewport.height}px`;
+      const island = islandRef.current;
+      const shell = island?.parentElement;
+      if (!island || !shell) return;
+
+      const shellStyle = getComputedStyle(shell);
+      const next = resolveIslandHeight({
+        viewportHeight: viewport.height,
+        parentHeight: shell.getBoundingClientRect().height,
+        parentPaddingTop: parseFloat(shellStyle.paddingTop) || 0,
+        parentPaddingBottom: parseFloat(shellStyle.paddingBottom) || 0,
+        viewportScale: viewport.scale,
+      });
+
+      if (next === null) island.style.removeProperty("height");
+      else island.style.height = `${next}px`;
     };
+
     viewport.addEventListener("resize", syncHeight);
     viewport.addEventListener("scroll", syncHeight);
     syncHeight();
+
+    // The reservation itself is measured — BottomTabBar publishes
+    // --bottom-chrome-h from a ResizeObserver, so the shell's padding-bottom
+    // can change after mount (the ticker wrapping to a second line is the
+    // case that started all of this). visualViewport does not fire for that,
+    // so watch the shell's own box too.
+    const shell = islandRef.current?.parentElement;
+    const ro =
+      typeof ResizeObserver === "undefined" || !shell
+        ? null
+        : new ResizeObserver(syncHeight);
+    if (ro && shell) ro.observe(shell);
+
     return () => {
       viewport.removeEventListener("resize", syncHeight);
       viewport.removeEventListener("scroll", syncHeight);
+      ro?.disconnect();
     };
   }, []);
 
