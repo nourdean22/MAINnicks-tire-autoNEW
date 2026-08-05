@@ -33,8 +33,35 @@ Studio wizard (Advanced Reel Studio, admin → Growth → Instagram → Studio)
 | `HIGGSFIELD_CREDENTIALS_JSON` | **seed only** | the CLI ROTATES tokens on refresh; rotated pairs are persisted to `app_secret_kv.higgsfield_credentials_json`, which is preferred over this var (#798). Re-login only if BOTH die: `higgsfield auth login` (device flow), then paste `~/.config/higgsfield/credentials.json` into this var |
 | `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg fonts-dejavu-core` | runtime system packages | Railway migrated this service to **Railpack, which ignores `nixpacks.toml`** — the ffmpeg declaration there is dead config |
 | `GEMINI_API_KEY` | brief generation | works for generateContent even while dead for Veo model access |
+| `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` | degrade instead of going dark | when the paid provider returns a `PAUSE_PROVIDER` verdict (plan wall, dead session), render the rest of that reel on the free local ffmpeg lane. **Off by default** — it changes what the shop publishes |
 
 No S3 is configured: assembled MP4s live on ephemeral disk at `/generated/reel-<jobId>.mp4`. **Published reels are safe (Meta ingests the video), but local MP4s vanish on every redeploy.**
+
+## Dropping the paid video provider
+
+Higgsfield is doing two jobs, and only one of them is obvious. It generates the
+clips, **and it hosts them** — `parseResultUrl` returns Higgsfield's own CDN URL,
+which is why this pipeline runs with no bucket configured at all. Cancelling it
+removes the hosting too, so the order below matters.
+
+1. **Answer the storage question first.** The free lane renders to local disk and
+   re-hosts through `storagePut`, so it needs one of: `S3_BUCKET`
+   (+ `CLOUDFRONT_DOMAIN`), or `REEL_ALLOW_EPHEMERAL_STORAGE=true` to accept that
+   a redeploy destroys the local copy. Ephemeral is a real option here, not a
+   fudge: Meta ingests the video at publish time, so a published reel survives —
+   only the re-usable local copy is lost.
+2. **Arm the fallback** — `REEL_FALLBACK_TO_TEMPLATE_STOCK=true`. Reels now
+   degrade to the free lane the next time the paid provider walls, instead of the
+   job going terminal and the account going quiet.
+3. **Look at one.** The free lane has never published: no reel rendered by
+   `template_stock` has ever been posted, so whether the format earns any reach is
+   unmeasured. Render one, approve it by hand, and judge it before trusting the lane.
+4. **Then cancel**, and pin `REEL_VIDEO_PROVIDER=template_stock` so the selector
+   stops preferring a provider that is gone.
+
+Also lost on cancellation: `reference_frames` (Visual World hero images, roughly
+$0.10 each, `REEL_AUTO_VISUAL_WORLD=true`). The IG autopost image path does *not*
+depend on it — that branch routes to the branded-poster renderer.
 
 ## Render-integrity gate (#800/#801)
 

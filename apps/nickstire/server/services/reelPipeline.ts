@@ -135,6 +135,27 @@ export async function selectReelVideoProvider(): Promise<ReelVideoProvider> {
 }
 
 /**
+ * Whether a failed paid-provider call should degrade to the free local lane
+ * instead of taking the job terminal.
+ *
+ * PAUSE_PROVIDER is exactly the set of verdicts that no retry can clear: a
+ * plan-tier wall, an exhausted balance, a dead session. nextStatusFor sends all
+ * of them straight to `failed`, which is correct as a signal and is also why
+ * reels stopped entirely on 2026-08-03 and stayed stopped. Rendering something
+ * free beats publishing nothing.
+ *
+ * OFF unless the operator opts in. selectReelVideoProvider deliberately refuses
+ * to auto-select template_stock because doing so would "quietly change what the
+ * shop publishes", and that ruling stands: this flag does not overturn it, it
+ * only lets the operator answer a different question — degrade, or go dark.
+ */
+export async function shouldDegradeToFreeLane(err: unknown): Promise<boolean> {
+  if (process.env.REEL_FALLBACK_TO_TEMPLATE_STOCK !== "true") return false;
+  const { classifyProviderError } = await import("../../shared/providerErrors");
+  return classifyProviderError(err).action === "PAUSE_PROVIDER";
+}
+
+/**
  * Presence, NOT liveness — the same contract veoCredentialsPresent documents for
  * itself. A stored-but-expired Higgsfield session reads as present here.
  */
@@ -541,6 +562,21 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     const videoProvider = await selectReelVideoProvider();
     log.info("reel clip generation provider selected", { jobId: job.id, provider: videoProvider });
 
+    // The provider actually used for the beat being rendered. It starts as the
+    // selected one and only ever moves to template_stock, once, when a paid
+    // provider turns out to be unusable (see shouldDegradeToFreeLane). Kept
+    // separate from videoProvider so the top-of-function precondition below
+    // still reflects the SELECTED provider rather than a mid-job substitution.
+    let activeProvider: ReelVideoProvider = videoProvider;
+
+    // Clips this run rendered on the FREE lane. The reservation was priced at
+    // enqueue against the SELECTED provider, and the comment on that reserve
+    // call already names the hazard: "a mid-flight provider flip can still
+    // diverge - settlement is where actuals must be reconciled". Without this
+    // counter a degraded reel settles every clip at the paid provider's rate,
+    // which is the exact ledger lie the flat-Seedance settle used to tell.
+    let freeLaneClips = 0;
+
     // The durable-storage precondition only applies to providers that RE-HOST
     // through our storage (Veo → storagePut → ephemeral local disk without S3,
     // which a deploy wipes after we already paid). Higgsfield returns its OWN
@@ -587,7 +623,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
 
       let finalClipUrl = "";
 
-      if (videoProvider === "template_stock") {
+      if (activeProvider === "template_stock") {
         // Local ffmpeg render — no API, no credits, no credentials. Same
         // per-beat contract as Higgsfield: one blocking call returning one
         // public URL, persisted immediately below so a retry resume-skips it.
@@ -608,6 +644,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           `template_stock beat ${beat.beatNumber}`,
         );
         clipUrls[i] = finalClipUrl;
+        freeLaneClips += 1;
         await d.update(reelJobs)
           .set({ clipUrlsJson: JSON.stringify(clipUrls), updatedAt: new Date() })
           .where(eq(reelJobs.id, job.id));
@@ -615,7 +652,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         continue;
       }
 
-      if (videoProvider === "higgsfield") {
+      if (activeProvider === "higgsfield") {
         // Higgsfield/Seedance is a single blocking call (submit+poll+rehost
         // internally) — no resumable op name. Each beat's URL is persisted right
         // after success below, so a job retry resume-skips completed beats. A
@@ -632,11 +669,39 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         // paid seedance image-render proves it live.
         const hero = brief.visualWorld?.heroFrameUrl;
         const startImageUrl = hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined;
-        finalClipUrl = await withTimeout(
-          generateReelClipVideo({ prompt, negativePrompt, startImageUrl }),
-          GEN_CLIP_TIMEOUT_MS,
-          `higgsfield beat ${beat.beatNumber}`,
-        );
+        try {
+          finalClipUrl = await withTimeout(
+            generateReelClipVideo({ prompt, negativePrompt, startImageUrl }),
+            GEN_CLIP_TIMEOUT_MS,
+            `higgsfield beat ${beat.beatNumber}`,
+          );
+        } catch (genErr) {
+          if (!(await shouldDegradeToFreeLane(genErr))) throw genErr;
+          // The paid provider is unusable and no retry clears it. Without this
+          // the job goes terminal and the account publishes nothing, which is
+          // exactly what happened from 2026-08-03. Render the rest of this job
+          // on the free local lane instead.
+          //
+          // The flip is one-way and re-runs the CURRENT beat: on the next pass
+          // activeProvider is template_stock, so this branch is unreachable and
+          // the walled provider is not called again for the remaining beats.
+          log.error("paid reel provider unusable - degrading to the free local lane", {
+            jobId: job.id,
+            beat: beat.beatNumber,
+            was: activeProvider,
+            err: genErr instanceof Error ? genErr.message : String(genErr),
+          });
+          activeProvider = "template_stock";
+          // The free lane re-hosts through storagePut, so it carries the same
+          // durable-storage precondition a pinned template_stock run gets at
+          // the top of this function. Assert it HERE too: the top-of-function
+          // check ran against the SELECTED provider (higgsfield, which needs no
+          // storage because it returns its own CDN URL), so without this line
+          // the fallback would silently slip past a fail-closed guard.
+          assertDurableStorageForGeneration(`reel job ${job.id} template_stock fallback`);
+          i -= 1;
+          continue;
+        }
         clipUrls[i] = finalClipUrl;
         await d.update(reelJobs)
           .set({ clipUrlsJson: JSON.stringify(clipUrls), updatedAt: new Date() })
@@ -649,9 +714,9 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       // an implicit else for two providers: widening the union does not make
       // this a compile error, so an unhandled provider silently ran Veo and
       // spent real money under another provider's name. Fail loudly instead.
-      if (videoProvider !== "veo") {
+      if (activeProvider !== "veo") {
         throw new Error(
-          `unhandled REEL_VIDEO_PROVIDER "${videoProvider}" — add an explicit branch before the Veo path`,
+          `unhandled REEL_VIDEO_PROVIDER "${activeProvider}" — add an explicit branch before the Veo path`,
         );
       }
 
@@ -728,7 +793,16 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       // settling at a flat Seedance rate is what made a mid-flight provider flip
       // undetectable in the ledger, and would settle a free local reel as if it
       // had spent Seedance money.
-      await settle(`reel_job_${job.id}`, clipUrls.length * reelClipCostUsd(videoProvider));
+      // Split the bill by the lane that actually rendered each clip. Clips the
+      // free lane produced cost nothing; everything else (including clips
+      // resumed from an earlier run) is priced at the selected provider's rate.
+      // When no flip happened freeLaneClips is 0 and this is the original
+      // expression unchanged.
+      const paidClips = Math.max(0, clipUrls.length - freeLaneClips);
+      await settle(
+        `reel_job_${job.id}`,
+        paidClips * reelClipCostUsd(videoProvider) + freeLaneClips * reelClipCostUsd("template_stock"),
+      );
     } catch { /* ledger degraded — reservation's estimate stands */ }
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });
     return { processed: true, jobId: job.id, status: "assets_ready" };
