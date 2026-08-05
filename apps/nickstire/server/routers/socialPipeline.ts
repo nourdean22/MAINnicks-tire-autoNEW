@@ -50,6 +50,7 @@ const ENV_GATES = [
   // panel, never credentials. Annotate the line as below rather than renaming
   // the flag or weakening the gate.
   { key: "MP4_INGEST_ENABLED", description: "Ingest a FINISHED mp4 (MoneyPrinter, hand-edited cut) into content inventory as a review_ready draft. Creates the reel_jobs row the publish gate needs; still subject to every approval/publish gate.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
+  { key: "REEL_FALLBACK_TO_TEMPLATE_STOCK", description: "When the paid video provider is unusable (plan-tier wall, dead session), render the REST of that reel on the free local ffmpeg lane instead of failing the job. Changes what the shop publishes — template renders, not generated video — so it is off until the operator chooses degraded over dark. Still needs S3_BUCKET or REEL_ALLOW_EPHEMERAL_STORAGE, because the free lane re-hosts.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
 ] as const;
 
 /** DB feature flags relevant to the social/content pipeline. */
