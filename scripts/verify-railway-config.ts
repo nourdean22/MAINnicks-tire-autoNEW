@@ -2,7 +2,19 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
-// Define critical environment variables to verify
+// Define critical environment variables to verify.
+//
+// The three LIVEKIT_* keys were dropped 2026-08-05 with the voice retirement.
+// apps/voice was removed 2026-08-03 and its Railway service was deleted; no
+// code in apps/** or packages/** reads LIVEKIT_URL, LIVEKIT_API_KEY, or
+// LIVEKIT_API_SECRET, and the key + secret were cleared off statenour-web.
+// Leaving them here would make this script report "action needed" forever for
+// a product that no longer exists — a checker that cries wolf gets ignored,
+// and then it stops catching the keys that DO matter.
+//
+// CARTESIA_API_KEY is deliberately NOT added: it is genuinely required (the
+// morning-brief TTS reads it), but this list is the pre-existing critical set
+// and widening it is a separate call.
 const REQUIRED_KEYS = [
   "ANTHROPIC_API_KEY",
   "TWILIO_ACCOUNT_SID",
@@ -10,9 +22,6 @@ const REQUIRED_KEYS = [
   "TWILIO_PHONE_NUMBER",
   "RESEND_API_KEY",
   "REDIS_URL",
-  "LIVEKIT_URL",
-  "LIVEKIT_API_KEY",
-  "LIVEKIT_API_SECRET",
   "INNGEST_EVENT_KEY",
   "INNGEST_SIGNING_KEY",
 ];
