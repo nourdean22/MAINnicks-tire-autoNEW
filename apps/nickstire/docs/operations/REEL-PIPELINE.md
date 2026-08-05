@@ -35,33 +35,50 @@ Studio wizard (Advanced Reel Studio, admin → Growth → Instagram → Studio)
 | `GEMINI_API_KEY` | brief generation | works for generateContent even while dead for Veo model access |
 | `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` | degrade instead of going dark | when the paid provider returns a `PAUSE_PROVIDER` verdict (plan wall, dead session), render the rest of that reel on the free local ffmpeg lane. **Off by default** — it changes what the shop publishes |
 
-No S3 is configured: assembled MP4s live on ephemeral disk at `/generated/reel-<jobId>.mp4`. **Published reels are safe (Meta ingests the video), but local MP4s vanish on every redeploy.**
+Durable object storage IS configured (verified 2026-08-05): Railway Bucket
+`nickstire-media-oq6yt1u22`, wired via `S3_BUCKET` + `S3_ENDPOINT` + `S3_REGION` +
+`S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`. `CLOUDFRONT_DOMAIN` is deliberately
+ABSENT: that is exactly the condition under which `usesProxiedReads()` is true and
+`publicObjectUrl` hands out permanent links through `{SITE_URL}/generated/{key}`
+rather than presigned ones that expire. Assembled MP4s therefore SURVIVE a
+redeploy - `reel-1290001.mp4` (12.36 MB) and `reel-1320001.mp4` (15.06 MB) both
+still return `200 video/mp4` after three redeploys on 2026-08-05.
+
+This paragraph used to read *"No S3 is configured ... local MP4s vanish on every
+redeploy"*. That was true when written and is now false. The same sentence had
+been copied into a `template-stock-reel-lane` capability-ledger blocker, where it
+outlived its cause and drove a wrong plan a week later. **Re-check the env before
+repeating an infrastructure claim you read in a doc.**
 
 ## Dropping the paid video provider
 
-Higgsfield is doing two jobs, and only one of them is obvious. It generates the
-clips, **and it hosts them** — `parseResultUrl` returns Higgsfield's own CDN URL,
-which is why this pipeline runs with no bucket configured at all. Cancelling it
-removes the hosting too, so the order below matters.
+Higgsfield is doing two jobs and only one of them is obvious. It generates the
+clips **and it hosts them**: `parseResultUrl` returns Higgsfield's own CDN URL, so
+a Higgsfield clip never touches our bucket. Cancelling it removes the hosting
+too - every other provider re-hosts through `storagePut`.
 
-1. **Answer the storage question first.** The free lane renders to local disk and
-   re-hosts through `storagePut`, so it needs one of: `S3_BUCKET`
-   (+ `CLOUDFRONT_DOMAIN`), or `REEL_ALLOW_EPHEMERAL_STORAGE=true` to accept that
-   a redeploy destroys the local copy. Ephemeral is a real option here, not a
-   fudge: Meta ingests the video at publish time, so a published reel survives —
-   only the re-usable local copy is lost.
-2. **Arm the fallback** — `REEL_FALLBACK_TO_TEMPLATE_STOCK=true`. Reels now
-   degrade to the free lane the next time the paid provider walls, instead of the
-   job going terminal and the account going quiet.
-3. **Look at one.** The free lane has never published: no reel rendered by
-   `template_stock` has ever been posted, so whether the format earns any reach is
-   unmeasured. Render one, approve it by hand, and judge it before trusting the lane.
+1. **Storage: already answered.** The bucket above is live, so
+   `assertDurableStorageForGeneration` passes and the free lane will not refuse.
+   Do NOT set `REEL_ALLOW_EPHEMERAL_STORAGE` - it buys nothing now and it disarms
+   a fail-closed guard that exists because prod once lost clips.
+2. **Arm the fallback** - `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` (set in prod
+   2026-08-05). Reels degrade to the free lane the next time the paid provider
+   returns a `PAUSE_PROVIDER` verdict, instead of the job going terminal and the
+   account going quiet.
+3. **Judge the first one.** No `template_stock` reel has ever been published, so
+   whether the format earns reach is unmeasured. Note that this lane is **NOT
+   draft-first**: `cron/jobs/dailyReelPost.ts` sees an `assembled` job and calls
+   `publishToSocial` itself, with no approval step - the `approveDraft` gate
+   belongs to the admin surface, not this cron. To hold one for review set
+   `REEL_PUBLISH_ENABLED=false` and it assembles and waits. Setting
+   `REEL_AUTOPOST_ENABLED=false` instead stops generation entirely, because that
+   cron both ENQUEUES and PUBLISHES.
 4. **Then cancel**, and pin `REEL_VIDEO_PROVIDER=template_stock` so the selector
    stops preferring a provider that is gone.
 
 Also lost on cancellation: `reference_frames` (Visual World hero images, roughly
 $0.10 each, `REEL_AUTO_VISUAL_WORLD=true`). The IG autopost image path does *not*
-depend on it — that branch routes to the branded-poster renderer.
+depend on it - that branch routes to the branded-poster renderer.
 
 ## Render-integrity gate (#800/#801)
 
