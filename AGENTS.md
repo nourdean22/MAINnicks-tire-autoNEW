@@ -31,8 +31,10 @@ this repo, the tooling, `main`, a small bridge contract, and the workspace packa
 **Non-workspace directories:** `camera-bridge/` (shop-camera NVR bridge) · `MoneyPrinterTurbo/`,
 `last30days-skill/`, `ad-factory/` (vendored tool integrations) · `docs/` (cross-cutting docs).
 
-**Retired — do not look for these:** `apps/voice/` (removed 2026-08-03; Railway service at 0
-replicas) · `.husky/` (lefthook replaced it) · `~/push-main.sh` (direct-`main` pushes are forbidden).
+**Retired — do not look for these:** `apps/voice/` (removed 2026-08-03; the Railway service
+`statenour-voice` still EXISTS — verified 2026-08-05: last deploy CRASHED and is stopped,
+`numReplicas` is still 1, and its root dir is gone so it can never redeploy. Deleting it is an
+OPERATOR call) · `.husky/` (lefthook replaced it) · `~/push-main.sh` (direct-`main` pushes are forbidden).
 
 ## Source-of-truth hierarchy
 
