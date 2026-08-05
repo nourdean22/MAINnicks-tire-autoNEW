@@ -45,6 +45,11 @@ const twilioCB = getOrCreateBreaker("twilio-sms", {
 // write-through invalidation via markPhoneOptedOut / markPhoneOptedIn
 // so opt-outs propagate immediately for TCPA compliance.
 let optOutCache: Set<string> | null = null;
+// 2026-08-05 · numbers the carrier reported as BLOCKING the shop's line
+// ("You have been blocked from originating messages to <number>"). Rebuilt
+// alongside optOutCache from the message log; kept separate so refusal logs
+// say what actually happened (a block is not a STOP).
+let carrierBlockCache: Set<string> | null = null;
 let optOutCacheLoadedAt = 0;
 const OPT_OUT_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -63,16 +68,63 @@ const OPT_OUT_CACHE_TTL_MS = 5 * 60 * 1000;
  * absence of ANY loaded index is `ok: false`.
  */
 type OptOutIndex =
-  | { ok: true; phones: Set<string>; stale: boolean }
+  | { ok: true; phones: Set<string>; carrierBlocked: Set<string>; stale: boolean }
   | { ok: false; reason: string };
+
+/**
+ * 2026-08-05 · FOURTH suppression source: carrier block notices.
+ *
+ * Measured in prod: 17 inbound "You have been blocked from originating
+ * messages to 1XXXXXXXXXX" notices across 6 numbers in 90 days, and nothing
+ * suppressed further sends to them — repeated automated sends to blocking
+ * numbers risk carrier filtering on the shop's real Verizon line.
+ *
+ * Semantics differ from STOP on purpose:
+ * - The suppressed number comes from the NOTICE BODY, not the sender row.
+ * - A block is not consent revocation, so it is NOT permanent: an inbound
+ *   text from that number STRICTLY LATER than the newest notice proves the
+ *   block was lifted and un-suppresses it. STOP has no such release.
+ *
+ * Pure and exported so the contract is testable DB-free.
+ */
+export function carrierBlockedPhones(
+  notices: Array<{ body: string; createdAt: Date | string }>,
+  lastInboundByPhone: Map<string, Date>,
+): Set<string> {
+  const newestNoticeAt = new Map<string, number>();
+  for (const n of notices) {
+    // Anchored to the end of the notice — the target number is the body's
+    // only digit run, but anchoring keeps a spam text that merely QUOTES the
+    // phrase mid-sentence from suppressing an innocent number.
+    // Defensive on row shape: a malformed row must be SKIPPED, not thrown —
+    // a throw here fails the whole index build, and fail-closed would then
+    // refuse every outbound send (an outage, not a safety win).
+    const body = typeof n?.body === "string" ? n.body : "";
+    const digits = body.trim().match(/to\s*\+?(\d{10,15})\s*$/i)?.[1] ?? "";
+    const p10 = digits.slice(-10);
+    if (p10.length !== 10) continue;
+    const t = new Date(n.createdAt).getTime();
+    if (Number.isNaN(t)) continue;
+    const prev = newestNoticeAt.get(p10);
+    if (prev === undefined || t > prev) newestNoticeAt.set(p10, t);
+  }
+  const blocked = new Set<string>();
+  for (const [p10, noticeAt] of newestNoticeAt) {
+    const heardAt = lastInboundByPhone.get(p10)?.getTime();
+    if (heardAt === undefined || heardAt <= noticeAt) blocked.add(p10);
+  }
+  return blocked;
+}
 
 async function ensureOptOutCache(): Promise<OptOutIndex> {
   const now = Date.now();
   if (optOutCache && now - optOutCacheLoadedAt < OPT_OUT_CACHE_TTL_MS) {
-    return { ok: true, phones: optOutCache, stale: false };
+    return { ok: true, phones: optOutCache, carrierBlocked: carrierBlockCache ?? new Set(), stale: false };
   }
   const stale = (reason: string): OptOutIndex =>
-    optOutCache ? { ok: true, phones: optOutCache, stale: true } : { ok: false, reason };
+    optOutCache
+      ? { ok: true, phones: optOutCache, carrierBlocked: carrierBlockCache ?? new Set(), stale: true }
+      : { ok: false, reason };
   try {
     const { getDb } = await import("./db");
     const { customers, smsPreferences } = await import("../drizzle/schema");
@@ -125,9 +177,36 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
     `);
     for (const r of (optOutBodies[0] as Array<{ phone: string | null }>)) addNorm(r.phone);
 
+    // 2026-08-05 · FOURTH source: carrier block notices (see
+    // carrierBlockedPhones). The target number lives in the notice BODY;
+    // an inbound from that number strictly after the newest notice lifts
+    // the suppression. Kept in a separate set so sendSms can log the truth.
+    const blockNoticeRows = await db.execute(sql`
+      SELECT m.body AS body, m.createdAt AS createdAt
+      FROM sms_messages m
+      WHERE m.direction = 'inbound'
+        AND UPPER(TRIM(m.body)) LIKE 'YOU HAVE BEEN BLOCKED FROM ORIGINATING MESSAGES TO %'
+    `);
+    const lastInboundRows = await db.execute(sql`
+      SELECT RIGHT(sc.phone, 10) AS p10, MAX(m.createdAt) AS lastAt
+      FROM sms_messages m
+      JOIN sms_conversations sc ON sc.id = m.conversationId
+      WHERE m.direction = 'inbound'
+      GROUP BY RIGHT(sc.phone, 10)
+    `);
+    const lastInboundByPhone = new Map<string, Date>();
+    for (const r of (lastInboundRows[0] as Array<{ p10: string | null; lastAt: Date | string | null }>)) {
+      if (r.p10 && r.p10.length === 10 && r.lastAt) lastInboundByPhone.set(r.p10, new Date(r.lastAt));
+    }
+    const freshBlocked = carrierBlockedPhones(
+      blockNoticeRows[0] as Array<{ body: string; createdAt: Date | string }>,
+      lastInboundByPhone,
+    );
+
     optOutCache = fresh;
+    carrierBlockCache = freshBlocked;
     optOutCacheLoadedAt = now;
-    return { ok: true, phones: fresh, stale: false };
+    return { ok: true, phones: fresh, carrierBlocked: freshBlocked, stale: false };
   } catch (err) {
     // log.error, not warn: if this is the FIRST load, every outbound send is
     // about to be refused, and the operator needs to know why.
@@ -1652,6 +1731,17 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       smsStats.totalOptedOut++;
       log.info("[sendSms] not sent — recipient opted out (TCPA)", { to: last10.slice(-4), messageClass });
       return { success: false, error: "Customer opted out of SMS" };
+    } else if (index.carrierBlocked.has(last10)) {
+      // 2026-08-05 · the carrier told us this number blocks the shop's line.
+      // Not a STOP (logged distinctly); lifts automatically if they text us
+      // again after the newest notice. Repeated sends to a blocking number
+      // only burn deliverability on the shop's real Verizon line.
+      smsStats.totalOptedOut++;
+      log.info("[sendSms] not sent — recipient's carrier reported the shop as blocked", {
+        to: last10.slice(-4),
+        messageClass,
+      });
+      return { success: false, error: "Recipient has blocked this number (carrier notice)" };
     }
   }
 
