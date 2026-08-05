@@ -370,22 +370,30 @@ export const vapiRouter = router({
           count,
         })).sort((a, b) => b.count - a.count);
 
-        // Warm-transfer connect rate (14d, READ-ONLY, INFERRED). Always a
-        // dedicated 14d window — independent of the caller's range — because a
-        // connect % needs >=10 forwards to mean anything, which a single day
-        // rarely has. VAPI exposes no "human answered" bit; see
-        // lib/warmTransferConnect.ts for why this is a duration proxy.
-        let warmTransferConnect: {
-          rate: number | null; attempted: number; connected: number; failed: number; reliable: boolean;
-        } = { rate: null, attempted: 0, connected: 0, failed: 0, reliable: false };
+        // Transfer-outcome EVIDENCE (14d, READ-ONLY). Replaces the duration-
+        // floor "connect rate", whose premise was refuted 2026-08-05: on the
+        // blind transfer this assistant uses, the VAPI leg ends at the hand-off,
+        // so total duration never contained the human leg. What IS observable:
+        // a same-phone redial shortly after a forward = the forward did not
+        // resolve. See lib/transferOutcomeEvidence.ts for the honest split
+        // (redialed / quiet / tooRecent / failedTransfers).
+        // Dedicated 14d window — a rate needs >=10 classifiable forwards.
+        let transferEvidence: import("../lib/transferOutcomeEvidence").TransferOutcomeEvidence = {
+          windowMinutes: 15, attempted: 0, failedTransfers: 0, forwards: 0,
+          classifiable: 0, tooRecent: 0, redialed: 0, quiet: 0, redialRate: null, reliable: false,
+        };
         try {
-          const { computeWarmTransferConnectRate } = await import("../lib/warmTransferConnect");
+          const { computeTransferOutcomeEvidence } = await import("../lib/transferOutcomeEvidence");
           const connectCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
           const transferRows = await db
-            .select({ endedReason: vapiCallLogs.endedReason, durationSeconds: vapiCallLogs.durationSeconds })
+            .select({
+              endedReason: vapiCallLogs.endedReason,
+              phoneNumber: vapiCallLogs.phoneNumber,
+              createdAt: vapiCallLogs.createdAt,
+            })
             .from(vapiCallLogs)
             .where(gte(vapiCallLogs.createdAt, connectCutoff));
-          warmTransferConnect = computeWarmTransferConnectRate(transferRows);
+          transferEvidence = computeTransferOutcomeEvidence(transferRows);
         } catch {
           /* read-only metric · default zeros on failure, never break the tile */
         }
@@ -411,7 +419,7 @@ export const vapiRouter = router({
           revisedHardConversionRate: Math.round(revisedHardConversionRate),
           actionableRate: Math.round(actionableRate),
           avgScore,
-          warmTransferConnect,
+          transferEvidence,
           weeklyTrend,
           outcomeBreakdown,
           intentDistribution,

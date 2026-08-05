@@ -420,17 +420,20 @@ export default function VoiceReceptionistSection() {
                 color="text-amber-400"
                 trendLabel={`Forwarded: ${m.forwarded || 0}, Walk-ins: ${m.walkInDirectedCount || 0}`}
               />
-              {/* Inferred from call duration (VAPI exposes no "human answered"
-                  bit); 14d window; "—" until >=10 forwards make a % meaningful. */}
+              {/* Redial EVIDENCE, not answer-proof: a same-phone call within
+                  15min of a forward means the forward didn't resolve. The VAPI
+                  leg ends at the hand-off, so no duration-based "connected" is
+                  measurable (the old inferred tile was removed for that
+                  reason). LOWER is better. "—" until >=10 classifiable. */}
               <StatCard
-                label="Warm-Transfer Connect (14d)"
-                value={m.warmTransferConnect?.reliable ? `${m.warmTransferConnect.rate}%` : "—"}
+                label="Forward Redials ≤15m (14d)"
+                value={m.transferEvidence?.reliable ? `${m.transferEvidence.redialRate}%` : "—"}
                 icon={<UserCheck className="w-4 h-4" />}
                 color="text-cyan-400"
                 trendLabel={
-                  m.warmTransferConnect?.reliable
-                    ? `inferred · ${m.warmTransferConnect.connected}/${m.warmTransferConnect.attempted} likely connected · ${m.warmTransferConnect.failed} failed`
-                    : `${m.warmTransferConnect?.attempted ?? 0} forwards (14d) · need 10+ for a rate`
+                  m.transferEvidence?.reliable
+                    ? `${m.transferEvidence.redialed}/${m.transferEvidence.classifiable} redialed · ${m.transferEvidence.quiet} quiet · ${m.transferEvidence.failedTransfers} failed hand-offs`
+                    : `${m.transferEvidence?.forwards ?? 0} forwards (14d) · need 10+ classifiable for a rate`
                 }
               />
             </MetricGrid>
