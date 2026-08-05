@@ -1342,14 +1342,20 @@ body::after {
   }
 }
 
-@keyframes state-scattered-wobble {
-  0%   { transform: translateX(0); }
-  15%  { transform: translateX(-1px); }
-  30%  { transform: translateX(1px); }
-  45%  { transform: translateX(-1px); }
-  60%  { transform: translateX(0.5px); }
-  75%  { transform: translateX(-0.5px); }
-  100% { transform: translateX(0); }
+/* Was `state-scattered-wobble`, a 420ms translateX jitter. A running
+ * transform animation makes the wrapper a containing block for fixed
+ * descendants for the life of the animation — the same trap the
+ * box-shadow reverts above were written to avoid, just intermittent
+ * instead of permanent. Re-expressed as a one-shot box-shadow flare so
+ * "scattered" still reads without touching the containing block. */
+@keyframes state-scattered-aura {
+  0%, 100% {
+    box-shadow: inset 0 0 40px rgba(253, 185, 19, 0.05);
+  }
+  50% {
+    box-shadow: inset 0 0 90px rgba(253, 185, 19, 0.16),
+                0 0 72px rgba(253, 185, 19, 0.10);
+  }
 }
 
 .state-aura {
@@ -1361,28 +1367,46 @@ body::after {
   margin: -4px;
 }
 
-/* v10.0.474 · state-aura classes RESTORED · NO position:relative on
- * these wrappers · /chat nests a position:fixed shell that needs the
- * viewport (not the wrapper) as containing block. The pseudo-element
- * pattern from v10.0.469 broke that. Reverting to direct-on-parent
- * box-shadow keyframes — accepting the paint cost in the rare states
- * where these auras fire. */
+/* CONTAINING-BLOCK INVARIANT — read before adding any property here.
+ *
+ * AmbientAura wraps EVERY mastery page in
+ *   <div class="state-aura state-aura-<state> min-h-screen">
+ * and /chat nests a `position: fixed; inset: 0` shell inside it. A fixed
+ * element resolves inset-0 against the viewport ONLY while no ancestor
+ * establishes a containing block. If one does, the shell instead spans
+ * the wrapper's padding box — min-h-screen (100vh) + the 4px .state-aura
+ * padding — which on mobile runs past the visible fold, dragging the chat
+ * composer under the (correctly viewport-pinned) BottomTabBar.
+ *
+ * v10.0.474 removed `position: relative` for exactly this reason but left
+ * two other doors open: `filter: saturate(...)` on .state-aura-drift and
+ * .state-aura-low_energy, and a transform-keyframe wobble on
+ * .state-aura-scattered. detectState() returns "drift" on ANY unresolved
+ * drift alert (the FIRST branch it checks), so the filter door was not a
+ * rare path — it was the common one.
+ *
+ * These properties ALL create a containing block for fixed descendants:
+ *   position: relative/absolute/sticky · transform · translate/rotate/scale
+ *   filter · backdrop-filter · perspective · contain: layout/paint/strict
+ *   will-change naming any of the above · @keyframes that animate them
+ *
+ * None of them may appear on .state-aura or .state-aura-*. Convey state
+ * with box-shadow (safe, and what every aura below uses) or opacity.
+ * Guarded by __tests__/state-aura-containing-block.test.ts. */
 .state-aura-on_fire {
   animation: state-fire-aura 4.5s ease-in-out infinite;
 }
 
 .state-aura-drift {
   animation: state-drift-aura 3.2s ease-in-out infinite;
-  filter: saturate(0.72);
 }
 
 .state-aura-scattered {
-  animation: state-scattered-wobble 420ms ease-in-out 1;
+  animation: state-scattered-aura 420ms ease-in-out 1;
 }
 
 .state-aura-low_energy {
   animation: state-low-energy-aura 6s ease-in-out infinite;
-  filter: saturate(0.7) brightness(0.96) hue-rotate(-6deg);
 }
 
 .state-aura-normal {
