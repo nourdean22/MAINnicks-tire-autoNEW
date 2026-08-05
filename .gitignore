@@ -165,3 +165,6 @@ apps/nickstire/data/generated/
 # Python bytecode from skill scripts (.claude/skills/skill-fire-audit/scripts)
 __pycache__/
 *.pyc
+
+# VAPI assistant-config snapshots (rollback artifacts; contain the transfer number)
+apps/nickstire/vapi-snapshots/
