@@ -487,6 +487,11 @@ const VAPI_TOOLS: VapiToolDef[] = [
         // outbound leg itself + announce the caller, which works on any
         // number. Live value is still dashboard-managed (preserved by
         // vapi-update-assistant.ts); this is the code default.
+        // 2026-08-05 · say-message has NO fallback: on no-answer the caller
+        // holds up to 60s and is dropped, invisibly (record already stamped
+        // assistant-forwarded-call; 28% of forwards redial within 15m). The
+        // prepared upgrade (warm-transfer-experimental + fallbackPlan) is an
+        // OPERATOR action: docs/runbooks/vapi-warm-transfer-fallback.md.
         transferPlan: {
           mode: "warm-transfer-say-message",
           message: "You've got a customer holding on the Nick's Tire and Auto line. Connecting you now.",
