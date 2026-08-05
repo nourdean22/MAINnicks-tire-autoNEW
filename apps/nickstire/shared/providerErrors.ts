@@ -86,6 +86,31 @@ const PATTERNS: Array<{ cls: ProviderErrorClass; re: RegExp }> = [
   // Google RAI / Veo policy, Higgsfield moderation, OpenAI-style refusals.
   { cls: "SAFETY_POLICY_PERMANENT", re: /\b(safety|content[_ ]policy|policy[_ ]violation|blocked by|responsible ?ai|rai[_ ]?filter|moderation|prohibited[_ ]content|violates)\b/i },
   { cls: "AUTH_INVALID", re: /\b(401|403|unauthori[sz]ed|forbidden|invalid[_ ]api[_ ]key|api[_ ]key[_ ]not[_ ]valid|permission[_ ]denied|expired[_ ]token|authentication[_ ]failed|hf auth login)\b/i },
+  // A PLAN-TIER wall belongs here, not in RATE_LIMIT, and the difference is
+  // money. Observed in prod 2026-08-04, reel job #1380001:
+  //   {"modal_data":{"elapsed_days":2},"type":"unlock_full_access_notice",
+  //    "error_type":"grace_daily_limit_reached"}
+  // None of the patterns below matched it — no "billing", no "exhausted", and
+  // no "rate" for RATE_LIMIT — so it fell through to UNKNOWN, whose policy is
+  // RETRY_BACKOFF. The daily reel cron therefore re-attempted every day,
+  // logging "unrecognised failure — treated as transient", and NOTHING alerted:
+  // the operator noticed only because reels stopped appearing on Instagram.
+  //
+  // It must NOT be RATE_LIMIT. That class is RETRY_WITHOUT_CONSUMING_ATTEMPT,
+  // built for a request refused before work began that clears on its own. A
+  // grace-tier daily cap does not clear by waiting minutes and cannot be
+  // retried out of — it needs the operator to upgrade the plan. QUOTA_OR_CREDIT
+  // is PAUSE_PROVIDER, which stops the spend and raises a human. That is the
+  // correct direction even though credits may remain: a balance is not
+  // permission to generate.
+  // A PLAN-TIER wall — kept as its own entry rather than bolted onto the
+  // credit regex below, for a reason worth writing down: `_` is a WORD
+  // character, so a trailing `\b` never fires inside an underscore-joined
+  // token. `\bgrace[_ ]daily[_ ]limit\b` does NOT match
+  // "grace_daily_limit_reached", because the boundary it wants sits between
+  // `limit` and `_reached` where both sides are word characters. The first
+  // draft of this fix did exactly that and the test caught it.
+  { cls: "QUOTA_OR_CREDIT", re: /(grace[_ -]?daily[_ -]?limit|daily[_ -]?limit[_ -]?reached|unlock[_ -]?full[_ -]?access|upgrade[_ -]?required|trial[_ -]?expired|subscription[_ -]?required|plan[_ -]?limit)/i },
   { cls: "QUOTA_OR_CREDIT", re: /\b(quota[_ ]exceeded|insufficient[_ ](credits?|funds|balance)|out of credits|billing|payment[_ ]required|402|exhausted)\b/i },
   { cls: "RATE_LIMIT", re: /\b(429|rate[_ ]?limit|too many requests|resource[_ ]exhausted|retry[- ]after)\b/i },
   { cls: "PROMPT_INVALID", re: /\b(400|invalid[_ ](argument|request|parameter|value)|unsupported[_ ](model|parameter|aspect|ratio|duration)|malformed|is not found|model.*not found)\b/i },
