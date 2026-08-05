@@ -651,14 +651,42 @@ const GEN_SCHEMA = {
  * here: strip an optional markdown code fence, then isolate the outermost
  * {...} before JSON.parse so leading/trailing prose can't break it.
  */
-function parseJsonObject<T>(raw: string): T {
+/** Exported for tests: the truncation paths below are the ones that reached
+ *  prod, and they are unreachable through runIgAutopost without a live LLM. */
+export function parseJsonObject<T>(raw: string): T {
   let s = raw.trim();
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (fence) s = fence[1].trim();
+  // NOTE: no "strip an unclosed fence" branch here on purpose. The first draft
+  // of this fix added one, and a mutation test proved it dead — removing the
+  // line changed no behaviour, because the brace isolation below already
+  // recovers the object whenever one closed, and when none closed the
+  // truncation branch fires first either way. A line that looks protective and
+  // is provably unreachable is exactly what this file has been bitten by.
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
-  if (first >= 0 && last > first) s = s.slice(first, last + 1);
-  return JSON.parse(s) as T;
+  if (first >= 0 && last > first) {
+    s = s.slice(first, last + 1);
+  } else if (first >= 0) {
+    // An opening brace with no closing one is truncation, full stop. Say that,
+    // because "Unterminated string in JSON at position 830" sent the last
+    // investigation looking for a quoting bug that does not exist. gemini-2.5-flash
+    // spends a large and variable share of its budget on internal "thinking"
+    // before emitting output, so this recurs whenever a prompt grows.
+    throw new Error(
+      `LLM response truncated before the JSON object closed (${raw.length} chars received) — raise max_tokens for this call`,
+    );
+  }
+  try {
+    return JSON.parse(s) as T;
+  } catch (err) {
+    // Never surface a bare parser message. The operator sees this string in
+    // ig_autopost_log.error, and "Unexpected token" tells them nothing about
+    // which call failed or what to do next.
+    throw new Error(
+      `LLM response was not valid JSON (${raw.length} chars received): ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 /**
