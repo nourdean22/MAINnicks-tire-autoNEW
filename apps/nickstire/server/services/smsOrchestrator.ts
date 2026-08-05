@@ -130,6 +130,38 @@ export interface CustomerContext {
   recentServiceMention?: string;
 }
 
+type HistoryMessage = { direction: "inbound" | "outbound"; body: string; createdAt: Date };
+
+/**
+ * The inbound webhook persists the customer's text to sms_messages BEFORE
+ * orchestration runs (routes/webhooks/smsGateway.ts), so the newest history
+ * row IS the message currently being orchestrated. Drop that one occurrence
+ * before reasoning about history — otherwise every inbound "repeats" itself.
+ */
+export function priorMessagesForInbound(
+  messages: HistoryMessage[] | undefined,
+  currentBody: string,
+): HistoryMessage[] {
+  const msgs = [...(messages ?? [])];
+  const newest = msgs[msgs.length - 1];
+  if (newest && newest.direction === "inbound" && newest.body === currentBody) msgs.pop();
+  return msgs;
+}
+
+/**
+ * A genuine customer repeat: the message immediately BEFORE the current one
+ * is an inbound with the same body. Self-match excluded via
+ * priorMessagesForInbound.
+ */
+export function isRepeatedInbound(
+  messages: HistoryMessage[] | undefined,
+  currentBody: string,
+): boolean {
+  const prior = priorMessagesForInbound(messages, currentBody);
+  const last = prior[prior.length - 1];
+  return !!last && last.direction === "inbound" && last.body === currentBody;
+}
+
 /**
  * Strips corporate adjectives, ChatGPT fluff, robotic preambles, and applies
  * caregiver warmth and the eagerness beat. Enforces the brand-voice guidelines.
@@ -1042,13 +1074,15 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
           const autoReplyEnabled = await isEnabled("smart_sms_auto_reply");
           const lowRiskEnabled = await isEnabled("nickgpt_low_risk_autosend_enabled");
 
-          let conversationContext: Array<{ role: "user" | "assistant"; content: string }> = [];
-          if (ctx.last5Messages) {
-            conversationContext = ctx.last5Messages.map((m: any) => ({
+          // History minus the current message (already persisted by the
+          // webhook) — the drafter receives event.body separately, so leaving
+          // it in conversationContext duplicated the customer's turn.
+          const priorMessages = priorMessagesForInbound(ctx.last5Messages, event.body);
+          const conversationContext: Array<{ role: "user" | "assistant"; content: string }> =
+            priorMessages.map((m) => ({
               role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
               content: m.body
             }));
-          }
 
           // Reply planner: convert the router decision + customer state into a
           // constrained plan — approved facts, at most one question, forbidden
@@ -1156,7 +1190,10 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
               riskTier = "medium";
             }
 
-            const isRepeated = ctx.last5Messages && ctx.last5Messages.length > 0 && ctx.last5Messages[ctx.last5Messages.length - 1].body === event.body;
+            // ROS follow-up 2026-08-05: the raw tail comparison here matched
+            // the message against ITSELF (webhook persists before orchestration),
+            // so 100% of AI-drafted replies were held as "repeated_customer_message".
+            const isRepeated = isRepeatedInbound(ctx.last5Messages, event.body);
             if (isRepeated) {
               requiresHumanApproval = true;
               humanReviewReason = "repeated_customer_message";
