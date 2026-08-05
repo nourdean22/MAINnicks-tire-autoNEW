@@ -22,10 +22,13 @@ Set-Location $RepoRoot
 
 # graphify skips graph.html above 5,000 nodes by default; this repo is ~46k.
 # Headroom over current size without being unbounded - the full node-level
-# render is ~43 MB at 46k nodes and grows roughly linearly. graph.html is
-# gitignored and overwritten each run (the daily graphify-out/<date>/ backup
-# copies only graph.json + report + labels + manifest, never the HTML).
-$env:GRAPHIFY_VIZ_NODE_LIMIT = "60000"
+# render is ~43 MB at 46k nodes and grows roughly linearly, so 100k implies a
+# ~92 MB ceiling. graph.html is gitignored and overwritten each run (the daily
+# graphify-out/<date>/ backup copies only graph.json + report + labels +
+# manifest, never the HTML). Note the full render is already NOT interactive at
+# 46k (~344 s load, ~2,205 ms redraw) - graph-communities.html is the usable
+# view and is unaffected by this limit.
+$env:GRAPHIFY_VIZ_NODE_LIMIT = "100000"
 
 # Use the interpreter that OWNS the graphify the CLI runs. `graphify update`
 # (step 1) executes from a uv-managed tool venv, but the .graphify_python marker
