@@ -569,6 +569,14 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // still reflects the SELECTED provider rather than a mid-job substitution.
     let activeProvider: ReelVideoProvider = videoProvider;
 
+    // Clips this run rendered on the FREE lane. The reservation was priced at
+    // enqueue against the SELECTED provider, and the comment on that reserve
+    // call already names the hazard: "a mid-flight provider flip can still
+    // diverge - settlement is where actuals must be reconciled". Without this
+    // counter a degraded reel settles every clip at the paid provider's rate,
+    // which is the exact ledger lie the flat-Seedance settle used to tell.
+    let freeLaneClips = 0;
+
     // The durable-storage precondition only applies to providers that RE-HOST
     // through our storage (Veo → storagePut → ephemeral local disk without S3,
     // which a deploy wipes after we already paid). Higgsfield returns its OWN
@@ -636,6 +644,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           `template_stock beat ${beat.beatNumber}`,
         );
         clipUrls[i] = finalClipUrl;
+        freeLaneClips += 1;
         await d.update(reelJobs)
           .set({ clipUrlsJson: JSON.stringify(clipUrls), updatedAt: new Date() })
           .where(eq(reelJobs.id, job.id));
@@ -784,7 +793,16 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       // settling at a flat Seedance rate is what made a mid-flight provider flip
       // undetectable in the ledger, and would settle a free local reel as if it
       // had spent Seedance money.
-      await settle(`reel_job_${job.id}`, clipUrls.length * reelClipCostUsd(videoProvider));
+      // Split the bill by the lane that actually rendered each clip. Clips the
+      // free lane produced cost nothing; everything else (including clips
+      // resumed from an earlier run) is priced at the selected provider's rate.
+      // When no flip happened freeLaneClips is 0 and this is the original
+      // expression unchanged.
+      const paidClips = Math.max(0, clipUrls.length - freeLaneClips);
+      await settle(
+        `reel_job_${job.id}`,
+        paidClips * reelClipCostUsd(videoProvider) + freeLaneClips * reelClipCostUsd("template_stock"),
+      );
     } catch { /* ledger degraded — reservation's estimate stands */ }
     log.info("reel job assets_ready", { jobId: job.id, clips: clipUrls.length });
     return { processed: true, jobId: job.id, status: "assets_ready" };

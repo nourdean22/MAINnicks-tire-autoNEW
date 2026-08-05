@@ -129,6 +129,25 @@ describe("the fallback is actually wired into the beat loop", () => {
     expect(resume).toBeGreaterThan(assertIdx);
   });
 
+  it("counts the clips the free lane rendered, for settlement", () => {
+    expect(PIPELINE).toMatch(/^\s*freeLaneClips \+= 1;$/m);
+  });
+
+  it("settles the free clips at the free rate, not the paid provider's", () => {
+    // The hazard the reserve() call already warns about: the reservation is
+    // priced at enqueue against the SELECTED provider, so "settlement is where
+    // actuals must be reconciled". Billing a degraded reel at the paid rate is
+    // the same ledger lie the flat-Seedance settle used to tell, and it was
+    // fixed once already on the repair lane.
+    expect(PIPELINE).toMatch(
+      /paidClips \* reelClipCostUsd\(videoProvider\) \+ freeLaneClips \* reelClipCostUsd\("template_stock"\)/,
+    );
+    // The pre-fallback form billed EVERY clip at the selected provider's rate.
+    expect(PIPELINE).not.toMatch(
+      /settle\(`reel_job_\$\{job\.id\}`, clipUrls\.length \* reelClipCostUsd\(videoProvider\)\)/,
+    );
+  });
+
   it("drives the beat loop from activeProvider, not the frozen selection", () => {
     // If any branch still reads videoProvider, the flip is inert for it.
     expect(PIPELINE).toMatch(/^\s*if \(activeProvider === "template_stock"\) \{$/m);
