@@ -91,6 +91,15 @@ export interface IgEvalScores {
   image: { proLook: number | null; skipped: boolean; note: string };
   overall: number;
   passed: boolean;
+  /**
+   * Independent tournament-judge verdict on the ACCEPTED draft, recorded in
+   * shadow (2026-08-05). Gates nothing — it exists so the self-eval gate's
+   * blind spot is measurable: rows where the self-eval passed >= 0.7 and the
+   * independent judge scored low (or rejected) are the disagreement corpus
+   * an operator gate-flip decision needs. `error` means the judge lane
+   * failed (e.g. out of credits) — never silently absent.
+   */
+  shadowJudge?: { total: number; rejected: boolean; note: string } | { error: string };
 }
 
 export interface RunIgAutopostResult {
@@ -1591,6 +1600,36 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
 
     const { post, image, scores } = best;
     const caption = composeCaption(post);
+
+    // SHADOW JUDGE · read-and-log only. This publisher self-scores — the
+    // exact defect the concept tournament was built to replace — so the
+    // tournament's independent judge also scores the accepted draft, in
+    // shadow. It gates NOTHING: the verdict lands in evalScoresJson.
+    // shadowJudge, and flipping the publish gate to the independent judge is
+    // an operator decision to be made over an accumulated disagreement
+    // readout. Kill-switch IG_SHADOW_JUDGE=false. A judge-lane failure (it
+    // was dead on OpenRouter credits 2026-07-17) records the error and never
+    // blocks the run.
+    if (process.env.IG_SHADOW_JUDGE !== "false") {
+      try {
+        const { judgeSingleConcept } = await import("./conceptTournament");
+        const verdict = await judgeSingleConcept({
+          campaignAsk: `Autonomous ${post.archetype} Instagram ${slot ?? "manual"} post for the shop feed`,
+          concept: {
+            title: post.conceptKey,
+            hook: caption.split("\n")[0] ?? caption.slice(0, 120),
+            coreIdea: caption,
+            visualIdea: post.imagePrompt,
+            whyItWorks: scores.caption.notes || "self-eval notes unavailable",
+          },
+        });
+        scores.shadowJudge = { total: verdict.total, rejected: verdict.rejected, note: verdict.note || verdict.rejectionReason };
+        log.info("ig-autopost shadow judge", { total: verdict.total, rejected: verdict.rejected, selfOverall: scores.overall });
+      } catch (err) {
+        scores.shadowJudge = { error: errMsg(err).slice(0, 200) };
+        log.warn("ig-autopost shadow judge failed (run continues)", { err: errMsg(err) });
+      }
+    }
 
     // ── DRYRUN ── log + Telegram preview, never touch Meta.
     if (dryRun) {

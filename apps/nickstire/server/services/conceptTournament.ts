@@ -210,6 +210,52 @@ export function resolveWinner(
   return winner;
 }
 
+/**
+ * Parse a judge verdict payload for a single-entry field. Pure — unit-tested.
+ * Tolerates prose around the JSON (the judge lane has produced both shapes);
+ * refuses a verdict with no scores rather than inventing one.
+ */
+export function parseSingleVerdict(raw: string): JudgeScore {
+  const s = typeof raw === "string" ? raw : JSON.stringify(raw);
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  const parsed = JSON.parse(first >= 0 && last > first ? s.slice(first, last + 1) : s) as {
+    scores?: JudgeScore[];
+  };
+  const score = parsed.scores?.[0];
+  if (!score || typeof score.total !== "number") {
+    throw new Error("shadow judge returned no usable score — refusing to fabricate one");
+  }
+  return score;
+}
+
+/**
+ * SHADOW JUDGE (2026-08-05): score ONE already-written concept against the
+ * tournament's 100-point rubric + hard-reject rules, via the same
+ * independent-judge prompt with a field of one. Built for shadow-scoring the
+ * autonomous publishers (igAutopost, dailyReelPost), which still self-score —
+ * the exact defect this tournament was built to replace. Read-and-log only by
+ * contract: callers must never gate a publish on this verdict without an
+ * explicit operator flip.
+ */
+export async function judgeSingleConcept(input: {
+  campaignAsk: string;
+  concept: Omit<TournamentConcept, "id">;
+}): Promise<JudgeScore> {
+  const field: TournamentConcept[] = [{ ...input.concept, id: "entry_01" }];
+  const res = await invokeLLM({
+    messages: [
+      { role: "system", content: judgePrompt({ campaignAsk: input.campaignAsk }, field) },
+      { role: "user", content: "Output ONLY the verdict as one JSON object matching the provided schema." },
+    ],
+    maxTokens: 2048,
+    timeoutMs: 60000,
+    outputSchema: JUDGE_OUTPUT_SCHEMA,
+  });
+  const raw = res.choices?.[0]?.message?.content ?? "";
+  return parseSingleVerdict(typeof raw === "string" ? raw : JSON.stringify(raw));
+}
+
 function rolePrompt(role: (typeof CREATIVE_ROLES)[number], input: TournamentInput): string {
   return [
     `# ROLE`,
