@@ -113,6 +113,26 @@ export const CRONS: CronDef[] = [
     description: "Operator morning brief — Inngest-native.",
   },
   {
+    name: "quality-bench-weekly",
+    schedule: "0 13 * * 1",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    addedAt: "2026-08-05",
+    description:
+      "Weekly quality benchmark on the production model+sanitizer path (run-quality-bench core). The bench file said 'weekly cron is the intended cadence' since Phase 4 with nothing scheduling it. Writes pass-rate to SystemMetric (quality_bench.pass_rate), diffs against the prior run, Coach+Telegram on regression. Live model calls ~$0.05-0.20/run.",
+  },
+  {
+    name: "suggestion-improve-weekly",
+    schedule: "30 13 * * 1",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    addedAt: "2026-08-05",
+    description:
+      "Weekly suggestion-loop noise analysis (runSuggestionImproveAgent, propose-only). The agent shipped tested with zero importers while operator taps were collected daily and consumed by nothing. Persists suggestion_hypothesis brain memories; P2 Coach event when kinds are flagged noisy.",
+  },
+  {
     name: "proactive-push-cron",
     schedule: "0 * * * *",
     mode: "active",

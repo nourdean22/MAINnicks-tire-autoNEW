@@ -62,3 +62,10 @@ export { nickActionApproved } from "./nick-action-approved";
 // sourceMetadata.performance + BrainMemory content_winners → the
 // ghostwriter's RECENT WINNERS block)
 export { contentPerformanceWeekly } from "./content-performance";
+
+// 2026-08-05 · the benches, finally on the clock. run-quality-bench.ts said
+// "weekly cron is the intended cadence" since Phase 4 with no scheduler;
+// suggestion-improve.ts shipped tested with zero importers while operator
+// taps were collected daily and consumed by nothing.
+export { qualityBenchWeekly } from "./quality-bench";
+export { suggestionImproveWeekly } from "./suggestion-improve";
