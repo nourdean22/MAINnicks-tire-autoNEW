@@ -564,8 +564,47 @@ export function _resetTodayCacheForTests(): void {
 // returns the cached answer; the chat route injects it as CONTEXT and
 // never short-circuits the live response.
 
-/** Conservative match floor — a false-positive injection pollutes the turn. */
-export const ANTICIPATED_MATCH_FLOOR = 0.85;
+/**
+ * Match floor.
+ *
+ * 2026-08-06 · LOWERED 0.85 -> 0.72 against measured data. The 0.85 figure
+ * came from the original spec ("conservative — a false-positive injection
+ * pollutes the turn") and was never calibrated. It turned out to be
+ * unreachable: this block fired 0 times in 1,040 production turns carrying
+ * context telemetry, while the nightly cron kept writing sets (68 rows,
+ * newest same-day). The producer was healthy the whole time; the reader
+ * could not clear its own bar.
+ *
+ * THE MEASUREMENT (read-only, prod `vector_embeddings`, 250 most recent
+ * chat-message vectors, cosine via pgvector `<=>`). For each message, its
+ * NEAREST neighbour among the other 249 — i.e. the most favourable pairing
+ * available anywhere in this embedding space:
+ *
+ *     median 0.615 · p90 0.773 · >=0.85 in 11/250 (4.4%) · >=0.75 in 30/250
+ *
+ * That is best-of-250. This matcher scores best-of-THREE (QUESTION_COUNT),
+ * against questions written by a model predicting tomorrow rather than
+ * echoing today's phrasing. A bar the best-of-250 median misses by 0.235
+ * cannot be cleared by a best-of-3 draw. 0/1040 was arithmetic, not luck.
+ *
+ * WHY 0.72 AND NOT LOWER: it sits just under the p90 of that nearest-
+ * neighbour distribution, so it admits genuine topical matches while still
+ * excluding the ~88% of pairings that are merely same-domain chatter.
+ *
+ * WHY ERRING PERMISSIVE IS RIGHT HERE — the asymmetry is lopsided:
+ *   - A false NEGATIVE costs the entire feature. That is the state we were
+ *     in for four months.
+ *   - A false POSITIVE costs some prompt tokens, and is caught twice more
+ *     downstream: this block NEVER short-circuits the reply (the operator's
+ *     exact phrasing always drives the response), and it rides into
+ *     brain-context.ts as a NON-critical block, so the reranker drops it on
+ *     low similarity to the turn. Two independent gates sit behind this one.
+ *
+ * Do not re-raise this without new data. `anticipated.match_probe` telemetry
+ * (below) now records the observed best similarity on EVERY qualifying turn,
+ * including misses — that is the series to calibrate against next time.
+ */
+export const ANTICIPATED_MATCH_FLOOR = 0.72;
 
 export interface AnticipatedMatch {
   question: string;
@@ -638,12 +677,23 @@ export async function findAnticipated(
 
   const vectors = await questionVectors(set);
   let best: AnticipatedMatch | null = null;
+  // 2026-08-06 · observedBest tracks the top score REGARDLESS of the floor.
+  // Without it a miss is indistinguishable from "no set today" in the logs,
+  // which is exactly why a floor of 0.85 could sit unreachable for four
+  // months without anyone noticing. This is the series to calibrate the
+  // floor against next time — see ANTICIPATED_MATCH_FLOOR above.
+  let observedBest = 0;
+  let observedQuestion: string | null = null;
   for (let i = 0; i < set.questions.length; i++) {
     const answer = set.answers?.[i];
     if (typeof answer !== "string" || answer.length === 0) continue;
     const qVec = vectors[i];
     if (!qVec) continue;
     const sim = cosineSimilarity(msgVec, qVec);
+    if (sim > observedBest) {
+      observedBest = sim;
+      observedQuestion = set.questions[i].question;
+    }
     if (sim < ANTICIPATED_MATCH_FLOOR) continue;
     if (!best || sim > best.similarity) {
       best = {
@@ -656,6 +706,20 @@ export async function findAnticipated(
       };
     }
   }
+
+  // Log every scored turn, hit or miss. `hit:false` with a bestSim just under
+  // the floor is the signal that the floor is still too high; a long run of
+  // hit:false with bestSim ~0.3 means the PREDICTIONS are off, not the floor —
+  // two different repairs, and this is the only line that tells them apart.
+  log.info("anticipated.match_probe", {
+    hit: best !== null,
+    bestSim: Number(observedBest.toFixed(3)),
+    floor: ANTICIPATED_MATCH_FLOOR,
+    candidates: set.questions.length,
+    setDate: set.date,
+    nearestQuestion: observedQuestion,
+  });
+
   return best;
 }
 
