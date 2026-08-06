@@ -53,7 +53,7 @@ interface ScoredPrompt {
   passRate: number;
   passes: number;
   total: number;
-  grades: Array<{ id: string; pass: boolean; priceLeaks: number; resolutionOffered: boolean }>;
+  grades: Array<{ id: string; pass: boolean; priceLeaks: number; resolutionOffered: boolean; guarantees: number; emptyReplies: number }>;
 }
 
 async function scorePrompt(prompt: string, seeds: Seed[]): Promise<ScoredPrompt> {
@@ -62,7 +62,7 @@ async function scorePrompt(prompt: string, seeds: Seed[]): Promise<ScoredPrompt>
   for (const s of seeds) {
     const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3 });
     const g = gradeReplies(replies);
-    grades.push({ id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered });
+    grades.push({ id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered, guarantees: g.guarantees, emptyReplies: g.emptyReplies });
   }
   const passes = grades.filter((g) => g.pass).length;
   return { passRate: seeds.length ? passes / seeds.length : 0, passes, total: seeds.length, grades };
@@ -144,20 +144,49 @@ async function main() {
     ORDER BY a.started_at DESC
     LIMIT ${seedCount * 3}
   `);
+  // --filter <regex>: restrict seeds to calls whose caller turns match — the
+  // targeted-verification mode (e.g. --filter "\bmark\b" after a transfer fix).
+  const fIdx = args.indexOf("--filter");
+  const filterRx = fIdx >= 0 ? new RegExp(args[fIdx + 1], "i") : null;
   const seeds: Seed[] = (raw as Array<{ id: string; transcript: string; evalOutcome: string; summary: string | null }>)
     .map((r) => ({ id: r.id, callerTurns: extractCallerTurns(r.transcript), evalOutcome: r.evalOutcome, summary: r.summary }))
     .filter((s) => s.callerTurns.length >= 2 && s.callerTurns.length <= 10)
+    .filter((s) => !filterRx || filterRx.test(s.callerTurns.join("\n")))
     .slice(0, seedCount);
-  if (seeds.length < 4) throw new Error(`only ${seeds.length} usable seeds — need >= 4`);
+  if (seeds.length < (filterRx ? 1 : 4)) throw new Error(`only ${seeds.length} usable seeds — need >= ${filterRx ? 1 : 4}`);
 
   const { train, holdout } = splitSeeds(seeds);
   console.log(`seeds: ${seeds.length} usable (train ${train.length} / holdout ${holdout.length})`);
-  if (!train.length || !holdout.length) throw new Error("degenerate split");
+  // Targeted --filter runs measure a handful of seeds behaviorally; the
+  // train/holdout gate only matters for the evolution path below.
+  if ((!train.length || !holdout.length) && !(filterRx && args.includes("--baseline-only"))) throw new Error("degenerate split");
 
   console.log("baseline: ghost-replaying the CURRENT served prompt...");
   const baseTrain = await scorePrompt(ASSISTANT_SYSTEM_PROMPT, train);
   const baseHold = await scorePrompt(ASSISTANT_SYSTEM_PROMPT, holdout);
   console.log(`baseline: train ${baseTrain.passes}/${baseTrain.total} · holdout ${baseHold.passes}/${baseHold.total}`);
+  // --baseline-only: the standing measurement mode — score the current prompt
+  // and stop. Used to A/B a hand-made prompt edit at temperature 0 (run on
+  // the old prompt, apply the edit, run again — same seeds, same split).
+  if (args.includes("--baseline-only")) {
+    for (const g of [...baseTrain.grades, ...baseHold.grades]) {
+      console.log(`  seed ${g.id}: ${g.pass ? "PASS" : "fail"} (resolution=${g.resolutionOffered}, priceLeaks=${g.priceLeaks}, guarantees=${g.guarantees}, empty=${g.emptyReplies})`);
+    }
+    // Targeted mode shows the actual dialogue — a behavioral check needs the
+    // words, not just the bit.
+    if (filterRx) {
+      const { ghostReplay } = await import("../server/services/ghostReplay");
+      for (const s of seeds) {
+        console.log(`\n  ── replay ${s.id} (${s.evalOutcome})`);
+        const replies = await ghostReplay(ASSISTANT_SYSTEM_PROMPT, s.callerTurns, { priority: 3 });
+        for (let i = 0; i < s.callerTurns.length; i++) {
+          console.log(`  User: ${s.callerTurns[i].slice(0, 110)}`);
+          console.log(`  AI:   ${(replies[i] ?? "").slice(0, 160)}`);
+        }
+      }
+    }
+    process.exit(0);
+  }
 
   const trainFailures = baseTrain.grades
     .filter((g) => !g.pass)

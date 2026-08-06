@@ -45,8 +45,11 @@ export function extractCallerTurns(transcript: string): string[] {
   return turns.filter((t) => t.length > 0);
 }
 
-/** The same deterministic vocabulary the cage match grades on. */
-export const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come)/i;
+/** The same deterministic vocabulary the cage match grades on.
+ *  Transfer language added 2026-08-06: a live transfer IS a resolution — the
+ *  Mark-targeted replay showed "let me get you over to him" graded as a
+ *  failure, under-measuring every transfer-resolved call. */
+export const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come|transfer(ring)? you|connect(ing)? you|put you through|get(ting)? you (over )?to (him|her|them|the shop|someone|a person|the manager))/i;
 /** Price-shaped leak: any $NN+ figure is a banned phone quote for repairs. */
 export const PRICE_LEAK_RX = /\$\s*\d{2,}/;
 export const GUARANTEE_RX = /\bguarantee/i;
@@ -142,9 +145,36 @@ export async function ghostReplay(
       timeoutMs: 60000,
       ...(opts.model ? { model: opts.model } : {}),
       priority: opts.priority ?? 3,
+      // Temperature 0: evaluation must measure the prompt, not the dice — a
+      // ±1-seed swing between identical runs was observed at the default.
+      temperature: 0,
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
-    replies.push((typeof raw === "string" ? raw : JSON.stringify(raw)).trim());
+    let reply = (typeof raw === "string" ? raw : JSON.stringify(raw)).trim();
+    if (!reply) {
+      // ONE bounded retry with a bigger budget: reasoning models sometimes
+      // burn the whole allocation thinking and emit nothing (observed live on
+      // the Mark replay). A second empty stands and is counted by the grader —
+      // silence on a live call is a real failure, but a token-budget artifact
+      // is a measurement bug, not a prompt defect.
+      const retry = await invokeLLM({
+        messages: [
+          { role: "system", content: candidatePrompt },
+          {
+            role: "user",
+            content: `Phone call so far:\n${dialogue.join("\n")}\n\nYour next spoken line as the receptionist (one short spoken sentence, no analysis):`,
+          },
+        ],
+        maxTokens: 1400,
+        timeoutMs: 60000,
+        ...(opts.model ? { model: opts.model } : {}),
+        priority: opts.priority ?? 3,
+        temperature: 0,
+      });
+      const retryRaw = retry.choices?.[0]?.message?.content ?? "";
+      reply = (typeof retryRaw === "string" ? retryRaw : JSON.stringify(retryRaw)).trim();
+    }
+    replies.push(reply);
   }
   return replies;
 }

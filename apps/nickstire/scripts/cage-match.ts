@@ -111,7 +111,9 @@ interface MatchResult {
   loss: boolean;
 }
 
-const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come)/i;
+// Kept in lockstep with ghostReplay.RESOLUTION_RX (transfer language added
+// 2026-08-06 — a live transfer IS a resolution).
+const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come|transfer(ring)? you|connect(ing)? you|put you through|get(ting)? you (over )?to (him|her|them|the shop|someone|a person|the manager))/i;
 
 async function runMatch(seed: SeedRow, maxTurns: number): Promise<MatchResult> {
   const { ASSISTANT_SYSTEM_PROMPT } = await import("../server/services/vapi");
