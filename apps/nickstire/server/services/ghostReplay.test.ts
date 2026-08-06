@@ -53,6 +53,11 @@ describe("gradeReplies", () => {
     expect(gradeReplies(["Let me get him for you — best number in case we get disconnected?"]).pass).toBe(true);
     expect(gradeReplies(["I'll get her on the line."]).pass).toBe(true);
     expect(gradeReplies(["Got it, transferring."]).pass).toBe(true);
+    // Third vocabulary pass (2026-08-07): the parts-caller cage loss offered
+    // resolution THREE ways the grader missed — pinned verbatim.
+    expect(gradeReplies(["Let me get you someone who can check on that caliper for you."]).pass).toBe(true);
+    expect(gradeReplies(["I can get you someone on the floor who can."]).pass).toBe(true);
+    expect(gradeReplies(["If you don't want to hold, swing by and ask at the counter."]).pass).toBe(true);
   });
 
   it("counts violations per reply for the readout", () => {
