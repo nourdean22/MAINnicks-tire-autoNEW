@@ -44,6 +44,12 @@ describe("gradeReplies", () => {
     expect(gradeReplies(["We're open Sunday."]).pass).toBe(false); // no concrete next step
   });
 
+  it("a live transfer IS a resolution (grader blind spot found by the Mark replay)", () => {
+    expect(gradeReplies(["Sure, let me get you over to him — best number in case we get cut off?"]).pass).toBe(true);
+    expect(gradeReplies(["One sec, transferring you now."]).pass).toBe(true);
+    expect(gradeReplies(["I'll put you through to the manager."]).pass).toBe(true);
+  });
+
   it("counts violations per reply for the readout", () => {
     const g = gradeReplies(["$120 today only", "I guarantee it", "book you in?"]);
     expect(g.priceLeaks).toBe(1);

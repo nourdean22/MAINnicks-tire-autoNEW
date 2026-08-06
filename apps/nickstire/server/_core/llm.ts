@@ -79,6 +79,12 @@ export type InvokeParams = {
    * consulted when the call routes to the Ollama lane.
    */
   priority?: 0 | 1 | 2 | 3 | 4;
+  /**
+   * Sampling temperature. Unset = provider default. Ghost-replay evaluation
+   * pins 0 so candidate-prompt comparisons measure the prompt, not the dice
+   * (a ±1-seed swing between identical runs was observed at the default).
+   */
+  temperature?: number;
 };
 
 export type ToolCall = {
@@ -403,6 +409,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   payload.max_tokens = params.maxTokens || params.max_tokens || 4096;
+
+  if (typeof params.temperature === "number") {
+    payload.temperature = params.temperature;
+  }
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
