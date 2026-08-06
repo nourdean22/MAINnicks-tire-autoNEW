@@ -18,6 +18,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
+import { getFlag } from "@/lib/feature-flags";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
@@ -108,7 +109,19 @@ export interface RecallHit {
   key: string;
   content: string;
   confidence: number;
+  /**
+   * Days since last_seen — which the recall path itself BUMPS on every hit,
+   * so this measures recency-of-recall, not age of the underlying fact. A
+   * memory recalled daily reads 0 here forever. Kept for scoring; never
+   * present it as the fact's age.
+   */
   ageDays: number;
+  /**
+   * Days since created_at — the fact's true age, immune to the lastSeen
+   * bump. This is what the prompt's epistemic stamp renders (2026-08-05):
+   * before it existed, a year-old fact recalled daily presented as "today".
+   */
+  factAgeDays: number;
   knnDistance: number;
   finalScore: number;
 }
@@ -192,6 +205,7 @@ export async function recallMemoriesForQuery(
         content: string;
         confidence: number;
         last_seen: Date;
+        created_at: Date;
         distance: number;
       }>
     >(
@@ -202,6 +216,7 @@ export async function recallMemoriesForQuery(
          substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
          bm.confidence::float AS confidence,
          bm.last_seen,
+         bm.created_at,
          (ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM vector_embeddings ve
        JOIN brain_memories bm
@@ -225,6 +240,7 @@ export async function recallMemoriesForQuery(
       content: string;
       confidence: number;
       last_seen: Date;
+      created_at: Date;
       distance: number;
     }>;
   });
@@ -236,6 +252,9 @@ export async function recallMemoriesForQuery(
     .map((r) => {
       const ageDays = Math.floor(
         (now - new Date(r.last_seen).getTime()) / 86_400_000,
+      );
+      const factAgeDays = Math.floor(
+        (now - new Date(r.created_at).getTime()) / 86_400_000,
       );
       // similarity = 1 - distance (cosine). Then:
       //   recency boost: <14d → +0.2, <60d → +0.1, else 0
@@ -252,6 +271,7 @@ export async function recallMemoriesForQuery(
         content: r.content.replace(/\s+/g, " ").trim(),
         confidence: r.confidence,
         ageDays,
+        factAgeDays,
         knnDistance: r.distance,
         finalScore: Math.round(finalScore * 1000) / 1000,
       };
@@ -319,15 +339,48 @@ export async function recallMemoriesForQuery(
 }
 
 /**
+ * A fact older than this renders with a VERIFY-FIRST stale marker. Wisdom-tier
+ * categories are durable by design (the consolidate cron actively curates
+ * them), so they get a year before the marker — a stamp that fires on all
+ * wisdom is a stamp the model learns to ignore.
+ */
+const STALE_AFTER_DAYS = 120;
+const WISDOM_STALE_AFTER_DAYS = 365;
+
+/** The epistemic envelope for one recalled memory (2026-08-05). */
+export function renderFactStatus(hit: RecallHit): string {
+  const recorded = hit.factAgeDays === 0 ? "recorded today" : `recorded ${hit.factAgeDays}d ago`;
+  const staleAfter = hit.category.includes("wisdom") ? WISDOM_STALE_AFTER_DAYS : STALE_AFTER_DAYS;
+  const stale = hit.factAgeDays > staleAfter ? " · STALE — verify before relying on this" : "";
+  return `${recorded}${stale}, conf=${hit.confidence.toFixed(2)}`;
+}
+
+/**
  * Format the recall hits as a compact system-prompt block.
  * Designed to be appended to the chat system prompt under a
  * "Recently relevant memories" header.
+ *
+ * EPISTEMIC STAMP (2026-08-05): the age shown is the fact's TRUE age
+ * (created_at), never last_seen — the recall path bumps last_seen on every
+ * hit, so the previous stamp showed a perpetually-fresh "today" on any
+ * memory recalled daily, exactly the stale-masquerading-as-current failure
+ * the whole memory index documents. Kill-switch:
+ * RECALL_FACT_AGE_DISABLED=1 restores the legacy last_seen rendering.
  */
 export function formatRecallForPrompt(hits: RecallHit[]): string {
   if (hits.length === 0) return "";
+  let disabled = false;
+  try {
+    disabled = getFlag("RECALL_FACT_AGE_DISABLED")?.isOn ?? false;
+  } catch {
+    disabled = false; // flag infra failure → new (truthful) rendering
+  }
   const lines = hits.map((h, i) => {
-    const ageStr = h.ageDays === 0 ? "today" : `${h.ageDays}d ago`;
-    return `[${i + 1}] [${h.category}] ${h.content} (${ageStr}, conf=${h.confidence.toFixed(2)})`;
+    if (disabled) {
+      const ageStr = h.ageDays === 0 ? "today" : `${h.ageDays}d ago`;
+      return `[${i + 1}] [${h.category}] ${h.content} (${ageStr}, conf=${h.confidence.toFixed(2)})`;
+    }
+    return `[${i + 1}] [${h.category}] ${h.content} (${renderFactStatus(h)})`;
   });
   return `Recently relevant memories (top-${hits.length} via hybrid search):\n${lines.join("\n")}`;
 }

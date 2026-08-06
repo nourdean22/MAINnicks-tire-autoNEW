@@ -329,6 +329,14 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/services/vehicle-detection.ts",
   },
   {
+    key: "RECALL_FACT_AGE_DISABLED",
+    description: "Kill-switch for the epistemic age stamp on recalled memories. The stamp renders each memory's TRUE age (created_at) with a STALE/verify-first marker past 120d (365d for wisdom); the legacy rendering used last_seen, which the recall path bumps on every hit, so frequently-recalled facts always read 'today'. Set to 1 only to restore the legacy (lying) rendering as a rollback.",
+    status: "canary",
+    onValue: "1",
+    defaultBehavior: "Recall block shows fact age from created_at + STALE markers.",
+    ownerDoc: "lib/brain/memory-recall.ts",
+  },
+  {
     key: "CALIBRATION_PROMPT_BLOCK_DISABLED",
     description: "Kill-switch for the prediction-calibration block in Prompt V2. The nightly brain-intelligence cron resolves predictions and rolls 30d Brier accuracy; the block feeds that track record back into the system prompt so stated confidence is conditioned on the measured record. Set to 1 only to suppress the block (rollback lever).",
     status: "canary",
