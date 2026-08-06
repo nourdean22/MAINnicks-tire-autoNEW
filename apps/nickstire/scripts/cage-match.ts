@@ -56,6 +56,26 @@ interface SeedRow {
  */
 const ADVERSARY_MODEL = process.env.CAGE_ADVERSARY_MODEL || "gpt-oss:120b";
 
+/**
+ * The receptionist lane is PINNED, not ambient (2026-08-07). Before this pin,
+ * the agent side rode whatever the invoking shell's env resolved to — gpt-4o
+ * on OpenAI without AI_FORCE_OLLAMA, or the forced model with it — so the
+ * lane under test depended on shell state invisible to the readout. Prod runs
+ * AI_FORCE_OLLAMA=true → OLLAMA_MODEL || deepseek-v4-pro; this pin mirrors
+ * that resolution explicitly. Both pins are Ollama-native substrings, so they
+ * route to the Ollama lane with no force flag at all.
+ */
+const AGENT_MODEL = process.env.CAGE_AGENT_MODEL || "deepseek-v4-pro";
+
+// AI_FORCE_OLLAMA flattens EVERY request onto one model — including the
+// adversary pin above, silently putting the same model on both sides of the
+// duel. The cage owns its routing (explicit pins both sides), so strip the
+// flag from THIS process only; prod config is untouched.
+if (process.env.AI_FORCE_OLLAMA === "true") {
+  console.log("note: AI_FORCE_OLLAMA=true detected — unset for this process so the two duel lanes stay distinct");
+  delete process.env.AI_FORCE_OLLAMA;
+}
+
 async function llm(system: string, user: string, maxTokens: number, model?: string): Promise<string> {
   const { invokeLLM } = await import("../server/_core/llm");
   const res = await invokeLLM({
@@ -90,15 +110,27 @@ async function llm(system: string, user: string, maxTokens: number, model?: stri
   return text;
 }
 
-async function probe(): Promise<boolean> {
+/**
+ * Probe the EXACT lanes the matches will use — one per model. The 2026-08-07
+ * gauntlet burned all 8 seeds against a dead adversary lane after a probe of
+ * the ambient default lane passed: a liveness check that exercises a
+ * different lane than the real work is a false-green generator.
+ */
+async function probe(model: string, label: string): Promise<boolean> {
   try {
-    const out = await llm("Reply with exactly: OK", "liveness probe", 256);
-    console.log(`probe OK — LLM lane live (${out.slice(0, 20)})`);
+    const out = await llm("Reply with exactly: OK", "liveness probe", 256, model);
+    console.log(`probe OK — ${label} lane live on ${model} (${out.slice(0, 20)})`);
     return true;
   } catch (err) {
-    console.log(`probe FAILED — LLM lane down: ${err instanceof Error ? err.message.slice(0, 200) : String(err)}`);
+    console.log(`probe FAILED — ${label} lane (${model}) down: ${err instanceof Error ? err.message.slice(0, 200) : String(err)}`);
     return false;
   }
+}
+
+async function probeBothLanes(): Promise<boolean> {
+  const agentOk = await probe(AGENT_MODEL, "agent");
+  const advOk = ADVERSARY_MODEL === AGENT_MODEL ? agentOk : await probe(ADVERSARY_MODEL, "adversary");
+  return agentOk && advOk;
 }
 
 function callerPersona(seed: SeedRow): string {
@@ -142,6 +174,7 @@ async function runMatch(seed: SeedRow, maxTurns: number): Promise<MatchResult> {
       ASSISTANT_SYSTEM_PROMPT,
       `Phone call so far:\n${lines.join("\n")}\n\nYour next spoken line as the receptionist (one turn, no stage directions):`,
       700,
+      AGENT_MODEL,
     );
     lines.push(`AI: ${agentLine.trim()}`);
     if (/goodbye|bye|see you|thanks,? (that's|that is) all/i.test(callerLine)) break;
@@ -169,14 +202,21 @@ async function runMatch(seed: SeedRow, maxTurns: number): Promise<MatchResult> {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.includes("--probe")) process.exit((await probe()) ? 0 : 1);
+  if (!process.env.OLLAMA_API_KEY) {
+    // Both duel pins are Ollama-native. Fail before burning seeds: the key is
+    // NOT in apps/nickstire/.env — inject it into the shell for local runs
+    // (its home is the statenour service env / apps/statenour/.env).
+    console.error("OLLAMA_API_KEY is not set — both cage lanes ride Ollama Cloud. Inject the key before running.");
+    process.exit(1);
+  }
+  if (args.includes("--probe")) process.exit((await probeBothLanes()) ? 0 : 1);
   const seedsIdx = args.indexOf("--seeds");
   const turnsIdx = args.indexOf("--turns");
   const seedCount = seedsIdx >= 0 ? Math.max(1, Math.min(10, parseInt(args[seedsIdx + 1], 10) || 3)) : 3;
   const maxTurns = turnsIdx >= 0 ? Math.max(2, Math.min(10, parseInt(args[turnsIdx + 1], 10) || 6)) : 6;
 
-  if (!(await probe())) {
-    console.log("aborting — the LLM lane is down (same top-up blocks retro-tournament).");
+  if (!(await probeBothLanes())) {
+    console.log("aborting — an LLM lane is down (same top-up blocks retro-tournament).");
     process.exit(1);
   }
 
@@ -209,6 +249,12 @@ async function main() {
     }
   }
 
+  if (!results.length) {
+    // 0 matches must NEVER render as 0 losses — the 2026-08-07 run failed all
+    // 8 matches on a dead lane and still printed a clean readout with exit 0.
+    console.error(`\nALL ${seeds.length} MATCHES FAILED — no measurement happened. This run proves nothing about the prompt.`);
+    process.exit(1);
+  }
   const losses = results.filter((r) => r.loss);
   const outDir = join(process.cwd(), "eval-datasets");
   mkdirSync(outDir, { recursive: true });
