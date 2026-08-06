@@ -51,6 +51,7 @@ import { LevelUpDirectiveCard } from "@/components/mastery/level-up-directive-ca
 // The interactive goal surface (LifeGoal ladder + active missions) folded in
 // from the retired /goals page. Self-fetches /api/goals · zero type coupling.
 import { GoalBoard } from "@/components/goals/goal-board";
+import { ForecastDuel } from "@/components/stats/forecast-duel";
 // Coach Channel · goal drift/prune nudges. Self-hides when empty.
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
@@ -232,6 +233,11 @@ function StatsContent() {
             <section id="calibration" className="space-y-3">
               <MasterySectionLabel label="Calibration · outcome benchmarking" />
               <CalibrationSection />
+            </section>
+            {/* ⑥ FORECAST DUEL · you-vs-Nick Brier (#1393's missing consumer) */}
+            <section id="forecast-duel" className="space-y-3">
+              <MasterySectionLabel label="Forecast duel · odds on yourself" />
+              <ForecastDuel />
             </section>
           </div>
         )}
