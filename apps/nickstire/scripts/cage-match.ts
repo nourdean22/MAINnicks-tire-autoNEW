@@ -68,11 +68,25 @@ async function llm(system: string, user: string, maxTokens: number, model?: stri
     ...(model ? { model } : {}),
   });
   const raw = res.choices?.[0]?.message?.content ?? "";
-  const text = typeof raw === "string" ? raw : JSON.stringify(raw);
-  // Thinking models can burn the whole token budget on reasoning and emit
-  // empty content. An empty line must be a LOUD failure — the first live run
-  // graded 9 turns of empty strings as "losses", a fabricated result.
-  if (!text.trim()) throw new Error(`empty model output (reasoning burn? raise maxTokens) from ${model ?? "default lane"}`);
+  let text = typeof raw === "string" ? raw : JSON.stringify(raw);
+  if (!text.trim()) {
+    // ONE bounded retry at a bigger budget — same instrument-parity fix
+    // ghostReplay carries: a token-budget artifact is a measurement bug, but
+    // a second empty is a LOUD failure (the first live run graded 9 empty
+    // turns as "losses", a fabricated result — never again).
+    const retry = await invokeLLM({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `${user}\n\n(One short spoken sentence only, no analysis.)` },
+      ],
+      maxTokens: 1400,
+      timeoutMs: 60000,
+      ...(model ? { model } : {}),
+    });
+    const retryRaw = retry.choices?.[0]?.message?.content ?? "";
+    text = typeof retryRaw === "string" ? retryRaw : JSON.stringify(retryRaw);
+  }
+  if (!text.trim()) throw new Error(`empty model output after retry (reasoning burn) from ${model ?? "default lane"}`);
   return text;
 }
 
@@ -113,7 +127,7 @@ interface MatchResult {
 
 // Kept in lockstep with ghostReplay.RESOLUTION_RX (transfer language added
 // 2026-08-06 — a live transfer IS a resolution).
-const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come|transfer(ring)? you|connect(ing)? you|put you through|get(ting)? you (over )?to (him|her|them|the shop|someone|a person|the manager))/i;
+const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|swing by|stop by|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come|transferr?(ing)?\b|connect(ing)? (you|the call)|put you through|get(ting)? you (over )?(to )?(him|her|them|someone|a person|the (shop|counter|floor|manager))|(let me |i'll )get (him|her|them|someone)\b)/i;
 
 async function runMatch(seed: SeedRow, maxTurns: number): Promise<MatchResult> {
   const { ASSISTANT_SYSTEM_PROMPT } = await import("../server/services/vapi");
