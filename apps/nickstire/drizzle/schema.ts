@@ -1714,6 +1714,47 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
 ]);
 
 export type VapiCallLog = typeof vapiCallLogs.$inferSelect;
+
+/**
+ * VAPI call archive — the durable vault for artifacts VAPI purges upstream at
+ * 14 days. `vapi_call_logs` keeps summaries, evals and URLs; the URLs die with
+ * VAPI's retention window, permanently destroying the raw transcript of every
+ * call. One row per call, written by the daily archive pass
+ * (server/services/vapiCallArchive.ts) that rides the vapi-eval cron.
+ * `transcript` NULL means "not yet available upstream" — the pass retries those
+ * until the call ages past the retention window, so a row without a transcript
+ * is a pending capture, not a finished one (`transcript_captured_at` is the
+ * completion stamp). Migration 0109.
+ */
+export const vapiCallArchives = mysqlTable("vapi_call_archives", {
+  id: int("id").autoincrement().primaryKey(),
+  /** VAPI's call id — one archive row per call, keyed to vapi_call_logs.vapiCallId */
+  vapiCallId: varchar("vapi_call_id", { length: 64 }).notNull().unique(),
+  phoneNumber: varchar("phone_number", { length: 30 }),
+  /** VAPI call type (inboundPhoneCall / outboundPhoneCall / webCall) */
+  callType: varchar("call_type", { length: 32 }),
+  endedReason: varchar("ended_reason", { length: 64 }),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  durationSeconds: int("duration_seconds"),
+  /** Full conversation transcript — the artifact the 14-day purge destroys */
+  transcript: mediumtext("transcript"),
+  /** Role-annotated message array from the call detail (training-grade record) */
+  messagesJson: json("messages_json"),
+  /** Provider URLs expire with retention — kept for the short window they work */
+  recordingUrl: varchar("recording_url", { length: 500 }),
+  stereoRecordingUrl: varchar("stereo_recording_url", { length: 500 }),
+  summary: text("summary"),
+  analysisJson: json("analysis_json"),
+  costTotal: decimal("cost_total", { precision: 10, scale: 4 }),
+  /** Set only when a non-empty transcript landed — the vault-complete stamp */
+  transcriptCapturedAt: timestamp("transcript_captured_at"),
+  archivedAt: timestamp("archived_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_vapi_archive_started").on(table.startedAt),
+]);
+
+export type VapiCallArchive = typeof vapiCallArchives.$inferSelect;
 export type InsertVapiCallLog = typeof vapiCallLogs.$inferInsert;
 
 // 🔴 INTEGRATION FAILURES (Error Tracking)

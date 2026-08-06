@@ -110,6 +110,23 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     });
   }
 
+  // ARCHIVE PASS · durable transcript vault. VAPI deletes transcripts and
+  // recordings 14 days after a call; this pass persists them before the purge.
+  // It runs ahead of evaluation and independently of eval state (outbound and
+  // deferred calls are vaulted too), and its failure must never block the eval
+  // loop — the vault is additive.
+  let archiveDetails = "";
+  try {
+    const { archiveRecentVapiCalls } = await import("../../services/vapiCallArchive");
+    const archive = await archiveRecentVapiCalls();
+    archiveDetails = ` · archive: ${archive.details}`;
+  } catch (error) {
+    archiveDetails = " · archive: FAILED";
+    log.warn("[vapi-eval] archive pass failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const cutoff = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000);
   const rows = await db
     .select({
@@ -129,7 +146,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     .where(and(gte(vapiCallLogs.createdAt, cutoff), isNull(vapiCallLogs.evalAt)))
     .orderBy(desc(vapiCallLogs.createdAt));
 
-  if (!rows.length) return { recordsProcessed: 0, details: "no calls to evaluate" };
+  if (!rows.length) return { recordsProcessed: 0, details: `no calls to evaluate${archiveDetails}` };
 
   const apiKey = process.env.VAPI_API_KEY;
   const scored: ScoredCall[] = [];
@@ -414,6 +431,6 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
 
   return {
     recordsProcessed: rows.length - deferred - outbound - errored,
-    details: `${scored.length} quality-scored · ${verifiedCaptures} verified captures · ${technicalFailures} technical failures · ${deferred} deferred · ${outbound} outbound · ${errored} errors`,
+    details: `${scored.length} quality-scored · ${verifiedCaptures} verified captures · ${technicalFailures} technical failures · ${deferred} deferred · ${outbound} outbound · ${errored} errors${archiveDetails}`,
   };
 }
