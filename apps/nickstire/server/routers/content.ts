@@ -520,6 +520,54 @@ export const contentAdminRouter = router({
       return { started: def.experimentId, arms: def.arms.map((a) => a.armId), primaryMetric: def.primaryMetric };
     }),
 
+  /** Shadow-judge disagreement readout (2026-08-06) — the reader the shadow
+   *  lane (#1389) shipped without. Every autonomous post carries the
+   *  independent tournament judge's verdict in evalScoresJson.shadowJudge;
+   *  this surfaces self-eval vs judge so the gate-flip decision is made on
+   *  an accumulated readout, not vibes. Zero rows is reported as zero — a
+   *  quiet lane must be distinguishable from a missing reader. */
+  shadowJudgeReadout: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return { total: 0, judged: 0, errors: 0, disagreements: [], rows: [] };
+    const { igAutopostLog } = await import("../../drizzle/schema");
+    const { desc, sql } = await import("drizzle-orm");
+    const raw = await d.select({
+      id: igAutopostLog.id,
+      slot: igAutopostLog.slot,
+      status: igAutopostLog.status,
+      conceptKey: igAutopostLog.conceptKey,
+      overallScore: igAutopostLog.overallScore,
+      evalScoresJson: igAutopostLog.evalScoresJson,
+      createdAt: igAutopostLog.createdAt,
+    }).from(igAutopostLog)
+      .where(sql`${igAutopostLog.evalScoresJson} LIKE '%shadowJudge%'`)
+      .orderBy(desc(igAutopostLog.createdAt))
+      .limit(200);
+    const rows = (raw as Array<{ id: number; slot: string; status: string; conceptKey: string; overallScore: number | null; evalScoresJson: string | null; createdAt: Date }>)
+      .map((r) => {
+        let shadow: { total?: number; rejected?: boolean; note?: string; error?: string } = {};
+        try {
+          shadow = (JSON.parse(r.evalScoresJson ?? "{}") as { shadowJudge?: typeof shadow }).shadowJudge ?? {};
+        } catch { shadow = { error: "unparseable evalScoresJson" }; }
+        return {
+          id: r.id, slot: r.slot, status: r.status, conceptKey: r.conceptKey,
+          selfOverall: r.overallScore, judgeTotal: shadow.total ?? null,
+          judgeRejected: shadow.rejected ?? null, judgeError: shadow.error ?? null,
+          note: shadow.note ?? null, createdAt: r.createdAt,
+        };
+      });
+    const judged = rows.filter((r) => r.judgeTotal != null);
+    const disagreements = judged.filter((r) => (r.selfOverall ?? 0) >= 70 && ((r.judgeTotal ?? 100) < 60 || r.judgeRejected === true));
+    return {
+      total: rows.length,
+      judged: judged.length,
+      errors: rows.filter((r) => r.judgeError != null).length,
+      disagreements,
+      rows: rows.slice(0, 50),
+    };
+  }),
+
   /** Registry status: every experiment with assignment/published counts and
    *  the persisted verdict (refusals included — a refusal is a result). */
   contentExperimentStatus: adminProcedure.query(async () => {
