@@ -339,3 +339,59 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** medium (one occurrence, clear mechanism)
 - **Status:** applied #1363 — "Same audit, open PRs" section added to
   `stranded-branch-rescue`
+
+## 2026-08-07 · evolution-arc crank waves (#1401–#1416): VAPI pushes, cage/ghost-replay instrument hardening
+
+### P1 · `nickstire-verify` (false-green doctrine: instruments)
+- **Trigger (witnessed):** an 8-seed cage gauntlet failed ALL matches
+  (`OLLAMA_API_KEY is missing`) yet exited 0 printing a clean "0 losses"
+  readout, because its liveness probe rode the AMBIENT default lane (gpt-4o,
+  key present) while the matches pinned gpt-oss:120b (Ollama lane, key
+  absent). Third instrument-integrity incident in one arc: crank-1 graded 9
+  empty thinking-burn turns as "losses" (fabricated result); #1405 found the
+  `--filter` display re-sampling a fresh conversation instead of showing the
+  graded one; then this. Fixed structurally in #1416 (pin both lanes, probe
+  the exact models, zero-completed-work exits 1).
+- **Cost:** one full gauntlet burned (~10 min + diagnosis); without the
+  re-check the wave would have shipped "0 losses" as a win.
+- **Proposed edit:** add an "Instrument runs (cage / ghost replay / any
+  measurement script)" section: "a liveness probe must exercise the EXACT
+  model/lane/config the measured work uses — a probe of a different lane is
+  a false-green generator; and a run that completed ZERO units of work must
+  exit non-zero, never render as a clean zero-findings readout."
+- **Confidence:** high (three instances, same arc, three shapes)
+- **Status:** applied #1418 (operator approved 2026-08-07)
+
+### P2 · `nickstire-verify` (credentials section, mirroring statenour-verify''s)
+- **Trigger (witnessed):** same failed gauntlet — `OLLAMA_API_KEY` is NOT in
+  `apps/nickstire/.env` (worktree or primary); its only local home is
+  `apps/statenour/.env` (Railway for prod). Earlier local runs worked only
+  because the interactive shell happened to carry an inline export;
+  background shells start clean and inherited nothing.
+- **Cost:** the silent lane mismatch above; also the OpenAI lane silently
+  absorbed the probe traffic.
+- **Proposed edit:** add a "Running a script that needs real credentials"
+  section (statenour-verify already has one): "nickstire `.env` does NOT
+  carry the Ollama key; inject it from its home per-shell, and scripts that
+  need it must fail fast naming that home (pattern: cage-match.ts after
+  #1416). Background/`run_in_background` shells never inherit inline env."
+- **Confidence:** medium (one occurrence, mechanism fully understood)
+- **Status:** applied #1418 (operator approved 2026-08-07)
+
+### P3 · `nickstire-shared-main-push` (PR mechanics under concurrent sessions)
+- **Trigger (witnessed):** (a) crank-1: merged "#1411" by assumption — it
+  was the SIBLING session''s already-merged PR (harmless no-op, pure luck);
+  the sibling interleave makes guessed numbers wrong by default. (b) #1416:
+  `gh pr merge --squash --delete-branch` exited 1 with "fatal: ''main'' is
+  already used by worktree ..." AFTER the remote merge had already
+  succeeded — the failure was only the local post-merge checkout.
+- **Cost:** (a) a near-miss merge of the wrong PR; (b) a near-miss retry of
+  an already-completed merge.
+- **Proposed edit:** two lines: "ALWAYS capture the PR number from the
+  `gh pr create` output (`($url -split ''/'')[-1]`), never merge a guessed
+  number — sibling sessions interleave the sequence" and "if `gh pr merge`
+  errors mentioning a worktree/checkout, the REMOTE merge may already be
+  done: `gh pr view <n> --json state` before any retry."
+- **Confidence:** high for the number-capture (recurred as near-miss +
+  standing memory note), medium for the merge quirk (once, clear)
+- **Status:** applied #1418 (operator approved 2026-08-07)
