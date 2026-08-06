@@ -234,9 +234,11 @@ export function parseSingleVerdict(raw: string): JudgeScore {
  * tournament's 100-point rubric + hard-reject rules, via the same
  * independent-judge prompt with a field of one. Built for shadow-scoring the
  * autonomous publishers (igAutopost, dailyReelPost), which still self-score —
- * the exact defect this tournament was built to replace. Read-and-log only by
- * contract: callers must never gate a publish on this verdict without an
- * explicit operator flip.
+ * the exact defect this tournament was built to replace. Originally
+ * read-and-log only by contract; the operator flipped igAutopost's live
+ * branch onto this verdict on 2026-08-07 (see igJudgeGate.shadowJudgeGate)
+ * over the retro-tournament disagreement readout. Other callers remain
+ * read-and-log unless the operator flips them too.
  */
 export async function judgeSingleConcept(input: {
   campaignAsk: string;
