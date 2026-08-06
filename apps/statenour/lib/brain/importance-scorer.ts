@@ -196,7 +196,49 @@ export async function persistIfImportant(
   messageId: string,
   content: string,
   conversationId: string,
-  threshold: number = 6,
+  /**
+   * 2026-08-06 · LOWERED 6 -> 4, measured. See
+   * scripts/calibrate-importance-threshold.ts — it runs THIS function's
+   * scoreMessage over every real user message in prod and prints the
+   * histogram, so the number below is observed rather than guessed.
+   *
+   * THE PROBLEM · `chat_importance` held 10 rows in the 3.5 months to
+   * 2026-08-06. That starves the contradiction detector, which needs BOTH the
+   * fresh row AND its neighbour to be chat_importance, >= 7 days apart, and
+   * >= 0.78 similar. A 10-row pool cannot produce such a pair, which is why
+   * `contradiction` sat at 0 rows and its /chat block fired 0/1417 turns.
+   *
+   * THE MEASUREMENT · 1,711 user messages over 113 days:
+   *
+   *   threshold  admitted/mo   contradiction-eligible/mo
+   *        6         4.8              2.4      <- was here
+   *        5         9.0              4.3
+   *        4        17.3              7.7      <- now here
+   *        3        27.9             12.0
+   *        1        33.2             15.2
+   *
+   * WHY 4 · it roughly TRIPLES the contradiction-eligible pool (2.4 -> 7.7 a
+   * month) while still demanding corroboration: score 4 means one strong
+   * signal plus length or a person mention, or two moderate signals — never a
+   * single bare keyword. Score 3 would admit one unsupported regex hit.
+   * Candidate PAIRS scale ~n², so ~3x the rows is ~10x the pairs the detector
+   * can actually work with.
+   *
+   * WHY THE OLD GARBAGE-POOL FEAR DOES NOT APPLY · the v9.1.25 note below
+   * records that low-score rows once formed "a multi-thousand-row garbage
+   * pool". Two things make that unreachable now. First, it is not volume-
+   * reproducible: `primary != null` — not the threshold — is the real gate,
+   * and only 125 of 1,711 messages (7.3%) earn a primary at all. Admitting
+   * EVERY one of them (threshold 1) still yields 125 rows per 113 days.
+   * Second, the very same v9.1.25 change added `expiresAt` for score < 8, so
+   * sub-promotion rows now decay after 30 days instead of accumulating
+   * forever — that fix is what made the high threshold unnecessary. Steady
+   * state at 4 is roughly one month of admissions (~17 live rows), not
+   * thousands.
+   *
+   * Re-run the calibration script before changing this again.
+   */
+  threshold: number = 4,
 ): Promise<{ persisted: boolean; score: number; category: ImportanceCategory | null }> {
   const result = scoreMessage(content);
   if (result.score < threshold || !result.primary) {
