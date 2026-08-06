@@ -44,6 +44,7 @@ import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { isEnabled } from "./featureFlags";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
+import { shadowJudgeGate } from "./igJudgeGate";
 
 const log = createLogger("ig-autopost");
 
@@ -93,11 +94,13 @@ export interface IgEvalScores {
   passed: boolean;
   /**
    * Independent tournament-judge verdict on the ACCEPTED draft, recorded in
-   * shadow (2026-08-05). Gates nothing — it exists so the self-eval gate's
-   * blind spot is measurable: rows where the self-eval passed >= 0.7 and the
-   * independent judge scored low (or rejected) are the disagreement corpus
-   * an operator gate-flip decision needs. `error` means the judge lane
-   * failed (e.g. out of credits) — never silently absent.
+   * shadow since 2026-08-05. As of the 2026-08-07 operator flip it GATES the
+   * LIVE branch (see shadowJudgeGate in ./igJudgeGate): the retro-measured
+   * blind spot — self-eval passed >= 0.7, judge < 60 or rejected, unanimous
+   * generic-visual signature — no longer publishes. Dryrun previews still
+   * flow (that lane has a human). `error` means the judge lane failed
+   * (e.g. out of credits) — never silently absent, and in live mode it now
+   * fails CLOSED.
    */
   shadowJudge?: { total: number; rejected: boolean; note: string } | { error: string };
 }
@@ -1601,15 +1604,14 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     const { post, image, scores } = best;
     const caption = composeCaption(post);
 
-    // SHADOW JUDGE · read-and-log only. This publisher self-scores — the
-    // exact defect the concept tournament was built to replace — so the
-    // tournament's independent judge also scores the accepted draft, in
-    // shadow. It gates NOTHING: the verdict lands in evalScoresJson.
-    // shadowJudge, and flipping the publish gate to the independent judge is
-    // an operator decision to be made over an accumulated disagreement
-    // readout. Kill-switch IG_SHADOW_JUDGE=false. A judge-lane failure (it
-    // was dead on OpenRouter credits 2026-07-17) records the error and never
-    // blocks the run.
+    // INDEPENDENT JUDGE · was read-and-log shadow (2026-08-05 → 08-07); the
+    // operator flipped the gate on 2026-08-07 over the retro-tournament
+    // readout (5/25 self-eval passes judge-rejected, unanimous generic-visual
+    // signature). The verdict still lands in evalScoresJson.shadowJudge for
+    // the disagreement readout; the LIVE branch below now also blocks on it
+    // (shadowJudgeGate). Kill-switch IG_SHADOW_JUDGE=false disables judge AND
+    // gate together. In live mode the call is P0 — it gates a publish and
+    // must not yield to background lanes; dryrun stays P1 shadow.
     if (process.env.IG_SHADOW_JUDGE !== "false") {
       try {
         const { judgeSingleConcept } = await import("./conceptTournament");
@@ -1622,6 +1624,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
             visualIdea: post.imagePrompt,
             whyItWorks: scores.caption.notes || "self-eval notes unavailable",
           },
+          priority: dryRun ? 1 : 0,
         });
         scores.shadowJudge = { total: verdict.total, rejected: verdict.rejected, note: verdict.note || verdict.rejectionReason };
         log.info("ig-autopost shadow judge", { total: verdict.total, rejected: verdict.rejected, selfOverall: scores.overall });
@@ -1646,6 +1649,41 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
         status: "dryrun",
         archetype: post.archetype, conceptKey: post.conceptKey, scores,
         igPostId: null, fbPostId: null, dryRun: true,
+      };
+    }
+
+    // ── INDEPENDENT-JUDGE PUBLISH GATE (operator flip 2026-08-07) ──
+    // Blocks the LIVE branch only — the dryrun return above already ran, so
+    // previews keep flowing to Telegram with the verdict attached (that lane
+    // has a human). Fail-closed on judge error by the same "automated"
+    // reasoning as the kill switch below. An aborted row stays RETRYABLE
+    // (alreadyRanSlotToday): a later cron tick regenerates fresh content
+    // rather than resurrecting the rejected draft — deliberate, since a
+    // rejection is content-specific, not slot-specific.
+    const judgeGate = shadowJudgeGate(scores.shadowJudge, process.env.IG_SHADOW_JUDGE !== "false");
+    if (judgeGate.block) {
+      await logRun({
+        archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
+        scores, status: "aborted", caption, hashtags: post.hashtags,
+        imagePrompt: post.imagePrompt, imageUrl: image.url,
+        igPostId: null, fbPostId: null, error: `judge-blocked: ${judgeGate.reason}`.slice(0, 500), source,
+      });
+      try {
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `IG AUTOPOST — BLOCKED BY THE INDEPENDENT JUDGE (${post.archetype}/${post.conceptKey})\n` +
+          `${judgeGate.reason}\nNothing was posted. The slot retries with fresh content on a later tick.`,
+        );
+      } catch (e) {
+        log.warn("judge-gate notify failed (block stands)", { error: errMsg(e) });
+      }
+      log.warn("ig-autopost judge gate blocked live publish", { reason: judgeGate.reason });
+      return {
+        recordsProcessed: 1,
+        details: `judge-blocked (${post.archetype}) — not posted: ${judgeGate.reason}`,
+        status: "aborted",
+        archetype: post.archetype, conceptKey: post.conceptKey, scores,
+        igPostId: null, fbPostId: null, dryRun: false,
       };
     }
 
