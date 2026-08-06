@@ -30,7 +30,13 @@ async function runRevenueReconciliationIfDue(db: DatabaseClient): Promise<string
     }
 
     const until = new Date();
-    const since = new Date(until.getTime() - 7 * 86_400_000);
+    // 21 days, not 7 (2026-08-07): with a 7-day call window and maxDays=14, an
+    // invoice landing on day 8-14 after a call could NEVER enter
+    // revenue_reconciliation_candidates — by the time the invoice existed, the
+    // call had aged out of every rescan. A 21-day window keeps each call
+    // rescannable for the full 14-day attribution horizon (+buffer); the run
+    // stays idempotent and operator decisions are still honored.
+    const since = new Date(until.getTime() - 21 * 86_400_000);
     const { runRevenueReconciliation } = await import("../../services/revenueReconciliation");
     const result = await runRevenueReconciliation({ since, until, maxDays: 14 });
     return `reconciliation ${result.runId}: ${result.callsScanned} calls, ${result.verified} verified, ${result.inferred} review`;
