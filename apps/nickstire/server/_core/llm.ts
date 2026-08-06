@@ -73,6 +73,12 @@ export type InvokeParams = {
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
   model?: string;
+  /**
+   * Ollama slot priority (2026-08-06): P0 live production · P1 shadow eval ·
+   * P2 benchmarks/cage (default) · P3 backfill · P4 speculative. Only
+   * consulted when the call routes to the Ollama lane.
+   */
+  priority?: 0 | 1 | 2 | 3 | 4;
 };
 
 export type ToolCall = {
@@ -409,22 +415,36 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(model), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${resolveApiKey(model)}`,
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(params.timeoutMs ?? 30000), // default 30s; heavy generations override
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+  // Ollama Pro allows three concurrent cloud models — every Ollama-bound
+  // call takes a prioritized slot so background work (P2+) yields to live
+  // and shadow traffic instead of starving it. Non-Ollama routes skip the
+  // scheduler entirely.
+  let releaseSlot: (() => void) | null = null;
+  if (isOllamaModel(model)) {
+    const { acquireOllamaSlot } = await import("./ollamaScheduler");
+    releaseSlot = await acquireOllamaSlot(params.priority ?? 2);
   }
 
-  return (await response.json()) as InvokeResult;
+  try {
+    const response = await fetch(resolveApiUrl(model), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${resolveApiKey(model)}`,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(params.timeoutMs ?? 30000), // default 30s; heavy generations override
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      );
+    }
+
+    return (await response.json()) as InvokeResult;
+  } finally {
+    releaseSlot?.();
+  }
 }

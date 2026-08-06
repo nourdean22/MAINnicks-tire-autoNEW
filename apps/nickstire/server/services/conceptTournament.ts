@@ -241,6 +241,8 @@ export function parseSingleVerdict(raw: string): JudgeScore {
 export async function judgeSingleConcept(input: {
   campaignAsk: string;
   concept: Omit<TournamentConcept, "id">;
+  /** Ollama slot priority — defaults to P1 (shadow evaluation); backfill callers pass 3. */
+  priority?: 0 | 1 | 2 | 3 | 4;
 }): Promise<JudgeScore> {
   const field: TournamentConcept[] = [{ ...input.concept, id: "entry_01" }];
   const call = async (extra?: string) => {
@@ -252,6 +254,7 @@ export async function judgeSingleConcept(input: {
       maxTokens: 2048,
       timeoutMs: 60000,
       outputSchema: JUDGE_OUTPUT_SCHEMA,
+      priority: input.priority ?? 1,
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     return typeof raw === "string" ? raw : JSON.stringify(raw);
