@@ -85,6 +85,77 @@ export const qualityProcedures = {
       return { ok };
     }),
 
+  /** Operator forecast lane (2026-08-06) · "Odds on Yourself".
+   *
+   *  ZERO new tables by design: an operator forecast is a Prediction row
+   *  with metadata.author="operator", so it rides the ENTIRE existing
+   *  pipeline — nightly brain-intelligence resolution, Brier scoring at
+   *  resolve time, calibration-engine rollups, and (since #1383) the
+   *  calibration block in Prompt V2. Every decision-journal product dies at
+   *  manual resolution; this lane inherits auto-resolution for free. */
+  forecastCreate: operatorProcedure
+    .input(z.object({
+      question: z.string().min(8).max(500),
+      criteria: z.string().min(8).max(500),
+      confidence: z.number().min(0.01).max(0.99),
+      targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      category: z.string().max(40).default("operational"),
+    }))
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const row = await prisma.prediction.create({
+        data: {
+          date: new Date().toISOString().slice(0, 10),
+          targetDate: input.targetDate,
+          category: input.category,
+          prediction: input.question,
+          basis: `operator forecast · resolution criteria: ${input.criteria}`,
+          confidence: input.confidence,
+          kind: "binary",
+          metadata: { author: "operator", criteria: input.criteria },
+        },
+        select: { id: true },
+      });
+      return { id: row.id };
+    }),
+
+  /** The duel: operator-vs-agent Brier over resolved predictions. */
+  forecastScoreboard: operatorProcedure.query(async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const resolved = await prisma.prediction.findMany({
+      where: { brierScore: { not: null } },
+      orderBy: { updatedAt: "desc" },
+      take: 500,
+      select: { brierScore: true, confidence: true, category: true, metadata: true, updatedAt: true },
+    });
+    const lane = (author: "operator" | "agent") =>
+      resolved.filter((r) => {
+        const isOperator = (r.metadata as { author?: unknown } | null)?.author === "operator";
+        return author === "operator" ? isOperator : !isOperator;
+      });
+    const summarize = (rows: typeof resolved) => ({
+      resolved: rows.length,
+      meanBrier: rows.length
+        ? Number((rows.reduce((s, r) => s + (r.brierScore ?? 0), 0) / rows.length).toFixed(4))
+        : null,
+      last10Brier: rows.length
+        ? Number((rows.slice(0, 10).reduce((s, r) => s + (r.brierScore ?? 0), 0) / Math.min(10, rows.length)).toFixed(4))
+        : null,
+    });
+    const pendingOperator = await prisma.prediction.findMany({
+      where: { status: "pending", metadata: { path: ["author"], equals: "operator" } },
+      orderBy: { targetDate: "asc" },
+      take: 20,
+      select: { id: true, prediction: true, confidence: true, targetDate: true, category: true },
+    });
+    return {
+      operator: summarize(lane("operator")),
+      agent: summarize(lane("agent")),
+      pendingOperator,
+      note: "Brier: 0 perfect · 0.25 coin-flip · lower wins. Resolution is automatic (nightly brain-intelligence cron).",
+    };
+  }),
+
   /** Event Envelope V1 (2026-07-29 · WP-7 executor) · owner-only ·
    *  the merge-sorted read projection over all eight event models.
    *  Read-only; dropped/invalid envelopes surface as a count. */
