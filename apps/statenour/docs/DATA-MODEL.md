@@ -115,7 +115,6 @@ migration or add a feature, read the relevant section first.
 │  LifeGoal           top-level goal               │
 │  Mission            project                      │
 │  Commitment         promises to self/others      │
-│  WorkItem           in-progress work             │
 │  DailyExecutionState per-day snapshot of focus   │
 │  PersonalDailyLog   energy/mood/habits per day   │
 │  Reflection         (above, shared)              │
@@ -158,6 +157,7 @@ migration or add a feature, read the relevant section first.
 │  SystemSnapshot     periodic full snapshots      │
 │  AuditEvent         generic audit (tiered)       │
 │  ServiceHealth      per-integration health       │
+│  WorkItem           runner job queue             │
 │  ReviewLog          weekly/monthly review log    │
 │  UserPreference     user-facing settings         │
 │  RecoveryActionLog  recovery pattern log         │
