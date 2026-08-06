@@ -53,6 +53,35 @@ them back when ready.
 
 ## Parked migrations
 
+### `20260806120000_drop_duplicate_indexes` — ✅ APPLIED 2026-08-06 (directly, one transaction)
+
+Dropped 42 duplicate indexes across 24 tables (~18.7 MB). Indexes only — no data touched.
+
+Cause: `scripts/emit-index-migration.ts` built index NAMES from Prisma FIELD names while building
+index BODIES from `@map`'d COLUMN names, so `CREATE INDEX IF NOT EXISTS "Mission_deletedAt_idx"`
+never matched the existing `Mission_deleted_at_idx` and created a byte-identical twin instead of
+no-opping. Generator fixed at the source in the same PR (#1409), so re-running it is now genuinely
+idempotent and will not recreate them.
+
+Applied as a single transaction against the production branch (project `statenour`,
+`spring-art-47050555`) rather than via the endpoint — every statement is `DROP INDEX IF EXISTS`,
+so it is idempotent and safe to re-run.
+
+**Verified after applying**, both checks in this directory's `migration.sql` header:
+- the duplicate-pair query returns **0 rows** (was 42)
+- all **42 surviving twins** confirmed present by name
+
+**Rollback**: `rollback.sql` in this directory holds the exact `pg_indexes.indexdef` for all 42,
+captured immediately before the drop. Those definitions also document why the drop is plan-neutral:
+every one was a plain btree over the same column list as its twin — no UNIQUE, no partial
+predicate, no expression or differing opclass.
+
+Left in this folder on purpose, same as `0003_ambition_engine` below: it is already applied, and
+moving it into `prisma/migrations/` could trip migrate-deploy ordering. `_prisma_migrations` was
+deliberately NOT hand-written (see the header note at the top of this file about that turning
+`prisma migrate status` red).
+
+
 ### `20260722120000_experiment_factory` — ✅ APPLIED 2026-07-22 (COLUMN-FIRST, via `apply.mjs`)
 
 Closed-loop Experiment factory: new `experiments` table (1:1 with an accepted `opportunity_logs` row, FK to `intelligence_sources`) + nullable columns `opportunity_logs.source_id`, `intelligence_sources.auth_score_updated_at` / `auth_score_samples`. Additive, idempotent, pgvector-verified untouched. **COLUMN-FIRST**: applied to prod Neon BEFORE the schema-bearing deploy (the two `ADD COLUMN`s touch hot tables the regenerated Prisma client SELECTs — deploying first would 500 every read until apply). Applied via the DO-`$$`-aware `apply.mjs` in the migration dir (`railway run … node apply.mjs`), NOT the legacy `;`-split script. Also mirrored in the `apply-pending-migration` route's `MIGRATIONS` map (idempotent re-apply path).
