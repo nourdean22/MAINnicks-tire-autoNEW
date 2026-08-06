@@ -45,6 +45,18 @@ export function extractCallerTurns(transcript: string): string[] {
   return turns.filter((t) => t.length > 0);
 }
 
+/**
+ * The lane the replayed receptionist rides when the caller doesn't pin one
+ * (2026-08-07). Before this pin the lane was ambient: locally without
+ * AI_FORCE_OLLAMA a bare invokeLLM resolves to gpt-4o on OpenAI, so the same
+ * replay could measure a different model than prod serves depending on shell
+ * env. Prod resolution is AI_FORCE_OLLAMA=true → OLLAMA_MODEL ||
+ * "deepseek-v4-pro"; this mirrors it. The name is an Ollama-native substring,
+ * so it routes to the Ollama lane with no force flag; on Railway the force
+ * flag reroutes to the same place — parity in both environments.
+ */
+export const GHOST_AGENT_MODEL = "deepseek-v4-pro";
+
 /** The same deterministic vocabulary the cage match grades on.
  *  Transfer language added 2026-08-06: a live transfer IS a resolution — the
  *  Mark-targeted replay showed "let me get you over to him" graded as a
@@ -143,7 +155,7 @@ export async function ghostReplay(
       ],
       maxTokens: opts.maxTokens ?? 700,
       timeoutMs: 60000,
-      ...(opts.model ? { model: opts.model } : {}),
+      model: opts.model ?? GHOST_AGENT_MODEL,
       priority: opts.priority ?? 3,
       // Temperature 0: evaluation must measure the prompt, not the dice — a
       // ±1-seed swing between identical runs was observed at the default.
@@ -167,7 +179,7 @@ export async function ghostReplay(
         ],
         maxTokens: 1400,
         timeoutMs: 60000,
-        ...(opts.model ? { model: opts.model } : {}),
+        model: opts.model ?? GHOST_AGENT_MODEL,
         priority: opts.priority ?? 3,
         temperature: 0,
       });
