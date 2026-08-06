@@ -249,10 +249,12 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
  * brain-intelligence cron (`app/api/cron/brain-intelligence/route.ts`),
  * so `resolvedCount` grows as predictions get scored. Below 5 resolved
  * this emits the "insufficient data" hedge; at 5+ it emits the real
- * calibration block (accuracy + bias). The call site
- * (`lib/ai/system-prompt.ts`) guards `if (calibBlock)`. (Historical:
- * Wave 59 once stubbed this to "" while resolvePrediction had no
- * callers; that wiring has since landed.)
+ * calibration block (accuracy + bias). Call site:
+ * `buildCalibrationBlock()` in `lib/ai/prompt/v2/index.ts` (wired
+ * 2026-08-05 — this function had ZERO callers between the V2 cutover
+ * and that wire, despite an earlier comment here claiming the v1
+ * system-prompt call site was live. Historical: Wave 59 once stubbed
+ * this to "" while resolvePrediction had no callers.)
  */
 export function buildCalibrationPromptBlock(stats: CalibrationStats): string {
   if (stats.resolvedCount < 5) {

@@ -58,9 +58,38 @@ export function isPromptV2Enabled(): boolean {
   return true;
 }
 
+/**
+ * Prediction-calibration block · closes the outcome loop's last mile.
+ *
+ * The nightly brain-intelligence cron resolves predictions and
+ * calibration-engine rolls 30d accuracy — but until 2026-08-05 nothing fed
+ * that record back into the prompt (`buildCalibrationPromptBlock` had zero
+ * callers since the V2 cutover). Same layer-position as
+ * `buildInferredPatternsBlock()`: a self-contained block builder invoked
+ * directly by the assembly.
+ *
+ * Fail-open by design: a broken stats query or missing rows must never break
+ * prompt assembly, so failures log and inject nothing. Kill-switch:
+ * CALIBRATION_PROMPT_BLOCK_DISABLED=1 (feature-flags registry).
+ */
+export async function buildCalibrationBlock(): Promise<string> {
+  try {
+    const { getFlag } = await import("@/lib/feature-flags");
+    if (getFlag("CALIBRATION_PROMPT_BLOCK_DISABLED")?.isOn) return "";
+    const { getCalibrationStats, buildCalibrationPromptBlock } = await import("@/lib/ai/outcome-calibration");
+    const stats = await getCalibrationStats();
+    return buildCalibrationPromptBlock(stats);
+  } catch (err) {
+    const { logError } = await import("@/lib/utils/error-log");
+    logError("ai.prompt-v2", err, { fn: "buildCalibrationBlock" });
+    return "";
+  }
+}
+
 export async function buildSystemPromptV2(): Promise<PromptV2Output> {
   const ctx = await buildNickPrimeContext();
   const sections = renderPromptV2(ctx);
+  const calibration = await buildCalibrationBlock();
 
   // Three-layer assembly: stable identity → pattern hypotheses → live
   // operating state. Empty live sections are skipped so the prompt
@@ -80,6 +109,7 @@ export async function buildSystemPromptV2(): Promise<PromptV2Output> {
     .concat(["", sections.proof, "", sections.risks])
     .concat(sections.decisions ? ["", sections.decisions] : [])
     .concat(["", sections.health])
+    .concat(calibration ? ["", calibration] : [])
     .join("\n");
 
   return {
