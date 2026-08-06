@@ -13,8 +13,11 @@
  *   2. Embeds the first ~300 chars of each block (cheap — cached by
  *      Venice's prompt-cache if same block fires repeatedly)
  *   3. Computes cosine similarity per block against the user turn
- *   4. Reorders blocks so the most relevant sit CLOSEST to the
- *      conversation (models weight late-prompt instructions more)
+ *   4. Sorts blocks by similarity DESCENDING — the sharpest block
+ *      lands FIRST in the addendum, at the HEAD of the effective
+ *      attention window (2026-08-06 · this bullet used to claim the
+ *      opposite, "closest to the conversation". The sort has always
+ *      been descending; the sentence was simply wrong)
  *   5. Optionally drops blocks below a cutoff threshold
  *
  * Net: same 7 blocks available, but the model sees the sharpest 3-4
@@ -152,6 +155,11 @@ export async function rerankContextBlocks(
     }
   }
 
+  // 2026-08-06 · DESCENDING is INTENTIONAL — highest similarity first.
+  // brain-context.ts appends in exactly this order, so the sharpest block
+  // OPENS the addendum (see the header note). Flipping to `a.similarity -
+  // b.similarity` would invert the intended attention placement silently,
+  // with every test still green — nothing here asserts the direction.
   scored.sort((a, b) => b.similarity - a.similarity);
   return scored;
 }

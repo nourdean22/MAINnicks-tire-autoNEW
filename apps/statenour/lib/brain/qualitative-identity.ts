@@ -27,6 +27,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { cached, invalidate } from "@/lib/utils/cache";
+
+// 2026-08-06 · buildQualitativeContextBlock fires on every /chat turn
+// (1417 of 1417 sampled turns over 30d) and reads one slowly-changing
+// row, so the round-trip was pure time-to-first-token cost. The row only
+// moves when computeQualitativeIdentity / addManualEntry / removeEntry
+// write it — each of those invalidates below, so the TTL is a backstop,
+// not the freshness mechanism.
+const CACHE_KEY = "qualitative_identity_current";
+const CACHE_TTL_S = 900; // 15 min
 
 export type IdentityBucket = "values" | "fears" | "operating_style" | "rhythms" | "red_lines";
 
@@ -285,22 +295,25 @@ export async function computeQualitativeIdentity(): Promise<QualitativeIdentity>
     }),
   ]);
 
+  invalidate(CACHE_KEY);
   return identity;
 }
 
 export async function loadQualitativeIdentity(): Promise<QualitativeIdentity> {
-  const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
-    select: { content: true },
-  });
-  if (row) {
-    try {
-      return JSON.parse(row.content) as QualitativeIdentity;
-    } catch {
-      // fall through
+  return cached(CACHE_KEY, CACHE_TTL_S, async () => {
+    const row = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
+      select: { content: true },
+    });
+    if (row) {
+      try {
+        return JSON.parse(row.content) as QualitativeIdentity;
+      } catch {
+        // fall through
+      }
     }
-  }
-  return computeQualitativeIdentity();
+    return computeQualitativeIdentity();
+  });
 }
 
 /**
@@ -315,25 +328,53 @@ export async function addManualEntry(bucket: IdentityBucket, text: string): Prom
     confidence: 1.0,
     updated_at: new Date().toISOString(),
   };
-  current[bucket].unshift(entry);
-  current[bucket] = current[bucket].slice(0, 10);
-  const payload = JSON.stringify(current);
+  // NEVER mutate `current`. loadQualitativeIdentity hands back the CACHED
+  // object by reference, so an in-place unshift plants the entry in every
+  // subsequent prompt even when the update() below THROWS — a phantom the
+  // DB never stored, which then duplicates on retry. Build the next value
+  // off to the side, persist it, and only then drop the cache.
+  const next: QualitativeIdentity = { ...current };
+  next[bucket] = [entry, ...current[bucket]].slice(0, 10);
+  const payload = JSON.stringify(next);
   await prisma.brainMemory.update({
     where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
     data: { content: payload, lastSeen: new Date() },
   });
-  return current;
+  invalidate(CACHE_KEY);
+  return next;
 }
 
 export async function removeEntry(bucket: IdentityBucket, text: string): Promise<QualitativeIdentity> {
   const current = await loadQualitativeIdentity();
-  current[bucket] = current[bucket].filter((e) => e.text !== text);
-  const payload = JSON.stringify(current);
+  // Same rule as addManualEntry: assigning to `current[bucket]` would edit
+  // the cached object, so a failed write would drop the entry from the
+  // prompt while the row still holds it. Copy, write, then invalidate.
+  const next: QualitativeIdentity = { ...current };
+  next[bucket] = current[bucket].filter((e) => e.text !== text);
+  const payload = JSON.stringify(next);
   await prisma.brainMemory.update({
     where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
     data: { content: payload, lastSeen: new Date() },
   });
-  return current;
+  invalidate(CACHE_KEY);
+  return next;
+}
+
+/**
+ * Drop the cached qualitative-identity row.
+ *
+ * Exported for `resetBrainState` (lib/services/brain-domain.ts), which
+ * DELETES this row as one of its 12 wiped categories. Without this the
+ * cached object outlives the row for a full 900s TTL: /chat keeps
+ * rendering an identity that no longer exists, and the next
+ * addManualEntry/removeEntry runs update() against a missing row and
+ * throws Prisma P2025.
+ *
+ * Multi-replica caveat: clears THIS instance's L1 plus the shared L2
+ * (Redis) key; sibling replicas age out on the TTL.
+ */
+export function invalidateQualitativeIdentityCache(): void {
+  invalidate(CACHE_KEY);
 }
 
 /**

@@ -365,9 +365,21 @@ export async function buildBrainContext(
     const taskBlock = await withTimeout(taskContextPromise, 3000, "");
 
     // Apr 19 · Rerank brain blocks by semantic relevance to the user
-    // turn. Reorders so the sharpest blocks sit closest to the
-    // conversation (models weight late-prompt heavier). Drops blocks
+    // turn. Sorts similarity DESCENDING and the append loop below keeps
+    // that order, so the sharpest block OPENS the addendum. Drops blocks
     // below the similarity threshold to save context window.
+    //
+    // 2026-08-06 · The descending sort is INTENTIONAL — do NOT "fix" it
+    // to ascending. This comment used to claim the rerank puts the
+    // sharpest blocks "closest to the conversation (models weight
+    // late-prompt heavier)", the exact opposite of what the code does,
+    // and an audit nearly flipped the sort to match the prose. Where the
+    // addendum actually lands: route.ts appends it to the TAIL of the
+    // base system prompt, then finalize-system-prompt and
+    // augment-final-prompt append more after it — proximity to the
+    // conversation was never this loop's to set. What it does set is the
+    // HEAD of the addendum, which is the placement context-reranker.ts is
+    // built around. Ascending would invert that with every test green.
     //
     // We pass the already-computed userEmbedding from the parallel
     // prefetch — zero extra embedding calls. Reranker has its own
@@ -419,7 +431,10 @@ export async function buildBrainContext(
       }
     }
 
-    // Append blocks in reranked order, skipping dropped ones.
+    // Append blocks in reranked order (descending similarity), skipping
+    // dropped ones — the highest-similarity block lands EARLIEST in the
+    // addendum. This loop is what makes the rerank's sort direction load-
+    // bearing; keep them consistent.
     for (const block of reranked) {
       if (!block.kept) continue;
       addendum += `\n\n${block.content}`;

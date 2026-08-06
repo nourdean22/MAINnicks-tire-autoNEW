@@ -15,7 +15,6 @@ import { buildJudgeEvalSummary } from "@/lib/services/judge-eval";
 import { readGhostNourCandidates } from "@/lib/services/ghost-nour";
 import { readRecentV2Samples } from "@/lib/ai/judge-eval/sampler";
 import { listEvalResults } from "@/lib/services/eval-results";
-import { buildPromptCompare } from "@/lib/services/prompt-compare";
 import { readShadowTrend } from "@/lib/ai/prompt/v2/shadow-metrics";
 import { listPrompts, getRegistryStats } from "@/lib/prompts/library";
 import { PromptCategory } from "@/lib/prompts/library";
@@ -85,22 +84,30 @@ export const promptsProcedures = {
     .input(z.object({ limit: z.number().int().min(1).max(90).default(14) }))
     .query(async ({ input }) => listEvalResults(input.limit)),
 
-  /**
-   * Phase VV · owner-only · the v1↔v2 system-prompt shadow comparison.
-   * Replaces GET /api/system/prompt-compare · delegates to the shared
-   * `prompt-compare.buildPromptCompare` service. Returns the full
-   * payload (both prompts + section-coverage delta) at the top level —
-   * the legacy route returned the object directly, so the call-site
-   * reads it unwrapped.
-   */
-  promptCompare: operatorProcedure.query(async () => buildPromptCompare()),
+  // 2026-08-06 · REMOVED `promptCompare` (+ lib/services/prompt-compare.ts,
+  // app/api/system/prompt-compare/route.ts, PromptComparisonView). It reported
+  // FALSE PARITY: its "v1" arm called buildSystemPrompt("full"), which since the
+  // 2026-06-29 Prompt V2 Prime Cutover delegates straight to buildSystemPromptV2()
+  // (lib/ai/system-prompt.ts). Both arms were the SAME builder, so the surface
+  // compared V2 against V2 — differing only by the serving-time 58K trim and the
+  // business-knowledge append — and rendered the residual as "Parity achieved".
+  // Anyone validating a prompt or context-assembly change through it got a false
+  // green. There is no v1 builder to compare against; do NOT re-add this.
+  // For "what is actually in the served prompt", use `promptDiagnostics` below.
 
   /**
    * Phase VV · owner-only · the shadow-mode v1/v2 char-delta trend.
    * Replaces GET /api/system/prompt-shadow-trend?days=N · delegates to
    * the same `readShadowTrend` helper every consumer uses. The 24h
    * summary (avgPct + sample count) is computed here exactly as the
-   * REST route did so PromptComparisonView's trend strip is unchanged.
+   * REST route did.
+   *
+   * 2026-08-06 · reads REAL rows, so unlike the removed promptCompare it
+   * cannot report a false parity — but it now has no UI consumer (its only
+   * one was PromptComparisonView, deleted above) and no producer either:
+   * `recordShadowDelta` has had zero production callers since the cutover.
+   * Left in place because it is honest and cheap; retire it deliberately,
+   * together with shadow-metrics, rather than as a side effect.
    */
   promptShadowTrend: operatorProcedure
     .input(z.object({ days: z.number().int().min(1).max(30).default(7) }))

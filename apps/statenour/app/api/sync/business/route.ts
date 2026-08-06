@@ -33,6 +33,7 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { buildCeoContextFromNickSyncPayload } from "@/lib/nickstire/ceo-context";
+import { invalidatePhysicalBusinessCache } from "@/lib/brain/physical-business";
 
 import { z } from "zod";
 
@@ -70,6 +71,12 @@ export const POST = apiHandler(
           payload: ceoContext as object,
         },
       });
+
+      // This row IS the [PHYSICAL_TRUTH] chat block, and that block caches
+      // it for 300s. Drop the cache here — after the write, so a failed
+      // create() never clears a still-valid entry — or the row we just
+      // stored stays invisible to /chat until the TTL expires.
+      invalidatePhysicalBusinessCache();
     }
 
     // Return live intelligence so the caller can surface it on the
