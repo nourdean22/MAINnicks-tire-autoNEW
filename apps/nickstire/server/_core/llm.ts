@@ -219,7 +219,27 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
+/**
+ * Ollama Cloud model detection (2026-08-06). Substrings mirror statenour's
+ * config/ai-providers.ts modelSubstrings — one vocabulary across the estate.
+ * Ollama Cloud is the estate's ONE funded LLM lane; OpenRouter 402'd every
+ * OpenAI-family request from 2026-07-17 onward.
+ */
+const OLLAMA_MODEL_SUBSTRINGS = ["glm-5", "qwen3", "deepseek-v3", "deepseek-v4", "kimi", "minimax", "mistral-large", "gpt-oss"];
+
+export const isOllamaModel = (model?: string): boolean => {
+  if (process.env.AI_FORCE_OLLAMA === "true") return true;
+  return !!model && OLLAMA_MODEL_SUBSTRINGS.some((s) => model.includes(s));
+};
+
 const resolveApiUrl = (model?: string) => {
+  if (isOllamaModel(model)) {
+    if (!process.env.OLLAMA_API_KEY) {
+      throw new Error(`OLLAMA_API_KEY is missing for Ollama model "${model || "default"}"`);
+    }
+    const base = (process.env.OLLAMA_BASE_URL || "https://ollama.com").replace(/\/$/, "");
+    return `${base}/v1/chat/completions`;
+  }
   const isGeminiModel = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
   if (isGeminiModel) {
     if (!process.env.GEMINI_API_KEY) {
@@ -236,8 +256,14 @@ const resolveApiUrl = (model?: string) => {
   throw new Error(`OPENAI_API_KEY is missing for OpenAI model "${model || "default"}"`);
 };
 
-/** Returns the correct API key — OPENAI_API_KEY or GEMINI_API_KEY */
+/** Returns the correct API key — OLLAMA_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY */
 const resolveApiKey = (model?: string): string => {
+  if (isOllamaModel(model)) {
+    if (!process.env.OLLAMA_API_KEY) {
+      throw new Error(`OLLAMA_API_KEY is missing for Ollama model "${model || "default"}"`);
+    }
+    return process.env.OLLAMA_API_KEY;
+  }
   const isGeminiModel = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
   if (isGeminiModel) {
     if (!process.env.GEMINI_API_KEY) {
@@ -312,6 +338,19 @@ const normalizeResponseFormat = ({
  * Reversible by unsetting the flag; explicit gemini-* pins are untouched.
  */
 export function resolveEffectiveModel(requested: string | undefined): string | undefined {
+  // AI_FORCE_OLLAMA=true (2026-08-06): reroute EVERY request — gpt-* / o* /
+  // gemini-* pins included — onto the funded Ollama Cloud lane. Same shape as
+  // AI_FORCE_GEMINI below, but total: the operator's directive is Ollama for
+  // everything, and ~9 call sites hard-pin gpt-4o-mini which Ollama does not
+  // host, so pins MUST be rerouted or they 404. deepseek-v4-pro is the
+  // live-verified successor default (statenour config, 2026-07-15).
+  if (process.env.AI_FORCE_OLLAMA === "true") {
+    // ONLY OLLAMA_MODEL may override here — LLM_MODEL is the OpenRouter-era
+    // variable and typically names a model Ollama does not host (the live
+    // probe resolved to meta-llama/llama-3.3-70b-instruct → 404, the exact
+    // pin-mismatch class this flag exists to prevent).
+    return process.env.OLLAMA_MODEL || "deepseek-v4-pro";
+  }
   if (process.env.AI_FORCE_GEMINI !== "true") return requested;
   if (requested && (requested.startsWith("gemini-") || requested.startsWith("google/"))) return requested;
   return process.env.GEMINI_MODEL || "gemini-2.5-flash";
