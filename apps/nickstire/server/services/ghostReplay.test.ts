@@ -7,12 +7,31 @@
  * bounds what an optimizer may edit away.
  */
 import { describe, expect, it } from "vitest";
+import { isOllamaModel } from "../_core/llm";
 import {
+  GHOST_AGENT_MODEL,
   extractCallerTurns,
   gradeReplies,
   splitSeeds,
   violatedInvariants,
 } from "./ghostReplay";
+
+describe("GHOST_AGENT_MODEL", () => {
+  it("routes to the Ollama lane by NAME, with no force flag — the parity pin's whole job", () => {
+    // Serial vitest shares one process: restore the flag exactly as found.
+    const saved = process.env.AI_FORCE_OLLAMA;
+    delete process.env.AI_FORCE_OLLAMA;
+    try {
+      // If this fails, a local replay without AI_FORCE_OLLAMA silently
+      // measures a DIFFERENT provider than prod serves (the 2026-08-07
+      // ambient-lane defect).
+      expect(isOllamaModel(GHOST_AGENT_MODEL)).toBe(true);
+    } finally {
+      if (saved === undefined) delete process.env.AI_FORCE_OLLAMA;
+      else process.env.AI_FORCE_OLLAMA = saved;
+    }
+  });
+});
 
 describe("extractCallerTurns", () => {
   it("parses the vaulted VAPI line format, merging continuations", () => {
