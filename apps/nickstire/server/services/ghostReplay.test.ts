@@ -48,6 +48,11 @@ describe("gradeReplies", () => {
     expect(gradeReplies(["Sure, let me get you over to him — best number in case we get cut off?"]).pass).toBe(true);
     expect(gradeReplies(["One sec, transferring you now."]).pass).toBe(true);
     expect(gradeReplies(["I'll put you through to the manager."]).pass).toBe(true);
+    // Second vocabulary pass (2026-08-06): MoE models re-phrase run to run —
+    // these escaped the first regex and graded a working transfer as failure.
+    expect(gradeReplies(["Let me get him for you — best number in case we get disconnected?"]).pass).toBe(true);
+    expect(gradeReplies(["I'll get her on the line."]).pass).toBe(true);
+    expect(gradeReplies(["Got it, transferring."]).pass).toBe(true);
   });
 
   it("counts violations per reply for the readout", () => {

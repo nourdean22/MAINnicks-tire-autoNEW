@@ -1505,6 +1505,19 @@ export function startTieredScheduler(): void {
           return processClosedLoopMeasure();
         },
       },
+      // 2026-08-06 · the R&D gated-edit loop, self-sustaining: every Monday,
+      // ghost-replay the served VAPI prompt against fresh Ossuary failures,
+      // let the optimizer propose bounded edits, accept only on strict
+      // holdout improvement, and PROPOSE the winner (kv + Telegram). The
+      // served prompt is never written — Push Config stays the serving gate.
+      {
+        name: "prompt-evolution-weekly",
+        requiresEnv: "OLLAMA_API_KEY",
+        handler: async () => {
+          const { processPromptEvolutionWeekly } = await import("./jobs/promptEvolutionWeekly");
+          return processPromptEvolutionWeekly();
+        },
+      },
       // 2026-08-05 · the missing RESOLVER for the content experiment registry
       // (0108): assignment was wired at enqueue but startExperiment /
       // attachPublishedMedia / recordVerdict had ZERO callers, so no experiment

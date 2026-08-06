@@ -49,7 +49,7 @@ export function extractCallerTurns(transcript: string): string[] {
  *  Transfer language added 2026-08-06: a live transfer IS a resolution — the
  *  Mark-targeted replay showed "let me get you over to him" graded as a
  *  failure, under-measuring every transfer-resolved call. */
-export const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come|transfer(ring)? you|connect(ing)? you|put you through|get(ting)? you (over )?to (him|her|them|the shop|someone|a person|the manager))/i;
+export const RESOLUTION_RX = /(walk[- ]?in|come (on )?(in|by|up)|pull up|we can get you in|book|schedule|call you back|text you|first[- ]come|transferr?(ing)?\b|connect(ing)? (you|the call)|put you through|get(ting)? you (over )?to (him|her|them|the shop|someone|a person|the manager)|(let me |i'?ll )get (him|her|them|someone)( for you| on the line)?)/i;
 /** Price-shaped leak: any $NN+ figure is a banned phone quote for repairs. */
 export const PRICE_LEAK_RX = /\$\s*\d{2,}/;
 export const GUARANTEE_RX = /\bguarantee/i;
