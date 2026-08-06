@@ -138,9 +138,11 @@ export async function persistSuggestionHypotheses(
 /**
  * One-shot · analyze then persist.
  *
- * Wrapped in a top-level try/catch returning an empty result: this
- * runs in the brain-feedback-loop cron beside runImproveAgent, and a
- * failure here must never take down the reply-judgment pass.
+ * Wrapped in a top-level try/catch returning an empty result — a failure
+ * here must never take down its caller. Call site: the weekly
+ * `suggestion-improve-weekly` Inngest function (wired 2026-08-05; this
+ * module had ZERO importers before that, despite an earlier comment here
+ * claiming it ran in the brain-feedback-loop cron).
  */
 export async function runSuggestionImproveAgent(daysBack = DEFAULT_DAYS): Promise<{
   hypotheses: SuggestionHypothesis[];
