@@ -23,12 +23,33 @@ import { sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { sendTelegramMessage } from "../services/telegram";
 import { createLogger } from "../lib/logger";
+import {
+  classifyRun,
+  LOOP_CONTRACTS,
+  looksSkipped,
+  undeclaredLoops,
+  type LoopFinding,
+  type ObservedRun,
+} from "../services/loopShapeContract";
 
 const log = createLogger("cron:observer");
 
 /** In-memory dedupe: jobName → ms timestamp of last alert. Cleared on restart. */
 const lastAlertAt: Map<string, number> = new Map();
 const ALERT_SUPPRESS_MS = 6 * 60 * 60 * 1000; // 6 hours
+/**
+ * Shape verdicts (dormant / anomalous / unknown / missing) persist for days by
+ * nature, and the observer runs every 15 minutes — a 6h window would page the
+ * operator 4× a day about the same dormancy. Once a day is the useful cadence.
+ */
+const SHAPE_ALERT_SUPPRESS_MS = 24 * 60 * 60 * 1000;
+const shapeLastAlertAt: Map<string, number> = new Map();
+/**
+ * Rows examined per loop for shape classification. Must exceed the largest
+ * dormantAfterRuns in LOOP_CONTRACTS (14) plus the head run, or a long dormancy
+ * could never be observed at its threshold.
+ */
+const SHAPE_RUNS_PER_LOOP = 20;
 const CONSECUTIVE_FAILURE_THRESHOLD = 2;
 /**
  * 7 days, not 24 hours.
@@ -123,6 +144,129 @@ async function fetchFailingJobs(): Promise<JobFailureSnapshot[]> {
   return failing;
 }
 
+export interface CronRunRow {
+  status: string;
+  recordsProcessed: number | null;
+  details: string | null;
+  durationMs: number | null;
+}
+
+/**
+ * Map a loop's newest-first cron_log rows onto the ObservedRun the shape
+ * classifier judges. The contract module's caller responsibilities are honored
+ * here:
+ *
+ *  · Deliberate skips are EXCLUDED from the dormancy streak — a loop that is
+ *    switched off is not a loop that is broken.
+ *  · A failed run breaks the zero streak (failure handling owns failures; the
+ *    streak measures "succeeding while producing nothing").
+ *  · `records_processed` is `int DEFAULT 0`, so cron_log can never express
+ *    "unmeasured" — 0 is taken at face value and the skip phrasings in
+ *    `looksSkipped` are the only discriminator, exactly as the contract
+ *    documents.
+ */
+export function observedRunFromCronRows(loop: string, rows: readonly CronRunRow[]): ObservedRun | null {
+  if (!rows.length) return null;
+  const head = rows[0];
+  let priorZeroRuns = 0;
+  for (const r of rows.slice(1)) {
+    if (looksSkipped(r.details)) continue;
+    if (r.status !== "completed") break;
+    if ((r.recordsProcessed ?? 0) > 0) break;
+    priorZeroRuns++;
+  }
+  return {
+    loop,
+    details: head.details,
+    produced: head.recordsProcessed ?? 0,
+    succeeded: head.status === "completed",
+    durationMs: head.durationMs ?? undefined,
+    priorZeroRuns,
+    runsInWindow: rows.length,
+  };
+}
+
+/**
+ * LOOP SHAPE PASS — the wiring the contract module shipped without.
+ *
+ * loopShapeContract declared what a healthy run of each burned-before loop
+ * must PRODUCE (ROS-033: cross_sell ran `completed` and sent nothing for two
+ * months), but the observer only ever asked "did it error?". This pass asks
+ * the contract's question: did the number the loop exists to move actually
+ * move? Judges only DECLARED contracts — inventing a contract from an
+ * assumption is worse than none (the module's own doctrine) — and reports
+ * undeclared loop names as coverage gaps instead.
+ */
+export async function runLoopShapeCheck(): Promise<{ findings: LoopFinding[]; judged: number; coverageGaps: string[] }> {
+  const db = await getDb();
+  if (!db) return { findings: [], judged: 0, coverageGaps: [] };
+
+  const watched = LOOP_CONTRACTS.filter((c) => c.expectedRunsPerWeek > 0).map((c) => c.loop);
+  if (!watched.length) return { findings: [], judged: 0, coverageGaps: [] };
+  const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000);
+
+  const [raw] = await db.execute(sql`
+    SELECT job_name AS jobName, status, records_processed AS recordsProcessed,
+           details, duration_ms AS durationMs
+    FROM (
+      SELECT job_name, status, records_processed, details, duration_ms,
+             ROW_NUMBER() OVER (PARTITION BY job_name ORDER BY completed_at DESC) AS rn
+      FROM cron_log
+      WHERE completed_at >= ${since}
+        AND job_name IN (${sql.join(watched.map((w) => sql`${w}`), sql`, `)})
+    ) ranked
+    WHERE rn <= ${SHAPE_RUNS_PER_LOOP}
+    ORDER BY job_name, rn
+  `);
+
+  const byLoop = new Map<string, CronRunRow[]>();
+  for (const r of raw as Array<Record<string, unknown>>) {
+    const name = String(r.jobName);
+    if (!byLoop.has(name)) byLoop.set(name, []);
+    byLoop.get(name)!.push({
+      status: String(r.status),
+      recordsProcessed: r.recordsProcessed == null ? null : Number(r.recordsProcessed),
+      details: r.details == null ? null : String(r.details),
+      durationMs: r.durationMs == null ? null : Number(r.durationMs),
+    });
+  }
+
+  const findings: LoopFinding[] = [];
+  let judged = 0;
+  for (const contract of LOOP_CONTRACTS) {
+    if (contract.expectedRunsPerWeek === 0) continue; // deliberately unscheduled (cross_sell, retired)
+    const rows = byLoop.get(contract.loop);
+    if (!rows?.length) {
+      // No run at all in the window its own schedule guarantees — the truly-dead
+      // case classifyRun cannot see because there is no run to classify.
+      findings.push({
+        loop: contract.loop,
+        verdict: "missing",
+        summary: `${contract.loop} has no cron_log runs in ${LOOKBACK_HOURS / 24} days; its schedule expects about ${contract.expectedRunsPerWeek}/week.`,
+        firstCheck: contract.firstCheck,
+        ros: contract.ros,
+        actionable: true,
+      });
+      judged++;
+      continue;
+    }
+    const observed = observedRunFromCronRows(contract.loop, rows);
+    if (!observed) continue;
+    judged++;
+    const finding = classifyRun(observed);
+    if (finding.actionable) findings.push(finding);
+  }
+
+  // A loop nobody declared is a loop nobody is watching. Reported, not alerted.
+  const [namesRaw] = await db.execute(sql`
+    SELECT DISTINCT job_name AS jobName FROM cron_log WHERE completed_at >= ${since}
+  `);
+  const allNames = (namesRaw as Array<Record<string, unknown>>).map((r) => String(r.jobName));
+  const coverageGaps = undeclaredLoops(allNames);
+
+  return { findings, judged, coverageGaps };
+}
+
 /**
  * Main entry. Call on a 15-minute schedule (e.g. via the tiered
  * scheduler). Idempotent — safe to call more often if needed.
@@ -159,9 +303,40 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
       }
     }
 
+    // SHAPE PASS · isolated so a shape-query failure can never mask a
+    // failure-streak alert (and vice versa).
+    let shapeSummary = "shapes: unavailable";
+    try {
+      const { findings, judged, coverageGaps } = await runLoopShapeCheck();
+      let shapeAlerts = 0;
+      for (const f of findings) {
+        const key = `${f.loop}:${f.verdict}`;
+        const lastAlert = shapeLastAlertAt.get(key) ?? 0;
+        if (now - lastAlert < SHAPE_ALERT_SUPPRESS_MS) continue;
+        const text =
+          `📉 Loop shape: \`${f.loop}\` → ${f.verdict}${f.ros ? ` (${f.ros})` : ""}\n` +
+          `${f.summary}\n` +
+          `First check: ${f.firstCheck.slice(0, 400)}`;
+        const ok = await sendTelegramMessage(text, "critical");
+        if (ok) {
+          shapeLastAlertAt.set(key, now);
+          shapeAlerts++;
+          log.warn(`[cron-observer] shape alert sent for ${f.loop} (${f.verdict})`);
+        } else {
+          log.error(`[cron-observer] failed to send shape alert for ${f.loop}`);
+        }
+      }
+      // The verdict summary lands in this run's cron_log details row, so shape
+      // history is persisted for free by the scheduler's own bookkeeping.
+      shapeSummary = `shapes: ${findings.length} actionable of ${judged} judged (${findings.map((f) => `${f.loop}=${f.verdict}`).join(", ") || "all in-spec"}); alerts: ${shapeAlerts}; undeclared loops: ${coverageGaps.length}`;
+    } catch (shapeErr) {
+      shapeSummary = `shapes: ERROR ${shapeErr instanceof Error ? shapeErr.message : String(shapeErr)}`;
+      log.error("[cron-observer] loop shape pass failed:", shapeErr instanceof Error ? shapeErr.message : shapeErr);
+    }
+
     return {
       recordsProcessed: alertsSent,
-      details: `scanned: ${failing.length} failing jobs; alerts sent: ${alertsSent}; suppressed (recent): ${alertsSkipped}`,
+      details: `scanned: ${failing.length} failing jobs; alerts sent: ${alertsSent}; suppressed (recent): ${alertsSkipped}; ${shapeSummary}`,
     };
   } catch (err) {
     log.error("[cron-observer] run failed:", err instanceof Error ? err.message : err);
