@@ -43,7 +43,17 @@ interface SeedRow {
   transcript: string | null;
 }
 
-async function llm(system: string, user: string, maxTokens: number): Promise<string> {
+/**
+ * Role diversity (2026-08-06 directive): the adversarial caller runs on a
+ * DIFFERENT model from the receptionist under test — the same model on both
+ * sides of a duel creates correlated blind spots. CAGE_ADVERSARY_MODEL
+ * overrides (candidate default glm-5.2, live-verified on the funded key);
+ * the receptionist rides the default lane exactly as production does. The
+ * grader is deterministic code — no model at all.
+ */
+const ADVERSARY_MODEL = process.env.CAGE_ADVERSARY_MODEL || "glm-5.2";
+
+async function llm(system: string, user: string, maxTokens: number, model?: string): Promise<string> {
   const { invokeLLM } = await import("../server/_core/llm");
   const res = await invokeLLM({
     messages: [
@@ -52,14 +62,20 @@ async function llm(system: string, user: string, maxTokens: number): Promise<str
     ],
     maxTokens,
     timeoutMs: 60000,
+    ...(model ? { model } : {}),
   });
   const raw = res.choices?.[0]?.message?.content ?? "";
-  return typeof raw === "string" ? raw : JSON.stringify(raw);
+  const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+  // Thinking models can burn the whole token budget on reasoning and emit
+  // empty content. An empty line must be a LOUD failure — the first live run
+  // graded 9 turns of empty strings as "losses", a fabricated result.
+  if (!text.trim()) throw new Error(`empty model output (reasoning burn? raise maxTokens) from ${model ?? "default lane"}`);
+  return text;
 }
 
 async function probe(): Promise<boolean> {
   try {
-    const out = await llm("Reply with exactly: OK", "liveness probe", 8);
+    const out = await llm("Reply with exactly: OK", "liveness probe", 256);
     console.log(`probe OK — LLM lane live (${out.slice(0, 20)})`);
     return true;
   } catch (err) {
@@ -99,21 +115,22 @@ async function runMatch(seed: SeedRow, maxTurns: number): Promise<MatchResult> {
   const { extractCallSignals } = await import("../server/services/vapiCallClassifier");
 
   const lines: string[] = [];
-  let callerLine = await llm(callerPersona(seed), "Place the call. Your opening line:", 120);
+  let callerLine = await llm(callerPersona(seed), "Place the call. Your opening line:", 700, ADVERSARY_MODEL);
   lines.push(`User: ${callerLine.trim()}`);
 
   for (let t = 0; t < maxTurns; t++) {
     const agentLine = await llm(
       ASSISTANT_SYSTEM_PROMPT,
       `Phone call so far:\n${lines.join("\n")}\n\nYour next spoken line as the receptionist (one turn, no stage directions):`,
-      160,
+      700,
     );
     lines.push(`AI: ${agentLine.trim()}`);
     if (/goodbye|bye|see you|thanks,? (that's|that is) all/i.test(callerLine)) break;
     callerLine = await llm(
       callerPersona(seed),
       `Call so far:\n${lines.join("\n")}\n\nYour next line as the caller (stay difficult; hang up only if truly satisfied):`,
-      120,
+      700,
+      ADVERSARY_MODEL,
     );
     lines.push(`User: ${callerLine.trim()}`);
   }

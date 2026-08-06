@@ -243,17 +243,30 @@ export async function judgeSingleConcept(input: {
   concept: Omit<TournamentConcept, "id">;
 }): Promise<JudgeScore> {
   const field: TournamentConcept[] = [{ ...input.concept, id: "entry_01" }];
-  const res = await invokeLLM({
-    messages: [
-      { role: "system", content: judgePrompt({ campaignAsk: input.campaignAsk }, field) },
-      { role: "user", content: "Output ONLY the verdict as one JSON object matching the provided schema." },
-    ],
-    maxTokens: 2048,
-    timeoutMs: 60000,
-    outputSchema: JUDGE_OUTPUT_SCHEMA,
-  });
-  const raw = res.choices?.[0]?.message?.content ?? "";
-  return parseSingleVerdict(typeof raw === "string" ? raw : JSON.stringify(raw));
+  const call = async (extra?: string) => {
+    const res = await invokeLLM({
+      messages: [
+        { role: "system", content: judgePrompt({ campaignAsk: input.campaignAsk }, field) },
+        { role: "user", content: extra ?? "Output ONLY the verdict as one JSON object matching the provided schema." },
+      ],
+      maxTokens: 2048,
+      timeoutMs: 60000,
+      outputSchema: JUDGE_OUTPUT_SCHEMA,
+    });
+    const raw = res.choices?.[0]?.message?.content ?? "";
+    return typeof raw === "string" ? raw : JSON.stringify(raw);
+  };
+  try {
+    return parseSingleVerdict(await call());
+  } catch {
+    // ONE bounded repair attempt (2026-08-06): Ollama Cloud does not enforce
+    // json_schema natively, so a verdict can arrive prose-wrapped or
+    // malformed. Validation is never loosened — a second failure throws and
+    // the caller records the error verdict.
+    return parseSingleVerdict(await call(
+      'Your previous output was not valid verdict JSON. Emit ONLY this JSON, nothing else: {"scores":[{"id":"entry_01","total":<0-100>,"rejected":<bool>,"rejectionReason":"","note":"<one line>"}],"winnerId":"entry_01","judgeReasoning":"<one line>"}',
+    ));
+  }
 }
 
 function rolePrompt(role: (typeof CREATIVE_ROLES)[number], input: TournamentInput): string {
