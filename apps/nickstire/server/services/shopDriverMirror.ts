@@ -251,65 +251,99 @@ interface RawInvoice {
  * on the GUID subdomain. Detects expired tokens.
  */
 async function fetchCustomers(token: string): Promise<RawCustomer[]> {
-  // Real endpoints discovered from SPA bundle (axios baseURL = /api)
-  // API uses pageNumber + pageSize query params for pagination
-  const endpoints = [
-    "/api/Customer/listCustomers?pageNumber=1&pageSize=500",
-    "/api/Search/getCustomerSearch?pageNumber=1&pageSize=500",
-    "/api/Customer/potentialMatches?pageNumber=1&pageSize=500",
+  // Real endpoints discovered from SPA bundle (axios baseURL = /api).
+  // API uses pageNumber + pageSize query params for pagination.
+  //
+  // 2026-08-06 · THE NEW-CUSTOMER INSERT GAP. This fetch asked for page 1
+  // only. ShopDriver server-caps pageSize at 50 regardless of the request
+  // (probe 2026-05-07, recorded on fetchInvoices), so every mirror run saw
+  // the SAME ~50 rows of an unknown default sort — customers.updatedAt moved
+  // daily while only 26 NEW rows landed in 4 months against ~2,900 invoices
+  // at a verified 77% one-and-done rate (expected: hundreds). Wave-98 wired
+  // multi-page pagination for invoices; customers never got it. Now the full
+  // list is walked with two loop guards: an empty page ends the walk, and a
+  // page contributing zero unseen rows ends it too — the second guard is
+  // what makes this safe against a server that ignores pageNumber and
+  // returns page 1 forever.
+  const MAX_CUSTOMER_PAGES = 45; // ~2,250 at the 50/page server cap; shop is ~1,950 today
+  const endpointBases = [
+    "/api/Customer/listCustomers",
+    "/api/Search/getCustomerSearch",
+    "/api/Customer/potentialMatches",
   ];
 
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
-        headers: HEADERS(token),
-        signal: AbortSignal.timeout(30000),
-      });
+  for (const base of endpointBases) {
+    const all: RawCustomer[] = [];
+    const seen = new Set<string>();
+    let pagesFetched = 0;
 
-      // Log every attempt for endpoint discovery
-      log.info(`Customer endpoint probe: ${endpoint} → ${res.status} ${res.headers.get("content-type") || "no-type"}`);
+    for (let page = 1; page <= MAX_CUSTOMER_PAGES; page++) {
+      const endpoint = `${base}?pageNumber=${page}&pageSize=500`;
+      let pageList: RawCustomer[] = [];
+      try {
+        const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
+          headers: HEADERS(token),
+          signal: AbortSignal.timeout(30000),
+        });
 
-      // Detect expired token
-      if (isSessionKicked(res)) {
-        log.warn(`Token expired on ${endpoint}`);
-        invalidateSession();
-        return [];
-      }
-
-      if (!res.ok) continue;
-
-      const contentType = res.headers.get("content-type") || "";
-
-      if (contentType.includes("application/json")) {
-        const data = await res.json();
-        // Handle various response shapes
-        const items = Array.isArray(data) ? data
-          : (data.customers || data.data || data.items || data.result || data.results || []);
-        const list = Array.isArray(items) ? items : [];
-        if (list.length > 0) {
-          log.info(`Fetched ${list.length} customers from ${endpoint} (JSON)`);
-          return list.map(normalizeCustomerJson);
+        if (page === 1) {
+          // Log the probe once per endpoint for endpoint discovery
+          log.info(`Customer endpoint probe: ${endpoint} → ${res.status} ${res.headers.get("content-type") || "no-type"}`);
         }
-        // Log empty but valid responses for debugging
-        log.info(`${endpoint} returned JSON but 0 items`, { keys: Object.keys(data), type: typeof data });
-      }
 
-      // HTML fallback — parse table rows
-      if (contentType.includes("text/html")) {
-        const html = await res.text();
-        if (isSessionKicked(res, html)) {
-          log.warn(`Login page returned on ${endpoint} — token was invalid`);
+        // Detect expired token
+        if (isSessionKicked(res)) {
+          log.warn(`Token expired on ${endpoint}`);
           invalidateSession();
           return [];
         }
-        const customers = parseCustomerHtml(html);
-        if (customers.length > 0) {
-          log.info(`Scraped ${customers.length} customers from ${endpoint} (HTML)`);
-          return customers;
+
+        if (!res.ok) break;
+
+        const contentType = res.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          // Handle various response shapes
+          const items = Array.isArray(data) ? data
+            : (data.customers || data.data || data.items || data.result || data.results || []);
+          const list = Array.isArray(items) ? items : [];
+          if (list.length === 0 && page === 1) {
+            log.info(`${endpoint} returned JSON but 0 items`, { keys: Object.keys(data), type: typeof data });
+          }
+          pageList = list.map(normalizeCustomerJson);
+        } else if (contentType.includes("text/html")) {
+          // HTML fallback — parse table rows
+          const html = await res.text();
+          if (isSessionKicked(res, html)) {
+            log.warn(`Login page returned on ${endpoint} — token was invalid`);
+            invalidateSession();
+            return [];
+          }
+          pageList = parseCustomerHtml(html);
         }
+      } catch (err) {
+        log.warn(`Endpoint ${endpoint} failed`, { error: err instanceof Error ? err.message : String(err) });
+        break;
       }
-    } catch (err) {
-      log.warn(`Endpoint ${endpoint} failed`, { error: err instanceof Error ? err.message : String(err) });
+
+      if (pageList.length === 0) break; // past the last page
+      pagesFetched = page;
+
+      const before = seen.size;
+      for (const c of pageList) {
+        const key = `${(c.phone ?? "").replace(/\D/g, "")}|${(c.name ?? "").trim().toLowerCase()}`;
+        if (key === "|" || seen.has(key)) continue;
+        seen.add(key);
+        all.push(c);
+      }
+      if (seen.size === before) break; // server ignored pageNumber — stop, don't loop
+      if (pageList.length < 50) break; // short page = last page at the server cap
+    }
+
+    if (all.length > 0) {
+      log.info(`Fetched ${all.length} unique customers from ${base} across ${pagesFetched} page(s)`);
+      return all;
     }
   }
 
