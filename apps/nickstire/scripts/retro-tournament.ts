@@ -154,6 +154,7 @@ async function main() {
     try {
       const v = await judgeSingleConcept({
         campaignAsk: `Autonomous ${r.archetype} Instagram post for the shop feed (retro-grade)`,
+        priority: 3, // historical backgrading yields to live + shadow work
         concept: {
           title: r.conceptKey,
           hook: r.caption.split("\n")[0] ?? r.caption.slice(0, 120),
