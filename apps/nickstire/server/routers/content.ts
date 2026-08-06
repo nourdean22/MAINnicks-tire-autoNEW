@@ -489,6 +489,76 @@ export const contentAdminRouter = router({
       };
     }),
 
+  /** Content experiment registry (0108) — operator start surface.
+   *
+   *  Assignment at enqueue and hook-arm resolution at generation have been
+   *  wired since 0108, and the daily content-experiment-resolve cron records
+   *  verdicts — but an experiment can only exist once STARTED, and starting
+   *  one is deliberately an operator action: it changes what the autonomous
+   *  reel lane generates (within already-authorized publishing). The preset
+   *  is the one interventional test the pipeline already understands
+   *  end-to-end: hook_style direct-vs-baseline, decided on shares_per_reach
+   *  at the 72h horizon. Idempotent — re-starting re-asserts the same arms. */
+  startContentExperiment: adminProcedure
+    .input(z.object({ preset: z.literal("hook_style_v1") }))
+    .mutation(async ({ input }) => {
+      void input;
+      const def = {
+        experimentId: "hook-style-direct-v1",
+        primaryVariable: "hook_style" as const,
+        objective: "discovery" as const,
+        primaryMetric: "shares_per_reach",
+        arms: [
+          { armId: "hook-control", variantValue: "baseline", hookStyle: "baseline" },
+          { armId: "hook-direct", variantValue: "direct", hookStyle: "direct" },
+        ],
+        startedAt: new Date().toISOString(),
+      };
+      const { startExperiment } = await import("../services/contentExperimentStore");
+      const ok = await startExperiment(def);
+      if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "experiment registry unavailable (no DB)" });
+      return { started: def.experimentId, arms: def.arms.map((a) => a.armId), primaryMetric: def.primaryMetric };
+    }),
+
+  /** Registry status: every experiment with assignment/published counts and
+   *  the persisted verdict (refusals included — a refusal is a result). */
+  contentExperimentStatus: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return { experiments: [] };
+    const { contentExperiments, contentExperimentAssignments } = await import("../../drizzle/schema");
+    const { sql, desc } = await import("drizzle-orm");
+    const experiments = await d.select().from(contentExperiments)
+      .orderBy(desc(contentExperiments.startedAt)).limit(20);
+    const counts = await d.select({
+      experimentId: contentExperimentAssignments.experimentId,
+      assigned: sql<number>`count(*)`,
+      published: sql<number>`count(${contentExperimentAssignments.mediaId})`,
+    }).from(contentExperimentAssignments).groupBy(contentExperimentAssignments.experimentId);
+    const countMap = new Map(
+      (counts as Array<{ experimentId: string; assigned: unknown; published: unknown }>)
+        .map((c) => [c.experimentId, { assigned: Number(c.assigned), published: Number(c.published) }] as const),
+    );
+    return {
+      experiments: (experiments as Array<{
+        experimentId: string; primaryVariable: string; objective: string; primaryMetric: string;
+        status: string; startedAt: Date; concludedAt: Date | null;
+        verdictStatus: string | null; verdictNote: string | null;
+      }>).map((e) => ({
+        experimentId: e.experimentId,
+        primaryVariable: e.primaryVariable,
+        objective: e.objective,
+        primaryMetric: e.primaryMetric,
+        status: e.status,
+        startedAt: e.startedAt,
+        concludedAt: e.concludedAt,
+        verdictStatus: e.verdictStatus,
+        verdictNote: e.verdictNote,
+        counts: countMap.get(e.experimentId) ?? { assigned: 0, published: 0 },
+      })),
+    };
+  }),
+
   /** Reel Visual World: generate three 9:16 reference-frame candidates
    *  (safe / bold / experimental) for a brief's hero + motion lens. Uses
    *  image credits (up to 3 calls). Selection is the operator's — the chosen
