@@ -29,6 +29,20 @@ import { loadActiveSkills, loadPendingSkills } from "./skill-extractor";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { brainMemory } from "@/lib/brain/memory-manager";
+import { cached, invalidate } from "@/lib/utils/cache";
+
+/**
+ * 2026-08-06 · cache key for the whole nudge set. See `computeNudges`.
+ *
+ * MULTI-REPLICA CAVEAT — read before raising the TTL. `invalidate()`
+ * clears L2 (Redis) and the calling replica's L1, but a SIBLING Railway
+ * replica keeps serving its own warm L1 copy until that copy's own TTL
+ * expires. So the worst-case "dismissed nudge is still on screen"
+ * window equals the TTL, not zero. 300s is acceptable for a
+ * single-operator app; every second added to the TTL is a second added
+ * to that ghost window. Don't raise it without re-deciding that trade.
+ */
+const NUDGE_CACHE_KEY = "brain_nudges_v1";
 
 /**
  * Stable BrainMemory(nudge_ack) key for a {source, text} pair. Module-
@@ -93,8 +107,12 @@ const AXIS_NUDGE_TEXT: Partial<Record<AxisKey, (value: number) => string>> = {
  * Build a ranked list of nudges from the current state of every
  * brain subsystem. Returns [] when nothing pops — the silence is
  * the reward for being in rhythm.
+ *
+ * Not exported — every caller goes through the cached `computeNudges`
+ * below, so the wrapper can stay one line and the cache can't be
+ * accidentally bypassed on the chat hot path.
  */
-export async function computeNudges(): Promise<Nudge[]> {
+async function computeNudgesUncached(): Promise<Nudge[]> {
   const [snap, unresolvedCount, accuracy, activeSkills, pendingSkills] = await Promise.all([
     loadIdentitySnapshot().catch(() => null),
     countUnresolved(14).catch(() => 0),
@@ -367,6 +385,81 @@ export async function computeNudges(): Promise<Nudge[]> {
 }
 
 /**
+ * Cached entry point — the one every caller uses (chat context block ·
+ * GET /api/brain/nudges · trpc brain.nudges · ultron-ticker · narrator).
+ *
+ * 2026-08-06 · this ran on essentially every chat turn (nudges block
+ * fired 1386/1417 turns over 30d) and cost ~12 Postgres round-trips
+ * per call, on a route whose measured p50 time-to-first-token was
+ * 10,453ms. Nothing it reads can actually move inside 300s: the
+ * pin-hygiene row is gated on a 7d freshness window, belief-refresh on
+ * 18h, correlation alerts on 7d, and skill/streak/blind-spot rows are
+ * written by crons. The ONE input that moves on operator time is a
+ * dismissal — `dismissNudge` invalidates this key explicitly, so the
+ * NudgePanel doesn't show a dismissed nudge coming back.
+ */
+export async function computeNudges(): Promise<Nudge[]> {
+  return cached(NUDGE_CACHE_KEY, 300, computeNudgesUncached);
+}
+
+/**
+ * Drop the cached nudge set. Exported (rather than each writer calling
+ * `invalidate("brain_nudges_v1")`) because a second copy of the key
+ * string is exactly how a rename silently un-invalidates one writer and
+ * leaves the other looking fine.
+ *
+ * WHO CALLS THIS, and why only these — audited 2026-08-06 against every
+ * writer of every row `computeNudgesUncached` reads:
+ *
+ *   1. `dismissNudge` (below) — writes the `nudge_ack` row that the
+ *      suppression filter reads. Operator taps dismiss in NudgePanel.
+ *   2. `resolveContradiction` (lib/brain/contradiction-surfacer.ts) —
+ *      flips a contradiction row off `"unresolved"`, which is precisely
+ *      what `countUnresolved(14)` counts, and that count IS the
+ *      contradiction nudge. Operator taps resolve in
+ *      ContradictionResolutionPanel / ContradictionsCard, or Nick calls
+ *      the `resolveContradiction` AI tool mid-turn. All five entry
+ *      points (trpc brain.* + system.*, both REST routes, the AI tool)
+ *      funnel through that one function, so one call covers them all.
+ *   3. `setManualOverride` (lib/brain/identity-snapshot.ts) — writes the
+ *      identity row whose axes this module compares against
+ *      WEAKNESS_FLOOR. Added 2026-08-06 after review; see the
+ *      identity-axes note below for why the original exclusion was wrong.
+ *
+ * DELIBERATELY NOT invalidated. Each input below moves on cron time
+ * behind a freshness window that already dwarfs 300s, so wiring it up
+ * would delete the cache on a schedule for zero user-visible gain —
+ * which is just the un-cached version with extra steps:
+ *   - pin_hygiene       · gated `age < 7d`   (weekly pin-review cron)
+ *   - belief_refresh    · gated `age < 18h`  (nightly auto-calibrate)
+ *   - correlation_alert · gated `updatedAt >= now-7d` (detector cron)
+ *   - decision_drift    · a single `"weekly"` row (weekly cron)
+ *   - prediction_streak · hq_pin_candidate · ghost accuracy — cron rows
+ *   - identity axes     · the DAILY-SCHEDULER recompute only. A MANUAL
+ *     pin is NOT exempt and is now wired (see 3 above). The original
+ *     version of this list claimed the nudge "fires on a WEAKNESS_FLOOR
+ *     crossing, not on the raw number" and used that to exclude identity
+ *     writes wholesale — wrong, because a manual pin from 40 to 70 IS a
+ *     floor crossing, and clearing that nudge is usually the operator's
+ *     whole reason for pinning.
+ *   - NEW contradiction rows from `surfaceContradictions`
+ *     (lib/brain/contradiction-surfacer.ts, fire-and-forget from
+ *     importance-scorer on a chat turn) · these RAISE
+ *     `countUnresolved(14)`, so this one genuinely does move on
+ *     turn time, not cron time. Excluded on a cost/benefit call, not
+ *     because it cannot move: a nudge appearing up to 300s late is
+ *     cheap, whereas a DISMISSED nudge coming BACK reads as the app
+ *     ignoring the operator. Wire it only if late-arriving
+ *     contradiction nudges ever become a real complaint.
+ *   - skill / skill_pending · the nudge needs >= 5 pending candidates
+ *     or a 30d-stale skill; a single triage in /settings cannot flip
+ *     either condition, so at worst a count reads one stale for 300s
+ */
+export function invalidateNudgeCache(): void {
+  invalidate(NUDGE_CACHE_KEY);
+}
+
+/**
  * Chat-turn block — renders nudges as short bullet list. Used by the
  * system prompt builder so Nick can reference the specific deltas
  * (instead of generic advice).
@@ -424,6 +517,15 @@ export async function dismissNudge(args: {
       expiresAt: expiresAt ? expiresAt.toISOString() : null,
     },
   );
+
+  // 2026-08-06 · LOAD-BEARING. The ack row only takes effect through
+  // the suppression filter inside `computeNudgesUncached`, and that is
+  // now behind a 300s cache. Without this line the operator taps
+  // dismiss in the NudgePanel and watches the nudge come straight back
+  // on the next poll for up to five minutes. Both dismiss paths (the
+  // REST route and trpc brain.dismissNudge) land here, so one call
+  // covers both.
+  invalidateNudgeCache();
 
   return { ok: true, key, expiresAt: expiresAt?.toISOString() ?? null };
 }

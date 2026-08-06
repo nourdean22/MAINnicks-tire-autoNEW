@@ -33,6 +33,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { cached, invalidate } from "@/lib/utils/cache";
 import { today, toDateString } from "@/lib/utils/datetime";
 import { logError } from "@/lib/utils/error-log";
 
@@ -340,6 +341,30 @@ async function computeReflectionCadence(): Promise<Omit<IdentityAxis, "direction
 
 // ── Snapshot orchestration ───────────────────────────────────────────
 
+// 2026-08-06 · read cache for the "current" row. See loadIdentitySnapshot()
+// for why, and computeIdentitySnapshot() + setManualOverride() for the two
+// invalidation points. Both writers of this row MUST invalidate.
+const IDENTITY_CACHE_KEY = "identity_snapshot_current";
+const IDENTITY_CACHE_TTL_S = 300; // 5 min
+
+/**
+ * 2026-08-06 · exported so resetBrainState can drop this cache.
+ *
+ * `identity_snapshot` is one of the categories resetBrainState deletes, so
+ * without this the operator wipes their brain and /chat keeps rendering the
+ * deleted self-model for up to 5 minutes. The two in-module invalidations
+ * (computeIdentitySnapshot, setManualOverride) cannot cover that path
+ * because the reset deletes the row directly without going through either.
+ *
+ * Same shape as invalidateQualitativeIdentityCache() — both are called from
+ * lib/services/brain-domain.ts. Partial by design: this clears the calling
+ * instance's L1 plus the shared L2 key; a sibling Railway replica's L1 ages
+ * out on the TTL.
+ */
+export function invalidateIdentitySnapshotCache(): void {
+  invalidate(IDENTITY_CACHE_KEY);
+}
+
 interface StoredAxisOverride {
   manual: number | null;
 }
@@ -497,6 +522,14 @@ export async function computeIdentitySnapshot(): Promise<IdentitySnapshot> {
     await seedSyntheticHistory(snapshot, now);
   }
 
+  // 2026-08-06 · the "current" row just moved — drop the read cache so
+  // the next loadIdentitySnapshot() serves THIS snapshot rather than the
+  // one it replaced. Re-entrant-safe: when we're called from inside
+  // loadIdentitySnapshot's own cache-miss path, cached() writes the
+  // returned value after this line runs, so the entry it leaves behind
+  // is the fresh snapshot.
+  invalidate(IDENTITY_CACHE_KEY);
+
   return snapshot;
 }
 
@@ -563,21 +596,34 @@ async function seedSyntheticHistory(current: IdentitySnapshot, now: Date): Promi
 /**
  * Load the current snapshot without recomputing. If none exists,
  * computes one on demand.
+ *
+ * 2026-08-06 · CACHED 5 min via the shared cached() helper. This sits on
+ * the /chat per-turn hot path — buildIdentityContextBlock() fired on
+ * 1417/1417 measured turns — and the row it reads is a slowly-changing
+ * constant: the refresh-identity cron rolls it once a day at 04:30, and
+ * the operator pins an axis by hand. Both of those writers invalidate
+ * (computeIdentitySnapshot, setManualOverride), so a consumer never waits
+ * out the TTL to see a real change.
+ *
+ * A cache MISS still pays the lazy-compute fallback below in full — the
+ * cache caps how OFTEN that query storm fires, it does not remove it.
  */
 export async function loadIdentitySnapshot(): Promise<IdentitySnapshot> {
-  const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
-    select: { content: true },
-  });
-  if (row) {
-    try {
-      return JSON.parse(row.content) as IdentitySnapshot;
-    } catch (err) {
-      // fall through
-      logError("brain.identity-snapshot", err, { fn: "loadIdentitySnapshot", key: "current" }, "warn");
+  return cached(IDENTITY_CACHE_KEY, IDENTITY_CACHE_TTL_S, async () => {
+    const row = await prisma.brainMemory.findUnique({
+      where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
+      select: { content: true },
+    });
+    if (row) {
+      try {
+        return JSON.parse(row.content) as IdentitySnapshot;
+      } catch (err) {
+        // fall through
+        logError("brain.identity-snapshot", err, { fn: "loadIdentitySnapshot", key: "current" }, "warn");
+      }
     }
-  }
-  return computeIdentitySnapshot();
+    return computeIdentitySnapshot();
+  });
 }
 
 /**
@@ -743,7 +789,11 @@ export async function setManualOverride(axis: AxisKey, value: number | null): Pr
   if (value != null && (value < 0 || value > 100)) {
     throw new Error("override must be 0-100 or null");
   }
-  const current = await loadIdentitySnapshot();
+  // 2026-08-06 · deep-copy. loadIdentitySnapshot() now serves a cached
+  // object BY REFERENCE and this is its only mutator; writing through the
+  // shared instance would publish the override into the cache before —
+  // or, if the update below throws, without — the DB write landing.
+  const current = JSON.parse(JSON.stringify(await loadIdentitySnapshot())) as IdentitySnapshot;
   current.axes[axis].manual = value;
   current.axes[axis].updated_at = new Date().toISOString();
   const payload = JSON.stringify(current);
@@ -751,6 +801,27 @@ export async function setManualOverride(axis: AxisKey, value: number | null): Pr
     where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
     data: { content: payload, lastSeen: new Date() },
   });
+  // 2026-08-06 · MANDATORY, not symmetry. Without it the operator pinning
+  // an axis via PATCH /api/identity would not see their own change for up
+  // to 5 minutes — and not only in /chat: loadIdentitySnapshot has seven-
+  // plus consumers (operator.ts, brain-domain.ts, ultron-ticker.ts,
+  // narrator.ts, /api/identity, cross-system-nudge).
+  invalidate(IDENTITY_CACHE_KEY);
+
+  // 2026-08-06 · the NUDGE cache reads this same row. computeNudges compares
+  // `a.manual ?? a.value` against WEAKNESS_FLOOR, so a manual pin IS a floor
+  // crossing — pinning promise_integrity from 40 to 70 specifically to clear
+  // the weakness nudge would update the identity block instantly while the
+  // NudgePanel kept rendering the old warning for up to 300s. Two caches read
+  // one row; both have to be dropped by the one writer.
+  //
+  // Dynamic import: cross-system-nudge imports from this module, so a static
+  // import would close a cycle. Best-effort — a failure here costs at most a
+  // 300s stale nudge and must never fail the operator's pin.
+  await import("@/lib/brain/cross-system-nudge")
+    .then((m) => m.invalidateNudgeCache())
+    .catch(() => {});
+
   return current;
 }
 
@@ -765,6 +836,13 @@ export async function buildIdentityContextBlock(): Promise<string> {
   // runs; if that stalls, stale axis values get asserted as the CURRENT
   // self-model on every turn. Tag the age so Nick hedges instead of stating
   // a fossil ("2/100 ↓") as today's truth.
+  //
+  // 2026-08-06 · this staleNote is the ONLY time-varying term in this
+  // block — every other line reads straight off the persisted row. It
+  // flips at a 7-day boundary, so the 5-minute read cache on
+  // loadIdentitySnapshot() cannot change what this function emits except
+  // in the 5 minutes on either side of a day-7 crossing, where the note
+  // is already an approximation of "old". Output is otherwise identical.
   const ageDays = snap.computed_at
     ? Math.floor((Date.now() - new Date(snap.computed_at).getTime()) / 86_400_000)
     : null;

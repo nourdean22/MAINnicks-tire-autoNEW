@@ -33,9 +33,13 @@ import {
 import {
   loadIdentitySnapshot,
   loadIdentityHistory,
+  invalidateIdentitySnapshotCache,
   type AxisKey,
 } from "@/lib/brain/identity-snapshot";
-import { loadQualitativeIdentity } from "@/lib/brain/qualitative-identity";
+import {
+  loadQualitativeIdentity,
+  invalidateQualitativeIdentityCache,
+} from "@/lib/brain/qualitative-identity";
 import {
   loadActiveBeliefs,
   loadBeliefCandidates,
@@ -398,6 +402,20 @@ export async function resetBrainState(): Promise<BrainResetResult> {
   const result = await prisma.brainMemory.deleteMany({
     where: { category: { in: RESET_CATEGORIES } },
   });
+
+  // `qualitative_identity` is one of the rows just deleted, and
+  // buildQualitativeContextBlock caches it for 900s. Without this the
+  // cached object survives the reset: /chat keeps rendering the wiped
+  // identity, and the next addManualEntry/removeEntry updates a row that
+  // no longer exists — Prisma P2025.
+  invalidateQualitativeIdentityCache();
+
+  // 2026-08-06 · same defect, second cache. `identity_snapshot` is also in
+  // RESET_CATEGORIES and loadIdentitySnapshot caches it for 300s, so without
+  // this /chat keeps rendering the deleted self-model after a wipe. Found by
+  // the adversarial review of the qualitative fix — one file over, identical
+  // shape, and it would have shipped silently.
+  invalidateIdentitySnapshotCache();
 
   await prisma.auditEvent
     .create({

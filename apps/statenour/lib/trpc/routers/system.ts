@@ -19,7 +19,7 @@
  *
  * Phase VV folds the 15 components/system/* dashboard widgets in here
  * (the system domain is genuinely large — one router, no sub-routers):
- *   evalResults · promptCompare · promptShadowTrend · promptLibrary ·
+ *   evalResults · promptShadowTrend · promptLibrary ·
  *   decisionDrift · antiPatterns + createAntiPattern + revisitAntiPattern
  *   + deleteAntiPattern · quality · schemaDrift · errorsGrouped +
  *   errorsRecent · staleData + purgeStaleData · schemaCoverage · gaps ·

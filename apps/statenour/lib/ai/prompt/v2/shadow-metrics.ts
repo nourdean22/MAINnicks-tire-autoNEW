@@ -238,9 +238,21 @@ export function extractSections(prompt: string): string[] {
 }
 
 /**
- * Compute the full delta from two prompts. Used by the shadow path
- * AND the on-demand /api/system/prompt-compare endpoint, so the
- * numbers always agree.
+ * Compute the full delta from two prompts.
+ *
+ * 2026-08-06 · this claimed to be shared with "the on-demand
+ * /api/system/prompt-compare endpoint, so the numbers always agree". Both
+ * halves of that were false: prompt-compare carried its OWN private copy of
+ * the heading extraction and delta math (it never imported this), and the
+ * route has since been deleted for reporting a self-comparison as parity.
+ *
+ * CURRENT TRUTH: this function has no non-test callers. Its intended
+ * producer was the `NICK_PRIME_PROMPT=shadow` branch, which stopped existing
+ * at the 2026-06-29 V2 prime cutover — with one builder there is no second
+ * candidate to diff. Kept, not deleted, because the delta shape and the
+ * `prompt.shadow.*` SystemMetric sink are still the right ledger if a real
+ * second candidate is ever introduced. Do not read the empty trend series as
+ * "the prompts have converged"; nothing has ever written to it.
  */
 export function computeShadowDelta(
   v1Prompt: string,

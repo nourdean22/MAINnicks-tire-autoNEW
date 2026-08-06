@@ -325,6 +325,28 @@ export async function resolveContradiction(
     },
   });
 
+  // 2026-08-06 · LOAD-BEARING, and it sits HERE on purpose — immediately
+  // after the status flip, before any best-effort work below. `computeNudges`
+  // surfaces `countUnresolved(14)` as the contradiction nudge and is cached
+  // for 300s; the update above is exactly what drops this row out of that
+  // count. Everything after this line (loser deprecation, the cleanup
+  // dynamic import) is best-effort and CAN throw — the dynamic import can
+  // chunk-fail on a deploy skew, and cleanupResolvedContradiction's first
+  // statement reads a feature flag outside its own try/catch. If the
+  // invalidation lived down there, a throw on that path would leave the
+  // count already changed in the DB but the nudge still serving the OLD
+  // one for up to five minutes — the exact defect this call exists to
+  // prevent, surviving on the error branch.
+  //
+  // Every resolve path (trpc brain.resolveContradiction +
+  // system.resolveContradiction, both REST routes, the `resolveContradiction`
+  // AI tool) funnels through here, so one call covers all of them.
+  //
+  // Dynamic import on purpose: cross-system-nudge imports `countUnresolved`
+  // from THIS module, so a static import would close an import cycle.
+  const { invalidateNudgeCache } = await import("@/lib/brain/cross-system-nudge");
+  invalidateNudgeCache();
+
   // Deprecate whichever memory lost
   if (status === "current_wins") {
     await prisma.brainMemory
