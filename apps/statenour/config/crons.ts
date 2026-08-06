@@ -629,6 +629,17 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
   },
   {
+    name: "distill-sessions",
+    schedule: null,
+    mode: "folded",
+    category: "review",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening · RESURRECTED 2026-08-06 (deleted in the Wave-AE prune 2026-05-28, never re-wired). Distills idle chat sessions into BrainMemory(chat_summary) and upserts the rolling nick_current_concerns aggregate. Its absence killed both: chat_summary froze at 34 rows and nick_current_concerns was NEVER written (0 rows), so the /chat concerns context block fired 0 times in 1,128 measured turns and fireAfternoonPush degraded to silence. Batch-capped at 10 conversations/run; one LLM call per distilled conversation. Was every-30-min via vercel.json; nightly is ample since every eligibility rule is 'since last distill'.",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     name: "anticipate",
     schedule: null,
     mode: "folded",

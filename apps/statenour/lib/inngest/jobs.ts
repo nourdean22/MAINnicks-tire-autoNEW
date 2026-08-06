@@ -142,6 +142,17 @@ export const EVENING_JOBS: readonly string[] = [
   // ("social battery 20") as current. Nightly roll matches the axes'
   // 14-30d data windows.
   "/api/cron/refresh-identity",
+  // 2026-08-06 · resurrected, same story as refresh-identity above. Deleted in
+  // the Wave-AE prune (2026-05-28) and never re-wired, which killed the whole
+  // session-distill lane: `chat_summary` stopped at 34 rows, and
+  // `nick_current_concerns` was never written AT ALL (0 rows in prod) because
+  // its only writer sits downstream of distillConversation. Two live readers
+  // were left waiting on it — the /chat "concerns" context block (which fired
+  // 0 times in 1,128 measured turns) and fireAfternoonPush, which degrades to
+  // silence rather than erroring, so nothing surfaced the gap.
+  // Was every-30-min via vercel.json; nightly is ample at this conversation
+  // volume since every eligibility rule is "since last distill".
+  "/api/cron/distill-sessions",
   // 2026-05-30 · mastery leveling engine · attributes the day's
   // unstructured signals (chat/captures/decisions) → stat XP. Idempotent;
   // first run backfills history, then only new signals each night.
