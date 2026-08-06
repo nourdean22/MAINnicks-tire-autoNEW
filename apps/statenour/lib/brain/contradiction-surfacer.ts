@@ -32,6 +32,9 @@ import { createHash } from "node:crypto";
 import { semanticSearch } from "./embedding-utils";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("brain/contradiction-surfacer");
 
 const NEGATION_TOKENS = [
   "not", "no longer", "never", "don't", "doesn't", "won't",
@@ -121,7 +124,24 @@ export async function surfaceContradictions(newBrainMemoryId: string): Promise<C
     select: { id: true, content: true, category: true, createdAt: true },
   });
   if (!fresh) return [];
-  // Accept both chat_importance and brain_dump_importance categories
+  // Accept both chat_importance and brain_dump_importance categories.
+  //
+  // 2026-08-06 · WARNING — "brain_dump_importance" IS A PHANTOM. Nothing in
+  // this repository has ever written it: the only references are its constant
+  // (categories.ts:90), this reader, the RESET_CATEGORIES delete list
+  // (brain-domain.ts:386), and a comment. Prod row count: 0.
+  // app/api/brain/dump/route.ts:84 deliberately writes the LITERAL string
+  // "brain_dump" instead, and says so at line 81.
+  //
+  // Left in place rather than removed because removing it changes nothing
+  // (it never matches) while deleting the evidence of the gap. Do NOT
+  // "fix" this by adding "brain_dump" here: those rows are raw captured web
+  // text with no JSON envelope, so the JSON.parse below fails, primaryCategory
+  // comes back undefined, and the decision/preference/commitment gate at the
+  // `if (primaryCategory && ...)` line is SKIPPED ENTIRELY for them. That
+  // would pipe arbitrary clipped text into contradiction detection with no
+  // category gate at all. Widening the input lane is a product decision that
+  // needs its own eligibility rule first.
   const ELIGIBLE_CATEGORIES = new Set(["chat_importance", "brain_dump_importance"]);
   if (!ELIGIBLE_CATEGORIES.has(fresh.category)) return [];
 
@@ -140,13 +160,49 @@ export async function surfaceContradictions(newBrainMemoryId: string): Promise<C
   const eligible = new Set(["decision", "preference", "commitment"]);
   if (primaryCategory && !eligible.has(primaryCategory)) return [];
 
-  // Semantic neighbors — leverage the brain_memory vector index
-  const neighbors = await semanticSearch(newExcerpt, 8, ["brain_memory"]).catch(() => []);
+  // Semantic neighbors — leverage the brain_memory vector index.
+  //
+  // 2026-08-06 · K RAISED 8 -> 200. This was a recall bug, not a tuning knob.
+  // semanticSearch filters by sourceType ("brain_memory") only — it has NO
+  // brain-CATEGORY filter — so a top-8 draw comes from the entire corpus
+  // (8,553 embedded brain memories in prod). The category gate that actually
+  // matters is applied AFTERWARDS, at the ELIGIBLE_CATEGORIES check below.
+  //
+  // Eligible rows are ~0.1% of that corpus (chat_importance: 10 rows in the
+  // 3.5 months to 2026-08-06). Asking for 8 neighbours out of 8,553 and THEN
+  // demanding they belong to a 10-row subset is close to drawing blanks by
+  // construction — a genuine contradiction pair could exist and never appear
+  // in the window. Widening K gives the category filter something to filter.
+  //
+  // Cost is negligible: this is a top-K ANN lookup, and the caller
+  // (importance-scorer) only reaches it when a message scores >=6 AND lands a
+  // decision/preference/commitment primary — which happened 10 times in 3.5
+  // months. The >=0.78 gate below still runs first, so hydration stays small.
+  const neighbors = await semanticSearch(newExcerpt, 200, ["brain_memory"]).catch(() => []);
   if (neighbors.length === 0) return [];
 
   // v10.0.38 — batch the neighbor hydration. Pre-fix: a sequential
   // findUnique per neighbor (up to 8 round-trips). Now: filter
   // qualifying neighbors first, then one findMany covers all.
+  // 2026-08-06 · 0.78 IS CORRECT — MEASURED, do not lower it.
+  //
+  // This detector has produced 0 rows in prod, and this threshold is the
+  // obvious suspect. It is not the cause. Measured against the real embedding
+  // space (read-only, prod vector_embeddings, 300 most recent brain_memory
+  // vectors, cosine via pgvector `<=>`, each row vs its nearest of the other
+  // 299): median 0.711, p90 0.993, and 39.0% of memories have a neighbour at
+  // or above 0.78. The bar is comfortably reachable.
+  //
+  // Compare the anticipated-question matcher, whose 0.85 floor WAS
+  // unreachable (median nearest-neighbour 0.615 there, best-of-3 draws) and
+  // was lowered in the same wave. Same shape of symptom, opposite diagnosis —
+  // which is exactly why this one is annotated instead of tuned.
+  //
+  // The real cause is input starvation upstream: only 10 chat_importance rows
+  // exist (persistIfImportant gates on score>=6, and rows scoring <8 expire
+  // after 30 days), and brain_dump_importance has never been written at all.
+  // See the ELIGIBLE_CATEGORIES note above. Lowering this number would add
+  // false pairings without addressing any of that.
   const candidates = neighbors.filter(
     (n) => n.sourceId !== fresh.id && n.similarity >= 0.78,
   );
@@ -159,15 +215,26 @@ export async function surfaceContradictions(newBrainMemoryId: string): Promise<C
     .catch((): never[] => []);
   const oldById = new Map(neighborRows.map((r) => [r.id, r]));
 
+  // 2026-08-06 · GATE CHAIN TELEMETRY. This detector produced 0 rows in the
+  // 3.5 months to 2026-08-06 and there was no way to tell WHICH of its seven
+  // gates was responsible — the whole function is silent on the reject path.
+  // These counters make the dormancy measurable: a run with
+  // `candidates` high but `eligibleCategory` 0 means the input pool is
+  // starved (that is today's shape); `eligibleCategory` high but `signal` 0
+  // means detectSignal's token lists are too narrow. Different repairs.
+  const gate = { neighbors: neighbors.length, candidates: candidates.length, eligibleCategory: 0, agedApart: 0, signal: 0 };
+
   const conflicts: Contradiction[] = [];
   for (const n of candidates) {
     const old = oldById.get(n.sourceId);
     if (!old) continue;
     if (!ELIGIBLE_CATEGORIES.has(old.category)) continue;
+    gate.eligibleCategory++;
 
     // Must be materially older
     const daysApart = (fresh.createdAt.getTime() - old.createdAt.getTime()) / 86400_000;
     if (daysApart < 7) continue;
+    gate.agedApart++;
 
     let oldExcerpt = old.content;
     try {
@@ -177,6 +244,7 @@ export async function surfaceContradictions(newBrainMemoryId: string): Promise<C
 
     const signal = detectSignal(newExcerpt, oldExcerpt);
     if (!signal) continue;
+    gate.signal++;
 
     conflicts.push({
       new_memory_id: fresh.id,
@@ -189,6 +257,10 @@ export async function surfaceContradictions(newBrainMemoryId: string): Promise<C
       surfaced_at: new Date().toISOString(),
     });
   }
+
+  // Emit on EVERY scored call, hit or miss — a silent reject path is how this
+  // sat at zero for months without anyone noticing it was even running.
+  log.info("contradiction.gate_probe", { ...gate, conflicts: conflicts.length });
 
   if (conflicts.length === 0) return [];
 
