@@ -68,11 +68,25 @@ async function llm(system: string, user: string, maxTokens: number, model?: stri
     ...(model ? { model } : {}),
   });
   const raw = res.choices?.[0]?.message?.content ?? "";
-  const text = typeof raw === "string" ? raw : JSON.stringify(raw);
-  // Thinking models can burn the whole token budget on reasoning and emit
-  // empty content. An empty line must be a LOUD failure — the first live run
-  // graded 9 turns of empty strings as "losses", a fabricated result.
-  if (!text.trim()) throw new Error(`empty model output (reasoning burn? raise maxTokens) from ${model ?? "default lane"}`);
+  let text = typeof raw === "string" ? raw : JSON.stringify(raw);
+  if (!text.trim()) {
+    // ONE bounded retry at a bigger budget — same instrument-parity fix
+    // ghostReplay carries: a token-budget artifact is a measurement bug, but
+    // a second empty is a LOUD failure (the first live run graded 9 empty
+    // turns as "losses", a fabricated result — never again).
+    const retry = await invokeLLM({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `${user}\n\n(One short spoken sentence only, no analysis.)` },
+      ],
+      maxTokens: 1400,
+      timeoutMs: 60000,
+      ...(model ? { model } : {}),
+    });
+    const retryRaw = retry.choices?.[0]?.message?.content ?? "";
+    text = typeof retryRaw === "string" ? retryRaw : JSON.stringify(retryRaw);
+  }
+  if (!text.trim()) throw new Error(`empty model output after retry (reasoning burn) from ${model ?? "default lane"}`);
   return text;
 }
 
