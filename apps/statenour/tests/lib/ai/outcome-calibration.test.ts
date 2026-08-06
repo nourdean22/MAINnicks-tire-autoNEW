@@ -192,3 +192,26 @@ describe("outcome-calibration", () => {
     });
   });
 });
+
+describe("getCalibrationStats · expired rows cannot fabricate calibration (2026-08-06)", () => {
+  it("expired_unverifiable rows count neither as resolved nor pending", async () => {
+    const expired = Array.from({ length: 5 }, (_, i) => ({
+      metadata: { resolved: true, resolvedOutcome: "expired_unverifiable" },
+      id: `exp-${i}`,
+    }));
+    const genuine = [
+      { id: "ok-1", metadata: { resolved: true, errorPct: 0.1, actualScore: 110, predictions: [{ metric: "engagement", value: 100 }] } },
+      { id: "ok-2", metadata: { resolved: true, errorPct: 0.3, actualScore: 130, predictions: [{ metric: "engagement", value: 100 }] } },
+    ];
+    const pending = [{ id: "p-1", metadata: { resolved: false } }];
+    mocks.brainMemory.findMany.mockResolvedValueOnce([...expired, ...genuine, ...pending]);
+
+    const stats = await getCalibrationStats();
+    // Before the fix, resolvedCount was 7 (5 expired + 2 real), crossing the
+    // >=5 threshold and rendering a calibration block fabricated from rows
+    // nobody ever verified. It must be 2: the hedge stays honest.
+    expect(stats.resolvedCount).toBe(2);
+    expect(stats.pendingCount).toBe(1);
+    expect(buildCalibrationPromptBlock(stats)).toContain("insufficient data");
+  });
+});
