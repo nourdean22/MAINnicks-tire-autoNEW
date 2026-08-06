@@ -43,9 +43,9 @@ async function main() {
   if (args.includes("--baseline-only")) {
     const { loadSeeds, scorePrompt } = await import("../server/services/promptEvolution");
     const { ASSISTANT_SYSTEM_PROMPT } = await import("../server/services/vapi");
-    const seeds = await loadSeeds(seedCount, filterRx);
+    const { seeds, excludedVerified } = await loadSeeds(seedCount, filterRx);
     if (!seeds.length) throw new Error("no seeds matched");
-    console.log(`baseline: ghost-replaying the CURRENT served prompt over ${seeds.length} seed(s)...`);
+    console.log(`baseline: ghost-replaying the CURRENT served prompt over ${seeds.length} seed(s) (${excludedVerified} verified conversions excluded)...`);
     // keepReplies in filter mode: the display MUST show the graded
     // conversation — a fresh sampling once showed a passing dialogue while
     // the grade was judged on a differently-phrased one.
@@ -66,7 +66,7 @@ async function main() {
 
   const { runPromptEvolution } = await import("../server/services/promptEvolution");
   const result = await runPromptEvolution({ seedCount, candidates: k, log: (l) => console.log(`  ${l}`) });
-  console.log(`seeds: ${result.usableSeeds} (train ${result.trainCount} / holdout ${result.holdoutCount})`);
+  console.log(`seeds: ${result.usableSeeds} (train ${result.trainCount} / holdout ${result.holdoutCount}) · ${result.excludedVerified} verified conversions excluded from the failure pool`);
   console.log(`baseline: train ${result.baselineTrain} · holdout ${result.baselineHoldout}`);
   for (const c of result.candidateSummaries) {
     console.log(`  candidate: train ${c.train}${c.rejectedInvariants ? ` REJECTED unscored (invariants: ${c.rejectedInvariants.join(",")})` : ""} — ${c.rationale.slice(0, 90)}`);

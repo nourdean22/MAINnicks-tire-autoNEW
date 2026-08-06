@@ -27,6 +27,27 @@ export interface Seed {
   callerTurns: string[];
   evalOutcome: string;
   summary: string | null;
+  /**
+   * Revenue-truth annotation (2026-08-07): the latest reconciliation verdict
+   * for this call, or null when none exists. 'manual_review' = an INFERRED
+   * phone+time invoice match (conf 0.75) — kept as a seed but annotated,
+   * because a converted 'callback_needed' call converted via the HUMAN lane
+   * and the AI leg still failed: the best near-misses.
+   */
+  revenueResolution: string | null;
+}
+
+export interface SeedLoad {
+  seeds: Seed[];
+  /**
+   * Calls dropped because their conversion is VERIFIED — auto 'attributed'
+   * (unique lead→paid-invoice link) or an operator decision confirmed with an
+   * invoice. eval_outcome never consults invoices (classifyCall grants
+   * conversion only on persisted lead/callback/booking ids), so
+   * 'lost_opportunity' can be a mislabeled win — training the optimizer on
+   * wins poisons it. Only PROVEN wins are removed; unproven losses stay.
+   */
+  excludedVerified: number;
 }
 
 export interface ScoredPrompt {
@@ -36,25 +57,62 @@ export interface ScoredPrompt {
   grades: Array<{ id: string; pass: boolean; priceLeaks: number; resolutionOffered: boolean; guarantees: number; emptyReplies: number; replies?: string[] }>;
 }
 
-export async function loadSeeds(seedCount: number, filterRx?: RegExp | null): Promise<Seed[]> {
+export async function loadSeeds(seedCount: number, filterRx?: RegExp | null): Promise<SeedLoad> {
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) throw new Error("no DB");
   const { sql } = await import("drizzle-orm");
+  // Revenue-truth join (2026-08-07): CONSUME the incumbent reconciliation
+  // product, never rebuild the phone join — revenue_reconciliation_candidates
+  // is written every ≤2h by dashboardSync via buildCallInvoiceCandidates
+  // (lead-link = 'attributed'/verified; phone+time-only = 'manual_review'
+  // conf 0.75), and revenue_attribution_decisions carries the operator's
+  // ruling (current_slot=1), which overrides the auto-candidate in EITHER
+  // direction. Keyed on the numeric log id (candidates key on
+  // vapi_call_logs.id, not the VAPI string id). Latest-per-call shape mirrors
+  // routers/revenueAttribution.ts reviewQueue.
   const [raw] = await d.execute(sql`
-    SELECT a.vapi_call_id AS id, a.transcript, l.eval_outcome AS evalOutcome, l.aiSummary AS summary
+    SELECT a.vapi_call_id AS id, a.transcript, l.eval_outcome AS evalOutcome, l.aiSummary AS summary,
+           rc.resolution AS revenueResolution, d.decision AS operatorDecision, d.invoice_id AS decisionInvoiceId
     FROM vapi_call_archives a
     JOIN vapi_call_logs l ON l.vapiCallId = a.vapi_call_id
+    LEFT JOIN (
+      SELECT c.call_id, c.resolution
+      FROM revenue_reconciliation_candidates c
+      INNER JOIN (
+        SELECT call_id, MAX(created_at) AS latest_created_at
+        FROM revenue_reconciliation_candidates
+        GROUP BY call_id
+      ) latest ON latest.call_id = c.call_id AND latest.latest_created_at = c.created_at
+    ) rc ON rc.call_id = l.id
+    LEFT JOIN revenue_attribution_decisions d ON d.call_id = l.id AND d.current_slot = 1
     WHERE a.transcript IS NOT NULL
       AND l.eval_outcome IN ('lost_opportunity','callback_needed')
     ORDER BY a.started_at DESC
     LIMIT ${seedCount * 3}
   `);
-  return (raw as unknown as Array<{ id: string; transcript: string; evalOutcome: string; summary: string | null }>)
-    .map((r) => ({ id: r.id, callerTurns: extractCallerTurns(r.transcript), evalOutcome: r.evalOutcome, summary: r.summary }))
+  const rows = raw as unknown as Array<{
+    id: string; transcript: string; evalOutcome: string; summary: string | null;
+    revenueResolution: string | null; operatorDecision: string | null; decisionInvoiceId: number | null;
+  }>;
+  // Verified-only exclusion, operator ruling first: a 'rejected' decision
+  // UN-excludes an auto-'attributed' candidate; a 'confirmed' decision with
+  // an invoice excludes regardless of the candidate.
+  const isVerifiedConversion = (r: (typeof rows)[0]): boolean => {
+    if (r.operatorDecision != null) return r.operatorDecision === "confirmed" && r.decisionInvoiceId != null;
+    return r.revenueResolution === "attributed";
+  };
+  const excludedVerified = rows.filter(isVerifiedConversion).length;
+  const seeds = rows
+    .filter((r) => !isVerifiedConversion(r))
+    .map((r) => ({
+      id: r.id, callerTurns: extractCallerTurns(r.transcript), evalOutcome: r.evalOutcome,
+      summary: r.summary, revenueResolution: r.revenueResolution,
+    }))
     .filter((s) => s.callerTurns.length >= 2 && s.callerTurns.length <= 10)
     .filter((s) => !filterRx || filterRx.test(s.callerTurns.join("\n")))
     .slice(0, seedCount);
+  return { seeds, excludedVerified };
 }
 
 export async function scorePrompt(prompt: string, seeds: Seed[], opts: { keepReplies?: boolean } = {}): Promise<ScoredPrompt> {
@@ -84,7 +142,7 @@ async function proposeCandidates(
   const out: Array<{ prompt: string; rationale: string }> = [];
   for (let i = 0; i < k; i++) {
     const failureBrief = trainFailures.slice(0, 6).map((f) =>
-      `- Call ${f.seed.id} (${f.seed.evalOutcome}): caller said "${f.seed.callerTurns[0]?.slice(0, 140)}"; grade: resolution=${f.grade.resolutionOffered} priceLeaks=${f.grade.priceLeaks}`,
+      `- Call ${f.seed.id} (${f.seed.evalOutcome}${f.seed.revenueResolution === "manual_review" ? " · likely converted later via the HUMAN lane — the AI leg still failed" : ""}): caller said "${f.seed.callerTurns[0]?.slice(0, 140)}"; grade: resolution=${f.grade.resolutionOffered} priceLeaks=${f.grade.priceLeaks}`,
     ).join("\n");
     const res = await invokeLLM({
       messages: [
@@ -133,6 +191,8 @@ async function proposeCandidates(
 
 export interface EvolutionResult {
   usableSeeds: number;
+  /** Proven wins removed from the failure pool (see SeedLoad.excludedVerified). */
+  excludedVerified: number;
   trainCount: number;
   holdoutCount: number;
   baselineTrain: string;
@@ -153,7 +213,7 @@ export async function runPromptEvolution(
   const log = opts.log ?? (() => undefined);
   const { ASSISTANT_SYSTEM_PROMPT } = await import("./vapi");
 
-  const seeds = await loadSeeds(seedCount);
+  const { seeds, excludedVerified } = await loadSeeds(seedCount);
   if (seeds.length < 4) throw new Error(`only ${seeds.length} usable seeds — need >= 4`);
   const { train, holdout } = splitSeeds(seeds);
   if (!train.length || !holdout.length) throw new Error("degenerate split");
@@ -162,6 +222,7 @@ export async function runPromptEvolution(
   const baseHold = await scorePrompt(ASSISTANT_SYSTEM_PROMPT, holdout);
   const base = {
     usableSeeds: seeds.length,
+    excludedVerified,
     trainCount: train.length,
     holdoutCount: holdout.length,
     baselineTrain: `${baseTrain.passes}/${baseTrain.total}`,
