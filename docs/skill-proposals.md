@@ -360,7 +360,7 @@ statenour primitives documented (existence re-verified at
   a false-green generator; and a run that completed ZERO units of work must
   exit non-zero, never render as a clean zero-findings readout."
 - **Confidence:** high (three instances, same arc, three shapes)
-- **Status:** applied — operator approved 2026-08-07; PR number below
+- **Status:** applied #1418 (operator approved 2026-08-07)
 
 ### P2 · `nickstire-verify` (credentials section, mirroring statenour-verify''s)
 - **Trigger (witnessed):** same failed gauntlet — `OLLAMA_API_KEY` is NOT in
@@ -376,7 +376,7 @@ statenour primitives documented (existence re-verified at
   need it must fail fast naming that home (pattern: cage-match.ts after
   #1416). Background/`run_in_background` shells never inherit inline env."
 - **Confidence:** medium (one occurrence, mechanism fully understood)
-- **Status:** applied — operator approved 2026-08-07; PR number below
+- **Status:** applied #1418 (operator approved 2026-08-07)
 
 ### P3 · `nickstire-shared-main-push` (PR mechanics under concurrent sessions)
 - **Trigger (witnessed):** (a) crank-1: merged "#1411" by assumption — it
@@ -394,4 +394,4 @@ statenour primitives documented (existence re-verified at
   done: `gh pr view <n> --json state` before any retry."
 - **Confidence:** high for the number-capture (recurred as near-miss +
   standing memory note), medium for the merge quirk (once, clear)
-- **Status:** applied — operator approved 2026-08-07; PR number below
+- **Status:** applied #1418 (operator approved 2026-08-07)
