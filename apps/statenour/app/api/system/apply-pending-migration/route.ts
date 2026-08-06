@@ -33,6 +33,66 @@ export const maxDuration = 60;
 
 /** Inlined, idempotent migration statements (operator-controlled · deploy-gated). */
 const MIGRATIONS: Record<string, string[]> = {
+  // Drop 42 duplicate indexes across 24 tables (~18.7 MB) · 2026-08-06 ·
+  // indexes only, zero data touched, fully reversible. Matches
+  // prisma/migrations-pending/20260806120000_drop_duplicate_indexes/migration.sql
+  // — read that file's header for the full why, the safety argument, and the
+  // post-apply verification query.
+  //
+  // Short version: scripts/emit-index-migration.ts built index NAMES from
+  // Prisma field names while building index BODIES from @map'd column names,
+  // so its `IF NOT EXISTS` guard never matched the snake_case twins created by
+  // the earlier hand-written migrations and it created byte-identical copies
+  // instead. Every one of these has a surviving twin with the same table, the
+  // same column list and no predicate. High scan counts on some of the dropped
+  // names are not evidence they are needed — with two identical indexes the
+  // planner splits scans arbitrarily, and after the drop they land on the twin.
+  // The generator bug is fixed in the same PR, so these cannot come back.
+  "20260806120000_drop_duplicate_indexes": [
+    `DROP INDEX IF EXISTS "brain_memories_category_updatedAt_idx"`,
+    `DROP INDEX IF EXISTS "brain_memories_category_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "brain_memories_category_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "brain_memories_lastSeen_idx"`,
+    `DROP INDEX IF EXISTS "brain_memories_expiresAt_idx"`,
+    `DROP INDEX IF EXISTS "api_request_logs_statusCode_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "agent_traces_errorClass_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "agent_traces_source_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "agent_traces_provider_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "automation_policy_fires_firedAt_idx"`,
+    `DROP INDEX IF EXISTS "system_metrics_source_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "system_metrics_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "chat_messages_parentMessageId_idx"`,
+    `DROP INDEX IF EXISTS "chat_messages_conversationId_branchId_idx"`,
+    `DROP INDEX IF EXISTS "chat_messages_streamingState_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "chat_messages_provider_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "chat_messages_feedbackScore_idx"`,
+    `DROP INDEX IF EXISTS "ai_generations_model_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "ai_generations_status_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "entity_audits_actor_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "entity_audits_action_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "entity_audits_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "brain_bus_events_topic_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "memory_edges_targetType_targetId_idx"`,
+    `DROP INDEX IF EXISTS "brain_dumps_date_actionsTaken_idx"`,
+    `DROP INDEX IF EXISTS "brain_dumps_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "task_events_kind_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "Task_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "Mission_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "commitments_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "goal_events_kind_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "identity_snapshots_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "life_goals_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "mastery_decisions_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "mastery_decisions_reviewDate_idx"`,
+    `DROP INDEX IF EXISTS "chat_conversations_starredAt_idx"`,
+    `DROP INDEX IF EXISTS "chat_conversations_missionId_idx"`,
+    `DROP INDEX IF EXISTS "person_profiles_trustScore_idx"`,
+    `DROP INDEX IF EXISTS "reflections_deletedAt_idx"`,
+    `DROP INDEX IF EXISTS "device_commands_status_createdAt_idx"`,
+    `DROP INDEX IF EXISTS "schema_change_ledger_environment_appliedAt_idx"`,
+    `DROP INDEX IF EXISTS "scheduled_actions_entityType_entityId_idx"`,
+  ],
+
   // Render lease for social_publish_queue · 2026-08-03 · additive, zero data
   // loss. Matches prisma/migrations-pending/20260803120000_render_lease/
   // migration.sql. A reel claimed by /api/sync/queue/render was stuck in

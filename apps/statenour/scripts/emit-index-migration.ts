@@ -98,9 +98,30 @@ function quotedColumn(prismaColName: string, model: ModelDef): string {
   return `"${dbCol}"`;
 }
 
-function indexNameOf(tableName: string, cols: string[]): string {
+function indexNameOf(tableName: string, cols: string[], model: ModelDef): string {
   // Match Prisma's convention · TableName_col1_col2_idx
-  const parts = [tableName, ...cols, "idx"];
+  //
+  // 2026-08-06 · BUG FIX — this used the raw PRISMA FIELD names while the
+  // CREATE INDEX body (quotedColumn, above) used the @map'd DB COLUMN names.
+  // The name and the body therefore disagreed on every @map'd column, which
+  // emitted things like:
+  //
+  //     CREATE INDEX IF NOT EXISTS "Mission_deletedAt_idx" ON "Mission" ("deleted_at");
+  //
+  // while earlier hand-written migrations had already created the same index
+  // as "Mission_deleted_at_idx". `IF NOT EXISTS` matches on NAME, so it could
+  // not see the existing index and created a SECOND, byte-identical one
+  // instead of no-opping.
+  //
+  // That produced 42 duplicate index pairs across 24 tables (~18.7 MB) —
+  // every write to those tables maintained two identical B-trees, and the
+  // planner split scans arbitrarily between them. Dropped in the companion
+  // migration; this line is why they must not come back.
+  //
+  // Mapping the columns here makes re-running this script genuinely
+  // idempotent against the post-cleanup database.
+  const mapped = cols.map((c) => model.columnMap[c] ?? c);
+  const parts = [tableName, ...mapped, "idx"];
   let name = parts.join("_");
   // Postgres limit is 63 chars · truncate if needed
   if (name.length > 63) name = name.slice(0, 60) + "_x";
@@ -131,7 +152,7 @@ async function main() {
     const modelLines: string[] = [];
     for (const cols of model.indexes) {
       const colList = cols.map((c) => quotedColumn(c, model)).join(", ");
-      const idxName = indexNameOf(model.tableName, cols);
+      const idxName = indexNameOf(model.tableName, cols, model);
       modelLines.push(
         `CREATE INDEX IF NOT EXISTS "${idxName}" ON ${tableNameQuoted} (${colList});`,
       );

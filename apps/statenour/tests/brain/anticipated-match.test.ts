@@ -3,7 +3,9 @@
  * the previously-unbuilt half of Arc B Feature 6 (2026-06-10).
  *
  * Pins:
- *   1. findAnticipated matches only at/above the 0.85 cosine floor
+ *   1. findAnticipated matches only at/above the ANTICIPATED_MATCH_FLOOR
+ *      cosine floor (0.72 since 2026-08-06 — recalibrated from 0.85 against
+ *      measured prod data; assert the CONSTANT, never a literal)
  *   2. questions WITHOUT a precomputed answer never match (even exact)
  *   3. the chat route's precomputed userEmbedding is reused (no
  *      message-embed call when provided)
@@ -51,9 +53,13 @@ vi.mock("@/lib/ai/traced-aichat", () => ({
       mockAiChat(...args),
 }));
 
+// 2026-08-06 · info is a spy now, not a no-op — the match_probe telemetry is
+// the only thing that distinguishes "scored and missed" from "no set today",
+// and that distinction is what let an unreachable floor hide for four months.
+const mockLogInfo = vi.fn();
 vi.mock("@/lib/logger", () => ({
   logger: {
-    withSurface: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
+    withSurface: () => ({ info: (...a: unknown[]) => mockLogInfo(...a), warn: () => {}, error: () => {} }),
   },
 }));
 
@@ -88,6 +94,7 @@ function storedSet(answers: Array<string | null>) {
 beforeEach(() => {
   mockFindUnique.mockReset();
   mockGetEmbedding.mockClear();
+  mockLogInfo.mockReset();
   mockAiChat.mockReset();
   embedMap.clear();
   embedMap.set(Q1, [1, 0]);
@@ -108,11 +115,59 @@ describe("findAnticipated", () => {
     expect(match?.date).toBe(todayKey());
   });
 
-  it("returns null below the 0.85 floor", async () => {
+  it("returns null below the match floor", async () => {
     mockFindUnique.mockResolvedValue(storedSet(["take 1", "take 2"]));
-    // cos vs Q1 = 0.6 · cos vs Q2 = 0.8 — both under the floor.
-    const match = await findAnticipated("any message", [0.6, 0.8]);
+    // 2026-08-06 · this case used 2-D vectors [0.6, 0.8] against the old 0.85
+    // floor. Two problems once the floor moved to 0.72 (see
+    // ANTICIPATED_MATCH_FLOOR — lowered against measured prod data):
+    //   1. 0.8 vs Q2 now CLEARS the floor, so the case stopped testing a miss.
+    //   2. Geometry: with orthogonal 2-D question vectors [1,0] and [0,1], the
+    //      best of the two cosines is minimised at 45deg and can never go below
+    //      0.707. A 2-D fixture therefore cannot sit safely under a 0.72 floor
+    //      at all — it would have had ~0.013 of headroom at best.
+    // Third dimension fixes both: the message sits mostly along an axis
+    // NEITHER question occupies, so it is genuinely unlike both.
+    embedMap.set(Q1, [1, 0, 0]);
+    embedMap.set(Q2, [0, 1, 0]);
+    // |v| = sqrt(1+1+4) = 2.449 -> cos vs Q1 = cos vs Q2 = 1/2.449 = 0.408.
+    const match = await findAnticipated("any message", [1, 1, 2]);
     expect(match).toBeNull();
+  });
+
+  // 2026-08-06 · THE REGRESSION GUARD for the floor recalibration.
+  //
+  // In prod this block fired 0 times in 1,040 turns because the floor sat at
+  // 0.85 — a bar that measured data says is unreachable (nearest-neighbour
+  // similarity across 250 real chat vectors: median 0.615, p90 0.773). This
+  // test pins the newly-admitted band: a score that clears 0.72 but would
+  // have missed 0.85. Revert the constant to 0.85 and this goes red, which is
+  // the whole point — the old value must not creep back in silently.
+  it("matches in the 0.72-0.85 band that the old floor excluded", async () => {
+    mockFindUnique.mockResolvedValue(storedSet(["ALG take", "VAPI take"]));
+    // cos vs Q1 = 0.8 — above the calibrated floor, below the old one.
+    const match = await findAnticipated("any message", [0.8, 0.6]);
+    expect(ANTICIPATED_MATCH_FLOOR).toBeLessThanOrEqual(0.8);
+    expect(ANTICIPATED_MATCH_FLOOR).toBeLessThan(0.85);
+    expect(match).not.toBeNull();
+    expect(match?.question).toBe(Q1);
+    expect(match?.similarity).toBeCloseTo(0.8, 2);
+  });
+
+  it("logs the observed best similarity even when the turn MISSES", async () => {
+    mockFindUnique.mockResolvedValue(storedSet(["take 1", "take 2"]));
+    embedMap.set(Q1, [1, 0, 0]);
+    embedMap.set(Q2, [0, 1, 0]);
+    const match = await findAnticipated("any message", [1, 1, 2]);
+    expect(match).toBeNull();
+
+    // A miss must still be observable. Without this the logs cannot tell
+    // "floor too high" (bestSim just under it) from "predictions are wrong"
+    // (bestSim near zero) — two different repairs.
+    const probe = mockLogInfo.mock.calls.find((c) => c[0] === "anticipated.match_probe");
+    expect(probe, "match_probe was not emitted on a miss").toBeTruthy();
+    expect(probe?.[1]).toMatchObject({ hit: false, floor: ANTICIPATED_MATCH_FLOOR, candidates: 2 });
+    expect(probe?.[1].bestSim).toBeCloseTo(0.408, 2);
+    expect(probe?.[1].nearestQuestion).toBe(Q1);
   });
 
   it("never matches a question whose answer is null — even on an exact hit", async () => {
