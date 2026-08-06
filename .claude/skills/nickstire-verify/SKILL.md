@@ -53,6 +53,41 @@ multiple sessions.
 - **`pnpm run validate:routes` confirms registered routes match
   handler files.** Run after adding / removing routes.
 
+## Instrument runs (cage match / ghost replay / any measurement script)
+
+Three instrument-integrity failures in one arc (2026-08-06/07) share a
+shape: the measurement lied while every gate stayed green.
+
+- **A liveness probe must exercise the EXACT model/lane/config the
+  measured work uses.** The 2026-08-07 cage gauntlet probed the ambient
+  default lane (gpt-4o, key present), then burned all 8 seeds against the
+  pinned adversary lane (Ollama, key absent). A probe of a different lane
+  is a false-green generator. Fixed structurally in #1416
+  (`probeBothLanes()`); hold new instruments to the same bar.
+- **A run that completed ZERO units of work must exit non-zero.** The
+  same gauntlet printed `0 losses` with exit 0 after 0 matches ran.
+  Zero-measured must never render as zero-findings.
+- **Model lanes must be pinned in the instrument, never ambient.**
+  Without `AI_FORCE_OLLAMA` a bare `invokeLLM` resolves to
+  `LLM_MODEL || gpt-4o` on OpenAI; with it, EVERY request — explicit
+  pins included — flattens onto one model, silently defeating duel
+  role-diversity. Pin by Ollama-native substring name (routes with no
+  flag); see `AGENT_MODEL` in `scripts/cage-match.ts` and
+  `GHOST_AGENT_MODEL` in `server/services/ghostReplay.ts`.
+
+## Running a script that needs real credentials
+
+- **nickstire's `.env` does NOT carry the Ollama key.** `OLLAMA_API_KEY`
+  lives in `apps/statenour/.env` locally and on Railway in prod — grep
+  proof 2026-08-07: absent from both the primary and worktree nickstire
+  `.env`. Inject it per-shell for local instrument runs.
+- **Background / `run_in_background` shells inherit NO inline env.**
+  Earlier runs worked only because the interactive shell happened to
+  carry the key; the fresh background shell had nothing. Set the env in
+  the SAME command that runs the script.
+- Scripts that need a foreign-app key must fail fast naming its home
+  (pattern: `scripts/cage-match.ts` after #1416).
+
 ## Multi-session push protocol
 
 `main` is shared between concurrent Claude sessions (e.g., nickstire

@@ -61,6 +61,23 @@ If `git push` fails with the pre-push hook citing the OTHER app's build:
 5. After they fix and push, your local `git log origin/main..HEAD`
    should show in-sync (your commit went out with theirs).
 
+## PR mechanics under concurrent sessions
+
+1. **ALWAYS capture the PR number from the `gh pr create` output** —
+   `$num = ($prUrl -split '/')[-1]` — and merge THAT. Never merge a
+   guessed or remembered number: sibling sessions interleave the PR
+   sequence, and on 2026-08-07 a session merged "#1411" by assumption —
+   it was the sibling's already-merged PR (harmless only by luck).
+2. **`gh pr merge` can fail AFTER the remote merge succeeded.** With
+   `--delete-branch`, gh tries to check out `main` locally; if `main` is
+   checked out in another worktree it exits 1 with
+   `fatal: 'main' is already used by worktree ...` — but the squash-merge
+   already landed. Before ANY retry:
+   ```bash
+   gh pr view <n> --json state,mergeCommit
+   ```
+   `MERGED` means done — just `git fetch origin main` and ff-sync.
+
 ## Local Windows path note
 
 The repo lives at `C:\Users\nourd\NOURCITY\` (in bash:
