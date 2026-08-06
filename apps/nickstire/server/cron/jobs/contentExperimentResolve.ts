@@ -38,6 +38,10 @@ const GATHERABLE_METRIC: Record<string, "shares" | "saved" | "views" | "reach" |
   reach: "reach",
   avg_watch_time: "avgWatchTimeMs",
   ig_reels_avg_watch_time: "avgWatchTimeMs",
+  // The snapshot column name itself — the live hook-style-2026-08 experiment
+  // declares its metric this way (found 2026-08-06 when the resolver reported
+  // the estate's one real experiment "unmeasurable").
+  avgWatchTimeMs: "avgWatchTimeMs",
 };
 
 export async function processContentExperimentResolve(): Promise<ProcessResult> {
@@ -65,6 +69,17 @@ export async function processContentExperimentResolve(): Promise<ProcessResult> 
       const verdict = await recordVerdict(def, column, 72);
       resolved++;
       outcomes.push(`${def.experimentId}: ${verdict?.status ?? "no verdict"}`);
+      // ACTUATOR SEAM (2026-08-06, propose-only): a decisive verdict is
+      // worthless sitting in a column nobody reads. Winners are PROPOSED to
+      // the operator — never auto-applied; changing what the lanes generate
+      // stays an operator decision.
+      if (verdict && (verdict.status === "winner" || verdict.status === "tie")) {
+        const { sendTelegram } = await import("../../services/telegram");
+        const line = verdict.status === "winner"
+          ? `CONTENT EXPERIMENT CONCLUDED: ${def.experimentId} — winner "${verdict.variantValue}" (arm ${verdict.armId}, lift ${(verdict.lift * 100).toFixed(0)}% on ${def.primaryMetric}). Proposal: adopt the winning ${def.primaryVariable} as the lane default and start the next experiment. Nothing changes until you act.`
+          : `CONTENT EXPERIMENT CONCLUDED: ${def.experimentId} — TIE on ${def.primaryMetric}. Proposal: retire this variable and test a different one. Nothing changes until you act.`;
+        await sendTelegram(line).catch(() => undefined);
+      }
     } catch (error) {
       outcomes.push(`${def.experimentId}: ERROR`);
       log.warn("experiment verdict failed", {

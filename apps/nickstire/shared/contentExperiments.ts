@@ -104,6 +104,12 @@ export const METRIC_SPECS: Record<string, MetricSpec> = {
   poll_participation: COUNT,
   // raw Instagram insight field names, for experiments declared against them
   ig_reels_avg_watch_time: { aggregation: "WEIGHTED_AVERAGE", direction: "HIGHER_IS_BETTER" },
+  // 2026-08-06 · the snapshot COLUMN name, found live: the real running
+  // experiment (hook-style-2026-08, seeded 08-01) declares primaryMetric
+  // "avgWatchTimeMs" — absent here, so the evaluator refused it as unknown
+  // and the experiment could never conclude. Same semantics as
+  // avg_watch_time: milliseconds-per-viewer, weighted, higher wins.
+  avgWatchTimeMs: { aggregation: "WEIGHTED_AVERAGE", direction: "HIGHER_IS_BETTER" },
   reels_skip_rate: { aggregation: "RAW_AVERAGE", direction: "LOWER_IS_BETTER" },
   shares: COUNT,
   saved: COUNT,
