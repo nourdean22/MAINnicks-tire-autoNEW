@@ -211,12 +211,23 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
   for (const r of rows) {
     const meta = (r.metadata as {
       resolved?: boolean;
+      resolvedOutcome?: string;
       errorPct?: number;
       actualScore?: number;
       predictions?: Array<{ metric: string; value: number }>;
     } | null) ?? {};
     if (!meta.resolved) {
       pending++;
+      continue;
+    }
+    // expired_unverifiable rows are marked resolved:true by the
+    // brain-intelligence cron ONLY so they leave the pending pool — they carry
+    // no measured outcome. Counting them here inflated resolvedCount past the
+    // >=5 threshold while contributing zero accuracy data, so the prompt could
+    // receive a fabricated "0% within ±20%" block built from rows nobody ever
+    // verified (found by adversarial review, 2026-08-06). They are neither
+    // resolved-with-data nor pending: skip.
+    if (meta.resolvedOutcome === "expired_unverifiable") {
       continue;
     }
     resolved++;
