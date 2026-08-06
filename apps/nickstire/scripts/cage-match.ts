@@ -46,12 +46,15 @@ interface SeedRow {
 /**
  * Role diversity (2026-08-06 directive): the adversarial caller runs on a
  * DIFFERENT model from the receptionist under test — the same model on both
- * sides of a duel creates correlated blind spots. CAGE_ADVERSARY_MODEL
- * overrides (candidate default glm-5.2, live-verified on the funded key);
- * the receptionist rides the default lane exactly as production does. The
+ * sides of a duel creates correlated blind spots. Default set by TOURNAMENT
+ * EVIDENCE, not reputation (#1396 scorecard): gpt-oss:120b scored 100% pass /
+ * 100% consistency at 1835ms and is a different model family from the
+ * deepseek receptionist lane — maximum family diversity. (glm-5.2 also
+ * scored 100/100 but was slowest at 3403ms and empty-burned once live.)
+ * The receptionist rides the default lane exactly as production does. The
  * grader is deterministic code — no model at all.
  */
-const ADVERSARY_MODEL = process.env.CAGE_ADVERSARY_MODEL || "glm-5.2";
+const ADVERSARY_MODEL = process.env.CAGE_ADVERSARY_MODEL || "gpt-oss:120b";
 
 async function llm(system: string, user: string, maxTokens: number, model?: string): Promise<string> {
   const { invokeLLM } = await import("../server/_core/llm");
