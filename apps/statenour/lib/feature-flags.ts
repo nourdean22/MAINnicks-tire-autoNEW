@@ -328,6 +328,14 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Events are logged to the database but no real-time Telegram notifications are sent.",
     ownerDoc: "lib/services/vehicle-detection.ts",
   },
+  {
+    key: "CALIBRATION_PROMPT_BLOCK_DISABLED",
+    description: "Kill-switch for the prediction-calibration block in Prompt V2. The nightly brain-intelligence cron resolves predictions and rolls 30d Brier accuracy; the block feeds that track record back into the system prompt so stated confidence is conditioned on the measured record. Set to 1 only to suppress the block (rollback lever).",
+    status: "canary",
+    onValue: "1",
+    defaultBehavior: "Calibration block is injected into Prompt V2 (fail-open: a failed stats query injects nothing).",
+    ownerDoc: "lib/ai/outcome-calibration.ts",
+  },
 ];
 
 // Overrides state cache
