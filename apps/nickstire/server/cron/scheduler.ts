@@ -1505,6 +1505,19 @@ export function startTieredScheduler(): void {
           return processClosedLoopMeasure();
         },
       },
+      // 2026-08-05 · the missing RESOLVER for the content experiment registry
+      // (0108): assignment was wired at enqueue but startExperiment /
+      // attachPublishedMedia / recordVerdict had ZERO callers, so no experiment
+      // could ever start or conclude. Reads running experiments daily, gathers
+      // 72h snapshot observations, records a verdict; refusals persist and
+      // leave the experiment running. No-op one-SELECT when nothing is running.
+      {
+        name: "content-experiment-resolve",
+        handler: async () => {
+          const { processContentExperimentResolve } = await import("./jobs/contentExperimentResolve");
+          return processContentExperimentResolve();
+        },
+      },
       // 2026-07-07 · the missing WRITER for the service-affinity closed
       // loop: resolves matured predictions into prediction_outcomes
       // (invoice within 14d via last-10 phone join). The table + its

@@ -192,6 +192,63 @@ export async function hookArmForEpisode(episodeKey: string): Promise<"direct" | 
   }
 }
 
+/**
+ * Every running experiment as a typed definition. Loader for the daily
+ * resolver + the operator status surface — the row→def mapping the two
+ * assignment readers inline for their single-experiment case.
+ */
+export async function loadRunningExperiments(): Promise<ExperimentDefinition[]> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return [];
+  const { contentExperiments } = await import("../../drizzle/schema");
+  const { eq, asc } = await import("drizzle-orm");
+  const rows = await d
+    .select()
+    .from(contentExperiments)
+    .where(eq(contentExperiments.status, "running"))
+    .orderBy(asc(contentExperiments.startedAt));
+  return (rows as unknown as Array<{
+    experimentId: string; primaryVariable: string; objective: string; primaryMetric: string;
+    armsJson: unknown; startedAt: Date;
+  }>).map((row) => ({
+    experimentId: row.experimentId,
+    primaryVariable: row.primaryVariable as ExperimentDefinition["primaryVariable"],
+    objective: row.objective as ExperimentDefinition["objective"],
+    primaryMetric: row.primaryMetric,
+    arms: (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"],
+    startedAt: new Date(row.startedAt).toISOString(),
+  }));
+}
+
+/**
+ * Publish-time attach for the reel lane, keyed by the reel job id the publish
+ * site actually has in hand. `media_id IS NULL` makes it idempotent — a
+ * republish or retry can never rewrite which media an episode was measured on.
+ * Returns rows updated (0 = the job was never assigned to an experiment, the
+ * default no-experiment state).
+ */
+export async function attachPublishedMediaForReelJob(
+  reelJobId: number,
+  mediaId: string,
+  publishedAt: Date,
+): Promise<number> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return 0;
+  const { contentExperimentAssignments } = await import("../../drizzle/schema");
+  const { and, eq, isNull } = await import("drizzle-orm");
+  const [result] = await d.update(contentExperimentAssignments)
+    .set({ mediaId, publishedAt })
+    .where(and(
+      eq(contentExperimentAssignments.reelJobId, reelJobId),
+      isNull(contentExperimentAssignments.mediaId),
+    ));
+  const affected = (result as { affectedRows?: number })?.affectedRows ?? 0;
+  if (affected > 0) log.info("published media attached to experiment", { reelJobId, mediaId, rows: affected });
+  return affected;
+}
+
 /** Attach the published media id + time, which is what makes the episode
  *  measurable — a horizon cannot be derived without a publish timestamp. */
 export async function attachPublishedMedia(

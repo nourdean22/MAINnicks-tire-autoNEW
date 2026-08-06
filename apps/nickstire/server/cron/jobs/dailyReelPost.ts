@@ -398,6 +398,21 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
     // Successfully posted live!
     await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, job.id));
+    // Experiment traceability: if this job was assigned to an experiment at
+    // enqueue, stamp the published media id + time — the verdict horizon
+    // cannot be derived without them. The post is already live; a failed
+    // attach is a measurement gap, never a publish failure.
+    try {
+      if (ig.postId) {
+        const { attachPublishedMediaForReelJob } = await import("../../services/contentExperimentStore");
+        await attachPublishedMediaForReelJob(job.id, ig.postId, new Date());
+      }
+    } catch (attachErr) {
+      log.warn("experiment media attach failed (post already live)", {
+        jobId: job.id,
+        err: attachErr instanceof Error ? attachErr.message : String(attachErr),
+      });
+    }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     await setAutopostProgress(idx + 1, date);
     log.info(`Successfully posted dynamic reel for job ${job.id}`, { postId: ig.postId });
