@@ -40,7 +40,7 @@ loadEnvFromDotenv();
 const DEFAULT_SLATE = [
   "deepseek-v4-pro",   // live-verified default lane
   "glm-5.2",           // live-verified fast lane (one empty-burn observed)
-  "qwen3-coder:480b",
+  "qwen3.5:397b",     // successor — qwen3-coder retired by Ollama Cloud 2026-07-15
   "gpt-oss:120b",
   "minimax-m3",
   "kimi-k2.7-code",
