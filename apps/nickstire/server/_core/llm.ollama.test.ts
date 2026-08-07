@@ -36,8 +36,8 @@ describe("AI_FORCE_OLLAMA rerouting", () => {
 
   it("OLLAMA_MODEL overrides the default under the flag", () => {
     process.env.AI_FORCE_OLLAMA = "true";
-    process.env.OLLAMA_MODEL = "qwen3-coder:480b";
-    expect(resolveEffectiveModel("gpt-4o-mini")).toBe("qwen3-coder:480b");
+    process.env.OLLAMA_MODEL = "qwen3.5:397b"; // qwen3-coder retired 2026-07-15; fixture stays a live tag
+    expect(resolveEffectiveModel("gpt-4o-mini")).toBe("qwen3.5:397b");
   });
 
   it("LLM_MODEL (OpenRouter-era var) must NOT leak through the flag — live probe 404'd on exactly this", () => {
@@ -66,7 +66,7 @@ describe("AI_FORCE_OLLAMA rerouting", () => {
 describe("isOllamaModel substring detection (no flag)", () => {
   it("routes ollama-family ids and rejects others", () => {
     delete process.env.AI_FORCE_OLLAMA;
-    for (const m of ["deepseek-v4-pro", "qwen3-coder:480b", "gpt-oss:120b", "glm-5.2", "kimi-k2"]) {
+    for (const m of ["deepseek-v4-pro", "qwen3.5:397b", "gpt-oss:120b", "glm-5.2", "kimi-k2"]) {
       expect(isOllamaModel(m)).toBe(true);
     }
     for (const m of ["gpt-4o-mini", "gemini-2.5-flash", undefined]) {

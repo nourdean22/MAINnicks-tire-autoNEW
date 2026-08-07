@@ -107,9 +107,6 @@ importers:
       '@nour/meta-ads-architect':
         specifier: workspace:*
         version: link:../../packages/meta-ads-architect
-      '@nour/signal-forge':
-        specifier: workspace:*
-        version: link:../../packages/signal-forge
       '@nour/utils':
         specifier: workspace:*
         version: link:../../packages/utils
