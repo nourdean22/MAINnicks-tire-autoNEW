@@ -56,6 +56,8 @@ function queueHappyPath(opts?: { tuple?: boolean }) {
           curCount: 25,
           curPartsCents: 512000,
           curLaborCents: 689000,
+          curCostDetail: 25,
+          curDescribed: 20,
           prevCents: 1155600,
           prevCount: 23,
         },
@@ -120,6 +122,22 @@ describe("computeWeeklyRevenueDigest", () => {
     expect(d.arrivalsRevenue).toBe(3890);
   });
 
+  it("nulls marginPct when the window has revenue but zero cost detail", async () => {
+    // Same defect as the render test, asserted one layer down: the compute
+    // must not hand a fabricated margin to any consumer, not just Telegram.
+    execute
+      .mockResolvedValueOnce([[{ curCents: 1665695, curCount: 32, curPartsCents: 0, curLaborCents: 0, curCostDetail: 0, curDescribed: 1, prevCents: 1230047, prevCount: 22 }], []])
+      .mockResolvedValueOnce([[{ weekCents: 1665695, repeatCents: 366000, unknownCents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ cnt: 2, cents: 81699 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ bookings: 0, callbacks: 0, callbacksOpen: 0 }], []]);
+    const d = await computeWeeklyRevenueDigest(MONDAY_NOON_ET);
+    expect(d.revenue).toBeCloseTo(16656.95, 2);
+    expect(d.costDetailCount).toBe(0);
+    expect(d.marginPct).toBeNull(); // NOT 100
+  });
+
   it("counts leads through the SHARED actionable rule, not a re-implementation", async () => {
     queueHappyPath();
     const d = await computeWeeklyRevenueDigest(MONDAY_NOON_ET);
@@ -169,6 +187,8 @@ describe("buildWeeklyRevenueDigestText", () => {
     parts: 5120,
     labor: 6890,
     marginPct: 59,
+    costDetailCount: 25,
+    describedCount: 20,
     prevRevenue: 11556,
     prevInvoiceCount: 23,
     deltaPct: 8,
@@ -197,6 +217,43 @@ describe("buildWeeklyRevenueDigestText", () => {
     expect(text).toContain("▲ 8%");
     expect(text).toContain("<b>31%</b>");
     expect(text).toContain("arrivals → paid invoices: <b>6</b> ($3,890)");
+  });
+
+  it("NEVER renders a margin when no invoice carries cost detail", () => {
+    // THE REGRESSION THIS PINS, found by running the digest against prod
+    // 2026-08-08: the ALG mirror stopped receiving parts/labor on
+    // 2026-04-09, so partsCost is 0 on every recent invoice. The naive
+    // (revenue - parts) / revenue then renders "Margin 100%" — a confident
+    // fabrication on a shop that plainly pays for parts.
+    const text = buildWeeklyRevenueDigestText({
+      ...base,
+      parts: 0,
+      labor: 0,
+      marginPct: null,
+      costDetailCount: 0,
+    });
+    expect(text).not.toContain("Margin");
+    expect(text).not.toContain("Margin 100%");
+    expect(text).not.toContain("Parts $0");
+    expect(text).toContain("Parts/labor missing on all 25 invoices");
+    expect(text).toContain("margin unavailable");
+  });
+
+  it("flags partial cost-detail coverage rather than implying it is complete", () => {
+    const text = buildWeeklyRevenueDigestText({ ...base, costDetailCount: 9 });
+    expect(text).toContain("Margin 59%");
+    expect(text).toContain("cost detail on 9/25");
+  });
+
+  it("says top services are unavailable rather than listing an empty-description bucket", () => {
+    const text = buildWeeklyRevenueDigestText({ ...base, topServices: [], describedCount: 0 });
+    expect(text).toContain("no invoice this week carried a description");
+    expect(text).not.toContain("(no description)");
+  });
+
+  it("shows description coverage alongside the top-services list", () => {
+    const text = buildWeeklyRevenueDigestText(base);
+    expect(text).toContain("Top services (described: 20/25)");
   });
 
   it("carries the demand line absorbed from the retired weeklyReport router", () => {
