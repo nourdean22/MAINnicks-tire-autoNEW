@@ -60,8 +60,24 @@ export interface WeeklyRevenueDigestData {
   avgTicket: number;
   parts: number;
   labor: number;
-  /** (revenue - parts) / revenue, 0-100. Null when revenue is 0. */
+  /**
+   * (revenue - parts) / revenue, 0-100. Null when revenue is 0 OR when NO
+   * invoice in the window carries cost detail — see costDetailCount.
+   */
   marginPct: number | null;
+  /**
+   * Invoices in the window with partsCost>0 OR laborCost>0.
+   *
+   * 2026-08-08 · this exists because reporting margin without it is a LIE.
+   * The ALG mirror stopped receiving parts/labor on 2026-04-09 (probed live:
+   * 1,886 of 2,899 lifetime paid invoices carry parts; 0 of the last 30 do).
+   * With those columns at 0, `revenue - parts` equals revenue, so the naive
+   * formula renders a confident "Margin 100%" on the operator's phone for a
+   * shop that obviously pays for parts. Absent data must read as absent.
+   */
+  costDetailCount: number;
+  /** Invoices in the window carrying a non-empty serviceDescription. */
+  describedCount: number;
   /** Prior 7-day window dollars, for the WoW delta. */
   prevRevenue: number;
   prevInvoiceCount: number;
@@ -129,6 +145,8 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
       SUM(CASE WHEN invoiceDate >= ${windowStart} THEN 1 ELSE 0 END)           AS curCount,
       SUM(CASE WHEN invoiceDate >= ${windowStart} THEN partsCost ELSE 0 END)   AS curPartsCents,
       SUM(CASE WHEN invoiceDate >= ${windowStart} THEN laborCost ELSE 0 END)   AS curLaborCents,
+      SUM(CASE WHEN invoiceDate >= ${windowStart} AND (partsCost > 0 OR laborCost > 0) THEN 1 ELSE 0 END) AS curCostDetail,
+      SUM(CASE WHEN invoiceDate >= ${windowStart} AND COALESCE(TRIM(serviceDescription), '') <> '' THEN 1 ELSE 0 END) AS curDescribed,
       SUM(CASE WHEN invoiceDate <  ${windowStart} THEN totalAmount ELSE 0 END) AS prevCents,
       SUM(CASE WHEN invoiceDate <  ${windowStart} THEN 1 ELSE 0 END)           AS prevCount
     FROM invoices
@@ -142,6 +160,8 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
   const labor = toDollars(agg?.curLaborCents);
   const prevRevenue = toDollars(agg?.prevCents);
   const prevInvoiceCount = Number(agg?.prevCount) || 0;
+  const costDetailCount = Number(agg?.curCostDetail) || 0;
+  const describedCount = Number(agg?.curDescribed) || 0;
 
   // Repeat-revenue share: this week's paid dollars split by whether the
   // same phone (last-10, both sides normalized identically to the
@@ -169,21 +189,27 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
   const unknownCents = Number(rep?.unknownCents) || 0;
   const newCents = Math.max(0, weekCentsNum - repeatCents - unknownCents);
 
+  // Only invoices that actually carry a description. Bucketing the rest under
+  // "(no description)" put a meaningless row at #1 holding 97% of revenue —
+  // a top-services list whose top entry is the absence of data is noise.
   const topRaw = await d.execute(sql`
-    SELECT COALESCE(NULLIF(TRIM(SUBSTRING(serviceDescription, 1, 60)), ''), '(no description)') AS svc,
+    SELECT TRIM(SUBSTRING(serviceDescription, 1, 60)) AS svc,
            SUM(totalAmount) AS cents,
            COUNT(*) AS cnt
     FROM invoices
     WHERE paymentStatus = 'paid'
       AND invoiceDate >= ${windowStart} AND invoiceDate < ${windowEnd}
+      AND COALESCE(TRIM(serviceDescription), '') <> ''
     GROUP BY svc
     ORDER BY cents DESC
     LIMIT 5`);
-  const topServices = (tupleRows(topRaw) as Array<Record<string, unknown>>).map((r) => ({
-    name: String(r.svc ?? "(no description)"),
-    revenue: toDollars(r.cents),
-    count: Number(r.cnt) || 0,
-  }));
+  const topServices = (tupleRows(topRaw) as Array<Record<string, unknown>>)
+    .filter((r) => String(r.svc ?? "").trim() !== "")
+    .map((r) => ({
+      name: String(r.svc),
+      revenue: toDollars(r.cents),
+      count: Number(r.cnt) || 0,
+    }));
 
   // The receipt: voice/SMS "I'll come by" promises that reconciled to a real
   // invoice this week (services/expectedArrivals.reconcileExpectedArrivals).
@@ -226,7 +252,9 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
     avgTicket: invoiceCount > 0 ? Math.round(revenue / invoiceCount) : 0,
     parts,
     labor,
-    marginPct: revenue > 0 ? Math.round(((revenue - parts) / revenue) * 100) : null,
+    marginPct: revenue > 0 && costDetailCount > 0 ? Math.round(((revenue - parts) / revenue) * 100) : null,
+    costDetailCount,
+    describedCount,
     prevRevenue,
     prevInvoiceCount,
     deltaPct: prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null,
@@ -262,8 +290,26 @@ export function buildWeeklyRevenueDigestText(data: WeeklyRevenueDigestData): str
     `📈 <b>WEEKLY REVENUE — ${money(data.revenue)}</b>`,
     `${fmtDay(data.windowStart)}–${fmtDay(data.windowEnd)} · ${data.invoiceCount} paid invoices · avg ${money(data.avgTicket)}`,
     delta,
-    `Parts ${money(data.parts)} · Labor ${money(data.labor)}${data.marginPct !== null ? ` · Margin ${data.marginPct}%` : ""}`,
   ];
+
+  // Cost detail: report it, or report that it is MISSING. Never render the
+  // absence as a number — $0 parts on 32 paid invoices is a broken import,
+  // not a 100% margin.
+  if (data.costDetailCount === 0 && data.invoiceCount > 0) {
+    lines.push(
+      `⚠️ Parts/labor missing on all ${data.invoiceCount} invoices — margin unavailable (ALG import gap)`,
+    );
+  } else if (data.costDetailCount > 0) {
+    const partial =
+      data.costDetailCount < data.invoiceCount
+        ? ` (cost detail on ${data.costDetailCount}/${data.invoiceCount})`
+        : "";
+    lines.push(
+      `Parts ${money(data.parts)} · Labor ${money(data.labor)}${
+        data.marginPct !== null ? ` · Margin ${data.marginPct}%` : ""
+      }${partial}`,
+    );
+  }
 
   if (data.repeatPct !== null) {
     lines.push(
@@ -274,10 +320,14 @@ export function buildWeeklyRevenueDigestText(data: WeeklyRevenueDigestData): str
   }
 
   if (data.topServices.length > 0) {
-    lines.push("Top services:");
+    lines.push(
+      `Top services (described: ${data.describedCount}/${data.invoiceCount}):`,
+    );
     data.topServices.forEach((s, i) => {
       lines.push(`  ${i + 1}. ${esc(s.name)} — ${money(s.revenue)} (${s.count})`);
     });
+  } else if (data.invoiceCount > 0) {
+    lines.push(`Top services: unavailable — no invoice this week carried a description`);
   }
 
   lines.push(
