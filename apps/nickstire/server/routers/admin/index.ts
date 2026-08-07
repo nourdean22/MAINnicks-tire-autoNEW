@@ -13,7 +13,6 @@
 export { adminDashboardRouter } from "./dashboard";
 export { analyticsRouter } from "./analytics";
 export { followUpsRouter } from "./followUps";
-export { weeklyReportRouter } from "./weeklyReport";
 export { callTrackingRouter } from "./callTracking";
 export { customerEventsRouter } from "./customerEvents";
 export { exportRouter } from "./export";
