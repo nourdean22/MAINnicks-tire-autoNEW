@@ -357,6 +357,32 @@ export function resolveEffectiveModel(requested: string | undefined): string | u
   // host, so pins MUST be rerouted or they 404. deepseek-v4-pro is the
   // live-verified successor default (statenour config, 2026-07-15).
   if (process.env.AI_FORCE_OLLAMA === "true") {
+    // An Ollama-NATIVE pin is already on the funded lane and cannot 404 for
+    // the reason this flag exists, so it survives (2026-08-07). Without this,
+    // the reroute silently flattened EVERY lane onto one model in prod:
+    // OLLAMA_MODEL is unset on Railway, so judgeSingleConcept, the igAutopost
+    // generator it grades, and resolutionJudge's explicit "gpt-oss:120b" pin
+    // all resolved to deepseek-v4-pro — a judge grading its own family, which
+    // is the self-eval defect the concept tournament exists to remove. The
+    // divergence was invisible locally, where the flag is unset and pins work.
+    //
+    // NOTE: isOllamaModel() is unusable here — it short-circuits to true under
+    // this very flag, which would let "gpt-4o-mini" through and 404. The raw
+    // substring list is the only correct test.
+    //
+    // A native pin beats OLLAMA_MODEL deliberately: the env var is the DEFAULT
+    // for unpinned and non-native calls, not a hammer. Making pin-survival
+    // conditional on it would reintroduce the same silent flattening one layer
+    // down. If a true global override is ever needed, it should be a new flag
+    // whose name says it flattens — not a side effect of this one.
+    // The "/" guard: vendor-prefixed ids ("moonshotai/kimi-k2",
+    // "deepseek/deepseek-v3.2-exp") CONTAIN a native substring but are the
+    // OpenRouter form Ollama does not host — surviving verbatim would 404.
+    // Ollama-native ids are name:tag, never vendor/name, so "/" is the
+    // discriminator; prefixed forms fall through to the safe default.
+    if (requested && !requested.includes("/") && OLLAMA_MODEL_SUBSTRINGS.some((s) => requested.includes(s))) {
+      return requested;
+    }
     // ONLY OLLAMA_MODEL may override here — LLM_MODEL is the OpenRouter-era
     // variable and typically names a model Ollama does not host (the live
     // probe resolved to meta-llama/llama-3.3-70b-instruct → 404, the exact

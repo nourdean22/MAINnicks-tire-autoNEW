@@ -54,8 +54,15 @@ export function extractCallerTurns(transcript: string): string[] {
  * "deepseek-v4-pro"; this mirrors it. The name is an Ollama-native substring,
  * so it routes to the Ollama lane with no force flag; on Railway the force
  * flag reroutes to the same place — parity in both environments.
+ *
+ * Env escape (2026-08-07): now that a native pin SURVIVES AI_FORCE_OLLAMA,
+ * this constant no longer follows an emergency OLLAMA_MODEL reassignment. A
+ * hard const would leave the weekly evolution cron 404ing after an Ollama
+ * model retirement (a documented recurring event — deepseek-v3.1 2026-07-15,
+ * qwen3-vl 2026-06-16) with a code deploy as the only cure. Same pattern as
+ * RESOLUTION_JUDGE_MODEL / PROMPT_EVOLVE_OPTIMIZER / the cage lanes.
  */
-export const GHOST_AGENT_MODEL = "deepseek-v4-pro";
+export const GHOST_AGENT_MODEL = process.env.GHOST_AGENT_MODEL || "deepseek-v4-pro";
 
 /** The same deterministic vocabulary the cage match grades on.
  *  Transfer language added 2026-08-06: a live transfer IS a resolution — the
