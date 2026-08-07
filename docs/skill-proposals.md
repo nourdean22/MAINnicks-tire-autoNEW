@@ -419,7 +419,7 @@ statenour primitives documented (existence re-verified at
   gate: do not merge while it is red. For registry-version changes, hand
   the install to the operator or a primary-checkout session."
 - **Confidence:** medium (once, mechanism fully understood, CI-verified)
-- **Status:** proposed
+- **Status:** applied #1434 (operator approved 2026-08-08 — "Approve all skills in proposal")
 
 ### P2 · `nickstire-verify` (the DoD compiler derives requirements per-diff)
 - **Trigger (witnessed):** #1428 failed `completion-authority` in 22s —
@@ -436,7 +436,7 @@ statenour primitives documented (existence re-verified at
   per-diff, so an untouched entry is stale by definition and fails
   completion-authority."
 - **Confidence:** medium (once, clear, will recur on every UI-touching PR)
-- **Status:** proposed
+- **Status:** applied #1434 (operator approved 2026-08-08 — "Approve all skills in proposal")
 
 ### P3 · `statenour-verify` (stale `.next/types` fails typecheck after main deletes routes)
 - **Trigger (witnessed):** statenour typecheck failed on
@@ -455,4 +455,4 @@ statenour primitives documented (existence re-verified at
   build regenerates it."
 - **Confidence:** medium (once, clear, recurs whenever main deletes routes
   under an old local `.next`)
-- **Status:** proposed
+- **Status:** applied #1434 (operator approved 2026-08-08 — "Approve all skills in proposal")

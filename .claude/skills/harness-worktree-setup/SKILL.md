@@ -54,7 +54,31 @@ Repro and probe scripts go in **this** worktree's `scripts/`. Pull env
 explicitly (`$env:DATABASE_URL` from the main checkout's `.env.local`)
 rather than `cd`-ing toward wherever the `.env` lives.
 
-## 3 · Traps
+## 3 · Changing dependencies from a worktree
+
+**Every `pnpm install` variant is policy-blocked here** — including
+`--lockfile-only`, and including from a scratchpad clone. The agent-os
+hook matches on COMMAND TEXT, not cwd, so no install runs anywhere in a
+session anchored to a worktree. (It also fires on a plain `cat >> file`
+heredoc whose *document body* merely mentions the command — write those
+with the Edit tool instead.)
+
+For **workspace-link-only** changes — adding/removing a `workspace:*`
+dep line, adding/removing a package — hand-edit `pnpm-lock.yaml`:
+
+- Remove the `importers:` entry (3 lines: name, `specifier`, `version:
+  link:...`) and/or the whole `packages/<name>:` block.
+- These are self-contained and serializer-stable — no hash or peer
+  graph recomputation is involved.
+- **CI's frozen-lockfile `node` job is the validator.** Do not merge
+  while it is red. Verified on #1428: hand-edited lockfile, `node`
+  passed in 9m08s, merge deployed clean.
+
+For **registry-version** changes (a real dependency bump), do NOT
+hand-edit — hand the install to the operator or a primary-checkout
+session.
+
+## 4 · Traps
 
 | Trap | Why |
 |---|---|

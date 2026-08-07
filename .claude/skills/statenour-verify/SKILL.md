@@ -21,6 +21,16 @@ non-obvious and two of them silently lie if run carelessly.
 
 ## Traps
 
+- **A typecheck error inside `.next/types/**` is a STALE LOCAL ARTIFACT,
+  not your diff.** Symptom: `tsc --noEmit` fails on
+  `.next/types/validator.ts` — `Cannot find module '../../app/api/<x>/
+  route.js'` — for a route that does not exist. Cause: `main` deleted the
+  route after your worktree's last `next build`; the generated validator
+  still enumerates it. Fix: **overwrite** the offending generated file
+  (e.g. write a one-line comment into it); the next build regenerates it.
+  Do NOT recursively delete `.next/types` — `Remove-Item -Recurse` on a
+  worktree path is policy-blocked (the junctions walk into the primary
+  checkout). Witnessed 2026-08-07 on `app/api/system/prompt-compare`.
 - **`pnpm test | tail` masks the exit code.** A piped command's exit
   status is `tail`'s (0), not vitest's. Read the actual
   `Test Files … failed` summary line, or run `pnpm test; echo "EXIT=$?"`
