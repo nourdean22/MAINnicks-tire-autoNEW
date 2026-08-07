@@ -83,6 +83,29 @@ export const HARD_REJECT_RULES = [
   "cannot be executed convincingly within the current production stack (4s clips, typographic slides, one decisive photo)",
 ] as const;
 
+/**
+ * The judge lane (operator-instructed pin, 2026-08-07). Same doctrine and
+ * default as RESOLUTION_JUDGE_MODEL in resolutionJudge.ts — one vocabulary
+ * across the estate's judges.
+ *
+ * WHY A DIFFERENT FAMILY. The generators (pitchRole, and igAutopost's caption
+ * writer) ride the prod default, which is deepseek-v4-pro. Until the
+ * resolveEffectiveModel fix landed, AI_FORCE_OLLAMA flattened this judge onto
+ * that same model, so the tournament built to kill self-evaluation was itself
+ * self-evaluating — and gated live publishes that way from #1419.
+ *
+ * MEASURED (eval-datasets/ig-retro-dual-judge.jsonl, 137 posted rows graded by
+ * BOTH lanes): the two families return a different gate verdict on 43 of 137
+ * rows (69% agreement). The case for gpt-oss:120b is NOT that it blocks more
+ * — the rates are near-identical (40/137 vs 37/137) — it is that it ENFORCES
+ * HARD_REJECT_RULES[0]: 33 of the 49 rows carrying the generic-visual
+ * signature, vs deepseek's 24, with rejections quoting the rule near-verbatim.
+ *
+ * Deliberately NOT applied to pitchRole (the generator) — pinning both sides
+ * would re-flatten the duel it exists to create.
+ */
+export const CONCEPT_JUDGE_MODEL = process.env.CONCEPT_JUDGE_MODEL || "gpt-oss:120b";
+
 export interface TournamentConcept {
   id: string;
   title: string;
@@ -245,6 +268,13 @@ export async function judgeSingleConcept(input: {
   concept: Omit<TournamentConcept, "id">;
   /** Ollama slot priority — defaults to P1 (shadow evaluation); backfill callers pass 3. */
   priority?: 0 | 1 | 2 | 3 | 4;
+  /**
+   * Judge lane override. Omitted = CONCEPT_JUDGE_MODEL (gpt-oss:120b), which
+   * is what every caller — including the live igAutopost gate — now gets.
+   * Only an evaluation harness deliberately comparing families should pass
+   * this (see scripts/ig-retro-dual-judge.ts, which pins both sides).
+   */
+  model?: string;
 }): Promise<JudgeScore> {
   const field: TournamentConcept[] = [{ ...input.concept, id: "entry_01" }];
   const call = async (extra?: string) => {
@@ -257,6 +287,8 @@ export async function judgeSingleConcept(input: {
       timeoutMs: 60000,
       outputSchema: JUDGE_OUTPUT_SCHEMA,
       priority: input.priority ?? 1,
+      // Pinned by default (2026-08-07) — an unpinned judge is an AMBIENT judge.
+      model: input.model ?? CONCEPT_JUDGE_MODEL,
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     return typeof raw === "string" ? raw : JSON.stringify(raw);
@@ -378,6 +410,10 @@ export async function runConceptTournament(
     maxTokens: 8192,
     timeoutMs: 90000,
     outputSchema: JUDGE_OUTPUT_SCHEMA,
+    // The full tournament's judge, pinned off the generator's family for the
+    // same reason as judgeSingleConcept — pitchRole above stays unpinned so
+    // the two sides are genuinely different models.
+    model: CONCEPT_JUDGE_MODEL,
   });
   const rawVerdict = judgeRes.choices?.[0]?.message?.content ?? "";
   const vs = typeof rawVerdict === "string" ? rawVerdict : JSON.stringify(rawVerdict);

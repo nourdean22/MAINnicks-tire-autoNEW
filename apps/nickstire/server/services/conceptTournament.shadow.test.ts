@@ -7,8 +7,9 @@
  * carries none — a fabricated all-clear in a shadow lane would poison the
  * exact dataset the gate-flip decision depends on.
  */
-import { describe, expect, it } from "vitest";
-import { parseSingleVerdict } from "./conceptTournament";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CONCEPT_JUDGE_MODEL, parseSingleVerdict } from "./conceptTournament";
+import { resolveEffectiveModel } from "../_core/llm";
 
 const verdict = {
   scores: [{ id: "entry_01", total: 74, rejected: false, rejectionReason: "", note: "solid hook" }],
@@ -45,5 +46,70 @@ describe("parseSingleVerdict", () => {
 
   it("junk input throws rather than returning garbage", () => {
     expect(() => parseSingleVerdict("the judge is out to lunch")).toThrow();
+  });
+});
+
+/**
+ * Judge-lane independence (operator-instructed pin, 2026-08-07).
+ *
+ * The defect this pins: the concept tournament exists to kill self-evaluation,
+ * but its judge was UNPINNED. Under prod's AI_FORCE_OLLAMA=true the reroute
+ * flattened judge and generator onto the same deepseek-v4-pro — and that
+ * arrangement gated live IG publishes from #1419. The pin only became
+ * effective once resolveEffectiveModel started honouring Ollama-native names.
+ *
+ * Env hygiene per AGENTS §3: singleFork shares one process.env.
+ */
+describe("CONCEPT_JUDGE_MODEL — the judge must not be the generator's family", () => {
+  const TOUCHED = ["AI_FORCE_OLLAMA", "AI_FORCE_GEMINI", "OLLAMA_MODEL", "OLLAMA_API_KEY"] as const;
+  const orig: Record<string, string | undefined> = {};
+  for (const k of TOUCHED) orig[k] = process.env[k];
+  afterEach(() => {
+    for (const k of TOUCHED) {
+      if (orig[k] === undefined) delete process.env[k];
+      else process.env[k] = orig[k];
+    }
+    vi.unstubAllEnvs();
+  });
+
+  it("defaults to an Ollama-native, non-deepseek family", () => {
+    expect(CONCEPT_JUDGE_MODEL).toBe("gpt-oss:120b");
+    expect(CONCEPT_JUDGE_MODEL).not.toContain("deepseek");
+  });
+
+  it("SURVIVES the prod force-flag — the pin is real in prod, not just locally", () => {
+    process.env.AI_FORCE_OLLAMA = "true";
+    delete process.env.OLLAMA_MODEL; // the exact Railway config
+    expect(resolveEffectiveModel(CONCEPT_JUDGE_MODEL)).toBe("gpt-oss:120b");
+  });
+
+  it("REGRESSION: judge and generator resolve to different models under the prod flag", () => {
+    process.env.AI_FORCE_OLLAMA = "true";
+    delete process.env.OLLAMA_MODEL;
+    // pitchRole/igAutopost pass no model, so the generator takes the default.
+    const generator = resolveEffectiveModel(undefined);
+    const judge = resolveEffectiveModel(CONCEPT_JUDGE_MODEL);
+    expect(generator).toBe("deepseek-v4-pro");
+    expect(judge).not.toBe(generator);
+  });
+
+  /**
+   * MECHANISM, not the constant. Everything above would still pass if
+   * judgeSingleConcept never actually forwarded the pin — the exact
+   * "exercised it but asserted nothing" trap. No mock needed: with the flag on
+   * and the key removed, resolveApiUrl throws naming the model it resolved, so
+   * the message is proof of which lane the call was really headed for.
+   */
+  it("judgeSingleConcept actually SENDS the pinned model — proven by the resolved-lane error", async () => {
+    process.env.AI_FORCE_OLLAMA = "true";
+    delete process.env.OLLAMA_MODEL;
+    delete process.env.OLLAMA_API_KEY;
+    const { judgeSingleConcept } = await import("./conceptTournament");
+    await expect(
+      judgeSingleConcept({
+        campaignAsk: "pin proof",
+        concept: { title: "t", hook: "h", coreIdea: "c", visualIdea: "v", whyItWorks: "w" },
+      }),
+    ).rejects.toThrow(/gpt-oss:120b/);
   });
 });
