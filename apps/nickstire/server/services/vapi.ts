@@ -981,12 +981,36 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
       waitSeconds: 0.4, // Wait this long after user stops before responding
       smartEndpointingEnabled: true, // Use ML to detect end-of-utterance
       transcriptionEndpointingPlan: {
-        // Different delay rules based on what user just said
-        onPunctuationSeconds: 0.1, // "." or "?" — they're done, respond fast
+        /**
+         * onPunctuation 0.1 → 0.45 (2026-08-07). Measured across all 416
+         * vaulted transcripts: 239 caller turns (16.4%) are HESITATION STUBS —
+         * "Yeah." / "Okay." / "Yes. Hello?" — because Deepgram smartFormat
+         * punctuates a pause to think. At 100ms the assistant answered that
+         * punctuation mark, not the caller, and the real request never landed.
+         * Five of fourteen recent failure-labeled calls read as pure fragments
+         * ("Yeah. So I was wonder." · "I put" · "Four of my words. Hey.").
+         *
+         * HONESTLY BOUNDED: transcripts cannot PROVE the assistant cut anyone
+         * off — that needs the audio. The correlation is real but weak
+         * (tiny-turn rate 55.0% on lost_opportunity vs 49.1% on
+         * walk_in_directed). This is a conservative change to a value that is
+         * aggressive for a shop whose callers are usually driving; the cost is
+         * ≤0.35s of extra latency after a genuinely finished sentence.
+         * `scripts/stt-forensics.ts` re-measures the same signals so the
+         * change is falsifiable — re-run it once new calls accumulate.
+         */
+        onPunctuationSeconds: 0.45,
         onNoPunctuationSeconds: 1.5, // No punctuation — wait, they may continue
         onNumberSeconds: 0.5, // After a number ("215") — they may still be reading
       },
     },
+    /**
+     * DELIBERATELY UNCHANGED (2026-08-07). The barge-in hypothesis — that
+     * numWords:2 / voiceSeconds:0.2 lets road noise kill the assistant's turn,
+     * producing the repeated-"Hello?" pattern — was REFUTED by measurement:
+     * only 3 of 416 vaulted calls (0.7%) contain two or more bare "Hello?"
+     * turns. Do not "fix" this without new evidence.
+     */
     stopSpeakingPlan: {
       numWords: 2, // Customer said 2+ words = interrupt me
       voiceSeconds: 0.2, // Customer's voice for 200ms = interrupt me
