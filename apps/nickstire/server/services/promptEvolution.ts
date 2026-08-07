@@ -15,6 +15,7 @@ import { invokeLLM } from "../_core/llm";
 import {
   extractCallerTurns,
   ghostReplay,
+  gradeReplies,
   gradeRepliesWithJudge,
   splitSeeds,
   violatedInvariants,
@@ -115,6 +116,101 @@ export async function loadSeeds(seedCount: number, filterRx?: RegExp | null): Pr
     .filter((s) => !filterRx || filterRx.test(s.callerTurns.join("\n")))
     .slice(0, seedCount);
   return { seeds, excludedVerified };
+}
+
+/**
+ * The outcomes classifyCall treats as a WIN. Read by the success audit only —
+ * never by loadSeeds, and never by the optimizer.
+ */
+export const SUCCESS_OUTCOMES = ["hard_conversion", "walk_in_directed", "human_handoff", "resolved_info"] as const;
+
+/**
+ * WIDEN THE APERTURE (2026-08-07) — replay calls the classifier called a WIN.
+ *
+ * Every defect this loop has found so far came from calls already labeled a
+ * failure: it can only ever find what we already knew went wrong. Measured the
+ * same day: of 2,509 classified calls, 248 are failure-labeled and only 57 of
+ * those have a vaulted transcript — while 538 hard_conversion, 445
+ * walk_in_directed and 700 human_handoff calls were never examined at all.
+ * A call can convert DESPITE a bad turn, and a compliance breach inside a
+ * won call is exactly the defect nobody is looking for.
+ *
+ * ★ These seeds are an AUDIT sample, NOT training data. They are deliberately
+ * unreachable from runPromptEvolution: a won call is a mislabeled-win risk of
+ * the #1410 class, and feeding "fix this" edits from calls that worked is how
+ * an optimizer learns to break what already converts. Pinned by test.
+ */
+export async function loadSuccessSeeds(seedCount: number, filterRx?: RegExp | null): Promise<Seed[]> {
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) throw new Error("no DB");
+  const { sql } = await import("drizzle-orm");
+  const [raw] = await d.execute(sql`
+    SELECT a.vapi_call_id AS id, a.transcript, l.eval_outcome AS evalOutcome, l.aiSummary AS summary
+    FROM vapi_call_archives a
+    JOIN vapi_call_logs l ON l.vapiCallId = a.vapi_call_id
+    WHERE a.transcript IS NOT NULL
+      AND l.eval_outcome IN ('hard_conversion','walk_in_directed','human_handoff','resolved_info')
+    ORDER BY a.started_at DESC
+    LIMIT ${seedCount * 3}
+  `);
+  const rows = raw as unknown as Array<{ id: string; transcript: string; evalOutcome: string; summary: string | null }>;
+  return rows
+    .map((r) => ({
+      id: r.id, callerTurns: extractCallerTurns(r.transcript), evalOutcome: r.evalOutcome,
+      summary: r.summary, revenueResolution: null,
+    }))
+    .filter((s) => s.callerTurns.length >= 2 && s.callerTurns.length <= 10)
+    .filter((s) => !filterRx || filterRx.test(s.callerTurns.join("\n")))
+    .slice(0, seedCount);
+}
+
+/**
+ * A defect found inside a call that WON. Compliance breaches are the headline:
+ * they are disqualifying regardless of outcome, and a converted call that
+ * quoted a banned repair price is a compliance failure the classifier scored
+ * as a success.
+ */
+export interface SuccessAuditFinding {
+  id: string;
+  evalOutcome: string;
+  priceLeaks: number;
+  guarantees: number;
+  emptyReplies: number;
+  resolutionOffered: boolean;
+  replies: string[];
+  callerTurns: string[];
+}
+
+export interface SuccessAuditResult {
+  audited: number;
+  clean: number;
+  findings: SuccessAuditFinding[];
+}
+
+/** Replay won calls and surface only the ones carrying a real defect. */
+export async function auditSuccessCalls(
+  prompt: string,
+  seeds: Seed[],
+  log: (line: string) => void = () => {},
+): Promise<SuccessAuditResult> {
+  const findings: SuccessAuditFinding[] = [];
+  for (const s of seeds) {
+    const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3 });
+    // The deterministic violation checks only — NOT gradeRepliesWithJudge. A
+    // won call's resolution is not in question, and spending a judge call per
+    // seed to re-confirm it would be measurement theatre.
+    const g = gradeReplies(replies);
+    const defective = g.priceLeaks > 0 || g.guarantees > 0 || g.emptyReplies > 0;
+    if (defective) {
+      findings.push({
+        id: s.id, evalOutcome: s.evalOutcome, priceLeaks: g.priceLeaks, guarantees: g.guarantees,
+        emptyReplies: g.emptyReplies, resolutionOffered: g.resolutionOffered, replies, callerTurns: s.callerTurns,
+      });
+      log(`DEFECT in a WON call ${s.id} (${s.evalOutcome}): priceLeaks=${g.priceLeaks} guarantees=${g.guarantees} empty=${g.emptyReplies}`);
+    }
+  }
+  return { audited: seeds.length, clean: seeds.length - findings.length, findings };
 }
 
 export async function scorePrompt(prompt: string, seeds: Seed[], opts: { keepReplies?: boolean } = {}): Promise<ScoredPrompt> {
