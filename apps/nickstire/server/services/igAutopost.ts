@@ -45,8 +45,41 @@ import { invokeLLM } from "../_core/llm";
 import { isEnabled } from "./featureFlags";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
 import { shadowJudgeGate } from "./igJudgeGate";
+// ONE source of truth for the cap — the reel lane's constant, not a second copy.
+// A forked limit is how this lane drifted to 12 while the reel lane was on 5.
+import { INSTAGRAM_HASHTAG_CAP } from "../../client/src/lib/facelessReelStudio";
 
 const log = createLogger("ig-autopost");
+
+/**
+ * Normalize + cap the generator's hashtags. Exported and PURE so a test can
+ * exercise the real thing — an inline copy in a test file passes happily while
+ * the implementation drifts, which is how this defect survived.
+ *
+ * The cap here USED to be 12. Instagram's real limit has been
+ * INSTAGRAM_HASHTAG_CAP (5) since Dec 2025; the reel lane was corrected in
+ * #1257 and this lane — which publishes ~2x/day — was not, while the generator
+ * prompt actively asked for "6-10". Prod receipt 2026-08-07: 60 of the last 60
+ * posted rows carried 7-10 tags (7=10 · 8=34 · 9=13 · 10=3). 100% over cap.
+ *
+ * Clamping rather than blocking is deliberate: a block costs the slot, and
+ * Instagram strips the excess anyway. What changes is that the drop is now LOUD
+ * and recorded — silent stripping was the failure mode, not the truncation.
+ */
+export function normalizeHashtags(raw: unknown): { hashtags: string[]; dropped: string[] } {
+  // typeof-filter BEFORE stringifying: String(null) is "null" and
+  // String(undefined) is "undefined" — both truthy, non-empty, and they would
+  // have shipped as the literal hashtags #null / #undefined. Caught by this
+  // function's own test, not by review.
+  const cleaned = (Array.isArray(raw) ? raw : [])
+    .filter((h): h is string => typeof h === "string")
+    .map((h) => h.replace(/^#/, "").trim().toLowerCase())
+    .filter(Boolean);
+  return {
+    hashtags: cleaned.slice(0, INSTAGRAM_HASHTAG_CAP),
+    dropped: cleaned.slice(INSTAGRAM_HASHTAG_CAP),
+  };
+}
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -632,7 +665,7 @@ function buildGenUserPrompt(
     "",
     "Return JSON with exactly these fields:",
     "- caption: the full IG caption (hook -> proof -> turn -> take-away). 60-150 words. FRONT-LOAD: the hook AND its single most surprising/useful specific MUST land in the first ~125 characters — Instagram hides everything after that behind '...more'. Include at least one save-worthy or send-worthy line (a number, a beat someone would screenshot or forward). End with exactly ONE call-to-action, executed per the CTA / engagement move dial above — do NOT stack CTAs. No hashtags inside the caption.",
-    "- hashtags: array of 6-10 lowercase hashtags WITHOUT the # sign. Mix: 2-3 Cleveland-local (e.g. cleveland, euclidohio, clevelandcars), 2-3 service tags specific to THIS post's topic, 1-2 broad auto tags, and ALWAYS include the branded tag 'nickstireauto'. No banned words.",
+    `- hashtags: array of AT MOST ${INSTAGRAM_HASHTAG_CAP} lowercase hashtags WITHOUT the # sign. Instagram's cap has been ${INSTAGRAM_HASHTAG_CAP} since Dec 2025 — over it the post is rejected or the excess is SILENTLY stripped. Mix: 1-2 Cleveland-local (e.g. cleveland, euclidohio), 1-2 service tags specific to THIS post's topic, and ALWAYS include the branded tag 'nickstireauto'. Fewer than ${INSTAGRAM_HASHTAG_CAP} is fine — hashtags do not inherently increase reach. No banned words.`,
     "- imagePrompt: a vivid art-direction prompt for an image generator that realizes the visual concept above. Professional craft: cinematic or studio lighting, sharp focus, clean composition. If (and only if) the visual concept is the editorial-poster style, you MAY render ONE short bold text element — a single number or one word, spelled exactly, integrated as design; for every other concept keep the image text-free. NEVER render sentences/paragraphs/captions in the image, and NO photoreal human faces/hands/crowds. 1-3 sentences.",
     "- conceptKey: a short 3-6 word kebab-case slug capturing THIS post's unique idea (for dedupe), e.g. 'salt-eats-brake-lines-winter'."
   );
@@ -764,10 +797,13 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
     caption: string; hashtags: string[]; imagePrompt: string; conceptKey: string;
   }>(content);
 
-  const hashtags = (Array.isArray(parsed.hashtags) ? parsed.hashtags : [])
-    .map((h) => h.replace(/^#/, "").trim().toLowerCase())
-    .filter(Boolean)
-    .slice(0, 12);
+  const { hashtags, dropped } = normalizeHashtags(parsed.hashtags);
+  if (dropped.length) {
+    log.warn("hashtag cap enforced — generator exceeded Instagram's limit", {
+      cap: INSTAGRAM_HASHTAG_CAP,
+      dropped,
+    });
+  }
 
   return {
     archetype: archetypeFromAngle(angle),
