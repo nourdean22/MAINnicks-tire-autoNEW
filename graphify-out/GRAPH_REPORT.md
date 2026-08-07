@@ -1,15 +1,16 @@
-# Graph Report - .  (2026-07-29)
+# Graph Report - NOURCITY  (2026-08-07)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- 5736 files · ~10,782,203 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 45234 nodes · 79019 edges · 2656 communities (2016 shown, 640 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 1524 edges (avg confidence: 0.7)
+- 47208 nodes · 86823 edges · 2404 communities (2058 shown, 346 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 4174 edges (avg confidence: 0.76)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `77cad189`
+- Built from commit: `75439362`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -749,6 +750,7 @@
 - [[_COMMUNITY_test_polymarket.py|test_polymarket.py]]
 - [[_COMMUNITY_package.json|package.json]]
 - [[_COMMUNITY_NotificationBar.tsx|NotificationBar.tsx]]
+- [[_COMMUNITY_menubar.tsx|menubar.tsx]]
 - [[_COMMUNITY_gmail.ts|gmail.ts]]
 - [[_COMMUNITY_Admin OPSSYSTEM Surface Audit|Admin OPS/SYSTEM Surface Audit]]
 - [[_COMMUNITY_Next-Wave Page Plan — Blue-Ocean Expansion (2026-05-30)|Next-Wave Page Plan — Blue-Ocean Expansion (2026-05-30)]]
@@ -796,6 +798,7 @@
 - [[_COMMUNITY_reddit_listing.py|reddit_listing.py]]
 - [[_COMMUNITY_TwitterClientBase|TwitterClientBase]]
 - [[_COMMUNITY_debug-collector.js|debug-collector.js]]
+- [[_COMMUNITY_context-menu.tsx|context-menu.tsx]]
 - [[_COMMUNITY_components.json|components.json]]
 - [[_COMMUNITY_Phase 3 Modernization — Content & Customer Profile Integration|Phase 3 Modernization — Content & Customer Profile Integration]]
 - [[_COMMUNITY_B. tRPC ROUTER LAYER|B. tRPC ROUTER LAYER]]
@@ -813,6 +816,7 @@
 - [[_COMMUNITY_jobQueue.ts|jobQueue.ts]]
 - [[_COMMUNITY_compilerOptions|compilerOptions]]
 - [[_COMMUNITY_goals-health-strip.tsx|goals-health-strip.tsx]]
+- [[_COMMUNITY_dropdown-menu.tsx|dropdown-menu.tsx]]
 - [[_COMMUNITY_ADR-0011 · Axis-specific regen gate · the chat-vagueness fix|ADR-0011 · Axis-specific regen gate · the chat-vagueness fix]]
 - [[_COMMUNITY_ADR-0018 · Multi-advisor board · preserving divergence|ADR-0018 · Multi-advisor board · preserving divergence]]
 - [[_COMMUNITY_Tier 10 — ALIVE-UI — less static, more dynamics (compounds every session)|Tier 10 — ALIVE-UI — less static, more dynamics (compounds every session)]]
@@ -1105,6 +1109,8 @@
 - [[_COMMUNITY_package.json|package.json]]
 - [[_COMMUNITY_xai_x.py|xai_x.py]]
 - [[_COMMUNITY_verify_v3.py|verify_v3.py]]
+- [[_COMMUNITY_drawer.tsx|drawer.tsx]]
+- [[_COMMUNITY_select.tsx|select.tsx]]
 - [[_COMMUNITY_carouselSlideRenderer.ts|carouselSlideRenderer.ts]]
 - [[_COMMUNITY_language-detect.ts|language-detect.ts]]
 - [[_COMMUNITY_nour-os-system-health-reset.ts|nour-os-system-health-reset.ts]]
@@ -1283,6 +1289,7 @@
 - [[_COMMUNITY_Nick's Tire & Auto — Working Tasks|Nick's Tire & Auto — Working Tasks]]
 - [[_COMMUNITY_SymptomGuide.tsx|SymptomGuide.tsx]]
 - [[_COMMUNITY_input-group.tsx|input-group.tsx]]
+- [[_COMMUNITY_table.tsx|table.tsx]]
 - [[_COMMUNITY_Revenue Activation Inventory — Nick's Tire & Auto|Revenue Activation Inventory — Nick's Tire & Auto]]
 - [[_COMMUNITY_Nickstire Admin — Exploration Profile (foundation for modernization)|Nickstire Admin — Exploration Profile (foundation for modernization)]]
 - [[_COMMUNITY_Per-file disposition|Per-file disposition]]
@@ -1751,14 +1758,12 @@
 - [[_COMMUNITY_apply-wave-181-77-drip-unique.ts|apply-wave-181-77-drip-unique.ts]]
 - [[_COMMUNITY_apply-wave-181-83-phone-normalized.ts|apply-wave-181-83-phone-normalized.ts]]
 - [[_COMMUNITY_apply-wave-181-83-tier-skip-state.ts|apply-wave-181-83-tier-skip-state.ts]]
-- [[_COMMUNITY_apply-wave-181-84-confirmation-calls.ts|apply-wave-181-84-confirmation-calls.ts]]
 - [[_COMMUNITY_run.ts|run.ts]]
 - [[_COMMUNITY_adStudioContainment.test.ts|adStudioContainment.test.ts]]
 - [[_COMMUNITY_TestProbeAndDiagnoseHonesty|TestProbeAndDiagnoseHonesty]]
 - [[_COMMUNITY_leadUpdateSet.ts|leadUpdateSet.ts]]
 - [[_COMMUNITY_voiceAgent.no-fabrication.test.ts|voiceAgent.no-fabrication.test.ts]]
 - [[_COMMUNITY_staffHours.ts|staffHours.ts]]
-- [[_COMMUNITY_smsSendingRecovery.test.ts|smsSendingRecovery.test.ts]]
 - [[_COMMUNITY_visualFieldsParity.test.ts|visualFieldsParity.test.ts]]
 - [[_COMMUNITY_ComparisonTable.tsx|ComparisonTable.tsx]]
 - [[_COMMUNITY_2026-04-29 — v8.0.1 Tier 1 polish + AI route hardening|2026-04-29 — v8.0.1 Tier 1 polish + AI route hardening]]
@@ -1773,10 +1778,8 @@
 - [[_COMMUNITY_Exception|Exception]]
 - [[_COMMUNITY_Security Policy|Security Policy]]
 - [[_COMMUNITY_tool-idempotency.test.ts|tool-idempotency.test.ts]]
-- [[_COMMUNITY_page-intelligence.ts|page-intelligence.ts]]
 - [[_COMMUNITY_suggestion-seed.ts|suggestion-seed.ts]]
 - [[_COMMUNITY_types.ts|types.ts]]
-- [[_COMMUNITY_competitor-scraper.ts|competitor-scraper.ts]]
 - [[_COMMUNITY_Dead Prisma Models — Verified April 14, 2026|Dead Prisma Models — Verified April 14, 2026]]
 - [[_COMMUNITY_add-get-route-auth.ts|add-get-route-auth.ts]]
 - [[_COMMUNITY_add-route-auth.ts|add-route-auth.ts]]
@@ -1787,9 +1790,7 @@
 - [[_COMMUNITY_investigate-task-wipe-2.mjs|investigate-task-wipe-2.mjs]]
 - [[_COMMUNITY_migrate-logger.ts|migrate-logger.ts]]
 - [[_COMMUNITY_probe-cosine-distribution.mjs|probe-cosine-distribution.mjs]]
-- [[_COMMUNITY_probe-dual-write-parity.mjs|probe-dual-write-parity.mjs]]
-- [[_COMMUNITY_probe-insights-api.mjs|probe-insights-api.mjs]]
-- [[_COMMUNITY_probe-thinking-engine-errors.mjs|probe-thinking-engine-errors.mjs]]
+- [[_COMMUNITY_test_expand_queries_filters_noise|test_expand_queries_filters_noise]]
 - [[_COMMUNITY_schema-timestamp-audit.ts|schema-timestamp-audit.ts]]
 - [[_COMMUNITY_stale-docs-gate.test.ts|stale-docs-gate.test.ts]]
 - [[_COMMUNITY_prisma-compat.d.ts|prisma-compat.d.ts]]
@@ -1809,7 +1810,6 @@
 - [[_COMMUNITY_TestAutoResolve|TestAutoResolve]]
 - [[_COMMUNITY_TestBuildContextSummary|TestBuildContextSummary]]
 - [[_COMMUNITY_TestExtractXHandle|TestExtractXHandle]]
-- [[_COMMUNITY_TestHasBackend|TestHasBackend]]
 - [[_COMMUNITY_verify_token|verify_token]]
 - [[_COMMUNITY_Security Policy|Security Policy]]
 - [[_COMMUNITY_0.1.0 — 2026-05-23|[0.1.0] — 2026-05-23]]
@@ -1834,7 +1834,6 @@
 - [[_COMMUNITY_backfill-cleanup-leaked-estimates.ts|backfill-cleanup-leaked-estimates.ts]]
 - [[_COMMUNITY_dedup-leaked-estimates.ts|dedup-leaked-estimates.ts]]
 - [[_COMMUNITY_load-test.ts|load-test.ts]]
-- [[_COMMUNITY_cleanup-invoice-pollution.ts|cleanup-invoice-pollution.ts]]
 - [[_COMMUNITY_vapi-find-runaway-call.ts|vapi-find-runaway-call.ts]]
 - [[_COMMUNITY_vapi-recent.ts|vapi-recent.ts]]
 - [[_COMMUNITY_cleanup-invoice-pollution.ts|cleanup-invoice-pollution.ts]]
@@ -1854,15 +1853,13 @@
 - [[_COMMUNITY_Statenour Next-Wave Plan 2026-07-29|Statenour Next-Wave Plan 2026-07-29]]
 - [[_COMMUNITY__build-payload.js|_build-payload.js]]
 - [[_COMMUNITY_runNickQualityEvals|runNickQualityEvals]]
-- [[_COMMUNITY__polymarket_top_markets|_polymarket_top_markets]]
 - [[_COMMUNITY_Step 0 First-Run Setup Wizard|Step 0: First-Run Setup Wizard]]
 - [[_COMMUNITY_Step 0.5 Pre-Flight Resolution (handles, repos, communities)|Step 0.5: Pre-Flight Resolution (handles, repos, communities)]]
 - [[_COMMUNITY_TestVideoAspect|TestVideoAspect]]
 - [[_COMMUNITY_webui.sh|webui.sh]]
 - [[_COMMUNITY_extract-message-text.ts|extract-message-text.ts]]
 - [[_COMMUNITY_next.config.ts|next.config.ts]]
-- [[_COMMUNITY_package.json|package.json]]
-- [[_COMMUNITY_Migration 20260625000000 · action_receipts and completionCriteria on Mission|Migration 20260625000000 · action_receipts and completionCriteria on Mission]]
+- [[_COMMUNITY_test_passes_topic_filter_partial_match|test_passes_topic_filter_partial_match]]
 - [[_COMMUNITY_seed-devices.ts|seed-devices.ts]]
 - [[_COMMUNITY_seed-foundation.ts|seed-foundation.ts]]
 - [[_COMMUNITY_audit-system-surfaces.mjs|audit-system-surfaces.mjs]]
@@ -1879,19 +1876,18 @@
 - [[_COMMUNITY_probe-unused-models.mjs|probe-unused-models.mjs]]
 - [[_COMMUNITY_smoke-prod.mjs|smoke-prod.mjs]]
 - [[_COMMUNITY_customer-shape-detector.test.ts|customer-shape-detector.test.ts]]
-- [[_COMMUNITY_package.json|package.json]]
-- [[_COMMUNITY__polymarket_top_markets|_polymarket_top_markets]]
+- [[_COMMUNITY_3.1.0 - 2026-04-22|[3.1.0] - 2026-04-22]]
 - [[_COMMUNITY_test_hermes_skillignore.py|test_hermes_skillignore.py]]
 - [[_COMMUNITY_TestXaiModelDefault|TestXaiModelDefault]]
 - [[_COMMUNITY_TestFmtPairs|TestFmtPairs]]
 - [[_COMMUNITY_TestNormalizedRrf|TestNormalizedRrf]]
 - [[_COMMUNITY_TestXquikKey|TestXquikKey]]
-- [[_COMMUNITY_TestFullCoverageWithSC|TestFullCoverageWithSC]]
+- [[_COMMUNITY_test_passes_topic_filter_empty_topic|test_passes_topic_filter_empty_topic]]
 - [[_COMMUNITY_MergeCategoryPeersHappyPath|MergeCategoryPeersHappyPath]]
 - [[_COMMUNITY_TestCanonicalizeGithubRepos|TestCanonicalizeGithubRepos]]
 - [[_COMMUNITY_SchemaV3Tests|SchemaV3Tests]]
 - [[_COMMUNITY_test_verify_v3.py|test_verify_v3.py]]
-- [[_COMMUNITY_stream_edge_tts_chunks|stream_edge_tts_chunks]]
+- [[_COMMUNITY_test_passes_topic_filter_multi_word_requires_two_matches|test_passes_topic_filter_multi_word_requires_two_matches]]
 - [[_COMMUNITY_TestVideoAspect|TestVideoAspect]]
 - [[_COMMUNITY_webui.sh|webui.sh]]
 - [[_COMMUNITY_copy-fonts.js|copy-fonts.js]]
@@ -1899,7 +1895,7 @@
 - [[_COMMUNITY_Briefing Nicks Tire AI System Memory|Briefing: Nicks Tire AI System Memory]]
 - [[_COMMUNITY_Gathered Source Documents|Gathered Source Documents]]
 - [[_COMMUNITY_Briefing Your Topic|Briefing: Your Topic]]
-- [[_COMMUNITY_test|test]]
+- [[_COMMUNITY_backfill-experiment-media.mjs|backfill-experiment-media.mjs]]
 - [[_COMMUNITY_Active blockers  operator-owed|Active blockers / operator-owed]]
 - [[_COMMUNITY_find-stale-detailed.ts|find-stale-detailed.ts]]
 - [[_COMMUNITY_apply-customer-events-migration.ts|apply-customer-events-migration.ts]]
@@ -1926,12 +1922,12 @@
 - [[_COMMUNITY_use-chat-modal-toggles.ts|use-chat-modal-toggles.ts]]
 - [[_COMMUNITY_ping|ping]]
 - [[_COMMUNITY_reasoning-tools.test.ts|reasoning-tools.test.ts]]
-- [[_COMMUNITY_e2b.ts|e2b.ts]]
+- [[_COMMUNITY_test_passes_topic_filter_multi_word_passes_with_two_matches|test_passes_topic_filter_multi_word_passes_with_two_matches]]
 - [[_COMMUNITY_prompts.ts|prompts.ts]]
 - [[_COMMUNITY_sleep-context.ts|sleep-context.ts]]
 - [[_COMMUNITY_add-ai-rate-limit.ts|add-ai-rate-limit.ts]]
-- [[_COMMUNITY_apply-brain-fts.ts|apply-brain-fts.ts]]
-- [[_COMMUNITY_apply-social-publish-queue.ts|apply-social-publish-queue.ts]]
+- [[_COMMUNITY_test_passes_topic_filter_two_word_still_needs_one|test_passes_topic_filter_two_word_still_needs_one]]
+- [[_COMMUNITY_test_parse_outcome_prices_already_parsed|test_parse_outcome_prices_already_parsed]]
 - [[_COMMUNITY_audit-tasks-page-debt.ts|audit-tasks-page-debt.ts]]
 - [[_COMMUNITY_backfill-drafts-to-queue.ts|backfill-drafts-to-queue.ts]]
 - [[_COMMUNITY_probe-bus-consumer.mjs|probe-bus-consumer.mjs]]
@@ -1969,7 +1965,11 @@
 - [[_COMMUNITY_NEXT-ACTION|NEXT-ACTION.md]]
 - [[_COMMUNITY_REALITY-LEDGER|REALITY-LEDGER.md]]
 - [[_COMMUNITY_linkedin-article|linkedin-article.md]]
+- [[_COMMUNITY_apply-wave-181-x-tier-s-a.ts|apply-wave-181-x-tier-s-a.ts]]
+- [[_COMMUNITY_check-jobs.ts|check-jobs.ts]]
+- [[_COMMUNITY_diagnose-estimate-sync.ts|diagnose-estimate-sync.ts]]
 - [[_COMMUNITY_patch-vapi-analysis.mjs|patch-vapi-analysis.mjs]]
+- [[_COMMUNITY_test-lead-insert.ts|test-lead-insert.ts]]
 - [[_COMMUNITY_test-shop-gateway.ts|test-shop-gateway.ts]]
 - [[_COMMUNITY_followup-history.ts|followup-history.ts]]
 - [[_COMMUNITY_test-shop-gateway.ts|test-shop-gateway.ts]]
@@ -1987,33 +1987,30 @@
 - [[_COMMUNITY_OpportunityRow|OpportunityRow]]
 - [[_COMMUNITY_sitemap.test.ts|sitemap.test.ts]]
 - [[_COMMUNITY_booking.integration.test.ts|booking.integration.test.ts]]
-- [[_COMMUNITY_winback.test.ts|winback.test.ts]]
 - [[_COMMUNITY_global-faq.ts|global-faq.ts]]
 - [[_COMMUNITY_start-dev.sh|start-dev.sh]]
 - [[_COMMUNITY_vitest.config.ts|vitest.config.ts]]
 - [[_COMMUNITY_eslint.config.mjs|eslint.config.mjs]]
 - [[_COMMUNITY_chat-v2-parity-ledger|chat-v2-parity-ledger.md]]
-- [[_COMMUNITY_NickEval|NickEval]]
+- [[_COMMUNITY_use-streaming-error-guard.ts|use-streaming-error-guard.ts]]
+- [[_COMMUNITY_bridgeSendAction.test.ts|bridgeSendAction.test.ts]]
 - [[_COMMUNITY_build-skill.sh|build-skill.sh]]
 - [[_COMMUNITY_compare.sh|compare.sh]]
 - [[_COMMUNITY_setup-keychain.sh|setup-keychain.sh]]
 - [[_COMMUNITY_setup-pass.sh|setup-pass.sh]]
 - [[_COMMUNITY_Research Execution|Research Execution]]
-- [[_COMMUNITY_TimelineResult|TimelineResult]]
-- [[_COMMUNITY_FleetTruth|FleetTruth]]
-- [[_COMMUNITY_next-env.d.ts|next-env.d.ts]]
+- [[_COMMUNITY_bridge-shapes.test.ts|bridge-shapes.test.ts]]
 - [[_COMMUNITY_postcss.config.mjs|postcss.config.mjs]]
 - [[_COMMUNITY_add-default-to-sort-dropdowns.mjs|add-default-to-sort-dropdowns.mjs]]
+- [[_COMMUNITY_apply-mission-links-migration.ts|apply-mission-links-migration.ts]]
+- [[_COMMUNITY_apply-pending-migration.ts|apply-pending-migration.ts]]
+- [[_COMMUNITY_backfill-pgvector.ts|backfill-pgvector.ts]]
 - [[_COMMUNITY_check-anti-slop.sh|check-anti-slop.sh]]
-- [[_COMMUNITY_check-json.js|check-json.js]]
 - [[_COMMUNITY_force-fire-autonomous.mjs|force-fire-autonomous.mjs]]
-- [[_COMMUNITY_probe-emergency-trace.mjs|probe-emergency-trace.mjs]]
 - [[_COMMUNITY_probe-ping-error.mjs|probe-ping-error.mjs]]
-- [[_COMMUNITY_schema-drift-check.sh|schema-drift-check.sh]]
 - [[_COMMUNITY_sync-master.sh|sync-master.sh]]
 - [[_COMMUNITY_prompt-mode-routing.test.ts|prompt-mode-routing.test.ts]]
 - [[_COMMUNITY_provider.test.ts|provider.test.ts]]
-- [[_COMMUNITY_extension-token.test.ts|extension-token.test.ts]]
 - [[_COMMUNITY_resolve-inbox-mission-id.test.ts|resolve-inbox-mission-id.test.ts]]
 - [[_COMMUNITY_brain-recent-reflections-schema.test.ts|brain-recent-reflections-schema.test.ts]]
 - [[_COMMUNITY_brain-reflect-schema.test.ts|brain-reflect-schema.test.ts]]
@@ -2029,31 +2026,16 @@
 - [[_COMMUNITY_.test_how_to_sources_includes_capability_matched_extras|.test_how_to_sources_includes_capability_matched_extras]]
 - [[_COMMUNITY_.test_opinion_includes_polymarket|.test_opinion_includes_polymarket]]
 - [[_COMMUNITY_.test_polymarket_excluded_from_how_to_and_concept|.test_polymarket_excluded_from_how_to_and_concept]]
-- [[_COMMUNITY_test_expand_queries_filters_noise|test_expand_queries_filters_noise]]
-- [[_COMMUNITY_test_expand_queries_deduplication|test_expand_queries_deduplication]]
+- [[_COMMUNITY_apply-0108-content-experiments.mjs|apply-0108-content-experiments.mjs]]
 - [[_COMMUNITY_test_expand_queries_cap_at_six|test_expand_queries_cap_at_six]]
 - [[_COMMUNITY_test_passes_topic_filter_match|test_passes_topic_filter_match]]
-- [[_COMMUNITY_test_passes_topic_filter_no_match|test_passes_topic_filter_no_match]]
 - [[_COMMUNITY_test_passes_topic_filter_partial_match|test_passes_topic_filter_partial_match]]
-- [[_COMMUNITY_test_passes_topic_filter_all_noise_words|test_passes_topic_filter_all_noise_words]]
-- [[_COMMUNITY_test_passes_topic_filter_empty_topic|test_passes_topic_filter_empty_topic]]
-- [[_COMMUNITY_test_passes_topic_filter_multi_word_requires_two_matches|test_passes_topic_filter_multi_word_requires_two_matches]]
-- [[_COMMUNITY_test_passes_topic_filter_multi_word_passes_with_two_matches|test_passes_topic_filter_multi_word_passes_with_two_matches]]
-- [[_COMMUNITY_test_passes_topic_filter_two_word_still_needs_one|test_passes_topic_filter_two_word_still_needs_one]]
-- [[_COMMUNITY_test_parse_outcome_prices_already_parsed|test_parse_outcome_prices_already_parsed]]
-- [[_COMMUNITY_test_parse_outcome_prices_missing_data|test_parse_outcome_prices_missing_data]]
-- [[_COMMUNITY_test_parse_outcome_prices_invalid_json|test_parse_outcome_prices_invalid_json]]
-- [[_COMMUNITY_test_format_price_movement_one_day|test_format_price_movement_one_day]]
-- [[_COMMUNITY_test_format_price_movement_negative|test_format_price_movement_negative]]
-- [[_COMMUNITY_test_format_price_movement_picks_largest|test_format_price_movement_picks_largest]]
+- [[_COMMUNITY_watch-veo-cutover.mjs|watch-veo-cutover.mjs]]
+- [[_COMMUNITY_opportunityAbandonedForms.test.ts|opportunityAbandonedForms.test.ts]]
+- [[_COMMUNITY_apply-wave-181-85-voice-recovery.ts|apply-wave-181-85-voice-recovery.ts]]
 - [[_COMMUNITY_test_format_price_movement_below_threshold|test_format_price_movement_below_threshold]]
-- [[_COMMUNITY_test_shorten_question_will_pattern|test_shorten_question_will_pattern]]
-- [[_COMMUNITY_test_shorten_question_complex_will|test_shorten_question_complex_will]]
-- [[_COMMUNITY_test_shorten_question_no_pattern|test_shorten_question_no_pattern]]
-- [[_COMMUNITY_test_shorten_question_long|test_shorten_question_long]]
-- [[_COMMUNITY_test_shorten_question_fallback_strips_leading_article|test_shorten_question_fallback_strips_leading_article]]
-- [[_COMMUNITY_test_search_polymarket_result_cap|test_search_polymarket_result_cap]]
-- [[_COMMUNITY_test_search_polymarket_depth_config|test_search_polymarket_depth_config]]
+- [[_COMMUNITY_export-eval-datasets.ts|export-eval-datasets.ts]]
+- [[_COMMUNITY_probe-higgsfield-creds-compare.mjs|probe-higgsfield-creds-compare.mjs]]
 - [[_COMMUNITY_test_search_polymarket_query_expansion|test_search_polymarket_query_expansion]]
 - [[_COMMUNITY_test_expand_queries_skips_noise_words|test_expand_queries_skips_noise_words]]
 - [[_COMMUNITY_test_expand_queries_keeps_informative_words|test_expand_queries_keeps_informative_words]]
@@ -2080,26 +2062,21 @@
 - [[_COMMUNITY_jtbd.ts|jtbd.ts]]
 - [[_COMMUNITY_lean-canvas.ts|lean-canvas.ts]]
 - [[_COMMUNITY_marketplace-dynamics.ts|marketplace-dynamics.ts]]
-- [[_COMMUNITY_monetization.ts|monetization.ts]]
+- [[_COMMUNITY_apply-wave-181-83-phone-normalized.ts|apply-wave-181-83-phone-normalized.ts]]
 - [[_COMMUNITY_north-star-metric.ts|north-star-metric.ts]]
-- [[_COMMUNITY_okrs.ts|okrs.ts]]
 - [[_COMMUNITY_ooda-loop.ts|ooda-loop.ts]]
-- [[_COMMUNITY_opportunity-cost.ts|opportunity-cost.ts]]
-- [[_COMMUNITY_osterwalder-canvas.ts|osterwalder-canvas.ts]]
-- [[_COMMUNITY_porters-five-forces.ts|porters-five-forces.ts]]
+- [[_COMMUNITY_sendSmsControlGates.test.ts|sendSmsControlGates.test.ts]]
 - [[_COMMUNITY_pricing-power.ts|pricing-power.ts]]
 - [[_COMMUNITY_pricing-strategy.ts|pricing-strategy.ts]]
 - [[_COMMUNITY_second-order-thinking.ts|second-order-thinking.ts]]
 - [[_COMMUNITY_sequence-psychologist.ts|sequence-psychologist.ts]]
 - [[_COMMUNITY_seven-powers.ts|seven-powers.ts]]
-- [[_COMMUNITY_startup-metrics.ts|startup-metrics.ts]]
-- [[_COMMUNITY_supply-chain-risk.ts|supply-chain-risk.ts]]
-- [[_COMMUNITY_systematic-debugging.ts|systematic-debugging.ts]]
+- [[_COMMUNITY_Harness Worktree Setup|Harness Worktree Setup]]
+- [[_COMMUNITY_competitor-scraper.ts|competitor-scraper.ts]]
+- [[_COMMUNITY_test_resolve.py|test_resolve.py]]
 - [[_COMMUNITY_task-intelligence.ts|task-intelligence.ts]]
-- [[_COMMUNITY_the-high-end.ts|the-high-end.ts]]
-- [[_COMMUNITY_theory-of-constraints.ts|theory-of-constraints.ts]]
-- [[_COMMUNITY_trust-calibrator.ts|trust-calibrator.ts]]
-- [[_COMMUNITY_verification-before-completion.ts|verification-before-completion.ts]]
+- [[_COMMUNITY_TestExtractSubreddits|TestExtractSubreddits]]
+- [[_COMMUNITY_scaffold.mjs|scaffold.mjs]]
 - [[_COMMUNITY_03_CLAIMS|03_CLAIMS.md]]
 - [[_COMMUNITY_04_CONTRADICTIONS|04_CONTRADICTIONS.md]]
 - [[_COMMUNITY_05_ACTION_PLAN|05_ACTION_PLAN.md]]
@@ -2122,6 +2099,7 @@
 - [[_COMMUNITY_claims|claims.md]]
 - [[_COMMUNITY_questions|questions.md]]
 - [[_COMMUNITY_Outbound SMS Delivery Contract|Outbound SMS Delivery Contract]]
+- [[_COMMUNITY_relations.ts|relations.ts]]
 - [[_COMMUNITY_AlgProbeLogRow|AlgProbeLogRow]]
 - [[_COMMUNITY_AnalyticsSnapshot|AnalyticsSnapshot]]
 - [[_COMMUNITY_Bay|Bay]]
@@ -2133,533 +2111,309 @@
 - [[_COMMUNITY_ChatSession|ChatSession]]
 - [[_COMMUNITY_Comeback|Comeback]]
 - [[_COMMUNITY_ContentManufacturingCampaign|ContentManufacturingCampaign]]
-- [[_COMMUNITY_Coupon|Coupon]]
-- [[_COMMUNITY_Customer|Customer]]
-- [[_COMMUNITY_CustomerEvent|CustomerEvent]]
-- [[_COMMUNITY_CustomerMetric|CustomerMetric]]
-- [[_COMMUNITY_CustomerNotification|CustomerNotification]]
-- [[_COMMUNITY_CustomerTestimonialRow|CustomerTestimonialRow]]
-- [[_COMMUNITY_CustomerVehicle|CustomerVehicle]]
-- [[_COMMUNITY_DailyHabit|DailyHabit]]
-- [[_COMMUNITY_DynamicArticle|DynamicArticle]]
-- [[_COMMUNITY_EstimateLog|EstimateLog]]
-- [[_COMMUNITY_ExpectedArrival|ExpectedArrival]]
-- [[_COMMUNITY_GbpPostLogRow|GbpPostLogRow]]
-- [[_COMMUNITY_IgAutopostLogRow|IgAutopostLogRow]]
-- [[_COMMUNITY_InsertAbandonedForm|InsertAbandonedForm]]
-- [[_COMMUNITY_InsertAlgEstimate|InsertAlgEstimate]]
-- [[_COMMUNITY_InsertAlgProbeLog|InsertAlgProbeLog]]
-- [[_COMMUNITY_InsertBay|InsertBay]]
-- [[_COMMUNITY_InsertBusinessFactRow|InsertBusinessFactRow]]
-- [[_COMMUNITY_InsertCallEvent|InsertCallEvent]]
-- [[_COMMUNITY_InsertChatAnalytic|InsertChatAnalytic]]
-- [[_COMMUNITY_InsertChatSession|InsertChatSession]]
-- [[_COMMUNITY_InsertComeback|InsertComeback]]
-- [[_COMMUNITY_InsertContentManufacturingCampaign|InsertContentManufacturingCampaign]]
-- [[_COMMUNITY_InsertCustomer|InsertCustomer]]
-- [[_COMMUNITY_InsertCustomerEvent|InsertCustomerEvent]]
-- [[_COMMUNITY_InsertCustomerImportLog|InsertCustomerImportLog]]
-- [[_COMMUNITY_InsertCustomerMetric|InsertCustomerMetric]]
-- [[_COMMUNITY_InsertCustomerTestimonial|InsertCustomerTestimonial]]
-- [[_COMMUNITY_InsertDailyExecution|InsertDailyExecution]]
-- [[_COMMUNITY_InsertDailyHabit|InsertDailyHabit]]
-- [[_COMMUNITY_InsertDynamicArticle|InsertDynamicArticle]]
-- [[_COMMUNITY_InsertEstimateLog|InsertEstimateLog]]
-- [[_COMMUNITY_InsertExpectedArrival|InsertExpectedArrival]]
-- [[_COMMUNITY_InsertGbpPostLog|InsertGbpPostLog]]
-- [[_COMMUNITY_InsertIgAutopostLog|InsertIgAutopostLog]]
-- [[_COMMUNITY_InsertIntegrationFailure|InsertIntegrationFailure]]
-- [[_COMMUNITY_InsertIntelligenceDecisionLedger|InsertIntelligenceDecisionLedger]]
-- [[_COMMUNITY_InsertJobAssignment|InsertJobAssignment]]
-- [[_COMMUNITY_InsertKpiSnapshot|InsertKpiSnapshot]]
-- [[_COMMUNITY_InsertLead|InsertLead]]
-- [[_COMMUNITY_InsertLoyaltyTransaction|InsertLoyaltyTransaction]]
-- [[_COMMUNITY_InsertMediaAsset|InsertMediaAsset]]
-- [[_COMMUNITY_InsertMembership|InsertMembership]]
-- [[_COMMUNITY_InsertNexusAuditJob|InsertNexusAuditJob]]
-- [[_COMMUNITY_InsertNickgptDefectLedger|InsertNickgptDefectLedger]]
-- [[_COMMUNITY_InsertNickgptDraft|InsertNickgptDraft]]
-- [[_COMMUNITY_InsertNickgptTrainingExample|InsertNickgptTrainingExample]]
-- [[_COMMUNITY_InsertNotificationMessage|InsertNotificationMessage]]
-- [[_COMMUNITY_InsertOperatorQualityOverride|InsertOperatorQualityOverride]]
-- [[_COMMUNITY_InsertPortalSession|InsertPortalSession]]
-- [[_COMMUNITY_InsertQcChecklist|InsertQcChecklist]]
-- [[_COMMUNITY_InsertReviewPipelineEntry|InsertReviewPipelineEntry]]
-- [[_COMMUNITY_InsertReviewSettings|InsertReviewSettings]]
-- [[_COMMUNITY_InsertScheduledPost|InsertScheduledPost]]
-- [[_COMMUNITY_InsertShopSetting|InsertShopSetting]]
-- [[_COMMUNITY_InsertSmsCampaign|InsertSmsCampaign]]
-- [[_COMMUNITY_InsertSmsCampaignSend|InsertSmsCampaignSend]]
-- [[_COMMUNITY_InsertSmsLearningRecommendation|InsertSmsLearningRecommendation]]
-- [[_COMMUNITY_InsertSmsOrchestration|InsertSmsOrchestration]]
-- [[_COMMUNITY_InsertSmsOrchestrationOutcome|InsertSmsOrchestrationOutcome]]
-- [[_COMMUNITY_InsertSmsResponseJob|InsertSmsResponseJob]]
-- [[_COMMUNITY_InsertSocialContentApproval|InsertSocialContentApproval]]
-- [[_COMMUNITY_InsertSocialContentInventory|InsertSocialContentInventory]]
-- [[_COMMUNITY_InsertSocialDraft|InsertSocialDraft]]
-- [[_COMMUNITY_InsertTimeClockEntry|InsertTimeClockEntry]]
-- [[_COMMUNITY_InsertTireOrder|InsertTireOrder]]
-- [[_COMMUNITY_InsertUserRole|InsertUserRole]]
-- [[_COMMUNITY_InsertVapiCallLog|InsertVapiCallLog]]
-- [[_COMMUNITY_InspectionItem|InspectionItem]]
-- [[_COMMUNITY_InstagramAnalyticsRow|InstagramAnalyticsRow]]
-- [[_COMMUNITY_IntegrationToken|IntegrationToken]]
-- [[_COMMUNITY_JobAssignment|JobAssignment]]
-- [[_COMMUNITY_KpiSnapshot|KpiSnapshot]]
-- [[_COMMUNITY_Lead|Lead]]
-- [[_COMMUNITY_LoyaltyReward|LoyaltyReward]]
-- [[_COMMUNITY_LoyaltyTransaction|LoyaltyTransaction]]
-- [[_COMMUNITY_NexusAuditJob|NexusAuditJob]]
-- [[_COMMUNITY_NickgptDraft|NickgptDraft]]
-- [[_COMMUNITY_NickgptTrainingExample|NickgptTrainingExample]]
-- [[_COMMUNITY_NotificationMessage|NotificationMessage]]
-- [[_COMMUNITY_OperatorQualityOverride|OperatorQualityOverride]]
-- [[_COMMUNITY_PipelineRun|PipelineRun]]
-- [[_COMMUNITY_PortalSession|PortalSession]]
-- [[_COMMUNITY_QcChecklist|QcChecklist]]
-- [[_COMMUNITY_ReelJobRow|ReelJobRow]]
-- [[_COMMUNITY_Referral|Referral]]
-- [[_COMMUNITY_ReminderSetting|ReminderSetting]]
-- [[_COMMUNITY_RepairGalleryItem|RepairGalleryItem]]
-- [[_COMMUNITY_ReviewPipelineEntry|ReviewPipelineEntry]]
-- [[_COMMUNITY_ReviewRequest|ReviewRequest]]
-- [[_COMMUNITY_ScheduledPostRow|ScheduledPostRow]]
-- [[_COMMUNITY_ServiceHistoryRecord|ServiceHistoryRecord]]
-- [[_COMMUNITY_ServiceReminder|ServiceReminder]]
-- [[_COMMUNITY_SmsCampaign|SmsCampaign]]
-- [[_COMMUNITY_SmsCampaignSend|SmsCampaignSend]]
-- [[_COMMUNITY_SmsLearningRecommendation|SmsLearningRecommendation]]
-- [[_COMMUNITY_SmsMessage|SmsMessage]]
-- [[_COMMUNITY_SmsOrchestration|SmsOrchestration]]
-- [[_COMMUNITY_SmsOrchestrationOutcome|SmsOrchestrationOutcome]]
-- [[_COMMUNITY_SmsResponseJob|SmsResponseJob]]
-- [[_COMMUNITY_SocialContentApproval|SocialContentApproval]]
-- [[_COMMUNITY_SocialDraftRow|SocialDraftRow]]
-- [[_COMMUNITY_Technician|Technician]]
-- [[_COMMUNITY_TimeClockEntry|TimeClockEntry]]
-- [[_COMMUNITY_TireOrder|TireOrder]]
-- [[_COMMUNITY_UserRole|UserRole]]
-- [[_COMMUNITY_VehicleInspection|VehicleInspection]]
-- [[_COMMUNITY_VoiceLatencyEvent|VoiceLatencyEvent]]
-- [[_COMMUNITY_WinbackCampaign|WinbackCampaign]]
-- [[_COMMUNITY_WinbackMessage|WinbackMessage]]
-- [[_COMMUNITY_WinbackSend|WinbackSend]]
-- [[_COMMUNITY_sendMorningBrief|sendMorningBrief]]
-- [[_COMMUNITY_sendUrgentBrief|sendUrgentBrief]]
-- [[_COMMUNITY_processStaleLeadFollowUp|processStaleLeadFollowUp]]
+- [[_COMMUNITY_apply-wave-181-69-cron-alerts-fired.ts|apply-wave-181-69-cron-alerts-fired.ts]]
+- [[_COMMUNITY_backfill-missing-ig-post-ids.mjs|backfill-missing-ig-post-ids.mjs]]
+- [[_COMMUNITY_gen-vo-openai.ts|gen-vo-openai.ts]]
+- [[_COMMUNITY_apply-wave-181-77-drip-unique.ts|apply-wave-181-77-drip-unique.ts]]
+- [[_COMMUNITY_probe-higgsfield-creds-source.mjs|probe-higgsfield-creds-source.mjs]]
+- [[_COMMUNITY_push-higgsfield-creds.mjs|push-higgsfield-creds.mjs]]
+- [[_COMMUNITY_watch-reel-generation.mjs|watch-reel-generation.mjs]]
+- [[_COMMUNITY_opportunityWave2Collectors.test.ts|opportunityWave2Collectors.test.ts]]
+- [[_COMMUNITY_smsControl.test.ts|smsControl.test.ts]]
+- [[_COMMUNITY_3.0.5 - 2026-04-15|[3.0.5] - 2026-04-15]]
+- [[_COMMUNITY_TestAutoResolve|TestAutoResolve]]
+- [[_COMMUNITY_TestBuildContextSummary|TestBuildContextSummary]]
+- [[_COMMUNITY_TestExtractXHandle|TestExtractXHandle]]
+- [[_COMMUNITY_TestHasBackend|TestHasBackend]]
+- [[_COMMUNITY_nickstire event taxonomy — customer_events source of truth|nickstire event taxonomy — customer_events source of truth]]
+- [[_COMMUNITY_fix-reel-750002-ambiguous.mjs|fix-reel-750002-ambiguous.mjs]]
+- [[_COMMUNITY_apply-customer-promises.ts|apply-customer-promises.ts]]
+- [[_COMMUNITY_apply-dvi-decisions.ts|apply-dvi-decisions.ts]]
+- [[_COMMUNITY_apply-recovery-experiment-v3.ts|apply-recovery-experiment-v3.ts]]
+- [[_COMMUNITY_apply-recovery-stated-concern.ts|apply-recovery-stated-concern.ts]]
+- [[_COMMUNITY_apply-sms-send-attempts.ts|apply-sms-send-attempts.ts]]
+- [[_COMMUNITY_blue-ocean.ts|blue-ocean.ts]]
+- [[_COMMUNITY_dimensional-thinking.ts|dimensional-thinking.ts]]
+- [[_COMMUNITY_elon-musk.ts|elon-musk.ts]]
+- [[_COMMUNITY_evolutionary-hijack.ts|evolutionary-hijack.ts]]
+- [[_COMMUNITY_growth-engine.ts|growth-engine.ts]]
+- [[_COMMUNITY_ideal-customer-profile.ts|ideal-customer-profile.ts]]
+- [[_COMMUNITY_inversion.ts|inversion.ts]]
+- [[_COMMUNITY_lean-canvas.ts|lean-canvas.ts]]
+- [[_COMMUNITY_marketplace-dynamics.ts|marketplace-dynamics.ts]]
+- [[_COMMUNITY_monetization.ts|monetization.ts]]
+- [[_COMMUNITY_north-star-metric.ts|north-star-metric.ts]]
+- [[_COMMUNITY_okrs.ts|okrs.ts]]
+- [[_COMMUNITY_opportunity-cost.ts|opportunity-cost.ts]]
+- [[_COMMUNITY_osterwalder-canvas.ts|osterwalder-canvas.ts]]
+- [[_COMMUNITY_porters-five-forces.ts|porters-five-forces.ts]]
+- [[_COMMUNITY_startup-metrics.ts|startup-metrics.ts]]
+- [[_COMMUNITY_supply-chain-risk.ts|supply-chain-risk.ts]]
+- [[_COMMUNITY_systematic-debugging.ts|systematic-debugging.ts]]
+- [[_COMMUNITY_the-high-end.ts|the-high-end.ts]]
+- [[_COMMUNITY_theory-of-constraints.ts|theory-of-constraints.ts]]
+- [[_COMMUNITY_trust-calibrator.ts|trust-calibrator.ts]]
+- [[_COMMUNITY_verification-before-completion.ts|verification-before-completion.ts]]
+- [[_COMMUNITY_apply-sms-sent-at.ts|apply-sms-sent-at.ts]]
+- [[_COMMUNITY_watch-episode-package.mjs|watch-episode-package.mjs]]
+- [[_COMMUNITY_opportunityStaleLeads.test.ts|opportunityStaleLeads.test.ts]]
+- [[_COMMUNITY_stream_edge_tts_chunks|stream_edge_tts_chunks]]
+- [[_COMMUNITY_main|main]]
+- [[_COMMUNITY_chat-states.spec.ts|chat-states.spec.ts]]
+- [[_COMMUNITY_Source-to-Skill Compiler|Source-to-Skill Compiler]]
+- [[_COMMUNITY_MergeCategoryPeersHappyPath|MergeCategoryPeersHappyPath]]
+- [[_COMMUNITY_TestCanonicalizeGithubRepos|TestCanonicalizeGithubRepos]]
+- [[_COMMUNITY_places-diagnose.mjs|places-diagnose.mjs]]
+- [[_COMMUNITY_close-resolved-reel-failures.mjs|close-resolved-reel-failures.mjs]]
+- [[_COMMUNITY_discard-reel-1200004.mjs|discard-reel-1200004.mjs]]
+- [[_COMMUNITY_probe-cron-clock.mjs|probe-cron-clock.mjs]]
+- [[_COMMUNITY_probe-failed-reel-topics.mjs|probe-failed-reel-topics.mjs]]
+- [[_COMMUNITY_probe-higgsfield-keepalive.mjs|probe-higgsfield-keepalive.mjs]]
+- [[_COMMUNITY_probe-keepalive-blindspot.mjs|probe-keepalive-blindspot.mjs]]
+- [[_COMMUNITY_probe-reel-enqueue-block.mjs|probe-reel-enqueue-block.mjs]]
+- [[_COMMUNITY_probe-veo-generate.ts|probe-veo-generate.ts]]
+- [[_COMMUNITY_trim-caption-hashtags.mjs|trim-caption-hashtags.mjs]]
+- [[_COMMUNITY_smsQueueRehydrate.test.ts|smsQueueRehydrate.test.ts]]
+- [[_COMMUNITY_trialReel.test.ts|trialReel.test.ts]]
+- [[_COMMUNITY_MergeCategoryPeersCap|MergeCategoryPeersCap]]
+- [[_COMMUNITY_smsRetryDeadLetter.test.ts|smsRetryDeadLetter.test.ts]]
+- [[_COMMUNITY_.test_hackernews_parse_emits_comments_key|.test_hackernews_parse_emits_comments_key]]
 - [[_COMMUNITY_getLastAuthFailure|getLastAuthFailure]]
-- [[_COMMUNITY_AuditAction|AuditAction]]
-- [[_COMMUNITY_getAuditTrail|getAuditTrail]]
-- [[_COMMUNITY_seedFlags|seedFlags]]
-- [[_COMMUNITY_setFlag|setFlag]]
-- [[_COMMUNITY_fetchGbpPerformance|fetchGbpPerformance]]
-- [[_COMMUNITY_GbpDailySeries|GbpDailySeries]]
-- [[_COMMUNITY_GbpPerformanceError|GbpPerformanceError]]
-- [[_COMMUNITY_GbpPerformanceResult|GbpPerformanceResult]]
-- [[_COMMUNITY_normalizeLocationId|normalizeLocationId]]
-- [[_COMMUNITY_classifyIdentity|classifyIdentity]]
-- [[_COMMUNITY_firstNameToken|firstNameToken]]
-- [[_COMMUNITY_IdentityEvidence|IdentityEvidence]]
-- [[_COMMUNITY_IdentityResolution|IdentityResolution]]
-- [[_COMMUNITY_IdentityVerdict|IdentityVerdict]]
-- [[_COMMUNITY_resolveIdentity|resolveIdentity]]
-- [[_COMMUNITY_bestChannelFor|bestChannelFor]]
-- [[_COMMUNITY_buildDraftBody|buildDraftBody]]
-- [[_COMMUNITY_draftOpportunityOutreach|draftOpportunityOutreach]]
-- [[_COMMUNITY_OpportunityDraftResult|OpportunityDraftResult]]
-- [[_COMMUNITY_OutreachChannel|OutreachChannel]]
-- [[_COMMUNITY_riskLabelFor|riskLabelFor]]
-- [[_COMMUNITY_SendDraftParams|SendDraftParams]]
-- [[_COMMUNITY_SendDraftResult|SendDraftResult]]
-- [[_COMMUNITY_sendOpportunityDraft|sendOpportunityDraft]]
-- [[_COMMUNITY_captureComplaintOpportunity|captureComplaintOpportunity]]
-- [[_COMMUNITY_collectAbandonedForms|collectAbandonedForms]]
-- [[_COMMUNITY_collectInspectionDeferrals|collectInspectionDeferrals]]
-- [[_COMMUNITY_collectMissedCalls|collectMissedCalls]]
-- [[_COMMUNITY_collectNoShowBookings|collectNoShowBookings]]
-- [[_COMMUNITY_CollectorStats|CollectorStats]]
-- [[_COMMUNITY_collectOverdueHumanPending|collectOverdueHumanPending]]
-- [[_COMMUNITY_collectPendingCallbacks|collectPendingCallbacks]]
-- [[_COMMUNITY_collectStaleLeads|collectStaleLeads]]
-- [[_COMMUNITY_collectUnapprovedEstimates|collectUnapprovedEstimates]]
-- [[_COMMUNITY_OpportunityDataQuality|OpportunityDataQuality]]
-- [[_COMMUNITY_OpportunityUrgency|OpportunityUrgency]]
-- [[_COMMUNITY_reconcileOpportunities|reconcileOpportunities]]
-- [[_COMMUNITY_ReconcileStats|ReconcileStats]]
-- [[_COMMUNITY_resolveEstimateIdentity|resolveEstimateIdentity]]
-- [[_COMMUNITY_summarizeInspectionForQueue|summarizeInspectionForQueue]]
-- [[_COMMUNITY_upsertOpportunity|upsertOpportunity]]
-- [[_COMMUNITY_UpsertOpportunityInput|UpsertOpportunityInput]]
-- [[_COMMUNITY_AutonomyLevel|AutonomyLevel]]
-- [[_COMMUNITY_getAutomationPolicy|getAutomationPolicy]]
-- [[_COMMUNITY_isRolloutModeAllowed|isRolloutModeAllowed]]
-- [[_COMMUNITY_maxRolloutModeForLevel|maxRolloutModeForLevel]]
-- [[_COMMUNITY_RolloutMode|RolloutMode]]
-- [[_COMMUNITY_SmsAutomationPolicy|SmsAutomationPolicy]]
-- [[_COMMUNITY_summarizeAutonomy|summarizeAutonomy]]
-- [[_COMMUNITY_checkGlobalDailyCap|checkGlobalDailyCap]]
-- [[_COMMUNITY_getGlobalDailyCap|getGlobalDailyCap]]
-- [[_COMMUNITY_getSmsPauseState|getSmsPauseState]]
-- [[_COMMUNITY_GlobalCapResult|GlobalCapResult]]
-- [[_COMMUNITY_isPhoneHumanHeld|isPhoneHumanHeld]]
-- [[_COMMUNITY_PauseState|PauseState]]
-- [[_COMMUNITY__resetPauseCacheForTest|_resetPauseCacheForTest]]
-- [[_COMMUNITY__clearVehicleDataCache|_clearVehicleDataCache]]
-- [[_COMMUNITY_decodeVin|decodeVin]]
-- [[_COMMUNITY_recallsByVehicle|recallsByVehicle]]
-- [[_COMMUNITY_RecallSummary|RecallSummary]]
-- [[_COMMUNITY_VehicleDataError|VehicleDataError]]
-- [[_COMMUNITY_VinDecodeResult|VinDecodeResult]]
-- [[_COMMUNITY_getActiveThreads|getActiveThreads]]
-- [[_COMMUNITY_getConversationThread|getConversationThread]]
-- [[_COMMUNITY_getSmsStats|getSmsStats]]
-- [[_COMMUNITY_handleDeliveryStatus|handleDeliveryStatus]]
-- [[_COMMUNITY_handleInboundSms|handleInboundSms]]
-- [[_COMMUNITY_markPhoneOptedIn|markPhoneOptedIn]]
-- [[_COMMUNITY_recordSendFailure|recordSendFailure]]
-- [[_COMMUNITY_rehydrateQueuedFromDb|rehydrateQueuedFromDb]]
-- [[_COMMUNITY_shouldAlertStuckQueue|shouldAlertStuckQueue]]
-- [[_COMMUNITY_startDelayedQueueProcessor|startDelayedQueueProcessor]]
-- [[_COMMUNITY_stopDelayedQueueProcessor|stopDelayedQueueProcessor]]
-- [[_COMMUNITY_BridgeShapeName|BridgeShapeName]]
-- [[_COMMUNITY_GET|GET]]
-- [[_COMMUNITY_GET|GET]]
 - [[_COMMUNITY_{ GET, POST }|{ GET, POST }]]
 - [[_COMMUNITY_POST|POST]]
 - [[_COMMUNITY_{ POST, PUT }|{ POST, PUT }]]
-- [[_COMMUNITY_POST|POST]]
-- [[_COMMUNITY_ContradictionLog|ContradictionLog]]
-- [[_COMMUNITY_MemoryHit|MemoryHit]]
-- [[_COMMUNITY_NavEntry|NavEntry]]
-- [[_COMMUNITY_CronCategory|CronCategory]]
-- [[_COMMUNITY_CronMode|CronMode]]
-- [[_COMMUNITY_ChatUIMessage|ChatUIMessage]]
-- [[_COMMUNITY_DeeperContextState|DeeperContextState]]
-- [[_COMMUNITY_LastRunModeState|LastRunModeState]]
-- [[_COMMUNITY_PersonaHeader|PersonaHeader]]
-- [[_COMMUNITY_UseChatTransportOpts|UseChatTransportOpts]]
 - [[_COMMUNITY_looksLikeRecommendation|looksLikeRecommendation]]
-- [[_COMMUNITY_ClassStats|ClassStats]]
-- [[_COMMUNITY_judgeCalibration|judgeCalibration]]
-- [[_COMMUNITY_JudgeCalibrationReport|JudgeCalibrationReport]]
-- [[_COMMUNITY_LabeledComparison|LabeledComparison]]
-- [[_COMMUNITY_RecordComparisonArgs|RecordComparisonArgs]]
-- [[_COMMUNITY_recordOperatorLabel|recordOperatorLabel]]
-- [[_COMMUNITY_TruthFlag|TruthFlag]]
-- [[_COMMUNITY_TruthFlagKind|TruthFlagKind]]
 - [[_COMMUNITY_moneyprinterturbo|moneyprinterturbo]]
-- [[_COMMUNITY_StreamAttempt|StreamAttempt]]
-- [[_COMMUNITY_StreamWithFallbackOptions|StreamWithFallbackOptions]]
-- [[_COMMUNITY_StreamWithFallbackResult|StreamWithFallbackResult]]
-- [[_COMMUNITY_ToolMetadata|ToolMetadata]]
-- [[_COMMUNITY_battleSafeTools|battleSafeTools]]
-- [[_COMMUNITY_catalogSummary|catalogSummary]]
-- [[_COMMUNITY_categoryOf|categoryOf]]
-- [[_COMMUNITY_sideEffectingTools|sideEffectingTools]]
-- [[_COMMUNITY_ToolCategory|ToolCategory]]
-- [[_COMMUNITY_toolNamesByCategory|toolNamesByCategory]]
 - [[_COMMUNITY_BDI_CATEGORY_REGISTRY|BDI_CATEGORY_REGISTRY]]
 - [[_COMMUNITY_LAWS_OF_POWER|LAWS_OF_POWER]]
 - [[_COMMUNITY_WAR_STRATEGIES|WAR_STRATEGIES]]
-- [[_COMMUNITY_evaluateMemoryCandidate|evaluateMemoryCandidate]]
-- [[_COMMUNITY_evidenceClassForSource|evidenceClassForSource]]
-- [[_COMMUNITY_ExistingMemoryFacts|ExistingMemoryFacts]]
-- [[_COMMUNITY_GatewayVerdict|GatewayVerdict]]
-- [[_COMMUNITY_MemoryCandidate|MemoryCandidate]]
-- [[_COMMUNITY_MemoryDecision|MemoryDecision]]
-- [[_COMMUNITY_MemoryEvidenceClass|MemoryEvidenceClass]]
-- [[_COMMUNITY_nearDuplicateScore|nearDuplicateScore]]
-- [[_COMMUNITY_shadowMemoryCommit|shadowMemoryCommit]]
-- [[_COMMUNITY_PushResult|PushResult]]
-- [[_COMMUNITY_PushSkip|PushSkip]]
-- [[_COMMUNITY_PushSlot|PushSlot]]
-- [[_COMMUNITY_PushSource|PushSource]]
-- [[_COMMUNITY_precisionAtK|precisionAtK]]
-- [[_COMMUNITY_RecallCaseResult|RecallCaseResult]]
-- [[_COMMUNITY_RecallEvalCase|RecallEvalCase]]
-- [[_COMMUNITY_RecallEvalReport|RecallEvalReport]]
-- [[_COMMUNITY_RetrievedMemory|RetrievedMemory]]
-- [[_COMMUNITY_Retriever|Retriever]]
-- [[_COMMUNITY_runRecallEval|runRecallEval]]
 - [[_COMMUNITY_extractModel|extractModel]]
-- [[_COMMUNITY_AuditEventRow|AuditEventRow]]
-- [[_COMMUNITY_AutonomousEventRow|AutonomousEventRow]]
-- [[_COMMUNITY_BrainBusEventRow|BrainBusEventRow]]
-- [[_COMMUNITY_DeviceEventRow|DeviceEventRow]]
-- [[_COMMUNITY_EntityAuditRow|EntityAuditRow]]
-- [[_COMMUNITY_GoalEventRow|GoalEventRow]]
-- [[_COMMUNITY_TaskEventRow|TaskEventRow]]
-- [[_COMMUNITY_VisionEventRow|VisionEventRow]]
-- [[_COMMUNITY_withTrace|withTrace]]
-- [[_COMMUNITY_eventTypeName|eventTypeName]]
-- [[_COMMUNITY_toTraceparent|toTraceparent]]
-- [[_COMMUNITY_validateEnvelope|validateEnvelope]]
-- [[_COMMUNITY_readOperatorTimeline|readOperatorTimeline]]
 - [[_COMMUNITY_INNGEST_APP_ID|INNGEST_APP_ID]]
-- [[_COMMUNITY_pushBodyFromBrief|pushBodyFromBrief]]
-- [[_COMMUNITY_getFleetTruth|getFleetTruth]]
-- [[_COMMUNITY_nickstireArtifacts|nickstireArtifacts]]
-- [[_COMMUNITY_QueueHealth|QueueHealth]]
-- [[_COMMUNITY_statenourArtifacts|statenourArtifacts]]
 - [[_COMMUNITY_computeTaskPriority|computeTaskPriority]]
-- [[_COMMUNITY_buildCashflowForecast|buildCashflowForecast]]
-- [[_COMMUNITY_CashflowForecast|CashflowForecast]]
-- [[_COMMUNITY_forecastConfidence|forecastConfidence]]
-- [[_COMMUNITY_forecastDigestLine|forecastDigestLine]]
-- [[_COMMUNITY_projectRevenue|projectRevenue]]
-- [[_COMMUNITY_ActiveStreamRecord|ActiveStreamRecord]]
-- [[_COMMUNITY_buildReplayChunks|buildReplayChunks]]
-- [[_COMMUNITY_completeActiveStream|completeActiveStream]]
-- [[_COMMUNITY_getActiveStream|getActiveStream]]
-- [[_COMMUNITY_registerActiveStream|registerActiveStream]]
-- [[_COMMUNITY_persistAssistantMessage|persistAssistantMessage]]
-- [[_COMMUNITY_PersistOutcome|PersistOutcome]]
-- [[_COMMUNITY_completePostTurnWork|completePostTurnWork]]
-- [[_COMMUNITY_OutboxQueueHealth|OutboxQueueHealth]]
-- [[_COMMUNITY_SerializableDeferredCtx|SerializableDeferredCtx]]
-- [[_COMMUNITY_buildJourneyLens|buildJourneyLens]]
-- [[_COMMUNITY_IdentityDelta|IdentityDelta]]
-- [[_COMMUNITY_identityDeltas|identityDeltas]]
-- [[_COMMUNITY_JourneyLens|JourneyLens]]
-- [[_COMMUNITY_JourneySection|JourneySection]]
-- [[_COMMUNITY_xpGrowthPct|xpGrowthPct]]
 - [[_COMMUNITY_recomputeTaskPriorities|recomputeTaskPriorities]]
 - [[_COMMUNITY_moneyprinterturbo|moneyprinterturbo]]
-- [[_COMMUNITY_ArtifactState|ArtifactState]]
-- [[_COMMUNITY_BridgeQueryRequest|BridgeQueryRequest]]
-- [[_COMMUNITY_BridgeQueryResponse|BridgeQueryResponse]]
-- [[_COMMUNITY_CollectorStats|CollectorStats]]
-- [[_COMMUNITY_CommitmentStatus|CommitmentStatus]]
-- [[_COMMUNITY_EventActorType|EventActorType]]
-- [[_COMMUNITY_EventPrivacyClass|EventPrivacyClass]]
-- [[_COMMUNITY_eventTypeName|eventTypeName]]
-- [[_COMMUNITY_ExecutionClass|ExecutionClass]]
-- [[_COMMUNITY_MemoryDecision|MemoryDecision]]
-- [[_COMMUNITY_MemoryEvidenceClass|MemoryEvidenceClass]]
-- [[_COMMUNITY_OpportunityState|OpportunityState]]
-- [[_COMMUNITY_OutcomeMatchMethod|OutcomeMatchMethod]]
-- [[_COMMUNITY_ProbeOutcome|ProbeOutcome]]
-- [[_COMMUNITY_TriageDecision|TriageDecision]]
 - [[_COMMUNITY_github.commvanhornlast30days-skillmcp|github.com/mvanhorn/last30days-skill/mcp]]
 - [[_COMMUNITY_last30days-skill|last30days-skill]]
-- [[_COMMUNITY_promote.ts|promote.ts]]
-- [[_COMMUNITY_UberDropoffWidget.tsx|UberDropoffWidget.tsx]]
-- [[_COMMUNITY_route.ts|route.ts]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Detail · misses by route (only routes below perfect)` - 340 edges
-2. `createLogger()` - 315 edges
-3. `Logger` - 248 edges
-4. `requireSession()` - 245 edges
-5. `BRAIN_CATEGORIES` - 203 edges
-6. `logError()` - 197 edges
-7. `apiHandler()` - 197 edges
-8. `getDb()` - 194 edges
-9. `trpc` - 185 edges
-10. `db()` - 164 edges
+1. `cn()` - 531 edges
+2. `eq()` - 343 edges
+3. `Detail · misses by route (only routes below perfect)` - 341 edges
+4. `createLogger()` - 330 edges
+5. `logError()` - 276 edges
+6. `Logger` - 266 edges
+7. `requireSession()` - 255 edges
+8. `startTieredScheduler()` - 224 edges
+9. `BRAIN_CATEGORIES` - 204 edges
+10. `apiHandler()` - 200 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `show_briefing()` --indirect_call--> `f()`  [INFERRED]
-  .agents/skills/last30days/scripts/briefing.py → apps/nickstire/server/repairRouter.test.ts
-- `_save_briefing()` --indirect_call--> `f()`  [INFERRED]
-  .agents/skills/last30days/scripts/briefing.py → apps/nickstire/server/repairRouter.test.ts
+- `save_config()` --indirect_call--> `elevenlabs()`  [INFERRED]
+  MoneyPrinterTurbo/app/config/config.py → apps/nickstire/scratch/gen-vo.ts
+- `composeStrategicLensBlock()` --calls--> `pickFeaturedLenses()`  [INFERRED]
+  apps/statenour/lib/ai/strategic-frameworks/index.ts → packages/lenses/src/index.ts
 - `TestExtractBrowserCredentials` --uses--> `OpenAIAuth`  [INFERRED]
+  last30days-skill/tests/test_env_cookies.py → .agents/skills/last30days/scripts/lib/env.py
+- `TestGetConfigCookieIntegration` --uses--> `OpenAIAuth`  [INFERRED]
   last30days-skill/tests/test_env_cookies.py → .agents/skills/last30days/scripts/lib/env.py
 - `TestExtractBrowserCredentials` --uses--> `ConfigLoadPolicy`  [INFERRED]
   last30days-skill/tests/test_env_cookies.py → .agents/skills/last30days/scripts/lib/env.py
-- `_fetch_json()` --indirect_call--> `TimeoutError`  [INFERRED]
-  .agents/skills/last30days/scripts/lib/github.py → apps/statenour/lib/utils/with-timeout.ts
 
 ## Import Cycles
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/memory-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/memory-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/task-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/task-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/commitment-decision-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/commitment-decision-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/arsenal-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/arsenal-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/camera-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/camera-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/google-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/google-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/person-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/person-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/shop-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/shop-actions.ts`
-- 3-file cycle: `apps/statenour/lib/ai/agent-actions/system-actions.ts -> apps/statenour/lib/ai/agent-actions/types.ts -> apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/agent-actions/system-actions.ts`
-- 3-file cycle: `apps/nickstire/server/prompts/creativeSkillPacks.ts -> apps/nickstire/server/services/contentManufacturing.ts -> apps/nickstire/server/services/skillRouter.ts -> apps/nickstire/server/prompts/creativeSkillPacks.ts`
+- 2-file cycle: `apps/statenour/lib/ai/propose-actions-history.ts -> apps/statenour/lib/ai/propose-actions.ts -> apps/statenour/lib/ai/propose-actions-history.ts`
+- 2-file cycle: `apps/statenour/lib/ai/gemini-image.ts -> apps/statenour/lib/ai/replicate-flux.ts -> apps/statenour/lib/ai/gemini-image.ts`
+- 2-file cycle: `apps/statenour/lib/brain/contradiction-surfacer.ts -> apps/statenour/lib/brain/cross-system-nudge.ts -> apps/statenour/lib/brain/contradiction-surfacer.ts`
+- 2-file cycle: `apps/statenour/lib/brain/cross-system-nudge.ts -> apps/statenour/lib/brain/identity-snapshot.ts -> apps/statenour/lib/brain/cross-system-nudge.ts`
+- 2-file cycle: `apps/statenour/lib/services/missions.ts -> apps/statenour/lib/services/tasks.ts -> apps/statenour/lib/services/missions.ts`
+- 2-file cycle: `apps/statenour/lib/services/task-actions.ts -> apps/statenour/lib/services/tasks.ts -> apps/statenour/lib/services/task-actions.ts`
+- 2-file cycle: `apps/statenour/lib/db/slow-query-tracker.ts -> apps/statenour/lib/prisma.ts -> apps/statenour/lib/db/slow-query-tracker.ts`
+- 2-file cycle: `apps/nickstire/server/services/instagramStudio.ts -> apps/nickstire/server/services/visualFamily.ts -> apps/nickstire/server/services/instagramStudio.ts`
+- 2-file cycle: `apps/nickstire/server/cron/scheduler.ts -> apps/nickstire/server/services/selfHealing.ts -> apps/nickstire/server/cron/scheduler.ts`
+- 2-file cycle: `apps/nickstire/server/cron/index.ts -> apps/nickstire/server/services/selfHealing.ts -> apps/nickstire/server/cron/index.ts`
+- 2-file cycle: `apps/nickstire/server/services/evidenceResolver.ts -> apps/nickstire/server/services/reelBriefGen.ts -> apps/nickstire/server/services/evidenceResolver.ts`
+- 2-file cycle: `apps/nickstire/server/cron/jobs/statenourSync.ts -> apps/nickstire/server/services/shopDriverMirror.ts -> apps/nickstire/server/cron/jobs/statenourSync.ts`
+- 2-file cycle: `apps/nickstire/server/services/eventBus.ts -> apps/nickstire/server/services/liveFeed.ts -> apps/nickstire/server/services/eventBus.ts`
+- 2-file cycle: `apps/nickstire/server/services/sms-scheduler.ts -> apps/nickstire/server/services/smsOrchestrator.ts -> apps/nickstire/server/services/sms-scheduler.ts`
+- 2-file cycle: `apps/nickstire/server/services/feedbackLoop.ts -> apps/nickstire/server/services/nickIntelligence.ts -> apps/nickstire/server/services/feedbackLoop.ts`
+- 2-file cycle: `apps/nickstire/server/nour-os-bridge.ts -> apps/nickstire/server/services/dispatch.ts -> apps/nickstire/server/nour-os-bridge.ts`
+- 2-file cycle: `apps/nickstire/server/nour-os-bridge.ts -> apps/nickstire/server/services/qcService.ts -> apps/nickstire/server/nour-os-bridge.ts`
+- 2-file cycle: `apps/nickstire/server/nour-os-bridge.ts -> apps/nickstire/server/services/workOrderService.ts -> apps/nickstire/server/nour-os-bridge.ts`
+- 3-file cycle: `apps/statenour/lib/ai/nick-agent.ts -> apps/statenour/lib/ai/runtime/approval-gate.ts -> apps/statenour/lib/tools/guardian.ts -> apps/statenour/lib/ai/nick-agent.ts`
+- 3-file cycle: `apps/statenour/lib/services/missions.ts -> apps/statenour/lib/services/tasks.ts -> apps/statenour/lib/services/task-actions.ts -> apps/statenour/lib/services/missions.ts`
 
-## Hyperedges (group relationships)
-- **Revenue Outcome Loop (send → receipt → won → verified lift)** — apps_statenour_docs_nickstire_query_contract_send_opportunity_sms, apps_nickstire_server_services_opportunityqueue_transitionopportunity, apps_nickstire_docs_operations_sms_revenue_agent_os_decision_inbox, apps_nickstire_server_services_opportunityqueue_recordoutcome, apps_nickstire_server_services_opportunityqueue_classifyoutcomematch, apps_nickstire_docs_plans_revenue_autopilot_2_audit_recovery_lift_holdout [EXTRACTED 1.00]
-- **SMS Send Gate Stack** — apps_nickstire_docs_operations_sms_revenue_agent_os_global_sms_pause, apps_nickstire_docs_operations_sms_revenue_agent_os_autonomy_ladder, apps_nickstire_docs_operations_sms_revenue_agent_os_takeover_release, apps_nickstire_docs_plans_revenue_autopilot_2_audit_identity_verdicts [EXTRACTED 1.00]
-- **Phone Operations Loop** — apps_statenour_docs_nickstire_query_contract_draft_opportunity_sms, apps_statenour_docs_nickstire_query_contract_telegram_tap_approval, apps_statenour_docs_nickstire_query_contract_send_opportunity_sms, apps_nickstire_docs_operations_sms_revenue_agent_os_decision_inbox [EXTRACTED 1.00]
-
-## Communities (2656 total, 640 thin omitted)
+## Communities (2404 total, 346 thin omitted)
 
 ### Community 0 - "categories.ts"
 Cohesion: 0.01
-Nodes (383): GET, POST, GET, GET, POST, GET, log, GET (+375 more)
+Nodes (430): log, log, log, POST(), log, GET, POST, GET (+422 more)
 
 ### Community 1 - "logger.ts"
 Cohesion: 0.01
-Nodes (317): DailyExecution, IntelligenceDecisionLedger, Membership, EXPECTED_TOOLS, main(), record(), results, TestResult (+309 more)
+Nodes (265): algProbeLog, appSecretKv, customerNotifications, shopSettings, socialDrafts, VapiCallLog, ROUTERS, systemRouter (+257 more)
 
 ### Community 2 - "http.ts"
-Cohesion: 0.01
-Nodes (334): GET, Opener, POST, GET, DEFAULT_CATEGORIES, GET, CategoryHealth, GET (+326 more)
+Cohesion: 0.02
+Nodes (186): log, POST(), GET, GET(), GET, POST, DELETE(), POST() (+178 more)
 
 ### Community 3 - "requireSession"
-Cohesion: 0.01
-Nodes (186): POST(), RefreshBody, AutocompleteBody, POST(), log, POST(), RequestBody, log (+178 more)
+Cohesion: 0.02
+Nodes (165): AbandonedForm, auditLog, pipelineRuns, reviewPipeline, reviewTrends, searchPerformance, voiceLatencyEvents, main() (+157 more)
 
 ### Community 4 - "Detail · misses by route (only routes below perfect)"
 Cohesion: 0.01
-Nodes (340): `/actions-brain` — 64/80, `/admin/knowledge-refresh` — 51/80, `/ai/assist` — 55/80, `/ai/autocomplete` — 44/80, `/ai/caption-photo` — 51/80, `/ai/chat` — 50/80, `/ai/chat/audio-transcribe` — 53/80, `/ai/chat/branches/[parentMessageId]` — 64/80 (+332 more)
+Nodes (341): `/actions-brain` — 64/80, `/admin/knowledge-refresh` — 51/80, `/ai/assist` — 55/80, `/ai/autocomplete` — 44/80, `/ai/caption-photo` — 51/80, `/ai/chat` — 50/80, `/ai/chat/audio-transcribe` — 53/80, `/ai/chat/branches/[parentMessageId]` — 64/80 (+333 more)
 
 ### Community 5 - "cn"
 Cohesion: 0.01
-Nodes (258): BriefLog, TabStatus, AnalysisResult, fitTone(), ImproveResponse, PhotoImproverPage(), scoreTone(), PinRow (+250 more)
+Nodes (326): BriefLog, KFile, log, RefreshSubsystem, SearchResult, AnalysisResult, fitTone(), ImproveResponse (+318 more)
 
 ### Community 6 - "db.ts"
 Cohesion: 0.01
-Nodes (246): InsertAnalyticsSnapshot, InsertBooking, InsertCallbackRequest, InsertCoupon, InsertCustomerNotification, InsertCustomerVehicle, InsertInspectionItem, InsertInvoice (+238 more)
+Nodes (351): analyticsSnapshots, appointmentReminders, ContentGenerationLog, MechanicQA, ReviewSettings, ServicePricing, main(), main() (+343 more)
 
 ### Community 7 - "business.ts"
 Cohesion: 0.02
-Nodes (112): FadeIn(), FadeInProps, FinancingCTAProps, ALL_LINKS, LinkItem, Props, LocalBusinessSchema(), Props (+104 more)
+Nodes (135): BookingWizardProps, Message, CityReviewsBlockProps, SUPPRESS_PATHS, SUPPRESS_PATHS, FadeIn(), FadeInProps, FinancingCTAProps (+127 more)
 
 ### Community 8 - "shared.ts"
 Cohesion: 0.02
-Nodes (173): MissionModalsManager(), MissionActions, MissionDispatchContext, MissionDispatchProvider(), useMissionDispatch(), useExecutionFocus(), log, MissionActionsParams (+165 more)
+Nodes (211): MissionModalsManager(), MissionActions, MissionDispatchContext, MissionDispatchProvider(), useMissionDispatch(), useExecutionFocus(), log, MissionActionsParams (+203 more)
 
 ### Community 9 - "sanitizeError"
-Cohesion: 0.02
-Nodes (183): DELETE(), POST(), createSchema, GET(), POST(), GET, log, GET (+175 more)
+Cohesion: 0.20
+Nodes (12): analyzeComposure(), BrainDumpInput, clamp(), ComposureAnalysis, computeComposure(), DailyLogInput, DecisionInput, EmotionalArcInput (+4 more)
 
 ### Community 10 - "brain.ts"
-Cohesion: 0.01
-Nodes (190): GET, PATCH, PatchBody, GET, GET, GET, GET, PATCH (+182 more)
+Cohesion: 0.06
+Nodes (45): BOARD_IDS, BOARDS, getBoard(), aiChat, buildAdvisorPrompt(), coerceAdvisorTake(), coerceSynthesis(), consultBoard() (+37 more)
 
 ### Community 11 - "trpc.ts"
-Cohesion: 0.01
-Nodes (253): Props, SkeletonPanel(), confirmDialog(), ConfirmOptions, InternalRequest, Tone, CityReviewsBlockProps, ServiceReviewsBlockProps (+245 more)
+Cohesion: 0.06
+Nodes (69): DELETE(), PATCH(), PinCreateBody, PinPatchBody, POST(), autoKey(), BlindSpotPinReport, runBlindSpotPinner() (+61 more)
 
 ### Community 12 - "system-pages.ts"
 Cohesion: 0.02
-Nodes (172): GET, GET, GET, GET, PATCH, POST, GET, GET (+164 more)
+Nodes (171): GET, ALLOWED_EVENTS, handler(), POST, GET, GET, GET, GET (+163 more)
 
 ### Community 13 - "prisma.ts"
 Cohesion: 0.01
-Nodes (134): GET, log, GET, GET, looksLikeBrainDump(), CandidateSample, classifyIntent(), loadAlreadyComparedIds() (+126 more)
+Nodes (238): buildContextHints(), BuildContextHintsInput, extractDomain(), GET(), log, QueryInput, Input, log (+230 more)
 
 ### Community 14 - "client.ts"
-Cohesion: 0.02
-Nodes (105): ConnState, VoiceToken, EventTimeline(), EventTimelineProps, formatRelative(), KIND_COLOR, KIND_LABEL, TaskEvent (+97 more)
+Cohesion: 0.07
+Nodes (45): AiUnavailableError, batchStoreEmbeddings(), storeMemoryEmbedding(), recordGhostOutcome(), DEFAULT_WISDOM_STOPWORDS, extractKeywords(), isPreferredPersonaKey(), matchWisdom() (+37 more)
 
 ### Community 15 - "operator.ts"
-Cohesion: 0.02
-Nodes (200): ALLOWED_ACTIONS, GET, GET, GET(), GET, PATCH, PatchBody, POST (+192 more)
+Cohesion: 0.01
+Nodes (311): GET, Opener, POST, GET, GET, PATCH, PatchBody, POST (+303 more)
 
 ### Community 16 - "json"
 Cohesion: 0.01
-Nodes (128): AlignmentPage(), JobPostingSchemas(), CitySchema(), ContactSchema(), FAQSchema(), NeighborhoodSchema(), SyntheticOilChangePage(), main() (+120 more)
+Nodes (116): AlignmentPage(), JobPostingSchemas(), CitySchema(), ContactSchema(), FAQSchema(), NeighborhoodSchema(), SyntheticOilChangePage(), main() (+108 more)
 
 ### Community 17 - "embedding-utils.ts"
-Cohesion: 0.01
-Nodes (215): GET, handler(), GET, POST, cache, CacheEntry, GET, handler() (+207 more)
+Cohesion: 0.02
+Nodes (56): Props, Row, FearStat, Props, LossAversionStat(), Props, FocusedServicePage(), Hero() (+48 more)
 
 ### Community 18 - "system-pages-b.ts"
-Cohesion: 0.02
-Nodes (154): GET, GET(), GET, PATCH, GET, GET, PatchSchema, POST (+146 more)
+Cohesion: 0.03
+Nodes (104): GET, GET, POST(), errorPage(), escapeHtml(), GET(), log, successPage() (+96 more)
 
 ### Community 19 - "contradiction-surfacer.ts"
-Cohesion: 0.06
-Nodes (46): GET, PATCH, PatchBody, VALID_STATUSES, buildDedupKey(), findRelevantContradictions(), InjectionContext, RelevantContradiction (+38 more)
+Cohesion: 0.09
+Nodes (34): GET(), POST(), POST(), auditBridgeCall(), assertBridgeAuth(), secretsMatch(), fail(), handleInitialize() (+26 more)
 
 ### Community 20 - "smsOrchestrator.ts"
 Cohesion: 0.02
-Nodes (126): EVENT_TYPES, log, main(), ReplayStats, main(), testPrompts, byKey, isNonEmptyString() (+118 more)
+Nodes (175): nexusAuditJobs, nickgptDrafts, smsOrchestrations, EVENT_TYPES, log, main(), ReplayStats, main() (+167 more)
 
 ### Community 21 - "index.ts"
 Cohesion: 0.02
-Nodes (129): analyzed(), twilio, createContext(), getSessionCookieOptions(), isSecureRequest(), LOCAL_HOSTS, findAvailablePort(), isPortAvailable() (+121 more)
+Nodes (116): analyzed(), mockLeadMutateAsync, mockMutateAsync, mockTrackEvent, symptomBox(), typeSymptom(), twilio, createContext() (+108 more)
 
 ### Community 22 - "notifyDataChanged"
-Cohesion: 0.02
-Nodes (137): alive(), NotebookLMContextZone(), LIFE, LifeSurface, MaturitySummary, BriefMeta, currentPhase(), DailyBriefSection() (+129 more)
+Cohesion: 0.04
+Nodes (85): snapshot(), alive(), GoalOption, LinkGoalPicker(), LinkGoalPickerProps, STOP_WORDS, suggestGoalsForProject(), SuggestionScore (+77 more)
 
 ### Community 23 - "telegram.ts"
-Cohesion: 0.03
-Nodes (118): AuditFinding, log, PRICING_BOUNDS, processAgenticAuditor(), ProcessResult, VapiCallDetail, lastAlertedJobs, log (+110 more)
+Cohesion: 0.06
+Nodes (33): GET, GET, buildSchemaCoverageReport(), fetchEstimatedRowCounts(), fetchIndexCounts(), flagModel(), KNOWN_TABLES, ModelCoverage (+25 more)
 
 ### Community 24 - "root.ts"
 Cohesion: 0.03
-Nodes (94): GET(), extractDomain(), GET(), log, QueryInput, Input, log, POST() (+86 more)
+Nodes (108): GET(), HistoryRow, detectPrivateMarker(), POST(), ReasonBody, VALID_TIERS, detectPrivateMarker(), POST() (+100 more)
 
 ### Community 25 - "page.tsx"
-Cohesion: 0.02
-Nodes (80): DetailPanelData, DetailPanelErrorBoundary, PeopleResponse, PersonRow, NOTE: existing list rows preserve their original Lucide-free styling, RelationshipsPage(), relativeTime(), SortKey (+72 more)
+Cohesion: 0.08
+Nodes (26): MOTION_LENSES, OBJECT_CHARACTERS, ReelConcept, ReelVisualWorld, StoryboardBeat, VISUAL_WORLD_STYLES, VisualWorldStyle, brakeBeats (+18 more)
 
 ### Community 26 - "google-oauth.ts"
-Cohesion: 0.04
-Nodes (76): GET, GET, escapeHtml(), GET, log, maybeFireTelegram(), GET(), POST() (+68 more)
+Cohesion: 0.03
+Nodes (83): POST, extractStructured(), findOutermost(), repair(), stripWrappers(), inngest, log, CompetitorPageSnapshot (+75 more)
 
 ### Community 27 - "invokeLLM"
-Cohesion: 0.02
-Nodes (128): paginateCursor(), SmsOrchestratorSection(), NickgptDefectLedger, SocialContentInventory, main(), PREVIEW_FILE, PromptPackEntry, REPORTS_DIR (+120 more)
+Cohesion: 0.08
+Nodes (29): GET, POST, ImproveBody, POST(), AcceptedSize, GEMINI_API_KEY, GeminiImageOptions, generateGeminiImage() (+21 more)
 
 ### Community 28 - "startTieredScheduler"
 Cohesion: 0.02
-Nodes (116): acquireCronLock(), CronJob, getJobStatuses(), LockResult, LockToken, log, logCronRun(), registerAllJobs() (+108 more)
+Nodes (138): BRIDGE_OPENAPI_SCHEMA, BRIDGE_OPS, bridgeAuth(), BridgeOp, evaluateHeavySync(), HeavySyncDecision, HeavySyncInput, IngestReportsInput (+130 more)
 
 ### Community 29 - "button.tsx"
-Cohesion: 0.03
-Nodes (74): down(), log, ShortLink, ManualMissionFormProps, ProjectDetail(), Tab, Task, Agreement (+66 more)
+Cohesion: 0.02
+Nodes (86): DetailPanel(), DetailPanelData, DetailPanelErrorBoundary, PeopleResponse, PersonRow, RelationshipsPage(), relativeTime(), SortKey (+78 more)
 
 ### Community 30 - "chat-message-list.tsx"
-Cohesion: 0.03
-Nodes (93): metadata, AttachmentPreview(), CATEGORY_META, Citation, CitationPills(), BLOCK_META, ContextBlockBadges(), ContextBlocks (+85 more)
+Cohesion: 0.09
+Nodes (26): AttachmentPreview(), MentionDropdown(), SlashCommandAction, SlashCommandDropdown(), VoiceWaveformOverlay(), ChatComposer(), messageText(), MentionResolutionResult (+18 more)
 
 ### Community 31 - "Admin.tsx"
-Cohesion: 0.03
-Nodes (77): ActivityPulse(), describe(), EventKind, KIND_CONFIG, mapEventType(), Pulse, AdminErrorTelemetryBridge(), AdminSectionBoundary (+69 more)
+Cohesion: 0.02
+Nodes (131): ActivityPulse(), describe(), EventKind, KIND_CONFIG, mapEventType(), Pulse, AdminErrorTelemetryBridge(), Props (+123 more)
 
 ### Community 32 - "output-guardian.ts"
-Cohesion: 0.03
-Nodes (92): Logger, PersistBase, buildStreamConfigFactory(), Logger, FinalizeSystemPromptInput, recordTrace(), TraceFinishInput, TraceStartInput (+84 more)
+Cohesion: 0.06
+Nodes (48): runAlternatePaths(), ANYWHERE_FILLER, checkClaims(), CLAIM_PATTERNS, ClaimPattern, CLEVELAND_HASHTAGS, clicheDensity(), CLICHES (+40 more)
 
 ### Community 33 - "cached"
 Cohesion: 0.03
-Nodes (97): computeCommandData(), GET(), handleQuery(), isAuthorized(), POST(), QueryResult, todayStr(), GET() (+89 more)
+Nodes (101): computeCommandData(), GET(), handleQuery(), isAuthorized(), POST(), QueryResult, todayStr(), businessSyncSchema (+93 more)
 
 ### Community 34 - "App.tsx"
 Cohesion: 0.02
 Nodes (108): About, Admin, AdminAdStudio, AlignmentPage, App(), AreasServed, AskMechanicPage, AutoRepairNearMePage (+100 more)
 
 ### Community 35 - "VoiceReceptionistSection.tsx"
-Cohesion: 0.06
-Nodes (43): SkeletonKpiGrid(), SkeletonTable(), OPS_REGISTRY, OpsItem, OpsRisk, OpsStatus, REPORT_DOCS, ReportDoc (+35 more)
+Cohesion: 0.08
+Nodes (33): SkeletonKpiGrid(), SkeletonTable(), VapiCallRow, CallDetailsDrawer(), DateRangeSelector(), FilterChip(), FollowUpTransferCard(), defaultDateString() (+25 more)
 
 ### Community 36 - "smsResponseJobs.ts"
-Cohesion: 0.03
-Nodes (87): DB, h, NOW, h, BoundedTtlMap, BoundedTtlMapOptions, Entry, affectedRowCount() (+79 more)
+Cohesion: 0.02
+Nodes (155): ReplyCard(), igMetricSnapshots, instagramAnalytics, main(), main(), main(), head, etNow() (+147 more)
 
 ### Community 37 - "trackPhoneClick"
-Cohesion: 0.02
-Nodes (128): BookingWizard(), BookingWizardProps, ChatWidget(), Message, CHAIN_FEES, FeeRow, FrictionlessIntentPanel(), LiveVisitorCounter() (+120 more)
+Cohesion: 0.09
+Nodes (33): leading_mentions(), Return the handles a post is directed at: the leading run of @mentions in the te, _execute_search(), expand_xquik_queries(), _extract_core_subject(), _is_own(), _log(), _parse_tweet() (+25 more)
 
 ### Community 38 - "nickMemory.ts"
 Cohesion: 0.02
-Nodes (135): BRIDGE_OPENAPI_SCHEMA, BRIDGE_OPS, bridgeAuth(), BridgeOp, evaluateHeavySync(), HeavySyncDecision, HeavySyncInput, IngestReportsInput (+127 more)
+Nodes (102): AeoAnswerBlock(), BRAKE_REPAIR_FAQ, FAQItem, FAQPageSchema(), FAQPageSchemaProps, OIL_CHANGE_FAQ, SERVICES_OVERVIEW_FAQ, TIRE_BUYING_FAQ (+94 more)
 
 ### Community 39 - "provider.ts"
-Cohesion: 0.03
-Nodes (94): ProviderConfig, PROVIDERS_REGISTRY, RuntimeProviderName, TASK_ROUTING_PREFERENCES, TaskType, GatePass, getHfEmbedding(), extractPriorImagePrompt() (+86 more)
+Cohesion: 0.05
+Nodes (63): Logger, ChatLogger, finalizeSystemPrompt(), FinalizeSystemPromptOutput, contract(), gate(), NICK_QUALITY_EVALS, NickEval (+55 more)
 
 ### Community 40 - "metaPixel.ts"
-Cohesion: 0.07
-Nodes (34): TextMeQuote(), TextMeQuoteProps, isMobile(), LeadPopup(), GA4Event, getTrafficSource(), getUTMParameters(), trackFormSubmission() (+26 more)
+Cohesion: 0.11
+Nodes (26): GRACE_LIMIT, PIPELINE, processNextReelJob(), shouldDegradeToFreeLane(), assessReelJob(), buildVeoRequestBody(), downloadAndRehostVeoVideo(), generateReelClipVideo() (+18 more)
 
 ### Community 41 - "settings-console.tsx"
-Cohesion: 0.03
-Nodes (68): AiConfig, AiSettingsPanel(), ColdMemoryStats, formatAgo(), cadenceBucket(), CRON_RUNBOOKS, CronControlPanel(), CronRow (+60 more)
+Cohesion: 0.09
+Nodes (20): AiConfig, AiSettingsPanel(), ColdMemoryStats, formatAgo(), JournalBrainPanel(), JournalSettings, OperatingRhythmToggle(), SegmentedSelect() (+12 more)
 
 ### Community 42 - "page.tsx"
-Cohesion: 0.03
-Nodes (73): JournalInsightsView(), BodySection, CalibrationSection, GraduatedSkillsCard, IdentityArcCard, LearningLoop, RecurringEnemiesCard, TABS (+65 more)
+Cohesion: 0.04
+Nodes (72): AiCostPage(), Breakdown, BreakdownTable(), dollars(), Feed, TrendBars(), Window, BrainContext (+64 more)
 
 ### Community 43 - "xquik.py"
 Cohesion: 0.03
@@ -2667,59 +2421,59 @@ Nodes (49): _execute_search(), expand_xquik_queries(), _extract_core_subject(), 
 
 ### Community 44 - "igCarouselStudio.ts"
 Cohesion: 0.04
-Nodes (95): DraftCard(), DraftCardProps, genomeToCarouselSeed(), detectPriceClaims(), allBriefText(), ALLOWED_SERVICES, BoostScorePart, BoostScoreResult (+87 more)
+Nodes (95): DraftCard(), DraftCardProps, detectForbiddenReelClaims(), detectGenericAdLanguage(), detectPriceClaims(), allBriefText(), ALLOWED_SERVICES, BoostScorePart (+87 more)
 
 ### Community 45 - "email-notify.ts"
-Cohesion: 0.04
-Nodes (62): ActivityItem, Article, Booking, Callback, CallEvent, Chat, DashboardStats, GenLog (+54 more)
+Cohesion: 0.03
+Nodes (112): emergencyRequests, IntegrationFailure, integrationFailures, leadDeliveryEvents, ENV, getDefaultDraft(), log, processReviewMonitor() (+104 more)
 
 ### Community 46 - "FocusedServicePage.tsx"
-Cohesion: 0.03
-Nodes (36): Props, Row, FearStat, Props, Props, FocusedServicePage(), Hero(), pickObjectPosition() (+28 more)
+Cohesion: 0.06
+Nodes (11): Tests for Truth Social source module., Test response parsing., Test query preprocessing., Test date parsing from Mastodon status., Test depth configuration., Test HTML tag stripping., TestDepthConfig, TestExtractCoreSubject (+3 more)
 
 ### Community 47 - "glass-card.tsx"
 Cohesion: 0.03
-Nodes (105): CalibrationPage(), CellTone, Mood, MOOD_LABEL, BrainContext, NowOperatorBar(), NowOperatorBarProps, BrainContinuityView() (+97 more)
+Nodes (72): NotebookLMContextZone(), Agreement, Booking, ClientsTab(), Contact, CrmData, log, FinancialTab() (+64 more)
 
 ### Community 48 - "turn-intelligence.ts"
-Cohesion: 0.04
-Nodes (87): augmentFinalPrompt(), Logger, ADR-0011, customerShapeRegex, log, ADR-0011, TurnSignals, ChatLogger (+79 more)
+Cohesion: 0.12
+Nodes (24): main(), probe(), health(), ensureHiggsfieldBinary(), log, buildSeedanceArgs(), cleanupTempFile(), combinePromptWithNegative() (+16 more)
 
 ### Community 49 - ".error"
-Cohesion: 0.04
-Nodes (60): DatabaseClient, log, processDashboardSync(), runRevenueReconciliationIfDue(), log, percentile(), processMonteCarloForecast(), ProcessResult (+52 more)
+Cohesion: 0.09
+Nodes (24): vite, getPackageRoot(), injectRouteMeta(), log, serveStatic(), setupVite(), ALL_ROUTES, BLOG_SLUGS (+16 more)
 
 ### Community 50 - "operator-pulse.ts"
-Cohesion: 0.03
-Nodes (114): GET(), ADR-0010, GET(), HistoryRow, detectPrivateMarker(), POST(), ReasonBody, VALID_TIERS (+106 more)
+Cohesion: 0.06
+Nodes (45): GET, log, GET(), getActual(), SHOP_OPS_CARD, runBrandStalenessCanary(), fetchBridge(), EFFORT_MINUTES_MAP (+37 more)
 
 ### Community 51 - "missions.ts"
-Cohesion: 0.05
-Nodes (81): DELETE, GET, PATCH, calculateDailyScore(), createDemoState(), DemoCustomer, DemoJob, DemoLead (+73 more)
+Cohesion: 0.04
+Nodes (77): BackfillBody, POST, log, POST(), ToolCallBody, DELETE, GET, PATCH (+69 more)
 
 ### Community 52 - "vapiCallEval.ts"
-Cohesion: 0.04
-Nodes (80): CliArgs, log, main(), parseArgs(), sleep(), VapiCallDetail, asRecord(), log (+72 more)
+Cohesion: 0.03
+Nodes (114): featureFlags, NickgptDefectLedger, nickgptTrainingExamples, smsLearningRecommendations, smsOrchestrationOutcomes, main(), main(), main() (+106 more)
 
 ### Community 53 - "socialPublish.ts"
-Cohesion: 0.04
-Nodes (73): ReplyCard(), etNow(), getKv(), log, MANIFEST, runDailyReelPost(), setAutopostProgress(), setKv() (+65 more)
+Cohesion: 0.10
+Nodes (27): cache, CacheEntry, GET, handler(), inferOriginFromKey(), RelatedWisdom, ORIGIN_BADGE, RelatedResp (+19 more)
 
 ### Community 54 - "layout.tsx"
-Cohesion: 0.03
-Nodes (65): BrainDumpModal(), CAPTURE_MODES, CaptureMode, CaptureResult, EntryTypeHint, PageTracker(), buildInsertedDraft(), WisdomPill() (+57 more)
+Cohesion: 0.04
+Nodes (72): SettingsPage(), PageTracker(), HomeIdentityHeader(), deriveStatePulseTone(), HomeStatePulse(), StatePulseTone, AmbientAura(), GO_ROUTES (+64 more)
 
 ### Community 55 - "env.py"
 Cohesion: 0.04
-Nodes (89): _check_file_permissions(), config_exists(), ConfigLoadPolicy, cookie_extraction_browsers(), extract_browser_credentials(), _find_project_env(), get_config(), get_instagram_token() (+81 more)
+Nodes (88): _check_file_permissions(), config_exists(), ConfigLoadPolicy, cookie_extraction_browsers(), extract_browser_credentials(), _find_project_env(), get_config(), get_instagram_token() (+80 more)
 
 ### Community 56 - "revenue-decision-channel.ts"
-Cohesion: 0.04
-Nodes (71): escapeHtml(), GET, LABELS, runProposerCore(), GET, GET, POST(), replyToOperator() (+63 more)
+Cohesion: 0.06
+Nodes (59): ObjectCharacter, PUB, arms, def, BRAND_BIBLE_VERSION, BRAND_CAST, BrandCharacter, BrandCharacterId (+51 more)
 
 ### Community 57 - "utils.ts"
-Cohesion: 0.03
-Nodes (78): KFile, KnowledgePage(), KnowledgeRefreshPanel(), log, RefreshSubsystem, SearchResult, IntelPanelProps, detectTool() (+70 more)
+Cohesion: 0.33
+Nodes (4): IntelPanelProps, MasteryContextDrawer(), MasteryContextDrawerProps, MasteryDrawerSurface
 
 ### Community 58 - "env.py"
 Cohesion: 0.04
@@ -2727,59 +2481,59 @@ Nodes (88): _check_file_permissions(), config_exists(), ConfigLoadPolicy, cookie
 
 ### Community 59 - "env.py"
 Cohesion: 0.04
-Nodes (86): _check_file_permissions(), config_exists(), ConfigLoadPolicy, cookie_extraction_browsers(), _find_project_env(), get_config(), get_instagram_token(), get_openai_auth() (+78 more)
+Nodes (88): _check_file_permissions(), config_exists(), ConfigLoadPolicy, cookie_extraction_browsers(), _find_project_env(), get_config(), get_instagram_token(), get_openai_auth() (+80 more)
 
 ### Community 60 - "token_overlap_relevance"
 Cohesion: 0.04
-Nodes (59): _extract_core_subject(), _log(), _parse_items(), parse_pinterest_response(), Any, Pinterest search via ScrapeCreators API for /last30days.  Uses ScrapeCreators RE, Search Pinterest via ScrapeCreators API.      Args:         topic: Search topic, Extract core subject from verbose query for Pinterest search. (+51 more)
+Nodes (54): _cjk_tokens(), has_cjk(), CJK-aware tokenization for relevance scoring and near-duplicate detection.  The, True if the text contains any CJK / kana / hangul character., Tokenize mixed CJK / Latin text into a flat list of lowercased tokens.      CJK, segment(), _build_urls(), _fetch_feed() (+46 more)
 
 ### Community 61 - "chrome_cookies.py"
 Cohesion: 0.04
-Nodes (55): _decrypt_v10_value(), _derive_aes_key(), extract_brave_cookies_macos(), extract_chrome_cookies_macos(), _extract_chromium_cookies_macos(), _find_brave_cookies_db(), _find_chromium_cookies_db(), _get_chrome_encryption_key() (+47 more)
+Nodes (52): _decrypt_v10_value(), _derive_aes_key(), extract_brave_cookies_macos(), extract_chrome_cookies_macos(), _extract_chromium_cookies_macos(), _find_brave_cookies_db(), _find_chromium_cookies_db(), _get_chrome_encryption_key() (+44 more)
 
 ### Community 62 - "reddit.py"
 Cohesion: 0.04
 Nodes (54): _compute_post_relevance(), _dedupe_posts(), discover_subreddits(), enrich_with_comments(), expand_reddit_queries(), _extract_core_subject(), _extract_date(), _extract_score() (+46 more)
 
 ### Community 63 - "retentionSequences.ts"
-Cohesion: 0.10
-Nodes (30): fetchActionablePredictions(), log, processCrossSellOutreach(), SERVICE_LABELS, V2PredictionRow, isWithinRetentionHours(), log, logRetentionSms() (+22 more)
+Cohesion: 0.25
+Nodes (7): stubJsonResponse(), assertBusinessTimezoneAtBoot(), checkBusinessTimezone(), getBusinessHour(), log, TimezoneCheck, VALID_OFFSETS_HOURS
 
 ### Community 64 - "autonomyControl.ts"
-Cohesion: 0.04
-Nodes (69): AutonomyActionContext, AutonomyActionType, AutonomyDecision, AutonomyPolicy, BoundaryActor, BoundaryOutcome, DEFAULT_AUTONOMY_POLICY, evaluateAutonomyAction() (+61 more)
+Cohesion: 0.02
+Nodes (127): AutonomyActionContext, AutonomyActionType, AutonomyDecision, AutonomyPolicy, BoundaryActor, BoundaryOutcome, DEFAULT_AUTONOMY_POLICY, evaluateAutonomyAction() (+119 more)
 
 ### Community 65 - "vendorHealth.ts"
-Cohesion: 0.06
-Nodes (52): CircuitBreaker, CircuitBreakerOptions, CircuitHealth, CircuitState, getAllBreakerHealth(), getOrCreateBreaker(), log, registry (+44 more)
+Cohesion: 0.04
+Nodes (67): main(), ID_CHILDREN, main(), TARGETS, main(), main(), main(), main() (+59 more)
 
 ### Community 66 - "index.ts"
 Cohesion: 0.05
-Nodes (62): GET(), handler, ADR-0005, JournalSilo, checkAndNudgeApprovals, fireDueReminders, getInngest(), isInngestFullyConfigured() (+54 more)
+Nodes (62): GET(), handler, POST(), validate(), JournalSilo, fireDueReminders(), getInngest(), isInngestFullyConfigured() (+54 more)
 
 ### Community 67 - "__init__.py"
-Cohesion: 0.04
-Nodes (69): _extract_core_subject(), _log(), _parse_items(), parse_pinterest_response(), Any, Pinterest search via ScrapeCreators API for /last30days.  Uses ScrapeCreators RE, Search Pinterest via ScrapeCreators API.      Args:         topic: Search topic, Extract core subject from verbose query for Pinterest search. (+61 more)
+Cohesion: 0.06
+Nodes (44): debug(), Shared logging utilities for last30days skill., Log debug message to stderr (only when LAST30DAYS_DEBUG is set)., Log a source module message to stderr.      Args:         prefix: Source label (, source_log(), _extract_core_subject(), _log(), _parse_items() (+36 more)
 
 ### Community 68 - "recordError"
-Cohesion: 0.05
-Nodes (59): Logger, SpecialistRoutingResult, GET(), handleBrainDump(), handleSlashSave(), handleDecision(), handleImage(), buildFastStream() (+51 more)
+Cohesion: 0.06
+Nodes (49): paginateCursor(), item(), GET(), paginateCursor(), isBgeRerankAvailable(), RECALL_EXCLUDE_CATEGORIES, CATEGORY_TO_KIND, classifyQuery() (+41 more)
 
 ### Community 69 - "token_overlap_relevance"
-Cohesion: 0.04
-Nodes (70): debug(), Shared logging utilities for last30days skill., Log debug message to stderr (only when LAST30DAYS_DEBUG is set)., Log a source module message to stderr.      Args:         prefix: Source label (, source_log(), _extract_core_subject(), _log(), _parse_items() (+62 more)
+Cohesion: 0.12
+Nodes (18): metadata, ChatCapabilityIndicator(), ChatIsland(), useScrollToBottom(), capabilityBadge, CapabilityInputs, ConnectionState, ProviderTone (+10 more)
 
 ### Community 70 - "domain.ts"
-Cohesion: 0.05
-Nodes (63): captureConversionTargetValues, captureTriageStatusValues, commandResolutionTypeValues, communicationModeValues, customerFollowUpStageValues, customerSegmentValues, dayStateValues, designModeValues (+55 more)
+Cohesion: 0.38
+Nodes (4): TabStatus, Opportunity, OpportunityCard(), OpportunityCardProps
 
 ### Community 71 - "http.py"
-Cohesion: 0.03
-Nodes (49): get(), get_reddit_json(), get_text(), HTTPError, _is_dns_failure(), log(), post(), post_raw() (+41 more)
+Cohesion: 0.08
+Nodes (29): EmailDraft, EmailDraftCard(), parseEmailDraft(), SendState, BarChart(), ChartColor, ChartPoint, ChartSpec (+21 more)
 
 ### Community 72 - "Studio.tsx"
-Cohesion: 0.08
-Nodes (49): Alert(), AlertDescription(), AlertTitle(), alertVariants, Badge(), badgeVariants, Button(), Card() (+41 more)
+Cohesion: 0.02
+Nodes (145): PublishDrawerProps, loadMapScript(), MapView(), MapViewProps, Window, Alert(), AlertDescription(), AlertTitle() (+137 more)
 
 ### Community 73 - "dependencies"
 Cohesion: 0.03
@@ -2787,59 +2541,59 @@ Nodes (77): dependencies, @aws-sdk/client-s3, @aws-sdk/s3-request-presigner, cla
 
 ### Community 74 - "nick-agent.ts"
 Cohesion: 0.08
-Nodes (64): handleArsenalBrowserAct(), handleArsenalBrowserCloseSession(), handleArsenalBrowserCreateSession(), handleArsenalBrowserExtract(), handleArsenalBrowserNavigate(), handleArsenalBrowserObserve(), handleArsenalCompetitorInsight(), handleArsenalDailyBrief() (+56 more)
+Nodes (60): handleArsenalBrowserAct(), handleArsenalBrowserCloseSession(), handleArsenalBrowserCreateSession(), handleArsenalBrowserExtract(), handleArsenalBrowserNavigate(), handleArsenalBrowserObserve(), handleArsenalCompetitorInsight(), handleArsenalDailyBrief() (+52 more)
 
 ### Community 75 - "BlogPost.tsx"
-Cohesion: 0.03
-Nodes (62): ServiceFaq, ServicePricingTier, DEFAULT_RELATED, ICON_BY_SLUG, Props, RelatedServices(), SERVICE_MAP, ServiceInfo (+54 more)
+Cohesion: 0.14
+Nodes (20): runSpecialistRouting(), aiChat, classifyByKeyword(), classifyViaLlm(), lastUserContent(), LlmClassification, recordSpecialistRouteMetric(), routeMessage() (+12 more)
 
 ### Community 76 - "utils.ts"
-Cohesion: 0.06
-Nodes (62): Invoice, ShopSetting, main(), main(), handleCreateWorkOrder(), handleDispatchAction(), handleScheduleFollowUp(), handleCameraFeed() (+54 more)
+Cohesion: 0.02
+Nodes (165): communicationLog, competitorSnapshots, contentManufacturingCampaigns, reelJobs, ShopSetting, SocialContentInventory, workOrders, main() (+157 more)
 
 ### Community 77 - "Logger"
-Cohesion: 0.02
-Nodes (177): log, POST(), schema, POST(), POST(), schema, dayBoundaryDate(), dayBoundaryLabel() (+169 more)
+Cohesion: 0.12
+Nodes (24): POST(), actionConfidence(), ActionEvent, captureStateSnapshot(), compactState(), getDismissedSuggestionIds(), listSuggestionSignals(), outcomeConfidence() (+16 more)
 
 ### Community 78 - "youtube_yt.py"
-Cohesion: 0.05
-Nodes (72): infer_query_intent(), Shared query preprocessing utilities: noise-word stripping, core subject extract, Classify a topic into a coarse intent for adapter query expansion.      Returns, backfill_transcripts(), _clean_vtt(), enrich_with_comments(), expand_youtube_queries(), _extract_core_subject() (+64 more)
+Cohesion: 0.06
+Nodes (69): backfill_transcripts(), _clean_vtt(), enrich_with_comments(), expand_youtube_queries(), _extract_core_subject(), extract_transcript_highlights(), fetch_transcript(), _fetch_transcript_direct() (+61 more)
 
 ### Community 79 - "gbpContentGenerator.ts"
-Cohesion: 0.05
-Nodes (66): DirectionsResult, DistanceMatrixResult, ElevationResult, GeocodingResult, getMapsConfig(), LatLng, makeRequest(), MapsConfig (+58 more)
+Cohesion: 0.10
+Nodes (34): gbpPostLog, generateOneOffGBPPost(), ANTI_PROMISE_SETS, assertNoFabrication(), buildAntiPost(), buildMathPost(), buildPost(), buildProofPost() (+26 more)
 
 ### Community 80 - "index.ts"
-Cohesion: 0.05
-Nodes (60): runAlternatePaths(), getMarketingPersonas(), MARKETING_REGISTRY, MarketingPersona, aiChat, runMarketingDirector(), extractHandBack(), SpecialistResponse (+52 more)
+Cohesion: 0.08
+Nodes (34): getMarketingPersonas(), MARKETING_REGISTRY, MarketingPersona, aiChat, runMarketingDirector(), extractHandBack(), SpecialistResponse, BUSINESS_CONSULTANT (+26 more)
 
 ### Community 81 - "cookie_extract.py"
-Cohesion: 0.05
-Nodes (60): extract_arc_cookies(), extract_brave_cookies(), extract_chrome_cookies(), extract_chromium_cookies(), _extract_chromium_family_cookies(), extract_cookies_with_source(), extract_edge_cookies(), extract_firefox_cookies() (+52 more)
+Cohesion: 0.08
+Nodes (45): extract_arc_cookies(), extract_brave_cookies(), extract_chrome_cookies(), extract_chromium_cookies(), _extract_chromium_family_cookies(), extract_cookies_with_source(), extract_edge_cookies(), extract_firefox_cookies() (+37 more)
 
 ### Community 82 - "utils.ts"
-Cohesion: 0.03
-Nodes (14): FormControl(), FormDescription(), FormFieldContext, FormFieldContextValue, FormItemContext, FormItemContextValue, FormLabel(), FormMessage() (+6 more)
+Cohesion: 0.01
+Nodes (252): AccordionContent(), AccordionItem(), AccordionTrigger(), AlertDialogAction(), AlertDialogCancel(), AlertDialogContent(), AlertDialogDescription(), AlertDialogFooter() (+244 more)
 
 ### Community 83 - "reelAssembly.ts"
-Cohesion: 0.05
-Nodes (58): font, BRIEF, BRIEF, BRIEF, fontCandidates, REAL_STDERR, systemFont, AUDIO_DELIVERY (+50 more)
+Cohesion: 0.10
+Nodes (34): font, BRIEF, BRIEF, BRIEF, fontCandidates, REAL_STDERR, systemFont, assembleReel() (+26 more)
 
 ### Community 84 - "tasks.ts"
-Cohesion: 0.05
-Nodes (56): BackfillBody, POST, DELETE, GET, PATCH, ProjectDetailProps, DecisionPoint, isProjectPlanData() (+48 more)
+Cohesion: 0.09
+Nodes (23): GET, handler(), loadRegistry(), RegistryFile, SkillEntry, onRequestError(), register(), getSelfBaseUrl() (+15 more)
 
 ### Community 85 - "hiring_signals.py"
-Cohesion: 0.06
-Nodes (67): analyze(), _build_signal(), _confidence_label(), _confidence_score(), infer_company_size(), _interpretation(), _is_strategic_title(), _norm_location() (+59 more)
+Cohesion: 0.18
+Nodes (22): analyze(), _build_signal(), _confidence_label(), _confidence_score(), infer_company_size(), _interpretation(), _is_strategic_title(), _norm_location() (+14 more)
 
 ### Community 86 - "youtube_yt.py"
 Cohesion: 0.06
 Nodes (69): backfill_transcripts(), _clean_vtt(), enrich_with_comments(), expand_youtube_queries(), _extract_core_subject(), extract_transcript_highlights(), fetch_transcript(), _fetch_transcript_direct() (+61 more)
 
 ### Community 87 - "use-system-pulse.ts"
-Cohesion: 0.10
-Nodes (27): SettingsPage(), HomeStatePulse(), isActiveHref(), MoreSheet(), SECTIONS, NavSection, SettingsConsole(), SystemOpsHub() (+19 more)
+Cohesion: 0.03
+Nodes (90): LinksPage(), log, ShortLink, ManualMissionFormProps, detectTool(), HistoryEntry, KommandoLearn(), KommandoLearnProps (+82 more)
 
 ### Community 88 - "youtube_yt.py"
 Cohesion: 0.06
@@ -2850,12 +2604,12 @@ Cohesion: 0.06
 Nodes (68): add_topic(), _cli_query(), _cli_search(), _cli_stats(), _cli_trending(), compute_topic_delta(), _connect(), delete_finding() (+60 more)
 
 ### Community 90 - "omni-capture.tsx"
-Cohesion: 0.05
-Nodes (52): appendPark(), CachedResponse, clearCached(), clearPinned(), INTENT_META, loadCached(), loadPinned(), OmniCapture() (+44 more)
+Cohesion: 0.04
+Nodes (57): appendPark(), CachedResponse, clearCached(), clearPinned(), INTENT_META, IntentChipButton(), loadCached(), loadPinned() (+49 more)
 
 ### Community 91 - "store.py"
-Cohesion: 0.06
-Nodes (68): add_topic(), _cli_query(), _cli_search(), _cli_stats(), _cli_trending(), compute_topic_delta(), _connect(), delete_finding() (+60 more)
+Cohesion: 0.08
+Nodes (54): add_topic(), _cli_query(), _cli_search(), _cli_stats(), _cli_trending(), compute_topic_delta(), _connect(), delete_finding() (+46 more)
 
 ### Community 92 - "store.py"
 Cohesion: 0.06
@@ -2863,27 +2617,23 @@ Nodes (68): add_topic(), _cli_query(), _cli_search(), _cli_stats(), _cli_trendin
 
 ### Community 93 - "test_hackernews.py"
 Cohesion: 0.03
-Nodes (68): create_mock_hit(), Tests for hackernews.py - HN search via Algolia API., Test HTML entity decoding and tag stripping., Test basic query matching., Test that matching is case-insensitive., Test matching with HN prefix stripped., Test that matching prefix-only returns False., Test that empty query always matches. (+60 more)
+Nodes (69): create_mock_hit(), Tests for hackernews.py - HN search via Algolia API., Test HTML entity decoding and tag stripping., Test basic query matching., Test that matching is case-insensitive., Test matching with HN prefix stripped., Test that matching prefix-only returns False., Test that empty query always matches. (+61 more)
 
 ### Community 94 - "__init__.py"
-Cohesion: 0.05
-Nodes (61): get(), get_reddit_json(), get_text(), _is_dns_failure(), log(), post(), post_raw(), Any (+53 more)
-
-### Community 95 - "SignalsV3Tests"
-Cohesion: 0.03
-Nodes (22): engagement_raw for HN must weight both points and comments., X: likes at 0.55 should dominate over quotes at 0.05., Missing fields default to 0, no crash., YouTube: views at 0.45 should dominate. With no top-comment data,         the re, Bluesky: likes at 0.40 should dominate over quotes at 0.10., Truth Social: likes at 0.45 should dominate over replies at 0.25., Engagement must have enough weight to differentiate otherwise-equal items., Social media items with low but non-trivial relevance should survive pruning. (+14 more)
+Cohesion: 0.04
+Nodes (74): _log(), Report, Parallel multi-entity fan-out for the --competitors flag.  The orchestrator acce, Run main + competitor pipelines in parallel; return surviving reports.      Args, run_competitor_fanout(), get(), get_reddit_json(), get_text() (+66 more)
 
 ### Community 96 - "auto-learn.ts"
-Cohesion: 0.05
-Nodes (56): AiUnavailableError, recordGhostOutcome(), DEFAULT_WISDOM_STOPWORDS, extractKeywords(), isPreferredPersonaKey(), matchWisdom(), MatchWisdomOptions, personaFromKey() (+48 more)
+Cohesion: 0.09
+Nodes (48): _compute_relevance(), enrich_candidates_with_stars(), _enrich_external_repo(), _enrich_own_repo(), _enrich_project_repo(), _enrich_top_items(), enrich_with_comments(), extract_repo_refs() (+40 more)
 
 ### Community 97 - "extract_core_subject"
-Cohesion: 0.04
-Nodes (41): extract_core_subject(), Extract core subject from a verbose search query.      Strips common question/me, _extract_core_subject(), _log(), _parse_date(), _parse_items(), parse_threads_response(), Any (+33 more)
+Cohesion: 0.06
+Nodes (26): _extract_core_subject(), _log(), _parse_items(), parse_pinterest_response(), Any, Pinterest search via ScrapeCreators API for /last30days.  Uses ScrapeCreators RE, Search Pinterest via ScrapeCreators API.      Args:         topic: Search topic, Extract core subject from verbose query for Pinterest search. (+18 more)
 
 ### Community 98 - "nick-message.tsx"
-Cohesion: 0.05
-Nodes (52): EmailDraft, EmailDraftCard(), parseEmailDraft(), SendState, ImageWithUpscale(), BarChart(), ChartColor, ChartPoint (+44 more)
+Cohesion: 0.13
+Nodes (10): BrainInsightsPanel(), EvolutionLowTrust, EvolutionRedundant, EvolutionResp, EvolutionStale, FETCH_OPTIONS, ImproveHypothesis, ImproveResp (+2 more)
 
 ### Community 99 - "dependencies"
 Cohesion: 0.03
@@ -2891,151 +2641,151 @@ Nodes (66): dependencies, ai, @ai-sdk/anthropic, @ai-sdk/google, @ai-sdk/openai,
 
 ### Community 100 - "scripts"
 Cohesion: 0.03
-Nodes (66): scripts, analyze, audit:surfaces, bootstrap:repo, bootstrap:repo:dry, build, build:check, build:local (+58 more)
+Nodes (75): scripts, analyze, audit:surfaces, bootstrap:repo, bootstrap:repo:dry, build, build:check, build:local (+67 more)
 
 ### Community 101 - "facelessReelStudio.ts"
 Cohesion: 0.07
-Nodes (61): allBriefText(), buildArchiveChecklist(), buildDraftWorkspace(), buildFfmpegChecklist(), buildHiggsfieldReelPromptPack(), buildInstagramPublishChecklist(), buildReelContinuityBlock(), buildRepetitionChecks() (+53 more)
+Nodes (62): allBriefText(), buildArchiveChecklist(), buildDraftWorkspace(), buildFfmpegChecklist(), buildHiggsfieldReelPromptPack(), buildInstagramPublishChecklist(), buildReelContinuityBlock(), buildRepetitionChecks() (+54 more)
 
 ### Community 102 - "command-center-state.ts"
 Cohesion: 0.06
 Nodes (61): ALERT_CATEGORIES, BrainAlertSummary, BrainDumpRow, BrainDumpSummary, BrainRuleRow, BrainRuleSummary, bucketFromHour(), buildCommandCenterState() (+53 more)
 
 ### Community 103 - "guardian.ts"
-Cohesion: 0.05
-Nodes (49): bgeRerank, BgeRerankCandidate, BgeRerankResult, guardedBgeRerank, HfRerankResponse, rerankSingleCandidate(), cohereRerank, CohereRerankResponse (+41 more)
+Cohesion: 0.06
+Nodes (43): bgeRerank, BgeRerankCandidate, BgeRerankResult, guardedBgeRerank, HfRerankResponse, rerankSingleCandidate(), cohereRerank, CohereRerankResponse (+35 more)
 
 ### Community 104 - "bird_x.py"
 Cohesion: 0.05
 Nodes (52): unregister_child_pid(), check_npm_available(), _extract_core_subject(), _first_of(), get_bird_status(), _has_injected_credentials(), _has_process_credentials(), install_bird() (+44 more)
 
 ### Community 105 - "getFlag"
-Cohesion: 0.06
-Nodes (52): DedupRunRow, GET, SourceTypeRow, CONTEXT_SYSTEM, contextualizeChunk(), cleanupResolvedContradiction(), ContradictionCleanupResult, log (+44 more)
+Cohesion: 0.02
+Nodes (185): assertApprovalGated(), GET, log, GET, GET, log, DedupRunRow, GET (+177 more)
 
 ### Community 106 - "engine.ts"
-Cohesion: 0.06
-Nodes (55): ReasoningTraceLive(), simulateReasoningStream(), SimulateReasoningStreamArgs, SimulateStreamArgs, simulateStreamFromText(), ADR-0011, getState(), __internals (+47 more)
+Cohesion: 0.07
+Nodes (41): AleRecoverySnapshot, AleSessionSnapshot, asJsonValue(), CaptureInboxItemView, claimWorkItems(), completeWorkItem(), createAuditEvent(), DEFAULT_INTEGRATION_ORDER (+33 more)
 
 ### Community 107 - "NOUR OS v10+ Roadmap — The Devastating Lead Playbook"
-Cohesion: 0.03
-Nodes (64): 12.1 Real-time shop OS mirror, 12.2 Decision journal auto-harvest, 12.3 Compounding identity — never-forgetting brain, 12.4 Adversarial Nick — devil's advocate mode, 12.5 The 1% rule engine, 2.1 Identity drift detection, 2.2 Decision outcome tracking with confidence calibration, 2.3 Counterfactual history — "what if I had done X" (+56 more)
+Cohesion: 0.15
+Nodes (12): Chat performance overhaul (8-item list), Commits pushed to `codex/ollama-local` (2026-04-20 cluster), How to execute this roadmap, How to use this file, Intelligence + control layer (v10.2), Meta — this file is a living artifact, NOUR OS v10+ Roadmap — The Devastating Lead Playbook, Permanent principles (3-layer redundancy) (+4 more)
 
 ### Community 108 - "instagramStudio.ts"
-Cohesion: 0.06
-Nodes (52): consumeCreateHandoff(), gateClass(), initialFromHandoff(), OBJECTIVE_LABELS, STATIC_FORMATS, StudioV2(), VISUAL_FIELDS, snapshot() (+44 more)
+Cohesion: 0.04
+Nodes (56): base, admin(), ctx(), database, makeDraft(), makeRow(), Op, ops (+48 more)
 
 ### Community 109 - "TimeoutError"
-Cohesion: 0.06
-Nodes (41): deriveTurnSignals(), Logger, StageTracker, Logger, prepareTools(), DELETE(), GET(), PATCH() (+33 more)
+Cohesion: 0.05
+Nodes (34): Call, CALLS, ENGINE_SOURCES, HERE, label(), MASTER, MASTER_RAW, NO_CORRECT_KEY (+26 more)
 
 ### Community 110 - "entity-audit.ts"
 Cohesion: 0.07
-Nodes (49): DELETE(), GET(), PATCH(), PinCreateBody, PinPatchBody, POST(), autoKey(), BlindSpotPinReport (+41 more)
+Nodes (37): POST(), bestMatch(), clamp01(), ClassifyLinkageInput, ClassifyLinkageResult, classifyTaskLinkage(), DOMAIN_CUES, EMPTY (+29 more)
 
 ### Community 111 - "brand-constants.ts"
 Cohesion: 0.06
 Nodes (60): ALGORITHM_PRIORITIES, BRAND_VOICE, CAPTION_ENGINE, CAPTION_FRAMEWORKS, CAPTURE_SYSTEM, CAROUSEL_ENGINE, CLEVELAND_IDENTITY, CONTENT_GENERATION_MODE (+52 more)
 
 ### Community 112 - "pipeline.py"
-Cohesion: 0.07
-Nodes (59): _apply_per_author_cap(), candidate_key(), _candidate_sort_key(), _diversify_pool(), _extract_author(), _normalize_url(), Candidate, QueryPlan (+51 more)
+Cohesion: 0.10
+Nodes (43): _apply_hiring_signal_gate(), available_sources(), _company_topic_likely(), _comparison_side_company_like(), diagnose(), _ensure_jobs_in_plan(), _fetch_x_backend(), _finalize_items_by_source() (+35 more)
 
 ### Community 113 - "leadSource.ts"
-Cohesion: 0.06
-Nodes (52): ACTIVE_LEAD_STATUSES, AdminActionableCounts, BookingLike, CallbackLike, getAdminActionableCounts(), LeadLike, PENDING_CALLBACK_STATUSES, ACTIVE_PIPELINE_STATUSES (+44 more)
+Cohesion: 0.04
+Nodes (73): ACTIVE_LEAD_STATUSES, BookingLike, CallbackLike, getAdminActionableCounts(), LeadLike, PENDING_CALLBACK_STATUSES, getBusinessDateKey(), isBusinessDate() (+65 more)
 
 ### Community 114 - "gatewayTire.ts"
-Cohesion: 0.03
-Nodes (74): main(), main(), main(), main(), buildCancellationAlert(), deriveExpectedPriceCents(), evaluateOrderPrice(), ExpectedPriceCandidate (+66 more)
+Cohesion: 0.04
+Nodes (74): ensureDirExists(), main(), MOCK_MP4_BUFFER, MOCK_PNG_BUFFER, getSiteHealth(), Season, AuthenticatedUser, buildCancellationAlert() (+66 more)
 
 ### Community 115 - "ingest.ts"
-Cohesion: 0.05
-Nodes (48): POST, fetchListedDeals(), ListedDeal, log, fetchFREDIndicators(), FREDIndicator, log, fetchNHTSARecalls() (+40 more)
+Cohesion: 0.09
+Nodes (39): _compute_text_similarity(), _expand_queries(), _extract_core_subject(), _extract_domain_queries(), filter_items_against_keywords(), filter_items_against_topic(), _format_price_movement(), _infer_query_intent() (+31 more)
 
 ### Community 116 - "vapi.ts"
 Cohesion: 0.05
-Nodes (36): main(), main(), main(), main(), main(), main(), ANALYSIS_PLAN, buildAssistantConfig() (+28 more)
+Nodes (40): main(), main(), main(), main(), main(), main(), runConfirmationCalls(), runVoiceRecovery() (+32 more)
 
 ### Community 117 - "multi-search.ts"
-Cohesion: 0.05
-Nodes (53): GET, ALL_SOURCES, dedupCitations(), hasApiKey(), jaccardSimilarity(), log, MultiSourceCitation, MultiSourceOptions (+45 more)
+Cohesion: 0.04
+Nodes (58): handleArsenalWebSearch(), ALL_SOURCES, dedupCitations(), hasApiKey(), jaccardSimilarity(), log, MultiSourceCitation, MultiSourceOptions (+50 more)
 
 ### Community 118 - "cli.ts"
 Cohesion: 0.07
 Nodes (38): args, options, generateSignalControlArchitecture(), createEcommerceTrendDiscoveryExample(), SignalControlForgeInput, SignalControlForgeInputSchema, RoleSchema, SignalControlForgeOutput (+30 more)
 
 ### Community 119 - "schema.py"
-Cohesion: 0.06
-Nodes (55): AudioRequest, BaseResponse, BgmRetrieveResponse, BgmUploadResponse, _Config, {       "video_subject": "春天的花海",       "video_language": "",       "paragraph_n, {       "video_subject": "",       "video_script": "",       "amount": 5,, SubtitleRequest (+47 more)
+Cohesion: 0.05
+Nodes (62): AudioRequest, BaseResponse, BgmRetrieveResponse, BgmUploadResponse, _Config, {       "video_subject": "春天的花海",       "video_language": "",       "paragraph_n, {       "video_subject": "",       "video_script": "",       "amount": 5,, {       "video_subject": "A day in Shanghai",       "video_script": "",       "l (+54 more)
 
 ### Community 120 - "tiktok.py"
-Cohesion: 0.05
-Nodes (38): _clean_webvtt(), enrich_with_comments(), expand_tiktok_queries(), _extract_core_subject(), fetch_captions(), _fetch_post_comments(), _hashtag_search(), _log() (+30 more)
+Cohesion: 0.10
+Nodes (33): _clean_webvtt(), enrich_with_comments(), expand_tiktok_queries(), _extract_core_subject(), fetch_captions(), _fetch_post_comments(), _hashtag_search(), _log() (+25 more)
 
 ### Community 121 - "test_store.py"
 Cohesion: 0.03
 Nodes (57): Tests for store.py - SQLite research accumulator and watchlist storage., Test that findings_from_report extracts items from all sources in items_by_sourc, Test that HN items are extracted correctly (PR #85 feature)., Create a temporary database for testing., Test that Polymarket items are extracted correctly (PR #85 feature)., Test that limit parameter works correctly., Test that empty sources in items_by_source don't cause issues., Test that missing optional fields (author, snippet) are handled gracefully. (+49 more)
 
 ### Community 122 - "system-prompt.ts"
-Cohesion: 0.08
-Nodes (45): GET(), POST(), describeFraming(), PAGE_FRAMING, POST(), safeStringify(), ADR-0019, describeFraming() (+37 more)
+Cohesion: 0.02
+Nodes (117): google(), ProviderConfig, PROVIDERS_REGISTRY, RuntimeProviderName, TASK_ROUTING_PREFERENCES, getHfEmbedding(), isHfEmbeddingAvailable(), classify() (+109 more)
 
 ### Community 123 - "drafts-tab.tsx"
 Cohesion: 0.03
-Nodes (70): FirstVisitData, FirstVisitSource, FunnelOverview, FunnelStage, FunnelTab(), ageString(), ContentDraft, DraftsResponse (+62 more)
+Nodes (73): evaluateQuality(), UnifiedStudio(), operatorQualityOverrides, h, BoundedTtlMap, BoundedTtlMapOptions, Entry, affectedRowCount() (+65 more)
 
 ### Community 124 - "ComparisonPage.tsx"
 Cohesion: 0.06
 Nodes (18): buildDefaultFaqs(), ClosingCta(), ComparisonFormat, ComparisonHero(), ComparisonPage(), ComparisonPageProps, FaqItem, FaqWithSchema() (+10 more)
 
 ### Community 125 - "chain.ts"
-Cohesion: 0.07
-Nodes (50): aiChat, askAny(), callProvider(), getAvailableProviders(), ModelProvider, MultiModelResponse, realtime(), research() (+42 more)
+Cohesion: 0.08
+Nodes (45): handleArsenalFindLeads(), handleArsenalResearch(), aiChat, askAny(), callProvider(), getAvailableProviders(), ModelProvider, MultiModelResponse (+37 more)
 
 ### Community 126 - "renderedQa.ts"
-Cohesion: 0.07
-Nodes (42): audioOk, block, setJob(), CRITIC_LENSES, CriticLens, KEY(), mergePanel(), PanelVerdict (+34 more)
+Cohesion: 0.03
+Nodes (77): MediaAsset, socialContentApprovals, flag, result, args, baseApproval, { approvalRows }, IMG_A (+69 more)
 
 ### Community 127 - "WorkOrdersSection.tsx"
-Cohesion: 0.06
-Nodes (39): Props, getBusinessDateKey(), isBusinessDate(), classifyIntegrationFreshness(), FreshnessResult, FreshnessState, AdminDashboardStats, BlockersView() (+31 more)
+Cohesion: 0.05
+Nodes (31): actorSet, ARTIFACT_STATES, artifactSet, BridgeQueryRequest, BridgeQueryResponse, CollectorStats, COMMITMENT_STATUSES, CommitmentStatus (+23 more)
 
 ### Community 128 - "dates.py"
-Cohesion: 0.05
-Nodes (52): _candidate_ok(), discover_competitors(), _extract_peer_entities(), _log(), _normalize_candidate(), _queries_for(), Discover peer entities ("competitors") for a topic via web search.  Mirrors the, Discover `count` peer entities for `topic` via web search.      Args:         to (+44 more)
+Cohesion: 0.08
+Nodes (36): _candidate_ok(), discover_competitors(), _extract_peer_entities(), _log(), _normalize_candidate(), _queries_for(), Discover peer entities ("competitors") for a topic via web search.  Mirrors the, Discover `count` peer entities for `topic` via web search.      Args:         to (+28 more)
 
 ### Community 129 - "pipeline.py"
-Cohesion: 0.07
-Nodes (53): extract_entities(), _extract_subreddits(), _extract_x_handles(), _extract_x_hashtags(), Any, Entity extraction from initial search results for supplemental searches., Extract key entities from Phase 1 results for supplemental searches.      Parses, Extract and rank @handles from X results.      Sources handles from:     1. auth (+45 more)
+Cohesion: 0.10
+Nodes (43): _apply_hiring_signal_gate(), available_sources(), _company_topic_likely(), _comparison_side_company_like(), diagnose(), _ensure_jobs_in_plan(), _fetch_x_backend(), _finalize_items_by_source() (+35 more)
 
 ### Community 130 - "dates.py"
 Cohesion: 0.06
 Nodes (51): days_ago(), get_date_confidence(), get_date_range(), parse_as_of_date(), parse_date(), datetime, Date utilities for last30days skill., Determine confidence level for a date.      Args:         date_str: The date to (+43 more)
 
 ### Community 131 - "TestSearchEndpointHostResolution"
-Cohesion: 0.04
-Nodes (10): Tests for bluesky module., The default search host moved from `public.api.bsky.app` (the     unauthenticate, Bluesky app passwords are 19-char xxxx-xxxx-xxxx-xxxx (lowercase     alphanumeri, TestAppPasswordFormat, TestCreateSession, TestDepthConfig, TestExtractCoreSubject, TestParseBlueskyResponse (+2 more)
+Cohesion: 0.03
+Nodes (40): get(), get_reddit_json(), get_text(), HTTPError, _is_dns_failure(), log(), post(), post_raw() (+32 more)
 
 ### Community 132 - "reelBriefGen.ts"
 Cohesion: 0.06
-Nodes (47): CREATIVE_THESIS_VERSION, CreativeThesis, CreativeThesisSchema, lockCreativeThesis(), serializeThesisForPrompt(), THESIS_ADAPTABLE_FIELDS, THESIS_NEVER_INTRODUCE, THESIS_PROTECTED_FIELDS (+39 more)
+Nodes (56): genomeToReelSeed(), CREATIVE_THESIS_VERSION, CreativeThesis, CreativeThesisSchema, lockCreativeThesis(), serializeThesisForPrompt(), THESIS_ADAPTABLE_FIELDS, THESIS_NEVER_INTRODUCE (+48 more)
 
 ### Community 133 - "instagram.py"
 Cohesion: 0.06
 Nodes (35): expand_instagram_queries(), _extract_core_subject(), _extract_hashtags(), fetch_captions(), _log(), _parse_date(), parse_instagram_response(), _parse_items() (+27 more)
 
 ### Community 134 - "polymarket.py"
-Cohesion: 0.06
-Nodes (49): _log(), Report, Parallel multi-entity fan-out for the --competitors flag.  The orchestrator acce, Run main + competitor pipelines in parallel; return surviving reports.      Args, run_competitor_fanout(), debug(), Shared logging utilities for last30days skill., Log debug message to stderr (only when LAST30DAYS_DEBUG is set). (+41 more)
+Cohesion: 0.09
+Nodes (39): _compute_text_similarity(), _expand_queries(), _extract_core_subject(), _extract_domain_queries(), filter_items_against_keywords(), filter_items_against_topic(), _format_price_movement(), _infer_query_intent() (+31 more)
 
 ### Community 135 - "TireOrdersSection.tsx"
-Cohesion: 0.06
-Nodes (46): CustomersBrief(), CustomersBriefProps, greeting(), DeclinedEstimate, DeclinedEstimatesSection(), recoveryScore(), SortMode, TimeFilter (+38 more)
+Cohesion: 0.08
+Nodes (30): GatewayPill(), greeting(), OutreachBrief(), OutreachBriefProps, ConversationList(), ConversationRow, dayKey(), dayLabel() (+22 more)
 
 ### Community 136 - "image-actions.ts"
-Cohesion: 0.05
-Nodes (45): GET, POST, ImproveBody, POST(), POST(), VariationsBody, AcceptedSize, GEMINI_API_KEY (+37 more)
+Cohesion: 0.04
+Nodes (93): DELETE, GET, PATCH, GET, POST, calculateDailyScore(), createDemoState(), DemoCustomer (+85 more)
 
 ### Community 137 - "last30days.py"
 Cohesion: 0.08
@@ -3046,12 +2796,12 @@ Cohesion: 0.09
 Nodes (50): _apply_engagement_rescue(), _apply_fallback_scores(), _apply_first_party_floor(), _apply_fun_fallback(), _apply_fun_scores(), _apply_interaction_signal(), _apply_llm_scores(), _apply_single_fun_fallback() (+42 more)
 
 ### Community 139 - "task.ts"
-Cohesion: 0.03
-Nodes (59): GET(), log, POST(), ToolCallBody, GET, POST, POST, PERSON_ROLES (+51 more)
+Cohesion: 0.10
+Nodes (23): PinRow, PinsPage(), PinsResponse, staleClass(), staleness(), Stat(), Stats, BrainMaturityHeader() (+15 more)
 
 ### Community 140 - "candidate.ts"
-Cohesion: 0.07
-Nodes (43): finding(), buildGraphifyCandidate(), GraphifyFinding, GraphifyFindingSchema, GraphifyManifest, GraphifyManifestSchema, buildObsidianCandidate(), ObsidianCandidateInput (+35 more)
+Cohesion: 0.12
+Nodes (26): BridgeErr, BridgeOk, GET(), isBridgeOk(), RouteContext, avgTicketCents(), buildSummary(), classifyPaymentBehavior() (+18 more)
 
 ### Community 141 - "last30days.py"
 Cohesion: 0.08
@@ -3082,24 +2832,24 @@ Cohesion: 0.10
 Nodes (49): _append_html_footer(), _assess_data_freshness(), _assistant_safety_lines(), _best_take_relevance_ok(), _effective_fun_score(), _parse_comparison_entities(), Report, Cluster-first rendering for the v3 pipeline. (+41 more)
 
 ### Community 148 - "igAutopost.ts"
-Cohesion: 0.08
-Nodes (47): main(), main(), alreadyRanSlotToday(), bucketQuestionTopic(), buildSignalBrief(), CAPTION_WEIGHTS, CaptionEval, combineScores() (+39 more)
+Cohesion: 0.02
+Nodes (134): igAutopostLog, specials, main(), generateImage(), GenerateImageOptions, GenerateImageResponse, { dbRows, hgGenerate, storagePut, fallbackGenerate }, TINY_PNG (+126 more)
 
 ### Community 149 - "storage.ts"
-Cohesion: 0.08
-Nodes (36): main(), generateImage(), GenerateImageOptions, GenerateImageResponse, released, { hasHiggsfield }, getInstagramPermalink(), isLocalTimeout() (+28 more)
+Cohesion: 0.03
+Nodes (76): JournalInsightsView(), BodySection, CalibrationSection, GraduatedSkillsCard, IdentityArcCard, LearningLoop, RecurringEnemiesCard, TABS (+68 more)
 
 ### Community 150 - "jobs.py"
 Cohesion: 0.10
 Nodes (49): _artifact(), _ats_item(), _candidate_slugs(), _clean_html(), _company_slug(), _date_part(), detect_ats(), _domain() (+41 more)
 
 ### Community 151 - "TestLiteLLMProvider"
-Cohesion: 0.06
-Nodes (17): 验证 LiteLLM provider 的主路径不依赖真实网络和私有 API key。          这里用 fake module 注入 `sys.mod, 某些 OpenAI-compatible 网关在内容过滤或安全拦截时会返回         HTTP 200，但 `choices[0].message` 为, 自定义 OpenAI-compatible base_url 可能包含代理网关的 user:pass。         SDK 抛错时常会把 URL 带回异常信, DashScope chat 模式会把文本放在 `output.choices[0].message.content`。         这里覆盖 issue, 保留旧 DashScope completion 响应结构的兼容路径。, Qwen 空响应应返回可诊断错误，而不是底层 AttributeError。, Qwen chat 响应 choices 为空时应返回明确错误。, AIHubMix 是 OpenAI-compatible 网关。这里用 fake OpenAI client         验证独立 provider 会使用 (+9 more)
+Cohesion: 0.07
+Nodes (14): 验证 LiteLLM provider 的主路径不依赖真实网络和私有 API key。          这里用 fake module 注入 `sys.mod, 某些 OpenAI-compatible 网关在内容过滤或安全拦截时会返回         HTTP 200，但 `choices[0].message` 为, DashScope chat 模式会把文本放在 `output.choices[0].message.content`。         这里覆盖 issue, 保留旧 DashScope completion 响应结构的兼容路径。, Qwen 空响应应返回可诊断错误，而不是底层 AttributeError。, Qwen chat 响应 choices 为空时应返回明确错误。, AIHubMix 是 OpenAI-compatible 网关。这里用 fake OpenAI client         验证独立 provider 会使用, 普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。 (+6 more)
 
 ### Community 152 - "Changelog"
-Cohesion: 0.10
-Nodes (50): [1.0.0] - 2026-01-15, [2.1.0] - 2026-02-15, [2.8.0] - 2026-03-04, [2.9.0] - 2026-03-05, [2.9.1] - 2026-03-05, [2.9.2] - 2026-03-06, [2.9.3] - 2026-03-06, [2.9.4] - 2026-03-06 (+42 more)
+Cohesion: 0.04
+Nodes (49): [1.0.0] - 2026-01-15, [2.9.1] - 2026-03-05, [2.9.2] - 2026-03-06, [2.9.3] - 2026-03-06, [2.9.4] - 2026-03-06, [3.0.11] - 2026-04-22, [3.0.14] - 2026-04-22, [3.0.1] - 2026-04-14 (+41 more)
 
 ### Community 153 - "jobs.py"
 Cohesion: 0.10
@@ -3114,8 +2864,8 @@ Cohesion: 0.06
 Nodes (17): 验证 LiteLLM provider 的主路径不依赖真实网络和私有 API key。          这里用 fake module 注入 `sys.mod, 某些 OpenAI-compatible 网关在内容过滤或安全拦截时会返回         HTTP 200，但 `choices[0].message` 为, 自定义 OpenAI-compatible base_url 可能包含代理网关的 user:pass。         SDK 抛错时常会把 URL 带回异常信, DashScope chat 模式会把文本放在 `output.choices[0].message.content`。         这里覆盖 issue, 保留旧 DashScope completion 响应结构的兼容路径。, Qwen 空响应应返回可诊断错误，而不是底层 AttributeError。, Qwen chat 响应 choices 为空时应返回明确错误。, AIHubMix 是 OpenAI-compatible 网关。这里用 fake OpenAI client         验证独立 provider 会使用 (+9 more)
 
 ### Community 156 - "bird_x.py"
-Cohesion: 0.06
-Nodes (47): unregister_child_pid(), check_npm_available(), _extract_core_subject(), _first_of(), get_bird_status(), _has_injected_credentials(), _has_process_credentials(), install_bird() (+39 more)
+Cohesion: 0.07
+Nodes (44): unregister_child_pid(), check_npm_available(), _extract_core_subject(), _first_of(), get_bird_status(), _has_injected_credentials(), _has_process_credentials(), install_bird() (+36 more)
 
 ### Community 157 - "detect_category"
 Cohesion: 0.05
@@ -3126,44 +2876,44 @@ Cohesion: 0.09
 Nodes (48): _compute_relevance(), enrich_candidates_with_stars(), _enrich_external_repo(), _enrich_own_repo(), _enrich_project_repo(), _enrich_top_items(), enrich_with_comments(), extract_repo_refs() (+40 more)
 
 ### Community 159 - "mega-fanout.ts"
-Cohesion: 0.06
-Nodes (34): CRON_JOBS, GET(), safeEqual(), expectedCronRouteNames, cronHeartbeat, expectedJobs(), inngest, log (+26 more)
+Cohesion: 0.01
+Nodes (283): GET, PATCH, PatchBody, GET, GET(), GET, GET, GET() (+275 more)
 
 ### Community 160 - "preference-inference.ts"
 Cohesion: 0.09
 Nodes (42): GET(), POST(), getCachedAddendum(), invalidateStyleCache(), VectorCache, aggregateRecentFeedback(), applyDeltaWithDecay(), AXES (+34 more)
 
 ### Community 161 - "wisdom-tab.tsx"
-Cohesion: 0.06
-Nodes (36): JournalFeedView(), useJournalFeed(), ORIGIN_BADGE, RelatedResp, RelatedWisdom, RelatedWisdomLinks(), EvolutionResp, LowTrustCandidate (+28 more)
+Cohesion: 0.05
+Nodes (36): CRON_JOBS, cronHeartbeat, expectedJobs(), inngest, log, nameOf(), CHILD_TIMEOUT_MS, ChildResult (+28 more)
 
 ### Community 162 - "cookie_extract.py"
-Cohesion: 0.08
-Nodes (48): extract_arc_cookies(), extract_brave_cookies(), extract_chrome_cookies(), extract_chromium_cookies(), _extract_chromium_family_cookies(), extract_cookies(), extract_cookies_with_source(), extract_edge_cookies() (+40 more)
+Cohesion: 0.07
+Nodes (49): extract_arc_cookies(), extract_brave_cookies(), extract_chrome_cookies(), extract_chromium_cookies(), _extract_chromium_family_cookies(), extract_cookies(), extract_cookies_with_source(), extract_edge_cookies() (+41 more)
 
 ### Community 163 - "github.py"
-Cohesion: 0.09
-Nodes (48): _compute_relevance(), enrich_candidates_with_stars(), _enrich_external_repo(), _enrich_own_repo(), _enrich_project_repo(), _enrich_top_items(), enrich_with_comments(), extract_repo_refs() (+40 more)
+Cohesion: 0.02
+Nodes (137): ALLOWED_ACTIONS, GET, GET, GET, PatchSchema, POST, GET, GET() (+129 more)
 
 ### Community 164 - "github.py"
 Cohesion: 0.09
 Nodes (48): _compute_relevance(), enrich_candidates_with_stars(), _enrich_external_repo(), _enrich_own_repo(), _enrich_project_repo(), _enrich_top_items(), enrich_with_comments(), extract_repo_refs() (+40 more)
 
 ### Community 165 - "sidebar.tsx"
-Cohesion: 0.06
-Nodes (20): Sheet(), SheetContent(), SheetDescription(), SheetHeader(), SheetTitle(), Sidebar(), SidebarContext, SidebarContextProps (+12 more)
+Cohesion: 0.14
+Nodes (27): brave_search(), _domain(), _enrich_reddit_items(), exa_search(), _in_date_range(), _normalize_date(), parallel_search(), _parse_serper_date() (+19 more)
 
 ### Community 166 - "creativeGenome.ts"
-Cohesion: 0.08
-Nodes (41): CAMPAIGN_OBJECTIVES, CreativeGenome, fingerprintFromGenome(), genomeFromCarouselBrief(), genomeFromReelBrief(), GenomeSafetyFinding, genomeToPhotoSeed(), TERRITORY_TO_REEL (+33 more)
+Cohesion: 0.07
+Nodes (49): CAMPAIGN_OBJECTIVES, CreativeGenome, fingerprintFromGenome(), genomeFromCarouselBrief(), genomeFromReelBrief(), GenomeSafetyFinding, genomeToCarouselSeed(), genomeToPhotoSeed() (+41 more)
 
 ### Community 167 - "creativeVault.ts"
-Cohesion: 0.08
-Nodes (40): MediaAsset, envBackup, envKeys, jsonRes(), NEVER_DB, archiveRegisteredAsset(), beginDriveConsent(), completeDriveConsent() (+32 more)
+Cohesion: 0.13
+Nodes (31): integrationTokens, mediaAssets, envBackup, envKeys, jsonRes(), archiveRegisteredAsset(), beginDriveConsent(), completeDriveConsent() (+23 more)
 
 ### Community 168 - "content.ts"
 Cohesion: 0.05
-Nodes (58): ContentGenerationLog, deleteNotification(), generateArticle(), GeneratedNotification, generateNotifications(), getActiveNotifications(), getAllDynamicArticles(), getAllNotifications() (+50 more)
+Nodes (51): DELETE, GET, PATCH, POST, emitGoalEvent(), emitGoalEventAsync(), emitGoalTransition(), ancestorChain() (+43 more)
 
 ### Community 169 - "TestVoiceService"
 Cohesion: 0.04
@@ -3175,15 +2925,15 @@ Nodes (21): 兼容 PR #981 曾使用过的 none sentinel，避免少量直接调
 
 ### Community 171 - "GrowthSection.tsx"
 Cohesion: 0.07
-Nodes (34): CompetitorBaseline, CompetitorObservation, COMPETITORS, reviewVolumeGaps(), WEEKLY_CHECK_FIELDS, CANONICAL_IDENTITY, CanonicalIdentity, ENTITY_FIX_ORDER (+26 more)
+Nodes (35): CompetitorBaseline, CompetitorObservation, COMPETITORS, reviewVolumeGaps(), WEEKLY_CHECK_FIELDS, CANONICAL_IDENTITY, CanonicalIdentity, ENTITY_FIX_ORDER (+27 more)
 
 ### Community 172 - "coach-events.ts"
-Cohesion: 0.08
-Nodes (36): GET, ackRecovered(), bodyFor(), DriftFlag, goalDriftDetector, inngest, log, persistFlags() (+28 more)
+Cohesion: 0.09
+Nodes (29): days_ago(), get_date_confidence(), get_date_range(), parse_as_of_date(), parse_date(), datetime, Date utilities for last30days skill., Determine confidence level for a date.      Args:         date_str: The date to (+21 more)
 
 ### Community 173 - "Transcript"
-Cohesion: 0.04
-Nodes (47): [ASSISTANT] (gpt-oss:120b) - ID: cmqz5u4ql012rpv01a8o92dmv, [ASSISTANT] (gpt-oss:120b) - ID: cmqz63vce013xpv012qayq1mx, [ASSISTANT] (gpt-oss:120b) - ID: cmqz663l5014wpv018i9amgfm, [ASSISTANT] (gpt-oss:120b) - ID: cmqz68q7a000pny01sn9lx9bj, [ASSISTANT] (gpt-oss:120b) - ID: cmqz69b1h001jny01tkbkn27n, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6bmas0025ny01swmj4tbk, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6fumv002tny01d6yfk2c5, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6hx5r003iny01n6v8ipqb (+39 more)
+Cohesion: 0.10
+Nodes (20): [ASSISTANT] (gpt-oss:120b) - ID: cmqz6m74l0044ny01brgpdwdf, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6oixh0052ny01m8s6ovs0, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6qz9d005vny01bsca6ey4, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6t3z0006vny01zm9nb6g1, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6w40f007rny01r4q6jw9f, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6zppc000hpl01s0is86ci, [ASSISTANT] (gpt-oss:120b) - ID: cmqz71qkf001apl0172rc8au3, [ASSISTANT] (gpt-oss:120b) - ID: cmqz73s4p000pqj01lzlzs5lp (+12 more)
 
 ### Community 174 - "6. Surface Scores"
 Cohesion: 0.04
@@ -3194,8 +2944,8 @@ Cohesion: 0.04
 Nodes (46): "Are you open today?", "Are you the cheapest?", "Can I drop off after hours?", "Can you handle European / luxury brands?", Contact, Customer Covenant (non-negotiables), "Do I need an appointment?", "Do you do AC repair?" (+38 more)
 
 ### Community 176 - "bird_x.py"
-Cohesion: 0.07
-Nodes (46): unregister_child_pid(), check_npm_available(), _extract_core_subject(), _first_of(), get_bird_status(), _has_injected_credentials(), _has_process_credentials(), install_bird() (+38 more)
+Cohesion: 0.04
+Nodes (77): unregister_child_pid(), check_npm_available(), _extract_core_subject(), _first_of(), get_bird_status(), _has_injected_credentials(), _has_process_credentials(), install_bird() (+69 more)
 
 ### Community 177 - "TestVideoService"
 Cohesion: 0.04
@@ -3206,60 +2956,60 @@ Cohesion: 0.04
 Nodes (46): 0 · What this plan delivers, 1 · Final directory layout, 2 · Auth strategy for the admin surface, 3 · Worker service design, 4 · Railway service topology, 5 · Cutover sequence (10 checkpoints · rollback at each), 6 · Linear issues to create (subject to operator approval), 7 · Phase 3 execution rules (preview) (+38 more)
 
 ### Community 179 - "rerank.py"
-Cohesion: 0.09
-Nodes (46): _apply_engagement_rescue(), _apply_fallback_scores(), _apply_first_party_floor(), _apply_fun_fallback(), _apply_fun_scores(), _apply_interaction_signal(), _apply_llm_scores(), _build_fun_prompt() (+38 more)
+Cohesion: 0.11
+Nodes (40): _apply_engagement_rescue(), _apply_fallback_scores(), _apply_first_party_floor(), _apply_interaction_signal(), _apply_llm_scores(), _build_prompt(), _candidate_author_handle(), _candidate_engagement() (+32 more)
 
 ### Community 180 - "TestVideoService"
 Cohesion: 0.04
 Nodes (22): BGM 列表接口现在只暴露文件名；生成视频时应能把文件名安全解析回         resource/songs 白名单目录，保持正常使用路径可用。, 用户在 WebUI 中可能直接填写 ./resource/songs/xxx.mp3。该路径虽然是         项目根目录相对路径，但实际文件仍在 reso, 用户传入的 bgm_file 不能直接作为本地路径打开，否则可能读取系统文件。         即使外部文件存在，也必须因为不在 songs 目录内被拒绝。, 配置中显式指定 ffmpeg 时，应优先使用该路径。, Windows 便携包里系统 PATH 可能没有 ffmpeg，但 moviepy 依赖的         imageio-ffmpeg 通常会提供可执行文件。, 用户选择的硬件编码器必须先经过 FFmpeg encoder 列表检测。检测不到         时直接回退 libx264，避免生成任务在写文件阶段才失败。, Windows 上用户配置的 ffmpeg 可能因为路径损坏、权限或杀软拦截而无法         正常执行。encoder 探测失败时必须返回 False，让, FFmpeg 声明支持某个硬件编码器，不代表当前显卡或驱动一定可用。         首次实际编码失败后，应立即用 libx264 重试，并在本进程禁用该编码器 (+14 more)
 
 ### Community 181 - "reddit.py"
-Cohesion: 0.09
-Nodes (45): _compute_post_relevance(), _dedupe_posts(), discover_subreddits(), enrich_with_comments(), expand_reddit_queries(), _extract_core_subject(), _extract_date(), _extract_score() (+37 more)
+Cohesion: 0.08
+Nodes (48): infer_query_intent(), Shared query preprocessing utilities: noise-word stripping, core subject extract, Classify a topic into a coarse intent for adapter query expansion.      Returns, _compute_post_relevance(), _dedupe_posts(), discover_subreddits(), enrich_with_comments(), expand_reddit_queries() (+40 more)
 
 ### Community 182 - "assemble-reel.ts"
-Cohesion: 0.06
-Nodes (38): build(), CONFIGS, DIR, main(), OUT, Seg, BASE, dl() (+30 more)
+Cohesion: 0.12
+Nodes (19): build(), CONFIGS, DIR, main(), OUT, Seg, BASE, dl() (+11 more)
 
 ### Community 183 - "smsIntentRouter.ts"
-Cohesion: 0.08
-Nodes (36): check(), RISK_ORDER, routeInboundSms(), Rule, RULES, SmsIntentDecision, SmsRouterContext, SmsRouteRisk (+28 more)
+Cohesion: 0.10
+Nodes (15): ErrorEntry, ErrorReport, log, StormAlert, AIError, AppError, AuthError, DatabaseError (+7 more)
 
 ### Community 184 - "page.tsx"
-Cohesion: 0.08
-Nodes (35): AntiPattern, Decision, DecisionDetailPage(), DetailPayload, GRADE_NUMERIC, gradeTone(), gradeToNumeric(), Sibling (+27 more)
+Cohesion: 0.05
+Nodes (47): AntiPattern, Decision, DecisionDetailPage(), DetailPayload, GRADE_NUMERIC, gradeTone(), gradeToNumeric(), Sibling (+39 more)
 
 ### Community 185 - "polymarket.py"
 Cohesion: 0.09
 Nodes (39): _compute_text_similarity(), _expand_queries(), _extract_core_subject(), _extract_domain_queries(), filter_items_against_keywords(), filter_items_against_topic(), _format_price_movement(), _infer_query_intent() (+31 more)
 
 ### Community 186 - "reddit.py"
-Cohesion: 0.09
-Nodes (45): _compute_post_relevance(), _dedupe_posts(), discover_subreddits(), enrich_with_comments(), expand_reddit_queries(), _extract_core_subject(), _extract_date(), _extract_score() (+37 more)
+Cohesion: 0.08
+Nodes (48): infer_query_intent(), Shared query preprocessing utilities: noise-word stripping, core subject extract, Classify a topic into a coarse intent for adapter query expansion.      Returns, _compute_post_relevance(), _dedupe_posts(), discover_subreddits(), enrich_with_comments(), expand_reddit_queries() (+40 more)
 
 ### Community 187 - "polymarket.py"
-Cohesion: 0.07
-Nodes (44): debug(), Shared logging utilities for last30days skill., Log debug message to stderr (only when LAST30DAYS_DEBUG is set)., Log a source module message to stderr.      Args:         prefix: Source label (, source_log(), _compute_text_similarity(), _expand_queries(), _extract_core_subject() (+36 more)
+Cohesion: 0.15
+Nodes (21): BRIEF, CAROUSEL_TERRITORY_DESIGNS, esc(), log, RenderableCarouselBrief, renderCarouselSlideHtml(), TerritoryDesign, fitFontSize() (+13 more)
 
 ### Community 188 - "cookie_extract.py"
-Cohesion: 0.09
-Nodes (44): extract_arc_cookies(), extract_brave_cookies(), extract_chrome_cookies(), extract_chromium_cookies(), _extract_chromium_family_cookies(), extract_cookies(), extract_cookies_with_source(), extract_edge_cookies() (+36 more)
+Cohesion: 0.07
+Nodes (53): extract_chrome_cookies_macos(), extract_chromium_browser_cookies_macos(), Extract cookies from Chrome on macOS.      Resolves the cookie DB through the sh, Extract cookies from a registry-defined Chromium browser on macOS.      Covers e, extract_arc_cookies(), extract_brave_cookies(), extract_chrome_cookies(), extract_chromium_cookies() (+45 more)
 
 ### Community 189 - "instagram.py"
-Cohesion: 0.07
-Nodes (43): days_ago(), get_date_confidence(), get_date_range(), parse_as_of_date(), parse_date(), datetime, Date utilities for last30days skill., Determine confidence level for a date.      Args:         date_str: The date to (+35 more)
+Cohesion: 0.13
+Nodes (27): expand_instagram_queries(), _extract_core_subject(), _extract_hashtags(), fetch_captions(), _log(), _parse_date(), parse_instagram_response(), _parse_items() (+19 more)
 
 ### Community 190 - "Obsidian Bases Skill"
 Cohesion: 0.04
 Nodes (43): Any Type Functions, Date Arithmetic, Date Functions & Fields, Duration Type, File Functions, Functions Reference, Global Functions, Link Functions (+35 more)
 
 ### Community 191 - "shopDriverMirror.ts"
-Cohesion: 0.09
-Nodes (39): getRecentProbes(), log, ProbeOptions, ProbeOutcome, ProbeReason, ProbeResult, requestAlgProbe(), runProbe() (+31 more)
+Cohesion: 0.13
+Nodes (22): _date_to_unix(), enrich_top_stories(), _fetch_item_comments(), _flatten_query_for_algolia(), _log(), parse_hackernews_response(), Any, Hacker News search via Algolia API (free, no auth required).  Uses hn.algolia.co (+14 more)
 
 ### Community 192 - "social-actions.ts"
-Cohesion: 0.09
-Nodes (35): POST(), PublishBody, GET(), POST(), ScheduleBody, inngest, log, getSocialSchedule() (+27 more)
+Cohesion: 0.08
+Nodes (37): POST(), PublishBody, GET(), POST(), ScheduleBody, CLAIMABLE_STATUSES, dispatchQueuedPublish(), getSocialSchedule() (+29 more)
 
 ### Community 193 - "Security audit · STRIDE + OWASP · statenour-os · 2026-05-12"
 Cohesion: 0.04
@@ -3267,15 +3017,15 @@ Nodes (44): `app/api/ai/chat/documents/route.ts`, `app/api/ai/chat/route.ts`, CS
 
 ### Community 194 - "tool-embeddings.ts"
 Cohesion: 0.06
-Nodes (34): CorpusEntry, DarkPsychologyMatch, loadCorpus(), log, pickDarkPsychologyForMessage(), recordDarkPsychologyFire(), CorpusEntry, GreeneMatch (+26 more)
+Nodes (35): GET(), ContextualLaw, ContextualLawsResult, log, pickContextualLawsForPerson(), selectCandidates(), TYPE_PRIORITY, CorpusEntry (+27 more)
 
 ### Community 195 - "pipeline.py"
-Cohesion: 0.09
-Nodes (44): _apply_hiring_signal_gate(), available_sources(), _company_topic_likely(), _comparison_side_company_like(), diagnose(), _ensure_jobs_in_plan(), _fetch_x_backend(), _finalize_items_by_source() (+36 more)
+Cohesion: 0.07
+Nodes (59): _apply_per_author_cap(), candidate_key(), _candidate_sort_key(), _diversify_pool(), _extract_author(), _normalize_url(), Candidate, QueryPlan (+51 more)
 
 ### Community 196 - "README-ar.md"
-Cohesion: 0.05
-Nodes (44): ① إنشاء بيئة Python افتراضية, ① استنساخ المشروع, ① تشغيل حاوية Docker, ② الوصول إلى واجهة الويب, ② تثبيت ImageMagick, ② تعديل ملف الإعدادات, ③ الوصول إلى واجهة الـ API, ③ تشغيل واجهة الويب 🌐 (+36 more)
+Cohesion: 0.04
+Nodes (46): ① إنشاء بيئة Python افتراضية, ① استنساخ المشروع, ① تشغيل حاوية Docker, ② الوصول إلى واجهة الويب, ② تثبيت ImageMagick, ② تعديل ملف الإعدادات, ③ الوصول إلى واجهة الـ API, ③ تشغيل واجهة الويب 🌐 (+38 more)
 
 ### Community 197 - "_parse_binary_cookies"
 Cohesion: 0.08
@@ -3286,56 +3036,56 @@ Cohesion: 0.06
 Nodes (24): _cluster(), _FakeSourceItem, _post(), Tests for digg.py - Digg AI 1000 source via digg-pp-cli., Any non-http(s) scheme on xUrl yields no post.      A malicious Digg API respons, Security-class drops must be observable in non-interactive runs.      The defaul, _stdout_for(), test_enrich_skips_zero_postcount() (+16 more)
 
 ### Community 199 - "README-ar.md"
-Cohesion: 0.05
-Nodes (44): ① إنشاء بيئة Python افتراضية, ① استنساخ المشروع, ① تشغيل حاوية Docker, ② الوصول إلى واجهة الويب, ② تثبيت ImageMagick, ② تعديل ملف الإعدادات, ③ الوصول إلى واجهة الـ API, ③ تشغيل واجهة الويب 🌐 (+36 more)
+Cohesion: 0.04
+Nodes (46): ① إنشاء بيئة Python افتراضية, ① استنساخ المشروع, ① تشغيل حاوية Docker, ② الوصول إلى واجهة الويب, ② تثبيت ImageMagick, ② تعديل ملف الإعدادات, ③ الوصول إلى واجهة الـ API, ③ تشغيل واجهة الويب 🌐 (+38 more)
 
 ### Community 200 - "CURRENT-TRUTH.md"
-Cohesion: 0.08
-Nodes (20): Canonical project docs (read before editing), Nick's Tire & Auto · agent context, Nick's Tire & Auto — Protected Core, Rules, Findings, Guard requirement, Phase 0 — verified current truth (the ground these findings are measured against), Stale-Info Forensic Report — Truth + Intelligence Wave (+12 more)
+Cohesion: 0.17
+Nodes (4): MASTER-CONTEXT.md — HISTORICAL POINTER (do not execute), UPGRADE-PLAN.md — HISTORICAL POINTER (do not execute), Reconciliation · statenour-os, Agent runbooks — index
 
 ### Community 201 - "InstagramAdmin.tsx"
-Cohesion: 0.07
-Nodes (27): PublishDrawer(), PublishDrawerProps, DropdownMenu(), DropdownMenuContent(), DropdownMenuItem(), DropdownMenuLabel(), DropdownMenuSeparator(), DropdownMenuTrigger() (+19 more)
+Cohesion: 0.15
+Nodes (20): GET, handler(), EmbedRow, EvolutionCandidate, findLowTrustCandidates(), findRedundantPairs(), findStaleCandidates(), LowTrustCandidate (+12 more)
 
 ### Community 202 - "Nick's Tire & Auto — Front-to-Back Audit"
-Cohesion: 0.05
-Nodes (43): §10 — Cross-Cutting Risks, §11 — Prioritized Ship Plan, §1 — Architecture Overview, §2 — SEO State (Post-Fix), §3 — Performance Signals, §4 — Security Headers + Auth + CSP, §5 — Accessibility, §6 — Conversion Architecture (+35 more)
+Cohesion: 0.04
+Nodes (45): §10 — Cross-Cutting Risks, §11 — Prioritized Ship Plan, §1 — Architecture Overview, §2 — SEO State (Post-Fix), §3 — Performance Signals, §4 — Security Headers + Auth + CSP, §5 — Accessibility, §6 — Conversion Architecture (+37 more)
 
 ### Community 203 - "classify-task-linkage.ts"
 Cohesion: 0.07
-Nodes (37): POST(), bestMatch(), clamp01(), ClassifyLinkageInput, ClassifyLinkageResult, classifyTaskLinkage(), DOMAIN_CUES, EMPTY (+29 more)
+Nodes (34): TextMeQuote(), TextMeQuoteProps, isMobile(), LeadPopup(), GA4Event, getTrafficSource(), getUTMParameters(), trackFormSubmission() (+26 more)
 
 ### Community 204 - "schema.py"
-Cohesion: 0.08
-Nodes (39): _log(), Report, Parallel multi-entity fan-out for the --competitors flag.  The orchestrator acce, Run main + competitor pipelines in parallel; return surviving reports.      Args, run_competitor_fanout(), Candidate, candidate_best_published_at(), candidate_from_dict() (+31 more)
+Cohesion: 0.10
+Nodes (34): Candidate, candidate_best_published_at(), candidate_from_dict(), candidate_primary_item(), candidate_source_label(), candidate_sources(), Cluster, cluster_from_dict() (+26 more)
 
 ### Community 205 - "http.py"
-Cohesion: 0.07
-Nodes (38): get(), get_reddit_json(), get_text(), HTTPError, _is_dns_failure(), log(), post(), post_raw() (+30 more)
+Cohesion: 0.06
+Nodes (42): get(), get_reddit_json(), get_text(), HTTPError, _is_dns_failure(), log(), post(), post_raw() (+34 more)
 
 ### Community 206 - "instagram.py"
 Cohesion: 0.13
-Nodes (27): expand_instagram_queries(), _extract_core_subject(), _extract_hashtags(), fetch_captions(), _log(), _parse_date(), parse_instagram_response(), _parse_items() (+19 more)
+Nodes (18): ackRecovered(), bodyFor(), DriftFlag, goalDriftDetector, inngest, log, persistFlags(), titleFor() (+10 more)
 
 ### Community 207 - "brain-bus-emit.ts"
-Cohesion: 0.07
-Nodes (36): claimEvents(), DurableEvent, DurablePublishOptions, markDone(), markFailed(), pollAndProcess(), publishDurable(), reclaimStaleProcessing() (+28 more)
+Cohesion: 0.14
+Nodes (19): GET, log, claimEvents(), DurableEvent, DurablePublishOptions, getDurableBusHealth(), markDone(), pollAndProcess() (+11 more)
 
 ### Community 208 - "Nour monorepo (`nour-monorepo`)"
 Cohesion: 0.05
-Nodes (43): 1. Clone & install (once, at the root), 1. Machine-Enforced Code Ownership & Boundaries, 2. Configure environment, 2. Trunk-Based Development, 3. Git Performance, 3. Run an app in dev, `apps/nickstire` (nicks-tire-auto), `apps/statenour` (@statenour/web) (+35 more)
+Nodes (42): 1. Clone & install (once, at the root), 1. Machine-Enforced Code Ownership & Boundaries, 2. Configure environment, 2. Trunk-Based Development, 3. Git Performance, 3. Run an app in dev, `apps/nickstire` (nicks-tire-auto), `apps/statenour` (@statenour/web) (+34 more)
 
 ### Community 209 - "nour-os-bridge.ts"
-Cohesion: 0.08
-Nodes (40): analytics, cloudCB, computeEventHash(), CRITICAL_EVENTS, dispatchEvent(), dispatchShopFloorSnapshot(), dispatchVendorHealthSnapshot(), EVENT_LOG (+32 more)
+Cohesion: 0.04
+Nodes (97): analytics, cloudCB, computeEventHash(), CRITICAL_EVENTS, dispatchEvent(), dispatchShopFloorSnapshot(), EVENT_LOG, EventAnalytics (+89 more)
 
 ### Community 210 - "command-registry.ts"
 Cohesion: 0.08
-Nodes (29): SLASH_COMMANDS, BY_NAME, CommandDeps, CommandOutcome, CommandResult, COMMANDS, CommandSpec, DEFAULT_DEPS (+21 more)
+Nodes (28): BY_NAME, CommandDeps, CommandOutcome, CommandResult, COMMANDS, CommandSpec, DEFAULT_DEPS, parseCommand() (+20 more)
 
 ### Community 211 - "runner-state.ts"
-Cohesion: 0.08
-Nodes (38): AleRecoverySnapshot, AleSessionSnapshot, asJsonValue(), CaptureInboxItemView, claimWorkItems(), completeWorkItem(), createAuditEvent(), DEFAULT_INTEGRATION_ORDER (+30 more)
+Cohesion: 0.20
+Nodes (33): _date_confidence(), _domain_from_url(), filter_by_date_range(), _first_present(), _join_comment_excerpts(), _normalize_digg(), _normalize_github(), _normalize_grounding() (+25 more)
 
 ### Community 212 - "TestDiscoverSubreddits"
 Cohesion: 0.05
@@ -3350,12 +3100,12 @@ Cohesion: 0.08
 Nodes (9): ScrollProgressBar(), ProgressDisplay, Animated spinner for long-running operations., Progress display for research phases., Show web-only mode indicator., End web-only spinner., Show completion for web-only mode., Show Bird authentication help. (+1 more)
 
 ### Community 215 - "chatTools.ts"
-Cohesion: 0.08
-Nodes (31): formatCents(), LineItem, PRESETS, WalkInCalculatorSection(), chatWithAssistant(), ContentOutput, ContentRequest, ContentType (+23 more)
+Cohesion: 0.11
+Nodes (5): Author prefers unique_id (@handle) over nickname (display name)., TestTikTokAuthorTypeSafety, TestTikTokCommentsGate, TestTikTokEnrichWithComments, TestTikTokStatsZeroPreserved
 
 ### Community 216 - "chat.ts"
 Cohesion: 0.07
-Nodes (35): ConversationMemory, InsertConversationMemory, buildSystemPrompt(), DayOfWeek, DAYS, extractMemories(), getSeason(), getSeasonalContext() (+27 more)
+Nodes (34): ConversationMemory, InsertConversationMemory, buildSystemPrompt(), DayOfWeek, DAYS, extractMemories(), getSeason(), getSeasonalContext() (+26 more)
 
 ### Community 217 - "setup_wizard.py"
 Cohesion: 0.07
@@ -3374,8 +3124,8 @@ Cohesion: 0.06
 Nodes (25): _make_reddit_listing(), _mock_urlopen_ok(), Tests for scripts/lib/reddit_public.py — standalone Reddit public JSON search., Subreddit-scoped search works., 429 response triggers retries, eventually returns partial results., HTML response (anti-bot) is detected, returns empty., Build a Reddit listing JSON structure from a list of post dicts., Network timeout returns empty. (+17 more)
 
 ### Community 221 - "dedupe.py"
-Cohesion: 0.09
-Nodes (37): _cjk_tokens(), has_cjk(), CJK-aware tokenization for relevance scoring and near-duplicate detection.  The, True if the text contains any CJK / kana / hangul character., Tokenize mixed CJK / Latin text into a flat list of lowercased tokens.      CJK, segment(), _candidate_text(), cluster_candidates() (+29 more)
+Cohesion: 0.15
+Nodes (21): _cjk_tokens(), has_cjk(), CJK-aware tokenization for relevance scoring and near-duplicate detection.  The, True if the text contains any CJK / kana / hangul character., Tokenize mixed CJK / Latin text into a flat list of lowercased tokens.      CJK, segment(), dedupe_items(), get_ngrams() (+13 more)
 
 ### Community 222 - "5 · WAVE 1 — WIRE WHAT'S ALREADY BUILT (highest leverage per line)"
 Cohesion: 0.05
@@ -3383,23 +3133,23 @@ Nodes (40): 0 · EXECUTION PROTOCOL (read before every packet), 1 · WHAT THE AU
 
 ### Community 223 - "CONVERSION-OVERHAUL-V1.1.md"
 Cohesion: 0.05
-Nodes (40): 1. Loss-aversion scaling, 2. Hyperbolic-discounting frame, 3. Authority-bias amplification, 4. Commitment / consistency traps (sparingly), 5. Social-proof saturation, 6. Scarcity (real, not faked), 7. Urgency-escalation ladder, About — The Savior Archetype (+32 more)
+Nodes (41): 1. Loss-aversion scaling, 2. Hyperbolic-discounting frame, 3. Authority-bias amplification, 4. Commitment / consistency traps (sparingly), 5. Social-proof saturation, 6. Scarcity (real, not faked), 7. Urgency-escalation ladder, About — The Savior Archetype (+33 more)
 
 ### Community 224 - "declinedWorkRecovery.ts"
 Cohesion: 0.08
-Nodes (33): AlgEstimate, main(), parseArgs(), buildSevenDayMessage(), buildThirtyDayMessage(), firstName(), formatMoney(), isBusinessHours() (+25 more)
+Nodes (38): AlgEstimate, main(), parseArgs(), buildSevenDayMessage(), buildThirtyDayMessage(), firstName(), formatMoney(), isBusinessHours() (+30 more)
 
 ### Community 225 - "Chat route walkthrough · `app/api/ai/chat/route.ts`"
 Cohesion: 0.05
 Nodes (40): A1 · `runGate` (`lib/ai/chat/gate.ts`), A2-A4 · Content-mode + interceptors + history sanitize, A5 · `persistUserTurn` — DB write fires in parallel, B1 · `mintTraceId` (v10 E.5 agent-trace contract), B2 · Mutable refs (the closure-share trick), B3 · Chat-mode detection, B4 · Query-shape detection, B5-B6 · Turn signal + domain routing (+32 more)
 
 ### Community 226 - "dedupe.py"
-Cohesion: 0.15
-Nodes (21): _cjk_tokens(), has_cjk(), CJK-aware tokenization for relevance scoring and near-duplicate detection.  The, True if the text contains any CJK / kana / hangul character., Tokenize mixed CJK / Latin text into a flat list of lowercased tokens.      CJK, segment(), dedupe_items(), get_ngrams() (+13 more)
+Cohesion: 0.12
+Nodes (31): _candidate_text(), cluster_candidates(), _cluster_uncertainty(), _entity_overlap(), _extract_entities(), _merge_entity_clusters(), _mmr_representatives(), Candidate (+23 more)
 
 ### Community 227 - "voice.py"
-Cohesion: 0.07
-Nodes (39): azure_tts_v1(), azure_tts_v2(), convert_rate_to_percent(), create_edge_tts_communicate(), estimate_no_voice_duration(), generate_silent_audio(), get_all_azure_voices(), get_chatterbox_voices() (+31 more)
+Cohesion: 0.11
+Nodes (39): azure_tts_v1(), azure_tts_v2(), chatterbox_tts(), _configure_pydub_ffmpeg(), convert_rate_to_percent(), elevenlabs_tts(), ensure_file_path_exists(), ensure_legacy_submaker_fields() (+31 more)
 
 ### Community 228 - "HtmlRenderBehaviorTests"
 Cohesion: 0.07
@@ -3418,20 +3168,20 @@ Cohesion: 0.09
 Nodes (8): ProgressDisplay, Animated spinner for long-running operations., Progress display for research phases., Show web-only mode indicator., End web-only spinner., Show completion for web-only mode., Show Bird authentication help., Spinner
 
 ### Community 232 - "metaSocial.ts"
-Cohesion: 0.13
-Nodes (34): main(), FetchRoute, ensureMetaConfigLoaded(), ensurePageTokenLoaded(), fetchInstagramAccountProfile(), fetchInstagramMedia(), getAppId(), getAppSecret() (+26 more)
+Cohesion: 0.18
+Nodes (17): main(), extractCallerTurns(), ghostReplay(), gradeReplies(), gradeRepliesWithJudge(), PROMPT_INVARIANTS, ReplayGrade, splitSeeds() (+9 more)
 
 ### Community 233 - "feature-flags.ts"
-Cohesion: 0.08
-Nodes (33): assertApprovalGated(), GET, log, GET, ALLOWLIST_SET, canAutoExecute(), NEVER_AUTO_DENYLIST, SAFE_AUTO_ALLOWLIST (+25 more)
+Cohesion: 0.06
+Nodes (38): CustomersBrief(), CustomersBriefProps, greeting(), AIHealthPanel(), ContentWarRoom(), CustomerIntelligence(), LeadSLAMonitor(), MarketIntelligence() (+30 more)
 
 ### Community 234 - "obsidian-engine-runner.ts"
-Cohesion: 0.10
-Nodes (34): GET, ageLabel(), ObsidianEngineCard(), ensureRuntimeDir(), getRuntimeDir(), getStatusFilePath(), ObsidianEngineConfig, readEngineStatus() (+26 more)
+Cohesion: 0.15
+Nodes (25): ensureRuntimeDir(), getRuntimeDir(), getStatusFilePath(), ObsidianEngineConfig, readEngineStatus(), writeEngineStatus(), WriteEngineStatusOptions, result (+17 more)
 
 ### Community 235 - "buildBrainContext"
-Cohesion: 0.07
-Nodes (30): businessSyncSchema, GET, POST, EMBED_CACHE, formatRerankSummary(), getBlockEmbeddingCached(), hashContent(), rerankContextBlocks() (+22 more)
+Cohesion: 0.21
+Nodes (13): _extract_core_subject(), _log(), _parse_date(), parse_truthsocial_response(), Any, Truth Social search via Mastodon-compatible API (requires bearer token).  Uses t, Parse Mastodon API response into normalized item dicts.      Returns:         Li, Strip HTML tags from Truth Social post content. (+5 more)
 
 ### Community 236 - "2 · Missing-index analysis · top 10 by expected query cost"
 Cohesion: 0.05
@@ -3447,7 +3197,7 @@ Nodes (38): _build_posts_args(), _build_search_args(), _build_url(), enrich_sour
 
 ### Community 239 - "render.py"
 Cohesion: 0.10
-Nodes (39): _append_html_footer(), _assess_data_freshness(), _build_source_footer_lines(), collect_html_warnings(), collect_html_warnings_comparison(), _dedupe_notes(), _footer_line_for_source(), _format_volume_short() (+31 more)
+Nodes (33): _assistant_safety_lines(), _best_take_relevance_ok(), _effective_fun_score(), _parse_comparison_entities(), Production brief for downstream pipelines (video, scripting, structured synthesi, Read plugin version from .claude-plugin/plugin.json, falling back to SKILL.md fr, Exclude off-topic-but-viral candidates from Best Takes.      The engine demotes, LLM humor score plus a bounded, relevance-confidence-scaled crowd nudge.      `` (+25 more)
 
 ### Community 240 - "UploadPostService"
 Cohesion: 0.09
@@ -3455,15 +3205,15 @@ Nodes (18): cross_post_video(), Upload-Post API integration for cross-posting vi
 
 ### Community 241 - "README-en.md"
 Cohesion: 0.05
-Nodes (39): ① Clone the Project, ① Create a Python Virtual Environment, ① Launch the Docker Container, ② Access the Web Interface, ② Launch the Web Interface 🌐, ② Modify the Configuration File, ③ Access the API Interface, ③ Launch the API Service 🚀 (+31 more)
+Nodes (40): ① Clone the Project, ① Create a Python Virtual Environment, ① Launch the Docker Container, ② Access the Web Interface, ② Launch the Web Interface 🌐, ② Modify the Configuration File, ③ Access the API Interface, ③ Launch the API Service 🚀 (+32 more)
 
 ### Community 242 - "activeOnly"
-Cohesion: 0.11
-Nodes (35): retirePolicy(), actorFromBridge(), actorFromChat(), actorFromCron(), actorStore, auditCreate(), auditUpdate(), currentActor() (+27 more)
+Cohesion: 0.01
+Nodes (158): JournalFeedView(), useJournalFeed(), KnowledgePage(), LIFE, LifeSurface, MaturitySummary, BriefMeta, currentPhase() (+150 more)
 
 ### Community 243 - "render.py"
-Cohesion: 0.10
-Nodes (39): _append_html_footer(), _assess_data_freshness(), _build_source_footer_lines(), collect_html_warnings(), collect_html_warnings_comparison(), _dedupe_notes(), _footer_line_for_source(), _format_volume_short() (+31 more)
+Cohesion: 0.04
+Nodes (68): Logger, SpecialistRoutingResult, GET(), BULK_SMS_SEGMENTS, BulkSmsSegment, ProposalBody, handleBrainDump(), handleSlashSave() (+60 more)
 
 ### Community 244 - "ProgressDisplay"
 Cohesion: 0.09
@@ -3479,27 +3229,27 @@ Nodes (22): font_dir(), get_ffmpeg_binary(), get_response(), normalize_script_fo
 
 ### Community 247 - "README-en.md"
 Cohesion: 0.05
-Nodes (39): ① Clone the Project, ① Create a Python Virtual Environment, ① Launch the Docker Container, ② Access the Web Interface, ② Launch the Web Interface 🌐, ② Modify the Configuration File, ③ Access the API Interface, ③ Launch the API Service 🚀 (+31 more)
+Nodes (40): ① Clone the Project, ① Create a Python Virtual Environment, ① Launch the Docker Container, ② Access the Web Interface, ② Launch the Web Interface 🌐, ② Modify the Configuration File, ③ Access the API Interface, ③ Launch the API Service 🚀 (+32 more)
 
 ### Community 248 - "visualWorld.ts"
-Cohesion: 0.08
-Nodes (28): MOTION_LENSES, OBJECT_CHARACTERS, ReelConcept, ReelVisualWorld, StoryboardBeat, VISUAL_WORLD_STYLES, VisualWorldStyle, brakeBeats (+20 more)
+Cohesion: 0.14
+Nodes (12): GoalEventInput, GoalEventKind, log, emitTaskEvent(), bucketedIdempotencyKey(), idempotencyRecipe, idempotentCreate(), IdempotentCreateOpts (+4 more)
 
 ### Community 249 - "scripts"
 Cohesion: 0.05
 Nodes (39): scripts, audit:prerender, backfill:skills, build, build:prerender, check, checkout:safe, db:migrate (+31 more)
 
 ### Community 250 - "candidate-store.ts"
-Cohesion: 0.06
-Nodes (45): CategoryRunSummary, GET, REFLECT_CATEGORIES, buildAndSubmitSchema, GET, mutationSchema, outcomeSchema, POST (+37 more)
+Cohesion: 0.09
+Nodes (28): GET, handler(), neutralizeFabricatedHistory(), sanitizeMessageHistory(), stripImageMarkdownFromText(), analyzeJudgments(), analyzeJudgmentsWithSynthesis(), getRecentJudgments() (+20 more)
 
 ### Community 251 - "utils.py"
-Cohesion: 0.07
-Nodes (22): font_dir(), get_ffmpeg_binary(), get_response(), normalize_script_for_subtitle_matching(), public_dir(), Any, 解析当前进程应该使用的 FFmpeg 可执行文件。      增加原因：     1. 视频编码、静音音频生成、pydub 音频转码都依赖 FFmpeg；, 清理字幕匹配前的脚本文本。      用户可能手动输入 Markdown 分隔符、标题强调或 `_` 这类格式符号。     这些字符通常不会出现在 TTS/W (+14 more)
+Cohesion: 0.06
+Nodes (23): font_dir(), get_ffmpeg_binary(), get_response(), normalize_script_for_subtitle_matching(), public_dir(), Any, 解析当前进程应该使用的 FFmpeg 可执行文件。      增加原因：     1. 视频编码、静音音频生成、pydub 音频转码都依赖 FFmpeg；, 清理字幕匹配前的脚本文本。      用户可能手动输入 Markdown 分隔符、标题强调或 `_` 这类格式符号。     这些字符通常不会出现在 TTS/W (+15 more)
 
 ### Community 252 - "reddit_keyless.py"
 Cohesion: 0.09
-Nodes (35): fetch_scores(), _log(), Arctic-shift score resolver — post upvote counts by id, keyless and free.  ``sea, Return ``{base36_post_id: {"score", "num_comments"}}`` for the given ids.      B, _apply_scores(), _discover(), _enrich(), _enrich_one() (+27 more)
+Nodes (36): fetch_scores(), _log(), Arctic-shift score resolver — post upvote counts by id, keyless and free.  ``sea, Return ``{base36_post_id: {"score", "num_comments"}}`` for the given ids.      B, _apply_scores(), _discover(), _enrich(), _enrich_one() (+28 more)
 
 ### Community 253 - "test_dedupe_v3.py"
 Cohesion: 0.06
@@ -3514,28 +3264,28 @@ Cohesion: 0.10
 Nodes (34): Candidate, candidate_best_published_at(), candidate_from_dict(), candidate_primary_item(), candidate_source_label(), candidate_sources(), Cluster, cluster_from_dict() (+26 more)
 
 ### Community 256 - "adCopyGen.ts"
-Cohesion: 0.09
-Nodes (30): run(), OutputSchema, AD_ANGLES, AdAngle, buildSystemPrompt(), generateAdCopy(), GenerateAdCopyInput, GeneratedAd (+22 more)
+Cohesion: 0.11
+Nodes (25): CarouselSlide, run(), OutputSchema, AD_ANGLES, AdAngle, buildSystemPrompt(), generateAdCopy(), GenerateAdCopyInput (+17 more)
 
 ### Community 257 - "gsc-data.ts"
-Cohesion: 0.09
-Nodes (32): main(), pct(), pos(), main(), main(), pct(), pos(), CannibalizationIssue (+24 more)
+Cohesion: 0.14
+Nodes (22): ChatAutoFireState, log, MessageLike, MessagePart, useChatAutoFire(), UseChatAutoFireOpts, AutoFireDecision, AutoFirePlan (+14 more)
 
 ### Community 258 - "db"
 Cohesion: 0.16
-Nodes (33): analyzeCallPatterns(), analyzeChatFunnel(), analyzeNewCustomerVelocity(), analyzeReferralNetwork(), analyzeReviewSentiment(), analyzeWebsiteJourneys(), forecastPortfolioLTV(), analyzeChannelROI() (+25 more)
+Nodes (37): smsCampaigns, analyzeCustomerValueTrend(), predictRepeatVisits(), analyzeCallPatterns(), analyzeChatFunnel(), analyzeNewCustomerVelocity(), analyzeReferralNetwork(), analyzeReviewSentiment() (+29 more)
 
 ### Community 259 - "nickstire-write.ts"
-Cohesion: 0.09
-Nodes (32): log, POST(), ToolCall, VapiToolPayload, log, normalizePhone(), POST(), ToolCall (+24 more)
+Cohesion: 0.06
+Nodes (48): log, POST(), ToolCall, VapiToolPayload, log, normalizePhone(), POST(), ToolCall (+40 more)
 
 ### Community 260 - "ROADMAP · statenour-os"
-Cohesion: 0.06
-Nodes (28): MASTER-CONTEXT.md — HISTORICAL POINTER (do not execute), Deprioritized (removed from the roadmap), F1 · Claude Session Importer / Work Session Digest — `feat(statenour): add Claude session importer`, F2 · "What Changed?" system digest — `feat(statenour): add system change digest`, F3 · Task/Mission Inbox Rescue scanner — `feat(statenour): add task rescue scanner`, F4 · Action Receipt Feed — `feat(statenour): add action receipt feed`, F5 · Personal Command Shortcuts — `feat(statenour): add personal command shortcuts`, NEXT-INTELLIGENCE-WAVE — Statenour (+20 more)
+Cohesion: 0.16
+Nodes (13): formatCents(), LineItem, PRESETS, WalkInCalculatorSection(), BRAKE_PRICE, OIL_PRICE, SERVICE_PRICE, CITIES (+5 more)
 
 ### Community 261 - "2 · Master wave list (HISTORICAL · v11.0 plan from Apr 21)"
-Cohesion: 0.05
-Nodes (37): 0.5 · Active wave at-a-glance (v8.x · Apr 29), 0.6 · Active priorities (the next moves), 0 · Reality snapshot (verified 2026-04-29 18:55Z · HEAD `08237d9`), 1 · Guiding philosophy for this wave, 2 · Master wave list (HISTORICAL · v11.0 plan from Apr 21), 3 · Checkpoint log, 4 · Resume-for-next-agent checklist, 5 · Secrets / history audit notes (+29 more)
+Cohesion: 0.09
+Nodes (22): 0.5 · Active wave at-a-glance (v8.x · Apr 29), 0.6 · Active priorities (the next moves), 0 · Reality snapshot (verified 2026-04-29 18:55Z · HEAD `08237d9`), 1 · Guiding philosophy for this wave, 3 · Checkpoint log, 4 · Resume-for-next-agent checklist, 5 · Secrets / history audit notes, 6 · Open questions + assumptions (resolve as we go) (+14 more)
 
 ### Community 262 - "README.md"
 Cohesion: 0.05
@@ -3543,7 +3293,7 @@ Nodes (37): ① 克隆代码, ① 创建虚拟环境, ① 启动Docker, ② 修�
 
 ### Community 263 - "greene-corpus.ts"
 Cohesion: 0.09
-Nodes (23): WAR_STRATEGIES, LAWS_OF_POWER, FEARLESS_LAWS, SEDUCTION_ENTRIES, ALL_GREENE_ENTRIES, CREATIVE_STRATEGIES, DARK_TRAITS, ENTRIES_BY_BOOK (+15 more)
+Nodes (24): WAR_STRATEGIES, LAWS_OF_POWER, FEARLESS_LAWS, SEDUCTION_ENTRIES, ALL_GREENE_ENTRIES, CREATIVE_STRATEGIES, DARK_TRAITS, ENTRIES_BY_BOOK (+16 more)
 
 ### Community 264 - "digg.py"
 Cohesion: 0.09
@@ -3566,32 +3316,32 @@ Cohesion: 0.05
 Nodes (33): Basic Callout, Callouts Reference, Custom Callouts (CSS), Foldable Callouts, Nested Callouts, Supported Callout Types, Embed Audio, Embed Bases (+25 more)
 
 ### Community 269 - "SmsSection.tsx"
-Cohesion: 0.08
-Nodes (29): GatewayPill(), greeting(), OutreachBrief(), OutreachBriefProps, ConversationList(), ConversationRow, dayKey(), dayLabel() (+21 more)
+Cohesion: 0.25
+Nodes (9): ChartConfig, ChartContainer(), ChartContext, ChartContextProps, ChartLegendContent(), ChartTooltipContent(), getPayloadConfigFromPayload(), THEMES (+1 more)
 
 ### Community 270 - "higgsfieldStudio.ts"
-Cohesion: 0.10
-Nodes (28): main(), probe(), JPG, PNG, ensureHiggsfieldBinary(), log, assertFetchableImageHost(), assertPublicIPv4() (+20 more)
+Cohesion: 0.15
+Nodes (18): AutonomousFiredPayload, BrainDumpFinalizedPayload, CommitmentStatus, CommitmentTransitionPayload, DriftFiredPayload, emitAutonomousFired(), emitBrainDumpFinalized(), emitCommitmentTransition() (+10 more)
 
 ### Community 271 - "context.ts"
-Cohesion: 0.08
-Nodes (9): TrpcContext, admin(), ctx(), AppRouter, AuthenticatedUser, WHY: the gate used to be `!!process.env.DATABASE_URL`, and, WRITES_LOCALLY, h (+1 more)
+Cohesion: 0.02
+Nodes (69): scheduledPosts, User, admin(), ctx(), publishToSocialMock, slides, TrpcContext, GoogleOAuthService (+61 more)
 
 ### Community 272 - "customerDimension.ts"
 Cohesion: 0.08
 Nodes (32): identity, paidInvoice, phoneMatchedCall, DOC, WINDOW, ALL_CHANNELS, buildCustomerDimension(), BuildDimensionInput (+24 more)
 
 ### Community 273 - "InMemoryTaskManager"
-Cohesion: 0.07
-Nodes (12): InMemoryTaskManager, _FakeRequest, endpoint 未显式配置时，任务查询接口不能使用 Host 派生绝对 URL，         也不能把展示 URL 回写到任务状态里，否则不同 Host, 并发数用尽后，等待队列必须有硬上限。这里用 max_concurrent_tasks=0         强制任务进入队列，验证超过 max_queued_ta, TestSecurityControls, TaskQueueFullError, InMemoryTaskManager, _FakeRequest (+4 more)
+Cohesion: 0.06
+Nodes (14): InMemoryTaskManager, _FakeRequest, endpoint 未显式配置时，任务查询接口不能使用 Host 派生绝对 URL，         也不能把展示 URL 回写到任务状态里，否则不同 Host, 并发数用尽后，等待队列必须有硬上限。这里用 max_concurrent_tasks=0         强制任务进入队列，验证超过 max_queued_ta, TestSecurityControls, Any, TaskManager, TaskQueueFullError (+6 more)
 
 ### Community 274 - "Migration Audit · statenour-os ⤴ nickstire · Vercel → Railway"
 Cohesion: 0.05
 Nodes (36): 0 · TL;DR, 10 · What Phase 2 will produce (preview), 11 · Phase 1 deliverable summary, 1 · CRITICAL findings (act before Phase 2 starts), 2 · Repo inventories, 2a · statenour-os, 2b · nickstire, 2c · Why a literal merge is impossible (+28 more)
 
 ### Community 275 - "grounding.py"
-Cohesion: 0.10
-Nodes (35): brave_search(), _domain(), _enrich_reddit_items(), exa_search(), _in_date_range(), _normalize_date(), parallel_search(), _parse_serper_date() (+27 more)
+Cohesion: 0.04
+Nodes (48): augmentFinalPrompt(), buildCustomerShapeHint(), customerShapeRegex, log, buildGscPrefetch(), log, looksLikeBrainDump(), messageContentToText() (+40 more)
 
 ### Community 276 - "CliV3Tests"
 Cohesion: 0.06
@@ -3610,52 +3360,52 @@ Cohesion: 0.06
 Nodes (35): 14 competitor comparison pages (in `client/src/pages/compare/`), 404 (any broken URL), AI eval harness (4 files in `server/lib/ai/evals/`), At-a-glance totals, Booking (`/booking`), Brand-promise SLA matrix (post wave-67), Code (Claude-shippable but not done this session), Customer-facing components (+27 more)
 
 ### Community 280 - "realtime.ts"
-Cohesion: 0.10
-Nodes (29): log, NotificationType, notify(), NotifyParams, smsTemplates, adminClients, emitAlert(), emitNewBooking() (+21 more)
+Cohesion: 0.19
+Nodes (15): emitAlert(), emitNewReview(), detectService(), detectTrustTags(), generateResponseDraft(), isProofCandidate(), log, processNewReview() (+7 more)
 
 ### Community 281 - "persona-drift-detector.ts"
-Cohesion: 0.06
-Nodes (35): DetectedFeedback, FeedbackPattern, PATTERNS, PersistArgs, persistContentFeedback(), RecallArgs, RecalledFeedback, buildGhostVoicePrompt() (+27 more)
+Cohesion: 0.05
+Nodes (36): wrapWithBraintrust(), runToolGather(), getReasoningTools(), REASONING_TOOL_WHITELIST, WHITELIST_KEYS, classifyToolResult(), HIGH_SEVERITY_PATTERNS, InjectionFlags (+28 more)
 
 ### Community 282 - "STATE NOUR v10 · Prime Reliability + Control Layer — HISTORICAL · DO-NOT-EXECUTE"
 Cohesion: 0.06
 Nodes (36): A.1 · 24-48h smoke window (NOT 7 days), A.2 · Flip to `=1`, A.3 · Delete v1 builder (v9.2 ship), Acceptance posture, B.1 · Frontend dashboard audit, B.2 · Durable brain-bus replay, B.3 · Test coverage sweep, B.4 · Schema/migration history surface (+28 more)
 
 ### Community 283 - "propose-actions.ts"
-Cohesion: 0.10
-Nodes (31): composeOutreachDraft(), execArchiveMission(), execCommitJournal(), execConfirmSpend(), execNudgeTask(), execReassignTask(), execSendSmsOutreach(), executeNickAction() (+23 more)
+Cohesion: 0.11
+Nodes (18): 1. "Higgsfield plan upgrade is the only thing that restarts reels" is NO LONGER TRUE, 1. Overlapping status systems — TRUE, 2. The durable-storage blocker was STALE, and the gate inherited it, 2. The lineage chain is not universal — TRUE, and worse than stated, 3. A correction to the lifecycle-gap framing, A. Its own lifecycle enum cannot be stored, Addendum, same day: two P0 facts changed after this gate was written, B. Architecture is not what is stopping the account right now (+10 more)
 
 ### Community 284 - "_candidate"
-Cohesion: 0.10
-Nodes (17): _extract_comment_text_scored(), Like ``_extract_comment_text`` but prefixes each top comment with its     crowd, _candidate(), Tests for crowd-vote weighting in the fun judge (Best Takes).  Covers: - U2: sig, A negative score must not emit a misleading [+-N] prefix (Greptile #592)., An off-topic-but-viral comment (entity-miss) never reaches Best Takes,         e, A high-voted but unfunny comment (fun below the floor) is excluded., A funny-ish on-topic comment (fun 55) with strong on-topic votes clears (+9 more)
+Cohesion: 0.13
+Nodes (13): _candidate(), Tests for crowd-vote weighting in the fun judge (Best Takes).  Covers: - U2: sig, An off-topic-but-viral comment (entity-miss) never reaches Best Takes,         e, A high-voted but unfunny comment (fun below the floor) is excluded., A funny-ish on-topic comment (fun 55) with strong on-topic votes clears, fun 90 / tiny votes still ranks above fun 55 / max votes at medium., Equal fun_score, different votes -> ordered by votes, and the effect is, A vote-boosted item is flagged '+crowd' so a lower-fun item ranking         abov (+5 more)
 
 ### Community 285 - "test_watchlist_delivery.py"
 Cohesion: 0.06
 Nodes (35): Tests for watchlist.py delivery functions (PR #86 feature)., Test that generic webhook raises on HTTP error., Test that delivery fires when new > 0., Test announce mode formatting (default mode with emoji)., Test that delivery is skipped when new=0., Test that delivery is skipped when delivery_channel is empty., Test that Slack URLs trigger Slack-specific format., Test that non-Slack URLs trigger generic format. (+27 more)
 
 ### Community 286 - "AGENT OPERATING PROFILE — NOURCITY Monorepo"
-Cohesion: 0.06
-Nodes (34): 10. Preserving Claude Work, 11. Multi-Agent Mode Safety, 12. How to Report Final Status, 13. Context Loading Order (Read These, In This Order), 14. Anti-Patterns to Call Out Immediately, 1. Who You Are Working For, 2. Monorepo Identity, 3. Hard Rules — Git & Push (+26 more)
+Cohesion: 0.10
+Nodes (21): 10. Preserving Claude Work, 11. Multi-Agent Mode Safety, 12. How to Report Final Status, 13. Context Loading Order (Read These, In This Order), 14. Anti-Patterns to Call Out Immediately, 2. Monorepo Identity, 3. Hard Rules — Git & Push, 4. App Isolation Rules (+13 more)
 
 ### Community 287 - "extract_core_subject"
-Cohesion: 0.09
-Nodes (32): _create_session(), _extract_core_subject(), _log(), parse_bluesky_response(), _parse_date(), Any, Bluesky search via AT Protocol (requires app password).  Uses bsky.social for au, Create an AT Protocol session and return the access token.      Args:         ha (+24 more)
+Cohesion: 0.16
+Nodes (17): _create_session(), _extract_core_subject(), _log(), parse_bluesky_response(), _parse_date(), Any, Bluesky search via AT Protocol (requires app password).  Uses bsky.social for au, Create an AT Protocol session and return the access token.      Args:         ha (+9 more)
 
 ### Community 288 - "reddit_enrich.py"
-Cohesion: 0.09
-Nodes (32): enrich_reddit_item(), enrich_reddit_item_sc(), extract_comment_insights(), extract_reddit_path(), fetch_thread_data(), get_top_comments(), parse_thread_data(), Any (+24 more)
+Cohesion: 0.06
+Nodes (51): days_ago(), get_date_confidence(), get_date_range(), parse_as_of_date(), parse_date(), datetime, Date utilities for last30days skill., Determine confidence level for a date.      Args:         date_str: The date to (+43 more)
 
 ### Community 289 - "anticipated-questions.ts"
-Cohesion: 0.11
-Nodes (30): GET, log, GET, aiChat, AnticipatedMatch, AnticipatedQuestion, AnticipatedSet, buildAnticipatedContextBlock() (+22 more)
+Cohesion: 0.04
+Nodes (76): GET, log, GET, GET, useChatDeepLink(), UseChatDeepLinkOpts, aiChat, AnticipatedMatch (+68 more)
 
 ### Community 290 - "perplexity.py"
-Cohesion: 0.13
-Nodes (31): _append_citation(), _async_metadata(), AsyncDeepResearchFailed, AsyncDeepResearchPollError, AsyncDeepResearchTimeout, _build_search_payload(), _build_sonar_payload(), _config_text() (+23 more)
+Cohesion: 0.12
+Nodes (32): _append_citation(), _async_metadata(), AsyncDeepResearchFailed, AsyncDeepResearchPollError, AsyncDeepResearchTimeout, _build_search_payload(), _build_sonar_payload(), _config_text() (+24 more)
 
 ### Community 291 - "Tutorials"
 Cohesion: 0.06
-Nodes (34): Build your own `3D Renderer`, Build your own `AI Model`, Build your own `Augmented Reality`, Build your own `BitTorrent Client`, Build your own `Blockchain / Cryptocurrency`, Build your own `Bot`, Build your own `Command-Line Tool`, Build your own `Database` (+26 more)
+Nodes (35): Build your own `3D Renderer`, Build your own `AI Model`, Build your own `Augmented Reality`, Build your own `BitTorrent Client`, Build your own `Blockchain / Cryptocurrency`, Build your own `Bot`, Build your own `Command-Line Tool`, Build your own `Database` (+27 more)
 
 ### Community 292 - "run-suite.ts"
 Cohesion: 0.12
@@ -3670,48 +3420,48 @@ Cohesion: 0.13
 Nodes (31): _append_citation(), _async_metadata(), AsyncDeepResearchFailed, AsyncDeepResearchPollError, AsyncDeepResearchTimeout, _build_search_payload(), _build_sonar_payload(), _config_text() (+23 more)
 
 ### Community 295 - "last30days v3.8.3: Research Any Topic from the Last 30 Days"
-Cohesion: 0.06
-Nodes (35): AFTER EACH PROMPT: Stay in Expert Mode, Agent Mode (--agent flag), Claude Code Modal Flow, Competitor mode (`--competitors`), Configuration, CONTEXT MEMORY, CRITICAL: Parse User Intent, FIRST: Internalize the Research (+27 more)
+Cohesion: 0.05
+Nodes (37): AFTER EACH PROMPT: Stay in Expert Mode, Agent Mode (--agent flag), Competitor mode (`--competitors`), Configuration, CONTEXT MEMORY, CRITICAL: Match the FORMAT the research recommends, CRITICAL: Parse User Intent, FIRST: Internalize the Research (+29 more)
 
 ### Community 296 - "index.ts"
-Cohesion: 0.13
-Nodes (23): run(), ComplianceRiskScan, REGULATED_CATEGORIES, runComplianceScan(), UNSAFE_PHRASES, CreativeBriefPayload, extractCreativeBriefs(), exportPlanToJson() (+15 more)
+Cohesion: 0.11
+Nodes (25): CampaignPlanViewer(), ViewerProps, run(), ComplianceRiskScan, REGULATED_CATEGORIES, runComplianceScan(), UNSAFE_PHRASES, CreativeBriefPayload (+17 more)
 
 ### Community 297 - "normalize.py"
 Cohesion: 0.20
 Nodes (33): _date_confidence(), _domain_from_url(), filter_by_date_range(), _first_present(), _join_comment_excerpts(), _normalize_digg(), _normalize_github(), _normalize_grounding() (+25 more)
 
 ### Community 298 - "tiktok.py"
-Cohesion: 0.11
-Nodes (33): infer_query_intent(), Classify a topic into a coarse intent for adapter query expansion.      Returns, _clean_webvtt(), enrich_with_comments(), expand_tiktok_queries(), _extract_core_subject(), fetch_captions(), _fetch_post_comments() (+25 more)
+Cohesion: 0.12
+Nodes (31): _clean_webvtt(), enrich_with_comments(), expand_tiktok_queries(), _extract_core_subject(), fetch_captions(), _fetch_post_comments(), _hashtag_search(), _log() (+23 more)
 
 ### Community 299 - "reddit_keyless.py"
 Cohesion: 0.10
-Nodes (32): _apply_scores(), _discover(), _enrich(), _enrich_one(), _log(), Any, Keyless Reddit pipeline: free discovery + comment enrichment.  ``search.json`` i, Attach shreddit comments + real comment count. Never raises. (+24 more)
+Nodes (31): _apply_scores(), _discover(), _enrich(), _enrich_one(), _log(), Any, Keyless Reddit pipeline: free discovery + comment enrichment.  ``search.json`` i, Attach shreddit comments + real comment count. Never raises. (+23 more)
 
 ### Community 300 - "AI / Agent Orchestration Patterns"
 Cohesion: 0.06
 Nodes (33): Admin /chat AI assistant, Agent evaluation discipline, Agent failure modes + recovery, Agent orchestration patterns, AI / Agent Orchestration Patterns, AI blog seeder, Anti-patterns explicitly forbidden, Chain of Density — for summarization with progressive specificity (+25 more)
 
 ### Community 301 - "adminSecurity.ts"
-Cohesion: 0.11
-Nodes (28): ROUTERS, adminIdentityProcedure, adminPermissionProcedure(), adminSecurityRouter, getRecentAdminActions(), recordAdminAction(), reportAdminClientError(), AdminSecurityState (+20 more)
+Cohesion: 0.23
+Nodes (14): decodeXml(), extractTag(), fetchAndParseSource(), matchAll(), matchAttr(), matchesFilter(), ParsedItem, parseJsonText() (+6 more)
 
 ### Community 302 - "index.ts"
-Cohesion: 0.11
-Nodes (24): GET, PromptCompareResponse, buildInferredPatternsBlock(), ALERT_LABEL, getOperatorPolicyBlock(), getOperatorPolicyLines(), TRUTH_RULE_NEVER_FABRICATE, builderModeBlock() (+16 more)
+Cohesion: 0.20
+Nodes (14): buildInferredPatternsBlock(), builderModeBlock(), buildStaticPrefix(), identityBlock(), nourProfileBlock(), processingRulesBlock(), responseStyleBlock(), toolsBlock() (+6 more)
 
 ### Community 303 - "normalize.py"
-Cohesion: 0.20
-Nodes (33): _date_confidence(), _domain_from_url(), filter_by_date_range(), _first_present(), _join_comment_excerpts(), _normalize_digg(), _normalize_github(), _normalize_grounding() (+25 more)
+Cohesion: 0.13
+Nodes (12): extract_cookies(), Extract cookies from the specified browser.      Args:         browser: One of ', auto on macOS calls every Chromium-family extractor when all miss., TestCookieExtractRouting, Tests for extract_cookies with browser='auto'., On macOS, auto tries the Chromium family first, falls back to Firefox., On Linux, auto only tries Firefox., Explicit browser='firefox' goes directly to Firefox. (+4 more)
 
 ### Community 304 - "__init__.py"
-Cohesion: 0.08
-Nodes (35): fetch_scores(), _log(), Arctic-shift score resolver — post upvote counts by id, keyless and free.  ``sea, Return ``{base36_post_id: {"score", "num_comments"}}`` for the given ids.      B, _apply_scores(), _discover(), _enrich(), _enrich_one() (+27 more)
+Cohesion: 0.09
+Nodes (36): fetch_scores(), _log(), Arctic-shift score resolver — post upvote counts by id, keyless and free.  ``sea, Return ``{base36_post_id: {"score", "num_comments"}}`` for the given ids.      B, _apply_scores(), _discover(), _enrich(), _enrich_one() (+28 more)
 
 ### Community 305 - "morning-brief.ts"
 Cohesion: 0.12
-Nodes (31): annotateWithPreferences(), appendDecisionReplaySection(), buildAnticipatedSlice(), buildMorningBrief(), buildPersonalSlice(), buildShopSlice(), buildWellbeingSlice(), DeclinedTopRow (+23 more)
+Nodes (30): composeBrief(), annotateWithPreferences(), buildAnticipatedSlice(), buildMorningBrief(), buildPersonalSlice(), buildShopSlice(), buildWellbeingSlice(), DeclinedTopRow (+22 more)
 
 ### Community 306 - "normalize.py"
 Cohesion: 0.20
@@ -3730,44 +3480,44 @@ Cohesion: 0.06
 Nodes (32): Canonical business facts (code), Deploy, Google review count (single rule), ⚡ HF / AI stack (2026-05-26 activation), 🔴→🟢 Incident + restore — 2026-07-09 (PR #615 accidentally deleted ALL prerendered SEO pages), Invariants (do not break), 🔵 Latest shipped — 2026-06-03 (admin overhaul + customer dedup + code-underneath + architecture decisions + SMS voice sweep + VAPI receptionist slim-down), 🟢 Latest shipped — 2026-06-03 PM (front-facing site audit: truth + two-tier tire pricing, 8 commits) (+24 more)
 
 ### Community 310 - "sourceAssertions.ts"
-Cohesion: 0.10
-Nodes (17): bundle, overview, admin, campaigns, winback, code, src, hq (+9 more)
+Cohesion: 0.13
+Nodes (13): admin, campaigns, winback, hq, read(), server, status, trpc (+5 more)
 
 ### Community 311 - "diagnose-safety.ts"
-Cohesion: 0.09
-Nodes (27): NO_CTX, VOICE_COVERAGE, DiagnosisAnalyzed, DiagnosisCause, DiagnosisResult, DiagnosisUnavailable, log, runDiagnosis() (+19 more)
+Cohesion: 0.10
+Nodes (26): NO_CTX, VOICE_COVERAGE, DiagnosisAnalyzed, DiagnosisCause, DiagnosisResult, DiagnosisUnavailable, log, runDiagnosis() (+18 more)
 
 ### Community 312 - "os-snapshot.ts"
 Cohesion: 0.12
-Nodes (29): GET, compareToWeekAgo(), composeDriftAlert(), DEBT_METRICS, DriftReport, escapeHtml(), pushDriftAlertIfNeeded(), Regression (+21 more)
+Nodes (28): compareToWeekAgo(), composeDriftAlert(), DEBT_METRICS, DriftReport, escapeHtml(), pushDriftAlertIfNeeded(), Regression, RegressionSeverity (+20 more)
 
 ### Community 313 - "layout.tsx"
-Cohesion: 0.08
-Nodes (19): barlowCondensed, instrumentSerif, metadata, viewport, BeforeInstallPromptEvent, PWAInstallPrompt(), ServiceWorkerRegister(), ClientErrorTelemetry() (+11 more)
+Cohesion: 0.18
+Nodes (15): buildReelSsml(), elevenLabsVoice(), formatAssTime(), generateAssSubtitles(), generateVoiceover(), googleTtsRequest(), googleVoice(), log (+7 more)
 
 ### Community 314 - "gate.ts"
-Cohesion: 0.08
-Nodes (27): ChatActionPermission, ChatPosture, extractText(), GateBlock, GateResult, parseChatControls(), PERMISSIONS, POSTURES (+19 more)
+Cohesion: 0.11
+Nodes (19): 1 · Clarity-gate verdict on the pasted plan, 2 · North star and its instrument, 3 · The wave queue, 4 · Operator decision queue (HITL — only Nour can decide), 5 · ADR deltas vs the pasted plan, 6 · External evidence base (primary sources), 7 · Verification baseline (corrected), 8 · Honestly not verified here (+11 more)
 
 ### Community 315 - "providers.py"
 Cohesion: 0.13
 Nodes (21): extract_gemini_text(), extract_json(), extract_openai_text(), GeminiClient, mock_runtime(), OpenAIClient, OpenRouterClient, Any (+13 more)
 
 ### Community 316 - "render_compact"
-Cohesion: 0.10
-Nodes (33): _assistant_safety_lines(), _best_take_relevance_ok(), _effective_fun_score(), _parse_comparison_entities(), Production brief for downstream pipelines (video, scripting, structured synthesi, Read plugin version from .claude-plugin/plugin.json, falling back to SKILL.md fr, Exclude off-topic-but-viral candidates from Best Takes.      The engine demotes, LLM humor score plus a bounded, relevance-confidence-scaled crowd nudge.      `` (+25 more)
+Cohesion: 0.11
+Nodes (34): GET, POST(), replyToOperator(), safeSecretEqual(), fetchShopHealth(), fetchShopSnapshot(), log, resolveBridgeConfig() (+26 more)
 
 ### Community 317 - "TestCli"
-Cohesion: 0.08
-Nodes (16): MaterialInfo, _bgm_type(), build_video_params(), _hex_color(), _non_negative_float(), _paragraph_count(), parse_args(), _percent_position() (+8 more)
+Cohesion: 0.10
+Nodes (4): MaterialInfo, After preprocess_video, material.url should be an absolute path, not a bare file, TestCli, local 素材路径来自 API 参数，不能允许任意绝对路径进入 MoviePy。         这里验证非 local_videos 白名单目录内的路径会被
 
 ### Community 318 - "comprehensive-backfill.ts"
-Cohesion: 0.11
-Nodes (27): attributeTextBatch(), AI_SOURCES, ATTRIBUTABLE_BRAIN_CATEGORIES, BackfillResult, EMAIL_CATEGORIES, existingKeys(), measureBackfill(), recordCredit() (+19 more)
+Cohesion: 0.13
+Nodes (24): log, POST(), log, POST(), checkIngestAuth(), canonicalBatchSchema, CanonicalSample, canonicalSampleSchema (+16 more)
 
 ### Community 319 - "goal-stats.ts"
-Cohesion: 0.13
-Nodes (23): computeCharacterSheet(), StatLevel, creditGoalStatsForTask(), creditTaskStats(), effectiveGoalStats(), GOAL_DOMAIN_TO_STAT, GoalForStats, goalsByStat() (+15 more)
+Cohesion: 0.10
+Nodes (17): Applying, DDL that TiDB accepts, Do this instead, Known narrow column, nickstire-tidb-ddl, The rule that loses data, Procedure, prod-db-guard (+9 more)
 
 ### Community 320 - "seed-greene-all.ts"
 Cohesion: 0.12
@@ -3778,8 +3528,8 @@ Cohesion: 0.13
 Nodes (21): extract_gemini_text(), extract_json(), extract_openai_text(), GeminiClient, mock_runtime(), OpenAIClient, OpenRouterClient, Any (+13 more)
 
 ### Community 322 - "evaluate_search_quality.py"
-Cohesion: 0.17
-Nodes (30): build_judge_prompt(), build_parser(), build_ranked_items(), call_gemini_judge(), create_eval_env(), create_worktree(), extract_gemini_text(), get_judgments() (+22 more)
+Cohesion: 0.09
+Nodes (32): build_judge_prompt(), build_parser(), build_ranked_items(), call_gemini_judge(), create_eval_env(), create_worktree(), extract_gemini_text(), get_judgments() (+24 more)
 
 ### Community 323 - "planner.py"
 Cohesion: 0.14
@@ -3790,12 +3540,12 @@ Cohesion: 0.09
 Nodes (32): _aggregate_engagement(), _comment_attribution(), _comment_insight(), _digg_posts_for(), _extract_audience_questions(), _fmt_pairs(), _format_actor(), _format_corroboration() (+24 more)
 
 ### Community 325 - "xquik.py"
-Cohesion: 0.10
-Nodes (31): _execute_search(), expand_xquik_queries(), _extract_core_subject(), _is_own(), _log(), _parse_tweet(), parse_xquik_response(), probe_reason() (+23 more)
+Cohesion: 0.15
+Nodes (12): _log_error(), parse_x_response(), Any, xAI API client for X (Twitter) discovery., Extract text from string or localized object., Parse xAI response to extract X items.      Args:         response: Raw API resp, Search X for relevant posts using xAI API with live search.      Args:         a, _safe_text() (+4 more)
 
 ### Community 326 - "field.tsx"
-Cohesion: 0.08
-Nodes (9): ButtonGroup(), buttonGroupVariants, Field(), fieldVariants, Item(), ItemMedia(), itemMediaVariants, itemVariants (+1 more)
+Cohesion: 0.17
+Nodes (12): BlogPost(), CATEGORY_TO_PILLAR, CATEGORY_TO_SERVICE, NormalizedArticle, normalizeDynamic(), PillarCalloutProps, safeJsonArray(), slugify() (+4 more)
 
 ### Community 327 - "task-signals.ts"
 Cohesion: 0.11
@@ -3826,8 +3576,8 @@ Cohesion: 0.12
 Nodes (31): _clean_webvtt(), enrich_with_comments(), expand_tiktok_queries(), _extract_core_subject(), fetch_captions(), _fetch_post_comments(), _hashtag_search(), _log() (+23 more)
 
 ### Community 334 - "xquik.py"
-Cohesion: 0.10
-Nodes (31): _execute_search(), expand_xquik_queries(), _extract_core_subject(), _is_own(), _log(), _parse_tweet(), parse_xquik_response(), probe_reason() (+23 more)
+Cohesion: 0.05
+Nodes (66): blockReasons, LIMIT, tally, verdicts, runPowerPlay(), attributeTextBatch(), computeCharacterSheet(), StatLevel (+58 more)
 
 ### Community 335 - "VideoParams"
 Cohesion: 0.07
@@ -3835,7 +3585,7 @@ Nodes (11): RedisTaskManager, {       "video_subject": "",       "video_aspect":
 
 ### Community 336 - "trends.ts"
 Cohesion: 0.10
-Nodes (29): analyzeTrends(), BODY_METRICS, BodyMetricDef, BodyRow, buildSeries(), ChangePoint, computeTrends(), DAILY_METRICS (+21 more)
+Nodes (28): BODY_METRICS, BodyMetricDef, BodyRow, buildSeries(), ChangePoint, computeTrends(), DAILY_METRICS, DailyLogRow (+20 more)
 
 ### Community 337 - "evaluate_search_quality.py"
 Cohesion: 0.17
@@ -3855,7 +3605,7 @@ Nodes (11): RedisTaskManager, {       "video_subject": "",       "video_aspect":
 
 ### Community 341 - "scripts"
 Cohesion: 0.06
-Nodes (32): scripts, build:affected, build:all, build:nick, build:stn, build:worker, check:affected, check:all (+24 more)
+Nodes (34): scripts, agent:parity, agent:verify, build:affected, build:all, build:nick, build:stn, build:worker (+26 more)
 
 ### Community 342 - "package.json"
 Cohesion: 0.06
@@ -3866,28 +3616,28 @@ Cohesion: 0.06
 Nodes (31): 0. Core Operating Principle, 10. Creativity & Highest-Level Behavior, 11. Autonomous Discovery, Extensions, & Self-Expansion, 12. Context Harvesting & Chronological History Reconstruction, 13. Elite Cognitive Reframing & Devil's Advocacy, 14. Cross-App Integration, GenAI, & Real-Time Grounding, 15. Google Services Ecosystem & Memory Grounding, 16. Statenour-OS Standing Rules (+23 more)
 
 ### Community 344 - "chrome_cookies.py"
-Cohesion: 0.11
-Nodes (30): _decrypt_v10_value(), _derive_aes_key(), extract_brave_cookies_macos(), extract_chrome_cookies_macos(), extract_chromium_browser_cookies_macos(), _extract_chromium_cookies_macos(), _find_brave_cookies_db(), _find_chromium_cookies_db() (+22 more)
+Cohesion: 0.12
+Nodes (26): _decrypt_v10_value(), _derive_aes_key(), extract_brave_cookies_macos(), _extract_chromium_cookies_macos(), _find_brave_cookies_db(), _find_chromium_cookies_db(), _get_chrome_encryption_key(), _get_chromium_encryption_key() (+18 more)
 
 ### Community 345 - "DiagnosePage.tsx"
-Cohesion: 0.08
-Nodes (23): HeroOpenStatusHint(), StickyTrustBar(), getOpenStatus(), CarZoneId, CURRENT_YEAR, describeCheckError(), DiagnoseOpenStatusLine(), DiagnosePage() (+15 more)
+Cohesion: 0.19
+Nodes (15): acquireOllamaSlot(), BACKGROUND_CAP, canGrant(), grantNow(), isBackground(), makeRelease(), pump(), queue (+7 more)
 
 ### Community 346 - "Postmortem · 2026-05-24 · Prerender-to-All-Users Broke Prod"
 Cohesion: 0.06
 Nodes (29): Contributing factors, Future-proofing the prerender path, Immediate (already shipped), Lessons applied to subsequent ports, Operator-facing impact, Postmortem · 2026-05-24 · Prerender-to-All-Users Broke Prod, Pre-flight gate for asset-reference changes, Root cause · 5 whys (+21 more)
 
 ### Community 347 - "f"
-Cohesion: 0.08
-Nodes (26): exec(), isTolerable(), JOURNAL_PATH, main(), ROOT, TOLERATED, f(), main() (+18 more)
+Cohesion: 0.38
+Nodes (6): exec(), isTolerable(), JOURNAL_PATH, main(), ROOT, TOLERATED
 
 ### Community 348 - "ai-gateway.ts"
 Cohesion: 0.09
-Nodes (29): aiChat(), aiClassify(), aiGateway(), AIProvider, aiSummarize(), callOpenAI(), ChatMessage, DailyStats (+21 more)
+Nodes (30): aiChat(), aiClassify(), aiGateway(), AIProvider, aiSummarize(), callOpenAI(), ChatMessage, DailyStats (+22 more)
 
 ### Community 349 - "system-observability.ts"
-Cohesion: 0.15
-Nodes (25): GET, GET(), ScoreCard, computeBurnRateForecast(), computeTodayBurn(), costByProvider(), etDateKey(), hoursElapsedToday() (+17 more)
+Cohesion: 0.03
+Nodes (103): GET(), GET, POST, GET(), ScoreCard, GET, handler(), recordComparison() (+95 more)
 
 ### Community 350 - "ULTRON — the personal OS consciousness"
 Cohesion: 0.06
@@ -3902,12 +3652,12 @@ Cohesion: 0.06
 Nodes (14): download_videos 可能被服务层或测试直接传入字符串模式，而不是         VideoConcatMode 枚举。这里用空搜索词避免真实网络请, 开启按文案顺序匹配素材后，不能让第一个关键词的多个候选先把         音频时长填满。这里模拟两个关键词各有多个候选，验证下载顺序是         ter, Coverr 视频素材源(spec: 2026-06-09-coverr-video-provider-design.md)。     全部用 unittest, search_videos_coverr 应把每个 hit 转成 MaterialInfo，并把 urls.mp4_download         直接作为, 与 pexels/pixabay 一致:未显式配置时 TLS 校验默认开启。, 企业自签证书代理场景必须能显式关闭 TLS 校验。, Coverr duration 字段在不同响应里可能是 number 或 string,         两种格式都要接受;低于 minimum_duratio, 默认路径必须开启 TLS 校验，避免素材 API key 和返回的素材 URL         在公共网络或不可信代理环境中被中间人攻击截获或篡改。 (+6 more)
 
 ### Community 353 - "tool-policy.ts"
-Cohesion: 0.12
-Nodes (24): evaluateToolAction(), ToolActionRequest, ToolDecision, ToolDecisionType, ApprovalPolicy, generateDynamicCapability(), getMissingEnvForTool(), getToolCapabilities() (+16 more)
+Cohesion: 0.09
+Nodes (32): checkApprovalGate(), evaluateToolAction(), ToolActionRequest, ToolDecision, ToolDecisionType, ApprovalPolicy, generateDynamicCapability(), getMissingEnvForTool() (+24 more)
 
 ### Community 354 - "render_compact"
-Cohesion: 0.10
-Nodes (31): _assistant_safety_lines(), _best_take_relevance_ok(), _effective_fun_score(), _parse_comparison_entities(), Read plugin version from .claude-plugin/plugin.json, falling back to SKILL.md fr, Exclude off-topic-but-viral candidates from Best Takes.      The engine demotes, LLM humor score plus a bounded, relevance-confidence-scaled crowd nudge.      ``, Emit the explicit END-OF-CANONICAL-OUTPUT boundary.      Added in v3.0.9 after t (+23 more)
+Cohesion: 0.08
+Nodes (62): _append_html_footer(), _assess_data_freshness(), _assistant_safety_lines(), _best_take_relevance_ok(), collect_html_warnings(), collect_html_warnings_comparison(), _dedupe_notes(), _effective_fun_score() (+54 more)
 
 ### Community 355 - "TestParamsEncoding"
 Cohesion: 0.09
@@ -3927,19 +3677,19 @@ Nodes (30): action, default_icon, default_popup, default_title, background, serv
 
 ### Community 359 - "index.ts"
 Cohesion: 0.09
-Nodes (16): authenticVoice, crossingTheChasm, factOfGreatYield, financialProjections, fiveWhys, lossAversion, naturalPowers, powerLaw (+8 more)
+Nodes (17): authenticVoice, crossingTheChasm, factOfGreatYield, financialProjections, fiveWhys, lossAversion, naturalPowers, powerLaw (+9 more)
 
 ### Community 360 - "perplexity.py"
-Cohesion: 0.15
-Nodes (29): _append_citation(), _async_metadata(), AsyncDeepResearchTimeout, _build_search_payload(), _build_sonar_payload(), _config_text(), _csv_values(), _direct_model() (+21 more)
+Cohesion: 0.13
+Nodes (31): _append_citation(), _async_metadata(), AsyncDeepResearchFailed, AsyncDeepResearchPollError, AsyncDeepResearchTimeout, _build_search_payload(), _build_sonar_payload(), _config_text() (+23 more)
 
 ### Community 361 - "SubprocResult"
-Cohesion: 0.12
-Nodes (9): Result of a subprocess run that captured stdout and stderr., SubprocResult, LeadingMentionsTests, U6: handle searches log query + count on success, not only on failure., The last-chance retry must keep an entity anchor, not collapse to a bare     gen, U5: leading @mentions parsed from post text identify reply targets., TestBirdXEngagementZero, TestHandleSearchLogsOnSuccess (+1 more)
+Cohesion: 0.15
+Nodes (33): AuditEventRow, AutonomousEventRow, base(), BrainBusEventRow, DeviceEventRow, EntityAuditRow, fromAuditEvent(), fromAutonomousEvent() (+25 more)
 
 ### Community 362 - "contentFormatPlanner.ts"
-Cohesion: 0.11
-Nodes (23): CampaignObjective, canAffordPaidReel(), canMakeReelFree(), CONTENT_FORMAT, ContentFormat, decideContentFormat(), DecisionConfidence, describeAvailability() (+15 more)
+Cohesion: 0.22
+Nodes (12): canAffordPaidReel(), canMakeReelFree(), CONTENT_FORMAT, ContentFormat, decideContentFormat(), DecisionConfidence, describeAvailability(), emptyFormatSignals() (+4 more)
 
 ### Community 363 - "Layer-by-layer audit"
 Cohesion: 0.07
@@ -3954,16 +3704,16 @@ Cohesion: 0.13
 Nodes (28): APP, argv, asJson, assertReadOnly(), baseType(), BLOCKING_STATES, canonType(), checkStatement() (+20 more)
 
 ### Community 366 - "reelPublishAuthority.ts"
-Cohesion: 0.11
-Nodes (20): args, baseApproval, { approvalRows }, IMG_A, IMG_B, allowed(), ApprovalVerification, computeBriefHash() (+12 more)
+Cohesion: 0.13
+Nodes (14): ReasonTab(), megaConfirm(), MegaConfirmDialogProps, MegaConfirmHost(), PendingConfirm, pendingConfirms, KIND_DOT, NickReasoner() (+6 more)
 
 ### Community 367 - "reelRecoverability.ts"
-Cohesion: 0.09
-Nodes (23): beats, payload(), ids(), none, log, reassembleFromClips(), ReassembleResult, ARCHIVE (+15 more)
+Cohesion: 0.11
+Nodes (18): ids(), none, ARCHIVE, ArtifactProbe, AssessableJob, ATTENTION_STATUSES, classifyRecoverability(), DISCARD (+10 more)
 
 ### Community 368 - "customer-preferences.ts"
-Cohesion: 0.12
-Nodes (26): BridgeErr, BridgeOk, GET(), isBridgeOk(), RouteContext, avgTicketCents(), buildSummary(), classifyPaymentBehavior() (+18 more)
+Cohesion: 0.16
+Nodes (14): CATEGORY_META, Citation, CitationPills(), ContradictionLog, MemoryHit, MemoryInspectorSidebar(), MemoryInspectorSidebarProps, Citation (+6 more)
 
 ### Community 369 - "Data flow + state shape"
 Cohesion: 0.07
@@ -3982,8 +3732,8 @@ Cohesion: 0.15
 Nodes (22): buildMemoryEvalReport(), MemoryEvalReport, MemoryEvalReportDeps, EMPTY_BUCKET(), forbiddenAsClaim(), gradeAnswer(), gradeDoc(), lc() (+14 more)
 
 ### Community 373 - "makeResearchHandler"
-Cohesion: 0.13
-Nodes (27): CallToolRequest, CallToolResult, main(), boolArgument(), emitArgument(), formatRunError(), MCPServer, ToolHandlerFunc (+19 more)
+Cohesion: 0.20
+Nodes (17): CallToolRequest, CallToolResult, formatRunError(), researchRunArgs(), T, newCallToolRequest(), resultText(), TestBoolArgument() (+9 more)
 
 ### Community 374 - "TestYtdlpSSHRouting"
 Cohesion: 0.07
@@ -3994,12 +3744,12 @@ Cohesion: 0.07
 Nodes (29): About — https://www.nickstire.org/about, Alignment — https://www.nickstire.org/alignment, Booking — https://www.nickstire.org/booking, Brakes — https://www.nickstire.org/brakes, Cleveland Auto Repair (city page) — https://www.nickstire.org/cleveland-auto-repair, Closing Note, Compliance & Risk Flags, Contact — https://www.nickstire.org/contact (+21 more)
 
 ### Community 376 - "grounding.py"
-Cohesion: 0.14
-Nodes (27): brave_search(), _domain(), _enrich_reddit_items(), exa_search(), _in_date_range(), _normalize_date(), parallel_search(), _parse_serper_date() (+19 more)
+Cohesion: 0.17
+Nodes (16): deriveSubAgents(), isMultiPartQuestion(), runAutoDecompose(), callSubAgent(), callSynthesizer(), guardedSubAgent, guardedSynthesizer, log (+8 more)
 
 ### Community 377 - "CommandSearch.tsx"
-Cohesion: 0.06
-Nodes (34): CommandSearch(), Props, QuickAction, SECTION_SHORTCUTS, useDebounce(), DrilldownDetail, DrilldownDrawer(), DrilldownKind (+26 more)
+Cohesion: 0.08
+Nodes (11): Result of a subprocess run that captured stdout and stderr., SubprocResult, LeadingMentionsTests, U5: --diagnose probe + true auth lane; X is not reported green when dead., U6: handle searches log query + count on success, not only on failure., The last-chance retry must keep an entity anchor, not collapse to a bare     gen, U5: leading @mentions parsed from post text identify reply targets., TestBirdXEngagementZero (+3 more)
 
 ### Community 378 - "__SECTION 1: COMPLIANCE RULES__"
 Cohesion: 0.07
@@ -4010,12 +3760,12 @@ Cohesion: 0.07
 Nodes (28): /analytics-tracking audit, Easy wins (do later, not now), Existing tracking surfaces, Forms inventory (10 forms), Gaps to address (priority order), Headline numbers, Mobile-specific, Multi-Skill Audit — 2026-05-05 (+20 more)
 
 ### Community 380 - "routes.ts"
-Cohesion: 0.09
-Nodes (25): vite, getPackageRoot(), injectRouteMeta(), log, serveStatic(), setupVite(), ALL_ROUTES, BLOG_SLUGS (+17 more)
+Cohesion: 0.10
+Nodes (8): Bay, DispatchLoad, DispatchLoadQuery, DispatchRecommendation, QcChecklistItem, Tab, Tech, WorkOrderListItem
 
 ### Community 381 - "payments.ts"
-Cohesion: 0.11
-Nodes (23): isKnownMembershipPlan(), mapSubscriptionEventToStatus(), MEMBERSHIP_STATUSES, MembershipStatus, normalizeMembershipPhone(), sortMembersActiveFirst(), ENV_KEYS, freshPayments() (+15 more)
+Cohesion: 0.05
+Nodes (51): deriveTurnSignals(), Logger, StageTracker, TurnSignals, Logger, prepareTools(), DELETE(), GET() (+43 more)
 
 ### Community 382 - "llm.py"
 Cohesion: 0.15
@@ -4026,8 +3776,8 @@ Cohesion: 0.09
 Nodes (26): ACCUSATION_AUDIT, ALL_DARK_KNOWLEDGE_ENTRIES, ANCHORING_BIAS, AUTHORITY_BIAS, BODY_LANGUAGE_DOMINANCE, CALIBRATED_QUESTIONS, CHANAKYA_ALLIANCE, CHANAKYA_ECONOMIC_WARFARE (+18 more)
 
 ### Community 384 - "task-events.ts"
-Cohesion: 0.11
-Nodes (15): GoalEventInput, GoalEventKind, log, emitTaskEvent(), log, TaskEventInput, TaskEventKind, bucketedIdempotencyKey() (+7 more)
+Cohesion: 0.10
+Nodes (20): 1. GET `/api/bridge/cars-today`, 2. GET `/api/bridge/estimates-conversion?range=7d|30d|90d&scope=online|alg`, 3. GET `/api/bridge/estimates-aging?scope=online|alg`, 4. GET `/api/bridge/drop-off-ratio?range=7d|30d|90d`, 5. Snap Finance Endpoints, 5a. POST `/api/snap/application`, 5b. POST `/api/snap/webhook`, 6. POST `/api/bridge/bulk-sms-send` (+12 more)
 
 ### Community 385 - "ADR-0013 · /journal pattern-radar · convergence detection → named threads"
 Cohesion: 0.07
@@ -4058,8 +3808,8 @@ Cohesion: 0.13
 Nodes (27): _best_author_match(), enrich_articles(), _extract_posts(), _int_field(), _is_article(), _log(), _normalize_name(), _parse_date() (+19 more)
 
 ### Community 392 - ".url"
-Cohesion: 0.10
-Nodes (21): SharePage(), main(), mockFetchOk(), ProactivePreviewPage(), fetchFinnhub(), fetchQuoteCents(), fetchStooqClose(), fetchYahooPrice() (+13 more)
+Cohesion: 0.23
+Nodes (13): DeployIdentity, DeployMeta, DeployStatus, readDeployIdentity(), resolveDeployMeta(), assembleDigest(), buildSystemChangeDigest(), DigestDeps (+5 more)
 
 ### Community 393 - "Customer Dedup Plan — `customers` table"
 Cohesion: 0.07
@@ -4074,20 +3824,20 @@ Cohesion: 0.17
 Nodes (19): GET(), BRAND, main(), parseArgs(), AssetMetadata, __dirname, fontBold, fontBoldPath (+11 more)
 
 ### Community 396 - "goals.ts"
-Cohesion: 0.12
-Nodes (22): DELETE, GET, PATCH, POST, emitGoalEvent(), emitGoalEventAsync(), ancestorChain(), DONE_STATUSES (+14 more)
+Cohesion: 0.09
+Nodes (18): cleanupOldData(), cacheCleanupInterval, cached(), cacheDelete(), cacheDeletePattern(), cacheGet(), cacheSet(), cleanupMemCache() (+10 more)
 
 ### Community 397 - "env.ts"
-Cohesion: 0.11
-Nodes (23): Gap, GET, MODELS_TO_AUDIT, assertEnvOrDie(), checkEnvHealth(), describeEnvHealth(), env, ENV_SPEC (+15 more)
+Cohesion: 0.06
+Nodes (16): callerPersona(), llm(), main(), MatchResult, probe(), probeBothLanes(), runMatch(), SeedRow (+8 more)
 
 ### Community 398 - "BUSINESS LANDSCAPE · Nick's Tire & Auto — How We Run"
 Cohesion: 0.07
 Nodes (27): 1. LINE OF CARS, 2. APPOINTMENTLESS / FCFS, 3. HAPPY WAIT, 4. DROP-OFF + UBER-OUT, ALIVE + DYNAMIC, BUSINESS LANDSCAPE · Nick's Tire & Auto — How We Run, Business Tools Inventory (as of 2026-04-22), Competitive Positioning (+19 more)
 
 ### Community 399 - "NOUR OS · Glitch Taxonomy"
-Cohesion: 0.18
-Nodes (27): A. **Pre-push gate (extend the existing 15-step)**, Appendix · v10.0.473-484 incident log (2026-05-08), B. **`/system/health-grid` mega-dashboard**, C. **Brain memory `category=glitch_capture`**, Category 1 · Contract drift, Category 2 · Model output leakage, Category 3 · NLU pattern misses, Category 4 · Concurrency races (+19 more)
+Cohesion: 0.29
+Nodes (7): Category 1 · Contract drift, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms (ranked by leverage), Where it shows up (surfaces)
 
 ### Community 400 - "App Store Optimizer Agent Personality"
 Cohesion: 0.07
@@ -4102,8 +3852,8 @@ Cohesion: 0.07
 Nodes (27): Account Positioning & Persona Building, Communication Style, Compliance Red Lines, Content Strategy, Core Mission, Crisis Response Template, Critical Rules, Data Analytics (+19 more)
 
 ### Community 403 - "linkedin.py"
-Cohesion: 0.13
-Nodes (27): _best_author_match(), enrich_articles(), _extract_posts(), _int_field(), _is_article(), _log(), _normalize_name(), _parse_date() (+19 more)
+Cohesion: 0.10
+Nodes (32): _best_author_match(), enrich_articles(), _extract_posts(), _int_field(), _is_article(), _log(), _normalize_name(), _parse_date() (+24 more)
 
 ### Community 404 - "video.py"
 Cohesion: 0.16
@@ -4118,8 +3868,8 @@ Cohesion: 0.12
 Nodes (18): RUNBOOKS, Runbook, RunbookRisk, RunbookStatus, cwd, seen, checkDateSynchronization(), collectMarkdown() (+10 more)
 
 ### Community 407 - "HTTPError"
-Cohesion: 0.09
-Nodes (12): HTTPError, HTTP request error with status code., _get(), main(), _post(), TestSearchBlueskyAuth, Test graceful handling of HTTP errors., test_search_hackernews_http_error_handling() (+4 more)
+Cohesion: 0.07
+Nodes (15): HTTPError, RateLimiter, Thread-safe token-bucket throttle for an endpoint family.      The keyless sourc, Consume one token, blocking only when the bucket is empty., HTTP request error with status code., _get(), main(), _post() (+7 more)
 
 ### Community 408 - "make_candidate"
 Cohesion: 0.12
@@ -4138,8 +3888,8 @@ Cohesion: 0.07
 Nodes (4): ProvidersV3Tests, TestExtractGeminiText, TestExtractJson, TestExtractOpenAIText
 
 ### Community 412 - "_compute"
-Cohesion: 0.11
-Nodes (10): _compute(), Nudge always includes no-affiliate disclaimer when present., YouTube is `degraded` when videos returned but transcripts below threshold., Captions-disabled videos must not lower the transcript-fetch ratio.      A video, Helper to call compute_quality_score with mocked yt-dlp check., Zero failed fetches must suppress the stale-yt-dlp nudge (#531).      The report, TestDisclaimerAlwaysPresent, TestStaleNudgeRequiresActualFetchFailures (+2 more)
+Cohesion: 0.13
+Nodes (8): _compute(), YouTube is `degraded` when videos returned but transcripts below threshold., Captions-disabled videos must not lower the transcript-fetch ratio.      A video, Helper to call compute_quality_score with mocked yt-dlp check., Zero failed fetches must suppress the stale-yt-dlp nudge (#531).      The report, TestStaleNudgeRequiresActualFetchFailures, TestYouTubeCaptionsDisabledDoesNotFalseFlag, TestYouTubeDegraded
 
 ### Community 413 - "TestScriptPromptOptions"
 Cohesion: 0.07
@@ -4166,36 +3916,36 @@ Cohesion: 0.07
 Nodes (26): Activation (operator-action), Anti-patterns, "Cache nothing", Component 1 · Audio storage, Component 2 · Twilio Voice call, Component 3 · TwiML response, Component 4 · TCPA compliance + timing, Component 5 · The triggering cron (+18 more)
 
 ### Community 419 - "sdk.ts"
-Cohesion: 0.10
-Nodes (8): User, GoogleOAuthService, isNonEmptyString(), log, SDKServer, SessionPayload, ForbiddenError(), HttpError
+Cohesion: 0.21
+Nodes (16): _apply_per_author_cap(), candidate_key(), _candidate_sort_key(), _diversify_pool(), _extract_author(), _normalize_url(), Candidate, QueryPlan (+8 more)
 
 ### Community 420 - "export-sms-corpus.ts"
 Cohesion: 0.15
 Nodes (24): AUTOMATION_MARKERS, buildTrainingPairs(), CliArgs, fetchMessages(), filterAndRedact(), looksAutomated(), main(), parseArgs() (+16 more)
 
 ### Community 421 - "self-healing.ts"
-Cohesion: 0.08
-Nodes (23): AnomalyEntry, anomalyLog, ComponentHealth, components, DiagnosticReport, HealthMetricSample, log, metricHistory (+15 more)
+Cohesion: 0.07
+Nodes (32): analyzeTrends(), AnomalyEntry, anomalyLog, calculateHealthScore(), calculateTrend(), checkEventLoopHealth(), ComponentHealth, components (+24 more)
 
 ### Community 422 - "voice.ts"
-Cohesion: 0.09
-Nodes (24): buildEvalSystemPrompt(), APP, DELETED_DUPLICATES, KERNEL_CONSUMERS, ABSURDITY_RATIO, CHEAP_QUERY_TARGETS, CTA_LIBRARY, FindOptions (+16 more)
+Cohesion: 0.16
+Nodes (14): loggedActionParams, mockDb, mockExistingEmail, mockExistingSms, ORDER, availabilityConfirmed(), MessagePreview, OrderMessageInput (+6 more)
 
 ### Community 423 - "auth.ts"
-Cohesion: 0.11
-Nodes (16): SignInPage(), SignInPageProps, allowedEmail, disabledAuth, signIn(), getAuthRuntimeMode(), getMockOperatorSession(), getOperatorSession() (+8 more)
+Cohesion: 0.12
+Nodes (15): SignInPage(), SignInPageProps, allowedEmail, disabledAuth, signIn(), getAuthRuntimeMode(), getMockOperatorSession(), getOperatorSession() (+7 more)
 
 ### Community 424 - "prompts.ts"
-Cohesion: 0.11
-Nodes (21): GET, recordComparison, ANTI_FABRICATION_RULE, FABRICATION_BANNER, fillTemplate(), getPrompt(), getRegistryStats(), HISTORY_NEUTRALIZATION (+13 more)
+Cohesion: 0.06
+Nodes (48): dim(), ClassStats, judgeCalibration(), JudgeCalibrationReport, LabeledComparison, WINNERS, ALL_DIMENSIONS, buildUserPrompt() (+40 more)
 
 ### Community 425 - "home-brain-graph.tsx"
-Cohesion: 0.11
-Nodes (21): Audience, LtvTier, OutreachTab(), PaymentBehavior, suggestCampaignId(), BrainNodeDetailPanel(), BrainNodeDetailPanelProps, getFallbackNextMove() (+13 more)
+Cohesion: 0.04
+Nodes (53): BOARD_OPTIONS, BoardId, BoardTab(), formatRelative(), BrainContinuityView(), ContinuityPayload, Memory, MemoryRow() (+45 more)
 
 ### Community 426 - "situation-card.tsx"
 Cohesion: 0.11
-Nodes (18): MONITOR_TONE, SEV_DOT, SEV_RING, SEV_TEXT, SituationCard(), SituationCardProps, SOURCE_ICON, AmbientMonitor (+10 more)
+Nodes (20): CandidateRow(), MONITOR_TONE, MonitorStrip(), SEV_DOT, SEV_RING, SEV_TEXT, SituationCard(), SituationCardProps (+12 more)
 
 ### Community 427 - "Project Management Dashboard Spec"
 Cohesion: 0.07
@@ -4211,7 +3961,7 @@ Nodes (26): 🚀 Advanced Capabilities, Bilibili Algorithm Deep Dive, Bilibili C
 
 ### Community 430 - "marketing-china-ecommerce-operator.md"
 Cohesion: 0.07
-Nodes (26): 618 / Double 11 Campaign Battle Plan, 🚀 Advanced Capabilities, Advanced Live Commerce Operations, Advertising ROI Optimization Framework, Campaign Discipline, 🚨 Critical Rules You Must Follow, Cross-Platform Arbitrage & Differentiation, Dominate Multi-Platform E-Commerce Operations (+18 more)
+Nodes (27): 618 / Double 11 Campaign Battle Plan, 🚀 Advanced Capabilities, Advanced Live Commerce Operations, Advertising ROI Optimization Framework, Campaign Discipline, 🚨 Critical Rules You Must Follow, Cross-Platform Arbitrage & Differentiation, Dominate Multi-Platform E-Commerce Operations (+19 more)
 
 ### Community 431 - "Marketing Kuaishou Strategist"
 Cohesion: 0.07
@@ -4222,8 +3972,8 @@ Cohesion: 0.07
 Nodes (26): 1. System Architecture, 2.1. Statenour Bridge Key (`X-Statenour-Sync-Key`), 2.2. Admin API Key, 2.3. Session Cookies, 2. Authentication Reference, 3.1. Utility & Diagnostics, 3.2. Webhooks, 3.3. Conversion & Telemetry Sinks (+18 more)
 
 ### Community 433 - "_render_candidate"
-Cohesion: 0.11
-Nodes (27): _aggregate_engagement(), _comment_attribution(), _comment_insight(), _digg_posts_for(), _fmt_pairs(), _format_actor(), _format_date(), _format_digg_quote() (+19 more)
+Cohesion: 0.09
+Nodes (32): _aggregate_engagement(), _comment_attribution(), _comment_insight(), _digg_posts_for(), _extract_audience_questions(), _fmt_pairs(), _format_actor(), _format_corroboration() (+24 more)
 
 ### Community 434 - "TestParseThreadData"
 Cohesion: 0.08
@@ -4242,24 +3992,24 @@ Cohesion: 0.08
 Nodes (25): "100% SLO", Admin app (`/admin`), "Alert on every breach", Anti-patterns, `confirmCheckout` + `/api/webhooks/stripe`, `cross-sell-outreach` (post Wave C · hourly tier · businessHoursOnly), Error budget · what to do when it burns, `gateway-price-refresh` (4×/day) (+17 more)
 
 ### Community 438 - "Nick's Tire & Auto — Revenue Operations Roadmap"
-Cohesion: 0.08
-Nodes (22): Nick's Tire & Auto — Revenue Operations Issue Registry, Status definitions, Wave 1 closure rule, Data quality requirements, Evidence levels, GSC metrics, Nick's Tire & Auto — Metrics Contract, Rates and denominators (+14 more)
+Cohesion: 0.20
+Nodes (10): Immediate operator decisions, Nick's Tire & Auto — Revenue Operations Roadmap, Wave 1 — Data truth and regression protection, Wave 2 — Reliability and operational ownership, Wave 3 — Attribution foundation, Wave 4 — Recovery workflow, Wave 5 — Executive scorecard, Wave 6 — GBP and local SEO operating system (+2 more)
 
 ### Community 439 - "stagehand.ts"
-Cohesion: 0.14
-Nodes (19): stubFetch(), act(), activePage(), attach(), close(), DriverError, DriverErrorCode, DriverOk (+11 more)
+Cohesion: 0.09
+Nodes (32): enrich_reddit_item(), enrich_reddit_item_sc(), extract_comment_insights(), extract_reddit_path(), fetch_thread_data(), get_top_comments(), parse_thread_data(), Any (+24 more)
 
 ### Community 440 - "intelligenceEngines.ts"
-Cohesion: 0.19
-Nodes (25): analyzeBottlenecks(), analyzeCallAttribution(), analyzeChatDemand(), analyzeDeclinedWork(), analyzeFleet(), analyzeGeographicRevenue(), analyzeGeography(), analyzeServiceBundles() (+17 more)
+Cohesion: 0.01
+Nodes (389): abandonedForms, algEstimates, AlgProbeLogRow, AnalyticsSnapshot, autonomyAuditEvents, autonomyPolicyVersions, Bay, bays (+381 more)
 
 ### Community 441 - "videodb.ts"
 Cohesion: 0.15
 Nodes (24): GET(), POST(), SessionMetadata, CollectionCreateResponse, CollectionResponse, ErrorResult, getApiKey(), getOrCreateCollection() (+16 more)
 
 ### Community 442 - "spatial-canvas.tsx"
-Cohesion: 0.13
-Nodes (17): metadata, defaultLayout(), LayoutState, useWarRoomLayout, WindowRect, WIDGET_BY_ID, WIDGET_REGISTRY, WidgetManifest (+9 more)
+Cohesion: 0.12
+Nodes (13): decisionsMessage, fleetMessage, FRESH_FETCHED_AT, SECTIONS, unregisteredToolMessage, DecisionRow, FleetArtifact, FleetTruthOutput (+5 more)
 
 ### Community 443 - "Brain pipeline walkthrough · `lib/brain/*`"
 Cohesion: 0.08
@@ -4287,23 +4037,23 @@ Nodes (22): buildFrontmatter(), buildNoteContent(), calculateHash(), extractRawB
 
 ### Community 449 - "pricing-advisor.ts"
 Cohesion: 0.13
-Nodes (22): aiChat, BridgeByService, BridgeEstimatesConversion, CompetitorData, CompetitorPrice, composeAdvisory(), computeWinRateByCategory(), draftPricingMoves() (+14 more)
+Nodes (23): AdvisorySnapshot, aiChat, BridgeByService, BridgeEstimatesConversion, CompetitorData, CompetitorPrice, composeAdvisory(), computeWinRateByCategory() (+15 more)
 
 ### Community 450 - "Configuration"
 Cohesion: 0.08
 Nodes (26): 1. Trusted per-client `.claude/last30days.env`, 2. Per-client save dir + suffix wrapper, 3. Custom category-peer subreddits, 4. Pre-built `--competitors-plan` JSON, API keys (`.env`), Beta channel, Bluesky app-password format and search host, `briefing.py` - daily / weekly digests (+18 more)
 
 ### Community 451 - "hackernews.py"
-Cohesion: 0.12
-Nodes (23): _date_to_unix(), enrich_top_stories(), _fetch_item_comments(), _flatten_query_for_algolia(), _log(), parse_hackernews_response(), Any, Hacker News search via Algolia API (free, no auth required).  Uses hn.algolia.co (+15 more)
+Cohesion: 0.19
+Nodes (15): _compute_relevance(), _fetch_json(), _log(), _parse_posts(), Any, Reddit public ``.json`` search module (demoted to keyless Tier 0).  Reddit's pub, Parse Reddit listing JSON into normalized post dicts., Estimate relevance from engagement signals. (+7 more)
 
 ### Community 452 - "signals.py"
 Cohesion: 0.18
 Nodes (25): annotate_stream(), engagement_raw(), freshness(), _generic_engagement(), local_relevance(), log1p_safe(), normalize(), normalized_comment_vote() (+17 more)
 
 ### Community 453 - "read_skill_version"
-Cohesion: 0.12
-Nodes (9): Path, SKILL.md metadata helpers — single source of truth for parsing skill frontmatter, Return the version string from a SKILL.md's frontmatter, or None.      Returns N, read_skill_version(), Path, Direct unit tests for skill_meta.read_skill_version.  Covers the helper's own co, ReadSkillVersionTests, _skill_version() (+1 more)
+Cohesion: 0.09
+Nodes (13): Path, SKILL.md metadata helpers — single source of truth for parsing skill frontmatter, Return the version string from a SKILL.md's frontmatter, or None.      Returns N, read_skill_version(), _json(), Path, _skill_version(), TestPluginContract (+5 more)
 
 ### Community 454 - "test_dates.py"
 Cohesion: 0.08
@@ -4334,16 +4084,16 @@ Cohesion: 0.08
 Nodes (25): default, dependencies, react, react-dom, remotion, @remotion/bundler, @remotion/renderer, description (+17 more)
 
 ### Community 461 - "package.json"
-Cohesion: 0.08
-Nodes (25): default, types, default, dependencies, clsx, tailwind-merge, description, devDependencies (+17 more)
+Cohesion: 0.07
+Nodes (28): default, types, default, types, default, dependencies, clsx, tailwind-merge (+20 more)
 
 ### Community 462 - "Nick's Tire & Auto — Brand Voice Guidelines"
 Cohesion: 0.08
 Nodes (24): 10. How to Use This File, 11. Amendment · 2026-05-23 · the Eagerness Beat (operator-explicit), 1. Who We Are — in one sentence, 2. Voice Constants — "We Are / We Are Not", 3. The Kill List (NEVER use these — they sound fake), 4. Customer Language — Mirror, Don't Translate, 5.1 The Tire Haiku, 5.2 The Repair Haiku (wave-181.43, NEW) (+16 more)
 
 ### Community 463 - "alert-dialog.tsx"
-Cohesion: 0.10
-Nodes (7): AlertDialogAction(), AlertDialogCancel(), buttonVariants, Calendar(), CalendarDayButton(), PaginationLink(), PaginationLinkProps
+Cohesion: 0.18
+Nodes (11): dbGate, postEvent(), extractCallDurationSec(), extractEndedReason(), isForwardedEndedReason(), log, processCallEndReport(), router (+3 more)
 
 ### Community 464 - "This is a REAL context file, not a template."
 Cohesion: 0.08
@@ -4357,25 +4107,21 @@ Nodes (24): `/admin/customers` — Customer mgmt (DEEP-DIVE mode), `/admin/dispa
 Cohesion: 0.08
 Nodes (24): 10. Changelog (selected), 1. The Four Operating Pillars, 2. Revenue Engine, 3. The Correct Funnel, 4. Competitive Advantages (the devastating lead), 5. Customer Experience Covenant, 6. The Philosophy Layer, 7. Shop Ops — Physical Reality (+16 more)
 
-### Community 467 - "SMS Revenue Agent OS"
-Cohesion: 0.09
-Nodes (25): Abandoned-Form Collector, Overdue Human-Pending Collector, Opportunity Queue Collectors (10), Integration Registry, SMS Control Plane (load-bearing surface), Autonomy Ladder (L0-L4), Decision Inbox, Daily Exception Brief (+17 more)
-
 ### Community 468 - "vision-analyzer.ts"
-Cohesion: 0.12
-Nodes (22): DEFAULT_REPLIES, DEFAULT_REPLIES_FOR_TEST, log, PhotoAssessOutcome, PhotoAssessRequest, photoReplyViolations(), pickDefaultReply(), runPhotoAssess() (+14 more)
+Cohesion: 0.20
+Nodes (15): BusEnvelope, AuditEnvelope, CounterOptions, flushCountsToBrainMemory(), runForDuration(), startEntityAuditCounter(), upsertCounter(), HealthProbeReport (+7 more)
 
 ### Community 469 - "workOrderService.ts"
-Cohesion: 0.14
-Nodes (24): ACTIVE_STATUSES, addLineItem(), BlockerType, checkAllPartsReceived(), createWorkOrder(), executeAutoRules(), generateWorkOrderNumber(), getActiveWorkOrders() (+16 more)
+Cohesion: 0.19
+Nodes (15): _compute_relevance(), _fetch_json(), _log(), _parse_posts(), Any, Reddit public ``.json`` search module (demoted to keyless Tier 0).  Reddit's pub, Parse Reddit listing JSON into normalized post dicts., Estimate relevance from engagement signals. (+7 more)
 
 ### Community 470 - "envelope.ts"
-Cohesion: 0.12
-Nodes (13): GET, getTraceChain(), buildEnvelope(), ENVELOPE_VERSION, EnvelopeBuilder, EnvelopeMemory, EnvelopeToolCall, extractEnvelope() (+5 more)
+Cohesion: 0.06
+Nodes (50): _attr(), fetch_listings(), _fetch_one(), _listing_url(), _log(), parse_cards(), _post_id(), Any (+42 more)
 
 ### Community 471 - ".event"
-Cohesion: 0.11
-Nodes (14): Props, RealtimeVoiceOverlay(), RealtimeSession, useRealtimeVoice(), UseRealtimeVoiceOpts, Path, Structured logging system for NOUR OS. Writes JSON logs to /logs, maintains audi, Structured logging with JSON output and audit trail. (+6 more)
+Cohesion: 0.19
+Nodes (11): args, main(), SearchClient, writeStderr(), writeStdout(), FALLBACK_QUERY_IDS, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS (+3 more)
 
 ### Community 472 - "Chat Error Closeout — `chat:post-process` `.match` crash + honesty hardening"
 Cohesion: 0.08
@@ -4387,35 +4133,35 @@ Nodes (24): ADHD-adaptation specifics, Aesthetic · minimalist-UI inside stateno
 
 ### Community 474 - "v2 Prompt Builder · Cutover Plan"
 Cohesion: 0.08
-Nodes (24): Criterion 1 · zero structural drift, Criterion 2 · token economy parity, Criterion 3 · zero shadow build failures, Criterion 4 · judge-eval delta acceptable, Criterion 5 · rollback mechanism verified, Current state · what exists today, Cutover criteria · the formal go-decision, Cutover phases (+16 more)
+Nodes (25): Criterion 1 · zero structural drift, Criterion 2 · token economy parity, Criterion 3 · zero shadow build failures, Criterion 4 · judge-eval delta acceptable, Criterion 5 · rollback mechanism verified, Current state · what exists today, Cutover criteria · the formal go-decision, Cutover phases (+17 more)
 
 ### Community 475 - "action-claim-detector.ts"
-Cohesion: 0.16
-Nodes (21): ACTION_VOCAB, ActionConcept, alternation(), claimEntries(), ClaimEntry, claimRegex(), escapeRegex(), intentEntries() (+13 more)
+Cohesion: 0.06
+Nodes (43): ACTION_VOCAB, ActionConcept, alternation(), claimEntries(), ClaimEntry, claimRegex(), escapeRegex(), intentEntries() (+35 more)
 
 ### Community 476 - "Marketing Zhihu Strategist"
 Cohesion: 0.08
 Nodes (24): Advanced Capabilities, Answer Excellence & Authority, Business Integration, Communication Style, Community & Relationship Building, Content & Authority Systems, Content Standards, Core Mission (+16 more)
 
 ### Community 477 - "action-receipt-feed.ts"
-Cohesion: 0.15
-Nodes (20): ActionReceipt, ReceiptStatus, AuditEntry, AgentReceiptRow, auditEntryToReceipt(), auditEventToReceipt(), auditStatus(), AutonomousActionRow (+12 more)
+Cohesion: 0.09
+Nodes (40): catalogIndex(), classifyTool(), isReadSafeTool(), stripMutatingTools(), ToolClassification, WRITE_CATEGORIES, MUTATION_ACTIONS, ActionReceipt (+32 more)
 
 ### Community 478 - "persona-corpus-analyzer.ts"
-Cohesion: 0.12
-Nodes (22): analyzePersonaCorpus(), analyzeUtteranceTexts(), buildNGrams(), buildProfileFromTexts(), CorpusProfile, countBullets(), countCodeBlocks(), countEmoji() (+14 more)
+Cohesion: 0.07
+Nodes (42): analyzePersonaCorpus(), analyzeUtteranceTexts(), buildNGrams(), buildProfileFromTexts(), CorpusProfile, countBullets(), countCodeBlocks(), countEmoji() (+34 more)
 
 ### Community 479 - "obsidian-doctor.ts"
-Cohesion: 0.12
-Nodes (21): dirHasIgnoreMarker(), tmpDirs, args, engineConfig, finishReport(), fixMode, fixNoteFrontmatter(), getFilesRecursive() (+13 more)
+Cohesion: 0.07
+Nodes (37): ageLabel(), ObsidianEngineCard(), parseObsidianFrontmatter(), dirHasIgnoreMarker(), tmpDirs, EngineIssue, ObsidianEngineHealth, ObsidianEngineRunState (+29 more)
 
 ### Community 480 - "compilerOptions"
 Cohesion: 0.08
 Nodes (24): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+16 more)
 
 ### Community 481 - "Antigravity Operating Profile — NOURCITY Monorepo"
-Cohesion: 0.09
-Nodes (24): 0. Environment Discovery & Workflow Optimization, 10. PR Body Requirements, 11. Final Report Format, 12. Local MCP Configuration, 1. Mandatory Repo Rules, 2. Worktree Standard, 3. Fresh Worktree Install Rule, 4. Verification Gates (+16 more)
+Cohesion: 0.07
+Nodes (27): 0. Environment Discovery & Workflow Optimization, 10. PR Body Requirements, 11. Final Report Format, 12. Local MCP Configuration, 1. Mandatory Repo Rules, 2. Worktree Standard, 3. Fresh Worktree Install Rule, 4. Verification Gates (+19 more)
 
 ### Community 482 - "extract_browser_credentials"
 Cohesion: 0.14
@@ -4434,8 +4180,8 @@ Cohesion: 0.08
 Nodes (4): ParseCompetitorsPlanTests, Tests for --competitors-plan JSON parsing and per-entity kwargs threading., Plan file with non-ASCII characters (e.g. accented names) reads without UnicodeD, SubrunKwargsForTests
 
 ### Community 486 - "_html"
-Cohesion: 0.11
-Nodes (8): _html(), Tests for scripts/lib/reddit_shreddit.py — keyless shreddit comment scrape., parse_comments reads <shreddit-comment> elements into scored dicts., fetch_comments wires URL -> svc fetch -> parse, never raising., TestExtractPostRef, TestFetchComments, TestParseComments, TestTotalComments
+Cohesion: 0.29
+Nodes (3): _html(), parse_comments reads <shreddit-comment> elements into scored dicts., TestParseComments
 
 ### Community 487 - "test_youtube_yt.py"
 Cohesion: 0.08
@@ -4466,24 +4212,24 @@ Cohesion: 0.08
 Nodes (23): 1 · The HOOK (first 3 seconds OR first sentence), 2 · The PROOF (60-90% of the body), 3 · The TURN (1 sentence, near end), 4 · The TAKE-AWAY (1 line, last), Anti-patterns, Bucket 1 · "What the dealer doesn't tell you", Bucket 2 · "Stories from the shop", Bucket 3 · "The Cleveland-specific angle" (+15 more)
 
 ### Community 494 - "label"
-Cohesion: 0.09
-Nodes (21): Call, CALLS, ENGINE_SOURCES, HERE, label(), MASTER, MASTER_RAW, NO_CORRECT_KEY (+13 more)
+Cohesion: 0.11
+Nodes (19): GET, BUSINESS_REPOS, MONITORED_REPOS, NickWriteAccess, PERSONAL_REPOS, RepoEntry, RepoHost, RepoRing (+11 more)
 
 ### Community 495 - "reportIngestion.ts"
-Cohesion: 0.13
-Nodes (22): categorizeService(), detectBrand(), detectLazyInvoicing(), ingestInvoices(), LaborService, log, normalizeName(), normalizePaymentType() (+14 more)
+Cohesion: 0.14
+Nodes (21): categorizeService(), detectBrand(), detectLazyInvoicing(), LaborService, log, normalizeName(), normalizePaymentType(), ParsedDailyTotal (+13 more)
 
 ### Community 496 - "router.ts"
-Cohesion: 0.15
-Nodes (19): POST, runSpecialistRouting(), aiChat, classifyByKeyword(), classifyViaLlm(), lastUserContent(), LlmClassification, routeMessage() (+11 more)
+Cohesion: 0.01
+Nodes (246): SkeletonPanel(), confirmDialog(), ConfirmOptions, InternalRequest, Tone, buildMessageCustomerHref(), MessageCustomerLink(), MessageCustomerLinkProps (+238 more)
 
 ### Community 497 - "conversation-mission-linker.ts"
-Cohesion: 0.13
-Nodes (21): GET, ConversationMissionLinkOptions, ConversationMissionLinkReport, ConversationRow, cosineSimilarity(), EmbeddingRow, ensureConversationMissionColumn(), ensureMissionEmbeddings() (+13 more)
+Cohesion: 0.14
+Nodes (20): ConversationMissionLinkOptions, ConversationMissionLinkReport, ConversationRow, cosineSimilarity(), EmbeddingRow, ensureConversationMissionColumn(), ensureMissionEmbeddings(), missionEmbeddingText() (+12 more)
 
 ### Community 498 - "level-up-directive.ts"
-Cohesion: 0.15
-Nodes (19): BodyRow, GoalRow, LevelUpDirectiveCard(), BRANCHES, BodySnapshot, byVerge(), computeBuildImbalance(), DirectiveGoal (+11 more)
+Cohesion: 0.13
+Nodes (18): DeferredBackgroundCtx, claimOrphans(), completePostTurnWork(), DEAD_STATUSES, enqueuePostTurnWork(), finishClaim(), OutboxQueueHealth, outboxRetryDelayMs() (+10 more)
 
 ### Community 499 - "Part 1 · What's NOT done from Waves 46-57"
 Cohesion: 0.08
@@ -4506,8 +4252,8 @@ Cohesion: 0.20
 Nodes (23): _build_colophon(), _generated_date(), _inline_markdown(), _is_safe_link_url(), _is_table_row(), _is_table_separator(), _markdown_to_html(), _promote_meta_marker() (+15 more)
 
 ### Community 504 - "skill-recall.ts"
-Cohesion: 0.12
-Nodes (19): cache, getRelevantSkillsBlock(), hashMessage(), log, ADR-0007, embedQuery(), formatSkillsBlock(), loadRegistry() (+11 more)
+Cohesion: 0.13
+Nodes (18): cache, getRelevantSkillsBlock(), hashMessage(), log, embedQuery(), formatSkillsBlock(), loadRegistry(), loadSkillVectors() (+10 more)
 
 ### Community 505 - "tuya_agent.py"
 Cohesion: 0.13
@@ -4522,8 +4268,8 @@ Cohesion: 0.08
 Nodes (23): dependencies, @aws-sdk/client-s3, @aws-sdk/s3-request-presigner, express, node-cron, @nour/reel-engine, description, devDependencies (+15 more)
 
 ### Community 508 - "scheduler.ts"
-Cohesion: 0.13
-Nodes (20): app, CRON_SECRET, port, server, shutdown(), CRON_SECRET, drainInFlight(), forwardCronToWeb() (+12 more)
+Cohesion: 0.15
+Nodes (17): app, CRON_SECRET, port, server, shutdown(), CRON_SECRET, drainInFlight(), forwardCronToWeb() (+9 more)
 
 ### Community 509 - "html_render.py"
 Cohesion: 0.20
@@ -4539,11 +4285,11 @@ Nodes (6): _build_report(), EmitComparisonOutputTests, Report, Tests for render.
 
 ### Community 512 - "enhance-prompt.test.ts"
 Cohesion: 0.15
-Nodes (14): DesignContext, extractColorsFromMarkdown(), GENERIC_FALLBACK_CONTEXT, NICKSTIRE_BRAND_CONTEXT, resolveDesignContext(), detectStitchPromptIntent(), FALSE_PATTERNS, TRUE_PATTERNS (+6 more)
+Nodes (15): DesignContext, extractColorsFromMarkdown(), GENERIC_FALLBACK_CONTEXT, NICKSTIRE_BRAND_CONTEXT, resolveDesignContext(), detectStitchPromptIntent(), FALSE_PATTERNS, TRUE_PATTERNS (+7 more)
 
 ### Community 513 - "hackernews.py"
-Cohesion: 0.14
-Nodes (22): _date_to_unix(), enrich_top_stories(), _fetch_item_comments(), _flatten_query_for_algolia(), _log(), parse_hackernews_response(), Any, Hacker News search via Algolia API (free, no auth required).  Uses hn.algolia.co (+14 more)
+Cohesion: 0.17
+Nodes (4): ErrorTelemetry, RingBuffer, captureException(), isSentryEnabled()
 
 ### Community 514 - "Service Affinity v2 · Design Plan"
 Cohesion: 0.09
@@ -4558,20 +4304,20 @@ Cohesion: 0.09
 Nodes (22): Anti-patterns explicitly forbidden by this map, Arrival state options, Booking form (15-30 seconds), Color → emotion mapping, Comparison hub / service pages (30-90 seconds), Emotion debugging — when conversion breaks, Home hero (8 seconds), How this document gets updated (+14 more)
 
 ### Community 517 - "Customer Emotional Journey — Nick's Tire & Auto"
-Cohesion: 0.10
-Nodes (22): Anti-patterns specific to journey design, Customer Emotional Journey — Nick's Tire & Auto, Customer state, Customer state shift, Emotional transition target (3-8 seconds), Engineering goal, Engineering targets, Engineering this stage (+14 more)
+Cohesion: 0.08
+Nodes (25): Anti-patterns specific to journey design, Customer Emotional Journey — Nick's Tire & Auto, Customer state, Customer state, Customer state shift, Emotional transition target (3-8 seconds), Engineering goal, Engineering goal (+17 more)
 
 ### Community 518 - "voice-latency.ts"
-Cohesion: 0.15
-Nodes (19): log, processVapiLatencySync(), VapiCallApi, BreachStreak, captureFailureWindowStart, captureVoiceLatency(), CaptureVoiceLatencyInput, DerivedEndToEnd (+11 more)
+Cohesion: 0.13
+Nodes (15): 2 · Master wave list (HISTORICAL · v11.0 plan from Apr 21), WAVE 10 · DOCS REBUILD — est 4h, WAVE 11 · ONBOARDING + POWER PANEL — est 4h, WAVE 12 · META-INTELLIGENCE (the devastating-lead layer) — est 6h, WAVE 13 · PERF + HARDENING — est 4h, WAVE 14 · FINAL COMMIT + DEPLOY — est 1h, WAVE 1 · FOUNDATION (ship-critical, same session) — est 6h, WAVE 2 · VISIBILITY + CONTROL (4 system pages + enrichments) — est 10h (+7 more)
 
 ### Community 519 - "business-intel.ts"
-Cohesion: 0.15
-Nodes (19): GET, GET(), BridgeRevenuePayload, fetchBridge(), getCustomerStats(), getDashboardSummary(), getRevenueStats(), log (+11 more)
+Cohesion: 0.19
+Nodes (8): emptyResponseFallback(), ChatLogger, SalvagedEventText, salvageEventText(), mockChatMessageCreate, mockChatMessageFindFirst, mockRecordError, noopLog
 
 ### Community 520 - "system-health-card.tsx"
-Cohesion: 0.13
-Nodes (19): AnticipatedQuestionsCard(), ApiShape, QuestionShape, trimQuestion(), HealthDigest, hoursSince(), signedNum(), SystemHealthCard() (+11 more)
+Cohesion: 0.14
+Nodes (22): _date_to_unix(), enrich_top_stories(), _fetch_item_comments(), _flatten_query_for_algolia(), _log(), parse_hackernews_response(), Any, Hacker News search via Algolia API (free, no auth required).  Uses hn.algolia.co (+14 more)
 
 ### Community 521 - "A11Y + Motion-Perf Audit · /chat · 2026-05-12"
 Cohesion: 0.09
@@ -4594,24 +4340,24 @@ Cohesion: 0.09
 Nodes (22): Advanced Capabilities, Communication Style, Content Strategy Framework, Core Mission, Creator Economy Excellence, Crisis Management & Community Response, Critical Rules, Identity & Memory (+14 more)
 
 ### Community 526 - "marketing-wechat-official-account.md"
-Cohesion: 0.09
-Nodes (22): Advanced Capabilities, Automation & Scale, Business Integration, Communication Style, Community Building & Loyalty, Content Excellence, Content Standards, Content Strategy Documents (+14 more)
+Cohesion: 0.08
+Nodes (23): Advanced Capabilities, Automation & Scale, Business Integration, Communication Style, Community Building & Loyalty, Content Excellence, Content Standards, Content Strategy Documents (+15 more)
 
 ### Community 527 - "Marketing X/Twitter Intelligence Analyst"
 Cohesion: 0.09
 Nodes (22): Advanced Capabilities, Brand Risk Monitoring, Communication Style, Competitor & Audience Intelligence, Core Mission, Critical Rules, Identity & Memory, Intelligence Brief Template (+14 more)
 
 ### Community 528 - "extract_core_subject"
-Cohesion: 0.08
-Nodes (37): _date_to_unix(), enrich_top_stories(), _fetch_item_comments(), _flatten_query_for_algolia(), _log(), parse_hackernews_response(), Any, Hacker News search via Algolia API (free, no auth required).  Uses hn.algolia.co (+29 more)
+Cohesion: 0.15
+Nodes (15): GET, checkColumnExists(), checkIndexExists(), checkPartialUnique(), checkRegularUniqueAbsent(), ColumnRow, DriftFinding, DriftReport (+7 more)
 
 ### Community 529 - "tools.ts"
-Cohesion: 0.12
-Nodes (12): brainTools, businessTools, NOTE: logDecisionForReplay tool deleted Apr 15 — same rationale, ADR-0011, contentTools, metaTools, nourTools, rawTools (+4 more)
+Cohesion: 0.18
+Nodes (12): composeReplayPrompt(), DueDecision, escapeHtml(), log, MarkReplayedInput, MatchedWisdom, matchWisdom(), OutcomeSignals (+4 more)
 
 ### Community 530 - "chat.ts"
-Cohesion: 0.12
-Nodes (17): ChatBranchesResult, ChatBranchSibling, readChatBranches(), ConversationNotFoundError, deleteConversation(), ConversationDetail, ConversationListResult, ConversationListRow (+9 more)
+Cohesion: 0.16
+Nodes (12): FinancingAttribution(), FinancingClickRow, DeclinedEstimatesSection, DispatchSection, LegacyTireOrdersRedirect(), MONEY_TABS, RevenueSection(), SectionTab (+4 more)
 
 ### Community 531 - "task-rescue.ts"
 Cohesion: 0.14
@@ -4638,8 +4384,8 @@ Cohesion: 0.09
 Nodes (22): 1. Ingestion Plane (Acquisition), 1. Our Report (Summary of User Vision & Strategic Report), 2. Antigravity Independent Report, 2. Discovery Plane, 3. Intelligence Plane, 3. Repo Reality Audit, 4. Contradiction / Improvement Analysis, 4. Decision Plane (+14 more)
 
 ### Community 537 - "test_setup_openclaw.py"
-Cohesion: 0.09
-Nodes (14): Tests for OpenClaw setup and device auth functions., Tests for fetch_api_key()., Returns api_key from profile response., Returns None when api_key is not in the response., HTTP error returns None., Tests for clipboard-first behavior in run_full_device_auth()., On macOS, pbcopy is called with the user code before browser opens., On Linux, subprocess.run (pbcopy) is not called. (+6 more)
+Cohesion: 0.05
+Nodes (22): Tests for OpenClaw setup and device auth functions., Tests for fetch_api_key()., Returns api_key from profile response., Returns None when api_key is not in the response., HTTP error returns None., Tests for run_full_device_auth()., Full flow succeeds: start -> poll -> fetch -> return api_key., Device code request fails -> error status. (+14 more)
 
 ### Community 538 - "TestYtDlpSubLangs"
 Cohesion: 0.11
@@ -4650,8 +4396,8 @@ Cohesion: 0.09
 Nodes (22): default, dependencies, googleapis, description, devDependencies, mlly, tsx, @types/node (+14 more)
 
 ### Community 540 - "command.tsx"
-Cohesion: 0.11
-Nodes (6): Dialog(), DialogCompositionContext, DialogContent(), DialogDescription(), DialogHeader(), DialogTitle()
+Cohesion: 0.20
+Nodes (12): ArchivePayload, ArchiveRunResult, ArchiveSourceRow, buildArchivePayload(), clip(), isMissingTableError(), log, nonEmpty() (+4 more)
 
 ### Community 541 - "Intelligence Page · Dispersal Plan"
 Cohesion: 0.09
@@ -4694,8 +4440,8 @@ Cohesion: 0.09
 Nodes (21): Activation (operator-action), Anti-patterns, HuggingFace Embeddings · Backend Add + Cutover Runbook, Monitoring, "Pad dimensions and forget", "Promote to primary without re-embedding", Promoting HF to PRIMARY (the migration), Rollback (+13 more)
 
 ### Community 551 - "message-fields.ts"
-Cohesion: 0.15
-Nodes (18): AnyPart, buildSearchableContent(), computeAttachmentsHash(), extractAttachments(), extractClientMessageId(), extractParts(), isUsableFilePart(), MessagePart (+10 more)
+Cohesion: 0.18
+Nodes (22): analyze(), _build_signal(), _confidence_label(), _confidence_score(), infer_company_size(), _interpretation(), _is_strategic_title(), _norm_location() (+14 more)
 
 ### Community 552 - "compilerOptions"
 Cohesion: 0.09
@@ -4710,8 +4456,8 @@ Cohesion: 0.09
 Nodes (21): Cost projection, Linked artifacts, Non-negotiables (lessons learned from the migration), **Phase 0 · Foundation** *(Claude session 2026-05-17 · LANDED)*, **Phase 1 · Nick-as-agent v1** *(target: 1 week · 3-5 commits)*, **Phase 2 · Skill Registry runtime exposure** *(LANDED via inheritance — 2026-05-17 · see ADR-0004)*, **Phase 3 · Inngest durability** *(SCAFFOLD LANDED 2026-05-17 · 1 commit · see ADR-0005)*, **Phase 4 · LiveKit operator voice** *(SCAFFOLD LANDED 2026-05-17 · 1 commit · see ADR-0006)* (+13 more)
 
 ### Community 555 - "TestInstagramSilentFailure"
-Cohesion: 0.10
-Nodes (8): Instagram is a `bonus` source via SC. Silent-failure detection: if SC     is con, User set EXCLUDE_SOURCES=instagram - the source intentionally did         not ru, Canonical parsing pattern is comma-separated; case-insensitive., EXCLUDE_SOURCES that does not mention instagram must not suppress         the si, User set INCLUDE_SOURCES to an opt-in allowlist that omits         instagram — t, INCLUDE_SOURCES that explicitly names instagram must not suppress         the si, Empty/unset INCLUDE_SOURCES means no allowlist filter, so the         silent-fai, TestInstagramSilentFailure
+Cohesion: 0.09
+Nodes (9): Instagram is a `bonus` source via SC. Silent-failure detection: if SC     is con, User set EXCLUDE_SOURCES=instagram - the source intentionally did         not ru, Canonical parsing pattern is comma-separated; case-insensitive., EXCLUDE_SOURCES that does not mention instagram must not suppress         the si, User set INCLUDE_SOURCES to an opt-in allowlist that omits         instagram — t, Canonical parsing pattern is comma-separated; case-insensitive., INCLUDE_SOURCES that explicitly names instagram must not suppress         the si, Empty/unset INCLUDE_SOURCES means no allowlist filter, so the         silent-fai (+1 more)
 
 ### Community 556 - "TestGetSetupStatusText"
 Cohesion: 0.09
@@ -4726,8 +4472,8 @@ Cohesion: 0.13
 Nodes (10): _item(), Tests for backfill_transcripts - the post-selection transcript pass (#542).  sea, A backfill attempt that reveals no caption tracks feeds quality_nudge., The #542 shape: finalized videos disjoint from the fetched set., Survivors that already carry >= limit transcripts trigger no fetch., One transcript present at default depth (limit 2) -> need is 1., quick depth has a transcript budget of 0 - never fetch., Uploader-disabled captions are not retried and stay marked. (+2 more)
 
 ### Community 559 - "v"
-Cohesion: 0.05
-Nodes (28): byClass, collectUrls(), report, urls, fakeGovernorDb(), Row, v(), fakeLedgerDb() (+20 more)
+Cohesion: 0.09
+Nodes (22): 10 · Pothole damage you cannot see, 11 · All-season vs winter tires, 12 · Battery warnings before it strands you, 13 · Why the car pulls to one side, 14 · Cabin filter vs engine air filter, 15 · What "you need struts" actually means, 16 · Tread depth for rain vs snow, 17 · Tire rotation (+14 more)
 
 ### Community 560 - "Recovery Runbook"
 Cohesion: 0.10
@@ -4751,7 +4497,7 @@ Nodes (20): 100 NEW USEFUL-ABSURDITY CONCEPTS, BORING-CONTENT DETECTION (sources
 
 ### Community 565 - "Admin Backend (tRPC)"
 Cohesion: 0.10
-Nodes (20): Admin Backend (tRPC), Admin Frontend, Admin Inventory — Nick's Tire & Auto, adminDashboardRouter (admin.ts), All 30 Admin Sections, analyticsRouter (admin.ts), Auth, callTrackingRouter (admin.ts) (+12 more)
+Nodes (20): Admin Backend (tRPC), Admin Frontend, Admin Inventory — Nick's Tire & Auto, Admin Sections (table below is HISTORICAL — read the registry for truth), adminDashboardRouter (admin.ts), analyticsRouter (admin.ts), Auth, callTrackingRouter (admin.ts) (+12 more)
 
 ### Community 566 - "Enterprise Search & Retrieval"
 Cohesion: 0.10
@@ -4771,23 +4517,23 @@ Nodes (20): Activation (operator-action), Anti-patterns, "Block customer-facing 
 
 ### Community 570 - "shopDriverEstimateSync.ts"
 Cohesion: 0.03
-Nodes (80): CustomerImportLog, main(), isMissedCallEligible(), log, maskPhone(), MissedCallRow, processMissedCallRecovery(), AdminActivityState (+72 more)
+Nodes (85): CustomerImportLog, main(), main(), getSessionCookieOptions(), isSecureRequest(), LOCAL_HOSTS, generateOAuthState(), getQueryParam() (+77 more)
 
 ### Community 571 - "customer.ts"
-Cohesion: 0.16
-Nodes (18): base, AffinityInput, AffinityResult, clamp01(), declinedPoints(), legacyConfidence(), recencyPoints(), scoreServiceAffinity() (+10 more)
+Cohesion: 0.18
+Nodes (9): missionsTools, mocks, Exec, mockAuditCreate, mockMemoryFindMany, mockMissionFindFirst, mockMissionUpdate, mockTaskFindMany (+1 more)
 
 ### Community 572 - "criteria.ts"
-Cohesion: 0.12
-Nodes (14): GeneratedArticle, ALL_CRITERIA, articleText(), BANNED_PHRASES, brakeInsiderVocabPresent(), CLEVELAND_ANCHORS, clevelandAnchorPresent(), CONCESSION_PATTERNS (+6 more)
+Cohesion: 0.09
+Nodes (21): GeneratedArticle, ALL_CRITERIA, articleText(), BANNED_PHRASES, brakeInsiderVocabPresent(), CLEVELAND_ANCHORS, clevelandAnchorPresent(), CONCESSION_PATTERNS (+13 more)
 
 ### Community 573 - "publishReconciler.ts"
-Cohesion: 0.10
-Nodes (10): ATTEMPT, post(), captionMatches(), log, reconcileAttempt(), ReconcileCandidate, ReconcileResult, Tests for scripts/lib/transcribe.py — caption-free transcription fallback (U6). (+2 more)
+Cohesion: 0.17
+Nodes (3): Tests for scripts/lib/transcribe.py — caption-free transcription fallback (U6)., TestPrerequisites, TestTranscribeFlow
 
 ### Community 574 - "browserbase.ts"
-Cohesion: 0.19
-Nodes (16): GET, DELETE, GET, POST, bbFetch(), BrowserbaseConfig, BrowserError, BrowserResult (+8 more)
+Cohesion: 0.17
+Nodes (23): THEME_KEYWORDS, analyze(), _build_signal(), _confidence_label(), _confidence_score(), infer_company_size(), _interpretation(), _is_strategic_title() (+15 more)
 
 ### Community 575 - "Tool catalog reference · every tool Nick can call"
 Cohesion: 0.10
@@ -4798,20 +4544,20 @@ Cohesion: 0.10
 Nodes (20): 0. Headline, 1. Current organization map, 2. Wired vs unwired feature matrix, 3. Surface-by-surface clarity, 4. The progress loops (motivation engine) — wired vs visible, 5. Duplicate / confusing areas, 6. Top 10 missing wires (ranked by daily value × low risk), 7. Top 5 simplification opportunities (+12 more)
 
 ### Community 577 - "prompt-judge-comparator.ts"
-Cohesion: 0.15
-Nodes (17): clamp(), JudgeArgs, _judgeReply(), judgeReplyAsync(), JudgeReport, JudgeRubric, log, aggregate() (+9 more)
+Cohesion: 0.28
+Nodes (6): clamp(), JudgeArgs, _judgeReply(), JudgeReport, JudgeRubric, log
 
 ### Community 578 - "SubMaker"
-Cohesion: 0.16
-Nodes (21): chatterbox_tts(), _configure_pydub_ffmpeg(), elevenlabs_tts(), ensure_file_path_exists(), ensure_legacy_submaker_fields(), gemini_tts(), get_audio_duration(), _get_audio_duration_from_mp3() (+13 more)
+Cohesion: 0.04
+Nodes (52): Props, SideDrawer(), SideDrawerProps, WIDTH_MAP, WalkInCalculatorSection, WalkInQuoteDrawer(), BrandMark(), BrandMarkProps (+44 more)
 
 ### Community 579 - "renderer.ts"
 Cohesion: 0.22
 Nodes (17): sanitizeForPrompt(), sanitizeOneLine(), cap(), relFromNow(), relTime(), renderAgendaItems(), renderAnchors(), renderCommands() (+9 more)
 
 ### Community 580 - "suggestion-cache.ts"
-Cohesion: 0.18
-Nodes (18): CACHE, cacheGet(), cacheSet(), extractEntities(), heuristicSuggestions(), METRICS, MetricWindow, persistMetric() (+10 more)
+Cohesion: 0.19
+Nodes (17): GET, ApplySchemaChangeInput, ChangeEnvironment, ChangeMethod, ChangeStatus, ChangeType, getSchemaLedgerStats(), listRecentSchemaChanges() (+9 more)
 
 ### Community 581 - "sleep.ts"
 Cohesion: 0.16
@@ -4822,12 +4568,12 @@ Cohesion: 0.14
 Nodes (17): AgentTrace, ANTI_PATTERN_REPLY_HINTS, CategoryStats, consumeUIStream(), GoldenCategory, GoldenExpected, GoldenQuestion, loadGoldenQuestions() (+9 more)
 
 ### Community 583 - "scoring.ts"
-Cohesion: 0.14
-Nodes (17): fetchGSCAndGBPMetrics(), GBPMetrics, GSCMetrics, log, applyAuthTrust(), calculateOpportunityScore(), log, processClaimsIntoOpportunities() (+9 more)
+Cohesion: 0.17
+Nodes (14): BDI_INTRO, BDI_ORDER, JudgeRubric, Props, ReasoningTraceModal(), BDI_TONE_MAP, bdiLabel(), bdiTone() (+6 more)
 
 ### Community 584 - "ingest-notebooklm-candidates.ts"
-Cohesion: 0.17
-Nodes (19): buildNotebookLmCandidate(), NotebookLmCandidateInput, notebookLmCategoryToKind(), NotebookLmExtractedItem, notebookLmRisk(), parseNotebookLmMarkdown(), KnowledgeEvidence, KnowledgeRiskLevel (+11 more)
+Cohesion: 0.08
+Nodes (41): buildNotebookLmCandidate(), NotebookLmCandidateInput, notebookLmCategoryToKind(), NotebookLmExtractedItem, notebookLmRisk(), parseNotebookLmMarkdown(), buildObsidianCandidate(), ObsidianCandidateInput (+33 more)
 
 ### Community 585 - "agent.py"
 Cohesion: 0.14
@@ -4846,24 +4592,24 @@ Cohesion: 0.10
 Nodes (20): Adopted, ADR-0014 · Railway `rootDirectory` trap · the silent build-killer, Consequences, Context, Decision, Future · revisit if recurs, Negative, Neutral (+12 more)
 
 ### Community 589 - "/last30days"
-Cohesion: 0.10
-Nodes (21): Auto-discovered competitor comparisons, Best Takes, Bring your own keys, Configuration, Cross-source cluster merging, ELI5 mode, Everything else in v3, GitHub person-mode (+13 more)
+Cohesion: 0.11
+Nodes (18): Bring your own keys, claude.ai (web), Claude Code (recommended), Claude Desktop, Codex, Cursor, Copilot, Gemini CLI, and other Agent Skills hosts, Configuration, How it works, Install (+10 more)
 
 ### Community 590 - "extract_cookies"
-Cohesion: 0.13
-Nodes (12): extract_cookies(), Extract cookies from the specified browser.      Args:         browser: One of ', auto on macOS calls every Chromium-family extractor when all miss., TestCookieExtractRouting, Tests for extract_cookies with browser='auto'., On macOS, auto tries the Chromium family first, falls back to Firefox., On Linux, auto only tries Firefox., Explicit browser='firefox' goes directly to Firefox. (+4 more)
+Cohesion: 0.17
+Nodes (9): main(), Orchestrator, Get orchestrator status and statistics., Get recent audit entries., Core orchestrator for NOUR OS task execution., Load YAML configuration., Load or initialize orchestrator state., Persist state to disk. (+1 more)
 
 ### Community 591 - "TestChineseRelevance"
 Cohesion: 0.11
 Nodes (6): _BigramBase, Force the dictionary-free bigram path so assertions are deterministic     regard, TestChineseDedupe, TestChineseRelevance, TestCjkSegment, TestJiebaBinding
 
 ### Community 592 - "SkillVersionFallbackTests"
-Cohesion: 0.20
-Nodes (6): Path, Unit tests for render._skill_version() fallback paths.  The function reads versi, Place a dummy render.py inside parent and return its path., Write .claude-plugin/plugin.json under parent. version=None writes corrupt JSON., Write SKILL.md with frontmatter. None writes a SKILL.md with no version line., SkillVersionFallbackTests
+Cohesion: 0.14
+Nodes (11): mockQueryResult, renderHome(), h, setup(), render(), Path, Unit tests for render._skill_version() fallback paths.  The function reads versi, Place a dummy render.py inside parent and return its path. (+3 more)
 
 ### Community 593 - "SubMaker"
-Cohesion: 0.16
-Nodes (21): chatterbox_tts(), _configure_pydub_ffmpeg(), elevenlabs_tts(), ensure_file_path_exists(), ensure_legacy_submaker_fields(), gemini_tts(), get_audio_duration(), _get_audio_duration_from_mp3() (+13 more)
+Cohesion: 0.19
+Nodes (11): BUILDER_SIGNALS, countMatches(), FRIEND_SIGNALS, InferenceResult, inferPersona(), inferPersonaFromConversation(), MASTER_REINFORCE, OverrideRecord (+3 more)
 
 ### Community 594 - "package.json"
 Cohesion: 0.10
@@ -4878,12 +4624,12 @@ Cohesion: 0.17
 Nodes (19): build_parser(), cmd_add(), cmd_config(), cmd_delta(), cmd_list(), cmd_remove(), cmd_run_all(), cmd_run_one() (+11 more)
 
 ### Community 597 - "evidenceRecords.ts"
-Cohesion: 0.15
-Nodes (16): PROOF_SOURCE_FAMILIES, EVIDENCE_TTL_DAYS, EvidenceRecord, EvidenceRecordResolution, isEvidenceRecordLive(), log, resolveEvidenceRecords(), snapshotUrl() (+8 more)
+Cohesion: 0.08
+Nodes (39): PROOF_SOURCE_FAMILIES, admissible, CANDIDATES, extractReadableText(), log, RetrievalStatus, RetrievedDocument, retrieveDocument() (+31 more)
 
 ### Community 598 - "const.ts"
-Cohesion: 0.06
-Nodes (28): detectServiceType(), highlightKeywords(), RECENCY_OPTIONS, RecencyOption, ReviewCard(), ReviewsPage(), SERVICE_KEYWORDS, SERVICE_TYPES (+20 more)
+Cohesion: 0.14
+Nodes (10): add(), cleanupInterval, generateId(), handlers, Job, JobHandler, jobQueue, jobs (+2 more)
 
 ### Community 599 - "Admin DFII Audit"
 Cohesion: 0.10
@@ -4918,19 +4664,19 @@ Cohesion: 0.17
 Nodes (17): applyStatement(), drizzleDir, ensureMigrationsTable(), getAppliedHashes(), Journal, JournalEntry, loadMigrationEntries(), loadMigrationSql() (+9 more)
 
 ### Community 607 - "smsReplyPlanner.ts"
-Cohesion: 0.11
-Nodes (19): SmsIntent, CLAIM_APPOINTMENT, CLAIM_CALLBACK, CLAIM_COME_IN_UNDRIVABLE, CLAIM_COMPLAINT_OUTCOME, CLAIM_COMPLETION, CLAIM_HOLD, CLAIM_PITCH_BENEFITS (+11 more)
+Cohesion: 0.21
+Nodes (11): main(), EngineFS(), FS, boolArgument(), emitArgument(), MCPServer, ToolHandlerFunc, makeResearchHandler() (+3 more)
 
 ### Community 608 - "tracer.ts"
-Cohesion: 0.13
-Nodes (12): GET, onRequestError(), register(), buildReport(), _clearForTesting(), normalizePath(), ObservabilityReport, percentile() (+4 more)
+Cohesion: 0.14
+Nodes (14): CardGroup, CARDS, GROUP_ORDER, GroupHeader(), HubCard, HubCardLink(), HubPayload, Severity (+6 more)
 
 ### Community 609 - "classifier.ts"
-Cohesion: 0.18
-Nodes (13): DeepModeNudge(), shouldNudge(), classifyCore(), CoreVerdict, countSubQuestions(), DEEP_MARKERS, MEGA_MARKERS, QUICK_OVERRIDES (+5 more)
+Cohesion: 0.23
+Nodes (14): escapeIgHtml(), formatAutopostLane(), formatDeliveryIssues(), formatReelReliability(), IgAutopostRow, IgDeliveryFacts, IgDeliveryIssue, igNum() (+6 more)
 
 ### Community 610 - "Reconciliation (archive · entries before 2026-05-24) · statenour-os — HISTORICAL · DO-NOT-EXECUTE"
-Cohesion: 0.10
+Cohesion: 0.11
 Nodes (19): 1 · Verified reality, 2 · Doc-to-reality drift (now corrected), 3 · Active version trees, 4 · Documentation hierarchy (read in order), 5 · Build-script change rationale, 6 · How to keep this honest, Active, CI (+11 more)
 
 ### Community 611 - "3. Work packages"
@@ -4946,8 +4692,8 @@ Cohesion: 0.10
 Nodes (19): Activation (operator-action), Anti-patterns, BGE Rerank Cutover · Runbook, "Disable graceful degradation", "Keep Cohere subscription paying", "Migrate without measuring", Monitoring, Performance tuning (+11 more)
 
 ### Community 614 - "use-chat-keyboard.ts"
-Cohesion: 0.14
-Nodes (15): ChatMessage, ChatMessagePart, Haptic, Router, Tts, useChatKeyboard(), UseChatKeyboardOpts, DEFAULT_OVERRIDES (+7 more)
+Cohesion: 0.09
+Nodes (24): ContextBlocks, ChatMessage, ChatMessagePart, Haptic, Router, Tts, useChatKeyboard(), UseChatKeyboardOpts (+16 more)
 
 ### Community 615 - "Marketing Douyin Strategist"
 Cohesion: 0.10
@@ -4958,8 +4704,8 @@ Cohesion: 0.10
 Nodes (19): 🚀 Advanced Capabilities, 🚨 Critical Rules You Must Follow, Draft-First, Always, 🔄 Learning & Memory, Multi-Platform Publisher, Never Do, Parameter Intake Table, Per-Platform Hard Constraints (+11 more)
 
 ### Community 617 - "action-receipt.ts"
-Cohesion: 0.19
-Nodes (15): ActionExecResult, canClaimDone(), detectFailedActionClaims(), MUTATION_ACTIONS, canClaimDone(), categoryOf(), ClaimDoneVerdict, deriveStatus() (+7 more)
+Cohesion: 0.17
+Nodes (11): create_subtitle(), _do(), _format_text(), get_audio_duration(), _get_audio_duration_from_mp3(), _get_audio_duration_from_submaker(), 清理字幕对齐前的脚本文本。      这里不能只在 LLM 生成阶段处理，因为用户也可能手动粘贴脚本，或通过     API 直接传入包含 Markdown 标, 将已经聚合好的字幕段写入到 SRT 文件，并做一次基本可读性验证。      返回值：     - `True`：字幕文件成功落盘且可被 moviepy 解析； (+3 more)
 
 ### Community 618 - "content-intent.ts"
 Cohesion: 0.15
@@ -4982,12 +4728,12 @@ Cohesion: 0.10
 Nodes (19): AI Dossier for statenour-os Personal Operating System, Behavioral Patterns (From Conversation Portrait Analysis), Business Intelligence: Nick's Tire & Auto, Communication Style, Decision Rules & Shortcuts, Faith & Philosophy, Final Integration Notes, Financial Strategy (+11 more)
 
 ### Community 623 - "work-health.ts"
-Cohesion: 0.16
-Nodes (17): analyzeWorkHealth(), BodyWorkRow, computeWorkHealth(), DailyWorkRow, directionOf(), mean(), metricOf(), slope() (+9 more)
+Cohesion: 0.17
+Nodes (16): BodyWorkRow, computeWorkHealth(), DailyWorkRow, directionOf(), mean(), metricOf(), slope(), StrainLevel (+8 more)
 
 ### Community 624 - "firecrawl.ts"
-Cohesion: 0.14
-Nodes (16): FirecrawlOptions, FirecrawlResult, getApiKey(), _scrapeUrl(), ChangeDetectionResult, hashContent(), isChange(), log (+8 more)
+Cohesion: 0.10
+Nodes (14): getAllNotifications(), getCurrentSeason(), getDayOfWeek(), getFilteredHardcodedNotifications(), getIconMap(), getTimeOfDay(), Notification, NotificationBar() (+6 more)
 
 ### Community 625 - "ADR-0007 · Morning brief · multi-channel delivery (push + voice)"
 Cohesion: 0.10
@@ -5022,8 +4768,8 @@ Cohesion: 0.15
 Nodes (10): Tests for the top-3 comments rendering in compact cluster view., Helper: build a report with a single candidate carrying given comments., Reddit candidate with 5 comments (scores 500, 200, 50, 8, 3) renders 3., Reddit candidate with 1 comment renders 1., Reddit candidate with 0 comments renders no comment section., Non-Reddit candidate doesn't render comments when metadata has none., All comments below score 10 renders no comment section., When author is missing or [deleted], render falls back to 'Comment (...)'. (+2 more)
 
 ### Community 633 - "TestCli"
-Cohesion: 0.10
-Nodes (4): MaterialInfo, After preprocess_video, material.url should be an absolute path, not a bare file, TestCli, local 素材路径来自 API 参数，不能允许任意绝对路径进入 MoviePy。         这里验证非 local_videos 白名单目录内的路径会被
+Cohesion: 0.26
+Nodes (12): evaluate(), formatDenial(), GIT_STEM, loadPolicy(), POLICY_PATH, preprocessCommand(), ROOT, check() (+4 more)
 
 ### Community 634 - "TestTwelveLabsService"
 Cohesion: 0.11
@@ -5038,8 +4784,8 @@ Cohesion: 0.11
 Nodes (18): background_color, categories, description, display, display_override, icons, id, lang (+10 more)
 
 ### Community 637 - "chart.tsx"
-Cohesion: 0.13
-Nodes (15): ChartConfig, ChartContext, ChartContextProps, ChartLegendContent(), ChartTooltipContent(), getPayloadConfigFromPayload(), THEMES, useChart() (+7 more)
+Cohesion: 0.11
+Nodes (29): GET, DELETE, GET, POST, ActionPermission, aiChat, browseAndDo(), BrowseReceipt (+21 more)
 
 ### Community 638 - "VAPI system-prompt baseline — 2026-07-26"
 Cohesion: 0.11
@@ -5054,36 +4800,36 @@ Cohesion: 0.11
 Nodes (18): Activation (operator-action), Anti-patterns, Bulk Whisper Re-Transcription · VAPI Archive, Cost ceiling, "Forget the schema decision", "Re-transcribe everything every run", Rollback, Skill-port lineage (+10 more)
 
 ### Community 641 - "incident-response.md"
-Cohesion: 0.11
-Nodes (18): Anti-patterns, "Communication-by-silence", Communication shape, External (customers), "Fix before mitigate", Internal (operator + agents), Known incident classes (catalog as discovered), Phase 1 · DETECT (target · <2 min from incident start) (+10 more)
+Cohesion: 0.10
+Nodes (19): Anti-patterns, "Communication-by-silence", Communication shape, External (customers), "Fix before mitigate", Incident Response Runbook, Internal (operator + agents), Known incident classes (catalog as discovered) (+11 more)
 
 ### Community 642 - "Enablement Waves (Recommended Order)"
 Cohesion: 0.11
 Nodes (18): Admin Status Endpoint, Architecture Overview, DB-Backed Feature Flags (toggle in admin panel), Emergency: Stop All SMS, Emergency: Stop All Social Posting, Enablement Waves (Recommended Order), Env-Backed Gates (set on Railway), IG Token Expired (+10 more)
 
 ### Community 643 - "vapi-harness.ts"
-Cohesion: 0.16
-Nodes (15): main(), main(), log, processVapiHarness(), AssistantUnderTest, checkAssistantConfig(), checkToolDispatch(), checkWebhookReachability() (+7 more)
+Cohesion: 0.14
+Nodes (12): main(), main(), CircuitBreaker, AssistantUnderTest, checkAssistantConfig(), checkWebhookReachability(), fetchAssistantConfig(), HarnessCheck (+4 more)
 
 ### Community 644 - "ingest-reports.mjs"
 Cohesion: 0.21
 Nodes (18): BRANDS, categorizeService(), detectBrand(), detectLazyInvoicing(), FILES, generateAnalytics(), main(), MONTHS (+10 more)
 
 ### Community 645 - "lint-brand-voice.ts"
-Cohesion: 0.19
-Nodes (16): blankClassNames(), keepOnlyStringLiterals(), APP_ROOT, AUDIT_MODE, blocking, byFile, __filename, Finding (+8 more)
+Cohesion: 0.15
+Nodes (13): 1. Who You Are Working For, Business and Operational Directives, Capital and Investment Directives, Communication Style, Framework for Strategic Decision-Making, Internal Thought Trajectory (Think at all times):, Operating Rules (Remember Nour is):, Operational Vetoes & Ultimate Objective (+5 more)
 
 ### Community 646 - "vapi.ts"
-Cohesion: 0.15
-Nodes (13): dbGate, postEvent(), dispatchToolCall(), extractCallDurationSec(), extractEndedReason(), isForwardedEndedReason(), log, processCallEndReport() (+5 more)
+Cohesion: 0.10
+Nodes (15): mock_firefox_env(), Tests for browser cookie extraction module., Copied cookie DB temp files are chmodded owner-only before read., The temp copy must be private the instant it exists, not only after         the, Cookies for the target domain are returned correctly., When multiple profiles exist, the one with Default=1 is used., Returns None when Firefox profiles directory doesn't exist., Returns None when cookies.sqlite has no rows. (+7 more)
 
 ### Community 647 - "email.ts"
-Cohesion: 0.13
-Nodes (10): log, POST(), SendSchema, EmailOptions, log, log, SendEmailArgs, SendEmailResult (+2 more)
+Cohesion: 0.29
+Nodes (8): IntelligenceDecisionLedger, asRows(), ExecutableDb, ExecuteResult, RawRow, safeAggregate(), safeCount(), safeRowQuery()
 
 ### Community 648 - "push.ts"
-Cohesion: 0.19
-Nodes (16): DELETE(), POST(), getSubscriptions(), hashEndpoint(), NotificationLevel, pushDriftAlert(), pushLeadAlert(), PushPayload (+8 more)
+Cohesion: 0.11
+Nodes (24): DELETE(), POST(), briefTelegramFallback(), ComposedBrief, generateBriefAudio(), inngest, log, operatorMorningBrief (+16 more)
 
 ### Community 649 - "ghost-nour-predict.ts"
 Cohesion: 0.18
@@ -5094,8 +4840,8 @@ Cohesion: 0.19
 Nodes (14): POST, classifyHeading(), cleanLine(), CUES, extractTitle(), firstMatch(), FollowUpSuggestion, importSession() (+6 more)
 
 ### Community 651 - "MissionSimulator.tsx"
-Cohesion: 0.17
-Nodes (12): metadata, ActionReceipt, ActionReceiptGeneratorProps, MissionSimulator(), SimulatedMission, RescueStrip(), RescueStripProps, cn() (+4 more)
+Cohesion: 0.14
+Nodes (18): JPG, PNG, assertPublicHttpUrl(), assertPublicIPv4(), assertPublicIPv6(), BoundedFetchOptions, embeddedIPv4(), fetchPublicBounded() (+10 more)
 
 ### Community 652 - "AGENT-CONTEXT.md — Statenour OS (NOUR OS)"
 Cohesion: 0.11
@@ -5114,16 +4860,16 @@ Cohesion: 0.11
 Nodes (18): 1 · Understanding lock, 2 · Operator's latent wants, 3 · Three roadmap candidates, 4 · Recommended arc, 5 · Phase 1 of recommended arc (Arc A · weeks 1-8), 6 · Open questions for operator, 7 · Decision log, Arc A · Deep observability (+10 more)
 
 ### Community 656 - "replicate-flux-cutover.md"
-Cohesion: 0.11
-Nodes (18): Activation (operator-action), Anti-patterns, "Cache nothing", Cost ceiling, "Flip the flag without A/B", "Forget to monitor", Image quality notes per model, Rollback (+10 more)
+Cohesion: 0.10
+Nodes (19): Activation (operator-action), Anti-patterns, "Cache nothing", Cost ceiling, "Flip the flag without A/B", "Forget to monitor", Image quality notes per model, Replicate FLUX Cutover · Runbook (+11 more)
 
 ### Community 657 - "AEO Foundations Architect"
 Cohesion: 0.11
 Nodes (18): 🚀 Advanced Capabilities, AEO Foundations Architect, AEO Foundations Scorecard, AI Crawler Taxonomy, Collaboration with Complementary Agents, 💭 Communication Style, Content Availability Tiers, 🎯 Core Mission (+10 more)
 
 ### Community 658 - "fabrication-rewriter.ts"
-Cohesion: 0.20
-Nodes (13): ActionClaim, buildBanner(), buildKnownTruthBanner(), buildVerifierBanner(), isVerifierRewritten(), rewriteForFabrication(), stripVerifierBanner(), neutralizeFabricatedHistory() (+5 more)
+Cohesion: 0.13
+Nodes (15): [ASSISTANT] (gpt-oss:120b) - ID: cmqz63vce013xpv012qayq1mx, [ASSISTANT] (gpt-oss:120b) - ID: cmqz663l5014wpv018i9amgfm, [ASSISTANT] (gpt-oss:120b) - ID: cmqz68q7a000pny01sn9lx9bj, [ASSISTANT] (gpt-oss:120b) - ID: cmqz69b1h001jny01tkbkn27n, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6bmas0025ny01swmj4tbk, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6fumv002tny01d6yfk2c5, [ASSISTANT] (gpt-oss:120b) - ID: cmqz6hx5r003iny01n6v8ipqb, Transcript (+7 more)
 
 ### Community 659 - "bluesky.py"
 Cohesion: 0.16
@@ -5134,24 +4880,24 @@ Cohesion: 0.11
 Nodes (19): AFTER EACH PROMPT: Stay in Expert Mode, Agent Mode (--agent flag), Configuration, CONTEXT MEMORY, CRITICAL: Parse User Intent, IF USER ASKS FOR MORE OPTIONS, last30days v3.8.3: Research Any Topic from the Last 30 Days, Output Summary Footer (After Each Prompt) (+11 more)
 
 ### Community 661 - "TestSocialMetadata"
-Cohesion: 0.11
-Nodes (6): {       "video_subject": "A day in Shanghai",       "video_script": "",       "l, VideoSocialMetadataParams, VideoSocialMetadataRequest, language 默认 auto 时，不应该固定成某个国家或语种，而是让模型         跟随视频主题和脚本的语言，扩大 API 适用范围。, 外部 API 不能接受无限长的脚本和语言参数，否则会直接放大 LLM         token 成本。schema 层先拦截，服务层再做内部调用兜底。, TestSocialMetadata
+Cohesion: 0.21
+Nodes (13): collect_html_warnings(), collect_html_warnings_comparison(), _dedupe_notes(), _is_pre_research_eligible(), Collect data quality warnings for stderr output (NOT for the HTML artifact)., Collect comparison-mode warnings, prefixed by entity label., Return True if the topic looks like a person, project, brand, or product.      H, Emit a Pre-Research Status warning block when the engine was called     without (+5 more)
 
 ### Community 662 - "create_subtitle"
-Cohesion: 0.12
-Nodes (17): _build_subtitle_formatter(), _build_subtitle_items_from_edge_cues(), _build_subtitle_items_from_legacy_submaker(), create_subtitle(), _do(), _format_text(), _match_script_line(), _normalize_arabic() (+9 more)
+Cohesion: 0.22
+Nodes (10): _build_subtitle_formatter(), _build_subtitle_items_from_edge_cues(), _build_subtitle_items_from_legacy_submaker(), _match_script_line(), _normalize_arabic(), 返回统一的 SRT 行格式化函数。      这里单独拆成一个小工具，是为了让 edge_tts 7.x 的 cues 路径     和项目原有的 legacy, 统一阿拉伯语常见字母变体，提升字幕 cue 与脚本行的匹配容错率。      edge-tts 对阿拉伯语可能返回与原脚本不同的字母形态，例如把 أ/إ/آ, 尝试把当前累计的字幕文本，与脚本中的某一条标准断句匹配起来。      这里复用了项目原有的“按标点拆脚本，再逐段比对”的思路：     1. 优先精确匹配； (+2 more)
 
 ### Community 663 - "response-shape.ts"
-Cohesion: 0.15
-Nodes (13): CockpitEvent, cockpitEventStore, createCockpitSseStream(), CreateCockpitSseStreamInput, buildChatResponse(), BuildChatResponseInput, ContextBlocksFired, TurnSignal (+5 more)
+Cohesion: 0.11
+Nodes (19): Authoritative operator surfaces, Automated systems, Canonical business records, Contracts that are executable, not prose (2026-07-27), Crawler HTML, Every path to Meta goes through the emergency stop (2026-07-27), Experimental or modeled systems, GSC data flow (+11 more)
 
 ### Community 664 - "brain-bus.ts"
-Cohesion: 0.20
-Nodes (15): BusEnvelope, AuditEnvelope, CounterOptions, flushCountsToBrainMemory(), runForDuration(), startEntityAuditCounter(), upsertCounter(), HealthProbeReport (+7 more)
+Cohesion: 0.38
+Nodes (11): getFeatureOverridesSnapshot(), loadFeatureOverrides(), mergeOverrides(), normalizeFeatureMap(), normalizeOverrides(), readOverridesFromEnv(), readOverridesFromFile(), refreshFeatureOverridesCache() (+3 more)
 
 ### Community 665 - "schema-sentinel.ts"
-Cohesion: 0.16
-Nodes (14): checkColumnExists(), checkIndexExists(), checkPartialUnique(), checkRegularUniqueAbsent(), ColumnRow, DriftFinding, DriftReport, EXPECTATIONS (+6 more)
+Cohesion: 0.23
+Nodes (12): _build_note_url(), Any, Xiaohongshu HTTP API search client for last30days.  Uses xpzouying/xiaohongshu-m, Convert Xiaohongshu count strings to int.      Supports plain ints and Chinese s, Convert millisecond timestamp to YYYY-MM-DD., Heuristic relevance score from engagement metrics., Build a stable Xiaohongshu note URL., Search Xiaohongshu feeds and normalize to web-item shape. (+4 more)
 
 ### Community 666 - "Antigravity Capability Arc — Operator Runbook (2026-07-09)"
 Cohesion: 0.11
@@ -5170,16 +4916,16 @@ Cohesion: 0.11
 Nodes (18): ADR-0012 · Mission.lifeGoalId FK · first-class mission↔goal relation, Behavior, Consequences, Context, Decision, Many-to-many join table, Migration (parked SQL), Negative (+10 more)
 
 ### Community 670 - "Phase 1: Database Schemas & Source Registry (MVP Design & Schemas)"
-Cohesion: 0.33
-Nodes (18): API Routes, Background Jobs, Database Changes, Definition of Done, Existing Systems to Reuse, Files to Inspect, Files to Modify, INTELLIGENCE OS IMPLEMENTATION PLAN (+10 more)
+Cohesion: 0.14
+Nodes (14): API Routes, Background Jobs, Database Changes, Definition of Done, Existing Systems to Reuse, Files to Inspect, Files to Modify, New Files to Create (+6 more)
 
 ### Community 671 - "Inngest setup · operator runbook"
 Cohesion: 0.11
 Nodes (18): 1 · Create the Inngest account, 2 · Create the app, 3 · Paste the keys into Railway, 4 · Connect the serve endpoint, 5-step setup, 5 · Verify the first scheduled run, After 7 consecutive successful Inngest runs, Failure alerts (+10 more)
 
 ### Community 672 - "bluesky.py"
-Cohesion: 0.16
-Nodes (17): _create_session(), _extract_core_subject(), _log(), parse_bluesky_response(), _parse_date(), Any, Bluesky search via AT Protocol (requires app password).  Uses bsky.social for au, Create an AT Protocol session and return the access token.      Args:         ha (+9 more)
+Cohesion: 0.14
+Nodes (19): stubFetch(), act(), activePage(), attach(), close(), DriverError, DriverErrorCode, DriverOk (+11 more)
 
 ### Community 673 - "test_check_config_ytdlp_detection.py"
 Cohesion: 0.21
@@ -5194,16 +4940,16 @@ Cohesion: 0.14
 Nodes (7): _item(), SourceItem, TestAnnotateStream, TestFormatActor, TestFormatDate, TestFormatEngagement, TestPruneLowRelevance
 
 ### Community 676 - ".test_no_x_related_no_supplemental_related_label"
-Cohesion: 0.33
-Nodes (4): Tests for --x-related weighted supplemental search., x_related handles should be searched and added with supplemental-related label., Without x_related, supplemental-related label should not appear., TestXRelatedSupplementalSearch
+Cohesion: 0.12
+Nodes (9): _make_runtime(), Tests for --x-related weighted supplemental search., x_related handles should be searched and added with supplemental-related label., Without x_related, supplemental-related label should not appear., Topic 'Kanye West' with 0 YouTube items should trigger retry.          Previousl, One X source, an ordered backend chain with failover; never parallel., The X topic lane (here resolved to the xquik backend) consumes the         ancho, TestXBackendChainAndFailover (+1 more)
 
 ### Community 677 - "_html"
-Cohesion: 0.14
-Nodes (7): _html(), Tests for scripts/lib/reddit_listing.py — keyless scored listing scrape., parse_cards reads <shreddit-post> cards into scored post dicts., TestFetchListings, TestListingUrl, TestParseCards, TestScoreIndex
+Cohesion: 0.16
+Nodes (7): FIXTURE, _html(), Tests for scripts/lib/reddit_listing.py — keyless scored listing scrape., parse_cards reads <shreddit-post> cards into scored post dicts., TestFetchListings, TestParseCards, TestScoreIndex
 
 ### Community 678 - "_feed_text"
-Cohesion: 0.15
-Nodes (6): _feed_text(), Tests for scripts/lib/reddit_rss.py — keyless Reddit RSS discovery., _parse_feed turns Atom entries into normalized post dicts., search_rss fans out, dedupes, assigns IDs, and honors depth limits., TestParseFeed, TestSearchRss
+Cohesion: 0.23
+Nodes (4): _feed_text(), Tests for scripts/lib/reddit_rss.py — keyless Reddit RSS discovery., _parse_feed turns Atom entries into normalized post dicts., TestParseFeed
 
 ### Community 679 - "make_candidate"
 Cohesion: 0.20
@@ -5214,8 +4960,8 @@ Cohesion: 0.17
 Nodes (8): Tests for _transcript_candidate_sort_key recency-boosted ordering., When views are equal, the more recent video gets a higher sort key., An old video with very high views still gets a transcript slot;         recency, An item with no date gets recency 0, sorting behind dated items., search_and_transcribe selects candidates by (views, recency),         so a recen, Track yt-dlp fetch outcomes for quality_nudge (#531 false stale-yt-dlp nudge)., TestTranscriptCandidateSortKey, TestTranscriptFetchStats
 
 ### Community 681 - "TestSocialMetadata"
-Cohesion: 0.11
-Nodes (6): {       "video_subject": "A day in Shanghai",       "video_script": "",       "l, VideoSocialMetadataParams, VideoSocialMetadataRequest, language 默认 auto 时，不应该固定成某个国家或语种，而是让模型         跟随视频主题和脚本的语言，扩大 API 适用范围。, 外部 API 不能接受无限长的脚本和语言参数，否则会直接放大 LLM         token 成本。schema 层先拦截，服务层再做内部调用兜底。, TestSocialMetadata
+Cohesion: 0.24
+Nodes (10): CampaignObjective, generateShadowPlan(), log, norm(), PlannerSignals, scoreOpportunity(), SEASONAL_PLAYBOOK, SeasonalMoment (+2 more)
 
 ### Community 682 - "create_subtitle"
 Cohesion: 0.12
@@ -5223,7 +4969,7 @@ Nodes (17): _build_subtitle_formatter(), _build_subtitle_items_from_edge_cues(),
 
 ### Community 683 - "tasks"
 Cohesion: 0.11
-Nodes (19): dependsOn, inputs, outputs, cache, persistent, inputs, outputs, cache (+11 more)
+Nodes (19): dependsOn, inputs, outputs, cache, persistent, inputs, outputs, tasks (+11 more)
 
 ### Community 684 - "transcribe.py"
 Cohesion: 0.17
@@ -5250,8 +4996,8 @@ Cohesion: 0.11
 Nodes (17): Active State (2026-06-05), AGENT-CONTEXT.md — Nick's Tire & Auto, AI Gateway Rules, Canonical Context Files (Read These First), Completed Follow-Ups (Resolved & Deployed), Critical Safety Rules, Directory Map, 🚨 Google Business Profile — GBP CONTENT RISK (+9 more)
 
 ### Community 690 - "EXECUTION SUMMARY — Operation Practical Conversion Dominance (V4)"
-Cohesion: 0.13
-Nodes (17): EXECUTION SUMMARY — Operation Practical Conversion Dominance (V4), FILES MODIFIED, Integration in Home, Integration in ServicePage, JobPosting schema, New components, New operator docs (`docs/`), New page: `/careers` (+9 more)
+Cohesion: 0.10
+Nodes (20): EXECUTION SUMMARY — Operation Practical Conversion Dominance (V4), FILES MODIFIED, Integration in Home, Integration in ServicePage, Integration in ServicePage, JobPosting schema, New components, New components (+12 more)
 
 ### Community 691 - "Per-archetype DFII scores"
 Cohesion: 0.11
@@ -5282,16 +5028,16 @@ Cohesion: 0.11
 Nodes (17): A. Pillar #1 — Complete Cleveland Tire Guide, B. Pillar #2 — Cleveland Auto Repair Owner's Manual, C. Pillar #3 — Cleveland Pothole + Salt Damage Guide, Cost estimate, D. Comparison hub — `/best-tire-shops-cleveland`, E. OG image template — Conrad's alternative comparison, F. OG image template — Best tire shops Cleveland, Forbidden style descriptors (would produce AI-slop output) (+9 more)
 
 ### Community 698 - "OWNER ACTIONS — Everything Needed to Make the System Fully Live"
-Cohesion: 0.12
-Nodes (17): Finding Your Google ID (for OWNER_OPEN_ID), First Login, Generate a Bridge Key, Google Cloud Console Setup, NAP Must Be Identical Everywhere, OPTIONAL — NICE TO HAVE, OWNER ACTIONS — Everything Needed to Make the System Fully Live, PRIORITY 1 — ADMIN ACCESS (15 minutes, do first) (+9 more)
+Cohesion: 0.10
+Nodes (19): Finding Your Google ID (for OWNER_OPEN_ID), First Login, Generate a Bridge Key, Google Cloud Console Setup, NAP Must Be Identical Everywhere, OPTIONAL — NICE TO HAVE, OWNER ACTIONS — Everything Needed to Make the System Fully Live, PRIORITY 1 — ADMIN ACCESS (15 minutes, do first) (+11 more)
 
 ### Community 699 - "abandonedForms.ts"
-Cohesion: 0.18
-Nodes (16): AbandonedForm, abandonedCleanupInterval, dbDeletePartial(), dbMarkAttempted(), dbUpsertPartial(), getAbandonedFormStats(), isEligibleForRecovery(), log (+8 more)
+Cohesion: 0.06
+Nodes (41): AnyPart, buildSearchableContent(), computeAttachmentsHash(), extractAttachments(), extractClientMessageId(), extractParts(), isUsableFilePart(), MessagePart (+33 more)
 
 ### Community 700 - "apply-wave-116-121.ts"
-Cohesion: 0.20
-Nodes (17): apply0034(), apply0035(), auditDuplicatePhones(), ensureTrackingTable(), exec(), isHashApplied(), isTolerable(), JOURNAL_PATH (+9 more)
+Cohesion: 0.14
+Nodes (14): API Routes, Background Jobs, Database Changes, Definition of Done, Existing Systems to Reuse, Files to Inspect, Files to Modify, New Files to Create (+6 more)
 
 ### Community 701 - "apply-wave-116-121.ts"
 Cohesion: 0.20
@@ -5302,8 +5048,8 @@ Cohesion: 0.18
 Nodes (17): applyStatement(), ensureMigrationsTable(), getAppliedHashes(), isTolerableError(), Journal, JournalEntry, loadJournal(), loadMigrationSql() (+9 more)
 
 ### Community 703 - "customerMessageTemplates.ts"
-Cohesion: 0.15
-Nodes (15): loggedActionParams, mockDb, mockExistingEmail, mockExistingSms, ORDER, availabilityConfirmed(), MessagePreview, OrderMessageInput (+7 more)
+Cohesion: 0.14
+Nodes (14): API Routes, Background Jobs, Database Changes, Definition of Done, Existing Systems to Reuse, Files to Inspect, Files to Modify, New Files to Create (+6 more)
 
 ### Community 704 - "voiceClaimGuard.ts"
 Cohesion: 0.19
@@ -5314,8 +5060,8 @@ Cohesion: 0.16
 Nodes (13): CommandCoreProps, PLACEHOLDER, CanvasInner, SceneCanvas(), SceneCanvasProps, SceneSkeleton(), SceneSkeletonProps, clamp01() (+5 more)
 
 ### Community 706 - "3D Scene Briefs · NOUR OS 3D Layer"
-Cohesion: 0.17
-Nodes (17): 3D Scene Briefs · NOUR OS 3D Layer, Architecture — how the 3D layer is wired, Color — gold-on-dark, no exceptions, Data-reactive behavior + props, Data — the props contract, Extending or adding a scene — checklist, Geometry, Idle animation (+9 more)
+Cohesion: 0.07
+Nodes (26): 3D Scene Briefs · NOUR OS 3D Layer, Architecture — how the 3D layer is wired, Color — gold-on-dark, no exceptions, Data-reactive behavior + props, Data-reactive behavior + props, Data-reactive behavior + props, Data-reactive behavior + props, Data — the props contract (+18 more)
 
 ### Community 707 - "YELLOW findings (fix or document)"
 Cohesion: 0.11
@@ -5342,8 +5088,8 @@ Cohesion: 0.11
 Nodes (17): Execution Handoff, File map · what gets touched, Power Atlas · Phase 0+1 MVP Implementation Plan, Self-Review, Task 0.1: BRAIN_CATEGORIES additions, Task 0.2: Prisma schema migration, Task 0.3: Brain people-embed-hook, Task 0.4: Greene corpus seeded knowledge base (+9 more)
 
 ### Community 713 - "briefing.py"
-Cohesion: 0.16
-Nodes (13): generate_daily(), generate_weekly(), main(), _parse_sqlite_utc_timestamp(), datetime, Generate weekly digest data with trend analysis., Load a saved briefing by date., Save briefing data to local archive. (+5 more)
+Cohesion: 0.38
+Nodes (11): getFeatureOverridesSnapshot(), loadFeatureOverrides(), mergeOverrides(), normalizeFeatureMap(), normalizeOverrides(), readOverridesFromEnv(), readOverridesFromFile(), refreshFeatureOverridesCache() (+3 more)
 
 ### Community 714 - "transcribe.py"
 Cohesion: 0.17
@@ -5358,8 +5104,8 @@ Cohesion: 0.22
 Nodes (15): collectTextFields(), collectTweetResultsFromEntry(), extractArticleMetadata(), extractArticleText(), extractMedia(), extractNoteTweetText(), extractTweetText(), firstText() (+7 more)
 
 ### Community 717 - "xai_x.py"
-Cohesion: 0.15
-Nodes (12): _log_error(), parse_x_response(), Any, xAI API client for X (Twitter) discovery., Extract text from string or localized object., Parse xAI response to extract X items.      Args:         response: Raw API resp, Search X for relevant posts using xAI API with live search.      Args:         a, _safe_text() (+4 more)
+Cohesion: 0.20
+Nodes (17): apply0034(), apply0035(), auditDuplicatePhones(), ensureTrackingTable(), exec(), isHashApplied(), isTolerable(), JOURNAL_PATH (+9 more)
 
 ### Community 718 - "fitness.ts"
 Cohesion: 0.18
@@ -5370,24 +5116,24 @@ Cohesion: 0.12
 Nodes (14): ALL_TEMPLATES, BRAND_CONTEXT, ContentTemplate, CTA_LIBRARY, CtaGoal, ENGAGEMENT_TEMPLATES, getBrandPromptContext(), getPostSystemPrompt() (+6 more)
 
 ### Community 720 - "generate-source-pack.ts"
-Cohesion: 0.18
-Nodes (16): isFirecrawlConfigured(), ResearchClaim, ResearchDomain, ResearchPack, ResearchSource, ResearchSourceType, args, computeHash() (+8 more)
+Cohesion: 0.09
+Nodes (28): FirecrawlOptions, FirecrawlResult, getApiKey(), isFirecrawlConfigured(), _scrapeUrl(), ChangeDetectionResult, hashContent(), isChange() (+20 more)
 
 ### Community 721 - "system-change-digest.ts"
-Cohesion: 0.23
-Nodes (13): DeployIdentity, DeployMeta, DeployStatus, readDeployIdentity(), resolveDeployMeta(), assembleDigest(), buildSystemChangeDigest(), DigestDeps (+5 more)
+Cohesion: 0.28
+Nodes (12): _bgm_type(), build_video_params(), _hex_color(), _non_negative_float(), _paragraph_count(), parse_args(), _percent_position(), _positive_int() (+4 more)
 
 ### Community 722 - "voice-latency.ts"
-Cohesion: 0.16
-Nodes (16): BreachStreak, captureVoiceLatency(), CaptureVoiceLatencyInput, DerivedEndToEnd, getCurrentBreachStreak(), getEndToEndFromVapiCall(), getP50P95ByStage(), getVoiceLatencyState() (+8 more)
+Cohesion: 0.15
+Nodes (6): Result of a subprocess run that captured stdout and stderr., SubprocResult, search_youtube wraps the yt-dlp invocation when SSH routing is on., SSH connection failures surface as an error, not silent '0 results'., LAST30DAYS_YOUTUBE_SSH_HOST routes yt-dlp transcript fetches through SSH., TestTranscriptSSHRouting
 
 ### Community 723 - "192.168.1.123 — GeoVision DVR/NVR"
 Cohesion: 0.11
 Nodes (17): 192.168.1.103 — Unknown (Express.js server), 192.168.1.123 — GeoVision DVR/NVR, 192.168.1.130 — Unknown IP Camera, Features (from web JS), GeoVision VSS Protocol (port 10000), GV-Eye Cloud Account, Home Camera System — 192.168.1.x Network, Network: Old Home WiFi (192.168.1.x) (+9 more)
 
 ### Community 724 - "loadEnv"
-Cohesion: 0.27
-Nodes (11): main(), main(), main(), neutralizeServerOnly(), confirmDatabase(), loadEnv(), main(), neutralizeServerOnly() (+3 more)
+Cohesion: 0.01
+Nodes (323): cronLog, workOrderItems, window, registerAllJobs(), processAgenticAuditor(), log, processAppointmentReminders24h(), processAppointmentReminders2h() (+315 more)
 
 ### Community 725 - "ADR-0004 · Skill Registry runtime exposure"
 Cohesion: 0.11
@@ -5410,24 +5156,28 @@ Cohesion: 0.11
 Nodes (3): JobsDateAndBannerTests, JobsDedupeTests, JobsSourceTests
 
 ### Community 731 - "test_pipeline_v3.py"
-Cohesion: 0.10
-Nodes (10): Test that _retry_thin_sources fires even when core == topic (the fix)., Topic 'Kanye West' with 0 YouTube items should trigger retry.          Previousl, Pipeline should complete with local fallbacks when no reasoning keys are configu, Grounding (general web) availability is host-aware.      Non-native hosts get th, Wiring regression: EXCLUDE_SOURCES from the process environment must     reach a, TestExcludeSourcesEndToEnd, TestKeylessGroundingAvailability, TestPerplexityAvailability (+2 more)
+Cohesion: 0.11
+Nodes (9): Test that _retry_thin_sources fires even when core == topic (the fix)., Pipeline should complete with local fallbacks when no reasoning keys are configu, Grounding (general web) availability is host-aware.      Non-native hosts get th, Wiring regression: EXCLUDE_SOURCES from the process environment must     reach a, TestExcludeSourcesEndToEnd, TestKeylessGroundingAvailability, TestPerplexityAvailability, TestRetryThinSourcesCoreEqualsTopic (+1 more)
 
 ### Community 732 - "test_polymarket.py"
-Cohesion: 0.11
-Nodes (17): Tests for polymarket.py - Polymarket prediction market search., Topic with exactly 3 informative words, 1 match -> rejected., Test basic outcome price parsing., Test multi-outcome markets., Test handling of missing price change data., Stripping only removes a leading article, not the first informative word., Test handling of empty response., Test stripping time prefixes. (+9 more)
+Cohesion: 0.02
+Nodes (109): _claude_downtime_response(), create_mock_event(), create_mock_market(), Tests for polymarket.py - Polymarket prediction market search., Test that low-signal tokens are filtered., Test that duplicate queries are removed., Test that query list is capped at 6., Test that matching events pass the filter. (+101 more)
 
 ### Community 733 - "package.json"
 Cohesion: 0.12
 Nodes (17): default, dependencies, zod, devDependencies, typescript, vitest, exports, main (+9 more)
 
 ### Community 734 - "NotificationBar.tsx"
-Cohesion: 0.12
-Nodes (13): getAllNotifications(), getCurrentSeason(), getDayOfWeek(), getFilteredHardcodedNotifications(), getIconMap(), getTimeOfDay(), Notification, NotificationBar() (+5 more)
+Cohesion: 0.67
+Nodes (3): greeting(), MorningBrief(), MorningBriefProps
+
+### Community 735 - "menubar.tsx"
+Cohesion: 0.38
+Nodes (11): getFeatureOverridesSnapshot(), loadFeatureOverrides(), mergeOverrides(), normalizeFeatureMap(), normalizeOverrides(), readOverridesFromEnv(), readOverridesFromFile(), refreshFeatureOverridesCache() (+3 more)
 
 ### Community 736 - "gmail.ts"
-Cohesion: 0.18
-Nodes (14): ReviewRepliesTab(), createDraft(), draftReply(), findHeader(), getAccessToken(), getThread(), gmailFetch(), GmailMessageHeader (+6 more)
+Cohesion: 0.23
+Nodes (12): createDraft(), draftReply(), findHeader(), getAccessToken(), getThread(), gmailFetch(), GmailMessageHeader, GmailThreadFull (+4 more)
 
 ### Community 737 - "Admin OPS/SYSTEM Surface Audit"
 Cohesion: 0.12
@@ -5454,44 +5204,44 @@ Cohesion: 0.12
 Nodes (16): Anti-patterns, "Backlinks from any high-DA site", "Generic content for 10 service pages", "Keyword density", "Optimize for featured snippets", Pillar 1 · Site-quality basics (the foundation · ~30% of SEO outcome), Pillar 2 · Content depth (the engine · ~50% of SEO outcome), Pillar 3 · Local SEO (the multiplier for service businesses · ~15% · but compounding) (+8 more)
 
 ### Community 743 - "task-intelligence.md"
-Cohesion: 0.12
-Nodes (16): Anti-patterns, Completion-pattern learning, Composite, Dependency tracking, "Everything is urgent", Implementation plan (queued), "No archive policy", "Recurring tasks dominate" (+8 more)
+Cohesion: 0.11
+Nodes (17): Anti-patterns, Completion-pattern learning, Composite, Dependency tracking, "Everything is urgent", Implementation plan (queued), "No archive policy", "Recurring tasks dominate" (+9 more)
 
 ### Community 744 - "Visual Regression Testing Framework"
 Cohesion: 0.12
 Nodes (16): Anti-anti-pattern · DO use this for the prerender problem, Anti-patterns, Implementation plan (queued), Skill-port lineage, "Snapshot dynamic content", "Snapshot everything", "Snapshot ONE viewport", Test infrastructure shape (+8 more)
 
 ### Community 745 - "verify-reel-vo.mts"
-Cohesion: 0.15
-Nodes (10): NICKSTIRE_DIR, startDevDb(), failed, results, brief, CLIP, driveToTerminal(), HERE (+2 more)
+Cohesion: 0.08
+Nodes (19): NICKSTIRE_DIR, startDevDb(), failed, results, check(), emitted, expectReject(), mp4File (+11 more)
 
 ### Community 746 - "comparator.ts"
-Cohesion: 0.18
-Nodes (15): base, dim(), ALL_DIMENSIONS, buildUserPrompt(), clampScore(), CompareArgs, compareReplies(), defaultJudgment() (+7 more)
+Cohesion: 0.06
+Nodes (60): generate_daily(), generate_weekly(), main(), _parse_sqlite_utc_timestamp(), datetime, Generate weekly digest data with trend analysis., Load a saved briefing by date., Save briefing data to local archive. (+52 more)
 
 ### Community 747 - "instagramStudioLifecycle.test.ts"
-Cohesion: 0.13
-Nodes (12): admin(), ctx(), database, makeDraft(), makeRow(), Op, ops, publishToSocialMock (+4 more)
+Cohesion: 0.14
+Nodes (14): API Routes, Background Jobs, Database Changes, Definition of Done, Existing Systems to Reuse, Files to Inspect, Files to Modify, New Files to Create (+6 more)
 
 ### Community 748 - "dripCampaigns.ts"
-Cohesion: 0.16
-Nodes (12): CAMPAIGNS, DripCampaign, DripEnrollment, DripStep, log, checkExistingEnrollment(), ensureTable(), hasActiveDripEnrollment() (+4 more)
+Cohesion: 0.28
+Nodes (11): args, blameCommits(), codeNodes(), findDeaths(), loadGraph(), runQuery(), runReport(), selfTest() (+3 more)
 
 ### Community 749 - "noShowPrediction.ts"
-Cohesion: 0.21
-Nodes (16): buildRecommendedAction(), buildSuggestedSms(), combineSignals(), daysBetween(), daysUntil(), getNoShowStats(), listAtRiskBookings(), log (+8 more)
+Cohesion: 0.23
+Nodes (7): formatNumber(), isoDate(), Range, RANGE_DAYS, severityColors(), stageIcon(), TrafficFunnelSection()
 
 ### Community 750 - "safetyMonitor.ts"
-Cohesion: 0.17
-Nodes (16): Alert, checkComplianceSafety(), checkDataSafety(), checkFinancialSafety(), checkOperationalSafety(), checkReputationSafety(), CheckResult, ComplianceMetrics (+8 more)
+Cohesion: 0.25
+Nodes (10): Mode, classifyForMission(), KEEP_TITLES, main(), matchesKeepList(), NOOP_PATH, normalize(), NOW (+2 more)
 
 ### Community 751 - "route.ts"
-Cohesion: 0.18
-Nodes (7): POST(), POST(), auditBridgeCall(), assertBridgeAuth(), secretsMatch(), RPC_ERROR, executeBridgeTool()
+Cohesion: 0.04
+Nodes (54): Gap, GET, MODELS_TO_AUDIT, brainTools, BY_NAME, getToolRiskClass(), TOOL_CATALOG, ToolCategory (+46 more)
 
 ### Community 752 - "post-turn-outbox.test.ts"
-Cohesion: 0.12
-Nodes (14): GET, log, claimOrphans, enqueuePostTurnWork, finishClaim, getOutboxHealth, outboxRetryDelayMs, redriveDeadOutboxRows (+6 more)
+Cohesion: 0.07
+Nodes (28): _log(), Report, Parallel multi-entity fan-out for the --competitors flag.  The orchestrator acce, Run main + competitor pipelines in parallel; return surviving reports.      Args, run_competitor_fanout(), extract_best_snippet(), SourceItem, Best-window extraction for rerankable evidence snippets. (+20 more)
 
 ### Community 753 - "build-your-own-x.ts"
 Cohesion: 0.23
@@ -5514,12 +5264,12 @@ Cohesion: 0.12
 Nodes (16): Advancement roadmap, Autonomy levels, Bounded self-learning contract, Graphify contract, NotebookLM contract, Obsidian contract, One canonical memory, Prohibited shortcuts (+8 more)
 
 ### Community 758 - "judge-calibration.ts"
-Cohesion: 0.19
-Nodes (14): Winner, buildJudgeCalibration(), CalibrationCell, CalibrationVerdict, computeCalibration(), deriveVerdict(), emptyReport(), JudgeCalibrationReport (+6 more)
+Cohesion: 0.27
+Nodes (9): GET, PATCH, cache, coerce(), getAllSettings(), getSetting(), invalidateSettingsCache(), setSetting() (+1 more)
 
 ### Community 759 - "fusion.py"
-Cohesion: 0.21
-Nodes (16): _apply_per_author_cap(), candidate_key(), _candidate_sort_key(), _diversify_pool(), _extract_author(), _normalize_url(), Candidate, QueryPlan (+8 more)
+Cohesion: 0.17
+Nodes (12): 2026-04-28 — v6 Mega-Overhaul · 56 features across 8 batches, 2026-04-28 — v7 Mega-Overhaul · 9 batches continuing v6, 2026-04-29 — v7.9.1 IdentitySnapshot soft-delete fix + missed reads, 2026-04-29 — v8.0 Phase 2A · Universal Entity-Audit Trail, 2026-07-05 — Chat pipeline: audit-fix wave + owner-authority + 5 perf/quality improvements, Audit fixes, Changelog, Data milestones (+4 more)
 
 ### Community 760 - "mental-health.ts"
 Cohesion: 0.19
@@ -5530,12 +5280,12 @@ Cohesion: 0.18
 Nodes (15): ATTENTION_DOMAIN_KEYWORDS, AttentionDepth, attentionLatencyDays(), classifyAttentionDepth(), classifyEisenhower(), classifyMessageDomain(), computeActionRatio(), computeAttentionVelocity() (+7 more)
 
 ### Community 762 - "credit.ts"
-Cohesion: 0.18
-Nodes (11): AiSource, sumStatXpJs(), sumStatXpSql(), XpCredit, xpEventTotals(), xpEventTotalsSince(), MasterySignal, detectXpDrift() (+3 more)
+Cohesion: 0.29
+Nodes (11): handleAlertResolve(), handleSystemClearAlerts(), createBrainSnapshot(), getBrainContinuitySummary(), getLatestSnapshot(), runBrainCycle(), acknowledgeAlert(), getUnresolvedAlerts() (+3 more)
 
 ### Community 763 - "Orchestrator"
-Cohesion: 0.17
-Nodes (9): main(), Orchestrator, Get orchestrator status and statistics., Get recent audit entries., Core orchestrator for NOUR OS task execution., Load YAML configuration., Load or initialize orchestrator state., Persist state to disk. (+1 more)
+Cohesion: 0.28
+Nodes (12): _bgm_type(), build_video_params(), _hex_color(), _non_negative_float(), _paragraph_count(), parse_args(), _percent_position(), _positive_int() (+4 more)
 
 ### Community 764 - "ADR-0008 · Customer 360 + predictive brain (per-customer preferences)"
 Cohesion: 0.12
@@ -5546,8 +5296,8 @@ Cohesion: 0.12
 Nodes (16): author, name, url, compatibility, claude_desktop, platforms, description, display_name (+8 more)
 
 ### Community 766 - "cluster.py"
-Cohesion: 0.24
-Nodes (16): _candidate_text(), cluster_candidates(), _cluster_uncertainty(), _entity_overlap(), _extract_entities(), _merge_entity_clusters(), _mmr_representatives(), Candidate (+8 more)
+Cohesion: 0.16
+Nodes (17): _create_session(), _extract_core_subject(), _log(), parse_bluesky_response(), _parse_date(), Any, Bluesky search via AT Protocol (requires app password).  Uses bsky.social for au, Create an AT Protocol session and return the access token.      Args:         ha (+9 more)
 
 ### Community 767 - "CompetitorsCliTests"
 Cohesion: 0.21
@@ -5566,8 +5316,8 @@ Cohesion: 0.21
 Nodes (14): _diag(), _diag_with_preflight(), Tests for the safe permission preflight contract., test_cli_preflight_json_returns_structured_contract(), test_cli_preflight_reports_conditional_save_dir(), test_cli_preflight_reports_explicit_save_dir(), test_cli_preflight_reuses_embedded_preflight_without_save_overrides(), test_cli_preflight_uses_plan_only_policy_and_does_not_run_research() (+6 more)
 
 ### Community 771 - "test_quality_nudge.py"
-Cohesion: 0.13
-Nodes (10): _base_config(), _base_results(), Tests for post-research quality score and upgrade nudge.  Reddit is always a cor, Return a minimal config dict., YouTube data from fallback/provider paths is degraded, not missing., Reddit errors don't affect core score since it's always-active via public path., Return a minimal research_results dict with no errors., TestRedditNeverInCoreErrored (+2 more)
+Cohesion: 0.10
+Nodes (12): _base_config(), _base_results(), Tests for post-research quality score and upgrade nudge.  Reddit is always a cor, +X + yt-dlp + SC -> still 100%, SC adds bonus sources., Return a minimal config dict., YouTube data from fallback/provider paths is degraded, not missing., Reddit errors don't affect core score since it's always-active via public path., Return a minimal research_results dict with no errors. (+4 more)
 
 ### Community 772 - "RenderBestTakesCompactTests"
 Cohesion: 0.19
@@ -5586,8 +5336,8 @@ Cohesion: 0.12
 Nodes (9): aarrrMetrics, alchemicalCreativity, innovatorsDilemma, launchStrategy, mechanicalIntelligence, negotiation, paretoPrinciple, warrenBuffett (+1 more)
 
 ### Community 776 - "render.ts"
-Cohesion: 0.15
-Nodes (11): ReviewVideoReel(), ReviewVideoReelProps, ServiceAlertReel(), ServiceAlertReelProps, __dirname, doRenderReelVideo(), __filename, RenderReelOptions (+3 more)
+Cohesion: 0.24
+Nodes (5): ReviewVideoReel(), ReviewVideoReelProps, ServiceAlertReel(), ServiceAlertReelProps, RootComposition()
 
 ### Community 777 - "compilerOptions"
 Cohesion: 0.12
@@ -5598,16 +5348,20 @@ Cohesion: 0.12
 Nodes (16): compilerOptions, declaration, declarationMap, esModuleInterop, isolatedModules, jsx, lib, module (+8 more)
 
 ### Community 779 - "AGENTS.md — NOURCITY monorepo"
-Cohesion: 0.12
-Nodes (16): AGENTS.md — NOURCITY monorepo, Branching — Autonomous Merging Allowed, Codebase-memory MCP, Commit Attribution, Context routing, Deep reasoning tool-access, Environment (Windows), Firecrawl web scraper (+8 more)
+Cohesion: 0.15
+Nodes (13): Agent adapters, AGENTS.md — NOURCITY monorepo, Branching — autonomous merging allowed, Commands, Commit Attribution, Context routing, Environment (Windows), Memory / handoff (+5 more)
 
 ### Community 780 - "reddit_listing.py"
-Cohesion: 0.23
-Nodes (15): _attr(), fetch_listings(), _fetch_one(), _listing_url(), _log(), parse_cards(), _post_id(), Any (+7 more)
+Cohesion: 0.29
+Nodes (10): handlePersonCreate(), handlePersonUpdate(), isNonName(), jaroWinkler(), levenshtein(), log, logFuzzyMerge(), NON_NAME_TOKENS (+2 more)
 
 ### Community 782 - "debug-collector.js"
-Cohesion: 0.25
-Nodes (14): compactText(), describeElement(), elText(), formatArg(), formatArgs(), getInputValueSafe(), installUiEventListeners(), isSensitiveField() (+6 more)
+Cohesion: 0.17
+Nodes (15): GET, ANTI_FABRICATION_RULE, FABRICATION_BANNER, fillTemplate(), getPrompt(), getRegistryStats(), HISTORY_NEUTRALIZATION, listPrompts() (+7 more)
+
+### Community 783 - "context-menu.tsx"
+Cohesion: 0.24
+Nodes (10): EMBED_CACHE, formatRerankSummary(), getBlockEmbeddingCached(), hashContent(), rerankContextBlocks(), RerankedBlock, RerankOptions, BuildBrainContextInput (+2 more)
 
 ### Community 784 - "components.json"
 Cohesion: 0.12
@@ -5639,15 +5393,15 @@ Nodes (15): Anti-patterns, Cache discipline, Claude / Anthropic API Cost Monitor
 
 ### Community 791 - "code-craft-review.md"
 Cohesion: 0.12
-Nodes (15): "100% test coverage" obsession, 1 · Naming clarity (0-20), 2 · Function shape (0-20), 3 · Indirection budget (0-20), 4 · Comment quality (0-20), 5 · Test coupling (0-20), Anti-patterns called out, "Clean for clean's sake" (+7 more)
+Nodes (16): "100% test coverage" obsession, 1 · Naming clarity (0-20), 2 · Function shape (0-20), 3 · Indirection budget (0-20), 4 · Comment quality (0-20), 5 · Test coupling (0-20), Anti-patterns called out, "Clean for clean's sake" (+8 more)
 
 ### Community 792 - "multi-advisor-board.md"
 Cohesion: 0.12
-Nodes (15): 1 · Distinct reasoning lens, 2 · Mandatory dissent quota, 3 · Stakes-aware framing, 4 · Pre-consult brainstorm step, 5 · Post-consult synthesis, Anti-patterns, "Consensus collapse", Cost discipline (pairs with claude-monitor.md) (+7 more)
+Nodes (16): 1 · Distinct reasoning lens, 2 · Mandatory dissent quota, 3 · Stakes-aware framing, 4 · Pre-consult brainstorm step, 5 · Post-consult synthesis, Anti-patterns, "Consensus collapse", Cost discipline (pairs with claude-monitor.md) (+8 more)
 
 ### Community 793 - "2FA (TOTP)"
-Cohesion: 0.14
-Nodes (15): 2FA (TOTP), Admin Roles + 2FA — Design Plan, Current state, Decision, Dependencies, Gating helpers, Implementation phases, Migration (+7 more)
+Cohesion: 0.11
+Nodes (17): 2FA (TOTP), Admin Roles + 2FA — Design Plan, Current state, Current state, Decision, Dependencies, Gating helpers, Implementation phases (+9 more)
 
 ### Community 794 - "Real-Device QA Checklist"
 Cohesion: 0.12
@@ -5662,12 +5416,12 @@ Cohesion: 0.12
 Nodes (15): 1. Executive Summary, 2. Problem Statement, 3. Market Overview, 4. Solution Framework: The Autonomous Front Office, 5. Case Studies, 6. Data & Statistics, 7. Implementation Guide, 8. Conclusion (+7 more)
 
 ### Community 797 - "cache.ts"
-Cohesion: 0.18
-Nodes (13): cacheCleanupInterval, cached(), cacheDelete(), cacheDeletePattern(), cacheGet(), cacheSet(), cleanupMemCache(), del() (+5 more)
+Cohesion: 0.23
+Nodes (10): adminClients, emitNewBooking(), emitNewLead(), emitOrderStatusUpdate(), emitRevenueUpdate(), emitToAdmin(), heartbeatInterval, log (+2 more)
 
 ### Community 798 - "jobQueue.ts"
-Cohesion: 0.14
-Nodes (10): add(), cleanupInterval, generateId(), handlers, Job, JobHandler, jobQueue, jobs (+2 more)
+Cohesion: 0.25
+Nodes (9): call(), ChallengeResult, CHALLENGES, DEFAULT_SLATE, main(), median(), ModelCard, probeAvailability() (+1 more)
 
 ### Community 799 - "compilerOptions"
 Cohesion: 0.12
@@ -5676,6 +5430,10 @@ Nodes (15): compilerOptions, allowImportingTsExtensions, isolatedModules, lib, m
 ### Community 800 - "goals-health-strip.tsx"
 Cohesion: 0.16
 Nodes (13): classifyPace(), GoalDot, GoalRowSlim, GoalsHealthStrip(), GoalsHealthStripProps, HORIZON_PRIORITY, Pace, PACE_STYLE (+5 more)
+
+### Community 801 - "dropdown-menu.tsx"
+Cohesion: 0.29
+Nodes (10): Assistant, AssistantModel, envVal(), main(), patchTools(), redact(), resolveAssistantIdFromEvidence(), SCRIPT_DIR (+2 more)
 
 ### Community 802 - "ADR-0011 · Axis-specific regen gate · the chat-vagueness fix"
 Cohesion: 0.12
@@ -5691,51 +5449,51 @@ Nodes (16): 10.10 SmartReplies chips mutate while reading, 10.11 Stream stall: "
 
 ### Community 805 - "brain-recall-consolidation-2026-05-16.md"
 Cohesion: 0.12
-Nodes (15): 1. Contextual Recall · `lib/brain/contextual-recall.ts:193` · CANONICAL TARGET, 2. Memory Recall · `lib/brain/memory-recall.ts:85` · MERGE INTO #1, 3. Chat-Exchange Recall · `lib/brain/chat-recall.ts:209` · STAYS · 2-line dedup needed, 4. Conversation-Summary Recall · `lib/brain/conversation-recall.ts:78` · STAYS, 5. Anticipated-Question Recall · `lib/brain/anticipated-questions.ts:571` · STAYS, 6. Skill Recall · `lib/skills/skill-recall.ts:129` · STAYS, Essential files, Estimated leverage (+7 more)
+Nodes (16): 1. Contextual Recall · `lib/brain/contextual-recall.ts:193` · CANONICAL TARGET, 2. Memory Recall · `lib/brain/memory-recall.ts:85` · MERGE INTO #1, 3. Chat-Exchange Recall · `lib/brain/chat-recall.ts:209` · STAYS · 2-line dedup needed, 4. Conversation-Summary Recall · `lib/brain/conversation-recall.ts:78` · STAYS, 5. Anticipated-Question Recall · `lib/brain/anticipated-questions.ts:571` · STAYS, 6. Skill Recall · `lib/skills/skill-recall.ts:129` · STAYS, Brain Recall Consolidation Roadmap · 2026-05-16, Essential files (+8 more)
 
 ### Community 806 - "Task Classification & Scoring — Ambition-Aware Creation"
 Cohesion: 0.12
 Nodes (15): 1. Problem (code-verified, not assumed), 2. Goals / Non-goals, 3.1 The chokepoint principle, 3.2 Creation flow (per task), 3.3 Components, 3. Architecture (Approach B — async enrichment at the service chokepoint), 4. Error handling & idempotency, 5. Testing (+7 more)
 
 ### Community 807 - "use-stall-detection.ts"
-Cohesion: 0.19
-Nodes (13): Message, MessagePart, useChatStall(), UseChatStallOptions, UseChatStallResult, hasPendingToolCall(), Message, messageLength() (+5 more)
+Cohesion: 0.12
+Nodes (22): extractEntity(), onPageContextChanged(), PageContextBridge(), PageContextPayload, readPageContext(), PAGE_ANCHOR_KEYS, useChatStream(), ChatRuntimeController (+14 more)
 
 ### Community 808 - "browse-and-do.ts"
-Cohesion: 0.21
-Nodes (14): ActionPermission, aiChat, browseAndDo(), BrowseReceipt, BrowseStep, classifyConsequential(), DecisionSchema, EXTRACT_SCHEMA (+6 more)
+Cohesion: 0.36
+Nodes (9): AUDIO_DELIVERY, AudioQaResult, composeAudioVerdict(), detectClipping(), ffmpegStderr(), log, parseLoudnorm(), runAudioQa() (+1 more)
 
 ### Community 809 - "salvage-event-text.ts"
-Cohesion: 0.17
-Nodes (9): emptyResponseFallback(), NOTE: this is the symptom-level guarantee that the user never sees a, ChatLogger, SalvagedEventText, salvageEventText(), mockChatMessageCreate, mockChatMessageFindFirst, mockRecordError (+1 more)
+Cohesion: 0.05
+Nodes (66): Logger, PersistBase, buildStreamConfigFactory(), Logger, FinalizeSystemPromptInput, TraceFinishInput, TraceStartInput, ContentCriticScore (+58 more)
 
 ### Community 810 - "reddit_listing.py"
-Cohesion: 0.23
-Nodes (15): _attr(), fetch_listings(), _fetch_one(), _listing_url(), _log(), parse_cards(), _post_id(), Any (+7 more)
+Cohesion: 0.35
+Nodes (9): TRANSCRIPT, buildCustomerSpeechRecord(), clean(), CustomerSpeechRecord, CustomerTurns, extractCustomerTurns(), extractCustomerTurnsFromMessages(), isFiller() (+1 more)
 
 ### Community 811 - "reddit_public.py"
-Cohesion: 0.19
-Nodes (15): _compute_relevance(), _fetch_json(), _log(), _parse_posts(), Any, Reddit public ``.json`` search module (demoted to keyless Tier 0).  Reddit's pub, Parse Reddit listing JSON into normalized post dicts., Estimate relevance from engagement signals. (+7 more)
+Cohesion: 0.24
+Nodes (9): DeliveryFacts, DeliveryIssueLayer, DeliveryIssueSeverity, deriveDeliveryIssues(), getDeliveryIssues(), log, SEVERITY_ORDER, SocialDeliveryIssue (+1 more)
 
 ### Community 812 - "TaskManager"
 Cohesion: 0.23
 Nodes (4): Any, TaskManager, TaskQueueFullError, ValueError
 
 ### Community 813 - "industry-monitor.ts"
-Cohesion: 0.23
-Nodes (14): decodeXml(), extractTag(), fetchAndParseSource(), matchAll(), matchAttr(), matchesFilter(), ParsedItem, parseJsonText() (+6 more)
+Cohesion: 0.22
+Nodes (8): GET, handler(), buildCacheReport(), CacheReport, CacheStats, RecordArgs, recordCacheUsage(), stats
 
 ### Community 814 - "anti-pattern-auto-promote.ts"
-Cohesion: 0.16
-Nodes (13): autoPromoteFailedDecisions(), AutoPromoteResult, GRADE_TO_NUM, gradeToNum(), mapDomain(), slugify(), AntiPatternDomain, AntiPatternMeta (+5 more)
+Cohesion: 0.25
+Nodes (9): _can_resolve_hostname(), _decode_linux_route_gateway(), get_container_default_gateway_ip(), get_default_ollama_base_url(), is_running_in_container(), 返回 Ollama 的默认 OpenAI-compatible base_url。      用户显式配置 `ollama_base_url` 时不会走这里；这, 判断当前进程是否运行在容器内。      这个判断主要用于 Ollama 默认地址选择：     - 普通本机运行时，`localhost` 指向用户机器本身；, 读取 Linux 容器里的默认网关 IP。      Docker Desktop 通常提供 `host.docker.internal`，但原生 Linux (+1 more)
 
 ### Community 815 - "eufy_agent.py"
 Cohesion: 0.18
 Nodes (15): _eufy_get_devices(), _eufy_login(), _infer_eufy_location(), _load_token(), _normalize_api_devices(), poll_eufy_devices(), Load cached Eufy auth token., Cache Eufy auth token to disk. (+7 more)
 
 ### Community 816 - "run-quality-bench.ts"
-Cohesion: 0.23
-Nodes (14): callModel(), checkMustMention(), checkMustNotContain(), CheckResult, checkSpecDensity(), checkWordCount(), countWords(), main() (+6 more)
+Cohesion: 0.20
+Nodes (16): BenchSummary, callModel(), checkMustMention(), checkMustNotContain(), CheckResult, checkSpecDensity(), checkWordCount(), countWords() (+8 more)
 
 ### Community 817 - "security-audit.ts"
 Cohesion: 0.20
@@ -5746,8 +5504,8 @@ Cohesion: 0.20
 Nodes (8): DisabledPlateReaderAdapter, get_plate_reader(), LocalEasyOcrReaderAdapter, MockPlateReaderAdapter, PlateReaderAdapter, PlateRecognizerReaderAdapter, Factory function to build the correct plate reader based on config., Processes image and returns license plate details.         Returns:
 
 ### Community 819 - "makePreflightHandler"
-Cohesion: 0.19
-Nodes (13): Config, EngineFS(), FS, MCPServer, ToolHandlerFunc, makePreflightHandler(), preflightFormatArgument(), preflightRunArgs() (+5 more)
+Cohesion: 0.23
+Nodes (12): Config, MCPServer, ToolHandlerFunc, makePreflightHandler(), preflightFormatArgument(), preflightRunArgs(), registerPreflightTool(), T (+4 more)
 
 ### Community 820 - "LOCAL-CONTEXT-PACK.example.md — NOURCITY Dev Environment Template"
 Cohesion: 0.12
@@ -5766,20 +5524,20 @@ Cohesion: 0.12
 Nodes (15): Available Sources, Check what's configured, Developer / live-edit alternative, First Run Setup, Free (No API Key), Hermes Setup Guide for last30days, Installation, Prerequisites (+7 more)
 
 ### Community 824 - "dedupe.py"
-Cohesion: 0.25
-Nodes (14): dedupe_items(), get_ngrams(), hybrid_similarity(), item_text(), jaccard_similarity(), _ngrams_of_normalized(), normalize_text(), prepared_similarity() (+6 more)
+Cohesion: 0.12
+Nodes (21): AnticipatedQuestionsCard(), ApiShape, QuestionShape, trimQuestion(), googleOauthCell(), HealthDigest, hoursSince(), signedNum() (+13 more)
 
 ### Community 825 - "linkedin.py"
 Cohesion: 0.17
 Nodes (12): _is_article(), _log(), _parse_date(), Any, LinkedIn post search via ScrapeCreators API.  Searches public LinkedIn posts by, A LinkedIn long-form article (Pulse) lives under a /pulse/ URL.      Articles ar, Fetch a LinkedIn profile (incl. `articles[]`) via ScrapeCreators., Search LinkedIn posts via ScrapeCreators API.      Args:         topic: Search q (+4 more)
 
 ### Community 826 - "reddit_listing.py"
-Cohesion: 0.23
-Nodes (15): _attr(), fetch_listings(), _fetch_one(), _listing_url(), _log(), parse_cards(), _post_id(), Any (+7 more)
+Cohesion: 0.02
+Nodes (146): buildModelMessages(), BuildModelMessagesInput, ChatLogger, GET, log, GET, DELETE(), GET() (+138 more)
 
 ### Community 827 - "reddit_public.py"
-Cohesion: 0.19
-Nodes (15): _compute_relevance(), _fetch_json(), _log(), _parse_posts(), Any, Reddit public ``.json`` search module (demoted to keyless Tier 0).  Reddit's pub, Parse Reddit listing JSON into normalized post dicts., Estimate relevance from engagement signals. (+7 more)
+Cohesion: 0.03
+Nodes (94): _cjk_tokens(), has_cjk(), CJK-aware tokenization for relevance scoring and near-duplicate detection.  The, True if the text contains any CJK / kana / hangul character., Tokenize mixed CJK / Latin text into a flat list of lowercased tokens.      CJK, segment(), expand_instagram_queries(), _extract_core_subject() (+86 more)
 
 ### Community 828 - "TestProbeCommand"
 Cohesion: 0.15
@@ -5796,6 +5554,10 @@ Nodes (7): Regression tests for agent-host local-read boundaries., A plain resea
 ### Community 832 - "TestWriteApiKey"
 Cohesion: 0.12
 Nodes (9): Tests for write_api_key() — persisting the ScrapeCreators signup key., Key is written and the file is 0o600 (owner read/write only)., Persisted key reloads to the exact original value., If the key already exists, do not duplicate or overwrite it., Existing unrelated keys are preserved., A pathological value with whitespace is quoted so it round-trips., An empty api_key persists nothing and reports failure., Unwritable target dir -> False, no exception escapes. (+1 more)
+
+### Community 833 - "TestComputeRelevance"
+Cohesion: 0.11
+Nodes (16): Addendum — gate of the two same-day follow-up plans, Also stale in the plan (minor), Corrected build queue (what is GENUINELY open, in order), HITL Verification Record, How verification was done, Instagram OS Plan — Clarity-Gated Verdict Register (2026-07-29), Migration batch execution record (third PR, same day), Round A: Derived Data Confirmation (evidence witnessed this session) (+8 more)
 
 ### Community 834 - "compilerOptions"
 Cohesion: 0.12
@@ -5822,12 +5584,12 @@ Cohesion: 0.12
 Nodes (15): compilerOptions, declaration, declarationMap, esModuleInterop, isolatedModules, lib, module, moduleResolution (+7 more)
 
 ### Community 840 - "NickVoiceAgent"
-Cohesion: 0.15
-Nodes (12): Agent, entrypoint(), NickVoiceAgent, Any, LiveKit operator-voice agent · Wave-200 Phase 4 (2026-05-17)  The operator's per, POST to /api/agent and stream the response text chunks back.      The endpoint r, The voice-side wrapper for Nick. Replaces the LLM provider with     our HTTP bri, Override the LLM node so instead of calling a local LLM we         bridge to the (+4 more)
+Cohesion: 0.18
+Nodes (11): Deprioritized (removed from the roadmap), F1 · Claude Session Importer / Work Session Digest — `feat(statenour): add Claude session importer`, F2 · "What Changed?" system digest — `feat(statenour): add system change digest`, F3 · Task/Mission Inbox Rescue scanner — `feat(statenour): add task rescue scanner`, F4 · Action Receipt Feed — `feat(statenour): add action receipt feed`, F5 · Personal Command Shortcuts — `feat(statenour): add personal command shortcuts`, NEXT-INTELLIGENCE-WAVE — Statenour, Re-scope rationale (+3 more)
 
 ### Community 841 - "bird-search.mjs"
-Cohesion: 0.19
-Nodes (11): args, main(), SearchClient, writeStderr(), writeStdout(), FALLBACK_QUERY_IDS, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS (+3 more)
+Cohesion: 0.22
+Nodes (13): classifyIdentifier(), CorrectionStatus, correctionStatusFromCrossref(), CROSSREF_CONCERN_KEYS, CROSSREF_CORRECTION_KEYS, CROSSREF_RETRACTION_KEYS, CrossrefMessage, describeEvidence() (+5 more)
 
 ### Community 842 - "twitter-client-features.js"
 Cohesion: 0.30
@@ -5878,48 +5640,48 @@ Cohesion: 0.13
 Nodes (14): Cost ceiling, NickGPT · LoRA Fine-Tune Runbook, Prerequisites, Rollback, Skill-port lineage, Step 1 · Export the corpus, Step 2 · Upload corpus to HF Hub (or Modal volume), Step 3 · Create the Modal training script (+6 more)
 
 ### Community 854 - "vapi.ts"
-Cohesion: 0.14
-Nodes (11): VapiCallLog, cache, CacheEntry, log, readLocalCallRows(), TransferPreset, VapiCallDetail, VapiCallSummary (+3 more)
+Cohesion: 0.25
+Nodes (9): _can_resolve_hostname(), _decode_linux_route_gateway(), get_container_default_gateway_ip(), get_default_ollama_base_url(), is_running_in_container(), 返回 Ollama 的默认 OpenAI-compatible base_url。      用户显式配置 `ollama_base_url` 时不会走这里；这, 判断当前进程是否运行在容器内。      这个判断主要用于 Ollama 默认地址选择：     - 普通本机运行时，`localhost` 指向用户机器本身；, 读取 Linux 容器里的默认网关 IP。      Docker Desktop 通常提供 `host.docker.internal`，但原生 Linux (+1 more)
 
 ### Community 855 - "contentRun.ts"
-Cohesion: 0.20
-Nodes (13): advanceContentRun(), createContentRun(), CreateRunInput, getContentRun(), IMPLEMENTATION_STATE, ImplementationState, log, markContentRunPublishedByInventory() (+5 more)
+Cohesion: 0.36
+Nodes (9): APPLY, eqi(), isJunkName(), JUNK_PHONES, loadDatabaseUrl(), main(), normalizePhone(), parseName() (+1 more)
 
 ### Community 856 - "meta-capi.ts"
-Cohesion: 0.23
-Nodes (14): CAPICustomData, CAPIEvent, CAPIUserData, getAccessToken(), hashEmail(), hashPhone(), log, sendCAPIEvent() (+6 more)
+Cohesion: 0.20
+Nodes (12): GET(), ArtifactProbe, FleetTruth, getFleetTruth(), log, nickstireArtifacts(), QueueHealth, STATENOUR_ARTIFACT_PROBES (+4 more)
 
 ### Community 857 - "errorHandler.ts"
 Cohesion: 0.18
 Nodes (7): AppError, AuthenticationError, AuthorizationError, log, NotFoundError, RateLimitError, ValidationError
 
 ### Community 858 - "schemaGuard.ts"
-Cohesion: 0.22
-Nodes (13): allPresent(), h, readResult(), auditCriticalTables(), auditCriticalTablesWithRetry(), CRITICAL_TABLES, CriticalTable, getLastSchemaAudit() (+5 more)
+Cohesion: 0.20
+Nodes (14): errors, exists(), forbidLine(), lineCount(), read(), requireFile(), requireMatch(), requireThin() (+6 more)
 
 ### Community 859 - "security-audit.ts"
 Cohesion: 0.19
 Nodes (13): blockMap, BlockRecord, isBanned(), isWhitelisted(), log, PATH_TRAVERSAL_PATTERNS, recordBlock(), scanValue() (+5 more)
 
 ### Community 860 - "dispatch.ts"
-Cohesion: 0.28
-Nodes (14): assignWorkOrder(), clockIn(), clockOut(), extractServiceKeywords(), getAvailableBays(), getAvailableTechs(), getDbAndSchema(), getDispatchLoad() (+6 more)
+Cohesion: 0.20
+Nodes (10): ANALYSIS LENSES, ANTI-PATTERNS TO CATCH, CODE-SPECIFIC RULES, CORE RULES, DECISION ENGINE, FINAL STANDARD, IDENTITY CONTEXT, MASTER OPERATING DIRECTIVE (+2 more)
 
 ### Community 861 - "AGENTS.md · statenour-os"
 Cohesion: 0.13
-Nodes (15): 10 · Agent Framework Reference, 1 · Where we are right now, 2 · How we work, 3 · Canonical sources of truth, 4 · The fabrication-defense stack (don't break this), 5 · Active backlog (priority order · updated 2026-06-11), 6 · How to resume in a fresh session, 7 · Common gotchas / lessons learned (+7 more)
+Nodes (15): 10 · Agent Framework Reference, 1 · Where we are right now, 2 · How we work, 3 · Canonical sources of truth, 4 · The fabrication-defense stack (don't break this), 5 · Active backlog (priority order · updated 2026-07-28 late — evening waves shipped 5 of the 9 items listed this morning), 6 · How to resume in a fresh session, 7 · Common gotchas / lessons learned (+7 more)
 
 ### Community 862 - "data-source-health.ts"
-Cohesion: 0.18
-Nodes (10): GET, GET, parseProbeContent(), PersistedProbe, getProbeSpecs(), log, ProbeResult, PROBES (+2 more)
+Cohesion: 0.20
+Nodes (4): COLUMNS, Row, ROWS, Status
 
 ### Community 863 - "route.ts"
-Cohesion: 0.18
-Nodes (9): GET, notebookLMSchema, POST, log, NOTEBOOK_ALIASES, NotebookAlias, NotebookLMProvider, NotebookLMResult (+1 more)
+Cohesion: 0.19
+Nodes (16): base, AffinityInput, AffinityResult, clamp01(), declinedPoints(), legacyConfidence(), recencyPoints(), scoreServiceAffinity() (+8 more)
 
 ### Community 864 - "2026-04-15 — v10 Knowledge Automation"
-Cohesion: 0.14
-Nodes (15): 2026-04-15 — v10.1 Chat Intelligence + Permanent Principles, 2026-04-15 — v10 Knowledge Automation, 2026-04-20 — v10.2 Chat Intelligence Layer (Intelligence + Control), Added, Changed, Commits (6 atomic commits + this CHANGELOG), Commits (9 atomic commits, all pushed), Cron schedule (via `vercel.json`) (+7 more)
+Cohesion: 0.20
+Nodes (9): args, baseEvidence, baseIdx, enforce, files, manifestPath, repoRoot, requirements (+1 more)
 
 ### Community 865 - "STATE NOUR · v9.0 Plan — Command Spine (counter-plan)"
 Cohesion: 0.13
@@ -5934,8 +5696,8 @@ Cohesion: 0.13
 Nodes (14): Assumptions, Components, Data flow, Decision log, Design · suggestion-improve — suggestion-loop signals → improvement hypotheses, Edge cases, Error handling, Final design (+6 more)
 
 ### Community 868 - "mcp-server.ts"
-Cohesion: 0.26
-Nodes (13): fail(), handleInitialize(), handleMcpMessage(), handleToolsCall(), handleToolsList(), JsonRpcId, JsonRpcResponse, MCP_PROTOCOL_VERSIONS (+5 more)
+Cohesion: 0.20
+Nodes (6): KNOWN_ORPHANS, ORPHANS, ROOT, SRC, FLAG_DEFINITIONS, base
 
 ### Community 869 - "marketing-ai-citation-strategist.md"
 Cohesion: 0.13
@@ -5954,24 +5716,24 @@ Cohesion: 0.19
 Nodes (11): analyzeGoals(), clamp(), computeGoalAnalysis(), GoalAnalysis, GoalInput, GoalScore, Grade, gradeOf() (+3 more)
 
 ### Community 873 - "ServicesOverview.tsx"
-Cohesion: 0.10
-Nodes (22): AeoAnswerBlock(), BRAKE_REPAIR_FAQ, FAQItem, FAQPageSchema(), FAQPageSchemaProps, OIL_CHANGE_FAQ, SERVICES_OVERVIEW_FAQ, TIRE_BUYING_FAQ (+14 more)
+Cohesion: 0.17
+Nodes (19): buildRealRecallCases(), caseFromClaimWarning(), caseFromFailedToolCall(), caseFromRejectedOutcome(), CorpusComposition, describeCorpus(), RealCorpusResult, slug() (+11 more)
 
 ### Community 874 - "github.ts"
 Cohesion: 0.18
 Nodes (10): createIssue(), createPullRequest(), getFileContent(), getFileDiff(), getHeaders(), ghFetch(), listFiles(), listRepos() (+2 more)
 
 ### Community 875 - "chat-edit.ts"
-Cohesion: 0.13
-Nodes (10): ConcurrentEditError, ContentTooLongError, deleteMessageCascade(), DeleteMessageResult, EditHistoryEntry, EditMessageResult, EmptyContentError, MessageEditView (+2 more)
+Cohesion: 0.02
+Nodes (128): BookingWizard(), CHAIN_FEES, FeeRow, FrictionlessIntentPanel(), LiveVisitorCounter(), Props, Props, ServiceTriageCard() (+120 more)
 
 ### Community 876 - "branded.ts"
 Cohesion: 0.13
 Nodes (7): BrainMemoryId, Brand, Confidence, ErrorId, IdempotencyKey, Milliseconds, UsdAmount
 
 ### Community 877 - "health.ts"
-Cohesion: 0.22
-Nodes (14): adapter, check(), checkAgentTraceErrors(), checkBrainMemorySize(), checkBrainPipeline(), checkCronFailures(), checkDualWriteParity(), checkExtractedTables() (+6 more)
+Cohesion: 0.23
+Nodes (13): adapter, check(), checkAgentTraceErrors(), checkBrainMemorySize(), checkBrainPipeline(), checkCronFailures(), checkExtractedTables(), checkVectorOrphans() (+5 more)
 
 ### Community 878 - "Known Risks & Architectural Constraints"
 Cohesion: 0.13
@@ -5993,10 +5755,6 @@ Nodes (14): Context, GitHub issue #19 response (post AFTER publishing), README: 
 Cohesion: 0.39
 Nodes (14): T, makeStubPython(), stageCache(), TestBuildEnvDropsAllPreExistingPythonPath(), TestResolveTimeoutHonorsEnv(), TestRunDropsPreExistingPythonPath(), TestRunForwardsEnv(), TestRunHappyPath() (+6 more)
 
-### Community 883 - "_tokenize"
-Cohesion: 0.22
-Nodes (4): _tokenize(), Tests for tokenize() from relevance module., TestTokenize, TestTokenize
-
 ### Community 884 - "twitter-client-features.js"
 Cohesion: 0.30
 Nodes (13): applyFeatureOverrides(), buildArticleFeatures(), buildBookmarksFeatures(), buildExploreFeatures(), buildFollowingFeatures(), buildHomeTimelineFeatures(), buildLikesFeatures(), buildListsFeatures() (+5 more)
@@ -6010,20 +5768,20 @@ Cohesion: 0.13
 Nodes (4): EnvV3Tests, Threads is in the SC default-on family: same key, same per-call cost     shape a, Regression guard: INCLUDE_SOURCES should not be needed., ThreadsAvailabilityTests
 
 ### Community 887 - "test_instagram_sc.py"
-Cohesion: 0.13
-Nodes (5): Tests for instagram.py — ScrapeCreators Instagram search module., Tests for _compute_relevance()., Tests for _to_hashtag_form() — the multi-word retry workaround., TestComputeRelevance, TestHashtagFormCollapse
+Cohesion: 0.28
+Nodes (9): fetchFinnhub(), fetchQuoteCents(), fetchStooqClose(), fetchYahooPrice(), log, QuoteResult, withTimeout(), FakeRes (+1 more)
 
 ### Community 888 - "NormalizeV3Tests"
 Cohesion: 0.13
 Nodes (4): NormalizeV3Tests, Integration: after normalize, signals._top_comment_score should         return l, TikTok comments from enrich_with_comments use digg_count/text;         normalize, YT comments from enrich_with_comments use likes/text; normalize must         car
 
 ### Community 889 - "OK"
-Cohesion: 0.16
-Nodes (9): probe_command(), Typed source health: classify a source/tool outcome honestly.  The pipeline hist, Typed outcome for a source or the tool backing it.      ``state`` is one of the, True when the source produced something worth keeping (ok/degraded)., Probe an external command, distinguishing missing/broken/timeout/ok.      Separa, SourceHealth, True when the source produced something worth keeping (ok/degraded)., OK() (+1 more)
+Cohesion: 0.25
+Nodes (6): probe_command(), Typed source health: classify a source/tool outcome honestly.  The pipeline hist, Typed outcome for a source or the tool backing it.      ``state`` is one of the, True when the source produced something worth keeping (ok/degraded)., Probe an external command, distinguishing missing/broken/timeout/ok.      Separa, SourceHealth
 
 ### Community 890 - "RuntimeError"
-Cohesion: 0.18
-Nodes (10): _error_message(), HtmlPublishError, publish_html(), Any, Optional hosted publishing for rendered HTML artifacts., Raised when the hosted HTML publish endpoint rejects the artifact., Publish a single HTML document and return the provider response., AsyncDeepResearchFailed (+2 more)
+Cohesion: 0.32
+Nodes (7): _error_message(), HtmlPublishError, publish_html(), Any, Optional hosted publishing for rendered HTML artifacts., Raised when the hosted HTML publish endpoint rejects the artifact., Publish a single HTML document and return the provider response.
 
 ### Community 891 - "ui.py"
 Cohesion: 0.15
@@ -6090,7 +5848,7 @@ Cohesion: 0.21
 Nodes (13): categorize(), classifyTier(), DATABASE_URL, __dirname, envText, fileToRoutePath(), loadGscData(), loadRoutesFromRegistry() (+5 more)
 
 ### Community 907 - "lint-pii.mjs"
-Cohesion: 0.18
+Cohesion: 0.19
 Nodes (13): allViolations, APP_ROOT, AUDIT_MODE, __dirname, __filename, getAddedLines(), getStagedFiles(), IN_SCOPE (+5 more)
 
 ### Community 908 - "regen-prerender.mjs"
@@ -6102,24 +5860,24 @@ Cohesion: 0.14
 Nodes (10): brokenCount, __dirname, fresh, logStream, PRERENDER_DIR_BACKUP, PRERENDER_DIR_FINAL, PRERENDER_DIR_TMP, ROOT (+2 more)
 
 ### Community 910 - "revenueOps.ts"
-Cohesion: 0.20
-Nodes (9): rangeSchema, revenueOpsRouter, aggregateGscDetail(), buildGscMeasurementReport(), GscCoverage, GscDetailRow, GscMeasurementReport, GscTotals (+1 more)
+Cohesion: 0.22
+Nodes (8): callbackRows, inboundRows, LEAD, leadRows, orchestrateResult, orchestrateSpy, selectWhereArgs, updateSets
 
 ### Community 911 - "qcService.ts"
-Cohesion: 0.23
-Nodes (13): checkForComeback(), COMMON_ITEMS, createQcChecklist(), failQc(), getDbAndSchema(), getQcChecklist(), getQcStats(), log (+5 more)
+Cohesion: 0.27
+Nodes (8): args, main(), SearchClient, writeStderr(), writeStdout(), isQueryIdMismatch(), withSearch(), extractCursorFromInstructions()
 
 ### Community 912 - "visualFamily.ts"
-Cohesion: 0.26
-Nodes (12): ctaCss(), esc(), FamilyCardInput, familyFromArtDirection(), getVisualFamily(), paddingFor(), renderFamilyCardHtml(), resolveFamilyForSubject() (+4 more)
+Cohesion: 0.27
+Nodes (4): EventDeduplicator, Purge tracks that haven't been updated in 15 minutes., Deduplicates incoming raw Frigate events.         Returns:             (should_p, VehicleTrack
 
 ### Community 913 - "proactive-pushes.test.ts"
-Cohesion: 0.18
-Nodes (12): GET, fireAfternoonPush, fireEveningPush, fireMorningPush, fireSlotForCurrentHour, mockAnticipatedQuestions, mockApprovalRequestCount, mockBodyTrackingFindUnique (+4 more)
+Cohesion: 0.05
+Nodes (60): captureConversionTargetValues, captureTriageStatusValues, commandResolutionTypeValues, communicationModeValues, customerFollowUpStageValues, customerSegmentValues, dayStateValues, designModeValues (+52 more)
 
 ### Community 914 - "framework-orbit-scene.tsx"
-Cohesion: 0.21
-Nodes (11): FrameworkOrbitProps, PLACEHOLDER, buildOrbits(), clamp01(), FrameworkOrbitScene(), FrameworkOrbitSceneProps, GOLD_DIM_COLOR, makeRng() (+3 more)
+Cohesion: 0.10
+Nodes (20): GuidesIndex(), arr(), clamp(), EngineResult, log, MasterIntelligenceReport, num(), ScoreComponent (+12 more)
 
 ### Community 915 - "ADR-0020 · Closed-Loop Calibrated Brain (M1) + supporting waves"
 Cohesion: 0.14
@@ -6134,8 +5892,8 @@ Cohesion: 0.14
 Nodes (13): 1 · Verify Google Cloud OAuth client, 2 · Mint a refresh token via OAuth Playground, 3 · Store the refresh token, 4 · Remove the OAuth Playground redirect URI, 5 · Verify, Gmail Integration Setup · v10.0.379, Quotas, Required scopes (+5 more)
 
 ### Community 918 - "4. Final Design"
-Cohesion: 0.14
-Nodes (13): 1. Understanding Summary, 2. Key Constraints, 3. Decision Log, 4.1 Data model (hand-applied migration), 4.2 The Journal Brain pass (async, post-capture), 4.3 Grounding & confirm UX, 4.4 Scoring, 4.5 Generative + challenge layers (+5 more)
+Cohesion: 0.13
+Nodes (14): 1. Understanding Summary, 2. Key Constraints, 3. Decision Log, 4.1 Data model (hand-applied migration), 4.2 The Journal Brain pass (async, post-capture), 4.3 Grounding & confirm UX, 4.4 Scoring, 4.5 Generative + challenge layers (+6 more)
 
 ### Community 919 - "Permission Model"
 Cohesion: 0.14
@@ -6146,8 +5904,8 @@ Cohesion: 0.14
 Nodes (13): Architectural notes, Coexistence pattern, Excluded from migration, HIGH churn (migrate next), LOW churn, MEDIUM churn, Migrated surfaces (16), Migration · REST → tRPC (+5 more)
 
 ### Community 921 - "Nickstire Bridge Endpoints · Spec for the Voice-Assistant Pipeline"
-Cohesion: 0.19
-Nodes (13): 1 · POST `/api/bridge/dropoff`, 2 · POST `/api/bridge/callback`, 3 · GET `/api/bridge/customer-lookup?phone=NORMALIZED`, Auth, Nickstire Bridge Endpoints · Spec for the Voice-Assistant Pipeline, Notes, Query, Request body (+5 more)
+Cohesion: 0.11
+Nodes (17): 1 · POST `/api/bridge/dropoff`, 2 · POST `/api/bridge/callback`, 3 · GET `/api/bridge/customer-lookup?phone=NORMALIZED`, Auth, Nickstire Bridge Endpoints · Spec for the Voice-Assistant Pipeline, Notes, Notes, Notes (+9 more)
 
 ### Community 922 - "ui.py"
 Cohesion: 0.15
@@ -6161,37 +5919,41 @@ Nodes (10): Application configuration - root APIRouter.  Defines all FastAPI app
 Cohesion: 0.35
 Nodes (13): download_videos(), _download_videos_by_script_order(), get_api_key(), _get_tls_verify(), MaterialInfo, VideoAspect, VideoConcatMode, Coverr (https://coverr.co) - free HD/4K stock videos,     subject to Coverr lice (+5 more)
 
+### Community 926 - "TestElevenLabsVoice"
+Cohesion: 0.27
+Nodes (8): args, main(), SearchClient, writeStderr(), writeStdout(), isQueryIdMismatch(), withSearch(), extractCursorFromInstructions()
+
 ### Community 927 - "outcome-calibration.ts"
-Cohesion: 0.22
-Nodes (12): buildCalibrationPromptBlock(), CalibrationStats, ExtractedPrediction, extractPredictions(), fnv1a(), getCalibrationStats(), PersistArgs, persistPrediction() (+4 more)
+Cohesion: 0.24
+Nodes (16): _candidate_text(), cluster_candidates(), _cluster_uncertainty(), _entity_overlap(), _extract_entities(), _merge_entity_clusters(), _mmr_representatives(), Candidate (+8 more)
 
 ### Community 928 - "composure-control.ts"
-Cohesion: 0.20
-Nodes (12): analyzeComposure(), BrainDumpInput, clamp(), ComposureAnalysis, computeComposure(), DailyLogInput, DecisionInput, EmotionalArcInput (+4 more)
+Cohesion: 0.19
+Nodes (14): _attr(), _body_for(), extract_post_ref(), fetch_comments(), _iso_to_date(), parse_comments(), Any, Keyless Reddit comment enrichment via shreddit /svc endpoints.  Reddit's ``{thre (+6 more)
 
 ### Community 929 - "weight.ts"
-Cohesion: 0.22
-Nodes (11): BodyRow, computeWeightTrend(), directionOf(), mean(), MetricTrajectory, slope(), trajectoryOf(), WeightAnalysis (+3 more)
+Cohesion: 0.18
+Nodes (14): analyzeWeightTrend(), BodyRow, computeWeightTrend(), directionOf(), mean(), MetricTrajectory, slope(), trajectoryOf() (+6 more)
 
 ### Community 930 - "motion-perf-audit.mjs"
 Cohesion: 0.19
 Nodes (11): blocks, classify(), COMPOSITOR, css, __dirname, findings, groups, LAYOUT (+3 more)
 
 ### Community 931 - "smoke-deep-fit.mjs"
-Cohesion: 0.25
-Nodes (13): check_agentTraceErrors(), check_autonomousAnywhere(), check_busStuck(), check_chatLiveness(), check_cronHeartbeat(), check_providerHeartbeat(), check_softDeleteOrphans(), check_toolVerbRatioAnywhere() (+5 more)
+Cohesion: 0.31
+Nodes (10): check_agentTraceErrors(), check_busStuck(), check_chatLiveness(), check_cronHeartbeat(), check_softDeleteOrphans(), check_vectorDimMix(), findings, main() (+2 more)
 
 ### Community 932 - "CameraBridgeApp"
-Cohesion: 0.19
-Nodes (4): CameraBridgeApp, Fetches snapshot image bytes from Frigate Web API., Background thread executing heartbeats, retry queue flushes, and disk cleanups., EventDeduplicator
+Cohesion: 0.18
+Nodes (8): Path, Structured logging system for NOUR OS. Writes JSON logs to /logs, maintains audi, Structured logging with JSON output and audit trail., Write structured log entry to file., Log an audit event (state changes, actions taken)., Log a command execution., Read recent audit entries., StructuredLogger
 
 ### Community 933 - "ADR-0002 · Adopt Braintrust for eval + observability"
 Cohesion: 0.14
 Nodes (13): ADR-0002 · Adopt Braintrust for eval + observability, Consequences, Context, Decision, How it integrates with what we have, Implementation phases, Negative, Neutral (+5 more)
 
 ### Community 934 - "How Reddit & X Search Work in last30days"
-Cohesion: 0.15
-Nodes (13): Architecture Overview, Backend 1: xAI API, Backend 2: Bundled Bird client (free alternative), Depth settings, Enrichment (the secret sauce), Error Handling, How it works, How Reddit & X Search Work in last30days (+5 more)
+Cohesion: 0.13
+Nodes (14): Architecture Overview, Backend 1: xAI API, Backend 2: Bundled Bird client (free alternative), Depth settings, Depth settings, Enrichment (the secret sauce), Error Handling, How it works (+6 more)
 
 ### Community 935 - "Ensure"
 Cohesion: 0.40
@@ -6200,6 +5962,10 @@ Nodes (13): Ensure(), resetOnce(), T, mustReadFile(), newTestFS(), TestEnsureCon
 ### Community 936 - "ui.py"
 Cohesion: 0.15
 Nodes (11): _build_nux_message(), Colors, _completion_sources(), _format_completion_part(), print_phase(), Terminal UI utilities for last30days skill., Build conversational NUX message with dynamic source status., Show NUX / promotional message for missing API keys.          Args: (+3 more)
+
+### Community 938 - "EvaluatorV3Tests"
+Cohesion: 0.25
+Nodes (6): probe_command(), Typed source health: classify a source/tool outcome honestly.  The pipeline hist, Typed outcome for a source or the tool backing it.      ``state`` is one of the, True when the source produced something worth keeping (ok/degraded)., Probe an external command, distinguishing missing/broken/timeout/ok.      Separa, SourceHealth
 
 ### Community 939 - "test_html_publish.py"
 Cohesion: 0.23
@@ -6210,8 +5976,8 @@ Cohesion: 0.14
 Nodes (6): Unit tests for untested internal functions across rerank, render, planner, and s, Generic formatter must not garble output for unknown sources., TestFormatNumber, TestGenericEngagementFormatter, TestNormalizeWeights, TestTruncate
 
 ### Community 943 - "create_mock_event"
-Cohesion: 0.14
-Nodes (14): create_mock_event(), create_mock_market(), Create a mock Polymarket event., Test basic response parsing., Test that closed events are filtered., Test that Polymarket URLs are generated., Create a mock Polymarket market., Test that engagement/volume metrics are captured. (+6 more)
+Cohesion: 0.29
+Nodes (10): extract_entities(), _extract_subreddits(), _extract_x_handles(), _extract_x_hashtags(), Any, Entity extraction from initial search results for supplemental searches., Extract key entities from Phase 1 results for supplemental searches.      Parses, Extract and rank @handles from X results.      Sources handles from:     1. auth (+2 more)
 
 ### Community 944 - "test_project_config_trust.py"
 Cohesion: 0.22
@@ -6222,8 +5988,8 @@ Cohesion: 0.21
 Nodes (3): Tests for reddit_arctic — keyless post-score lookup via arctic-shift (U6)., _resp(), TestFetchScores
 
 ### Community 947 - "TestRunFullDeviceAuth"
-Cohesion: 0.14
-Nodes (8): Tests for run_full_device_auth()., Full flow succeeds: start -> poll -> fetch -> return api_key., Device code request fails -> error status., Poll times out -> timeout status with user_code., Auth succeeds but profile fetch fails -> error status., webbrowser.open raises -> flow continues without crashing., Empty verification_uri -> browser not opened., TestRunFullDeviceAuth
+Cohesion: 0.42
+Nodes (5): FomoEntry, resolveFomoEntries(), FomoTicker(), getIcon(), randomInterval()
 
 ### Community 948 - "TestWriteSetupConfig"
 Cohesion: 0.14
@@ -6236,6 +6002,10 @@ Nodes (7): ScrapeCreators fallback wiring in fetch_transcript (U1/U2)., A yt-dlp
 ### Community 950 - "material.py"
 Cohesion: 0.35
 Nodes (13): download_videos(), _download_videos_by_script_order(), get_api_key(), _get_tls_verify(), MaterialInfo, VideoAspect, VideoConcatMode, Coverr (https://coverr.co) - free HD/4K stock videos,     subject to Coverr lice (+5 more)
+
+### Community 951 - "TestElevenLabsVoice"
+Cohesion: 0.31
+Nodes (9): markFailed(), backoffMs(), DEFAULT_BACKOFFS, DEFAULT_POLICY, getRetryPolicy(), POLICIES, RetryPolicy, shouldDrop() (+1 more)
 
 ### Community 952 - "@statenour/lenses"
 Cohesion: 0.14
@@ -6250,28 +6020,28 @@ Cohesion: 0.15
 Nodes (12): Chat handoff after saving, Comparison mode, Edge cases, Follow-up turn, How to fire it, HTML as the requested deliverable, Normal report plus HTML copy, Optional hosted publishing (+4 more)
 
 ### Community 955 - "collect_html_warnings"
-Cohesion: 0.21
-Nodes (13): collect_html_warnings(), collect_html_warnings_comparison(), _dedupe_notes(), _is_pre_research_eligible(), Collect data quality warnings for stderr output (NOT for the HTML artifact)., Collect comparison-mode warnings, prefixed by entity label., Return True if the topic looks like a person, project, brand, or product.      H, Emit a Pre-Research Status warning block when the engine was called     without (+5 more)
+Cohesion: 0.39
+Nodes (7): buildJudgePrompt(), judgeResolution(), JudgeResult, log, parseJudgeVerdict(), renderDialogue(), ResolutionVerdict
 
 ### Community 956 - "runtime-features.js"
-Cohesion: 0.38
-Nodes (11): getFeatureOverridesSnapshot(), loadFeatureOverrides(), mergeOverrides(), normalizeFeatureMap(), normalizeOverrides(), readOverridesFromEnv(), readOverridesFromFile(), refreshFeatureOverridesCache() (+3 more)
+Cohesion: 0.17
+Nodes (12): _build_source_footer_lines(), _footer_line_for_source(), _format_web_line_sources(), _polymarket_top_markets(), Strip boilerplate from a Polymarket question to produce a compact descriptor., Build short summary strings for the top Polymarket markets by volume.      Retur, Return a clean publication name for a URL, or a bare domain fallback.      Strip, Return comma-separated clean publication names for the Web line.      Deduplicat (+4 more)
 
 ### Community 957 - "xiaohongshu_api.py"
-Cohesion: 0.23
-Nodes (12): _build_note_url(), Any, Xiaohongshu HTTP API search client for last30days.  Uses xpzouying/xiaohongshu-m, Convert Xiaohongshu count strings to int.      Supports plain ints and Chinese s, Convert millisecond timestamp to YYYY-MM-DD., Heuristic relevance score from engagement metrics., Build a stable Xiaohongshu note URL., Search Xiaohongshu feeds and normalize to web-item shape. (+4 more)
+Cohesion: 0.09
+Nodes (23): _log(), Report, Parallel multi-entity fan-out for the --competitors flag.  The orchestrator acce, Run main + competitor pipelines in parallel; return surviving reports.      Args, run_competitor_fanout(), fetch_scores(), _log(), Arctic-shift score resolver — post upvote counts by id, keyless and free.  ``sea (+15 more)
 
 ### Community 958 - "reelDirector.ts"
-Cohesion: 0.31
-Nodes (11): genomeToReelSeed(), CampaignKeyword, QualityScoreResult, ReelBrief, baseGenome, attachResolvedProof(), campaignKeywordFromGenome(), draftReelFromGenome() (+3 more)
+Cohesion: 0.18
+Nodes (11): 2026-04-22 — v11.1 Devastating-Lead Continuation Wave, Auth + diagnostics hardening, Bugs killed (prod), Builder Sandbox power actions, Chat fluidity (Tier 1–3), Chat page, Codebase cleanup, Cron fleet (+3 more)
 
 ### Community 959 - "SettingsStatusTab.tsx"
 Cohesion: 0.26
 Nodes (7): CronHealthRow, deriveCronIssues(), IssueSeverity, SettingsStatusTab(), SEVERITY_STYLES, OpenIssue, useSettingsStatus()
 
 ### Community 960 - "masterIntelligence.ts"
-Cohesion: 0.21
-Nodes (10): GuidesIndex(), arr(), clamp(), EngineResult, generateMasterIntelligenceReport(), log, MasterIntelligenceReport, num() (+2 more)
+Cohesion: 0.36
+Nodes (6): CallStateLike, isConvertedScore(), scoreBand, trailReachedTool(), NON_PERSISTING_TOOLS, PERSISTING_TOOLS
 
 ### Community 961 - "Last updated: 2026-03-24"
 Cohesion: 0.15
@@ -6314,28 +6084,28 @@ Cohesion: 0.15
 Nodes (11): [aheadStr, behindStr], APP, argv, asJson, counts, dirty, facts, HERE (+3 more)
 
 ### Community 971 - "lint-pii.mjs"
-Cohesion: 0.18
-Nodes (12): allViolations, APP_ROOT, AUDIT_MODE, __dirname, __filename, getAddedLines(), getStagedFiles(), IN_SCOPE (+4 more)
+Cohesion: 0.22
+Nodes (8): Action receipts (P7), Commands, Rollback, Rules, Runbook · Action honesty — no false "done" claims, The contract, The fabrication-defense stack (L1–L5 — load-bearing, extend don't bypass), Verification
 
 ### Community 972 - "Redis"
-Cohesion: 0.17
-Nodes (4): initCache(), ioredis, Redis, RedisOptions
+Cohesion: 0.33
+Nodes (6): Props, RealtimeVoiceOverlay(), RealtimeSession, useRealtimeVoice(), UseRealtimeVoiceOpts, Probe()
 
 ### Community 973 - "cwv-telemetry.ts"
-Cohesion: 0.19
-Nodes (10): buffer, classify(), CwvMetric, CwvReport, CwvSample, freshSamples(), getCwvReport(), log (+2 more)
+Cohesion: 0.18
+Nodes (9): GET, notebookLMSchema, POST, log, NOTEBOOK_ALIASES, NotebookAlias, NotebookLMProvider, NotebookLMResult (+1 more)
 
 ### Community 974 - "runHealthCheck"
-Cohesion: 0.21
-Nodes (13): checkAIGateway(), checkDatabase(), checkMemory(), computeOverallState(), getBackoffMs(), getOrCreateComponent(), recordMetricSample(), runCustomRecoveries() (+5 more)
+Cohesion: 0.19
+Nodes (14): resetDbConnection(), recoverHandler(), checkDatabase(), checkMemory(), computeOverallState(), getBackoffMs(), getOrCreateComponent(), recordMetricSample() (+6 more)
 
 ### Community 975 - "publishIntegrityClosure.test.ts"
-Cohesion: 0.17
-Nodes (9): admin(), closeAttemptsMock, ctx(), database, Op, ops, publishToSocialMock, selectQueue (+1 more)
+Cohesion: 0.31
+Nodes (5): _build_fun_prompt(), _extract_comment_text_scored(), Like ``_extract_comment_text`` but prefixes each top comment with its     crowd, A negative score must not emit a misleading [+-N] prefix (Greptile #592)., TestVotesInFunPrompt
 
 ### Community 976 - "generatePost"
-Cohesion: 0.18
-Nodes (13): ADVERTISABLE_PRICES, angleForArchetype(), archetypeFromAngle(), buildGenSystemPrompt(), buildGenUserPrompt(), clamp01(), derivePosterCopy(), evalCaption() (+5 more)
+Cohesion: 0.20
+Nodes (10): [ASSISTANT] (gpt-oss:120b) - ID: cmqz76nud002iqj017i5qrf8w, [ASSISTANT] (gpt-oss:120b) - ID: cmqz785830036qj0190zqvrd4, [ASSISTANT] (gpt-oss:120b) - ID: cmqz79ju6003nqj01f9t18ig7, [ASSISTANT] (gpt-oss:120b) - ID: cmqz7b00e0047qj01b7myqwsz, Transcript, [USER] (unknown) - ID: cmqz766t6001iqj01bzbpwexd, [USER] (unknown) - ID: cmqz770z2002oqj01dg6v98yr, [USER] (unknown) - ID: cmqz78o54003bqj01z8d2nznw (+2 more)
 
 ### Community 977 - "voice-clone.ts"
 Cohesion: 0.24
@@ -6347,7 +6117,7 @@ Nodes (12): arg, ask(), cmdCommit(), cmdDrift(), cmdLoop(), cmdScore(), cmdStatu
 
 ### Community 979 - "top-goal-today.tsx"
 Cohesion: 0.27
-Nodes (9): GoalsHero(), NicksGoalsBrief(), expectedProgressByNow(), formatValue(), GoalRowSlim, HORIZON_PRIORITY, pickTopGoal(), TopGoalToday() (+1 more)
+Nodes (10): GoalsHero(), NicksGoalsBrief(), expectedProgressByNow(), formatValue(), GoalRowSlim, HORIZON_PRIORITY, pickTopGoal(), Stat() (+2 more)
 
 ### Community 980 - "ADR-0021 · P-wave · migrations applied · OSS rewire · Chrome extension MVP · operator-state expansion"
 Cohesion: 0.15
@@ -6362,20 +6132,20 @@ Cohesion: 0.15
 Nodes (13): AI provider chain, Architecture · statenour, Cron orchestration, Module boundaries, Observability stack, Request lifecycle — a Nick chat turn, See also, State model — NourState (+5 more)
 
 ### Community 983 - "NOUR OS — Universal Agent Context (v7.0-alpha)"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (13): 1. statenour-os (bdnick.info) — Personal Command Center, 2. nickstire.org — Business Website + Admin, BRIDGE BETWEEN SYSTEMS, BUSINESS MODEL, CROSS-DOMAIN CAUSATION CHAINS (Nick uses these proactively), ENV VARS ON VERCEL (statenour-os), KEY FILE PATHS (nickstire.org), KEY FILE PATHS (statenour-os) (+5 more)
 
 ### Community 984 - "Tier 1 — Next (this week) — highest bang-for-effort"
-Cohesion: 0.15
-Nodes (13): 1.10 Pin reinforcement cron + nudge, 1.11 Voice-input while streaming (barge-in), 1.12 Mode pill + pin badge in /command header, 1.1 Mode pill → full override panel with token preview, 1.2 Pin ranking + prompt-budget optimizer, 1.3 /brain pin import/export + share link, 1.4 Suggestion quality learning loop, 1.5 Prompt cache warmup on app load (not just typing) (+5 more)
+Cohesion: 0.20
+Nodes (10): Auto-discovered competitor comparisons, Best Takes, Cross-source cluster merging, ELI5 mode, Everything else in v3, GitHub person-mode, Intelligent search: the killer feature, Shareable HTML briefs (+2 more)
 
 ### Community 985 - "Tier 9 — POST-v10.2 QUALITY AUDIT (do this week before more features)"
 Cohesion: 0.15
 Nodes (13): 9.10 Venice retry path for suggestions endpoint, 9.11 Dark-mode state verification on every new component, 9.12 Remove dead pins.pin (local) if unused elsewhere, 9.1 System-prompt token ceiling regression test, 9.2 Pinned-context E2E smoke, 9.3 Suggestion cache hit-rate telemetry, 9.4 Stream stall detection already exists — add pin-write verification path, 9.5 Audit: every error path returns a 200 with empty data (+5 more)
 
 ### Community 986 - "STATENOUR EVOLUTION AUDIT — Founder Report"
-Cohesion: 0.15
-Nodes (12): 0. The primary question, answered, 10. Final — "If I owned STATENOUR for the next five years, the ten most important things I would do next", 1. Current strengths (what is genuinely excellent), 2. Current weaknesses (the honest list), 3. Biggest opportunities (ranked by leverage), 4. Most underrated opportunities, 5. Most dangerous weaknesses, 6. Highest-leverage improvements (full ranked backlog) (+4 more)
+Cohesion: 0.07
+Nodes (25): 0. The primary question, answered, 10. Final — "If I owned STATENOUR for the next five years, the ten most important things I would do next", 1. Current strengths (what is genuinely excellent), 2. Current weaknesses (the honest list), 3. Biggest opportunities (ranked by leverage), 4. Most underrated opportunities, 5. Most dangerous weaknesses, 6. Highest-leverage improvements (full ranked backlog) (+17 more)
 
 ### Community 987 - "Second-Location Feasibility Model"
 Cohesion: 0.15
@@ -6410,24 +6180,24 @@ Cohesion: 0.15
 Nodes (12): 1. Pressure-Test the Brief, 2. Define Chapter Intent, 3. Draft in First-Person Voice, 4. Run a Strategic Revision Pass, 5. Deliver the Revision Package, Book Co-Author, Critical Rules You Must Follow, Success Metrics (+4 more)
 
 ### Community 995 - "judge-eval.ts"
-Cohesion: 0.24
-Nodes (12): ComparisonHead, ComparisonRow, readComparisonHeads, readComparisons, buildJudgeEvalSummary(), computeVerdict(), emptyBucket(), IntentBreakdown (+4 more)
+Cohesion: 0.31
+Nodes (10): _domain(), keyless_search(), Keyless web search (floor tier for engine-side general web).  Returns ranked web, DuckDuckGo wraps result links as //duckduckgo.com/l/?uddg=<encoded>., Run keyless web search; returns (items, artifact). Never raises., _search_ddg(), _search_searxng(), _strip_html() (+2 more)
 
 ### Community 996 - "Save shareable HTML brief"
 Cohesion: 0.15
 Nodes (12): Chat handoff after saving, Comparison mode, Edge cases, Follow-up turn, How to fire it, HTML as the requested deliverable, Normal report plus HTML copy, Optional hosted publishing (+4 more)
 
 ### Community 997 - "runtime-features.js"
-Cohesion: 0.38
-Nodes (11): getFeatureOverridesSnapshot(), loadFeatureOverrides(), mergeOverrides(), normalizeFeatureMap(), normalizeOverrides(), readOverridesFromEnv(), readOverridesFromFile(), refreshFeatureOverridesCache() (+3 more)
+Cohesion: 0.25
+Nodes (6): probe_command(), Typed source health: classify a source/tool outcome honestly.  The pipeline hist, Typed outcome for a source or the tool backing it.      ``state`` is one of the, True when the source produced something worth keeping (ok/degraded)., Probe an external command, distinguishing missing/broken/timeout/ok.      Separa, SourceHealth
 
 ### Community 998 - "runtime-query-ids.js"
 Cohesion: 0.27
 Nodes (12): createRuntimeQueryIdStore(), discoverBundles(), DISCOVERY_PAGES, extractOperations(), fetchAndExtract(), fetchText(), HEADERS, OPERATION_PATTERNS (+4 more)
 
 ### Community 999 - "xiaohongshu_api.py"
-Cohesion: 0.23
-Nodes (12): _build_note_url(), Any, Xiaohongshu HTTP API search client for last30days.  Uses xpzouying/xiaohongshu-m, Convert Xiaohongshu count strings to int.      Supports plain ints and Chinese s, Convert millisecond timestamp to YYYY-MM-DD., Heuristic relevance score from engagement metrics., Build a stable Xiaohongshu note URL., Search Xiaohongshu feeds and normalize to web-item shape. (+4 more)
+Cohesion: 0.17
+Nodes (15): buildCalibrationPromptBlock(), CalibrationStats, ExtractedPrediction, extractPredictions(), fnv1a(), getCalibrationStats(), PersistArgs, persistPrediction() (+7 more)
 
 ### Community 1000 - "start"
 Cohesion: 0.26
@@ -6446,8 +6216,8 @@ Cohesion: 0.21
 Nodes (11): countBySourceType(), deleteOrphansForType(), EmbeddingCleanupOptions, EmbeddingCleanupReport, ORPHAN_QUERIES, OrphanQuery, PrismaLike, runEmbeddingCleanup() (+3 more)
 
 ### Community 1004 - "client.ts"
-Cohesion: 0.27
-Nodes (12): Collection, getDefaultCollection(), getKey(), getTranscript(), indexSpokenWords(), transcribeAudio(), TranscriptResponse, UploadedAsset (+4 more)
+Cohesion: 0.09
+Nodes (28): getFileExtension(), getLanguageName(), log, transcribeAudio(), TranscribeOptions, TranscriptionError, TranscriptionResponse, WhisperResponse (+20 more)
 
 ### Community 1005 - "audit-sort-filter.mjs"
 Cohesion: 0.15
@@ -6482,12 +6252,12 @@ Cohesion: 0.15
 Nodes (12): Chat handoff after saving, Comparison mode, Edge cases, Follow-up turn, How to fire it, HTML as the requested deliverable, Normal report plus HTML copy, Optional hosted publishing (+4 more)
 
 ### Community 1013 - "SubprocResult"
-Cohesion: 0.15
-Nodes (6): Result of a subprocess run that captured stdout and stderr., SubprocResult, search_youtube wraps the yt-dlp invocation when SSH routing is on., SSH connection failures surface as an error, not silent '0 results'., LAST30DAYS_YOUTUBE_SSH_HOST routes yt-dlp transcript fetches through SSH., TestTranscriptSSHRouting
+Cohesion: 0.31
+Nodes (9): Baseline, buildWarningMap(), ESLintFileResult, ESLintMessage, getRepoRoot(), loadBaseline(), main(), runEslint() (+1 more)
 
 ### Community 1014 - "runtime-features.js"
-Cohesion: 0.38
-Nodes (11): getFeatureOverridesSnapshot(), loadFeatureOverrides(), mergeOverrides(), normalizeFeatureMap(), normalizeOverrides(), readOverridesFromEnv(), readOverridesFromFile(), refreshFeatureOverridesCache() (+3 more)
+Cohesion: 0.50
+Nodes (4): 带总超时地消费 edge_tts 7.x 的同步流。      实现原因：     `stream_sync()` 本身是阻塞迭代器，网络层卡住时主线程无法及时, 统一消费 edge_tts 的同步流和旧版异步流。      edge_tts 7.x 提供 `stream_sync()`，可以在同步函数里直接迭代；, stream_edge_tts_chunks(), _stream_edge_tts_sync_with_timeout()
 
 ### Community 1015 - "runtime-query-ids.js"
 Cohesion: 0.27
@@ -6506,16 +6276,16 @@ Cohesion: 0.26
 Nodes (12): analyze_clip(), _client(), _cosine(), embed_text(), _embed_text_cached(), is_enabled(), TwelveLabs (https://twelvelabs.io) integration — optional, opt-in helpers.  This, Reorder `search_terms` so the terms most semantically relevant to     `video_sub (+4 more)
 
 ### Community 1020 - "cli.py"
-Cohesion: 0.28
-Nodes (12): _bgm_type(), build_video_params(), _hex_color(), _non_negative_float(), _paragraph_count(), parse_args(), _percent_position(), _positive_int() (+4 more)
+Cohesion: 0.10
+Nodes (4): MaterialInfo, After preprocess_video, material.url should be an absolute path, not a bare file, TestCli, local 素材路径来自 API 参数，不能允许任意绝对路径进入 MoviePy。         这里验证非 local_videos 白名单目录内的路径会被
 
 ### Community 1021 - "security-audit.json"
 Cohesion: 0.15
 Nodes (12): advisories, dependencies, exitCode, repoRoot, severity, timestamp, vulnerabilities, critical (+4 more)
 
 ### Community 1022 - "briefing.py"
-Cohesion: 0.27
-Nodes (11): generate_daily(), generate_weekly(), main(), _parse_sqlite_utc_timestamp(), datetime, Generate weekly digest data with trend analysis., Load a saved briefing by date., Save briefing data to local archive. (+3 more)
+Cohesion: 0.22
+Nodes (4): _tokenize(), Tests for tokenize() from relevance module., TestTokenize, TestTokenize
 
 ### Community 1023 - "permission_preflight.py"
 Cohesion: 0.26
@@ -6526,20 +6296,20 @@ Cohesion: 0.17
 Nodes (12): _build_source_footer_lines(), _footer_line_for_source(), _format_web_line_sources(), _polymarket_top_markets(), Strip boilerplate from a Polymarket question to produce a compact descriptor., Build short summary strings for the top Polymarket markets by volume.      Retur, Return a clean publication name for a URL, or a bare domain fallback.      Strip, Return comma-separated clean publication names for the Web line.      Deduplicat (+4 more)
 
 ### Community 1025 - "safari_cookies.py"
-Cohesion: 0.23
-Nodes (11): extract_safari_cookies_macos(), _parse_binary_cookies(), _parse_cookie_record(), _parse_page(), Safari binary cookie extractor for macOS.  Parses ~/Library/Cookies/Cookies.bina, Parse raw binary cookie data. Separated for testability., Read a null-terminated string from data starting at offset., Parse a single cookie record. Returns dict with url, name, value, path or None. (+3 more)
+Cohesion: 0.27
+Nodes (9): _parse_binary_cookies(), _parse_cookie_record(), _parse_page(), Safari binary cookie extractor for macOS.  Parses ~/Library/Cookies/Cookies.bina, Parse raw binary cookie data. Separated for testability., Read a null-terminated string from data starting at offset., Parse a single cookie record. Returns dict with url, name, value, path or None., Parse a single page of cookies. Returns list of cookie dicts. (+1 more)
 
 ### Community 1026 - "nickstire-ios-pwa-primitives"
-Cohesion: 0.17
-Nodes (11): After fixing — lock it with a regression test, Alert (notification, no input) — use `toast.error()`, Confirmation (yes/no) — use `confirmDialog`, Kanban / drag-drop callbacks — drop the prompt entirely, nickstire-ios-pwa-primitives, Recurring history (5+ waves), Replacement patterns (use what exists; don't invent new primitives), Text capture (prompt for input) — inline expandable component (+3 more)
+Cohesion: 0.25
+Nodes (8): getTaskSession(), logSessionEvent(), LogSessionEventArgs, LogSessionEventResult, TaskSessionEvent, TaskSessionKind, TaskSessionView, VALID_KINDS
 
 ### Community 1027 - "useComposition.ts"
-Cohesion: 0.23
-Nodes (9): loadMapScript(), MapView(), MapViewProps, Window, TimerResponse, UseCompositionOptions, UseCompositionReturn, noop (+1 more)
+Cohesion: 0.12
+Nodes (8): Path, Purge old snapshots and crops based on age., Purge oldest files if storage size exceeds quota., StorageCleanup, Saves snapshot to disk and returns absolute path., Saves plate crop to disk and returns absolute path., Calculate total directory size in Gigabytes., StorageManager
 
 ### Community 1028 - "TrafficFunnelSection.tsx"
-Cohesion: 0.23
-Nodes (7): formatNumber(), isoDate(), Range, RANGE_DAYS, severityColors(), stageIcon(), TrafficFunnelSection()
+Cohesion: 0.20
+Nodes (6): Tests for poll_device_auth()., Returns access_token after initial pending then success., Returns None when timeout is exceeded., Returns None on expired_token error., HTTP 400 during polling continues (authorization pending)., TestPollDeviceAuth
 
 ### Community 1029 - "Code-Underneath Audit — Data + Services Layer"
 Cohesion: 0.17
@@ -6554,8 +6324,8 @@ Cohesion: 0.17
 Nodes (11): GSC Index Status — 2026-05-07, Head-to-head vs pages (3 of 3 indexed), Headline result, Last updated, Next-tier SEO observability (not URL Inspection), Per-URL results, Pillar articles (3 of 3 indexed) — added wave-84, Roundup hubs + 3rd-party comparisons (4 of 4 indexed) (+3 more)
 
 ### Community 1032 - "vapi-baseline-2026-05-26.md"
-Cohesion: 0.17
-Nodes (11): Baselines locked (for 14-day measurement), Daily trend, End-reason distribution (last 100 calls, raw from VAPI API), Eval-cron status · NOT GRADING, Headline numbers, Other observability bugs discovered while capturing this baseline, Recommended next moves (priority order), Revised recommended next moves (priority order) (+3 more)
+Cohesion: 0.15
+Nodes (12): Baselines locked (for 14-day measurement), Daily trend, End-reason distribution (last 100 calls, raw from VAPI API), Eval-cron status · NOT GRADING, Headline numbers, Other observability bugs discovered while capturing this baseline, Recommended next moves (priority order), Revised recommended next moves (priority order) (+4 more)
 
 ### Community 1033 - "CRO Audit — Booking Endpoint"
 Cohesion: 0.17
@@ -6570,32 +6340,32 @@ Cohesion: 0.17
 Nodes (11): Context, HITL Verification Record, Meta Page Access Token Renewal Runbook, Option A: Update the Environment Variable, Option B: Update the Durable Database Record (SQL), Option C: Admin Console UI Configuration (Recommended), Round A: Derived Data Confirmation, Round B: True HITL Verification (+3 more)
 
 ### Community 1036 - "ServerCache"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (4): CACHE_TTL, cacheCleanupHandle, CacheEntry, ServerCache
 
 ### Community 1037 - "closedLoop.ts"
-Cohesion: 0.18
-Nodes (9): log, processClosedLoopMeasure(), ProcessResult, log, measureDueWaves(), MetricResolver, recordWave(), RESOLVERS (+1 more)
+Cohesion: 0.22
+Nodes (3): Tests for scripts/lib/reddit_shreddit.py — keyless shreddit comment scrape., TestExtractPostRef, TestTotalComments
 
 ### Community 1038 - "loopShapeContract.ts"
-Cohesion: 0.30
-Nodes (10): BY_LOOP, classifyRun(), findActionable(), getLoopContract(), LOOP_CONTRACTS, LoopFinding, LoopShapeContract, LoopVerdict (+2 more)
+Cohesion: 0.14
+Nodes (23): accepted, mocks, CronRunRow, fetchFailingJobs(), JobFailureSnapshot, lastAlertAt, log, observedRunFromCronRows() (+15 more)
 
 ### Community 1039 - "operatorActionLog.ts"
 Cohesion: 0.24
 Nodes (9): ctx(), ACTION_OUTCOME, ActionClassifier, ActionOutcome, log, OperatorActionRecord, recordOperatorAction(), summarize() (+1 more)
 
 ### Community 1040 - "tool-adapter.ts"
-Cohesion: 0.39
-Nodes (8): GET(), camelToSnake(), getBridgeSafeTools(), assertBridgeToolAllowed(), CHATGPT_ACTIONS_V1_TOOLS, getBridgeToolPolicy(), MCP_V1_TOOLS, ToolMeta
+Cohesion: 0.22
+Nodes (5): Tests for search_and_transcribe() end-to-end flow., When top-viewed videos have no captions, lower-ranked ones still get transcripts, When transcript_limit is 0 (quick depth), no transcripts are fetched., When search returns no items, returns without fetching transcripts., TestSearchAndTranscribe
 
 ### Community 1041 - "settings.ts"
-Cohesion: 0.27
-Nodes (9): GET, PATCH, cache, coerce(), getAllSettings(), getSetting(), invalidateSettingsCache(), setSetting() (+1 more)
+Cohesion: 0.22
+Nodes (9): 2.1 Identity drift detection, 2.2 Decision outcome tracking with confidence calibration, 2.3 Counterfactual history — "what if I had done X", 2.4 Weekly pattern digest — pushed to Telegram Sunday evening, 2.5 Cross-domain correlation engine, 2.6 Nick's inner monologue (visible reasoning for deep mode), 2.7 Memory contradiction detector, 2.8 Embedding-based semantic search in ALL recall (+1 more)
 
 ### Community 1042 - "memory-graph-explorer.tsx"
 Cohesion: 0.18
-Nodes (8): EdgeRow(), GraphEdge, GraphNode, GraphResponse, OpenMemoryGraphDetail, RELATIONSHIP_TONE, tone(), TYPE_LABEL
+Nodes (9): EdgeRow(), GraphEdge, GraphNode, GraphResponse, MemoryGraphExplorer(), OpenMemoryGraphDetail, RELATIONSHIP_TONE, tone() (+1 more)
 
 ### Community 1043 - "ADR-0019 · Explicit operator-state model · LeCun-lens consolidation"
 Cohesion: 0.17
@@ -6618,8 +6388,8 @@ Cohesion: 0.17
 Nodes (11): Data flow map, Entry points, Last updated, Meta-intelligence deck (v11 W12), Metadata shapes, Navigation, Observability deck, Observability · statenour-os (+3 more)
 
 ### Community 1048 - "Changelog"
-Cohesion: 0.17
-Nodes (12): 2026-04-28 — v6 Mega-Overhaul · 56 features across 8 batches, 2026-04-28 — v7 Mega-Overhaul · 9 batches continuing v6, 2026-04-29 — v7.9.1 IdentitySnapshot soft-delete fix + missed reads, 2026-04-29 — v8.0 Phase 2A · Universal Entity-Audit Trail, 2026-07-05 — Chat pipeline: audit-fix wave + owner-authority + 5 perf/quality improvements, Audit fixes, Changelog, Data milestones (+4 more)
+Cohesion: 0.22
+Nodes (9): 11.1 Pin "bundles" — named constellations Nour switches between, 11.2 Nick reads Nour's camera (optional + local), 11.3 Ambient chat — "think out loud" with voice-first mode, 11.4 "Nick seed" — shareable clone link, 11.5 Multi-device continuity — Nick sees what's on screen, 11.6 Mission weaving — Nick connects every turn to a Mission, 11.7 Prompt diff mode, 11.8 Time-travel — query past self (+1 more)
 
 ### Community 1049 - "Ambition Engine — `/stats` goals redesign"
 Cohesion: 0.17
@@ -6630,28 +6400,28 @@ Cohesion: 0.17
 Nodes (11): 1 · Surface area at a glance, 2 · Axis-by-axis assessment, 3 · Top 10 highest-leverage moves (ranked by ROI), 4 · What "more uniform / organized / intelligent / useful / interesting" means in the next 7 days, 5 · Hidden value already shipped (that you might not have noticed), 6 · Closing read, Axis A · Uniform / Organized, Axis B · Intelligent (+3 more)
 
 ### Community 1051 - "state-of-autonicks-2026-05-06-pm.md"
-Cohesion: 0.17
-Nodes (11): 0 · What changed since the original audit (v10.0.271 → v10.0.284), 1 · Surface area at a glance (refreshed), 2 · Axis-by-axis assessment (refresh), 3 · NEW Top 10 highest-leverage moves (post-v10.0.284), 4 · Acceptance criteria for the next push window, 5 · Hidden value already shipped (this session continuation), 6 · Closing read, Axis A · Uniform / Organized (+3 more)
+Cohesion: 0.15
+Nodes (12): 0 · What changed since the original audit (v10.0.271 → v10.0.284), 1 · Surface area at a glance (refreshed), 2 · Axis-by-axis assessment (refresh), 3 · NEW Top 10 highest-leverage moves (post-v10.0.284), 4 · Acceptance criteria for the next push window, 5 · Hidden value already shipped (this session continuation), 6 · Closing read, Axis A · Uniform / Organized (+4 more)
 
 ### Community 1052 - "adversarial-critic.ts"
-Cohesion: 0.24
-Nodes (11): AdversarialReport, aiChat, ALREADY_BALANCED, CriticArgs, _criticize(), criticizeAsync(), criticizeRecommendation, isRecommendationShape() (+3 more)
+Cohesion: 0.31
+Nodes (8): detectMode(), getTunnelStatus(), getTunnelUrl(), log, parseUrlFile(), TunnelMode, TunnelStatus, URL_FILE
 
 ### Community 1053 - "person-profile-fuzzy.ts"
-Cohesion: 0.26
-Nodes (10): handlePersonCreate(), handlePersonUpdate(), isNonName(), jaroWinkler(), levenshtein(), log, logFuzzyMerge(), NON_NAME_TOKENS (+2 more)
+Cohesion: 0.22
+Nodes (9): 8.1 Nick learns your voice via transcript fingerprinting, 8.2 Habit-reinforcement game layer, 8.3 Predictive morning — wake up to the next 4 hours pre-planned, 8.4 Friction logger — track every "I wanted to X but couldn't", 8.5 Energy state persistence, 8.6 "Would past-Nour approve?" reflection checkpoint, 8.7 Competitive mission briefs, 8.8 "Devastating lead" weekly scorecard (+1 more)
 
 ### Community 1054 - "Marketing SEO & Agentic Search Specialist"
 Cohesion: 0.17
 Nodes (11): Agent Friction Map, Cannibalization Prevention (MANDATORY), Core Mission, Critical Rules, Identity & Memory, Marketing SEO & Agentic Search Specialist, Search Quality Guidelines, Success Metrics (+3 more)
 
 ### Community 1055 - "brand-context.ts"
-Cohesion: 0.26
-Nodes (11): BRAND_BLOCKS, BRAND_CONTEXT, brandedPrompt(), buildContext(), classifyDetail(), DETAIL_SIGNALS, DetailLevel, isMarketingIntent() (+3 more)
+Cohesion: 0.16
+Nodes (19): BRAND_BLOCKS, BRAND_CONTEXT, brandedPrompt(), buildContext(), classifyDetail(), DETAIL_SIGNALS, DetailLevel, isMarketingIntent() (+11 more)
 
 ### Community 1056 - "ghostwriter.ts"
-Cohesion: 0.24
-Nodes (10): CHANNEL_CARDS, GhostChannel, ghostChat, ghostwrite(), GhostwriteResult, log, looksLikeClarifyingQuestion(), scoreSafely() (+2 more)
+Cohesion: 0.19
+Nodes (11): buffer, classify(), CwvMetric, CwvReport, CwvSample, freshSamples(), getCwvReport(), log (+3 more)
 
 ### Community 1057 - "permission_preflight.py"
 Cohesion: 0.26
@@ -6662,20 +6432,20 @@ Cohesion: 0.23
 Nodes (9): exception_handler(), get_application(), FastAPI, HttpException, Request, RequestValidationError, Application implementation - ASGI., Initialize FastAPI application.      Returns:        FastAPI: Application object (+1 more)
 
 ### Community 1059 - "objection-injector.ts"
-Cohesion: 0.21
-Nodes (8): buildObjectionBlock(), findRelevantObjections(), RelevantObjection, resolveConversationObjections(), mockCreate, mockFindMany, mockFindUnique, mockUpdateMany
+Cohesion: 0.15
+Nodes (5): Tests for instagram.py — ScrapeCreators Instagram search module., Tests for DEPTH_CONFIG., Tests for _to_hashtag_form() — the multi-word retry workaround., TestHashtagFormCollapse, TestInstagramDepthConfig
 
 ### Community 1060 - "registry.ts"
 Cohesion: 0.26
 Nodes (11): getActiveTools(), getPendingTools(), getRegistry(), getRegistryStats(), getTool(), getToolsByCategory(), IntegrationTool, resolveStatus() (+3 more)
 
 ### Community 1061 - "quality-sweep-v2.ts"
-Cohesion: 0.47
-Nodes (11): checkAuditNoise(), checkColdMemory(), checkDeadRoutes(), checkEmptyTables(), checkGhostCronLogs(), checkOrphanExports(), lines, log() (+3 more)
+Cohesion: 0.17
+Nodes (10): callNickstire(), NICKSTIRE_API, auditTodaysLeadsHandler(), ENV_KEYS, jsonResponse(), loadModule(), ORIGINAL, mockApprovalRequestCreate (+2 more)
 
 ### Community 1062 - "schema-index-audit.ts"
-Cohesion: 0.23
-Nodes (11): audit(), FieldDef, findings, IndexFinding, isCoveredByIndex(), isIndexed(), main(), ModelDef (+3 more)
+Cohesion: 0.09
+Nodes (20): APP_ROOT, compileKnowledgeDigest(), LOCAL_PRIORITY_FILES, NOUR_OS_ROOT, PRIORITY_FILES, readFile(), refreshKnowledgeDigest(), main() (+12 more)
 
 ### Community 1063 - "notion-sync.ps1"
 Cohesion: 0.32
@@ -6694,16 +6464,16 @@ Cohesion: 0.17
 Nodes (11): Comment-enrichment slots, Concepts, Engine, Entity grounding, Harness, Intent modifier, Keyless path, Primary entity (+3 more)
 
 ### Community 1067 - "briefing.py"
-Cohesion: 0.27
-Nodes (11): generate_daily(), generate_weekly(), main(), _parse_sqlite_utc_timestamp(), datetime, Generate weekly digest data with trend analysis., Load a saved briefing by date., Save briefing data to local archive. (+3 more)
+Cohesion: 0.15
+Nodes (21): compactText(), describeElement(), elText(), formatArg(), formatArgs(), getInputValueSafe(), installUiEventListeners(), isSensitiveField() (+13 more)
 
 ### Community 1068 - "_best_author_match"
 Cohesion: 0.23
 Nodes (7): _best_author_match(), _normalize_name(), Lowercase, strip punctuation, collapse whitespace — for name matching., True if `needle` appears as a contiguous run of whole tokens in `haystack`., Return the profile URL of the post author whose name matches the topic.      Per, _token_run(), TestBestAuthorMatch
 
 ### Community 1069 - "permission_preflight.py"
-Cohesion: 0.26
-Nodes (11): build(), _dedupe_writes(), _format_names(), Any, Permission preflight contract and human renderer., Render the permission preflight as concise user-facing text., Build a stable, secret-free permission preflight object., render_text() (+3 more)
+Cohesion: 0.17
+Nodes (12): comparisons, samples, url, CLAIM, compareSignals(), extractHookSignals(), HOOK_BOOLEAN_SIGNALS, HookBooleanSignal (+4 more)
 
 ### Community 1070 - "_merge_category_peers"
 Cohesion: 0.26
@@ -6714,8 +6484,8 @@ Cohesion: 0.17
 Nodes (5): _fake_report(), FanoutOrchestratorTests, Tests for scripts/lib/fanout.run_competitor_fanout., Wall clock should be closer to max(latency) than sum(latency)., Build a lightweight Report stand-in. Tests only check identity.
 
 ### Community 1072 - "_make_runtime"
-Cohesion: 0.10
-Nodes (11): _make_runtime(), One X source, an ordered backend chain with failover; never parallel., The X topic lane (here resolved to the xquik backend) consumes the         ancho, R2: Dynamic query refinement on thin results., _retry_thin_sources must be a callable in pipeline module., Sources with < 3 items and no errors should be retried., Sources with >= 3 items should not be retried., Sources in errors_by_source should not be retried even if thin.         Non-erro (+3 more)
+Cohesion: 0.17
+Nodes (7): R2: Dynamic query refinement on thin results., _retry_thin_sources must be a callable in pipeline module., Sources with < 3 items and no errors should be retried., Sources with >= 3 items should not be retried., Sources in errors_by_source should not be retried even if thin.         Non-erro, _retry_thin_sources should return immediately in quick mode., TestThinSourceRetry
 
 ### Community 1073 - "test_reddit_relevance_ranking.py"
 Cohesion: 0.20
@@ -6762,8 +6532,8 @@ Cohesion: 0.17
 Nodes (11): Source 10: Obsidian Note: Mind - Discipline Canon.md, Source 1: Brain Memory: obsidian_business_shop_canon (business), Source 2: Brain Memory: obsidian_money_cleanup (business), Source 3: Brain Memory: obsidian_shop_scoreboard (business), Source 4: Brain Memory: obsidian_rising_dragon_2_0 (business), Source 5: Brain Memory: obsidian_general_business (business), Source 6: Brain Memory: obsidian_note_template (business), Source 7: Brain Memory: obsidian_mission_template (business) (+3 more)
 
 ### Community 1084 - "<% tp.file.title %>"
-Cohesion: 0.17
-Nodes (12): 🔍 Blind Spot Check (Forgotten Factor), Critical Few, Current State, ⚡ Execution Steps, Mission Outcome, Next Move, Risks, SOURCE: Brain Memory: obsidian_mission_template (business) (+4 more)
+Cohesion: 0.25
+Nodes (8): Critical Few, Current State, Mission Outcome, Next Move, Risks, SOURCE: Obsidian Note: Business - Shop Canon.md, <% tp.file.title %>, Why It Matters
 
 ### Community 1085 - "Source Index"
 Cohesion: 0.17
@@ -6794,24 +6564,32 @@ Cohesion: 0.18
 Nodes (10): attribution, description, engines, node, license, main, name, private (+2 more)
 
 ### Community 1092 - "xai_x.py"
-Cohesion: 0.24
-Nodes (9): _log_error(), parse_x_response(), Any, xAI API client for X (Twitter) discovery., Extract text from string or localized object., Parse xAI response to extract X items.      Args:         response: Raw API resp, Search X for relevant posts using xAI API with live search.      Args:         a, _safe_text() (+1 more)
+Cohesion: 0.12
+Nodes (30): _candidate_text(), cluster_candidates(), _cluster_uncertainty(), _entity_overlap(), _extract_entities(), _merge_entity_clusters(), _mmr_representatives(), Candidate (+22 more)
 
 ### Community 1093 - "verify_v3.py"
 Cohesion: 0.38
 Nodes (10): build_parser(), main(), ArgumentParser, CompletedProcess, run_command(), verify_diagnose(), verify_eval(), verify_latency() (+2 more)
 
+### Community 1094 - "drawer.tsx"
+Cohesion: 0.25
+Nodes (6): args, from, idsArg, isAll, isCommit, where
+
+### Community 1095 - "select.tsx"
+Cohesion: 0.29
+Nodes (7): capture_camera(), generate_mjpeg(), index(), RTSP to MJPEG Proxy — Run on shop PC (192.168.0.157)  Captures V380 camera RTSP, Continuously capture frames from RTSP stream., Generate MJPEG stream from cached frames., video_feed()
+
 ### Community 1096 - "carouselSlideRenderer.ts"
-Cohesion: 0.27
-Nodes (9): CarouselSlide, BRIEF, CAROUSEL_TERRITORY_DESIGNS, esc(), log, RenderableCarouselBrief, renderCarouselSlideHtml(), renderCarouselSlides() (+1 more)
+Cohesion: 0.36
+Nodes (3): Remove PKCS7 padding from decrypted data.      The last byte indicates the numbe, _remove_pkcs7_padding(), TestPkcs7Padding
 
 ### Community 1097 - "language-detect.ts"
-Cohesion: 0.29
-Nodes (8): detectLanguage(), isSpanish(), LanguageDetectResult, PipelineLabel, cache, canRunTransformersJs(), getPipeline(), LazyLoadOptions
+Cohesion: 0.16
+Nodes (10): ChatWidget(), detectLanguage(), isSpanish(), LanguageDetectResult, PipelineLabel, cache, canRunTransformersJs(), getPipeline() (+2 more)
 
 ### Community 1098 - "nour-os-system-health-reset.ts"
-Cohesion: 0.25
-Nodes (10): Mode, classifyForMission(), KEEP_TITLES, main(), matchesKeepList(), NOOP_PATH, normalize(), NOW (+2 more)
+Cohesion: 0.22
+Nodes (12): pick(), cache, CacheEntry, cacheGet(), cacheSet(), _clearVehicleDataCache(), decodeVin(), nhtsaFetch() (+4 more)
 
 ### Community 1099 - "nickstire (MAINnicks-tire-auto) · deploy contract"
 Cohesion: 0.18
@@ -6870,28 +6648,28 @@ Cohesion: 0.29
 Nodes (10): allRequiredKeys, checkCodependencies(), formatList(), isPlaceholder(), KNOWN_SECTION_HEADERS, parseEnvFile(), PLACEHOLDER_PATTERNS, REQUIRED_KEYS (+2 more)
 
 ### Community 1113 - "cluster.py"
-Cohesion: 0.24
-Nodes (16): _candidate_text(), cluster_candidates(), _cluster_uncertainty(), _entity_overlap(), _extract_entities(), _merge_entity_clusters(), _mmr_representatives(), Candidate (+8 more)
+Cohesion: 0.38
+Nodes (7): CSVTransaction, log, parseAmount(), parseCSV(), parseCSVLine(), parseStatementDate(), syncTransactions()
 
 ### Community 1114 - "redirects.ts"
-Cohesion: 0.20
-Nodes (6): isRedirectedPath(), REDIRECTED_PATHS, REDIRECTED_SET, RedirectRule, REDIRECTS, run()
+Cohesion: 0.32
+Nodes (7): bundle, __dirname, doRenderReelVideo(), __filename, RenderReelOptions, renderReelVideo(), withWallClockTimeout()
 
 ### Community 1115 - "manusTypes.ts"
 Cohesion: 0.18
 Nodes (10): AuthorizeRequest, AuthorizeResponse, CanAccessRequest, CanAccessResponse, ExchangeTokenRequest, ExchangeTokenResponse, GetUserInfoRequest, GetUserInfoResponse (+2 more)
 
 ### Community 1116 - "customerTurns.ts"
-Cohesion: 0.35
-Nodes (9): TRANSCRIPT, buildCustomerSpeechRecord(), clean(), CustomerSpeechRecord, CustomerTurns, extractCustomerTurns(), extractCustomerTurnsFromMessages(), isFiller() (+1 more)
+Cohesion: 0.23
+Nodes (15): _attr(), fetch_listings(), _fetch_one(), _listing_url(), _log(), parse_cards(), _post_id(), Any (+7 more)
 
 ### Community 1117 - "customerMessaging.ts"
 Cohesion: 0.25
-Nodes (9): resolveWorkOrderCustomer(), generateStatusMessage(), getDbAndSchema(), getMessagesForWorkOrder(), getTrackingInfo(), log, logStatusMessage(), MessageTemplate (+1 more)
+Nodes (8): 2026-04-15 — v10 Knowledge Automation, Added, Changed, Cron schedule (via `vercel.json`), Deprecated / Archived, Fixed, Integrations, Schema
 
 ### Community 1118 - "opportunityQueue.ts"
-Cohesion: 0.18
-Nodes (9): opportunityQueueRouter, stateSchema, canTransition, listOpportunities, OpportunityState, rankOpportunity, refreshOpportunityQueue, snoozeOpportunity (+1 more)
+Cohesion: 0.02
+Nodes (150): main(), mask(), sendSpy, trySend(), verdict, BANNED_PATTERNS, CALL_ONLY, DRAFTABLE (+142 more)
 
 ### Community 1119 - "gen-assets.mjs"
 Cohesion: 0.18
@@ -6902,12 +6680,12 @@ Cohesion: 0.25
 Nodes (9): classifyVoiceDemand(), Rule, RULES, UNCLEAR, VOICE_INTENTS, VoiceClassification, VoiceFriction, VoiceIntent (+1 more)
 
 ### Community 1121 - "nick-reasoner.tsx"
-Cohesion: 0.22
-Nodes (9): ReasonTab(), KIND_DOT, NickReasoner(), parseSseFrame(), ReasoningResult, ReasoningStep, ReasoningStepKind, ReasoningTier (+1 more)
+Cohesion: 0.15
+Nodes (13): 1.10 Pin reinforcement cron + nudge, 1.11 Voice-input while streaming (barge-in), 1.12 Mode pill + pin badge in /command header, 1.1 Mode pill → full override panel with token preview, 1.2 Pin ranking + prompt-budget optimizer, 1.3 /brain pin import/export + share link, 1.4 Suggestion quality learning loop, 1.5 Prompt cache warmup on app load (not just typing) (+5 more)
 
 ### Community 1122 - "active-task-companion.tsx"
-Cohesion: 0.22
-Nodes (10): ActiveTaskCompanion(), ComposerMode, formatAgo(), getSpeechRecognition(), Props, SessionEvent, SpeechRecognitionEvent, SpeechRecognitionInstance (+2 more)
+Cohesion: 0.25
+Nodes (8): 2026-04-29 — v8.1 Mega Bundle · 6 batches · audit-list sweep, BATCH 1 — Universal History page + drawer, BATCH 2 — Phase 2C schema-drift sentinel, BATCH 3 — Per-engine tier gating (B1 from v11.1), BATCH 4 — Voice-clone weekly cron + REPO-MAP refresh, BATCH 5 — F1 cross-session memory continuity surface, BATCH 6 — F4 prediction-streak tracker, Stats
 
 ### Community 1123 - "statenour-web · deploy contract"
 Cohesion: 0.18
@@ -6930,12 +6708,12 @@ Cohesion: 0.18
 Nodes (10): 5 Whys, Action Items, Detection, Executive Summary, Impact, Lessons, Postmortem: Cron fan-out silently ~70% dead for 2 days, References (+2 more)
 
 ### Community 1128 - "2026-04-22 — v11.1 Devastating-Lead Continuation Wave"
-Cohesion: 0.18
-Nodes (11): 2026-04-22 — v11.1 Devastating-Lead Continuation Wave, Auth + diagnostics hardening, Bugs killed (prod), Builder Sandbox power actions, Chat fluidity (Tier 1–3), Chat page, Codebase cleanup, Cron fleet (+3 more)
+Cohesion: 0.16
+Nodes (14): autoPromoteFailedDecisions(), AutoPromoteResult, GRADE_TO_NUM, gradeToNum(), mapDomain(), slugify(), AntiPatternDomain, AntiPatternMeta (+6 more)
 
 ### Community 1129 - "2026-04-29 — v8.4 QA pass + 4 more batches · vision-route / heartbeat cleanup / brain-bus / pgvector"
-Cohesion: 0.18
-Nodes (11): 2026-04-29 — v8.4 QA pass + 4 more batches · vision-route / heartbeat cleanup / brain-bus / pgvector, 2026-05-08 — v10.0.442 → v10.0.484 EOD reconciliation sprint · 43 versions, BATCH 19 — /api/ai/chat/vision endpoint, BATCH 20 — Heartbeat redundancy cleanup, BATCH 21 — Phase 2B brain-bus skeleton, BATCH 22 — pgvector skeleton, Bug-fix wave · v10.0.473-484 highlights, Forward work · v10.0.442-472 highlights (+3 more)
+Cohesion: 0.25
+Nodes (8): 2026-04-29 — v8.2 Mega Bundle · 6 more batches · F2/F3/F5/D5/streak-UI/drift-surface, BATCH 10 — D5 freshness audit, BATCH 11 — Prediction-streak UI card, BATCH 12 — Schema-drift surface in /system/health, BATCH 7 — F2 correlation alarm clock, BATCH 8 — F3 decision-quality drift detector, BATCH 9 — F5 blind-spot auto-pinner, Stats
 
 ### Community 1130 - "Schema timestamp audit · 2026-05-07 (revised v10.0.461)"
 Cohesion: 0.18
@@ -6954,8 +6732,8 @@ Cohesion: 0.18
 Nodes (10): Env vars (Vercel + Railway · after full sweep), Execution sequence (when parallel session greenlights), Risk, Survey results, Tier 1 · SAFE TO DELETE (15 files · ~2,485 LOC), Tier 2 · MOVE THE DATA FIRST (5 UI surfaces · operator decides), Tier 3 · KEEP IN STATENOUR, VAPI removal plan · statenour-os (+2 more)
 
 ### Community 1134 - "shop-actions.ts"
-Cohesion: 0.35
-Nodes (10): callNickstire(), handleShopGetBookings(), handleShopGetCustomers(), handleShopGetEstimates(), handleShopGetLabor(), handleShopGetLeads(), handleShopGetRevenue(), handleShopSendSms() (+2 more)
+Cohesion: 0.17
+Nodes (10): OPS_REGISTRY, OpsItem, OpsRisk, OpsStatus, REPORT_DOCS, ReportDoc, HUB_TABS, HubTab (+2 more)
 
 ### Community 1135 - "ambiguity-detector.ts"
 Cohesion: 0.25
@@ -6966,16 +6744,20 @@ Cohesion: 0.29
 Nodes (10): extract_entities(), _extract_subreddits(), _extract_x_handles(), _extract_x_hashtags(), Any, Entity extraction from initial search results for supplemental searches., Extract key entities from Phase 1 results for supplemental searches.      Parses, Extract and rank @handles from X results.      Sources handles from:     1. auth (+2 more)
 
 ### Community 1137 - "web_search_keyless.py"
-Cohesion: 0.31
-Nodes (10): _domain(), keyless_search(), Keyless web search (floor tier for engine-side general web).  Returns ranked web, DuckDuckGo wraps result links as //duckduckgo.com/l/?uddg=<encoded>., Run keyless web search; returns (items, artifact). Never raises., _search_ddg(), _search_searxng(), _strip_html() (+2 more)
+Cohesion: 0.25
+Nodes (5): new_utc_iso(), Sends event payload to backend.         If send fails, buffers the event in a lo, Sends a liveness status update to backend devices endpoint., Attempts to clear cached offline events., StatenourClient
 
 ### Community 1138 - "verify_v3.py"
 Cohesion: 0.38
 Nodes (10): build_parser(), main(), ArgumentParser, CompletedProcess, run_command(), verify_diagnose(), verify_eval(), verify_latency() (+2 more)
 
 ### Community 1139 - "decision-quality-drift.ts"
-Cohesion: 0.23
-Nodes (10): GET, DecisionRow, DriftReport, GRADE_MAP, gradeToGpa(), log, mean(), runDecisionQualityDrift() (+2 more)
+Cohesion: 0.32
+Nodes (5): runtimeQueryIds, FALLBACK_QUERY_IDS, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS, normalizeQuoteDepth()
+
+### Community 1140 - "BrainMemoryManager"
+Cohesion: 0.25
+Nodes (8): Connection, Row, Apply pending schema migrations., Store findings with URL-based dedup. Returns counts of new/updated., Record the findings observed during this run.      The aggregate findings table, _record_sightings(), _run_migrations(), store_findings()
 
 ### Community 1141 - "poll_ring_devices"
 Cohesion: 0.25
@@ -7002,16 +6784,16 @@ Cohesion: 0.40
 Nodes (9): CreateJob(), DisableJob(), ExecuteJob(), GetJobStatus(), InitializeScheduler(), ListJobs(), LoadJobs(), LogSchedulerEvent() (+1 more)
 
 ### Community 1147 - "statenour-worker · deploy contract"
-Cohesion: 0.18
-Nodes (10): Build pipeline, Common failure modes, Cron jobs hosted here, Deploy trigger, Env vars (Railway-managed), Pre-deploy validation, Railway service, Related docs (+2 more)
+Cohesion: 0.20
+Nodes (10): Build pipeline, Common failure modes, Cron jobs, Deploy trigger, Env vars (Railway-managed), Pre-deploy validation, Railway service, Related docs (+2 more)
 
 ### Community 1148 - "StatenourClient"
-Cohesion: 0.25
-Nodes (5): new_utc_iso(), Sends event payload to backend.         If send fails, buffers the event in a lo, Sends a liveness status update to backend devices endpoint., Attempts to clear cached offline events., StatenourClient
+Cohesion: 0.32
+Nodes (5): runtimeQueryIds, FALLBACK_QUERY_IDS, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS, normalizeQuoteDepth()
 
 ### Community 1149 - "Codebase Memory MCP Server"
 Cohesion: 0.18
-Nodes (10): Antigravity / Gemini, Available Tools, CI Integration (Optional), Claude Desktop, Codebase Memory MCP Server, Exposed Directories, IDE Configuration, Overview (+2 more)
+Nodes (11): Antigravity / Gemini, Available Tools, CI Integration (Optional), Claude Desktop, Codebase Memory MCP Server, Exposed Directories, IDE Configuration, Overview (+3 more)
 
 ### Community 1150 - "INTELLIGENCE OS RISK REGISTER"
 Cohesion: 0.18
@@ -7050,8 +6832,8 @@ Cohesion: 0.18
 Nodes (3): Tests for vs-mode routing into the competitor fanout.  A topic containing " vs ", The planner's _comparison_entities helper is the detector we use., VsModeEntityDetectionTests
 
 ### Community 1160 - "audit-advisories.mjs"
-Cohesion: 0.24
-Nodes (10): advisoryOnly, args, asJson, chunked(), collectProdDependencies(), levelArg, main(), queryBulk() (+2 more)
+Cohesion: 0.21
+Nodes (14): healthHandler(), allPresent(), h, readResult(), auditCriticalTables(), auditCriticalTablesWithRetry(), CRITICAL_TABLES, CriticalTable (+6 more)
 
 ### Community 1161 - "gsc-top-pages.mts"
 Cohesion: 0.20
@@ -7062,16 +6844,20 @@ Cohesion: 0.20
 Nodes (9): Additional developer commands, Command reference, Common patterns, Develop/test cycle, File targeting, Obsidian CLI, Plugin development, Syntax (+1 more)
 
 ### Community 1163 - "MASTER OPERATING DIRECTIVE"
-Cohesion: 0.20
-Nodes (10): ANALYSIS LENSES, ANTI-PATTERNS TO CATCH, CODE-SPECIFIC RULES, CORE RULES, DECISION ENGINE, FINAL STANDARD, IDENTITY CONTEXT, MASTER OPERATING DIRECTIVE (+2 more)
+Cohesion: 0.09
+Nodes (16): Canonical project docs (read before editing), Nick's Tire & Auto · Claude adapter, Operator persona (on demand, not always-on), Operator directive — Nick's Tire advisory persona, Nick's Tire & Auto — Protected Core, Rules, statenour-os · Claude adapter, AGENTS.md · statenour-worker (+8 more)
 
 ### Community 1164 - "Verifying the nickstire reel pipeline"
 Cohesion: 0.20
 Nodes (9): Hazards — read first, Preconditions for `processNextAssemblyJob` to do anything, Probes worth running, Reporting, Standing up a safe target — VERIFIED RECIPE (ran end-to-end 2026-07-16), The surface map, Verifying the nickstire reel pipeline, What to observe (+1 more)
 
+### Community 1165 - "navigation-menu.tsx"
+Cohesion: 0.25
+Nodes (5): Tests for run_device_auth()., Successful device code request returns tuple., HTTP error during code request returns None., Incomplete response (no device_code) returns None., TestRunDeviceAuth
+
 ### Community 1166 - "body"
-Cohesion: 0.24
-Nodes (8): SmsSection(), httpGet(), run(), testApi(), httpGet(), query, body(), dayStr()
+Cohesion: 0.14
+Nodes (15): TireSizePage(), SERVICE_CATEGORIES, SERVICE_TYPES, ServiceType, BuyingGuide, getBuyingGuide(), GUIDES, PERFORMANCE_GUIDE (+7 more)
 
 ### Community 1167 - "Admin Surface Audit — LEADS / CUSTOMERS / WORK group"
 Cohesion: 0.20
@@ -7094,8 +6880,8 @@ Cohesion: 0.20
 Nodes (10): 1 · Contacted-state invariant, 2.1 · Carrier-confirmed SMS `delivered`, 2 · Delivery ledger — `lead_delivery_events`, 3 · Financing attribution — `financing_clicks`, Data flow, Known follow-ups, Lead Delivery & Attribution Observability, Migrations (both applied to prod TiDB, journaled) (+2 more)
 
 ### Community 1172 - "Cron Inventory — What Runs, When, Why"
-Cohesion: 0.20
-Nodes (9): briefings (12 hours), Cron Inventory — What Runs, When, Why, daily (24 hours), heartbeat (5 min), hourly (2 hours), How to add a job, pulse (15 min), Tier overview (+1 more)
+Cohesion: 0.18
+Nodes (10): briefings (12 hours), Cron Inventory — What Runs, When, Why, daily (24 hours), heartbeat (5 min), hourly (2 hours), How to add a job, once per shop day (ROS-081), pulse (15 min) (+2 more)
 
 ### Community 1173 - "Operator Runbook — Wave-181.60 Production Apply"
 Cohesion: 0.20
@@ -7142,20 +6928,20 @@ Cohesion: 0.31
 Nodes (9): attributeFromTag(), failures, inspect(), normalizedDigits(), PRERENDERED, ROOT, routeFile(), ROUTES (+1 more)
 
 ### Community 1184 - "check-prerender.mjs"
-Cohesion: 0.20
-Nodes (8): actual, __dirname, expected, expectedJson, extra, missing, PRERENDER_DIR, ROOT
+Cohesion: 0.16
+Nodes (21): chatterbox_tts(), _configure_pydub_ffmpeg(), elevenlabs_tts(), ensure_file_path_exists(), ensure_legacy_submaker_fields(), gemini_tts(), get_audio_duration(), _get_audio_duration_from_mp3() (+13 more)
 
 ### Community 1185 - "gsc-errors.ts"
 Cohesion: 0.27
 Nodes (9): fetchSitemapErrors(), getAccessToken(), InspectResponse, inspectUrl(), main(), SitemapInfo, SITEMAPS, SitemapsListResponse (+1 more)
 
 ### Community 1186 - "validate-route-registry.mjs"
-Cohesion: 0.20
-Nodes (9): appRoutes, appTsx, __dirname, errors, EXEMPT_PATHS, registeredPaths, ROOT, routesTs (+1 more)
+Cohesion: 0.19
+Nodes (14): CLASS_STRENGTH, evaluateMemoryCandidate(), evidenceClassForSource(), ExistingMemoryFacts, findDuplicateSuspect(), GatewayVerdict, MemoryCandidate, MemoryDecision (+6 more)
 
 ### Community 1187 - "dod-compiler.mjs"
-Cohesion: 0.20
-Nodes (9): args, baseEvidence, baseIdx, enforce, files, manifestPath, repoRoot, requirements (+1 more)
+Cohesion: 0.12
+Nodes (17): Autopilot Wave 1 follow-on (same day, second PR), Autopilot Wave 2 — operational surface (same day, third PR), Doctrine locks (tests that keep this true), DVI evidence-to-approval — drop-off scoped (shipped 2026-07-28), Open items this arc did NOT cover, Operating surfaces (shipped 2026-07-28, final PR of the arc), Operationalization Strike + evening waves (shipped 2026-07-28, #1167-#1176), Quote Guard + Promise Ledger (shipped 2026-07-28) (+9 more)
 
 ### Community 1188 - "gsc-errors.ts"
 Cohesion: 0.27
@@ -7178,12 +6964,12 @@ Cohesion: 0.20
 Nodes (9): appRoutes, appTsx, __dirname, errors, EXEMPT_PATHS, registeredPaths, ROOT, routesTs (+1 more)
 
 ### Community 1193 - "actionCenterPublishWire.test.ts"
-Cohesion: 0.22
-Nodes (8): admin(), ctx(), database, job(), Op, ops, selectQueue, updateResults
+Cohesion: 0.01
+Nodes (331): GET(), POST(), RefreshBody, log, POST(), schema, AutocompleteBody, POST() (+323 more)
 
 ### Community 1194 - "voiceTranscription.ts"
-Cohesion: 0.24
-Nodes (9): getFileExtension(), getLanguageName(), log, transcribeAudio(), TranscribeOptions, TranscriptionError, TranscriptionResponse, WhisperResponse (+1 more)
+Cohesion: 0.29
+Nodes (6): Apply procedure (operator), Known risks, Rollback, Runbook — warm-transfer fallback (answer-proof + no-answer recovery), The change, The problem, measured
 
 ### Community 1195 - "customers.test.ts"
 Cohesion: 0.20
@@ -7194,8 +6980,8 @@ Cohesion: 0.38
 Nodes (8): analyzeSourceClip(), composeAnalysis(), ffmpegStderr(), FrozenSpan, log, meanFromSignalstats(), parseFreezeSpans(), SourceClipAnalysis
 
 ### Community 1197 - "instagramAdmin.honesty.test.ts"
-Cohesion: 0.22
-Nodes (8): admin(), claimResult, ctx(), database, insertValues, selectQueue, buildReelPublishCaption(), mapInventoryStatusForQueue()
+Cohesion: 0.32
+Nodes (6): inngest, log, mergePublishResults(), mergePublishUrls(), PlatformOutcome, socialPublishQueue
 
 ### Community 1198 - "portfolioBalancer.ts"
 Cohesion: 0.27
@@ -7206,8 +6992,8 @@ Cohesion: 0.31
 Nodes (7): chooseReuse(), decideReuse(), DEFAULT_REUSE, ReuseCandidate, ReuseConfig, ReuseDecision, ReuseVerdict
 
 ### Community 1200 - "pricingIntelligence.ts"
-Cohesion: 0.31
-Nodes (8): analyzeObjections(), categorizeService(), getObjectionCoaching(), getServicePaymentBreakdown(), log, normalizeDeclineReason(), runPricingIntelligenceJob(), SERVICE_CATEGORIES
+Cohesion: 0.43
+Nodes (6): BASE, dl(), findUrl(), gen(), main(), REELS
 
 ### Community 1201 - "quoteEngine.ts"
 Cohesion: 0.22
@@ -7222,8 +7008,8 @@ Cohesion: 0.36
 Nodes (9): handleAppointmentBooked(), handleInvoiceCreated(), handleNewLead(), handleReviewAlert(), handleSocialPost(), MakeWebhookPayload, POST(), routeScenario() (+1 more)
 
 ### Community 1204 - "entity-history-drawer.tsx"
-Cohesion: 0.27
-Nodes (9): ACTION_LABEL, ACTION_TINT, AuditEntry, EntityHistoryDrawer(), FieldDiff(), fmt(), formatActor(), formatRelative() (+1 more)
+Cohesion: 0.24
+Nodes (10): Cell(), ACTION_LABEL, ACTION_TINT, AuditEntry, EntityHistoryDrawer(), FieldDiff(), fmt(), formatActor() (+2 more)
 
 ### Community 1205 - "ADR-0013 · Per-tool daily quota via BrainMemory · cost-DoS defense"
 Cohesion: 0.20
@@ -7238,8 +7024,8 @@ Cohesion: 0.20
 Nodes (9): JOURNAL ADVANCEMENT SESSION — 2026-06-10, Migrations, Phase 0 — current-state audit (verified), Phase 1/2 — what shipped THIS session, Recommended next wave, Remaining (HOLD / spec'd — next wave), SHAs, Tests/gates (+1 more)
 
 ### Community 1208 - "BRIDGE_ACTIVATION_SUMMARY.md"
-Cohesion: 0.20
-Nodes (9): Agent Diagnostic, Bridge Endpoints Built, Build Status, CRON_SECRET, Environment Variables Added, GET /api/bridge/health, GET /api/bridge/owner-snapshot, Shop Snapshot Consumer (+1 more)
+Cohesion: 0.18
+Nodes (10): Agent Diagnostic, Bridge Activation Summary — NOUR OS, Bridge Endpoints Built, Build Status, CRON_SECRET, Environment Variables Added, GET /api/bridge/health, GET /api/bridge/owner-snapshot (+2 more)
 
 ### Community 1209 - "Heuristics & Diagnostics Summary"
 Cohesion: 0.20
@@ -7282,40 +7068,40 @@ Cohesion: 0.27
 Nodes (9): _parse_binary_cookies(), _parse_cookie_record(), _parse_page(), Safari binary cookie extractor for macOS.  Parses ~/Library/Cookies/Cookies.bina, Parse raw binary cookie data. Separated for testability., Read a null-terminated string from data starting at offset., Parse a single cookie record. Returns dict with url, name, value, path or None., Parse a single page of cookies. Returns list of cookie dicts. (+1 more)
 
 ### Community 1219 - "bird-search.mjs"
-Cohesion: 0.27
-Nodes (8): args, main(), SearchClient, writeStderr(), writeStdout(), isQueryIdMismatch(), withSearch(), extractCursorFromInstructions()
+Cohesion: 0.29
+Nodes (4): byClass, collectUrls(), report, urls
 
 ### Community 1221 - "TestWebuiI18n"
 Cohesion: 0.31
 Nodes (3): _load_translation(), TestWebuiI18n, _TrKeyVisitor
 
 ### Community 1222 - "system.ts"
-Cohesion: 0.22
-Nodes (7): READ_ONLY_NOTEBOOKLM_ACTIONS, systemTools, RFC-1918, mockGoogle, mockMulti, mockPerplexica, mockResearch
+Cohesion: 0.43
+Nodes (4): buildLoopScoreboard(), LoopRow, LoopScoreboard, sendsPerInvoice()
 
 ### Community 1223 - "brain-bus-retry-policy.ts"
-Cohesion: 0.27
-Nodes (8): backoffMs(), DEFAULT_BACKOFFS, DEFAULT_POLICY, getRetryPolicy(), POLICIES, RetryPolicy, shouldDrop(), shouldEscalate()
+Cohesion: 0.25
+Nodes (7): Same audit, open PRs — stale-baseline red checks, Step 1 — PR record, not cherry, Step 2 — is it truly abandoned?, Step 3 — rescue, Stranded-Branch Rescue, When NOT to use, Zombie hygiene
 
 ### Community 1224 - "tenant.ts"
 Cohesion: 0.31
 Nodes (8): currentTenantId(), isKnownTenant(), SINGLE_TENANT, TenantId, tenantScope(), tenantStamp(), tenantStore, withTenant()
 
 ### Community 1225 - "audit-todays-leads.ts"
-Cohesion: 0.22
-Nodes (8): auditTodaysLeads, auditTodaysLeadsHandler(), inngest, LeadsAuditResult, log, mockApprovalRequestCreate, mockApprovalRequestFindFirst, mockCallNickstire
+Cohesion: 0.13
+Nodes (16): finding(), buildGraphifyCandidate(), GraphifyFinding, GraphifyFindingSchema, GraphifyManifest, GraphifyManifestSchema, resolveInsideRoot(), appOf() (+8 more)
 
 ### Community 1226 - "google-reviews.ts"
-Cohesion: 0.29
-Nodes (9): fetchAndStoreReviews(), getReviewStats(), getUnrespondedReviews(), log, markReviewResponded(), parseReview(), PlaceReview, reviewKey() (+1 more)
+Cohesion: 0.17
+Nodes (15): handleGoogleGetReviewStats(), handleGoogleGetUnrespondedReviews(), handleGoogleMarkReviewResponded(), fetchAndStoreReviews(), getReviewStats(), getUnrespondedReviews(), log, markReviewResponded() (+7 more)
 
 ### Community 1227 - "negotiation-patterns.ts"
-Cohesion: 0.22
-Nodes (7): ALL_VOSS_PATTERNS, VOSS_PATTERNS, VossPattern, APPLY, main(), VAPI_API_KEY, vapiRequest()
+Cohesion: 0.24
+Nodes (8): ALL_VOSS_PATTERNS, renderVossPromptSection(), VOSS_PATTERNS, VossPattern, APPLY, main(), VAPI_API_KEY, vapiRequest()
 
 ### Community 1228 - "next-move.ts"
-Cohesion: 0.24
-Nodes (8): asMissionDomain(), buildNextMove(), CriticalFewTask, KNOWN_MISSION_DOMAINS, NextMove, NextMoveSuggestion, STAT_KEY_TO_MISSION_DOMAIN, mocks
+Cohesion: 0.09
+Nodes (16): CLAUDE.md — NOURCITY monorepo (Claude Code adapter), Claude-specific, Answer-First Output Contract, Hard constraint that outranks brevity, Kill list — delete on sight, Shape, The three rules, When NOT to use (+8 more)
 
 ### Community 1229 - "operator.ts"
 Cohesion: 0.33
@@ -7326,20 +7112,20 @@ Cohesion: 0.31
 Nodes (8): etParts(), etWallClockToInstant(), operatorTzOffsetMinutes(), ParsedReminder, parseRemindTime(), resolveHour(), SUMMER_NOON_ET, WINTER_NOON_ET
 
 ### Community 1231 - "url-safety.ts"
-Cohesion: 0.31
-Nodes (9): assertPublicUrl(), DENY_HOST_SUFFIXES, DENY_HOSTS, DOC_CONTENT_TYPES, isAllowedDocumentContentType(), isPrivateIPv4(), isPrivateIPv6(), RFC-1918 (+1 more)
+Cohesion: 0.36
+Nodes (8): assertPublicUrl(), DENY_HOST_SUFFIXES, DENY_HOSTS, DOC_CONTENT_TYPES, isAllowedDocumentContentType(), isPrivateIPv4(), isPrivateIPv6(), UrlSafetyResult
 
 ### Community 1232 - "build-skill-registry.ts"
 Cohesion: 0.40
 Nodes (9): main(), parseFrontmatter(), readSkill(), scanAll(), scanRoot(), SkillEntry, skillRoots(), toPortablePath() (+1 more)
 
 ### Community 1233 - "ingest-research-pack.ts"
-Cohesion: 0.24
-Nodes (9): actionPlanPath, args, main(), manifestJsonPath, manifestPath, monorepoRoot, packDir, parseActionPlanTasks() (+1 more)
+Cohesion: 0.48
+Nodes (5): GET(), safeEqual(), SettledResult, withConcurrency(), withConcurrencySettled()
 
 ### Community 1234 - "lint-baseline.ts"
-Cohesion: 0.31
-Nodes (9): Baseline, buildWarningMap(), ESLintFileResult, ESLintMessage, getRepoRoot(), loadBaseline(), main(), runEslint() (+1 more)
+Cohesion: 0.32
+Nodes (5): Tests for the `setup --github` CLI branch: persist + mask the key., Invoke `setup --github` in-process, return (parsed_json, env_path)., Success -> key written to .env, stdout JSON masked, persisted true., Timeout -> no key on disk, persisted false., TestSetupGithubCliWiring
 
 ### Community 1235 - "tune-vector-index.ts"
 Cohesion: 0.27
@@ -7350,16 +7136,16 @@ Cohesion: 0.40
 Nodes (9): CollectMetrics(), GetDiskUsage(), GetHealthStatus(), GetMemoryUsage(), GetMetricsHistory(), GetProcessHealth(), GetSystemUptime(), InitializeMonitor() (+1 more)
 
 ### Community 1237 - "statenour-voice · deploy contract"
-Cohesion: 0.20
-Nodes (9): Build pipeline, Common failure modes, Deploy trigger, Env vars (Railway-managed), Pre-deploy validation, Railway service, Related docs, Rollback (+1 more)
+Cohesion: 0.52
+Nodes (4): PushNotificationToggle(), urlBase64ToUint8Array(), usePushNotifications(), Probe()
 
 ### Community 1238 - "popup.js"
 Cohesion: 0.51
 Nodes (9): $(), escapeHtml(), getActiveTabContext(), getConfig(), init(), loadPriorNotes(), renderSetupCallout(), save() (+1 more)
 
 ### Community 1239 - "StorageManager"
-Cohesion: 0.22
-Nodes (4): Saves snapshot to disk and returns absolute path., Saves plate crop to disk and returns absolute path., Calculate total directory size in Gigabytes., StorageManager
+Cohesion: 0.24
+Nodes (3): CameraBridgeApp, Fetches snapshot image bytes from Frigate Web API., Background thread executing heartbeats, retry queue flushes, and disk cleanups.
 
 ### Community 1240 - "Contributing Guide"
 Cohesion: 0.20
@@ -7370,16 +7156,16 @@ Cohesion: 0.27
 Nodes (5): HOW TO INVOKE THIS SKILL (READ FIRST, FOLLOW EVERY TIME), OUTPUT CONTRACT (BADGE + LAWS — READ BEFORE EMITTING YOUR RESPONSE), SKILL CONTRACT — READ BEFORE ANY TOOL CALL, STEP 0: STALE-CLONE SELF-CHECK — RUN BEFORE READING BELOW, VOICE CONTRACT LAW (non-negotiable, read before synthesis)
 
 ### Community 1242 - "bird-search.mjs"
-Cohesion: 0.27
-Nodes (8): args, main(), SearchClient, writeStderr(), writeStdout(), isQueryIdMismatch(), withSearch(), extractCursorFromInstructions()
+Cohesion: 0.22
+Nodes (9): Horizon 1 · Closed-loop intelligence, Horizon 2 · Phone-first power, Horizon 3 · Multi-tenant readiness, Horizon 4 · Outcome benchmarking, Horizon 5 · Hardening + observability, Horizon 6 · Devastating-lead intelligence, Horizon 7 · Cross-ring shop OS mirror, How to use this file (+1 more)
 
 ### Community 1244 - "._run"
 Cohesion: 0.29
 Nodes (5): _engine(), FooterNudgeSuppressionTests, CompletedProcess, Path, Tests for the BRAVE/SERPER web-promo suppression when hosting-model-driven.
 
 ### Community 1245 - "TestSearchRetryOn500"
-Cohesion: 0.20
-Nodes (6): Tests for the multi-word -> hashtag retry on SC's flaky 500 path.      SC's /v2/, Multi-word query 500 -> retry with collapsed hashtag form., Single-word query 500 has no spaces to collapse - no retry., 200 on first call -> retry path is never entered., No SCRAPECREATORS_API_KEY -> error returned without HTTP call., TestSearchRetryOn500
+Cohesion: 0.02
+Nodes (119): GET(), log, POST(), SendSchema, POST(), UpscaleBody, UpscaleScale, POST() (+111 more)
 
 ### Community 1246 - "TestAssessDataFreshness"
 Cohesion: 0.29
@@ -7394,8 +7180,8 @@ Cohesion: 0.20
 Nodes (6): R3: --x-handle CLI flag and pipeline parameter., build_parser() should accept --x-handle., --x-handle should default to None., pipeline.run() should accept x_handle keyword argument., When x_handle is provided, it should trigger targeted handle search., TestXHandleFlag
 
 ### Community 1251 - "_json"
-Cohesion: 0.31
-Nodes (4): _json(), Path, _skill_version(), TestPluginContract
+Cohesion: 0.25
+Nodes (8): Business - Shop Canon, Canonical Links, Current Priorities, Distilled Principles, Marketing Cadence, Role Of The Shop, SOURCE: Obsidian Note: Faith - Family - Character Canon.md, Team Standards
 
 ### Community 1252 - "TestBaseline"
 Cohesion: 0.20
@@ -7407,7 +7193,7 @@ Nodes (5): _listing_post(), _no_enrich(), _post(), Tests for the dedicated-subre
 
 ### Community 1254 - "TestEnrichmentBudget"
 Cohesion: 0.27
-Nodes (5): Tests for the enrichment time budget in enrich_with_comments()., When enrichment is fast, all items get comments., With budget=0, items are returned without enrichment (not discarded)., If enrichment raises, items are returned without comments., TestEnrichmentBudget
+Nodes (9): GET, bucketKey(), hourClevelandFromUtc(), hourLabel(), HourScore, predictBestHoursForOpenTasks(), predictBestHoursForTask(), RawCompletion (+1 more)
 
 ### Community 1255 - "RegressionTests"
 Cohesion: 0.38
@@ -7418,8 +7204,8 @@ Cohesion: 0.24
 Nodes (3): HiringSignalsBannerSuppressionTests, JobsFooterTests, RenderHiringSignalsTests
 
 ### Community 1258 - "TestPollDeviceAuth"
-Cohesion: 0.20
-Nodes (6): Tests for poll_device_auth()., Returns access_token after initial pending then success., Returns None when timeout is exceeded., Returns None on expired_token error., HTTP 400 during polling continues (authorization pending)., TestPollDeviceAuth
+Cohesion: 0.29
+Nodes (6): BOOKING, CLIENT, FAILURES, HEALTH, SCHEDULE_FN, SCHEDULER
 
 ### Community 1259 - "TestYtdlpAutoInstall"
 Cohesion: 0.20
@@ -7474,8 +7260,12 @@ Cohesion: 0.25
 Nodes (5): GUIDE, GuideEntry, SYMPTOM_GUIDE_LINKS, SYMPTOM_GUIDE_URGENT_IDS, APP_TSX
 
 ### Community 1273 - "input-group.tsx"
-Cohesion: 0.28
-Nodes (4): InputGroupAddon(), inputGroupAddonVariants, InputGroupButton(), inputGroupButtonVariants
+Cohesion: 0.29
+Nodes (7): 2026-04-29 — v8.4 QA pass + 4 more batches · vision-route / heartbeat cleanup / brain-bus / pgvector, BATCH 19 — /api/ai/chat/vision endpoint, BATCH 20 — Heartbeat redundancy cleanup, BATCH 21 — Phase 2B brain-bus skeleton, BATCH 22 — pgvector skeleton, QA pass on v8.0-v8.3 — 4 real bugs caught, Stats
+
+### Community 1274 - "table.tsx"
+Cohesion: 0.29
+Nodes (7): 3.1 Admin control panel (`/admin/brain-controls`), 3.2 `/admin/data-flow` — visual pipeline dashboard, 3.3 `/lab` — experiment playground, 3.4 Morning briefing audio — Daily "pull up to the shop" podcast, 3.5 Voice-first inline commands, 3.6 Public share links for specific conversations, Tier 3 — New surfaces (next month)
 
 ### Community 1275 - "Revenue Activation Inventory — Nick's Tire & Auto"
 Cohesion: 0.22
@@ -7502,8 +7292,8 @@ Cohesion: 0.22
 Nodes (8): 1. Master audit table, 2. Journey-join foundation (the big finish), 3. CAPI status, 4. What was pushed / gates, 5. Risk register / still open, 6. Owner checklist (everything left, in order), 7. 7-day watch, Nick's Tire — Autonomous Attribution Completion
 
 ### Community 1281 - "Bridge API Contracts — Nick's Admin ↔ NOUR OS"
-Cohesion: 0.25
-Nodes (8): Authentication, Bridge API Contracts — Nick's Admin ↔ NOUR OS, GET /api/bridge/health, GET /api/bridge/owner-snapshot, GET /api/bridge/shop-snapshot, Nick's Admin Endpoints (nickstire.org), NOUR OS Endpoints (autonicks.com) — TO BE BUILT, Testing
+Cohesion: 0.20
+Nodes (9): Authentication, Bridge API Contracts — Nick's Admin ↔ NOUR OS, GET /api/bridge/health, GET /api/bridge/health, GET /api/bridge/owner-snapshot, GET /api/bridge/shop-snapshot, Nick's Admin Endpoints (nickstire.org), NOUR OS Endpoints (autonicks.com) — TO BE BUILT (+1 more)
 
 ### Community 1282 - "✅ Shipped (live on main)"
 Cohesion: 0.22
@@ -7554,44 +7344,44 @@ Cohesion: 0.28
 Nodes (8): __dirname, DIST_PRERENDER_DIR, FINAL_PRERENDER_DIR, findFreePort(), main(), ROOT, ROUTES, waitForHealth()
 
 ### Community 1294 - "generatePostImage"
-Cohesion: 0.25
-Nodes (8): { dbRows, hgGenerate, storagePut, fallbackGenerate }, TINY_PNG, convertHostedPngToJpeg(), generateImageHuggingFace(), generateImageOpenRouter(), generatePostImage(), generatePostImageFallback(), generatePostImageGeminiDirect()
+Cohesion: 0.29
+Nodes (7): 7.1 Automated testing on critical paths, 7.2 Rate limiting on heavy endpoints, 7.3 CSRF protection on POST routes, 7.4 Sentry / error tracking, 7.5 Database backup schedule documentation, 7.6 Environment-parity checks, Tier 7 — Infrastructure / boring-but-critical
 
 ### Community 1295 - "shareCardWriteResult.test.ts"
-Cohesion: 0.31
-Nodes (6): affectedRows(), insertedId(), writeResult, insertResult, TOKEN, updateResult
+Cohesion: 0.15
+Nodes (12): Corrections to this audit's own first pass, Cron-truth audit · 2026-07-28 (adversarial sweep, dimension 1), Dimension 2 (partial) — morning-brief surface, audited before its maiden delivery, Dimension 2 remainder — pulse · scoreboard (CLEAN), Dimension 3 — dead wiring (bounded probe, CLEAN), Dimension 4 — prompt self-contradictions (policy layer, CLEAN), Dimension 5 — cannot-fail checks (DONE), Dimension 6 — auth gates (DONE) (+4 more)
 
 ### Community 1296 - "analyzeTrends"
-Cohesion: 0.28
-Nodes (9): analyzeTrends(), calculateHealthScore(), calculateTrend(), checkEventLoopHealth(), detectRequestAnomalies(), flushRequestBucket(), generateDiagnosticReport(), getSystemHealth() (+1 more)
+Cohesion: 0.38
+Nodes (6): bucketize(), buildTaskContextBlock(), formatLine(), log, TaskBucket, TaskRow
 
 ### Community 1297 - "tunnel-status.ts"
-Cohesion: 0.31
-Nodes (8): detectMode(), getTunnelStatus(), getTunnelUrl(), log, parseUrlFile(), TunnelMode, TunnelStatus, URL_FILE
+Cohesion: 0.29
+Nodes (7): Category 2 · Model output leakage, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms, Where it shows up
 
 ### Community 1298 - "quality.ts"
 Cohesion: 0.22
 Nodes (8): ConceptBrief, ContentQualityScore, ContentSourceRegistry, DraftStatus, FormatRegistry, InstagramDraft, PostFormat, SourceType
 
 ### Community 1299 - "leadScoring.ts"
-Cohesion: 0.36
-Nodes (8): HIGH_VALUE, LeadData, log, MEDIUM_VALUE, PRIMARY_ZIPS, scoreLead(), SECONDARY_ZIPS, URGENT_KEYWORDS
+Cohesion: 0.29
+Nodes (7): Category 3 · NLU pattern misses, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms, Where it shows up
 
 ### Community 1300 - "smartScheduler.ts"
-Cohesion: 0.22
-Nodes (3): log, SERVICE_DURATIONS, SLOTS_PER_DAY
+Cohesion: 0.29
+Nodes (7): Commits (14 atomic), Dead code sweep, Infrastructure, New capabilities, Observability, ✅ Shipped — 2026-04-20 evening (v10.4 bridge + signal unification), Structural collapses
 
 ### Community 1301 - "coupon-redemptions.test.ts"
 Cohesion: 0.22
 Nodes (7): BASE, CouponRow, future, mockDb, mockSelect, mockUpdate, past
 
 ### Community 1302 - "refund.integration.test.ts"
-Cohesion: 0.22
-Nodes (7): mockDbInstance, mockExecute, mockLogAdminAction, mockRefundCreate, mockRetrieve, mockSelect, mockUpdate
+Cohesion: 0.29
+Nodes (7): Category 4 · Concurrency races, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms, Where it shows up
 
 ### Community 1303 - "build-model-messages.ts"
-Cohesion: 0.31
-Nodes (5): buildModelMessages(), BuildModelMessagesInput, ChatLogger, sanitize(), silentLog
+Cohesion: 0.29
+Nodes (7): Category 5 · Workflow stalls, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms, Where it shows up
 
 ### Community 1304 - "route.ts"
 Cohesion: 0.44
@@ -7610,8 +7400,8 @@ Cohesion: 0.22
 Nodes (8): ADR-0015 · Decision-replay coach pipeline, Alternatives considered, Consequences, Context, Decision, Open items, References, Why keyword Jaccard not embedding similarity for wisdom match
 
 ### Community 1308 - "Tier 11 — OUTSIDE-THE-BOX MOAT PLAYS"
-Cohesion: 0.22
-Nodes (9): 11.1 Pin "bundles" — named constellations Nour switches between, 11.2 Nick reads Nour's camera (optional + local), 11.3 Ambient chat — "think out loud" with voice-first mode, 11.4 "Nick seed" — shareable clone link, 11.5 Multi-device continuity — Nick sees what's on screen, 11.6 Mission weaving — Nick connects every turn to a Mission, 11.7 Prompt diff mode, 11.8 Time-travel — query past self (+1 more)
+Cohesion: 0.25
+Nodes (9): CATEGORY_RULES, classifyConversation(), ConversationEntry, extractInsights(), loadConversationIndex(), loadTranscript(), processConversations(), ProcessedConversation (+1 more)
 
 ### Community 1309 - "Deep honesty audit — 2026-05-05 wrap session"
 Cohesion: 0.22
@@ -7638,8 +7428,8 @@ Cohesion: 0.22
 Nodes (8): 1. Directory Structure, 2. Command Line Interface Reference, 3. Grounding & Hallucination Guardrail, 4. Domain Safety Controls (Rule 8), NotebookLM Output Ingestion, Research Pack Ingestion (Memory-only by default), Source Pack Generation, Statenour Research Lab Operational Manual
 
 ### Community 1315 - "Runbook · Memory evals — the truth scoreboard"
-Cohesion: 0.22
-Nodes (8): Commands, Gotchas, Memory kinds, Rollback, Rules, Runbook · Memory evals — the truth scoreboard, Verification, What it is
+Cohesion: 0.48
+Nodes (6): avg(), buildNickQualityFeed(), midnightUTC(), percentile(), ScorecardMeta, windowAggregate()
 
 ### Community 1316 - "Session handoff · 2026-05-12 · the aggressive sweep"
 Cohesion: 0.22
@@ -7650,15 +7440,15 @@ Cohesion: 0.22
 Nodes (8): Future expansion candidates (not in scope here), Manual surfacing via Nick, Operator action items, Pack files, Pack stats, Provenance discipline, When Nick should surface each pack, Wisdom Packs · Naval + Munger + Bezos · v10.0.524
 
 ### Community 1318 - "main"
-Cohesion: 0.28
-Nodes (7): AssistantMessage, AssistantMessagePart, useTextToSpeech(), UseTextToSpeechOptions, clean(), main(), probe()
+Cohesion: 0.40
+Nodes (4): AssistantMessage, AssistantMessagePart, useTextToSpeech(), UseTextToSpeechOptions
 
 ### Community 1319 - "Multi-Format Content Creator & Video Coach"
 Cohesion: 0.22
 Nodes (8): 1. Short-Form Video Production (TikTok, Reels, Shorts), 2. Written Copywriting & Storytelling, 3. Podcast & Audio Optimization, Core Capabilities, Editing Guidelines & Standards, Multi-Format Content Creator & Video Coach, Role Definition, Success Metrics
 
 ### Community 1320 - "telegram-ops.ts"
-Cohesion: 0.31
+Cohesion: 0.48
 Nodes (4): alertFirstSpecialistDispatch(), sendTelegramOpsAlert(), TelegramSendOptions, runMockRecallApprovalDemo()
 
 ### Community 1321 - "RedisState"
@@ -7678,16 +7468,12 @@ Cohesion: 0.36
 Nodes (7): getObsidianEngineConfig(), buildFrontmatter(), processQuarantinedFiles(), validCategories, generateUniqueId(), main(), sanitizeFilename()
 
 ### Community 1325 - "Migration 0001 · Mission.lifeGoalId"
-Cohesion: 0.22
-Nodes (8): How to apply, Migration 0001 · Mission.lifeGoalId, Post-apply verification, Pre-apply checks, Rollback, What it does, Why operator may want this, Why parked
+Cohesion: 0.29
+Nodes (6): Finding, IGNORE_GLOBS, main(), RULES, SCAN_GLOBS, ScanRule
 
 ### Community 1326 - "Parked migrations"
-Cohesion: 0.22
-Nodes (8): `0003_ambition_engine` — ✅ APPLIED 2026-05-30 (via endpoint), `20260508001336_add_updated_at_to_8_mutable_models`, `20260618000000_consolidated_models` — ⏳ REGISTERED, awaiting apply (PR #217), `20260625000000_action_receipts_and_completion_criteria` — ✅ APPLIED 2026-06-26 (via script), `20260722120000_experiment_factory` — ✅ APPLIED 2026-07-22 (COLUMN-FIRST, via `apply.mjs`), How to apply a parked migration (legacy / with-creds path), Parked migrations, Pending migrations · awaiting production DB access
-
-### Community 1327 - "statenour"
-Cohesion: 0.22
-Nodes (9): Architecture in one paragraph, Common commands, Daily routes, Developer workflow, Onboard in 5 minutes, Philosophy, Project docs (read in this order), statenour (+1 more)
+Cohesion: 0.20
+Nodes (9): `0003_ambition_engine` — ✅ APPLIED 2026-05-30 (via endpoint), `20260508001336_add_updated_at_to_8_mutable_models`, `20260618000000_consolidated_models` — ⏳ REGISTERED, awaiting apply (PR #217), `20260625000000_action_receipts_and_completion_criteria` — ✅ APPLIED 2026-06-26 (via script), `20260722120000_experiment_factory` — ✅ APPLIED 2026-07-22 (COLUMN-FIRST, via `apply.mjs`), `20260806120000_drop_duplicate_indexes` — ✅ APPLIED 2026-08-06 (directly, one transaction), How to apply a parked migration (legacy / with-creds path), Parked migrations (+1 more)
 
 ### Community 1328 - "emit-index-migration.ts"
 Cohesion: 0.31
@@ -7706,8 +7492,8 @@ Cohesion: 0.22
 Nodes (8): Candidate waves (each row = pre-check then apply), Deferred (blocked on a decision), nickstire Foreign-Key Rollout Roadmap — 2026-07-07, Provenance (clarity-gate), Shipped (39 FKs · nickstire went 0 → 39), The safe apply procedure (per pair — do NOT batch-apply), Waves 1–3 (12 FKs), Waves 1–4/5 (31 FKs)
 
 ### Community 1332 - "StorageCleanup"
-Cohesion: 0.25
-Nodes (4): Path, Purge old snapshots and crops based on age., Purge oldest files if storage size exceeds quota., StorageCleanup
+Cohesion: 0.29
+Nodes (7): Category 6 · Data integrity drift, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms, Where it shows up
 
 ### Community 1333 - "Run"
 Cohesion: 0.39
@@ -7762,12 +7548,16 @@ Cohesion: 0.22
 Nodes (3): Tests for the shared keyless-Reddit throttle (U4)., TestRateLimiter, TestRedditKeylessGetText
 
 ### Community 1349 - "TestSearchAndTranscribe"
-Cohesion: 0.22
-Nodes (5): Tests for search_and_transcribe() end-to-end flow., When top-viewed videos have no captions, lower-ranked ones still get transcripts, When transcript_limit is 0 (quick depth), no transcripts are fetched., When search returns no items, returns without fetching transcripts., TestSearchAndTranscribe
+Cohesion: 0.40
+Nodes (5): FoundLookup, MemberRow, MembershipsSection(), STATUS_LABELS, statusLabel()
 
 ### Community 1350 - "RedisState"
 Cohesion: 0.28
 Nodes (3): Convert values written by this application back to common Python types., Redis-backed task state.      Trust boundary: Redis is expected to be private to, RedisState
+
+### Community 1351 - "empty.tsx"
+Cohesion: 0.40
+Nodes (5): APPLY, hasTable(), q(), steps, url
 
 ### Community 1352 - "Nickstire Admin Modernization — Validated Plan (systems → front)"
 Cohesion: 0.25
@@ -7790,8 +7580,8 @@ Cohesion: 0.25
 Nodes (8): 4.1 Separation of Concerns, 4.2 Integration Points and Dependencies, 4.3 Data Flow Patterns, 4.4 Authentication/Authorization Model, 4.5 Caching Strategy, 4.6 Error Handling Patterns, 4.7 Logging Strategy, 4. ARCHITECTURE OBSERVATIONS
 
 ### Community 1357 - "Memory index (nickstire repo)"
-Cohesion: 0.25
-Nodes (7): After substantive changes, Memory index (nickstire repo), New files (HF stack, 2026-05-26), Recent waves (2026-05-24 → 05-26), Self-improving loops (VAPI + GSC · shipped 2026-07-06), Voice / VAPI · operator-product context (read before evaluating call metrics), Where things live
+Cohesion: 0.22
+Nodes (8): After substantive changes, Memory index (nickstire repo), New files (HF stack, 2026-05-26), Recent waves (2026-05-24 → 05-26), Recent waves (2026-05-24 → 05-26), Self-improving loops (VAPI + GSC · shipped 2026-07-06), Voice / VAPI · operator-product context (read before evaluating call metrics), Where things live
 
 ### Community 1358 - "Protected Core — Do Not Casually Refactor"
 Cohesion: 0.25
@@ -7842,24 +7632,24 @@ Cohesion: 0.25
 Nodes (7): 0 · Confirm the deploy landed, 1 · Apply the schema (creates 3 tables + 1 column), 2 · Immediate smoke checks (no test customer needed), 3 · Live capture spot-checks (use a test phone, not a customer), 4 · Over the next few days (crons do the work), NCSOS post-deploy verification checklist, Rollback
 
 ### Community 1370 - "Reel Manufacturing Pipeline — Operations"
-Cohesion: 0.25
-Nodes (7): End-to-end flow, Environment contract (Railway service `MAINnicks-tire-auto`), Known limits / open items, Manual forensics recipe ("is the video real?"), Recovery procedures (all zero-generation-cost), Reel Manufacturing Pipeline — Operations, Render-integrity gate (#800/#801)
+Cohesion: 0.29
+Nodes (6): Closing the loop, Order of checks, plan-gate, Reporting the gate, Verdict vocabulary, When the gate finds something new
 
 ### Community 1371 - "optimize-photos.mjs"
-Cohesion: 0.36
-Nodes (7): DRY_RUN, fmt(), mobileFilename(), optimize(), PUBLIC_DIR, statSize(), TARGETS
+Cohesion: 0.18
+Nodes (13): DRY_RUN, fmt(), mobileFilename(), optimize(), PUBLIC_DIR, statSize(), TARGETS, getAccessToken() (+5 more)
 
 ### Community 1372 - "validateLedger"
-Cohesion: 0.43
-Nodes (5): CODE_STATES, EXPOSURES, OP_STATES, SEVERITIES, validateLedger()
+Cohesion: 0.48
+Nodes (6): clean(), collect_skills(), main(), parse_frontmatter(), Count Skill tool_use, slash commands, and MCP calls., scan_usage()
 
 ### Community 1373 - "detect-contradictions.mjs"
 Cohesion: 0.25
 Nodes (7): args, bodyIdx, claimsPath, DO_NOT_MERGE_PATTERNS, enforce, problems, repoRoot
 
 ### Community 1374 - "gsc-snapshot.mjs"
-Cohesion: 0.29
-Nodes (7): b64url(), candidates, getAccessToken(), lowCtr, query(), totalClicks, totalImpr
+Cohesion: 0.24
+Nodes (11): buildSkillKey(), Skill, StoredSkill, buildSkillFromSource(), CapturedSkill, CaptureTier, clean(), deriveKeywords() (+3 more)
 
 ### Community 1375 - "generate-photo-variants.mjs"
 Cohesion: 0.25
@@ -7894,28 +7684,24 @@ Cohesion: 0.36
 Nodes (5): computeRetentionCohorts(), CustomerStatRow, getRetentionCohortSummary(), RetentionCohortSummary, NOW
 
 ### Community 1383 - "dropOffFlow.ts"
-Cohesion: 0.50
-Nodes (7): getClosingTime(), getWorkOrderContext(), isDropOffFlowEnabled(), log, sendDropOffConfirmation(), sendInProgressUpdate(), sendReadyForPickup()
+Cohesion: 0.29
+Nodes (7): Category 7 · Quality regressions, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms, Where it shows up
 
 ### Community 1384 - "receptionistRoi.ts"
-Cohesion: 0.36
-Nodes (6): asRecord(), estimateRecoveredRevenue(), getReceptionistRoi(), ReceptionistRoi, RevenueBand, ZERO
+Cohesion: 0.33
+Nodes (4): CensusRow, main(), SOURCES, SourceSpec
 
 ### Community 1385 - "refundWriteback.test.ts"
-Cohesion: 0.25
-Nodes (7): mockDbInstance, mockExecute, mockFetch, mockGetSession, mockLogAdminAction, mockSelect, mockUpdate
+Cohesion: 0.29
+Nodes (7): Category 8 · Operational silence, Detection signals, Existing infrastructure to extend, Failure modes, New infrastructure to build, Prevention mechanisms, Where it shows up
 
 ### Community 1386 - "gsc-prefetch.ts"
-Cohesion: 0.39
-Nodes (6): buildGscPrefetch(), log, CanonicalGscSummary, getConfig(), queryCanonicalGscSummary(), unwrapTrpcPayload()
-
-### Community 1387 - "cognitive-partner.tsx"
-Cohesion: 0.35
-Nodes (9): CognitivePartner(), DockMode, getMessageText(), ModeConfig, MODES, markBriefFired(), readBriefStamp(), shouldFireBrief() (+1 more)
+Cohesion: 0.33
+Nodes (4): detectRevenueAnomalies(), log, RevenueForecast, RevenueSnapshot
 
 ### Community 1388 - "multi-turn-chat.tsx"
-Cohesion: 0.39
-Nodes (6): ChatTurn, MultiTurnChat(), MultiTurnChatProps, readStored(), storageKey(), writeStored()
+Cohesion: 0.29
+Nodes (5): failed, HERE, results, ROOT, testFiles
 
 ### Community 1389 - "Config Spine"
 Cohesion: 0.25
@@ -7970,8 +7756,8 @@ Cohesion: 0.25
 Nodes (7): ADR-0016 · Merge Brain + Life into Actions · OPS into Settings, Consequences, Considered Alternatives, Context, Decision, Files touched, Verification
 
 ### Community 1402 - "aesthetic-principles.md"
-Cohesion: 0.25
-Nodes (7): 1. Use the editorial layout primitives, 2. Typography rules, 3. What's banned, 4. Spacing rhythm, 5. Color discipline, 6. Motion discipline, 7. Enforcement
+Cohesion: 0.22
+Nodes (8): 1. Use the editorial layout primitives, 2. Typography rules, 3. What's banned, 4. Spacing rhythm, 5. Color discipline, 6. Motion discipline, 7. Enforcement, Aesthetic Principles · NOUR OS
 
 ### Community 1403 - "Local Agent Device Diagnostic"
 Cohesion: 0.25
@@ -7994,8 +7780,8 @@ Cohesion: 0.25
 Nodes (7): Cohort 2026-05-16 · v10.0.529.106 · Statenour Consolidation Sprint, High-impact decisions logged, Operator action items, The day in 1 sentence, v10.0.529.106 milestone marker, What landed (chronological · 10 commits), What's deliberately deferred
 
 ### Community 1408 - "CURRENT-TRUTH.md — Statenour"
-Cohesion: 0.25
-Nodes (8): Active vs historical docs, CURRENT-TRUTH.md — Statenour, Retired — do NOT treat as current (these are the landmines), See also, Source-of-truth hierarchy (highest first), Stale-doc guard, Truth lives in code, not prose (don't hardcode these in docs), Where this runs
+Cohesion: 0.22
+Nodes (9): Active vs historical docs, CURRENT-TRUTH.md — Statenour, Retired — do NOT treat as current (these are the landmines), See also, Since 2026-07-20 (verified 2026-07-28 — headline deltas), Source-of-truth hierarchy (highest first), Stale-doc guard, Truth lives in code, not prose (don't hardcode these in docs) (+1 more)
 
 ### Community 1409 - "Endpoint Hygiene — statenour-os"
 Cohesion: 0.25
@@ -8010,20 +7796,20 @@ Cohesion: 0.25
 Nodes (7): Allowlists, Audit cadence, Known limitations, Method, Next steps, Result · 2026-05-06, Security Audit · 2026-05-06 · v10.0.375
 
 ### Community 1412 - "wave-57-config-strictness-followup.md"
-Cohesion: 0.25
-Nodes (7): Decision · don't ship without the migration, `exactOptionalPropertyTypes` (347 errors), Migration sequence (when ready), `noUncheckedIndexedAccess` (866 errors), What's already strict, What W57 did ship, Why the bigger flags didn't ship
+Cohesion: 0.22
+Nodes (8): Decision · don't ship without the migration, `exactOptionalPropertyTypes` (347 errors), Migration sequence (when ready), `noUncheckedIndexedAccess` (866 errors), Wave 57 · Config Strictness · Follow-up Plan, What's already strict, What W57 did ship, Why the bigger flags didn't ship
 
 ### Community 1413 - "seoForensic.ts"
-Cohesion: 0.20
-Nodes (7): log, ProcessResult, processSeoForensic(), RankShift, positionsByQuery, telegram, topQueries
+Cohesion: 0.29
+Nodes (6): Deferred / not done (operator's call), Doc hygiene note, Honest caveat — what is NOT runtime-verified, PRs merged, Session log — 2026-07-05 (statenour chat: audit → fix → unrestrict → improve, Opus 4.8), Verification (fresh, on merged `origin/main` @ `4b6c8d12`)
 
 ### Community 1414 - "publish_html"
 Cohesion: 0.32
 Nodes (7): _error_message(), HtmlPublishError, publish_html(), Any, Optional hosted publishing for rendered HTML artifacts., Raised when the hosted HTML publish endpoint rejects the artifact., Publish a single HTML document and return the provider response.
 
 ### Community 1415 - "twitter-client-base.js"
-Cohesion: 0.32
-Nodes (5): runtimeQueryIds, FALLBACK_QUERY_IDS, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS, normalizeQuoteDepth()
+Cohesion: 0.25
+Nodes (8): 2026-04-29 — v8.3 Mega Bundle · 6 more batches · alerts/sandbox/galaxy/SSE/alive/vision, BATCH 13 — Active alerts surface on /brain, BATCH 14 — Builder Sandbox 3 new clipboard actions, BATCH 15 — `/brain/galaxy` semantic-graph view, BATCH 16 — SSE heartbeat helper, BATCH 17 — Alive-UI sweep, BATCH 18 — Vision-input helper, Stats
 
 ### Community 1416 - "llm.py"
 Cohesion: 0.32
@@ -8042,40 +7828,40 @@ Cohesion: 0.36
 Nodes (7): checkAndIncrementToolQuota(), DEFAULT_CAPS, isCurrentlyEdt(), log, nextMidnightEtIso(), QuotaCheckResult, todayKey()
 
 ### Community 1420 - "tool-result-classifier.ts"
-Cohesion: 0.32
-Nodes (6): classifyToolResult(), HIGH_SEVERITY_PATTERNS, InjectionFlags, InjectionSeverity, LOW_SEVERITY_PATTERNS, renderInjectionAnnotation()
+Cohesion: 0.33
+Nodes (4): recoverability, reliability, schema, today
 
 ### Community 1421 - "storage-quota.ts"
 Cohesion: 0.29
 Nodes (7): QuotaReport, RawSizeRow, runStorageQuotaWatch(), SOFT_CAPS, TABLES_TO_WATCH, TableStat, tierFor()
 
 ### Community 1422 - "chat-feedback.ts"
-Cohesion: 0.25
-Nodes (5): InvalidFeedbackScoreError, MessageFeedbackArgs, MessageFeedbackNotFoundError, MessageFeedbackResult, recordMessageFeedback()
+Cohesion: 0.33
+Nodes (6): 12.1 Real-time shop OS mirror, 12.2 Decision journal auto-harvest, 12.3 Compounding identity — never-forgetting brain, 12.4 Adversarial Nick — devil's advocate mode, 12.5 The 1% rule engine, Tier 12 — DEVASTATING-LEAD PLAYS (strategic weapons)
 
 ### Community 1423 - "chat-fork.ts"
-Cohesion: 0.25
-Nodes (5): forkConversation(), ForkConversationInput, ForkInvalidPivotError, ForkResult, ForkSourceNotFoundError
+Cohesion: 0.24
+Nodes (11): AdversarialReport, aiChat, ALREADY_BALANCED, CriticArgs, _criticize(), criticizeAsync(), criticizeRecommendation, isRecommendationShape() (+3 more)
 
 ### Community 1424 - "apply-schema-indexes.ts"
-Cohesion: 0.36
-Nodes (7): determineNeededIndexes(), FieldDef, isCovered(), main(), ModelDef, parseSchema(), SCHEMA_PATH
+Cohesion: 0.22
+Nodes (8): Commands, Gotchas, Memory kinds, Rollback, Rules, Runbook · Memory evals — the truth scoreboard, Verification, What it is
 
 ### Community 1425 - "audit-deps.ts"
-Cohesion: 0.36
-Nodes (7): AuditFinding, extractFindings(), main(), PnpmAdvisory, PnpmAuditOutput, runPnpmAudit(), writeFindings()
+Cohesion: 0.33
+Nodes (6): 5.1 Nick-as-a-service API (private), 5.2 Nick answers the shop phone (outbound), 5.3 Competitive pricing scraper, 5.4 Customer sentiment monitoring, 5.5 Local SEO performance tracker, Tier 5 — External leverage (month+)
 
 ### Community 1426 - "audit-soft-delete-filters.ts"
-Cohesion: 0.39
-Nodes (7): ALLOWLIST, baselineKey(), Finding, isAllowlisted(), main(), parseSoftDeleteModels(), walk()
+Cohesion: 0.26
+Nodes (11): build(), _dedupe_writes(), _format_names(), Any, Permission preflight contract and human renderer., Render the permission preflight as concise user-facing text., Build a stable, secret-free permission preflight object., render_text() (+3 more)
 
 ### Community 1427 - "investigate-task-wipe-3.mjs"
 Cohesion: 0.25
 Nodes (7): byActor, byDay, byStatus, dayEnd, dayStart, massDeleteDay, sortedDays
 
 ### Community 1428 - "with-local-prisma-engine.mjs"
-Cohesion: 0.25
-Nodes (4): APP_ROOT, argv, LOCAL_ENGINE_DIR, require
+Cohesion: 0.40
+Nodes (4): POST, { findUnique, update, create, inngestSend }, post(), ROW
 
 ### Community 1429 - "nick-bridge-query-contract.test.ts"
 Cohesion: 0.29
@@ -8086,16 +7872,16 @@ Cohesion: 0.25
 Nodes (7): Adding a scenario, Nick regression eval suite, Related infrastructure (reused, not duplicated), Run, Scenario categories, What the judge measures, Why two modes
 
 ### Community 1431 - "statenour-voice · LiveKit operator voice agent"
-Cohesion: 0.25
-Nodes (7): Cost estimate, Local development, Production deployment (Railway), References, statenour-voice · LiveKit operator voice agent, What it does, Why HTTP bridge (not in-process LLM)
+Cohesion: 0.33
+Nodes (5): Mood, MOOD_PALETTE, RingSpec, StatePulse(), StatePulseProps
 
 ### Community 1432 - "Local SEO & Google Reviews Cache Architecture"
 Cohesion: 0.25
 Nodes (7): ⚡ 1. Google Places API Cache & Error Backoff Lock, 💾 2. Database Fallback & Display Resolution, 🔧 3. Managing DB Fallback Settings (Admin Panel), Display Resolution Rule, Local SEO & Google Reviews Cache Architecture, The Cache & Lock Architecture, The Problem
 
 ### Community 1433 - "INTELLIGENCE_OS_EVALS_AND_TESTING.md"
-Cohesion: 0.25
-Nodes (7): 1. Braintrust Integration & Testing Pipeline, 2. Structured Extraction Evals, 3. Judgment Evals, 4. Outcome Evals (Calibration & Brier Scores), Calibration Dashboard Metrics, Evaluation Criteria, Golden Dataset Example
+Cohesion: 0.22
+Nodes (8): 1. Braintrust Integration & Testing Pipeline, 2. Structured Extraction Evals, 3. Judgment Evals, 4. Outcome Evals (Calibration & Brier Scores), Calibration Dashboard Metrics, Evaluation Criteria, Golden Dataset Example, INTELLIGENCE OS EVALS AND TESTING SPEC
 
 ### Community 1434 - "INTELLIGENCE OS SOURCE REGISTRY SPEC"
 Cohesion: 0.25
@@ -8126,12 +7912,8 @@ Cohesion: 0.39
 Nodes (3): _int_field(), Return the first present integer field from a post dict., TestIntField
 
 ### Community 1441 - "parse_profile_articles"
-Cohesion: 0.43
-Nodes (3): parse_profile_articles(), Map a profile's `articles[]` into high-signal engine item dicts., TestProfileArticles
-
-### Community 1442 - "twitter-client-base.js"
-Cohesion: 0.32
-Nodes (5): runtimeQueryIds, FALLBACK_QUERY_IDS, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS, normalizeQuoteDepth()
+Cohesion: 0.29
+Nodes (7): Commands, Gotchas, Rollback, Rules, Runbook · Nickstire vs Statenour boundary, The two apps, Verification
 
 ### Community 1447 - "TestExcludeSources"
 Cohesion: 0.25
@@ -8151,11 +7933,11 @@ Nodes (3): The YouTube footer line must surface the transcript-fetch ratio in al
 
 ### Community 1454 - "TestRunDeviceAuth"
 Cohesion: 0.25
-Nodes (5): Tests for run_device_auth()., Successful device code request returns tuple., HTTP error during code request returns None., Incomplete response (no device_code) returns None., TestRunDeviceAuth
+Nodes (8): 4.1 System prompt caching at the provider level, 4.2 Prometheus-style metrics endpoint, 4.3 Database health endpoint + alerts, 4.4 Schema debt sweep (per `schema_debt.md`), 4.5 Universal journal feed — pull in email, calendar, drive, chat AS journal entries, 4.6 AI-assisted CHANGELOG auto-generation, 4.7 Venice model comparison tool, Tier 4 — Deep quality + stability (ongoing)
 
 ### Community 1455 - "TestSetupGithubCliWiring"
-Cohesion: 0.32
-Nodes (5): Tests for the `setup --github` CLI branch: persist + mask the key., Invoke `setup --github` in-process, return (parsed_json, env_path)., Success -> key written to .env, stdout JSON masked, persisted true., Timeout -> no key on disk, persisted false., TestSetupGithubCliWiring
+Cohesion: 0.29
+Nodes (7): [2.1.0] - 2026-02-15, Added, Changed, Credits, Fixed, Highlights, New Contributors
 
 ### Community 1457 - "TestScTranscriptParsing"
 Cohesion: 0.25
@@ -8183,7 +7965,7 @@ Nodes (7): Critical Blocker, Nickstire.org — CEO Audit Summary, Overall Grade:
 
 ### Community 1463 - "Business - Shop Canon"
 Cohesion: 0.25
-Nodes (8): Business - Shop Canon, Current Priorities, Distilled Principles, Marketing Cadence, Role Of The Shop, SOURCE: Brain Memory: obsidian_money_cleanup (business), SOURCE: Obsidian Note: Faith - Family - Character Canon.md, Team Standards
+Nodes (8): Business - Shop Canon, Canonical Links, Current Priorities, Distilled Principles, Marketing Cadence, Role Of The Shop, SOURCE: Brain Memory: obsidian_money_cleanup (business), Team Standards
 
 ### Community 1464 - "gsc-audit.mts"
 Cohesion: 0.29
@@ -8202,8 +7984,8 @@ Cohesion: 0.29
 Nodes (6): 1. Production verification of `96a66a1c`: ALL PASS, 2. Master intelligence findings (live-session), 3. What was built (3 small fixes, display-only), 4. Remaining HOLD items (unchanged ranking), 5. Next 3 recommended waves (ROI x risk), Nick's Tire — Revenue Intelligence Quality Pass
 
 ### Community 1468 - "wave-181-side-job-audit-2026-05-18.md"
-Cohesion: 0.29
-Nodes (6): Audits run, Findings deferred (not shipping in this pass), Fixes shipped (6 surgical edits), Methodology, Phase JJ shipped in same wave, Sibling-bug hints (NOT to fix · just flagged)
+Cohesion: 0.25
+Nodes (7): Audits run, Findings deferred (not shipping in this pass), Fixes shipped (6 surgical edits), Methodology, Phase JJ shipped in same wave, Sibling-bug hints (NOT to fix · just flagged), Wave-181 side-job audit · 2026-05-18 PM
 
 ### Community 1469 - "Runbook — Activate Meta CAPI (server-side conversions)"
 Cohesion: 0.29
@@ -8214,16 +7996,16 @@ Cohesion: 0.29
 Nodes (6): Google Sheets, Intentionally NOT automated, Routes, Staff workflow, Tire Orders Cockpit, Warning banners (each appears only when real)
 
 ### Community 1471 - "carousel-factory.ts"
-Cohesion: 0.48
-Nodes (6): Carousel, genImage(), main(), overlay(), sh(), Slide
+Cohesion: 0.13
+Nodes (18): Carousel, genImage(), main(), overlay(), sh(), Slide, CLIPS, download() (+10 more)
 
 ### Community 1472 - "gen-batch-veo.ts"
-Cohesion: 0.43
-Nodes (6): BASE, dl(), findUrl(), gen(), main(), REELS
+Cohesion: 0.33
+Nodes (5): Guard Red-Team, Protocol, Red flags, The rule, When NOT to use
 
 ### Community 1473 - "gen-reel1-assets.ts"
-Cohesion: 0.43
-Nodes (6): CLIPS, download(), findUrl(), gen(), main(), OUT
+Cohesion: 0.33
+Nodes (6): 2026-04-20 — v10.3 Quality Audit + Tier 1 Power Moves, Commits, Infrastructure refactor, Quality audit (Tier 9), Tier 10 starter pack — Alive-UI, Tier 1 power moves
 
 ### Community 1474 - "gen-reels-23-assets.ts"
 Cohesion: 0.43
@@ -8250,12 +8032,12 @@ Cohesion: 0.43
 Nodes (6): fmtScore(), main(), PAGES_TO_AUDIT, PsiResult, runPsi(), scoreToStatus()
 
 ### Community 1480 - "lint-source.mjs"
-Cohesion: 0.29
-Nodes (5): __dirname, EXEMPT_FILES, ROOT, serverFiles, stats
+Cohesion: 0.20
+Nodes (6): Tests for the multi-word -> hashtag retry on SC's flaky 500 path.      SC's /v2/, Multi-word query 500 -> retry with collapsed hashtag form., Single-word query 500 has no spaces to collapse - no retry., 200 on first call -> retry path is never entered., No SCRAPECREATORS_API_KEY -> error returned without HTTP call., TestSearchRetryOn500
 
 ### Community 1481 - "mobile-seo-audit.mjs"
-Cohesion: 0.43
-Nodes (5): audit(), fetchPage(), PAGES, rgx(), rgxAll()
+Cohesion: 0.33
+Nodes (6): 2026-04-29 — v7.6 → v7.9 · Phase 1 Schema-Audit Hardening, Pre-push hook hardened (4 → 6 steps), v7.6 — ChatMessage Batch A · 16-checkpoint sweep, v7.7 — Universal idempotency keys (6 tables), v7.8 — Universal createdBy/updatedBy + AsyncLocalStorage actor, v7.9 — Universal soft-delete (9 tables)
 
 ### Community 1482 - "durationSeconds"
 Cohesion: 0.29
@@ -8266,16 +8048,16 @@ Cohesion: 0.43
 Nodes (6): fmtScore(), main(), PAGES_TO_AUDIT, PsiResult, runPsi(), scoreToStatus()
 
 ### Community 1484 - "cleanup-stale-leads.ts"
-Cohesion: 0.43
-Nodes (6): COMMIT, isFakePattern(), main(), maskPersonName(), maskPhoneNum(), Row
+Cohesion: 0.33
+Nodes (6): 2026-07-12 — Chat repair wave, Ollama-Cloud routing, king persona, recall backfill, AI routing → Ollama Cloud (PRs #696, #697), Chat ↔ missions integration (PRs #718, #719), Chat surface repairs (PRs #699, #705), Ops, Recall / embeddings (PR #705 + prod data)
 
 ### Community 1485 - "sync-routes-from-data.ts"
 Cohesion: 0.29
 Nodes (6): __dirname, ROUTES_PATH, routesSrc, SERVICE_SLUG_TO_PATH, Sync, syncs
 
 ### Community 1486 - "apply-wave-125.ts"
-Cohesion: 0.38
-Nodes (6): exec(), isTolerable(), JOURNAL_PATH, main(), ROOT, TOLERATED
+Cohesion: 0.50
+Nodes (6): buildCashflowForecast(), CashflowForecast, forecastConfidence(), forecastDigestLine(), projectRevenue(), toDate()
 
 ### Community 1487 - "apply-wave-181-sa-v2.ts"
 Cohesion: 0.29
@@ -8291,7 +8073,7 @@ Nodes (6): cap, file, here, [id, severity, description, source], ledger, ORDER
 
 ### Community 1490 - "featureFlagReaders.test.ts"
 Cohesion: 0.29
-Nodes (4): KNOWN_ORPHANS, ORPHANS, ROOT, SRC
+Nodes (7): [3.0.9] - 2026-04-18 - The Self-Debug Release, Added, Changed, Contributors, Fixed, Highlights, Recovery
 
 ### Community 1491 - "journey.ts"
 Cohesion: 0.38
@@ -8303,11 +8085,11 @@ Nodes (6): Adding a new eval, AI Evaluation Harness, Cost discipline, How to run
 
 ### Community 1493 - "timezoneAssert.ts"
 Cohesion: 0.43
-Nodes (5): assertBusinessTimezoneAtBoot(), checkBusinessTimezone(), log, TimezoneCheck, VALID_OFFSETS_HOURS
+Nodes (3): parse_profile_articles(), Map a profile's `articles[]` into high-signal engine item dicts., TestProfileArticles
 
 ### Community 1494 - "warmTransferConnect.ts"
-Cohesion: 0.57
-Nodes (5): computeWarmTransferConnectRate(), ConnectRow, isForwardCompleted(), isTransferFailure(), WarmTransferConnectStats
+Cohesion: 0.24
+Nodes (11): computeTransferOutcomeEvidence(), EvidenceCallRow, last10(), TransferOutcomeEvidence, isForwardCompleted(), isTransferFailure(), ASOF, at() (+3 more)
 
 ### Community 1495 - "postInvoiceFollowUp.test.ts"
 Cohesion: 0.29
@@ -8315,11 +8097,11 @@ Nodes (6): mockFrom, mockLimit, mockSelect, mockSet, mockUpdate, mockWhere
 
 ### Community 1496 - "publishChokePoint.test.ts"
 Cohesion: 0.33
-Nodes (4): admin(), ctx(), publishToSocialMock, SLIDES
+Nodes (5): JOURNAL_PATH, main(), MIGRATION_PATH, NEW_COLUMNS, ROOT
 
 ### Community 1497 - "citationManager.ts"
-Cohesion: 0.29
-Nodes (4): CANONICAL, Citation, DIRECTORY_LIST, log
+Cohesion: 0.33
+Nodes (5): Appendix · v10.0.473-484 incident log (2026-05-08), Decision log, NOUR OS · Glitch Taxonomy, Open questions, Roll-out priority (recommended)
 
 ### Community 1498 - "actions.test.ts"
 Cohesion: 0.29
@@ -8334,8 +8116,8 @@ Cohesion: 0.33
 Nodes (4): authedReq(), engines, invoke(), NextRequestLike
 
 ### Community 1501 - "Tier 7 — Infrastructure / boring-but-critical"
-Cohesion: 0.29
-Nodes (7): 7.1 Automated testing on critical paths, 7.2 Rate limiting on heavy endpoints, 7.3 CSRF protection on POST routes, 7.4 Sentry / error tracking, 7.5 Database backup schedule documentation, 7.6 Environment-parity checks, Tier 7 — Infrastructure / boring-but-critical
+Cohesion: 0.33
+Nodes (6): finding_from_candidate(), findings_from_report(), Candidate, Report, Convert a ranked candidate into a persisted finding., Convert report into persisted findings.      Uses ranked candidates (post-rerank
 
 ### Community 1502 - "API Agent-Readiness Audit · 2026-05-12"
 Cohesion: 0.29
@@ -8346,16 +8128,16 @@ Cohesion: 0.29
 Nodes (6): Addendum · Lighthouse-equivalent pass on `/` (mobile 290px, dev mode), Cumulative impact, Finding 1 · `/api/ultron/signal` 16.6s cold-cache miss · LOW severity, Finding 2 · `/api/command/data` 10.4s every request · MEDIUM severity ✅ FIXED v10.0.505, Finding 3 · vector_embeddings 566ms slow query · LOW severity, Slow-paths audit · 2026-05-12
 
 ### Community 1504 - "Production Chat Transcripts Audit"
-Cohesion: 0.29
-Nodes (6): Conversation 1: ID=cmqz7cp0o004xqj01m3vkz2tg, Conversation 2: ID=cmqz766r4001gqj017ygg4oo7, Conversation 3: ID=cmqz6lzg2003wny01kzxtuyzb, Conversation 4: ID=cmqz62vkn013gpv01xsqnkqt3, Conversation 5: ID=cmqz5trhv012dpv01y6fzguf6, Production Chat Transcripts Audit
+Cohesion: 0.22
+Nodes (8): [ASSISTANT] (gpt-oss:120b) - ID: cmqz7ebn1007iqj01ylcyv6xj, Conversation 1: ID=cmqz7cp0o004xqj01m3vkz2tg, Conversation 2: ID=cmqz766r4001gqj017ygg4oo7, Conversation 3: ID=cmqz6lzg2003wny01kzxtuyzb, Conversation 4: ID=cmqz62vkn013gpv01xsqnkqt3, Production Chat Transcripts Audit, Transcript, [USER] (unknown) - ID: cmqz7cp2p004zqj018r4m2n5k
 
 ### Community 1505 - "Migration Index · Phase Q (2026-05-18 PM)"
 Cohesion: 0.29
 Nodes (6): Active migrations, Completed migrations, Migration Index · Phase Q (2026-05-18 PM), Pattern · how to file a new migration, Retired migrations, Why this index exists
 
 ### Community 1506 - "Operator Biography & Context Backfill · NOUR OS"
-Cohesion: 0.29
-Nodes (6): 1. Demographics Information, 2. Interests & Preferences, 3. Relationships, 4. Dated Events, Projects & Plans, 5. Instructions (System Rules), Operator Biography & Context Backfill · NOUR OS
+Cohesion: 0.33
+Nodes (4): routes, SENSITIVE_PREFIXES, Violation, violations
 
 ### Community 1507 - "2026-04-22 — v11.0 Observability + Power + Meta-Intelligence Wave"
 Cohesion: 0.29
@@ -8363,35 +8145,35 @@ Nodes (7): 14 /system/* surfaces went from 0 → live, 2026-04-22 — v11.0 Obse
 
 ### Community 1508 - "2026-04-29 — v8.1 Mega Bundle · 6 batches · audit-list sweep"
 Cohesion: 0.29
-Nodes (7): 2026-04-29 — v8.1 Mega Bundle · 6 batches · audit-list sweep, BATCH 1 — Universal History page + drawer, BATCH 2 — Phase 2C schema-drift sentinel, BATCH 3 — Per-engine tier gating (B1 from v11.1), BATCH 4 — Voice-clone weekly cron + REPO-MAP refresh, BATCH 5 — F1 cross-session memory continuity surface, BATCH 6 — F4 prediction-streak tracker
+Nodes (10): AutonomyLevel, getAutomationPolicy(), isRolloutModeAllowed(), maxRolloutModeForLevel(), MODE_RANK, RolloutMode, SMS_AUTOMATION_REGISTRY, SmsAutomationPolicy (+2 more)
 
 ### Community 1509 - "2026-04-29 — v8.2 Mega Bundle · 6 more batches · F2/F3/F5/D5/streak-UI/drift-surface"
-Cohesion: 0.29
-Nodes (7): 2026-04-29 — v8.2 Mega Bundle · 6 more batches · F2/F3/F5/D5/streak-UI/drift-surface, BATCH 10 — D5 freshness audit, BATCH 11 — Prediction-streak UI card, BATCH 12 — Schema-drift surface in /system/health, BATCH 7 — F2 correlation alarm clock, BATCH 8 — F3 decision-quality drift detector, BATCH 9 — F5 blind-spot auto-pinner
+Cohesion: 0.40
+Nodes (4): Path, SKILL.md metadata helpers — single source of truth for parsing skill frontmatter, Return the version string from a SKILL.md's frontmatter, or None.      Returns N, read_skill_version()
 
 ### Community 1510 - "2026-04-29 — v8.3 Mega Bundle · 6 more batches · alerts/sandbox/galaxy/SSE/alive/vision"
-Cohesion: 0.29
-Nodes (7): 2026-04-29 — v8.3 Mega Bundle · 6 more batches · alerts/sandbox/galaxy/SSE/alive/vision, BATCH 13 — Active alerts surface on /brain, BATCH 14 — Builder Sandbox 3 new clipboard actions, BATCH 15 — `/brain/galaxy` semantic-graph view, BATCH 16 — SSE heartbeat helper, BATCH 17 — Alive-UI sweep, BATCH 18 — Vision-input helper
+Cohesion: 0.43
+Nodes (5): CODE_STATES, EXPOSURES, OP_STATES, SEVERITIES, validateLedger()
 
 ### Community 1511 - "Runbook · Nickstire vs Statenour boundary"
-Cohesion: 0.29
-Nodes (7): Commands, Gotchas, Rollback, Rules, Runbook · Nickstire vs Statenour boundary, The two apps, Verification
+Cohesion: 0.53
+Nodes (5): main(), mineLines(), OUT_DIR, RefutedCase, selfTest()
 
 ### Community 1512 - "Runbook · Task classifier — domains, missions, learning"
-Cohesion: 0.29
-Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Task classifier — domains, missions, learning, Verification
+Cohesion: 0.36
+Nodes (7): AuditFinding, BulkAdvisoryHit, BulkAdvisoryOutput, extractFindings(), main(), runBulkAdvisoryScan(), writeFindings()
 
 ### Community 1513 - "Session log — 2026-06-19 (NOURCITY, Opus 4.8)"
-Cohesion: 0.29
-Nodes (6): Notes, Operator action items, PRs opened, Repo hygiene (local, no commits), Session log — 2026-06-19 (NOURCITY, Opus 4.8), Verification (per PR)
+Cohesion: 0.12
+Nodes (7): Audience, LtvTier, OutreachTab(), PaymentBehavior, suggestCampaignId(), BlowUpModal(), EnvelopeBuilder
 
 ### Community 1514 - "content-multi.ts"
 Cohesion: 0.33
-Nodes (4): detectMultiMode(), MultiContext, MultiMode, stripSlashAndKeyword()
+Nodes (6): A. **Pre-push gate (extend the existing 15-step)**, B. **`/system/health-grid` mega-dashboard**, C. **Brain memory `category=glitch_capture`**, Cross-cutting prevention infrastructure, D. **Weekly system-health digest cron**, E. **One-tap "this is broken" capture in /chat**
 
 ### Community 1515 - "SourceHealth"
-Cohesion: 0.33
-Nodes (5): probe_command(), Typed source health: classify a source/tool outcome honestly.  The pipeline hist, Typed outcome for a source or the tool backing it.      ``state`` is one of the, Probe an external command, distinguishing missing/broken/timeout/ok.      Separa, SourceHealth
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1516 - "preflight.py"
 Cohesion: 0.38
@@ -8402,8 +8184,8 @@ Cohesion: 0.33
 Nodes (3): BUNDLED_PROTOCOLS, getBundledProtocol(), hasBundledProtocol()
 
 ### Community 1518 - "stream-with-fallback.test.ts"
-Cohesion: 0.29
-Nodes (5): streamWithFallback, getModelMock, logErrorMock, markProviderFailedMock, streamTextMock
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1519 - "tool-combo-rules.ts"
 Cohesion: 0.43
@@ -8414,12 +8196,12 @@ Cohesion: 0.29
 Nodes (3): CategoryTtlPolicy, DEFAULT_POLICY, POLICIES
 
 ### Community 1521 - "drift.ts"
-Cohesion: 0.38
-Nodes (5): DriftLevel, assessDriftState(), detectDrift(), DriftSignalInput, interventions
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1522 - "cache-telemetry.ts"
-Cohesion: 0.29
-Nodes (4): CacheReport, CacheStats, RecordArgs, stats
+Cohesion: 0.36
+Nodes (7): buildContent(), CalEvent, deriveCategory(), envFile, envLocal, isWorthIngesting(), main()
 
 ### Community 1523 - "energy-router.ts"
 Cohesion: 0.33
@@ -8427,7 +8209,7 @@ Nodes (5): buildEnergyProfile(), EnergyProfile, HOURS_PER_WINDOW, TaskTelemetry,
 
 ### Community 1524 - "chat-autocomplete.ts"
 Cohesion: 0.33
-Nodes (6): AutocompleteArgs, AutocompleteResult, AutocompleteRule, buildAutocomplete(), findHeuristicMatch(), RULES
+Nodes (6): [3.0.0] - 2026-04-11, Added, Changed, Contributors, Fixed, Highlights
 
 ### Community 1525 - "journal-directive.ts"
 Cohesion: 0.33
@@ -8438,8 +8220,8 @@ Cohesion: 0.29
 Nodes (6): Architecture, Flags, Quick Start, Ring Setup (first time), Statenour OS — Local Smart Home Agent, V380 Cameras
 
 ### Community 1527 - "Migration 0002 · journal_threads + journal_thread_memberships"
-Cohesion: 0.29
-Nodes (6): How to apply, Migration 0002 · journal_threads + journal_thread_memberships, Rollback, What it does, Why parked, Why this design
+Cohesion: 0.36
+Nodes (7): buildMemoryContent(), deriveCategory(), envFile, envLocal, GmailMsg, isWorthIngesting(), main()
 
 ### Community 1528 - "audit-a11y.mjs"
 Cohesion: 0.29
@@ -8458,8 +8240,8 @@ Cohesion: 0.33
 Nodes (6): classify(), LanguageVerdict, main(), NON_EN_MARKERS, RegistryFile, SkillEntry
 
 ### Community 1532 - "check-sensitive-get-auth.ts"
-Cohesion: 0.29
-Nodes (4): routes, SENSITIVE_PREFIXES, Violation, violations
+Cohesion: 0.26
+Nodes (10): AUTH_SIGNAL, Entry, git(), main(), MUTATING_VERBS, scanRouteSource(), scanTrpcSource(), STRICT (+2 more)
 
 ### Community 1533 - "contract-pre-flight.ts"
 Cohesion: 0.38
@@ -8470,8 +8252,8 @@ Cohesion: 0.38
 Nodes (6): buildContent(), deriveCategory(), DriveDoc, envFile, envLocal, main()
 
 ### Community 1535 - "prompt-shadow-summary.ts"
-Cohesion: 0.33
-Nodes (6): main(), MetricRow, parseArgs(), PerTierStats, Tags, ADR-0003
+Cohesion: 0.40
+Nodes (5): main(), MetricRow, parseArgs(), PerTierStats, Tags
 
 ### Community 1536 - "theme-token-utilities.test.ts"
 Cohesion: 0.29
@@ -8490,8 +8272,8 @@ Cohesion: 0.29
 Nodes (6): Clean-verified surfaces, Documented, not fixed (operator decision / low severity), Fixed this wave, Full-Repo Bug Audit — 2026-07-07, Recurring patterns → prevention, Verified fixed since 2026-07-05 audit (no action needed)
 
 ### Community 1540 - ".process_event"
-Cohesion: 0.33
-Nodes (3): Purge tracks that haven't been updated in 15 minutes., Deduplicates incoming raw Frigate events.         Returns:             (should_p, VehicleTrack
+Cohesion: 0.29
+Nodes (6): 1. Demographics Information, 2. Interests & Preferences, 3. Relationships, 4. Dated Events, Projects & Plans, 5. Instructions (System Rules), Operator Biography & Context Backfill · NOUR OS
 
 ### Community 1541 - "🏁 Active Initiatives & Milestones"
 Cohesion: 0.29
@@ -8514,24 +8296,24 @@ Cohesion: 0.29
 Nodes (7): user_config, xai_api_key, description, required, sensitive, title, type
 
 ### Community 1546 - "Install"
-Cohesion: 0.29
-Nodes (7): claude.ai (web), Claude Code (recommended), Claude Desktop, Codex, Cursor, Copilot, Gemini CLI, and other Agent Skills hosts, Install, Manual (developer), OpenClaw
+Cohesion: 0.33
+Nodes (6): [3.3.0] - 2026-05-17, Added, Changed, Contributors, Fixed, Removed
 
 ### Community 1547 - "cjk.py"
-Cohesion: 0.38
-Nodes (6): _cjk_tokens(), has_cjk(), CJK-aware tokenization for relevance scoring and near-duplicate detection.  The, True if the text contains any CJK / kana / hangul character., Tokenize mixed CJK / Latin text into a flat list of lowercased tokens.      CJK, segment()
+Cohesion: 0.40
+Nodes (3): panel, router, service
 
 ### Community 1548 - "SourceHealth"
-Cohesion: 0.33
-Nodes (5): probe_command(), Typed source health: classify a source/tool outcome honestly.  The pipeline hist, Typed outcome for a source or the tool backing it.      ``state`` is one of the, Probe an external command, distinguishing missing/broken/timeout/ok.      Separa, SourceHealth
+Cohesion: 0.29
+Nodes (6): How [CHECK — commands against current Neon CLI], Point-in-time recovery [CHECK], Runbook · Neon branching for safe experiments, The rules [STABLE], What this does NOT cover, Why this exists
 
 ### Community 1549 - "preflight.py"
 Cohesion: 0.38
 Nodes (6): check_class_1_trap(), _has_qualifier(), Engine-side query-quality pre-flight.  Detects Class 1 (demographic shopping) ke, Return True if the topic contains hobbies/relationship/budget context.      A Cl, Return a REFUSE message string if the topic matches Class 1, else None.      Cla, _refuse_message()
 
 ### Community 1550 - "render_brief"
-Cohesion: 0.33
-Nodes (7): _extract_audience_questions(), _format_corroboration(), _format_explanation(), Candidate, Production brief for downstream pipelines (video, scripting, structured synthesi, Return titles that read as audience questions, deduped and in ranked order., render_brief()
+Cohesion: 0.40
+Nodes (4): Fields, Integration Registry (Source of Operational Truth), Registry Table, Update rule
 
 ### Community 1552 - "test_github_unauth.py"
 Cohesion: 0.29
@@ -8602,20 +8384,16 @@ Cohesion: 0.33
 Nodes (5): HOW TO INVOKE THIS SKILL (READ FIRST, FOLLOW EVERY TIME), OUTPUT CONTRACT (BADGE + LAWS — READ BEFORE EMITTING YOUR RESPONSE), SKILL CONTRACT — READ BEFORE ANY TOOL CALL, STEP 0: STALE-CLONE SELF-CHECK — RUN BEFORE READING BELOW, VOICE CONTRACT LAW (non-negotiable, read before synthesis)
 
 ### Community 1573 - "FIRST: Internalize the Research"
-Cohesion: 0.33
-Nodes (6): Competitor mode (`--competitors`), FIRST: Internalize the Research, For all QUERY_TYPEs, Hiring Signals mode (`--hiring-signals`), If QUERY_TYPE = COMPARISON, If QUERY_TYPE = RECOMMENDATIONS — Signal-weighted picks, not mention counts
+Cohesion: 0.50
+Nodes (4): FIRST: Internalize the Research, For all QUERY_TYPEs, If QUERY_TYPE = COMPARISON, If QUERY_TYPE = RECOMMENDATIONS — Signal-weighted picks, not mention counts
 
 ### Community 1574 - "Judge Agent: Synthesize All Sources"
 Cohesion: 0.33
 Nodes (6): Judge Agent: Synthesize All Sources, Prediction Markets (Polymarket), Source-Specific Guidance (still applies within clusters), v3 Cluster-First Output, WebSearch Supplement Weighting for Comparisons, X Reply Cluster Weighting
 
-### Community 1575 - "nickstire-shared-main-push"
-Cohesion: 0.33
-Nodes (5): Local Windows path note, nickstire-shared-main-push, Real-session example, The 5 rules (in order), When the push is blocked by the other session
-
-### Community 1576 - "nickstire-verify"
-Cohesion: 0.33
-Nodes (5): Deploy verification, Multi-session push protocol, nickstire-verify, Run, in order (from `apps/nickstire/`), Traps
+### Community 1577 - "input-otp.tsx"
+Cohesion: 0.60
+Nodes (4): graph(), main(), REEL_SLUG, sleep()
 
 ### Community 1578 - "commentTriage.ts"
 Cohesion: 0.47
@@ -8650,8 +8428,8 @@ Cohesion: 0.33
 Nodes (5): Gateway / D&K Availability — Status (2026-06-10), Operating rule until then, Repair plan (after access), What is true right now, What the owner/vendor must provide (the blocker)
 
 ### Community 1587 - "gbp-qa-seeding.md"
-Cohesion: 0.33
-Nodes (5): Claim-safety rules baked in (do not violate when editing), How to post (owner, ~15 min, one-time), Opportunity, Truth source, What's automated vs manual
+Cohesion: 0.29
+Nodes (6): Claim-safety rules baked in (do not violate when editing), GBP Q&A Seeding, How to post (owner, ~15 min, one-time), Opportunity, Truth source, What's automated vs manual
 
 ### Community 1588 - "Recommended observability stack (additions)"
 Cohesion: 0.33
@@ -8682,24 +8460,24 @@ Cohesion: 0.33
 Nodes (5): Agent / operator docs, Database migrations, Layout, Nick's Tire & Auto — nickstire.org, Quick start
 
 ### Community 1595 - "assemble-reel1.ts"
-Cohesion: 0.47
-Nodes (5): build(), DIR, main(), OUT, SEGS
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1596 - "apply-wave-181-59-declined-recovery-attempted.ts"
-Cohesion: 0.33
-Nodes (5): JOURNAL_PATH, main(), MIGRATION_PATH, NEW_COLUMNS, ROOT
+Cohesion: 0.38
+Nodes (6): CAPTIONS, graph(), main(), ORDER, sleep(), STATE
 
 ### Community 1597 - "apply-wave-181-85-voice-recovery.ts"
-Cohesion: 0.33
-Nodes (5): JOURNAL_PATH, main(), MIGRATION_PATH, NEW_COLUMNS, ROOT
+Cohesion: 0.29
+Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Task classifier — domains, missions, learning, Verification
 
 ### Community 1598 - "backfill-invoice-vehicles.ts"
 Cohesion: 0.47
 Nodes (5): authenticate(), buildVehicle(), COMMIT, main(), Ticket
 
 ### Community 1599 - "run-backfill.mjs"
-Cohesion: 0.40
-Nodes (5): db, main(), normalizePhone(), ONE_YEAR_AGO, pool
+Cohesion: 0.13
+Nodes (15): db, main(), normalizePhone(), ONE_YEAR_AGO, pool, EXPECTED_TOOLS, main(), record() (+7 more)
 
 ### Community 1600 - "seed-blog.mjs"
 Cohesion: 0.33
@@ -8722,8 +8500,8 @@ Cohesion: 0.53
 Nodes (5): getAccessToken(), getSitemapStatus(), main(), SITEMAPS_TO_SUBMIT, submitSitemap()
 
 ### Community 1606 - "vapi-test-new-tools.ts"
-Cohesion: 0.40
-Nodes (5): EXPECTED_TOOLS, main(), record(), results, TestResult
+Cohesion: 0.10
+Nodes (39): _append_html_footer(), _assess_data_freshness(), _build_source_footer_lines(), collect_html_warnings(), collect_html_warnings_comparison(), _dedupe_notes(), _footer_line_for_source(), _format_volume_short() (+31 more)
 
 ### Community 1607 - "export-vapi-recordings.ts"
 Cohesion: 0.47
@@ -8734,8 +8512,8 @@ Cohesion: 0.53
 Nodes (5): getAccessToken(), getSitemapStatus(), main(), SITEMAPS_TO_SUBMIT, submitSitemap()
 
 ### Community 1609 - "apply-wave-181-59-declined-recovery-attempted.ts"
-Cohesion: 0.33
-Nodes (5): JOURNAL_PATH, main(), MIGRATION_PATH, NEW_COLUMNS, ROOT
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1610 - "apply-wave-181-85-voice-recovery.ts"
 Cohesion: 0.33
@@ -8750,20 +8528,16 @@ Cohesion: 0.33
 Nodes (4): ANSWER_ENGINE_AGENTS, PRE_EXISTING_AGENTS, ROBOTS_TXT_TOKENS_NOT_USER_AGENTS, SOURCE
 
 ### Community 1613 - "requestLogger.ts"
-Cohesion: 0.53
-Nodes (5): log, requestLogger(), shouldSkip(), SKIP_PATHS, SKIP_PREFIXES
-
-### Community 1614 - "gbp.test.ts"
 Cohesion: 0.40
-Nodes (4): gbpRouter, adminContext(), h, userContext()
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1615 - "db-hygiene.test.ts"
-Cohesion: 0.40
-Nodes (3): adminContext(), h, userContext()
+Cohesion: 0.23
+Nodes (11): audit(), FieldDef, findings, IndexFinding, isCoveredByIndex(), isIndexed(), main(), ModelDef (+3 more)
 
 ### Community 1616 - "page-context-bridge.tsx"
-Cohesion: 0.40
-Nodes (4): extractEntity(), PageContextBridge(), PageContextPayload, readPageContext()
+Cohesion: 0.08
+Nodes (25): 2026-07-30 · first `session-observer` run (skill-library gap-close), 2026-07-30 · observability truth arc (PRs #1228–#1239), 2026-08-04 · Agent OS v1 (canonical policy + adapters + enforcement hooks) — PRs #1355, #1354, 2026-08-04 · UI/UX improvement pass (worktree ui-ux-improvement-pass), 2026-08-04 · unfinished-work PR run (PRs #1358-#1361 + dependabot queue), 2026-08-07 · evolution-arc crank waves (#1401–#1416): VAPI pushes, cage/ghost-replay instrument hardening, P1 · NEW: guard-red-team, P1 · `nickstire-ios-pwa-primitives` (+17 more)
 
 ### Community 1617 - "HITL Verification Record"
 Cohesion: 0.33
@@ -8782,48 +8556,48 @@ Cohesion: 0.33
 Nodes (5): Evaluation Checklist (9 points), HITL Verification Record, Round A: Derived Data Confirmation, Round B: True HITL Verification, Task Outcome Validation Verification
 
 ### Community 1621 - "2026-04-20 — v10.3 Quality Audit + Tier 1 Power Moves"
-Cohesion: 0.33
-Nodes (6): 2026-04-20 — v10.3 Quality Audit + Tier 1 Power Moves, Commits, Infrastructure refactor, Quality audit (Tier 9), Tier 10 starter pack — Alive-UI, Tier 1 power moves
+Cohesion: 0.17
+Nodes (11): Corrections applied by this gate, Defect 1 — /diagnose read sources that cannot receive rows, Defect 2 — provider_pings drop, HITL Verification Record, Inferences and hypotheses (marked — do not cite as fact), Ledger reconciliation (operator-approved chip task, same evening), Open finding (not fixed in this arc), Round A: Derived Data Confirmation (+3 more)
 
 ### Community 1622 - "2026-04-29 — v7.6 → v7.9 · Phase 1 Schema-Audit Hardening"
-Cohesion: 0.33
-Nodes (6): 2026-04-29 — v7.6 → v7.9 · Phase 1 Schema-Audit Hardening, Pre-push hook hardened (4 → 6 steps), v7.6 — ChatMessage Batch A · 16-checkpoint sweep, v7.7 — Universal idempotency keys (6 tables), v7.8 — Universal createdBy/updatedBy + AsyncLocalStorage actor, v7.9 — Universal soft-delete (9 tables)
+Cohesion: 0.29
+Nodes (6): Notes, Operator action items, PRs opened, Repo hygiene (local, no commits), Session log — 2026-06-19 (NOURCITY, Opus 4.8), Verification (per PR)
 
 ### Community 1623 - "2026-07-12 — Chat repair wave, Ollama-Cloud routing, king persona, recall backfill"
-Cohesion: 0.33
-Nodes (6): 2026-07-12 — Chat repair wave, Ollama-Cloud routing, king persona, recall backfill, AI routing → Ollama Cloud (PRs #696, #697), Chat ↔ missions integration (PRs #718, #719), Chat surface repairs (PRs #699, #705), Ops, Recall / embeddings (PR #705 + prod data)
+Cohesion: 0.50
+Nodes (4): authenticate(), COMMIT, main(), Ticket
 
 ### Community 1624 - "Runbook · Stale-doc cleanup + the guard"
-Cohesion: 0.33
-Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Stale-doc cleanup + the guard, Verification
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1625 - "Runbook · Running a Claude Code session safely"
-Cohesion: 0.33
-Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Running a Claude Code session safely, Verification
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1626 - "Runbook · Migrations + deploys"
-Cohesion: 0.33
-Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Migrations + deploys, Verification
+Cohesion: 0.40
+Nodes (4): Findings, Guard requirement, Phase 0 — verified current truth (the ground these findings are measured against), Stale-Info Forensic Report — Truth + Intelligence Wave
 
 ### Community 1627 - "use-chat-speed-ribbon.ts"
 Cohesion: 0.47
 Nodes (4): ChatSpeedRibbonState, MessageTiming, useChatSpeedRibbon(), Probe()
 
 ### Community 1628 - "useChatTransport"
-Cohesion: 0.47
-Nodes (3): useChatTransport, buildTransport(), Probe()
+Cohesion: 0.50
+Nodes (3): CLIENT, DB_SRC, QUEUE
 
 ### Community 1629 - "marketing-growth-hacker.md"
-Cohesion: 0.33
-Nodes (5): Core Capabilities, Decision Framework, Role Definition, Specialized Skills, Success Metrics
+Cohesion: 0.29
+Nodes (6): Core Capabilities, Decision Framework, Marketing Growth Hacker Agent, Role Definition, Specialized Skills, Success Metrics
 
 ### Community 1630 - "SKILL.md"
 Cohesion: 0.33
 Nodes (5): HOW TO INVOKE THIS SKILL (READ FIRST, FOLLOW EVERY TIME), OUTPUT CONTRACT (BADGE + LAWS — READ BEFORE EMITTING YOUR RESPONSE), SKILL CONTRACT — READ BEFORE ANY TOOL CALL, STEP 0: STALE-CLONE SELF-CHECK — RUN BEFORE READING BELOW, VOICE CONTRACT LAW (non-negotiable, read before synthesis)
 
 ### Community 1631 - "FIRST: Internalize the Research"
-Cohesion: 0.33
-Nodes (6): Competitor mode (`--competitors`), FIRST: Internalize the Research, For all QUERY_TYPEs, Hiring Signals mode (`--hiring-signals`), If QUERY_TYPE = COMPARISON, If QUERY_TYPE = RECOMMENDATIONS — Signal-weighted picks, not mention counts
+Cohesion: 0.50
+Nodes (4): FIRST: Internalize the Research, For all QUERY_TYPEs, If QUERY_TYPE = COMPARISON, If QUERY_TYPE = RECOMMENDATIONS — Signal-weighted picks, not mention counts
 
 ### Community 1632 - "Judge Agent: Synthesize All Sources"
 Cohesion: 0.33
@@ -8841,37 +8615,33 @@ Nodes (5): fadein_transition(), fadeout_transition(), Clip, slidein_transition()
 Cohesion: 0.33
 Nodes (5): Adding New Tests, Directory Structure, MoneyPrinterTurbo Test Directory, Running Tests, Test Resources
 
-### Community 1636 - "audit-retention.ts"
-Cohesion: 0.53
-Nodes (3): RetentionReport, runAuditRetention(), main()
-
 ### Community 1637 - "fireflies.ts"
-Cohesion: 0.53
-Nodes (5): firefliesQuery(), FirefliesTranscript, getApiKey(), getRecentTranscripts(), getTranscript()
+Cohesion: 0.48
+Nodes (6): handleArsenalGetMeetings(), firefliesQuery(), FirefliesTranscript, getApiKey(), getRecentTranscripts(), getTranscript()
 
 ### Community 1638 - "chat-search.ts"
-Cohesion: 0.33
-Nodes (5): ChatSearchGroup, ChatSearchOptions, ChatSearchResult, ChatSearchSnippet, searchChat()
+Cohesion: 0.40
+Nodes (5): 2026-04-15 — v10.1 Chat Intelligence + Permanent Principles, Added, Changed, Commits (9 atomic commits, all pushed), Known follow-ups (see ROADMAP.md for full list)
 
 ### Community 1639 - "claim-warnings.ts"
-Cohesion: 0.40
-Nodes (5): ClaimWarning, ClaimWarningMetadata, LegacyClaimOffender, normalizeClaims(), readClaimWarnings()
+Cohesion: 0.50
+Nodes (3): name, private, version
 
 ### Community 1640 - "repair.ts"
 Cohesion: 0.33
 Nodes (3): RepairAction, RepairActionResponse, repairActions
 
 ### Community 1641 - "apply.mjs"
-Cohesion: 0.33
-Nodes (4): c, here, sql, statements
+Cohesion: 0.40
+Nodes (5): 2026-04-20 — v10.2 Chat Intelligence Layer (Intelligence + Control), Added, Commits (6 atomic commits + this CHANGELOG), Files created, Files modified
 
 ### Community 1642 - "deploy"
 Cohesion: 0.33
 Nodes (5): deploy, healthcheckPath, numReplicas, restartPolicyType, $schema
 
 ### Community 1643 - "backfill-chat-ledger.ts"
-Cohesion: 0.40
-Nodes (5): DAYS_ARG, DRY_RUN, main(), PersonIndexEntry, tokenize()
+Cohesion: 0.27
+Nodes (8): dateParts(), fetchGbpPerformance(), FetchLike, GBP_DAILY_METRICS, GbpDailySeries, GbpPerformanceError, GbpPerformanceResult, normalizeLocationId()
 
 ### Community 1644 - "probe-rss-candidates.ts"
 Cohesion: 0.40
@@ -8898,12 +8668,12 @@ Cohesion: 0.33
 Nodes (6): Acceptance criteria (DoD) — all met, BE-DATA-2 · customer phone uniqueness — 2026-07-07, Deferred (documented, not done here), Implementation, Provenance note, Why it's safe (the write-path audit)
 
 ### Community 1651 - "nickstire-shared-main-push"
-Cohesion: 0.33
-Nodes (5): Local Windows path note, nickstire-shared-main-push, Real-session example, The 5 rules (in order), When the push is blocked by the other session
+Cohesion: 0.29
+Nodes (6): Local Windows path note, nickstire-shared-main-push, PR mechanics under concurrent sessions, Real-session example, The 5 rules (in order), When the push is blocked by the other session
 
 ### Community 1652 - "nickstire-verify"
-Cohesion: 0.33
-Nodes (5): Deploy verification, Multi-session push protocol, nickstire-verify, Run, in order (from `apps/nickstire/`), Traps
+Cohesion: 0.25
+Nodes (7): Deploy verification, Instrument runs (cage match / ghost replay / any measurement script), Multi-session push protocol, nickstire-verify, Run, in order (from `apps/nickstire/`), Running a script that needs real credentials, Traps
 
 ### Community 1653 - "Nick's Tire & Auto - Frontend Architecture & Development Guidelines"
 Cohesion: 0.33
@@ -8982,12 +8752,12 @@ Cohesion: 0.33
 Nodes (5): Architecture, last30days-pp-mcp, Local build, Runtime requirements, Versioning
 
 ### Community 1672 - "fanout.py"
-Cohesion: 0.40
-Nodes (5): _log(), Report, Parallel multi-entity fan-out for the --competitors flag.  The orchestrator acce, Run main + competitor pipelines in parallel; return surviving reports.      Args, run_competitor_fanout()
+Cohesion: 0.50
+Nodes (4): cache, dependsOn, persistent, start
 
 ### Community 1673 - "RateLimiter"
-Cohesion: 0.33
-Nodes (3): RateLimiter, Thread-safe token-bucket throttle for an endpoint family.      The keyless sourc, Consume one token, blocking only when the bucket is empty.
+Cohesion: 0.40
+Nodes (5): [2.8.0] - 2026-03-04, Added, Changed, Fixed, Highlights
 
 ### Community 1674 - "Judge Agent: Synthesize All Sources"
 Cohesion: 0.33
@@ -9006,8 +8776,8 @@ Cohesion: 0.33
 Nodes (4): Source errors should be cleared when the source has items from other subqueries., A source that 429'd on one subquery but succeeded on another is not errored., A source with zero items should remain in errors_by_source., TestErrorCleanup
 
 ### Community 1680 - "_claude_downtime_response"
-Cohesion: 0.33
-Nodes (6): _claude_downtime_response(), An off-topic Polymarket event that mentions only the generic word 'Claude'., A multi-word subquery filters off-topic 'Claude downtime' noise.      'Claude Co, The SAME off-topic market leaks through a single-word subquery.      'claude' ha, test_parse_polymarket_response_filters_noise_on_full_subquery(), test_parse_polymarket_response_narrow_subquery_leaks_noise()
+Cohesion: 0.40
+Nodes (5): [2.9.0] - 2026-03-05, Added, Changed, Fixed, Highlights
 
 ### Community 1681 - "TestSCDoesNotAffectCoreScore"
 Cohesion: 0.33
@@ -9046,8 +8816,8 @@ Cohesion: 0.33
 Nodes (6): Canonical Links, Core Problem, Distilled Standard, Mind - Discipline Canon, Patterns To Watch, Practices To Keep
 
 ### Community 1693 - "Faith - Family - Character Canon"
-Cohesion: 0.33
-Nodes (6): Character Rules, Distilled Standards, Faith - Family - Character Canon, Relationship Practices, SOURCE: Obsidian Note: Mind - Discipline Canon.md, Value Hierarchy
+Cohesion: 0.29
+Nodes (7): Canonical Links, Character Rules, Distilled Standards, Faith - Family - Character Canon, Relationship Practices, SOURCE: Obsidian Note: Mind - Discipline Canon.md, Value Hierarchy
 
 ### Community 1694 - "Research Pack: Nicks Tire AI System Memory"
 Cohesion: 0.33
@@ -9074,8 +8844,8 @@ Cohesion: 0.40
 Nodes (4): auth, env, envText, sc
 
 ### Community 1700 - "skill_meta.py"
-Cohesion: 0.40
-Nodes (4): Path, SKILL.md metadata helpers — single source of truth for parsing skill frontmatter, Return the version string from a SKILL.md's frontmatter, or None.      Returns N, read_skill_version()
+Cohesion: 0.33
+Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Current truth — where Statenour runs, Verification
 
 ### Community 1702 - "WHEN USER RESPONDS"
 Cohesion: 0.40
@@ -9087,15 +8857,11 @@ Nodes (4): Command Example, Invocation, MoneyPrinterTurbo Skill, Options
 
 ### Community 1704 - "statenour-migration"
 Cohesion: 0.40
-Nodes (4): Hard rules, statenour-migration, When NOT to use, Workflow
-
-### Community 1705 - "statenour-verify"
-Cohesion: 0.40
-Nodes (4): Run, in order (from `apps/statenour/`), statenour-verify, Traps, When NOT to use
+Nodes (5): 2026-04-29 — v8.0.1 Tier 1 polish + AI route hardening, CHANGELOG backfill, Phase 2A entity-audit — coverage expansion, Phase 2A History UI — EntityHistoryDrawer, Vercel email-alert spam, killed at the source
 
 ### Community 1706 - "statenour-wave-reconcile"
-Cohesion: 0.40
-Nodes (4): Procedure, Rules, statenour-wave-reconcile, When NOT to use
+Cohesion: 0.33
+Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Stale-doc cleanup + the guard, Verification
 
 ### Community 1707 - "AdminAlertBar.tsx"
 Cohesion: 0.40
@@ -9126,8 +8892,8 @@ Cohesion: 0.40
 Nodes (4): Idea 1: Industrial Grit — Cleveland Blue-Collar Authenticity, Idea 2: Neighborhood Trust — Warm, Approachable, Community-First, Idea 3: High-Visibility Utility — Emergency-Response Design Language, Nick's Tire & Auto — Website Design Brainstorm
 
 ### Community 1714 - "customer-confirmation-notifications.md"
-Cohesion: 0.40
-Nodes (4): Claim-safety rules baked into the copy, What enabling sends would require (separate, owner-approved PR), What exists now, Wire points (future)
+Cohesion: 0.33
+Nodes (5): Claim-safety rules baked into the copy, Customer Confirmation Notifications — PREVIEW ONLY, What enabling sends would require (separate, owner-approved PR), What exists now, Wire points (future)
 
 ### Community 1715 - "GBP Growth Center — Integration Plan (post-#47)"
 Cohesion: 0.40
@@ -9158,36 +8924,32 @@ Cohesion: 0.40
 Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1723 - "apply-wave-181-59-sms-sending.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.33
+Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Migrations + deploys, Verification
 
 ### Community 1724 - "apply-wave-181-66-sms-rate-limit-durable.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.10
+Nodes (24): CognitivePartner(), DockMode, getMessageText(), ModeConfig, MODES, FollowUpsList(), HomeConsole(), CHIP_STYLES (+16 more)
 
 ### Community 1725 - "apply-wave-181-77-drip-unique.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.31
+Nodes (9): ALLOWED_HOSTS, DumpJson, fetchVideoTranscript(), log, pickCaptionUrl(), runYtDlp(), validateVideoUrl(), VideoTranscriptResult (+1 more)
 
 ### Community 1726 - "apply-wave-181-83-phone-normalized.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
-
-### Community 1727 - "apply-wave-181-83-tier-skip-state.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.33
+Nodes (6): Commands, Gotchas, Rollback, Rules, Runbook · Running a Claude Code session safely, Verification
 
 ### Community 1728 - "apply-wave-181-84-confirmation-calls.ts"
 Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Nodes (5): _apply_fun_fallback(), _apply_fun_scores(), ReasoningClient, Score candidates for humor, cleverness, and virality (the fun judge)., score_fun()
 
 ### Community 1729 - "backfill-invoice-ticket-ids.ts"
-Cohesion: 0.50
-Nodes (4): authenticate(), COMMIT, main(), Ticket
+Cohesion: 0.40
+Nodes (5): 2026-05-08 — v10.0.442 → v10.0.484 EOD reconciliation sprint · 43 versions, Bug-fix wave · v10.0.473-484 highlights, Forward work · v10.0.442-472 highlights, Lessons captured (in `cohort-2026-05-08-eod-summary.md`), Stats
 
 ### Community 1730 - "backfill-vapi-duration.ts"
-Cohesion: 0.50
-Nodes (4): CliArgs, log, main(), parseArgs()
+Cohesion: 0.40
+Nodes (5): CliArgs, log, main(), parseArgs(), getRecentCalls()
 
 ### Community 1731 - "cleanup-junk-bookings.ts"
 Cohesion: 0.60
@@ -9206,42 +8968,38 @@ Cohesion: 0.60
 Nodes (4): deleteSitemap(), getAccessToken(), main(), SITEMAPS_TO_DELETE
 
 ### Community 1736 - "demo-autonomous-content-run.ts"
-Cohesion: 0.50
-Nodes (4): ensureDirExists(), main(), MOCK_MP4_BUFFER, MOCK_PNG_BUFFER
+Cohesion: 0.40
+Nodes (5): 2026-06-21 — Deep-disconnect audit · 13 dead Prisma models + 22 legacy REST routes deleted, Code · dead contract + exports pruned, Docs updated, Routes · 22 legacy REST routes deleted (~1,210 LOC), Schema · 13 models + 1 enum dropped
 
 ### Community 1737 - "gsc-delete-sitemap.ts"
 Cohesion: 0.60
 Nodes (4): deleteSitemap(), getAccessToken(), main(), SITEMAPS_TO_DELETE
 
 ### Community 1738 - "apply-wave-181-59-otp-attempts.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.53
+Nodes (3): RetentionReport, runAuditRetention(), main()
 
 ### Community 1739 - "apply-wave-181-59-sms-sending.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.20
+Nodes (18): AGENT_TRACE_EXPORT_SELECT, enforceAllowlist(), ExportPolicyError, FORBIDDEN_EXPORT_COLUMNS, parseSince(), toExportLine(), AgentTraceLike, ALLOWED_ATTRIBUTE_KEYS (+10 more)
 
 ### Community 1740 - "apply-wave-181-66-sms-rate-limit-durable.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.60
+Nodes (3): PinnedMessage, usePinnedMessages(), Probe()
 
 ### Community 1741 - "apply-wave-181-69-cron-alerts-fired.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.31
+Nodes (10): _domain(), keyless_search(), Keyless web search (floor tier for engine-side general web).  Returns ranked web, DuckDuckGo wraps result links as //duckduckgo.com/l/?uddg=<encoded>., Run keyless web search; returns (items, artifact). Never raises., _search_ddg(), _search_searxng(), _strip_html() (+2 more)
 
 ### Community 1742 - "apply-wave-181-77-drip-unique.ts"
 Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Nodes (5): 🔍 Blind Spot Check (Forgotten Factor), ⚡ Execution Steps, SOURCE: Brain Memory: obsidian_mission_template (business), 🎯 Strategic Leverage, <% tp.file.title %>
 
 ### Community 1743 - "apply-wave-181-83-phone-normalized.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+Cohesion: 0.67
+Nodes (3): [3.8.3] - 2026-06-25, Added, Removed
 
 ### Community 1744 - "apply-wave-181-83-tier-skip-state.ts"
-Cohesion: 0.40
-Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
-
-### Community 1745 - "apply-wave-181-84-confirmation-calls.ts"
 Cohesion: 0.40
 Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
@@ -9251,55 +9009,51 @@ Nodes (4): findScript(), main(), SCRIPTS_DIR, SUBDIRS
 
 ### Community 1747 - "adStudioContainment.test.ts"
 Cohesion: 0.50
-Nodes (4): admin(), ctx(), publishToSocialMock, slides
+Nodes (3): APPLY, ARMS, url
+
+### Community 1748 - "TestProbeAndDiagnoseHonesty"
+Cohesion: 0.27
+Nodes (9): DecisionRow, DriftReport, GRADE_MAP, gradeToGpa(), log, mean(), runDecisionQualityDrift(), weekStart() (+1 more)
 
 ### Community 1749 - "leadUpdateSet.ts"
-Cohesion: 0.50
-Nodes (3): buildLeadContactStatusSet(), LeadContactStatusUpdate, NOW
-
-### Community 1750 - "voiceAgent.no-fabrication.test.ts"
-Cohesion: 0.50
-Nodes (4): BUSYNESS_CLAIMS, caller(), createVoiceContext(), WAIT_ESTIMATE_KEYS
+Cohesion: 0.24
+Nodes (10): advisoryOnly, args, asJson, chunked(), collectProdDependencies(), levelArg, main(), queryBulk() (+2 more)
 
 ### Community 1751 - "staffHours.ts"
-Cohesion: 0.50
-Nodes (4): getDbAndSchema(), getWeeklyHours(), log, TechWeeklyHours
-
-### Community 1752 - "smsSendingRecovery.test.ts"
 Cohesion: 0.40
-Nodes (3): recoverStaleSendingRows, affected, executed
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1753 - "visualFieldsParity.test.ts"
 Cohesion: 0.60
 Nodes (3): read(), rendererService(), studioV2()
 
 ### Community 1754 - "ComparisonTable.tsx"
-Cohesion: 0.20
-Nodes (4): COLUMNS, Row, ROWS, Status
+Cohesion: 0.50
+Nodes (4): [ASSISTANT] (gpt-oss:120b) - ID: cmqz5u4ql012rpv01a8o92dmv, Conversation 5: ID=cmqz5trhv012dpv01y6fzguf6, Transcript, [USER] (unknown) - ID: cmqz5trk3012fpv01ps3st7p0
 
 ### Community 1755 - "2026-04-29 — v8.0.1 Tier 1 polish + AI route hardening"
 Cohesion: 0.40
-Nodes (5): 2026-04-29 — v8.0.1 Tier 1 polish + AI route hardening, CHANGELOG backfill, Phase 2A entity-audit — coverage expansion, Phase 2A History UI — EntityHistoryDrawer, Vercel email-alert spam, killed at the source
+Nodes (4): Path, SKILL.md metadata helpers — single source of truth for parsing skill frontmatter, Return the version string from a SKILL.md's frontmatter, or None.      Returns N, read_skill_version()
 
 ### Community 1756 - "2026-06-21 — Deep-disconnect audit · 13 dead Prisma models + 22 legacy REST routes deleted"
 Cohesion: 0.40
-Nodes (5): 2026-06-21 — Deep-disconnect audit · 13 dead Prisma models + 22 legacy REST routes deleted, Code · dead contract + exports pruned, Docs updated, Routes · 22 legacy REST routes deleted (~1,210 LOC), Schema · 13 models + 1 enum dropped
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
 
 ### Community 1757 - "use-ambient-mode.ts"
 Cohesion: 0.40
 Nodes (3): TtsAPI, UseAmbientModeOptions, WakeWordAPI
 
 ### Community 1758 - "use-chat-deep-link.ts"
-Cohesion: 0.60
-Nodes (3): useChatDeepLink(), UseChatDeepLinkOpts, Probe()
+Cohesion: 0.50
+Nodes (4): analyzePagePatterns(), getPageVisitIntelligence(), IMPORTANT_PAGES, PagePattern
 
 ### Community 1759 - "usePinnedMessages"
-Cohesion: 0.60
-Nodes (3): PinnedMessage, usePinnedMessages(), Probe()
+Cohesion: 0.50
+Nodes (4): [3.4.0] - 2026-06-18, Added, Changed, Fixed
 
 ### Community 1760 - "skill_meta.py"
-Cohesion: 0.40
-Nodes (4): Path, SKILL.md metadata helpers — single source of truth for parsing skill frontmatter, Return the version string from a SKILL.md's frontmatter, or None.      Returns N, read_skill_version()
+Cohesion: 0.14
+Nodes (14): log, requestLogger(), shouldSkip(), SKIP_PATHS, SKIP_PREFIXES, StageTracker, createLogger(), emit() (+6 more)
 
 ### Community 1762 - "WHEN USER RESPONDS"
 Cohesion: 0.40
@@ -9318,12 +9072,8 @@ Cohesion: 0.40
 Nodes (4): Disclosure Expectations, Reporting a Vulnerability, Security Policy, Supported Versions
 
 ### Community 1766 - "tool-idempotency.test.ts"
-Cohesion: 0.60
-Nodes (3): idempotencyKey(), withToolIdempotency(), brainMemory
-
-### Community 1767 - "page-intelligence.ts"
-Cohesion: 0.50
-Nodes (4): analyzePagePatterns(), getPageVisitIntelligence(), IMPORTANT_PAGES, PagePattern
+Cohesion: 0.40
+Nodes (4): CensusRow, main(), SOURCES, SourceSpec
 
 ### Community 1768 - "suggestion-seed.ts"
 Cohesion: 0.60
@@ -9332,10 +9082,6 @@ Nodes (3): ExtractedEntity, extractEntityFromSuggestion(), SuggestionMeta
 ### Community 1769 - "types.ts"
 Cohesion: 0.40
 Nodes (3): AIEActionabilityBand, AIESourceType, IntelligenceSignalPayload
-
-### Community 1770 - "competitor-scraper.ts"
-Cohesion: 0.50
-Nodes (3): compareWithNicks(), CompetitorData, scrapeCompetitors()
 
 ### Community 1771 - "Dead Prisma Models — Verified April 14, 2026"
 Cohesion: 0.40
@@ -9362,32 +9108,20 @@ Cohesion: 0.40
 Nodes (3): files, METHOD_DEFAULTS, MODELS
 
 ### Community 1778 - "compile-marketing-agents.ts"
-Cohesion: 0.50
-Nodes (4): main(), OUTPUT_FILE, parseFrontmatter(), Persona
+Cohesion: 0.83
+Nodes (3): httpGet(), run(), testApi()
 
 ### Community 1779 - "investigate-task-wipe-2.mjs"
 Cohesion: 0.40
 Nodes (4): byDay, now, startOf7d, startOfToday
 
 ### Community 1780 - "migrate-logger.ts"
-Cohesion: 0.40
-Nodes (4): changes, DRY, files, out
+Cohesion: 0.24
+Nodes (9): actionPlanPath, args, main(), manifestJsonPath, manifestPath, monorepoRoot, packDir, parseActionPlanTasks() (+1 more)
 
 ### Community 1781 - "probe-cosine-distribution.mjs"
 Cohesion: 0.50
 Nodes (4): adapter, cosine(), main(), prisma
-
-### Community 1782 - "probe-dual-write-parity.mjs"
-Cohesion: 0.40
-Nodes (3): adapter, PAIRS, prisma
-
-### Community 1783 - "probe-insights-api.mjs"
-Cohesion: 0.40
-Nodes (4): now, priorSince, prisma, recentSince
-
-### Community 1784 - "probe-thinking-engine-errors.mjs"
-Cohesion: 0.40
-Nodes (4): priorEnd, priorSince, prisma, since
 
 ### Community 1785 - "schema-timestamp-audit.ts"
 Cohesion: 0.60
@@ -9401,17 +9135,13 @@ Nodes (4): AnyArgs, @prisma/client, PrismaClient, RetiredModelStub
 Cohesion: 0.40
 Nodes (5): nickstire Drizzle ↔ prod schema-drift audit — 2026-07-07, Real bugs found (code writes a column the DB rejects), `review_pipeline` — reclassified from "harmless dead decls" to LIVE BUG №3, fixed 2026-07-09, Type drifts — aligned, Type drifts — flagged 2026-07-07, RESOLVED 2026-07-09 after per-caller review
 
-### Community 1789 - "$"
-Cohesion: 0.80
-Nodes (4): $(), load(), save(), setStatus()
-
 ### Community 1790 - "statenour-migration"
 Cohesion: 0.40
 Nodes (4): Hard rules, statenour-migration, When NOT to use, Workflow
 
 ### Community 1791 - "statenour-verify"
-Cohesion: 0.40
-Nodes (4): Run, in order (from `apps/statenour/`), statenour-verify, Traps, When NOT to use
+Cohesion: 0.22
+Nodes (8): Before shipping any report / diagnostic section, Extra checks worth running (not in `verify:hard`), Run, in order (from `apps/statenour/`), Running an operator script that needs real credentials, statenour-verify, Traps, When NOT to use, When the operator DECLINES a gate finding
 
 ### Community 1792 - "statenour-wave-reconcile"
 Cohesion: 0.40
@@ -9425,17 +9155,25 @@ Nodes (4): 1. Prisma Schema Specifications, 2. TypeScript Interface Definitions,
 Cohesion: 0.40
 Nodes (4): Changes, Related Issues, Summary, Testing
 
-### Community 1796 - "WHEN USER RESPONDS"
-Cohesion: 0.40
-Nodes (5): CRITICAL: Match the FORMAT the research recommends, Output Format:, Quality Checklist (run before delivering):, WHEN USER RESPONDS, Writing a Prompt
-
 ### Community 1797 - "e2e_comparison.py"
 Cohesion: 0.50
 Nodes (3): main(), Run a query and return parsed JSON + timing., run_query()
 
+### Community 1798 - "TestInstagramDepthConfig"
+Cohesion: 0.50
+Nodes (4): [3.0.10] - 2026-04-21, Added, Behavior fallback, Fixed
+
 ### Community 1800 - "TestXPlusYtdlp"
 Cohesion: 0.40
 Nodes (3): +X + yt-dlp -> 100%. No SC needed for full core coverage., Full core coverage with zero paid keys., TestXPlusYtdlp
+
+### Community 1802 - "TestBuildContextSummary"
+Cohesion: 0.22
+Nodes (8): HITL Verification Record, Residual holes carried forward (named, not hidden), Round A: Derived Data Confirmation, Round B: True HITL Verification, Runtime observations (2026-07-29 truth pass, read-only + one manual collector run), SMS Revenue Agent OS — wave truth ledger (2026-07-29), What is now true in the CODE (all `[VERIFIED-code]` unless noted), What this wave does NOT claim
+
+### Community 1803 - "TestExtractXHandle"
+Cohesion: 0.22
+Nodes (5): BASELINE, COHORT, got, LADDERS, rows
 
 ### Community 1805 - "verify_token"
 Cohesion: 0.80
@@ -9489,6 +9227,10 @@ Nodes (4): Claude Code Modal Flow, Manual Setup Guide, Non-Modal Prose Flow, Ste
 Cohesion: 0.50
 Nodes (4): Section A: Resolve X Handles (if topic could have X accounts), Step 0.5: Pre-Flight Resolution (handles, repos, communities), Step 0.5b: Resolve GitHub Username (if topic is a person) — MANDATORY FOR PERSON TOPICS, Step 0.5c: Resolve GitHub Repos (if topic is a product/project)
 
+### Community 1818 - "TireSpinner.tsx"
+Cohesion: 0.27
+Nodes (5): Tests for the enrichment time budget in enrich_with_comments()., When enrichment is fast, all items get comments., With budget=0, items are returned without enrichment (not discarded)., If enrichment raises, items are returned without comments., TestEnrichmentBudget
+
 ### Community 1820 - "FINAL GRADE"
 Cohesion: 0.50
 Nodes (4): Current System Score: **56 / 100 (D+)**, Expected Impact (directional estimates — labeled as estimates, not measured), FINAL GRADE, Projected Score After Improvements: **88 / 100 (A−)**
@@ -9504,10 +9246,6 @@ Nodes (3): Deploy + verify (operator-side), Old → new behavior map (zero behav
 ### Community 1823 - "post-reel-caption.ts"
 Cohesion: 0.83
 Nodes (3): graph(), main(), sleep()
-
-### Community 1824 - "main"
-Cohesion: 0.67
-Nodes (3): findUrl(), main(), OUT
 
 ### Community 1825 - "simulate-webhook.ts"
 Cohesion: 0.67
@@ -9525,10 +9263,6 @@ Nodes (3): durationSec(), main(), VapiCall
 Cohesion: 0.50
 Nodes (3): cust, end, start
 
-### Community 1837 - "migrations-check.mjs"
-Cohesion: 0.50
-Nodes (3): args, HERE, res
-
 ### Community 1838 - "preflight.sh"
 Cohesion: 0.83
 Nodes (3): green(), red(), preflight.sh script
@@ -9545,6 +9279,14 @@ Nodes (3): cust, end, start
 Cohesion: 0.67
 Nodes (3): IndexRow, main(), showIndexes()
 
+### Community 1842 - "humanTakeover.test.ts"
+Cohesion: 0.50
+Nodes (4): [3.0.12] - 2026-04-22, Added, Changed, Fixed
+
+### Community 1843 - "smsUncertainDelivery.test.ts"
+Cohesion: 0.50
+Nodes (4): [3.0.13] - 2026-04-22, Added, Changed, Fixed
+
 ### Community 1844 - "sms.integration.test.ts"
 Cohesion: 0.50
 Nodes (3): mockTwilioCreate, SMS_ENV_KEYS, SMS_ORIG_ENV
@@ -9557,17 +9299,13 @@ Nodes (3): ENV_KEYS, mockTwilioCreate, ORIG
 Cohesion: 0.50
 Nodes (3): Action Plan, Mapped Components & Gaps, Test Coverage Gaps Audit · Track B.3
 
-### Community 1847 - "Statenour Next-Wave Plan 2026-07-29"
-Cohesion: 0.50
-Nodes (4): Statenour Blueprint 2026-07-28, Statenour Next-Wave Plan 2026-07-29, Statenour Wave Reconciliation Ledger, UPSTREAMS Register
-
 ### Community 1848 - "_build-payload.js"
 Cohesion: 0.50
 Nodes (3): fs, path, payload
 
-### Community 1850 - "_polymarket_top_markets"
+### Community 1849 - "runNickQualityEvals"
 Cohesion: 0.50
-Nodes (4): _polymarket_top_markets(), Strip boilerplate from a Polymarket question to produce a compact descriptor., Build short summary strings for the top Polymarket markets by volume.      Retur, _shorten_polymarket_title()
+Nodes (4): [3.0.3] - 2026-04-15, Fixed, Notes, Recovery
 
 ### Community 1851 - "Step 0: First-Run Setup Wizard"
 Cohesion: 0.50
@@ -9581,13 +9319,17 @@ Nodes (4): Section A: Resolve X Handles (if topic could have X accounts), Step 0
 Cohesion: 0.50
 Nodes (3): BUILD_TIME, nextConfig, withBundleAnalyzer
 
-### Community 1857 - "package.json"
+### Community 1858 - "test_passes_topic_filter_partial_match"
 Cohesion: 0.50
-Nodes (3): name, private, version
+Nodes (4): _polymarket_top_markets(), Strip boilerplate from a Polymarket question to produce a compact descriptor., Build short summary strings for the top Polymarket markets by volume.      Retur, _shorten_polymarket_title()
 
-### Community 1858 - "Migration 20260625000000 · action_receipts and completionCriteria on Mission"
+### Community 1861 - "audit-system-surfaces.mjs"
 Cohesion: 0.50
-Nodes (3): How to apply, Migration 20260625000000 · action_receipts and completionCriteria on Mission, What it does
+Nodes (3): deleteMock, findFirstMock, updateMock
+
+### Community 1863 - "check-db.js"
+Cohesion: 0.83
+Nodes (3): getS3Client(), normalizeKey(), storagePut()
 
 ### Community 1864 - "dump-soft-deleted-tasks.mjs"
 Cohesion: 0.50
@@ -9601,21 +9343,25 @@ Nodes (3): startOfToday, startOfYesterday, today
 Cohesion: 0.50
 Nodes (3): adapter, prisma, since
 
-### Community 1875 - "package.json"
-Cohesion: 0.50
-Nodes (3): name, private, version
+### Community 1872 - "probe-unused-models.mjs"
+Cohesion: 0.22
+Nodes (9): Architecture in one paragraph, Common commands, Daily routes, Developer workflow, Onboard in 5 minutes, Philosophy, Project docs (read in this order), statenour (+1 more)
 
-### Community 1876 - "_polymarket_top_markets"
+### Community 1876 - "[3.1.0] - 2026-04-22"
 Cohesion: 0.50
-Nodes (4): _polymarket_top_markets(), Strip boilerplate from a Polymarket question to produce a compact descriptor., Build short summary strings for the top Polymarket markets by volume.      Retur, _shorten_polymarket_title()
+Nodes (4): [3.1.0] - 2026-04-22, Added, Dev cycle journal (3.0.10 - 3.0.14, not separately tagged), Fixed
 
 ### Community 1878 - "test_hermes_skillignore.py"
 Cohesion: 0.83
 Nodes (3): _skillignore_entries(), test_hermes_skillignore_excludes_non_runtime_scan_surface(), test_hermes_skillignore_keeps_runtime_contract_scannable()
 
-### Community 1888 - "stream_edge_tts_chunks"
+### Community 1884 - "MergeCategoryPeersHappyPath"
 Cohesion: 0.50
-Nodes (4): 带总超时地消费 edge_tts 7.x 的同步流。      实现原因：     `stream_sync()` 本身是阻塞迭代器，网络层卡住时主线程无法及时, 统一消费 edge_tts 的同步流和旧版异步流。      edge_tts 7.x 提供 `stream_sync()`，可以在同步函数里直接迭代；, stream_edge_tts_chunks(), _stream_edge_tts_sync_with_timeout()
+Nodes (4): [3.8.2] - 2026-06-25, Added, Changed, Fixed
+
+### Community 1885 - "TestCanonicalizeGithubRepos"
+Cohesion: 0.50
+Nodes (4): Claude Code Modal Flow, Manual Setup Guide, Non-Modal Prose Flow, Step 0: First-Run Setup Wizard
 
 ### Community 1891 - "copy-fonts.js"
 Cohesion: 0.50
@@ -9630,48 +9376,224 @@ Cohesion: 0.50
 Nodes (3): Briefing: Nicks Tire AI System Memory, Contextual Gaps, Overview
 
 ### Community 1894 - "Gathered Source Documents"
-Cohesion: 0.50
-Nodes (3): Gathered Source Documents, SOURCE: Repo Code: layout.tsx, SOURCE: Repo Code: page.tsx
+Cohesion: 0.17
+Nodes (11): Gathered Source Documents, SOURCE: Repo Code: layout.tsx, SOURCE: Repo Code: page.tsx, SOURCE: Repo Code: page.tsx, SOURCE: Repo Code: page.tsx, SOURCE: Repo Code: page.tsx, SOURCE: Repo Code: page.tsx, SOURCE: Repo Code: page.tsx (+3 more)
 
 ### Community 1895 - "Briefing: Your Topic"
 Cohesion: 0.50
 Nodes (3): Briefing: Your Topic, Contextual Gaps, Overview
 
-### Community 1896 - "test"
-Cohesion: 0.50
-Nodes (4): test, dependsOn, inputs, outputs
+### Community 1903 - "backfill-estimate-customer-link.mjs"
+Cohesion: 0.11
+Nodes (24): applyMode, GET, handler(), ALERT_LABEL, getOperatorPolicyBlock(), getOperatorPolicyLines(), TRUTH_RULE_NEVER_FABRICATE, getViolationContext() (+16 more)
 
-### Community 2653 - "promote.ts"
-Cohesion: 0.31
-Nodes (8): buildCandidateMemory(), CandidateMemoryInput, isPromotable(), log, PromotableClaim, promoteIntelligenceClaims(), PromotionResult, base
+### Community 1905 - "build-maybe-prerender.mjs"
+Cohesion: 0.67
+Nodes (3): create_edge_tts_communicate(), Communicate, 按当前已安装的 edge_tts 版本构造 Communicate 对象。      背景：     1. 主线代码已经升级到 edge_tts 7.x，并使用
 
-### Community 2654 - "UberDropoffWidget.tsx"
+### Community 1918 - "retired-llm-models.test.ts"
+Cohesion: 0.18
+Nodes (8): allClientTsx(), sqlText(), SERVER_DIR, walk(), entry(), fkFrom(), idsFromTrail(), leadIdFromTrail()
+
+### Community 1924 - "reasoning-tools.test.ts"
+Cohesion: 0.22
+Nodes (8): Corrections applied by this gate, HITL Verification Record, Inferences and hypotheses (marked — do not cite as fact), Round A: Derived Data Confirmation, Round B: True HITL Verification, Statenour Badge-Truth Takeover — Clarity-Gated Session Report, The fix (behavior contract, verified against code), Witnessed facts (Tier 1 — tool receipts; no HITL required)
+
+### Community 1925 - "test_passes_topic_filter_multi_word_passes_with_two_matches"
+Cohesion: 0.67
+Nodes (3): [3.7.0] - 2026-06-20, Added, Changed
+
+### Community 1932 - "backfill-drafts-to-queue.ts"
+Cohesion: 0.08
+Nodes (20): Nick's Tire & Auto — Revenue Operations Issue Registry, Status definitions, Wave 1 closure rule, Data quality requirements, Evidence levels, GSC metrics, Nick's Tire & Auto — Metrics Contract, Rates and denominators (+12 more)
+
+### Community 1933 - "probe-bus-consumer.mjs"
+Cohesion: 0.07
+Nodes (25): Load-Bearing Systems Protection Matrix, Merge gate recommendation, Protected surfaces, Protection policy, 1 · What the system does, in one paragraph, 2 · The daily loop (what Nour actually touches), 3 · The levers (all in `/admin → Outreach → SMS Operating System`), 4 · What auto-sends vs what waits for a human (+17 more)
+
+### Community 1948 - "MergeCategoryPeersCap"
+Cohesion: 0.67
+Nodes (3): [3.8.1] - 2026-06-22, Added, Fixed
+
+### Community 2041 - "OpportunityRow"
+Cohesion: 0.67
+Nodes (3): Competitor mode (`--competitors`), Hiring Signals mode (`--hiring-signals`), If QUERY_TYPE = COMPARISON
+
+### Community 2056 - "use-streaming-error-guard.ts"
+Cohesion: 0.67
+Nodes (3): Competitor mode (`--competitors`), Hiring Signals mode (`--hiring-signals`), If QUERY_TYPE = COMPARISON
+
+### Community 2058 - "bridgeSendAction.test.ts"
+Cohesion: 0.29
+Nodes (7): auditRows, auditSpy, call(), fakeRes(), GOOD, Handler, sendSpy
+
+### Community 2069 - "bridge-shapes.test.ts"
+Cohesion: 0.36
+Nodes (6): revenueTodayFixture, topDecisionsFixture, BRIDGE_SHAPES, BridgeShapeName, RevenueTodayShape, TopDecisionsShape
+
+### Community 2077 - "apply-mission-links-migration.ts"
+Cohesion: 0.25
+Nodes (7): Apple Health → statenour sync (H3 · 2026-07-28), Deferred (blueprint WPs), One-time setup (operator, ~30 min), Privacy posture, Shortcuts fallback (no HAE), Smoke test, What happens on ingest
+
+### Community 2078 - "apply-pending-migration.ts"
+Cohesion: 0.39
+Nodes (7): ALLOWLIST, baselineKey(), Finding, isAllowlisted(), main(), parseSoftDeleteModels(), walk()
+
+### Community 2079 - "backfill-pgvector.ts"
+Cohesion: 0.25
+Nodes (7): Approval path (operator), Proposal template, Run, Session Observer (propose-only), The contract — read before doing anything, Traps, When NOT to use
+
+### Community 2090 - "probe-ping-error.mjs"
+Cohesion: 0.29
+Nodes (6): Drill log, Restore decision tree [STABLE], Runbook · TiDB Cloud backup + restore (nicks-tire-auto prod), Standing warnings [STABLE], Verification drill [STABLE — run quarterly, ~20 min], What protects us today [CHECK — verify each in console]
+
+### Community 2118 - "apply-0108-content-experiments.mjs"
+Cohesion: 0.38
+Nodes (6): APPLY, hasColumn(), hasTable(), q(), steps, url
+
+### Community 2120 - "test_expand_queries_cap_at_six"
+Cohesion: 0.38
+Nodes (6): exec(), isTolerable(), JOURNAL_PATH, main(), ROOT, TOLERATED
+
+### Community 2123 - "test_passes_topic_filter_partial_match"
+Cohesion: 0.25
+Nodes (6): APPLY, body, clips, keep, url, timed()
+
+### Community 2124 - "watch-veo-cutover.mjs"
+Cohesion: 0.29
+Nodes (5): BASELINE, MAX_MIN, providerOf(), TERMINAL, url
+
+### Community 2125 - "opportunityAbandonedForms.test.ts"
+Cohesion: 0.29
+Nodes (6): bookingRows, capturedSql, formRows, leadRows, liveOppRows, upserts
+
+### Community 2131 - "apply-wave-181-85-voice-recovery.ts"
 Cohesion: 0.33
-Nodes (5): Props, UberDropoffWidget(), lyftFromShop(), RideDeepLinkOptions, uberFromShop()
+Nodes (5): JOURNAL_PATH, main(), MIGRATION_PATH, NEW_COLUMNS, ROOT
 
-### Community 2655 - "route.ts"
+### Community 2135 - "test_format_price_movement_below_threshold"
+Cohesion: 0.50
+Nodes (4): main(), OUTPUT_FILE, parseFrontmatter(), Persona
+
+### Community 2139 - "export-eval-datasets.ts"
+Cohesion: 0.38
+Nodes (6): contradictionCases(), EvalCase, exportedAt, main(), OUT_DIR, outcomeCases()
+
+### Community 2142 - "probe-higgsfield-creds-compare.mjs"
 Cohesion: 0.40
-Nodes (4): GET, HourlyRow, runCreationSpikeDetect(), SpikeReport
+Nodes (5): dbVal, describe(), envVal, h(), url
+
+### Community 2172 - "apply-wave-181-83-phone-normalized.ts"
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+
+### Community 2173 - "north-star-metric.ts"
+Cohesion: 0.33
+Nodes (3): cols, CREATED, ERRCOL
+
+### Community 2176 - "sendSmsControlGates.test.ts"
+Cohesion: 0.33
+Nodes (5): capResult, ENV_KEYS, mockTwilioCreate, ORIG, pauseState
+
+### Community 2184 - "Harness Worktree Setup"
+Cohesion: 0.33
+Nodes (5): 1 · Junction every node_modules (run first, once), 2 · The one-checkout rule (the expensive one), 3 · Traps, Harness Worktree Setup, When NOT to use
+
+### Community 2185 - "competitor-scraper.ts"
+Cohesion: 0.50
+Nodes (3): compareWithNicks(), CompetitorData, scrapeCompetitors()
+
+### Community 2189 - "scaffold.mjs"
+Cohesion: 0.33
+Nodes (4): outDir, raw, sha256, sourcePath
+
+### Community 2235 - "apply-wave-181-69-cron-alerts-fired.ts"
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+
+### Community 2236 - "backfill-missing-ig-post-ids.mjs"
+Cohesion: 0.40
+Nodes (3): APPLY, dbUrl, media
+
+### Community 2237 - "gen-vo-openai.ts"
+Cohesion: 0.67
+Nodes (3): main(), OUT, tts()
+
+### Community 2238 - "apply-wave-181-77-drip-unique.ts"
+Cohesion: 0.40
+Nodes (4): JOURNAL_PATH, main(), MIGRATION_PATH, ROOT
+
+### Community 2239 - "probe-higgsfield-creds-source.mjs"
+Cohesion: 0.40
+Nodes (3): cols, tsCol, url
+
+### Community 2240 - "push-higgsfield-creds.mjs"
+Cohesion: 0.40
+Nodes (3): APPLY, CREDS_PATH, url
+
+### Community 2241 - "watch-reel-generation.mjs"
+Cohesion: 0.40
+Nodes (3): BASELINE_ID, started, url
+
+### Community 2242 - "opportunityWave2Collectors.test.ts"
+Cohesion: 0.40
+Nodes (4): bookingRows, capturedSql, jobRows, upserts
+
+### Community 2243 - "smsControl.test.ts"
+Cohesion: 0.40
+Nodes (4): countRows, DbMode, flagRows, heldRows
+
+### Community 2245 - "[3.0.5] - 2026-04-15"
+Cohesion: 0.50
+Nodes (4): [3.0.5] - 2026-04-15, Added, Recovery, Removed
+
+### Community 2255 - "nickstire event taxonomy — customer_events source of truth"
+Cohesion: 0.50
+Nodes (3): Conventions, Inventory (30 events, from code), nickstire event taxonomy — customer_events source of truth
+
+### Community 2288 - "opportunityStaleLeads.test.ts"
+Cohesion: 0.50
+Nodes (3): capturedSql, leadRows, upserts
+
+### Community 2289 - "stream_edge_tts_chunks"
+Cohesion: 0.50
+Nodes (4): 带总超时地消费 edge_tts 7.x 的同步流。      实现原因：     `stream_sync()` 本身是阻塞迭代器，网络层卡住时主线程无法及时, 统一消费 edge_tts 的同步流和旧版异步流。      edge_tts 7.x 提供 `stream_sync()`，可以在同步函数里直接迭代；, stream_edge_tts_chunks(), _stream_edge_tts_sync_with_timeout()
+
+### Community 2290 - "main"
+Cohesion: 0.83
+Nodes (3): clean(), main(), probe()
+
+### Community 2292 - "Source-to-Skill Compiler"
+Cohesion: 0.50
+Nodes (3): Pipeline (follow in order), Red flags — stop and re-check, Source-to-Skill Compiler
+
+### Community 2325 - ".test_hackernews_parse_emits_comments_key"
+Cohesion: 0.13
+Nodes (23): _date_to_unix(), enrich_top_stories(), _fetch_item_comments(), _flatten_query_for_algolia(), _log(), parse_hackernews_response(), Any, Hacker News search via Algolia API (free, no auth required).  Uses hn.algolia.co (+15 more)
+
+### Community 2542 - "extractModel"
+Cohesion: 0.09
+Nodes (25): BLOCK_META, ContextBlockBadges(), ActionRow(), MessageActionSheet(), MessageActionSheetProps, AssistantMessageShell, UserMessageBubble, Options (+17 more)
 
 ## Knowledge Gaps
-- **15511 isolated node(s):** `build-skill.sh script`, `compare.sh script`, `Colors`, `SearchClient`, `args` (+15506 more)
+- **16291 isolated node(s):** `build-skill.sh script`, `compare.sh script`, `Colors`, `SearchClient`, `args` (+16286 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **640 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **346 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `json` connect `json` to `categories.ts`, `logger.ts`, `http.ts`, `requireSession`, `TrafficFunnelSection.tsx`, `cn`, `voice-latency.ts`, `business.ts`, `db.ts`, `shared.ts`, `brain.ts`, `trpc.ts`, `sanitizeError`, `prisma.ts`, `client.ts`, `operatorActionLog.ts`, `operator.ts`, `embedding-utils.ts`, `system-pages-b.ts`, `contradiction-surfacer.ts`, `smsOrchestrator.ts`, `index.ts`, `notifyDataChanged`, `telegram.ts`, `root.ts`, `page.tsx`, `google-oauth.ts`, `invokeLLM`, `startTieredScheduler`, `button.tsx`, `chat-message-list.tsx`, `Admin.tsx`, `adversarial-critic.ts`, `cached`, `App.tsx`, `person-profile-fuzzy.ts`, `smsResponseJobs.ts`, `trackPhoneClick`, `nickMemory.ts`, `message-fields.ts`, `output-guardian.ts`, `provider.ts`, `page.tsx`, `objection-injector.ts`, `igCarouselStudio.ts`, `email-notify.ts`, `FocusedServicePage.tsx`, `glass-card.tsx`, `v`, `.error`, `operator-pulse.ts`, `missions.ts`, `vapiCallEval.ts`, `socialPublish.ts`, `layout.tsx`, `revenue-decision-channel.ts`, `utils.ts`, `shopDriverEstimateSync.ts`, `apply-wave-181-59-declined-recovery-attempted.ts`, `apply-wave-181-85-voice-recovery.ts`, `backfill-invoice-vehicles.ts`, `browserbase.ts`, `autonomyControl.ts`, `prompt-judge-comparator.ts`, `system-pages.ts`, `backfill-invoice-vehicles.ts`, `recordError`, `gsc-submit-sitemap.ts`, `vapi-test-new-tools.ts`, `export-vapi-recordings.ts`, `gsc-submit-sitemap.ts`, `apply-wave-181-59-declined-recovery-attempted.ts`, `apply-wave-181-85-voice-recovery.ts`, `BlogPost.tsx`, `utils.ts`, `Logger`, `nick-agent.ts`, `gbpContentGenerator.ts`, `index.ts`, `page-context-bridge.tsx`, `nour-os-system-health-reset.ts`, `reelAssembly.ts`, `tasks.ts`, `popup.js`, `const.ts`, `use-system-pulse.ts`, `enhance-prompt.test.ts`, `omni-capture.tsx`, `db-migrate.ts`, `auto-learn.ts`, `nick-reasoner.tsx`, `nick-message.tsx`, `fireflies.ts`, `guardian.ts`, `getFlag`, `engine.ts`, `instagramStudio.ts`, `TimeoutError`, `shop-actions.ts`, `entity-audit.ts`, `gatewayTire.ts`, `vapi.ts`, `multi-search.ts`, `settings.ts`, `codemod-categories.ts`, `system-prompt.ts`, `drafts-tab.tsx`, `ComparisonPage.tsx`, `chain.ts`, `renderedQa.ts`, `google-reviews.ts`, `vapi-harness.ts`, `ingest-reports.mjs`, `reelBriefGen.ts`, `vapi.ts`, `image-actions.ts`, `push.ts`, `audit-advisories.mjs`, `task.ts`, `candidate.ts`, `body`, `igAutopost.ts`, `storage.ts`, `brain-bus.ts`, `negotiation-patterns.ts`, `main`, `backfill-historical-estimates.ts`, `fetch-instagram.mjs`, `backfill-historical-estimates.ts`, `mega-fanout.ts`, `gsc-errors.ts`, `verify-railway-config.ts`, `gsc-errors.ts`, `creativeGenome.ts`, `creativeVault.ts`, `content.ts`, `actionCenterPublishWire.test.ts`, `instagramAdmin.honesty.test.ts`, `twitter-client-utils.js`, `route.ts`, `entity-history-drawer.tsx`, `assemble-reel.ts`, `apply-wave-181-59-otp-attempts.ts`, `apply-wave-181-59-sms-sending.ts`, `apply-wave-116-121.ts`, `apply-wave-181-66-sms-rate-limit-durable.ts`, `apply-wave-181-77-drip-unique.ts`, `apply-wave-181-83-phone-normalized.ts`, `apply-wave-181-83-tier-skip-state.ts`, `apply-wave-181-84-confirmation-calls.ts`, `apply-wave-116-121.ts`, `backfill-invoice-ticket-ids.ts`, `db-migrate.ts`, `shopDriverMirror.ts`, `backfill-invoice-ticket-ids.ts`, `gsc-delete-sitemap.ts`, `demo-autonomous-content-run.ts`, `gsc-delete-sitemap.ts`, `apply-wave-181-59-otp-attempts.ts`, `apply-wave-181-59-sms-sending.ts`, `apply-wave-181-66-sms-rate-limit-durable.ts`, `apply-wave-181-69-cron-alerts-fired.ts`, `apply-wave-181-77-drip-unique.ts`, `apply-wave-181-83-phone-normalized.ts`, `apply-wave-181-83-tier-skip-state.ts`, `apply-wave-181-84-confirmation-calls.ts`, `nour-os-bridge.ts`, `classify-task-linkage.ts`, `twitter-client-utils.js`, `runner-state.ts`, `build-skill-registry.ts`, `chatTools.ts`, `chat.ts`, `generate-source-pack.ts`, `ingest-research-pack.ts`, `lint-baseline.ts`, `loadEnv`, `bird-search.mjs`, `twitter-client-utils.js`, `usePinnedMessages`, `declinedWorkRecovery.ts`, `gmail.ts`, `metaSocial.ts`, `verify-reel-vo.mts`, `comparator.ts`, `instagramStudioLifecycle.test.ts`, `dripCampaigns.ts`, `buildBrainContext`, `obsidian-engine-runner.ts`, `route.ts`, `competitor-scraper.ts`, `compile-marketing-agents.ts`, `probe-cosine-distribution.mjs`, `judge-calibration.ts`, `visualWorld.ts`, `schema-timestamp-audit.ts`, `credit.ts`, `adCopyGen.ts`, `gsc-data.ts`, `db`, `nickstire-write.ts`, `reel-factory.ts`, `gsc-audit.ts`, `gsc-audit.ts`, `prerender.mjs`, `debug-collector.js`, `higgsfieldStudio.ts`, `generatePostImage`, `build-model-messages.ts`, `realtime.ts`, `route.ts`, `persona-drift-detector.ts`, `propose-actions.ts`, `cache.ts`, `post-reel-caption.ts`, `main`, `simulate-webhook.ts`, `run-suite.ts`, `main`, `telegram-ops.ts`, `index.ts`, `getObsidianEngineConfig`, `run-quality-bench.ts`, `diagnose-safety.ts`, `layout.tsx`, `gate.ts`, `comprehensive-backfill.ts`, `seed-greene-all.ts`, `task-signals.ts`, `bird-search.mjs`, `runtime-query-ids.js`, `contentRun.ts`, `meta-capi.ts`, `DiagnosePage.tsx`, `f`, `ai-gateway.ts`, `system-observability.ts`, `gsc-snapshot.mjs`, `data-source-health.ts`, `gsc-snapshot.mjs`, `mcp-server.ts`, `ServicesOverview.tsx`, `gsc-prefetch.ts`, `github.ts`, `multi-turn-chat.tsx`, `reconcile-migrations.mjs`, `reelPublishAuthority.ts`, `reelRecoverability.ts`, `regression-runner.ts`, `scoring.ts`, `ingest-notebooklm-candidates.ts`, `task-events.ts`, `.url`, `audit-prerender.mjs`, `tool-quota.ts`, `goals.ts`, `index.ts`, `chat-fork.ts`, `audit-deps.ts`, `audit-soft-delete-filters.ts`, `motion-perf-audit.mjs`, `export-sms-corpus.ts`, `home-brain-graph.tsx`, `intelligenceEngines.ts`, `videodb.ts`, `spatial-canvas.tsx`, `runtime-features.js`, `carousel-factory.ts`, `masterIntelligence.ts`, `gen-batch-veo.ts`, `gen-reel1-assets.ts`, `gen-reels-23-assets.ts`, `apply-wave-181-sa-v2.ts`, `export-brain-to-obsidian.ts`, `lighthouse-audit.ts`, `social-actions.ts`, `durationSeconds`, `lighthouse-audit.ts`, `index.ts`, `apply-wave-125.ts`, `apply-wave-181-sa-v2.ts`, `generatePost`, `voice-clone.ts`, `tool-embeddings.ts`, `vision-analyzer.ts`, `.event`, `obsidian-doctor.ts`, `runtime-features.js`, `runtime-query-ids.js`, `use-offline-queue.ts`, `vision-input.ts`, `client.ts`, `label`, `integrity-scan.ts`, `conversation-mission-linker.ts`, `runtime-query-ids.js`, `bird-search.mjs`, `runtime-features.js`, `skill-recall.ts`, `audit-freshness-chips.ts`, `audit-skills-language.ts`, `scheduler.ts`, `contract-pre-flight.ts`, `ingest-drive.ts`, `prompt-shadow-summary.ts`?**
+- **Why does `json` connect `json` to `categories.ts`, `logger.ts`, `http.ts`, `requireSession`, `cn`, `db.ts`, `business.ts`, `shared.ts`, `brain.ts`, `system-pages.ts`, `prisma.ts`, `client.ts`, `operator.ts`, `embedding-utils.ts`, `system-pages-b.ts`, `contradiction-surfacer.ts`, `smsOrchestrator.ts`, `index.ts`, `notifyDataChanged`, `telegram.ts`, `root.ts`, `google-oauth.ts`, `invokeLLM`, `startTieredScheduler`, `button.tsx`, `chat-message-list.tsx`, `Admin.tsx`, `output-guardian.ts`, `cached`, `App.tsx`, `apply-pending-migration.ts`, `smsResponseJobs.ts`, `nickMemory.ts`, `metaPixel.ts`, `igCarouselStudio.ts`, `email-notify.ts`, `glass-card.tsx`, `turn-intelligence.ts`, `operator-pulse.ts`, `missions.ts`, `vapiCallEval.ts`, `socialPublish.ts`, `layout.tsx`, `revenue-decision-channel.ts`, `retentionSequences.ts`, `autonomyControl.ts`, `vendorHealth.ts`, `recordError`, `token_overlap_relevance`, `domain.ts`, `http.py`, `test_expand_queries_cap_at_six`, `Studio.tsx`, `nick-agent.ts`, `utils.ts`, `watch-veo-cutover.mjs`, `apply-wave-181-85-voice-recovery.ts`, `reelAssembly.ts`, `tasks.ts`, `use-system-pulse.ts`, `test_format_price_movement_below_threshold`, `omni-capture.tsx`, `export-eval-datasets.ts`, `probe-higgsfield-creds-compare.mjs`, `guardian.ts`, `getFlag`, `engine.ts`, `instagramStudio.ts`, `TimeoutError`, `entity-audit.ts`, `gatewayTire.ts`, `vapi.ts`, `multi-search.ts`, `system-prompt.ts`, `drafts-tab.tsx`, `ComparisonPage.tsx`, `apply-wave-181-83-phone-normalized.ts`, `renderedQa.ts`, `chain.ts`, `reelBriefGen.ts`, `image-actions.ts`, `competitor-scraper.ts`, `task.ts`, `igAutopost.ts`, `storage.ts`, `mega-fanout.ts`, `github.py`, `creativeGenome.ts`, `creativeVault.ts`, `content.ts`, `assemble-reel.ts`, `apply-wave-181-69-cron-alerts-fired.ts`, `gen-vo-openai.ts`, `apply-wave-181-77-drip-unique.ts`, `social-actions.ts`, `tool-embeddings.ts`, `InstagramAdmin.tsx`, `nour-os-bridge.ts`, `chat.ts`, `declinedWorkRecovery.ts`, `metaSocial.ts`, `obsidian-engine-runner.ts`, `activeOnly`, `render.py`, `main`, `visualWorld.ts`, `candidate-store.ts`, `adCopyGen.ts`, `db`, `nickstire-write.ts`, `context.ts`, `grounding.py`, `persona-drift-detector.ts`, `anticipated-questions.ts`, `run-suite.ts`, `index.ts`, `diagnose-safety.ts`, `layout.tsx`, `render_compact`, `comprehensive-backfill.ts`, `seed-greene-all.ts`, `field.tsx`, `task-signals.ts`, `xquik.py`, `f`, `ai-gateway.ts`, `system-observability.ts`, `tool-policy.ts`, `reconcile-migrations.mjs`, `reelPublishAuthority.ts`, `payments.ts`, `index.ts`, `goals.ts`, `env.ts`, `export-sms-corpus.ts`, `prompts.ts`, `home-brain-graph.tsx`, `intelligenceEngines.ts`, `videodb.ts`, `export-brain-to-obsidian.ts`, `index.ts`, `alert-dialog.tsx`, `vision-analyzer.ts`, `.event`, `persona-corpus-analyzer.ts`, `obsidian-doctor.ts`, `router.ts`, `conversation-mission-linker.ts`, `skill-recall.ts`, `scheduler.ts`, `enhance-prompt.test.ts`, `shopDriverEstimateSync.ts`, `criteria.ts`, `prompt-judge-comparator.ts`, `SubMaker`, `regression-runner.ts`, `ingest-notebooklm-candidates.ts`, `SubMaker`, `db-migrate.ts`, `TestCli`, `chart.tsx`, `vapi-harness.ts`, `ingest-reports.mjs`, `push.ts`, `brain-bus.ts`, `twitter-client-utils.js`, `abandonedForms.ts`, `apply-wave-116-121.ts`, `db-migrate.ts`, `briefing.py`, `twitter-client-utils.js`, `xai_x.py`, `generate-source-pack.ts`, `loadEnv`, `twitter-client-utils.js`, `menubar.tsx`, `gmail.ts`, `verify-reel-vo.mts`, `dripCampaigns.ts`, `noShowPrediction.ts`, `safetyMonitor.ts`, `route.ts`, `judge-calibration.ts`, `reddit_listing.py`, `cache.ts`, `jobQueue.ts`, `dropdown-menu.tsx`, `use-stall-detection.ts`, `salvage-event-text.ts`, `run-quality-bench.ts`, `reddit_listing.py`, `runtime-query-ids.js`, `schemaGuard.ts`, `ServicesOverview.tsx`, `github.ts`, `chat-edit.ts`, `audit-prerender.mjs`, `qcService.ts`, `framework-orbit-scene.tsx`, `TestElevenLabsVoice`, `motion-perf-audit.mjs`, `collect_html_warnings`, `Redis`, `voice-clone.ts`, `runtime-query-ids.js`, `vision-input.ts`, `client.ts`, `integrity-scan.ts`, `SubprocResult`, `runtime-query-ids.js`, `operatorActionLog.ts`, `brand-context.ts`, `quality-sweep-v2.ts`, `briefing.py`, `opportunityQueue.ts`, `codemod-categories.ts`, `body`, `main`, `backfill-historical-estimates.ts`, `fetch-instagram.mjs`, `backfill-historical-estimates.ts`, `gsc-errors.ts`, `validate-route-registry.mjs`, `gsc-errors.ts`, `actionCenterPublishWire.test.ts`, `pricingIntelligence.ts`, `route.ts`, `entity-history-drawer.tsx`, `use-offline-queue.ts`, `audit-todays-leads.ts`, `google-reviews.ts`, `negotiation-patterns.ts`, `build-skill-registry.ts`, `ingest-research-pack.ts`, `popup.js`, `TestSearchRetryOn500`, `reel-factory.ts`, `gsc-audit.ts`, `gsc-audit.ts`, `prerender.mjs`, `route.ts`, `Tier 11 — OUTSIDE-THE-BOX MOAT PLAYS`, `telegram-ops.ts`, `getObsidianEngineConfig`, `Migration 0001 · Mission.lifeGoalId`, `optimize-photos.mjs`, `gsc-snapshot.mjs`, `receptionistRoi.ts`, `tool-quota.ts`, `chat-fork.ts`, `with-local-prisma-engine.mjs`, `carousel-factory.ts`, `gen-reels-23-assets.ts`, `apply-wave-181-sa-v2.ts`, `lighthouse-audit.ts`, `durationSeconds`, `lighthouse-audit.ts`, `apply-wave-181-sa-v2.ts`, `publishChokePoint.test.ts`, `Runbook · Nickstire vs Statenour boundary`, `Runbook · Task classifier — domains, missions, learning`, `Session log — 2026-06-19 (NOURCITY, Opus 4.8)`, `SourceHealth`, `stream-with-fallback.test.ts`, `drift.ts`, `cache-telemetry.ts`, `Migration 0002 · journal_threads + journal_thread_memberships`, `audit-freshness-chips.ts`, `audit-skills-language.ts`, `contract-pre-flight.ts`, `ingest-drive.ts`, `prompt-shadow-summary.ts`, `input-otp.tsx`, `assemble-reel1.ts`, `apply-wave-181-59-declined-recovery-attempted.ts`, `backfill-invoice-vehicles.ts`, `run-backfill.mjs`, `backfill-invoice-vehicles.ts`, `gsc-submit-sitemap.ts`, `export-vapi-recordings.ts`, `gsc-submit-sitemap.ts`, `apply-wave-181-59-declined-recovery-attempted.ts`, `apply-wave-181-85-voice-recovery.ts`, `requestLogger.ts`, `2026-07-12 — Chat repair wave, Ollama-Cloud routing, king persona, recall backfill`, `Runbook · Stale-doc cleanup + the guard`, `Runbook · Running a Claude Code session safely`, `fireflies.ts`, `verify-railway-config.ts`, `apply-wave-181-59-otp-attempts.ts`, `apply-wave-181-77-drip-unique.ts`, `backfill-invoice-ticket-ids.ts`, `gsc-delete-sitemap.ts`, `gsc-delete-sitemap.ts`, `apply-wave-181-59-sms-sending.ts`, `apply-wave-181-66-sms-rate-limit-durable.ts`, `apply-wave-181-83-tier-skip-state.ts`, `leadUpdateSet.ts`, `staffHours.ts`, `2026-06-21 — Deep-disconnect audit · 13 dead Prisma models + 22 legacy REST routes deleted`, `skill_meta.py`, `tool-idempotency.test.ts`, `compile-marketing-agents.ts`, `migrate-logger.ts`, `probe-cosine-distribution.mjs`, `schema-timestamp-audit.ts`, `post-reel-caption.ts`, `simulate-webhook.ts`, `backfill-estimate-customer-link.mjs`?**
   _High betweenness centrality (0.164) - this node is a cross-community bridge._
-- **Why does `main()` connect `loadEnv` to `categories.ts`, `json`, `http.ts`, `prisma.ts`?**
-  _High betweenness centrality (0.037) - this node is a cross-community bridge._
-- **Why does `trpc` connect `client.ts` to `cn`, `shared.ts`, `system-health-card.tsx`, `MissionSimulator.tsx`, `memory-graph-explorer.tsx`, `notifyDataChanged`, `page.tsx`, `button.tsx`, `chat-message-list.tsx`, `wisdom-tab.tsx`, `settings-console.tsx`, `page.tsx`, `situation-card.tsx`, `glass-card.tsx`, `v`, `entity-history-drawer.tsx`, `layout.tsx`, `page.tsx`, `utils.ts`, `spatial-canvas.tsx`, `omni-capture.tsx`, `nick-message.tsx`, `active-task-companion.tsx`, `cognitive-partner.tsx`, `level-up-directive.ts`, `drafts-tab.tsx`?**
-  _High betweenness centrality (0.018) - this node is a cross-community bridge._
+- **Why does `main()` connect `github.py` to `categories.ts`, `json`, `render.py`, `prisma.ts`?**
+  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+- **Why does `Logger` connect `actionCenterPublishWire.test.ts` to `categories.ts`, `http.ts`, `cn`, `shared.ts`, `brain.ts`, `trpc.ts`, `system-pages.ts`, `prisma.ts`, `client.ts`, `operator.ts`, `tools.ts`, `system-pages-b.ts`, `telegram.ts`, `root.ts`, `google-oauth.ts`, `invokeLLM`, `output-guardian.ts`, `cached`, `provider.ts`, `settings-console.tsx`, `glass-card.tsx`, `operator-pulse.ts`, `missions.ts`, `prompt-judge-comparator.ts`, `index.ts`, `regression-runner.ts`, `index.ts`, `tasks.ts`, `use-system-pulse.ts`, `cluster.py`, `guardian.ts`, `getFlag`, `entity-audit.ts`, `multi-search.ts`, `system-prompt.ts`, `chart.tsx`, `push.ts`, `image-actions.ts`, `candidate.ts`, `storage.ts`, `mega-fanout.ts`, `preference-inference.ts`, `wisdom-tab.tsx`, `github.py`, `instagramAdmin.honesty.test.ts`, `abandonedForms.ts`, `apply-wave-181-77-drip-unique.ts`, `tool-embeddings.ts`, `google-reviews.ts`, `instagram.py`, `brain-bus-emit.ts`, `generate-source-pack.ts`, `TestProbeAndDiagnoseHonesty`, `TestSearchRetryOn500`, `skill_meta.py`, `activeOnly`, `render.py`, `visualWorld.ts`, `gsc-data.ts`, `nickstire-write.ts`, `reddit_listing.py`, `higgsfieldStudio.ts`, `analyzeTrends`, `grounding.py`, `anticipated-questions.ts`, `salvage-event-text.ts`, `morning-brief.ts`, `reddit_listing.py`, `render_compact`, `comprehensive-backfill.ts`, `meta-capi.ts`, `system-observability.ts`, `SubprocResult`, `test_instagram_sc.py`, `grounding.py`, `payments.ts`, `tool-quota.ts`, `chat-fork.ts`, `prompts.ts`, `pricing-advisor.ts`, `cwv-telemetry.ts`, `persona-corpus-analyzer.ts`, `skill-recall.ts`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
+- **Are the 452 inferred relationships involving `cn()` (e.g. with `MapView()` and `AccordionContent()`) actually correct?**
+  _`cn()` has 452 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 340 inferred relationships involving `eq()` (e.g. with `main()` and `main()`) actually correct?**
+  _`eq()` has 340 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Generate daily briefing data.      Returns structured data for the agent to synt`, `Generate weekly digest data with trend analysis.`, `Load a saved briefing by date.` to the rest of the system?**
-  _18898 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _19642 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `categories.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.010122582088152322 - nodes in this community are weakly interconnected._
-- **Should `logger.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.009563158159923413 - nodes in this community are weakly interconnected._
-- **Should `http.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.0071155586845016595 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.008988936240443729 - nodes in this community are weakly interconnected._
