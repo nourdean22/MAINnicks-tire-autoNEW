@@ -24,6 +24,7 @@ export const AUTONOMOUS_OPERATIONS: Array<{ name: string; interval: string; desc
   { name: "Closed-Loop Measurement", interval: "Daily", desc: "Measure wave_metrics with measure_at past · auto-seeds baselines" },
   { name: "SEO Forensic", interval: "Daily", desc: "Top-30 GSC queries · catch rank drops ≥5 positions same-day" },
   { name: "Monte-Carlo Forecast", interval: "Weekly (Mon)", desc: "10k trials · P10/P50/P90 revenue band · top variance driver" },
+  { name: "Weekly Revenue Digest", interval: "Weekly (Mon)", desc: "Paid-invoice mirror truth · WoW delta · repeat-revenue share · arrivals receipts → Telegram" },
   { name: "Competitor Monitor", interval: "Daily", desc: "5 competitors · Google Places · rating + review delta detection" },
   { name: "SMS Gateway Health", interval: "Every 15m", desc: "Ping F25e Capevace cloud · Telegram if offline >30m" },
 ];
