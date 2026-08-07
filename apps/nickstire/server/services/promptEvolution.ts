@@ -15,7 +15,7 @@ import { invokeLLM } from "../_core/llm";
 import {
   extractCallerTurns,
   ghostReplay,
-  gradeReplies,
+  gradeRepliesWithJudge,
   splitSeeds,
   violatedInvariants,
 } from "./ghostReplay";
@@ -52,9 +52,11 @@ export interface SeedLoad {
 
 export interface ScoredPrompt {
   passRate: number;
+  /** Seeds the judge ruled impossible — excluded from `total`, reported honestly. */
+  unresolvable?: number;
   passes: number;
   total: number;
-  grades: Array<{ id: string; pass: boolean; priceLeaks: number; resolutionOffered: boolean; guarantees: number; emptyReplies: number; replies?: string[] }>;
+  grades: Array<{ id: string; pass: boolean; priceLeaks: number; resolutionOffered: boolean; guarantees: number; emptyReplies: number; replies?: string[]; unresolvable?: boolean; judgeReason?: string; judgeUnavailable?: boolean }>;
 }
 
 export async function loadSeeds(seedCount: number, filterRx?: RegExp | null): Promise<SeedLoad> {
@@ -119,18 +121,33 @@ export async function scorePrompt(prompt: string, seeds: Seed[], opts: { keepRep
   const grades: ScoredPrompt["grades"] = [];
   for (const s of seeds) {
     const replies = await ghostReplay(prompt, s.callerTurns, { priority: 3 });
-    const g = gradeReplies(replies);
+    const g = await gradeRepliesWithJudge(s.callerTurns, replies);
     grades.push({
       id: s.id, pass: g.pass, priceLeaks: g.priceLeaks, resolutionOffered: g.resolutionOffered,
       guarantees: g.guarantees, emptyReplies: g.emptyReplies,
+      ...(g.unresolvable ? { unresolvable: true } : {}),
+      ...(g.judgeReason ? { judgeReason: g.judgeReason } : {}),
+      ...(g.judgeUnavailable ? { judgeUnavailable: true } : {}),
       // The GRADED conversation — a display must show what was judged, not a
       // fresh sampling (MoE models re-phrase run to run; a re-sampled display
       // misled a live verification once).
       ...(opts.keepReplies ? { replies } : {}),
     });
   }
-  const passes = grades.filter((g) => g.pass).length;
-  return { passRate: seeds.length ? passes / seeds.length : 0, passes, total: seeds.length, grades };
+  // HONEST DENOMINATOR (2026-08-07): a call no prompt could have resolved —
+  // the caller reached a wrong number or left before asking anything — is not
+  // a prompt failure and must not sit in the denominator. Seed 019fd32f was
+  // exactly this: two turns, "Is this Nick's Auto Parts?", gone. Counting it
+  // understated every baseline and fed the optimizer an unwinnable failure.
+  const graded = grades.filter((g) => !g.unresolvable);
+  const passes = graded.filter((g) => g.pass).length;
+  return {
+    passRate: graded.length ? passes / graded.length : 0,
+    passes,
+    total: graded.length,
+    unresolvable: grades.length - graded.length,
+    grades,
+  };
 }
 
 async function proposeCandidates(
@@ -225,12 +242,19 @@ export async function runPromptEvolution(
     excludedVerified,
     trainCount: train.length,
     holdoutCount: holdout.length,
-    baselineTrain: `${baseTrain.passes}/${baseTrain.total}`,
-    baselineHoldout: `${baseHold.passes}/${baseHold.total}`,
+    // Report the exclusions inline — a denominator that silently shrank is
+    // the same class of lie as a run that measured nothing and printed zero.
+    baselineTrain: `${baseTrain.passes}/${baseTrain.total}${baseTrain.unresolvable ? ` (${baseTrain.unresolvable} unresolvable excluded)` : ""}`,
+    baselineHoldout: `${baseHold.passes}/${baseHold.total}${baseHold.unresolvable ? ` (${baseHold.unresolvable} unresolvable excluded)` : ""}`,
   };
 
+  // The optimizer must never see an unwinnable call. An unresolvable seed
+  // (wrong number, or the caller gone before asking) has pass=false like any
+  // other failure, so without this filter the failure brief would ask for a
+  // prompt edit to fix a hang-up — the mislabeled-LOSS twin of #1410's
+  // mislabeled-WIN poisoning.
   const trainFailures = baseTrain.grades
-    .filter((g) => !g.pass)
+    .filter((g) => !g.pass && !g.unresolvable)
     .map((g) => ({ seed: train.find((s) => s.id === g.id)!, grade: g }));
   if (!trainFailures.length) {
     return { ...base, candidateSummaries: [], accepted: null, outcome: "baseline-clean" };

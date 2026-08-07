@@ -50,9 +50,11 @@ async function main() {
     // conversation — a fresh sampling once showed a passing dialogue while
     // the grade was judged on a differently-phrased one.
     const scored = await scorePrompt(ASSISTANT_SYSTEM_PROMPT, seeds, { keepReplies: !!filterRx });
-    console.log(`baseline: ${scored.passes}/${scored.total}`);
+    console.log(`baseline: ${scored.passes}/${scored.total}${scored.unresolvable ? ` (${scored.unresolvable} unresolvable excluded — no next step was possible)` : ""}`);
     for (const g of scored.grades) {
-      console.log(`  seed ${g.id}: ${g.pass ? "PASS" : "fail"} (resolution=${g.resolutionOffered}, priceLeaks=${g.priceLeaks}, guarantees=${g.guarantees}, empty=${g.emptyReplies})`);
+      const verdict = g.unresolvable ? "UNRESOLVABLE" : g.pass ? "PASS" : "fail";
+      const judged = g.judgeReason ? ` [judge${g.judgeUnavailable ? " UNAVAILABLE" : ""}: ${g.judgeReason}]` : "";
+      console.log(`  seed ${g.id}: ${verdict} (resolution=${g.resolutionOffered}, priceLeaks=${g.priceLeaks}, guarantees=${g.guarantees}, empty=${g.emptyReplies})${judged}`);
       if (g.replies) {
         const seed = seeds.find((s) => s.id === g.id)!;
         for (let i = 0; i < seed.callerTurns.length; i++) {
