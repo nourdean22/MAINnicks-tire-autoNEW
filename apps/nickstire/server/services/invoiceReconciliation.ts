@@ -158,10 +158,13 @@ export async function getDailyRevenueTruth(date?: string) {
   const { invoices } = await import("../../drizzle/schema");
   const d = await getDb();
   if (!d) {
+    // No DB is an UNKNOWN, not a zero-margin day — margin fields stay null so
+    // a failed read can never be mistaken for a measured result.
     return {
       date: (date ? new Date(date) : new Date()).toISOString().split("T")[0],
       completedJobs: 0, totalRevenue: 0, partsCost: 0, laborRevenue: 0,
-      grossMargin: 0, grossMarginPercent: 0, avgTicket: 0,
+      grossMargin: null, grossMarginPercent: null,
+      marginBasisInvoices: 0, marginBasisRevenue: 0, avgTicket: 0,
     };
   }
 
@@ -179,6 +182,11 @@ export async function getDailyRevenueTruth(date?: string) {
     totalPartsCents: sql<number>`coalesce(sum(${invoices.partsCost}), 0)`,
     totalLaborCents: sql<number>`coalesce(sum(${invoices.laborCost}), 0)`,
     avgTicketCents: sql<number>`coalesce(avg(${invoices.totalAmount}), 0)`,
+    // FILL GUARD inputs — same class of defect the parts-percent scan already
+    // guards against in services/engines/operations.ts. See below.
+    costDetailCount: sql<number>`coalesce(sum(case when ${invoices.partsCost} > 0 or ${invoices.laborCost} > 0 then 1 else 0 end), 0)`,
+    coveredRevenueCents: sql<number>`coalesce(sum(case when ${invoices.partsCost} > 0 or ${invoices.laborCost} > 0 then ${invoices.totalAmount} else 0 end), 0)`,
+    coveredPartsCents: sql<number>`coalesce(sum(case when ${invoices.partsCost} > 0 or ${invoices.laborCost} > 0 then ${invoices.partsCost} else 0 end), 0)`,
   }).from(invoices)
     .where(and(
       gte(invoices.invoiceDate, startOfDay),
@@ -189,7 +197,29 @@ export async function getDailyRevenueTruth(date?: string) {
   const revenue = (Number(stats?.totalRevenueCents) || 0) / 100;
   const parts = (Number(stats?.totalPartsCents) || 0) / 100;
   const labor = (Number(stats?.totalLaborCents) || 0) / 100;
-  const grossMargin = revenue - parts;
+
+  /**
+   * FILL GUARD (2026-08-08). The ALG mirror stopped carrying the parts/labour
+   * split on 2026-04-09 — probed live: 1,886 of 2,899 lifetime paid invoices
+   * carry partsCost, but 0 of the last 30 do. With partsCost pinned at 0,
+   * `revenue - parts` equals revenue, so this function was returning
+   * grossMarginPercent = 100.0 EVERY DAY for the last 10 days straight. An
+   * absent measurement rendered as a perfect result — the same defect the
+   * parts-percent scan in services/engines/operations.ts already guards.
+   *
+   * Margin is therefore computed over ONLY the invoices that carry cost
+   * detail, and is null (never 0, never 100) when none do. Dividing covered
+   * parts by TOTAL revenue would inflate margin in exact proportion to how
+   * much data is missing, which is how 100% got published in the first place.
+   *
+   * `partsCost` / `laborRevenue` keep reporting the true period sums — they
+   * are sums, not ratios, so 0 is an honest answer for them.
+   */
+  const costDetailCount = Number(stats?.costDetailCount) || 0;
+  const coveredRevenue = (Number(stats?.coveredRevenueCents) || 0) / 100;
+  const coveredParts = (Number(stats?.coveredPartsCents) || 0) / 100;
+  const marginComputable = costDetailCount > 0 && coveredRevenue > 0;
+  const grossMargin = marginComputable ? coveredRevenue - coveredParts : null;
 
   return {
     date: targetDate.toISOString().split("T")[0],
@@ -197,8 +227,13 @@ export async function getDailyRevenueTruth(date?: string) {
     totalRevenue: Math.round(revenue * 100) / 100,
     partsCost: Math.round(parts * 100) / 100,
     laborRevenue: Math.round(labor * 100) / 100,
-    grossMargin: Math.round(grossMargin * 100) / 100,
-    grossMarginPercent: revenue > 0 ? Math.round((grossMargin / revenue) * 1000) / 10 : 0,
+    grossMargin: grossMargin === null ? null : Math.round(grossMargin * 100) / 100,
+    grossMarginPercent: marginComputable
+      ? Math.round(((coveredRevenue - coveredParts) / coveredRevenue) * 1000) / 10
+      : null,
+    /** How many invoices the margin is actually based on — 0 means it is unknown, not zero. */
+    marginBasisInvoices: costDetailCount,
+    marginBasisRevenue: Math.round(coveredRevenue * 100) / 100,
     avgTicket: Math.round((Number(stats?.avgTicketCents) || 0) / 100 * 100) / 100,
   };
 }

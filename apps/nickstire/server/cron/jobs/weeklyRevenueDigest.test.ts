@@ -58,6 +58,9 @@ function queueHappyPath(opts?: { tuple?: boolean }) {
           curLaborCents: 689000,
           curCostDetail: 25,
           curDescribed: 20,
+          curCoveredCents: 1248053,
+          curCoveredPartsCents: 512000,
+          curCoveredLaborCents: 689000,
           prevCents: 1155600,
           prevCount: 23,
         },
@@ -126,7 +129,7 @@ describe("computeWeeklyRevenueDigest", () => {
     // Same defect as the render test, asserted one layer down: the compute
     // must not hand a fabricated margin to any consumer, not just Telegram.
     execute
-      .mockResolvedValueOnce([[{ curCents: 1665695, curCount: 32, curPartsCents: 0, curLaborCents: 0, curCostDetail: 0, curDescribed: 1, prevCents: 1230047, prevCount: 22 }], []])
+      .mockResolvedValueOnce([[{ curCents: 1665695, curCount: 32, curPartsCents: 0, curLaborCents: 0, curCostDetail: 0, curDescribed: 1, curCoveredCents: 0, curCoveredPartsCents: 0, curCoveredLaborCents: 0, prevCents: 1230047, prevCount: 22 }], []])
       .mockResolvedValueOnce([[{ weekCents: 1665695, repeatCents: 366000, unknownCents: 0 }], []])
       .mockResolvedValueOnce([[], []])
       .mockResolvedValueOnce([[{ cnt: 2, cents: 81699 }], []])
@@ -136,6 +139,30 @@ describe("computeWeeklyRevenueDigest", () => {
     expect(d.revenue).toBeCloseTo(16656.95, 2);
     expect(d.costDetailCount).toBe(0);
     expect(d.marginPct).toBeNull(); // NOT 100
+  });
+
+  it("computes margin over the COVERED subset, not against total revenue", async () => {
+    // The trap the first fix walked into: with 1 of 32 invoices covered, a
+    // guard of `costDetailCount > 0` still divided that invoice's parts by the
+    // FULL week's revenue, yielding ~99% — a fabrication with a guard on it.
+    // Correct basis: $802.35 revenue / $400 parts on the one covered invoice
+    // => 50%, regardless of the other $15,854 having no cost detail.
+    execute
+      .mockResolvedValueOnce([[{
+        curCents: 1665695, curCount: 32, curPartsCents: 40000, curLaborCents: 0,
+        curCostDetail: 1, curDescribed: 1,
+        curCoveredCents: 80235, curCoveredPartsCents: 40000, curCoveredLaborCents: 0,
+        prevCents: 1230047, prevCount: 22,
+      }], []])
+      .mockResolvedValueOnce([[{ weekCents: 1665695, repeatCents: 0, unknownCents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ cnt: 0, cents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ bookings: 0, callbacks: 0, callbacksOpen: 0 }], []]);
+    const d = await computeWeeklyRevenueDigest(MONDAY_NOON_ET);
+    expect(d.costDetailCount).toBe(1);
+    expect(d.coveredRevenue).toBeCloseTo(802.35, 2);
+    expect(d.marginPct).toBe(50); // NOT 99 — the whole point
   });
 
   it("counts leads through the SHARED actionable rule, not a re-implementation", async () => {
@@ -189,6 +216,9 @@ describe("buildWeeklyRevenueDigestText", () => {
     marginPct: 59,
     costDetailCount: 25,
     describedCount: 20,
+    coveredRevenue: 12480.53,
+    coveredParts: 5120,
+    coveredLabor: 6890,
     prevRevenue: 11556,
     prevInvoiceCount: 23,
     deltaPct: 8,
@@ -239,10 +269,28 @@ describe("buildWeeklyRevenueDigestText", () => {
     expect(text).toContain("margin unavailable");
   });
 
-  it("flags partial cost-detail coverage rather than implying it is complete", () => {
+  it("states the margin's real basis when coverage is partial", () => {
     const text = buildWeeklyRevenueDigestText({ ...base, costDetailCount: 9 });
     expect(text).toContain("Margin 59%");
-    expect(text).toContain("cost detail on 9/25");
+    expect(text).toContain("on the 9/25 invoices carrying cost detail");
+  });
+
+  it("quotes COVERED parts/labor next to the margin, never the shop-wide totals", () => {
+    // The margin is computed over the covered subset, so the parts figure
+    // printed beside it must be that subset's. Printing the full-week parts
+    // total next to a subset margin invites reading them as one basis.
+    const text = buildWeeklyRevenueDigestText({
+      ...base,
+      parts: 9999, // full-week total — must NOT appear
+      labor: 8888,
+      coveredParts: 5120,
+      coveredLabor: 6890,
+      costDetailCount: 9,
+    });
+    expect(text).toContain("Parts $5,120");
+    expect(text).toContain("Labor $6,890");
+    expect(text).not.toContain("9,999");
+    expect(text).not.toContain("8,888");
   });
 
   it("says top services are unavailable rather than listing an empty-description bucket", () => {
@@ -266,6 +314,27 @@ describe("buildWeeklyRevenueDigestText", () => {
     const text = buildWeeklyRevenueDigestText({ ...base, callbacksOpen: 0 });
     expect(text).toContain("Demand: 3 leads · 5 bookings · 9 callbacks");
     expect(text).not.toContain("still open");
+  });
+
+  it("drops perpetually-zero demand channels instead of printing constants", () => {
+    // Measured over 8 weeks to 2026-08-08: bookings fired twice TOTAL,
+    // callback_requests not once. "0 bookings · 0 callbacks" every week is a
+    // constant, and a constant is not information.
+    const text = buildWeeklyRevenueDigestText({
+      ...base,
+      bookings: 0,
+      callbacks: 0,
+      callbacksOpen: 0,
+    });
+    expect(text).toContain("Demand: 3 leads");
+    expect(text).not.toContain("0 bookings");
+    expect(text).not.toContain("0 callbacks");
+  });
+
+  it("surfaces a booking or callback the moment one appears", () => {
+    const text = buildWeeklyRevenueDigestText({ ...base, bookings: 1, callbacks: 0 });
+    expect(text).toContain("Demand: 3 leads · 1 bookings");
+    expect(text).not.toContain("0 callbacks");
   });
 
   it("flags a $0 week as a possible import break instead of staying silent", () => {

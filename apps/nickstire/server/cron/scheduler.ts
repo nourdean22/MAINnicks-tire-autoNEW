@@ -2176,19 +2176,50 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "revenue-reconciliation", // End-of-day revenue truth
+        // "End-of-day revenue truth" — reports the PREVIOUS COMPLETE shop day.
+        //
+        // 2026-08-08 · this job reported "$0, 0 jobs" on 7 of the last 8 days
+        // while the shop actually took $806 / $1,554 / $3,772 / $2,873 / $2,008
+        // on those days. Two compounding causes, both fixed here:
+        //
+        //   1. It called getDailyRevenueTruth() with no argument, which means
+        //      TODAY SO FAR. This job sits in the 24h tier whose phase is set
+        //      by pod boot time (the ROS-081 class), so it has been firing at
+        //      11:59 / 14:03 / 16:01 / 19:08 UTC — i.e. 08:00-15:00 ET, before
+        //      most of the day's invoices exist. It was measuring an empty
+        //      morning and labelling it "end-of-day verified".
+        //   2. remember() dedupes by CONTENT HASH, so every $0 day collapsed
+        //      onto one row: nick_memory_insight_e8bb1cbd7719 reached
+        //      **813 uses and confidence 1.0**, making "the shop made $0" the
+        //      single most-reinforced revenue memory Nick has. Real days sat
+        //      at 1-6 uses. Repetition of a bug outvoted the truth.
+        //
+        // Fix: read the previous complete shop day, stamp the DATE into the
+        // memory content so each day is its own row and can never pile up,
+        // and write nothing at all when the day has no jobs — a $0 day is a
+        // closed shop or a broken import, never a "verified number".
+        name: "revenue-reconciliation",
         handler: async () => {
           try {
             const { getDailyRevenueTruth } = await import("../services/invoiceReconciliation");
-            const truth = await getDailyRevenueTruth();
+            // Previous calendar day in the SHOP's timezone, not the container's.
+            const shopToday = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
+            const prev = new Date(`${shopToday}T00:00:00Z`);
+            prev.setUTCDate(prev.getUTCDate() - 1);
+            const day = prev.toISOString().slice(0, 10);
+
+            const truth = await getDailyRevenueTruth(day);
+            if (!truth.completedJobs) {
+              return { recordsProcessed: 0, details: `${day}: no paid invoices — nothing recorded (closed day or import gap)` };
+            }
             const { remember } = await import("../services/nickMemory");
             await remember({
               type: "insight",
-              content: `Daily revenue truth: $${truth.totalRevenue || 0}. Jobs: ${truth.completedJobs || 0}. Avg ticket: $${truth.avgTicket || 0}. This is the end-of-day verified number.`,
+              content: `Revenue for ${day}: $${truth.totalRevenue}. Jobs: ${truth.completedJobs}. Avg ticket: $${truth.avgTicket}.`,
               source: "revenue_reconciliation",
               confidence: 0.95,
             });
-            return { recordsProcessed: 1, details: `Revenue: $${truth.totalRevenue || 0}, ${truth.completedJobs || 0} jobs` };
+            return { recordsProcessed: 1, details: `${day}: $${truth.totalRevenue}, ${truth.completedJobs} jobs` };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue reconciliation failed" }; }
         },
       },

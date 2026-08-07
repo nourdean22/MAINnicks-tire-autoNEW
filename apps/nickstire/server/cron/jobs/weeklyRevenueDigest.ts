@@ -61,10 +61,18 @@ export interface WeeklyRevenueDigestData {
   parts: number;
   labor: number;
   /**
-   * (revenue - parts) / revenue, 0-100. Null when revenue is 0 OR when NO
-   * invoice in the window carries cost detail — see costDetailCount.
+   * (coveredRevenue - coveredParts) / coveredRevenue, 0-100 — computed over
+   * ONLY the invoices that carry cost detail. Null when none do.
+   *
+   * Dividing covered parts by TOTAL revenue was the first fix's mistake: with
+   * 1 of 32 invoices covered it would still have rendered ~99%, inflating
+   * margin in exact proportion to how much data was missing.
    */
   marginPct: number | null;
+  /** Revenue/parts/labor restricted to invoices carrying cost detail — the margin's real basis. */
+  coveredRevenue: number;
+  coveredParts: number;
+  coveredLabor: number;
   /**
    * Invoices in the window with partsCost>0 OR laborCost>0.
    *
@@ -146,6 +154,12 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
       SUM(CASE WHEN invoiceDate >= ${windowStart} THEN partsCost ELSE 0 END)   AS curPartsCents,
       SUM(CASE WHEN invoiceDate >= ${windowStart} THEN laborCost ELSE 0 END)   AS curLaborCents,
       SUM(CASE WHEN invoiceDate >= ${windowStart} AND (partsCost > 0 OR laborCost > 0) THEN 1 ELSE 0 END) AS curCostDetail,
+      -- Margin is computed over ONLY the invoices that carry cost detail.
+      -- Dividing covered parts by TOTAL revenue would inflate margin toward
+      -- 100% exactly in proportion to how much data is missing.
+      SUM(CASE WHEN invoiceDate >= ${windowStart} AND (partsCost > 0 OR laborCost > 0) THEN totalAmount ELSE 0 END) AS curCoveredCents,
+      SUM(CASE WHEN invoiceDate >= ${windowStart} AND (partsCost > 0 OR laborCost > 0) THEN partsCost ELSE 0 END)   AS curCoveredPartsCents,
+      SUM(CASE WHEN invoiceDate >= ${windowStart} AND (partsCost > 0 OR laborCost > 0) THEN laborCost ELSE 0 END)   AS curCoveredLaborCents,
       SUM(CASE WHEN invoiceDate >= ${windowStart} AND COALESCE(TRIM(serviceDescription), '') <> '' THEN 1 ELSE 0 END) AS curDescribed,
       SUM(CASE WHEN invoiceDate <  ${windowStart} THEN totalAmount ELSE 0 END) AS prevCents,
       SUM(CASE WHEN invoiceDate <  ${windowStart} THEN 1 ELSE 0 END)           AS prevCount
@@ -162,10 +176,26 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
   const prevInvoiceCount = Number(agg?.prevCount) || 0;
   const costDetailCount = Number(agg?.curCostDetail) || 0;
   const describedCount = Number(agg?.curDescribed) || 0;
+  const coveredRevenue = toDollars(agg?.curCoveredCents);
+  const coveredParts = toDollars(agg?.curCoveredPartsCents);
+  const coveredLabor = toDollars(agg?.curCoveredLaborCents);
 
-  // Repeat-revenue share: this week's paid dollars split by whether the
-  // same phone (last-10, both sides normalized identically to the
-  // expected_arrivals reconcile) has ANY earlier paid invoice.
+  // Repeat-revenue share: this week's paid dollars split by whether the same
+  // phone (last-10, normalized identically on both sides — the same rule the
+  // expected_arrivals reconcile uses) had ANY earlier paid invoice.
+  //
+  // "Earlier" means earlier than THIS INVOICE, not merely earlier than the
+  // window. Comparing against windowStart makes the metric depend on where the
+  // window boundary happens to fall: a customer whose only prior visit sits
+  // inside the same window reads as new. A loyalty measure must not move
+  // because the report ran on a different day.
+  //
+  // HONEST SCOPE — this changed no number on current data. Probed 2026-08-08:
+  // both rules return 22% ($3,717.79 of $16,656.95). The one customer with two
+  // invoices this week (67 seconds apart — one visit, two tickets) also had a
+  // 2026-07-18 invoice, so both rules already called them repeat. This is a
+  // latent-correctness fix, not a measured improvement; claiming otherwise
+  // would be exactly the kind of unearned result this job exists to avoid.
   const repeatRaw = await d.execute(sql`
     SELECT
       COALESCE(SUM(cur.totalAmount), 0) AS weekCents,
@@ -173,11 +203,11 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
       COALESCE(SUM(CASE WHEN cur.p10 IS NOT NULL AND EXISTS (
         SELECT 1 FROM invoices prior
         WHERE prior.paymentStatus = 'paid'
-          AND prior.invoiceDate < ${windowStart}
+          AND prior.invoiceDate < cur.invoiceDate
           AND RIGHT(REGEXP_REPLACE(COALESCE(prior.customerPhone, ''), '[^0-9]', ''), 10) = cur.p10
       ) THEN cur.totalAmount ELSE 0 END), 0) AS repeatCents
     FROM (
-      SELECT totalAmount,
+      SELECT totalAmount, invoiceDate,
              NULLIF(RIGHT(REGEXP_REPLACE(COALESCE(customerPhone, ''), '[^0-9]', ''), 10), '') AS p10
       FROM invoices
       WHERE paymentStatus = 'paid'
@@ -252,9 +282,15 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
     avgTicket: invoiceCount > 0 ? Math.round(revenue / invoiceCount) : 0,
     parts,
     labor,
-    marginPct: revenue > 0 && costDetailCount > 0 ? Math.round(((revenue - parts) / revenue) * 100) : null,
+    marginPct:
+      costDetailCount > 0 && coveredRevenue > 0
+        ? Math.round(((coveredRevenue - coveredParts) / coveredRevenue) * 100)
+        : null,
     costDetailCount,
     describedCount,
+    coveredRevenue,
+    coveredParts,
+    coveredLabor,
     prevRevenue,
     prevInvoiceCount,
     deltaPct: prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null,
@@ -300,14 +336,17 @@ export function buildWeeklyRevenueDigestText(data: WeeklyRevenueDigestData): str
       `⚠️ Parts/labor missing on all ${data.invoiceCount} invoices — margin unavailable (ALG import gap)`,
     );
   } else if (data.costDetailCount > 0) {
-    const partial =
+    // Figures are the COVERED subset, and the line says so whenever that is
+    // not the whole week — quoting shop-wide parts next to a subset margin
+    // would invite reading them as the same basis.
+    const basis =
       data.costDetailCount < data.invoiceCount
-        ? ` (cost detail on ${data.costDetailCount}/${data.invoiceCount})`
+        ? ` — on the ${data.costDetailCount}/${data.invoiceCount} invoices carrying cost detail`
         : "";
     lines.push(
-      `Parts ${money(data.parts)} · Labor ${money(data.labor)}${
+      `Parts ${money(data.coveredParts)} · Labor ${money(data.coveredLabor)}${
         data.marginPct !== null ? ` · Margin ${data.marginPct}%` : ""
-      }${partial}`,
+      }${basis}`,
     );
   }
 
@@ -330,11 +369,20 @@ export function buildWeeklyRevenueDigestText(data: WeeklyRevenueDigestData): str
     lines.push(`Top services: unavailable — no invoice this week carried a description`);
   }
 
-  lines.push(
-    `Demand: ${data.leads} leads · ${data.bookings} bookings · ${data.callbacks} callbacks${
-      data.callbacksOpen > 0 ? ` (<b>${data.callbacksOpen} still open</b>)` : ""
-    }`,
-  );
+  // Only non-zero web-demand channels are listed. Measured over 8 weeks to
+  // 2026-08-08: bookings fired twice TOTAL and callback_requests not once, so
+  // printing "0 bookings · 0 callbacks" every week is a constant, and a
+  // constant carries no information — it just teaches the reader to skip the
+  // line. Leads always show (2-3/week, genuinely alive) so their absence is
+  // itself visible; a booking or callback appearing then reads as signal.
+  const demand: string[] = [`${data.leads} leads`];
+  if (data.bookings > 0) demand.push(`${data.bookings} bookings`);
+  if (data.callbacks > 0) {
+    demand.push(
+      `${data.callbacks} callbacks${data.callbacksOpen > 0 ? ` (<b>${data.callbacksOpen} still open</b>)` : ""}`,
+    );
+  }
+  lines.push(`Demand: ${demand.join(" · ")}`);
 
   if (data.arrivalsReconciled > 0) {
     lines.push(
