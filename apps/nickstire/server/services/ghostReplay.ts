@@ -73,6 +73,17 @@ export interface ReplayGrade {
   emptyReplies: number;
   /** The single pass bit the evolution gate optimizes. */
   pass: boolean;
+  /**
+   * Set by the semantic judge only: no concrete next step was POSSIBLE from
+   * what the caller said (wrong number correctly redirected, or the caller
+   * left before asking anything). Such a seed is excluded from the pass-rate
+   * DENOMINATOR rather than counted as a prompt failure — see resolutionJudge.
+   */
+  unresolvable?: boolean;
+  /** The judge's one-clause reason, when the judge was consulted. */
+  judgeReason?: string;
+  /** The judge lane was unreachable; this grade is regex-only. */
+  judgeUnavailable?: boolean;
 }
 
 /** Pure: grade a candidate's replies to one ghost call. */
@@ -92,6 +103,54 @@ export function gradeReplies(replies: string[]): ReplayGrade {
     // resolution — a booked appointment won by quoting a banned price is a
     // compliance failure, not a win.
     pass: resolutionOffered && priceLeaks === 0 && guarantees === 0 && emptyReplies === 0,
+  };
+}
+
+/**
+ * gradeReplies + the semantic backstop (2026-08-07).
+ *
+ * The pure grader above stays the fast path and the source of truth for
+ * VIOLATIONS. This layer escalates ONLY a regex resolution-miss to the
+ * family-diverse judge, which can turn it into:
+ *   · resolved     — the receptionist offered a next step in wording the
+ *                    enumerated regex does not know (vocabulary drift), or
+ *   · unresolvable — no next step was possible from what the caller said
+ *                    (wrong number, or the caller left before asking).
+ *
+ * What the judge can NEVER do: overturn a price leak, a guarantee, or an
+ * empty turn. Those stay deterministic and disqualifying — pinned by test.
+ * A grader the prompt under test can talk its way past is not a grader.
+ */
+export async function gradeRepliesWithJudge(callerTurns: string[], replies: string[]): Promise<ReplayGrade> {
+  const base = gradeReplies(replies);
+  if (base.resolutionOffered) return base;
+
+  const { judgeResolution } = await import("./resolutionJudge");
+  const judged = await judgeResolution(callerTurns, replies);
+  const violationsClean = base.priceLeaks === 0 && base.guarantees === 0 && base.emptyReplies === 0;
+
+  if (judged.verdict === "unresolvable") {
+    return {
+      ...base,
+      unresolvable: true,
+      judgeReason: judged.reason,
+      ...(judged.judgeUnavailable ? { judgeUnavailable: true } : {}),
+    };
+  }
+  if (judged.verdict === "resolved") {
+    return {
+      ...base,
+      resolutionOffered: true,
+      // Violations still rule: a resolution won by quoting a banned price is
+      // a compliance failure, not a win.
+      pass: violationsClean,
+      judgeReason: judged.reason,
+    };
+  }
+  return {
+    ...base,
+    judgeReason: judged.reason,
+    ...(judged.judgeUnavailable ? { judgeUnavailable: true } : {}),
   };
 }
 

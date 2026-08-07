@@ -153,6 +153,8 @@ interface MatchResult {
   turns: number;
   transcript: string;
   resolutionOffered: boolean;
+  /** Set only when the regex missed and the semantic judge was consulted. */
+  judgeReason?: string;
   signals: unknown;
   loss: boolean;
 }
@@ -189,12 +191,29 @@ async function runMatch(seed: SeedRow, maxTurns: number): Promise<MatchResult> {
 
   const transcript = lines.join("\n");
   const signals = extractCallSignals({ transcript, summary: seed.aiSummary ?? null });
-  const resolutionOffered = RESOLUTION_RX.test(lines.filter((l) => l.startsWith("AI:")).join("\n"));
+  const agentLines = lines.filter((l) => l.startsWith("AI:"));
+  let resolutionOffered = RESOLUTION_RX.test(agentLines.join("\n"));
+  let judgeReason: string | undefined;
+  if (!resolutionOffered) {
+    // INSTRUMENT PARITY (2026-08-07): the same semantic backstop ghost replay
+    // uses. The regex is a fast path; three rounds of MoE re-phrasing proved
+    // enumeration loses that race. Unlike ghost replay, the cage's adversary
+    // never hangs up, so an "unresolvable" verdict here is genuinely rare —
+    // it counts as a non-loss rather than shrinking a denominator.
+    const { judgeResolution } = await import("../server/services/resolutionJudge");
+    const judged = await judgeResolution(
+      lines.filter((l) => l.startsWith("User:")).map((l) => l.slice(6)),
+      agentLines.map((l) => l.slice(4)),
+    );
+    judgeReason = `${judged.verdict}: ${judged.reason}`;
+    resolutionOffered = judged.verdict !== "unresolved";
+  }
   return {
     vapiCallId: seed.vapiCallId,
     turns: lines.length,
     transcript,
     resolutionOffered,
+    judgeReason,
     signals,
     loss: !resolutionOffered,
   };
@@ -270,7 +289,7 @@ async function main() {
   console.log(`\n── cage match readout ──`);
   console.log(`${results.length} matches · ${losses.length} losses (no concrete resolution offered) → ${file}`);
   for (const r of results) {
-    console.log(`  ${r.loss ? "✗ LOSS" : "✓ hold"} vs ${r.vapiCallId} · ${r.turns} turns · resolutionOffered=${r.resolutionOffered}`);
+    console.log(`  ${r.loss ? "✗ LOSS" : "✓ hold"} vs ${r.vapiCallId} · ${r.turns} turns · resolutionOffered=${r.resolutionOffered}${r.judgeReason ? ` · judge ${r.judgeReason}` : ""}`);
   }
   process.exit(0);
 }

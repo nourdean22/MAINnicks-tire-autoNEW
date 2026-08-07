@@ -60,6 +60,34 @@ describe("prompt self-consistency · re-greeting vs WRONG NUMBER", () => {
   });
 });
 
+describe("prompt · WRONG NUMBER must open a door, not just correct the record", () => {
+  /**
+   * Found 2026-08-07 by ghost-replaying the REAL call (seed 019fd32f): the
+   * caller asked for a different "Nick's", got the identity correction the
+   * prompt scripts verbatim — and hung up, logged lost_opportunity. The model
+   * obeyed the prompt exactly; the prompt was the defect. A misdialer is still
+   * a driver with a car, so the correction must arrive WITH a way in.
+   *
+   * Note the instrument lesson pinned alongside it: the cage's live adversary
+   * kept talking for 8 turns and let the receptionist recover, so the cage
+   * scored this same seed a HOLD. The frozen real caller is the harsher judge.
+   */
+  it("pairs the clarify line with a concrete doorway", () => {
+    const s = section("## WRONG NUMBER", 1200);
+    expect(s).toMatch(/doorway/i);
+    // A doorway is a concrete next step, not another qualifying question.
+    expect(s).toMatch(/walk-ins|come (on )?by|we'?re open/i);
+  });
+
+  it("still closes out a CONFIRMED different business, and still defers to the BY-NAME rule", () => {
+    const s = section("## WRONG NUMBER", 1200);
+    // The doorway must not swallow the exit path...
+    expect(s).toMatch(/confirm/i);
+    // ...nor the Mark fix (#1401): a person asked for BY NAME is a transfer.
+    expect(s).toMatch(/BY NAME/);
+  });
+});
+
 describe("prompt self-consistency · the three previously-fixed contradictions stay fixed", () => {
   it("no spoken duration estimate survives anywhere", () => {
     const durations = ASSISTANT_SYSTEM_PROMPT.match(
