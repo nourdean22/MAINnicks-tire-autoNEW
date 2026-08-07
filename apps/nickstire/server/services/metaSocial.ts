@@ -780,6 +780,19 @@ export async function postInstagramReel(params: {
         media_type: "REELS",
         video_url: params.videoUrl,
         caption: params.caption,
+        // PUBLISHED != VISIBLE (2026-08-07). Instagram defaults share_to_feed
+        // to FALSE for REELS containers, so every reel this lane has ever
+        // published landed in the Reels tab ONLY and never appeared on the
+        // profile grid. Every internal signal read as success — the Graph API
+        // returned a real media id, reel_jobs recorded `published`, the
+        // permalink resolved — because "published" and "visible on the profile"
+        // were never the same field, and nothing measured the second one. The
+        // operator looked at the grid after a confirmed publish and correctly
+        // said "it didn't post anything".
+        //
+        // Set at container creation and NOT editable afterward, so this cannot
+        // retro-fix already-published reels.
+        share_to_feed: true,
         // Branded cover: prefer an explicit hosted image; otherwise pull a frame
         // from the reel. The generated reel's first frame is the centered Anton
         // hook overlay, so thumb_offset=0 yields an on-brand cover with no hosting.
