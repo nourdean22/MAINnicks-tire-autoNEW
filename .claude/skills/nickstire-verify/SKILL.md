@@ -17,6 +17,21 @@ multiple sessions.
 4. (full gate) `pnpm run verify` — env + check + lint + source-lint +
    hooks-lint + route-validate + tests + build.
 
+## Before pushing a diff that touches `client/` — the DoD compiler
+
+`completion-authority` derives its requirements **per-diff**. Touching any
+`client/` file (an edit, a rename, even a DELETION) derives an
+`operator-walkthrough` requirement, and the `.completion/evidence.json`
+entry on `main` was written for a PREVIOUS diff — so an untouched entry is
+**stale by definition** and fails the gate.
+
+Rewrite the matching entry to prove THIS diff before pushing. Say what the
+operator sees, and if the answer is "nothing", prove it (zero importers,
+identical render) rather than asserting it. Preserve the prior entry under
+a `...-superseded-<date>` key — the manifest is rolling, not append-only.
+
+Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
+
 ## Traps
 
 - **Brand-voice linter on CSS class names.** The pre-commit
