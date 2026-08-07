@@ -257,6 +257,41 @@ describe("runWeeklyRevenueDigest", () => {
     expect(res.details).toContain("digest failed");
   });
 
+  it("sends NOTHING when a LATE query throws — the revenue half must not ship alone", async () => {
+    // The demand queries (leads, funnel) run 5th and 6th, AFTER all four
+    // revenue queries have already succeeded. A partial digest is the
+    // dangerous shape here: revenue would render correctly while the demand
+    // line silently read zero, which looks like a dead week rather than a
+    // failed read. Fail-closed means the whole send is suppressed.
+    execute
+      .mockResolvedValueOnce([[{ curCents: 1248053, curCount: 25, curPartsCents: 512000, curLaborCents: 689000, prevCents: 1155600, prevCount: 23 }], []])
+      .mockResolvedValueOnce([[{ weekCents: 1248053, repeatCents: 387000, unknownCents: 87053 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ cnt: 6, cents: 389000 }], []])
+      .mockRejectedValueOnce(new Error("connect ETIMEDOUT")); // lead rows — 5th
+    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    expect(sendTelegram).not.toHaveBeenCalled();
+    expect(res.recordsProcessed).toBe(0);
+    expect(res.details).toContain("digest failed");
+  });
+
+  it("reports a LATE schema error as SCHEMA BUG, not a transient failure", async () => {
+    // A bad column in the funnel query (6th) must be as loud as one in the
+    // first — the taxonomy cannot degrade with query position.
+    execute
+      .mockResolvedValueOnce([[{ curCents: 0, curCount: 0, curPartsCents: 0, curLaborCents: 0, prevCents: 0, prevCount: 0 }], []])
+      .mockResolvedValueOnce([[{ weekCents: 0, repeatCents: 0, unknownCents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ cnt: 0, cents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Unknown column 'callbacksOpenz'"), { code: "ER_BAD_FIELD_ERROR" }),
+      );
+    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    expect(sendTelegram).not.toHaveBeenCalled();
+    expect(res.details).toContain("SCHEMA BUG");
+  });
+
   it("reports a schema error loudly as SCHEMA BUG (#1125 distinction)", async () => {
     const err = Object.assign(new Error("Unknown column 'totalAmountz'"), {
       code: "ER_BAD_FIELD_ERROR",
