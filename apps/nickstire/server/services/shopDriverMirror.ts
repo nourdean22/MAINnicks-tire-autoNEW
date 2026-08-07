@@ -556,6 +556,25 @@ function normalizeInvoiceJson(raw: any): RawInvoice {
         .filter(Boolean).join(" ").trim() || undefined,
     paymentMethod: raw.paymentMethod || raw.payType || "other",
     paymentStatus: raw.paymentStatus || raw.status || "paid",
+    // ⚠ THESE THREE HAVE BEEN WRITING 0 SINCE 2026-05 — see docs/CURRENT-TRUTH.md.
+    // They are the line-item money split, and `listRecentTickets` (first in the
+    // endpoint list above, and "first one that returns data wins") is a SUMMARY
+    // endpoint that does not carry it. Evidence: parts/labor/tax all fell to 0
+    // together across 2026-04 (24/24/25 of 143) into 2026-05 (0/0/0 of 104),
+    // while algTicketId and vehicleInfo — the fields listRecentTickets DOES
+    // return — stayed 100% populated. Wave-99's own probe
+    // (scripts/_archive/diagnose-line-items.ts) found the line items live on
+    // /api/ticket/listTicketSessions, which this import never reaches.
+    //
+    // `!= null ? … : 0` is why it was silent: a missing field and a genuine
+    // zero are indistinguishable downstream. Do NOT "fix" that by defaulting to
+    // null without also fixing the consumers — getDailyRevenueTruth and the
+    // weekly digest now guard on cost-detail coverage precisely because 0 here
+    // renders as a 100% gross margin.
+    //
+    // Restoring the split needs a per-ticket detail fetch, which collides with
+    // SHOP-PROTECT (cron/scheduler.ts:517 — probes evict the shop's ALG login).
+    // Operator decision; do not add ALG traffic on agent initiative.
     partsCost: raw.partsCost != null ? Math.round(Number(raw.partsCost) * 100) : 0,
     laborCost: raw.laborCost != null ? Math.round(Number(raw.laborCost) * 100) : 0,
     taxAmount: raw.taxAmount != null ? Math.round(Number(raw.taxAmount) * 100) : 0,
