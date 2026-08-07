@@ -10,6 +10,12 @@
  *     path uses kv + Telegram because Railway's filesystem is ephemeral).
  *   --baseline-only            score the CURRENT served prompt and stop —
  *                              the standing A/B measurement mode.
+ *   --audit-successes          WIDEN THE APERTURE: replay calls the classifier
+ *                              called a WIN and report only real defects
+ *                              (banned price quotes, guarantees, silent turns).
+ *                              Audit only — these seeds never train the
+ *                              optimizer. Every defect found before this mode
+ *                              came from calls already labeled a failure.
  *   --filter <regex>           restrict seeds to matching caller turns and
  *                              print the actual dialogue (targeted
  *                              behavioral verification, e.g. after a prompt
@@ -39,6 +45,26 @@ async function main() {
   const seedCount = nIdx >= 0 ? Math.max(1, Math.min(20, parseInt(args[nIdx + 1], 10) || 12)) : 12;
   const k = kIdx >= 0 ? Math.max(1, Math.min(3, parseInt(args[kIdx + 1], 10) || 2)) : 2;
   const filterRx = fIdx >= 0 ? new RegExp(args[fIdx + 1], "i") : null;
+
+  if (args.includes("--audit-successes")) {
+    const { loadSuccessSeeds, auditSuccessCalls } = await import("../server/services/promptEvolution");
+    const { ASSISTANT_SYSTEM_PROMPT } = await import("../server/services/vapi");
+    const seeds = await loadSuccessSeeds(seedCount, filterRx);
+    if (!seeds.length) throw new Error("no won-call seeds matched");
+    console.log(`success audit: replaying ${seeds.length} call(s) the classifier scored as WINS...`);
+    const r = await auditSuccessCalls(ASSISTANT_SYSTEM_PROMPT, seeds, (l) => console.log(`  ${l}`));
+    console.log(`\n── success audit readout ──`);
+    console.log(`${r.audited} won calls replayed · ${r.clean} clean · ${r.findings.length} carrying a defect`);
+    for (const f of r.findings) {
+      console.log(`\n  ✗ ${f.id} (${f.evalOutcome}) — priceLeaks=${f.priceLeaks} guarantees=${f.guarantees} empty=${f.emptyReplies}`);
+      for (let i = 0; i < f.callerTurns.length; i++) {
+        console.log(`      User: ${f.callerTurns[i].slice(0, 110)}`);
+        console.log(`      AI:   ${(f.replies[i] ?? "").slice(0, 160)}`);
+      }
+    }
+    if (!r.findings.length) console.log("no compliance defect found in the won calls sampled.");
+    return;
+  }
 
   if (args.includes("--baseline-only")) {
     const { loadSeeds, scorePrompt } = await import("../server/services/promptEvolution");
