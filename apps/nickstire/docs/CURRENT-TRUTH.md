@@ -1,7 +1,7 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` on 2026-07-29 (SMS Revenue Agent OS arc, PRs #1190–#1201)  
+**Verified against:** `main` on 2026-08-07 (self-improvement arc, PRs #1382–#1421; prior line: 2026-07-29 SMS Revenue Agent OS arc, PRs #1190–#1201)  
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
@@ -97,6 +97,98 @@ Automation success is valid only when the final system of record confirms the ac
 - **The cadence governor counts all four doors**, including `ig_autopost_log`, which alone accounts for ~84% of lifetime publishing and was previously invisible to the cap. Each door is counted independently, so one unreadable source no longer zeroes the others. The autoposter now also ASSERTS the cadence itself — with a preflight before generation, so a capped day buys no LLM/image spend — and a cap hold is terminal for that slot.
 - **Autonomy policy v8** (operator-authorized 2026-07-27): `maxFeedPostsPerDay` 20, `minimumFeedSpacingHours` 0. v7 was leftover `cc2-verify` "temp" state from 2026-07-18, never a business decision (ROS-067). At 20 the cap never binds on ordinary operation — the autoposter does 3/day and the busiest normal day across all doors is 5 — so it is a runaway brake, not a content dial. The busiest day on record is 32.
 - **Not runtime-verified.** All of the above is asserted by code and pinned by tests; no cron tick or live publish has been observed since the change. Recorded as deferred scope on the `content-governor` capability rather than left implied.
+
+### The independent judge gates live IG publishing (2026-08-07, operator flip)
+
+- **The self-eval blind spot was measured before it was closed.** A 25-post
+  retro-tournament found **5/25 (20%)** of historical posts passed self-eval
+  `>= 0.7` while the independent tournament judge scored them `< 60` or hard-
+  rejected — a unanimous "generic mechanic imagery any shop could run unchanged"
+  signature. Captions scored fine; the image self-eval (`proLook`) rubric is all
+  craft (lighting, sharpness, composition, artifact-freeness) and carries **no
+  differentiation criterion**, so a technically flawless generic image cleared
+  the gate every time (ROS-088).
+- `server/services/igJudgeGate.ts` → `shadowJudgeGate()` now blocks the **LIVE**
+  branch of `runIgAutopost` on the *exact* measured disagreement predicate
+  (`rejected || total < 60`), so `content.shadowJudgeReadout` keeps measuring the
+  gate's own behavior. The threshold equality is pinned by test — do not drift
+  the gate and the readout apart.
+- **Dryrun previews are unaffected** (that lane has a human). The judge verdict
+  already existed inline *before* the publish decision — it ran in shadow from
+  2026-08-05 — so the flip is decision logic over a verdict already paid for.
+- **Fail-CLOSED** on judge error or a missing verdict, by the same "automated"
+  reasoning as the kill switch above. Escape hatch: `IG_SHADOW_JUDGE=false`
+  disables judge AND gate together (pre-flip, self-eval-only behavior). **A dead
+  judge lane therefore pauses live IG posting loudly rather than publishing
+  blind** — that is intended, and it is the first thing to check if autoposting
+  goes quiet.
+- A judge-blocked run logs `status='aborted'` with a `judge-blocked:` prefix,
+  Telegram-notifies, and stays **retryable** — a later tick regenerates fresh
+  content rather than resurrecting the rejected draft (a rejection is
+  content-specific, not slot-specific). The live-mode judge call is **P0** in the
+  Ollama scheduler; dryrun stays P1.
+
+### The AI receptionist improves from its own failed calls (2026-08-06/07)
+
+The voice prompt is no longer only hand-edited. A closed measurement loop reads
+real failed calls and proposes bounded edits; **Push Config remains the one
+serving gate** — nothing here ever writes the live assistant.
+
+1. **The Call Ossuary** — `vapi_call_archives` (migration 0109) vaults full
+   transcripts before VAPI's **14-day** retention purge. Without it every
+   evaluation corpus older than two weeks is unrecoverable.
+2. **Ghost replay** (`server/services/ghostReplay.ts`) replays **real vaulted
+   caller turns verbatim** against any candidate prompt. The caller side is
+   fixed and real, so only the receptionist's replies vary — a like-for-like
+   comparison. Grading is deterministic (resolution-offered + banned-claim
+   regexes) and cannot be sweet-talked by the prompt under test.
+3. **The semantic resolution judge** (`server/services/resolutionJudge.ts`,
+   2026-08-07) is a backstop *behind* the regex, never a softener. Regex first —
+   a match is a resolution, no API call. Only a MISS escalates to a
+   **different-model-family** judge, which answers the question a regex cannot:
+   was a concrete next step even *possible* from what the caller said, and was it
+   offered? A verdict of `unresolvable` (wrong number, or the caller gone before
+   asking) **excludes that seed from the pass-rate denominator** and hides it
+   from the optimizer — counting an unwinnable call as a prompt failure both
+   understates the score and trains the optimizer on a hang-up (ROS-087). The
+   judge can **never** overturn a price leak, a guarantee, or an empty turn;
+   those stay deterministic and disqualifying. A dead judge lane leaves the regex
+   verdict standing and marks the grade `judgeUnavailable` — it can never
+   manufacture a pass.
+4. **The weekly optimizer** (`promptEvolutionWeekly` cron) proposes bounded edits
+   from a different model family, guards the compliance spine with
+   `violatedInvariants`, and accepts a candidate **only on strict holdout
+   improvement**. Output is a PROPOSAL (kv + Telegram — not files; Railway's
+   filesystem is ephemeral). Seeds exclude verified conversions so the optimizer
+   never trains on a mislabeled win.
+5. **The cage match** (`scripts/cage-match.ts`) is the *discovery* instrument: an
+   adversarial LLM caller red-teams the prompt offline, zero customer contact.
+
+**Instrument rules learned the hard way — read before trusting either number:**
+
+- **A tireless simulated caller flatters the prompt.** The cage adversary keeps
+  talking for 16–17 turns and hands the receptionist recovery chances real
+  callers never give; it scored a HOLD on the exact seed the frozen real caller
+  failed. **Cage for discovery, ghost replay for verdicts.**
+- **Both duel lanes are pinned by name, never ambient.** A probe that exercises a
+  different lane than the measured work is a false-green generator: one gauntlet
+  failed all 8 matches on a dead lane and still exited 0 printing "0 losses"
+  (ROS-086). A run that completes zero units of work now exits non-zero.
+- `AI_FORCE_OLLAMA=true` reroutes **every** request — explicit pins included —
+  onto one model, which silently puts the same model on both sides of a duel. The
+  instruments strip it in-process; prod config is untouched.
+- `OLLAMA_API_KEY` is **not** in `apps/nickstire/.env`. Its home is
+  `apps/statenour/.env` locally and Railway in prod; inject it per shell for
+  local instrument runs.
+- Aggregate pass rates are **not** an A/B — the seed pool rotates as new calls
+  vault. Same-seed movement is the only controlled comparison, and deepseek stays
+  ±1–2 seeds nondeterministic even at temperature 0.
+
+**Four defect classes have been found by this loop and pushed live** (each
+verified on its own failing seed before merge, and read-back verified on the
+served prompt after each Push Config): name-ask transfers, the repeated-ballpark
+stonewall, the invented parts policy + competitor referral, and the wrong-shop
+caller. See ROS-085 and the ISSUE-REGISTRY rows for each.
 
 ### Outbound SMS delivery — operating contract
 
