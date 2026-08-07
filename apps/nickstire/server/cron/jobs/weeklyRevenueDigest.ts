@@ -2,9 +2,15 @@
  * Cron · Weekly Revenue Digest (Mondays · business hours · exactly once)
  *
  * 2026-08-07 estate audit finding: the weekly "intelligence report"
- * (routers/admin/weeklyReport.ts) counts bookings, leads and callbacks but
- * never reads `invoices` — the shop's actual revenue was reported nowhere
+ * (routers/admin/weeklyReport.ts) counted bookings, leads and callbacks but
+ * never read `invoices` — the shop's actual revenue was reported nowhere
  * on a weekly cadence. This job closes that gap.
+ *
+ * 2026-08-08 · that router is now DELETED and its content absorbed here. It
+ * was registered in the tRPC tree with ZERO callers — no client, no cron —
+ * so it had never once run. The content was never rejected; the TRANSPORT
+ * was. A pull-only report on a phone-first operator is a report that does
+ * not exist, which is the same finding that made this job a push.
  *
  * Ground rules (operator directive, 2026-08-07):
  *   · Reads the ALG mirror (`invoices`) ONLY — never ShopDriver/ALG itself.
@@ -36,6 +42,7 @@
  */
 import { createLogger } from "../../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { countActionableLeads } from "@shared/leadSource";
 
 const log = createLogger("cron:weekly-revenue-digest");
 
@@ -69,6 +76,17 @@ export interface WeeklyRevenueDigestData {
   /** expected_arrivals reconciled to an invoice inside the window (the voice/SMS → paid receipt). */
   arrivalsReconciled: number;
   arrivalsRevenue: number;
+  /**
+   * Demand side, absorbed from the retired weeklyReport router (2026-08-08).
+   * Revenue alone cannot tell "fewer people asked" from "we converted worse";
+   * these three do. `leads` uses the SHARED countActionableLeads definition so
+   * this number cannot drift from the daily report's.
+   */
+  leads: number;
+  bookings: number;
+  callbacks: number;
+  /** callback_requests still status='new' — unworked demand, the actionable one. */
+  callbacksOpen: number;
 }
 
 /** ET weekday gate — the server clock is UTC; BUSINESS.timezone is the shop's. */
@@ -177,6 +195,29 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
       AND ea.arrivedAt >= ${windowStart} AND ea.arrivedAt < ${windowEnd}`);
   const arr = tupleRows(arrivalsRaw)[0] as Record<string, unknown> | undefined;
 
+  // Demand side. Leads are fetched as rows (not COUNT(*)) on purpose: the
+  // actionable-lead rule lives in @shared/leadSource and excludes a web-callback
+  // lead that is the SAME PERSON as its callback_requests row. Re-expressing that
+  // predicate in SQL would fork the definition and let this report disagree with
+  // the daily one. Weekly row volume here is double digits — cheap to fetch.
+  const leadRowsRaw = await d.execute(sql`
+    SELECT source, callbackId FROM leads
+    WHERE createdAt >= ${windowStart} AND createdAt < ${windowEnd}`);
+  const leads = countActionableLeads(
+    tupleRows(leadRowsRaw) as Array<{ source?: string | null; callbackId?: number | null }>,
+  );
+
+  const funnelRaw = await d.execute(sql`
+    SELECT
+      (SELECT COUNT(*) FROM bookings
+        WHERE createdAt >= ${windowStart} AND createdAt < ${windowEnd}) AS bookings,
+      (SELECT COUNT(*) FROM callback_requests
+        WHERE createdAt >= ${windowStart} AND createdAt < ${windowEnd}) AS callbacks,
+      (SELECT COUNT(*) FROM callback_requests
+        WHERE createdAt >= ${windowStart} AND createdAt < ${windowEnd}
+          AND status = 'new') AS callbacksOpen`);
+  const funnel = tupleRows(funnelRaw)[0] as Record<string, unknown> | undefined;
+
   return {
     windowStart,
     windowEnd,
@@ -195,6 +236,10 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
     topServices,
     arrivalsReconciled: Number(arr?.cnt) || 0,
     arrivalsRevenue: toDollars(arr?.cents),
+    leads,
+    bookings: Number(funnel?.bookings) || 0,
+    callbacks: Number(funnel?.callbacks) || 0,
+    callbacksOpen: Number(funnel?.callbacksOpen) || 0,
   };
 }
 
@@ -234,6 +279,12 @@ export function buildWeeklyRevenueDigestText(data: WeeklyRevenueDigestData): str
       lines.push(`  ${i + 1}. ${esc(s.name)} — ${money(s.revenue)} (${s.count})`);
     });
   }
+
+  lines.push(
+    `Demand: ${data.leads} leads · ${data.bookings} bookings · ${data.callbacks} callbacks${
+      data.callbacksOpen > 0 ? ` (<b>${data.callbacksOpen} still open</b>)` : ""
+    }`,
+  );
 
   if (data.arrivalsReconciled > 0) {
     lines.push(

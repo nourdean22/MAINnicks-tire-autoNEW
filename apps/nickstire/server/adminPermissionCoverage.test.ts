@@ -34,7 +34,7 @@ loyalty memberships messengerBot metaAdsArchitect nickActions nourOsBridge nourO
 portal pricing qa referrals reminders revenueAttribution revenueOps reviewReplies reviewRequests
 reviews segments seoTools serviceMatcher serviceReviews shareCards shopStatus shopdriver sms
 smsConversations smsOrchestrator smsPerformance snap socialPipeline specials statenourMetrics system
-technicians trafficFunnel vapi voiceAgent weeklyReport winback workOrders`.split(/\s+/).filter(Boolean);
+technicians trafficFunnel vapi voiceAgent winback workOrders`.split(/\s+/).filter(Boolean);
 
 describe("every admin mutation is explicitly permissioned", () => {
   it("NO router resolves a mutation to admin.view", () => {

@@ -38,7 +38,14 @@ import {
 // 16:00 UTC = 12:00 ET — unambiguously Monday in both zones.
 const MONDAY_NOON_ET = new Date("2026-08-03T16:00:00Z");
 
-/** rows for the 4 queries in call order: agg, repeat, top services, arrivals */
+/**
+ * Rows for the 6 queries in call order: agg, repeat, top services, arrivals,
+ * lead rows, funnel counts.
+ *
+ * The lead fixture is deliberately 4 rows containing ONE callback-duplicate
+ * (source="callback" WITH a callbackId) — that row must not be counted, so the
+ * expected lead figure is 3, not 4. See the shared-definition test below.
+ */
 function queueHappyPath(opts?: { tuple?: boolean }) {
   const wrap = (rows: unknown[]) => (opts?.tuple === false ? rows : [rows, []]);
   execute
@@ -63,7 +70,16 @@ function queueHappyPath(opts?: { tuple?: boolean }) {
         { svc: "4x tires", cents: 180000, cnt: 3 },
       ]),
     )
-    .mockResolvedValueOnce(wrap([{ cnt: 6, cents: 389000 }]));
+    .mockResolvedValueOnce(wrap([{ cnt: 6, cents: 389000 }]))
+    .mockResolvedValueOnce(
+      wrap([
+        { source: "popup", callbackId: null },
+        { source: "chat", callbackId: null },
+        { source: "callback", callbackId: 42 }, // duplicate of a callback row — excluded
+        { source: "callback", callbackId: null }, // voice rack-check — counts
+      ]),
+    )
+    .mockResolvedValueOnce(wrap([{ bookings: 5, callbacks: 9, callbacksOpen: 2 }]));
 }
 
 afterEach(() => {
@@ -104,6 +120,20 @@ describe("computeWeeklyRevenueDigest", () => {
     expect(d.arrivalsRevenue).toBe(3890);
   });
 
+  it("counts leads through the SHARED actionable rule, not a re-implementation", async () => {
+    queueHappyPath();
+    const d = await computeWeeklyRevenueDigest(MONDAY_NOON_ET);
+    // 4 lead rows, one of which is a callback-linked duplicate of a
+    // callback_requests row (same person). countActionableLeads drops exactly
+    // that one; the voice rack-check callback (callbackId null) still counts.
+    // If this ever reads 4, someone re-expressed the rule in SQL and this
+    // report has silently diverged from the daily one.
+    expect(d.leads).toBe(3);
+    expect(d.bookings).toBe(5);
+    expect(d.callbacks).toBe(9);
+    expect(d.callbacksOpen).toBe(2);
+  });
+
   it("parses flat-rows results the same as TiDB tuple results", async () => {
     queueHappyPath({ tuple: false });
     const d = await computeWeeklyRevenueDigest(MONDAY_NOON_ET);
@@ -116,7 +146,9 @@ describe("computeWeeklyRevenueDigest", () => {
       .mockResolvedValueOnce([[{ curCents: null, curCount: null, curPartsCents: null, curLaborCents: null, prevCents: null, prevCount: null }], []])
       .mockResolvedValueOnce([[{ weekCents: 0, repeatCents: 0, unknownCents: 0 }], []])
       .mockResolvedValueOnce([[], []])
-      .mockResolvedValueOnce([[{ cnt: 0, cents: 0 }], []]);
+      .mockResolvedValueOnce([[{ cnt: 0, cents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ bookings: 0, callbacks: 0, callbacksOpen: 0 }], []]);
     const d = await computeWeeklyRevenueDigest(MONDAY_NOON_ET);
     expect(d.revenue).toBe(0);
     expect(d.avgTicket).toBe(0);
@@ -146,6 +178,10 @@ describe("buildWeeklyRevenueDigestText", () => {
     topServices: [{ name: "Brake pads <& rotors>", revenue: 2140, count: 4 }],
     arrivalsReconciled: 6,
     arrivalsRevenue: 3890,
+    leads: 3,
+    bookings: 5,
+    callbacks: 9,
+    callbacksOpen: 2,
   };
 
   it("escapes HTML-unsafe service names (parse_mode: HTML)", () => {
@@ -161,6 +197,18 @@ describe("buildWeeklyRevenueDigestText", () => {
     expect(text).toContain("▲ 8%");
     expect(text).toContain("<b>31%</b>");
     expect(text).toContain("arrivals → paid invoices: <b>6</b> ($3,890)");
+  });
+
+  it("carries the demand line absorbed from the retired weeklyReport router", () => {
+    const text = buildWeeklyRevenueDigestText(base);
+    expect(text).toContain("Demand: 3 leads · 5 bookings · 9 callbacks");
+    expect(text).toContain("<b>2 still open</b>");
+  });
+
+  it("omits the open-callbacks callout when nothing is unworked", () => {
+    const text = buildWeeklyRevenueDigestText({ ...base, callbacksOpen: 0 });
+    expect(text).toContain("Demand: 3 leads · 5 bookings · 9 callbacks");
+    expect(text).not.toContain("still open");
   });
 
   it("flags a $0 week as a possible import break instead of staying silent", () => {
@@ -207,6 +255,41 @@ describe("runWeeklyRevenueDigest", () => {
     expect(sendTelegram).not.toHaveBeenCalled();
     expect(res.recordsProcessed).toBe(0);
     expect(res.details).toContain("digest failed");
+  });
+
+  it("sends NOTHING when a LATE query throws — the revenue half must not ship alone", async () => {
+    // The demand queries (leads, funnel) run 5th and 6th, AFTER all four
+    // revenue queries have already succeeded. A partial digest is the
+    // dangerous shape here: revenue would render correctly while the demand
+    // line silently read zero, which looks like a dead week rather than a
+    // failed read. Fail-closed means the whole send is suppressed.
+    execute
+      .mockResolvedValueOnce([[{ curCents: 1248053, curCount: 25, curPartsCents: 512000, curLaborCents: 689000, prevCents: 1155600, prevCount: 23 }], []])
+      .mockResolvedValueOnce([[{ weekCents: 1248053, repeatCents: 387000, unknownCents: 87053 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ cnt: 6, cents: 389000 }], []])
+      .mockRejectedValueOnce(new Error("connect ETIMEDOUT")); // lead rows — 5th
+    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    expect(sendTelegram).not.toHaveBeenCalled();
+    expect(res.recordsProcessed).toBe(0);
+    expect(res.details).toContain("digest failed");
+  });
+
+  it("reports a LATE schema error as SCHEMA BUG, not a transient failure", async () => {
+    // A bad column in the funnel query (6th) must be as loud as one in the
+    // first — the taxonomy cannot degrade with query position.
+    execute
+      .mockResolvedValueOnce([[{ curCents: 0, curCount: 0, curPartsCents: 0, curLaborCents: 0, prevCents: 0, prevCount: 0 }], []])
+      .mockResolvedValueOnce([[{ weekCents: 0, repeatCents: 0, unknownCents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockResolvedValueOnce([[{ cnt: 0, cents: 0 }], []])
+      .mockResolvedValueOnce([[], []])
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Unknown column 'callbacksOpenz'"), { code: "ER_BAD_FIELD_ERROR" }),
+      );
+    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    expect(sendTelegram).not.toHaveBeenCalled();
+    expect(res.details).toContain("SCHEMA BUG");
   });
 
   it("reports a schema error loudly as SCHEMA BUG (#1125 distinction)", async () => {

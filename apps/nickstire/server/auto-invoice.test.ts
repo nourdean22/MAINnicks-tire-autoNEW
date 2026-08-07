@@ -31,7 +31,6 @@ describe("Email Notification System", () => {
     expect(typeof mod.notifyNewLead).toBe("function");
     expect(typeof mod.notifyCallbackRequest).toBe("function");
     expect(typeof mod.notifyTireOrder).toBe("function");
-    expect(typeof mod.notifyWeeklyReport).toBe("function");
     expect(typeof mod.notifySystemAlert).toBe("function");
     expect(typeof mod.notifyInvoiceCreated).toBe("function");
     expect(typeof mod.sendNotification).toBe("function");
@@ -42,7 +41,7 @@ describe("Email Notification System", () => {
     // Verify the function accepts all expected categories
     const categories = [
       "booking", "lead", "callback", "tire_order",
-      "high_value", "revenue", "weekly_report",
+      "high_value", "revenue",
       "content", "system", "review", "sms_reply",
     ];
     for (const cat of categories) {

@@ -36,6 +36,8 @@ A transcript classification, tool invocation, direction instruction, transfer at
 - `server/cron/jobs/weeklyRevenueDigest.ts` pushes a Monday Telegram digest: paid-invoice revenue for the trailing 7 days, week-over-week delta, parts/labor mix, repeat-revenue share (last-10-digit phone match against any earlier paid invoice), top services, and the count of `expected_arrivals` rows reconciled to invoices that week.
 - It reads the ALG **mirror** (`invoices`, `paymentStatus='paid'` — the same filter as `getDailyRevenueTruth`) and never touches ShopDriver/ALG itself.
 - Scheduling: hourly (2h) tier + `oncePerShopDay` claim (ROS-081 pattern), self-gated to shop-timezone Mondays. On query failure it sends nothing and logs why — a zeros digest produced by a thrown query would be a false report.
+- It also carries the weekly demand line (leads · bookings · callbacks, with unworked callbacks called out). Lead counting goes through the SHARED `countActionableLeads` (`shared/leadSource.ts`), which excludes a web-callback lead that duplicates its own `callback_requests` row — re-expressing that rule in SQL would let this report disagree with the daily one.
+- **There is exactly one weekly report.** The `weeklyReport` tRPC router and `notifyWeeklyReport` were removed 2026-08-08: both had zero callers (registered but never invoked — no client, no cron), and their bookings/leads/callbacks content now rides the digest. The separate `weekly-strategic-insight` cron (Sundays, AI brief via Telegram) is unrelated and still live.
 
 ## GSC data flow
 

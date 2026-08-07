@@ -7,7 +7,7 @@ export { leadRouter } from "./lead";
 export { chatRouter } from "./chat";
 export { contentRouter, contentAdminRouter } from "./content";
 export { contentStudioRouter } from "./contentStudio";
-export { adminDashboardRouter, analyticsRouter, followUpsRouter, weeklyReportRouter, callTrackingRouter, customerEventsRouter, exportRouter } from "./admin";
+export { adminDashboardRouter, analyticsRouter, followUpsRouter, callTrackingRouter, customerEventsRouter, exportRouter } from "./admin";
 export { adminSecurityRouter } from "./adminSecurity";
 export { weatherRouter, reviewsRouter, instagramRouter, searchRouter, diagnoseRouter, laborEstimateRouter, activityRouter, serviceReviewsRouter } from "./public";
 export {

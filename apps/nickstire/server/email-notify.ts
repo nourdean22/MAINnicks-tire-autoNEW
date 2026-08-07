@@ -152,7 +152,6 @@ export type NotifyCategory =
   | "tire_order"
   | "high_value"
   | "revenue"
-  | "weekly_report"
   | "content"
   | "system"
   | "review"
@@ -177,7 +176,6 @@ const ROUTING_TABLE: Record<NotifyCategory, RouteConfig> = {
   tire_order:            { shopEmail: true,  ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.tire_orders },
   high_value:            { shopEmail: true,  ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.leads },
   revenue:               { shopEmail: false, ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.reports },
-  weekly_report:         { shopEmail: false, ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.reports },
   content:               { shopEmail: false, ceoEmail: false, pushNotify: true },
   system:                { shopEmail: false, ceoEmail: true,  pushNotify: true },
   review:                { shopEmail: true,  ceoEmail: false, pushNotify: true },
@@ -850,31 +848,11 @@ export function notifyTireOrderPaid(details: {
   });
 }
 
-/** Notify about weekly revenue/performance report — CEO only */
-export function notifyWeeklyReport(details: {
-  totalRevenue: number;
-  bookingCount: number;
-  tireOrderCount: number;
-  leadCount: number;
-  topService: string;
-}) {
-  return sendNotification({
-    category: "weekly_report",
-    subject: `Weekly Report: $${details.totalRevenue.toFixed(0)} Revenue — ${details.bookingCount} Bookings`,
-    body: [
-      `WEEKLY PERFORMANCE REPORT`,
-      `Week ending: ${new Date().toLocaleDateString("en-US", { timeZone: BUSINESS.timezone })}`,
-      ``,
-      `REVENUE: $${details.totalRevenue.toFixed(2)}`,
-      `Bookings: ${details.bookingCount}`,
-      `Tire Orders: ${details.tireOrderCount}`,
-      `New Leads: ${details.leadCount}`,
-      `Top Service: ${details.topService}`,
-      ``,
-      `— Nick's Tire & Auto Analytics`,
-    ].join("\n"),
-  });
-}
+/* 2026-08-08 · notifyWeeklyReport + the `weekly_report` category were removed
+ * with the weeklyReport router. Both had ZERO callers (only a test asserting the
+ * export existed); weekly reporting is now the Monday Telegram push in
+ * cron/jobs/weeklyRevenueDigest.ts, which reads real invoice revenue rather than
+ * taking pre-computed totals from a caller that never existed. */
 
 /** Notify about a system event — CEO only */
 export function notifySystemAlert(details: {
