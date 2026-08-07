@@ -79,6 +79,23 @@ describe("prompt · WRONG NUMBER must open a door, not just correct the record",
     expect(s).toMatch(/walk-ins|come (on )?by|we'?re open/i);
   });
 
+  /**
+   * Same defect family, second trigger (2026-08-07, seed 019fd890): the caller
+   * garbled their vehicle ("2008 Toyota Silverado"), the assistant correctly
+   * caught the contradiction — and that was three question-only turns in a row
+   * with nothing offered. The caller hung up. A clarifying question is not a
+   * turn; a clarifying question WITH a doorway is.
+   */
+  it("FLOW 1 forbids sidewall/door-jamb homework and question-only turns", () => {
+    const s = section("## FLOW 1", 3000);
+    expect(s).toMatch(/SIZE UNKNOWN or VEHICLE GARBLED/);
+    // The tire is on the car — never send the caller away to do our reading.
+    expect(s).toMatch(/NEVER send them off to read a sidewall/i);
+    // ...and the disambiguating question must carry the way in.
+    expect(s).toMatch(/doorway attached/i);
+    expect(s).toMatch(/NEVER let a clarifying question be your whole turn/i);
+  });
+
   it("still closes out a CONFIRMED different business, and still defers to the BY-NAME rule", () => {
     const s = section("## WRONG NUMBER", 1200);
     // The doorway must not swallow the exit path...
