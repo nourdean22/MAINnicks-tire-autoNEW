@@ -20,5 +20,10 @@ detailed in `docs/CURRENT-TRUTH.md`:
   ghost replay → weekly optimizer). It only ever emits PROPOSALS — **Push Config
   is still the one serving gate**, and four prompt fixes reached the live line
   that way on 2026-08-07.
+- **A weekly revenue digest now exists** (2026-08-07): Monday Telegram push of
+  paid-invoice mirror revenue, WoW delta, repeat-revenue share and
+  arrivals→invoice receipts — `server/cron/jobs/weeklyRevenueDigest.ts`,
+  contract in `docs/CURRENT-TRUTH.md`. The weekly intelligence report
+  previously never read `invoices` at all.
 
 The older file under `docs/_archive/root_reports/truth_os.md` is historical evidence only. Do not treat archived audit claims as current without re-verification.

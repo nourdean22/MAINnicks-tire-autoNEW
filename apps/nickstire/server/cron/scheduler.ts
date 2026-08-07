@@ -1413,6 +1413,22 @@ export function startTieredScheduler(): void {
           return sweepOverduePromises();
         },
       },
+      {
+        // 2026-08-07 estate audit · weekly revenue digest (Mondays).
+        // The weekly intelligence report never read `invoices`; this is
+        // the missing sales report — paid-only mirror revenue, WoW delta,
+        // parts/labor mix, repeat-revenue share, arrivals→invoice receipts,
+        // pushed via Telegram. Lives in THIS tier (not daily) per ROS-081:
+        // the 24h tier's phase can park outside business hours forever;
+        // here it gets ~7 chances and the claim keeps it exactly-once.
+        // Self-gates to shop-TZ Mondays inside the job.
+        name: "weekly-revenue-digest",
+        oncePerShopDay: true,
+        handler: async () => {
+          const { runWeeklyRevenueDigest } = await import("./jobs/weeklyRevenueDigest");
+          return runWeeklyRevenueDigest();
+        },
+      },
     ],
     running: false,
     lastRun: null,
