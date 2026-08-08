@@ -149,10 +149,47 @@ export async function selectReelVideoProvider(): Promise<ReelVideoProvider> {
  * shop publishes", and that ruling stands: this flag does not overturn it, it
  * only lets the operator answer a different question — degrade, or go dark.
  */
-export async function shouldDegradeToFreeLane(err: unknown): Promise<boolean> {
+export async function shouldDegradeToFreeLane(
+  err: unknown,
+  provider?: ReelVideoProvider,
+): Promise<boolean> {
   if (process.env.REEL_FALLBACK_TO_TEMPLATE_STOCK !== "true") return false;
   const { classifyProviderError } = await import("../../shared/providerErrors");
-  return classifyProviderError(err).action === "PAUSE_PROVIDER";
+  if (classifyProviderError(err).action === "PAUSE_PROVIDER") return true;
+
+  // THE FLAG WAS ARMED AND STILL DID NOT SAVE US (2026-08-07).
+  //
+  // A revoked Higgsfield session does not answer 401. The CLI HANGS, so
+  // withTimeout raises a timeout, classifyProviderError returns
+  // LOCAL_TIMEOUT_REMOTE_UNKNOWN → RECONCILE_BEFORE_RETRY, and the
+  // PAUSE_PROVIDER test above is false. Only AUTH_INVALID and QUOTA_OR_CREDIT
+  // reach it, and a dead session produces neither. Measured: with
+  // REEL_FALLBACK_TO_TEMPLATE_STOCK=true live on Railway, daily-reel-post still
+  // failed 4x on 2026-08-07 with details "timeout" while
+  // higgsfield-session-keepalive reported "re-login required (refresh token
+  // revoked)". The free lane existed, was enabled, and was unreachable.
+  //
+  // So consult the verdict that DOES know. higgsfieldSessionHealth reads the
+  // keepalive's own cron_log row — it was built and tested on 2026-08-03 and
+  // wired into exactly one operator display surface, never into this decision.
+  //
+  // `healthy === false` ONLY. `null` means not-knowable (no row, stale verdict,
+  // unreadable DB) and must never degrade a working paid provider on a blind
+  // spot — that function returns null rather than false for precisely this
+  // reason. This lives on the ERROR path, not in selectReelVideoProvider, whose
+  // comment rules liveness out of the hot selector on purpose.
+  if (provider === "higgsfield") {
+    const { higgsfieldSessionHealth } = await import("./higgsfieldStudio");
+    const health = await higgsfieldSessionHealth();
+    if (health.healthy === false) {
+      log.error("higgsfield session is dead per the keepalive - degrading to the free lane", {
+        reason: health.reason,
+        checkedAt: health.checkedAt?.toISOString() ?? null,
+      });
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -676,7 +713,10 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
             `higgsfield beat ${beat.beatNumber}`,
           );
         } catch (genErr) {
-          if (!(await shouldDegradeToFreeLane(genErr))) throw genErr;
+          // Pass the provider: a hung/revoked session times out rather than
+          // returning an auth error, so the verdict needs the keepalive's view
+          // of THIS provider, not just the error text.
+          if (!(await shouldDegradeToFreeLane(genErr, activeProvider))) throw genErr;
           // The paid provider is unusable and no retry clears it. Without this
           // the job goes terminal and the account publishes nothing, which is
           // exactly what happened from 2026-08-03. Render the rest of this job
@@ -685,6 +725,25 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           // The flip is one-way and re-runs the CURRENT beat: on the next pass
           // activeProvider is template_stock, so this branch is unreachable and
           // the walled provider is not called again for the remaining beats.
+          // A log line is not a signal. The 2026-08-03 outage lasted days and
+          // the 08-07 recurrence lasted a full day because the only evidence was
+          // cron_log details "timeout" — nothing reached the operator. A
+          // degrade means the shop is now publishing FREE-LANE video instead of
+          // what it normally ships, which is a decision the operator must know
+          // about the same day, not discover in an audit. Best-effort: a dead
+          // Telegram must never take the reel job down with it.
+          void import("./telegram")
+            .then(({ sendTelegram }) =>
+              sendTelegram(
+                [
+                  `REEL PROVIDER DEGRADED — now rendering on the FREE local lane`,
+                  `Job ${job.id}, beat ${beat.beatNumber}. Was: ${activeProvider}.`,
+                  `Cause: ${genErr instanceof Error ? genErr.message.slice(0, 200) : String(genErr).slice(0, 200)}`,
+                  `Reels will keep publishing, but not with the paid generator. Fix the provider or pin REEL_VIDEO_PROVIDER deliberately.`,
+                ].join("\n"),
+              ),
+            )
+            .catch(() => undefined);
           log.error("paid reel provider unusable - degrading to the free local lane", {
             jobId: job.id,
             beat: beat.beatNumber,
