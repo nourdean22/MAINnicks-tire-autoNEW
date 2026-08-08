@@ -43,7 +43,7 @@ Nour's life, habits, business, and growth strategy.
 |---|---|
 | Framework | Next.js 16 (App Router) |
 | UI | React 19 + Tailwind CSS 4 |
-| ORM | Prisma 7 |
+| ORM | Prisma 6.19 |
 | Database | Neon Postgres (+ pgvector + tsvector) |
 | AI | AI SDK v6 · Ollama Cloud (primary, operator directive) · Gemini · OpenAI · Anthropic · OpenRouter. **Venice is RETIRED** |
 | Tests | Vitest (~430 files / ~4,800 tests) |

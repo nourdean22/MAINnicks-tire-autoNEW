@@ -125,7 +125,7 @@ goal/project/task bridge + tasks + journal + knowledge + devices.
 
 - **Repo:** `nourdean22/MAINnicks-tire-autoNEW` monorepo, lives at
   `apps/statenour/` — the standalone `statenour-os` repo is retired.
-- **Stack:** Next.js 16 · Prisma 7 · Neon Postgres · Tailwind 4 ·
+- **Stack:** Next.js 16 · Prisma 6.19 · Neon Postgres · Tailwind 4 ·
   AI SDK v6 · pluggable provider chain (model ids + order live in `lib/ai/provider.ts`;
   same-turn fallback via `streamWithFallback`)
 - **Deploy:** Railway (`statenour-web` service), branch `main` →

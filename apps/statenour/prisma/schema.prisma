@@ -1088,7 +1088,7 @@ model ChatConversation {
 /// v10.0.171 note · Most raw-SQL columns are now declared Unsupported
 /// in their respective models so Prisma sees them and won't drop them.
 /// EXCEPTION: `chat_messages.searchable_tsv` is a `GENERATED ALWAYS
-/// AS (...) STORED` tsvector. Prisma 7 cannot model the generation
+/// AS (...) STORED` tsvector. Prisma 6 cannot model the generation
 /// expression, so declaring it Unsupported triggers Prisma to ALTER
 /// the column. Solution: leave it out of this schema. Defense layers:
 ///   1. v10.0.154 destructive-push pre-push gate blocks

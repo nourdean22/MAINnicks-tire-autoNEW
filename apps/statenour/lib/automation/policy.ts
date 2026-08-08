@@ -136,7 +136,7 @@ export async function findMissingPolicies(expectedIds: string[]): Promise<string
  */
 export async function upsertPolicy(input: PolicyUpsertInput): Promise<PolicyRecord> {
   validatePolicyInput(input);
-  // Prisma 7 distinguishes "set to JSON null" (Prisma.JsonNull) from
+  // Prisma 6 distinguishes "set to JSON null" (Prisma.JsonNull) from
   // "DB NULL" (Prisma.DbNull) for nullable Json columns. Coerce the
   // service inputs into the shape Prisma expects.
   const inputsJson = jsonOrNull(input.inputs);
@@ -276,7 +276,7 @@ export async function logPolicyFire(
       return;
     }
     // Policy exists - insert the fire event. Coerce Json column via
-    // jsonOrNull() (Prisma 7's nullable-Json shape requires Prisma.DbNull
+    // jsonOrNull() (Prisma 6's nullable-Json shape requires Prisma.DbNull
     // sentinel rather than literal null).
     await prisma.automationPolicyFire.create({
       data: {

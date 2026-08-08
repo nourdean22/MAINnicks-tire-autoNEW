@@ -130,7 +130,7 @@ just to answer.
 ### Neon Postgres + pgvector
 
 - **Type:** Database
-- **Integration:** Prisma 7 ORM, plus raw SQL for pgvector and tsvector columns.
+- **Integration:** Prisma 6.19 ORM, plus raw SQL for pgvector and tsvector columns.
 - **Purpose:** The brain store — `BrainMemory`, `VectorEmbedding`, chat history,
   tasks / goals / missions, and the supervised-signal loop.
 

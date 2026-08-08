@@ -43,7 +43,7 @@ the gotchas that bite everyone.
 | Path | Package name | What it is | Deploys to |
 |---|---|---|---|
 | `apps/nickstire/` | `nicks-tire-auto` | Vite 7 + React 19 PWA front-end · Express 4 + tRPC 11 back-end · Drizzle ORM on **TiDB Cloud (MySQL)**. The public tire-shop site + autonomous SMS/voice/AI ops backend + `/admin` console for **Nick's Tire & Auto** (Cleveland, OH). | Railway `MAINnicks-tire-auto` → **nickstire.org** |
-| `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router, standalone) · Prisma 7 on **Neon Postgres + pgvector**. "NOUR OS" — a single-operator personal operating system (goals/missions/tasks, journals, people, an XP "character sheet", and an autonomous AI agent with grounded recall). | Railway `statenour-web` → **bdnick.info** |
+| `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router, standalone) · Prisma 6.19 on **Neon Postgres + pgvector**. "NOUR OS" — a single-operator personal operating system (goals/missions/tasks, journals, people, an XP "character sheet", and an autonomous AI agent with grounded recall). | Railway `statenour-web` → **bdnick.info** |
 | `apps/worker/` | `@statenour/worker` | Express 4 + `node-cron`. A thin, secret-gated **cron dispatcher** — it forwards scheduled ticks over Railway's internal network to `statenour-web`'s `/api/cron/*` handlers. Holds no business logic and no database client. | Railway `statenour-worker` (internal only) |
 
 > `apps/voice/` (Python LiveKit Agents) was **RETIRED and removed 2026-08-03** — the statenour
@@ -403,7 +403,7 @@ nickstire `pnpm --filter nicks-tire-auto env:validate`; statenour `pnpm --filter
 | App | Engine | ORM | Migrations |
 |---|---|---|---|
 | nickstire | **TiDB Cloud (MySQL)** | Drizzle ORM | **Hand-applied SQL** from `drizzle/*.sql`. Apply to the DB, then `pnpm run check`. |
-| statenour | **Neon Postgres + pgvector** | Prisma 7 (`@prisma/adapter-neon`) | **Hand-applied** to prod Neon (often via a guarded `POST /api/system/apply-pending-migration`). |
+| statenour | **Neon Postgres + pgvector** | Prisma 6.19 (via `@prisma/adapter-neon` 7.x) | **Hand-applied** to prod Neon (often via a guarded `POST /api/system/apply-pending-migration`). |
 | worker | none | — | — (talks only to statenour-web over HTTP) |
 
 **statenour pgvector note:** `vector(N)` columns, the generated `tsvector` column, and the

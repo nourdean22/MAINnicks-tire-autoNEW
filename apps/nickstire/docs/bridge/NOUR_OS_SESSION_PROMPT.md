@@ -19,7 +19,7 @@ The Nick's Admin side is DONE. This session builds the NOUR OS side.
 ```
 Location: C:\Users\nourd\NOUR-OS\apps\statenour-os
 Stack: Next.js 16.1.7 (App Router) + TypeScript + Turbopack
-Database: PostgreSQL on Neon via Prisma 7
+Database: PostgreSQL on Neon via Prisma 6.19
 Repo: github.com/nourdean22/statenour-os (private)
 Branch: codex/ollama-local (production deploy branch)
 Hosting: Vercel (Hobby plan)

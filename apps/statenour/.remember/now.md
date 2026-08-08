@@ -3,7 +3,7 @@
 ## Project Quick Ref
 - **Project**: statenour-os (NOUR OS — personal mastery system)
 - **Location**: `C:\Users\nourd\NOURCITY\apps\statenour`
-- **Framework**: Next.js 16 (App Router, React 19, Prisma 7 + Neon)
+- **Framework**: Next.js 16 (App Router, React 19, Prisma 6.19 + Neon)
 - **Dev server port**: 3001 (default 3000 was in use)
 - **Local URL**: http://localhost:3001/
 - **Network URL (Tailscale)**: http://100.118.151.61:3001/

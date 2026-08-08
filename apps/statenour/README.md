@@ -5,7 +5,7 @@
 > + System ops. One operator, one surface — through which Nour runs
 > everything that isn't Nick's Tire & Auto.
 
-**Status:** production · Railway · Neon Postgres · Next.js 16 · Prisma 7
+**Status:** production · Railway · Neon Postgres · Next.js 16 · Prisma 6.19
 · React 19 · Tailwind 4. Lives in the `nourdean22/MAINnicks-tire-autoNEW`
 monorepo at `apps/statenour/`, deployed from branch `main` to
 Railway, served at `bdnick.info`.
