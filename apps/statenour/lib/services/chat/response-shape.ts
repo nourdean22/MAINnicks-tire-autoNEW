@@ -75,6 +75,12 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
   headers.set("Content-Type", "text/event-stream");
   headers.set("Cache-Control", "no-cache, no-transform");
   headers.set("Connection", "keep-alive");
+  // 2026-08-08 · nginx-class proxies (Railway's edge included) may buffer
+  // response bodies unless told not to; buffered SSE arrives as one burst
+  // instead of a stream. The sibling reason/stream route has set this
+  // since it shipped -- this builder set every other SSE header but this
+  // one, leaving the main chat stream to the proxy's defaults.
+  headers.set("X-Accel-Buffering", "no");
   // Never leak the Private Lab sentinel (or the "temp" placeholder) to the
   // client — adopting it as activeConversationId inverts privacy after
   // toggle-off (self-review high #3). Emit blank; the client keeps its id.
