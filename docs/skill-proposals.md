@@ -588,3 +588,26 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add to Traps: "never invoke `cross-env` bare in PowerShell — use `$env:VAR='1'; pnpm <script>`. And a `FINAL_EXIT=$LASTEXITCODE` sentinel after a broken chain reports the LAST RESOLVED command, not the chain — count the gate outputs, don't trust the sentinel."
 - **Confidence:** medium (once, clear mechanism)
 - **Status:** proposed
+
+## 2026-08-08 (second wave) · verify:hard reds cleared (PRs #1449 / #1450)
+
+### P1 · `statenour-verify` (prompt sections: `###` is invisible to the budget trimmer)
+- **Trigger (witnessed):** PR #1450 root cause — the Master Content Engine's ~30 sub-blocks used `###` titles while `trimPromptToBudget` splits ONLY on `\n## `; the pack fused into one atomic ~80k section and the 65k runtime slice dropped the ENTIRE engine on the primary lane. prompt:size-check had been red on this since the multi-scenario check shipped (#687).
+- **Cost:** every non-anthropic content turn served with zero content engine; a permanently red gate everyone learned to ignore.
+- **Proposed edit:** add: "A prompt section participates in the budget/trim economy ONLY with a `## ` title. `###` fuses into the previous `## ` section — the trimmer can then only keep or drop the fused blob wholesale."
+- **Confidence:** high (root-caused + fixed with receipts)
+- **Status:** proposed
+
+### P2 · `windows-shell-reliability` (tsx -e via PowerShell here-string is a SILENT no-op)
+- **Trigger (witnessed):** `pnpm exec tsx -e @'<multi-line ESM>'@` printed nothing and exited clean — no output, no error, nothing ran. Identical logic in a temp `.mts` file executed fine. A prod probe "ran" and produced zero evidence while looking green.
+- **Cost:** minutes lost; the dangerous version is trusting the silent green as "no rows".
+- **Proposed edit:** add: "never use `tsx -e` with multi-line code from PowerShell — it can no-op silently. Write a temp `.mts` INSIDE the app (module resolution needs it), run, delete. Zero output from a probe is a FAILED probe, not an empty result."
+- **Confidence:** high (reproduced both halves in one session)
+- **Status:** proposed
+
+### P3 · Edit-tool trailing-space normalization (harness trap, for harness-worktree-setup)
+- **Trigger (witnessed):** a replace_all whose new_string ended in a meaningful trailing space had the space normalized away → produced `##Title` headers matching NEITHER markdown header level; two follow-up Edits differing only by that space were rejected as "old and new are identical". Fixed via a PowerShell regex insert and verified with a grep for the broken shape.
+- **Cost:** one mangled comment + three wasted tool calls; unnoticed, it would have silently broken the #1450 fix.
+- **Proposed edit:** add: "Edit old/new strings must never END on a meaningful space — anchor through the next token, or do whitespace-sensitive rewrites with a shell regex and grep-verify the result."
+- **Confidence:** medium (once, clear mechanism, harness-version dependent)
+- **Status:** proposed
