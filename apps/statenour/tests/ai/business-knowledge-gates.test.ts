@@ -89,3 +89,43 @@ describe("AG-35 · appendBusinessKnowledgeLayer", () => {
     expect(out).toContain("OPS CARD");
   });
 });
+
+// ── 2026-08-08 · pack visibility + runtime-floor bound ─────────────
+// The engine's block titles must be two-hash (`## `) — the ONLY header
+// level trimPromptToBudget splits on. As triple-hash the whole pack was
+// ONE atomic section glued to the preceding header, so the 65k runtime
+// slice dropped the ENTIRE engine on non-anthropic content turns, and
+// the un-budgeted append built 107k prompts (prompt:size-check red).
+// These pin (a) section visibility via the trimmer's exact regex, and
+// (b) the append-side bound with tail-first survival: deep blocks drop
+// before essentials, the base prompt is never touched.
+
+describe("content pack · section visibility + runtime-floor bound", () => {
+  const DEEP_ASK =
+    "build my monthly content plan and posting strategy across reels and carousels";
+
+  it("deep-mode pack splits into many sections under the trimmer's own regex", () => {
+    const out = getBusinessKnowledge("business", DEEP_ASK);
+    const sections = out.split(/\n(?=## )/g);
+    expect(sections.length).toBeGreaterThan(20);
+    // No triple-hash titles left to fuse sub-blocks into one atomic section.
+    expect(out).not.toMatch(/\n### /);
+  });
+
+  it("append bounds base+pack at the 65k runtime floor, deep tail dropped first", async () => {
+    const base = "## BASE\n" + "x".repeat(40_000);
+    const out = await appendBusinessKnowledgeLayer(base, "business", "content", DEEP_ASK);
+    expect(out.length).toBeLessThanOrEqual(65_000);
+    // Pack-scoped trim: the base prompt must come through byte-identical.
+    expect(out.startsWith(base)).toBe(true);
+    // Essentials head survives; the last deep block is the first casualty.
+    expect(out).toContain("CONTENT GENERATION MODE");
+    expect(out).not.toContain("IDEAS VAULT");
+  });
+
+  it("a base already at the floor gets no pack rather than a sliced one", async () => {
+    const base = "## BASE\n" + "y".repeat(65_100);
+    const out = await appendBusinessKnowledgeLayer(base, "business", "content", DEEP_ASK);
+    expect(out).toBe(base);
+  });
+});

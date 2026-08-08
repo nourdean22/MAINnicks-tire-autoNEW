@@ -234,6 +234,14 @@ export interface SystemHealthSummary {
   memory: { lastBrainCycleAt: string | null; embeddingCoveragePct: number };
 }
 
+/** Statuses that mean an aiGeneration row SUCCEEDED. Must contain the
+ *  writers' actual success value — "complete" (lib/ai/track.ts default,
+ *  lib/ai/memory.ts hardcoded). "completed"/"success" are kept for any
+ *  legacy rows; "" mirrors the pre-2026-06-02 "status truthy" clause.
+ *  Dropping "complete" from this list resurrects the permanent
+ *  "ai (100% err)" fabricated alarm in the system prompt. */
+export const AI_GENERATION_SUCCESS_STATUSES = ["complete", "completed", "success", ""] as const;
+
 export interface CommandCenterState {
   generatedAt: string;
   operator: {
@@ -701,15 +709,22 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       .catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
     // v-fix 2026-06-02: was findMany(take:500, select status) + JS tally —
     // loaded up to 500 rows to produce two numbers. Now two count() queries
-    // (one Promise.all slot → [total, errors] tuple). Error set mirrors the
-    // prior JS predicate exactly (status truthy AND not completed/success →
-    // notIn completed/success/"").
+    // (one Promise.all slot → [total, errors] tuple).
+    // 2026-08-08 · the exclusion list was completed/success/"" — but the
+    // live writers emit "complete" (track.ts defaults to it, memory.ts
+    // hardcodes it; track.ts's own SQL treats <> 'complete' as the error
+    // test). Every successful row therefore counted as an ERROR and the
+    // prompt's SYSTEM HEALTH line read "ai (100% err)" permanently.
+    // Prod probe 2026-08-08 (read-only groupBy): 63/63 rows in 24h and
+    // 164/164 over 7d are status="complete" — real error rate 0%. The
+    // list below must contain the writers' actual success vocabulary;
+    // AI_GENERATION_SUCCESS_STATUSES is exported so the test can pin it.
     Promise.all([
       prisma.aiGeneration.count({ where: { createdAt: { gte: oneDayAgo } } }),
       prisma.aiGeneration.count({
         where: {
           createdAt: { gte: oneDayAgo },
-          status: { notIn: ["completed", "success", ""] },
+          status: { notIn: [...AI_GENERATION_SUCCESS_STATUSES] },
         },
       }),
     ]).catch(() => [0, 0] as [number, number]),

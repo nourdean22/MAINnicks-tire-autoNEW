@@ -324,3 +324,27 @@ describe("v9.0-alpha · command-center state contract", () => {
     expect(ctx.systemHealth).toBe(FIXTURE_STATE.systemHealth);
   });
 });
+
+// ── 2026-08-08 · aiGeneration success vocabulary ────────────────────
+// The health error-rate predicate counts rows whose status is NOT in
+// AI_GENERATION_SUCCESS_STATUSES. The live writers emit "complete"
+// (lib/ai/track.ts defaults to it, lib/ai/memory.ts hardcodes it) — the
+// old list held only completed/success/"", so EVERY successful row
+// counted as an error and the system prompt carried a permanent
+// "ai (100% err)" alarm (prod probe 2026-08-08: 164/164 rows over 7d
+// were "complete"; real error rate 0%). This pin fails if anyone
+// "simplifies" the writers' value back out of the list.
+
+import { AI_GENERATION_SUCCESS_STATUSES } from "@/lib/ai/context/command-center-state";
+
+describe("aiGeneration success vocabulary", () => {
+  it("contains the value the live writers actually emit", () => {
+    expect(AI_GENERATION_SUCCESS_STATUSES).toContain("complete");
+  });
+
+  it("keeps the legacy spellings so old rows never re-poison the rate", () => {
+    expect(AI_GENERATION_SUCCESS_STATUSES).toContain("completed");
+    expect(AI_GENERATION_SUCCESS_STATUSES).toContain("success");
+    expect(AI_GENERATION_SUCCESS_STATUSES).toContain("");
+  });
+});

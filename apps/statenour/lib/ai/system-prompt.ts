@@ -45,7 +45,7 @@ export function detectTopicTier(message: string): TopicTier {
  *
  * Reuses the EXACT runtime detectors (no regex drift) except the format
  * signature, which mirrors the format-engine gate in
- * lib/ai/knowledge/detectors.ts (getBusinessKnowledge, the `### … ENGINE`
+ * lib/ai/knowledge/detectors.ts (getBusinessKnowledge, the `## … ENGINE`
  * blocks). Keep the three regexes in sync with that file.
  */
 export async function computePromptVariant(
@@ -137,6 +137,10 @@ export async function buildSystemPrompt(
  * the detectors' own tier gating (light tiers get the ops card only —
  * the full pack would blow Venice's 65K window).
  */
+/** Mirror of finalize-system-prompt.ts MAX_SYSTEM_CHARS for non-anthropic
+ *  providers — the hard slice the built prompt must fit at runtime. */
+const NON_ANTHROPIC_RUNTIME_CAP = 65_000;
+
 export async function appendBusinessKnowledgeLayer(
   prompt: string,
   tier: TopicTier,
@@ -165,7 +169,21 @@ export async function appendBusinessKnowledgeLayer(
     const block = getBusinessKnowledge(knowledgeTier, userMessage);
     if (!block) return prompt;
     void runBrandStalenessCanary();
-    return `${prompt}\n\n${block}`;
+    // 2026-08-08 · bound the pack to the room left under the runtime
+    // floor (finalize-system-prompt.ts MAX_SYSTEM_CHARS for every
+    // non-anthropic provider = 65,000; the primary Ollama lane lives
+    // there). This append used to run AFTER the base's 58k trim with
+    // no budget of its own — content-deep built 107k, prompt:size-check
+    // was permanently red, and at runtime the whole pack fell to the
+    // 65k slice on the primary lane. The trim is pack-scoped so the
+    // base prompt's own sections and priorities are never touched;
+    // within the pack the trimmer drops tail-first (deep blocks before
+    // essentials, OPS CARD last).
+    const room = NON_ANTHROPIC_RUNTIME_CAP - prompt.length - 2;
+    if (room <= 0) return prompt;
+    const bounded = block.length > room ? trimPromptToBudget(block, room) : block;
+    if (!bounded.trim()) return prompt;
+    return `${prompt}\n\n${bounded}`;
   } catch {
     // Knowledge layer is supplementary — never blocks prompt delivery.
     return prompt;
