@@ -50,11 +50,17 @@ const STATE_STYLE: Record<Artifact["state"], { dot: string; label: string }> = {
 function QueueRow({
   name,
   q,
+  asOf,
   onRedrive,
   redriving,
 }: {
   name: string;
   q: QueueHealth | null;
+  /** The snapshot's own generatedAt — dead-row age is computed against
+   *  THIS, not Date.now(): render purity (react-hooks/purity), and one
+   *  consistent epoch for counts and age (a tab left open must not tick
+   *  an age against frozen counts). */
+  asOf: string;
   onRedrive?: () => void;
   redriving?: boolean;
 }) {
@@ -76,7 +82,7 @@ function QueueRow({
   }
   const deadAgeH =
     q.oldestDeadAt != null
-      ? Math.round(((Date.now() - new Date(q.oldestDeadAt).getTime()) / 3_600_000) * 10) / 10
+      ? Math.round(((new Date(asOf).getTime() - new Date(q.oldestDeadAt).getTime()) / 3_600_000) * 10) / 10
       : null;
   return (
     <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
@@ -217,6 +223,7 @@ export default function FleetPage() {
               <QueueRow
                 name="post-turn-outbox"
                 q={truth.queues.postTurnOutbox}
+                asOf={truth.generatedAt}
                 redriving={redrive.isPending}
                 onRedrive={() =>
                   redrive.mutate(undefined, {
@@ -224,10 +231,10 @@ export default function FleetPage() {
                   })
                 }
               />
-              <QueueRow name="brain-bus" q={truth.queues.brainBus} />
+              <QueueRow name="brain-bus" q={truth.queues.brainBus} asOf={truth.generatedAt} />
               {/* WP-6: the runner's AI-job queue — third durable queue,
                   invisible before 2026-07-29. */}
-              <QueueRow name="work-items (runner)" q={truth.queues.workItems ?? null} />
+              <QueueRow name="work-items (runner)" q={truth.queues.workItems ?? null} asOf={truth.generatedAt} />
               {redrive.isError && (
                 <p className="mt-1 text-[12px] text-red-400">
                   redrive failed: {redrive.error.message}
