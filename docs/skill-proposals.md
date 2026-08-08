@@ -456,3 +456,98 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** medium (once, clear, recurs whenever main deletes routes
   under an old local `.next`)
 - **Status:** applied #1434 (operator approved 2026-08-08 — "Approve all skills in proposal")
+
+## 2026-08-08 · IG/reel defect wave (#1430 #1432 #1438 #1439 #1440) + money-lane measurement
+
+### P1 · `nickstire-verify` (the skill's OWN exit-code remedy is unsafe under background execution)
+- **Trigger (witnessed):** `nickstire-verify` line 49 currently prescribes
+  `pnpm test; echo "EXIT=$?"` as the fix for pipe-masking. Run via the harness's
+  `run_in_background`, the completion notification reported **"exit code 0"**
+  while vitest had exited 1 with 24 failed files / 234 failed tests — because the
+  compound command's exit status is the `echo`'s, not vitest's. The skill's
+  remedy reproduces the defect it warns about, one layer up.
+- **Cost:** I reported the suite green in-session and had to retract it in the
+  next message. Two extra full-suite runs (~15 min) to establish the truth.
+- **Proposed edit:** replace the `; echo "EXIT=$?"` guidance with: *"Run the
+  command ALONE and read the `Test Files … passed/failed` summary line. A
+  compound command (`cmd; echo $?`) reports the LAST command's status, so under
+  `run_in_background` the notification says exit 0 while the suite failed. If no
+  summary line was printed at all, the run did not finish — see P2."*
+- **Confidence:** high (the skill actively recommends the failing pattern)
+- **Status:** proposed
+
+### P2 · `nickstire-verify` (the full suite can crash at teardown and print NO summary)
+- **Trigger (witnessed):** `pnpm test` ended with `ELIFECYCLE Test failed` and
+  **no summary line at all**. Marker count: **528 pass markers, 0 fail markers,
+  0 "Failed Tests" banners** — every test passed and the runner died during
+  teardown (a libuv `UV_HANDLE_CLOSING` assertion appeared from a separate script
+  the same session). Re-running with `--pool=forks --poolOptions.forks.singleFork=true`
+  produced a clean `425 files / 5,186 tests / 0 failed`.
+- **Cost:** ~20 min and one nearly-shipped false conclusion in each direction —
+  first "green" when it wasn't, then "red" when nothing had failed.
+- **Proposed edit:** add to Traps: *"On Windows the default pool can crash at
+  TEARDOWN after all tests pass, printing `ELIFECYCLE Test failed` with no
+  summary. Do not read that as a regression and do not read it as green. Count
+  markers (`grep -cE '^ *(×|❯) '` = 0 means nothing failed), then re-run under
+  `--pool=forks --poolOptions.forks.singleFork=true` to get an actual summary
+  line. Marker counting is triage; the summary is the receipt."*
+- **Confidence:** medium (once this session, clear mechanism, documented fix)
+- **Status:** proposed
+
+### P3 · `nickstire-verify` (never mutate the working tree while a suite is running)
+- **Trigger (witnessed):** ran `git checkout -b <branch> origin/main` while a
+  background `pnpm test` was mid-flight. Result: **24 failed files / 234 failed
+  tests, every one under `client/src/__tests__/`, zero server tests** — the
+  signature of files changing under the runner, not a regression. A clean re-run
+  with nothing touching the tree: 425 files / 5,145 tests / 0 failed.
+- **Cost:** ~15 min diagnosing a regression that never existed.
+- **Proposed edit:** add to Traps: *"A background suite reads the working tree
+  continuously. `git checkout`, `git stash`, or an edit mid-run rewrites files
+  under it and produces phantom failures. The tell is that failures cluster in
+  one vitest project (all `client/**`, no `server/**`). Wait for the run, or
+  branch before starting it."*
+- **Confidence:** medium (once, unambiguous signature)
+- **Status:** proposed
+
+### P4 · NEW: `base-rate-check` — never quote a ratio out of a filtered subset
+- **Trigger (witnessed):** I measured "**42 of 58 failure-outcome calls (72%) have
+  <2 caller turns**" and presented it to the operator as *"three quarters of your
+  call failures may be a broken greeting"* — recommending it as the highest-value
+  next investigation. The base rate across ALL 492 archived calls is **89/492 =
+  18%**, and the outcome mix is 49% `human_handoff` + 27% `walk_in_directed`. The
+  ratio was real; the framing was selection bias, and it is near-tautological
+  (a call where nobody spoke cannot be scored a success, so short calls
+  concentrate in the failure bucket by construction). Separately, the mechanism I
+  proposed was refuted outright by measurement: time-to-first-assistant-audio is
+  **0.41s avg / 0.64s max**.
+- **Cost:** I steered the operator's next-priority decision onto the one lane
+  that was working correctly. Caught only because they said "go diagnose it" and
+  the numbers collapsed under a second look.
+- **Proposed edit:** NEW short skill, or a rule inside `plan-gate`: *"Before
+  quoting any ratio computed inside a filtered population, compute the same ratio
+  over the UNfiltered population and report both. If the filter selects for the
+  outcome (failures, aborts, rejects), the ratio is partly definitional and must
+  be labelled as such. A percentage without its denominator's provenance is not
+  evidence."* Grep first: no installed skill covers base-rate/denominator
+  discipline (checked 2026-08-08); the closest is the `measurement proxies lie`
+  MEMORY, which is about trusting proxies, not about denominators.
+- **Confidence:** high (I made the error, and it changed a recommendation)
+- **Status:** proposed
+
+### P5 · `nickstire-verify` (a security invariant held only by middleware ORDER, untested)
+- **Trigger (witnessed):** investigating a live `admin security state unreadable —
+  falling back to pre-RBAC behaviour (owner). Roles are NOT being enforced`
+  ERROR log. It is a deliberate, well-argued fail-open (`server/_core/trpc.ts`
+  ~178) and it is SAFE only because `adminProcedure` chains
+  `requireAdminIdentity` (which throws FORBIDDEN for non-admins) BEFORE
+  `requireFreshMfaAndPermission` (which contains the fallback). `grep` finds **no
+  test** covering `requireAdminIdentity` or the fallback branch — a refactor that
+  reorders `.use()` calls would silently convert an authorization fail-open into
+  an authentication one, with no test failing.
+- **Cost:** none yet — found while verifying, not from an incident.
+- **Proposed edit:** add to the verify checklist: *"When a fail-open is safe
+  only because another middleware runs first, that ORDER is the security
+  control. Pin it with a test that asserts the earlier gate rejects, not just
+  that the later one behaves."*
+- **Confidence:** medium (one instance, concrete and currently untested)
+- **Status:** proposed
