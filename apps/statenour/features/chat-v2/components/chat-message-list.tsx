@@ -220,7 +220,18 @@ export function ChatMessageList({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12">
+    // 2026-08-08 · role="log" = implicit polite live region that announces
+    // ADDITIONS only (new turns), never re-reads the feed. aria-busy while
+    // a reply streams batches those announcements until the turn settles,
+    // so screen readers hear one finished message instead of per-token
+    // spam. Completion itself is announced by the always-mounted
+    // role="status" region at the bottom of this container.
+    <div
+      role="log"
+      aria-label="Chat messages"
+      aria-busy={isLoading}
+      className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12"
+    >
       {diagnosticReport && (
         <section className="rounded-xl border border-gold/25 bg-gold/[0.04] p-4">
           <div className="mb-3 flex items-center gap-2 text-gold">
@@ -302,6 +313,18 @@ export function ChatMessageList({
           )}
         </div>
       )}
+
+      {/* 2026-08-08 · always-mounted completion announcer — polite regions
+          must pre-exist to announce (people-scoring-panel is the in-repo
+          reference; mobile-a11y.test.tsx §A10 pins the rule). Text is
+          derived, not effect-driven: it flips exactly once per stream
+          (busy → idle with an assistant turn last), which is the one
+          change AT announces. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {!isLoading && messages[messages.length - 1]?.role === "assistant"
+          ? "Nick finished replying"
+          : ""}
+      </div>
 
       <MessageActionSheet
         open={Boolean(actionSheetMsg)}
