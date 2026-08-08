@@ -1,168 +1,170 @@
 # Codified Rules
 
-Every gate in `enforced-gates.md` exists because something broke in production.
-This file is the *why* — the rule plus the receipt that bought it. A gate is not
-style preference; it is an incident that already happened once.
+Each `check:*` / `lint:*` script is a rule codified after production broke. Read
+the script header before working around a failure. Never disable a gate; never
+weaken one to make a test pass.
 
-When a gate fires, read the script header before arguing with it. Never disable
-a gate to unblock yourself, and never weaken one to make a test pass.
+## Raw SQL must name the real column
 
-## Data access
+`check:raw-sql` (statenour) · `lint:sql` (nickstire)
 
-### Raw SQL must name the column the database actually has
+- Postgres lowercases unquoted identifiers. MySQL only complains at runtime.
+- `tsc` cannot see inside a template string; the ORM hides the mismatch for
+  query-builder calls only.
+- nickstire mixes conventions **per table** — `cron_log` and
+  `social_content_inventory` snake_case; `bookings`, `invoices`,
+  `ig_autopost_log` camelCase.
 
-Both apps ship a linter for this because it is the single most expensive bug
-class in the repo.
+```ts
+// BAD — real column is createdAt, no @map
+await prisma.$queryRaw`SELECT created_at FROM task`;        // 42703
+await db.execute(sql`SELECT c.first_name FROM customers c`);
 
-- **statenour** (`check:raw-sql`) — Postgres lowercases unquoted identifiers, so
-  `created_at` in a `$queryRaw` against a Prisma field `createdAt` with no
-  `@map` fails with `42703: column "created_at" does not exist`.
-- **nickstire** (`lint:sql`) — the database mixes conventions **per table**:
-  `cron_log` and `social_content_inventory` are snake_case; `bookings`,
-  `invoices` and `ig_autopost_log` are camelCase. Drizzle hides the difference
-  for query-builder calls, but raw `` sql`...` `` templates are unchecked
-  strings — `tsc` cannot see inside them and MySQL only complains at runtime.
+// GOOD — match the real column, or quote it
+await prisma.$queryRaw`SELECT "createdAt" FROM task`;
+await db.execute(sql`SELECT c.firstName FROM customers c`);
+```
 
-**Receipt:** three independent production defects in a single day, all this
-shape — cross-sell outreach (`#1125`, the A/B treatment arm had been empty for
-*months*), monte-carlo forecast (`#1131`, the job reported `completed` on every
-run and had **never** produced a forecast), and seo-forensic. Each failed
-silently: the query threw, a catch swallowed it, the job recorded success.
-Nothing was observable from the outside.
+Receipt: 3 prod defects in one day — `#1125` A/B arm empty for months, `#1131`
+forecast reported `completed` and never produced a forecast, seo-forensic. Each
+threw, was swallowed by a catch, and recorded success.
 
-### Soft-delete is opt-in — filter it on every aggregate
+## Filter deletedAt on every aggregate
 
-`check:soft-delete`. Every `count` / `groupBy` / `aggregate` on a soft-delete
-model must filter `deletedAt` (or use `activeOnly()`). The contract in
-`lib/db/soft-delete.ts` is opt-**in** per query, so omission is invisible.
+`check:soft-delete` — the contract is opt-**in** per query, so omission is invisible.
 
-**Receipt (2026-07-16):** 109 of 150 aggregate call sites had forgotten — a 73%
-failure rate, which is a property of the contract, not of the authors. Live prod
-at the sweep: `Task` 104 of 161 rows soft-deleted (64.6%), `BrainMemory` 6,319
-of 17,926 (35.3%). `/api/health` reported 161 tasks / 52 INBOX when the truth was
-57 / 0 — the operator's entire inbox backlog was fictional, and drift-engine
-alerts were firing on deleted rows.
+```ts
+// BAD
+await prisma.task.count();
+// GOOD
+await prisma.task.count({ where: { deletedAt: null } });   // or activeOnly()
+```
 
-**Scope is deliberately narrow.** `findMany` / `findFirst` carry the same hazard
-but there are hundreds and most already filter. This guard holds the line on the
-numbers only.
+- Narrow by design: `count` / `groupBy` / `aggregate` only. `findMany` /
+  `findFirst` carry the same hazard and are **not** yet swept.
 
-## Auth
+Receipt (2026-07-16): 109 of 150 call sites had forgotten. `/api/health` reported
+161 tasks / 52 INBOX; truth was 57 / 0.
 
-### Auth is verified per handler, never per file
+## Auth is per handler, never per file
 
-`check:get-auth` and `check:mutations` both scope the auth signal to a single
-handler **body**. This is not pedantry.
+`check:get-auth` · `check:mutations`
 
-**Receipt:** the predecessor gate did a file-level `grep requireSession`. In
-`/api/ai/chat/[id]/route.ts` the `PATCH` handler was guarded and the `GET` beside
-it was not — the grep matched the PATCH, the gate passed, and the unauthed GET
-shipped. Fixed in v10.0.183 by lexically scanning each handler's body.
+```ts
+// BAD — a file-level grep for requireSession passes on this file
+export async function GET() { return prisma.conversation.findUnique(...); }
+export async function PATCH(req) { await requireSession(req); /* ... */ }
+```
 
-**This applies to review, not just CI.** Never conclude a route is guarded from a
-whole-file grep — locate the specific handler.
+- Verify the specific handler body — in review, not just in CI.
+- `check:mutations` claims two axes mechanically: **auth** (procedure builder —
+  `operatorProcedure` gated, `publicProcedure` open) and **audit** (durable trail
+  written). It does *not* claim idempotency or undo coverage.
 
-`check:mutations` re-derives an executable census of all mutation entry points
-(195 tRPC mutations, 157 route files with mutating verbs) on every run, claiming
-exactly two axes mechanically: **auth** (the procedure builder at the call site —
-`operatorProcedure` gated, `publicProcedure` open) and **audit** (whether the
-module writes a durable trail). It deliberately does *not* claim idempotency or
-undo coverage — don't read those in.
+Receipt: `/api/ai/chat/[id]/route.ts` shipped an unauthed GET exactly this way;
+fixed v10.0.183.
 
-### Every cron needs an AutomationPolicy row
+## Every cron needs an AutomationPolicy row
 
-`check:policy-coverage`. Every active or folded cron in `config/crons.ts` must
-have a matching `AutomationPolicy` row. This is the rule that stops new
-automations slipping in unaudited.
+`check:policy-coverage` — every active/folded cron in `config/crons.ts` needs a
+matching row, or new automations ship unaudited.
 
-Soft (warn-only) by default; `POLICY_GATE_HARD=1` fails closed,
-`POLICY_GATE_SOFT=1` demotes after ratchet. Tools, slash actions, autonomous
-actions and webhooks aren't enumerable from a single source-of-truth file, so
-they're covered by feature-specific tests calling `findMissingPolicies`.
+- Soft (warn) by default · `POLICY_GATE_HARD=1` fails closed · `POLICY_GATE_SOFT=1` demotes.
+- Tools, slash actions and webhooks aren't enumerable from one file — they are
+  covered by feature tests calling `findMissingPolicies`.
 
-## AI surfaces
+## Prompt-injection rules
 
-`check:prompt-injection` enforces five rules on code that pipes user input into
-an LLM:
+`check:prompt-injection` — any code piping user input into an LLM.
 
 | ID | Rule |
 |---|---|
-| PI-001 | No template-string user content in `aiChat()` message content — the classic injection vector |
-| PI-002 | `requireSession` required on routes under `/api/nick/*` and `/api/operator/*` |
-| PI-003 | `checkBudget` required on a new POST under `/api/nick/*` that reaches the reasoning engine |
-| PI-004 | No `dangerouslySetInnerHTML` in any operator surface |
-| PI-005 | No `console.log` of `req.body` or session details — logs leak |
+| PI-001 | No template-string user content in `aiChat()` message content |
+| PI-002 | `requireSession` on routes under `/api/nick/*` and `/api/operator/*` |
+| PI-003 | `checkBudget` on a new POST under `/api/nick/*` reaching the reasoning engine |
+| PI-004 | No `dangerouslySetInnerHTML` in an operator surface |
+| PI-005 | No `console.log` of `req.body` or session details |
+
+```ts
+// BAD — PI-001, user text becomes instruction
+await aiChat({ messages: [{ role: "user", content: `Summarize: ${userText}` }] });
+// GOOD — user text stays data
+await aiChat({ messages: [{ role: "user", content: userText }] });
+```
 
 Suppress a genuine false positive with an allow comment; do not delete the rule.
 
-## Privacy
+## No PII in logs or prompts
 
-### PII must not reach logs or prompts
+`lint:pii` — phone (full or last-10 normalized), email, full customer name, VIN,
+street address, card number, SSN/TaxID, driver's licence.
 
-`lint:pii` (nickstire). PII means phone numbers (full or last-10 normalized),
-email addresses, full customer names, VINs, street addresses, payment card
-numbers, SSN/TaxID, and driver's licence numbers.
+```ts
+// BAD
+logger.info(`lead ${customer.firstName} ${customer.phone}`);
+// GOOD
+logger.info("lead created", { leadId });
+```
 
-**Receipt:** audit findings `#102` (firstName in Railway logs), `#128` (venice
-prompt sizes carrying raw PII), `#223` (logger PII-scrubbing gap). The gate
-exists to stop the next ten of the same class.
+Receipt: `#102` firstName in Railway logs · `#128` raw PII in venice prompt sizes
+· `#223` logger scrubbing gap.
 
-## UI
+## No AI-slop UI defaults
 
-### No AI-slop defaults
+`check:anti-slop` — fails on **any** new occurrence under `app/` or `components/`:
 
-`check:anti-slop` fails the push on **any** new occurrence under `app/` or
-`components/`: the Inter font, purple-on-white SaaS gradients
-(`from-purple-` / `to-purple-`), and Roboto/Arial system-font imports. These are
-the AI defaults every generated template reaches for.
+- Inter font (`next/font/google` Inter, `"Inter"`, googleapis Inter)
+- Purple-on-white SaaS gradients (`from-purple-` / `to-purple-`)
+- Roboto / Arial system-font imports
 
-Baseline to match or exceed is the link-review editorial spread (DFII 15).
-Emergency override only: `ANTI_SLOP_GATE_SOFT=1`.
+Baseline to match or beat: the link-review editorial spread (DFII 15). Emergency
+override only: `ANTI_SLOP_GATE_SOFT=1`.
 
-### No browser dialog globals in client code
+## No dialog globals in client code
 
-`lint:source` — `client/src` must not call `alert()`, `confirm()` or `prompt()`.
+`lint:source` — `client/src` must not call `alert()` / `confirm()` / `prompt()`.
 
-**Receipt:** both web apps run as installed iOS PWAs, where all three are
-**silently suppressed**. The SMS approval screen shipped an `alert()`-based flow
-and gave the operator zero feedback on their phone. Use sonner toasts and in-DOM
-two-tap confirms — see `FollowUpButton.tsx` / `ConfirmDialog.tsx`.
+- Both web apps run as installed iOS PWAs where all three are **silently
+  suppressed** — the operator sees nothing.
+- Use sonner toasts and in-DOM two-tap confirms (`FollowUpButton.tsx`,
+  `ConfirmDialog.tsx`).
 
-### No console logging in server code
+Receipt: the SMS approval screen shipped an `alert()` flow and gave zero feedback
+on the operator's phone.
 
-`lint:source` — `server/` must not call `console.log` / `.warn` / `.error`; use
-`createLogger()`. `console.info` and `console.debug` are allowed.
+Same script: `server/` must not call `console.log` / `.warn` / `.error` — use
+`createLogger()`. `.info` and `.debug` are allowed.
 
-### No hooks after an early return
+## No hooks after an early return
 
-`lint:hooks`. A top-level early return followed by a hook at the same indent
-level crashes React with "Rendered more hooks than during the previous render".
+`lint:hooks`
 
-**Receipt:** Wave-73 caught exactly this in `OverviewSection`. The Wave-76
-rewrite detects it by indent matching — statements at the component body's first
-indent level are top-level; deeper ones are inside callbacks and are fine.
+```tsx
+// BAD — "Rendered more hooks than during the previous render"
+if (isLoading) return <Spinner />;
+const x = useMemo(() => compute(data), [data]);
+```
 
-## SEO
+- Detection is by indent: statements at the component body's first indent are
+  top-level; deeper ones live inside callbacks and are fine.
 
-### Route registry parity
+Receipt: Wave-73, `OverviewSection`.
 
-`validate:routes` (nickstire):
+## Route registry parity
 
-1. Every `<Route path="...">` in `client/src/App.tsx` must exist in
-   `shared/routes.ts` — unless it is a dynamic `:param` route.
-2. Every `shared/routes.ts` entry with `prerender: true` needs a non-empty title
-   and description.
-3. Titles <= 60 chars, descriptions <= 160 chars.
+`validate:routes` (nickstire)
 
-**Why:** the prerender pipeline sniffs bot user-agents and serves pre-rendered
-HTML. A route added to `App.tsx` but missing from the registry means bots get a
-blank shell — a silent SEO regression.
+1. Every `<Route path="...">` in `client/src/App.tsx` exists in
+   `shared/routes.ts` — dynamic `:param` routes exempt.
+2. Entries with `prerender: true` need a non-empty title **and** description.
+3. Title <= 60 chars · description <= 160 chars.
+
+The prerender pipeline sniffs bot user-agents. A route missing from the registry
+serves bots a blank shell — a silent SEO regression.
 
 ## Soft reports — tracked, not enforced
 
-`lint:source` also counts `: any` / `as any` usage, TODO/FIXME markers, raw SQL
-in routers, and client-side `as` casts on tRPC data. These warn without failing.
-
-Treat the cast counter seriously despite being soft: an `as` cast on tRPC data
-invents a shape the server never returns, and the compiler will agree with you
-all the way to the runtime crash.
+`lint:source` also counts `: any` / `as any`, TODO/FIXME, raw SQL in routers, and
+client `as` casts on tRPC data. Take the last seriously: an `as` cast invents a
+shape the server never returns, and the compiler agrees all the way to the
+runtime crash.

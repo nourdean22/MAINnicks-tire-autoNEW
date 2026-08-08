@@ -6,7 +6,7 @@
 
 **Architecture:** Adds 5 new background-only crons (no Telegram) · 4 new tRPC mutations · 2 new UI components · 5 brain-layer adapter modules · 2 Apify integrations · 1 network-graph view. All built on the Phase 0 schema (15 fields + 2 tables already exist).
 
-**Tech Stack:** Same as Phase 0+1 (Next.js 16 / React 19 / Prisma 7 / Postgres / tRPC v11 / Tailwind / tracedAiChat / BrainMemory). New external dep: `@apify/client` (for Phase 3 reputation + influencer-discovery).
+**Tech Stack:** Same as Phase 0+1 (Next.js 16 / React 19 / Prisma 6 / Postgres / tRPC v11 / Tailwind / tracedAiChat / BrainMemory). New external dep: `@apify/client` (for Phase 3 reputation + influencer-discovery).
 
 **Spec reference:** `apps/statenour/docs/superpowers/specs/2026-05-27-power-atlas-design.md`
 **Phase 0+1 plan reference:** `apps/statenour/docs/superpowers/plans/2026-05-27-power-atlas-phase-0-1.md`
