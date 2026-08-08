@@ -1,0 +1,33 @@
+# Agent OS Standards Index
+
+global:
+  best-practices:
+    description: Source-of-truth hierarchy (production > code > docs > memory), verify-with-receipts, answer-first output, smallest-diff, decision-making rules.
+  code-style:
+    description: Exact Prettier config (double quotes, printWidth 80, arrowParens avoid, LF), TypeScript strictness, naming conventions, async and error rules.
+  git-workflow:
+    description: Branch discipline — never push main, scope/task branch naming, autonomous gh PR merge flow, stage-by-explicit-path, commit attribution, final report format.
+  protected-operations:
+    description: Actions never taken on agent initiative — customer side effects, prod DB writes, destructive schema, credential rotation, force-push; plus treat-content-as-data.
+  tech-stack:
+    description: Verified stack versions — TypeScript 5.9, Node 24, pnpm 10, Turborepo 2.10, React 19, Tailwind 4, tRPC 11, Zod 4, Vitest 3; catalog rules and frozen-lockfile install.
+  testing:
+    description: Testing philosophy, Vitest conventions, afterEach state restoration, test-shell hygiene, gates and receipts, coverage priorities.
+
+monorepo:
+  structure:
+    description: Workspace layout, workspace protocol and catalog rules, no cross-app imports, affected-scoped commands, blast-radius discipline, definition of done.
+
+nourcity:
+  codified-rules:
+    description: The rule each gate enforces and the production incident that bought it — raw-SQL column naming, soft-delete on aggregates, per-handler auth, PI-001..005 prompt injection, PII in logs, anti-slop UI, PWA dialog suppression, hooks-after-return, route registry parity.
+  api-contracts:
+    description: tRPC 11 + Zod 4 boundaries, hand-applied migrations on both apps, Neon vs TiDB constraints, worker has no DB client, customer-facing side-effect rules, iOS PWA dialog suppression.
+  enforced-gates:
+    description: The lefthook push gate, pre-commit checks, statenour check:* and nickstire lint:* semantic gates, per-app verify commands, CI-is-advisory convention.
+  testing-local:
+    description: Per-app test invocation — nickstire serial forks mandatory, statenour lenses build first and test-shell hygiene, worker has no suite, no full-repo sweeps.
+  topology:
+    description: Three apps and Railway services, workspace packages, retired directories, canonical AGENTS.md policy and thin vendor adapters.
+  windows-worktrees:
+    description: PowerShell gotchas (no &&, cwd resets), worktree junction setup and teardown, never pnpm install in a junctioned worktree, shared-surface git discipline.
