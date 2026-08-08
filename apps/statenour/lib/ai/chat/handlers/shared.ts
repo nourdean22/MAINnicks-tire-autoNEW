@@ -103,6 +103,10 @@ export async function buildFastStream(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      // 2026-08-08 · anti-buffering parity across ALL SSE emit sites
+      // (response-shape + reason/stream had it; this one and image.ts
+      // did not — an nginx-class proxy may buffer an untagged body).
+      "X-Accel-Buffering": "no",
       "X-Conversation-Id": convId && convId !== "private" && convId !== "temp" ? convId : "",
       "X-Vercel-AI-UI-Message-Stream": "v1",
     },

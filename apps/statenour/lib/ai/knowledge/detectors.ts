@@ -226,9 +226,30 @@ export function getBusinessKnowledge(
     // Net: was ~33kc essentials, now ~26kc. Pulls content mode to ~67kc
     // total which is just over Venice's 65k limit but workable. DEEP
     // mode adds the dropped sections + strategic/operational stuff.
+    // ── FORMAT-SPECIFIC engines — computed first, injected EARLY ──
+    // 2026-08-08 · these lived at the essentials TAIL, so under the 65k
+    // budget the engine for the ASKED format was the FIRST block dropped
+    // ("write me a carousel" lost CAROUSEL ENGINE while keeping generic
+    // tail cards — reproduced with the trimmer's own drop order). The
+    // ask-specific engine is the highest-value block after the mandatory
+    // rules, so it rides directly behind them. Only fires when the
+    // message hints a format; saves ~8kc when unspecified.
+    const m = userMessage?.toLowerCase() || "";
+    const formatBlocks: string[] = [];
+    if (/\breel|reels|video|tiktok|shorts?\b/.test(m)) {
+      formatBlocks.push(`## REELS ENGINE (formula, length guide, 4 script examples)\n${REELS_ENGINE}`);
+    }
+    if (/\bcarousel|carousels|slides?|swipe\b/.test(m)) {
+      formatBlocks.push(`## CAROUSEL ENGINE (6-slide formula + 2 examples)\n${CAROUSEL_ENGINE}`);
+    }
+    if (/\bstory|stories|highlight\b/.test(m)) {
+      formatBlocks.push(`## STORY ENGINE (daily rotation + stickers + polls + Q&A + DM triggers)\n${STORY_ENGINE}`);
+    }
+
     blocks.push(
       `## ⚠️ CONTENT GENERATION MODE — MANDATORY RULES (read FIRST before writing any caption/post/copy)\n${CONTENT_GENERATION_MODE}`,
       `## PRIME DIRECTIVE — the mental shortcut\n${PRIME_DIRECTIVE}`,
+      ...formatBlocks,
       `## CONTENT PILLARS (10 permanent, repetition-controlled)\n${CONTENT_PILLARS}`,
       `## CREATIVE ANGLE MACHINE (10 angle types)\n${CREATIVE_ANGLES}`,
       `## HOOK FAMILIES + HOOK VAULT (with concrete one-liners)\n${HOOK_FAMILIES}`,
@@ -246,20 +267,6 @@ export function getBusinessKnowledge(
       `## EQUIPMENT AUTHORITY (concrete proof, not bragging)\n${EQUIPMENT_AUTHORITY}`,
       `## CLEVELAND IDENTITY (local vocab + landmarks)\n${CLEVELAND_IDENTITY}`,
     );
-
-    // ── FORMAT-SPECIFIC engines — conditional inject ──────────────
-    // Only fires when the user message hints at a specific format.
-    // Saves ~8kc when format is unspecified (default = static post).
-    const m = userMessage?.toLowerCase() || "";
-    if (/\breel|reels|video|tiktok|shorts?\b/.test(m)) {
-      blocks.push(`## REELS ENGINE (formula, length guide, 4 script examples)\n${REELS_ENGINE}`);
-    }
-    if (/\bcarousel|carousels|slides?|swipe\b/.test(m)) {
-      blocks.push(`## CAROUSEL ENGINE (6-slide formula + 2 examples)\n${CAROUSEL_ENGINE}`);
-    }
-    if (/\bstory|stories|highlight\b/.test(m)) {
-      blocks.push(`## STORY ENGINE (daily rotation + stickers + polls + Q&A + DM triggers)\n${STORY_ENGINE}`);
-    }
 
     // ── DEEP — opt-in for planning / strategy / review questions ──
     // Adds 10 Psychology Principles + Conversion System + GBP +

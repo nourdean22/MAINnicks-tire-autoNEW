@@ -26,6 +26,8 @@ describe("simulateStreamFromText · v10.0.507", () => {
     expect(res).toBeInstanceOf(Response);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/event-stream");
+    // 2026-08-08 · anti-buffering parity — all SSE emit sites carry it.
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
   });
 
   it("emits text-start, text-delta, text-end chunks for a single message", async () => {
