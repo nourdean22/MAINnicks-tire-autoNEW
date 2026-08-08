@@ -22,8 +22,11 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { Streamdown, type Components as StreamdownComponents } from "streamdown";
-import remarkGfm from "remark-gfm";
+import { CodeBlock, Streamdown, type BundledLanguage, type Components as StreamdownComponents } from "streamdown";
+import { cjk } from "@streamdown/cjk";
+import { createCodePlugin } from "@streamdown/code";
+import { math } from "@streamdown/math";
+import { mermaid } from "@streamdown/mermaid";
 import { cn } from "@/lib/utils";
 import { alreadyHasGeneratedImage, looksLikeMarketingContent } from "@/lib/chat/marketing-detection";
 
@@ -32,6 +35,23 @@ import { InlineChart, parseChartSpec } from "@/components/chat/inline-chart";
 import { EmailDraftCard, parseEmailDraft } from "@/components/chat/email-draft-card";
 import { ImageWithUpscale } from "@/components/chat/image-with-upscale";
 import { StitchPromptCard } from "@/components/chat/stitch-prompt-card";
+
+// 2026-08-08 · the four installed @streamdown/* plugins, wired (operator
+// call — they sat in package.json with ZERO importers since install).
+// Module-level singleton: <Streamdown> is memoized, so the plugins object
+// must keep a stable identity across renders. Shiki gets the dark theme in
+// BOTH slots — this app has no light mode, and a light slot winning theme
+// selection would paint GitHub-light code on the void background.
+// remark-gfm is no longer passed as a prop: Streamdown's
+// defaultRemarkPlugins already include it, and @streamdown/cjk sequences
+// its remark plugins around THAT copy (a second user-supplied gfm would
+// run outside the before/after ordering contract).
+const STREAMDOWN_PLUGINS = {
+  cjk,
+  code: createCodePlugin({ themes: ["github-dark", "github-dark"] }),
+  math,
+  mermaid,
+};
 
 // v10.0.49 · Helper for the rich-render <pre> intercept. Streamdown
 // passes the inner <code> element's children as either a string, an
@@ -170,7 +190,7 @@ export function NickMessage({
           <StitchPromptCard data={parsedStitchPrompt} />
         ) : (
           <Streamdown
-            remarkPlugins={[remarkGfm]}
+            plugins={STREAMDOWN_PLUGINS}
             parseIncompleteMarkdown={true}
             mode={streaming ? "streaming" : "static"}
             /* v11.1 · `components` cast below is intentional. Streamdown
@@ -272,8 +292,24 @@ export function NickMessage({
                     const draft = parseEmailDraft(raw);
                     if (draft) return <EmailDraftCard draft={draft} />;
                   }
-                  // fall through to plain <pre> on parse failure
+                  // fall through on parse failure — CodeBlock shows the raw payload
                 }
+                // 2026-08-08 · every other fence defers to Streamdown's own
+                // CodeBlock — the PLUGIN-AWARE path (shiki highlighting,
+                // ```mermaid diagrams via the lazy chunk, copy button). It
+                // reads the wired plugins from StreamdownContext, which
+                // works here because this override renders INSIDE
+                // <Streamdown>. The old plain <pre> at this spot was why
+                // installed plugins would have been unreachable: an
+                // override at the pre layer replaces the whole default
+                // dispatch, not just its styling.
+                const language = (cls ?? "").replace("language-", "") || "text";
+                return (
+                  <CodeBlock
+                    code={extractCodeText(childProps.children).replace(/\n+$/, "")}
+                    language={language as BundledLanguage}
+                  />
+                );
               }
               return (
                 <pre className="bg-[var(--bg-void)] border border-[var(--border-default)] rounded-lg p-3 my-2 overflow-x-auto">
