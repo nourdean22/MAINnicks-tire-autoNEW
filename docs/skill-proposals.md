@@ -551,3 +551,40 @@ statenour primitives documented (existence re-verified at
   that the later one behaves."*
 - **Confidence:** medium (one instance, concrete and currently untested)
 - **Status:** applied #1446 — middleware-order security trap added to `nickstire-verify`
+
+## 2026-08-08 · chat-cockpit mega-plan gate (PR #1447)
+
+### P1 · `statenour-wave-reconcile` (two Last-verified stamps; the guard reads the FIRST)
+- **Trigger (witnessed):** STALE_DOCS_STRICT failed "Date mismatch" after this session updated the standalone `**Last verified:**` line (~line 57) in RECONCILIATION.md; `check-stale-docs.ts` parses the FIRST occurrence, which is embedded mid-line in the corrupted 2026-06-21 blockquote (~line 5) and previous waves left it at 2026-07-29.
+- **Cost:** one failed gate run + a re-edit + re-run (~4 min); the same trip awaits every future reconcile.
+- **Proposed edit:** in step 1, replace "update the Last verified header line" with: "the file contains TWO `**Last verified:**` stamps; the guard reads the FIRST (embedded ~line 5). Update both, or at minimum the first."
+- **Confidence:** high (deterministic, reproduced this session)
+- **Status:** proposed
+
+### P2 · `harness-worktree-setup` (junctions alone leave the verify gates unrunnable)
+- **Trigger (witnessed):** this harness worktree needed `.env` + `.env.local` copied from the primary checkout (check:env would fail without them) and `pnpm exec turbo build --filter=@statenour/lenses` (5 strategic-frameworks test files fail on import) before `verify:hard` could run. Both were discovered by reasoning, not by the skill.
+- **Cost:** would have been two false-red gates + diagnosis; avoided only pre-emptively.
+- **Proposed edit:** add a step after junctions: "copy `apps/<app>/.env*` from the primary checkout (worktree-setup.ps1 does this; harness worktrees don't), and build `@statenour/lenses` (turbo replays it from cache in ~250ms) before running statenour tests or verify:hard."
+- **Confidence:** high (both bit-or-nearly-bit this session)
+- **Status:** proposed
+
+### P3 · `harness-worktree-setup` (gh pr merge half-fails when a sibling worktree holds main)
+- **Trigger (witnessed):** `gh pr merge 1447 --squash --delete-branch` exited 1 with "fatal: 'main' is already used by worktree at ...instagram-posting-audit-32558a" — while the REMOTE merge had already succeeded (verified `state: MERGED` via `gh pr view --json state`). A naive retry would re-merge or misreport failure.
+- **Cost:** none this time (checked state before retrying); the misread is cheap to make.
+- **Proposed edit:** add: "on any `gh pr merge` error mentioning a worktree, check `gh pr view <n> --json state` FIRST — the remote merge usually succeeded and only gh's local branch-switch failed."
+- **Confidence:** high (witnessed; mechanism is structural to shared-machine worktrees)
+- **Status:** proposed
+
+### P4 · `statenour-verify` (lint-baseline "NEW FILE" on a file you never touched = dep-bump archaeology)
+- **Trigger (witnessed):** `check:lint-baseline` failed on `app/(mastery)/system/fleet/page.tsx` — byte-identical to origin/main (empty diff; last commit #1220), baseline snapshot last committed #1317, and the #1357 eslint dev-minor bump (2026-08-06) minted a new react-hooks warning class in the unchanged file. Task chip spawned for the fix.
+- **Cost:** ~10 min diagnosis; recurs for every statenour session until fixed.
+- **Proposed edit:** add a trap: "`lint-baseline NEW FILE` on a file outside your diff: `git diff origin/main -- <file>` (empty = not yours), then compare the baseline's last commit against the last eslint bump — dep bumps mint warnings in unchanged files. Root AGENTS classifies this check non-blocking-red; disclose, chip the fix, don't absorb it into your PR."
+- **Confidence:** high (fully diagnosed this session)
+- **Status:** proposed
+
+### P5 · `statenour-verify` (a PowerShell && chain leaves $LASTEXITCODE stale on CommandNotFound)
+- **Trigger (witnessed):** chaining gates with `... && cross-env STALE_DOCS_STRICT=1 pnpm check:stale-docs && ...` broke at bare `cross-env` (not a PowerShell-resolvable command); the trailing `"FINAL_EXIT=$LASTEXITCODE"` printed 0 because CommandNotFound is a parser/resolution error, not an exit code — three gates silently never ran behind a green-looking sentinel.
+- **Cost:** would have shipped with stale-docs/prompt-size/prisma unverified if the transcript hadn't been read line-by-line.
+- **Proposed edit:** add to Traps: "never invoke `cross-env` bare in PowerShell — use `$env:VAR='1'; pnpm <script>`. And a `FINAL_EXIT=$LASTEXITCODE` sentinel after a broken chain reports the LAST RESOLVED command, not the chain — count the gate outputs, don't trust the sentinel."
+- **Confidence:** medium (once, clear mechanism)
+- **Status:** proposed
