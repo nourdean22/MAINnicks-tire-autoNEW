@@ -845,17 +845,57 @@ async function upsertEstimates(rawEstimates: RawEstimate[]): Promise<UpsertResul
 
 /**
  * Backfill match pass: for every existing alg_estimate where
- * matchedInvoiceId IS NULL AND estimateDate >= now - 30d, recheck whether
- * an invoice has since appeared. Runs inline after each sync — cheap given
- * the small unmatched window.
+ * matchedInvoiceId IS NULL, recheck whether an invoice has since appeared.
+ * Runs inline after each sync, and is exported so a one-time backfill can
+ * reach further back than the inline window.
+ *
+ * ★ IT WAS NOT DORMANT — IT RAN AND MATCHED NOTHING (fixed 2026-08-08).
+ *
+ * The phone predicate was `eq(invoices.customerPhone, est.customerPhone)` —
+ * exact string equality — and the two tables store phones in different formats:
+ * `alg_estimates` holds E.164 (`+11234567890`) while `invoices` holds whatever
+ * the mirror wrote (`(216) 555-9999`, bare 10-digit). Those never compare equal,
+ * so the pass executed on every sync and found nothing, which is indistinguishable
+ * from "no matches exist" in every log and dashboard. Measured result: 5 matched
+ * rows in the table's LIFETIME, all written by one backfill on 2026-05-07, and a
+ * 1.1% match rate that nothing flagged for three months.
+ *
+ * The consequence was not cosmetic: `declinedWorkRecovery` reads
+ * `matched_invoice_id IS NULL` as "the customer declined" and texts them. An
+ * unmatched-because-unmatchable row is a customer who may have paid.
+ *
+ * Fixed with PHONE_MATCH_KEY_SQL + phoneMatchKey — the JS/SQL twins the rest of
+ * the app already uses. `smsPerformance.ts` carries the same repair for the same
+ * reason; this is not a fourth identity rule, it is the existing one finally
+ * applied here. Read-only simulation before the change: raw equality would match
+ * 1 row, canonical matches 30 ($20,364), and 171 distinct phones join instead of 17.
  */
-async function backfillMatches(): Promise<number> {
+export interface BackfillMatchOptions {
+  /** How far back to look. Defaults to the inline 30d window. */
+  sinceDays?: number;
+  /** Report what WOULD match and write nothing. */
+  dryRun?: boolean;
+}
+
+export interface BackfillMatchResult {
+  matched: number;
+  scanned: number;
+  skippedNoPhone: number;
+  dryRun: boolean;
+  /** Populated on a dry run so the write can be reviewed before it happens. */
+  preview: Array<{ estimateId: number; invoiceId: number; amountCents: number }>;
+}
+
+export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<BackfillMatchResult> {
+  const dryRun = opts.dryRun ?? false;
+  const empty: BackfillMatchResult = { matched: 0, scanned: 0, skippedNoPhone: 0, dryRun, preview: [] };
   const { getDb } = await import("../db");
   const d = await getDb();
-  if (!d) return 0;
+  if (!d) return empty;
 
   const { algEstimates, invoices } = await import("../../drizzle/schema");
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const { PHONE_MATCH_KEY_SQL, phoneMatchKey } = await import("../lib/phoneIdentity");
+  const since = new Date(Date.now() - (opts.sinceDays ?? 30) * 24 * 60 * 60 * 1000);
 
   const unmatched = await d
     .select({
@@ -869,8 +909,17 @@ async function backfillMatches(): Promise<number> {
     .limit(200);
 
   let matched = 0;
+  let skippedNoPhone = 0;
+  const preview: BackfillMatchResult["preview"] = [];
+
   for (const est of unmatched) {
-    if (!est.customerPhone) continue;
+    // The JS twin. Returns null below ten digits — a truncation or placeholder
+    // identifies nobody, and matching one would be a guess.
+    const key = phoneMatchKey(est.customerPhone);
+    if (!key) {
+      skippedNoPhone++;
+      continue;
+    }
     const low = Math.floor(est.estimatedAmount * 0.9);
     const high = Math.ceil(est.estimatedAmount * 1.1);
     const upperDate = new Date(est.estimateDate.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -879,7 +928,9 @@ async function backfillMatches(): Promise<number> {
       .from(invoices)
       .where(
         and(
-          eq(invoices.customerPhone, est.customerPhone),
+          // The SQL twin, normalising the stored column to the same last-10
+          // digits the JS side produced. Same pattern as smsPerformance.ts.
+          sql`${sql.raw(PHONE_MATCH_KEY_SQL("customerPhone"))} = ${key}`,
           gte(invoices.totalAmount, low),
           lte(invoices.totalAmount, high),
           gte(invoices.invoiceDate, est.estimateDate),
@@ -888,14 +939,26 @@ async function backfillMatches(): Promise<number> {
       )
       .limit(1);
     if (candidates.length > 0) {
-      await d
-        .update(algEstimates)
-        .set({ matchedInvoiceId: candidates[0].id, matchedAt: new Date() })
-        .where(eq(algEstimates.id, est.id));
+      if (dryRun) {
+        preview.push({ estimateId: est.id, invoiceId: candidates[0].id, amountCents: est.estimatedAmount });
+      } else {
+        await d
+          .update(algEstimates)
+          .set({ matchedInvoiceId: candidates[0].id, matchedAt: new Date() })
+          .where(eq(algEstimates.id, est.id));
+      }
       matched++;
     }
   }
-  return matched;
+
+  log.info("estimate backfill match pass", {
+    scanned: unmatched.length,
+    matched,
+    skippedNoPhone,
+    dryRun,
+    sinceDays: opts.sinceDays ?? 30,
+  });
+  return { matched, scanned: unmatched.length, skippedNoPhone, dryRun, preview };
 }
 
 // ─── PUBLIC ENTRYPOINT ─────────────────────────────────
@@ -935,7 +998,8 @@ export async function runEstimateMirror(): Promise<{ recordsProcessed: number; d
   });
 
   const upsert = await upsertEstimates(unique);
-  const backfillMatched = await backfillMatches();
+  const backfill = await backfillMatches();
+  const backfillMatched = backfill.matched;
 
   lastEstimateSync = new Date();
   consecutiveEstimateFailures = 0;
