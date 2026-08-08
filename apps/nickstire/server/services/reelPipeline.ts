@@ -672,10 +672,18 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         // internal prompts on screen and produced a duplicate caption layer.
         const { generateTemplateStockClip } = await import("./templateStockStudio");
         const hero = brief.visualWorld?.heroFrameUrl;
+        // The hero is NAMED heroFrameUrl and is normally a still, but the field
+        // has always been a bare URL and nothing stopped an operator-approved
+        // visual world from pointing at footage. Route by extension instead of
+        // silently discarding a video (which is what the image-only gate did) —
+        // real footage outranks a camera move over a still.
+        const heroIsVideo = Boolean(hero && /\.(mp4|mov|webm|m4v)([?#]|$)/i.test(hero));
+        const heroIsImage = Boolean(hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero));
         finalClipUrl = await withTimeout(
           generateTemplateStockClip({
             beatNumber: beat.beatNumber,
-            backgroundImageUrl: hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined,
+            backgroundVideoUrl: heroIsVideo ? hero : undefined,
+            backgroundImageUrl: heroIsImage ? hero : undefined,
           }),
           GEN_CLIP_TIMEOUT_MS,
           `template_stock beat ${beat.beatNumber}`,
