@@ -44,13 +44,47 @@ Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
   comments and remove `btn-premium` (or any flagged utility) from
   newly-added classNames. Pre-existing usages stay untouched (the
   linter only checks the staged diff).
-- **`pnpm test | tail` masks the exit code.** A piped command's exit
-  status is `tail`'s (0), not vitest's. Read the actual
-  `Test Files … failed` summary line, or run `pnpm test; echo "EXIT=$?"`
-  with no pipe.
+- **The exit code lies in two different ways — read the SUMMARY LINE.**
+  `pnpm test | tail` reports `tail`'s status (0), not vitest's. And
+  `pnpm test; echo "EXIT=$?"` — which this skill used to recommend — is
+  no better under `run_in_background`: a compound command reports the
+  LAST command's status, so the completion notification said
+  **"exit code 0" while 24 files and 234 tests had failed** (2026-08-08).
+  Run the command ALONE and read `Test Files … passed/failed`. If no
+  summary line was printed at all, the run did not finish — see the
+  teardown-crash trap below.
 - **`pnpm run verify` can hit a pnpm-bootstrap glitch.** If `verify`
   fails before any of the inner gates run (no actionable output),
   fall back to running each gate individually (check / test / build).
+- **The full suite can CRASH AT TEARDOWN and print no summary.** On
+  Windows the default pool has ended with `ELIFECYCLE Test failed` after
+  every test passed — observed 2026-08-08 with **528 pass markers, 0 fail
+  markers, 0 "Failed Tests" banners, and no summary line** (a libuv
+  `UV_HANDLE_CLOSING` assertion appeared from a separate script the same
+  session). Do not read that as a regression, and do not read it as
+  green. Triage by counting markers —
+  `grep -cE '^ *(×|❯) '` returning 0 means nothing failed — then re-run
+  under `--pool=forks --poolOptions.forks.singleFork=true` for an actual
+  summary. **Marker counting is triage; the summary line is the receipt.**
+- **Never mutate the working tree while a suite is running.** A
+  background suite reads the tree continuously, so a `git checkout`,
+  `git stash`, or edit mid-run rewrites files under it and produces
+  phantom failures. The tell is that failures cluster in ONE vitest
+  project — 2026-08-08: **24 failed files, every one `client/**`, zero
+  `server/**`**, and a clean re-run passed 425/425. Wait for the run, or
+  branch before starting it.
+- **When a fail-open is safe only because another middleware runs
+  first, that ORDER is the security control — pin it with a test.**
+  `adminProcedure` chains `requireAdminIdentity` (throws FORBIDDEN for
+  non-admins) before `requireFreshMfaAndPermission` (which contains a
+  deliberate, documented fail-open to pre-RBAC owner when the role row
+  is unreadable). The fail-open is correct — choosing `viewer` would let
+  a DB hiccup lock the owner out mid-shift, the exact lockout reversed on
+  2026-07-16 — but it is safe ONLY because authentication already ran.
+  As of 2026-08-08 no test covers that ordering, so a refactor
+  reordering `.use()` calls would silently turn an authorization
+  fail-open into an authentication one. Assert that the EARLIER gate
+  rejects, not just that the later one behaves.
 - **Migrations are hand-applied SQL.** After editing
   `drizzle/schema.ts`, generate / hand-write the `drizzle/NNNN_*.sql`
   migration and apply it to the DB before re-running `pnpm run check`.

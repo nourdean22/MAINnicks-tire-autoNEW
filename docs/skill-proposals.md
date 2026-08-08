@@ -474,7 +474,7 @@ statenour primitives documented (existence re-verified at
   `run_in_background` the notification says exit 0 while the suite failed. If no
   summary line was printed at all, the run did not finish — see P2."*
 - **Confidence:** high (the skill actively recommends the failing pattern)
-- **Status:** proposed
+- **Status:** applied #1446 — `nickstire-verify` exit-code trap rewritten; the old `; echo "EXIT=$?"` remedy removed
 
 ### P2 · `nickstire-verify` (the full suite can crash at teardown and print NO summary)
 - **Trigger (witnessed):** `pnpm test` ended with `ELIFECYCLE Test failed` and
@@ -492,7 +492,7 @@ statenour primitives documented (existence re-verified at
   `--pool=forks --poolOptions.forks.singleFork=true` to get an actual summary
   line. Marker counting is triage; the summary is the receipt."*
 - **Confidence:** medium (once this session, clear mechanism, documented fix)
-- **Status:** proposed
+- **Status:** applied #1446 — teardown-crash trap added to `nickstire-verify`
 
 ### P3 · `nickstire-verify` (never mutate the working tree while a suite is running)
 - **Trigger (witnessed):** ran `git checkout -b <branch> origin/main` while a
@@ -507,7 +507,7 @@ statenour primitives documented (existence re-verified at
   one vitest project (all `client/**`, no `server/**`). Wait for the run, or
   branch before starting it."*
 - **Confidence:** medium (once, unambiguous signature)
-- **Status:** proposed
+- **Status:** applied #1446 — mid-run tree-mutation trap added to `nickstire-verify`
 
 ### P4 · NEW: `base-rate-check` — never quote a ratio out of a filtered subset
 - **Trigger (witnessed):** I measured "**42 of 58 failure-outcome calls (72%) have
@@ -532,7 +532,7 @@ statenour primitives documented (existence re-verified at
   discipline (checked 2026-08-08); the closest is the `measurement proxies lie`
   MEMORY, which is about trusting proxies, not about denominators.
 - **Confidence:** high (I made the error, and it changed a recommendation)
-- **Status:** proposed
+- **Status:** applied #1446 — new skill `.claude/skills/base-rate-check/SKILL.md`
 
 ### P5 · `nickstire-verify` (a security invariant held only by middleware ORDER, untested)
 - **Trigger (witnessed):** investigating a live `admin security state unreadable —
@@ -550,4 +550,4 @@ statenour primitives documented (existence re-verified at
   control. Pin it with a test that asserts the earlier gate rejects, not just
   that the later one behaves."*
 - **Confidence:** medium (one instance, concrete and currently untested)
-- **Status:** proposed
+- **Status:** applied #1446 — middleware-order security trap added to `nickstire-verify`

@@ -1380,13 +1380,56 @@ async function evalCaption(post: GeneratedPost, brief: SignalBrief): Promise<Cap
     throw new Error("eval LLM returned no content");
   }
   const p = parseJsonObject<Record<string, unknown>>(content);
+  const llmNovelty = clamp01(p.novelty);
+
+  // DETERMINISTIC NOVELTY FLOOR (2026-08-08).
+  //
+  // The LLM is asked to judge novelty against `recentConceptKeys` — and a
+  // concept key is a kebab slug, so "cleveland-pothole-alignment" and
+  // "pothole-steering-problem" read as clearly distinct to it. They are the same
+  // post. Novelty also carries the smallest weight in the rubric (0.10), which
+  // makes it the cheapest dimension to be wrong about.
+  //
+  // `assessNovelty` compares SUBJECT and CLAIM SHAPE rather than words, so it
+  // catches creative cousins that share almost no vocabulary. It can only LOWER
+  // the score, never raise it: a deterministic check disagreeing with the model
+  // is evidence the model was generous, but agreement is not evidence it was
+  // right, so there is nothing to award.
+  //
+  // The cousin test is subject AND claim shape together, deliberately — subject
+  // alone would stop a shop whose revenue is brakes from ever running brakes
+  // twice.
+  let novelty = llmNovelty;
+  let noveltyNote = "";
+  try {
+    const { assessNovelty } = await import("../../shared/creativeFingerprint");
+    const priors = (brief.recentConceptKeys ?? []).map((k) => String(k).replace(/-/g, " "));
+    const verdict = assessNovelty(`${post.caption} ${post.visualConcept ?? ""}`, priors);
+    if (verdict.isCousin) {
+      novelty = Math.min(llmNovelty, 0.35);
+      noveltyNote = ` | novelty capped ${llmNovelty.toFixed(2)}→${novelty.toFixed(2)}: ${verdict.collisions.join(", ")} vs "${verdict.nearest ?? "?"}"`;
+      log.warn("deterministic novelty floor applied — creative cousin of a recent post", {
+        conceptKey: post.conceptKey,
+        llmNovelty,
+        capped: novelty,
+        collisions: verdict.collisions,
+        nearest: verdict.nearest,
+        suggestion: verdict.suggestions[0],
+      });
+    }
+  } catch (e) {
+    // A novelty check that cannot run must not fail the post — the LLM score
+    // stands and the gap is logged rather than silently swallowed.
+    log.warn("deterministic novelty check unavailable — LLM score stands", { e: String(e) });
+  }
+
   return {
     viralShape: clamp01(p.viralShape),
     voice: clamp01(p.voice),
     priceCompliance: clamp01(p.priceCompliance),
-    novelty: clamp01(p.novelty),
+    novelty,
     noFabrication: clamp01(p.noFabrication),
-    notes: typeof p.notes === "string" ? p.notes.slice(0, 500) : "",
+    notes: (typeof p.notes === "string" ? p.notes.slice(0, 500) : "") + noveltyNote,
   };
 }
 

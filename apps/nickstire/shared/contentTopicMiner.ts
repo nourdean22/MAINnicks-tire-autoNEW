@@ -32,6 +32,7 @@ export const TOPIC_MINER_VERSION = "content-topic-miner-v1" as const;
 
 /** Where a candidate came from. Ordered loosely by how much we trust it. */
 export type TopicSource =
+  | "declined_work"
   | "performance_signal"
   | "verified_review_theme"
   | "customer_question"
@@ -54,6 +55,12 @@ export interface TopicSignals {
   recentTopics?: string[];
   /** Franchises used recently, newest first. Drives rotation. */
   recentFranchises?: FranchiseId[];
+  /**
+   * Repairs customers were QUOTED and REFUSED, best-first, already phrased as
+   * briefs by shared/declinedWorkTopics. Carries no counts or dollars — those
+   * rank upstream and stay out of anything a generator sees.
+   */
+  declinedWork?: string[];
 }
 
 export interface TopicCandidate {
@@ -69,6 +76,12 @@ export interface TopicCandidate {
 
 /** Base weight per source. Performance and verified reviews outrank guesses. */
 const SOURCE_WEIGHT: Record<TopicSource, number> = {
+  // Highest weight in the table, deliberately. Every other source is a proxy
+  // for what a customer might care about; this one is a customer who stood at
+  // the counter, heard a price, and said no. It is also the only source that is
+  // un-generic BY CONSTRUCTION — no other shop has this list — which is the bar
+  // HARD_REJECT_RULES[0] sets and 36% of published posts currently fail.
+  declined_work: 34,
   performance_signal: 30,
   verified_review_theme: 28,
   customer_question: 26,
@@ -109,6 +122,9 @@ export function rotationPenalty(f: FranchiseId, recent: FranchiseId[]): number {
 /** Pick the franchise whose evidence needs and objective best fit a source. */
 export function franchiseForSource(source: TopicSource, recent: FranchiseId[]): FranchiseId {
   const prefer: Record<TopicSource, FranchiseId[]> = {
+    // A refused repair is a diagnosis story and a price objection, which is what
+    // these three shows are for.
+    declined_work: ["can_it_be_saved", "mechanic_myth_lab", "pothole_court"],
     performance_signal: ["dashboard_after_dark", "pothole_court", "tire_autopsy"],
     verified_review_theme: ["review_reconstructed"],
     customer_question: ["can_it_be_saved", "mechanic_myth_lab", "dashboard_after_dark"],
@@ -161,6 +177,10 @@ export function mineTopicCandidates(signals: TopicSignals): TopicCandidate[] {
     });
   };
 
+  // First, so that when two sources name the same subject the within-run dedup
+  // below keeps the declined-work phrasing — it is the one with a real customer
+  // objection behind it.
+  for (const t of signals.declinedWork ?? []) add(t, "declined_work");
   for (const t of signals.topThemes ?? []) add(t, "performance_signal");
   for (const t of signals.reviewThemes ?? []) add(t, "verified_review_theme");
   for (const t of signals.customerQuestions ?? []) add(t, "customer_question");
