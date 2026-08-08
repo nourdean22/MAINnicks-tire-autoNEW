@@ -14,6 +14,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import { isAiGenerationError } from "@/lib/ai/generation-status";
 
 const log = rootLogger.withSurface("services/ai-cost");
 
@@ -84,7 +85,12 @@ async function windowAggregate(since: Date): Promise<CostWindow> {
   const totalCalls = rows.length;
   const totalCostCents = rows.reduce((s, r) => s + (r.costCents ?? 0), 0);
   const totalLatency = rows.reduce((s, r) => s + (r.durationMs ?? 0), 0);
-  const failures = rows.filter((r) => r.status === "failed").length;
+  // 2026-08-08 · was `status === "failed"` — a status NO writer emits
+  // (track.ts defaults to "complete", failure paths pass "error"), so
+  // failures and every per-group errorRate below were structurally ZERO
+  // since this file existed — the exact 2026-07-30 trap-table row, still
+  // live here. The shared predicate matches the writers' vocabulary.
+  const failures = rows.filter((r) => isAiGenerationError(r.status)).length;
 
   function group(keyFn: (r: (typeof rows)[number]) => string): CostBreakdown[] {
     const agg = new Map<
@@ -98,7 +104,7 @@ async function windowAggregate(since: Date): Promise<CostWindow> {
       b.calls++;
       b.cost += r.costCents ?? 0;
       b.latency += r.durationMs ?? 0;
-      if (r.status === "failed") b.errors++;
+      if (isAiGenerationError(r.status)) b.errors++;
     }
     return [...agg.entries()]
       .map(([key, b]): CostBreakdown => ({

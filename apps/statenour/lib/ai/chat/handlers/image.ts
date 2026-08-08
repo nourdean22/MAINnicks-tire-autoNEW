@@ -448,6 +448,8 @@ export async function handleImage(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      // 2026-08-08 · anti-buffering parity across ALL SSE emit sites.
+      "X-Accel-Buffering": "no",
       // Defensive: never emit the Private Lab sentinel (this path is already
       // unreachable under privateMode, but keep all three emit sites consistent).
       "X-Conversation-Id": convId && convId !== "private" && convId !== "temp" ? convId : "",

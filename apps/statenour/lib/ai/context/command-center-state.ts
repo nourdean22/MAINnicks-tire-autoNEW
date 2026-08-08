@@ -19,6 +19,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { AI_GENERATION_SUCCESS_STATUSES as GENERATION_SUCCESS } from "@/lib/ai/generation-status";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -234,13 +235,10 @@ export interface SystemHealthSummary {
   memory: { lastBrainCycleAt: string | null; embeddingCoveragePct: number };
 }
 
-/** Statuses that mean an aiGeneration row SUCCEEDED. Must contain the
- *  writers' actual success value — "complete" (lib/ai/track.ts default,
- *  lib/ai/memory.ts hardcoded). "completed"/"success" are kept for any
- *  legacy rows; "" mirrors the pre-2026-06-02 "status truthy" clause.
- *  Dropping "complete" from this list resurrects the permanent
- *  "ai (100% err)" fabricated alarm in the system prompt. */
-export const AI_GENERATION_SUCCESS_STATUSES = ["complete", "completed", "success", ""] as const;
+/** Re-exported from the canonical vocabulary module (2026-08-08 — the
+ *  same mismatch was then found live in ai-cost.ts, so the list moved
+ *  to a leaf both readers import). See lib/ai/generation-status.ts. */
+export { AI_GENERATION_SUCCESS_STATUSES } from "@/lib/ai/generation-status";
 
 export interface CommandCenterState {
   generatedAt: string;
@@ -724,7 +722,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       prisma.aiGeneration.count({
         where: {
           createdAt: { gte: oneDayAgo },
-          status: { notIn: [...AI_GENERATION_SUCCESS_STATUSES] },
+          status: { notIn: [...GENERATION_SUCCESS] },
         },
       }),
     ]).catch(() => [0, 0] as [number, number]),

@@ -336,6 +336,7 @@ describe("v9.0-alpha · command-center state contract", () => {
 // "simplifies" the writers' value back out of the list.
 
 import { AI_GENERATION_SUCCESS_STATUSES } from "@/lib/ai/context/command-center-state";
+import { isAiGenerationError } from "@/lib/ai/generation-status";
 
 describe("aiGeneration success vocabulary", () => {
   it("contains the value the live writers actually emit", () => {
@@ -346,5 +347,17 @@ describe("aiGeneration success vocabulary", () => {
     expect(AI_GENERATION_SUCCESS_STATUSES).toContain("completed");
     expect(AI_GENERATION_SUCCESS_STATUSES).toContain("success");
     expect(AI_GENERATION_SUCCESS_STATUSES).toContain("");
+  });
+
+  it("the shared error predicate matches the writers, not invented spellings", () => {
+    // Writers: track.ts defaults "complete", failure paths pass "error".
+    expect(isAiGenerationError("complete")).toBe(false);
+    expect(isAiGenerationError("error")).toBe(true);
+    // "failed" is what ai-cost USED to filter on — no writer emits it,
+    // but any row that ever carried it must still count as an error.
+    expect(isAiGenerationError("failed")).toBe(true);
+    // Null/absent mirrors the old "status truthy" clause → success.
+    expect(isAiGenerationError(null)).toBe(false);
+    expect(isAiGenerationError(undefined)).toBe(false);
   });
 });

@@ -128,4 +128,21 @@ describe("content pack · section visibility + runtime-floor bound", () => {
     const out = await appendBusinessKnowledgeLayer(base, "business", "content", DEEP_ASK);
     expect(out).toBe(base);
   });
+
+  it("a format ask keeps its engine under the bound (it was the FIRST casualty before)", async () => {
+    // 2026-08-08 · the format engines lived at the essentials tail, so
+    // tail-first trimming dropped CAROUSEL ENGINE on the very ask that
+    // needed it (reproduced with the trimmer's own drop order). They now
+    // ride directly behind the mandatory rules.
+    const base = "## BASE\n" + "x".repeat(40_000);
+    const out = await appendBusinessKnowledgeLayer(
+      base,
+      "business",
+      "content",
+      "write me an instagram carousel about winter tire safety",
+    );
+    expect(out.length).toBeLessThanOrEqual(65_000);
+    expect(out).toContain("CAROUSEL ENGINE");
+    expect(out).toContain("CONTENT GENERATION MODE");
+  });
 });
