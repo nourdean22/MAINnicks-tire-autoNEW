@@ -81,6 +81,94 @@ describe("when armed, it degrades exactly the unrecoverable failures", () => {
 });
 
 /**
+ * THE ARMED FLAG THAT STILL WENT DARK (2026-08-07).
+ *
+ * REEL_FALLBACK_TO_TEMPLATE_STOCK=true was live on Railway and daily-reel-post
+ * STILL failed 4x in one day with cron_log details "timeout", while
+ * higgsfield-session-keepalive recorded "re-login required (refresh token
+ * revoked)".
+ *
+ * Why the tests above did not catch it: they assert on error TEXT, and a revoked
+ * session never produces auth text. The CLI HANGS. withTimeout raises a timeout,
+ * which classifies as a local timeout -> RECONCILE_BEFORE_RETRY, and only
+ * AUTH_INVALID / QUOTA_OR_CREDIT reach PAUSE_PROVIDER. The predicate was correct
+ * about every error it was shown and blind to the one that actually happened.
+ *
+ * The fix consults higgsfieldSessionHealth() - built and tested 2026-08-03, and
+ * until now wired into exactly one operator display surface and no decision.
+ */
+const TIMEOUT_ERR = new Error("higgsfield beat 2 timed out after 600s");
+
+describe("a HUNG provider degrades too - not just one that answers with an error", () => {
+  it("the timeout alone is NOT enough — proving this is the gap, not a duplicate case", async () => {
+    vi.stubEnv(FLAG, "true");
+    // No provider passed = the old signature. Still false, because the error
+    // text carries no auth/quota signal. This is the bug, pinned.
+    expect(await shouldDegradeToFreeLane(TIMEOUT_ERR)).toBe(false);
+  });
+
+  it("degrades when the KEEPALIVE says the session is dead, even though the error is only a timeout", async () => {
+    vi.stubEnv(FLAG, "true");
+    vi.doMock("./services/higgsfieldStudio", () => ({
+      higgsfieldSessionHealth: async () => ({
+        healthy: false,
+        reason: "re-login required (refresh token revoked)",
+        checkedAt: new Date("2026-08-07T12:25:00Z"),
+      }),
+    }));
+    const { shouldDegradeToFreeLane: fresh } = await import("./services/reelPipeline");
+    expect(await fresh(TIMEOUT_ERR, "higgsfield")).toBe(true);
+  });
+
+  it("does NOT degrade when liveness is UNKNOWN - a blind spot must never downgrade a working provider", async () => {
+    vi.stubEnv(FLAG, "true");
+    // higgsfieldSessionHealth returns null (never false) for "no row / stale
+    // verdict / unreadable DB" precisely so this case stays distinguishable.
+    vi.doMock("./services/higgsfieldStudio", () => ({
+      higgsfieldSessionHealth: async () => ({
+        healthy: null,
+        reason: "keepalive last ran too long ago to vouch for the session",
+        checkedAt: null,
+      }),
+    }));
+    const { shouldDegradeToFreeLane: fresh } = await import("./services/reelPipeline");
+    expect(await fresh(TIMEOUT_ERR, "higgsfield")).toBe(false);
+  });
+
+  it("does NOT degrade a healthy provider that merely timed out once", async () => {
+    vi.stubEnv(FLAG, "true");
+    vi.doMock("./services/higgsfieldStudio", () => ({
+      higgsfieldSessionHealth: async () => ({
+        healthy: true,
+        reason: "keepalive refreshed the session",
+        checkedAt: new Date(),
+      }),
+    }));
+    const { shouldDegradeToFreeLane: fresh } = await import("./services/reelPipeline");
+    expect(await fresh(TIMEOUT_ERR, "higgsfield")).toBe(false);
+  });
+
+  it("ignores higgsfield liveness when a DIFFERENT provider failed", async () => {
+    vi.stubEnv(FLAG, "true");
+    vi.doMock("./services/higgsfieldStudio", () => ({
+      higgsfieldSessionHealth: async () => ({ healthy: false, reason: "dead", checkedAt: new Date() }),
+    }));
+    const { shouldDegradeToFreeLane: fresh } = await import("./services/reelPipeline");
+    // Veo timing out says nothing about Higgsfield's session.
+    expect(await fresh(TIMEOUT_ERR, "veo")).toBe(false);
+  });
+
+  it("still respects the opt-in flag - a dead session does not degrade when the flag is off", async () => {
+    vi.stubEnv(FLAG, "");
+    vi.doMock("./services/higgsfieldStudio", () => ({
+      higgsfieldSessionHealth: async () => ({ healthy: false, reason: "dead", checkedAt: new Date() }),
+    }));
+    const { shouldDegradeToFreeLane: fresh } = await import("./services/reelPipeline");
+    expect(await fresh(TIMEOUT_ERR, "higgsfield")).toBe(false);
+  });
+});
+
+/**
  * Source assertions, because the wiring is what actually failed here - a
  * correct predicate that nothing calls would leave the account just as dark.
  *
@@ -96,14 +184,32 @@ const PIPELINE = fs.readFileSync(
 
 describe("the fallback is actually wired into the beat loop", () => {
   it("consults the predicate around the paid generation call", () => {
-    expect(PIPELINE).toMatch(/^\s*if \(!\(await shouldDegradeToFreeLane\(genErr\)\)\) throw genErr;$/m);
+    // Widened 2026-08-07: the call now passes the ACTIVE PROVIDER as well, so a
+    // hung session (which produces only a timeout) can be judged by the
+    // keepalive's verdict rather than by error text. The provider argument is
+    // asserted separately below — losing it silently would restore the exact
+    // blind spot that kept reels dark for a day with the flag already armed.
+    expect(PIPELINE).toMatch(/^\s*if \(!\(await shouldDegradeToFreeLane\(genErr, activeProvider\)\)\) throw genErr;$/m);
+  });
+
+  it("passes the active provider, so a HUNG session is judged by liveness not by error text", () => {
+    expect(PIPELINE).toMatch(/shouldDegradeToFreeLane\(genErr, activeProvider\)/);
+  });
+
+  it("the predicate consults the keepalive verdict, and only on an explicit false", () => {
+    const SVC = fs.readFileSync(path.join(__dirname, "services", "reelPipeline.ts"), "utf8");
+    // Built + tested 2026-08-03, wired into no decision until now.
+    expect(SVC).toMatch(/^\s*const \{ higgsfieldSessionHealth \} = await import\("\.\/higgsfieldStudio"\);$/m);
+    // `=== false` is load-bearing: null means not-knowable and must not degrade.
+    expect(SVC).toMatch(/^\s*if \(health\.healthy === false\) \{$/m);
+    expect(SVC).not.toMatch(/^\s*if \(!health\.healthy\) \{$/m);
   });
 
   it("re-throws anything it does not handle, so no failure is swallowed", () => {
     // The `throw genErr` above is the whole reason this is not a silent
     // catch-all. If it is ever dropped, every provider error becomes a
     // downgraded reel instead of a reported failure.
-    expect(PIPELINE).toMatch(/shouldDegradeToFreeLane\(genErr\)\)\) throw genErr;/);
+    expect(PIPELINE).toMatch(/shouldDegradeToFreeLane\(genErr, activeProvider\)\)\) throw genErr;/);
   });
 
   it("flips to the free lane and re-runs the SAME beat", () => {
