@@ -1,3 +1,7 @@
+> **Canonical source:** [`pnpm-workspace.yaml` (`catalog:`)](../../../pnpm-workspace.yaml)
+> This file is a **cached copy for context injection**. If it disagrees with
+> the canonical source, **the source wins** — re-run `/discover-standards` to refresh.
+
 # Tech Stack
 
 Versions verified from the workspace catalog + installed tree. The catalog is

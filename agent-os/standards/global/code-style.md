@@ -1,3 +1,7 @@
+> **Canonical source:** [`.prettierrc` + `tsconfig.json`](../../../.prettierrc)
+> This file is a **cached copy for context injection**. If it disagrees with
+> the canonical source, **the source wins** — re-run `/discover-standards` to refresh.
+
 # Code Style
 
 Prettier is the source of truth. Never hand-format against it.

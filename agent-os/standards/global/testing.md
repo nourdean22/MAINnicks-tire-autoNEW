@@ -1,3 +1,7 @@
+> **Canonical source:** [AGENTS.md § Verify gates](../../../AGENTS.md)
+> This file is a **cached copy for context injection**. If it disagrees with
+> the canonical source, **AGENTS.md wins** — re-run `/discover-standards` to refresh.
+
 # Testing
 
 Tests are the receipt that proves the work.

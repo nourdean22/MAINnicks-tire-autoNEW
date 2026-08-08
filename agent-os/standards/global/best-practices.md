@@ -1,3 +1,7 @@
+> **Canonical source:** [AGENTS.md § Source-of-truth hierarchy](../../../AGENTS.md)
+> This file is a **cached copy for context injection**. If it disagrees with
+> the canonical source, **AGENTS.md wins** — re-run `/discover-standards` to refresh.
+
 # Best Practices
 
 Universal engineering doctrine. Stack-agnostic. Every project inherits this.

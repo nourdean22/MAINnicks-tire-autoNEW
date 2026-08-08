@@ -1,3 +1,7 @@
+> **Canonical source:** the `check:*` / `lint:*` scripts themselves
+> This file is a **cached copy for context injection**. If it disagrees with
+> the canonical source, **the source wins** — re-run `/discover-standards` to refresh.
+
 # Codified Rules
 
 Each `check:*` / `lint:*` script is a rule codified after production broke. Read

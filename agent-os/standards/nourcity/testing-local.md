@@ -1,3 +1,7 @@
+> **Canonical source:** [AGENTS.md § Commands](../../../AGENTS.md)
+> This file is a **cached copy for context injection**. If it disagrees with
+> the canonical source, **AGENTS.md wins** — re-run `/discover-standards` to refresh.
+
 # Running Tests in NOURCITY
 
 Per-app invocation differs. Getting this wrong produces false failures.

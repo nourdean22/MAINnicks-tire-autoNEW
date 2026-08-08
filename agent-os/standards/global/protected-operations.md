@@ -1,3 +1,7 @@
+> **Canonical source:** [AGENTS.md § Protected operations](../../../AGENTS.md)
+> This file is a **cached copy for context injection**. If it disagrees with
+> the canonical source, **AGENTS.md wins** — re-run `/discover-standards` to refresh.
+
 # Protected Operations
 
 Never on agent initiative. Each requires an explicit operator instruction for
