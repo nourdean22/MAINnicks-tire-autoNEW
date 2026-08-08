@@ -21,10 +21,13 @@
  * captions belong to assembly, which owns them for every provider.
  *
  * NOT a "static video": Instagram's content-monetization policy explicitly
- * restricts static videos and text montages, so every clip carries real motion —
- * a slow push-in on a supplied still, or an animated gradient sweep otherwise —
- * and the gradient tone cycles per beat so a multi-beat reel is not N identical
- * backdrops.
+ * restricts static videos and text montages, so every clip carries real motion.
+ * A still gets one of SIX camera moves (see BeatMotion) rotating deterministically
+ * per beat; without a still it gets an animated gradient whose tone, sweep angle
+ * and speed all vary per beat. Both paths exist so a 5-6 beat reel is never N
+ * identical backdrops — repetition is what makes an asset read generic, and
+ * HARD_REJECT_RULES[0] is exactly "generic mechanic imagery any shop could run
+ * unchanged".
  */
 import { spawn } from "child_process";
 import { createLogger } from "../lib/logger";
@@ -41,6 +44,84 @@ const FRAME_W = 1080;
 const FRAME_H = 1920;
 const FPS = 30;
 
+/**
+ * Camera moves for a still (2026-08-07).
+ *
+ * Before this there was exactly ONE: a slow push-in. A reel is 5-6 beats, so a
+ * still-backed reel was N identical Ken Burns pushes — which reads as filler
+ * even when each individual clip is technically fine. `HARD_REJECT_RULES[0]`
+ * ("generic mechanic imagery any shop could run unchanged") is the standard
+ * this lane has to clear, and repetition is what makes an asset read generic.
+ *
+ * Every expression is SPACE-FREE and `on`-based (output frame number) rather
+ * than `zoom`-based wherever the ramp must be predictable — `zoom` refers to the
+ * previous frame's value, which compounds and is hard to reason about at a
+ * given duration. push_in keeps the original `zoom` form verbatim because it is
+ * the one variant proven by real renders.
+ *
+ * Pans need headroom: at z=1.14 the visible window is iw/zoom wide, so the crop
+ * origin can travel 0..(iw-iw/zoom). Panning at z=1.0 would have nowhere to go
+ * and would silently render static — the failure this lane must never produce,
+ * since Instagram's monetization policy restricts static video.
+ */
+export type BeatMotion = "push_in" | "punch_in" | "pull_out" | "pan_right" | "pan_left" | "drift_up";
+
+/**
+ * Deterministic per-beat rotation. Deterministic, not random: a retry of beat 3
+ * must produce the same move, or a resumed job splices two different cameras
+ * into one reel. Same reasoning as SWEEP_TONES cycling on beatNumber.
+ */
+const MOTION_CYCLE: readonly BeatMotion[] = [
+  "push_in",
+  "pan_right",
+  "pull_out",
+  "punch_in",
+  "pan_left",
+  "drift_up",
+] as const;
+
+export function motionForBeat(beatNumber: number): BeatMotion {
+  return MOTION_CYCLE[Math.abs(beatNumber) % MOTION_CYCLE.length];
+}
+
+/** The zoompan body for one move. `frames` is the clip's output frame count. */
+function zoompanFor(motion: BeatMotion, frames: number): string {
+  const geom = `d=${frames}:s=${FRAME_W}x${FRAME_H}:fps=${FPS}`;
+  // Centre the crop window on the axis a move does NOT travel along.
+  const cx = `x='(iw-iw/zoom)/2'`;
+  const cy = `y='(ih-ih/zoom)/2'`;
+  switch (motion) {
+    case "punch_in":
+      return `zoompan=z='min(zoom+0.0024,1.30)':${geom}`;
+    case "pull_out":
+      // Starts tight and eases out. Floor at 1.02, never below 1.0 — a zoom < 1
+      // would letterbox the frame.
+      return `zoompan=z='max(1.20-0.0011*on,1.02)':${geom}`;
+    case "pan_right":
+      return `zoompan=z=1.14:x='(iw-iw/zoom)*(on/${frames})':${cy}:${geom}`;
+    case "pan_left":
+      return `zoompan=z=1.14:x='(iw-iw/zoom)*(1-on/${frames})':${cy}:${geom}`;
+    case "drift_up":
+      return `zoompan=z=1.14:${cx}:y='(ih-ih/zoom)*(1-on/${frames})':${geom}`;
+    case "push_in":
+    default:
+      // Verbatim the original, proven by real renders.
+      return `zoompan=z='min(zoom+0.0009,1.12)':${geom}`;
+  }
+}
+
+/**
+ * Sweep geometries for the gradient path, cycled independently of the tone so
+ * the pair does not repeat until tone-count x angle-count beats. Previously only
+ * the tone changed, so every gradient beat swept the same diagonal.
+ */
+const SWEEP_ANGLES = [
+  { x0: 0, y0: 0, x1: FRAME_W, y1: FRAME_H },
+  { x0: FRAME_W, y0: 0, x1: 0, y1: FRAME_H },
+  { x0: 0, y0: Math.round(FRAME_H / 2), x1: FRAME_W, y1: Math.round(FRAME_H / 2) },
+  { x0: Math.round(FRAME_W / 2), y0: 0, x1: Math.round(FRAME_W / 2), y1: FRAME_H },
+] as const;
+
 /** Wall-clock cap for ONE beat render. Well under GEN_CLIP_TIMEOUT_MS (6 min). */
 export const TEMPLATE_CLIP_TIMEOUT_MS = 90_000;
 
@@ -51,8 +132,24 @@ export interface BeatClipArgsOpts {
   beatNumber: number;
   /** Bare image filename inside the working dir; when absent an animated gradient is used. */
   backgroundFile?: string;
+  /**
+   * Bare VIDEO filename inside the working dir. Takes precedence over
+   * `backgroundFile` — real footage beats a camera move over a still.
+   *
+   * Deliberately NOT given a zoompan: the footage already carries motion, and
+   * stacking a synthetic push on top of real movement reads as amateur rather
+   * than produced. What it does need and a still does not: looping (source may
+   * be shorter than the beat) and fps normalisation (source may be 24/25/60).
+   */
+  backgroundVideoFile?: string;
   /** Bare output filename inside the working dir. */
   outFile: string;
+  /**
+   * Camera move for a still. Omitted = the deterministic per-beat rotation, so
+   * existing callers get variety with no change. An explicit value lets a
+   * creative director match the move to the beat's energy.
+   */
+  motion?: BeatMotion;
 }
 
 /**
@@ -77,7 +174,21 @@ export function buildBeatClipArgs(o: BeatClipArgsOpts): string[] {
   const args: string[] = ["-y", "-v", "error"];
   const filters: string[] = [];
 
-  if (o.backgroundFile) {
+  if (o.backgroundVideoFile) {
+    // Real footage. `-stream_loop -1` MUST precede its `-i` (it is an input
+    // option), and the later `-t` truncates the infinitely-looped stream back to
+    // the beat length — so a 2s clip fills a 6s beat instead of freezing on its
+    // last frame or ending the clip early.
+    args.push("-stream_loop", "-1", "-t", String(seconds), "-i", o.backgroundVideoFile);
+    filters.push(
+      `scale=${FRAME_W}:${FRAME_H}:force_original_aspect_ratio=increase`,
+      `crop=${FRAME_W}:${FRAME_H}`,
+      // Source fps is unknown (24/25/30/60 all occur). Without this the output
+      // -r just drops or duplicates frames unevenly and the motion judders.
+      `fps=${FPS}`,
+      "format=yuv420p",
+    );
+  } else if (o.backgroundFile) {
     // Still image → fill the vertical frame, then a slow push-in. zoompan runs
     // on the SCALED frame, so d= is in output frames and s= must restate the
     // frame size or zoompan silently falls back to its 1x1 default.
@@ -85,17 +196,23 @@ export function buildBeatClipArgs(o: BeatClipArgsOpts): string[] {
     filters.push(
       `scale=${FRAME_W}:${FRAME_H}:force_original_aspect_ratio=increase`,
       `crop=${FRAME_W}:${FRAME_H}`,
-      `zoompan=z='min(zoom+0.0009,1.12)':d=${frames}:s=${FRAME_W}x${FRAME_H}:fps=${FPS}`,
+      zoompanFor(o.motion ?? motionForBeat(o.beatNumber), frames),
     );
   } else {
     // No still: an animated gradient. `gradients` is a source filter, so it is
     // its own input rather than a filter over a colour input.
     const tone = SWEEP_TONES[Math.abs(o.beatNumber) % SWEEP_TONES.length];
+    // Tone and angle cycle on DIFFERENT moduli (4 vs 4 but offset by the +1), so
+    // the pair varies rather than locking to one tone-angle combination.
+    const angle = SWEEP_ANGLES[Math.abs(o.beatNumber + 1) % SWEEP_ANGLES.length];
+    // Speed varies slightly per beat too — an identical sweep rate across beats
+    // is the same repetition problem one layer down.
+    const speed = (0.06 + (Math.abs(o.beatNumber) % 3) * 0.02).toFixed(2);
     args.push(
       "-f",
       "lavfi",
       "-i",
-      `gradients=s=${FRAME_W}x${FRAME_H}:c0=${BASE_DARK}:c1=${tone}:x0=0:y0=0:x1=${FRAME_W}:y1=${FRAME_H}:d=${seconds}:r=${FPS}:speed=0.08`,
+      `gradients=s=${FRAME_W}x${FRAME_H}:c0=${BASE_DARK}:c1=${tone}:x0=${angle.x0}:y0=${angle.y0}:x1=${angle.x1}:y1=${angle.y1}:d=${seconds}:r=${FPS}:speed=${speed}`,
     );
     filters.push("format=yuv420p");
   }
@@ -138,8 +255,16 @@ function ffmpegBin(): string {
 export async function generateTemplateStockClip(input: {
   beatNumber: number;
   seconds?: number;
-  /** Optional still to push in on (brand asset, shop photo, licensed stock). */
+  /** Optional still to move the camera over (brand asset, shop photo, licensed stock). */
   backgroundImageUrl?: string;
+  /**
+   * Optional real footage. Wins over `backgroundImageUrl` when both are given —
+   * footage of the actual shop is the one asset class that clears
+   * HARD_REJECT_RULES[0] by construction, because no other shop can run it.
+   */
+  backgroundVideoUrl?: string;
+  /** Override the per-beat camera move. Ignored when footage is supplied. */
+  motion?: BeatMotion;
 }): Promise<string> {
   const fs = await import("fs/promises");
   const os = await import("os");
@@ -148,28 +273,45 @@ export async function generateTemplateStockClip(input: {
   const seconds = Math.min(input.seconds ?? MAX_CLIP_SECONDS, MAX_CLIP_SECONDS);
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), `tmplstock-${input.beatNumber}-`));
   try {
-    let backgroundFile: string | undefined;
-    if (input.backgroundImageUrl?.startsWith("http")) {
+    /** Fetch one asset into the working dir. Returns undefined on any failure —
+     *  a missing background degrades to the next tier, never fails the beat. */
+    const fetchAsset = async (url: string, name: string, what: string): Promise<string | undefined> => {
       try {
-        const res = await fetch(input.backgroundImageUrl, { signal: AbortSignal.timeout(20_000) });
-        if (res.ok) {
-          const buf = Buffer.from(await res.arrayBuffer());
-          backgroundFile = "bg.jpg";
-          await fs.writeFile(path.join(workDir, backgroundFile), buf);
-        }
+        const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+        if (!res.ok) return undefined;
+        await fs.writeFile(path.join(workDir, name), Buffer.from(await res.arrayBuffer()));
+        return name;
       } catch (e) {
-        // A missing still is not a failure — the gradient path is the fallback,
-        // and it still carries motion.
-        log.warn("template_stock background fetch failed, using gradient", {
+        log.warn(`template_stock ${what} fetch failed, falling back`, {
           beat: input.beatNumber,
           err: e instanceof Error ? e.message : String(e),
         });
+        return undefined;
       }
+    };
+
+    // Asset tiers, best first: real footage > still > generated gradient. Each
+    // tier's failure falls through to the next rather than failing the beat.
+    let backgroundVideoFile: string | undefined;
+    if (input.backgroundVideoUrl?.startsWith("http")) {
+      backgroundVideoFile = await fetchAsset(input.backgroundVideoUrl, "bg.mp4", "footage");
+    }
+    let backgroundFile: string | undefined;
+    if (!backgroundVideoFile && input.backgroundImageUrl?.startsWith("http")) {
+      backgroundFile = await fetchAsset(input.backgroundImageUrl, "bg.jpg", "background");
     }
 
     const outFile = `beat-${input.beatNumber}.mp4`;
+    const motion = input.motion ?? motionForBeat(input.beatNumber);
     await runFfmpeg(
-      buildBeatClipArgs({ seconds, beatNumber: input.beatNumber, backgroundFile, outFile }),
+      buildBeatClipArgs({
+        seconds,
+        beatNumber: input.beatNumber,
+        backgroundVideoFile,
+        backgroundFile,
+        outFile,
+        motion,
+      }),
       workDir,
     );
 
@@ -183,7 +325,15 @@ export async function generateTemplateStockClip(input: {
       mp4,
       "video/mp4",
     );
-    log.info("template_stock clip rendered", { beat: input.beatNumber, bytes: mp4.length, url });
+    log.info("template_stock clip rendered", {
+      beat: input.beatNumber,
+      // Which tier actually rendered — a footage beat and a gradient beat are
+      // very different creative outcomes and the log has to distinguish them.
+      source: backgroundVideoFile ? "footage" : backgroundFile ? "still" : "gradient",
+      motion: backgroundVideoFile ? "n/a-footage-carries-its-own" : motion,
+      bytes: mp4.length,
+      url,
+    });
     return url;
   } finally {
     await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
