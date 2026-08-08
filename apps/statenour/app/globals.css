@@ -1,6 +1,22 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* 2026-08-08 - KaTeX styles for @streamdown/math ($$ math in chat).
+   katex is an explicit app dependency, pinned to the exact version the
+   plugin already resolved in the store. */
+@import "katex/dist/katex.min.css";
+
+/* 2026-08-08 - Tailwind must SCAN Streamdown's dist (and the four wired
+   plugins) or the classes its chrome uses (CodeBlock, copy buttons,
+   mermaid + table wrappers) emit ZERO CSS - the same silent-failure
+   class as the token bridge. NickMessage overrides most markdown
+   elements with app tokens, but code fences now hand off to
+   Streamdown's own plugin-aware CodeBlock. */
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
+@source "../node_modules/@streamdown/math/dist/*.js";
+@source "../node_modules/@streamdown/mermaid/dist/*.js";
+@source "../node_modules/@streamdown/cjk/dist/*.js";
 
 /*
  * NOUR OS - Dark Industrial Command Center

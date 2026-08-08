@@ -537,6 +537,9 @@ importers:
       js-yaml:
         specifier: '>=5.2.2'
         version: 5.2.2
+      katex:
+        specifier: 0.16.47
+        version: 0.16.47
       livekit-client:
         specifier: 2.19.0
         version: 2.19.0(@types/dom-mediacapture-record@1.0.22)
