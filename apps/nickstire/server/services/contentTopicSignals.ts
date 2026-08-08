@@ -159,6 +159,24 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
     // rotation simply has no history to honour on the first runs.
   }
 
+  // Declined work — repairs a customer was quoted and refused. Highest-weight
+  // source in the miner: un-generic by construction, because no other shop has
+  // this list. Counts and dollars are used for RANKING inside declinedWorkTopics
+  // and never travel into the brief.
+  try {
+    const { fetchDeclinedWorkTopics } = await import("./declinedWorkSignals");
+    const declined = await fetchDeclinedWorkTopics(8);
+    if (declined.candidates.length) {
+      signals.declinedWork = declined.candidates.map((c) => c.topic);
+    } else {
+      empty.push("declined_work");
+    }
+    if (declined.error) failed.push("declined_work");
+  } catch (e) {
+    failed.push("declined_work");
+    log.warn("declined-work signal unavailable — the strongest topic source is missing", { e: String(e) });
+  }
+
   if (failed.length) {
     log.warn("topic signal gathering DEGRADED — fewer candidates than the business actually supports", { failed, empty });
   }
