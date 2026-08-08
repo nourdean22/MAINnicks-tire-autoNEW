@@ -16,7 +16,7 @@ One pnpm + Turborepo workspace · **three** Railway services · one deploy branc
 | Path | Package | Stack · role | Deploys to |
 |---|---|---|---|
 | `apps/nickstire/` | `nicks-tire-auto` | Vite 7 + React 19 PWA client · Express 4 + tRPC 11 server · Drizzle ORM → TiDB Cloud (MySQL). Public tire-shop site + autonomous SMS/voice/AI ops + `/admin` console. | nickstire.org |
-| `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router) · Prisma 7 → Neon Postgres (pgvector/tsvector via raw SQL only) · AI SDK v6 · Tailwind 4. "NOUR OS" personal operating system + the Nick agent. | bdnick.info |
+| `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router) · Prisma 6.19 → Neon Postgres (pgvector/tsvector via raw SQL only) · AI SDK v6 · Tailwind 4. "NOUR OS" personal operating system + the Nick agent. | bdnick.info |
 | `apps/worker/` | `@statenour/worker` | Express 4 + node-cron. Secret-gated tick dispatcher (forwards to statenour-web `/api/cron/*`) plus an in-process Remotion video-render loop. **No DB client** — every read/write goes over authenticated HTTP. | Railway internal |
 
 The two web products are independent (different frameworks, databases, domains) — they share only

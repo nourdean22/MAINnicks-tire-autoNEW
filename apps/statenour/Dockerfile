@@ -50,7 +50,7 @@ COPY --from=pruner /app/out/pnpm-lock.yaml ./
 COPY apps/statenour/patches ./apps/statenour/patches
 COPY apps/nickstire/patches ./apps/nickstire/patches
 
-# Prisma 7's `postinstall: prisma generate` (apps/statenour) needs the schema
+# Prisma 6's `postinstall: prisma generate` (apps/statenour) needs the schema
 # AT INSTALL TIME.
 COPY apps/statenour/prisma/schema.prisma ./apps/statenour/prisma/schema.prisma
 

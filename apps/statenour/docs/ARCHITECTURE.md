@@ -89,7 +89,7 @@ personal ring. Business ops live in the other repo.
 ┌───────────────────────────── PERSONAL RING ─────────────────────────────┐
 │                                                                         │
 │   statenour  (bdnick.info)                                              │
-│   Next.js 16 · Prisma 7 · Neon Postgres · Railway                       │
+│   Next.js 16 · Prisma 6 · Neon Postgres · Railway                       │
 │                                                                         │
 │   Surfaces:  Ultron · Nick · Brain · Tasks · Journal · Knowledge        │
 │              Devices · Body · Financial · System · Settings             │
@@ -159,7 +159,7 @@ bridge is a thin sync + oversight channel.
                               └─────────┬──────────┘
                                         │
                               ┌─────────▼──────────┐
-                              │   Prisma 7         │
+                              │   Prisma 6         │
                               │   80 models        │
                               └─────────┬──────────┘
                                         │

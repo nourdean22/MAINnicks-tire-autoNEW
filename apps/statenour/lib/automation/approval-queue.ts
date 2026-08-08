@@ -183,7 +183,7 @@ export async function decidePendingAction(
     ? (await prisma.autonomousAction.findUnique({ where: { id } })) ?? existing
     : existing;
 
-  // Coerce the JSON column. Prisma 7 distinguishes "DB NULL" from
+  // Coerce the JSON column. Prisma 6 distinguishes "DB NULL" from
   // "JSON null"; payload may be null already (pending row defaults)
   // and we want preserve-null semantics on no-op writes.
   const nextPayload: Prisma.InputJsonValue | typeof Prisma.DbNull = notes

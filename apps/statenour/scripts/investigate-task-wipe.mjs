@@ -3,7 +3,7 @@
 // Author: Wave 42 follow-up
 
 // Re-use the project's prisma singleton (Neon adapter + slow-query
-// tracker). Direct `new PrismaClient()` would fail under Prisma 7.
+// tracker). Direct `new PrismaClient()` would fail under Prisma 6.
 const { prisma: p } = await import("../lib/prisma.js").catch(async () => {
   // ts module · use tsx loader from project root
   const { register } = await import("tsx/esm/api");

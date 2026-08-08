@@ -58,7 +58,7 @@ describe("SPECIFICITY_PATTERNS · v10.0.493 widening coverage", () => {
 
   it("catches stack/system names (widened set)", () => {
     expect(countSpecificity("Drizzle + TiDB on Railway.")).toBeGreaterThanOrEqual(3);
-    expect(countSpecificity("Next.js 16 + React 19 + Prisma 7.")).toBeGreaterThanOrEqual(3);
+    expect(countSpecificity("Next.js 16 + React 19 + Prisma 6.")).toBeGreaterThanOrEqual(3);
   });
 
   it("catches technical-noun counts", () => {

@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-// Cast `name`-typed columns to text — Prisma 7 + Neon adapter rejects
+// Cast `name`-typed columns to text — Prisma 6 + the v7 Neon adapter rejects
 // the native pg `name` type via $queryRawUnsafe.
 async function main() {
   const cols = await prisma.$queryRawUnsafe<{column_name: string; data_type: string}[]>(`SELECT column_name::text AS column_name, data_type::text AS data_type FROM information_schema.columns WHERE table_name = 'vector_embeddings' ORDER BY ordinal_position`);

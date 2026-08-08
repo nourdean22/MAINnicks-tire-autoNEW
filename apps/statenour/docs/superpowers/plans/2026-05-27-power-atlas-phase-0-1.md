@@ -6,7 +6,7 @@
 
 **Architecture:** Extend existing `PersonProfile` model with ~15 new columns + add 2 new tables (`RelationshipLedger`, `RelationshipPlay`). Auto-embed everything into the existing `VectorEmbedding` pipeline. Surface the data through the existing `/relationships` page with new bento sections. Greene corpus lives as seeded `BrainMemory(category="greene_law")` rows accessed by the digest cron via semantic match. Telegram pings ONLY from the Sunday digest + birthday cron — all other crons silent.
 
-**Tech Stack:** Next.js 16 / React 19 / Prisma 7 / Postgres (Neon) / tRPC v11 / Tailwind / existing statenour patterns (cronHandler · tracedAiChat · sendTelegram · BrainMemory)
+**Tech Stack:** Next.js 16 / React 19 / Prisma 6 / Postgres (Neon) / tRPC v11 / Tailwind / existing statenour patterns (cronHandler · tracedAiChat · sendTelegram · BrainMemory)
 
 **Spec reference:** `apps/statenour/docs/superpowers/specs/2026-05-27-power-atlas-design.md`
 
