@@ -3,11 +3,15 @@
 LLM-as-judge regression suite for Nick. Replays a frozen seed of
 scenarios, scores each via the existing `lib/ai/judge-eval.ts`
 infrastructure adapted to scenario-specific criteria, writes a
-timestamped report. Complements (does not replace) the deterministic
-`lib/eval/regression-runner.ts` harness:
+timestamped report. This suite answers "did Nick's *quality* shift?"
 
-  · `regression-runner.ts` answers "did the basics break?" (cheap, ~70s)
-  · this suite answers "did Nick's *quality* shift?" (LLM-judged, $)
+It used to be described as the complement to a deterministic
+`lib/eval/regression-runner.ts` harness that answered "did the basics
+break?". **That harness was deleted on 2026-08-09** — it had no
+production caller (its only importer was its own test), its
+`/system/eval-results` page had already been redirected away in
+`next.config.ts`, and the `eval_result` store it was meant to fill has
+never had a live writer. This suite is now the only eval harness here.
 
 ## Run
 
@@ -86,6 +90,5 @@ Live mode is operator-driven because:
   · `lib/ai/adversarial-critic.ts` — adversarial pre-flight critic
   · `lib/ai/output-critic.ts` — post-generation output critic
   · `lib/ai/provider.ts` — provider chain + task profiles
-  · `lib/eval/regression-runner.ts` — deterministic nightly harness
   · `lib/ai/judge-eval/replay.ts` — V1↔V2 prompt-builder comparator
   · `evals/nick-baseline.eval.ts` — Braintrust 20-question baseline

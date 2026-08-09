@@ -99,6 +99,16 @@ const PII_PATTERNS = [
   },
 
   // ─── Plain console.log of PII ───
+  //
+  // KNOWN BLIND SPOT (found 2026-08-09, not yet fixed — widening the regex
+  // surfaces an unknown number of new violations and belongs in its own PR):
+  // the `[^)]*` cannot span a closing paren, so ANY PII interpolation that
+  // follows a call on the same line is invisible. Real example that shipped:
+  //   console.log(`inv ${String(p.invoiceId).padEnd(7)} "${p.name}" ... ${p.phone}`)
+  // leaked a full name AND a full phone, and this rule never fired, because
+  // `.padEnd(7)` closes a paren first. The weaker sibling line on the very
+  // next statement — no inner call — was caught. Both are fixed now; the
+  // rule is not. Widening `[^)]*` to `[^;]*` or `.*` is the candidate fix.
   {
     pattern: /\bconsole\.(log|info|warn|error|debug)\s*\([^)]*\$\{[^}]*\b(phone|email|firstName|lastName|customerName|vin|address)\b[^}]*\}/gi,
     why: "console.* with PII template literal · same Railway-log exposure as log.* + worse (often left in dev path that ships)",

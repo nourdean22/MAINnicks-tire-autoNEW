@@ -143,8 +143,9 @@ export async function loadScenarios(dir: string = SCENARIOS_DIR): Promise<LoadRe
  * memory recall, no skills injection). It's "what Nick's text
  * generation looks like in isolation" · same abstraction the V1↔V2
  * comparator uses (lib/ai/judge-eval/replay.ts). Good enough for
- * detecting prompt/model regressions; the deterministic
- * regression-runner.ts covers the pipeline-level smoke.
+ * detecting prompt/model regressions. NOTE: pipeline-level smoke used to
+ * be covered by lib/eval/regression-runner.ts, deleted 2026-08-09 as dead
+ * code — nothing covers that layer today.
  */
 async function callNick(scenario: Scenario): Promise<{ response: string; error: string | null }> {
   const { aiChat } = await import("@/lib/ai/provider");
