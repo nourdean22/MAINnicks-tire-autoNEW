@@ -30,7 +30,7 @@ callTracking callback campaigns chat closedLoop content contentAdmin contentStud
 conversion costEstimator coupons customerEvents customerNotifications customers dispatch emergency
 estimates export featureFlags financing followUps gallery garage gatewayTire gbp inspection
 instagram instagramAdmin instagramStudio intelligence invoices jobAssignments kpi lead localGrowth
-loyalty memberships messengerBot metaAdsArchitect nickActions nourOsBridge nourOsQuote payments
+loyalty memberships messengerBot metaAdsArchitect nickActions nourOsBridge payments
 portal pricing qa referrals reminders revenueAttribution revenueOps reviewReplies reviewRequests
 reviews segments seoTools serviceMatcher serviceReviews shareCards shopStatus shopdriver sms
 smsConversations smsOrchestrator smsPerformance snap socialPipeline specials statenourMetrics system
