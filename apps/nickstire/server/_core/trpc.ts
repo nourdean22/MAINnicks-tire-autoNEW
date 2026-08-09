@@ -45,7 +45,10 @@ const loggerMiddleware = t.middleware(async ({ path, type, next }) => {
   return result;
 });
 
-export const publicProcedure = t.procedure.use(loggerMiddleware);
+// authTier meta is the auth-coverage contract: server/__tests__/trpc-auth-tier.test.ts
+// walks every registered procedure and fails on any that lacks a tier, and on any
+// PUBLIC procedure not in its committed allowlist.
+export const publicProcedure = t.procedure.meta({ authTier: "public" }).use(loggerMiddleware);
 
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
@@ -53,7 +56,10 @@ const requireUser = t.middleware(async opts => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
-export const protectedProcedure = t.procedure.use(loggerMiddleware).use(requireUser);
+export const protectedProcedure = t.procedure
+  .meta({ authTier: "protected" })
+  .use(loggerMiddleware)
+  .use(requireUser);
 
 const requireAdminIdentity = t.middleware(async opts => {
   const { ctx, next, path } = opts;
@@ -72,7 +78,10 @@ const requireAdminIdentity = t.middleware(async opts => {
 });
 
 /** Admin identity without MFA enforcement. Restricted to setup/status/verification procedures. */
-export const adminIdentityProcedure = t.procedure.use(loggerMiddleware).use(requireAdminIdentity);
+export const adminIdentityProcedure = t.procedure
+  .meta({ authTier: "admin" })
+  .use(loggerMiddleware)
+  .use(requireAdminIdentity);
 
 const requireFreshMfaAndPermission = t.middleware(async opts => {
   const { ctx, next, path, type } = opts;
@@ -193,6 +202,7 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
 });
 
 export const adminProcedure = t.procedure
+  .meta({ authTier: "admin" })
   .use(loggerMiddleware)
   .use(requireAdminIdentity)
   .use(requireFreshMfaAndPermission);
@@ -209,7 +219,7 @@ export function adminPermissionProcedure(permission: AdminPermission) {
   });
 }
 
-export const voiceAgentInternalProcedure = t.procedure.use(loggerMiddleware).use(
+export const voiceAgentInternalProcedure = t.procedure.meta({ authTier: "internal" }).use(loggerMiddleware).use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
     if (ctx.isVoiceAgentInternal === true) return next();
