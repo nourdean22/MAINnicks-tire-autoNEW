@@ -245,6 +245,47 @@ let lastShopDriverAuthAt: string | null = null;
 let lastShopDriverAuthSuccess = false;
 let laborLookupCount = 0;
 
+export interface LaborJobMatch {
+  categoryId: string;
+  categoryName: string;
+  job: { name: string; minHours: number; maxHours: number; avgHours: number; notes: string };
+}
+
+/**
+ * Search the Auto Labor Guide table. Plain function, no tRPC context.
+ *
+ * 2026-08-09 · extracted from the `searchJobs` procedure body because
+ * `server/laborEstimate.ts` needed this DATA on a customer-facing path and was
+ * reaching it through `autoLaborRouter.createCaller({} as any).searchJobs(...)`.
+ * `searchJobs` is an adminProcedure, an empty context has no `ctx.user`, so that
+ * call threw FORBIDDEN on every request; laborEstimate's catch swallowed it and
+ * returned "", meaning the AUTO LABOR GUIDE REFERENCE DATA block was NEVER
+ * injected and the model estimated labor hours with zero grounding — while this
+ * 62-job verified table sat one call away. Runtime-confirmed, not inferred:
+ * `[tRPC ERROR] query searchJobs (1ms): You do not have required permission (10002)`.
+ *
+ * The auth boundary was right for the ADMIN API and wrong as the only door to
+ * the data: LABOR_CATEGORIES is a static in-repo constant with nothing private
+ * in it. The procedure now delegates here so both callers share one
+ * implementation and cannot drift.
+ */
+export function searchLaborJobs(query: string): LaborJobMatch[] {
+  const q = query.toLowerCase();
+  const results: LaborJobMatch[] = [];
+  for (const [catId, cat] of Object.entries(LABOR_CATEGORIES)) {
+    for (const job of cat.jobs) {
+      if (
+        job.name.toLowerCase().includes(q) ||
+        job.notes.toLowerCase().includes(q) ||
+        cat.name.toLowerCase().includes(q)
+      ) {
+        results.push({ categoryId: catId, categoryName: cat.name, job });
+      }
+    }
+  }
+  return results;
+}
+
 export const autoLaborRouter = router({
   /** Check ShopDriver Elite connection status */
   status: adminProcedure.query(async () => {
@@ -315,30 +356,7 @@ export const autoLaborRouter = router({
     .input(z.object({ query: z.string().min(2) }))
     .query(({ input }) => {
       laborLookupCount++;
-      const q = input.query.toLowerCase();
-      const results: Array<{
-        categoryId: string;
-        categoryName: string;
-        job: typeof LABOR_CATEGORIES.brakes.jobs[0];
-      }> = [];
-
-      for (const [catId, cat] of Object.entries(LABOR_CATEGORIES)) {
-        for (const job of cat.jobs) {
-          if (
-            job.name.toLowerCase().includes(q) ||
-            job.notes.toLowerCase().includes(q) ||
-            cat.name.toLowerCase().includes(q)
-          ) {
-            results.push({
-              categoryId: catId,
-              categoryName: cat.name,
-              job,
-            });
-          }
-        }
-      }
-
-      return { results, query: input.query };
+      return { results: searchLaborJobs(input.query), query: input.query };
     }),
 
   /** Calculate labor cost for a job */

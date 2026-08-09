@@ -77,6 +77,27 @@ export function buildDecisionsBlock(top: {
 
 export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; details?: string }> {
   const { sendTelegram } = await import("../../services/telegram");
+
+  // 2026-08-09 · Morning-window self-gate, mirroring dailyReport's evening one.
+  //
+  // This job sits on the 12-hour "briefings" tier, so it fires TWICE a day —
+  // and it had no clock gate at all, unlike its tier-mate daily-report which
+  // skips its morning run with `if (etHour < 18) return`. The result: two
+  // "morning" briefs per day, at whatever two times the process happened to
+  // start, drifting on every redeploy. `runOnStartup` excludes this tier, so
+  // the phase is process-start + 12h — nothing anchored it to a clock.
+  //
+  // Paired with `oncePerShopDay: true` on the scheduler entry: the flag stops
+  // a second SHOP-DAY run, this window stops it landing at 2am.
+  const { BUSINESS } = await import("@shared/business");
+  const etHour = parseInt(
+    new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
+    10,
+  );
+  if (etHour < 6 || etHour >= 12) {
+    return { recordsProcessed: 0, details: `Outside the morning window (${etHour}:00 ET) — skipped` };
+  }
+
   const d = await db();
 
   if (!d) {

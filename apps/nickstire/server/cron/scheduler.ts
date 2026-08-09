@@ -2235,7 +2235,11 @@ export function startTieredScheduler(): void {
     intervalMs: 12 * 60 * 60 * 1000,
     jobs: [
       {
+        // 2026-08-09 · Self-gates to a 6am-12pm shop-TZ window inside the job.
+        // Without this pair it fired on BOTH 12-hour ticks — two "morning"
+        // briefs a day, at times that drifted with every redeploy.
         name: "nick-morning-brief",
+        oncePerShopDay: true,
         handler: async () => {
           const { sendMorningBrief } = await import("./jobs/morningBrief");
           return sendMorningBrief();
