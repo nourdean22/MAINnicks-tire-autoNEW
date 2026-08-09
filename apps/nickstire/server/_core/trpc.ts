@@ -36,7 +36,33 @@ const t = initTRPC.context<TrpcContext>().create({
 
 export const router = t.router;
 
+/**
+ * Procedures seen at least once in this process.
+ *
+ * WHY THIS EXISTS. A static census found 163 of 684 procedures with no caller
+ * anywhere in the repo — but grep can prove neither liveness nor deadness for a
+ * tRPC procedure, because every one of them is reachable over HTTP by something
+ * outside this repository (the statenour bridge, a webhook dispatcher, a
+ * shortcut, a curl). This repo has already been burned in BOTH directions by
+ * trusting the source over the running system, and the middleware only logged
+ * SLOW and ERROR calls, so production could not answer the question at all.
+ *
+ * One `Set.has` on the hot path, and exactly ONE log line per procedure per
+ * process lifetime — so a busy endpoint costs nothing after its first call.
+ * After a normal business cycle, the procedures that never appear in Railway
+ * logs are the genuinely dead ones, and deletion stops being a guess.
+ *
+ * Deliberately in-memory: no table, no migration, no prod DDL. It resets on
+ * deploy, which is correct — a procedure's silence only means something across
+ * a window you can name, and the deploy time is in the logs beside it.
+ */
+const seenProcedures = new Set<string>();
+
 const loggerMiddleware = t.middleware(async ({ path, type, next }) => {
+  if (!seenProcedures.has(path)) {
+    seenProcedures.add(path);
+    log.info(`[tRPC first-call] ${type} ${path}`);
+  }
   const start = Date.now();
   const result = await next();
   const duration = Date.now() - start;
@@ -44,6 +70,11 @@ const loggerMiddleware = t.middleware(async ({ path, type, next }) => {
   if (!result.ok) log.error(`[tRPC ERROR] ${type} ${path} (${duration}ms):`, result.error.message);
   return result;
 });
+
+/** Test seam: which procedures this process has served. */
+export function __seenProceduresForTest(): ReadonlySet<string> {
+  return seenProcedures;
+}
 
 // authTier meta is the auth-coverage contract: server/__tests__/trpc-auth-tier.test.ts
 // walks every registered procedure and fails on any that lacks a tier, and on any
