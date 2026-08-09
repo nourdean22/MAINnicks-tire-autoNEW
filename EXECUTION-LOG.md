@@ -66,7 +66,7 @@
   deliverable. Arm with `SMS_CONSENT_GATE=enforce`.
 - Receipts: 10/10 new tests exit 0; sibling SMS suites 5 files / 102 passed; `typecheck:raw` exit 0.
 
-## 2026-08-09 · session 3 · four items closed, two stages refuted (#1463)
+## 2026-08-09 · session 3 · four items closed, two stages refuted
 
 Method: a 5-way parallel recon workflow (read-only agents, every claim requiring a file:line or a
 command receipt), each SAFE_TO_IMPLEMENT finding then attacked by three adversarial verifiers
