@@ -16,11 +16,32 @@
    30-second dashboard tidy-up (say the word and the agent can do it via API instead):
    ~~delete the 5 orphan tools~~ **DONE 2026-08-09** — all 5 deleted via API on your
    "delete whatever is safe" go; `tools remaining: 0`; full configs preserved in the session
-   transcript if any ever needs recreating. Remaining: review the duplicate "Receptionist"
-   assistant `afcad79e` (the phone uses `150fe622`; not deleted — outbound-call code could
-   reference assistant IDs from env/DB the repo can't see).
-5. **TCPA consent gate — BUILT, SHIPPED IN SHADOW (#1461). Your decision is now a number, not a
-   design question.** The ledger already existed (`audit_log` `sms.opt_in`, written by the booking
+   transcript if any ever needs recreating. **Remaining, and now explained (asked 2026-08-09):
+   the duplicate "Receptionist" `afcad79e` is a stale fork.** Live `150fe622` was created 5 May,
+   was updated the same day this was written, and carries a **25,074-char** system prompt. The
+   duplicate was created **8 May — three days later**, last touched **4 June**, and its prompt is
+   **7,125 chars behind**: every prompt improvement since early June exists only in the live one.
+   Same name, voice, model, server URL and tool set — the signature of a "duplicate it to test
+   something" that was never cleaned up. Nothing points at it (the phone number resolves to
+   `150fe622`). Safe to delete at VAPI; say the word and the agent will do it via the API. NOT
+   auto-deleted because assistant IDs can be referenced from env or DB rows the repo cannot see.
+   For the record, the third assistant `0daaf7dc` "Follow-Up Caller" is a genuinely different
+   outbound assistant (5,312-char prompt, 2 tools, no transferCall) — not a duplicate, leave it.
+4b. **DATED ACTION — around 2026-08-16, harvest the dead-procedure list.** #1478 added a
+   `[tRPC first-call]` line that each procedure emits once per process. After a normal business
+   cycle, collect the distinct paths from Railway logs and subtract them from the registered
+   procedure list; what remains is the genuinely dead set out of the 163 the static census flagged.
+   Nothing was deleted on the census alone, because every procedure is reachable over HTTP by
+   callers outside the repo and grep proves neither direction. Ask the agent to run the harvest —
+   it is a log read, not a prod query.
+
+5. **TCPA consent gate — SHIPPED IN SHADOW (#1461) and STAYING there per your 2026-08-09 decision**
+   ("we can text them, we just have to stop if they text stop back"). Recorded so nobody re-opens
+   it: the gate is NOT armed, marketing sends continue, and STOP handling is the control — audited
+   and hardened in #1476/#1475 (ROS-097). One limit worth knowing: plain-English revocation
+   ("stop texting me") is not detected by any keyword list, and the FCC's April 2025 rule permits
+   revocation by any reasonable method, so that class needs a human eye rather than a regex.
+   The original arming analysis, kept because the number is still the input if you ever revisit: The ledger already existed (`audit_log` `sms.opt_in`, written by the booking
    form, lead form and START keyword); nothing read it at send time. It is now read at the
    `sendSms` chokepoint for `customer_marketing` sends only — but in **shadow**: it logs and counts,
    it does not block. Nothing about today's sending behavior changed.
