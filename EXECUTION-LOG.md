@@ -147,6 +147,15 @@ current source). Counting the filesystem takes one command; do that before belie
     goes silent. The merge would have deleted the detector for the exact production bug the
     operator reported that afternoon.
 
+20. **"Decompose `/people` … `@tanstack/react-virtual` for the list" (Stage 7.3).** The list is
+    **already bounded**: `visiblePeople` slices to `VISIBLE_CAP` unless `showAll`, and the page has
+    only TWO `.map()` calls total. Virtualizing a capped list is optimizing a problem that does not
+    exist, and would add a dependency and a two-pass measure/re-layout for nothing. **The real
+    finding was next door and better**: 12 `useState` calls, of which the duplication was not the
+    state SHAPE but two unnamed compound transitions repeated at SIX call sites — one of which
+    documented itself as "Mirrors the hash-anchor useEffect above" instead of sharing it. Measuring
+    the file before refactoring it changed what the refactor was.
+
 Pattern across all five: the mandate described a plausible problem that the estate had already
 solved, retired, or never had. **The instrument that lied was always a document; the instrument
 that settled it was always the running system.**
