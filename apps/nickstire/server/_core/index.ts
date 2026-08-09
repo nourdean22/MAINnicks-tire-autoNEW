@@ -294,7 +294,6 @@ async function startServer() {
   app.use(withBatchRegex("laborEstimate.generate"), aiLimiter);
   app.use(withBatchRegex("costEstimator.estimate"), aiLimiter);
   app.use(withBatchRegex("estimates.generate"), aiLimiter);
-  app.use(withBatchRegex("nourOsQuote.createQuote"), formLimiter);
   app.use(withBatchRegex("fleet.submit"), formLimiter);
 
   // wave-122 (CRITICAL S7/S8) — Vapi tool tRPC endpoints

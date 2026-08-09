@@ -66,7 +66,8 @@ export interface VoiceLatencyShape {
 }
 
 export interface EvalResultsShape {
-  /** Latest-first list of regression-runner result rows. */
+  /** Latest-first list of eval_result rows. No producer writes these
+   *  today — see lib/services/eval-results.ts. */
   results?: Array<{
     id: string;
     ranAt: string;

@@ -185,16 +185,6 @@ describe("A8 · settings toggles expose switch role + state + name", () => {
   });
 });
 
-describe("A8 · home Action Hub tabs expose selected state", () => {
-  it.skip("each view-switcher button declares aria-pressed (house pattern, not a partial tablist)", () => {
-    // Active tab was colour/underline only. aria-pressed matches the
-    // in-card selector idiom (brain/board-tab.tsx) — honest about there
-    // being no roving-tabindex arrow-key tab navigation.
-    const src = readSource("components/home/home-action-hub.tsx");
-    expect(src).toContain('aria-pressed={isActive ? "true" : "false"}');
-  });
-});
-
 describe("A8 · home triage form controls have accessible names", () => {
   it("inbox-tasks-triage date inputs are labelled (schedule + snooze)", () => {
     // Bare <input type=date> has no intrinsic name; the nearby caption

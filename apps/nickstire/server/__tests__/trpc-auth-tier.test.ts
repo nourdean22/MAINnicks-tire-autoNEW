@@ -112,14 +112,11 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "system.health",
   "technicians.list",
   "weather.current",
-  // statenour bridge lanes riding the public tier — any gating is inside the
-  // handlers; flagged for review in SECURITY-FINDINGS.md (2026-08-09), do not
-  // silently re-tier without checking the statenour caller
-  "nourOsQuote.createQuote",
-  "nourOsQuote.getQuote",
-  "nourOsQuote.laborCategories",
-  "nourOsQuote.laborEstimate",
-  "nourOsQuote.searchTires",
+  // statenour bridge lane riding the public tier. REVIEWED 2026-08-09: the
+  // handler requires STATENOUR_SYNC_KEY via timingSafeEqual and throws
+  // UNAUTHORIZED when the env var is unset, so it is gated below the tier
+  // annotation, fail-closed. Correctly public. (The nourOsQuote.* entries that
+  // sat here were deleted with their router — the lane was 500ing in prod.)
   "statenourMetrics.gscExecutiveSummary",
   // VAPI voice-agent READS (writes are authTier "internal")
   "voiceAgent.capacityCheck",

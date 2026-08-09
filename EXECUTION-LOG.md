@@ -66,6 +66,32 @@
   deliverable. Arm with `SMS_CONSENT_GATE=enforce`.
 - Receipts: 10/10 new tests exit 0; sibling SMS suites 5 files / 102 passed; `typecheck:raw` exit 0.
 
+## 2026-08-09 · session 3 · four items closed, two stages refuted
+
+Method: a 5-way parallel recon workflow (read-only agents, every claim requiring a file:line or a
+command receipt), each SAFE_TO_IMPLEMENT finding then attacked by three adversarial verifiers
+(correctness / hidden-consumer / blast-radius). Findings the orchestrator could beat with a better
+instrument were re-derived directly — **production probes outrank agent greps**, and did so twice.
+
+- **`nourOsQuote` DELETED** — the auth-tier review asked "should these 5 public procedures be
+  re-tiered?" and production answered a different question: all five return HTTP 500. They proxy to
+  `/api/tires`, `/api/labor`, `/api/quotes` on bdnick.info; none of those routes exist. Zero client
+  callers. Public allowlist 82 → 77. `statenourMetrics.gscExecutiveSummary` stays public and the
+  allowlist now records WHY (STATENOUR_SYNC_KEY, timingSafeEqual, fail-closed).
+- **`lib/eval` DELETED** (749 lines + its test + a private 28.8KB dataset) — not the "duplicate of
+  lib/evals" the truth doc claimed (zero shared symbols), but genuinely dead: only importer was its
+  own test, page already redirected away, target store never had a writer.
+- **Stage 5.5 REFUTED** — prediction grading is automated nightly by
+  `outcome-tracker.scorePendingPredictions`. The "requires a labeling habit" premise is false, so
+  there is nothing to freeze.
+- **Stage 5.1 DEFERRED with evidence** — all 13 health routes exist, but 12 are 401-gated dashboards
+  and `/api/system/heartbeat` is the lone public liveness probe. Collapsing blindly would have
+  risked the infra healthcheck.
+- **PII blind spot found and documented** — `lint-pii.mjs`'s `[^)]*` cannot cross a closing paren,
+  so the worse of two adjacent leaks (name + full phone) was invisible. Both masked; rule left
+  unwidened on purpose. Audit `clean (780 files)`.
+- Ride-alongs: dead `it.skip` for a component deleted in 7a34b5f10; tracked 0-byte `scratch/font.ttf`.
+
 ## Falsified
 
 Ten §4 claims falsified with receipts — table in `AUDIT/2026-08-truth.md` §1. Standouts: apps/voice
@@ -79,6 +105,36 @@ follow-up critique asserted the estate counts were stale and "corrected" stateno
 counts were right and the correction was sourced from May/June audit docs. A dated doc was trusted
 over the current checkout, inverting the `AGENTS.md` source-of-truth hierarchy (docs rank BELOW
 current source). Counting the filesystem takes one command; do that before believing either number.
+
+**Session 3 adds three more:**
+
+12. **"Use Ahrefs + Supermetrics for the dead-page traffic evidence" (mandate Stage 2 §4).** Both
+    connectors authenticate and neither can return a row: Ahrefs is a trial with **0 API units**
+    and its connected Nickstire project returns empty GSC and empty web-analytics; Supermetrics'
+    trial **expired 2026-05-17**. The evidence was never external — nickstire ingests its own GSC
+    into `search_performance` and `pipelines/gsc-data.ts:421` already aggregates by page. Truth doc §6.
+13. **"lib/eval and lib/evals are a duplicate pair to merge."** Zero shared symbols. One was dead,
+    the other has four live consumers. The instruction "keep the one with live imports" was
+    incoherent because both had importers — one just had only a test.
+14. **"Calibration requires a labeling habit the operator does not have" (Stage 5.5).** Grading is
+    automated nightly by `outcome-tracker.scorePendingPredictions` via the brain-intelligence cron.
+
+15. **"Delete `/system/cockpit-observability` (an 18-line stub), `/system/chat-states` and
+    `/system/logs`" (Stage 5.3).** All three are live operator UI. The 18 lines are the App Router
+    page convention wrapping a 394-line view; the three pages are linked from the system index, the
+    settings ops hub, and keyboard shortcuts, and `/system/logs` carries its own API route.
+    **A wrapper file's line count is not a measure of the feature behind it.**
+
+16. **"`components/chat/*` is a superseded v1 — delete it once `features/chat-v2` parity is proven"
+    (Stage 7.1).** **v2 imports v1.** `features/chat-v2/components/chat-message-list.tsx:9-14` pulls
+    six modules out of `components/chat/`, including three of the four named deletion targets, and
+    that list is rendered by the live `chat-island.tsx`. `components/chat/` is the shared component
+    library chat-v2 is built ON — 26 files, including a 1,234-line tool-result registry.
+    **A "v1 vs v2" directory name is not evidence of supersession — check which one imports which.**
+
+Pattern across all five: the mandate described a plausible problem that the estate had already
+solved, retired, or never had. **The instrument that lied was always a document; the instrument
+that settled it was always the running system.**
 
 ## Adaptations (mandate → repo policy)
 

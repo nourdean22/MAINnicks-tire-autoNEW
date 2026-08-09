@@ -236,14 +236,19 @@ async function main() {
       console.log("");
     }
 
+    // 2026-08-09 · these previews used to print the customer's full name and
+    // full phone. Opaque ids identify the row just as well for a sanity check,
+    // and this output lands in a terminal that gets pasted into chats/tickets.
+    // Only ONE of these two lines was ever flagged by lint:pii — see the
+    // blind-spot note in scripts/lint-pii.mjs; the worse line was invisible.
     for (const p of plan.slice(0, 10)) {
-      console.log(`  inv ${String(p.invoiceId).padEnd(7)} "${p.name}" -> customer #${p.customerId} phone ${p.phone}`);
+      console.log(`  inv ${String(p.invoiceId).padEnd(7)} -> customer #${p.customerId} phone ***${String(p.phone ?? "").slice(-4)}`);
     }
     if (plan.length > 10) console.log(`  ... and ${plan.length - 10} more`);
 
     if (ambiguous.length) {
       console.log("\nambiguous (left alone):");
-      for (const a of ambiguous.slice(0, 5)) console.log(`  inv ${a.row.id} "${a.row.customerName}" — ${a.n} candidates`);
+      for (const a of ambiguous.slice(0, 5)) console.log(`  inv ${a.row.id} — ${a.n} candidates`);
     }
 
     if (!APPLY) {
