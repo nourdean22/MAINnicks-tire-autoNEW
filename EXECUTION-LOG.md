@@ -37,6 +37,16 @@
   verify budget. No VAPI account config was mutated (recommendation to operator instead: delete the
   5 orphan tools; review duplicate Receptionist afcad79e).
 
+## 2026-08-09 · session 1 continued · stage-3 slice 1 EXECUTED (operator: "delete whatever is safe")
+
+- **VAPI account**: all 5 orphan tools deleted via API (`tools remaining: 0`); configs echoed into
+  the session transcript for recreate-ability. Duplicate Receptionist `afcad79e` NOT deleted
+  (assistant IDs can be referenced from env/DB; free to keep until verified).
+- **statenour**: deleted the 4 dead `/api/vapi/*` routes + their two route-only helpers
+  (`lib/auth/vapi-webhook.ts`, `lib/services/nickstire-write.ts`; importer-grep proven) and removed
+  the `/api/vapi` whitelist entry from `lib/security/route-policy.ts`. `lib/services/voice-latency`
+  KEPT — it has a Prisma model + observability router/UI consumers beyond these routes.
+
 ## Falsified
 
 Ten §4 claims falsified with receipts — table in `AUDIT/2026-08-truth.md` §1. Standouts: apps/voice

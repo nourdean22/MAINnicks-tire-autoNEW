@@ -14,9 +14,11 @@
    **autonicks.com, a dead Vercel deployment**; the live number +1-216-424-9249 already runs
    entirely through `nickstire.org/api/webhooks/vapi`. Nothing needed repointing. Remaining
    30-second dashboard tidy-up (say the word and the agent can do it via API instead):
-   **delete the 5 orphan tools** (`untitled_tool`, `checkUsedTireStock`, `submitCallback`,
-   `lookupCustomer`, `scheduleDropoff`) and review the duplicate "Receptionist" assistant
-   `afcad79e` (the phone uses `150fe622`).
+   ~~delete the 5 orphan tools~~ **DONE 2026-08-09** — all 5 deleted via API on your
+   "delete whatever is safe" go; `tools remaining: 0`; full configs preserved in the session
+   transcript if any ever needs recreating. Remaining: review the duplicate "Receptionist"
+   assistant `afcad79e` (the phone uses `150fe622`; not deleted — outbound-call code could
+   reference assistant IDs from env/DB the repo can't see).
 5. **TCPA consent ledger decision**: marketing sends currently rely on quiet hours + suppression +
    compliance log. A timestamped written-consent record per recipient is the remaining gap —
    worth a counsel check before the next campaign send. No sends were made or altered.
