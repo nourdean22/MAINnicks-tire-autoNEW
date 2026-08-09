@@ -9,10 +9,14 @@
 3. **Rotate/delete the LiveKit key + secret** — cloud.livekit.io. Also check the **billing plan**
    there: unlike Deepgram, a paid tier bills despite zero usage, and the plan is only visible in
    your dashboard.
-4. **VAPI dashboard — required BEFORE any Stage-3 vapi-route deletion**: list where these four tool
-   URLs point today, and whether you want them repointed to nickstire:
-   `check-used-tire-stock` · `lookup-customer` · `schedule-dropoff` · `submit-callback`
-   (today they are statenour routes on bdnick.info and they are live call-handling).
+4. **VAPI — RESOLVED 2026-08-09, better than expected.** Read-only API check found: all 5
+   account-level tools are ORPHANS (attached to no assistant); the 3 with URLs point at
+   **autonicks.com, a dead Vercel deployment**; the live number +1-216-424-9249 already runs
+   entirely through `nickstire.org/api/webhooks/vapi`. Nothing needed repointing. Remaining
+   30-second dashboard tidy-up (say the word and the agent can do it via API instead):
+   **delete the 5 orphan tools** (`untitled_tool`, `checkUsedTireStock`, `submitCallback`,
+   `lookupCustomer`, `scheduleDropoff`) and review the duplicate "Receptionist" assistant
+   `afcad79e` (the phone uses `150fe622`).
 5. **TCPA consent ledger decision**: marketing sends currently rely on quiet hours + suppression +
    compliance log. A timestamped written-consent record per recipient is the remaining gap —
    worth a counsel check before the next campaign send. No sends were made or altered.
