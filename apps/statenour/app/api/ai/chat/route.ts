@@ -941,8 +941,22 @@ async function chatPostInner(req: Request) {
   // token. Stages: gate · interceptors · classify · prefetch ·
   // stream-config. (Streaming itself happens after this return, so it
   // is intentionally not part of this summary.)
+  // 2026-08-09 · The three fields below were the missing half of this line.
+  // It recorded per-stage TIMING but nothing about the INPUT, so a turn that
+  // died could not be correlated with what triggered it — and the operator's
+  // report ("longer messages won't respond or get stuck") is precisely a
+  // claim about input size. `userContentLength` makes that correlation
+  // directly queryable; `topicTier` and `promptCacheHit` capture the step
+  // function that turns a long message into an expensive one, since the tier
+  // is a KEYWORD test (system-prompt.ts:16-27) that a long message almost
+  // always trips, which both misses the tier-keyed prompt cache and admits
+  // the ~62k business-knowledge pack. No PII: a length, an enum, a boolean —
+  // never the message text.
   log.info("chat_pipeline_stages", {
     line: formatStageLog(reqId, mode, stageTracker.summary()),
+    userContentLength: userContent.length,
+    topicTier,
+    promptCacheHit: !!cachedPrompt,
   });
 
   // WP-A durability (2026-07-29): consume the stream server-side so the
