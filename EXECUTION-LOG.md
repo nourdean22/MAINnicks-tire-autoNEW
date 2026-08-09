@@ -47,11 +47,38 @@
   the `/api/vapi` whitelist entry from `lib/security/route-policy.ts`. `lib/services/voice-latency`
   KEPT — it has a Prisma model + observability router/UI consumers beyond these routes.
 
+## 2026-08-09 · session 2 · stage-1.7 residual CLOSED (#1461)
+
+- **The consent ledger already existed and nothing read it.** `logSmsOptIn()` has written a
+  timestamped consent record to `audit_log` (action `sms.opt_in`, actor = E.164) from three live
+  doors — booking form, lead form, START keyword. `hasSmsOptIn()` was its reader, with **zero
+  callers in the repo**. Written, never read, so it decided nothing. The BUILT-UNWIRED pattern
+  again (cf. `statenour-deep-upgrade-gate-2026-08-03`): grep for IMPORTERS, not definitions.
+- Wired the read at the `sendSms` chokepoint (`server/sms.ts`), **not** `smsOrchestrator` as the
+  mandate says — the mandate named the wrong file; `sendSms` is the one door every send path shares.
+- `getSmsOptInIndex()` mirrors `OptOutIndex`'s honest-failure contract: unreadable ⇒ `ok:false`,
+  never an empty set that reads as "nobody consented". **No new table, no migration, no prod DDL.**
+- **Ships in SHADOW.** Consent rows exist only for phones that came through those three doors since
+  complianceLog shipped; the covered share of the customer base is NOT knowable from inside the
+  repo and is likely small against ~2,900 lifetime invoices. Arming blind would silently zero out
+  review requests, winback, cross-sell, retention and blasts. `smsOps` now exposes
+  `consentGateShadowMisses` — **that count is the input to the counsel decision**, and it is the
+  deliverable. Arm with `SMS_CONSENT_GATE=enforce`.
+- Receipts: 10/10 new tests exit 0; sibling SMS suites 5 files / 102 passed; `typecheck:raw` exit 0.
+
 ## Falsified
 
 Ten §4 claims falsified with receipts — table in `AUDIT/2026-08-truth.md` §1. Standouts: apps/voice
 deleted 5 days before the mandate; nickstire is TiDB/MySQL (145 mysqlTable) so every
 Postgres-assuming instruction is void; the "0-line build breaker" is a fully-built page.
+
+**Session 2 adds an eleventh, from the mandate's successor documents rather than the mandate:** a
+follow-up critique asserted the estate counts were stale and "corrected" statenour to 56 pages /
+426 API routes and nickstire to 340 pages. The live filesystem says **38 pages · 378 API routes ·
+50 cron routes · 102 Prisma models · 198 nickstire page files · 94 routers** — i.e. the ORIGINAL
+counts were right and the correction was sourced from May/June audit docs. A dated doc was trusted
+over the current checkout, inverting the `AGENTS.md` source-of-truth hierarchy (docs rank BELOW
+current source). Counting the filesystem takes one command; do that before believing either number.
 
 ## Adaptations (mandate → repo policy)
 
