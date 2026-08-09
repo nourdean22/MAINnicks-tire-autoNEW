@@ -26,6 +26,20 @@ import { customers } from "../../drizzle/schema";
  * capped batches. The two NOT-EXISTS legs below mirror the index's other two
  * sources on last-10 phone identity (TiDB-safe REPLACE normalization — no
  * REGEXP_REPLACE dependency). STOP-keyword list matches sms.ts's SQL source.
+ *
+ * 2026-08-09 · the STOP-log leg now normalizes BOTH sides. It compared a raw
+ * `sc.phone` against a normalized customer phone, which is safe only while
+ * every writer of sms_conversations normalizes first. All three do today
+ * (db.ts getOrCreateConversation, sms.ts, services/smsInstrumentation.ts — each
+ * `.replace(/\D/g,"").slice(-10)`), so this was not a live defect. It was an
+ * UNGUARDED INVARIANT: one un-normalized insert, or one legacy row predating
+ * that convention, and a customer who texted STOP silently re-enters campaign
+ * audiences. sms.ts's own carrier-block query already hedges with
+ * `RIGHT(sc.phone, 10)`, i.e. the codebase does not fully trust the invariant
+ * either. Symmetric normalization costs nothing here — the subquery reaches
+ * sms_conversations by `sc.id` through the JOIN, so the phone comparison is a
+ * filter, never an index lookup. Suppression is the one place to prefer the
+ * belt over the argument that braces suffice.
  */
 const last10 = (col: unknown) =>
   sql`RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(${col}, '-', ''), ' ', ''), '(', ''), ')', ''), 10)`;
@@ -41,5 +55,5 @@ export const campaignEligiblePhoneSql = sql`${customers.phone} IS NOT NULL AND L
     JOIN sms_conversations sc ON sc.id = sm.conversationId
     WHERE sm.direction = 'inbound'
       AND UPPER(TRIM(sm.body)) IN ('STOP','STOPALL','STOP ALL','UNSUBSCRIBE','CANCEL','END','QUIT','REVOKE','OPTOUT','OPT OUT')
-      AND sc.phone = ${last10(customers.phone)}
+      AND ${last10(sql`sc.phone`)} = ${last10(customers.phone)}
   )`;
