@@ -23,6 +23,7 @@
 import twilio from "twilio";
 
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
+import { SMS_OPT_OUT_KEYWORDS, SMS_OPT_IN_KEYWORDS } from "@shared/smsOptOutKeywords";
 import { createLogger } from "./lib/logger";
 import { normalizePhone } from "./lib/phone";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
@@ -1055,6 +1056,17 @@ export function handleDeliveryStatus(data: {
 /**
  * Handle inbound SMS — call this from your Twilio webhook for incoming messages.
  */
+/**
+ * ★ NOT THE LIVE INBOUND PATH — zero callers as of 2026-08-09.
+ *
+ * Production inbound runs through the webhooks into
+ * `smsResponseJobs -> smsOrchestrator -> parseSmsResponse`
+ * (`server/services/smsResponseParser.ts`), whose unsubscribe regex is the one
+ * that actually fires. This function reads like the inbound handler and is not,
+ * which already cost one reviewer round — a change made here changes nothing a
+ * customer experiences. Wire it or delete it deliberately; do not assume
+ * editing it fixes an inbound behaviour.
+ */
 export function handleInboundSms(data: {
   From: string;
   Body: string;
@@ -1063,11 +1075,16 @@ export function handleInboundSms(data: {
   const normalized = normalizePhone(data.From);
   if (!normalized) return { isOptOut: false };
 
-  const body = data.Body.trim().toUpperCase();
+  // collapse runs of whitespace so "STOP  ALL" matches "STOP ALL"
+  const body = data.Body.trim().toUpperCase().replace(/\s+/g, " ");
 
-  // TCPA opt-out keywords
-  const optOutKeywords = ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"];
-  const optInKeywords = ["START", "YES", "UNSTOP"];
+  // TCPA opt-out keywords — the SHARED list. This handler used to carry its
+  // own five-word copy while the index query below matched ten, so STOPALL /
+  // REVOKE / OPT OUT reached the index (and were suppressed) but produced no
+  // confirmation reply and no sms.opt_out compliance row, and stayed sendable
+  // until the 5-minute cache turned over.
+  const optOutKeywords = SMS_OPT_OUT_KEYWORDS as readonly string[];
+  const optInKeywords = SMS_OPT_IN_KEYWORDS as readonly string[];
 
   if (optOutKeywords.includes(body)) {
     // Record opt-out (handled at DB level by the caller)

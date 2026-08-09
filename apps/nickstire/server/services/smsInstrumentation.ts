@@ -23,23 +23,21 @@
  */
 import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { isOptOutBody } from "@shared/smsOptOutKeywords";
 
 const log = createLogger("sms-instrumentation");
 
 const REPLY_LOOKBACK_DAYS = 7;
 const CONVERSION_LOOKBACK_DAYS = 14;
 
-const OPT_OUT_KEYWORDS = ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"];
-
 function normalizePhone(p: string | null | undefined): string {
   if (!p) return "";
   return p.replace(/\D/g, "").slice(-10);
 }
 
-function isOptOutBody(body: string): boolean {
-  const trimmed = body.trim().toUpperCase();
-  return OPT_OUT_KEYWORDS.includes(trimmed);
-}
+// isOptOutBody now comes from @shared/smsOptOutKeywords — this file carried a
+// third five-word copy of the vocabulary, so its opt-out ATTRIBUTION under-counted
+// exactly the words the index query already suppressed on.
 
 /**
  * Record an inbound SMS reply against the most recent outbound to the
