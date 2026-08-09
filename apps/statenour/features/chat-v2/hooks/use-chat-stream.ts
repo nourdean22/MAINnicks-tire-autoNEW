@@ -134,6 +134,13 @@ export function useChatStream(): ChatRuntimeController {
     [chat],
   );
 
+  // Kept fresh the same way regenerateRef is, so the stall toast's action can
+  // reach it without re-creating the toast on every render.
+  const resumeStreamRef = useRef(chat.resumeStream);
+  useEffect(() => {
+    resumeStreamRef.current = chat.resumeStream;
+  }, [chat.resumeStream]);
+
   const regenerateRef = useRef(safeRegenerate);
   useEffect(() => {
     regenerateRef.current = safeRegenerate;
@@ -203,16 +210,26 @@ export function useChatStream(): ChatRuntimeController {
       // until acknowledged, and it must offer the recovery, because
       // chat.error is never set on this path so the SDK's own retry cannot
       // arm and the persistent error card cannot render.
+      // RECONNECT, never regenerate. chat.stop() abandons only the CLIENT
+      // reader — route.ts calls result.consumeStream?.() and guarantees the
+      // turn completes and persists after the client disconnects, and
+      // registers it in the active-stream registry for exactly this purpose.
+      // So a "Retry" that called regenerate() would start a SECOND execution
+      // against a first that is still running: at best two competing assistant
+      // turns, at worst a mutating tool fired twice — and this chat can invoke
+      // gmail.sendDraft, telegram.send and shop.sendSms (route.ts
+      // HIGH_STAKES_MUTATIONS). resumeStream() reattaches to the stream that
+      // is already producing the answer. Caught in review on #1471.
       toast.error(message, {
         id: "chat-stall",
         duration: Infinity,
         action: {
-          label: "Retry",
+          label: "Reconnect",
           onClick: () => {
             toast.dismiss("chat-stall");
             stalledRef.current = false;
             setConnection("online");
-            void regenerateRef.current?.();
+            void resumeStreamRef.current?.();
           },
         },
       });
