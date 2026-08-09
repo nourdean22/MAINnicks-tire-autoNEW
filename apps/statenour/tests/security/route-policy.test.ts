@@ -30,7 +30,7 @@ describe("route-policy · public allowlist", () => {
   });
 
   it("still lets self-authed server-to-server prefixes through", () => {
-    for (const p of ["/api/auth/session", "/api/cron/tick", "/api/vapi/tools", "/auth/sign-in", "/_next/data/x", "/api/system/perplexica-diag"]) {
+    for (const p of ["/api/auth/session", "/api/cron/tick", "/auth/sign-in", "/_next/data/x", "/api/system/perplexica-diag"]) {
       expect(isPublic(p)).toBe(true);
     }
   });

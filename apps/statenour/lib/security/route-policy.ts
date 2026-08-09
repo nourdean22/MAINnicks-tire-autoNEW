@@ -45,15 +45,14 @@ export const PUBLIC_PREFIXES = [
   "/api/actions/",    // GPT Custom Actions bridge (own Bearer auth). forensic-audit LOW · trailing slash so it no longer also exempts the unrelated /api/actions-brain route.
   "/api/mcp",         // MCP bridge (own Bearer auth)
   // forensic-audit HIGH · header-token-authenticated server-to-server
-  // surfaces. Each route runs its OWN auth (requireSyncAuth / verifyVapiSecret
-  // / x-sync-key), but they carry no NextAuth cookie, so the session
+  // surfaces. Each route runs its OWN auth (requireSyncAuth / x-sync-key), but they carry no NextAuth cookie, so the session
   // middleware 401'd them before that auth could run — breaking the Windows
-  // device agent, nickstire camera sync, and live VAPI voice-tool calls.
+  // device agent and nickstire camera sync. (The /api/vapi entry left with
+  // the dead vapi routes, 2026-08-09 — live voice runs on nickstire's webhook.)
   // Same whitelist pattern as /api/actions above.
   "/api/devices",     // device RPC queue/ack/upsert (own x-sync-key auth)
-  "/api/vapi",        // VAPI voice webhooks + tools (own X-Vapi-Secret auth)
   "/api/nour-os",     // nour-os bridge query (own x-sync-key auth)
-  // code-review 2026-07-09 · same class as devices/vapi/nour-os above:
+  // code-review 2026-07-09 · same class as devices/nour-os above:
   // Apple Health / iOS-Shortcut sync authed by its OWN header secret
   // (x-statenour-health-sync-secret, constant-time compared in the
   // route) and carries no NextAuth cookie — the session gate 401'd it
