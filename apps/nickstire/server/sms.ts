@@ -965,6 +965,10 @@ interface SmsDeliveryStats {
   blockedByTakeover: number;
   /** sends that ran with skipOptOutCheck=true — every use is deliberate and loud */
   optOutCheckSkipped: number;
+  /** marketing sends refused for having no consent record (SMS_CONSENT_GATE=enforce) */
+  blockedByConsent: number;
+  /** marketing sends that WOULD be refused once the consent gate is armed */
+  consentGateShadowMisses: number;
 }
 
 const smsStats: SmsDeliveryStats = {
@@ -978,6 +982,8 @@ const smsStats: SmsDeliveryStats = {
   blockedByGlobalCap: 0,
   blockedByTakeover: 0,
   optOutCheckSkipped: 0,
+  blockedByConsent: 0,
+  consentGateShadowMisses: 0,
   lastSentAt: null,
   lastError: null,
   deliveryRate: 100,
@@ -1605,6 +1611,8 @@ const TERMINAL_SMS_FAILURES = [
   "Global daily SMS cap reached",
   "human_takeover_active",
   "not configured",
+  // Retrying cannot manufacture a consent record the customer never gave.
+  "No SMS consent on file",
 ] as const;
 
 export class SmsSendError extends Error {
@@ -1742,6 +1750,57 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
         messageClass,
       });
       return { success: false, error: "Recipient has blocked this number (carrier notice)" };
+    }
+  }
+
+  // ─── TCPA prior-express-written-consent gate (2026-08-09) ──────────
+  //
+  // The opt-out gate above answers "did this person tell us to stop?". It
+  // cannot answer the question TCPA actually asks of a MARKETING text: can we
+  // show they agreed to receive it in the first place? Silence is not consent,
+  // so the absence of a STOP has never been evidence of one.
+  //
+  // The ledger already existed and was already being written — the booking
+  // form, the lead form and the START keyword all call logSmsOptIn. Nothing
+  // read it at send time (hasSmsOptIn had no callers). This is that read.
+  //
+  // Scoped to customer_marketing ONLY, and deliberately NOT inside the
+  // isAutomatedCustomerSend block: followups answer the customer's own inbound
+  // and confirmations are transactional, so neither needs prior written
+  // consent — but the delayed-queue drain (_forceImmediate) must not be able
+  // to launder a marketing message past this gate the way it bypasses the
+  // volume gates. skipOptOutCheck is honored as the one documented escape
+  // hatch; it is already counted and logged loudly above.
+  //
+  // DEFAULT IS SHADOW, deliberately. Consent rows exist only for phones that
+  // came through those three doors since complianceLog shipped, so the share
+  // of the shop's customer base carrying one cannot be known from inside the
+  // repo and is likely small. Arming this blind would silently zero out review
+  // requests, winback, cross-sell, retention and blasts — a customer-facing
+  // behavior change nobody asked for. Shadow counts the misses so the operator
+  // gets that number BEFORE the change, then arms it with
+  // SMS_CONSENT_GATE=enforce.
+  if (messageClass === "customer_marketing" && !isInternal && !opts?.skipOptOutCheck) {
+    const { getSmsOptInIndex } = await import("./services/complianceLog");
+    const consent = await getSmsOptInIndex();
+    const last10 = normalizedEarly.slice(-10);
+    if (!(consent.ok && consent.phones.has(last10))) {
+      const why = consent.ok ? "no recorded opt-in" : `consent ledger unreadable (${consent.reason})`;
+      if (process.env.SMS_CONSENT_GATE === "enforce") {
+        smsStats.blockedByConsent++;
+        log.error("[sendSms] not sent — no prior express written consent on file for a marketing message", {
+          to: last10.slice(-4),
+          messageClass,
+          why,
+        });
+        return { success: false, error: `No SMS consent on file — marketing send refused (${why})` };
+      }
+      smsStats.consentGateShadowMisses++;
+      log.warn("[sendSms] consent gate SHADOW — this marketing send would be refused once armed", {
+        to: last10.slice(-4),
+        messageClass,
+        why,
+      });
     }
   }
 

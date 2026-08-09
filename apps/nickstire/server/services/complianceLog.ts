@@ -12,6 +12,8 @@
  *   getRecentOptIns(limit)            — admin query
  *   getRecentOptOuts(limit)
  *   getRecentAdminLogins(limit)
+ *   getSmsOptInIndex()                — READ side of the consent ledger; the
+ *                                       sendSms marketing gate consumes this
  */
 
 import { randomUUID } from "crypto";
@@ -28,6 +30,14 @@ const ACT_SMS_OPT_IN = "sms.opt_in";
 const ACT_SMS_OPT_OUT = "sms.opt_out";
 const ACT_ADMIN_LOGIN = "admin.login";
 const ACT_ADMIN_LOGIN_FAIL = "admin.login_failed";
+
+// ─── Consent index cache ───────────────────────────────
+// Keyed by last-10 digits so it joins cleanly against the opt-out index in
+// sms.ts, which normalizes the same way. 5-min TTL matches that index; new
+// opt-ins land immediately via the write-through in logSmsOptIn.
+let consentCache: Set<string> | null = null;
+let consentCacheLoadedAt = 0;
+const CONSENT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 // ─── Core insert ───────────────────────────────────────
 async function insert(entry: {
@@ -78,6 +88,11 @@ export async function logSmsOptIn(params: {
 }): Promise<void> {
   const normalized = normalizePhone(params.phone);
   if (!normalized) return;
+  // Write-through so a consent given SECONDS ago is honored by the next
+  // marketing send instead of waiting out the index TTL. Without this, a
+  // customer who just ticked the box on the booking form could be refused
+  // a message they explicitly asked for, for up to five minutes.
+  consentCache?.add(normalized.slice(-10));
   await insert({
     actor: normalized,
     action: ACT_SMS_OPT_IN,
@@ -200,20 +215,81 @@ export function getRecentAdminLoginFailures(limit: number = 20) {
   return queryBy(ACT_ADMIN_LOGIN_FAIL, limit);
 }
 
-/** Check if a phone has a recorded opt-in (quick defensibility check). */
+// ─── Consent index (the READ side of the ledger) ───────
+
+/**
+ * Either a usable consent index, or an explicit statement that we could not
+ * build one.
+ *
+ * Same honest-failure contract as sms.ts's `OptOutIndex`, and for the same
+ * reason: an empty Set and an unreadable table must never be indistinguishable
+ * when the answer decides whether a marketing text goes out. A STALE set is
+ * still `ok: true` — it is real data that was really loaded.
+ */
+export type SmsConsentIndex =
+  | { ok: true; phones: Set<string>; stale: boolean }
+  | { ok: false; reason: string };
+
+/**
+ * Every phone with a recorded `sms.opt_in`, keyed by last-10 digits.
+ *
+ * Written by the booking form, the lead form and the START-keyword handler.
+ * This is what `sendSms` consults before a customer_marketing send — the
+ * ledger existed and was being written long before anything read it.
+ *
+ * Filters on `entity_type` FIRST on purpose: `idx_audit_entity` leads with
+ * that column, so this reads an index range rather than scanning all of
+ * audit_log (there is no index on `action` alone).
+ */
+export async function getSmsOptInIndex(): Promise<SmsConsentIndex> {
+  const now = Date.now();
+  if (consentCache && now - consentCacheLoadedAt < CONSENT_CACHE_TTL_MS) {
+    return { ok: true, phones: consentCache, stale: false };
+  }
+  const stale = (reason: string): SmsConsentIndex =>
+    consentCache ? { ok: true, phones: consentCache, stale: true } : { ok: false, reason };
+
+  const d = await db();
+  if (!d) return stale("database unavailable");
+  try {
+    const rows = await d
+      .select({ actor: auditLog.actor })
+      .from(auditLog)
+      .where(and(eq(auditLog.entityType, "phone"), eq(auditLog.action, ACT_SMS_OPT_IN)));
+    const fresh = new Set<string>();
+    for (const r of rows as Array<{ actor: string | null }>) {
+      const p10 = (r.actor || "").replace(/\D/g, "").slice(-10);
+      if (p10.length === 10) fresh.add(p10);
+    }
+    consentCache = fresh;
+    consentCacheLoadedAt = now;
+    return { ok: true, phones: fresh, stale: false };
+  } catch (err) {
+    // error, not warn: on a first-load failure an armed gate is about to
+    // refuse every marketing send, and the operator needs to know why.
+    log.error("consent index refresh FAILED — falling back to the last loaded index", {
+      error: err instanceof Error ? err.message : String(err),
+      haveStaleIndex: consentCache !== null,
+    });
+    return stale(err instanceof Error ? err.message : "consent index unavailable");
+  }
+}
+
+/**
+ * Check if a phone has a recorded opt-in (quick defensibility check).
+ * Reads the same index the send gate uses so there is ONE definition of
+ * "this person consented" — an unreadable ledger answers `false`, which is
+ * the safe direction for every caller.
+ */
 export async function hasSmsOptIn(phone: string): Promise<boolean> {
   const normalized = normalizePhone(phone);
   if (!normalized) return false;
-  const d = await db();
-  if (!d) return false;
-  try {
-    const rows = await d
-      .select()
-      .from(auditLog)
-      .where(and(eq(auditLog.action, ACT_SMS_OPT_IN), eq(auditLog.actor, normalized)))
-      .limit(1);
-    return rows.length > 0;
-  } catch {
-    return false;
-  }
+  const index = await getSmsOptInIndex();
+  return index.ok && index.phones.has(normalized.slice(-10));
+}
+
+/** Test seam — drops the cached index so the next read rebuilds from the DB. */
+export function __resetConsentIndexCacheForTests(): void {
+  consentCache = null;
+  consentCacheLoadedAt = 0;
 }
