@@ -217,6 +217,52 @@ strategic call rather than an agent's refactor.
 404s are not a negative quality signal, but removing pages also recovers nothing except maintenance,
 and impressions are real query presence. The honest read is that the farm is **inert**, not harmful.
 
+## 4e · Cockpit consolidation (stage 6) — ALREADY BUILT
+
+The operator selected stage 6 as the next long stretch. Investigated before writing any code, and it
+is **substantially shipped already**. The mandate's "~60 admin sections" counted **component files
+under `pages/admin/**`**, not navigable destinations.
+
+**Stage 6.1 — "collapse ~60 sections into 5 destinations, rewrite `registry.tsx`, add a command
+palette": DONE.**
+
+| Claim | Reality |
+|---|---|
+| ~60 admin sections | **17 registered sections** in `registry.tsx` |
+| collapse to 5 destinations | `ADMIN_NAV_GROUPS = ["Daily","Reach","Automation","Truth","System"]` — exactly 5, and `group` is a **required** field ("an unassigned section cannot be placed") |
+| everything else a tab or progressive-disclosure drawer | `showInSidebar` — 14 visible, 2 reachable only by alias, command search or deep link |
+| add a command palette | `client/src/components/admin/CommandSearch.tsx` exists |
+| roles hand-maintained in two places | already collapsed to `allowedRoles`, single source |
+
+Distribution: Daily 6 · Reach 4 · Automation 3 · Truth 2 · System 1. The registry's own header records
+the previous drift being fixed and names the guard: `adminRegistryTruth.test.ts` — "metadata that
+nothing reads is not documentation, it is drift waiting to be trusted."
+
+**Stage 6.3 — "merge Studio / StudioV2 / ActionCenter / QueueV2 / PublishBoard / ReelQueue into one
+Instagram studio": DONE, and the premise is inverted.** There is **one** `instagram` destination.
+`InstagramAdmin.tsx` is a tab shell rendering Today · StudioV2 · QueueV2 · Inbox · Learn · Settings ·
+DraftBoard · PatternLab · AutonomyCommandCenter · ActionCenter, with `IG_PRIMARY_VIEWS` /
+`IG_SECONDARY_VIEWS` already splitting primary from progressive-disclosure views. The named
+"duplicates" are **composed, not duplicated**:
+
+- `StudioV2.tsx:26` imports `Studio` as `LegacyStudio` and **renders it at line 326**;
+- `QueueV2.tsx` renders `PublishBoard` and `ReelQueue` as **layout modes** (`layout === "board"` /
+  `layout === "reels"`).
+
+So the V2 files are shells and the V1 files are the content they mount. Merging them would not remove
+a destination — it would inline live code into its own wrapper.
+
+**Stage 6.4 — "consolidate 6 intelligence panels into 1": DONE.** One `intelligence` destination.
+
+**Stage 6.5 / 6.8 — platform motion + containing-block guards:** `calc-size()` and `scheduler.yield()`
+appear nowhere in the repo, which matches current guidance (both still limited-availability, so
+progressive enhancement only). The containing-block guard class is already NATIVE — `docs/UPSTREAMS.md`
+row 78, shipped as #1455/#1456.
+
+**What genuinely remains in stage 6:** the Magic-Ink conversions (6.2), OKLCH color (6.6) and
+typography/photography (6.7). Those are **design work, not consolidation** — open-ended, additive, and
+an operator judgment call rather than an evidence-driven refactor.
+
 ## 5 · What this pass did NOT do, and why
 
 - **No public page was deleted or redirected.** Per-URL traffic evidence is not available in this
