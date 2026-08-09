@@ -12,8 +12,8 @@
  *
  * Live-mode coverage lives in operator-run smoke (pnpm eval:live).
  * That's by design · we never want CI burning provider credits on
- * every PR. The deterministic regression-runner.ts handles the
- * "did anything visible break?" guarantee.
+ * every PR. The "did anything visible break?" guarantee used to come
+ * from lib/eval/regression-runner.ts, deleted 2026-08-09 as dead code.
  */
 import { describe, expect, it } from "vitest";
 

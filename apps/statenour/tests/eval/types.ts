@@ -1,14 +1,14 @@
 /**
  * tests/eval/types.ts · Nick regression eval suite (task #14 · 2026-05-23).
  *
- * Shared types + Zod schema for the LLM-as-judge regression suite. Sits
- * alongside the existing deterministic harness (lib/eval/regression-
- * runner.ts) — that one uses substring predicates; THIS one replays a
- * frozen seed of scenarios through Nick + scores via the 5-axis judge
- * (lib/ai/judge-eval.ts). Different layer · different question:
+ * Shared types + Zod schema for the LLM-as-judge regression suite: replays
+ * a frozen seed of scenarios through Nick + scores via the 5-axis judge
+ * (lib/ai/judge-eval.ts), answering "did Nick's *quality* shift?".
  *
- *   · regression-runner.ts answers "did the basics break?" (cheap, ~70s)
- *   · this suite answers "did Nick's *quality* shift?" (LLM-judged, $)
+ * This used to sit alongside a deterministic substring-predicate harness
+ * at lib/eval/regression-runner.ts that answered "did the basics break?".
+ * That harness was deleted 2026-08-09 as dead code (no production caller,
+ * its page redirected away, its output store never had a writer).
  *
  * The runner has two modes by design:
  *   · dry-run (default) · validates scenario JSON · NO LLM calls · CI-safe

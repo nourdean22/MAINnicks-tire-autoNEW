@@ -2,14 +2,22 @@
  * lib/services/eval-results.ts · Phase VV (2026-05-22 ·
  * legacy-modernizer REST→tRPC system slice).
  *
- * The nightly eval-regression-runner report reader. Lifted verbatim
- * from app/api/system/eval-results/route.ts so the legacy REST endpoint
- * AND the new `system.evalResults` tRPC procedure call the same
- * function · drift between consumers structurally impossible.
+ * Reader for BrainMemory(category="eval_result"). Lifted verbatim from
+ * app/api/system/eval-results/route.ts so the legacy REST endpoint AND
+ * the new `system.evalResults` tRPC procedure call the same function ·
+ * drift between consumers structurally impossible.
  *
- * Source: BrainMemory(category="eval_result"). `perQuestionResults`
- * is heavy and only shipped when the caller asks for a single row
- * (the drill-down view).
+ * 2026-08-09 · THIS STORE HAS NO PRODUCER. The nightly harness that was
+ * meant to write it (`lib/eval/regression-runner.ts`) was deleted — it
+ * had no production caller, and system-health.ts already documented that
+ * `eval_result` "has no live writer — prod holds 2 fossil rows". The
+ * reader is kept because system-health.ts:366 gates on a 7-day freshness
+ * window, so the surface degrades honestly to "no recent run" instead of
+ * rendering an ancient passRate as current. If you are here to wire a new
+ * eval producer, write to this category and the read path already works.
+ *
+ * `perQuestionResults` is heavy and only shipped when the caller asks for
+ * a single row (the drill-down view).
  */
 
 import { prisma } from "@/lib/prisma";
