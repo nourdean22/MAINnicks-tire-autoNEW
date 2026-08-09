@@ -7,6 +7,37 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Two things you will notice before you notice anything else (2026-08-09)
+
+**`[tRPC first-call]` lines in Railway logs are deliberate, and they are an
+instrument — do not silence them.** Every tRPC procedure emits exactly one such
+line the first time this process serves it, then never again. It exists because
+a static census found 163 of 684 procedures with no caller anywhere in the repo,
+and that number could not be trusted: every procedure is reachable over HTTP by
+callers OUTSIDE this repository, and the middleware previously logged only SLOW
+(>2s) and ERROR calls, so production could not answer "is this ever served?".
+
+To use it: after a normal business cycle, collect the distinct
+`[tRPC first-call]` paths from Railway and subtract them from the registered
+procedure list. What remains is the genuinely dead set. The counter is
+in-memory, so it resets on deploy — that is correct, because silence only means
+something across a window you can name, and the deploy time is in the logs
+beside it. Deleting procedures on repo-grep evidence alone is what this replaces.
+
+**The admin's red / amber / green now read at one brightness per tier.** Tailwind
+is perceptually uniform WITHIN a hue and not ACROSS hues: at the shades this
+console uses, its own OKLCH lightness was red 70.4% / emerald 76.5% / amber
+82.8% — a 12.4-point spread running BACKWARDS, so on an andon board the colour
+meaning "stop, money at risk" rendered dimmest and "caution" pulled the eye
+first. Nine tokens are re-tinted on `.admin-shell` to one lightness per tier
+(0.80 / 0.72 / 0.66); because Tailwind v4 compiles utilities to `var()` and
+custom properties inherit, this re-tints all ~1,881 existing call sites with no
+component edits, and deleting the block restores stock Tailwind exactly. The
+customer site is untouched. Chroma per hue is computed against each hue's sRGB
+gamut ceiling, because an out-of-gamut colour gets clamped and clamping shifts
+lightness — which would silently restore the drift. Pinned by
+`client/src/__tests__/andon-ramp.test.ts`.
+
 ## Live application
 
 - Application: `apps/nickstire`
