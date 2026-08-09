@@ -39,3 +39,15 @@
    the Stage-3 delete list and the repo cannot see external consumers.
 7. Optional hardening: enable branch protection / required checks on GitHub — today `gh pr merge`
    succeeds over a red CI by design.
+8. **Two paid connectors are dead — decide whether you care.** Both were named in the campaign as
+   the source for "which pages can we delete", and neither can return a row today:
+   **Ahrefs** is a trial with **0 API units** (its Nickstire project is verified but returns empty
+   GSC and empty web-analytics), and **Supermetrics' trial expired 2026-05-17**. You do *not* need
+   to buy either for the page-deletion work: nickstire already ingests your Search Console data
+   into its own `search_performance` table and `/admin` SEO tools renders the per-page report. If
+   you are paying for either subscription, that is a bill worth checking.
+9. **PII linter has a blind spot worth one deliberate PR.** `lint-pii.mjs`'s console rule cannot see
+   any PII that follows a function call on the same line. It caught a leaked customer name and
+   missed a leaked name + full phone one line above it. Both are fixed, the rule is not — widening
+   it will surface an unknown number of existing violations, which is exactly why it should be its
+   own change rather than a ride-along. Say the word and it gets done.
