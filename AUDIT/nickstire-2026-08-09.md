@@ -110,6 +110,51 @@ satisfies the mandate's own rule: *never delete a public URL with live organic t
 | 5.3 add `AutoRepair` + Service/Offer/Review/FAQ/OpeningHours/Geo schema | A sample money page already emits **AutoRepair, Service, Offer, AggregateRating, OpeningHoursSpecification, GeoCoordinates, PostalAddress, BreadcrumbList, OfferCatalog, WebSite/SearchAction and FAQPage** | none — recorded NATIVE in `docs/UPSTREAMS.md` |
 | FAQ schema as a 2026 tactic | Google deprecated FAQ **rich results** 2026-05-07; the **markup remains valid and harmless**, and AI retrieval may still parse it. All 341 prerendered pages carry it | **leave it** — recorded in `docs/UPSTREAMS.md` |
 
+## 4b · tRPC procedure census — INCONCLUSIVE, and deliberately not a delete list
+
+Mandate stage 2.9 asks for dead procedures. The census runs, but it is **not trustworthy enough to
+delete from**, and saying so is the finding.
+
+| Measure | Value |
+|---|---|
+| router files carrying procedures | 79 |
+| procedures registered | **689** |
+| called from the client | 360 |
+| called server-side only (crons, services, webhook dispatchers) | 158 |
+| no caller found — **upper-bound candidates** | **171** |
+| router keys resolved from their export symbol | 90/92 |
+| router files whose key could NOT be resolved | 5 |
+
+**Calibration: the first candidate checked was a false positive.** v1 keyed procedures by *filename*
+and reported `sectionInsight` as an entirely dead router. It is registered as `adminDashboard` and is
+called live: `client/src/pages/admin/shared/insight.tsx:29` runs
+`trpc.adminDashboard.sectionInsight.useQuery(...)`, rendered by at least four admin sections. Keying
+was rebuilt to resolve `export const <symbol> = router(` → registration key, which moved client-called
+from 312 to 360 and candidates from 203 to 171 — but **5 files still do not resolve**, and every
+procedure under them is a guaranteed false positive.
+
+**Therefore: 171 is an upper bound containing known-bad entries. Do not delete from this table.** Each
+candidate needs individual verification, and the repo cannot see external consumers at all (VAPI
+dashboard tools, the ChatGPT Custom GPT, statenour bridge callers) — the failure mode that produced
+`docs/UPSTREAMS.md` failure-mode #8. Useful next step is to resolve the last 5 router keys first, then
+verify candidates one at a time, highest-count routers first (`contentAdmin` 22, `nickActions` 20,
+`sms` 20, `dispatch` 14).
+
+## 4c · The session's real lesson: four instrument failures, one root cause
+
+Every wrong answer in this pass came from **inferring a mapping instead of resolving it**:
+
+1. import specifiers *guessed* (`@/pages/X`) instead of resolved → 148 false "unreachable" pages,
+   including the whole money cockpit;
+2. consumption assumed to be import-or-symbol → missed **read-by-path**, caught only when the suite
+   went `ENOENT`;
+3. a grep hit *attributed* to a plausible sibling (`cron/jobs/morningBrief.ts`) instead of opened;
+4. router keys *guessed* from filenames → an entirely-live router reported dead.
+
+The counter-discipline is cheap: resolve the mapping, then make a second instrument disagree with you
+before acting. Three of the four were caught by a second instrument or the test suite; the one that
+reached a commit was reverted by the gate before merge.
+
 ## 5 · What this pass did NOT do, and why
 
 - **No public page was deleted or redirected.** Per-URL traffic evidence is not available in this
