@@ -19,9 +19,22 @@
    transcript if any ever needs recreating. Remaining: review the duplicate "Receptionist"
    assistant `afcad79e` (the phone uses `150fe622`; not deleted — outbound-call code could
    reference assistant IDs from env/DB the repo can't see).
-5. **TCPA consent ledger decision**: marketing sends currently rely on quiet hours + suppression +
-   compliance log. A timestamped written-consent record per recipient is the remaining gap —
-   worth a counsel check before the next campaign send. No sends were made or altered.
+5. **TCPA consent gate — BUILT, SHIPPED IN SHADOW (#1461). Your decision is now a number, not a
+   design question.** The ledger already existed (`audit_log` `sms.opt_in`, written by the booking
+   form, lead form and START keyword); nothing read it at send time. It is now read at the
+   `sendSms` chokepoint for `customer_marketing` sends only — but in **shadow**: it logs and counts,
+   it does not block. Nothing about today's sending behavior changed.
+   - **What to do:** let it run through a normal campaign cycle, then read
+     `consentGateShadowMisses` on the SMS ops surface. That is the count of marketing sends that
+     would STOP the moment the gate is armed.
+   - **Why it isn't armed:** the repo cannot tell what share of your ~2,900 lifetime customers has
+     a consent row — only phones that came through those three doors since complianceLog shipped
+     do. If that share is small, arming blind would silently kill review requests, winback,
+     cross-sell, retention and blasts. Nobody should flip that without seeing the number.
+   - **Arm with:** `SMS_CONSENT_GATE=enforce` (Railway env). Unset = shadow.
+   - **Still a counsel question:** whether your existing opt-in records constitute *prior express
+     written consent* under TCPA for the marketing classes you actually send, and what to do about
+     customers with no record. No sends were made or altered.
 6. **ChatGPT Custom GPT**: confirm whether it still calls `bdnick.info/api/nour-os/query` — it's on
    the Stage-3 delete list and the repo cannot see external consumers.
 7. Optional hardening: enable branch protection / required checks on GitHub — today `gh pr merge`
