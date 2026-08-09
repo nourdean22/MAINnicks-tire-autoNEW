@@ -33,6 +33,7 @@ import { getEmbedding } from "@/lib/ai/provider";
 import { nourTools } from "@/lib/ai/tools";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
+import { withTimeout } from "@/lib/utils/with-timeout";
 import { createHash } from "node:crypto";
 
 // Module-level cache. Persists for the lifetime of the lambda instance.
@@ -362,9 +363,27 @@ export function rankToolsBySimilarity(
   return scores.slice(0, topN);
 }
 
+/** Aggregate deadline for the on-demand embed — see embedUserMessage. */
+const EMBED_USER_MESSAGE_TIMEOUT_MS = 12_000;
+
 /**
  * Embed a user message on-demand. Returns [] on failure so callers
  * can safely fall back to the keyword path.
+ *
+ * 2026-08-09 · Now bounded by a WALL-CLOCK deadline, not just per-hop ones.
+ * getEmbedding walks a SERIAL provider cascade (Cohere → HuggingFace →
+ * OpenAI → OpenRouter) where each hop has its own AbortSignal but the CHAIN
+ * has none — a worst case well past 40s. This sits on the chat route's
+ * pre-stream path and the brain-context stage CHAINS on it, so a slow (not
+ * failed) cascade held the whole turn with zero bytes on the wire, past the
+ * client's 90s stall abort. The operator's report — long messages that never
+ * answer — is that shape, and this function is length-scaling by definition.
+ *
+ * 12s is deliberately just above the FIRST hop's own 10s timeout: the primary
+ * provider gets its full budget, and a failing primary degrades instead of
+ * paying for three more hops. withTimeout REJECTS, which the catch below
+ * already handles — so this adds a bound, not a new failure mode. [] is the
+ * documented contract and callers fall back to keyword pruning.
  */
 export async function embedUserMessage(text: string): Promise<number[]> {
   if (!text || text.length < 3) return [];
@@ -372,7 +391,11 @@ export async function embedUserMessage(text: string): Promise<number[]> {
   // and OOM attacks. The semantic intent is captured well within this limit.
   const safeText = text.slice(0, 10000);
   try {
-    return await getEmbedding(safeText);
+    return await withTimeout(
+      getEmbedding(safeText),
+      EMBED_USER_MESSAGE_TIMEOUT_MS,
+      "embedUserMessage",
+    );
   } catch {
     return [];
   }

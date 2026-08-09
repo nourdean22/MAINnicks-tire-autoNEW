@@ -411,19 +411,38 @@ export async function buildBrainContext(
       { name: "Predictive Prefetch", content: prefetchResults?.length ? formatPrefetchContext(prefetchResults as PrefetchResult[]) || "" : "", critical: true }
     ].filter((b) => b.content && b.content.trim().length > 0);
 
-    let reranked: Awaited<ReturnType<typeof rerankContextBlocks>> = rawBlocks.map((b) => ({
+    const rawOrder: Awaited<ReturnType<typeof rerankContextBlocks>> = rawBlocks.map((b) => ({
       name: b.name,
       content: b.content,
       similarity: 0,
       kept: true,
       critical: b.critical,
     }));
+    let reranked = rawOrder;
     if (userEmbedding.length > 0 && rawBlocks.length > 1) {
       try {
-        reranked = await rerankContextBlocks(userEmbedding, rawBlocks, {
-          dropThreshold: 0.12,
-        });
-        log.info("rerank_applied", { summary: formatRerankSummary(reranked) });
+        // 2026-08-09 · Bounded with the SAME withTimeout policy every other
+        // block in this module already uses (3s, fall back, keep streaming).
+        // This was the one unbounded await here: it failed open on ERROR (the
+        // catch below drops to raw order) but NOT on SLOWNESS, and it is the
+        // slowest thing in the function — it fans out one getEmbedding per
+        // context block, each able to walk the serial provider cascade in
+        // lib/ai/provider.ts. Block count grows with message length, because
+        // most blocks gate on keyword hits. So on a long message this could
+        // hold the whole brain stage with zero bytes on the wire, past the
+        // client's 90s stall abort, and the operator saw a turn that never
+        // answered. Reranking is an OPTIMIZATION — raw order is a correct
+        // answer, just a less well-ordered one. Never worth hanging a turn for.
+        reranked = await withTimeout(
+          rerankContextBlocks(userEmbedding, rawBlocks, { dropThreshold: 0.12 }),
+          3000,
+          rawOrder,
+        );
+        if (reranked === rawOrder) {
+          log.warn("rerank_timed_out_using_raw_order", { blocks: rawBlocks.length });
+        } else {
+          log.info("rerank_applied", { summary: formatRerankSummary(reranked) });
+        }
       } catch (rerankErr) {
         log.warn("rerank_failed_using_raw_order", {
           err: rerankErr instanceof Error ? rerankErr.message : String(rerankErr),
