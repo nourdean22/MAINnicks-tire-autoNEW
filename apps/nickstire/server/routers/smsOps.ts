@@ -123,6 +123,12 @@ export const smsOpsRouter = router({
         blockedByGlobalCap: stats.blockedByGlobalCap,
         blockedByTakeover: stats.blockedByTakeover,
         optOutCheckSkipped: stats.optOutCheckSkipped,
+        // TCPA consent gate. While it ships in shadow, shadowMisses IS the
+        // decision input: it counts the marketing sends that would stop the
+        // day SMS_CONSENT_GATE=enforce is set. Read it before arming.
+        blockedByConsent: stats.blockedByConsent,
+        consentGateShadowMisses: stats.consentGateShadowMisses,
+        consentGateMode: process.env.SMS_CONSENT_GATE === "enforce" ? "enforce" : "shadow",
         totalOptedOut: stats.totalOptedOut,
         totalSent: stats.totalSent,
         totalFailed: stats.totalFailed,
