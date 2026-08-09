@@ -4,7 +4,7 @@ The mandate's §7 artifact. Companions: [`AUDIT/2026-08-truth.md`](AUDIT/2026-08
 [`EXECUTION-LOG.md`](EXECUTION-LOG.md) (chronology), [`BLOCKED.md`](BLOCKED.md),
 [`NOUR-ACTION-REQUIRED.md`](NOUR-ACTION-REQUIRED.md) (operator queue).
 
-**Seven PRs merged. The gate was the highest-value part of the campaign:** sixteen load-bearing
+**Eight PRs merged. The gate was the highest-value part of the campaign:** nineteen load-bearing
 claims in the mandate and its successor documents were false, and the two largest deletions were
 each safe only because something outside the source code — a provider API, then production itself —
 contradicted what the source code implied.
@@ -76,6 +76,9 @@ Claims falsified in the mandate and its successor documents (full table in the t
 | Calibration requires a labeling habit the operator lacks (Stage 5.5) | Grading is **automated nightly** by `outcome-tracker.scorePendingPredictions`. Nothing to freeze |
 | `/system/cockpit-observability` is an "18-line stub", delete it along with `/system/chat-states` and `/system/logs` (Stage 5.3) | The 18 lines are the **App Router page convention**. It wraps a **394-line** view. All three are live, linked from the system page, the settings ops hub, and keyboard shortcuts; `/system/logs` is 445 lines with its own API route. Deleting them would have removed working operator UI |
 | `components/chat/*` is a superseded v1; delete it once `features/chat-v2` parity is proven (Stage 7.1) | **v2 imports v1.** `features/chat-v2/components/chat-message-list.tsx:9-14` imports six modules from `components/chat/`, including three of the four named deletion targets, and is rendered by the live `chat-island.tsx`. That directory is the shared component library chat-v2 is built on, not a retired predecessor |
+| `packages/chrome-extension` has 0 files; ZERO packages meet a ≥2-consumer bar (Stage 3) | **10 tracked files, 746 lines**, and a live MV3 artifact: `popup.js:79` POSTs to `/api/brain/dump`, which stamps `source: "chrome-extension"`. Its bearer gate on `/api/brain/by-url` is a documented carve-out in statenour's own auth checker. And `@nour/utils` has two app consumers, so the "zero" claim fails too |
+| `Studio.tsx`/`StudioV2.tsx` and `nickActions.ts`/`nick/actions.ts` are duplicate pairs; resolve behind a feature flag (Stage 3) | `StudioV2.tsx:26` imports `Studio` **as `LegacyStudio`** and renders it at `:326`. `nickActions.ts` is the registered router that **imports** `nick/actions.ts` as its handler module. And no such flag exists — `FLAG_DEFINITIONS` has zero UI-version keys, so there is nothing to flip |
+| `use-streaming-error-guard` and `use-chat-stall` are "the same signal" — merge them (Stage 7.4) | **Opposite polarity.** One *clears* an existing error; the other *creates* one when the stream silently stops and no error exists. The merge would have deleted the only detector for the live "chat gets stuck" bug the operator reported the same day |
 
 A second built-but-unwired case surfaced in the consent work: `logSmsOptIn()` had been writing
 consent rows from three live doors while its reader `hasSmsOptIn()` had zero callers. Written, never

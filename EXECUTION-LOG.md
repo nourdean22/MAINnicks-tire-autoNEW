@@ -132,6 +132,21 @@ current source). Counting the filesystem takes one command; do that before belie
     library chat-v2 is built ON — 26 files, including a 1,234-line tool-result registry.
     **A "v1 vs v2" directory name is not evidence of supersession — check which one imports which.**
 
+17. **"`packages/chrome-extension` is 0 files" and "ZERO packages meet a ≥2-consumer bar"
+    (Stage 3.2).** It is 10 tracked files / 746 lines and a LIVE MV3 artifact — Chrome is its
+    runtime consumer, and it POSTs to two authenticated statenour routes that exist today. The
+    "zero packages" sweep also fails on `@nour/utils` (two app consumers, 9 sites). Note the trap
+    that nearly caught the investigator: `@nour/ai-capabilities` looks type-only to a grep because
+    **three of its four consumption sites are dynamic `await import()`**.
+18. **"Studio/StudioV2 and nickActions/nick-actions are duplicate pairs, resolve behind a flag"
+    (Stage 3.5).** `StudioV2.tsx:26` imports Studio **as `LegacyStudio`** and renders it; the
+    router **imports** its supposed duplicate as its handler module; and no UI-version flag exists
+    to flip. Three of four pairs are composition, not duplication.
+19. **"`use-streaming-error-guard` and `use-chat-stall` are the same signal — merge them"
+    (Stage 7.4).** Opposite polarity: one clears an error, the other creates one when the stream
+    goes silent. The merge would have deleted the detector for the exact production bug the
+    operator reported that afternoon.
+
 Pattern across all five: the mandate described a plausible problem that the estate had already
 solved, retired, or never had. **The instrument that lied was always a document; the instrument
 that settled it was always the running system.**
