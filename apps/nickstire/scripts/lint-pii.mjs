@@ -100,17 +100,28 @@ const PII_PATTERNS = [
 
   // ─── Plain console.log of PII ───
   //
-  // KNOWN BLIND SPOT (found 2026-08-09, not yet fixed — widening the regex
-  // surfaces an unknown number of new violations and belongs in its own PR):
-  // the `[^)]*` cannot span a closing paren, so ANY PII interpolation that
-  // follows a call on the same line is invisible. Real example that shipped:
+  // BLIND SPOT CLOSED 2026-08-09. The old `[^)]*` could not span a closing
+  // paren, so ANY PII interpolation that followed a call on the same line was
+  // invisible. The example that shipped:
   //   console.log(`inv ${String(p.invoiceId).padEnd(7)} "${p.name}" ... ${p.phone}`)
-  // leaked a full name AND a full phone, and this rule never fired, because
-  // `.padEnd(7)` closes a paren first. The weaker sibling line on the very
-  // next statement — no inner call — was caught. Both are fixed now; the
-  // rule is not. Widening `[^)]*` to `[^;]*` or `.*` is the candidate fix.
+  // leaked a full name AND a full phone and never fired, because `.padEnd(7)`
+  // closes a paren first — while the weaker sibling statement on the next line,
+  // with no inner call, was caught. The rule was scoring the easy half.
+  //
+  // `[^;)]` -> `[^;]` widens across parens but still stops at a statement
+  // boundary, so the match cannot run away across lines into an unrelated
+  // statement and report a false position. Anchored on the same PII vocabulary
+  // as before, so this widens REACH without widening what counts as PII.
+  // `maskable` joins the log-field rules' convention, and widening made it
+  // REQUIRED rather than optional: reaching across parens means this rule now
+  // sees the deliberately-masked diagnostics too (`***${String(p).slice(-4)}`),
+  // and a gate that flags correct code is a gate the next person learns to
+  // ignore. The documented line-level trade applies here as it does there — one
+  // masked and one raw field on the SAME line stands down — which is why the
+  // five raw leaks this widening exposed were masked rather than excused.
   {
-    pattern: /\bconsole\.(log|info|warn|error|debug)\s*\([^)]*\$\{[^}]*\b(phone|email|firstName|lastName|customerName|vin|address)\b[^}]*\}/gi,
+    pattern: /\bconsole\.(log|info|warn|error|debug)\s*\([^;]*\$\{[^}]*\b(phone|email|firstName|lastName|customerName|vin|address)\b[^}]*\}/gi,
+    maskable: true,
     why: "console.* with PII template literal · same Railway-log exposure as log.* + worse (often left in dev path that ships)",
     fix: "Remove the console statement OR scrub the PII · use mask helpers",
   },
@@ -273,7 +284,25 @@ function getAddedLines(relPath) {
  * number after stripping non-digits — so the shop's public line never
  * flags, but a real customer number sharing the line still does.
  */
+/**
+ * Line-level waiver: `// pii-allow: <reason>` — a REASON is required, so an
+ * empty marker does not silence anything.
+ *
+ * Added 2026-08-09 with the console-rule widening, because the widening
+ * surfaced a diagnostic whose entire job is comparing two customer names
+ * ("given-name misses — inspect before trusting"). Masking that field does not
+ * protect anyone; it just deletes the tool. The alternatives were worse: leave
+ * the gate permanently red, or narrow the rule back and re-hide the real leaks
+ * it had just found.
+ *
+ * Waive by SIGNATURE, never by filename — the marker sits on the offending
+ * line, so a second violation appearing anywhere else in the same file still
+ * fails. That is the property a file-level exclusion would destroy.
+ */
+const PII_ALLOW = /\/\/\s*pii-allow:\s*\S+/;
+
 function ruleViolates(rule, text) {
+  if (PII_ALLOW.test(text)) return false;
   // 2026-07-28 · masked values stand down (log-field rules only) and
   // comment prose can't trip URL-shape rules. See the pattern-block
   // comments for scope + the accepted line-level granularity trade.

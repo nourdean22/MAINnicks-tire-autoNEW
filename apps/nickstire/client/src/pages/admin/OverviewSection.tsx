@@ -30,6 +30,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { navigateToAdminSection } from "./shared";
 import ExceptionFeed from "./today/ExceptionFeed";
+import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
 import type { ActionItem, BookingItem, CallbackItem, LeadItem, WorkOrderItem } from "./today/types";
 
@@ -335,6 +336,24 @@ export default function OverviewSection() {
 
   const mutationPending = bookingUpdate.isPending || leadUpdate.isPending || callbackUpdate.isPending || recordAction.isPending;
 
+  /**
+   * ONE definition, two consumers: the "Urgent leads" card and the morning
+   * brief above it. This was inline in the card's JSX; the brief would have
+   * needed the same predicate re-typed, and a re-typed predicate is how the
+   * weekly digest nearly drifted from the daily report on the lead count.
+   * Callback-duplicate exclusion is part of the rule, not a caller's chore.
+   */
+  const urgentLeadCount = useMemo(
+    () =>
+      leads.filter(
+        (lead) =>
+          !isCallbackDuplicateLead(lead) &&
+          ACTIVE_LEAD_STATUSES.has(lead.status) &&
+          (lead.urgencyScore ?? 0) >= 4,
+      ).length,
+    [leads],
+  );
+
   if (isLoading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
@@ -342,6 +361,13 @@ export default function OverviewSection() {
   return (
     <div className="space-y-5" aria-label="Today operator command center">
       <DegradedDataBanner stats={stats} unavailable={isError} unavailableMessage={error?.message} />
+
+      {/* The overnight header. It reads from the SAME `queue` and
+          `urgentLeadCount` the cards below render, so the brief cannot
+          disagree with the page it introduces — the failure mode that made
+          `countActionableLeads` a shared function rather than two SQL
+          predicates. It self-suppresses when there is no real signal. */}
+      <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} />
 
       {/* Owner Decision Inbox (Wave 4) — the top-5 evidence-backed
           decisions LEAD the day. Everything below is monitoring; this is
@@ -390,7 +416,7 @@ export default function OverviewSection() {
           alert={queue.length > 0 || !queueTrustworthy}
         />
         <SummaryCard label="Bookings today" value={todaysBookings.length} detail={`Cleveland date · ${todayKey}`} />
-        <SummaryCard label="Urgent leads" value={leads.filter((lead) => !isCallbackDuplicateLead(lead) && ACTIVE_LEAD_STATUSES.has(lead.status) && (lead.urgencyScore ?? 0) >= 4).length} detail="Included once" />
+        <SummaryCard label="Urgent leads" value={urgentLeadCount} detail="Included once" />
         {/*
           Fed by the SAME query as the "Needs action" card. It used to render a
           neutral "0" while that card, on the identical failure, correctly read

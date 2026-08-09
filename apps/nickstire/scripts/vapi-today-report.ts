@@ -110,7 +110,7 @@ async function main() {
         : "—";
       const reason = (c.endedReason as string) || "?";
       const phone = ((c.customer as Record<string, unknown>)?.number as string) || "?";
-      console.log(`│    ${time}  ${dur.padStart(7)}  ${reason.padEnd(20)} ${phone}`);
+      console.log(`│    ${time}  ${dur.padStart(7)}  ${reason.padEnd(20)} ***${String(phone).slice(-4)}`);
     }
   }
   console.log(`└──`);
