@@ -220,7 +220,10 @@ async function main() {
     if (estPlan.length) {
       console.log("recoverable from alg_estimates:");
       for (const p of estPlan.slice(0, 10)) {
-        console.log(`  inv ${String(p.invoiceId).padEnd(7)} "${p.name}" -> phone ${p.phone} (no customer row; phone only)`);
+        // invoiceId already identifies the row, so the name adds nothing here
+        // that the operator cannot get by opening it — dropped rather than
+        // masked, and the phone is reduced to last-4.
+        console.log(`  inv ${String(p.invoiceId).padEnd(7)} -> phone ***${String(p.phone ?? "").slice(-4)} (no customer row; phone only)`);
       }
       if (estPlan.length > 10) console.log(`  ... and ${estPlan.length - 10} more`);
       console.log("");
@@ -230,7 +233,7 @@ async function main() {
       console.log("given-name misses (surname exists — inspect before trusting):");
       for (const m of firstNameMiss.slice(0, 10)) {
         const opts = m.cands.map((c) => `${c.firstName} ${c.lastName}`).join(" / ");
-        console.log(`  inv ${String(m.row.id).padEnd(7)} "${m.row.customerName}"  vs  ${opts}`);
+        console.log(`  inv ${String(m.row.id).padEnd(7)} "${m.row.customerName}"  vs  ${opts}`); // pii-allow: the name comparison IS this diagnostic — masking it prints two rows of asterisks and decides nothing (2026-08-09)
       }
       if (firstNameMiss.length > 10) console.log(`  ... and ${firstNameMiss.length - 10} more`);
       console.log("");

@@ -108,7 +108,9 @@ async function main() {
       const existing = existingRaw as Array<{ id: number }>;
 
       if (existing.length > 0) {
-        console.log(`  · SKIP migrate (already in alg_estimates as #${existing[0].id}): invoices.id=${r.id} · ${r.customerName} · $${(r.totalAmount / 100).toFixed(2)}`);
+        // both ids are already on the line, so the customer name was redundant
+        // identification — dropped rather than masked.
+        console.log(`  · SKIP migrate (already in alg_estimates as #${existing[0].id}): invoices.id=${r.id} · $${(r.totalAmount / 100).toFixed(2)}`);
         alreadyInAlg++;
         if (COMMIT) {
           await conn.execute(`DELETE FROM invoices WHERE id = ?`, [r.id]);
