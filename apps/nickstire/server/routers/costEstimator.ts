@@ -147,6 +147,12 @@ async function estimateWithAI(
     const prompt = buildEstimatorPrompt(year, make, model, serviceType, laborRate);
 
     const result = await invokeLLM({
+      // 2026-08-09 · P0 = live production. This is a CUSTOMER waiting on a
+      // public estimate page; by omitting priority it defaulted to P2
+      // ("benchmarks/cage") and queued behind background work in a 3-slot
+      // Ollama pool whose background cap is 2. The tiers existed; the two
+      // customer-facing estimators were the only callers not using them.
+      priority: 0,
       messages: [
         {
           role: "user",

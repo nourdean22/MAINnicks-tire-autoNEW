@@ -15,16 +15,24 @@ const log = createLogger("laborEstimate");
 /** Search Auto Labor Guide for matching jobs to inject real labor times */
 async function findMatchingLaborJobs(repairDescription: string): Promise<string> {
   try {
-    // Dynamic import to avoid circular dependency
-    // Dynamic search against autoLabor router's built-in database
-    // Avoids duplicating the 60+ job database in memory
-    const { autoLaborRouter } = await import("./routers/autoLabor");
-    const caller = autoLaborRouter.createCaller({} as any);
-    const searchResult = await caller.searchJobs({ query: repairDescription.slice(0, 50) });
+    // Dynamic import to avoid a circular dependency with the router module.
+    //
+    // 2026-08-09 · This used to go through
+    // `autoLaborRouter.createCaller({} as any).searchJobs(...)`. `searchJobs`
+    // is an adminProcedure, and an empty context has no `ctx.user`, so that
+    // call threw FORBIDDEN on EVERY request — runtime-confirmed:
+    //   [tRPC ERROR] query searchJobs (1ms): You do not have required permission
+    // The catch below swallowed it and returned "", so the reference block was
+    // never injected and the model estimated labor hours with NO grounding,
+    // on a customer-facing path, while the verified 62-job table sat one call
+    // away. Now calls the plain search function directly — same data, no auth
+    // boundary in the way of a public estimate.
+    const { searchLaborJobs } = await import("./routers/autoLabor");
+    const results = searchLaborJobs(repairDescription.slice(0, 50));
 
-    if (!searchResult.results || searchResult.results.length === 0) return "";
+    if (results.length === 0) return "";
 
-    const matches = searchResult.results.slice(0, 8).map((r: any) =>
+    const matches = results.slice(0, 8).map((r) =>
       `- ${r.job.name}: ${r.job.minHours}-${r.job.maxHours}h (avg ${r.job.avgHours}h) [Auto Labor Guide]`
     );
 
@@ -174,6 +182,10 @@ Respond with a JSON object:
 
   try {
     const response = await invokeLLM({
+      // 2026-08-09 · P0 = live production. See the note in costEstimator: this
+      // is a customer waiting on an estimate, and it was defaulting to P2
+      // ("benchmarks/cage") behind background work.
+      priority: 0,
       messages: [
         { role: "system", content: buildSystemPrompt(laborRate) },
         { role: "user", content: userMessage },

@@ -44,14 +44,6 @@ export interface DateRange {
   endDate: string;   // YYYY-MM-DD
 }
 
-export interface QueryCluster {
-  theme: string;
-  queries: string[];
-  totalClicks: number;
-  totalImpressions: number;
-  avgPosition: number;
-}
-
 export interface RankingChange {
   query: string;
   page: string;
@@ -736,124 +728,6 @@ export async function getPagePerformance(opts?: {
   }));
 }
 
-// ─── QUERY CLUSTERING ───────────────────────────────────
-
-/**
- * Group search queries into thematic clusters using AI.
- * Helps identify which topics drive the most traffic.
- */
-export async function clusterQueries(opts?: { startDate?: string; searchType?: string }): Promise<QueryCluster[]> {
-  const d = await db();
-  if (!d) return [];
-
-  const startDate = opts?.startDate ?? getDefaultStartDate();
-  const searchType = opts?.searchType ?? "web";
-
-  // Get all queries with aggregated metrics
-  const rows = await d
-    .select({
-      query: searchPerformance.query,
-      clicks: sql<number>`SUM(${searchPerformance.clicks})`,
-      impressions: sql<number>`SUM(${searchPerformance.impressions})`,
-      avgPosition: sql<number>`ROUND(AVG(${searchPerformance.position}) / 100, 1)`,
-    })
-    .from(searchPerformance)
-    .where(
-      and(
-        gte(searchPerformance.date, startDate),
-        eq(searchPerformance.searchType, searchType),
-      )
-    )
-    .groupBy(searchPerformance.query)
-    .orderBy(sql`SUM(${searchPerformance.impressions}) DESC`)
-    .limit(100);
-
-  if (rows.length === 0) return [];
-
-  const queryList = rows.map((r: any) => `"${r.query}" (${r.clicks} clicks, ${r.impressions} imp, pos ${r.avgPosition})`).join("\n");
-
-  try {
-    const response = await invokeLLM({
-      messages: [
-        {
-          role: "system",
-          content: `You are an SEO analyst for Nick's Tire & Auto, a Cleveland auto repair shop.
-Group these search queries into thematic clusters. Return JSON array of clusters.
-Each cluster should have:
-- theme: a descriptive name for the cluster (e.g., "Tire Services", "Brake Repair", "General Auto Repair", "Location-Based", "Brand Searches")
-- queries: array of the exact query strings that belong to this cluster
-
-Group by SERVICE TYPE or INTENT, not by volume. Every query must appear in exactly one cluster.
-Aim for 4-8 clusters. Don't create clusters with only 1 query unless it's truly unique.`,
-        },
-        { role: "user", content: queryList },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "query_clusters",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              clusters: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    theme: { type: "string" },
-                    queries: { type: "array", items: { type: "string" } },
-                  },
-                  required: ["theme", "queries"],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: ["clusters"],
-            additionalProperties: false,
-          },
-        },
-      },
-    });
-
-    const content = response.choices?.[0]?.message?.content;
-    if (!content || typeof content !== "string") return [];
-
-    const parsed = JSON.parse(content);
-    if (!Array.isArray(parsed.clusters)) return [];
-
-    // Enrich clusters with aggregated metrics
-    const queryMetrics = new Map(rows.map((r: any) => [r.query, r as any]));
-
-    return parsed.clusters.map((cluster: { theme: string; queries: string[] }) => {
-      let totalClicks = 0;
-      let totalImpressions = 0;
-      let posSum = 0;
-      let posCount = 0;
-
-      for (const q of cluster.queries) {
-        const m: any = queryMetrics.get(q);
-        if (m) {
-          totalClicks += Number(m.clicks);
-          totalImpressions += Number(m.impressions);
-          posSum += Number(m.avgPosition);
-          posCount++;
-        }
-      }
-
-      return {
-        theme: cluster.theme,
-        queries: cluster.queries,
-        totalClicks,
-        totalImpressions,
-        avgPosition: posCount > 0 ? Math.round((posSum / posCount) * 10) / 10 : 0,
-      };
-    });
-  } catch (error) {
-    log.error("[GSC Pipeline] Query clustering failed:", error);
-    return [];
-  }
-}
 
 // ─── POSITION TRACKING ──────────────────────────────────
 

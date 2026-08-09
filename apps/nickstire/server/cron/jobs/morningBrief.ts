@@ -77,6 +77,38 @@ export function buildDecisionsBlock(top: {
 
 export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; details?: string }> {
   const { sendTelegram } = await import("../../services/telegram");
+
+  // 2026-08-09 · Morning-window self-gate, mirroring dailyReport's evening one.
+  //
+  // This job sits on the 12-hour "briefings" tier, so it fires TWICE a day —
+  // and it had no clock gate at all, unlike its tier-mate daily-report which
+  // skips its morning run with `if (etHour < 18) return`. The result: two
+  // "morning" briefs per day, at whatever two times the process happened to
+  // start, drifting on every redeploy. `runOnStartup` excludes this tier, so
+  // the phase is process-start + 12h — nothing anchored it to a clock.
+  //
+  // Paired with `oncePerShopDay: true` on the scheduler entry: the flag stops
+  // a second SHOP-DAY run, this window stops it landing at 2am.
+  // FAIL-CLOSED on an unreadable clock. `parseInt` returns NaN if the locale
+  // string ever changes shape or the timezone is unresolvable, and NaN fails
+  // BOTH comparisons — so a naive `hour < 6 || hour >= 12` would SEND rather
+  // than skip. For a proactive push that is the wrong direction: a brief that
+  // does not arrive is a missed glance; a brief that arrives at 3am is the
+  // thing this gate exists to prevent. Not sending is always the safe answer
+  // here, so an indeterminate hour must skip.
+  const { BUSINESS } = await import("@shared/business");
+  const etHour = parseInt(
+    new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
+    10,
+  );
+  if (!Number.isFinite(etHour)) {
+    log.warn("Could not resolve shop-TZ hour — skipping morning brief (fail-closed)");
+    return { recordsProcessed: 0, details: "Shop-TZ hour unresolvable — skipped (fail-closed)" };
+  }
+  if (etHour < 6 || etHour >= 12) {
+    return { recordsProcessed: 0, details: `Outside the morning window (${etHour}:00 ET) — skipped` };
+  }
+
   const d = await db();
 
   if (!d) {
