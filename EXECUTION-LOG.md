@@ -20,6 +20,23 @@
   standing rule after the 870-row incident). knip/madge NOT re-run (estate audit 2026-08-07
   executed them; re-running is policy-banned).
 
+## 2026-08-09 · session 1 continued · VAPI ground truth (operator answered items 4/5)
+
+- Operator: repoint the four tools to nickstire; Custom GPT was never used (wants help wiring it
+  later); TCPA consent work approved in principle.
+- Read the VAPI account via API (read-only, ids/names/urls only): **5 account-level tools, ALL
+  orphaned** (`toolIds=[]` on all 3 assistants). The 3 URL-bearing tools point at
+  **autonicks.com — a dead Vercel deployment** (`DEPLOYMENT_NOT_FOUND`), not bdnick.info.
+  **The live number +1-216-424-9249 → assistant 150fe622 → serverUrl nickstire.org/api/webhooks/vapi**
+  (13-case dispatcher, prod probe rejects bad secrets). The repoint's premise dissolved: live voice
+  is ALREADY 100% nickstire.
+- Consequence: statenour's four `/api/vapi/*` routes receive zero VAPI traffic (VAPI never had
+  bdnick.info configured). The truth doc §2's first hazard is DOWNGRADED with receipts — the
+  stage-3 delete of those four routes (+ their now-orphaned helpers `lib/auth/vapi-webhook`,
+  `lib/services/nickstire-write` if importer-free) is unblocked for a session with full statenour
+  verify budget. No VAPI account config was mutated (recommendation to operator instead: delete the
+  5 orphan tools; review duplicate Receptionist afcad79e).
+
 ## Falsified
 
 Ten §4 claims falsified with receipts — table in `AUDIT/2026-08-truth.md` §1. Standouts: apps/voice
