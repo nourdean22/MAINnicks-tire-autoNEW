@@ -80,6 +80,33 @@ describe("SMS opt-out vocabulary", () => {
     expect(isOptOutBody("stop\tall")).toBe(true);
   });
 
+  /**
+   * The gap a reviewer caught: the first version of this change edited
+   * `handleInboundSms`, which has ZERO callers. Production inbound runs through
+   * smsResponseJobs -> smsOrchestrator -> parseSmsResponse, and THAT regex
+   * omitted REVOKE — so a customer texting it was suppressed by the index up to
+   * five minutes later, with no unsubscribe action, no compliance row and no
+   * confirmation. These pin the LIVE parser, not the dead one.
+   */
+  describe("the live inbound parser (smsResponseParser)", () => {
+    const PARSER = read("server/services/smsResponseParser.ts");
+    const unsubscribeRule = PARSER.match(/\{\s*pattern:\s*(\/\^[^/]*\/i),\s*intent:\s*"unsubscribe"/);
+
+    it("canary: the unsubscribe rule is still findable", () => {
+      expect(unsubscribeRule, "the unsubscribe pattern moved — re-point this test").toBeTruthy();
+    });
+
+    it("catches REVOKE, the word the index knew and the parser did not", () => {
+      expect(unsubscribeRule![1]).toMatch(/revoke/);
+    });
+
+    it("still EXCLUDES cancel — for an auto shop that means cancel-my-appointment", () => {
+      // a lone "cancel" must never unsubscribe someone from all SMS; that
+      // defect is recorded in server/_core/index.ts
+      expect(unsubscribeRule![1]).not.toMatch(/\bcancel\b/);
+    });
+  });
+
   it("does NOT opt out on a spam footer — exact match is deliberate", () => {
     expect(isOptOutBody("Win a gift card! Reply STOP to end")).toBe(false);
     expect(isOptOutBody("please stop texting me")).toBe(false); // plain-English revocation is a human-review case, not a silent claim

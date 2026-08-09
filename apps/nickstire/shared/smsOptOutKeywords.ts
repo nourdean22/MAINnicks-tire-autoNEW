@@ -35,6 +35,23 @@ export const SMS_OPT_OUT_KEYWORDS = [
   "OPT OUT",
 ] as const;
 
+/**
+ * ★ THIS LIST IS FOR THE SUPPRESSION INDEX, NOT THE LIVE PARSER. Do not
+ * "unify" `server/services/smsResponseParser.ts` onto it.
+ *
+ * That parser is the one the production webhooks actually reach
+ * (smsResponseJobs -> smsOrchestrator -> parseSmsResponse) and its semantics
+ * differ ON PURPOSE: it is prefix-anchored rather than whole-body, it accepts
+ * "remove me", and it deliberately EXCLUDES `CANCEL`, because for an auto shop
+ * a lone "cancel" means cancel-my-appointment. Applying this list there would
+ * unsubscribe a customer from all SMS for cancelling one booking — a defect the
+ * codebase has already seen and written down (`server/_core/index.ts`).
+ *
+ * The overlap that MUST hold is narrower: every word here should be reachable
+ * by one path or the other, and `optOutVocabulary.test.ts` pins REVOKE in the
+ * live parser for exactly that reason.
+ */
+
 /** Opt-IN vocabulary — the START side of the same door. */
 export const SMS_OPT_IN_KEYWORDS = ["START", "YES", "UNSTOP"] as const;
 

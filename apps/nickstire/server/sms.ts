@@ -1056,6 +1056,17 @@ export function handleDeliveryStatus(data: {
 /**
  * Handle inbound SMS — call this from your Twilio webhook for incoming messages.
  */
+/**
+ * ★ NOT THE LIVE INBOUND PATH — zero callers as of 2026-08-09.
+ *
+ * Production inbound runs through the webhooks into
+ * `smsResponseJobs -> smsOrchestrator -> parseSmsResponse`
+ * (`server/services/smsResponseParser.ts`), whose unsubscribe regex is the one
+ * that actually fires. This function reads like the inbound handler and is not,
+ * which already cost one reviewer round — a change made here changes nothing a
+ * customer experiences. Wire it or delete it deliberately; do not assume
+ * editing it fixes an inbound behaviour.
+ */
 export function handleInboundSms(data: {
   From: string;
   Body: string;
