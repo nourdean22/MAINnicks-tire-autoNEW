@@ -1654,6 +1654,71 @@ p.body-pretty {
   --brand-yellow: #E6E8EB;
 }
 
+/* ===================================================================
+   ANDON RAMP — severity must map to salience (admin only)
+   ===================================================================
+   THE DEFECT. Tailwind's palette is perceptually uniform WITHIN a hue,
+   not ACROSS hues. Read its own OKLCH values at the shades this admin
+   actually uses (1,881 occurrences across the console):
+
+     red-400    L 70.4%      emerald-400  L 76.5%     amber-400  L 82.8%
+     red-500    L 63.7%      emerald-500  L 69.6%     amber-500  L 76.9%
+
+   That is a 12.4-point lightness spread at one nominal step, and it runs
+   BACKWARDS: amber renders brightest, red dimmest. On a shop-floor andon
+   board the colour meaning "stop, money is at risk" is the quietest thing
+   on the screen, and "caution" pulls the eye first. Equal step numbers
+   were doing unequal work.
+
+   THE FIX. Re-tint the three signal hues to a single lightness per tier,
+   so brightness stops encoding hue and severity is carried by chroma,
+   size and placement — the things that were chosen deliberately.
+
+   Chroma per hue is COMPUTED, not eyeballed: each value sits inside that
+   hue's maximum sRGB chroma at its tier lightness (OKLCH -> Oklab ->
+   linear sRGB, binary-searched per hue), so nothing here is silently
+   gamut-clamped by the browser — clamping would reintroduce the very
+   lightness drift this block removes. Red's chroma ceiling falls as
+   lightness rises (0.191 at L70 -> 0.114 at L80), which is exactly why
+   the tiers sit at 0.72/0.66 rather than higher.
+
+   WHY IT NEEDS NO COMPONENT EDITS. Tailwind v4 compiles utilities to a
+   var() lookup — `.text-red-400{color:var(--color-red-400)}` — and custom
+   properties inherit, so overriding the token on the shell re-tints every
+   existing call site at once. Deleting this block restores stock Tailwind
+   exactly; there is no migration to unwind.
+
+   Scoped to .admin-shell on purpose: the customer site keeps stock
+   Tailwind. Pinned by client/src/__tests__/andon-ramp.test.ts, which
+   fails if any tier stops being equal-lightness.
+   =================================================================== */
+.admin-shell {
+  /* soft tier — L 0.80 */
+  --color-red-300: oklch(0.8 0.11 22.216);
+  --color-amber-300: oklch(0.8 0.15 84.429);
+  --color-emerald-300: oklch(0.8 0.158 163.223);
+
+  /* text tier — L 0.72 · the workhorse (761 of the 1,881 uses) */
+  --color-red-400: oklch(0.72 0.17 22.216);
+  --color-amber-400: oklch(0.72 0.145 84.429);
+  --color-emerald-400: oklch(0.72 0.152 163.223);
+
+  /* fill + border tier — L 0.66 */
+  --color-red-500: oklch(0.66 0.2 22.216);
+  --color-amber-500: oklch(0.66 0.132 84.429);
+  --color-emerald-500: oklch(0.66 0.138 163.223);
+}
+
+/* Money columns align on the decimal, always.
+   Proportional digits make a currency column ragged and make a changing
+   figure jitter as it re-renders. Tabular figures are the typographic fix
+   and cost nothing: same face, fixed advance width. Applied to admin
+   tables wholesale rather than per-component, because a data grid where
+   only some columns align is worse than one where none do. */
+.admin-shell :is(table, th, td) {
+  font-variant-numeric: tabular-nums;
+}
+
 .scroll-touch {
   -webkit-overflow-scrolling: touch;
 }
