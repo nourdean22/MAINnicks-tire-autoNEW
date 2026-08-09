@@ -155,6 +155,68 @@ The counter-discipline is cheap: resolve the mapping, then make a second instrum
 before acting. Three of the four were caught by a second instrument or the test suite; the one that
 reached a commit was reverted by the gate before merge.
 
+## 4d · PROD TRAFFIC — operator-authorized read-only pull, and it corrects §3
+
+Run via `apps/nickstire/scripts/page-traffic-readonly.mts` (SELECT-only; prints its host before
+querying, per `prod-db-guard`). Target proven, not assumed: `gateway01.us-east-1.prod.aws.tidbcloud.com`,
+db `nickstire`. Window **2026-04-05 → 2026-08-07**, 36,446 rows, **75 distinct URLs**.
+
+### ★ CORRECTION to §3 — I cited a code comment as traffic evidence
+
+§3 defended the Moe's bridge page by quoting its own source comment: "242 clicks @ position 4.5 over
+90d". **Production disagrees.** Last 90 days:
+
+```
+0 clicks   525 impressions   position 6.9   /moes-tire-euclid
+```
+
+The comment is stale (written in the wave-181.x era). **I used tier-6 evidence (documentation) where
+tier-2 (a production receipt) was available** — precisely the ladder the mandate's own §3 defines.
+The claim as published in #1466 was wrong and is retracted here.
+
+What survives, and what changes:
+
+- **Survives:** the *reasoning* that these are a deliberate legacy-brand bridge, not a NAP conflict —
+  the 301s, `sitemap:false` aliases and rebrand H1 are all still real and correct. Killing them "to
+  fix NAP" remains wrong.
+- **Changes:** the page is **not** a live-clicks asset. It holds 525 impressions at a strong position
+  6.9 and converts none of them. Keep-or-kill is now a judgment call on merit, not an obvious keep.
+
+### The finding that reframes the whole SEO stage
+
+| URL | impressions | clicks | avg position |
+|---|---|---|---|
+| `/` | 15,394 | **120** | 11.0 |
+| `/oil-change` | 13,729 | 5 | 33.6 |
+| `/brakes` | 12,806 | 2 | 36.4 |
+| `/diagnostics` | 4,625 | **0** | — |
+| `/services` | 1,623 | 9 | 4.7 |
+| `/tires` | 1,554 | 13 | 23.0 |
+| `/euclid-auto-repair` | 882 | 0 | 13.2 |
+| `/reviews` | 721 | 0 | 7.9 |
+
+- **The entire site earns roughly 168 organic clicks per 90 days — about 1.9 per day — and the
+  homepage is 120 of them (71%).**
+- **Only 75 distinct URLs have ANY search presence** across four months, against 194 registered
+  routes and 339 prerendered directories. So on the order of 260 pages drew zero impressions.
+- The high-impression pages sit at **positions 33-36**, which is page 3-4: seen by the index, never
+  clicked by a human.
+- **Comparison pages earn essentially nothing:** `/best-tire-shops-cleveland` 1 click,
+  `/nicks-tire-vs-mavis-cleveland` 0 clicks / 17 impressions, `/conrads-tire-alternative-cleveland`
+  0 clicks / 13 impressions. (Note: the `LIKE '%compare%'` filter returned no rows because these live
+  at flat slugs, not under `/compare/` — a reminder to check the URL shape before reading a zero.)
+
+**Consequence for mandate 9 stage 5.** Its premise is that schema, crawlability and raw-HTML coverage
+are the levers. §4 already showed all three are in good shape — and this table shows why that didn't
+help: **the constraint is ranking position, not technical eligibility.** Adding more programmatic
+pages to a farm that already ranks at position 33 cannot work; neither can markup that Google says it
+doesn't need. That is a content-authority and local-prominence problem, and it is the operator's
+strategic call rather than an agent's refactor.
+
+**Deliberately not concluded:** none of this justifies mass deletion. Google's own guidance is that
+404s are not a negative quality signal, but removing pages also recovers nothing except maintenance,
+and impressions are real query presence. The honest read is that the farm is **inert**, not harmful.
+
 ## 5 · What this pass did NOT do, and why
 
 - **No public page was deleted or redirected.** Per-URL traffic evidence is not available in this
