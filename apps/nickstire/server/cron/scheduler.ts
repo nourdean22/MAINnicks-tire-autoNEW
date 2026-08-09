@@ -2235,11 +2235,29 @@ export function startTieredScheduler(): void {
     intervalMs: 12 * 60 * 60 * 1000,
     jobs: [
       {
-        // 2026-08-09 · Self-gates to a 6am-12pm shop-TZ window inside the job.
-        // Without this pair it fired on BOTH 12-hour ticks — two "morning"
-        // briefs a day, at times that drifted with every redeploy.
+        // 2026-08-09 · Self-gates to a 6am-12pm shop-TZ window inside the job,
+        // the same shape daily-report uses for its evening slot. That gate ALONE
+        // guarantees at most one send per day: this tier ticks every 12h, and
+        // two ticks 12h apart cannot both land inside a 6h window.
+        //
+        // DELIBERATELY NOT oncePerShopDay — I added that flag first and review
+        // caught that it makes things WORSE here. `runTier` calls
+        // `claimOncePerShopDay` BEFORE the handler, so a tick that is inside
+        // business hours but outside the morning window (a 14:00 phase) claims
+        // the day's only slot and THEN skips on the window. The 12h partner tick
+        // is then blocked, and since this tier is excluded from runOnStartup
+        // (see `runOnStartup` below) the phase never moves — so the brief would
+        // stop firing entirely, every day, until a redeploy. Trading "fires
+        // twice" for "never fires" is not a fix. The claim is only safe when the
+        // job's own gate runs BEFORE it, which is not how runTier is ordered.
+        //
+        // Residual, stated rather than hidden: if the tier's phase puts neither
+        // tick in 06:00-11:59 ET, no brief lands that day. That is the existing
+        // posture of its tier-mate daily-report (`if (etHour < 18) return`), it
+        // self-corrects on the next redeploy, and it fails toward silence rather
+        // than toward a 3am push. Moving this job to the 2h tier would remove
+        // the residual outright and is the real fix if it ever bites.
         name: "nick-morning-brief",
-        oncePerShopDay: true,
         handler: async () => {
           const { sendMorningBrief } = await import("./jobs/morningBrief");
           return sendMorningBrief();

@@ -83,15 +83,24 @@ describe("morning brief · shop-TZ window", () => {
     expect(res.recordsProcessed).toBe(0);
   });
 
-  it("the scheduler entry also claims the day, so the window is not the only guard", async () => {
+  it("must NOT carry oncePerShopDay — the claim runs before the handler and would strand the brief", async () => {
+    // Review caught this on #1479. `runTier` calls claimOncePerShopDay BEFORE
+    // the handler, so a tick inside business hours but outside the morning
+    // window (e.g. a 14:00 phase) claims the day's only slot and THEN skips on
+    // the window — blocking the 12h partner tick. This tier is excluded from
+    // runOnStartup, so the phase never moves and the brief stops firing
+    // entirely. The window gate alone is sufficient: two ticks 12h apart cannot
+    // both land inside a 6h window.
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const src = readFileSync(join(process.cwd(), "server", "cron", "scheduler.ts"), "utf8");
     const entry = src.slice(src.indexOf('name: "nick-morning-brief"'));
     const decl = entry.slice(0, entry.indexOf("},"));
+    // Strip comments — the explanation above deliberately names the flag.
+    const code = decl.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     expect(
-      decl,
-      "nick-morning-brief lost its oncePerShopDay claim — a 12h tier will fire it twice again",
-    ).toContain("oncePerShopDay: true");
+      code,
+      "nick-morning-brief regained oncePerShopDay — the claim precedes the window gate and will strand the brief",
+    ).not.toContain("oncePerShopDay");
   });
 });
