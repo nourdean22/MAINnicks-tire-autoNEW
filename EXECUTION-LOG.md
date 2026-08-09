@@ -119,7 +119,13 @@ current source). Counting the filesystem takes one command; do that before belie
 14. **"Calibration requires a labeling habit the operator does not have" (Stage 5.5).** Grading is
     automated nightly by `outcome-tracker.scorePendingPredictions` via the brain-intelligence cron.
 
-Pattern across all three: the mandate described a plausible problem that the estate had already
+15. **"Delete `/system/cockpit-observability` (an 18-line stub), `/system/chat-states` and
+    `/system/logs`" (Stage 5.3).** All three are live operator UI. The 18 lines are the App Router
+    page convention wrapping a 394-line view; the three pages are linked from the system index, the
+    settings ops hub, and keyboard shortcuts, and `/system/logs` carries its own API route.
+    **A wrapper file's line count is not a measure of the feature behind it.**
+
+Pattern across all four: the mandate described a plausible problem that the estate had already
 solved, retired, or never had. **The instrument that lied was always a document; the instrument
 that settled it was always the running system.**
 

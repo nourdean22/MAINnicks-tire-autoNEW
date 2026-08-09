@@ -4,10 +4,15 @@ The mandate's §7 artifact. Companions: [`AUDIT/2026-08-truth.md`](AUDIT/2026-08
 [`EXECUTION-LOG.md`](EXECUTION-LOG.md) (chronology), [`BLOCKED.md`](BLOCKED.md),
 [`NOUR-ACTION-REQUIRED.md`](NOUR-ACTION-REQUIRED.md) (operator queue).
 
-**Seven PRs merged. The gate was the highest-value part of the campaign:** fourteen load-bearing
+**Seven PRs merged. The gate was the highest-value part of the campaign:** fifteen load-bearing
 claims in the mandate and its successor documents were false, and the two largest deletions were
 each safe only because something outside the source code — a provider API, then production itself —
 contradicted what the source code implied.
+
+The gate's value is easiest to see in what did **not** happen: the mandate's delete lists, executed
+literally, would have severed live VAPI webhooks, cut the working nickstire↔statenour bridge, and
+removed three functioning operator pages. Every one of those was stopped by checking rather than
+trusting, and the checks cost less than any one of the repairs would have.
 
 ## What shipped
 
@@ -69,6 +74,7 @@ Claims falsified in the mandate and its successor documents (full table in the t
 | Ahrefs + Supermetrics are "decisive for the dead-page work" | Both authenticate and **neither can return a row** — Ahrefs is a trial with 0 API units, Supermetrics' trial expired 2026-05-17. The evidence was never external: nickstire ingests its own GSC into `search_performance` and already aggregates it by page |
 | `lib/eval` and `lib/evals` are a duplicate pair to merge | Zero shared symbols. One was dead, the other has four live consumers; "keep the one with live imports" was incoherent because both had importers |
 | Calibration requires a labeling habit the operator lacks (Stage 5.5) | Grading is **automated nightly** by `outcome-tracker.scorePendingPredictions`. Nothing to freeze |
+| `/system/cockpit-observability` is an "18-line stub", delete it along with `/system/chat-states` and `/system/logs` (Stage 5.3) | The 18 lines are the **App Router page convention**. It wraps a **394-line** view. All three are live, linked from the system page, the settings ops hub, and keyboard shortcuts; `/system/logs` is 445 lines with its own API route. Deleting them would have removed working operator UI |
 
 A second built-but-unwired case surfaced in the consent work: `logSmsOptIn()` had been writing
 consent rows from three live doors while its reader `hasSmsOptIn()` had zero callers. Written, never
