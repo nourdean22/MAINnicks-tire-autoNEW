@@ -21,7 +21,7 @@
  * only). This matches the executor brief.
  */
 
-import { useState, useEffect, useMemo, Component } from "react";
+import { useState, useEffect, useMemo, useCallback, Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
@@ -145,6 +145,41 @@ export default function RelationshipsPage() {
   const [editInitial, setEditInitial] = useState<
     React.ComponentProps<typeof PersonEditDrawer>["initial"]
   >(undefined);
+
+  // ── 2026-08-09 · the two compound intents this page actually has ──
+  //
+  // Three pieces of state have to move TOGETHER or the operator sees nothing:
+  // `browseOpen` (the browse <details> is collapsed by default, so a row
+  // inside it is display:none), `showAll` (rows past VISIBLE_CAP are sliced
+  // out entirely), and `selectedPersonId`. Setting any one without the others
+  // silently no-ops — that is the failure the hash-anchor comment above
+  // describes, and it had been hand-written at SIX call sites, one of which
+  // documented itself as "Mirrors the hash-anchor useEffect above" rather
+  // than sharing it. Naming the intent removes the duplication and makes the
+  // invariant enforceable in one place instead of six.
+  //
+  // Deliberately NOT a useReducer. The 12 useState calls here are a real
+  // consolidation candidate, but the duplication was never the state SHAPE —
+  // it was these two unnamed transitions. Two named callbacks fix the actual
+  // defect with zero behavior change; rewriting the state model of a
+  // 1,002-line page carries regression risk that nothing observed justifies.
+
+  /** Reveal a specific person's row: open browse, lift the cap, select them. */
+  const revealPerson = useCallback((personId: string) => {
+    setBrowseOpen(true);
+    setSelectedPersonId(personId);
+    setShowAll(true); // ensure the row isn't past VISIBLE_CAP
+  }, []);
+
+  /** Reveal the browse list itself, optionally re-sorted by a stat tile. */
+  const revealBrowse = useCallback(
+    (sort?: (typeof VALID_SORTS)[number]) => {
+      setBrowseOpen(true);
+      if (sort) setSortKey(sort);
+      setShowAll(true);
+    },
+    [setSortKey],
+  );
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -181,9 +216,7 @@ export default function RelationshipsPage() {
     const m = /^#person-([\w-]+)$/.exec(hash);
     if (!m) return;
     const personId = m[1];
-    setBrowseOpen(true);
-    setSelectedPersonId(personId);
-    setShowAll(true); // ensure row isn't past VISIBLE_CAP
+    revealPerson(personId);
     // Defer scrollIntoView so the <details> open animation + row render
     // happen first. Two RAF gets us past Suspense boundaries reliably.
     let r1 = 0;
@@ -198,7 +231,9 @@ export default function RelationshipsPage() {
       cancelAnimationFrame(r1);
       cancelAnimationFrame(r2);
     };
-  }, [data]); // re-fire when data lands · row may not exist on first render
+    // `revealPerson` is useCallback([]) — stable for the component's life, so
+    // listing it satisfies exhaustive-deps without changing when this re-fires.
+  }, [data, revealPerson]); // re-fire when data lands · row may not exist on first render
 
   const visiblePeople = useMemo(() => {
     if (!data) return [];
@@ -295,13 +330,7 @@ export default function RelationshipsPage() {
         items={watchlist}
         onSelect={(personId) => {
           telemetry.event("watchlistOpen", { personId });
-          // Wave AS · 2026-05-28 · open the collapsed browse-all so the
-          // anchor target is in flow · select person · expand visible
-          // cap so the row isn't hidden behind "show more". Mirrors the
-          // hash-anchor useEffect above.
-          setBrowseOpen(true);
-          setSelectedPersonId(personId);
-          setShowAll(true);
+          revealPerson(personId);
         }}
       />
       <TodaysPicks
@@ -323,39 +352,25 @@ export default function RelationshipsPage() {
             label="people"
             value={data.totals.total}
             tint="text-[var(--text-primary)]"
-            onClick={() => {
-              setBrowseOpen(true);
-              setShowAll(true);
-            }}
+            onClick={() => revealBrowse()}
           />
           <Stat
             label="neglected"
             value={data.totals.neglected}
             tint={data.totals.neglected > 0 ? "text-amber-300" : "text-zinc-500"}
-            onClick={() => {
-              setBrowseOpen(true);
-              setSortKey("neglect");
-              setShowAll(true);
-            }}
+            onClick={() => revealBrowse("neglect")}
           />
           <Stat
             label="high trust"
             value={data.totals.high_trust}
             tint="text-emerald-300"
-            onClick={() => {
-              setBrowseOpen(true);
-              setSortKey("trust");
-              setShowAll(true);
-            }}
+            onClick={() => revealBrowse("trust")}
           />
           <Stat
             label="needs info"
             value={data.totals.sparse}
             tint={data.totals.sparse > 5 ? "text-amber-300" : "text-zinc-500"}
-            onClick={() => {
-              setBrowseOpen(true);
-              setShowAll(true);
-            }}
+            onClick={() => revealBrowse()}
           />
         </div>
       )}
