@@ -90,6 +90,21 @@ Twice now the repo argued one way and the running system another; both times the
 was right. That is the campaign's most reusable lesson, and it cuts in both directions — the repo
 can make a dead thing look alive, and it can make a harmless thing look dangerous.
 
+**The last finding came from refusing to merge over a red check.** CI's `e2e · statenour` was
+failing, and the failing tests were a sibling session's, in files this PR never touched — the easy
+read was "not mine". It had been red on `main` for five consecutive runs, starting at the exact
+commit that introduced the tests. Cause: the probe was handed to `page.evaluate` as a **string**,
+which Playwright evaluates as an expression; a string containing `() => {...}` yields a function
+object, which is not serializable, so `evaluate` returned `undefined` and every assertion threw on
+`.found`. Measured, not inferred: `page.evaluate("() => ({found:true})")` → `undefined`;
+`page.evaluate(() => ({found:true}))` → `{found:true}`.
+
+Those two tests are the regression net for #1369 and #1371 — two bugs that put the chat composer
+under the tab bar in one week — and `docs/UPSTREAMS.md` row 78 cited them as live coverage. **The
+net had never executed once.** This is the estate's false-green failure mode in a new variant: not
+built-tested-unwired, but built-merged-and-red, with the redness normalized because CI is advisory
+and the branch has no protection. Fixed in this PR; row 78 corrected to say which half was real.
+
 ## Could not verify
 
 - Whether the duplicate VAPI Receptionist assistant `afcad79e` is referenced from env vars or DB
@@ -111,6 +126,10 @@ can make a dead thing look alive, and it can make a harmless thing look dangerou
 - Whether the 12 auth-gated statenour health routes have external monitors. Production shows they
   return 401 while `/api/system/heartbeat` returns 200 unauthenticated, which is why the Stage-5.1
   collapse was gated rather than executed — an uptime probe is invisible from inside the repo.
+- **Whether the /chat geometry invariant actually holds.** The fix above makes the two tests *run*;
+  it does not make them pass. They have never produced a real measurement, so the invariant is
+  unmeasured rather than verified. If they fail now, that failure is the first genuine signal this
+  guard has ever emitted and should be read as information, not as a regression from this PR.
 - A full git-history secret scan — gitleaks is not installed and installs are policy-blocked here.
   Registered as ADOPT-CANDIDATE in `docs/UPSTREAMS.md`; it is what would finally size `ROS-011`/`ROS-012`.
 - The LiveKit billing tier (console-only).
