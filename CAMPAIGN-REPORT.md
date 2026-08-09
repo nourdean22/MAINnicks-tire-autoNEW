@@ -4,7 +4,7 @@ The mandate's §7 artifact. Companions: [`AUDIT/2026-08-truth.md`](AUDIT/2026-08
 [`EXECUTION-LOG.md`](EXECUTION-LOG.md) (chronology), [`BLOCKED.md`](BLOCKED.md),
 [`NOUR-ACTION-REQUIRED.md`](NOUR-ACTION-REQUIRED.md) (operator queue).
 
-**Seven PRs merged. The gate was the highest-value part of the campaign:** fifteen load-bearing
+**Seven PRs merged. The gate was the highest-value part of the campaign:** sixteen load-bearing
 claims in the mandate and its successor documents were false, and the two largest deletions were
 each safe only because something outside the source code — a provider API, then production itself —
 contradicted what the source code implied.
@@ -75,6 +75,7 @@ Claims falsified in the mandate and its successor documents (full table in the t
 | `lib/eval` and `lib/evals` are a duplicate pair to merge | Zero shared symbols. One was dead, the other has four live consumers; "keep the one with live imports" was incoherent because both had importers |
 | Calibration requires a labeling habit the operator lacks (Stage 5.5) | Grading is **automated nightly** by `outcome-tracker.scorePendingPredictions`. Nothing to freeze |
 | `/system/cockpit-observability` is an "18-line stub", delete it along with `/system/chat-states` and `/system/logs` (Stage 5.3) | The 18 lines are the **App Router page convention**. It wraps a **394-line** view. All three are live, linked from the system page, the settings ops hub, and keyboard shortcuts; `/system/logs` is 445 lines with its own API route. Deleting them would have removed working operator UI |
+| `components/chat/*` is a superseded v1; delete it once `features/chat-v2` parity is proven (Stage 7.1) | **v2 imports v1.** `features/chat-v2/components/chat-message-list.tsx:9-14` imports six modules from `components/chat/`, including three of the four named deletion targets, and is rendered by the live `chat-island.tsx`. That directory is the shared component library chat-v2 is built on, not a retired predecessor |
 
 A second built-but-unwired case surfaced in the consent work: `logSmsOptIn()` had been writing
 consent rows from three live doors while its reader `hasSmsOptIn()` had zero callers. Written, never
@@ -104,6 +105,27 @@ under the tab bar in one week — and `docs/UPSTREAMS.md` row 78 cited them as l
 net had never executed once.** This is the estate's false-green failure mode in a new variant: not
 built-tested-unwired, but built-merged-and-red, with the redness normalized because CI is advisory
 and the branch has no protection. Fixed in this PR; row 78 corrected to say which half was real.
+
+## What is actually left of the mandate
+
+Worth stating plainly, because "stages 3-7 remain" reads as far more outstanding work than exists.
+Of the seven stages: **1 and 2 shipped**; **3/4 are blocked on the operator**, not on engineering;
+**5 is closed** — 5.1 deferred on production evidence, 5.3 and 5.5 refuted, 5.2/5.6 already NATIVE
+in the register; **6 is almost entirely NATIVE or REJECT** by rows 38/75/76/77.
+
+That leaves **stage 7**, and stage 7 splits cleanly in two. Its *deletions* were checked this
+session and both were false — `components/chat/*` is imported by chat-v2 (above), and
+`components/actions/loop-stream.tsx` is not dormant: 1,525 lines with **11 importers across 8
+files**, including `now-panel.tsx` (3 call sites), `confirm-dialog.tsx`, `use-custom-domains.ts`
+and `lib/brain/task-signals.ts`. Its *refactors* — decomposing that file along its state
+transitions, decomposing `/people` (1,002 lines), collapsing the ~20 chat hooks, the Magic-Ink
+conversions, the command palette — are legitimate and unstarted. They are **design work, not
+batch execution**, and the correct next step for them is the repo's `brainstorming` →
+`writing-plans` flow, one surface at a time, not another sweep.
+
+So the honest close is: the mandate's delete-lists are exhausted, its build-lists are mostly
+incumbent, and what genuinely remains is a handful of refactors that deserve to be designed rather
+than executed from a pasted plan.
 
 ## Could not verify
 

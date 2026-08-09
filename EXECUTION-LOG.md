@@ -125,7 +125,14 @@ current source). Counting the filesystem takes one command; do that before belie
     settings ops hub, and keyboard shortcuts, and `/system/logs` carries its own API route.
     **A wrapper file's line count is not a measure of the feature behind it.**
 
-Pattern across all four: the mandate described a plausible problem that the estate had already
+16. **"`components/chat/*` is a superseded v1 — delete it once `features/chat-v2` parity is proven"
+    (Stage 7.1).** **v2 imports v1.** `features/chat-v2/components/chat-message-list.tsx:9-14` pulls
+    six modules out of `components/chat/`, including three of the four named deletion targets, and
+    that list is rendered by the live `chat-island.tsx`. `components/chat/` is the shared component
+    library chat-v2 is built ON — 26 files, including a 1,234-line tool-result registry.
+    **A "v1 vs v2" directory name is not evidence of supersession — check which one imports which.**
+
+Pattern across all five: the mandate described a plausible problem that the estate had already
 solved, retired, or never had. **The instrument that lied was always a document; the instrument
 that settled it was always the running system.**
 
