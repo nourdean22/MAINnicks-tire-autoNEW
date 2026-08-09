@@ -19,7 +19,7 @@ contradicted what the source code implied.
 | #1461 | Consent ledger wired at the `sendSms` chokepoint, shipped in shadow | 10/10 new tests; sibling SMS suites 5 files / 102 passed; `typecheck:raw` exit 0; +361 / -13 |
 | #1462 | Stage-1.7 closed; the eleventh falsified claim recorded | docs |
 | #1463 | Campaign wave closed — 4 unrecorded verdicts, failure mode 8, ROS-095/096 | docs |
-| #1464 | The dead `nourOsQuote` lane + the dead `lib/eval` harness deleted; PII blind spot closed; Stages 5.1/5.5 gated | `tsc` exit 0 both apps; router-tree tests 31/31; statenour 36/36; `build:affected` 8/8; lint-pii `clean (780 files)`; **-2,296** |
+| #1465 | The dead `nourOsQuote` lane + the dead `lib/eval` harness deleted; PII blind spot closed; Stages 5.1/5.5 gated | `tsc` exit 0 both apps; router-tree tests 31/31; statenour 36/36; `build:affected` 8/8; lint-pii `clean (780 files)`; **-2,296** |
 
 Outside the repo: all **5 orphan VAPI tools deleted** at the provider (`tools remaining: 0`).
 
@@ -36,7 +36,7 @@ Outside the repo: all **5 orphan VAPI tools deleted** at the provider (`tools re
 | nickstire tRPC router (`nourOsQuote`, 5 public procedures) | 1 (156 lines) |
 | statenour eval regression harness + its test + its private dataset | 3 (2,140 lines) |
 | Dead `it.skip` test, tracked 0-byte `scratch/font.ttf` | 2 |
-| Total lines removed in #1464, against 60 added | **2,296 across 19 files** |
+| Total lines removed in #1465, against 60 added | **2,296 across 19 files** |
 
 statenour API routes went **378 → 374**. nickstire tRPC routers went **90 → 89**, and its pinned
 public-procedure allowlist **82 → 77**. Estate counted from the filesystem at report time, not from
