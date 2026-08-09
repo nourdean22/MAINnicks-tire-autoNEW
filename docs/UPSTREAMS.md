@@ -77,6 +77,11 @@ verdict changes.**
 | `@t3-oss/env-nextjs` | build-time validated env schema | **NATIVE** (2026-08-09) | Proposed by the containing-block/measurement deep-research report. `apps/statenour/lib/env.ts` + `scripts/check-env.ts` already implement the same contract: a declared spec with required/optional tiers, `--prod` mode simulation, `checkEnvHealth`/`describeEnvHealth`, and distinct exit codes (1 = missing required, 2 = no AI provider) wired as `check:env` / `check:env:prod`. It also already carries a truth-substrate audit fix (2026-07-21 finding #13 — the prod flag was captured at import time, so `--prod` was a silent no-op). Migrating would trade an audited incumbent for a third-party one. **Reopen trigger:** wanting typed `env.FOO` accessors at call sites, which the incumbent does not provide — that is an additive typing layer, not a replacement |
 | `stylelint` + `stylelint-declaration-property-value-disallowed-list` | ban containing-block-forming CSS props on layout shells | **NATIVE** (2026-08-09) | Same report, proposed to prevent PR #1369 recurring. Covered by two existing layers with no new toolchain: `apps/statenour/__tests__/state-aura-containing-block.test.ts` scans the shipped CSS for `transform`/`filter`/`backdrop-filter`/`perspective`/`contain`/`will-change` **plus the keyframes those rules animate**, across the chat shell's whole ancestor chain (`.state-aura*`, `.feed`, `.page-enter`, `main`) as of #1456; and `tests/e2e/chat-geometry-invariant.spec.ts` (#1455) asserts the invariant at runtime via `offsetParent`, catching ANY cause regardless of selector or origin. stylelint would add a toolchain and config to maintain, and would still miss the JSX-utility origin (`filter`/`blur`/`scale` Tailwind classes never appear in a `.css` file). **Reopen trigger:** CB-forming props start appearing on shells OUTSIDE the guarded ancestor chain often enough that enumerating them by hand stops scaling |
 
+| Temporal | durable execution, polyglot/compliance tier | **REJECT** (duplicate) (2026-08-09) | Proposed by the consolidation mandate as the escalation path from Inngest, in the same document that proposed collapsing everything ONTO Inngest. Inngest is ADOPTED (row 26, 24 registered functions) and the five dispatch classes are census-guarded (`check:crons` 7/7). Temporal adds a server, a worker fleet and a second operational surface for one operator. Same verdict shape as LangGraph and OpenAI Agents JS: formalize the machinery already present. **Reopen trigger:** a NAMED non-TypeScript worker requirement Inngest structurally cannot host — not "stronger durability would be nice" |
+| Debezium / log-based CDC | statenour <-> nickstire data sync | **REJECT** (over-provisioned) (2026-08-09) | The mandate's own bridge design named it and then argued against it, correctly. Two Railway services and one operator do not justify a WAL connector to babysit for a link two typed HTTP calls already serve (`nour-os-bridge.ts` + `nourOsQuote`). It is also **cross-engine here** — statenour is Neon Postgres, nickstire is TiDB/MySQL — so CDC would need a translation layer on top of the daemon. **Reopen trigger:** a sync requirement with sub-second freshness that request/response cannot meet |
+| Transactional outbox | at-least-once bridge writes | **PATTERN — adopt WITH the write path, not before** (2026-08-09) | The pattern is right and was argued right (never dual-write; idempotent consumer keyed on a deterministic id). But there is **no statenour->nickstire write lane today**: the one that existed, `lib/services/nickstire-write.ts`, was deleted in #1460 because nothing called it. Building an outbox now is infrastructure for a caller that does not exist — the estate's named failure mode. **Reopen trigger:** a NAMED statenour action that must mutate nickstire state; build the outbox in the same PR as that action |
+| gitleaks | full-history secret scanning | **ADOPT-CANDIDATE — blocked mechanically, not on merit** (2026-08-09) | Genuinely additive: the working-tree PAT was found by READING `.git/config`, and nothing in this repo scans history. `ROS-011`/`ROS-012` have carried "repository history contains previously removed sensitive records" as **accepted risk since 2026-07-11** — this tool is what would size that risk instead of restating it. Blocked only because it is a Go binary and every install command is policy-gated in a junctioned worktree. **Next step:** run it in CI, where the install is not hook-gated, or an operator-side local install |
+
 **Rules of the register:** every verdict cites a receipt or a trigger —
 no vibes; WATCH entries must state the concrete reopen condition;
 changing a verdict is a PR touching THIS file with the new evidence;
@@ -129,3 +134,20 @@ not re-litigated.
    **the incumbent for a proposal is frequently in the OTHER app.** Before
    concluding a capability is missing, grep both apps plus `packages/*` for
    the capability, not for the proposed tool's name.
+   8. **A webhook's liveness lives in the PROVIDER's dashboard, not in this
+   repository — and grep can prove neither liveness nor deadness.** The
+   2026-08-09 consolidation mandate ordered four statenour `/api/vapi/*` routes
+   deleted as duplicates. The first gate of that order concluded the OPPOSITE
+   and was equally wrong: the code reads unambiguously live — `X-Vapi-Secret`
+   verification, a Telegram alert to the shop, comments describing a warm
+   transfer for stranded callers — so deleting them looked like it would break
+   real customer calls, a hard stop. Only the VAPI account API could settle it:
+   every account-level tool was an **orphan attached to no assistant**, three
+   pointed at `autonicks.com` (a dead Vercel deployment — never `bdnick.info`,
+   which no VAPI config had ever referenced), and the live number
+   +1-216-424-9249 runs entirely through nickstire's `/api/webhooks/vapi`. Those
+   four routes had never received a single call. **Code that describes live
+   behaviour is not evidence that it runs; and an absent caller in the repo is
+   not evidence that nothing calls it.** For any webhook, tool, callback or
+   redirect surface, ask the provider before concluding either direction. The
+   five orphan tools were then deleted at the provider, the routes in #1460.
