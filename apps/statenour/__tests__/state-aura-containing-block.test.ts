@@ -149,19 +149,37 @@ describe("state-aura containing-block invariant", () => {
   const css = stripComments(raw);
   const { keyframes, rest } = extractKeyframes(css);
 
-  /** Flat rules whose selector targets the AmbientAura wrapper. */
+  /**
+   * Every ancestor of /chat's `fixed inset-0` shell, not just the aura.
+   *
+   * 2026-08-09 · WIDENED. The original guard only matched `.state-aura*`,
+   * which is where the bug happened to land — but the shell's real ancestor
+   * chain is:
+   *
+   *   body > .state-aura.min-h-screen > main#main-content > .feed.page-enter > .fixed
+   *
+   * A `filter` on `.feed` traps the shell exactly as thoroughly as one on the
+   * aura, and `.page-enter` carries a hand-written "Do not add transform here"
+   * warning with NO test behind it — a comment is not a gate. Guarding only the
+   * selector that broke last time is fighting the previous war.
+   */
+  const GUARDED = /(^|[\s,>+~])(\.state-aura(-[\w]+)?|\.feed|\.page-enter|main)\b/;
   const auraRules = [...rest.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
     .map((m) => ({ selector: m[1].trim(), body: m[2] }))
-    .filter((r) => /(^|[\s,])\.state-aura(-[\w]+)?\b/.test(r.selector));
+    .filter((r) => GUARDED.test(r.selector));
 
-  it("finds the aura rules it is meant to guard", () => {
-    // A guard that silently matches nothing always passes. Pin that the
-    // selector scan actually reaches .state-aura and its state variants.
+  it("finds the rules it is meant to guard", () => {
+    // A guard that silently matches nothing always passes. Pin that the scan
+    // reaches the aura states AND the rest of the shell's ancestor chain.
     const selectors = auraRules.map((r) => r.selector).join(" ");
     expect(auraRules.length).toBeGreaterThanOrEqual(5);
     for (const state of ["drift", "scattered", "low_energy", "on_fire", "normal"]) {
       expect(selectors).toContain(`.state-aura-${state}`);
     }
+    // The widened surface — if these stop matching, the guard has silently
+    // narrowed back to what it was before and the .feed/.page-enter hole reopens.
+    expect(selectors, "the .feed ancestor is no longer covered").toContain(".feed");
+    expect(selectors, "the .page-enter ancestor is no longer covered").toContain(".page-enter");
   });
 
   it("declares no property that traps fixed descendants", () => {
