@@ -62,23 +62,34 @@ export function useChatStall(opts: UseChatStallOptions): UseChatStallResult {
     onStall: () => stallHandlerRef.current?.(),
   });
 
-  // Build the handler — closes over messages + stop + setError.
-  // Keeping the identical CHANGED-Apr-15 semantics: stop the hung
-  // stream + surface the error, NO silent auto-resend (that caused
-  // the duplicate message bug).
+  // Build the handler — closes over stop + setError. Semantics unchanged
+  // since Apr 15: stop the hung stream + surface the error, NO silent
+  // auto-resend (that caused the duplicate message bug).
+  //
+  // 2026-08-09 · REMOVED a dead guard that could only ever suppress
+  // recovery. The handler used to reconstruct the last user message's text
+  // and `return` early when it came back empty:
+  //
+  //     const stallText = lastUser?.parts?.filter(p => p.type === "text")…
+  //     if (!stallText) return;      // <- before stop() and setError()
+  //
+  // `stallText` was never USED for anything else — it is a leftover from
+  // the auto-resend that was deliberately removed. So its only remaining
+  // effect was: whenever the last user turn had no extractable text part
+  // (attachment-only turn, a parts shape this local interface does not
+  // model, or messages not yet reconciled), the 90s stall fired and then
+  // did NOTHING — no stop(), no error, no toast. The stream stayed "live"
+  // and the UI span forever. Operator-reported symptom, 2026-08-09:
+  // long messages "won't respond or get stuck".
+  //
+  // A stall is a stall regardless of what the user typed. Always stop and
+  // always say so.
   useEffect(() => {
     stallHandlerRef.current = () => {
-      const lastUser = [...messages].reverse().find((m) => m.role === "user");
-      const stallText =
-        lastUser?.parts
-          ?.filter((p): p is { type: "text"; text: string } => p.type === "text" && !!p.text)
-          .map((p) => p.text)
-          .join(" ") || "";
-      if (!stallText) return;
       stop();
       setError("Nick is stuck. Tap Retry to re-run the last message.");
     };
-  }, [messages, stop, setError]);
+  }, [stop, setError]);
 
   return {
     stallStatus,

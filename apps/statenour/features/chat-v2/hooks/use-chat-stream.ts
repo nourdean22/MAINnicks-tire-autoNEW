@@ -97,11 +97,22 @@ export function useChatStream(): ChatRuntimeController {
       setConnection("degraded");
     },
     onFinish() {
+      // 2026-08-09 · Do NOT flip back to "online" when this turn was killed
+      // by the stall abort. chat.stop() resolves the stream normally, so
+      // onFinish fires on an ABORT exactly as it does on a real completion —
+      // and it was wiping the only remaining trace that anything went wrong,
+      // ~instantly, while the 6s toast was still on screen. That is how a
+      // dead turn ended up looking completely healthy.
+      if (stalledRef.current) return;
       setConnection("online");
     },
   });
 
   const retryCountRef = useRef(0);
+  // True from the moment the 90s stall abort fires until the next send.
+  // Guards onFinish (below) from erasing the degraded state, since an
+  // abort and a completion are indistinguishable to that callback.
+  const stalledRef = useRef(false);
   const messagesRef = useRef(chat.messages);
   // Whether the MOST RECENT send went out under Private Lab, + a live mirror of
   // privateMode. A private turn must never be replayed (regenerate / auto-retry)
@@ -122,6 +133,13 @@ export function useChatStream(): ChatRuntimeController {
     },
     [chat],
   );
+
+  // Kept fresh the same way regenerateRef is, so the stall toast's action can
+  // reach it without re-creating the toast on every render.
+  const resumeStreamRef = useRef(chat.resumeStream);
+  useEffect(() => {
+    resumeStreamRef.current = chat.resumeStream;
+  }, [chat.resumeStream]);
 
   const regenerateRef = useRef(safeRegenerate);
   useEffect(() => {
@@ -181,8 +199,40 @@ export function useChatStream(): ChatRuntimeController {
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
     stop: chat.stop,
     setError: (message) => {
+      stalledRef.current = true;
       setConnection("degraded");
-      if (message) toast.error(message, { duration: 6000 });
+      if (!message) return;
+      // 2026-08-09 · Was a 6-second auto-dismissing toast. The stall it
+      // reports takes 90 SECONDS to fire, so on a phone the notice routinely
+      // came and went while the screen was off or the operator had looked
+      // away — leaving a turn that had genuinely failed looking like one that
+      // was merely slow. A stall is terminal for that turn: it must persist
+      // until acknowledged, and it must offer the recovery, because
+      // chat.error is never set on this path so the SDK's own retry cannot
+      // arm and the persistent error card cannot render.
+      // RECONNECT, never regenerate. chat.stop() abandons only the CLIENT
+      // reader — route.ts calls result.consumeStream?.() and guarantees the
+      // turn completes and persists after the client disconnects, and
+      // registers it in the active-stream registry for exactly this purpose.
+      // So a "Retry" that called regenerate() would start a SECOND execution
+      // against a first that is still running: at best two competing assistant
+      // turns, at worst a mutating tool fired twice — and this chat can invoke
+      // gmail.sendDraft, telegram.send and shop.sendSms (route.ts
+      // HIGH_STAKES_MUTATIONS). resumeStream() reattaches to the stream that
+      // is already producing the answer. Caught in review on #1471.
+      toast.error(message, {
+        id: "chat-stall",
+        duration: Infinity,
+        action: {
+          label: "Reconnect",
+          onClick: () => {
+            toast.dismiss("chat-stall");
+            stalledRef.current = false;
+            setConnection("online");
+            void resumeStreamRef.current?.();
+          },
+        },
+      });
     },
   });
 
@@ -192,6 +242,13 @@ export function useChatStream(): ChatRuntimeController {
     }
   }, [stallStatus, setConnection]);
 
+  /** A new turn supersedes any stall notice from the previous one. */
+  const clearStall = useCallback(() => {
+    if (!stalledRef.current) return;
+    stalledRef.current = false;
+    toast.dismiss("chat-stall");
+  }, []);
+
   return {
     messages: chat.messages,
     status: chat.status as "submitted" | "streaming" | "ready" | "error",
@@ -199,10 +256,12 @@ export function useChatStream(): ChatRuntimeController {
     isStreaming: chat.status === "streaming" || chat.status === "submitted",
     sendText: (text: string) => {
       sentPrivateRef.current = privateMode;
+      clearStall();
       return chat.sendMessage({ text });
     },
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
       sentPrivateRef.current = privateMode;
+      clearStall();
       return chat.sendMessage(...args);
     }) as typeof chat.sendMessage,
     stop: chat.stop,

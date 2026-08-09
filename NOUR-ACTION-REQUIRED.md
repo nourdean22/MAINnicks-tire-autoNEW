@@ -46,7 +46,20 @@
    to buy either for the page-deletion work: nickstire already ingests your Search Console data
    into its own `search_performance` table and `/admin` SEO tools renders the per-page report. If
    you are paying for either subscription, that is a bill worth checking.
-9. **PII linter has a blind spot worth one deliberate PR.** `lint-pii.mjs`'s console rule cannot see
+9. **`/chat` long-message hang — partly fixed, one question for you.** The 90s stall abort was
+    failing open three ways and is now visible + retryable (see the campaign truth doc §8). The
+    remaining half is server-side: `embedUserMessage` walks a serial four-provider chain with no
+    aggregate deadline, and `rerankContextBlocks` is unbounded. Before I bound those, **one free
+    observation would settle where the time goes: when a message dies, does the answer appear if
+    you close and reopen that conversation?** The server keeps generating after the client gives
+    up, so "yes" means it is a delivery problem and "no" means the server never finished. Either
+    answer halves the remaining work.
+10. **Two possible product calls on dead code**, both deliberately not taken on agent initiative:
+    `@nour/signal-forge` (~1,100 lines) has zero code consumers but ships a CLI you may invoke by
+    hand; and 14 of 19 `hooks/chat/*` hooks (~1,703 lines) are unreferenced — but one of them is
+    the ONLY implementation of the desktop keyboard-shortcut matrix, so deleting it makes that
+    regression permanent rather than restorable. Both are yes/no from you, then a small PR.
+11. **PII linter has a blind spot worth one deliberate PR.** `lint-pii.mjs`'s console rule cannot see
    any PII that follows a function call on the same line. It caught a leaked customer name and
    missed a leaked name + full phone one line above it. Both are fixed, the rule is not — widening
    it will surface an unknown number of existing violations, which is exactly why it should be its
