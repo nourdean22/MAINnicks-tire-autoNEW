@@ -202,3 +202,74 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 }
+
+/* ─────────────────────────────────────────────────────────────────
+ * SEVERITY TIERS — equal lightness per tier. 2026-08-09.
+ *
+ * Tailwind is perceptually uniform WITHIN a hue, never ACROSS hues.
+ * Shipped (tailwindcss@4.3.2 theme.css): rose-300 L81.0 / sky-300
+ * L82.8 / emerald-300 L84.5 / amber-300 L87.9 — 6.9 points running
+ * BACKWARDS, so "critical" was the dimmest AND least saturated thing
+ * on the /system attention strip (hub-grid.tsx SEVERITY_PALETTE).
+ * The dot tier was worse: 11.6 points, same direction.
+ *
+ * SECOND DEFECT, statenour-only: brand --gold #FDB913 is
+ * oklch(0.8271 0.1679 81.30); stock amber-400 is
+ * oklch(0.828 0.189 84.429). Oklab ΔE = 0.0232, against a
+ * rose-300↔emerald-300 reference of 0.2555 — the warning signal and
+ * the only brand colour were, measurably, the same colour, and 98
+ * files put both on one surface. Dropping the tiers below gold's
+ * lightness fixes BOTH defects at once:
+ *   amber-300 ΔE(gold) 0.0601 → 0.1133   amber-400 0.0232 → 0.1727
+ *
+ * Chroma is COMPUTED, not eyeballed — each value sits inside its
+ * hue's max sRGB chroma at that L (binary search, OKLCH→Oklab→linear
+ * sRGB, 2.5–13.6% headroom). An out-of-gamut colour gets CLAMPED, and
+ * clamping shifts lightness, which would restore the very drift this
+ * removes. A first draft of these values had six chromas out of
+ * gamut; that near-miss is the fixture in the guard-the-guard test.
+ *
+ * Severity leads on SATURATION, not lightness: rose C 0.170 >
+ * amber C 0.148 at the text tier. That ordering only exists at
+ * L ≤ ~0.74 — at L 0.76 the ceilings are rose 0.146 vs amber 0.155
+ * and it inverts again. That is why 0.72.
+ *
+ * Amber's steps are unified onto H 70.08 (amber-500's own stock hue).
+ * Stock amber drifts 91.605 → 84.429 → 70.08 across one "hue"; the
+ * unified warm hue also reads as ember rather than the olive mustard
+ * H 91.6 produces at L 0.72.
+ *
+ * The -500 tier is deliberately NOT overridden. It is always consumed
+ * at 3–40% alpha via color-mix(in oklab, var(--color-*-500) N%,
+ * transparent); composited over --bg-base at real call-site alphas
+ * the whole tier spans 1.5 lightness points — invisible — and it
+ * would add 479 amber call sites to the blast radius.
+ *
+ * Tailwind v4 compiles utilities to var(), and custom properties
+ * inherit — so this re-tints all 6,339 raw colour-utility
+ * occurrences across 122 files with ZERO component edits.
+ * DELETE THIS BLOCK to restore stock Tailwind exactly.
+ * Pinned by __tests__/severity-tier-gamut.test.ts.
+ * ───────────────────────────────────────────────────────────────── */
+@theme {
+  /* text tier — L 0.72
+     ceilings: rose 0.179 · red 0.174 · amber 0.156 · emerald 0.151 · sky 0.144 */
+  --color-rose-300:    oklch(0.72 0.170 11.638);   /* #FB7189 · AA 7.37/7.03/6.48 · ΔE(gold) 0.2208 */
+  --color-red-300:     oklch(0.72 0.170 22.216);   /* #FD7273 · AA 7.40/7.06/6.51 · ΔE(gold) 0.1981 */
+  --color-amber-300:   oklch(0.72 0.148 70.08);    /* #DE921F · AA 7.76/7.40/6.82 · ΔE(gold) 0.1133 */
+  --color-emerald-300: oklch(0.72 0.143 164.978);  /* #26C08E · AA 8.51/8.12/7.48 · ΔE(gold) 0.2342 */
+  --color-sky-300:     oklch(0.72 0.137 230.318);  /* #22B3EA · AA 8.21/7.83/7.22 · ΔE(gold) 0.3129 */
+
+  /* dot tier — L 0.66
+     ceilings: rose 0.231 · red 0.227 · amber 0.143 · emerald 0.142 · sky 0.136 */
+  --color-rose-400:    oklch(0.66 0.200 13.428);   /* #F34E6E · 5.76/5.50/5.07 · ΔE(gold) 0.2661 */
+  --color-red-400:     oklch(0.66 0.200 22.216);   /* #F45057 · 5.79/5.52/5.09 · ΔE(gold) 0.2482 */
+  --color-amber-400:   oklch(0.66 0.136 70.08);    /* #C68119 · 6.19/5.91/5.44 · ΔE(gold) 0.1727 */
+  --color-emerald-400: oklch(0.66 0.134 163.223);  /* #22AB7B · 6.78/6.46/5.96 · ΔE(gold) 0.2603 */
+  --color-sky-400:     oklch(0.66 0.126 232.661);  /* #259ED2 · 6.52/6.22/5.73 · ΔE(gold) 0.3304 */
+}
+
+/* Contrast columns above = WCAG 2.x against --bg-base #0A0A0A /
+ * --bg-raised #111111 / --bg-elevated #1A1A1A. Every -300 value clears
+ * AA 4.5:1 by ≥1.4×; every -400 dot clears the 3:1 non-text threshold
+ * by ≥1.7×. */
