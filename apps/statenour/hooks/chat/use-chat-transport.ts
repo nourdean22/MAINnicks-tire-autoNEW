@@ -237,6 +237,19 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
             const decoder = new TextDecoder();
             let buffer = "";
             let toastedDecodeError = false;
+            // 2026-08-09 · MUST live out here, alongside `buffer`, not inside the
+            // read loop. An SSE frame is `event: <name>` then `data: <payload>`,
+            // and a network read boundary can fall BETWEEN those two lines — that
+            // is what `buffer` exists to handle for the partial-line case. When
+            // this was declared per-read, the event name was thrown away at the
+            // end of every read, so a split frame arrived with currentEvent ""
+            // and its data line matched neither `=== "chunk"` nor the truthy
+            // `else if (currentEvent)` branch. There is no final `else`, so the
+            // payload was silently DROPPED — lost stream bytes, no error, no log.
+            // The per-frame reset already happens correctly on the blank line
+            // that terminates each frame (see the `trimmed === ""` branch below),
+            // which is the proof that per-frame, not per-read, is the intent.
+            let currentEvent = "";
 
             const sseStream = new ReadableStream({
               async start(controller) {
@@ -253,7 +266,6 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
                     // Keep the last partial line in buffer
                     buffer = lines.pop() || "";
 
-                    let currentEvent = "";
                     for (const line of lines) {
                       const trimmed = line.trim();
                       if (trimmed.startsWith("event:")) {
