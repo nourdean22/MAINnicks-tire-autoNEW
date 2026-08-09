@@ -71,6 +71,28 @@ describe("campaignEligiblePhoneSql — three-source parity", () => {
   });
 
   it("phone identity is last-10 normalized on BOTH sides of each join (mixed-format storage)", () => {
-    expect(serialized.match(/RIGHT\(REPLACE/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+    // 2026-08-09 · this assertion used to be `count >= 3`, which does NOT check
+    // what its own name claims. The predicate had 2 normalizations on the
+    // sms_preferences leg and 1 on the STOP-log leg — total 3, so it passed
+    // while one join compared a RAW column against a normalized one. Counting
+    // occurrences can never prove symmetry; count the COMPARISONS instead.
+    //
+    // Every `=` that joins a phone to a phone must have a normalized wrapper on
+    // BOTH sides. There are two such comparisons (sms_preferences, sms_messages)
+    // plus the customers-flag check, which is not a phone join.
+    const normalizations = serialized.match(/RIGHT\(REPLACE/g)?.length ?? 0;
+    expect(
+      normalizations,
+      "each of the 2 phone joins needs a normalizer on BOTH sides = 4 total; " +
+        "fewer means one side is raw and a mixed-format or legacy row escapes suppression",
+    ).toBeGreaterThanOrEqual(4);
+  });
+
+  it("no phone join compares a BARE sc.phone / sp.phone against a normalized column", () => {
+    // The specific shape the count-based assertion above was blind to.
+    // A raw `sc.phone =` or `sp.phone =` on either side of a comparison means
+    // suppression depends on every historical writer having normalized first.
+    expect(serialized).not.toMatch(/(?<!RIGHT\(REPLACE\([^)]*)\bsc\.phone\s*=/);
+    expect(serialized).not.toMatch(/(?<!RIGHT\(REPLACE\([^)]*)\bsp\.phone\s*=/);
   });
 });
