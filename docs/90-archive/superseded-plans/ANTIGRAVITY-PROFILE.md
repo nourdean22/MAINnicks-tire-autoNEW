@@ -1,5 +1,19 @@
 # Antigravity Operating Profile — NOURCITY Monorepo
 
+> [!WARNING]
+> **SUPERSEDED — historical record, NOT policy.** Archived 2026-08-10.
+> This file restated engineering policy that `AGENTS.md` already owns, and in one place
+> **contradicted** it: §1 said "Never merge without explicit owner approval" while the canonical
+> [`AGENTS.md`](../../../AGENTS.md) grants agents autonomous `gh pr merge`. That is exactly the
+> second-policy fork that adapter line caps exist to prevent — and this layer was the one adapter
+> with no cap. It has one now.
+>
+> **Its two genuinely-canonical sections were promoted, not deleted:** the Cleveland/Eastern
+> timezone rules (§5) and the PII guard (§9) now live in `AGENTS.md` under
+> "Data handling — time and PII". The Antigravity reasoning layer lives in
+> [`docs/ANTIGRAVITY-RULES.md`](../../ANTIGRAVITY-RULES.md); the adapter is `.antigravityrules`.
+> Everything else here was a restatement. Read for lineage, never for instructions.
+
 ## Purpose
 This profile defines how Antigravity should operate inside `nourdean22/MAINnicks-tire-autoNEW` on this machine.
 
