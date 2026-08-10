@@ -48,7 +48,12 @@ row (PARTIAL) and failure mode 11.
 
 Grouped by what an attacker gets. Rotate top-down.
 
-### Tier 1 — direct cost, data, or customer reach
+**14 + 28 = 42, and 42 + 7 non-secrets = the 49 name-matches.** The counts are
+in the headings so the arithmetic is checkable without recounting — the PR that
+introduced this file said "Tier 1 is 12 keys" in its prose while the table held
+14, which is exactly the kind of drift a stated subtotal prevents.
+
+### Tier 1 — direct cost, data, or customer reach (14)
 | Key | Why it is first |
 |---|---|
 | `DATABASE_URL` | Neon Postgres connection string, embeds the password — full read/write to the production brain |
@@ -60,7 +65,7 @@ Grouped by what an attacker gets. Rotate top-down.
 | `ADMIN_API_KEY`, `BRIDGE_API_KEY`, `STATENOUR_SYNC_KEY`, `VOICE_BRIDGE_TOKEN`, `CRON_SECRET` | first-party auth — the bridge and cron gates |
 | `AUTO_LABOR_PASSWORD` | a password, third-party account |
 
-### Tier 2 — metered LLM / API spend
+### Tier 2 — metered LLM / API spend (28)
 `OPENAI_API_KEY` · `OPENROUTER_API_KEY` · `GEMINI_API_KEY` · `XAI_API_KEY` ·
 `COHERE_API_KEY` · `OLLAMA_API_KEY` · `VENICE_API_KEY` · `HF_API_KEY` ·
 `HUGGINGFACE_API_KEY` · `BRAINTRUST_API_KEY` · `DEEPGRAM_API_KEY` ·
