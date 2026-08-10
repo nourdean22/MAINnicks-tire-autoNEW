@@ -36,6 +36,7 @@
 
 import { createHash } from "node:crypto";
 import { getBridgeSafeTools } from "./tool-adapter";
+import { getToolRiskClass } from "@/lib/ai/tools/catalog";
 
 export interface SurfaceEntry {
   /** snake_case name as published over MCP. */
@@ -43,7 +44,10 @@ export interface SurfaceEntry {
   /** camelCase name in the catalog. */
   camelName: string;
   category: string;
+  /** EFFECTIVE risk (getToolRiskClass), i.e. what the audit will record. */
   riskClass: string;
+  /** False = the class above is a DERIVED default nobody ratified. */
+  riskDeclared: boolean;
   sideEffecting: boolean;
   requiredEnv: string[];
   /** The model-readable instruction text. THE injection vector. */
@@ -84,7 +88,15 @@ export function computeMcpSurface(): SurfaceEntry[] {
         name: String(t.name),
         camelName: String(t.camelName),
         category: meta.category ?? "(unset)",
-        riskClass: meta.riskClass ?? "(unset)",
+        // EFFECTIVE risk — what the bridge audit will actually record — not the
+        // raw field. 138 of 177 entries declare no riskClass, so pinning the
+        // raw value published "(unset)" for them and hid the real exposure
+        // (e.g. sendOpportunitySms resolves to "high", runDeviceCommand to
+        // "critical"). riskDeclared keeps the deliberate-vs-derived distinction
+        // a reviewer needs: a value that is merely DERIVED is a default nobody
+        // has ratified, and that is different from one somebody chose.
+        riskClass: getToolRiskClass(String(t.camelName), t.meta),
+        riskDeclared: meta.riskClass != null,
         sideEffecting: meta.sideEffecting === true,
         requiredEnv: [...(meta.requiredEnv ?? [])].sort(),
         descriptionSha256: sha256(String(t.description ?? "")),

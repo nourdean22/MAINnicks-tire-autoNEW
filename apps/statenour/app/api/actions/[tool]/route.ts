@@ -1,6 +1,7 @@
 import { assertBridgeAuth } from "@/lib/agent-bridge/auth";
 import { getBridgeSafeTools, executeBridgeTool } from "@/lib/agent-bridge/tool-adapter";
 import { auditBridgeCall, auditBridgeRejection, classifyBridgeFailure } from "@/lib/agent-bridge/audit";
+import { getToolRiskClass } from "@/lib/ai/tools/catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,7 +56,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ tool: s
         inputRaw: JSON.stringify(args || {}),
         errorCode,
         resultSize: JSON.stringify(rawResult || "").length,
-        riskClass: tool.meta.riskClass || "low"
+        // See the note in mcp-server.ts: camelName, not the snake route param.
+        riskClass: getToolRiskClass(tool.camelName, tool.meta)
       });
     }
   } catch (error: any) {

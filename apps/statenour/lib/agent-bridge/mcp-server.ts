@@ -20,6 +20,7 @@
  */
 import { getBridgeSafeTools, executeBridgeTool } from "./tool-adapter";
 import { auditBridgeCall } from "./audit";
+import { getToolRiskClass } from "@/lib/ai/tools/catalog";
 
 /** Advertised in newest-first order; initialize echoes a supported request or falls back to [0]. */
 export const MCP_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"] as const;
@@ -137,7 +138,11 @@ async function handleToolsCall(id: JsonRpcId, params: Record<string, unknown> | 
       inputRaw: JSON.stringify(args || {}),
       errorCode,
       resultSize: JSON.stringify(rawResult || "").length,
-      riskClass: tool.meta?.riskClass || "low",
+      // camelName, NOT the snake external name: getToolRiskClass matches
+      // runCode/runPython/runDeviceCommand by catalog name, and the snake
+      // form silently misses that branch (falling to "high" instead of
+      // "critical") — a wrong answer that still looks classified.
+      riskClass: getToolRiskClass(tool.camelName, tool.meta),
     });
   }
 }
