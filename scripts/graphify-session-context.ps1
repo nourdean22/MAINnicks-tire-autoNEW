@@ -65,8 +65,32 @@ try {
     $common = Invoke-Git @('-C', $repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')
     if ($common.Ok -and $common.Out) {
         $primaryReport = Join-Path (Split-Path -Parent $common.Out) 'graphify-out\GRAPH_REPORT.md'
+
+        # mtime ALONE picks the wrong copy in a fresh worktree - which is where
+        # most sessions now run. `git checkout` stamps the committed artifact
+        # with the checkout time, so a worktree created at 09:41 always looks
+        # newer than the primary working copy the scheduled rebuild wrote at
+        # 07:33, while being by construction the OLDER graph. Measured
+        # 2026-08-10 in a harness worktree: the local copy said "built from
+        # 75439362" (Aug 7, 47,208 nodes) and won the mtime race against the
+        # primary's ea9e05aa (Aug 9, 47,796) sitting on disk - so the briefing
+        # served a two-day-old graph and labelled it authoritative. Silent: the
+        # numbers look plausible and no staleness signal fires.
+        #
+        # Fix: in a worktree, an UNMODIFIED report IS the committed artifact,
+        # so prefer the primary regardless of mtime. Only a dirty local copy
+        # (someone ran a rebuild inside this worktree) falls back to the mtime
+        # race, which preserves the documented "a rebuild run inside a worktree
+        # still beats a staler primary" case. In the primary itself $inWorktree
+        # is false and this whole branch behaves exactly as before.
+        $gitDir = Invoke-Git @('-C', $repo, 'rev-parse', '--path-format=absolute', '--git-dir')
+        $inWorktree = $gitDir.Ok -and ($gitDir.Out -ne $common.Out)
+        $localState = Invoke-Git @('-C', $repo, 'status', '--porcelain', '--', 'graphify-out/GRAPH_REPORT.md')
+        $localIsCommittedCopy = $inWorktree -and $localState.Ok -and -not $localState.Out
+
         if ((Test-Path $primaryReport) -and (
                 -not (Test-Path $report) -or
+                $localIsCommittedCopy -or
                 (Get-Item $primaryReport).LastWriteTime -gt (Get-Item $report).LastWriteTime)) {
             $report = $primaryReport
             $via = ' [via primary checkout]'
@@ -148,6 +172,51 @@ try {
     Write-Output "Query: grep a symbol in $grepTarget to find its community + neighbours ($kb KB - never read whole). Sections: God Nodes, Import Cycles, Communities."
     Write-Output 'Per-community digests (~3 KB each) in the Obsidian vault under "NOURCITY Codebase Graph/".'
     Write-Output 'Caveat: markdown headings are graph nodes too, so degree ranks mix doc sections with code symbols. Community IDs are unseeded and reshuffle between runs - do not cite a community number across sessions.'
+
+    # --- Session-ledger freshness -------------------------------------------
+    # apps/<app>/.remember/now.md is the five-field "what are we doing right now"
+    # ledger that AGENTS.md, AGENT-OPERATING-PROFILE.md, AGENT-CONTEXT.md and the
+    # ciitty skill all route agents into ("check it BEFORE touching that app").
+    # Nothing ever checked whether it was current: statenour's went 114 days without
+    # an update (2026-04-18 -> 2026-08-10) and in that window asserted "Active branch:
+    # main / single push to main is the deploy" - inverting the repo's hardest safety
+    # rule - and that /decisions had been deleted, while the page is 634 lines and live.
+    # A ledger cannot rot silently once it announces its own age; that is the entire
+    # mechanism, and it is the same one the graph verdict above uses.
+    #
+    # Age comes from the "Updated: YYYY-MM-DD" line INSIDE the file, never mtime:
+    # a worktree checkout stamps every file with the checkout time, so mtime reports
+    # a four-month-old ledger as seconds old - the exact trap that made this script
+    # serve a two-day-stale graph (see the tiebreak comment above).
+    #
+    # Own try/catch: a ledger problem must never cost the graph briefing already
+    # printed above, and the outer catch replaces the whole output with one line.
+    try {
+        foreach ($ledger in @(Get-ChildItem -Path (Join-Path $repo 'apps\*\.remember\now.md') -ErrorAction SilentlyContinue)) {
+            $app = Split-Path (Split-Path (Split-Path $ledger.FullName -Parent) -Parent) -Leaf
+            $stamp = Select-String -Path $ledger.FullName -Pattern 'Updated:\s*(\d{4}-\d{2}-\d{2})' -Encoding UTF8 |
+                Select-Object -First 1
+            if (-not $stamp) {
+                Write-Output "session ledger apps/$app/.remember/now.md: UNDATED - add an 'Updated: YYYY-MM-DD' line so staleness is detectable."
+                continue
+            }
+            $parsed = [datetime]::MinValue
+            if (-not [datetime]::TryParseExact(
+                    $stamp.Matches[0].Groups[1].Value, 'yyyy-MM-dd', $null, 'None', [ref]$parsed)) {
+                Write-Output "session ledger apps/$app/.remember/now.md: unparseable Updated: stamp."
+                continue
+            }
+            $days = [int]((Get-Date).Date - $parsed.Date).TotalDays
+            if ($days -gt 14) {
+                Write-Output "session ledger apps/$app/.remember/now.md: STALE - $days days since last update. Treat its claims as unverified and re-derive from source."
+            } else {
+                Write-Output "session ledger apps/$app/.remember/now.md: $days day(s) old - read it for objective / last decision / blocker / next action."
+            }
+        }
+    }
+    catch {
+        Write-Output "session ledger: check unavailable ($($_.Exception.Message))"
+    }
 }
 catch {
     # Never block session startup - but say so out loud. A briefing that vanishes

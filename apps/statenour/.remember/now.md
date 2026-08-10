@@ -1,69 +1,52 @@
 # NOUR OS — Session Buffer
 
-## Project Quick Ref
-- **Project**: statenour-os (NOUR OS — personal mastery system)
-- **Location**: `C:\Users\nourd\NOURCITY\apps\statenour`
-- **Framework**: Next.js 16 (App Router, React 19, Prisma 6.19 + Neon)
-- **Dev server port**: 3001 (default 3000 was in use)
-- **Local URL**: http://localhost:3001/
-- **Network URL (Tailscale)**: http://100.118.151.61:3001/
-- **Production URL**: https://bdnick.info
-- **Platform**: Railway · project `natural-appreciation` · service `statenour-web`
-- **Service URL (backup)**: https://statenour-web-production.up.railway.app
-- **Active branch**: `main` (monorepo `MAINnicks-tire-autoNEW`)
+**Updated: 2026-08-10** · Five fields, nothing else. If the SessionStart briefing
+reports this file as stale, distrust everything below it and re-derive from source.
 
-## Live surfaces (Apr 18 after cleanup)
-- `/`         — HQ (Ultron) with TodoDesk + BottomPulseTicker
-- `/chat`     — Nick (AI conversation)
-- `/tasks`    — Unified INBOX/READY/DOING/DONE queue
-- `/journal`  — Reflect composer + BrainDump feed
-- `/mastery`  — Growth / habits / goals rollup
-- `/system/health` — Live observability dashboard
-- `/settings` — Config
-- Shop admin: external link to `nickstire.org/admin`
+> **Maintenance contract.** This is agent-maintained. Update the five fields at the
+> end of any session that changes the answer — it costs four lines. It went
+> **114 days** without an update (2026-04-18 → 2026-08-10) and in that time became
+> a source of two false beliefs, so the SessionStart hook now prints its age.
+> An inventory you cannot verify is worse than no inventory: **delete, don't carry.**
 
-## Launcher
-- **Desktop shortcut**: `C:\Users\nourd\OneDrive\Desktop\NOUR OS.bat`
-- **Project launcher**: `C:\Users\nourd\NOUR-OS\apps\statenour-os\start.bat`
-- Uses `.bat` (cmd.exe) — not PowerShell (execution-policy issues on this machine)
+## Current objective
+Memory-controller campaign: gate the 14th external mega-plan, then wire the two
+real gaps it surfaced (graph freshness · this ledger). Audit → `docs/GATE-2026-08-10-memory-controller.md`.
 
-## Crons (mega fan-out)
-Current scheduled (via mega cron fan-out + standalone):
-- `/api/cron/mega?slot=morning` — 9am UTC (fans out brain-cycle, device-sync,
-  learn, stale-tasks, device-health, notification-sender, journal-checkin,
-  embed-backfill)
-- `/api/cron/mega?slot=evening` — 2am UTC (reflect, predict, think,
-  consolidate, drift-check, daily-report, data-cleanup, intelligence,
-  brain-intelligence, embed-backfill; weekly runs on Sunday)
-- `/api/cron/brain-intelligence` — 2am UTC
-- `/api/cron/embed-backfill` — every 30min
-- `/api/cron/notification-sender` — every 15min
-- `/api/cron/operating-rhythm` — 12/16/21 UTC
-- `/api/cron/drift-check` — 8pm UTC
-- `/api/cron/backlog-triage` — 7am UTC
-- `/api/cron/watcher` — every 3h (audits other crons)
-- `/api/cron/auto-linker` — 4am UTC (MemoryEdge builder)
-- `/api/cron/weekly-review` — 2am UTC Sunday
-- `/api/cron/knowledge-sync` — every 6h
-- `/api/cron/ingest-{gmail,calendar,drive}` — varying cadence
+## Last material decision
+Phase 0 verdict: the memory controller **already exists and is wired** (native
+SessionStart hook + Claude Code Auto Memory). Phases 2 and 3 of the mandate were
+declined as duplicate-builds; three of its six delete targets were refuted outright.
 
-## Retired this pass (Apr 18)
-- OpenLoop → Task INBOX (80+ sites rewired, 68 legacy rows orphaned)
-- DailyScore → dropped from schema, runtime shim in `lib/prisma.ts`
-- MorningBrief → TodoDesk + BottomPulseTicker
-- Ghost crons: review-fetch, follow-up-reminders (no matching route)
-- Dead pages removed: /command, /strategy, /brief, /brain, /cameras,
-  /causation, /commitments, /decisions, /drift, /habits,
-  /system/{audit,deploys,memory-decay}, /mobile, /missions, /personal
-- 40+ dead API routes removed: /brain/*, /system/*, /internal/*,
-  /knowledge/*, /operator/*, /notifications/*, /integrations/*, plus
-  business fossils (/analytics, /reports, /bridge/owner-snapshot)
-- 11 dead lib/services, 16 dead scripts, 14 AI tools
+## Known failed approaches
+- **Auto fast-forwarding the primary checkout from the scheduled sync — rejected as
+  unsafe.** The primary sits on branch `session-end`, 26 behind `origin/main`, with a
+  dirty tree that may hold a sibling session's work. Fetch is safe; auto-merge is not.
+- Mandate's `git ls-files`-free measuring: `git show` / `git cat-file` / PowerShell
+  `Get-Content` **all** misread `[id]` paths. Only `git ls-files | xargs wc -l` is honest.
 
-## Notes
-- Railway deploys from `main` (monorepo `MAINnicks-tire-autoNEW`)
-- Single push to `main` is the deploy — Railway auto-builds via Docker
-- PowerShell is unreliable — always use .bat or bash
-- Working Prisma pattern for local scripts:
-  `pnpm exec tsx --env-file=.env.local <script>`
-- Date: 2026-04-18
+## Active blocker
+**Operator action:** the primary checkout (`C:\Users\nourd\NOURCITY`) is on
+`session-end`, **26 commits behind `origin/main`**, working tree dirty. The daily
+graph rebuild indexes that tree, so every graph is born a day or more stale. No
+script should resolve this — a sibling session may own the uncommitted changes.
+
+## Next action
+Land the audit + the two fixes as one PR from `claude/memory-controller-single-pass-ff500d`.
+
+---
+
+## Durable facts (each corroborated by root `AGENTS.md`, not by this file)
+- **Prod**: https://bdnick.info · Railway project `natural-appreciation` · service `statenour-web`
+- **Dev**: `pnpm stn dev` → port 3001
+- **Stack**: Next.js 16 App Router · React 19 · Prisma 6.19 → Neon · AI SDK v6
+- **Branching**: named branches only, PR + squash-merge. **NEVER commit or push to `main`.**
+
+> Deleted 2026-08-10 — three stale inventories (live surfaces · cron list · "retired
+> this pass"), all dated 2026-04-18 and unverifiable without a prod probe. Two of
+> their claims had gone actively false: *"Active branch: main / single push to main
+> is the deploy"* (inverts the repo's hardest safety rule) and *"Dead pages removed:
+> … /decisions …"* (`app/(mastery)/decisions/[id]/page.tsx` is **634 lines and live**,
+> plus three sibling routes). Four consecutive external audits have since claimed
+> that page is empty or dead. Cron truth lives in `config/crons.ts`; surface truth
+> in `app/`; ship history in `docs/RECONCILIATION.md`.
