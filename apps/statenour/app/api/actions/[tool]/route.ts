@@ -1,6 +1,6 @@
 import { assertBridgeAuth } from "@/lib/agent-bridge/auth";
 import { getBridgeSafeTools, executeBridgeTool } from "@/lib/agent-bridge/tool-adapter";
-import { auditBridgeCall } from "@/lib/agent-bridge/audit";
+import { auditBridgeCall, auditBridgeRejection, classifyBridgeFailure } from "@/lib/agent-bridge/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,11 +59,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ tool: s
       });
     }
   } catch (error: any) {
-    if (error.message === "Unauthorized") return new Response("Unauthorized", { status: 401 });
-    if (error.message === "Forbidden") return new Response("Forbidden", { status: 403 });
-    if (error.message.includes("disabled") || error.message.includes("missing")) {
-      return new Response(error.message, { status: 503 });
+    // Mirrors /api/mcp: this route does not wrap apiHandler() either, and
+    // auditBridgeCall() only fires once a tool has matched — so a refused
+    // call was previously untraceable. Responses are unchanged.
+    const message: string = error?.message ?? "Internal error";
+    const reason = classifyBridgeFailure(message);
+    if (reason) await auditBridgeRejection({ protocol: "actions", reason, req });
+
+    if (message === "Unauthorized") return new Response("Unauthorized", { status: 401 });
+    if (message === "Forbidden") return new Response("Forbidden", { status: 403 });
+    if (message.includes("disabled") || message.includes("missing")) {
+      return new Response(message, { status: 503 });
     }
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: message }, { status: 500 });
   }
 }
