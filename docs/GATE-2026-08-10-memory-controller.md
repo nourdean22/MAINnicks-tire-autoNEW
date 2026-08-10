@@ -230,3 +230,39 @@ architecture:
 
 Both hooks are already wired. This is **wiring, not building** — which is what
 the mandate said success looks like.
+
+---
+
+## The fresh-session test, re-run — the only real measure
+
+Same question, same repo, after the change. What a session now receives at startup,
+before any tool call:
+
+```
+graph freshness: STALE - built from ea9e05aa, HEAD is 26 commit(s) ahead [via primary checkout]
+- 47796 nodes · 84888 edges · 2553 communities
+session ledger apps/statenour/.remember/now.md: 0 day(s) old - read it for
+objective / last decision / blocker / next action.
+```
+
+| | before | after |
+|---|---|---|
+| Graph served | `75439362`, Aug 7, 47,208 nodes, **wrongly authoritative** | `ea9e05aa`, Aug 9, 47,796 nodes, **honestly flagged stale vs HEAD** |
+| Current objective | nothing held it | ledger, **signposted** |
+| Next action | nothing held it | ledger, **signposted** |
+| Last decision / failed approach / blocker | memory index (3/5) | ledger + memory index |
+| Files to open | unknown — grep and hope | **one, named in the briefing** |
+
+**3 of 5 → 5 of 5, via a single signposted file read.** The staleness label on the
+graph did not change, but its meaning did: it was previously "STALE" about the
+wrong artifact by 60 commits, and is now "STALE" about the right one by 26 — an
+honest 26 that the operator can act on.
+
+**Honest limitation.** The ledger is per-app and only statenour has one, so a
+nickstire-only session still gets 3 of 5. The hook globs `apps/*/.remember/now.md`,
+so creating that file is the whole fix if it is ever wanted — no code change. Not
+done here: unasked, and an empty ledger is worse than none.
+
+**What would falsify this.** If the next fresh session still greps a dozen files
+before its first edit, the signpost is not being followed and the briefing line is
+the thing to change — not the ledger.
