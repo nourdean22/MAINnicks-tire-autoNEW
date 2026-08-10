@@ -45,11 +45,22 @@ vi.mock("./services/opportunityQueue", () => ({
 }));
 
 let auditRows: Array<Record<string, unknown>> = [];
+/** Captured SQL of the last audit_log query — lets a test assert the SHAPE of
+ *  the idempotency guard, not just its mocked result. See the schema-conformance
+ *  test below for why that matters. */
+let lastAuditSql = "";
+/** Simulates the real failure this file now guards: the DB rejecting the
+ *  idempotency query (e.g. MySQL 1054, unknown column). */
+let auditThrows = false;
 vi.mock("./db", () => ({
   getDb: async () => ({
     execute: async (q: unknown) => {
       const text = JSON.stringify(q);
-      if (text.includes("audit_log")) return [auditRows];
+      if (text.includes("audit_log")) {
+        lastAuditSql = text;
+        if (auditThrows) throw new Error("Unknown column 'details' in 'where clause'");
+        return [auditRows];
+      }
       return [[]];
     },
   }),
@@ -87,6 +98,8 @@ beforeEach(() => {
   sendSpy.mockClear();
   auditSpy.mockClear();
   auditRows = [];
+  lastAuditSql = "";
+  auditThrows = false;
 });
 
 afterEach(() => {
@@ -134,6 +147,36 @@ describe("send_opportunity_sms guards", () => {
     expect(sendSpy).not.toHaveBeenCalled();
   });
 
+  // 2026-08-10 · THE GUARD ABOVE HAD NEVER RUN IN PRODUCTION. It queried
+  // `audit_log.details`; that column does not exist (audit_log was created in
+  // drizzle/0016_past_stone_men.sql with 8 columns and never ALTERed), so every
+  // call raised MySQL 1054 and this lane never sent a single message. The old
+  // tests could not catch it — they mock `execute` and hand rows back, so the
+  // column name was never exercised. These two pin the SHAPE, not the result.
+  it("the idempotency guard only references columns that exist on audit_log", async () => {
+    const { getTableColumns } = await import("drizzle-orm");
+    const { auditLog } = await import("../drizzle/schema");
+    const realColumns = Object.values(getTableColumns(auditLog)).map((c) => (c as { name: string }).name);
+
+    // The premise. If someone later ADDS a details column, this fails and tells
+    // them to come back and reconsider the JSON extraction below.
+    expect(realColumns).not.toContain("details");
+    expect(realColumns).toContain("changes");
+
+    await call("send_opportunity_sms", GOOD);
+    expect(lastAuditSql).toContain("audit_log");
+    expect(lastAuditSql).not.toMatch(/\bdetails\b/);
+    expect(lastAuditSql).toContain("changes");
+  });
+
+  it("idempotency query failure → refuses to send, and names the gate", async () => {
+    auditThrows = true;
+    const res = await call("send_opportunity_sms", GOOD);
+    const data = (res.body as { data: { error?: string } }).data;
+    expect(data.error).toMatch(/idempotency check failed/i);
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
   // 2026-08-10 · ACCEPTED IS NOT DISPATCHED. sendOpportunityDraft returns
   // queued:true when the message is held for the legal sending window. `sent`
   // used to be `result.ok`, so a queued message reported sent:true to any
@@ -165,6 +208,15 @@ describe("send_opportunity_sms guards", () => {
         details: expect.stringContaining("bridge_send:chat-turn-abc123"),
       }),
     );
+    // PIN THE PRODUCER. logAdminAction only lands `details` in the `changes`
+    // JSON — at `$.detail.new`, the path the guard queries — when NONE of
+    // previousValue/newValue/metadata are supplied; otherwise its ternary
+    // (services/auditTrail.ts:93) silently drops the detail string and the
+    // idempotency marker never gets written. Keep this call detail-only.
+    const auditArg = auditSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(auditArg.metadata).toBeUndefined();
+    expect(auditArg.previousValue).toBeUndefined();
+    expect(auditArg.newValue).toBeUndefined();
   });
 });
 
