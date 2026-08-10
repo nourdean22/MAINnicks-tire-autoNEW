@@ -103,10 +103,11 @@ check is actually pointing at before "fixing" the file.
 
 ## Known gaps (deliberate, not forgotten)
 
-- `pnpm-lock.yaml` still has an empty `apps/voice: {}` importer entry. Inert; removing it churns
-  the lockfile and escalates CI, so it is left for a dependency-touching PR.
-- `ANTIGRAVITY_MASTER_PLAN.md` (root, 2026-07-09) is a completed one-shot plan still sitting at
-  the repo root where agents load it as if it were policy. Archive candidate.
-- `docs/00-current-truth/architecture.md` still diagrams `apps/voice` as a live ring.
-- The Antigravity layer (`.antigravityrules`, `docs/ANTIGRAVITY-*.md`, ~680 lines) now points at
+- The Antigravity layer (`.antigravityrules`, `docs/ANTIGRAVITY-*.md`) now points at
   `AGENTS.md` as canonical but has not been slimmed to a true thin adapter.
+
+**Closed 2026-08-10:** the `pnpm-lock.yaml` `apps/voice` importer entry is gone (verified: zero
+matches); `ANTIGRAVITY_MASTER_PLAN.md` moved to `docs/90-archive/superseded-plans/` with a
+supersession banner, so opening it directly no longer reads as policy;
+`docs/00-current-truth/architecture.md` no longer diagrams `apps/voice` as a live ring — the
+section is now a tombstone that names where the capability actually lives.
