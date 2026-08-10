@@ -158,3 +158,42 @@ not re-litigated.
    not evidence that nothing calls it.** For any webhook, tool, callback or
    redirect surface, ask the provider before concluding either direction. The
    five orphan tools were then deleted at the provider, the routes in #1460.
+   9. **A plan can be accurate in every measurement and still wrong in its
+   conclusion — and the number nobody checks is a ratio's DENOMINATOR.** The
+   2026-08-10 "NOUR OS adversarial audit" opened on a 93:1 machinery-to-domain
+   ratio and derived its whole subtractive half from it. Its per-file numbers
+   were *exact* — ghost-nick 564, contextual-recall 1176, autonomous-engine 1405,
+   `lib/{brain,ai,services}` = 154,945 against its stated "155k". The numerator
+   was right. The denominator was invented: §A1 sized the domain surface as
+   "journal 68, missions 79, pins 64, home 53" ≈ 1.7k, figures that appear
+   nowhere and that **the plan's own §C1 contradicts** (journal 89, missions 303,
+   pins 437 — all exact). It also omitted `components/`, 82,812 lines across 321
+   files, which is where an App Router app keeps its UI. Real surface ~146,000;
+   **true ratio ~1.06:1.** Provenance was diagnostic: `/people (1,002 LOC)` is
+   mandate 9's *pre-refactor* figure (the file is 1,017, decomposed the day
+   before in #1473), so §A1 was inherited while §C1 was measured. **When a plan
+   leads with a ratio, recount the denominator before reading further — a
+   document can be scrupulous everywhere except the one place that decides
+   whether it is about anything.** This register had already answered two of its
+   headline calls: row 30 records `moneyprinter` as LIVE (it proposed deleting it
+   as "cargo-culted dead weight"; `next.config.ts:43` traces it into the build
+   and `Dockerfile:90` installs python3+ffmpeg for it), and row 65 gives Graphiti
+   a PATTERN verdict (it proposed adopting Graphiti). Gate step 1 is reading this
+   file.
+   10. **PowerShell globs `[` `]` in paths — so every Next.js dynamic route is
+   invisible to a naive file scan, and reads as an EMPTY FILE.** The plan above
+   ranked "delete the empty `/decisions/[id]` page — it breaks your build now,
+   free" as its second action. The file is **634 lines of implemented code**; its
+   API sibling is 47. The gate deleted both, then caught it in the commit
+   diffstat and reverted before pushing. Cause: `Get-Content` / `Test-Path` /
+   `Measure-Object -Line` treat `[id]` as a character class, fail to match the
+   literal path, emit a non-terminating error, and yield **zero lines** — which
+   is indistinguishable from an empty file. `-LiteralPath` is required, or use
+   `git ls-files | xargs wc -l`. **28 route files / 2,735 LOC in statenour sit
+   under a dynamic segment** and any `Get-ChildItem | Get-Content` census reports
+   all of them as zero. The same session's "counts are inflated ~8%" finding was
+   the same instrument failing the other way (`Measure-Object -Line` under-counts
+   where `wc -l` does not) and was retracted. Mandate 8 made the identical claim
+   about the identical page and it was falsified then too — **two independent
+   plans, same false "empty file", twice refuted.** Expect plan 12 to make it a
+   third time.
