@@ -78,15 +78,21 @@ Mandatory section. Every assumption the evidence killed, and which instrument li
 1. **★★★ `app/(mastery)/decisions/[id]/page.tsx` is NOT 0 lines and does NOT
    break `next build`. It is 634 lines** (+ a 47-line API sibling). This is the
    **fourth** consecutive mandate to assert it (8, 11, 12, now 14).
-   **Three instruments lied, and one of them is new:**
-   - `git show HEAD:'app/(mastery)/decisions/[id]/page.tsx'` → prints nothing
-     **and exits 0**. Worse than the PowerShell trap: exit 0 reads as success.
-   - `git cat-file -s HEAD:<path>` → `fatal: path ... does not exist in 'HEAD'`.
-   - PowerShell `Get-Content` on the literal path → empty (the documented
-     `[id]`-is-a-wildcard trap).
-   - Only `git ls-files | grep -F | xargs wc -l` returns the truth: **634**.
-   **git's own pathspec magic reproduces the PowerShell bracket bug.** New
-   finding; the existing memory covers PowerShell only.
+   Only `git ls-files | grep -F | xargs wc -l` returned the truth: **634**.
+
+   **CORRECTED after review — my first diagnosis here was wrong.** I wrote that
+   "git globs `[id]` the way PowerShell does". It does not:
+   `git show 'HEAD:apps/statenour/app/(mastery)/decisions/[id]/page.tsx'` returns
+   all 634 lines and `git cat-file -s` returns 25277, brackets intact. **The real
+   trap is a path-base mismatch:** `git ls-files` run from a *subdirectory* emits
+   **CWD-relative** paths, while `REV:path` resolves **repository-root-relative**
+   — so feeding the first into the second addresses a path that does not exist.
+   **`git show` then prints nothing and exits 0**, which is the genuinely
+   dangerous part: piping it to `wc -l` records a confident zero with no error on
+   any stream. `git cat-file -s` was the honest instrument all along — its
+   `fatal: path ... does not exist in 'HEAD'` printed the brackets intact, and I
+   misread that as bracket-mangling. Brackets remain a real hazard in PowerShell;
+   they are not one in git.
 2. **`lib/eval` is 0 files** — already deleted in #1465 after being proven *not*
    a duplicate. The "one of `lib/eval` / `lib/evals` — Duplicates" row targets a
    phantom. `lib/evals` = 4 files / 574 LOC is the live one.
@@ -168,6 +174,19 @@ labelled authoritative, with no staleness signal. Fixed; measured A/B in one
 directory: `STALE - built from 75439362, HEAD is 60 ahead` -> `ok - built from
 ea9e05aa, HEAD is 25 ahead [via primary checkout]`.
 
+**How it is fixed, after a review correction.** The first attempt preferred the
+primary whenever the local copy was *unmodified vs HEAD*. Review caught that this
+fails in the mirror-image case: if the scheduled sync has been failing, or the
+primary sits on an older branch, a freshly **committed** report is newer than the
+primary's working copy and that rule would serve the older one. Both mtime and
+clean/dirty are proxies. The shipped version reads each report's own
+`Built from commit:` header and compares those **commits' dates** — the only
+direct signal — falling back to mtime only when a commit will not resolve
+(rebased away, squashed, shallow clone). Verified both directions: with the
+primary genuinely newer it selects `[via primary checkout]`; with the local
+report's header rewritten to a newer commit it correctly keeps the local copy
+and reports `CURRENT`.
+
 **My own proposed fix was falsified before it was written.** "Add `git fetch` +
 fast-forward ahead of the daily rebuild" is unsafe here: the primary checkout is on
 branch **`session-end`**, **26 commits behind `origin/main`**, with a **dirty working
@@ -179,9 +198,11 @@ checkout lag is left as an operator action, made loud rather than silently patch
   **The rebuild is indexing a stale checkout** — it faithfully re-indexes
   yesterday's tree every morning.
 
-**So the fix is not `graphify hook install`.** A commit hook on a checkout
-nobody commits into changes nothing. The fix is a `git fetch` + fast-forward
-ahead of the existing daily rebuild — one line in a script that already runs.
+**So the fix is not `graphify hook install`.** A commit hook on a checkout nobody
+commits into changes nothing. **Nor is it an automatic fast-forward** — see the
+correction immediately below, which supersedes an earlier draft of this paragraph
+that prescribed exactly that. The checkout lag is an **operator action**; the fix
+that shipped is the report-selection defect described next.
 
 ---
 

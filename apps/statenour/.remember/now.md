@@ -22,8 +22,12 @@ declined as duplicate-builds; three of its six delete targets were refuted outri
 - **Auto fast-forwarding the primary checkout from the scheduled sync — rejected as
   unsafe.** The primary sits on branch `session-end`, 26 behind `origin/main`, with a
   dirty tree that may hold a sibling session's work. Fetch is safe; auto-merge is not.
-- Mandate's `git ls-files`-free measuring: `git show` / `git cat-file` / PowerShell
-  `Get-Content` **all** misread `[id]` paths. Only `git ls-files | xargs wc -l` is honest.
+- **"git globs `[id]` like PowerShell does" — I wrote that, the review gate caught it,
+  it is false.** `git show 'HEAD:apps/statenour/app/(mastery)/decisions/[id]/page.tsx'`
+  returns all 634 lines. The real trap: `git ls-files` run from a subdirectory emits
+  **CWD-relative** paths while `REV:path` resolves **repo-root-relative**, so feeding
+  one to the other silently misses — and **`git show` exits 0 while printing nothing.**
+  `git ls-files | xargs wc -l` remains the one trustworthy measure.
 
 ## Active blocker
 **Operator action:** the primary checkout (`C:\Users\nourd\NOURCITY`) is on

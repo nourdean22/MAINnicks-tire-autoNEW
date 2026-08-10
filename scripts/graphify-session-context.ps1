@@ -66,34 +66,56 @@ try {
     if ($common.Ok -and $common.Out) {
         $primaryReport = Join-Path (Split-Path -Parent $common.Out) 'graphify-out\GRAPH_REPORT.md'
 
-        # mtime ALONE picks the wrong copy in a fresh worktree - which is where
-        # most sessions now run. `git checkout` stamps the committed artifact
-        # with the checkout time, so a worktree created at 09:41 always looks
-        # newer than the primary working copy the scheduled rebuild wrote at
-        # 07:33, while being by construction the OLDER graph. Measured
-        # 2026-08-10 in a harness worktree: the local copy said "built from
-        # 75439362" (Aug 7, 47,208 nodes) and won the mtime race against the
-        # primary's ea9e05aa (Aug 9, 47,796) sitting on disk - so the briefing
-        # served a two-day-old graph and labelled it authoritative. Silent: the
-        # numbers look plausible and no staleness signal fires.
+        # Which report is FRESHER is a question about the commit each was BUILT
+        # FROM. Both cheaper proxies fail, in opposite directions:
         #
-        # Fix: in a worktree, an UNMODIFIED report IS the committed artifact,
-        # so prefer the primary regardless of mtime. Only a dirty local copy
-        # (someone ran a rebuild inside this worktree) falls back to the mtime
-        # race, which preserves the documented "a rebuild run inside a worktree
-        # still beats a staler primary" case. In the primary itself $inWorktree
-        # is false and this whole branch behaves exactly as before.
-        $gitDir = Invoke-Git @('-C', $repo, 'rev-parse', '--path-format=absolute', '--git-dir')
-        $inWorktree = $gitDir.Ok -and ($gitDir.Out -ne $common.Out)
-        $localState = Invoke-Git @('-C', $repo, 'status', '--porcelain', '--', 'graphify-out/GRAPH_REPORT.md')
-        $localIsCommittedCopy = $inWorktree -and $localState.Ok -and -not $localState.Out
+        #  - mtime inverts in a fresh worktree, which is where most sessions now
+        #    run. `git checkout` stamps the committed artifact with the checkout
+        #    time, so this worktree's copy (09:41, built from 75439362 / Aug 7 /
+        #    47,208 nodes) beat the primary's live rebuild (07:33, ea9e05aa /
+        #    Aug 9 / 47,796) and the briefing served a two-day-old graph as
+        #    authoritative, with no staleness signal. Measured 2026-08-10.
+        #  - "the local copy is clean, so take the primary" fails the other way:
+        #    if the scheduled sync has been failing, or the primary sits on an
+        #    older branch, a freshly COMMITTED report is newer than the
+        #    primary's working copy and preferring the primary recreates the
+        #    same bug reversed.
+        #
+        # So read each report's own "Built from commit:" header and compare
+        # those commits' dates - the only direct signal. mtime survives solely
+        # as the fallback for a commit that will not resolve (rebased away,
+        # squashed, shallow clone). In the primary both paths are the same file,
+        # the times are equal, and this is inert.
+        function Get-BuildCommitTime {
+            param([string]$ReportPath)
+            if (-not (Test-Path $ReportPath)) { return $null }
+            # Header sits at line 13; -TotalCount avoids reading 675 KB twice.
+            foreach ($line in (Get-Content $ReportPath -Encoding UTF8 -TotalCount 40)) {
+                if ($line -match 'Built from commit:\s*`([0-9a-f]+)`') {
+                    $t = Invoke-Git @('-C', $repo, 'show', '-s', '--format=%ct', $Matches[1])
+                    if ($t.Ok -and $t.Out -match '^\d+$') { return [long]$t.Out }
+                    return $null
+                }
+            }
+            return $null
+        }
 
-        if ((Test-Path $primaryReport) -and (
-                -not (Test-Path $report) -or
-                $localIsCommittedCopy -or
-                (Get-Item $primaryReport).LastWriteTime -gt (Get-Item $report).LastWriteTime)) {
-            $report = $primaryReport
-            $via = ' [via primary checkout]'
+        if (Test-Path $primaryReport) {
+            if (-not (Test-Path $report)) {
+                $preferPrimary = $true
+            } else {
+                $localBuilt = Get-BuildCommitTime $report
+                $primaryBuilt = Get-BuildCommitTime $primaryReport
+                if ($null -ne $localBuilt -and $null -ne $primaryBuilt) {
+                    $preferPrimary = $primaryBuilt -gt $localBuilt
+                } else {
+                    $preferPrimary = (Get-Item $primaryReport).LastWriteTime -gt (Get-Item $report).LastWriteTime
+                }
+            }
+            if ($preferPrimary) {
+                $report = $primaryReport
+                $via = ' [via primary checkout]'
+            }
         }
     }
     if (-not (Test-Path $report)) { exit 0 }
