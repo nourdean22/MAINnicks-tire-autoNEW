@@ -25,6 +25,7 @@ import { execSync } from "node:child_process";
 import {
   existsSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
@@ -87,8 +88,13 @@ function runEslint(repoRoot: string): ESLintFileResult[] {
     );
     process.exit(2);
   } finally {
+    // 2026-08-10 · was `execSync("rm -f ...")`, which does not exist on
+    // Windows — every run printed "'rm' is not recognized" and left a ~2.5MB
+    // .lintbaseline.tmp.json in the REPO ROOT, untracked and one `git add -A`
+    // from being committed. rmSync is cross-platform; `force` swallows ENOENT.
+    // Still guarded: a cleanup failure must never mask the real error above.
     try {
-      execSync(`rm -f "${tmpPath}"`);
+      rmSync(tmpPath, { force: true });
     } catch {
       /* ignore */
     }
