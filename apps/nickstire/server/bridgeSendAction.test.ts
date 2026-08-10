@@ -130,13 +130,31 @@ describe("send_opportunity_sms guards", () => {
     const data = (res.body as { data: Record<string, unknown> }).data;
     expect(data.duplicate).toBe(true);
     expect(data.sent).toBe(false);
+    expect(data.deliveryState).toBe("duplicate");
     expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  // 2026-08-10 · ACCEPTED IS NOT DISPATCHED. sendOpportunityDraft returns
+  // queued:true when the message is held for the legal sending window. `sent`
+  // used to be `result.ok`, so a queued message reported sent:true to any
+  // caller reading that field. These two pin the vocabulary in BOTH directions
+  // — a refactor that re-collapses them fails here, not in production.
+  it("queued for the send window → sent:false, deliveryState 'queued'", async () => {
+    sendSpy.mockResolvedValueOnce({ ok: true as const, queued: true });
+    const res = await call("send_opportunity_sms", GOOD);
+    const data = (res.body as { data: Record<string, unknown> }).data;
+    expect(data.ok).toBe(true);
+    expect(data.queued).toBe(true);
+    expect(data.sent).toBe(false);
+    expect(data.deliveryState).toBe("queued");
+    expect(sendSpy).toHaveBeenCalled();
   });
 
   it("happy path: sends with statenour attribution and records the idempotency marker", async () => {
     const res = await call("send_opportunity_sms", GOOD);
     const data = (res.body as { data: Record<string, unknown> }).data;
     expect(data.sent).toBe(true);
+    expect(data.deliveryState).toBe("dispatched");
     expect(data.duplicate).toBe(false);
     expect(sendSpy).toHaveBeenCalledWith(
       expect.objectContaining({ id: OPP_ID, by: "statenour:nour" }),
