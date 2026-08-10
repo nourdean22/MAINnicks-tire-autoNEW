@@ -10,7 +10,7 @@ the two: `AGENTS.md` carries judgment, and code carries enforcement.
 | Layer | Artifact | Promise |
 |---|---|---|
 | 1 · Canonical policy | [`AGENTS.md`](../../AGENTS.md) + `apps/*/AGENTS.md` | The single place a rule is written. Read by Claude, Codex, Copilot, Cursor, Gemini and humans. |
-| 2 · Vendor adapters | `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/*.mdc`, `apps/*/CLAUDE.md` | Route their agent to layer 1. Thin and pointer-only **by construction** — line-capped by the parity check, so a second policy cannot quietly fork into existence. |
+| 2 · Vendor adapters | `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/*.mdc`, `.antigravityrules`, `apps/*/CLAUDE.md` | Route their agent to layer 1. Thin and pointer-only **by construction** — line-capped by the parity check, so a second policy cannot quietly fork into existence. **Every** adapter must be in that check; the one that wasn't is the one that forked (see Known gaps). |
 | 3 · Executable parity | `scripts/agent-os/check-adapters.mjs` | Adapters exist, point at their `AGENTS.md`, stay under cap; retired claims (`.husky/pre-*`, `push-main.sh`, "no CODEOWNERS", live `apps/voice`) stay deleted. |
 | 4 · Local enforcement | `.claude/settings.json` hooks + `scripts/agent-os/` | Deny unsafe tool calls before they run; gate completion claims. Claude-only — see "Honest limits". |
 | 5 · CI | [`.github/workflows/agent-policy.yml`](../../.github/workflows/agent-policy.yml) | Runs layers 3–4's checks on every PR, for every author, including humans. |
@@ -103,8 +103,21 @@ check is actually pointing at before "fixing" the file.
 
 ## Known gaps (deliberate, not forgotten)
 
-- The Antigravity layer (`.antigravityrules`, `docs/ANTIGRAVITY-*.md`) now points at
-  `AGENTS.md` as canonical but has not been slimmed to a true thin adapter.
+None open. The list below is kept as lineage — each entry names what was wrong and what closed it.
+
+**Closed 2026-08-10 — the Antigravity fork.** The layer ran to 885 lines across `.antigravityrules`
+(346), `docs/ANTIGRAVITY-PROFILE.md` (382) and `docs/ANTIGRAVITY-RULES.md` (157), against peer
+adapters of 7–33 lines. It was not merely fat, it was **forked**: 55 of 69 lines of its persona
+block were byte-identical to `AGENT-OPERATING-PROFILE.md`, and the profile instructed "never merge
+without explicit owner approval" while `AGENTS.md` grants autonomous merge. **Root cause: it was
+the only adapter absent from `check-adapters.mjs`, so it was the only one with no line cap** — the
+"thin by construction" guarantee held everywhere it was enforced and failed where it wasn't.
+Fixed by promoting the two genuinely-canonical sections into `AGENTS.md` ("Data handling — time and
+PII" — timezone and PII rules that existed in *no* `AGENTS.md`), archiving the profile with a
+supersession banner, reducing `.antigravityrules` to a 40-line pointer, and **adding the cap**
+(60 lines) plus a guard forbidding the contradictory merge instruction from reappearing in a live
+adapter. Net 885 → 197 lines. The cap was red-teamed, not assumed: padding the file to 72 lines
+produces `FAT .antigravityrules is 72 lines (cap 60)` and exit 1.
 
 **Closed 2026-08-10:** the `pnpm-lock.yaml` `apps/voice` importer entry is gone (verified: zero
 matches); `ANTIGRAVITY_MASTER_PLAN.md` moved to `docs/90-archive/superseded-plans/` with a

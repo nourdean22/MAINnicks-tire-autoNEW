@@ -115,6 +115,17 @@ for (const rule of ["repo-core", "nickstire", "statenour"]) {
     requireThin(p, 60);
   }
 }
+// Antigravity was the ONE adapter with no cap here, and it is the one that forked: 885 lines
+// across `.antigravityrules` + two docs/ANTIGRAVITY-*.md files, restating policy AGENTS.md
+// already owned and contradicting it outright ("never merge without explicit owner approval"
+// vs the autonomous-merge rule). Capping it is the fix; trimming it without the cap is not.
+if (requireFile(".antigravityrules", "Antigravity adapter")) {
+  requireMatch(".antigravityrules", /AGENTS\.md/, "must point at the canonical policy");
+  requireThin(".antigravityrules", 60);
+}
+if (requireFile("docs/ANTIGRAVITY-RULES.md", "Antigravity reasoning layer (not policy)")) {
+  requireMatch("docs/ANTIGRAVITY-RULES.md", /AGENTS\.md/, "must defer to the canonical policy");
+}
 
 // ── 3 · Per-app canonical + adapters ─────────────────────────────────────────
 for (const app of ["nickstire", "statenour", "worker"]) {
@@ -128,6 +139,12 @@ for (const app of ["nickstire", "statenour", "worker"]) {
 
 // ── 4 · Moved / corrected content stays moved ────────────────────────────────
 forbidLine("apps/nickstire/CLAUDE.md", /MASTER OPERATING DIRECTIVE/, "persona moved to docs/OPERATOR-DIRECTIVE.md (2026-08-04)");
+// The prescriptive form, not the mention: an adapter that TELLS an agent to wait for approval
+// before merging contradicts the autonomous-merge rule in AGENTS.md. The archived profile is
+// allowed to quote it (that is lineage); a live adapter is not (that is a second policy).
+for (const f of [".antigravityrules", "docs/ANTIGRAVITY-RULES.md"]) {
+  forbidLine(f, /Never merge without explicit owner approval/, "contradicts the autonomous-merge rule in AGENTS.md", RETIRED);
+}
 if (requireFile("apps/nickstire/docs/OPERATOR-DIRECTIVE.md", "relocated operator persona (zero-loss move)")) {
   requireMatch("apps/nickstire/docs/OPERATOR-DIRECTIVE.md", /MASTER OPERATING DIRECTIVE/, "the moved block must actually be here");
 }
