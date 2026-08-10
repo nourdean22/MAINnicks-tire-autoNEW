@@ -33,6 +33,20 @@ foreach ($d in $dirs) {
 Expect ~15 links (root · `apps/*` · `packages/*` · `deploy`). Verify with
 `pnpm typecheck` in the app you're touching — not by listing the folder.
 
+**Junctions alone are not enough to run the verify gates.** `worktree-setup.ps1`
+does two more things a harness worktree never got:
+
+1. **Copy `apps/<app>/.env*` from the primary checkout.** Without them
+   `check:env` fails, and `verify:hard` fails with it — a false red that
+   looks like a code problem.
+2. **Build `@statenour/lenses` before any statenour test run:**
+   `pnpm exec turbo build --filter=@statenour/lenses`. Five
+   strategic-frameworks test files fail at import without it. Turbo replays
+   it from cache in ~250ms, so there is no reason to skip it.
+
+`pnpm typecheck` passes on junctions alone, so it will NOT warn you about
+either of these — a green typecheck is not evidence the gates will run.
+
 ## 2 · The one-checkout rule (the expensive one)
 
 A harness worktree's `apps/**` source is a **separate physical copy** from
@@ -87,6 +101,8 @@ session.
 | `git worktree remove` on its own | Junctions point OUT of the tree; a recursive delete runs over links into the primary. Use `scripts/worktree-teardown.ps1 -targetDir <path>` |
 | Bash `cd` persisting | It resets to `C:\` between calls — prefix each command, and re-anchor by pattern after your own edits shift line numbers |
 | Pre-push `IO error: provided value is too long when setting link name` | Windows symlink noise, non-fatal; the build still passes |
+| `gh pr merge --delete-branch` failing with `fatal: 'main' is already used by worktree at ...` | **The remote merge usually ALREADY SUCCEEDED** — only gh's local branch-switch failed, because a sibling worktree holds `main`. Check `gh pr view <n> --json state` BEFORE retrying; a naive retry misreports a merged PR as failed. Witnessed twice (#1447, #1487). Avoid it entirely: merge WITHOUT `--delete-branch`, then delete the ref via `gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>` |
+| An `Edit` whose old/new string ENDS on a meaningful space | The harness normalizes the trailing space away. Once produced `##Title` — matching neither markdown header level — and two follow-up Edits differing only by that space were then rejected as "old and new are identical". Anchor through the next token instead, or do whitespace-sensitive rewrites with a shell regex and grep-verify the result |
 
 ## When NOT to use
 

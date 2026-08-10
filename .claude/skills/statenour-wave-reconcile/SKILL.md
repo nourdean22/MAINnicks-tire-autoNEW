@@ -19,7 +19,14 @@ when a wave of work lands, before ending the session.
    - a ship-by-ship roll-up — one bold line per commit
    - a `**Flagged · NOT fixed**` list for known-but-deferred issues
 
-   Then update the `**Last verified:**` header line.
+   Then update the `**Last verified:**` stamp — **note there are TWO of
+   them, and the guard reads the FIRST.** `check-stale-docs.ts` parses the
+   first occurrence in the file, which is embedded mid-line inside the
+   corrupted 2026-06-21 blockquote near line 5 — not the standalone header
+   line near line 57 that looks like the obvious one. Previous waves
+   updated only the standalone stamp and left the first at 2026-07-29, so
+   `STALE_DOCS_STRICT` fails with "Date mismatch" after an edit that looks
+   correct. **Update both, or at minimum the first.**
 
 2. **`apps/statenour/AGENTS.md`** — update `**Last refreshed:**` (§1).
    If the wave changed deploy target, branch, versioning, test counts,
