@@ -192,11 +192,43 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const d = await getDb();
     if (!d) return { error: "DB unavailable — refusing to send without idempotency" };
     const marker = `bridge_send:${idempotencyKey}`;
-    const dupRows = await exec(d, sql`
-      SELECT 1 FROM audit_log
-      WHERE action = 'sms.bridge_send' AND details LIKE ${`%${marker}%`}
-      LIMIT 1
-    `);
+    // 2026-08-10 · THIS GUARD HAD NEVER RUN. It queried `audit_log.details`,
+    // and `audit_log` has no such column — 8 columns, created in
+    // drizzle/0016_past_stone_men.sql and never ALTERed. `logAdminAction`
+    // writes the detail string into the `changes` JSON instead
+    // (`{ detail: { old: null, new: <details> } }`), which is the documented
+    // house rule for this table ("we avoid a new DB migration by using
+    // audit_log's `changes` JSON column" — services/snapApplications.ts:4).
+    // So every call raised MySQL 1054 (unknown column), `exec` does not catch,
+    // and the dispatcher's catch at the bottom of this file turned it into a
+    // generic HTTP 500. statenour's Telegram handler renders that as
+    // "❌ Opportunity SMS blocked/failed", which reads like a consent gate
+    // refusing — so a total outage looked like a working safety guard.
+    // The unit tests could not see it: they mock `execute` and feed rows back
+    // directly, so the column name was never exercised.
+    // Filtering on entity_type+entity_id first uses the existing
+    // `idx_audit_entity` index rather than scanning on `action` (there is no
+    // index on `action` alone — services/complianceLog.ts:242).
+    let dupRows: Record<string, unknown>[];
+    try {
+      dupRows = await exec(d, sql`
+        SELECT 1 FROM audit_log
+        WHERE entity_type = 'revenue_opportunity'
+          AND entity_id = ${opportunityId}
+          AND action = 'sms.bridge_send'
+          AND JSON_UNQUOTE(JSON_EXTRACT(changes, '$.detail.new')) LIKE ${`%${marker}%`}
+        LIMIT 1
+      `);
+    } catch (err) {
+      // Fail CLOSED and say which gate failed. The whole reason this bug
+      // survived is that a broken guard was indistinguishable from a guard
+      // doing its job — never let those two look the same again.
+      log.error("bridge send idempotency check FAILED — refusing to send unguarded", {
+        opportunityId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { error: "idempotency check failed — refusing to send unguarded" };
+    }
     if (dupRows.length > 0) return { ok: true, duplicate: true, sent: false, deliveryState: "duplicate" as const };
 
     const { sendOpportunityDraft } = await import("../services/opportunityDraft");
