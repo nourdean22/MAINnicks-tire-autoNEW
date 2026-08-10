@@ -54,6 +54,33 @@ non-obvious and two of them silently lie if run carelessly.
 - Pushing `main` deploys statenour to Railway; the repo-level pre-push
   hook runs `turbo build`, NOT the test suite — confirming a green
   `pnpm test` locally is on you.
+- **Never invoke `cross-env` bare in PowerShell, and never trust a
+  `FINAL_EXIT=$LASTEXITCODE` sentinel after a `&&` chain.** Witnessed:
+  chaining gates through `... && cross-env STALE_DOCS_STRICT=1 pnpm
+  check:stale-docs && ...` broke at bare `cross-env` — CommandNotFound is
+  a resolution error, not an exit code, so the trailing sentinel printed
+  **0** while three gates had silently never run. Use
+  `$env:VAR='1'; pnpm <script>` instead, and **count the gate outputs
+  rather than reading the sentinel** — a green sentinel after a broken
+  chain reports the last RESOLVED command.
+- **`check:lint-baseline` reporting NEW FILE on a file outside your diff
+  is dep-bump archaeology, not your regression.** Confirm with
+  `git diff origin/main -- <file>` (empty = not yours), then compare the
+  baseline snapshot's last commit against the last eslint bump — a bump
+  mints new warning classes in files nobody touched. Witnessed 2026-08-06:
+  `app/(mastery)/system/fleet/page.tsx` was byte-identical to `main`
+  while #1357's eslint dev-minor bump minted a fresh react-hooks class.
+  Root `AGENTS.md` classifies this check non-blocking-red: **disclose it,
+  chip the fix, do not absorb it into your PR.**
+- **A prompt section joins the budget/trim economy ONLY with a `## `
+  title.** `trimPromptToBudget` splits on `\n## ` and nothing else, so
+  `###` sub-blocks FUSE into the preceding `## ` section and the trimmer
+  can then only keep or drop the fused blob wholesale. Root cause of
+  #1450: the Master Content Engine's ~30 `###` sub-blocks fused into one
+  atomic ~80k section, so the 65k runtime slice dropped the ENTIRE engine
+  on the primary lane — every non-anthropic content turn served with no
+  content engine, behind a `prompt:size-check` that had been red since
+  #687 and that everyone had learned to ignore.
 
 ## Before shipping any report / diagnostic section
 
