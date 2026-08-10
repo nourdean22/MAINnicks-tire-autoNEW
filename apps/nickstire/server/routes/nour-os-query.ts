@@ -197,7 +197,7 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
       WHERE action = 'sms.bridge_send' AND details LIKE ${`%${marker}%`}
       LIMIT 1
     `);
-    if (dupRows.length > 0) return { ok: true, duplicate: true, sent: false };
+    if (dupRows.length > 0) return { ok: true, duplicate: true, sent: false, deliveryState: "duplicate" as const };
 
     const { sendOpportunityDraft } = await import("../services/opportunityDraft");
     const result = await sendOpportunityDraft({
@@ -220,7 +220,17 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
         log.error("bridge send succeeded but idempotency record failed — replays will NOT dedupe", { opportunityId });
       }
     }
-    return { ...result, sent: result.ok, duplicate: false };
+    // 2026-08-10 · ACCEPTED IS NOT DISPATCHED. `sendOpportunityDraft` returns
+    // queued:true when the message is held for the legal sending window. The
+    // audit line above has always recorded that distinction — but the returned
+    // `sent: result.ok` collapsed both outcomes into true, so an approving
+    // agent (and the Telegram ActionReceipt, which marks SUCCESS off this call)
+    // reported "sent" for a message still sitting in the window queue.
+    // `sent` now means DISPATCHED only; `deliveryState` carries the vocabulary.
+    // Deliberately NOT modelling "delivered" — no provider receipt is read
+    // here, and inventing that state is the same overclaim one level down.
+    const deliveryState = result.ok ? (result.queued ? "queued" : "dispatched") : "failed";
+    return { ...result, sent: result.ok === true && result.queued !== true, deliveryState, duplicate: false };
   },
 
   // ─── Revenue ──────────────────────────────────
