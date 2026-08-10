@@ -40,6 +40,7 @@
         "animated CTA"
       ],
       "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-08-16",
       "codeState": "merged",
       "operationalState": "visually_verified",
       "exposure": "production"
@@ -108,6 +109,7 @@
         "Ad Director"
       ],
       "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-08-07",
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "operator_only"
@@ -136,6 +138,7 @@
         "per-slide regeneration"
       ],
       "lastVerifiedAt": "2026-07-16",
+      "verificationExpiresAt": "2027-01-12",
       "codeState": "merged",
       "operationalState": "visually_verified",
       "exposure": "operator_only"
@@ -168,6 +171,7 @@
         "evidence-record persistence beyond brief payloads"
       ],
       "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-08-07",
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "operator_only"
@@ -219,6 +223,7 @@
         "OPA delegation"
       ],
       "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-10-15",
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal"
@@ -249,6 +254,7 @@
         "durable approvals"
       ],
       "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-10-15",
       "codeState": "merged",
       "operationalState": "deployed",
       "exposure": "internal"
@@ -279,6 +285,7 @@
         "campaign budget wiring beyond reels"
       ],
       "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-10-15",
       "codeState": "merged",
       "operationalState": "deployed",
       "exposure": "internal"
@@ -317,6 +324,7 @@
         "loop shape contracts are still NOT wired to the cron observer — server/cron/observer.ts continues to react only to status='failed', so a job that reports `completed` while producing nothing remains invisible in production. The skip hazard is now handled in the module; the wiring itself is unshipped"
       ],
       "lastVerifiedAt": "2026-07-28",
+      "verificationExpiresAt": "2026-10-26",
       "codeState": "merged",
       "operationalState": "deployed",
       "exposure": "internal"
@@ -549,7 +557,8 @@
         "break-glass override records",
         "approval invalidation on policy-version change"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-10-15"
     },
     {
       "capabilityId": "media-asset-registry",
@@ -585,7 +594,8 @@
         "perceptual similarity",
         "reuse decision engine"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-09-15"
     },
     {
       "capabilityId": "drive-creative-vault",
@@ -610,7 +620,8 @@
         "scheduled reconciliation cron",
         "campaign summary doc rendering"
       ],
-      "lastVerifiedAt": "2026-07-17"
+      "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-08-07"
     },
     {
       "owner": "system",
@@ -852,6 +863,7 @@
     {
       "owner": "system",
       "lastVerifiedAt": "2026-07-17",
+      "verificationExpiresAt": "2026-08-07",
       "deferredScope": [],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
