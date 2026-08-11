@@ -57,6 +57,44 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# 1.5. Refresh community NAMES with the LLM.
+#
+# WHY THIS EXISTS. `graphify update` re-clusters but never relabels. When the
+# community set shifts it renames every drifted community after its
+# highest-degree hub, so curated plain-language names rot into raw symbols.
+# Measured 2026-08-11: 2,499 of 2,565 communities had degraded that way, and the
+# vault digests were named after them - ".error.md", "cached.md", "App.tsx.md",
+# "AGENTS.md.md". The digests' CONTENT stays correct; what dies is the ability to
+# find anything by name, which is most of the vault's value.
+#
+# Runs BEFORE steps 2 and 3 because both consume the labels: the community render
+# titles its nodes from them, and the vault write derives digest filenames.
+#
+# NOT --missing-only. That flag reuses existing labels keyed by community id
+# (graphify/cli.py), but ids are unseeded and reshuffle on every re-cluster, so it
+# would paste yesterday's names onto today's entirely different communities -
+# silently wrong, which is worse than the drift it would be papering over.
+#
+# NON-FATAL BY DESIGN. The backend is Ollama Cloud, found down, signed-out and
+# 403ing on three separate occasions on 2026-08-11 alone. A cosmetic naming step
+# must never cost the daily graph + vault refresh, so every failure path here logs
+# and continues; graphify keeps its deterministic hub labels when labeling fails,
+# which is exactly the pre-existing behaviour.
+$labelBackend = if ($env:GRAPHIFY_LABEL_BACKEND) { $env:GRAPHIFY_LABEL_BACKEND } else { "ollama" }
+$labelModel   = if ($env:GRAPHIFY_LABEL_MODEL)   { $env:GRAPHIFY_LABEL_MODEL }   else { "glm-5.2:cloud" }
+Log "labeling communities via $labelBackend/$labelModel"
+$labelOut = graphify label . --backend=$labelBackend --model=$labelModel 2>&1
+$labelOut | Add-Content -Path $log
+if ($LASTEXITCODE -ne 0) {
+    Log "WARN: graphify label exited $LASTEXITCODE - continuing with hub-derived names"
+} elseif ($labelOut -match 'community labeling failed|no LLM backend configured') {
+    # `graphify label` exits 0 even when EVERY batch fails, so the exit code alone
+    # cannot tell a real relabel from a silent no-op. Measured 2026-08-11: all 26
+    # batches failed on a missing 'openai' package and it still returned 0. Match
+    # the message so a dead backend is visible in the log instead of looking green.
+    Log "WARN: labeling produced no LLM names (backend unavailable) - hub-derived names retained"
+}
+
 # 2. Aggregated community-level graph.html (~2.3k nodes, ~2 MB) alongside the
 #    full render. The full one is the whole graph and heavy; this one is the
 #    browsable overview. Non-fatal: core outputs already landed by this point.
