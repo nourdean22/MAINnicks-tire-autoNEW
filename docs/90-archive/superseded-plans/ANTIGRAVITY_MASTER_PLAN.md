@@ -1,5 +1,13 @@
 # ANTIGRAVITY MASTER PLAN — Persona & Services Upgrade Wave
 
+> [!WARNING]
+> **SUPERSEDED — historical record, NOT policy.** Archived from the repo root on 2026-08-10.
+> This was a one-shot execution plan for a single 2026-07-09 wave; it is finished, and its
+> `file:line` anchors have moved. Canonical policy is **[`AGENTS.md`](../../../AGENTS.md)** —
+> where this document and that one disagree, `AGENTS.md` wins. The "single source of truth" and
+> "read before every packet" framing below was scoped to that wave's executor and no longer
+> applies to anyone. Read it for lineage — why a rule exists — never for instructions.
+
 > **Generated:** 2026-07-09 · by Claude (Fable 5) from an 11-agent audit of the live codebase (1.96M tokens of probing, 675 tool calls).
 > **Executor:** Antigravity IDE on Gemini 2.5 Flash. One packet per turn. This document is your single source of truth — but **re-verify every `file:line` anchor with a grep before editing**; the repo moves daily.
 > **Epistemic key:** `[VERIFIED]` = confirmed by reading code + call-site tracing on 2026-07-09. `[SNAPSHOT]` = based on the committed `apps/statenour/vars.json` env dump — strong evidence, NOT runtime proof; verify on Railway before depending on it. `[ASSUMPTION]` = marked inline.

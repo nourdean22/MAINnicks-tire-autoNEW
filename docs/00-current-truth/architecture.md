@@ -18,15 +18,13 @@ graph TD
         nickstire["apps/nickstire (Express backend / Vite client)"]
     end
 
-    subgraph Operations & Voice
+    subgraph Operations
         worker["apps/worker (Express + node-cron)"]
-        voice["apps/voice (Vapi integration ring)"]
     end
 
     statenour -- "HTTPS Bridge (timing-safe key auth)" --> nickstire
     nickstire -- "Webhooks" --> statenour
     worker -- "Telemetry / Log Sync" --> statenour
-    voice -- "API Calls" --> nickstire
 ```
 
 ### 1. `apps/statenour` (bdnick.info)
@@ -48,8 +46,9 @@ graph TD
 *   **Role**: Express server containing long-running backend processes and scheduled cron jobs.
 *   **Stack**: Node.js, Express, `node-cron`.
 
-### 4. `apps/voice`
-*   **Role**: Integration ring serving Vapi agents, handling voice interfaces, scheduling drop-offs, and checking tire stock.
+### 4. `apps/voice` — RETIRED
+*   **Status**: Removed from the repo on 2026-08-03; its Railway service `statenour-voice` was deleted on 2026-08-05. **There are three apps, not four.**
+*   **Where the capability lives now**: Vapi voice handling is served by `apps/nickstire` (`server/**`). Do not re-create this ring — see the "Retired" list in [`AGENTS.md`](../../AGENTS.md).
 
 ---
 
