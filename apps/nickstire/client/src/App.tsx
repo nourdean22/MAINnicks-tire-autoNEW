@@ -78,6 +78,8 @@ const SyntheticOilChangePage = lazy(() => import("./pages/SyntheticOilChangePage
 const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
 // wave-181.5 · keyword-led SERP-fix pages (competitor-analyzer findings)
 const NoCreditCheckTiresPage = lazy(() => import("./pages/NoCreditCheckTiresPage"));
+// 2026-08-11 · AEO proprietary-data page: live distributor pricing by size
+const TirePricesClevelandPage = lazy(() => import("./pages/TirePricesClevelandPage"));
 const TireShopOpenSundayPage = lazy(() => import("./pages/TireShopOpenSundayPage"));
 // wave-181.7 · keyword-led SERP-fix pages (Ahrefs/GSC audit moves #5, #6)
 const TireRepairPage = lazy(() => import("./pages/TireRepairPage"));
@@ -197,6 +199,8 @@ function Router() {
             {/* High-volume tire-intent silos — used vs new buyer journeys */}
             <Route path={"/used-tires-cleveland"} component={UsedTiresClevelandPage} />
             <Route path={"/new-tires-cleveland"} component={NewTiresClevelandPage} />
+            {/* AEO proprietary-data page — live distributor pricing by size */}
+            <Route path={"/tire-prices-cleveland"} component={TirePricesClevelandPage} />
             {/* Legacy-brand bridge page — captures "Moe's Tire" search traffic
                 from the previous occupant of 17625 Euclid Ave. ~200 imps/yr. */}
             <Route path={"/moes-tire-euclid"} component={MoesTireBridgePage} />

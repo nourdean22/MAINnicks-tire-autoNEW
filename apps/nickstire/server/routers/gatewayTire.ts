@@ -28,6 +28,7 @@ import {
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
+import { PRICED_SIZES, cleanSize, computeSizePriceFloors, type SizePriceFloor } from "../lib/tirePriceRanges";
 
 import { db } from "../lib/db-helper";
 import { affectedRowCount } from "../lib/db-affected";
@@ -1100,6 +1101,46 @@ export const gatewayTireRouter = router({
       log.warn("[gatewayTire:publicStats] aggregate failed, returning zeros:", err instanceof Error ? err.message : err);
       return { ordersThisWeek: 0, installedThisWeek: 0, popularSize: null as string | null };
     }
+  }),
+
+  // ─── PUBLIC: Per-size price floors (AEO surface) ───
+  // Feeds /tire-prices-cleveland: "from $X per tire" floors for the
+  // 10 sizes the daily pipeline prices. Retail after markup with the
+  // SAME rounding as publicSearch, so the price page and the tire
+  // finder can never disagree. Memory-cache first; falls back to the
+  // shop_settings snapshot the pipeline persists (fresh pod,
+  // prerender); empty result is valid — the page renders canon floor
+  // pricing instead. No wholesale numbers leave the server.
+  publicPriceRanges: publicProcedure.query(async () => {
+    try {
+      const markup = await getTireMarkup();
+      const { getCachedPrices } = await import("../services/dataPipelines");
+      const bySize = PRICED_SIZES.map((size) => ({
+        size,
+        prices: getCachedPrices(cleanSize(size)) || [],
+      }));
+      const floors = computeSizePriceFloors(bySize, markup);
+      if (floors.length > 0) {
+        return { floors, updatedAt: new Date().toISOString(), source: "live" as const };
+      }
+    } catch (e) {
+      log.warn("[gatewayTire:publicPriceRanges] cache path failed:", e instanceof Error ? e.message : e);
+    }
+    try {
+      const d = await db();
+      if (d) {
+        const row = await d.select().from(shopSettings).where(eq(shopSettings.key, "tirePriceFloors")).limit(1);
+        if (row.length > 0) {
+          const parsed = JSON.parse(row[0].value) as { generatedAt?: string; floors?: SizePriceFloor[] };
+          if (Array.isArray(parsed.floors) && parsed.floors.length > 0) {
+            return { floors: parsed.floors, updatedAt: parsed.generatedAt ?? null, source: "snapshot" as const };
+          }
+        }
+      }
+    } catch (e) {
+      log.warn("[gatewayTire:publicPriceRanges] snapshot fallback failed:", e instanceof Error ? e.message : e);
+    }
+    return { floors: [] as SizePriceFloor[], updatedAt: null, source: "none" as const };
   }),
 
   // ═══════════════════════════════════════════════════

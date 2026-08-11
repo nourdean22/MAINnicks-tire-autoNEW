@@ -929,6 +929,14 @@ const SEO_SERVICE_PAGES: RouteEntry[] = [
   // to their canonical URLs. See server/_core/redirects.ts. Removing
   // from the sitemap stops Google from re-discovering + re-indexing
   // them as separate pages.
+  //
+  // 2026-08-11 · AEO proprietary-data page. Unlike the removed aliases
+  // this is NOT a thin doorway: it publishes live per-size distributor
+  // pricing (gatewayTire.publicPriceRanges) + canon floors — data no
+  // competitor page can replicate. Hybrid price-intent queries ("how
+  // much do tires cost in cleveland") trigger AI answer engines at the
+  // highest observed rates, and engines cite verifiable numbers.
+  { path: "/tire-prices-cleveland", priority: 0.8, changefreq: "daily", title: "Tire Prices Cleveland — Live In-Stock Pricing | Nick's", description: "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.", group: "seo-service", sitemap: true, prerender: true },
 ];
 
 // ─── VEHICLE MAKE PAGES ──────────────────────────────────

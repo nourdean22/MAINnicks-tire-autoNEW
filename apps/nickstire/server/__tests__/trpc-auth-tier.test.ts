@@ -85,6 +85,9 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "gatewayTire.getPackage",
   "gatewayTire.placeOrder",
   "gatewayTire.popularSizes",
+  // 2026-08-11 · AEO /tire-prices-cleveland: per-size retail floors from the
+  // pipeline cache/snapshot. Aggregates only — no wholesale, no PII.
+  "gatewayTire.publicPriceRanges",
   "gatewayTire.publicSearch",
   "gatewayTire.publicStats",
   // payments (Stripe public flow) + financing + memberships
