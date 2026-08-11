@@ -27,9 +27,13 @@ const PRERENDER_DIR_FINAL = path.join(ROOT, "prerendered");
 const PRERENDER_DIR_TMP = path.join(ROOT, "dist", "prerendered");
 const PRERENDER_DIR_BACKUP = path.join(ROOT, "dist", "prerendered-prev");
 
-// The populated .env lives at the monorepo root — apps/nickstire/ has none.
-// Same resolution gsc-report.ts uses. Without this the prod server spawned
-// in Step 2 dies with "Missing required env vars: DATABASE_URL, JWT_SECRET".
+// 2026-08-11 · load the APP .env first, monorepo root as fallback. The old
+// comment ("apps/nickstire/ has none") is stale: apps/nickstire/.env exists
+// and carries the mysql:// DATABASE_URL, while the root .env now carries
+// statenour's postgresql:// URL — root-only loading made the spawned server
+// die with "DATABASE_URL must be a mysql:// URL". dotenv never overwrites
+// keys that are already set, so app values win and root fills the gaps.
+dotenv.config({ path: path.resolve(ROOT, ".env") });
 dotenv.config({ path: path.resolve(ROOT, "..", "..", ".env") });
 
 // Safety net: Step 1.5 moves prerendered/ aside before launching the server,

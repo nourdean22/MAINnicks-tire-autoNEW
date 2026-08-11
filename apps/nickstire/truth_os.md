@@ -25,6 +25,14 @@ detailed in `docs/CURRENT-TRUTH.md`:
   arrivals→invoice receipts — `server/cron/jobs/weeklyRevenueDigest.ts`,
   contract in `docs/CURRENT-TRUTH.md`. The weekly intelligence report
   previously never read `invoices` at all.
+- **An AEO proprietary-data price page exists** (2026-08-11):
+  `/tire-prices-cleveland` publishes canon floors plus live per-size retail
+  floors from the Gateway feed via public `gatewayTire.publicPriceRanges`
+  (rounding parity with `publicSearch`, pinned). The daily
+  `refreshGatewayPrices` cron now also persists the aggregated floors to
+  `shop_settings.tirePriceFloors` so cold pods and prerender can serve them —
+  retail only, wholesale never leaves the server. Live sections self-suppress
+  when the feed is cold (canon floors render, never an empty table).
 
 ## 2026-08-08 — five defects that every internal signal reported as healthy
 
