@@ -29,10 +29,17 @@ plans have been gated on exactly that, several in a single day. Before writing a
 3. Confirm against production, not against docs — `AGENTS.md` ranks production evidence above
    every file in this repo, including this one.
 
-## Known stale doc
+## Reconciled 2026-08-11
 
-[`docs/00-current-truth/active-roadmap.md`](../../../docs/00-current-truth/active-roadmap.md) sits
-in the current-truth folder but was last meaningfully updated in June 2026: it lists the Instagram
-pipeline as "In Progress" (it has shipped and is judge-gated) and names the Higgsfield clip
-generator (retired in favour of Veo). Treat it as historical until it is reconciled — flagged
-2026-08-10, not fixed here to keep this change scoped.
+[`docs/00-current-truth/active-roadmap.md`](../../../docs/00-current-truth/active-roadmap.md) was
+two months stale — it listed the Instagram pipeline as "In Progress" when it had shipped and is now
+judge-gated. It is now an index pointing here and at the `CURRENT-TRUTH.md` files, rather than a
+competing roadmap.
+
+**Correction to what this file previously said:** it claimed the Higgsfield clip generator was
+"retired in favour of Veo". **That is wrong.** `server/services/reelPipeline.ts` selects the video
+provider by which key is actually credentialed — preferring Veo (`REEL_VEO_MODEL`, default
+`veo-3.1-fast-generate-preview`) and falling back to Higgsfield/Seedance. Hardwiring to a single
+provider is the bug that was fixed: a dead Gemini key used to block reels while a funded Higgsfield
+plan sat loaded. The claim came from a memory entry describing a June migration, and memory ranks
+below code in [`AGENTS.md`](../../../AGENTS.md)'s source-of-truth hierarchy for exactly this reason.

@@ -29,7 +29,7 @@ graph TD
 
 ### 1. `apps/statenour` (bdnick.info)
 *   **Role**: Operator Dashboard, Task Scorer, Strategy Brain, and Obsidian Sync engine.
-*   **Stack**: Next.js 15 (App Router), Prisma, TailwindCSS, PostgreSQL (hosted on Neon).
+*   **Stack**: Next.js 16 (App Router), Prisma 6.19, Tailwind CSS v4, React 19, AI SDK v6, PostgreSQL (hosted on Neon; pgvector/tsvector via raw SQL only).
 *   **Key Services**:
     *   **Health Governor**: Dynamically checks biometric logs (`PersonalDailyLog`, `StateLog`) to evaluate operator readiness and enforce safety guardrails.
     *   **Task Engine**: Dynamically aggregates local context, time-of-day, energy level, and capacity to rank tasks (`READY` status) on the live scoreboard.
@@ -37,10 +37,10 @@ graph TD
 
 ### 2. `apps/nickstire` (nickstire.org)
 *   **Role**: Public customer-facing landing site, admin dashboard, review caching, and SMS/Higgsfield content pipelines.
-*   **Stack**: Node.js + Express backend, Vite (React) client, Drizzle ORM, TiDB Serverless (MySQL).
+*   **Stack**: Node.js + Express 4 backend, Vite 7 (React 19) client, Drizzle ORM, TiDB Serverless (MySQL). Runs as a standalone iOS PWA.
 *   **Key Services**:
     *   **Reviews Cache**: Queries Google Places API to dynamically fetch reviews. Implements backoff locking logic on key failure and fallbacks to `shop_settings` DB variables.
-    *   **Higgsfield Integration**: Automated social posting of generated reels.
+    *   **Reel + social pipeline**: autonomous IG publishing behind a kill switch and an independent judge gate (both **fail CLOSED** for automated callers). Clip generation is **dual-provider**, selected by which key is credentialed — Veo preferred, Higgsfield/Seedance as fallback. See `apps/nickstire/docs/CURRENT-TRUTH.md`.
 
 ### 3. `apps/worker`
 *   **Role**: Express server containing long-running backend processes and scheduled cron jobs.
