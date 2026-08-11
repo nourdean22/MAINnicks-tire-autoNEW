@@ -62,3 +62,36 @@ describe("planRepairs", () => {
     expect(plan.deterministicFixes).toBe(3);
   });
 });
+
+describe("beatRegenCostsCredits — cost truth under the free-lane provider pin (2026-08-11)", () => {
+  // The incident: `paid: true` on pixel-defect routes was stamped when
+  // "regenerate" meant a Higgsfield call. Under REEL_VIDEO_PROVIDER=
+  // template_stock a regen is a $0 local ffmpeg render, but the static label
+  // still sent every pixel defect to the operator-spend hold — 39×
+  // "held by rendered-QA gate (needs_paid_repair)" on job 1410001, Aug 5-6.
+
+  it("a pixel-defect regen classifies as FREE when the provider charges nothing", () => {
+    const r = routeFinding(f("MALFORMED_GEOMETRY"), { beatRegenCostsCredits: false });
+    expect(r.method).toBe("regenerate"); // the repair METHOD is unchanged
+    expect(r.costsProviderCredits).toBe(false); // only the cost truth changes
+  });
+
+  it("default (option absent) keeps the historical paid classification — no caller drifts silently", () => {
+    expect(routeFinding(f("MALFORMED_GEOMETRY")).costsProviderCredits).toBe(true);
+    expect(routeFinding(f("SUBJECT_CONTINUITY"), {}).costsProviderCredits).toBe(true);
+  });
+
+  it("deterministic routes are untouched by the flag in BOTH directions", () => {
+    expect(routeFinding(f("CAPTION_OBSTRUCTION"), { beatRegenCostsCredits: false }).costsProviderCredits).toBe(false);
+    expect(routeFinding(f("CAPTION_OBSTRUCTION"), { beatRegenCostsCredits: true }).costsProviderCredits).toBe(false);
+  });
+
+  it("planRepairs under the free pin counts pixel defects as deterministic fixes", () => {
+    const plan = planRepairs(
+      [f("MALFORMED_GEOMETRY", 3), f("CAPTION_OBSTRUCTION", 1)],
+      { beatRegenCostsCredits: false },
+    );
+    expect(plan.paidRegenerations).toBe(0);
+    expect(plan.deterministicFixes).toBe(2);
+  });
+});

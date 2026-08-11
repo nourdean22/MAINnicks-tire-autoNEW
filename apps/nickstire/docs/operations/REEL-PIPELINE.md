@@ -66,7 +66,17 @@ too - every other provider re-hosts through `storagePut`.
    returns a `PAUSE_PROVIDER` verdict, instead of the job going terminal and the
    account going quiet.
 3. **Judge the first one.** No `template_stock` reel has ever been published, so
-   whether the format earns reach is unmeasured. Note that this lane is **NOT
+   whether the format earns reach is unmeasured. **Repair-loop note (2026-08-11):**
+   pixel-defect blocks on this lane no longer dead-end in `needs_paid_repair` —
+   the repair router now prices a beat regen at the ACTIVE provider's cost
+   (`reelClipCostUsd(selectReelVideoProvider())`), so on this $0 lane the gate
+   returns `auto_repair` and `dailyReelPost` queues the repair itself through
+   `requestBeatRepair` (one-in-flight, cost boundary, and the policy repair cap
+   all still enforced there). The repaired job re-assembles, rendered QA
+   re-verdicts the NEW mp4, and publish happens only if THAT passes. The
+   2026-08-05 job 1410001 sat 39 pulses in `needs_paid_repair` because the
+   "paid" label was stamped when regen meant Higgsfield credits — the decision
+   layer now reads the same cost truth the execution layer already did. Note that this lane is **NOT
    draft-first**: `cron/jobs/dailyReelPost.ts` sees an `assembled` job and calls
    `publishToSocial` itself, with no approval step - the `approveDraft` gate
    belongs to the admin surface, not this cron. To hold one for review set
