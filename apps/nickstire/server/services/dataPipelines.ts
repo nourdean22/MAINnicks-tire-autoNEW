@@ -14,7 +14,7 @@
 
 import { createLogger } from "../lib/logger";
 import { searchTiresBySize, pickWholesaleCost } from "./gatewayClient";
-import { PRICED_SIZES, cleanSize, computeSizePriceFloors } from "../lib/tirePriceRanges";
+import { PRICED_SIZES, cleanSize, computeSizePriceFloors, selectCheapestPriced } from "../lib/tirePriceRanges";
 
 const log = createLogger("data-pipelines");
 
@@ -56,19 +56,25 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
       if (!data || data.length === 0) continue;
 
       const oldPrices = priceCache.get(sizeClean) || [];
-      const newPrices: CachedPrice[] = data.slice(0, 15).map((item) => {
-        const modelRaw = String(item.minor_name || "");
-        const model = modelRaw.replace(/^[A-Z]+\s*-\s*/, "");
-        const cost = pickWholesaleCost(item);
-        return {
-          size,
-          brand: String(item.make || "").toUpperCase(),
-          model,
-          wholesaleCost: cost,
-          localQty: typeof item.on_hand === "number" ? item.on_hand : 0,
-          fetchedAt: Date.now(),
-        };
-      });
+      // Map the WHOLE response, then keep the cheapest N (selectCheapestPriced
+      // also drops $0 backorder rows). Slicing before sorting let the true
+      // cheapest tire fall outside the cache, which made the published
+      // "from $X" floor overstate the real price.
+      const newPrices: CachedPrice[] = selectCheapestPriced(
+        data.map((item) => {
+          const modelRaw = String(item.minor_name || "");
+          const model = modelRaw.replace(/^[A-Z]+\s*-\s*/, "");
+          const cost = pickWholesaleCost(item);
+          return {
+            size,
+            brand: String(item.make || "").toUpperCase(),
+            model,
+            wholesaleCost: cost,
+            localQty: typeof item.on_hand === "number" ? item.on_hand : 0,
+            fetchedAt: Date.now(),
+          };
+        }),
+      );
 
       // Detect price changes
       for (const newP of newPrices) {

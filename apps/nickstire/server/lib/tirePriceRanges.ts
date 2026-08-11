@@ -44,6 +44,37 @@ export function cleanSize(size: string): string {
   return size.replace(/[/Rr\s-]/g, "");
 }
 
+/**
+ * How many priced options the refresh keeps per size in the cache.
+ * The cap exists to bound memory + the persisted snapshot, not to pick
+ * a subset of the catalog — see selectCheapestPriced for why order matters.
+ */
+export const CACHE_ROWS_PER_SIZE = 15;
+
+/**
+ * Keep the CHEAPEST priced options for a size, not the first N the
+ * distributor happened to return.
+ *
+ * 2026-08-11: the refresh sliced the raw D&K response before sorting, so
+ * an unsorted feed could push the true cheapest tire past the cut and the
+ * published "from $X" floor OVERSTATED the real price (measured: floor
+ * said $97 while a live search showed an $88.36 option in the same size).
+ * Overstating is the safe direction for a public claim, but it costs the
+ * page its point. Sorting first makes the floor exact for the same cache
+ * size. $0 rows (backorder rows with no pricing attached — audit #152)
+ * are dropped here so they stop consuming cache slots.
+ */
+export function selectCheapestPriced<T extends { wholesaleCost: number }>(
+  rows: readonly T[],
+  limit: number = CACHE_ROWS_PER_SIZE,
+): T[] {
+  return rows
+    .filter((r) => r.wholesaleCost > 0)
+    .slice()
+    .sort((a, b) => a.wholesaleCost - b.wholesaleCost)
+    .slice(0, limit);
+}
+
 export function computeSizePriceFloors(
   bySize: ReadonlyArray<{ size: string; prices: ReadonlyArray<CachedPriceLike> }>,
   markupPct: number,
