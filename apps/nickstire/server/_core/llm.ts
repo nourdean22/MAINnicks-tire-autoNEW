@@ -462,21 +462,68 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   try {
-    const response = await fetch(resolveApiUrl(model), {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${resolveApiKey(model)}`,
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(params.timeoutMs ?? 30000), // default 30s; heavy generations override
-    });
+    const timeoutMs = params.timeoutMs ?? 30000; // default 30s; heavy generations override
+    const doFetch = (url: string, key: string, body: Record<string, unknown>) =>
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+    let response = await doFetch(resolveApiUrl(model), resolveApiKey(model), payload);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-      );
+
+      // Ollama Cloud quota-refusal fallback (2026-08-11). AI_FORCE_OLLAMA
+      // funnels the WHOLE estate onto one usage-capped Ollama account, and the
+      // cap refuses with 403 "this model requires a subscription" — measured
+      // live: the 14:00-ET daily-reel brief 403'd four times on 2026-08-10
+      // (after a day of estate spend) while the same model returned 200 the
+      // next morning. A quota refusal is a capacity signal, not a config
+      // error, so degrade to the Gemini lane for THIS call instead of going
+      // dark — same doctrine as REEL_FALLBACK_TO_TEMPLATE_STOCK. Everything
+      // else (non-403, non-subscription text, missing Gemini key) still
+      // throws exactly the original error.
+      const quotaRefusal =
+        response.status === 403 && /subscription/i.test(errorText) && isOllamaModel(model);
+      const alreadyGemini = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
+      const geminiKey = process.env.GEMINI_API_KEY;
+
+      if (quotaRefusal && geminiKey && !alreadyGemini) {
+        const fallbackModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+        try {
+          const { createLogger } = await import("../lib/logger");
+          createLogger("llm").warn("ollama quota refusal — falling back to gemini for this call", {
+            model,
+            fallbackModel,
+          });
+        } catch {
+          /* logging must never block the fallback */
+        }
+        // resolveApiUrl/resolveApiKey are unusable for the retry: under
+        // AI_FORCE_OLLAMA, isOllamaModel() short-circuits true for ANY model,
+        // which would route the retry straight back to the refusing lane.
+        response = await doFetch(
+          "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+          geminiKey,
+          { ...payload, model: fallbackModel },
+        );
+        if (!response.ok) {
+          const fallbackText = await response.text();
+          throw new Error(
+            `LLM invoke failed on both lanes: ollama ${model} 403 subscription refusal; gemini ${fallbackModel} ${response.status} ${response.statusText} – ${fallbackText}`
+          );
+        }
+      } else {
+        throw new Error(
+          `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+        );
+      }
     }
 
     return (await response.json()) as InvokeResult;
