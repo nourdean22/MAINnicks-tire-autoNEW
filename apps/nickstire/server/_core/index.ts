@@ -825,6 +825,17 @@ ${urls.join("\n")}
   const { smsGatewayWebhookRouter } = await import("../routes/webhooks/smsGateway");
   app.use("/api/webhooks", smsGatewayWebhookRouter);
 
+  // --- Meta / Instagram Webhook (comment notifications) ---
+  // Cuts reply latency from the reel-pipeline cron cadence to near-instant by
+  // triggering the SAME runReelCommentResponder() the cron calls -- it does not
+  // draft replies itself, so REEL_COMMENT_RESPONDER_ENABLED / _LIVE and the
+  // claim-safety detector still govern every reply. Mounted at /api/webhooks
+  // (no Twilio signature middleware); X-Hub-Signature-256 is validated inside
+  // the router against req.rawBody. Inert until the operator subscribes the
+  // `comments` field in the Meta app dashboard.
+  const { metaWebhookRouter } = await import("../routes/webhooks/meta");
+  app.use("/api/webhooks", metaWebhookRouter);
+
   // wave-181.87 · AgentPhone webhook removed (operator preference ·
   // VAPI handles outbound confirmation + recovery calls via the existing
   // /api/webhooks/vapi handler · which now dispatches by callId lookup
