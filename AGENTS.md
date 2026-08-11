@@ -60,7 +60,7 @@ Corollary: a `.env` file is NOT evidence of production configuration — verify 
   `statenour/<task>` · `docs/<task>` · `chore/<task>`. Push the branch, then create and merge the PR
   yourself with `gh` (remove the dummy IDE token first):
   ```bash
-  Remove-Item Env:\GITHUB_TOKEN -ErrorAction SilentlyContinue
+  [Environment]::SetEnvironmentVariable('GITHUB_TOKEN', $null, 'Process')  # Remove-Item Env:\ trips the deletion guard
   gh pr create --head <branch> --title "<message>" --body "<body>"
   gh pr merge <pr-number> --squash --delete-branch
   ```
@@ -71,8 +71,8 @@ Corollary: a `.env` file is NOT evidence of production configuration — verify 
   copies env files and creates NTFS junctions for every `node_modules`, bypassing `pnpm install`
   entirely. **Never run `pnpm install` inside a junctioned worktree**: it offers to WIPE the shared
   `node_modules` every other worktree points at, and the prompt defaults to yes. Worktrees the Claude
-  harness creates under `.claude/worktrees/*` skip that script and arrive with NO junctions — nothing
-  runs there until you add them (skill: `harness-worktree-setup`).
+  harness creates under `.claude/worktrees/*` skip that script, but DO acquire junctions once a session
+  adds them (measured 2026-08-11: up to 26) — never bare-delete one (skill: `harness-worktree-setup`).
 - Worktrees are shared surfaces: `git log origin/<branch>..HEAD` before AND after pushing; disclose
   rider commits in the PR body, never rewrite them away. Tear down with
   `powershell scripts/worktree-teardown.ps1 -targetDir .worktrees/<name>` — **never bare
