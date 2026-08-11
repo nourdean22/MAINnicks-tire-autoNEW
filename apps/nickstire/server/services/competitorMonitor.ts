@@ -52,10 +52,48 @@ const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }>
     placeId: "",
     searchQuery: "Goodyear Auto Service Center Cleveland OH",
   },
+  // 2026-08-11 · LOCAL independents — the set the shop actually competes
+  // with block-by-block (same list as client/src/lib/competitorGbpMonitor.ts
+  // baselines). The chains above measure the market; these measure the fight.
+  {
+    name: "Moe's Tire Center",
+    placeId: "",
+    searchQuery: "Moe's Tire Center Cleveland OH",
+  },
+  {
+    name: "St.Clair Tire",
+    placeId: "",
+    searchQuery: "St Clair Tire Cleveland OH",
+  },
+  {
+    name: "Bro's Tires",
+    placeId: "",
+    searchQuery: "Bro's Tires Cleveland OH",
+  },
+  {
+    name: "EJ'S Tire & Auto Repair",
+    placeId: "",
+    searchQuery: "EJ's Tire and Auto Repair Cleveland OH",
+  },
 ];
 
 // In-memory cache of resolved Place IDs (survives across cron runs within same process)
 const resolvedPlaceIds: Record<string, string> = {};
+
+// 2026-08-11 · auth-class API failure tracking. The old code returned null on
+// REQUEST_DENIED exactly like on a transient miss, so a dead GCP key produced
+// healthy-looking "0 competitors · 0 changes" cron rows for weeks (prod
+// capability-ledger: Places key REQUEST_DENIED, silently swallowed). Transient
+// per-competitor failures stay fail-open; a SYSTEMIC denial must throw so the
+// tier runner writes cron_log.error_message and the skip-watchdog sees it.
+const DENIAL_STATUSES = new Set(["REQUEST_DENIED", "OVER_QUERY_LIMIT", "INVALID_REQUEST"]);
+let lastDenialStatus: string | null = null;
+function noteApiStatus(status: unknown): void {
+  if (typeof status === "string" && DENIAL_STATUSES.has(status)) {
+    lastDenialStatus = status;
+    log.warn("[competitorMonitor] Places API auth-class failure", { status });
+  }
+}
 
 // Nick's Tire place ID
 const NICKS_PLACE_ID = process.env.GOOGLE_PLACE_ID || "";
@@ -73,6 +111,7 @@ async function findPlaceFromText(query: string): Promise<string | null> {
     if (!res.ok) return null;
 
     const data = await res.json() as any;
+    noteApiStatus(data.status);
     if (data.status !== "OK" || !data.candidates?.length) return null;
 
     const placeId = data.candidates[0].place_id;
@@ -117,6 +156,7 @@ async function fetchPlaceDetails(
     if (!res.ok) return null;
 
     const data = await res.json() as any;
+    noteApiStatus(data.status);
     if (data.status !== "OK" || !data.result) return null;
 
     return {
@@ -279,23 +319,94 @@ export async function runCompetitorMonitorCycle(): Promise<{
   fetched: number;
   changes: number;
   alerted: boolean;
+  alertsFired: number;
 }> {
+  lastDenialStatus = null;
   const previous = await loadPreviousSnapshots();
   const current = await fetchCompetitorSnapshot();
   if (current.length === 0) {
-    return { fetched: 0, changes: 0, alerted: false };
+    // 2026-08-11 · zero results + an auth-class API status is a dead key,
+    // not a quiet market: throw so cron_log records a FAILED run with the
+    // reason, instead of weeks of healthy-looking zeros.
+    if (lastDenialStatus) {
+      throw new Error(
+        `Places API ${lastDenialStatus} — key is configured but rejected; fix the GCP key/API restriction (operator). No competitor rows fetched.`,
+      );
+    }
+    return { fetched: 0, changes: 0, alerted: false, alertsFired: 0 };
   }
   await persistSnapshots(current);
   const changes = detectChanges(previous, current);
-  return { fetched: current.length, changes: changes.length, alerted: changes.length > 0 };
+  const alertsFired = await fireThresholdAlerts(changes);
+  return { fetched: current.length, changes: changes.length, alerted: alertsFired > 0, alertsFired };
 }
 
-/** Compare two snapshots and detect significant changes */
+/** Stable per-day dedup key for one competitor x metric breach. */
+export function buildAlertKey(change: { placeId: string; metric: string }): string {
+  // cron_alerts_fired.alert_key is VARCHAR(100); "cmp:" + placeId (~27) +
+  // ":" + metric stays well under it.
+  return `cmp:${change.placeId}:${change.metric}`.slice(0, 100);
+}
+
+/**
+ * Decision-forcing alert layer (2026-08-11). Fires ONE Telegram per run
+ * containing only the breaches that won today's cron_alerts_fired claim —
+ * so a breach alerts once per day across restarts and pods, and there is
+ * deliberately NO digest mode: no breach, no message. Gated by the
+ * competitor_threshold_alerts flag (snapshots persist regardless), which
+ * carries the 30-day kill clause in its description.
+ */
+async function fireThresholdAlerts(
+  changes: ReturnType<typeof detectChanges>,
+): Promise<number> {
+  if (changes.length === 0) return 0;
+  try {
+    const { isEnabled } = await import("./featureFlags");
+    if (!(await isEnabled("competitor_threshold_alerts"))) return 0;
+  } catch {
+    return 0; // flag unreadable → fail closed for alerts, data still persisted
+  }
+
+  const claimed: typeof changes = [];
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return 0; // no DB → no dedup possible → don't risk daily spam
+    for (const change of changes) {
+      const [claimResult] = await d.execute(sql`
+        INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at, payload)
+        VALUES (${buildAlertKey(change)}, CURDATE(), NOW(), ${JSON.stringify({ name: change.name, change: change.change })})
+      `);
+      const affected = (claimResult as { affectedRows?: number })?.affectedRows ?? 0;
+      if (affected === 1) claimed.push(change);
+    }
+  } catch (err) {
+    log.warn("[competitorMonitor] alert dedup claim failed — skipping alerts this run", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
+
+  if (claimed.length === 0) return 0;
+  const summary = claimed.map((c) => `${c.name}: ${c.change}`).join("\n");
+  await alertSystem("Competitor threshold breach", summary).catch((e) => {
+    log.warn("[services/competitorMonitor] alert send failed:", e);
+  });
+  return claimed.length;
+}
+
+/**
+ * Compare two snapshots and detect significant changes. PURE as of
+ * 2026-08-11 — the Telegram side-effect moved to fireThresholdAlerts
+ * (flag-gated + deduped per day via cron_alerts_fired); before that this
+ * re-alerted on every run a diff persisted and duplicated across pods.
+ */
 export function detectChanges(
   previous: CompetitorData[],
   current: CompetitorData[]
-): Array<{ name: string; change: string; severity: "info" | "warning" }> {
-  const changes: Array<{ name: string; change: string; severity: "info" | "warning" }> = [];
+): Array<{ name: string; placeId: string; metric: "reviews" | "rating"; change: string; severity: "info" | "warning" }> {
+  const changes: Array<{ name: string; placeId: string; metric: "reviews" | "rating"; change: string; severity: "info" | "warning" }> = [];
 
   for (const curr of current) {
     const prev = previous.find((p) => p.placeId === curr.placeId);
@@ -307,6 +418,8 @@ export function detectChanges(
     if (reviewDiff >= 10) {
       changes.push({
         name: curr.name,
+        placeId: curr.placeId,
+        metric: "reviews",
         change: `+${reviewDiff} reviews (${prev.reviewCount} → ${curr.reviewCount})`,
         severity: "warning",
       });
@@ -315,18 +428,12 @@ export function detectChanges(
     if (Math.abs(ratingDiff) >= 0.2) {
       changes.push({
         name: curr.name,
+        placeId: curr.placeId,
+        metric: "rating",
         change: `Rating ${ratingDiff > 0 ? "up" : "down"} ${prev.rating} → ${curr.rating}`,
         severity: ratingDiff > 0 ? "info" : "warning",
       });
     }
-  }
-
-  // Alert via Telegram if there are significant changes
-  if (changes.length > 0) {
-    const summary = changes
-      .map((c) => `${c.name}: ${c.change}`)
-      .join("\n");
-    alertSystem("Competitor Changes Detected", summary).catch((e) => { log.warn("[services/competitorMonitor] fire-and-forget failed:", e); });
   }
 
   return changes;

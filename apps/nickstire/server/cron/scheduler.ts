@@ -1786,7 +1786,7 @@ export function startTieredScheduler(): void {
           const result = await runCompetitorMonitorCycle();
           return {
             recordsProcessed: result.fetched,
-            details: `${result.fetched} competitors · ${result.changes} changes${result.alerted ? " · alerted" : ""}`,
+            details: `${result.fetched} competitors · ${result.changes} changes · ${result.alertsFired} alerts fired`,
           };
         },
       },
