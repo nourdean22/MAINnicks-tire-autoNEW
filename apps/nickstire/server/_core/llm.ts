@@ -406,6 +406,31 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   assertApiKey(model);
 
+  // Vision reroute (2026-08-11). Ollama Cloud's text lane REJECTS image parts —
+  // probed live with the prod key: deepseek-v4-pro + image_url → 400 "this
+  // model does not support image input". Under AI_FORCE_OLLAMA every unpinned
+  // call lands there, so the rendered-QA vision critic (designed for "Gemini
+  // via invokeLLM image parts", per its own header) has returned
+  // critic:"skipped" on EVERY verdict since the flag was set on 2026-08-06 —
+  // and the publish gate rightly holds an unevaluated verdict, wedging every
+  // autonomous reel. An image-bearing request on the Ollama lane can never
+  // succeed, so route it to Gemini up front instead of spending a doomed
+  // round-trip. Text-only calls are untouched; without a GEMINI_API_KEY the
+  // original routing (and its honest failure) is preserved.
+  const hasImageParts = params.messages.some(
+    (m) => Array.isArray(m.content) && m.content.some((p) => typeof p === "object" && p !== null && (p as { type?: string }).type === "image_url"),
+  );
+  const isGeminiName = (m?: string) => !!m && (m.startsWith("gemini-") || m.startsWith("google/"));
+  const visionRerouted =
+    hasImageParts && isOllamaModel(model) && !isGeminiName(model) && !!process.env.GEMINI_API_KEY;
+  const visionModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  if (visionRerouted) {
+    try {
+      const { createLogger } = await import("../lib/logger");
+      createLogger("llm").warn("image parts on the ollama lane — rerouting this call to gemini", { model, visionModel });
+    } catch { /* logging must never block the reroute */ }
+  }
+
   const {
     messages,
     tools,
@@ -456,7 +481,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // and shadow traffic instead of starving it. Non-Ollama routes skip the
   // scheduler entirely.
   let releaseSlot: (() => void) | null = null;
-  if (isOllamaModel(model)) {
+  // A vision-rerouted call never touches Ollama, so it must not consume one of
+  // the three prioritized Ollama concurrency slots.
+  if (isOllamaModel(model) && !visionRerouted) {
     const { acquireOllamaSlot } = await import("./ollamaScheduler");
     releaseSlot = await acquireOllamaSlot(params.priority ?? 2);
   }
@@ -474,7 +501,16 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         signal: AbortSignal.timeout(timeoutMs),
       });
 
-    let response = await doFetch(resolveApiUrl(model), resolveApiKey(model), payload);
+    // resolveApiUrl/resolveApiKey are flag-poisoned for the reroute (under
+    // AI_FORCE_OLLAMA, isOllamaModel() is true for ANY model) — hard-target
+    // Gemini's endpoint, same as the 403-subscription fallback below.
+    let response = visionRerouted
+      ? await doFetch(
+          "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+          process.env.GEMINI_API_KEY as string,
+          { ...payload, model: visionModel },
+        )
+      : await doFetch(resolveApiUrl(model), resolveApiKey(model), payload);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -490,6 +526,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       // else (non-403, non-subscription text, missing Gemini key) still
       // throws exactly the original error.
       const quotaRefusal =
+        !visionRerouted && // a rerouted call already IS on Gemini — never bounce it back
         response.status === 403 && /subscription/i.test(errorText) && isOllamaModel(model);
       const alreadyGemini = !!model && (model.startsWith("gemini-") || model.startsWith("google/"));
       const geminiKey = process.env.GEMINI_API_KEY;
