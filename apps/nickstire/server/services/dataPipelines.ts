@@ -14,6 +14,7 @@
 
 import { createLogger } from "../lib/logger";
 import { searchTiresBySize, pickWholesaleCost } from "./gatewayClient";
+import { PRICED_SIZES, cleanSize, computeSizePriceFloors } from "../lib/tirePriceRanges";
 
 const log = createLogger("data-pipelines");
 
@@ -40,10 +41,9 @@ const priceCache = new Map<string, CachedPrice[]>();
 const PRICE_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
 export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number; details: string }> {
-  const POPULAR_SIZES = [
-    "205/55R16", "215/60R16", "215/60R17", "225/70R17", "235/65R18",
-    "245/70R16", "265/70R17", "265/70R18", "275/60R20", "195/65R15",
-  ];
+  // Single source of truth for the priced-size list lives in
+  // lib/tirePriceRanges (shared with gatewayTire.publicPriceRanges).
+  const POPULAR_SIZES = PRICED_SIZES;
 
   let totalFetched = 0;
   let sizesUpdated = 0;
@@ -103,9 +103,21 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
     } catch (e) { log.warn("[services/dataPipelines] operation failed:", e); }
   }
 
+  // Persist retail price floors so the public /tire-prices-cleveland page
+  // (and its prerendered crawler HTML) survives pod restarts — the
+  // in-memory cache above dies with the process. Failure is non-fatal:
+  // the page falls back to canon floor pricing.
+  let snapshotNote = "";
+  try {
+    const persisted = await persistPriceFloorSnapshot();
+    snapshotNote = `, ${persisted} size floors persisted`;
+  } catch (e) {
+    log.warn("[services/dataPipelines] price-floor snapshot persist failed:", e);
+  }
+
   return {
     recordsProcessed: totalFetched,
-    details: `${sizesUpdated} sizes refreshed, ${totalFetched} prices cached, ${priceChanges.length} price changes`,
+    details: `${sizesUpdated} sizes refreshed, ${totalFetched} prices cached, ${priceChanges.length} price changes${snapshotNote}`,
   };
 }
 
@@ -115,6 +127,51 @@ export function getCachedPrices(sizeClean: string): CachedPrice[] | null {
   if (!cached || cached.length === 0) return null;
   if (Date.now() - cached[0].fetchedAt > PRICE_CACHE_TTL) return null;
   return cached;
+}
+
+/**
+ * Aggregate the in-memory cache into per-size retail floors and upsert
+ * them as a shop_settings row (key "tirePriceFloors", category
+ * "pricing"). Read path: gatewayTire.publicPriceRanges falls back to
+ * this row when the in-memory cache is cold (fresh pod, prerender).
+ * Wholesale numbers are aggregated to retail BEFORE persisting — the
+ * stored JSON never contains cost.
+ */
+export async function persistPriceFloorSnapshot(): Promise<number> {
+  const { db } = await import("../lib/db-helper");
+  const d = await db();
+  if (!d) return 0;
+  const { shopSettings } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+
+  // Mirrors gatewayTire.getTireMarkup (local there; 100% default).
+  let markup = 100;
+  try {
+    const row = await d.select().from(shopSettings).where(eq(shopSettings.key, "tireMarkup")).limit(1);
+    if (row.length > 0) markup = parseFloat(row[0].value);
+  } catch { /* default markup stands */ }
+
+  const bySize = PRICED_SIZES.map((size) => ({
+    size,
+    prices: priceCache.get(cleanSize(size)) || [],
+  }));
+  const floors = computeSizePriceFloors(bySize, markup);
+  if (floors.length === 0) return 0;
+
+  const value = JSON.stringify({ generatedAt: new Date().toISOString(), floors });
+  const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "tirePriceFloors")).limit(1);
+  if (existing.length > 0) {
+    await d.update(shopSettings).set({ value, updatedBy: "cron" }).where(eq(shopSettings.key, "tirePriceFloors"));
+  } else {
+    await d.insert(shopSettings).values({
+      key: "tirePriceFloors",
+      value,
+      category: "pricing",
+      label: "Tire Price Floors (auto)",
+      updatedBy: "cron",
+    });
+  }
+  return floors.length;
 }
 
 
