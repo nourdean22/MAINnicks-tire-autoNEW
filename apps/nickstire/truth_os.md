@@ -68,4 +68,38 @@ The free lane now carries six camera moves and accepts real footage — but it
 COMPOSES video, it does not GENERATE it, and no footage source is wired yet
 (`camera-bridge` is outdoor front-lot ALPR with no bay angle).
 
+## 2026-08-10 — the capability ledger can now say "we do not currently know"
+
+`docs/operations/capability-ledger.json` is the record of what is actually done, and
+CI enforces it (`.github/workflows/completion-authority.yml`). It gained an expiry
+axis it had always had code for and never used: `verificationExpiresAt` was
+implemented, TESTED, and set by **0 of 48 capabilities** — the test built its own
+synthetic record, so it stayed green while nothing real ever reached the path.
+42 of 48 capabilities were last verified in July and the ledger had no way to say so
+(ROS-099, #1493).
+
+What changed, in one line: **stale is now a distinct state from invalid.** A claim you
+cannot support is a lie and always fails. A claim you supported a month ago is a doubt
+— it is reported, and it only FAILS the build where something other than your own
+hands can act on it (`exposure` production or limited_autonomy). Two honest responses
+to a stale claim, both fine: re-prove it and reset the date, or lower the claim with
+`scripts/regress-capability.mjs`. Pretending is the only wrong answer.
+
+Horizons are deliberately UNEVEN, set from what can kill a claim with no commit at
+all — 21 days for anything resting on a third-party credential, session or quota;
+90 days for our own schema; 180 for a deterministic render. `REALITY-LEDGER.md` shows
+each date in a `Verify by` column; whether something is currently PAST it is printed
+by `node apps/nickstire/scripts/check-capability-ledger.mjs`, never by the file
+(CI diffs that file, so it must not change on a clock tick).
+
+**OPEN, dated — `reel-pipeline-assembly` expires 2026-08-16.** It is the only
+`exposure: production` capability, so on that date it becomes the first load-bearing
+stale claim and **`completion-authority` CI goes red and stays red** until someone
+acts. Re-verifying means a real prod IG render, which is an operator-authorized
+publish and never an agent's call. To lower the claim instead:
+`node apps/nickstire/scripts/regress-capability.mjs reel-pipeline-assembly P2 "<reason>" "freshness gate"`.
+Four other capabilities (`format-directors`, `evidence-resolution`,
+`drive-creative-vault`, `higgsfield-keepalive`) are already past their dates and are
+reported without failing anything — that is the intended behaviour, not a backlog.
+
 The older file under `docs/_archive/root_reports/truth_os.md` is historical evidence only. Do not treat archived audit claims as current without re-verification.
