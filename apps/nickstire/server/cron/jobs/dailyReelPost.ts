@@ -319,6 +319,36 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       const { evaluateReelPublishGate } = await import("../../services/qualityGate");
       const g = await evaluateReelPublishGate(job.id);
       if (!g.allowed) {
+        // auto_repair is a WORK ORDER, not a hold: every block finding routes to
+        // a fix that costs nothing (deterministic, or a $0 regen on the free
+        // lane). Before this branch existed the gate could SAY auto_repair and
+        // nothing consumed it — only the operator tRPC ever queued a repair, so
+        // an autonomous reel sat exactly as held as needs_paid_repair. Queue the
+        // first regenerable beat through the SAME requestBeatRepair the operator
+        // button uses (one-in-flight, cost boundary, repair cap all enforced
+        // there); the pipeline cron renders it, assembly re-runs, rendered QA
+        // re-verdicts the new mp4, and a later pulse publishes only if THAT
+        // passes. A failure to queue is a plain hold — never a publish.
+        if (g.gate === "auto_repair") {
+          try {
+            const { routeFinding } = await import("../../services/repairRouter");
+            const target = g.findings.find(
+              (f) => f.severity === "block" && f.beatNumber != null && routeFinding(f).method === "regenerate",
+            );
+            if (target) {
+              const { requestBeatRepair } = await import("../../services/selectiveRepair");
+              const r = await requestBeatRepair({ jobId: job.id, beatNumber: target.beatNumber as number });
+              log.info(`daily reel: auto-repair queued (free lane) — beat ${r.beatNumber} on job ${job.id}`, { code: target.code });
+              return { recordsProcessed: 0, details: `auto-repair queued for beat ${r.beatNumber} on job ${job.id} (${target.code}); re-verdict after re-render; index not advanced` };
+            }
+            // No regenerable beat-targeted finding: deterministic-only plan with
+            // no beat target is not queueable from here — hold for the operator.
+          } catch (repairErr) {
+            const msg = repairErr instanceof Error ? repairErr.message : String(repairErr);
+            log.warn(`daily reel: auto-repair queue failed for job ${job.id} — holding`, { err: msg });
+            return { recordsProcessed: 0, details: `held: auto-repair queue failed (${msg.slice(0, 120)}); index not advanced` };
+          }
+        }
         log.warn(`daily reel: publish gate '${g.gate}' — HOLDING job ${job.id}, not publishing`, { findings: g.findings.length, reason: g.reason });
         return { recordsProcessed: 0, details: `held by rendered-QA gate (${g.gate}); index not advanced` };
       }
@@ -419,7 +449,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     return { recordsProcessed: 1, details: `posted dynamic reel for job ${job.id} (index: ${idx + 1})` };
   }
 
-  if (["queued", "generating", "assets_ready", "assembling", "uploading", "publishing"].includes(job.status)) {
+  if (["queued", "generating", "assets_ready", "assembling", "uploading", "publishing", "repair_queued"].includes(job.status)) {
     return { recordsProcessed: 0, details: `Generation or assembly in progress (status: ${job.status})` };
   }
 

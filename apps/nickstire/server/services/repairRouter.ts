@@ -53,15 +53,32 @@ const CODE_ROUTES: Record<RenderedDefectCode, { method: RepairMethod; unit: Repa
   WEAK_COMPOSITION:       { method: "reassemble", unit: "final_encode",   paid: false },
 };
 
+export interface RepairRouteOptions {
+  /**
+   * Does a beat REGENERATION on the currently-selected provider actually cost
+   * credits? Defaults TRUE (the historical assumption). The `paid` flags in
+   * CODE_ROUTES were stamped when "regenerate" meant a Higgsfield call; under
+   * the template_stock pin a regen is a local ffmpeg render that costs $0
+   * (generationLedger.reelClipCostUsd === 0), and billing it as "paid" sent
+   * free repairs to the operator-authorization hold — measured live: 39×
+   * "held by rendered-QA gate (needs_paid_repair)" on free-lane job 1410001,
+   * 2026-08-05/06. Same bug class selectiveRepair already fixed on the
+   * execution side ("the gate is only as good as the number it is handed").
+   * Deterministic routes are unaffected — they were never provider-priced.
+   */
+  beatRegenCostsCredits?: boolean;
+}
+
 /** Route one finding to its cheapest fix. */
-export function routeFinding(f: RenderedFinding): RepairRoute {
+export function routeFinding(f: RenderedFinding, opts: RepairRouteOptions = {}): RepairRoute {
   const r = CODE_ROUTES[f.code] ?? { method: "regenerate" as const, unit: "generated_beat" as const, paid: true };
+  const regenCosts = opts.beatRegenCostsCredits !== false; // default true
   return {
     code: f.code,
     beatNumber: f.beatNumber,
     method: r.method,
     unit: r.unit,
-    costsProviderCredits: r.paid,
+    costsProviderCredits: r.method === "regenerate" ? r.paid && regenCosts : r.paid,
     preserve: f.preserve ?? [],
     change: f.change ?? [],
   };
@@ -80,7 +97,7 @@ export interface RepairPlan {
  * deterministic (free) fixes BEFORE paid regenerations so a caption fix never
  * waits on — or gets wasted by — a subsequent paid beat regen.
  */
-export function planRepairs(findings: RenderedFinding[]): RepairPlan {
+export function planRepairs(findings: RenderedFinding[], opts: RepairRouteOptions = {}): RepairPlan {
   const seen = new Set<string>();
   const routes: RepairRoute[] = [];
   for (const f of findings) {
@@ -88,7 +105,7 @@ export function planRepairs(findings: RenderedFinding[]): RepairPlan {
     const key = `${f.code}::${f.beatNumber ?? "x"}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    routes.push(routeFinding(f));
+    routes.push(routeFinding(f, opts));
   }
   const order = [...routes].sort((a, b) => Number(a.costsProviderCredits) - Number(b.costsProviderCredits));
   return {

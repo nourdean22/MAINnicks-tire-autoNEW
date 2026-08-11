@@ -59,11 +59,15 @@ export function orchestratePostQa(
     providerHealthy?: boolean;
     repairAttempts?: number;
     maxRepairAttempts?: number;
+    /** false when the active provider regenerates beats for $0 (template_stock)
+     *  — pixel-defect repairs then classify as deterministic labor and flow to
+     *  auto_repair instead of the operator-spend hold. Default true. */
+    beatRegenCostsCredits?: boolean;
   } = {},
 ): PostQaOutcome {
   const blocks = findings.filter((f) => f.severity === "block");
   const warns = findings.filter((f) => f.severity === "warn");
-  const repairPlan = planRepairs(blocks);
+  const repairPlan = planRepairs(blocks, { beatRegenCostsCredits: ctx.beatRegenCostsCredits });
   const verdict = decideAutomation({
     blockFindings: blocks.length,
     warnFindings: warns.length,

@@ -59,4 +59,26 @@ describe("orchestratePostQa (QA -> repair -> automation -> gate)", () => {
     const o = orchestratePostQa([finding("MALFORMED_GEOMETRY", "block")], { repairAttempts: 2, maxRepairAttempts: 2 });
     expect(o.publishGate).toBe("reject");
   });
+
+  // The 2026-08-05 incident pin: a pixel block on the FREE lane (template_stock,
+  // $0 regen) must flow to auto_repair — deterministic labor — instead of the
+  // operator-SPEND hold. Same findings, no free-lane signal: the historical
+  // needs_paid_repair hold is preserved exactly.
+  it("pixel block + free-lane regen (beatRegenCostsCredits:false) -> auto_repair, not needs_paid_repair", () => {
+    const o = orchestratePostQa([finding("MALFORMED_GEOMETRY", "block")], { beatRegenCostsCredits: false });
+    expect(o.verdict.decision).toBe("REPAIR_AUTOMATICALLY");
+    expect(o.publishGate).toBe("auto_repair");
+    expect(o.repairPlan.paidRegenerations).toBe(0);
+  });
+
+  it("same pixel block WITHOUT the free-lane signal still holds for the operator (unchanged default)", () => {
+    const o = orchestratePostQa([finding("MALFORMED_GEOMETRY", "block")]);
+    expect(o.publishGate).toBe("needs_paid_repair");
+    expect(o.repairPlan.paidRegenerations).toBe(1);
+  });
+
+  it("free-lane regen with audio repair still needs the operator — audio is not covered by the beat-regen flag", () => {
+    const o = orchestratePostQa([finding("MALFORMED_GEOMETRY", "block")], { beatRegenCostsCredits: false, audioDecision: "repair" });
+    expect(o.publishGate).toBe("needs_paid_repair");
+  });
 });

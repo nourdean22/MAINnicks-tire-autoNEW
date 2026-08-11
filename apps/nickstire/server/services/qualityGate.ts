@@ -174,8 +174,23 @@ export async function evaluateReelPublishGate(
     // the findings gate still apply.
   }
 
+  // Cost truth for the repair plan: does a beat regen on the CURRENTLY selected
+  // provider actually spend credits? Read from the same two functions the
+  // execution side prices with (selectiveRepair), so decision and execution
+  // cannot disagree. template_stock regens are $0 local ffmpeg renders — under
+  // that pin a pixel-defect repair is deterministic labor, not an operator
+  // spend authorization. On ANY error, fall back to true (the historical
+  // assumption): unknown cost must fail toward the operator hold, never toward
+  // more autonomy.
+  let beatRegenCostsCredits = true;
+  try {
+    const { selectReelVideoProvider } = await import("./reelPipeline");
+    const { reelClipCostUsd } = await import("./generationLedger");
+    beatRegenCostsCredits = reelClipCostUsd(await selectReelVideoProvider()) > 0;
+  } catch { /* unknown provider/cost → conservative: treat regen as paid */ }
+
   const { orchestratePostQa } = await import("./postQaOrchestrator");
-  const outcome = orchestratePostQa(verdict.findings, { repairAttempts, maxRepairAttempts, audioDecision, missingEvidence, providerHealthy });
+  const outcome = orchestratePostQa(verdict.findings, { repairAttempts, maxRepairAttempts, audioDecision, missingEvidence, providerHealthy, beatRegenCostsCredits });
   return result(
     outcome.publishGate,
     outcome.publishGate === "proceed",
