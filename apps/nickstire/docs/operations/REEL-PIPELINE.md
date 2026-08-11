@@ -29,7 +29,7 @@ Studio wizard (Advanced Reel Studio, admin → Growth → Instagram → Studio)
 |---|---|---|
 | `REEL_GENERATION_ENABLED=true` | arms the cron pipeline | `requiresEnv` gate on the pulse job |
 | `REEL_PUBLISH_ENABLED=true` | publish kill-switch | checked inside `publishToSocial` |
-| `REEL_VIDEO_PROVIDER=higgsfield` | provider pin | auto-select prefers Veo when ANY Gemini key exists — a present-but-dead key silently picks Veo, so pin explicitly |
+| `REEL_VIDEO_PROVIDER` | provider pin | **prod reads `template_stock` (verified 2026-08-11), NOT `higgsfield`** — the paid lane was dropped per "Dropping the paid video provider" below, so reels now render on the free local ffmpeg lane, which is **not draft-first** (see step 3 there). Auto-select prefers Veo when ANY Gemini key exists — a present-but-dead key silently picks Veo, so pin explicitly |
 | `HIGGSFIELD_CREDENTIALS_JSON` | **seed only** | the CLI ROTATES tokens on refresh; rotated pairs are persisted to `app_secret_kv.higgsfield_credentials_json`, which is preferred over this var (#798). Re-login only if BOTH die: `higgsfield auth login` (device flow), then paste `~/.config/higgsfield/credentials.json` into this var |
 | `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg fonts-dejavu-core` | runtime system packages | Railway migrated this service to **Railpack, which ignores `nixpacks.toml`** — the ffmpeg declaration there is dead config |
 | `GEMINI_API_KEY` | brief generation | works for generateContent even while dead for Veo model access |
