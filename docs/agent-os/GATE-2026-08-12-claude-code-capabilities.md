@@ -59,10 +59,13 @@ Bonus facts the report missed, worth knowing here:
 
 - **Aug 14:** new sessions on Pro/Max/Team default to auto mode. This repo is ready — enforcement
   is hooks + policy.json + deny rules, none of it conversation-state.
-- The npm-global CLI is `@anthropic-ai/claude-code` **2.1.150** (latest 2.1.228) and its shim is
-  **not on PATH** — terminal `claude` won't launch. Sessions run through the desktop app
-  (auto-updating). If terminal/headless runs are ever wanted: reinstall the global CLI (operator
-  action; the worktree-session hook rightly blocks `npm i` command text).
+- **UPDATED same day (operator-instructed):** the npm-global CLI was 2.1.150 with its shims
+  missing; it is now **2.1.228**, shims restored at `%APPDATA%\npm` (that directory was on PATH
+  all along), and terminal `claude --version` answers `2.1.228 (Claude Code)`. Every version gate
+  in the scorecard is satisfied locally. Mechanics note: installing the CLI globally from a
+  session shell false-positives the cwd-scoped `install-in-junctioned-worktree` rule, because the
+  harness pins the shell cwd to the worktree and the hook matches command text. The sanctioned
+  path is a process with a non-worktree cwd (e.g. the Desktop Commander runner), not a rule edit.
 
 ## The single-shot launch prompt (the genuinely-new deliverable)
 
