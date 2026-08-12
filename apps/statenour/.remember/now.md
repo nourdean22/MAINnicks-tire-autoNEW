@@ -53,7 +53,23 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12 late (side-quests, non-VNext): Pulse feed sheet symmetric exit
+DONE 2026-08-12 latest (thirteenth wave, 7 ships #1535-#1542): MISSION-scan
+gated (~75%, 22nd) → operator ordered the partial-opens FINISHED → all four
+BDN builds shipped (compact Home + RESUME branch · journal take lifecycle
+line · receipts timeline into /brain Continuity · chat deep-link re-wire:
+13 orphaned entry points restored prefill-only, context lane un-killed) ·
+approval queue 468→44 via INCUMBENT purger, sweep now nightly, producers =
+deferred-action deadlock (fix menu OPERATOR-ONLY: seed auto policies /
+review 9 due replays) · 23rd plan ("RETROFIT PASS", unattended 8-phase)
+gated ~85%: brain-bus thesis DEAD (probe 1,558 done / 0 pending),
+THE-BRIEF.md phantom · self-review round: full suite 481/5,169 exit 0,
+review-confirmed false coverage claim fixed (purger predicate now genuinely
+pinned, red-green executed) · calibration ledger is the standing scoreboard
+(docs/MISSION-CALIBRATION-LEDGER.md — read before any attention/IA plan).
+STILL OWED: live browser verification of the new surfaces (operator parked
+it — use claude-in-chrome); WPs registered not built: evidence-tier fields,
+streak-semantics audit, PageNick mounts.
+Prior: DONE 2026-08-12 late (side-quests, non-VNext): Pulse feed sheet symmetric exit
 (#1531 — prod-verified via the operator's real Chrome with animation-EVENT
 receipts; note the desktop has prefers-reduced-motion ON, so motion aesthetics
 are judgeable only on the phone) · memory-manager tests honest under Phase-1
