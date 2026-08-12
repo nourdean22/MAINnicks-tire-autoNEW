@@ -49,6 +49,14 @@
       "Bash(node scripts/agent-os/verify.mjs)",
       "Bash(railway status)",
       "Bash(railway logs *)"
+    ],
+    "deny": [
+      "Bash(git push origin main)",
+      "Bash(git push -u origin main)",
+      "Bash(git push origin HEAD:main)",
+      "PowerShell(git push origin main)",
+      "PowerShell(git push -u origin main)",
+      "PowerShell(git push origin HEAD:main)"
     ]
   }
 }
