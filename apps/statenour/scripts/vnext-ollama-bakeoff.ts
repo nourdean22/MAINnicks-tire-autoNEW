@@ -26,7 +26,10 @@
 
 const BASE_URL = (process.env.OLLAMA_BASE_URL || "https://ollama.com").replace(/\/$/, "");
 const API_KEY = (process.env.OLLAMA_API_KEY || "").trim();
-const REPS = 2;
+// 2026-08-12 · rerunnable-by-subset: BAKEOFF_REPS + BAKEOFF_MODELS (comma
+// list) let a finalist rerun raise the rep count without re-probing the
+// whole catalog. Defaults preserve the original sweep behavior.
+const REPS = Math.max(1, Number(process.env.BAKEOFF_REPS) || 2);
 const CALL_TIMEOUT_MS = 90_000;
 
 /**
@@ -36,7 +39,7 @@ const CALL_TIMEOUT_MS = 90_000;
  * glm-5, mistral-large-3.2) are dropped rather than probed — the
  * discovery step would skip them anyway.
  */
-const CANDIDATES = [
+const DEFAULT_CANDIDATES = [
   "deepseek-v4-pro", // current OLLAMA_MODEL (chat/reason lane)
   "glm-5.2", // current OLLAMA_FAST_MODEL
   "glm-5.1",
@@ -51,6 +54,13 @@ const CANDIDATES = [
   "nemotron-3-nano:30b",
   "gpt-oss:20b",
 ];
+
+const CANDIDATES = (process.env.BAKEOFF_MODELS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean).length
+  ? (process.env.BAKEOFF_MODELS as string).split(",").map((s) => s.trim()).filter(Boolean)
+  : DEFAULT_CANDIDATES;
 
 interface ProbeResult {
   probe: string;

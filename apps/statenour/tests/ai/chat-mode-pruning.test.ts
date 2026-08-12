@@ -17,9 +17,20 @@ vi.mock("@/lib/ai/tool-embeddings", () => ({
 }));
 
 import { pruneTools } from "@/lib/ai/chat-mode";
+import { afterEach } from "vitest";
+
+// 2026-08-12 · the ceiling is now the env-tunable NICK_TOOL_BUDGET
+// (default 24, floor 10 — was a hardcoded 50). Tool-selection precision
+// degrades sharply with exposed-tool count; the tiers keep priority
+// order and prepare-tools re-adds intent-critical tools after pruning.
+const DEFAULT_BUDGET = 24;
+
+afterEach(() => {
+  delete process.env.NICK_TOOL_BUDGET;
+});
 
 describe("pruneTools priority-preserving cap", () => {
-  it("keeps CORE_TOOLS and ACTION_CORE first in deep mode and caps at 50", async () => {
+  it("keeps CORE_TOOLS and ACTION_CORE first in deep mode and caps at the default budget", async () => {
     // Construct a mock toolset of 60 tools
     const allTools: Record<string, unknown> = {};
     for (let i = 1; i <= 60; i++) {
@@ -33,7 +44,7 @@ describe("pruneTools priority-preserving cap", () => {
     const pruned = await pruneTools("deep", allTools, "test query", [0.1, 0.2]);
     const keys = Object.keys(pruned);
 
-    expect(keys.length).toBe(50);
+    expect(keys.length).toBe(DEFAULT_BUDGET);
     expect(keys).toContain("classifyThought");
     expect(keys).toContain("createTask");
   });
@@ -52,10 +63,30 @@ describe("pruneTools priority-preserving cap", () => {
     const pruned = await pruneTools("deep", allTools, "Can you run extraTool-45 please?", [0.1, 0.2]);
     const keys = Object.keys(pruned);
 
-    expect(keys.length).toBe(50);
+    expect(keys.length).toBe(DEFAULT_BUDGET);
     expect(keys).toContain("classifyThought");
     expect(keys).toContain("createTask");
     expect(keys).toContain("extraTool-45");
+  });
+
+  it("honors NICK_TOOL_BUDGET and enforces the floor of 10", async () => {
+    const allTools: Record<string, unknown> = {};
+    for (let i = 1; i <= 60; i++) {
+      allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
+    }
+    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["createTask"] = { name: "createTask" };
+
+    process.env.NICK_TOOL_BUDGET = "12";
+    let keys = Object.keys(await pruneTools("deep", allTools, "test query", [0.1, 0.2]));
+    expect(keys.length).toBe(12);
+    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("createTask");
+
+    // Below the floor, the floor wins (CORE + ACTION_CORE must stay coherent).
+    process.env.NICK_TOOL_BUDGET = "3";
+    keys = Object.keys(await pruneTools("deep", allTools, "test query", [0.1, 0.2]));
+    expect(keys.length).toBe(10);
   });
 });
 
@@ -114,7 +145,10 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     const pruned = await pruneTools("deep", allTools, query, [0.1, 0.2]);
     const keys = Object.keys(pruned);
 
-    expect(keys.length).toBe(50);
+    // The v10.0.532 guarantee survives the tighter default budget: the
+    // keyword tier outranks the semantic filler, so every followup tool
+    // stays present at 24 exactly as it did at 50.
+    expect(keys.length).toBe(DEFAULT_BUDGET);
     expect(keys).toContain("classifyThought");
     expect(keys).toContain("createTask");
     for (const f of followups) {
@@ -122,7 +156,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     }
   });
 
-  it("caps at 50 tools and prioritizes core, action, and direct-intent tools deterministically when priority candidates exceed 50", async () => {
+  it("caps at the budget and prioritizes core, action, and direct-intent tools deterministically when priority candidates exceed it", async () => {
     const allTools: Record<string, unknown> = {};
     // Construct 60 priority candidates (which match InstagramAutopost keyword regex)
     for (let i = 1; i <= 60; i++) {
@@ -138,11 +172,11 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     const keys = Object.keys(pruned);
 
     // Assert cappings and deterministic ordering
-    expect(keys.length).toBe(50);
+    expect(keys.length).toBe(DEFAULT_BUDGET);
     expect(keys[0]).toBe("classifyThought");
     expect(keys[1]).toBe("createTask");
 
-    // The remaining slots (48) must be filled from the 60 tools deterministically.
+    // The remaining slots must be filled from the 60 tools deterministically.
     const extraKeys = keys.slice(2);
     expect(extraKeys).toEqual(Array.from(extraKeys).sort());
   });

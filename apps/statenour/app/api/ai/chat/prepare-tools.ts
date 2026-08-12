@@ -58,7 +58,11 @@ export async function prepareTools(args: {
   } = args;
 
   // ═══ PERF: Prune tools by mode ═══
-  // Quick mode → zero tools. Standard → ~15-30 relevant. Deep → all 159.
+  // Quick mode → zero tools. Standard → core + semantic top-15 + keyword.
+  // Deep → core + semantic top-40 + keyword. Both bounded by the
+  // NICK_TOOL_BUDGET ceiling (default 24, was a hardcoded 50 — see
+  // pruneTools in lib/ai/chat-mode.ts; the "all 159" this comment used
+  // to claim was stale even then).
   // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
   // messages without removing any capability from data-heavy queries.
   // 2026-07-15 · conversation-aware pruning. The pruner keyed ONLY on
