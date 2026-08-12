@@ -52,4 +52,19 @@ describe("emptyResponseFallback", () => {
   it("the two branches produce distinct messages", () => {
     expect(emptyResponseFallback("tool-calls")).not.toBe(emptyResponseFallback("stop"));
   });
+
+  // 2026-08-11 · refusal branch. Claude 5-family models end a turn with
+  // stop_reason "refusal" (HTTP 200) — AI SDK finishReason "content-filter".
+  it("names a refusal instead of pretending the request was too heavy", () => {
+    const msg = emptyResponseFallback("content-filter");
+    expect(msg.toLowerCase()).toContain("refus");
+    expect(msg).not.toBe(emptyResponseFallback("stop"));
+    expect(msg).not.toBe(emptyResponseFallback("tool-calls"));
+  });
+
+  it("the refusal message is honest — no fabricated side effect, no fake outage", () => {
+    const msg = emptyResponseFallback("content-filter");
+    expect(msg).not.toMatch(FABRICATION);
+    expect(msg.toLowerCase()).not.toContain("unavailable");
+  });
 });

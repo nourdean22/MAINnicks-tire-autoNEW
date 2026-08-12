@@ -42,6 +42,7 @@ import {
   type RuntimeProviderName,
   type TaskType,
 } from "@/config/ai-providers";
+import { claude5CompatMiddleware, isClaude5ThinkingModel } from "./claude5-compat";
 
 export type { RuntimeProviderName, TaskType };
 
@@ -194,7 +195,18 @@ function createAnthropicModel(): LanguageModel {
   const apiKey = getApiKey("anthropic");
   const modelId = resolveProviderModel("anthropic");
   const anthropic = createAnthropic({ apiKey: apiKey! });
-  return anthropic(modelId);
+  const model = anthropic(modelId);
+  // 2026-08-11 · Claude 5 frontier lane (fable/mythos/opus-5): these
+  // models reject sampling params (temperature/top_p/top_k → 400) and
+  // count always-on adaptive thinking against maxOutputTokens, so the
+  // compat middleware strips/floors at the ONE place every caller
+  // passes through — an ANTHROPIC_MODEL flip to a 5-family id is safe
+  // with zero call-site changes. claude-sonnet-5 (current default) is
+  // untouched. See lib/ai/claude5-compat.ts.
+  if (isClaude5ThinkingModel(modelId)) {
+    return wrapLanguageModel({ model, middleware: claude5CompatMiddleware });
+  }
+  return model;
 }
 
 function createOpenAIModel(): LanguageModel {
@@ -888,6 +900,7 @@ export interface ProviderFailure {
     | "model_not_found"
     | "bad_request"
     | "garbage_response"
+    | "refusal"
     | "sdk_threw";
   /** Body snippet for non-2xx HTTP responses. */
   bodySnippet?: string;
@@ -1137,6 +1150,25 @@ export async function aiChat(
         .replace(/<think>[\s\S]*?<\/think>/gi, "")
         .replace(/<\/?think>/gi, "")
         .replace(/^[\s\n]+/, "");
+
+      // 2026-08-11 · model refusal is a FIRST-CLASS outcome, not noise.
+      // Claude 5-family models return HTTP 200 with stop_reason
+      // "refusal", which the AI SDK maps to finishReason
+      // "content-filter" (@ai-sdk/anthropic mapAnthropicStopReason).
+      // Pre-fix the empty text fell through to the garbage gate and got
+      // mislabeled "garbage_response"; now the chain records WHY and
+      // rotates, and /system/agent-traces can count refusals per lane.
+      if (result.finishReason === "content-filter") {
+        log.warn("provider.refusal", { provider: entry.name, model: resolvedModelId });
+        failures.push({
+          provider: entry.name,
+          modelId: resolvedModelId,
+          durationMs: Date.now() - attemptStart,
+          message: "model refusal (finishReason content-filter) — rotating to next provider",
+          failureClass: "refusal",
+        });
+        continue; // refusal is prompt-specific; the next lane may serve it
+      }
 
       // ── Response quality gate ──
       // Check for garbage BEFORE returning. A 200 OK with empty or

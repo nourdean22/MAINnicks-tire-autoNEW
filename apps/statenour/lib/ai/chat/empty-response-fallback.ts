@@ -25,6 +25,14 @@
  * Pure — no IO.
  */
 export function emptyResponseFallback(finishReason?: string): string {
+  // 2026-08-11 · refusal branch. Claude 5-family models end a turn with
+  // stop_reason "refusal" (HTTP 200) — the AI SDK surfaces it as
+  // finishReason "content-filter". Once the stream committed, mid-stream
+  // provider rotation is impossible, so the honest move is to NAME the
+  // refusal instead of pretending the request was "too heavy".
+  if (finishReason === "content-filter") {
+    return "The model refused this one — a provider-side safety classifier, not a system failure. Rephrase it, or retry; a retry may route to a different provider.";
+  }
   if (finishReason === "tool-calls") {
     return "I went to take an action on that but came back without a written response. Check whether it actually went through before you re-send — re-asking could create a duplicate.";
   }
