@@ -1098,6 +1098,19 @@ body::after {
 }
 .animate-fadeSlideUp { animation: fadeSlideUp 0.3s ease-out; }
 
+/* 2026-08-12 · symmetric exit for fadeSlideUp — full-screen sheets (More,
+   Pulse feed) previously only animated IN; every close path (scrim tap,
+   Escape, row tap, route change) set `open=false` and the component
+   unmounted on the same frame, so the sheet visibly SNAPPED away instead
+   of leaving. Exits run faster than entrances (220ms vs 300ms) — a
+   deliberate motion-design convention: an entrance can take its time to
+   feel considered, an exit should feel immediately responsive. */
+@keyframes fadeSlideDown {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(8px); }
+}
+.animate-fadeSlideDown { animation: fadeSlideDown 0.22s ease-in; }
+
 /* Slow spin for stale data indicator */
 @keyframes spin-slow {
   to { transform: rotate(360deg); }

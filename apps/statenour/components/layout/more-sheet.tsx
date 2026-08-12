@@ -10,16 +10,25 @@
  * single NAV source (nav-items.ts `bySection`). Top of the sheet is a
  * Search button — the only tap-path to ⌘K on the keyboardless iOS PWA.
  *
- * Opens by dispatching MORE_SHEET_OPEN_EVENT (mirrors the CAPTURE_OPEN_EVENT
- * pattern); the bottom-tab bar's "More" slot fires it. Closes on route
- * change, Escape, scrim tap, or any row tap.
+ * 2026-08-12 · two fixes, operator-reported ("stale UI and architecture"):
+ *   · Open state now lives in useMoreSheetStore (Zustand — matches the
+ *     chat-ui-store precedent) instead of a raw window CustomEvent bus.
+ *   · The sheet only ever animated IN — every close path unmounted on the
+ *     same frame the store flipped `open`, so it visibly snapped away.
+ *     `mounted` now trails `open` by one animation frame (fadeSlideDown,
+ *     unmount on animationend) so open and close are symmetric.
+ *   · The five verb sections were five identical gray labels. They ARE a
+ *     real sequence (the operator's own OS-loop), so that's now the one
+ *     structural device: an ordinal badge (01–05) in the display face,
+ *     replacing the flat mono tertiary label.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NAV, bySection, type NavSection } from "./nav-items";
+import { useMoreSheetStore } from "@/lib/state/more-sheet-store";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
 import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
@@ -27,14 +36,12 @@ import { COMMAND_PALETTE_OPEN_EVENT } from "@/components/command-palette";
 import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
 import { Search, NotebookPen, ArrowRight, Clock } from "lucide-react";
 
-export const MORE_SHEET_OPEN_EVENT = "ultron:open-more-sheet";
-
-const SECTIONS: { key: NavSection; label: string }[] = [
-  { key: "capture", label: "Capture" },
-  { key: "execute", label: "Execute" },
-  { key: "reflect", label: "Reflect" },
-  { key: "money", label: "Money" },
-  { key: "operate", label: "Operate" },
+const SECTIONS: { key: NavSection; label: string; ordinal: string }[] = [
+  { key: "capture", label: "Capture", ordinal: "01" },
+  { key: "execute", label: "Execute", ordinal: "02" },
+  { key: "reflect", label: "Reflect", ordinal: "03" },
+  { key: "money", label: "Money", ordinal: "04" },
+  { key: "operate", label: "Operate", ordinal: "05" },
 ];
 
 function isActiveHref(pathname: string, href: string): boolean {
@@ -44,37 +51,37 @@ function isActiveHref(pathname: string, href: string): boolean {
 }
 
 export function MoreSheet() {
-  const [open, setOpen] = useState(false);
+  const open = useMoreSheetStore((s) => s.open);
+  const close = useMoreSheetStore((s) => s.closeSheet);
+  // `mounted` trails `open` by one exit-animation frame — this is what
+  // makes closing symmetric with opening instead of an instant unmount.
+  const [mounted, setMounted] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname() ?? "/";
   const pulse = useSystemPulse();
   const smartNow = pickSmartNow({ pathname, pulse });
   const { candidates: recentCandidates } = useRecentPages();
 
-  const close = useCallback(() => setOpen(false), []);
-
-  // Open via window event (bottom-tab "More" slot dispatches it).
   useEffect(() => {
-    const onOpen = () => setOpen(true);
-    window.addEventListener(MORE_SHEET_OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(MORE_SHEET_OPEN_EVENT, onOpen);
-  }, []);
+    if (open) setMounted(true);
+  }, [open]);
 
-  // Auto-close on route change.
+  // Auto-close on route change (a no-op via closeSheet if already closed).
   useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+    close();
+  }, [pathname, close]);
 
   // Escape closes.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") close();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, close]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const footer = NAV.filter((n) => n.footer);
 
@@ -85,15 +92,32 @@ export function MoreSheet() {
       aria-modal="true"
       aria-label="More navigation"
     >
-      {/* Scrim */}
+      {/* Scrim — fades with the sheet since both key off the same `open`. */}
       <button
         aria-label="Close menu"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className={cn(
+          "absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0",
+        )}
         onClick={close}
       />
 
       {/* Sheet */}
-      <div className="relative max-h-[86vh] overflow-y-auto rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-void)] shadow-[0_-20px_60px_rgba(0,0,0,0.7)] animate-fadeSlideUp pb-[env(safe-area-inset-bottom,12px)]">
+      <div
+        ref={sheetRef}
+        onAnimationEnd={() => {
+          if (!open) setMounted(false);
+        }}
+        className={cn(
+          "relative max-h-[86vh] overflow-y-auto rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-void)] pb-[env(safe-area-inset-bottom,12px)]",
+          // Depth shadow (unchanged) layered with a soft top-edge gold glow
+          // — the same composition --shadow-gold-strong uses, applied here
+          // as literal values since Tailwind arbitrary shadows can't nest a
+          // comma-bearing var() inside another arbitrary value.
+          "shadow-[0_-20px_60px_rgba(0,0,0,0.7),0_-1px_30px_rgba(253,185,19,0.06)]",
+          open ? "animate-fadeSlideUp" : "animate-fadeSlideDown",
+        )}
+      >
         {/* Sticky header: grab handle + Search */}
         <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[var(--bg-void)] px-4 pb-3 pt-2">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[var(--border-default)]" />
@@ -184,13 +208,25 @@ export function MoreSheet() {
         </div>
 
         {/* Verb sections — read from the single NAV source */}
-        {SECTIONS.map(({ key, label }) => {
+        {SECTIONS.map(({ key, label, ordinal }) => {
           const rows = bySection(key);
           if (rows.length === 0) return null;
           return (
             <div key={key} className="border-t border-[var(--border-default)] px-3 py-2">
-              <div className="mb-1 px-1 font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
-                {label}
+              {/* 2026-08-12 · Capture -> Execute -> Reflect -> Money ->
+                  Operate is a real sequence (the operator's own OS loop),
+                  not five arbitrary buckets — the ordinal makes that
+                  legible instead of five identical gray labels. */}
+              <div className="mb-1.5 flex items-center gap-2 px-1">
+                <span
+                  aria-hidden
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--gold)]/25 bg-[var(--gold-ghost)] font-mono text-[8px] text-[var(--gold)]/80"
+                >
+                  {ordinal}
+                </span>
+                <span className="font-[var(--font-display)] text-[12px] font-semibold uppercase tracking-[0.15em] text-[var(--text-secondary)]">
+                  {label}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-1">
                 {rows.map((n) => {

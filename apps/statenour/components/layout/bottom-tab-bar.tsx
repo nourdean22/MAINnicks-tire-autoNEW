@@ -18,7 +18,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { BOTTOM_TABS } from "./nav-items";
 import { BottomPulseTicker } from "@/components/ultron/bottom-pulse-ticker";
-import { MORE_SHEET_OPEN_EVENT } from "./more-sheet";
+import { useMoreSheetStore } from "@/lib/state/more-sheet-store";
 import { LayoutGrid } from "lucide-react";
 
 function isActiveHref(pathname: string, href: string): boolean {
@@ -29,6 +29,7 @@ function isActiveHref(pathname: string, href: string): boolean {
 export function BottomTabBar() {
   const pathname = usePathname() ?? "/";
   const chromeRef = useRef<HTMLDivElement>(null);
+  const openMoreSheet = useMoreSheetStore((s) => s.openSheet);
 
   /**
    * 2026-07-29 · Publish the chrome's REAL height into --bottom-chrome-h.
@@ -106,7 +107,7 @@ export function BottomTabBar() {
           );
         })}
         <button
-          onClick={() => window.dispatchEvent(new Event(MORE_SHEET_OPEN_EVENT))}
+          onClick={openMoreSheet}
           aria-label="More — all surfaces and search"
           className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-fg-tertiary transition-colors hover:text-gold"
         >
