@@ -116,9 +116,9 @@ export function TopMissionToday({ missions, tasks }: TopMissionTodayProps) {
   return (
     <section
       aria-label="top mission today"
-      className="rounded-xl border border-[var(--gold)]/35 bg-[var(--gold)]/[0.04] p-5 shadow-[0_0_28px_rgba(253,185,19,0.04)]"
+      className="rounded-2xl border border-[var(--gold)]/35 bg-[var(--gold)]/[0.04] p-4 shadow-[0_0_28px_rgba(253,185,19,0.04)] sm:p-5"
     >
-      <div className="flex items-center gap-2 mb-3">
+      <div className="mb-2 flex items-center gap-2">
         <Flag size={11} className="text-[var(--gold)]" strokeWidth={2} />
         <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
           the mission for right now
@@ -142,7 +142,7 @@ export function TopMissionToday({ missions, tasks }: TopMissionTodayProps) {
         </p>
       )}
 
-      <div className="mt-5 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
         <Stat
           label="open"
           value={String(openTasks)}
@@ -166,8 +166,8 @@ export function TopMissionToday({ missions, tasks }: TopMissionTodayProps) {
       </div>
 
       {/* Progress bar · open vs done */}
-      <div className="mt-4">
-        <div className="relative h-2 rounded-full bg-[var(--bg-raised)]/60 overflow-hidden">
+      <div className="mt-3">
+        <div className="relative h-1.5 overflow-hidden rounded-full bg-[var(--bg-raised)]/60">
           <div
             className="absolute top-0 bottom-0 bg-[var(--gold)] transition-[width] duration-500"
             style={{ left: 0, width: `${progress}%` }}
@@ -176,7 +176,7 @@ export function TopMissionToday({ missions, tasks }: TopMissionTodayProps) {
         </div>
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3">
+      <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[11px] text-[var(--text-tertiary)] leading-snug">
           {doingTasks > 0
             ? `${doingTasks} ${doingTasks === 1 ? "task" : "tasks"} in flight · ship one`
@@ -185,12 +185,13 @@ export function TopMissionToday({ missions, tasks }: TopMissionTodayProps) {
         <Link
           href={`#mission-${mission.id}`}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px]",
+            "inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 sm:w-auto",
             "text-[12px] font-medium uppercase tracking-[0.12em]",
             "bg-[var(--gold)]/15 text-[var(--gold)] hover:bg-[var(--gold)]/25",
             "border border-[var(--gold)]/30",
             "active:scale-95 transition-all",
           )}
+          aria-label={`Start the next 60 minutes in ${mission.title}`}
         >
           next 60 min
           <ArrowRight size={12} strokeWidth={2} />
