@@ -27,8 +27,9 @@
       5. Verify every target still exists and has not LOST entries.
          Abort here if any did -- nothing has been deleted yet.
       6. git worktree remove.
-      7. git branch -d, falling back to -D only when the branch content is
-         provably identical to the compare branch (squash-merge).
+      7. git branch -d, falling back to -D only when Test-BranchMerged can
+         PROVE the work landed -- the PR record first, then a local
+         squash-probe. Unproven leaves the branch alone.
 
 .PARAMETER targetDir
     Path to the worktree to tear down.
@@ -94,6 +95,86 @@ function Get-LinkTarget {
         return [string]$t[0]
     }
     return [string]$t
+}
+
+function Test-BranchMerged {
+    <#
+        Is this branch's work already in $CompareBranch?
+
+        `git branch -d` cannot answer that for a SQUASH merge: the branch tip
+        is not an ancestor of main even though its content landed. The check
+        that used to live here was `git diff --name-only main <branch>` -- a
+        TWO-DOT diff, which compares the two trees WHOLE. It is empty only
+        while main has not moved since the merge. Measured 2026-08-11:
+        docs/wire-wave-close reported 514 differing files and
+        nickstire/alg-cost-detail-rootcause 588, when those branches had
+        touched 1 and 3 files and both were merged days earlier (PR #1454,
+        #1437). It never says "merged" on a repo that keeps shipping, so
+        every teardown printed a false "holds unmerged work" and the refs
+        piled up.
+
+        Three-dot is not the fix either: `main...branch` shows what the branch
+        changed since the merge base, which is NON-empty for a merged branch --
+        that is precisely the diff that got squashed in.
+
+        Order used here, most authoritative first. Anything unproven returns
+        $false, so the failure mode stays "branch survives".
+          1. The PR record (`gh pr list --head`). What actually decides it.
+          2. A local squash-probe: rebuild the branch as a single commit on
+             the merge base and ask `git cherry` whether main already carries
+             that patch. Works offline; a rebase/amend before merge changes
+             the patch-id and returns unproven rather than wrong.
+          3. An empty three-dot diff -- the branch changed nothing at all.
+    #>
+    param(
+        [string]$Branch,
+        [string]$CompareBranch
+    )
+
+    # --- 1. PR record ---------------------------------------------------
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        try {
+            $raw = gh pr list --head $Branch --state merged --json number,mergedAt --limit 1 2>$null
+            if (($LASTEXITCODE -eq 0) -and -not [string]::IsNullOrWhiteSpace($raw)) {
+                $pr = $raw | ConvertFrom-Json
+                if ($pr -and $pr.Count -gt 0) {
+                    return @{ Merged = $true; Reason = "PR #$($pr[0].number) merged $($pr[0].mergedAt)" }
+                }
+            }
+        } catch {
+            # offline / not authenticated / not a GitHub remote -- fall through
+        }
+    }
+
+    # --- 2. local squash-probe ------------------------------------------
+    try {
+        $mergeBase = (git merge-base $CompareBranch $Branch 2>$null | Select-Object -First 1)
+        $tree = (git rev-parse "${Branch}^{tree}" 2>$null | Select-Object -First 1)
+        if (-not [string]::IsNullOrWhiteSpace($mergeBase) -and -not [string]::IsNullOrWhiteSpace($tree)) {
+            $probe = (git commit-tree $tree -p $mergeBase -m "squash-probe" 2>$null | Select-Object -First 1)
+            if (-not [string]::IsNullOrWhiteSpace($probe)) {
+                # `git cherry` marks a commit "-" when an equivalent patch is
+                # already upstream, "+" when it is not.
+                $cherry = @(git cherry $CompareBranch $probe 2>$null)
+                if (($LASTEXITCODE -eq 0) -and ($cherry.Count -gt 0) -and ($cherry[0] -like "- *")) {
+                    return @{ Merged = $true; Reason = "squash-probe: $CompareBranch already carries this patch" }
+                }
+            }
+        }
+    } catch {
+        # probe is best-effort; unproven is the safe answer
+    }
+
+    # --- 3. branch changed nothing --------------------------------------
+    try {
+        $ownChanges = @(git diff --name-only "$CompareBranch...$Branch" 2>$null)
+        if (($LASTEXITCODE -eq 0) -and ($ownChanges.Count -eq 0)) {
+            return @{ Merged = $true; Reason = "branch introduces no changes vs $CompareBranch" }
+        }
+        return @{ Merged = $false; Reason = "unproven; branch changed $($ownChanges.Count) file(s) vs the merge base" }
+    } catch {
+        return @{ Merged = $false; Reason = "unproven; could not diff against $CompareBranch" }
+    }
 }
 
 $targetAbsPath = [System.IO.Path]::GetFullPath($targetDir)
@@ -281,15 +362,12 @@ if ($KeepBranch) {
         Write-Host "[OK] Branch deleted." -ForegroundColor Green
     } else {
         # -d refuses squash-merged branches: the commit is not an ancestor of
-        # main even though its CONTENT is already there. An empty diff is the
-        # evidence that -D is safe. An unmerged branch has a non-empty diff
-        # and is left alone.
-        Write-Host "[i] 'git branch -d' refused. Checking for a squash-merge..." -ForegroundColor Gray
-        $contentDiff = @(git diff --name-only $compareBranch $branchName)
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[*] Could not diff against $compareBranch. Branch left in place." -ForegroundColor Yellow
-        } elseif ($contentDiff.Count -eq 0) {
-            Write-Host "[i] Content is identical to $compareBranch (squash-merged)." -ForegroundColor Gray
+        # main even though its CONTENT is already there. Test-BranchMerged
+        # proves it from the PR record, falling back to a local squash-probe.
+        Write-Host "[i] 'git branch -d' refused. Proving the branch is merged..." -ForegroundColor Gray
+        $verdict = Test-BranchMerged -Branch $branchName -CompareBranch $compareBranch
+        if ($verdict.Merged) {
+            Write-Host "[i] Merged: $($verdict.Reason)" -ForegroundColor Gray
             git branch -D $branchName
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "[OK] Branch deleted." -ForegroundColor Green
@@ -297,8 +375,13 @@ if ($KeepBranch) {
                 Write-Host "[X] Branch deletion failed." -ForegroundColor Red
             }
         } else {
-            Write-Host "[*] Branch differs from ${compareBranch} in $($contentDiff.Count) file(s)." -ForegroundColor Yellow
-            Write-Host "    It holds unmerged work. Left in place; delete manually if intended." -ForegroundColor Yellow
+            # Deliberately NOT phrased as "holds unmerged work" -- this branch
+            # is only UNPROVEN, and the old wording sent people hunting for
+            # work that had shipped days earlier.
+            Write-Host "[*] Could not prove it is merged ($($verdict.Reason))." -ForegroundColor Yellow
+            Write-Host "    Branch left in place -- the worktree is gone either way." -ForegroundColor Yellow
+            Write-Host "    Check it yourself:  gh pr list --head $branchName --state all" -ForegroundColor Yellow
+            Write-Host "    Then delete with:   git branch -D $branchName" -ForegroundColor Yellow
         }
     }
 }
