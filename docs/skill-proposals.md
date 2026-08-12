@@ -627,3 +627,19 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** operator policy call on AGENTS.md §2: either append "…unless the operator asks for a batched wave (slow-checks mode: one PR, staged commits inside it)" or reaffirm the rule as-is. Deliberately not an agent edit.
 - **Confidence:** medium (explicit instruction, once)
 - **Status:** proposed
+
+## 2026-08-12 · capabilities gate + Pulse exit animation + memory-manager test fix (#1529–#1532)
+
+### P1 · harness-worktree-setup (global installs + the pinned shell cwd)
+- **Trigger (witnessed):** operator instructed "update the global CLI install." `Set-Location` out of the worktree was RESET by the harness ("Shell cwd was reset to …worktrees\code-capabilities-verify-acdd4b"), so a global (`-g`) npm install could never run with a non-worktree cwd from the session shell — and a later PowerShell here-string that merely QUOTED the command in its document body was hook-blocked (the skill's documented heredoc trap, new sighting). Executed instead via Desktop Commander's process runner (non-worktree cwd = the cwd-scoped rule's designed allowance); receipts in `docs/agent-os/GATE-2026-08-12-claude-code-capabilities.md`. Same cause later broke a bare `pnpm exec vitest` call ("vitest not found") when the cwd silently reset to the worktree ROOT between calls.
+- **Cost:** two blocked calls + one broken test invocation + ~10 minutes of rerouting; without the gate-doc note the next session re-derives all of it.
+- **Proposed edit:** add to §3 (Changing dependencies): "Global (`-g`) installs never touch repo node_modules but still match the rule via command text, and the harness PINS the session shell cwd to the worktree — `Set-Location` does not persist between calls, so verify cwd before any `node_modules/.bin` invocation. Sanctioned path for a global install: a process runner with a non-worktree cwd (e.g. Desktop Commander), never a rule edit."
+- **Confidence:** high (three sightings in one session: explicit reset message, blocked here-string, cwd-reset vitest failure)
+- **Status:** proposed
+
+### P2 · statenour-verify (fire-and-forget writes vs mocked-model call counting)
+- **Trigger (witnessed):** `tests/lib/memory-manager.test.ts` red on main — the Phase-1 gateway fire-and-forgets shadow receipts (category `memory_gateway_shadow`) through the SAME mocked `brainMemory.create` the tests spy on, UNAWAITED, so receipts from earlier tests landed in a later test's spy window after `vi.clearAllMocks` (5 creates visible in one test's window). The sibling `calls[0][0]` reads carried the same latent class. Fixed test-side with a discriminator filter (#1532; suite back to 479/479 · 5,155/5,155 · exit 0).
+- **Cost:** the app suite red on main for ~1 day; one `verify:hard` run died at the test step, leaving four sub-gates unrun until executed individually.
+- **Proposed edit:** add a Traps row: "A fire-and-forget write sharing a mocked model with the code under test spills calls ACROSS tests — `vi.clearAllMocks` cannot fence an unawaited promise. Assert with a discriminator filter (e.g. `category !== "memory_gateway_shadow"`), never raw call counts, and treat `calls[0]` reads as the same hazard."
+- **Confidence:** medium (once, mechanism proven with event-order evidence)
+- **Status:** proposed

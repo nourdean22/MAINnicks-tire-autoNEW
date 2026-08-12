@@ -1,6 +1,6 @@
 # NOUR OS — Session Buffer
 
-**Updated: 2026-08-11** · Five fields, nothing else. If the SessionStart briefing
+**Updated: 2026-08-12** · Five fields, nothing else. If the SessionStart briefing
 reports this file as stale, distrust everything below it and re-derive from source.
 
 > **Maintenance contract.** This is agent-maintained. Update the five fields at the
@@ -41,6 +41,9 @@ needs the canary attestation. A refusal does NOT mark the provider failed.
 - **Trusting a pasted plan's own "VERIFIED" table — report A asserted "Prisma 7,
   verified via code read" against a catalog pinning `^6.3.1` (installed 6.19.3).**
   Re-derive even claims stamped verified by their author.
+- **Counting raw mocked-model calls while the Phase-1 gateway is live — spills.**
+  Shadow receipts ride the same `brainMemory.create`, unawaited, across
+  `clearAllMocks`; assert through a category filter, never raw counts (#1532).
 
 ## Active blocker
 **Operator actions:** ① the primary checkout (`C:\Users\nourd\NOURCITY`) remains on
@@ -50,7 +53,17 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12 (wave 9): RETRIEVAL-SIDE COMPLEMENT LIVE — `getAgendaItems`
+DONE 2026-08-12 late (side-quests, non-VNext): Pulse feed sheet symmetric exit
+(#1531 — prod-verified via the operator's real Chrome with animation-EVENT
+receipts; note the desktop has prefers-reduced-motion ON, so motion aesthetics
+are judgeable only on the phone) · memory-manager tests honest under Phase-1
+shadow receipts (#1532) — **suite fully green again: 479/479 files, 5,155/5,155,
+exit 0** · agent-os: Claude Code capabilities report gated 0/20 refuted,
+exact-spelling push-to-main deny rules shipped, CLI 2.1.150→2.1.228
+(#1529/#1530; gate doc has the launch-prompt template). Heads-up 2026-08-14:
+auto mode becomes the default for new Pro/Max/Team sessions — this repo is
+ready (enforcement is file-based, not conversation-state).
+Prior: DONE 2026-08-12 (wave 9): RETRIEVAL-SIDE COMPLEMENT LIVE — `getAgendaItems`
 (agendaItem rows had NO tool exposure; getCommitments reads a different
 table). Four registrations + both pins regenerated (snapshot:mcp-surface,
 snapshot:tool-schemas — the guards caught the gaps as designed). Tier-6
