@@ -93,9 +93,51 @@ hygiene + an expiry/sweep design come first, and the bulk mutation is
    (operator: "schedule the purger"): the nightly `data-cleanup` cron
    now delegates to `purgeStaleCategory("pending_actions_7d")` — one
    policy, two callers (UI tap + cron); producer pinned incl. fail-loud
-   by `tests/cron/data-cleanup-pending-actions.test.ts`. Still open:
-   inspect the two dominant producers (memory_promotion,
-   decision_replay_due) for proposal-rate sanity.
+   by `tests/cron/data-cleanup-pending-actions.test.ts`. **Producers
+   inspected same day — see the addendum below.**
+
+## Addendum — producer inspection (2026-08-12, `probe-producer-rates.ts`)
+
+The backlog was never hundreds of distinct proposals — it was a
+**deferred-action deadlock** nagging nightly:
+
+- **Mechanism (code-read, then prod-verified):** both rules declare
+  `approval:"auto"`, but the engine is fail-closed
+  (`autonomous-engine.ts:1069`) — with **no AutomationPolicy row** a rule
+  defers to the queue instead of executing. Probe: policies for the two
+  rules = **NONE** (98 `auto` policies exist for other rules). The
+  deferred action never runs → the trigger condition never clears → the
+  24h per-target cooldown mints ONE new pending row per stuck target per
+  night, forever.
+- **decision_replay_due = 3 decisions × 76 nights.** 228 rows ever from
+  **3 distinct targets** (76 rows each). Its action is only a Telegram
+  nag; the `reviewed` flag it waits on flips on the /decisions replay
+  surface, which nobody visited. Current pressure: 9 unreviewed+due
+  replays, oldest due since 2026-04-25; `take:3` caps it at 3 rows/night.
+- **memory_promotion is structurally jammed.** 431 rows / 221 targets;
+  **501 candidates** above its threshold (seenCount≥5, conf≥0.6) — top
+  candidates are `nick_advice`/`system_alert`/`mastery_xp_event` rows with
+  seenCount in the THOUSANDS (max 6,516) at confidence 1. Its two quality
+  gates (wisdom dupe-guard + wisdom-quality-gate) and its convergence
+  mechanism (drop confidence on skip) all live INSIDE the action — the
+  rule was written self-limiting-by-execution before fail-closed gating
+  existed, so deferral disables its own brakes.
+- **Steady state today:** ~6-7 new pending rows/night engine-wide,
+  auto-purged at 7d by the nightly sweep → queue floats around ~44, but
+  the SAME stuck items cycle through it until acted on at the source.
+
+**Operator decision menu (autonomy changes — never agent-initiative):**
+1. Review or dismiss the 9 due decision replays (kills that producer's
+   pressure at the source), and/or seed an `auto` policy for
+   `decision_replay_due` — its action is exactly the nightly Telegram
+   reminder it was designed to be.
+2. Seed an `auto` policy for `memory_promotion` — the action is
+   non-messaging (one Telegram per successful promotion), double-gated,
+   and drains the 501-candidate pool at ≤3/night; without it the rule
+   proposes forever.
+3. Or mark either rule `forbidden` if its output isn't wanted — the
+   engine then closes rows as `forbidden_by_policy` instead of parking
+   them.
 3. **WP: merged receipts timeline shell** (BDN-003) — read-only merge of
    entity-audit + action receipts in /system or /brain/continuity; typed
    adapters, no schema. ORGANIZATION-WIRING-AUDIT is the input.
