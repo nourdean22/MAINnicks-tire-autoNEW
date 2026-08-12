@@ -9,7 +9,11 @@
  * two callers) and reports its count. Consumer-side proof alone is the
  * false-green shape the 2026-08-04 sweep registered — pin the producer.
  *
- * The purger's own behavior is covered by tests/lib/stale-data-purger.test.ts.
+ * The purger's own WHERE/DATA predicate is pinned by the
+ * "pending_actions_7d" cases in tests/lib/stale-data-purger.test.ts
+ * (added 2026-08-12 — an earlier version of this comment claimed that
+ * coverage existed before it actually did; a review caught the false
+ * claim, which is exactly the mocked-consumer trap this suite hunts).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 

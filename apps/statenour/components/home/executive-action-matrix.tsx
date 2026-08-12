@@ -70,11 +70,26 @@ export function ExecutiveActionMatrix() {
   // most valuable "now" when nothing is actively executing. Uses the
   // already-fetched task list; newest touch first.
   const activeCmdId = ccStateQuery.data?.commands?.active?.id;
+  // Clock reference for the resume floor: the moment the task list was
+  // fetched — pure per render (react-hooks/purity forbids Date.now() in
+  // the memo), and it advances exactly when the data it judges advances.
+  const tasksFetchedAt = tasksQuery.dataUpdatedAt;
   const resumeTask = useMemo(() => {
-    const loops = tasks.filter((t) => t.status === "DOING" && t.id !== activeCmdId);
+    // Ignore tasks that entered DOING in the last 2 minutes: a
+    // seconds-old task isn't an "open loop from earlier" semantically,
+    // and commandCenterState sits behind a 15s server cache + 30s client
+    // staleTime, so a freshly-started task can appear in `tasks` before
+    // it registers as the active engagement — without this floor it
+    // would transiently mislabel as RESUME.
+    const RESUME_MIN_AGE_MS = 2 * 60_000;
+    const loops = tasks.filter((t) => {
+      if (t.status !== "DOING" || t.id === activeCmdId) return false;
+      const enteredDoing = new Date(t.startedAt ?? t.updatedAt ?? 0).getTime();
+      return tasksFetchedAt - enteredDoing > RESUME_MIN_AGE_MS;
+    });
     if (loops.length === 0) return null;
     return [...loops].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0];
-  }, [tasks, activeCmdId]);
+  }, [tasks, activeCmdId, tasksFetchedAt]);
 
   // 2. Synthesize AI Operator Briefing (200 IQ Pass)
   const aiBriefing = useMemo(() => {
