@@ -2655,6 +2655,55 @@ export const auditLog = mysqlTable("audit_log", {
 ]);
 
 /**
+ * Admin Proposals — the generic approval queue (0111, hand-apply required).
+ *
+ * Every row is an INTENT, not an action: payload_json is validated against the
+ * server-side executor registry in services/proposals.ts, and execution is
+ * reachable ONLY through the CAS transition chain
+ * draft/pending_review → approved → executing → executed. The five existing
+ * domain approval lanes (IG studio, review_replies,
+ * sms_learning_recommendations, revenue_opportunities, nickgpt_drafts) keep
+ * their own tables and semantics — this one exists for NEW action classes
+ * (Nick call extractions, one-tap admin actions) that must start as drafts.
+ *
+ * status is varchar, never enum (STRICT_TRANS_TABLES rejects out-of-enum
+ * writes and loses the row — 0099's standing rule).
+ */
+export const adminProposals = mysqlTable("admin_proposals", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** 'nick_receptionist' | 'ai_agent' | 'human_user' | 'system' */
+  source: varchar("source", { length: 24 }).notNull(),
+  actor: varchar("actor", { length: 100 }).notNull(),
+  /** Executor registry key (services/proposals.ts) — e.g. 'create_callback' */
+  actionType: varchar("action_type", { length: 48 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }),
+  entityId: varchar("entity_id", { length: 64 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  payloadJson: json("payload_json").notNull(),
+  /** Provenance for the reviewer: call id, transcript/recording refs, extraction detail */
+  contextJson: json("context_json"),
+  /** Extraction confidence 0-100; null for human-originated proposals */
+  confidence: int("confidence"),
+  /** draft | pending_review | approved | executing | executed | failed | rejected */
+  status: varchar("status", { length: 32 }).default("draft").notNull(),
+  reviewedBy: varchar("reviewed_by", { length: 100 }),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNote: text("review_note"),
+  executedAt: timestamp("executed_at"),
+  executionResultJson: json("execution_result_json"),
+  idempotencyKey: varchar("idempotency_key", { length: 191 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uniq_proposals_idem").on(table.idempotencyKey),
+  index("idx_proposals_status").on(table.status, table.createdAt),
+  index("idx_proposals_entity").on(table.entityType, table.entityId),
+]);
+
+export type AdminProposal = typeof adminProposals.$inferSelect;
+export type InsertAdminProposal = typeof adminProposals.$inferInsert;
+
+/**
  * Service Affinity v2 closed-loop tables (2026-05-24).
  * Apply migration: drizzle/0061_service_affinity_v2.sql
  * Per docs/2026-05-24-service-affinity-v2.md §2.3 (CLOSED LOOP layer).

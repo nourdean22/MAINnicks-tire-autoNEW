@@ -21,6 +21,7 @@ export {
   loyaltyRouter,
   smsRouter,
 } from "./services";
+export { proposalsRouter } from "./proposals";
 export { reviewRequestsRouter } from "./reviewRequests";
 export { remindersRouter } from "./reminders";
 export { smsConversationsRouter } from "./smsConversations";

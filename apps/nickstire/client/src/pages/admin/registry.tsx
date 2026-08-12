@@ -52,6 +52,7 @@ const FULL_ACCESS: readonly AdminRole[] = ["owner", "manager"] as const;
 
 // Lazy-load sections relative to this file's position (client/src/pages/admin/)
 const OverviewSection = lazy(() => import("./OverviewSection"));
+const ApprovalsSection = lazy(() => import("./ApprovalsSection"));
 const InstagramSection = lazy(() => import("./instagram/InstagramAdmin").then((m) => ({ default: m.InstagramAdmin })));
 const LeadsSection = lazy(() => import("./LeadsSection"));
 const ContentSection = lazy(() => import("./ContentSection"));
@@ -80,6 +81,22 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     priority: 10,
     showInSidebar: true,
     allowedRoles: ADMIN_ROLES,
+  },
+  {
+    // Trust ladder (2026-08-12): every AI- or one-tap-originated action lands
+    // here as a draft and executes only on human approval — server-enforced in
+    // services/proposals.ts. Palette + sidebar visibility come free from this
+    // entry; keywords make "approve"/"queue"/"nick" land here from Cmd+K.
+    id: "approvals",
+    label: "Approvals",
+    icon: <ClipboardList className="w-4 h-4" />,
+    component: ApprovalsSection,
+    aliases: ["proposals", "queue", "decide", "drafts"],
+    keywords: ["approval", "approve", "proposal", "queue", "review", "draft", "nick", "decide"],
+    group: "Daily",
+    priority: 15,
+    showInSidebar: true,
+    allowedRoles: FULL_ACCESS,
   },
   {
     id: "intelligence",

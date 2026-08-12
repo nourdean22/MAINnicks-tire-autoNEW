@@ -92,6 +92,7 @@ import { membershipsRouter } from "./routers/memberships";
 import { adStudioRouter } from "./routers/adStudio";
 import { opportunityQueueRouter } from "./routers/opportunityQueue";
 import { promisesRouter } from "./routers/promises";
+import { proposalsRouter } from "./routers/proposals";
 import { quoteGuardRouter } from "./routers/quoteGuard";
 import { smsOpsRouter } from "./routers/smsOps";
 
@@ -123,6 +124,7 @@ export const appRouter = router({
   revenueAttribution: revenueAttributionRouter,
   opportunityQueue: opportunityQueueRouter,
   promises: promisesRouter,
+  proposals: proposalsRouter,
   quoteGuard: quoteGuardRouter,
   smsOps: smsOpsRouter,
   statenourMetrics: statenourMetricsRouter,

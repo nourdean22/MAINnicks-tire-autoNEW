@@ -88,6 +88,11 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
     return type === "mutation" ? "settings.manage" : "reports.view";
   }
   if (normalized.startsWith("settings.") || normalized.startsWith("featureflags.") || normalized.startsWith("shopdriver.") || normalized.startsWith("autolabor.") || normalized.startsWith("system.")) return "settings.manage";
+  // Approval queue: any admin role may SEE the queue; deciding (approve /
+  // reject / create) executes internal writes and starts operator-grade.
+  if (normalized.startsWith("proposals.")) {
+    return type === "mutation" ? "settings.manage" : "admin.view";
+  }
   if (normalized.startsWith("adminsecurity.")) return "security.manage";
 
   // ── Routers that were falling through to admin.view ────────────────────────
