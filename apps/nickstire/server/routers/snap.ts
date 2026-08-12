@@ -14,6 +14,29 @@ import {
 
 const log = createLogger("routers:snap");
 
+/**
+ * Partner-required fields for a real Snap submission, enforced at the server
+ * boundary (poka-yoke): this mutation fires a REAL application at Snap's API —
+ * a credit pull the shop is charged for — so a nameless, amountless or
+ * service-less application must be unrepresentable, not merely discouraged in
+ * the UI. `disclosureAcknowledged` is the front desk attesting the customer
+ * was shown Snap's disclosure before the hand-off; the attestation is recorded
+ * on the audit row.
+ *
+ * Exported so financingGuards.test.ts can pin each rejection.
+ */
+export const snapSubmitInput = z.object({
+  customerName: z.string().trim().min(1).max(200),
+  customerPhone: z.string().trim().min(7).max(30),
+  customerEmail: z.string().email().max(254).optional(),
+  amount: z.number().positive({ message: "Amount is required — a $0 application is not submittable" }).max(50000),
+  vehicle: z.string().max(200).optional(),
+  service: z.string().trim().min(3, { message: "Service description is required for a Snap application" }).max(500),
+  disclosureAcknowledged: z.boolean().refine((v) => v === true, {
+    message: "Snap disclosure must be acknowledged with the customer before submitting",
+  }),
+});
+
 export const snapRouter = router({
   /** List recent applications */
   list: adminProcedure
@@ -34,15 +57,8 @@ export const snapRouter = router({
    * desk keys in an application directly.
    */
   submit: adminProcedure
-    .input(z.object({
-      customerName: z.string().min(1).max(200),
-      customerPhone: z.string().min(7).max(30),
-      customerEmail: z.string().email().max(254).optional(),
-      amount: z.number().min(0).max(50000).optional(),
-      vehicle: z.string().max(200).optional(),
-      service: z.string().max(500).optional(),
-    }))
-    .mutation(async ({ input }) => {
+    .input(snapSubmitInput)
+    .mutation(async ({ input, ctx }) => {
       const snapApiKey = process.env.SNAP_FINANCE_API_KEY;
       const snapMerchantId = process.env.SNAP_FINANCE_MERCHANT_ID;
 
@@ -92,6 +108,10 @@ export const snapRouter = router({
         service: input.service,
         externalApplicationId,
         status,
+        // Attribution + disclosure attestation on the audit row (Phase 2):
+        // WHO keyed the application, and that the customer saw the disclosure.
+        submittedBy: ctx.user?.email ?? ctx.user?.name ?? "admin",
+        disclosureAcknowledged: input.disclosureAcknowledged,
       });
 
       return { success: true, localId, externalApplicationId, status, proxyUsed };
