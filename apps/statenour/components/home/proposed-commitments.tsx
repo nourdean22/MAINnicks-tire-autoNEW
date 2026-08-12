@@ -33,6 +33,9 @@ export function ProposedCommitments() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  // BDN-104 · decision sensor. Fire-and-forget: a telemetry failure must
+  // never surface as a failed verdict.
+  const signal = trpc.operator.recordHomeSignal.useMutation();
 
   const act = async (id: number, kind: "accept" | "dismiss") => {
     setBusyId(id);
@@ -43,6 +46,7 @@ export function ProposedCommitments() {
           ? await acceptMutation.mutateAsync({ id })
           : await dismissMutation.mutateAsync({ id });
       if (!res.ok) setActionError("That didn't save — the proposal is still pending.");
+      else signal.mutate({ kind: kind === "accept" ? "verdict_accept" : "verdict_dismiss" });
     } catch {
       setActionError("That didn't save — the proposal is still pending.");
     } finally {

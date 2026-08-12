@@ -9,6 +9,8 @@
  */
 import { buildWiringCensus } from "@/lib/observability/wiring-census";
 import { buildTrustLadder } from "@/lib/ai/trust-ladder";
+import { buildHomeDecisionMetrics } from "@/lib/observability/home-decision-metrics";
+import { buildWisdomGateSpc, buildCalibrationReport } from "@/lib/brain/judgment-quality";
 import { prisma } from "@/lib/prisma";
 
 function dbHost(): string {
@@ -31,6 +33,32 @@ async function main(): Promise<void> {
   const counts: Record<string, number> = {};
   for (const l of census.lanes) counts[l.status] = (counts[l.status] ?? 0) + 1;
   console.log("\n  status counts:", counts);
+
+  // BDN-104/105/106 · the same discipline: read models get run against
+  // PROD before they ship, because both defects found on 2026-08-12 were
+  // invisible to green unit tests over fixtures.
+  const home = await buildHomeDecisionMetrics(7);
+  console.log(
+    `\n── HOME DECISIONS (7d) ── total=${home.total} verdicts=${home.verdicts} resumes=${home.resumes} activeDays=${home.activeDays}`,
+  );
+  if (home.note) console.log(`  note: ${home.note}`);
+
+  const spc = await buildWisdomGateSpc();
+  console.log(
+    `\n── WISDOM GATE (8wk) ── promoted=${spc.totals.promoted} gateRejected=${spc.totals.gateRejected} ` +
+      `dupeSkipped=${spc.totals.dupeSkipped} failed=${spc.totals.failed} parked=${spc.totals.parked} ` +
+      `total=${spc.totals.total} decided=${spc.decided} underSampled=${spc.underSampled}`,
+  );
+
+  const cal = await buildCalibrationReport();
+  console.log(`\n── CONFIDENCE CALIBRATION ── resolved=${cal.totalResolved}`);
+  for (const b of cal.bands) {
+    console.log(
+      `  ${b.band.padEnd(4)} resolved=${b.resolved} kept=${b.kept} unresolved=${b.unresolved} ` +
+        `hitRate=${b.hitRate === null ? "n/a" : `${Math.round(b.hitRate * 100)}%`}`,
+    );
+  }
+  if (cal.note) console.log(`  note: ${cal.note}`);
 
   const ladder = await buildTrustLadder();
   console.log(`\n── TRUST LADDER · ${ladder.windowDays}d · flag ${ladder.flagOn ? "ON" : "OFF"} ──`);
