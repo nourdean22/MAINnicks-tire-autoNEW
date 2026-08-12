@@ -50,7 +50,15 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12 (wave 6): BOTH A/Bs RAN — targeted skeptic (gate perfect 0
+DONE 2026-08-12 (wave 7): BIGGER RERUNS — both interventions evidence-REJECTED.
+Skeptic frame: baseline 7 · skeptic 6 · unstable 5 at n=16 framed (minimax-m3
+self-challenges; do NOT wire; gate stays as tested primitive). Compact cut:
+REVERSED to incumbent 4-1-9 at n=14 (full prompt wins context-grounded asks) —
+compaction requires the JIT-retrieval half FIRST; that build (agenda/behavioral/
+intake behind retrieval) is now the top code item. Harness: JUDGE_REPS +
+JUDGE_SKIP (16x2 blew the 600s ceiling — run halves). Meta-verdict for the next
+planner: plans #18-#21 treated an 84%-sycophancy context-polluted baseline that
+the measured system does not have. Prior wave 6: BOTH A/Bs RAN — targeted skeptic (gate perfect 0
 mismatches, frame 2-2 wash → NOT wired; gate shipped as
 `lib/ai/vnext/assertion-pressure.ts`) and compact prompt (−23% context,
 compact 2 · incumbent 0 · 4 unstable → ahead but not decisive; live flip

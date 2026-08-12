@@ -1,0 +1,67 @@
+{
+  "incumbentChars": 40842,
+  "compactChars": 31594,
+  "dropped": [
+    "## Processing intake (3118 ch)",
+    "## Behavioral patterns (1857 ch)",
+    "## ACTIVE AGENDA ITEMS (4270 ch)"
+  ],
+  "results": [
+    {
+      "id": "strategy-1",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "strategy-2",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "agenda-dependent",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "casual",
+      "verdict": "A"
+    },
+    {
+      "id": "decision",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "content-lite",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "strategy-3",
+      "verdict": "B"
+    },
+    {
+      "id": "strategy-4",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "agenda-2",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "agenda-3",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "factual-1",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "memory-1",
+      "verdict": "A"
+    },
+    {
+      "id": "comms-1",
+      "verdict": "A"
+    },
+    {
+      "id": "decision-2",
+      "verdict": "A"
+    }
+  ]
+}
