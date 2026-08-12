@@ -39,6 +39,8 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   // 2026-07-22 · authority-kernel controls
   const privateMode = useChatUiStore((s) => s.privateMode);
   const setPrivateMode = useChatUiStore((s) => s.setPrivateMode);
+  const turbo = useChatUiStore((s) => s.turbo);
+  const setTurbo = useChatUiStore((s) => s.setTurbo);
   const posture = useChatUiStore((s) => s.posture);
   const setPosture = useChatUiStore((s) => s.setPosture);
   const depth = useChatUiStore((s) => s.depth);
@@ -320,6 +322,17 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           {actionPermission === "draft" ? "actions" : actionPermission}
         </button>
         <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setTurbo(!turbo)}
+          aria-label={turbo ? "Turbo armed for the next message (tap to disarm)" : "Turbo off (tap to arm one message on the external model)"}
+          className={cn(
+            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
+            turbo ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-glass text-fg-tertiary hover:text-fg-secondary",
+          )}
+        >
+          {turbo ? "turbo · armed" : "turbo"}
+        </button>
         <button
           type="button"
           onClick={() => setPrivateMode(!privateMode)}

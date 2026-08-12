@@ -40,6 +40,14 @@ export type ChatUiState = {
   posture: "auto" | "execute" | "counsel" | "spar";
   depth: "auto" | "standard" | "deep";
   actionPermission: "read" | "draft" | "execute";
+  /** 2026-08-12 · OPTIONAL TURBO (plans #20/#21): arm ONE next message to
+   *  carry providerOverride:"anthropic" — under the cost firewall the
+   *  per-request override is the only consent that opens metered lanes.
+   *  Never sticky: use-chat-stream consumes and resets it on send.
+   *  Keyless Anthropic degrades to the normal chain, so arming it is
+   *  always safe; it becomes potent when a key is funded. */
+  turbo: boolean;
+  setTurbo: (on: boolean) => void;
   setPrivateMode: (on: boolean) => void;
   setPosture: (p: ChatUiState["posture"]) => void;
   setDepth: (d: ChatUiState["depth"]) => void;
@@ -73,6 +81,8 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   posture: "auto",
   depth: "auto",
   actionPermission: "draft",
+  turbo: false,
+  setTurbo: (turbo) => set({ turbo }),
   setPrivateMode: (privateMode) => set({ privateMode }),
   setPosture: (posture) => set({ posture }),
   setDepth: (depth) => set({ depth }),
