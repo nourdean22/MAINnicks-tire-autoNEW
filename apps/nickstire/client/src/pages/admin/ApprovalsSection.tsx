@@ -32,7 +32,7 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "needs_decision", label: "Needs decision" },
   { id: "executed", label: "Executed" },
   { id: "rejected", label: "Rejected" },
-  { id: "failed", label: "Failed" },
+  { id: "failed", label: "Failed / stuck" },
   { id: "all", label: "All" },
 ];
 
@@ -67,6 +67,10 @@ function StatusPill({ status }: { status: string }) {
   const cfg: Record<string, { cls: string; icon: React.ReactNode }> = {
     draft: { cls: "bg-amber-500/10 text-amber-600", icon: <Clock className="w-3 h-3" /> },
     pending_review: { cls: "bg-amber-500/10 text-amber-600", icon: <Clock className="w-3 h-3" /> },
+    // approved/executing are crash-orphan states when seen at rest — they must
+    // read as "needs attention", never as a neutral gray done-ness.
+    approved: { cls: "bg-red-500/10 text-red-500", icon: <RefreshCw className="w-3 h-3" /> },
+    executing: { cls: "bg-red-500/10 text-red-500", icon: <Clock className="w-3 h-3" /> },
     executed: { cls: "bg-emerald-500/10 text-emerald-500", icon: <CheckCircle2 className="w-3 h-3" /> },
     rejected: { cls: "bg-muted text-muted-foreground", icon: <XCircle className="w-3 h-3" /> },
     failed: { cls: "bg-red-500/10 text-red-500", icon: <XCircle className="w-3 h-3" /> },
@@ -288,15 +292,25 @@ export default function ApprovalsSection() {
                   </div>
                 )}
 
-                {p.status === "failed" && (
+                {/* failed = executor threw; approved = crash orphan whose
+                    execution claim never landed (provably never ran) — both
+                    safely retryable. `executing` is deliberately excluded: the
+                    action may have completed before the terminal write. */}
+                {(p.status === "failed" || p.status === "approved") && (
                   <button
                     onClick={() => retry.mutate({ id: p.id })}
                     disabled={retry.isPending}
                     className="inline-flex items-center gap-1.5 min-h-[44px] text-xs font-medium bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Retry execution
+                    {p.status === "approved" ? "Resume execution" : "Retry execution"}
                   </button>
+                )}
+                {p.status === "executing" && (
+                  <div className="text-[11px] text-amber-600">
+                    Stuck mid-execution? The action may already exist — verify (callbacks/bookings) before
+                    doing anything by hand. This row never auto-retries.
+                  </div>
                 )}
               </li>
             );

@@ -218,9 +218,13 @@ export async function createProposal(input: CreateProposalInput): Promise<Create
     });
   } catch (err) {
     // Unique-index race on the idempotency key: the row exists — that IS the
-    // at-most-once guarantee working. Re-select and report the dedup.
+    // at-most-once guarantee working. Re-select and report the dedup. Check
+    // the driver code AND the message text (repo idiom — message wording is
+    // driver-version-dependent).
     const message = err instanceof Error ? err.message : String(err);
-    if (input.idempotencyKey && /duplicate/i.test(message)) {
+    const isDup =
+      (err as { code?: string })?.code === "ER_DUP_ENTRY" || /duplicate/i.test(message);
+    if (input.idempotencyKey && isDup) {
       const [existing] = await d
         .select({ id: adminProposals.id })
         .from(adminProposals)
@@ -371,12 +375,28 @@ export async function approveAndExecute(id: string, reviewer: LedgerActor): Prom
   return runExecution(id, reviewer);
 }
 
-/** Operator retry for a failed execution: failed → approved → executing → …. */
+/**
+ * Operator retry: failed → approved → executing → …, and RESUME for a crash
+ * orphan resting at `approved` (the approve CAS landed but the execution claim
+ * never did — the executor definitively never ran, so resuming is safe; the
+ * executing-claim CAS still serializes concurrent resumes).
+ *
+ * A row stuck at `executing` is deliberately NOT resumable: the process may
+ * have died AFTER the executor's insert but BEFORE the terminal write, so the
+ * action may already exist. That ambiguity is operator territory (the
+ * publish-`ambiguous` doctrine) — auto-retrying it is how you double-create.
+ */
 export async function retryExecution(id: string, reviewer: LedgerActor): Promise<ReviewOutcome> {
   const reApproved = await casTransition(id, ["failed"], "approved", { reviewedBy: reviewer.actor });
   if (!reApproved) {
     const row = await getProposal(id);
-    return { ok: false, status: (row?.status as ProposalStatus) ?? "missing", error: "Not in failed" };
+    if (row?.status !== "approved") {
+      return {
+        ok: false,
+        status: (row?.status as ProposalStatus) ?? "missing",
+        error: "Only failed or approved-but-unexecuted proposals can be retried",
+      };
+    }
   }
   return runExecution(id, reviewer);
 }
@@ -385,7 +405,16 @@ async function runExecution(id: string, reviewer: LedgerActor): Promise<ReviewOu
   const claimed = await casTransition(id, ["approved"], "executing");
   if (!claimed) {
     const row = await getProposal(id);
-    return { ok: false, status: (row?.status as ProposalStatus) ?? "missing", error: "Execution already claimed" };
+    const status = (row?.status as ProposalStatus) ?? "missing";
+    // Accurate message (review finding): a lost claim usually means a
+    // CONCURRENT executor won it — but a transient DB failure leaves the row
+    // resting at `approved`, where "already claimed" would mislead the
+    // operator away from the Resume button.
+    const error =
+      status === "approved"
+        ? "Could not claim execution (transient) — the row is still approved; use Resume"
+        : "Execution already claimed by a concurrent request";
+    return { ok: false, status, error };
   }
 
   const row = await getProposal(id);

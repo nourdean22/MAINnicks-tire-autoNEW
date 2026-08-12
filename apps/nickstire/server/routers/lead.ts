@@ -314,6 +314,10 @@ export const leadRouter = router({
 
       return {
         success: true,
+        // Review finding 2026-08-12: without this the activity-ledger row for
+        // every NEW lead recorded entityId "unknown" (only the dedup early
+        // return carried leadId). Additive — no client destructures against it.
+        leadId,
         urgencyScore: scoring.score,
         recommendedService: scoring.recommendedService,
       };

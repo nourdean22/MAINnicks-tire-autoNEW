@@ -74,9 +74,30 @@ export function maskEmail(raw: string): string {
 }
 
 /**
- * Key-based PII masking over a snapshot object (recursive, cycle-safe).
+ * Free-text scrubbing (review finding, 2026-08-12): key-based masking alone
+ * lets PII through VALUES — a public visitor typing "call me at 216-555-1234"
+ * into a symptom box would land verbatim in a ledger row. So every string
+ * value is also scrubbed for embedded phone shapes (7+ digits, separators
+ * allowed — short figures like "$450" or a model year never match) and email
+ * shapes. Last 4 digits survive so an operator can still correlate.
+ */
+const EMBEDDED_EMAIL = /[\w.+-]+@[\w-]+\.[\w.]+/g; // pii-allow: matcher that REMOVES emails from ledger snapshots
+const EMBEDDED_PHONE = /(?<!\d)(?:\+?\d[\s().-]{0,2}){6,14}\d(?!\d)/g;
+
+export function scrubFreeText(raw: string): string {
+  return raw
+    .replace(EMBEDDED_EMAIL, (m) => maskEmail(m))
+    .replace(EMBEDDED_PHONE, (m) => {
+      const digits = m.replace(/\D/g, "");
+      return digits.length >= 7 ? `•••${digits.slice(-4)}` : m;
+    });
+}
+
+/**
+ * PII masking over a snapshot object (recursive, cycle-safe).
  * Values under phone-like keys keep their last 4 digits; email-like keys keep
- * first char + domain. Everything else passes through untouched.
+ * first char + domain; EVERY other string value is scrubbed for embedded
+ * phone/email shapes before it lands.
  */
 export function sanitizeSnapshot(
   snap: Record<string, unknown> | null | undefined,
@@ -87,7 +108,7 @@ export function sanitizeSnapshot(
     if (typeof value === "string") {
       if (PHONE_KEY.test(key)) return maskPhone(value);
       if (EMAIL_KEY.test(key)) return maskEmail(value);
-      return value;
+      return scrubFreeText(value);
     }
     if (Array.isArray(value)) return value.map((v) => walk(v, key));
     if (value && typeof value === "object") {

@@ -210,6 +210,34 @@ describe("approveAndExecute — the one execution path", () => {
   });
 });
 
+describe("retryExecution — crash-orphan semantics", () => {
+  const row = {
+    id: "22222222-2222-4222-8222-222222222222",
+    actionType: "create_callback",
+    payloadJson: { name: "Jane", phone: "2168620005", reason: "retry me" },
+    status: "executing",
+  };
+
+  it("RESUMES an approved crash orphan (execution claim never landed — provably never ran)", async () => {
+    const { retryExecution } = await import("./proposals");
+    dbState.updateResults = [0, 1, 1]; // failed→approved loses, claim wins, terminal write
+    dbState.selectRows = [{ ...row, status: "approved" }];
+    const outcome = await retryExecution(row.id, REVIEWER);
+    expect(outcome).toMatchObject({ ok: true, status: "executed" });
+    expect(createCallbackRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("REFUSES a row stuck at executing — the action may already exist", async () => {
+    const { retryExecution } = await import("./proposals");
+    dbState.updateResults = [0]; // failed→approved loses
+    dbState.selectRows = [{ ...row, status: "executing" }];
+    const outcome = await retryExecution(row.id, REVIEWER);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.status).toBe("executing");
+    expect(createCallbackRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("rejectProposal", () => {
   it("rejects a reviewable row and never touches an executor", async () => {
     dbState.updateResults = [1];

@@ -79,6 +79,26 @@ describe("PII masking", () => {
     expect(sanitizeSnapshot(null)).toBeNull();
     expect(sanitizeSnapshot(undefined)).toBeNull();
   });
+
+  it("scrubs phone/email shapes EMBEDDED in free-text values (review finding)", () => {
+    // A public visitor typing contact info into a symptom box must not land
+    // verbatim in a ledger row — key-based masking alone cannot see this.
+    const out = sanitizeSnapshot({
+      symptom: "car makes a noise, call me at 216-555-1234 or jane.d@example.com thanks",
+    });
+    const symptom = (out as { symptom: string }).symptom;
+    expect(symptom).not.toContain("216-555-1234");
+    expect(symptom).not.toContain("jane.d@example.com");
+    expect(symptom).toContain("•••1234");
+    expect(symptom).toContain("j•••@example.com");
+  });
+
+  it("leaves benign numbers in free text alone — prices, years, sizes", () => {
+    const out = sanitizeSnapshot({
+      symptom: "2015 Honda, quoted $450 for 225/65R17 tires",
+    });
+    expect((out as { symptom: string }).symptom).toBe("2015 Honda, quoted $450 for 225/65R17 tires");
+  });
 });
 
 describe("withActivityLedger middleware flow", () => {
