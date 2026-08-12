@@ -111,7 +111,7 @@ function MissionsPageInner() {
 
   return (
     <MissionDispatchProvider actions={actions}>
-      <div className="space-y-4 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
+      <div className="mx-auto w-full max-w-5xl space-y-5 pb-[env(safe-area-inset-bottom,0px)]">
         {!executionModeActive && (
           <PageHeader
             eyebrow="Mastery Loop"
@@ -192,25 +192,63 @@ function MissionsPageInner() {
               presets={["Which mission should I push today?", "Which mission is stalling?", "What's the next move across all my missions?", "Summarize my week so far."]}
             />
             <CoachEventBanner surface="tasks" />
-            <NicksMorningBrief tasks={tasks} missions={missions} />
-            <TopMissionToday missions={missions} tasks={tasks} />
+            <section aria-labelledby="today-focus-heading" className="space-y-3">
+              <div className="flex items-end justify-between gap-3 px-1">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--gold)]/80">
+                    today · focus deck
+                  </p>
+                  <h2 id="today-focus-heading" className="mt-1 text-base font-semibold tracking-tight text-[var(--text-primary)]">
+                    Choose the next move
+                  </h2>
+                </div>
+                <span className="hidden text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--text-tertiary)] sm:block">
+                  one clear move at a time
+                </span>
+              </div>
 
-            <Suspense fallback={<div className="h-16 w-full animate-pulse rounded-lg bg-zinc-900/50 border border-zinc-800" />}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <NicksMorningBrief tasks={tasks} missions={missions} />
+                <TopMissionToday missions={missions} tasks={tasks} />
+              </div>
+            </section>
+
+            <Suspense fallback={<div className="h-16 w-full animate-pulse rounded-lg border border-zinc-800 bg-zinc-900/50" />}>
               <HealthGovernorStrip />
             </Suspense>
 
-            <MissionsHealthStrip missions={missions} tasks={tasks} />
-            <MissionsRescueStrip tasks={tasks} />
-            <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
+            <section aria-label="board signals" className="grid gap-3 sm:grid-cols-2">
+              <MissionsHealthStrip missions={missions} tasks={tasks} />
+              <MissionsRescueStrip tasks={tasks} />
+            </section>
 
-            <div className="flex items-center gap-2 px-1">
+            <section aria-labelledby="capture-heading" className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+                    capture
+                  </p>
+                  <h2 id="capture-heading" className="mt-1 text-sm font-semibold text-[var(--text-primary)]">
+                    Add a task or mission
+                  </h2>
+                </div>
+                <span className="hidden text-[10px] font-mono text-[var(--text-tertiary)] sm:block">
+                  keep it actionable
+                </span>
+              </div>
+              <div className="mt-3">
+                <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
+              </div>
+            </section>
+
+            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="mission actions">
               <button
                 type="button"
                 onClick={() => {
                   openMissionEdit(null, undefined);
                   telemetry.event("createMissionOpen", { source: "button" });
                 }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/90 hover:bg-[var(--gold)]/[0.08]"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/90 transition-colors hover:bg-[var(--gold)]/[0.08]"
               >
                 + new mission
               </button>
@@ -220,7 +258,7 @@ function MissionsPageInner() {
                   setExecutionModeActive(true);
                   telemetry.event("executionModeOpen", { source: "button" });
                 }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-amber-400 hover:bg-amber-500/10"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-amber-400 transition-colors hover:bg-amber-500/10"
               >
                 ⚡ Execution Mode
               </button>
@@ -228,7 +266,7 @@ function MissionsPageInner() {
                 type="button"
                 onClick={() => filters.setShowFilters((v) => !v)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
+                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
                   filters.showFilters ? "border-amber-500/50 bg-amber-500/10 text-amber-400" : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200"
                 )}
               >
@@ -277,11 +315,26 @@ function MissionsPageInner() {
               </div>
             )}
 
-            <MissionFeed
-              missions={filters.filteredMissions}
-              tasks={filters.filteredTasks}
-              autonomicHealth={healthQuery.data?.autonomic}
-            />
+            <section aria-labelledby="mission-board-heading" className="space-y-3">
+              <div className="flex items-end justify-between gap-3 px-1">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+                    execution board
+                  </p>
+                  <h2 id="mission-board-heading" className="mt-1 text-base font-semibold tracking-tight text-[var(--text-primary)]">
+                    Active campaigns
+                  </h2>
+                </div>
+                <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+                  {filters.filteredTasks.length} visible tasks
+                </span>
+              </div>
+              <MissionFeed
+                missions={filters.filteredMissions}
+                tasks={filters.filteredTasks}
+                autonomicHealth={healthQuery.data?.autonomic}
+              />
+            </section>
           </>
         )}
 
