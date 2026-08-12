@@ -1,0 +1,35 @@
+{
+  "incumbentChars": 40842,
+  "compactChars": 31594,
+  "dropped": [
+    "## Processing intake (3118 ch)",
+    "## Behavioral patterns (1857 ch)",
+    "## ACTIVE AGENDA ITEMS (4270 ch)"
+  ],
+  "results": [
+    {
+      "id": "strategy-1",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "strategy-2",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "agenda-dependent",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "casual",
+      "verdict": "B"
+    },
+    {
+      "id": "decision",
+      "verdict": "tie-unstable"
+    },
+    {
+      "id": "content-lite",
+      "verdict": "B"
+    }
+  ]
+}

@@ -50,7 +50,13 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12 (waves 3+4, #1516 + #1518): pins FLIPPED on Railway (verified —
+DONE 2026-08-12 (wave 6): BOTH A/Bs RAN — targeted skeptic (gate perfect 0
+mismatches, frame 2-2 wash → NOT wired; gate shipped as
+`lib/ai/vnext/assertion-pressure.ts`) and compact prompt (−23% context,
+compact 2 · incumbent 0 · 4 unstable → ahead but not decisive; live flip
+waits on larger n + agenda-JIT retrieval). Rerun bigger:
+`JUDGE_MODE=targeted JUDGE_MODEL=gpt-oss:120b railway run ... vnext-ollama-judge.ts`
+and `railway run ... vnext-prompt-ab.ts --yes` with more cases. Prior waves 3+4/#1516+#1518: pins FLIPPED on Railway (verified —
 `OLLAMA_MODEL=minimax-m3` after the 5-rep finalist rerun; `OLLAMA_FAST_MODEL=
 deepseek-v4-flash:0731`; rollback = two env vars) · `NICK_TOOL_BUDGET` live
 (default 24, was hardcoded 50) · Context-Manifest instrumentation live
