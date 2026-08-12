@@ -50,12 +50,15 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-Operator env decisions: ① `OLLAMA_FAST_MODEL=deepseek-v4-flash:0731` (bake-off:
-incumbent glm-5.2 measurably lost — high confidence); ② `OLLAMA_MODEL=minimax-m3`
-only as canary/after rerun (thin evidence vs prod history); ③ fund an
-ANTHROPIC_API_KEY only if Turbo is wanted. Agent next wave: Context-Manifest
-log-only instrumentation, then the compact-prompt A/B on the same Ollama model,
-then Eval-40 baseline (all gated against incumbents first).
+DONE 2026-08-12: pins FLIPPED on Railway (operator-instructed, verified by
+re-read — `OLLAMA_MODEL=minimax-m3` after a 5-rep finalist rerun 0.84 vs 0.8;
+`OLLAMA_FAST_MODEL=deepseek-v4-flash:0731`; rollback = reset two env vars) and
+`NICK_TOOL_BUDGET` live (default 24, was hardcoded 50; floor 10). Watch first
+prod `provider.success` lines on minimax-m3 tool traffic. Agent next wave:
+Context-Manifest log-only instrumentation → compact-prompt A/B (same Ollama
+model) → Eval-40 baseline → per-tool ranking across tiers (unlocks K≤5) →
+Skeptic-default A/B → deterministic memory max() (Phase-2). Operator-only:
+fund ANTHROPIC_API_KEY iff Turbo is wanted.
 
 ---
 
