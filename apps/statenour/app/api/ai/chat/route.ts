@@ -715,6 +715,24 @@ async function chatPostInner(req: Request) {
     log,
   });
 
+  // 2026-08-12 · Context Manifest (VNext) — log-only: record exactly what
+  // the model saw this turn (sections on the trimmer's own `\n## `
+  // boundary + sizes + prompt hash). This is the instrument the
+  // compact-prompt A/B reads before any section gets deleted; a failed
+  // manifest must never touch the turn.
+  try {
+    const { buildContextManifest } = await import("@/lib/ai/vnext/context-manifest");
+    const manifest = buildContextManifest(finalSystemPrompt);
+    log.info("context_manifest", {
+      promptChars: manifest.promptChars,
+      promptHash: manifest.promptHash,
+      sectionCount: manifest.sectionCount,
+      top: manifest.top,
+    });
+  } catch {
+    // instrumentation only — never let it affect the turn
+  }
+
   // Venice params (web search, scraping, no safety prompt, think strip) are injected
   // via custom fetch wrapper in provider.ts — NOT providerOptions (AI SDK ignores custom fields).
 
