@@ -27,6 +27,10 @@ interface InsightPreviewItem {
   nextActionPromoted: boolean;
   /** BDN-007 · status of the commitment proposed from this take's nextAction (null = never proposed). */
   commitmentStatus: string | null;
+  /** Evidence-tier WP · INFERRED for machine takes; null on legacy rows. */
+  evidenceTier: string | null;
+  /** Model's confidence in the nextAction (HIGH|MED|LOW), same extraction call. */
+  takeConfidence: string | null;
 }
 
 type TakeKind = "nextAction" | "idea" | "challenge";
@@ -220,6 +224,12 @@ export function JournalInsightsPreview() {
                       {item.nextAction.action}
                     </p>
                     <TakeLifecycle status={item.commitmentStatus} />
+                    {item.evidenceTier && (
+                      <p className="text-[8px] font-mono tracking-wider text-zinc-600 mt-0.5">
+                        {item.evidenceTier.toLowerCase()}
+                        {item.takeConfidence && ` · confidence ${item.takeConfidence.toLowerCase()}`}
+                      </p>
+                    )}
                   </div>
                   {acceptButton(
                     item,

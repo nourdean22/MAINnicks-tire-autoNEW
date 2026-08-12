@@ -208,9 +208,39 @@ export async function abandonActiveCommitment(
   return res.count === 1;
 }
 
+/**
+ * Evidence-tier + confidence off a journal take's stored JSON —
+ * PURE and exported for the test (2026-08-12 WP). Machine takes carry
+ * `evidenceTier: "INFERRED"` + `confidence: HIGH|MED|LOW` (stamped by
+ * generateJournalTake on the same funded extraction call). Anything
+ * unparseable or pre-dating the field degrades to nulls — the chip
+ * simply doesn't render; nothing ever blocks on this.
+ */
+export function parseTakeEpistemics(content: string | null | undefined): {
+  evidenceTier: string | null;
+  confidence: string | null;
+} {
+  if (!content) return { evidenceTier: null, confidence: null };
+  try {
+    const parsed = JSON.parse(content) as { evidenceTier?: unknown; confidence?: unknown };
+    const tier =
+      typeof parsed.evidenceTier === "string" &&
+      ["OBSERVED", "INFERRED", "SPECULATIVE"].includes(parsed.evidenceTier)
+        ? parsed.evidenceTier
+        : null;
+    const conf =
+      typeof parsed.confidence === "string" && ["HIGH", "MED", "LOW"].includes(parsed.confidence)
+        ? parsed.confidence
+        : null;
+    return { evidenceTier: tier, confidence: conf };
+  } catch {
+    return { evidenceTier: null, confidence: null };
+  }
+}
+
 /** Proposed commitments awaiting the operator's verdict, oldest first. */
 export async function listProposed(limit = 10) {
-  return prisma.commitment.findMany({
+  const rows = await prisma.commitment.findMany({
     where: { status: "proposed", deletedAt: null },
     orderBy: { createdAt: "asc" },
     take: Math.min(Math.max(limit, 1), 50),
@@ -223,4 +253,24 @@ export async function listProposed(limit = 10) {
       createdAt: true,
     },
   });
+
+  // Evidence-tier join (2026-08-12 WP): journal-sourced proposals carry
+  // their take's epistemics so the verdict card can say WHY to trust the
+  // proposal, not just where it came from. One indexed query; proposals
+  // from other sources (or pre-field takes) get nulls.
+  const takeKeys = rows.map((r) => r.sourceRef).filter((s): s is string => !!s?.startsWith("journal-take:"));
+  const takesByKey = new Map<string, { evidenceTier: string | null; confidence: string | null }>();
+  if (takeKeys.length > 0) {
+    const takes = await prisma.brainMemory.findMany({
+      where: { category: "journal_brain_take", key: { in: takeKeys }, deletedAt: null },
+      select: { key: true, content: true },
+    });
+    for (const t of takes) takesByKey.set(t.key, parseTakeEpistemics(t.content));
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    evidenceTier: (r.sourceRef && takesByKey.get(r.sourceRef)?.evidenceTier) ?? null,
+    evidenceConfidence: (r.sourceRef && takesByKey.get(r.sourceRef)?.confidence) ?? null,
+  }));
 }
