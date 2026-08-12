@@ -128,20 +128,36 @@ export function canAutoExecute(
   // 1. Flag gate — OFF (default) ⇒ fail-closed, today's behaviour.
   if (!getFlag("NICK_CONFIDENCE_TIER")?.isOn) return false;
 
-  // 2. Deny wall — messaging/money/person types can never pass, even
-  //    if a future edit wrongly lists one. Checked BEFORE the allow.
+  return meetsAutoBar(actionType, acceptanceRate, sampleSize);
+}
+
+/**
+ * The flag-independent half of the gate (BDN-102 scoreboard split,
+ * 2026-08-12): everything canAutoExecute checks EXCEPT the flag. The
+ * trust-ladder scoreboard needs "would this type graduate if the flag
+ * were on?" without the flag hiding the answer. The safety contract is
+ * unchanged: the EXECUTION path still goes through canAutoExecute, the
+ * flag still gates it, and every constant stays module-private.
+ */
+export function meetsAutoBar(
+  actionType: string,
+  acceptanceRate?: number,
+  sampleSize?: number,
+): boolean {
+  // Deny wall — messaging/money/person types can never pass, even
+  // if a future edit wrongly lists one. Checked BEFORE the allow.
   if (NEVER_AUTO_DENYLIST.has(actionType)) return false;
 
-  // 3. Hardcoded allowlist — must be a known-safe internal type.
+  // Hardcoded allowlist — must be a known-safe internal type.
   if (!ALLOWLIST_SET.has(actionType)) return false;
 
-  // 4. Acceptance rate — must be a real, high number.
+  // Acceptance rate — must be a real, high number.
   if (typeof acceptanceRate !== "number" || !Number.isFinite(acceptanceRate)) {
     return false;
   }
   if (acceptanceRate < AUTO_THRESHOLD) return false;
 
-  // 5. Sample floor — a thin record never earns auto-execute.
+  // Sample floor — a thin record never earns auto-execute.
   if (typeof sampleSize !== "number" || sampleSize < MIN_SAMPLES_FOR_AUTO) {
     return false;
   }

@@ -29,6 +29,8 @@ import { AgendaDesk } from "@/components/system/agenda-desk";
 // eval pass rate · OS drift). Relocated from /ultron at v10.0.529.48.
 import { ObservabilityRow } from "@/components/ultron/observability/observability-row";
 import { PageNick } from "@/components/ai/page-nick";
+import { WiringCensusPanel } from "@/components/system/wiring-census-panel";
+import { TrustLadderPanel } from "@/components/system/trust-ladder-panel";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
@@ -266,6 +268,15 @@ export default function SystemPage() {
           "Summarize the last day of system activity.",
         ]}
       />
+
+      {/* Wiring integrity (BDN-101) + autonomy graduation (BDN-102),
+          2026-08-12. Placed ABOVE the hub grid deliberately: a severed
+          lane or a type that has earned auto-execute is a reading the
+          operator should get before navigating anywhere. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <WiringCensusPanel />
+        <TrustLadderPanel />
+      </div>
 
       {/* ── NAVIGATION ───────────────────────────────────────────── */}
       {/* System hub — live-chip cards grouped by domain. Degraded

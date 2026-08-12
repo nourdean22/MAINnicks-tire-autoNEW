@@ -100,13 +100,42 @@ on the INCUMBENT mechanism.
 
 | Date | Idea | Conviction | Evidence | Outcome |
 |---|---|---|---|---|
-| 2026-08-12 | BDN-101 · dead-lane wiring census on /system (aerospace pair; the run's contrarian trade: wiring integrity OVER new agent chrome — falsifier: chrome catches a failure class the census misses by 2027-02) | HIGH | OBSERVED (5/5 retroactive detection of this week's defect class) | still live · 14/15 · OPEN |
-| 2026-08-12 | BDN-102 · trust-ladder scoreboard — expose confidence-tier's EXISTING per-type accept tallies on /system/actions; flag flip is the operator's evidence-read (casino pair) | HIGH | OBSERVED (canAutoExecute built, flag-off; verdict data flows from tonight) | still live · 13/15 · OPEN · REPEAT HIT ×3 |
+| 2026-08-12 | BDN-101 · dead-lane wiring census on /system (aerospace pair; the run's contrarian trade: wiring integrity OVER new agent chrome — falsifier: chrome catches a failure class the census misses by 2027-02) | HIGH | OBSERVED (5/5 retroactive detection of this week's defect class) | **ACTED ON same night** — shipped, and its FIRST live run found **17 severed autonomous rules** (policy-less, parking every match) + 1 never-fired rule + a `commitment.transition` handler with zero events ever published. 38 lanes total. |
+| 2026-08-12 | BDN-102 · trust-ladder scoreboard — expose confidence-tier's EXISTING per-type accept tallies on /system/actions; flag flip is the operator's evidence-read (casino pair) | HIGH | OBSERVED (canAutoExecute built, flag-off; verdict data flows from tonight) | **ACTED ON same night** — shipped; the live probe caught a scoreboard defect pre-ship (today's 424 auto-purge flips were counting as operator rejections → every type read 0% accept). Machine verdicts now excluded; honest reading is **0 real operator verdicts in 45d**. REPEAT HIT ×3. |
 | 2026-08-12 | BDN-103 · route-aware Nick — measure context_manifest contextRoute arrival, then extend TOOL_BIAS (lane went live in #1540) | MED | OBSERVED | still live · 12/15 · OPEN |
 | 2026-08-12 | BDN-104 · Home decision instrumentation — the shipped BDN-001 composition has NO sensor; its 7-day cheap test never ran (ledger rule-3 integrity item) | MED | OBSERVED | still live · 11/15 · OPEN |
 | 2026-08-12 | BDN-105 · SPC on the wisdom-quality-gate — trend accept/reject/dupe mix weekly; hand-audit week 1 promotions (manufacturing QC pair) | MED | OBSERVED | still live · 10/15 · OPEN |
 | 2026-08-12 | BDN-106 · personal confidence calibration (Brier on HIGH/MED/LOW vs outcomes; intelligence-tradecraft pair) | LOW | INFERRED | parked TOO EARLY · revisit 2026-10-15 |
 | 2026-08-12 | (cut, noted) dismiss-latency as adverse-selection signal (HFT pair) | LOW | INFERRED | parked behind BDN-102 · 9/15 |
+
+### BDN-101/102 build receipts (2026-08-12 night, operator: "101 and 102 go")
+
+Both shipped read-only, both verified against PROD not fixtures — and the
+prod run is what made them worth building:
+
+- **The census's first live run found 17 severed rules**, the same class
+  as the two the producer inspection caught by hand this afternoon. The
+  hand-inspection found 2 because it looked at 2; the census reads the
+  registry, so it found all of them. Also: `auto_followup_expired_quote`
+  has a policy but has NEVER minted a row, and the `commitment.transition`
+  handler has consumed zero events ever.
+- **The ladder's first live run exposed a defect in itself**: today's
+  424 auto-purge status flips were being counted as operator rejections,
+  so every action type read 0% acceptance — a scoreboard telling the
+  operator he rejected work he never saw. Machine approvers are now
+  excluded; the honest reading is 0 operator verdicts in 45 days.
+  **Deliberately NOT changed: the engine's own tally.** The same pollution
+  there only DEPRESSES acceptance (harder to auto-execute) — fail-safe —
+  and loosening a live autonomy gate is an operator decision, not a
+  scoreboard side effect.
+- Census scope is disclosed ON the panel (cron→artifact, URL-param→handler,
+  client-store, bridge→chat lanes and where each is actually covered) —
+  an instrument that hides its blind spots is the thing it exists to catch.
+- **Operator decisions this surfaces (not agent calls):** the 17 severed
+  rules are mostly nickstire/business-lane rules that may be intentionally
+  dormant — the census says "no policy", not "should be on". Seeding
+  policies for any of them is the same authorization class as this
+  afternoon's two.
 
 ## Calibration rules for the next scan
 
