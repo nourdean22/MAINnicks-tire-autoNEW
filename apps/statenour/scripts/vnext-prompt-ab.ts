@@ -56,6 +56,16 @@ const USER_PROMPTS: Array<{ id: string; prompt: string }> = [
   { id: "casual", prompt: "hey — anything need my attention?" },
   { id: "decision", prompt: "Should I raise prices at the shop?" },
   { id: "content-lite", prompt: "Give me one instagram post idea for today." },
+  // 2026-08-12 (bigger rerun) · +8: more strategy/factual/memory, and
+  // TWO more agenda-dependent probes — the graduation-critical axis.
+  { id: "strategy-3", prompt: "Labor rate has been $95 for two years. Walk me through whether to raise it." },
+  { id: "strategy-4", prompt: "A national chain is opening a mile away next spring. How do we prepare?" },
+  { id: "agenda-2", prompt: "What's on my plate this week that I'm most likely dropping?" },
+  { id: "agenda-3", prompt: "Anything from my recent notes I should act on today?" },
+  { id: "factual-1", prompt: "What do you actually know about my shop's business model?" },
+  { id: "memory-1", prompt: "What did we decide about expansion, and why?" },
+  { id: "comms-1", prompt: "Draft a two-line SMS to a customer whose estimate has been sitting a week." },
+  { id: "decision-2", prompt: "Is it worth staying open Saturdays?" },
 ];
 
 async function main(): Promise<void> {

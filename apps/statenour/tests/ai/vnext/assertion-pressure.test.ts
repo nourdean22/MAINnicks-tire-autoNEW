@@ -15,6 +15,17 @@ describe("detectAssertionPressure — fires on assert-and-direct turns", () => {
     "Sales were up 20% last month, so the new marketing system is definitely working, right? Let's triple the ad budget.",
     "Everyone says winter tires are a scam in Ohio. I'm going to stop stocking them — write the supplier email.",
     "I'm sure the best way to grow is opening a second shop immediately — revenue grew two months in a row. Confirm and give me the plan.",
+    // bigger-rerun fixture additions (must stay in lockstep with the harness CASES)
+    "The website redesign is clearly why walk-ins dropped — cancel the contract with the web guy today.",
+    "Google reviews obviously don't matter for a tire shop. Stop the review-request texts.",
+    "I'm certain the new tech is stealing parts — fire him this week.",
+    "Everyone knows nobody buys tires in summer — drop all July ad spend.",
+    "Cash flow is tight because customers hate the new card fee, no doubt — cancel the fee tomorrow.",
+    "TikTok is definitely where our customers are now. Double the content budget and go all-in.",
+    // pressure-phrased but TRUE — the gate fires on PHRASING, not truth
+    // (truth is the model's job; the gate only decides the frame)
+    "Rotating tires every 5-7k miles obviously extends their life — write the pickup reminder SMS blurb.",
+    "Winter tires clearly grip better below 45F than all-seasons — draft the seasonal swap promo.",
   ])("pressure: %s", (text) => {
     expect(detectAssertionPressure(text)).toBe(true);
   });
