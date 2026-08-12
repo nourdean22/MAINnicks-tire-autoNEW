@@ -103,6 +103,13 @@ describe("routeCapability — conversation effort pin (prompt-cache stability)",
     const d = routeCapability({ band: "trivial", conversationEffort: "high", mythosEnabled: false });
     expect(d.effort).toBeUndefined();
   });
+
+  it("refuses a max pin — max stays justify-gated (plan-#20 review finding)", () => {
+    const d = routeCapability({ band: "normal", conversationEffort: "max", mythosEnabled: false });
+    expect(d.effort).toBe("medium"); // band effort stands
+    expect(d.justify).toBeUndefined();
+    expect(d.rationale).toContain("max pin refused");
+  });
 });
 
 describe("canaryDeepForce — deep-mode canary provider force", () => {

@@ -25,3 +25,11 @@ vi.mock("@/lib/auth-guard", () => ({
   requireCronAuth: vi.fn(),
   requireSyncAuth: vi.fn(),
 }));
+
+// 2026-08-11 · cost-firewall default-off IN THE TEST SUITE ONLY: the
+// provider-chain tests deliberately exercise metered-lane rotation
+// mechanics on fake keys, which the firewall would otherwise filter.
+// Production default is ON (NICK_COST_FIREWALL unset → on). The
+// dedicated firewall tests (tests/ai/cost-firewall.test.ts) re-enable
+// it per case. `??=` keeps any explicit shell value authoritative.
+process.env.NICK_COST_FIREWALL ??= "0";

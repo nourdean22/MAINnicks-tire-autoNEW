@@ -39,6 +39,7 @@ import { logError } from "@/lib/utils/error-log";
 import {
   PROVIDERS_REGISTRY,
   TASK_ROUTING_PREFERENCES,
+  PROVIDER_COST_CLASS,
   type RuntimeProviderName,
   type TaskType,
 } from "@/config/ai-providers";
@@ -703,6 +704,34 @@ export interface GetModelOptions {
    * far better than others.
    */
   forceProviderFirst?: ProviderName;
+  /**
+   * 2026-08-11 · explicit operator consent to metered lanes (Turbo): a
+   * per-request provider override or the deep-canary env attestation.
+   * Internal tool forces are NOT consent — without this, the cost
+   * firewall restricts the chain to zero-incremental providers.
+   */
+  allowMetered?: boolean;
+}
+
+/** Normal-chat cost firewall — ON unless NICK_COST_FIREWALL=0. */
+export function isCostFirewallOn(): boolean {
+  return process.env.NICK_COST_FIREWALL !== "0";
+}
+
+/**
+ * 2026-08-11 · the cost firewall, as a pure filter. Under the firewall a
+ * normal lane may only try zero-incremental providers (the Ollama flat
+ * subscription); metered lanes require explicit consent (allowMetered).
+ * A key in the environment is availability, not authorization.
+ */
+export function filterByCostFirewall<T extends { name: ProviderName }>(
+  entries: readonly T[],
+  allowMetered: boolean,
+): T[] {
+  if (!isCostFirewallOn() || allowMetered) return [...entries];
+  return entries.filter(
+    (e) => isRuntimeProvider(e.name) && PROVIDER_COST_CLASS[e.name] === "zero_incremental",
+  );
 }
 
 export function getPreferredOrderForTask(taskType: TaskType): ProviderName[] {
@@ -768,23 +797,31 @@ export function getModel(
     );
   }
 
+  // 2026-08-11 · cost firewall: without explicit consent, normal lanes
+  // may only try zero-incremental providers. The AI_PROVIDER pin above
+  // stays exempt (the operator's own hand). Fail COST-CLOSED, never
+  // silently spend.
+  const costAllowed = filterByCostFirewall(ordered, opts.allowMetered ?? false);
+
   // v9.1.27 · skip providers marked failed in the last ~60s. If ALL
   // providers are flagged (worst case), we still need to return one,
   // so we fall through to the unfiltered loop below as last resort.
-  for (const entry of ordered) {
+  for (const entry of costAllowed) {
     if (entry.available() && !isProviderRecentlyFailed(entry.name)) {
       return tagModelProvider(entry.create(taskType), entry.name);
     }
   }
   // All-flagged fallback — pick any available, even if failed.
-  for (const entry of ordered) {
+  for (const entry of costAllowed) {
     if (entry.available()) {
       return tagModelProvider(entry.create(taskType), entry.name);
     }
   }
 
   throw new Error(
-    "No AI provider available. Set OLLAMA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY."
+    isCostFirewallOn() && !opts.allowMetered
+      ? "Normal-chat spend protection is on and the zero-incremental lane (Ollama) is unavailable — not routing to a metered provider. Retry in a moment, or explicitly pick a provider to authorize external spend for this turn."
+      : "No AI provider available. Set OLLAMA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY."
   );
 }
 
@@ -985,7 +1022,7 @@ export function classifyProviderFailure(err: unknown): ProviderFailure["failureC
 export async function aiChat(
   messages: AiMessage[],
   taskType: TaskType = "reason",
-  opts: { signal?: AbortSignal; budgetNearingLimit?: boolean } = {},
+  opts: { signal?: AbortSignal; budgetNearingLimit?: boolean; allowMetered?: boolean } = {},
 ): Promise<AiResponse> {
   // L.1 · external AbortSignal support · when caller passes a signal,
   // every per-provider attempt combines the external + per-attempt
@@ -1031,7 +1068,12 @@ export async function aiChat(
     const preferred = orderedProviders.find((p) => p.name === AI_PROVIDER);
     if (preferred?.available()) toTry.push(preferred);
   }
-  for (const p of orderedProviders) {
+  // 2026-08-11 · cost firewall — internal LLM lanes (judge, critic,
+  // reasoning, kn-extract) are the highest-frequency spend risk, so the
+  // same zero-incremental restriction applies here. The AI_PROVIDER env
+  // pin above stays exempt (the operator's own hand).
+  const costCandidates = filterByCostFirewall(orderedProviders, opts.allowMetered ?? false);
+  for (const p of costCandidates) {
     if (p.available() && !toTry.includes(p)) toTry.push(p);
   }
 
@@ -1274,8 +1316,12 @@ export async function aiChat(
   log.error("provider.all_failed", { tried: toTry.map(p => p.name), failureCount: failures.length });
   const lastUserMsg = nonSystemMessages.filter(m => m.role === "user").pop();
   const userHint = lastUserMsg?.content?.slice(0, 50) || "";
+  // 2026-08-11 · cost-closed honesty: when the firewall held the metered
+  // lanes shut, say so — a silent generic error would read as an outage
+  // while hiding the deliberate no-spend decision.
+  const firewallHeld = isCostFirewallOn() && !(opts.allowMetered ?? false);
   return {
-    content: `I'm having trouble connecting to my AI providers right now. ${userHint ? `You asked about "${userHint}..." — ` : ""}try again in a moment, or switch to a different mode.`,
+    content: `I'm having trouble connecting to my AI providers right now.${firewallHeld ? " Spend protection stayed on — no metered provider was tried." : ""} ${userHint ? `You asked about "${userHint}..." — ` : ""}try again in a moment, or switch to a different mode.`,
     provider: "emergency",
     model: "none",
     failures,

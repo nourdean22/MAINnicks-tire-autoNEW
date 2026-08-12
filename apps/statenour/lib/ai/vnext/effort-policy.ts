@@ -137,9 +137,21 @@ export function routeCapability(input: RouteInput): RouteDecision {
  * Hold effort constant within a conversation — changing effort breaks
  * the Anthropic prompt-cache prefix. Frontier (justify) runs are exempt:
  * they belong in their own child run, not the cached conversation.
+ *
+ * 2026-08-11 (plan-#20 review finding) · a "max" pin is REFUSED: max is
+ * the justify-gated scarce tier, and honoring a conversation-level max
+ * pin would let every subsequent normal turn run max with no
+ * justification — the exact bypass the justify invariant exists to
+ * prevent. The band's own effort stands instead.
  */
 function pinEffort(input: RouteInput, decision: RouteDecision): RouteDecision {
   if (!input.conversationEffort || decision.lane !== "claude5" || decision.justify) return decision;
+  if (input.conversationEffort === "max") {
+    return {
+      ...decision,
+      rationale: `${decision.rationale} · max pin refused (max is justify-gated, never a conversation default)`,
+    };
+  }
   if (decision.effort === input.conversationEffort) return decision;
   return {
     ...decision,

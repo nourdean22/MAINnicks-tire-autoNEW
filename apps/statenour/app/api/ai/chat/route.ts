@@ -349,6 +349,7 @@ async function chatPostInner(req: Request) {
 
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
+  let allowMetered = false;
   try {
     // Apr 28 · Tag-team Venice + Ollama Cloud. When the prompt is in
     // content-mode (heavy v5.0 engine, ~70-100kc), prefer Ollama's
@@ -413,8 +414,15 @@ async function chatPostInner(req: Request) {
     if (effectiveForce === "anthropic" && !toolMandatoryForce && !validatedProviderOverride) {
       log.info("canary_deep_anthropic", { mode });
     }
+    // 2026-08-11 · Turbo consent (cost firewall): metered lanes open ONLY
+    // on the operator's own explicit choices — a per-request provider
+    // override, or the deep-canary env attestation. Internal tool forces
+    // are NOT consent; under the firewall they degrade to the
+    // zero-incremental lane.
+    allowMetered = Boolean(validatedProviderOverride) || Boolean(canaryDeepForce(mode));
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
+      allowMetered,
       ...(effectiveForce ? { forceProviderFirst: effectiveForce } : {}),
     });
     if (toolMandatoryForce) {
@@ -863,6 +871,7 @@ async function chatPostInner(req: Request) {
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
     forceProviderFirst: effectiveForce,
+    allowMetered,
     buildConfig: buildStreamConfigFactory({
       persistBase,
       provider,
