@@ -2634,11 +2634,24 @@ export const auditLog = mysqlTable("audit_log", {
   entityId: varchar("entity_id", { length: 36 }),
   changes: json("changes"),
   ipAddress: varchar("ip_address", { length: 45 }),
+  // 0110 (hand-apply required) — attributed activity-ledger columns. All
+  // nullable/defaulted so pre-0110 writers and rows are untouched. Writers must
+  // OMIT these keys unless they have values (services/auditTrail.ts does), so
+  // inserts stay valid against a database that has not applied 0110 yet.
+  /** 'human_user' | 'ai_agent' | 'nick_receptionist' | 'public' | 'system' — varchar, not enum: out-of-enum writes lose the row under STRICT_TRANS_TABLES */
+  actorType: varchar("actor_type", { length: 24 }),
+  beforeJson: json("before_json"),
+  afterJson: json("after_json"),
+  /** 'executed' | 'proposed' — a proposed row records intent, not a completed action */
+  status: varchar("status", { length: 32 }).default("executed").notNull(),
+  /** at-most-once claim key; DB unique index, never JSON_EXTRACT dedup (nour-os-query.ts:195 incident) */
+  idempotencyKey: varchar("idempotency_key", { length: 191 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_audit_actor").on(table.actor),
   index("idx_audit_entity").on(table.entityType, table.entityId),
   index("idx_audit_created").on(table.createdAt),
+  uniqueIndex("uniq_audit_idem").on(table.idempotencyKey),
 ]);
 
 /**

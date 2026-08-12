@@ -114,12 +114,17 @@ export async function listSnapApplications(limit: number = 50): Promise<SnapAppl
   if (!d) return [];
 
   try {
+    // Explicit projections (only the fields the mapping below reads): a bare
+    // select() enumerates every schema column, which breaks against a database
+    // that has not hand-applied the 0110 ledger columns yet.
     const [submissions, statusChanges] = await Promise.all([
-      d.select().from(auditLog)
+      d.select({ id: auditLog.id, entityId: auditLog.entityId, changes: auditLog.changes, createdAt: auditLog.createdAt })
+        .from(auditLog)
         .where(eq(auditLog.action, "snap.application_submitted"))
         .orderBy(desc(auditLog.createdAt))
         .limit(limit),
-      d.select().from(auditLog)
+      d.select({ entityId: auditLog.entityId, changes: auditLog.changes, createdAt: auditLog.createdAt })
+        .from(auditLog)
         .where(eq(auditLog.action, "snap.application_status_changed"))
         .orderBy(desc(auditLog.createdAt))
         .limit(500),

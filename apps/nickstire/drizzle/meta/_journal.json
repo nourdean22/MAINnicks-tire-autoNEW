@@ -862,6 +862,13 @@
       "when": 1785475000000,
       "tag": "0109_vapi_call_archives",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "5",
+      "when": 1785490000000,
+      "tag": "0110_activity_ledger_columns",
+      "breakpoints": true
     }
   ]
 }
