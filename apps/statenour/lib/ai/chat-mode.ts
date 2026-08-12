@@ -498,8 +498,20 @@ export async function pruneTools(
 
   const selectedNames = new Set<string>();
 
+  // 2026-08-12 · env-tunable tool budget (VNext wave). Tool-selection
+  // precision degrades sharply as the exposed-tool count grows, and the
+  // old ceiling was a hardcoded 50. NICK_TOOL_BUDGET tunes it (default
+  // 24 — halves deep-mode exposure; floor 10 keeps CORE + ACTION_CORE
+  // coherent). The tiers below are priority-ordered, so the budget keeps
+  // the highest-priority tools: core → action-core → exact mentions →
+  // keyword families → semantic rank. Intent-critical tools remain
+  // guaranteed REGARDLESS of this budget — prepare-tools re-adds
+  // alwaysOn / action-intent / web-search tools AFTER pruning, so a
+  // tight budget can never break a step-0 toolChoice force.
+  const TOOL_BUDGET = Math.max(10, Number(process.env.NICK_TOOL_BUDGET) || 24);
+
   const addIfSpace = (name: string) => {
-    if (selectedNames.size >= 50) return;
+    if (selectedNames.size >= TOOL_BUDGET) return;
     if (allTools[name]) {
       selectedNames.add(name);
     }
@@ -528,7 +540,7 @@ export async function pruneTools(
   }
 
   // Tier 5: Semantic-ranked tools
-  if (userEmbedding && userEmbedding.length > 0 && selectedNames.size < 50) {
+  if (userEmbedding && userEmbedding.length > 0 && selectedNames.size < TOOL_BUDGET) {
     try {
       const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
       if (isToolEmbeddingCacheWarm()) {

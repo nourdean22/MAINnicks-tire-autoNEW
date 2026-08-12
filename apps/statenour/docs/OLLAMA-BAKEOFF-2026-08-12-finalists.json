@@ -1,0 +1,246 @@
+[
+  {
+    "model": "deepseek-v4-pro",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1190
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1150
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1333
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1132
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1120
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 832,
+        "note": ""
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 842,
+        "note": ""
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 904,
+        "note": ""
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 841,
+        "note": ""
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 866,
+        "note": ""
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1417,
+        "note": "695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1408,
+        "note": "695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1217,
+        "note": "695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1665,
+        "note": "695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1621,
+        "note": "695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1238
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1088
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1456
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1121
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1074
+      }
+    ],
+    "score": 0.8,
+    "toolRate": 1,
+    "instructionRate": 0,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "medianLatencyMs": 1150
+  },
+  {
+    "model": "minimax-m3",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2999
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1740
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2310
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1755
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2504
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 1211,
+        "note": ""
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 1201,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 1220,
+        "note": ""
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 1139,
+        "note": ""
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": 1355,
+        "note": ""
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1940,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 2288,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 2025,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1524,
+        "note": "695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1591,
+        "note": "695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1396
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1042
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1557
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1398
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1320
+      }
+    ],
+    "score": 0.84,
+    "toolRate": 1,
+    "instructionRate": 0.2,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "medianLatencyMs": 1557
+  }
+]
