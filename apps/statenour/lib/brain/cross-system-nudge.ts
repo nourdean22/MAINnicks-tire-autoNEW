@@ -22,7 +22,7 @@
  *   link:     optional deep-link
  */
 
-import { loadIdentitySnapshot, type AxisKey } from "./identity-snapshot";
+import { loadIdentitySnapshot, type AxisKey, type AxisDirection } from "./identity-snapshot";
 import { countUnresolved } from "./contradiction-surfacer";
 import { loadGhostAccuracy } from "./ghost-nick";
 import { loadActiveSkills, loadPendingSkills } from "./skill-extractor";
@@ -85,22 +85,37 @@ const WEAKNESS_FLOOR: Record<AxisKey, number> = {
   reflection_cadence: 35,
 };
 
+// 2026-08-12 · every phraser used to hardcode "(↓)" regardless of the
+// axis's ACTUAL computed direction — a promise_integrity/reflection_cadence
+// nudge read "(↓)" even on a prod snapshot where direction was "stable"
+// (value pinned at its floor, not declining). Arrow now derives from the
+// real field; "stable" gets no arrow rather than a fabricated one.
+function trendArrow(direction: AxisDirection): string {
+  if (direction === "rising") return " (↑)";
+  if (direction === "falling") return " (↓)";
+  return "";
+}
+
 // Human-readable axis phrasing for nudges
-const AXIS_NUDGE_TEXT: Partial<Record<AxisKey, (value: number) => string>> = {
-  promise_integrity: (v) =>
-    `promise integrity ${v} (↓) — check /commitments for open promises before adding more`,
-  patience_horizon: (v) =>
-    `patience horizon ${v} (↓) — you're committing to same-week deadlines; try staging 2+ weeks out`,
-  dopamine_discipline: (v) =>
-    `dopamine discipline ${v} (↓) — capture cadence drifting; set a focus block`,
-  reflection_cadence: (v) =>
-    `reflection cadence ${v} (↓) — last sit-down is stale; tonight's a good one`,
-  risk_appetite: (v) =>
-    `risk appetite ${v} (↓) — wins lately are low-stakes; pick one critical item`,
-  social_battery: (v) =>
-    `social battery ${v} (↓) — you've been heads-down alone this week`,
-  velocity: (v) =>
-    `velocity ${v} (↓) — tasks are running long vs your estimates; calibrate downward`,
+const AXIS_NUDGE_TEXT: Partial<Record<AxisKey, (value: number, arrow: string) => string>> = {
+  // 2026-08-12 · dropped the "/commitments" reference — that route has
+  // never existed, so the nudge sent the operator to a 404 every time
+  // this fired. The open promises are already visible (and now directly
+  // resolvable — Done/Drop buttons) in the pulse feed itself.
+  promise_integrity: (v, arrow) =>
+    `promise integrity ${v}${arrow} — resolve or drop the open promises in your pulse feed`,
+  patience_horizon: (v, arrow) =>
+    `patience horizon ${v}${arrow} — you're committing to same-week deadlines; try staging 2+ weeks out`,
+  dopamine_discipline: (v, arrow) =>
+    `dopamine discipline ${v}${arrow} — capture cadence drifting; set a focus block`,
+  reflection_cadence: (v, arrow) =>
+    `reflection cadence ${v}${arrow} — last sit-down is stale; tonight's a good one`,
+  risk_appetite: (v, arrow) =>
+    `risk appetite ${v}${arrow} — wins lately are low-stakes; pick one critical item`,
+  social_battery: (v, arrow) =>
+    `social battery ${v}${arrow} — you've been heads-down alone this week`,
+  velocity: (v, arrow) =>
+    `velocity ${v}${arrow} — tasks are running long vs your estimates; calibrate downward`,
 };
 
 /**
@@ -130,10 +145,11 @@ async function computeNudgesUncached(): Promise<Nudge[]> {
       const value = a.manual ?? a.value;
       if (value < WEAKNESS_FLOOR[key]) {
         const phraser = AXIS_NUDGE_TEXT[key];
+        const arrow = trendArrow(a.direction);
         nudges.push({
           severity: value < WEAKNESS_FLOOR[key] - 15 ? "high" : "medium",
           source: "identity",
-          text: phraser ? phraser(value) : `${key} weak (${value})`,
+          text: phraser ? phraser(value, arrow) : `${key} weak (${value})`,
           link: "/settings",
         });
       }

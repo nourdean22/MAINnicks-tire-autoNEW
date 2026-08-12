@@ -50,6 +50,10 @@ export interface PulseItem {
     | "mind"
     | "life"
     | "wisdom";
+  /** 2026-08-12 · set ONLY for kind:"commitment" — lets the client call
+   *  operator.resolveCommitment without parsing the numeric id back out
+   *  of the string `id` field. */
+  commitmentId?: number;
   glyph: string;
   label: string;
   text: string;
@@ -287,11 +291,14 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
       items.push({
         id: `commitment-${c.id}`,
         kind: "commitment",
+        commitmentId: c.id,
         glyph: "⚖",
         label: "PROMISE",
         text: `owed ${c.toWhom}${daysOverdue > 0 ? ` · ${daysOverdue}d overdue` : ""}: ${c.description.slice(0, 100)}`,
         tone: "warn",
-        href: "/missions",
+        // 2026-08-12 · was "/missions", which renders nothing about
+        // commitments — a dead link. Resolution is now inline (Done/Drop
+        // buttons in the pulse sheet), so no navigation target is needed.
       });
     }
 

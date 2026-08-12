@@ -146,6 +146,8 @@ import {
   listProposed,
   acceptCommitment,
   dismissProposed,
+  completeActiveCommitment,
+  abandonActiveCommitment,
 } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
 import { logError } from "@/lib/utils/error-log";
@@ -674,6 +676,35 @@ export const operatorRouter = router({
    * owns its own 90s `cached()` window. No input.
    */
   personalPulse: operatorProcedure.query(async () => buildPersonalPulse()),
+
+  /**
+   * 2026-08-12 · owner-only · resolve an ACTIVE commitment directly from
+   * the pulse ticker — "done" (completeActiveCommitment) or "drop"
+   * (abandonActiveCommitment). The prior state was chat-only: the
+   * operator had no way to close an overdue promise except conversation
+   * happening to trigger the completeCommitment tool, or the 90-day
+   * auto-expiry floor. Invalidates the personalPulse cache so the item
+   * disappears on the client's next refetch instead of surviving up to
+   * the remaining 90s server-cache window.
+   */
+  resolveCommitment: operatorProcedure
+    .input(
+      z.object({
+        commitmentId: z.number().int().positive(),
+        action: z.enum(["done", "drop"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const resolved =
+        input.action === "done"
+          ? await completeActiveCommitment(input.commitmentId)
+          : await abandonActiveCommitment(input.commitmentId);
+      if (resolved) {
+        const { invalidate } = await import("@/lib/utils/cache");
+        invalidate("ultron_personal_pulse_v3");
+      }
+      return { resolved };
+    }),
 
   /**
    * Phase B.6a · owner-only · THE unified signal payload for the HQ
