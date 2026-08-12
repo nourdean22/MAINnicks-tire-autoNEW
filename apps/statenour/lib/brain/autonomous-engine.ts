@@ -919,6 +919,15 @@ const RULES: ActionRule[] = [
 ];
 
 /**
+ * Code-derived rule registry for /system dashboards (wiring census,
+ * BDN-101). The census's own kill shot forbids hand-lists — lanes must
+ * derive from the registry that actually dispatches, which is RULES.
+ */
+export function listRuleNames(): Array<{ name: string; actionType: string }> {
+  return RULES.map((r) => ({ name: r.name, actionType: r.actionType }));
+}
+
+/**
  * Run all autonomous action rules.
  * Each rule: find items → execute action → log result.
  */

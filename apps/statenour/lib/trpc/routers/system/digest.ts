@@ -9,6 +9,8 @@ import { operatorProcedure } from "../../trpc";
 import { buildSystemChangeDigest } from "@/lib/services/system-change-digest";
 import { buildMemoryEvalReport } from "@/lib/evals/memory-eval-report";
 import { buildActionReceiptFeed } from "@/lib/services/action-receipt-feed";
+import { buildTrustLadder } from "@/lib/ai/trust-ladder";
+import { buildWiringCensus } from "@/lib/observability/wiring-census";
 
 export const digestProcedures = {
   /** F2 · "what changed since last reconciliation" + honest deploy status. */
@@ -23,6 +25,17 @@ export const digestProcedures = {
   receiptFeed: operatorProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100) }).optional())
     .query(async ({ input }) => buildActionReceiptFeed({ limit: input?.limit ?? 20 })),
+  /**
+   * BDN-102 · trust-ladder scoreboard — the per-type operator-acceptance
+   * tallies the engine already computes at fire time, rendered so the
+   * NICK_CONFIDENCE_TIER flip is an evidence-read. Read-only.
+   */
+  trustLadder: operatorProcedure.query(async () => buildTrustLadder()),
+  /**
+   * BDN-101 · wiring census — lane liveness derived from the code
+   * registries that actually dispatch. Read-only.
+   */
+  wiringCensus: operatorProcedure.query(async () => buildWiringCensus()),
   /** Active and snoozed agenda items (witnessed commitments, standing intentions, etc.) */
   agendaItems: operatorProcedure.query(async () => {
     const { prisma } = await import("@/lib/prisma");
