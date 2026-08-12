@@ -233,20 +233,19 @@ export function BottomPulseTicker() {
         />
       </div>
 
-      {open && (
-        <PulseFeedSheet
-          items={items}
-          activeIdx={safeIdx}
-          onClose={() => setOpen(false)}
-          onDismiss={(id, kind) => dismiss(id, { kind, source: "bottom", ttlMs: SNOOZE_MS })}
-          onResolve={(commitmentId, action) => resolveCommitment.mutate({ commitmentId, action })}
-          resolvingId={resolveCommitment.isPending ? (resolveCommitment.variables?.commitmentId ?? null) : null}
-          onPick={(i) => {
-            setIdx(i);
-            setOpen(false);
-          }}
-        />
-      )}
+      <PulseFeedSheet
+        open={open}
+        items={items}
+        activeIdx={safeIdx}
+        onClose={() => setOpen(false)}
+        onDismiss={(id, kind) => dismiss(id, { kind, source: "bottom", ttlMs: SNOOZE_MS })}
+        onResolve={(commitmentId, action) => resolveCommitment.mutate({ commitmentId, action })}
+        resolvingId={resolveCommitment.isPending ? (resolveCommitment.variables?.commitmentId ?? null) : null}
+        onPick={(i) => {
+          setIdx(i);
+          setOpen(false);
+        }}
+      />
 
       <style jsx>{`
         .pulse-fade {
@@ -287,7 +286,16 @@ function PulseContent({ item, row = false }: { item: PulseItem; row?: boolean })
 /** The full pulse feed — opens UPWARD above the strip on tap (the strip is
  *  fixed to the bottom). Every item readable + tappable (≥44px rows) with a
  *  visible snooze. Mirrors the top ticker's FeedSheet. */
-function PulseFeedSheet({
+/** Enter/exit pair for the feed sheet. Exported so the regression test can
+ *  pin both utilities against effects.css: unmount rides animationend, so a
+ *  typo'd or deleted exit class would mean the closed sheet NEVER unmounts. */
+export const PULSE_FEED_SHEET_ANIMATION = {
+  enter: "animate-fadeSlideUp",
+  exit: "animate-fadeSlideDown",
+} as const;
+
+export function PulseFeedSheet({
+  open,
   items,
   activeIdx,
   onClose,
@@ -296,6 +304,8 @@ function PulseFeedSheet({
   resolvingId,
   onPick,
 }: {
+  /** When false the sheet plays its exit animation, then unmounts on animationend. */
+  open: boolean;
   items: PulseItem[];
   activeIdx: number;
   onClose: () => void;
@@ -306,11 +316,32 @@ function PulseFeedSheet({
   resolvingId: number | null;
   onPick: (i: number) => void;
 }) {
+  // 2026-08-12 · the sheet used to mount/unmount on the same frame `open`
+  // flipped — no motion either way, the close visibly snapped. Same machine
+  // as more-sheet.tsx (the reference implementation): `mounted` trails
+  // `open` by one exit animation and unmount rides animationend, never a
+  // timeout. Rapid reopen mid-close is safe — swapping animation-name
+  // cancels the exit WITHOUT firing animationend, so the guard can't
+  // unmount a sheet that is open again.
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) setMounted(true);
+  }, [open]);
+  if (!mounted) return null;
+
   return (
     <>
       {/* backdrop — tap outside to close */}
       <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden />
-      <div className="absolute left-0 right-0 bottom-full z-50 max-h-[60vh] overflow-y-auto border-t border-[var(--border-default)] bg-[var(--bg-void)]/95 backdrop-blur-sm shadow-xl">
+      <div
+        onAnimationEnd={() => {
+          if (!open) setMounted(false);
+        }}
+        className={cn(
+          "absolute left-0 right-0 bottom-full z-50 max-h-[60vh] overflow-y-auto border-t border-[var(--border-default)] bg-[var(--bg-void)]/95 backdrop-blur-sm shadow-xl",
+          open ? PULSE_FEED_SHEET_ANIMATION.enter : PULSE_FEED_SHEET_ANIMATION.exit,
+        )}
+      >
         <div className="sticky top-0 flex items-center justify-between px-3 py-2 border-b border-[var(--border-default)]/50 bg-[var(--bg-void)]/95">
           <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
             Pulse · {items.length}
