@@ -50,7 +50,15 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12 (wave 7): BIGGER RERUNS — both interventions evidence-REJECTED.
+DONE 2026-08-12 (wave 8): JIT SECTION GATE LIVE — agenda/behavioral/intake
+(9,248 ch) drop ONLY on casual + social-content turns (the exact cases the
+A/Bs measured the cut free-or-winning); grounded + comms turns keep context.
+Receipt: content scenarios −9,248 ch each (headroom 2%→17%), default/sms
+unchanged. Kill-switch NICK_JIT_SECTIONS=0. Wiring lessons: the LIVE builder
+is the cached() one (not buildSystemPromptUncached), and the gate must sit
+OUTSIDE the cache closure (shared 300s keys → poison risk). Remaining half:
+retrieval-side complement (agenda via recall/tools on gated turns) before any
+further compaction. Prior wave 7: BIGGER RERUNS — both interventions evidence-REJECTED.
 Skeptic frame: baseline 7 · skeptic 6 · unstable 5 at n=16 framed (minimax-m3
 self-challenges; do NOT wire; gate stays as tested primitive). Compact cut:
 REVERSED to incumbent 4-1-9 at n=14 (full prompt wins context-grounded asks) —
