@@ -121,6 +121,16 @@ export default function OverviewSection() {
     staleTime: 90_000,
     refetchIntervalInBackground: false,
   });
+  /**
+   * Approval queue (0111). Same key + options as the shell's query in Admin.tsx
+   * so this second observer reads the shared cache instead of doubling the poll
+   * (the operationsSignal pattern above).
+   */
+  const { data: proposalCounts, isError: proposalsFailed } = trpc.proposals.counts.useQuery(undefined, {
+    refetchInterval: 60_000,
+    staleTime: 45_000,
+    refetchIntervalInBackground: false,
+  });
   const { data: freshness, refetch: refetchFreshness, isFetching: freshnessFetching, isError: freshnessFailed } =
     trpc.adminSecurity.integrationFreshness.useQuery(undefined, {
       refetchInterval: 60_000,
@@ -183,8 +193,11 @@ export default function OverviewSection() {
         opsUnknown: opsSignal?.unknown === true,
         opsTotal: opsSignal?.total,
         opsVideoProviderBlocked: opsSignal?.videoProviderBlocked,
+        proposalsFailed,
+        proposalsReadable: proposalCounts?.readable,
+        proposalsCount: proposalCounts?.count,
       }),
-    [isError, bundle?.slices, bookings, leads, callbacks, stats, opsFailed, opsSignal],
+    [isError, bundle?.slices, bookings, leads, callbacks, stats, opsFailed, opsSignal, proposalsFailed, proposalCounts],
   );
   const todayKey = getBusinessDateKey();
 

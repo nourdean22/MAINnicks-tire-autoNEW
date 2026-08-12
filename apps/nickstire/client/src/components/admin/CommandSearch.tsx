@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid } from "lucide-react";
+import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid, ClipboardList } from "lucide-react";
 // wave-181.x Customers Phase 4 · additional icons used by the new
 // Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
 import { toast } from "sonner";
@@ -221,6 +221,16 @@ export function CommandSearch({ onNavigate, onSelectCustomer, allowedSections }:
       icon: <Zap className="w-4 h-4 text-yellow-500" />,
       group: "Action",
       run: () => onNavigate("overview"),
+    },
+    // 2026-08-12 · trust ladder — the approval queue's Cmd+K door.
+    {
+      id: "action-review-approvals",
+      section: "approvals",
+      label: "Review pending approvals",
+      keywords: ["approvals", "approve", "proposals", "queue", "review", "nick", "drafts", "decide"],
+      icon: <ClipboardList className="w-4 h-4 text-violet-500" />,
+      group: "Action",
+      run: () => onNavigate("approvals"),
     },
     // 2026-05-19 · Walk-In Quote · was a top-level route, now an event-
     // bus drawer (WalkInQuoteDrawer mounted globally in Admin.tsx). This
