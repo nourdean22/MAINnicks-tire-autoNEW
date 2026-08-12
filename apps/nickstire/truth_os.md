@@ -34,6 +34,16 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-08-12 — the approval queue is live, and it is the one door
+
+`admin_proposals` (migration 0111) + the attributed activity ledger on `audit_log` (0110) shipped
+in #1541; both migrations are applied to prod and read-back verified. **Every new AI- or one-tap-
+originated write lands there as a DRAFT and executes only through a compare-and-set approval
+chain** — a rejected row cannot reach execution structurally, and executors create internal records
+only (callbacks, bookings at status `new`), never a customer send. Nick's call-end extraction feeds
+it draft-only and ships **flag-gated OFF** (`vapi_action_proposals`) — flip it, then hand-review the
+first ~10 drafts against their recordings. Contract detail in `docs/CURRENT-TRUTH.md`.
+
 ## 2026-08-08 — five defects that every internal signal reported as healthy
 
 A wave of publish-path corrections (#1430 #1432 #1438 #1439 #1440 #1442). They

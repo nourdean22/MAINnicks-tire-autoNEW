@@ -298,6 +298,44 @@ Answer-engine crawlers (`OAI-SearchBot`, `ChatGPT-User`, `PerplexityBot`,
 prerendered HTML. `GPTBot` was already present but is OpenAI's model-training
 crawler, not the agent that answers a customer question (ROS-076).
 
+### The approval queue is the one door for new AI-originated writes (2026-08-12, #1541)
+
+- **`admin_proposals` (migration 0111, applied + read-back verified 2026-08-12) is a queue of
+  INTENTS, not actions.** Every row's payload is validated against the executor registry in
+  `server/services/proposals.ts` at INTAKE, and execution is reachable only through the
+  compare-and-set chain `draft/pending_review → approved → executing → executed`. A rejected row
+  has no structural path back to execution, and two concurrent approvers race the CAS with exactly
+  one winner. Verified empty in prod at ship time (0 rows).
+- **Executors create INTERNAL records only** — `create_callback` → a `callback_requests` row,
+  `create_booking_request` → a `bookings` row at status `new`. Customer-facing sends are banned
+  from this registry by policy: the confirmation SMS still fires only from the existing operator
+  confirm path (`booking.updateStatus`). Adding an executor that texts, calls or posts would fork
+  the send-gate policy — route it through the existing chokepoints instead.
+- **Crash-orphan semantics, deliberately asymmetric.** A row resting at `approved` (the approve CAS
+  landed, the execution claim did not) is RESUMABLE — the executor provably never ran. A row stuck
+  at `executing` is NOT auto-retryable, because the process may have died after the executor's
+  insert and before the terminal write; that ambiguity is operator territory, the same doctrine as
+  a `publish_ambiguous` reel. The UI says so rather than offering a button.
+- **The five existing approval lanes are untouched** (Instagram Studio drafts, `review_replies`,
+  `sms_learning_recommendations`, `revenue_opportunities`, `nickgpt_drafts`). This table is for NEW
+  action classes only; it does not absorb them and their hash-sealing/TTL semantics still govern.
+- **Nick's call-end extraction is DRAFT-ONLY and flag-gated** (`vapi_action_proposals`, ships OFF).
+  Deterministic gate first (`classifyCall` — spam, tech failures, handled and walk-in-directed
+  calls, and any call without a verified telephony number never reach the LLM), then a pinned
+  extractor whose parse THROWS on unknown shapes. The verified caller number is the only phone a
+  draft may carry. **This does not contradict the 2026-06-05 no-rows-from-voice directive**: a
+  draft is a review artifact, and the operational row exists only after a human approves it.
+- **Attribution: `audit_log` is now an attributed ledger** (migration 0110, applied 2026-08-12):
+  `actor_type` (`human_user` | `nick_receptionist` | `public` | …), `before_json`/`after_json`
+  snapshots, `status` (`executed` | `proposed`), and a unique `idempotency_key`. Snapshots are
+  PII-scrubbed by KEY and by VALUE — a phone or email typed into a free-text field (a public
+  symptom box) is masked before it lands. The ledger middleware records only after a mutation
+  succeeds and can never break the mutation.
+- **Drafting and deciding are different permissions.** `proposals.create` resolves to
+  `callbacks.manage` (front desk can flag work from the Sales Pipeline and the call drawer);
+  approve / reject / retry require `settings.manage` (owner, manager). A queue whose buttons the
+  gate refuses is worse than no button — that is why the split exists.
+
 ## Manual or operator-gated systems
 
 - Applying SEO copy changes to source
@@ -308,6 +346,8 @@ crawler, not the agent that answers a customer question (ROS-076).
 - Resolving weak invoice or customer matches
 - Approving outbound campaigns
 - Correcting historical classifications
+- Approving anything in the `admin_proposals` queue (`/admin` → Approvals) — nothing in it executes
+  without a human tap, enforced server-side, not by hiding a button
 - Production migrations and credential rotation
 
 ## Experimental or modeled systems
