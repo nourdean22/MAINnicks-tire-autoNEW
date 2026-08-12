@@ -18,6 +18,11 @@ const { mockPrisma } = vi.hoisted(() => ({
     decisionReplay: {
       findMany: vi.fn(),
     },
+    // BDN-007 · insightsPreview joins the commitment proposed from each
+    // take (sourceRef "journal-take:<entryId>") to report lifecycle status.
+    commitment: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -30,6 +35,8 @@ describe("tRPC journal.insightsPreview", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: no commitment exists for any take (commitmentStatus: null).
+    mockPrisma.commitment.findMany.mockResolvedValue([]);
     caller = appRouter.createCaller({
       session: {
         id: "operator-1",
@@ -94,7 +101,48 @@ describe("tRPC journal.insightsPreview", () => {
       ideaPromoted: false,
       challengePromoted: false,
       nextActionPromoted: false,
+      // BDN-007 · no commitment row for this take
+      commitmentStatus: null,
+      // Evidence-tier WP · legacy take, fields unstamped
+      evidenceTier: null,
+      takeConfidence: null,
     });
+  });
+
+  it("joins the promoted commitment's status by sourceRef (BDN-007)", async () => {
+    const mockTakeDate = new Date("2026-06-14T12:00:00Z");
+    mockPrisma.brainMemory.findMany.mockResolvedValue([
+      {
+        id: "take-1",
+        key: "journal-take:entry-1",
+        content: JSON.stringify({
+          nextAction: { action: "Extract Card component", domain: "mastery" },
+        }),
+        category: "journal_brain_take",
+        updatedAt: mockTakeDate,
+        createdAt: mockTakeDate,
+        deletedAt: null,
+      },
+    ]);
+    mockPrisma.brainDump.findMany.mockResolvedValue([]);
+    mockPrisma.reflection.findMany.mockResolvedValue([]);
+    mockPrisma.situationLog.findMany.mockResolvedValue([]);
+    mockPrisma.decisionReplay.findMany.mockResolvedValue([]);
+    mockPrisma.commitment.findMany.mockResolvedValue([
+      { sourceRef: "journal-take:entry-1", status: "active", id: 7 },
+    ]);
+
+    const result = await caller.journal.insightsPreview();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].commitmentStatus).toBe("active");
+    expect(mockPrisma.commitment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          sourceRef: { in: ["journal-take:entry-1"] },
+        }),
+      }),
+    );
   });
 
   it("scrubs literal 'null'-string next actions (legacy model artifact)", async () => {
@@ -157,6 +205,9 @@ describe("tRPC journal.insightsPreview", () => {
       ideaPromoted: false,
       challengePromoted: false,
       nextActionPromoted: false,
+      commitmentStatus: null,
+      evidenceTier: null,
+      takeConfidence: null,
     });
   });
 

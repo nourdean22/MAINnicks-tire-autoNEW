@@ -25,9 +25,72 @@ interface InsightPreviewItem {
   ideaPromoted: boolean;
   challengePromoted: boolean;
   nextActionPromoted: boolean;
+  /** BDN-007 · status of the commitment proposed from this take's nextAction (null = never proposed). */
+  commitmentStatus: string | null;
+  /** Evidence-tier WP · INFERRED for machine takes; null on legacy rows. */
+  evidenceTier: string | null;
+  /** Model's confidence in the nextAction (HIGH|MED|LOW), same extraction call. */
+  takeConfidence: string | null;
 }
 
 type TakeKind = "nextAction" | "idea" | "challenge";
+
+/**
+ * BDN-007 · the take's lifecycle, stated instead of implied. The chain is
+ * real: journal-brain proposes a commitment from every kept nextAction
+ * (sourceRef "journal-take:<entryId>"), Home renders the verdict card, the
+ * pulse ticker resolves the outcome. This line reads the actual commitment
+ * status back so extraction stops looking like completion.
+ */
+function TakeLifecycle({ status }: { status: string | null }) {
+  const TERMINAL: Record<string, string> = {
+    abandoned: "dismissed",
+    expired: "expired",
+    stale: "stale",
+  };
+  const STAGE: Record<string, number> = {
+    proposed: 1,
+    accepted: 2,
+    active: 2,
+    in_progress: 2,
+    blocked: 2,
+    completed: 3,
+    verified: 3,
+  };
+  const steps = ["captured", "proposed", "active", "done"] as const;
+  const terminal = status ? TERMINAL[status] : undefined;
+  const reached = status ? (STAGE[status] ?? 1) : 0;
+
+  return (
+    <p className="text-[8px] font-mono tracking-wider text-zinc-600 mt-1 flex items-center gap-1 flex-wrap">
+      {terminal ? (
+        <>
+          <span className="text-zinc-400">captured</span>
+          <span>→</span>
+          <span className="text-zinc-400">proposed</span>
+          <span>→</span>
+          <span className="text-zinc-500">× {terminal}</span>
+        </>
+      ) : (
+        steps.map((step, i) => (
+          <span key={step} className="flex items-center gap-1">
+            {i > 0 && <span>→</span>}
+            <span
+              className={cn(
+                i < reached && "text-zinc-400",
+                i === reached && "text-emerald-400",
+                i > reached && "text-zinc-700",
+              )}
+            >
+              {step}
+              {i === 1 && reached === 1 && " · verdict on Home"}
+            </span>
+          </span>
+        ))
+      )}
+    </p>
+  );
+}
 
 export function JournalInsightsPreview() {
   const { data: insights, isLoading, refetch } = trpc.journal.insightsPreview.useQuery(undefined, {
@@ -160,6 +223,13 @@ export function JournalInsightsPreview() {
                     <p className="text-[11px] text-zinc-200 leading-snug mt-0.5">
                       {item.nextAction.action}
                     </p>
+                    <TakeLifecycle status={item.commitmentStatus} />
+                    {item.evidenceTier && (
+                      <p className="text-[8px] font-mono tracking-wider text-zinc-600 mt-0.5">
+                        {item.evidenceTier.toLowerCase()}
+                        {item.takeConfidence && ` · confidence ${item.takeConfidence.toLowerCase()}`}
+                      </p>
+                    )}
                   </div>
                   {acceptButton(
                     item,

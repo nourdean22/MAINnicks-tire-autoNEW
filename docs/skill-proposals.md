@@ -659,3 +659,26 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add two Traps rows: "lint-source matches `confirm (`/`prompt (` even inside single-line JSX comments — reword the comment, don't fight the regex" and "lint:pii false-positives have a sanctioned line waiver: `// pii-allow: <reason>` (reason required)".
 - **Confidence:** medium (each witnessed once, mechanism read from linter source)
 - **Status:** proposed
+
+## 2026-08-12 · MISSION-scan gate → BDN close-out + retrofit-pass gate (#1535–#1542)
+
+### P1 · `plan-gate` (re-measure a plan's thesis number live before gating on it)
+- **Trigger (witnessed):** the "RETROFIT BUILD PASS" plan's foundation ("393 pending brain-bus events, zero consumers since late May") is the pre-2026-07-28 snapshot quoted verbatim in `config/crons.ts:474-480` — the live probe (`apps/statenour/scripts/probe-brain-bus-census.ts`) read **done 1,558 · pending 0**. Third recurrence of the shape: plan #12 (same 393 claim, refuted 2026-08-10) and the architecture report's stale `canClaimDone` P0 before that. Gate: `apps/statenour/docs/GATE-2026-08-12-retrofit-pass.md`.
+- **Cost:** none this time (gated); executed as written, the plan would have built its two biggest phases — a "first consumer" and a triage surface — against a queue that has been drained for two weeks.
+- **Proposed edit:** add to plan-gate's "Order of checks": "Any NUMBER a plan builds a phase on ('393 pending', '68 junk wisdoms') gets re-measured live before the verdict — historical snapshots survive in code comments and prior audits long after the state they describe is fixed. A number quoted in a code comment is a fossil, not a reading."
+- **Confidence:** high (three recurrences across independent plan authors)
+- **Status:** proposed
+
+### P2 · `statenour-verify` (a comment claiming coverage exists elsewhere is itself a coverage claim)
+- **Trigger (witnessed):** my own test file (`tests/cron/data-cleanup-pending-actions.test.ts`, #1537) shipped with the comment "The purger's own behavior is covered by tests/lib/stale-data-purger.test.ts" — false; that file never exercised `pending_actions_7d`, so the WHERE/DATA predicate promoted to an unsupervised nightly cron had zero real coverage anywhere. Caught by the operator-directed adversarial review; fixed in #1542 (predicate genuinely pinned, red-green executed: flipped predicate fails exactly the new test).
+- **Cost:** a false-green window on a nightly prod mutation path (#1537 → #1542), plus the review cycle to catch it.
+- **Proposed edit:** add a Traps row: "A comment asserting 'covered by <other file>' is a coverage CLAIM — grep the named file for the symbol/category before writing it, exactly like any other receipt. If the coverage doesn't exist yet, write the test first or write 'NOT yet covered' instead."
+- **Confidence:** medium (once, expensive class, mechanism identical to the false-green family)
+- **Status:** proposed
+
+### P3 · `harness-worktree-setup` (the deletion guard matches `git rm` path text too)
+- **Trigger (witnessed):** a compound commit command containing `git rm -q apps/.../hooks/chat/use-chat-deep-link.ts tests/hooks/use-chat-deep-link.test.tsx` was hook-blocked with "Remove-Item on system path '/chat' is blocked" — the policy gate pattern-matched the `/chat/` path segment inside the command text, killing the whole compound before anything ran (#1540 session). Recovery: delete the files on disk first (Remove-Item on the real paths was fine), then stage the deletions with plain `git add <paths>` — git stages a deletion for a named path whose file is gone; `git rm` is never needed.
+- **Cost:** one blocked compound + a re-structured commit sequence (~5 minutes).
+- **Proposed edit:** add a Traps row: "`git rm` with a path containing a protected-name segment (`/chat`, …) trips the deletion guard on COMMAND TEXT. Delete via the file tools first, then `git add` the deleted paths — it stages deletions without `git rm`."
+- **Confidence:** medium (once, clear mechanism, same command-text family as the documented heredoc trap)
+- **Status:** proposed

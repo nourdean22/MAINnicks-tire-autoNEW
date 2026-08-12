@@ -10,14 +10,28 @@ bottom; gate vocabulary (`plan-gate` skill) applies.
 
 | ID | Finding | Status after gate | Evidence / next check |
 |---|---|---|---|
-| BDN-001 | Home should compile attention into Now / Decide / Resume | **OPEN · PARTIAL (~70% incumbent)** | Home already IS the operator-approved four-question decision page (`home-console.tsx`, 2026-07-25); the matrix computes one briefing + active-engagement resume cue. Genuinely new: decide-lane cap (≤3), summary-first density, resume cue when idle. WP 1 — needs operator verdict before changing the Home default. |
+| BDN-001 | Home should compile attention into Now / Decide / Resume | **SHIPPED 2026-08-12** (operator: "finish the partial opens") | Decide lane now bounded: FollowUpsList + ProposedCommitments each render 3 with the house footer expander (count badges still tell the whole-queue truth). RESUME: the matrix briefing gains an open-loop branch — a DOING task that isn't the active engagement outranks new targets, with a one-tap resume link. NOW was already the briefing. SinceLastVisit was ALREADY capped at 3 rows (scan premise partly stale — `limit` only widened the count math). |
 | BDN-002 | Approval queue needs a trust ladder | **KILL SHOT CONFIRMED → HYGIENE EXECUTED 2026-08-12** | Probe: the 468 was 100% `autonomous_action` approval="pending", 90% older than 7d; the `approval_requests` gate is EMPTY (0 pending) and already carries riskClass+expiresAt. Operator-authorized cleanup ran the INCUMBENT purger (`purgeStaleCategory("pending_actions_7d")` — not a bespoke mutation): 468 → 44 pending (424 → rejected/auto-purge, reversible, ids in `APPROVAL-QUEUE-CLEANUP-PLAN-2026-08-12.json`). Census re-run confirms 44, all ≤7d. **Sweep SCHEDULED 2026-08-12 (operator: "schedule the purger"):** the nightly `data-cleanup` cron (mega-evening fan-out, 03:00 UTC) now delegates to the same incumbent purger — one policy, two callers; producer pinned by `tests/cron/data-cleanup-pending-actions.test.ts` incl. fail-loud. Steady state: a pending autonomous action gets 7 days of review then auto-rejects. Trust UI = WATCH, now evaluable against a live, self-limiting queue. Producers INSPECTED 2026-08-12 (gate-doc addendum): both rules lack an AutomationPolicy row, so the fail-closed engine parks them nightly — a deferred-action deadlock (decision_replay_due = 3 decisions × 76 nights; memory_promotion has 501 jammed candidates whose quality gates live inside the never-executed action). Fix is an operator policy/review decision, not code. |
-| BDN-003 | One activity/receipt ledger should unify surfaces | **OPEN · PARTIAL** | Substrate exists (ActionReceipt, entity-audit, intelligence_outcomes, brain-continuity); duplication already registered in ORGANIZATION-WIRING-AUDIT. New = read-only merged timeline shell (WP 3). Do NOT port nickstire's DoD compiler (deep-upgrade gate 2026-08-03). |
-| BDN-004 | Nick should act in context, not only in Chat | **OPEN · PARTIAL** | PageContextBridge already mounted app-wide (`app/(mastery)/layout.tsx`) + context-hints. New = per-surface action chips (WP 4). MED conviction stands. |
+| BDN-003 | One activity/receipt ledger should unify surfaces | **SHIPPED 2026-08-12** | `components/brain/receipts-timeline.tsx` — the 3-source merged feed (`buildActionReceiptFeed`: entity-audit + autonomous-action + agent receipts) with status filter pills, folded into /brain Continuity exactly as ORGANIZATION-WIRING-AUDIT §6/§7 prescribed, superseding the entity-audit-only stream there (GlobalActivityStream file untouched, just unmounted — Home-console precedent). `receiptFeed` gained an optional limit input. Read-only, no schema. |
+| BDN-004 | Nick should act in context, not only in Chat | **SHIPPED 2026-08-12 (as a re-wire, not new chrome)** | Gate finding: the contextual chips ALREADY EXISTED on 13 surfaces (task companion, decision replay, contradictions, command palette, push URLs, …) but all landed on an empty composer — the chat-v2 migration orphaned the `?q=` handler. Restored via `use-chat-deep-link-prefill` (accepts all three historical vocabularies q/seed/prompt + cid), PREFILL-ONLY by design (no page-load auto-send under the $0 doctrine; the old hook auto-sent). ~~Known gap: contextRoute/TOOL_BIAS stays dead~~ — **superseded same day by the small-stuff sweep below (#1540): the bridge no longer self-clears on /chat and stores `contextRoute` per page, so the route hint + TOOL_BIAS lane is live end-to-end.** |
 | BDN-005 | Navigation needs one lifecycle vocabulary | **REFUTED-IN-PART** | Nav is already single-source lifecycle-verb sectioned (`nav-items.ts`: capture/execute/reflect/money/operate, 2026-06-18) and #1526 promoted the loop visually (ordinal badges, prod-verified) the same day as the scan. Demoting Money contradicts the operator's real loop. Findability test = WATCH only. |
 | BDN-006 | Health, attention, momentum, and unknown must be distinct | **CLOSED (one defect fixed; rest incumbent)** | `homeHealthState()` already enforces measured/unknown honesty ("not yet measured" is deliberate); NICK /100 is momentum (pulse ticker, staleness fixed #1524). The one real conflation — "SYSTEMS OPTIMAL" from queue counts, green-while-loading — fixed 2026-08-12 ("QUEUES CLEAR", measured-only). |
-| BDN-007 | Journal needs outcome closure, not just extraction/promotion | **OPEN · PARTIAL** | captured→proposed→accepted/dismissed chain is live (WP-16, sourceRef idempotency); outcome capture exists via pulse-ticker resolve. New = per-take visible state/outcome line (WP 5). |
-| BDN-008 | Progressive disclosure and calm color semantics should be default | **OPEN · MERGED into BDN-001** | Honest-state contract (skeleton / failure-as-failure / measured-zero-quiet) is the standing house pattern; remaining delta is summary-first density, same build as WP 1. |
+| BDN-007 | Journal needs outcome closure, not just extraction/promotion | **SHIPPED 2026-08-12** | `insightsPreview` now joins the commitment proposed from each take (one indexed query by `sourceRef "journal-take:<entryId>"` — no such query existed anywhere) and the take card renders a lifecycle line: captured → proposed → active → done, with terminal states (× dismissed / expired / stale) stated, not implied. Extraction no longer looks like completion. |
+| BDN-008 | Progressive disclosure and calm color semantics should be default | **SHIPPED with BDN-001** | Summary-first density on the Decide lane (one disclosure control per cluster, house expander pattern); honest-state contract was already standing house doctrine. |
+
+**Small-stuff sweep (2026-08-12, operator: "wasn't there smaller stuff?"):**
+① dead `/system/history` links on Home's since-last-visit rows (and inside
+the unmounted GlobalActivityStream) → retargeted to the Continuity
+timeline; ② the page-context bridge CLEARED its own payload on /chat —
+anchors died in the same frame chat needed them — now /chat preserves the
+source page's context and every page stores `contextRoute`, activating the
+server's route hint + TOOL_BIAS lane (dead since Wave 30) end-to-end;
+③ `?h=1` history-drawer deep-link honored; ④ the orphaned AUTO-SENDING
+old deep-link hook deleted (a remount would have fired a model turn on
+page load). Still operator-only: the BDN-002 producer decision menu (auto
+policies / 9 due replays). Still consciously left: BDN-005 relabel
+(WATCH), since-last-visit's silent-error state (deliberate), `?mode=flow`
+(no flow mode exists in chat-v2).
 
 **Scan calibration note:** this scan measured better than the 2026-08 plan
 cohort — accurate file citations, self-flagged kill shots, admitted fallback
@@ -25,6 +39,55 @@ runtime — but was blind to same-day ships (#1524/#1526/#1528) and to the
 operator-approved provenance of the compositions it proposed replacing.
 Next scan should diff against `git log` for the trailing 7 days before
 ranking findings.
+
+## 2026-08-12 (evening) — second plan same day: "RETROFIT BUILD PASS"
+
+An 8-phase unattended retrofit plan arrived hours after the BDN arc
+shipped. **Gated, not executed** — full verdicts in
+[GATE-2026-08-12-retrofit-pass.md](GATE-2026-08-12-retrofit-pass.md).
+~85% incumbent/refuted: its thesis fact ("393 pending brain-bus events,
+zero consumers") is the pre-2026-07-28 snapshot quoted in the cron
+manifest — live probe shows **done: 1,558 · pending: 0**, drained to
+within the 15-min cadence; its Phase-4 prerequisite `THE-BRIEF.md` does
+not exist in the repo; Phases 3/6/7/8 prescribe surfaces that are native
+or shipped this same day (#1526, #1535-#1540, AutomationPolicy +
+confidence-tier). Survivors registered as WPs — **all three CLOSED same day (operator:
+"do the best recommended fixes")**:
+- **Evidence-tier: SHIPPED, zero-DDL, zero new spend.** The vocabulary
+  source is the MISSION scan's own discipline (OBSERVED/INFERRED/
+  SPECULATIVE × HIGH/MED/LOW — THE-BRIEF.md never existed).
+  `generateJournalTake` stamps `evidenceTier:"INFERRED"` structurally and
+  asks the SAME funded extraction call for nextAction confidence; the take
+  card and the Home proposal card both render the chip (null on legacy
+  takes → nothing renders; a save never blocks). `parseTakeEpistemics`
+  pure + pinned.
+- **Streak audit: DONE — the plan's premise is REFUTED.** No persisted
+  mechanism resets to zero on one miss (DAILY → 1, lazily; WEEKLY never;
+  xp-decay = operator-decided 7d grace + 1%/day). Only read-only display
+  walks zero out. "Never miss twice" NOT built. One real inconsistency
+  flagged for the operator (game-feel domain, same HOLD class as
+  xp-decay): `task-context.ts` labels a daily "broken" at 36h while the
+  persisted counter resets only at ≥2 ET-day gaps — display can say
+  broken while the streak keeps counting.
+- **PageNick mounts: SHIPPED where they add coverage, skipped where
+  incumbent.** Gate-eye correction to the WP itself: Journal and Missions
+  ALREADY carry a Nick surface (NickSidePane) — a second affordance there
+  is clutter, not coverage. Mounted on /system (with the page's own
+  fetched truth — buildPageData has no system case) and the Business
+  Clients tab (page="crm", compact counts only — no contact PII in the
+  prompt). /api/ai/page-insight is cost-firewalled to the ollama lane and
+  rate-limited 10/min.
+
+**Producer decision menu: EXECUTED same day (operator-authorized).**
+`autonomous-action.memory_promotion` + `autonomous-action.decision_replay_due`
+policies seeded `approvalClass:"auto"` via the canonical
+`scripts/seed-policies.ts` (declarations in code, idempotent upsert — NOT a
+one-off DB write; live seed 80/80, both rows probe-verified). The
+deferred-action deadlock is closed at the source: tonight's engine pass runs
+both rules through their built-in gates (≤3 promotions + ≤3 replay reminders
+per night); the 9 due replays start getting their designed reminders.
+
+Calibration rule 5 fired exactly as written — and rule 6 below is new.
 
 ## Calibration rules for the next scan
 
@@ -39,3 +102,9 @@ ranking findings.
 5. (Added post-gate) Gate against `plan-gate` incumbents BEFORE ranking:
    UPSTREAMS.md, CURRENT-TRUTH.md, the trailing week of `git log`, and this
    ledger.
+6. (Added after the retrofit-pass gate) A number quoted as the plan's
+   thesis ("393 pending", "68 junk wisdoms") must be re-measured live
+   before any phase is built on it — historical snapshots survive in code
+   comments and prior audits long after the state they describe is fixed,
+   and this failure shape has now recurred in three plans (#12, the
+   architecture report, this one).

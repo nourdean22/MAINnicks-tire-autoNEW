@@ -28,6 +28,7 @@ import { AgendaDesk } from "@/components/system/agenda-desk";
 // ObservabilityRow · 4-tile ops telemetry (cost SLO · voice latency ·
 // eval pass rate · OS drift). Relocated from /ultron at v10.0.529.48.
 import { ObservabilityRow } from "@/components/ultron/observability/observability-row";
+import { PageNick } from "@/components/ai/page-nick";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
@@ -238,6 +239,33 @@ export default function SystemPage() {
 
       {/* Ops telemetry — cost SLO · voice latency · eval pass · drift */}
       <ObservabilityRow />
+
+      {/* Contextual Nick (BDN-004 WP, 2026-08-12) — collapsed one-tap
+          analyzer on the one primary surface with NO Nick affordance
+          (Journal/Missions already carry NickSidePane). buildPageData has
+          no "system" case, so pass the page's own already-fetched truth;
+          /api/ai/page-insight is cost-firewalled to the ollama lane. */}
+      <PageNick
+        page="system"
+        data={{
+          overallStatus,
+          dbLatencyMs: d?.db?.latency_ms,
+          kpis: d?.kpis,
+          devices: d?.devices,
+          alerts: health?.alerts,
+          memories: brain?.memories?.total,
+          automationRules: brain?.automationRules?.active,
+          memoryEvals: memoryEvalsQuery.data
+            ? { passed: memoryEvalsQuery.data.passed, failed: memoryEvalsQuery.data.failed }
+            : undefined,
+          recentReceipts: receiptFeedQuery.data?.counts,
+        }}
+        presets={[
+          "What needs my attention first?",
+          "Anything degraded that I would not notice from the hub grid?",
+          "Summarize the last day of system activity.",
+        ]}
+      />
 
       {/* ── NAVIGATION ───────────────────────────────────────────── */}
       {/* System hub — live-chip cards grouped by domain. Degraded

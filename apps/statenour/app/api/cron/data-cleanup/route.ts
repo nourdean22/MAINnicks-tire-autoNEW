@@ -8,7 +8,10 @@ export const maxDuration = 60;
 /**
  * GET /api/cron/data-cleanup — Retention cleanup
  * Deletes old records based on retention windows.
- * Schedule: 3am Sundays
+ * Schedule: NIGHTLY 03:00 UTC via the mega-evening fan-out
+ * (config/crons.ts + lib/inngest/jobs.ts EVENING_JOBS). The old
+ * "3am Sundays" line here was pre-Wave-AE and misled a 2026-08-12
+ * review into reporting the pending-actions sweep as weekly.
  */
 export const GET = cronHandler(async () => {
   const deletedByTable: Record<string, number> = {};

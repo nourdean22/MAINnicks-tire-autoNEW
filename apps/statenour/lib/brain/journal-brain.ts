@@ -417,7 +417,8 @@ Return ONLY valid JSON:
   "idea": ${wantIdea ? '"one bold, specific, NON-OBVIOUS idea or angle this sparks (1-2 sentences)"' : "null"},
   "challenge": ${wantChallenge ? '"one sharp challenge — a counter-question, blind spot, or uncomfortable truth (1 sentence). Make him think; do NOT flatter."' : "null"},
   "nextAction": "ONE concrete next move WITH timing if this entry implies action — e.g. 'Tomorrow before 11am, 25 min on the highest-leverage business task before any entertainment.' Imperative and specific to his journey. Use null if the entry implies no real action — do NOT invent one.",
-  "domain": "the life domain of that move: business|health|personal|finance|relationship|mastery — or null"
+  "domain": "the life domain of that move: business|health|personal|finance|relationship|mastery — or null",
+  "confidence": "your honest confidence that nextAction is the RIGHT next move for him now: HIGH|MED|LOW — null if nextAction is null. Do not inflate: HIGH means the entry itself makes the move near-unambiguous."
 }
 
 No preamble. Specific over generic. Blank beats fabricated: null the action if none is real. ${tone}`,
@@ -427,7 +428,7 @@ No preamble. Specific over generic. Blank beats fabricated: null the action if n
     "reason",
   );
 
-  const parsed = extractJsonObject<{ idea?: unknown; challenge?: unknown; nextAction?: unknown; domain?: unknown }>(res.content);
+  const parsed = extractJsonObject<{ idea?: unknown; challenge?: unknown; nextAction?: unknown; domain?: unknown; confidence?: unknown }>(res.content);
   if (!parsed.ok) return;
   const idea = typeof parsed.value.idea === "string" ? parsed.value.idea.trim().slice(0, 600) : null;
   const challenge = typeof parsed.value.challenge === "string" ? parsed.value.challenge.trim().slice(0, 400) : null;
@@ -442,7 +443,25 @@ No preamble. Specific over generic. Blank beats fabricated: null the action if n
   const nextAction = actionText ? { action: actionText, domain: actionDomain } : null;
   if (!idea && !challenge && !nextAction) return;
 
-  const takeContent = JSON.stringify({ idea, challenge, nextAction });
+  // Evidence-tier + confidence (2026-08-12, operator-authorized WP from
+  // the retrofit-pass gate). The tier is STRUCTURAL, stamped here, never
+  // asked of the model: a machine extraction from the operator's own
+  // journal text is INFERRED by construction (the scan's own vocabulary:
+  // OBSERVED/INFERRED/SPECULATIVE). The model judges only what it can —
+  // confidence in the nextAction — on the SAME already-funded call; an
+  // unparseable value degrades to null and never blocks the save.
+  const rawConfidence =
+    typeof parsed.value.confidence === "string" ? parsed.value.confidence.trim().toUpperCase() : "";
+  const confidence =
+    nextAction && ["HIGH", "MED", "LOW"].includes(rawConfidence) ? rawConfidence : null;
+
+  const takeContent = JSON.stringify({
+    idea,
+    challenge,
+    nextAction,
+    evidenceTier: "INFERRED",
+    confidence,
+  });
   await prisma.brainMemory
     .upsert({
       where: { category_key: { category: "journal_brain_take", key: `journal-take:${id}` } },

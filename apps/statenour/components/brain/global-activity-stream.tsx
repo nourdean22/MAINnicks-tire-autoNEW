@@ -149,7 +149,9 @@ export function GlobalActivityStream({ limit = 30 }: { limit?: number }) {
             <span className="shrink-0 text-zinc-400">{formatActor(e.actor)}</span>
             <span className="text-zinc-500">·</span>
             <a
-              href={`/system/history?type=${encodeURIComponent(e.entityType)}&id=${encodeURIComponent(e.entityId)}`}
+              // 2026-08-12 · /system/history never existed (dead link) —
+              // point at the Continuity tab's merged timeline instead.
+              href="/brain?tab=continuity"
               className="truncate text-zinc-300 underline-offset-2 hover:text-zinc-100 hover:underline"
             >
               {e.entityType}
