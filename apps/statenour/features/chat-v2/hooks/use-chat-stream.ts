@@ -22,6 +22,10 @@ const PAGE_ANCHOR_KEYS = [
   "lastPinId",
   "lastReflectionId",
   "lastMissionId",
+  // 2026-08-12 · the source page's route — the server has consumed
+  // body.contextRoute (route hint + TOOL_BIAS) since Wave 30, but no
+  // text-chat client ever sent it. The bridge now stores it per page.
+  "contextRoute",
 ] as const;
 
 export function useChatStream(): ChatRuntimeController {

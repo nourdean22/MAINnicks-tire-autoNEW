@@ -19,6 +19,20 @@ bottom; gate vocabulary (`plan-gate` skill) applies.
 | BDN-007 | Journal needs outcome closure, not just extraction/promotion | **SHIPPED 2026-08-12** | `insightsPreview` now joins the commitment proposed from each take (one indexed query by `sourceRef "journal-take:<entryId>"` — no such query existed anywhere) and the take card renders a lifecycle line: captured → proposed → active → done, with terminal states (× dismissed / expired / stale) stated, not implied. Extraction no longer looks like completion. |
 | BDN-008 | Progressive disclosure and calm color semantics should be default | **SHIPPED with BDN-001** | Summary-first density on the Decide lane (one disclosure control per cluster, house expander pattern); honest-state contract was already standing house doctrine. |
 
+**Small-stuff sweep (2026-08-12, operator: "wasn't there smaller stuff?"):**
+① dead `/system/history` links on Home's since-last-visit rows (and inside
+the unmounted GlobalActivityStream) → retargeted to the Continuity
+timeline; ② the page-context bridge CLEARED its own payload on /chat —
+anchors died in the same frame chat needed them — now /chat preserves the
+source page's context and every page stores `contextRoute`, activating the
+server's route hint + TOOL_BIAS lane (dead since Wave 30) end-to-end;
+③ `?h=1` history-drawer deep-link honored; ④ the orphaned AUTO-SENDING
+old deep-link hook deleted (a remount would have fired a model turn on
+page load). Still operator-only: the BDN-002 producer decision menu (auto
+policies / 9 due replays). Still consciously left: BDN-005 relabel
+(WATCH), since-last-visit's silent-error state (deliberate), `?mode=flow`
+(no flow mode exists in chat-v2).
+
 **Scan calibration note:** this scan measured better than the 2026-08 plan
 cohort — accurate file citations, self-flagged kill shots, admitted fallback
 runtime — but was blind to same-day ships (#1524/#1526/#1528) and to the

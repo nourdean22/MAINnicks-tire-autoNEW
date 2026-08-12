@@ -148,10 +148,11 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   const signalMutation = trpc.brain.recordSuggestionSignal.useMutation();
 
   // v10.0.529.92 · Wave 36 · standalone fallback when no onSeed
-  // provided. Navigates to /chat?q=<prompt>&suggKind=X&suggId=Y so
-  // the chat page can hydrate input + transportBodyRef anchors on
-  // mount via the existing useChatDeepLink hook. Same chip strip
-  // works on /brain · /journal · anywhere without a composer.
+  // provided. Navigates to /chat?q=<prompt>&suggKind=X&suggId=Y so the
+  // chat page prefills the composer on mount (2026-08-12: handled by
+  // chat-v2's use-chat-deep-link-prefill — prefill only, never
+  // auto-send; the old useChatDeepLink handler is retired). Same chip
+  // strip works on /brain · /journal · anywhere without a composer.
   //
   // v10.0.529.97 · suggestion-loop · fire the "acted" supervised
   // signal before seeding the input. Fire-and-forget · don't block the

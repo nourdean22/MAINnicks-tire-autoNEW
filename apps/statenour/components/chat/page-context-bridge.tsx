@@ -45,6 +45,12 @@ export interface PageContextPayload {
   lastPinId?: string;
   lastReflectionId?: string;
   lastMissionId?: string;
+  /**
+   * The source page's route (2026-08-12) — feeds the server's
+   * `contextRoute` hint + TOOL_BIAS, which had NO client sender on the
+   * text-chat path since Wave 30 wired the server side.
+   */
+  contextRoute?: string;
   /** Last update timestamp · used to expire stale anchors after 10min. */
   ts: number;
 }
@@ -79,6 +85,27 @@ function extractEntity(
   }
 
   return out;
+}
+
+/**
+ * PURE and exported for the test: decide what the bridge should store for
+ * a (pathname, hash) pair. Returns null to mean "leave storage untouched".
+ *
+ * 2026-08-12 fix — the bridge used to CLEAR storage on any page without an
+ * entity anchor, and /chat has none, so navigating to chat wiped the source
+ * page's context in the same frame chat needed to send it. The whole
+ * anchor → OPERATOR CONTEXT lane was dead for cross-page navigation.
+ * Now: /chat preserves whatever the source page stored (the 10-min TTL in
+ * readPageContext bounds staleness), and every other page stores its route
+ * (plus anchors where extractable) instead of deleting.
+ */
+export function computeNextPayload(
+  pathname: string,
+  hash: string,
+): PageContextPayload | null {
+  if (pathname.startsWith("/chat")) return null;
+  const entity = extractEntity(pathname, hash);
+  return { ...entity, contextRoute: pathname, ts: Date.now() };
 }
 
 /** Read the current page context · safe on server (returns null). */
@@ -116,19 +143,10 @@ export function PageContextBridge() {
     if (typeof window === "undefined" || !pathname) return;
 
     const apply = () => {
-      const entity = extractEntity(pathname, window.location.hash || "");
-      // If nothing extracted, clear the storage so chat doesn't hold
-      // a stale anchor from an earlier page.
-      if (Object.keys(entity).length === 0) {
-        try {
-          window.localStorage.removeItem(STORAGE_KEY);
-        } catch {}
-        window.dispatchEvent(
-          new CustomEvent<PageContextPayload>(EVENT_NAME, { detail: { ts: Date.now() } }),
-        );
-        return;
-      }
-      const payload: PageContextPayload = { ...entity, ts: Date.now() };
+      const payload = computeNextPayload(pathname, window.location.hash || "");
+      // null = /chat — preserve the SOURCE page's stored context so the
+      // chat request can actually send it (see computeNextPayload).
+      if (payload === null) return;
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       } catch {}
