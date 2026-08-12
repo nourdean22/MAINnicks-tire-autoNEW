@@ -9,23 +9,34 @@ import { HomeStatePulse } from "@/components/home/home-state-pulse";
 export function HomeIdentityHeader() {
   const { todayStr, timeStr, greeting } = useCommanderGreeting();
   
-  const { data: inboxCount = 0 } = trpc.task.inboxCount.useQuery(undefined, {
+  const inboxQ = trpc.task.inboxCount.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+  const inboxCount = inboxQ.data ?? 0;
 
-  const { data: captureInboxCount = 0 } = trpc.task.captureInboxCount.useQuery(undefined, {
+  const capturesQ = trpc.task.captureInboxCount.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+  const captureInboxCount = capturesQ.data ?? 0;
 
-  const { data: pendingRequests = [] } = trpc.systemAutomation.getPendingApprovals.useQuery(undefined, {
+  const pendingQ = trpc.systemAutomation.getPendingApprovals.useQuery(undefined, {
     refetchInterval: 30_000,
   });
+  const pendingRequests = pendingQ.data ?? [];
 
-  const { data: approvalsData } = trpc.systemAutomation.approvals.useQuery(undefined, {
+  const approvalsQ = trpc.systemAutomation.approvals.useQuery(undefined, {
     refetchInterval: 30_000,
   });
+  const approvalsData = approvalsQ.data;
 
   const pendingApprovalsCount = pendingRequests.length + (approvalsData?.rows.length ?? 0);
+  // "Clear" is a MEASURED claim: every queue query answered, and every
+  // count is zero. While any query is still loading the state is unknown,
+  // not clear (same rule HomeHealthChip enforces for health).
+  const queuesMeasured =
+    inboxQ.isSuccess && capturesQ.isSuccess && pendingQ.isSuccess && approvalsQ.isSuccess;
+  const queuesClear =
+    queuesMeasured && inboxCount === 0 && captureInboxCount === 0 && pendingApprovalsCount === 0;
 
   return (
     <section
@@ -89,10 +100,17 @@ export function HomeIdentityHeader() {
                 Approvals ({pendingApprovalsCount})
               </Link>
             )}
-            {inboxCount === 0 && pendingApprovalsCount === 0 && (
+            {/* 2026-08-12 honest-copy fix (BDN-006): this said "SYSTEMS
+                OPTIMAL" — a health claim — off queue counts alone, could
+                render beside a live "Captures (n)" badge, and defaulted
+                to green while the queries were still loading. Queue
+                emptiness is the only thing measured here; say that, and
+                only once it IS measured. Health claims stay with
+                HomeHealthChip. */}
+            {queuesClear && (
               <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--gold)]/10 border border-[var(--gold)]/30 text-[10px] font-mono font-bold text-[var(--gold)] uppercase tracking-widest shadow-[0_0_15px_rgba(255,215,0,0.1)]">
                 <Zap size={14} className="pulse-live drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" />
-                SYSTEMS OPTIMAL
+                QUEUES CLEAR
               </span>
             )}
           </div>
