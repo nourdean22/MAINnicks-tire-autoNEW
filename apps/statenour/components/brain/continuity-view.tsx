@@ -34,7 +34,7 @@ import {
   Flame,
 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { GlobalActivityStream } from "@/components/brain/global-activity-stream";
+import { ReceiptsTimeline } from "@/components/brain/receipts-timeline";
 
 interface Memory {
   id: string;
@@ -122,11 +122,15 @@ export function BrainContinuityView() {
 
   return (
     <div className="space-y-4">
-      {/* v8.1 · Phase 2A continuity surface — auto-refreshing global
-          activity stream from entity_audits. Shows mutations across
-          tasks/missions/goals/memories/etc. independent of the brain-
-          memory-specific blocks below. */}
-      <GlobalActivityStream limit={20} />
+      {/* BDN-003 (2026-08-12) · ONE merged activity/receipts timeline —
+          the fold ORGANIZATION-WIRING-AUDIT §6/§7 prescribed. Supersedes
+          the entity-audit-only GlobalActivityStream here: the receipt
+          feed's 3-source merge INCLUDES entity-audit rows, plus
+          autonomous-action + agent action_receipt rows, with status
+          filters. GlobalActivityStream's file is untouched (Home-console
+          precedent: stop mounting, don't delete); its load-older
+          archaeology remains reachable via system.entityHistory drawers. */}
+      <ReceiptsTimeline limit={30} />
 
       {/* ── Totals ── */}
       <GlassCard>

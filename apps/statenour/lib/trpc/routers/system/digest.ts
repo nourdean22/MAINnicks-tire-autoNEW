@@ -4,6 +4,7 @@
  * commands + raw API routes. No mutation, no new logic — thin wrappers.
  */
 
+import { z } from "zod";
 import { operatorProcedure } from "../../trpc";
 import { buildSystemChangeDigest } from "@/lib/services/system-change-digest";
 import { buildMemoryEvalReport } from "@/lib/evals/memory-eval-report";
@@ -14,8 +15,14 @@ export const digestProcedures = {
   changeDigest: operatorProcedure.query(async () => buildSystemChangeDigest()),
   /** Truth scoreboard — does the docs corpus teach current truth? */
   memoryEvals: operatorProcedure.query(async () => buildMemoryEvalReport()),
-  /** F4 · recent action receipts (what Nick/system actually did). */
-  receiptFeed: operatorProcedure.query(async () => buildActionReceiptFeed({ limit: 20 })),
+  /**
+   * F4 · recent action receipts (what Nick/system actually did).
+   * BDN-003: optional limit so the /brain continuity timeline can pull a
+   * deeper window than the /system card's 20 without a second procedure.
+   */
+  receiptFeed: operatorProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100) }).optional())
+    .query(async ({ input }) => buildActionReceiptFeed({ limit: input?.limit ?? 20 })),
   /** Active and snoozed agenda items (witnessed commitments, standing intentions, etc.) */
   agendaItems: operatorProcedure.query(async () => {
     const { prisma } = await import("@/lib/prisma");

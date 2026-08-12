@@ -1,9 +1,12 @@
 "use client";
 
 import { trpc } from "@/lib/trpc/client";
-import { Check, X, AlertCircle, Handshake } from "lucide-react";
+import { Check, X, AlertCircle, Handshake, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils/cn";
+
+/** Decide-lane cap (BDN-001 compact Home): rows shown before the expander. */
+const COLLAPSED_LIMIT = 3;
 
 /**
  * WP-16 · 2026-07-28 · proposed-commitment verdict card.
@@ -29,6 +32,7 @@ export function ProposedCommitments() {
 
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const act = async (id: number, kind: "accept" | "dismiss") => {
     setBusyId(id);
@@ -69,6 +73,10 @@ export function ProposedCommitments() {
 
   const items = proposedQ.data?.items ?? [];
   if (items.length === 0) return null; // measured zero — quiet
+  // BDN-001 compact Home: bounded verdict set by default; the "awaiting
+  // verdict" badge above always counts the whole queue.
+  const visible = expanded ? items : items.slice(0, COLLAPSED_LIMIT);
+  const hiddenCount = items.length - COLLAPSED_LIMIT;
 
   return (
     <section
@@ -87,7 +95,7 @@ export function ProposedCommitments() {
       {actionError && <p className="text-[10px] text-amber-400">{actionError}</p>}
 
       <div className="space-y-2">
-        {items.map((item) => {
+        {visible.map((item) => {
           const isPending = busyId === item.id;
           return (
             <div
@@ -128,6 +136,25 @@ export function ProposedCommitments() {
           );
         })}
       </div>
+
+      {hiddenCount > 0 && (
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse proposals" : `Show ${hiddenCount} more proposals`}
+          className="w-full flex items-center justify-center gap-1 min-h-[44px] sm:min-h-0 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-primary)] pt-1"
+        >
+          {expanded ? (
+            <>
+              collapse <ChevronUp size={10} />
+            </>
+          ) : (
+            <>
+              {hiddenCount} more · <ChevronDown size={10} />
+            </>
+          )}
+        </button>
+      )}
     </section>
   );
 }
