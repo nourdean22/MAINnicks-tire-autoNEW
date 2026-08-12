@@ -11,12 +11,13 @@ import { consumeChatDeepLink } from "@/features/chat-v2/hooks/use-chat-deep-link
 import { useChatUiStore } from "@/features/chat-v2/stores/chat-ui-store";
 
 function slice() {
-  const { draft, setDraft, setActiveConversationId } = useChatUiStore.getState();
-  return { draft, setDraft, setActiveConversationId };
+  const { draft, setDraft, setActiveConversationId, setHistoryDrawerOpen } =
+    useChatUiStore.getState();
+  return { draft, setDraft, setActiveConversationId, setHistoryDrawerOpen };
 }
 
 beforeEach(() => {
-  useChatUiStore.setState({ draft: "", activeConversationId: null });
+  useChatUiStore.setState({ draft: "", activeConversationId: null, historyDrawerOpen: false });
 });
 
 describe("consumeChatDeepLink", () => {
@@ -46,9 +47,15 @@ describe("consumeChatDeepLink", () => {
     expect(useChatUiStore.getState().activeConversationId).toBe("conv_abc123");
   });
 
+  it("opens the history drawer via ?h=1 (nick-reasoner deep-link)", () => {
+    consumeChatDeepLink("?h=1", slice());
+    expect(useChatUiStore.getState().historyDrawerOpen).toBe(true);
+  });
+
   it("does nothing with no params", () => {
     consumeChatDeepLink("", slice());
     expect(useChatUiStore.getState().draft).toBe("");
     expect(useChatUiStore.getState().activeConversationId).toBeNull();
+    expect(useChatUiStore.getState().historyDrawerOpen).toBe(false);
   });
 });

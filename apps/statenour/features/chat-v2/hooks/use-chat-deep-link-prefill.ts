@@ -31,6 +31,7 @@ export interface DeepLinkStoreSlice {
   draft: string;
   setDraft: (draft: string) => void;
   setActiveConversationId: (id: string | null) => void;
+  setHistoryDrawerOpen: (open: boolean) => void;
 }
 
 /**
@@ -49,16 +50,21 @@ export function consumeChatDeepLink(search: string, store: DeepLinkStoreSlice): 
   if (prompt && prompt.trim() && !store.draft.trim()) {
     store.setDraft(prompt.trim());
   }
+
+  // ?h=1 — nick-reasoner's "open chat history" deep-link.
+  if (params.get("h") === "1") store.setHistoryDrawerOpen(true);
 }
 
 export function useChatDeepLinkPrefill(): void {
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const { draft, setDraft, setActiveConversationId } = useChatUiStore.getState();
+    const { draft, setDraft, setActiveConversationId, setHistoryDrawerOpen } =
+      useChatUiStore.getState();
     consumeChatDeepLink(window.location.search, {
       draft,
       setDraft,
       setActiveConversationId,
+      setHistoryDrawerOpen,
     });
   }, []);
 }

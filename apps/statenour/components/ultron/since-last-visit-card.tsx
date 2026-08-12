@@ -185,7 +185,10 @@ export function SinceLastVisitCard({ limit = 50 }: Props) {
             </span>
             <span className="truncate">
               <a
-                href={`/system/history?type=${encodeURIComponent(e.entityType)}&id=${encodeURIComponent(e.entityId)}`}
+                // 2026-08-12 · /system/history never existed (dead link,
+                // explorer-confirmed) — the merged receipts timeline on the
+                // Continuity tab is the real destination.
+                href="/brain?tab=continuity"
                 className="hover:underline underline-offset-2"
               >
                 {e.entityType}/{e.entityId.slice(0, 10)}
