@@ -178,10 +178,14 @@ export async function verifyCommitment(
  *  Reuses the same "completed" status the completeCommitment chat tool
  *  writes (not "verified") so a single vocabulary continues to describe
  *  every UI-driven completion — see identity-snapshot.ts computePromiseIntegrity. */
-export async function completeActiveCommitment(id: number): Promise<boolean> {
+export async function completeActiveCommitment(
+  id: number,
+  notes = "Completed (pulse ticker)",
+  updatedBy = "operator",
+): Promise<boolean> {
   const res = await prisma.commitment.updateMany({
     where: { id, status: "active", deletedAt: null },
-    data: { status: "completed", notes: "Completed (pulse ticker)", updatedBy: "operator" },
+    data: { status: "completed", notes, updatedBy },
   });
   return res.count === 1;
 }
@@ -192,10 +196,14 @@ export async function completeActiveCommitment(id: number): Promise<boolean> {
  *  kept and broken buckets in computePromiseIntegrity (an abandoned
  *  intention isn't a broken promise any more than a declined machine
  *  suggestion is). */
-export async function abandonActiveCommitment(id: number): Promise<boolean> {
+export async function abandonActiveCommitment(
+  id: number,
+  notes = "Dropped (pulse ticker)",
+  updatedBy = "operator",
+): Promise<boolean> {
   const res = await prisma.commitment.updateMany({
     where: { id, status: "active", deletedAt: null },
-    data: { status: "abandoned", notes: "Dropped (pulse ticker)", updatedBy: "operator" },
+    data: { status: "abandoned", notes, updatedBy },
   });
   return res.count === 1;
 }

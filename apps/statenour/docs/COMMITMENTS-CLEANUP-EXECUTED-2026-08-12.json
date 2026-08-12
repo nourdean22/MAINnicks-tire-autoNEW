@@ -1,0 +1,1076 @@
+[
+  {
+    "id": 160,
+    "category": "COMPLETE",
+    "reason": "self-evidently done (verified true today)",
+    "mutated": true
+  },
+  {
+    "id": 161,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 162,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 163,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 164,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 165,
+    "category": "ABANDON",
+    "reason": "named noise cluster — near-duplicate extraction from one remark",
+    "mutated": true
+  },
+  {
+    "id": 166,
+    "category": "ABANDON",
+    "reason": "named noise cluster — near-duplicate extraction from one remark",
+    "mutated": true
+  },
+  {
+    "id": 167,
+    "category": "ABANDON",
+    "reason": "named noise cluster — near-duplicate extraction from one remark",
+    "mutated": true
+  },
+  {
+    "id": 168,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 169,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 170,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 171,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 172,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 173,
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 174,
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 175,
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 176,
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 177,
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 178,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 179,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 180,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 181,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 182,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 183,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 184,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 185,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 186,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 187,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 188,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 189,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 190,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 191,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 192,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 193,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 194,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 195,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 196,
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 197,
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 198,
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 199,
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 200,
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 201,
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 202,
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 203,
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 204,
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 205,
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 206,
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 207,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 208,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 209,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 210,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 211,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 212,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 213,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 214,
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 215,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 216,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 217,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 218,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 219,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 220,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 221,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 222,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 223,
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 224,
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 225,
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 226,
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 227,
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 228,
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 229,
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 230,
+    "category": "ABANDON",
+    "reason": "no deadline, 100d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 231,
+    "category": "ABANDON",
+    "reason": "no deadline, 100d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 232,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 233,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 234,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 235,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 236,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 237,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 238,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 239,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 240,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 241,
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 242,
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 243,
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 244,
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 245,
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 246,
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 247,
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 248,
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 249,
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 250,
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 251,
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 252,
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 253,
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 254,
+    "category": "ABANDON",
+    "reason": "no deadline, 96d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 255,
+    "category": "ABANDON",
+    "reason": "no deadline, 96d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 256,
+    "category": "ABANDON",
+    "reason": "no deadline, 96d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 257,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 258,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 259,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 260,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 261,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 262,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 263,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 264,
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 265,
+    "category": "ABANDON",
+    "reason": "no deadline, 94d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 266,
+    "category": "ABANDON",
+    "reason": "no deadline, 92d old — reads as passing remark, not a tracked promise",
+    "mutated": true
+  },
+  {
+    "id": 267,
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 268,
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 269,
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 270,
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 272,
+    "category": "KEEP",
+    "reason": "only 66d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 273,
+    "category": "KEEP",
+    "reason": "only 66d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 274,
+    "category": "KEEP",
+    "reason": "only 66d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 276,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 277,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 278,
+    "category": "KEEP",
+    "reason": "only 63d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 281,
+    "category": "KEEP",
+    "reason": "only 59d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 282,
+    "category": "KEEP",
+    "reason": "only 59d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 283,
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 284,
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 285,
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 286,
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 287,
+    "category": "KEEP",
+    "reason": "only 56d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 288,
+    "category": "KEEP",
+    "reason": "only 56d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 289,
+    "category": "KEEP",
+    "reason": "only 56d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 291,
+    "category": "KEEP",
+    "reason": "only 53d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 292,
+    "category": "KEEP",
+    "reason": "only 50d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 293,
+    "category": "KEEP",
+    "reason": "only 50d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 294,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 296,
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 297,
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 298,
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 299,
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 300,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 304,
+    "category": "KEEP",
+    "reason": "only 45d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 307,
+    "category": "KEEP",
+    "reason": "only 44d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 308,
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 309,
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 310,
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 311,
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 312,
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 313,
+    "category": "KEEP",
+    "reason": "only 42d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 314,
+    "category": "KEEP",
+    "reason": "only 41d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 315,
+    "category": "KEEP",
+    "reason": "only 41d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 316,
+    "category": "KEEP",
+    "reason": "only 41d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 317,
+    "category": "KEEP",
+    "reason": "only 38d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 318,
+    "category": "KEEP",
+    "reason": "only 38d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 319,
+    "category": "KEEP",
+    "reason": "only 38d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 320,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 321,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 322,
+    "category": "KEEP",
+    "reason": "only 34d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 323,
+    "category": "KEEP",
+    "reason": "only 32d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 324,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 326,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 327,
+    "category": "KEEP",
+    "reason": "only 30d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 329,
+    "category": "KEEP",
+    "reason": "only 27d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 332,
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 333,
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 334,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 335,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 336,
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 337,
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 338,
+    "category": "KEEP",
+    "reason": "only 20d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 339,
+    "category": "KEEP",
+    "reason": "only 19d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 340,
+    "category": "KEEP",
+    "reason": "only 18d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 341,
+    "category": "KEEP",
+    "reason": "only 18d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 342,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 344,
+    "category": "KEEP",
+    "reason": "only 17d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 345,
+    "category": "KEEP",
+    "reason": "only 17d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 346,
+    "category": "KEEP",
+    "reason": "only 16d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 347,
+    "category": "KEEP",
+    "reason": "only 16d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 348,
+    "category": "KEEP",
+    "reason": "only 16d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 349,
+    "category": "KEEP",
+    "reason": "only 14d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 351,
+    "category": "KEEP",
+    "reason": "only 14d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 354,
+    "category": "KEEP",
+    "reason": "only 14d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 411,
+    "category": "KEEP",
+    "reason": "only 3d old — too recent to call abandoned with confidence",
+    "mutated": false
+  },
+  {
+    "id": 447,
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow",
+    "mutated": false
+  },
+  {
+    "id": 453,
+    "category": "KEEP",
+    "reason": "only 0d old — too recent to call abandoned with confidence",
+    "mutated": false
+  }
+]

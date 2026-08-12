@@ -1,0 +1,1613 @@
+[
+  {
+    "id": 160,
+    "description": "Commitment to deploy Staenour soon.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-19T14:02:37.759Z",
+    "category": "COMPLETE",
+    "reason": "self-evidently done (verified true today)"
+  },
+  {
+    "id": 161,
+    "description": "Start journaling tonight and track the difference",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T00:47:32.112Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 162,
+    "description": "Nour will try journaling for 5 minutes the next day.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T00:47:47.040Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 163,
+    "description": "Start journaling again—even for 5 minutes",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T00:47:49.692Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 164,
+    "description": "Will pick one critical item",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T06:01:05.891Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 165,
+    "description": "Will research and apply unethical life hacks to street pickup strategies.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T06:01:55.910Z",
+    "category": "ABANDON",
+    "reason": "named noise cluster — near-duplicate extraction from one remark"
+  },
+  {
+    "id": 166,
+    "description": "Plan to learn unethical life hacks for street pickup",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T06:02:21.242Z",
+    "category": "ABANDON",
+    "reason": "named noise cluster — near-duplicate extraction from one remark"
+  },
+  {
+    "id": 167,
+    "description": "Will learn unethical life hacks for seduction",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T06:03:33.618Z",
+    "category": "ABANDON",
+    "reason": "named noise cluster — near-duplicate extraction from one remark"
+  },
+  {
+    "id": 168,
+    "description": "Create a new list with links.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T06:04:28.230Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 169,
+    "description": "Double check accuracy of links.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T06:04:28.237Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 170,
+    "description": "Teach something new and exclusive",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T12:02:18.364Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 171,
+    "description": "Commit to learning something new and exclusive",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T12:02:34.141Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 172,
+    "description": "To engage with new, exclusive knowledge",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T12:02:51.792Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 173,
+    "description": "Will learn something new and exclusive",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-22T12:03:12.006Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 112d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 174,
+    "description": "Tag Nick for feedback after Day 3",
+    "toWhom": "Nick",
+    "deadline": null,
+    "createdAt": "2026-04-22T23:20:11.297Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 175,
+    "description": "call Dania and tell her one thing you genuinely admire",
+    "toWhom": "Dania",
+    "deadline": null,
+    "createdAt": "2026-04-22T23:31:52.545Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 176,
+    "description": "Staying with Dania to maintain home security.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-23T00:03:05.237Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 177,
+    "description": "Will search for the movie on illugal streaming site",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-23T06:00:51.702Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 111d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 178,
+    "description": "call those two expired estimates",
+    "toWhom": "self",
+    "deadline": "today",
+    "createdAt": "2026-04-24T19:19:58.685Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 179,
+    "description": "Schedule 2 hours tomorrow for fleet outreach targeting DoorDash drivers with special rates.",
+    "toWhom": "self",
+    "deadline": "tomorrow",
+    "createdAt": "2026-04-27T15:46:35.672Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 180,
+    "description": "To apply deeper thinking to personal life contexts",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-27T18:01:03.106Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 181,
+    "description": "Make a definitive decision on the 5 candidates.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-27T18:03:49.420Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 182,
+    "description": "Commitment to consistent effort and improvement",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-27T19:57:33.936Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 183,
+    "description": "Create a graphic showing common tire issues caused by Cleveland potholes, with before/after photos and repair costs.",
+    "toWhom": "specific-name",
+    "deadline": null,
+    "createdAt": "2026-04-27T21:16:25.214Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 184,
+    "description": "Post the graphic on Wednesday at lunch.",
+    "toWhom": "specific-name",
+    "deadline": null,
+    "createdAt": "2026-04-27T21:16:25.226Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 185,
+    "description": "Create an informational image for Instagram.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:01:20.996Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 186,
+    "description": "Create the requested Instagram image",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:01:51.554Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 187,
+    "description": "Will create the requested informational image now",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:02:10.016Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 188,
+    "description": "Create the requested Instagram image.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:02:38.356Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 189,
+    "description": "Will create the requested image.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:03:21.923Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 190,
+    "description": "Will create an informational image for Instagram",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:03:35.531Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 191,
+    "description": "Create a cool, informational Instagram image",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:04:03.661Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 192,
+    "description": "Generate the requested image",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:04:49.627Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 193,
+    "description": "Generate the requested informational Instagram image.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T00:05:27.107Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 194,
+    "description": "Create an informational Instagram image",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T06:00:40.687Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 195,
+    "description": "Generate the requested image",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T06:01:54.355Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 196,
+    "description": "Will ensure the caption is clever.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T06:02:39.869Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 106d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 197,
+    "description": "Achieve mastery level 99 in toughness",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T17:56:35.244Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 198,
+    "description": "To continue personal improvement and business maintenance until a mutually agreed-upon separation date.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T18:00:03.465Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 199,
+    "description": "Attempt to stop checking the item daily to facilitate forgetting",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-28T18:01:30.790Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 200,
+    "description": "Schedule tire safety post for tomorrow afternoon",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-29T00:03:23.176Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 105d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 201,
+    "description": "Upload both logos",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-04-29T15:03:24.696Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 202,
+    "description": "Begin work on the provided images",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-29T18:00:33.631Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 203,
+    "description": "Begin work on the provided task",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-29T18:00:53.715Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 204,
+    "description": "Will send entries separately to allow for thorough processing.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-29T18:01:17.886Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 205,
+    "description": "Process entries separately for perfect clear final product.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-29T18:01:33.661Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 206,
+    "description": "Will create a post for Nick's Tire Euclid.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-29T18:02:35.281Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 104d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 207,
+    "description": "To study projects without ethical constraints",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-04-30T21:28:52.732Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 208,
+    "description": "check again and give me a new list",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-04-30T22:04:29.505Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 209,
+    "description": "Deliver a more expansive list with specific benefits and life 'cheat code' hacks aligned with Nour's interests",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-05-01T00:56:17.273Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 210,
+    "description": "To provide content that is tailored to specific interests.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-01T09:01:18.955Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 211,
+    "description": "To seek out or demand solutions that are specifically tailored to my interests.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-01T09:01:33.376Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 212,
+    "description": "I will ensure all future outputs are proactive and detailed.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-01T09:01:47.264Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 213,
+    "description": "Reorder the project list based on my personality, removing duplicates or projects with very similar features.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-01T09:03:17.821Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 214,
+    "description": "Post a picture and caption to Instagram",
+    "toWhom": "Nick",
+    "deadline": null,
+    "createdAt": "2026-05-01T12:15:37.094Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 103d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 215,
+    "description": "Relying on Nick AI as a comprehensive guide for life challenges",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:01:08.401Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 216,
+    "description": "Execute the request with Instagram sizing constraints.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:01:37.653Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 217,
+    "description": "Develop a marketing campaign targeting women customers.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:01:51.091Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 218,
+    "description": "Redo the theme to be more clever.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:02:09.858Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 219,
+    "description": "Post that picture and caption to Instagram for now",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:02:25.124Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 220,
+    "description": "Post picture and caption to Instagram for now",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:02:42.801Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 221,
+    "description": "Create a subtle yet engaging good morning post for Instagram",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:03:00.067Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 222,
+    "description": "Adjust the size of the last request to be Instagram-ready.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:03:35.286Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 223,
+    "description": "Switch up the picture idea",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T09:04:04.088Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 102d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 224,
+    "description": "Commitment to personal growth and business improvement.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T18:23:34.541Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 225,
+    "description": "Commitment to adding a new content approach to Nick's Tire.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-02T20:58:52.454Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 226,
+    "description": "Adhere to the workflow: prompt ready -> brain storage",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-03T09:01:09.381Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 227,
+    "description": "Adopt the forensic blueprint for future content generation",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-03T09:01:37.576Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 228,
+    "description": "I will enter those thoughts into my journal",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-03T09:02:14.927Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 229,
+    "description": "Working on nickstire.org and admin fixes",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-03T09:02:36.077Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 101d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 230,
+    "description": "Add all tasks to Bay 5 revive project",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-04T09:00:56.695Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 100d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 231,
+    "description": "Will enhance the photo and upload it to nickstire.org.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-04T09:01:29.318Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 100d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 232,
+    "description": "Send video pitch",
+    "toWhom": "self",
+    "deadline": "today",
+    "createdAt": "2026-05-04T15:23:22.856Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 233,
+    "description": "spend a few days at a nearby luxury hotel in Independence, Ohio",
+    "toWhom": "self",
+    "deadline": "early August",
+    "createdAt": "2026-05-04T21:36:55.113Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 234,
+    "description": "Leave Dania after achieving personal goals",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-04T21:36:55.512Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 235,
+    "description": "To become indispensable by joining winners and dominating spheres of influence.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-05T02:26:46.237Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 236,
+    "description": "Retry previous task",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-05T09:01:49.273Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 237,
+    "description": "Continue applying the received advice",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-05T09:03:06.606Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 238,
+    "description": "Zoom in more on specific details",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-05T09:03:06.612Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 239,
+    "description": "Reduce focus on pain",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-05T09:03:06.619Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 240,
+    "description": "Will use simpler words in future responses.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-05T09:03:34.510Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 241,
+    "description": "Willing to utilize unethical methods for competitive advantage",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-05T09:03:51.019Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 99d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 242,
+    "description": "Pivot criteria to prioritize the 'best of all three' trifecta.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-06T09:01:26.932Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 243,
+    "description": "To find a curated list of best-rated thriller/CIA content.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-06T09:01:41.197Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 244,
+    "description": "Commit to understanding the fundamental mechanics of the world",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-06T09:02:02.086Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 245,
+    "description": "Switch up the content plan to feature 'useful absurdity' next.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-06T09:04:13.527Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 246,
+    "description": "Maintain a good attitude.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-06T09:04:59.406Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 98d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 247,
+    "description": "Commit to reducing laziness",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-07T09:01:07.689Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 248,
+    "description": "Will expand on the list.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-07T09:01:47.892Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 249,
+    "description": "Correct the post based on the original ask",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-07T09:02:07.846Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 250,
+    "description": "Redo the image to ensure professional and high-quality results",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-07T09:02:22.970Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 251,
+    "description": "Use competitor scouting as a recruitment method",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-07T09:03:11.297Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 252,
+    "description": "Add title work for personal vehicles to to-do list",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-07T09:03:37.888Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 253,
+    "description": "Add haircut to to-do list",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-07T09:03:37.892Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 97d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 254,
+    "description": "Stay friends with Dania after the split.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-08T09:01:06.034Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 96d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 255,
+    "description": "Have the relationship sorted by the end of the year.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-08T09:01:06.042Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 96d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 256,
+    "description": "Enter the market and perform well",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-08T09:01:24.095Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 96d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 257,
+    "description": "come up with a fresh, scroll-stopping Instagram post for Nick's Tire & Auto",
+    "toWhom": "Nick",
+    "deadline": null,
+    "createdAt": "2026-05-08T21:38:01.929Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 258,
+    "description": "Creating a new Instagram post for Nick's Tire & Auto",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-08T21:38:05.461Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 259,
+    "description": "Create a fresh, scroll-stopping Instagram post for Nick's Tire & Auto.",
+    "toWhom": "Nick",
+    "deadline": null,
+    "createdAt": "2026-05-08T21:40:06.233Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 260,
+    "description": "Complete title work for cars",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-09T09:00:47.209Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 261,
+    "description": "Finish yesterday's work",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-09T09:00:47.215Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 262,
+    "description": "Will generate the requested GSC report.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-09T09:00:58.371Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 263,
+    "description": "Generate a new image based on the original request",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-09T09:01:09.515Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 264,
+    "description": "Requesting help with creative image generation",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-09T09:01:34.019Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 95d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 265,
+    "description": "Decided to leave Dania",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-10T09:01:05.032Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 94d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 266,
+    "description": "Find a girlfriend",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-12T09:01:12.648Z",
+    "category": "ABANDON",
+    "reason": "no deadline, 92d old — reads as passing remark, not a tracked promise"
+  },
+  {
+    "id": 267,
+    "description": "Review nickstire.org GSC performance data",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-26T09:01:31.121Z",
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 268,
+    "description": "Check calendar events for the next 3 days",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-26T09:02:41.357Z",
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 269,
+    "description": "Use getTodaySchedule tool to check calendar events for the next 3 days",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-26T09:02:42.979Z",
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 270,
+    "description": "Run Python script to calculate standard deviation of provided list",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-05-26T09:03:01.748Z",
+    "category": "KEEP",
+    "reason": "only 78d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 272,
+    "description": "Text Dania gratitude",
+    "toWhom": "Dania",
+    "deadline": null,
+    "createdAt": "2026-06-06T23:23:24.927Z",
+    "category": "KEEP",
+    "reason": "only 66d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 273,
+    "description": "Fill vending machine at the shop today",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-07T13:05:36.165Z",
+    "category": "KEEP",
+    "reason": "only 66d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 274,
+    "description": "Complete exercise routine before going to the shop",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-07T13:05:36.237Z",
+    "category": "KEEP",
+    "reason": "only 66d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 276,
+    "description": "Host UFC USA BBQ for approximately 40 people (30 adults, 10 kids)",
+    "toWhom": "guests",
+    "deadline": "this-Sunday",
+    "createdAt": "2026-06-08T19:36:45.044Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 277,
+    "description": "Start working on BBQ plan",
+    "toWhom": "self",
+    "deadline": "tomorrow",
+    "createdAt": "2026-06-10T00:32:57.208Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 278,
+    "description": "Start BBQ plan tomorrow after updates are done",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-10T00:33:08.172Z",
+    "category": "KEEP",
+    "reason": "only 63d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 281,
+    "description": "Add extracted pool tasks to missions under KRUEGER HOME UPGRADES",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-06-14T12:02:33.874Z",
+    "category": "KEEP",
+    "reason": "only 59d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 282,
+    "description": "Extract all tasks from the Gemini conversation and add them to missions under general personal",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-14T12:02:58.241Z",
+    "category": "KEEP",
+    "reason": "only 59d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 283,
+    "description": "Wait to try this IVF round before proceeding with exit plan",
+    "toWhom": "Dania",
+    "deadline": null,
+    "createdAt": "2026-06-15T15:16:43.046Z",
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 284,
+    "description": "Commit to more hours on the shop floor for the next three months",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-15T15:29:31.821Z",
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 285,
+    "description": "Focus on improving sales through personal presence on the lot",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-15T15:29:31.886Z",
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 286,
+    "description": "Fill Nick's tire vending machine",
+    "toWhom": "Nick",
+    "deadline": null,
+    "createdAt": "2026-06-15T15:33:56.805Z",
+    "category": "KEEP",
+    "reason": "only 57d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 287,
+    "description": "Wait through this IVF round before making any exit moves",
+    "toWhom": "Dania",
+    "deadline": null,
+    "createdAt": "2026-06-17T13:32:01.499Z",
+    "category": "KEEP",
+    "reason": "only 56d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 288,
+    "description": "Working open to close Thursday, Friday, and Saturday",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-17T13:37:13.734Z",
+    "category": "KEEP",
+    "reason": "only 56d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 289,
+    "description": "Not toning himself down or softening his presence for employee comfort this week",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-17T13:37:13.807Z",
+    "category": "KEEP",
+    "reason": "only 56d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 291,
+    "description": "play depressed in front of Dania",
+    "toWhom": "Dania",
+    "deadline": null,
+    "createdAt": "2026-06-20T00:09:42.977Z",
+    "category": "KEEP",
+    "reason": "only 53d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 292,
+    "description": "No more letting fatigue or laziness dictate actions",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-22T20:20:38.578Z",
+    "category": "KEEP",
+    "reason": "only 50d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 293,
+    "description": "Will use caffeine as needed to follow through",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-22T20:20:38.652Z",
+    "category": "KEEP",
+    "reason": "only 50d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 294,
+    "description": "Take 400mg caffeine at once and go running",
+    "toWhom": "self",
+    "deadline": "tomorrow morning",
+    "createdAt": "2026-06-22T22:43:55.101Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 296,
+    "description": "Achieve high level weapon status",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-25T16:40:11.638Z",
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 297,
+    "description": "Add GBP-to-Instagram review automation to to-do list",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-25T17:06:00.406Z",
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 298,
+    "description": "Start tomorrow at 9-10 AM after workout",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-25T21:58:19.516Z",
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 299,
+    "description": "Switch locations every 1-2 hours",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-25T21:58:19.580Z",
+    "category": "KEEP",
+    "reason": "only 47d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 300,
+    "description": "Complete 10x10 body squats, push-ups, sit-ups workout at Planet Fitness",
+    "toWhom": "self",
+    "deadline": "Friday",
+    "createdAt": "2026-06-25T22:01:20.102Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 304,
+    "description": "pull the insight with the tools we have",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-06-28T12:31:23.894Z",
+    "category": "KEEP",
+    "reason": "only 45d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 307,
+    "description": "Block a calendar event “ROI & Shop Catch‑up 8 AM–2 PM”",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-06-29T12:03:58.988Z",
+    "category": "KEEP",
+    "reason": "only 44d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 308,
+    "description": "Will set tomorrow’s MIT during today’s wrap‑up.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-29T17:12:50.128Z",
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 309,
+    "description": "Will log drift triggers each evening.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-29T17:12:50.191Z",
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 310,
+    "description": "Will keep a dedicated personal time slot with Dania.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-29T17:12:50.252Z",
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 311,
+    "description": "Commit to follow the new Monday routine consistently.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-29T17:17:10.948Z",
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 312,
+    "description": "Commit to query active missions each week and map them into the schedule.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-06-29T17:17:11.014Z",
+    "category": "KEEP",
+    "reason": "only 43d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 313,
+    "description": "Will switch work location to a cafe or go for a treadmill run instead of staying in the shop.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-01T13:41:24.589Z",
+    "category": "KEEP",
+    "reason": "only 42d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 314,
+    "description": "Commit to using the compiled hacks as a regular support tool to act without over‑thinking.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-01T16:13:44.588Z",
+    "category": "KEEP",
+    "reason": "only 41d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 315,
+    "description": "fetch the latest log of the specified repository",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-07-01T17:22:47.445Z",
+    "category": "KEEP",
+    "reason": "only 41d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 316,
+    "description": "Record Nour's sleep data in the health tracker",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-07-02T09:27:22.208Z",
+    "category": "KEEP",
+    "reason": "only 41d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 317,
+    "description": "Will be at the BBQ by 1 pm to assist with grilling.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-05T12:48:58.545Z",
+    "category": "KEEP",
+    "reason": "only 38d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 318,
+    "description": "Will do a workout before heading to the family event.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-05T12:48:58.613Z",
+    "category": "KEEP",
+    "reason": "only 38d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 319,
+    "description": "Will try not to dwell on thoughts about Nimeh.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-05T12:48:58.679Z",
+    "category": "KEEP",
+    "reason": "only 38d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 320,
+    "description": "pull the list of best top rated most popular and interesting audiobooks on dark psychology and manipulation",
+    "toWhom": "Nour",
+    "deadline": "2026-07-05",
+    "createdAt": "2026-07-05T12:56:52.191Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 321,
+    "description": "be patient and deal with her",
+    "toWhom": "self",
+    "deadline": "2026-09-30",
+    "createdAt": "2026-07-07T18:36:13.928Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 322,
+    "description": "Create the batch after mission IDs are confirmed",
+    "toWhom": "Nour",
+    "deadline": null,
+    "createdAt": "2026-07-08T14:20:31.808Z",
+    "category": "KEEP",
+    "reason": "only 34d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 323,
+    "description": "Research the best 10 ideas and pro tips",
+    "toWhom": "specific-name",
+    "deadline": null,
+    "createdAt": "2026-07-10T15:26:18.809Z",
+    "category": "KEEP",
+    "reason": "only 32d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 324,
+    "description": "Open the shop and work until around 1pm",
+    "toWhom": "self",
+    "deadline": "2026-07-13",
+    "createdAt": "2026-07-13T00:50:15.130Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 326,
+    "description": "Check around the shop and the guys",
+    "toWhom": "self",
+    "deadline": "2026-07-13",
+    "createdAt": "2026-07-13T00:50:15.406Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 327,
+    "description": "Complete weekly ROI meetings tomorrow",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-13T00:50:17.895Z",
+    "category": "KEEP",
+    "reason": "only 30d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 329,
+    "description": "Actively research and compile a usable toolkit for daytime social confidence",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-15T15:27:16.124Z",
+    "category": "KEEP",
+    "reason": "only 27d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 332,
+    "description": "Push through her ghosting rather than backing off",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-21T12:01:40.156Z",
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 333,
+    "description": "Call her after 3 PM today",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-21T12:01:40.231Z",
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 334,
+    "description": "Call her after 3pm when she gets off work and ask if she wants him to disappear for the next 10 years",
+    "toWhom": "the-woman",
+    "deadline": "2026-07-21",
+    "createdAt": "2026-07-21T12:01:42.375Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 335,
+    "description": "Push hard to meet up with Samantha in about 10 days",
+    "toWhom": "Samantha",
+    "deadline": "2026-07-31",
+    "createdAt": "2026-07-21T12:05:35.636Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 336,
+    "description": "I'm going to wait ~10 days before making the hard push to meet up",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-21T12:05:38.284Z",
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 337,
+    "description": "Until then, I'll keep things slow and finesse-driven rather than rushing",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-21T12:05:38.357Z",
+    "category": "KEEP",
+    "reason": "only 22d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 338,
+    "description": "Have her place the burger order while en route",
+    "toWhom": "her",
+    "deadline": null,
+    "createdAt": "2026-07-22T21:35:54.962Z",
+    "category": "KEEP",
+    "reason": "only 20d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 339,
+    "description": "Tell Dania the text messages are not her business when she asks",
+    "toWhom": "Dania",
+    "deadline": null,
+    "createdAt": "2026-07-23T15:33:31.516Z",
+    "category": "KEEP",
+    "reason": "only 19d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 340,
+    "description": "Finish Instagram abilities in the admin for Nick's Tire",
+    "toWhom": "specific-name",
+    "deadline": null,
+    "createdAt": "2026-07-25T12:55:38.482Z",
+    "category": "KEEP",
+    "reason": "only 18d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 341,
+    "description": "Do a chat decomp for Nick",
+    "toWhom": "specific-name",
+    "deadline": null,
+    "createdAt": "2026-07-25T12:55:38.643Z",
+    "category": "KEEP",
+    "reason": "only 18d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 342,
+    "description": "Put Dania's desk together",
+    "toWhom": "Dania",
+    "deadline": "2026-07-25",
+    "createdAt": "2026-07-25T16:03:33.455Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 344,
+    "description": "Put in 40 hours a week on the shop floor no matter how slow or boring it gets",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-25T18:03:53.990Z",
+    "category": "KEEP",
+    "reason": "only 17d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 345,
+    "description": "Committing to StrongStyle classes as a fixed priority and building work schedule around them",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-25T18:10:58.906Z",
+    "category": "KEEP",
+    "reason": "only 17d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 346,
+    "description": "Commit to boxing/kickboxing 6 days per week",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-27T10:50:46.529Z",
+    "category": "KEEP",
+    "reason": "only 16d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 347,
+    "description": "Commit to the new work schedule at Nick's",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-27T10:50:46.605Z",
+    "category": "KEEP",
+    "reason": "only 16d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 348,
+    "description": "Sunday is reserved as a full day off",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-27T10:50:46.680Z",
+    "category": "KEEP",
+    "reason": "only 16d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 349,
+    "description": "Tell Dania that he wants to separate",
+    "toWhom": "Dania",
+    "deadline": null,
+    "createdAt": "2026-07-28T18:10:19.053Z",
+    "category": "KEEP",
+    "reason": "only 14d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 351,
+    "description": "Tomorrow at 7am, take it with exactly 2 oz of water on a completely empty stomach, then sit in silence for 10 minutes and journal any subtle shifts — no phone, no music.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-29T03:05:03.053Z",
+    "category": "KEEP",
+    "reason": "only 14d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 354,
+    "description": "Right now, spend 15 minutes searching GitHub for the top 3 open-source projects in your niche, fork the one closest to your idea, and study its commit history for the last month to find what they’re struggling with.",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-07-29T03:06:40.861Z",
+    "category": "KEEP",
+    "reason": "only 14d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 411,
+    "description": "Talk to Nick when experiencing rumination to check if it persists later",
+    "toWhom": "Nick",
+    "deadline": null,
+    "createdAt": "2026-08-08T18:24:46.531Z",
+    "category": "KEEP",
+    "reason": "only 3d old — too recent to call abandoned with confidence"
+  },
+  {
+    "id": 447,
+    "description": "Work out at least 3 days this week",
+    "toWhom": "self",
+    "deadline": "2026-08-16",
+    "createdAt": "2026-08-10T12:47:45.078Z",
+    "category": "KEEP",
+    "reason": "has a deadline — handled by the pulse ticker's own overdue/resolve flow"
+  },
+  {
+    "id": 453,
+    "description": "Add swapping the camera to my tasks",
+    "toWhom": "self",
+    "deadline": null,
+    "createdAt": "2026-08-11T18:24:10.101Z",
+    "category": "KEEP",
+    "reason": "only 0d old — too recent to call abandoned with confidence"
+  }
+]
