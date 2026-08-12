@@ -142,6 +142,34 @@ export function deriveVerification(
   return "UNKNOWN";
 }
 
+/**
+ * 2026-08-11 · server-derived verification. A model (or any caller) must
+ * NEVER supply its own `verification` — that would let a turn stamp
+ * "SUPPORTED" onto empty evidence. The input schema refuses the field
+ * entirely (strict), and parseClaimLedger() derives verification
+ * mathematically from the evidence + contradictions on every claim.
+ * (zod strips unknown keys by default, so a smuggled `verification`
+ * field is dropped at parse and the derivation below is authoritative.)
+ */
+export const claimInputSchema = claimSchema.omit({ verification: true });
+
+export const claimLedgerInputSchema = z.object({
+  claims: z.array(claimInputSchema),
+  meta: turnMetaSchema,
+});
+
+/** Parse an untrusted ledger payload; verification is ALWAYS derived here. */
+export function parseClaimLedger(input: unknown): ClaimLedger {
+  const parsed = claimLedgerInputSchema.parse(input);
+  return {
+    ...parsed,
+    claims: parsed.claims.map((c) => ({
+      ...c,
+      verification: deriveVerification(c.evidence, c.contradictionIds.length > 0),
+    })),
+  };
+}
+
 const CONFIDENCE_UNCERTAINTY: Record<(typeof CLAIM_CONFIDENCE)[number], number> = {
   HIGH: 0.1,
   MED: 0.4,

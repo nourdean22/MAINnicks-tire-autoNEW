@@ -15,6 +15,42 @@ function gate(userText: string, reply: string) {
 
 const LONG = Array.from({ length: 200 }, (_, i) => `word${i}`).join(" ");
 
+describe("base gate · evidenced uncertainty (2026-08-11 incentive fix)", () => {
+  it("bare I-don't-know on a factual turn still flags for regen", () => {
+    const turn = classifyTurn("what was the total revenue in March?");
+    const g = runReplyGate("I don't know.", "what was the total revenue in March?", null, turn);
+    expect(g.signals.iDontKnow).toBe(true);
+    expect(g.signals.evidencedUncertainty).toBe(false);
+    expect(g.severity).toBeGreaterThanOrEqual(60);
+  });
+
+  it("I-don't-know WITH a named empty check passes clean — grounded honesty is not a regen offense", () => {
+    const turn = classifyTurn("what was the total revenue in March?");
+    const g = runReplyGate(
+      "I don't know — I checked the records and there is no record of March revenue in the system.",
+      "what was the total revenue in March?",
+      null,
+      turn,
+    );
+    expect(g.signals.iDontKnow).toBe(true);
+    expect(g.signals.evidencedUncertainty).toBe(true);
+    expect(g.reasons.join(" ")).not.toMatch(/I-don't-know/);
+    expect(g.shouldRegen).toBe(false);
+  });
+
+  it("a brain citation anchor also counts as evidence", () => {
+    const turn = classifyTurn("what was the total revenue in March?");
+    const g = runReplyGate(
+      "I can't tell from what is stored — [brain:revenue] has nothing for March.",
+      "what was the total revenue in March?",
+      null,
+      turn,
+    );
+    expect(g.signals.evidencedUncertainty).toBe(true);
+    expect(g.shouldRegen).toBe(false);
+  });
+});
+
 describe("contract gate · concision", () => {
   it("concise requested + bloated reply → flagged", () => {
     const g = gate("keep it concise: is the deploy green?", LONG);

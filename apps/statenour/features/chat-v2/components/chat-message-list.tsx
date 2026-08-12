@@ -52,6 +52,14 @@ function isTruncatedAssistantTurn(message: UIMessage): boolean {
   return message.role === "assistant" && (message as { streamingState?: string }).streamingState === "truncated";
 }
 
+// 2026-08-11 · Claude 5-family models can end a turn with stop_reason
+// "refusal" (persisted as streamingState "refused"). Distinct from
+// errored: the provider worked, the model declined — the chip says so
+// instead of letting the turn read as an outage.
+function isRefusedAssistantTurn(message: UIMessage): boolean {
+  return message.role === "assistant" && (message as { streamingState?: string }).streamingState === "refused";
+}
+
 function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?: string | null }) {
   const toolParts = (message.parts ?? []).filter((part) => part.type.startsWith("tool-")) as Array<{
     type: string;
@@ -267,6 +275,7 @@ export function ChatMessageList({
                         <NickMessage text={part.text} streaming={isLoading && isLatestAssistant} messageId={message.id} />
                       </AssistantMessageShell>
                       {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
+                      {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300"><AlertTriangle size={12} /> Model refused — retry may route differently</button>}
                     </div>
                   );
                 }

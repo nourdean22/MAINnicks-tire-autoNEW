@@ -17,6 +17,7 @@ import {
   claimSchema,
   claimLedgerSchema,
   deriveVerification,
+  parseClaimLedger,
   requiresBlockingVerification,
   type EvidenceRef,
 } from "@/lib/ai/vnext/truth/claims";
@@ -79,6 +80,68 @@ describe("schemas", () => {
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.meta.refusal).toBe(false); // defaulted
+  });
+});
+
+describe("parseClaimLedger — verification is server-derived, never caller-supplied", () => {
+  const meta = { model: "deepseek-v4-pro", provider: "ollama", fallbackFired: false };
+
+  it("a smuggled SUPPORTED on zero evidence parses to UNKNOWN", () => {
+    const ledger = parseClaimLedger({
+      claims: [
+        {
+          id: "c1",
+          text: "Revenue is crashing",
+          kind: "INFERRED",
+          materiality: 0.9,
+          volatility: 0.8,
+          confidence: "HIGH",
+          evidence: [],
+          contradictionIds: [],
+          verification: "SUPPORTED", // stripped at parse — derivation is authoritative
+        },
+      ],
+      meta,
+    });
+    expect(ledger.claims[0].verification).toBe("UNKNOWN");
+  });
+
+  it("receipt-backed evidence derives SUPPORTED without the caller saying so", () => {
+    const ledger = parseClaimLedger({
+      claims: [
+        {
+          id: "c2",
+          text: "Revenue pace is up 4% MoM",
+          kind: "RETRIEVED",
+          materiality: 0.9,
+          volatility: 0.6,
+          confidence: "HIGH",
+          evidence: [ev({ sourceRef: "receipt:getRevenuePace:1" })],
+          contradictionIds: [],
+        },
+      ],
+      meta,
+    });
+    expect(ledger.claims[0].verification).toBe("SUPPORTED");
+  });
+
+  it("contradicted claims derive their demotion server-side", () => {
+    const ledger = parseClaimLedger({
+      claims: [
+        {
+          id: "c3",
+          text: "Response time is slipping",
+          kind: "INFERRED",
+          materiality: 0.7,
+          volatility: 0.5,
+          confidence: "LOW",
+          evidence: [],
+          contradictionIds: ["c2"],
+        },
+      ],
+      meta,
+    });
+    expect(ledger.claims[0].verification).toBe("CONTRADICTED");
   });
 });
 

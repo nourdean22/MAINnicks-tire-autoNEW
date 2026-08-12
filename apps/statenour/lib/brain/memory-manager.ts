@@ -154,6 +154,53 @@ export class BrainMemoryManager {
     });
 
     if (existing) {
+      // 2026-08-11 · Phase-1 gateway graduation — LIVE by default, safe
+      // subset ONLY: same-source repetition of the same claim is NOT
+      // corroboration — the gateway's "noop" verdict skips the legacy
+      // reinforce (which would bump confidence and advance promotion) and
+      // returns the row untouched. Every other verdict keeps legacy
+      // behavior byte-identical. Evidence for the default-on flip: the
+      // 7-day shadow review (probe-gateway-agrees.ts, 2026-08-11) read
+      // 1,788 receipts — noop 846 (47%) at ZERO legacy agreement, and
+      // zero genuine independent-corroboration reinforces in the window.
+      // Kill-switch: NICK_MEMORY_GATEWAY_PHASE1=0.
+      if (process.env.NICK_MEMORY_GATEWAY_PHASE1 !== "0") {
+        try {
+          const { evaluateMemoryCandidate } = await import("./memory-commit-gateway");
+          const { isKnownCategory } = await import("./categories");
+          const verdict = evaluateMemoryCandidate(
+            {
+              category: effectiveCategory,
+              key,
+              content,
+              source,
+              categoryKnown: isKnownCategory(effectiveCategory),
+            },
+            {
+              content: existing.content,
+              source: existing.source,
+              seenCount: existing.seenCount,
+              confidence: existing.confidence,
+            },
+          );
+          if (verdict.decision === "noop") {
+            log.info("memory_gateway_noop", {
+              category: effectiveCategory,
+              key,
+              source,
+              reason: verdict.reason,
+            });
+            return existing;
+          }
+        } catch (err) {
+          log.warn("memory_gateway_phase1_error", {
+            category: effectiveCategory,
+            key,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // fail open to legacy reinforce — the gate must never block a write path
+        }
+      }
       return this.reinforce(existing.id, content);
     }
 

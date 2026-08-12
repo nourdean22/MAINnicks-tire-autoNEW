@@ -25,6 +25,25 @@ import type { runReplyGate, runReplyGateWithContract } from "@/lib/ai/reply-gate
 import type { ContextBlocksFired } from "./brain-context";
 import type { critiqueOutput, ContentCriticScore } from "@/lib/ai/output-critic";
 
+/**
+ * Map the SDK finishReason onto the persisted streamingState vocabulary.
+ * Extracted 2026-08-11 (was an inline ternary) to add "refused": Claude
+ * 5-family models end a turn with stop_reason "refusal" → AI SDK
+ * finishReason "content-filter". Pre-fix that fell through to "unknown",
+ * which read as an outage; "refused" is a distinct, honest state that
+ * sanitize-history deliberately does NOT neutralize (the fallback banner
+ * text is honest content) and the chat UI chips separately.
+ */
+export function streamingStateForFinish(
+  finishReason: string | undefined,
+): "complete" | "errored" | "truncated" | "refused" | "unknown" {
+  if (finishReason === "stop" || finishReason === "tool-calls") return "complete";
+  if (finishReason === "error") return "errored";
+  if (finishReason === "length") return "truncated";
+  if (finishReason === "content-filter") return "refused";
+  return "unknown";
+}
+
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
   warn(event: string, ctx?: Record<string, unknown>): void;
@@ -236,14 +255,7 @@ export async function persistAssistantMessage(a: {
             promptTokens: promptTokens ?? undefined,
             completionTokens: completionTokens ?? undefined,
             costCents: costCents ?? undefined,
-            streamingState:
-              finishReason === "stop" || finishReason === "tool-calls"
-                ? "complete"
-                : finishReason === "error"
-                  ? "errored"
-                  : finishReason === "length"
-                    ? "truncated"
-                    : "unknown",
+            streamingState: streamingStateForFinish(finishReason),
             parts: partsArray
               ? (partsArray as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"])
               : undefined,
@@ -262,6 +274,10 @@ export async function persistAssistantMessage(a: {
               completionTokens: usage?.outputTokens,
               provider,
               model: modelId,
+              // 2026-08-11 · refusal transparency: lets the Context &
+              // Evidence surfaces distinguish "model declined" from
+              // "provider failed" without re-deriving from finishReason.
+              refusal: finishReason === "content-filter" ? true : undefined,
               deeperContext: deeperContextCount > 0
                 ? { count: deeperContextCount, types: deeperContextTypes }
                 : undefined,

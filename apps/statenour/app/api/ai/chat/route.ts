@@ -1,5 +1,6 @@
 import { streamText } from "ai";  // (stepCountIs moved into the extracted pipeline modules, 2026-07-25)
 import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";  // (GEMINI_SAFETY_OFF moved into ./build-stream-config.ts, 2026-07-25)
+import { canaryDeepForce } from "@/lib/ai/vnext/effort-policy";
 import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/ai/system-prompt";
 // (query-shape / turn-intelligence / response-contract imports moved
 // into ./derive-turn-signals.ts with the derivation stack, 2026-07-25)
@@ -404,7 +405,14 @@ async function chatPostInner(req: Request) {
           : ("ollama" as const)
         : undefined;
 
-    effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
+    // 2026-08-11 · deep-mode canary (NICK_CANARY_DEEP_ANTHROPIC=1) fills
+    // ONLY the unforced case — tool-mandatory forces and the user override
+    // keep absolute precedence. Keyless Anthropic degrades to the normal
+    // chain exactly like the high-stakes pin above.
+    effectiveForce = toolMandatoryForce ?? validatedProviderOverride ?? canaryDeepForce(mode);
+    if (effectiveForce === "anthropic" && !toolMandatoryForce && !validatedProviderOverride) {
+      log.info("canary_deep_anthropic", { mode });
+    }
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
       ...(effectiveForce ? { forceProviderFirst: effectiveForce } : {}),
