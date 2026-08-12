@@ -896,6 +896,23 @@ export const journalRouter = router({
     const entryIds = parsedTakes.map((t) => t.entryId);
     if (entryIds.length === 0) return [];
 
+    // BDN-007 · lifecycle closure. Each take's nextAction may have been
+    // proposed as a commitment (journal-brain writes sourceRef =
+    // "journal-take:<entryId>", idempotent). Join the commitment back so
+    // the card can show the take's actual fate — proposed / active /
+    // completed / abandoned — instead of stopping at "extracted".
+    // sourceRef is indexed; one query for the whole panel.
+    const commitmentRows = await prisma.commitment.findMany({
+      where: {
+        sourceRef: { in: entryIds.map((id) => `journal-take:${id}`) },
+        deletedAt: null,
+      },
+      select: { sourceRef: true, status: true, id: true },
+    });
+    const commitmentByEntry = new Map(
+      commitmentRows.map((c) => [c.sourceRef ?? "", { status: c.status, id: c.id }]),
+    );
+
     const [dumps, reflections, situations, decisions] = await Promise.all([
       prisma.brainDump.findMany({
         where: { id: { in: entryIds } },
@@ -935,11 +952,16 @@ export const journalRouter = router({
       goalMap.set(d.id, d.goalId);
     }
 
-    return parsedTakes.map((t) => ({
-      ...t,
-      entryTitle: titleMap.get(t.entryId) || "Journal Entry",
-      goalId: goalMap.get(t.entryId) ?? null,
-    }));
+    return parsedTakes.map((t) => {
+      const commitment = commitmentByEntry.get(`journal-take:${t.entryId}`) ?? null;
+      return {
+        ...t,
+        entryTitle: titleMap.get(t.entryId) || "Journal Entry",
+        goalId: goalMap.get(t.entryId) ?? null,
+        // null = never proposed (no commitment row for this take)
+        commitmentStatus: commitment?.status ?? null,
+      };
+    });
   }),
 
   /**

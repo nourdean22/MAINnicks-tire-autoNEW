@@ -76,6 +76,13 @@ hygiene + an expiry/sweep design come first, and the bulk mutation is
 
 ## Genuinely new — registered work packages (design review before build)
 
+> **Update 2026-08-12 (same day, operator: "finish the partial opens"):**
+> WPs 1, 3, 4, 5 SHIPPED — per-item receipts in
+> `MISSION-CALIBRATION-LEDGER.md`. WP 2's hygiene + sweep also shipped
+> (#1536/#1537). WP 4 shipped as a re-wire: the 13 existing "ask Nick"
+> entry points were dead (?q=/?seed=/?prompt= dropped by the chat-v2
+> migration), now restored prefill-only.
+
 1. **WP: compact Home mode** (BDN-001/008) — flag-gated summary-first
    composition: decide lane capped at 3 + "view all", resume cue when no
    active engagement, existing queries only. Re-scopes an

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { ArrowRight, ShieldAlert, Zap, Target, CheckCircle2, Inbox, Sparkles, AlertTriangle } from "lucide-react";
+import { ArrowRight, ShieldAlert, Zap, Target, CheckCircle2, Inbox, Sparkles, AlertTriangle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { InboxTasksTriage } from "./inbox-tasks-triage";
 import { InboxTriageCard } from "./inbox-triage-card";
@@ -65,6 +65,17 @@ export function ExecutiveActionMatrix() {
     return () => { cancelled = true; };
   }, []);
 
+  // BDN-001 · RESUME cue. A task sitting at DOING that is NOT the
+  // command-center's active engagement is an interrupted open loop — the
+  // most valuable "now" when nothing is actively executing. Uses the
+  // already-fetched task list; newest touch first.
+  const activeCmdId = ccStateQuery.data?.commands?.active?.id;
+  const resumeTask = useMemo(() => {
+    const loops = tasks.filter((t) => t.status === "DOING" && t.id !== activeCmdId);
+    if (loops.length === 0) return null;
+    return [...loops].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0];
+  }, [tasks, activeCmdId]);
+
   // 2. Synthesize AI Operator Briefing (200 IQ Pass)
   const aiBriefing = useMemo(() => {
     if (tasksQuery.isLoading || ccStateQuery.isLoading || nextMoveQuery.isLoading) {
@@ -81,6 +92,18 @@ export function ExecutiveActionMatrix() {
         title: "ACTIVE ENGAGEMENT",
         message: `Nour, you are currently executing [${doingTask.title}]. Maintain focus and close the loop. Do not context switch until completion.`,
         actionType: "execute",
+        color: "text-[var(--gold)]"
+      };
+    }
+
+    // BDN-001 · resume outranks new targets: finish what is in motion
+    // before fragmenting attention onto new work.
+    if (resumeTask) {
+      return {
+        status: "resume",
+        title: "RESUME OPEN LOOP",
+        message: `Nour, [${resumeTask.title}] is still marked DOING from earlier. Close that loop — finish it or consciously park it — before opening a new one.`,
+        actionType: "resume",
         color: "text-[var(--gold)]"
       };
     }
@@ -130,7 +153,7 @@ export function ExecutiveActionMatrix() {
       actionType: "suggestions",
       color: "text-emerald-400"
     };
-  }, [tasks, findingsCount, inboxCount, ccStateQuery.data, nextMoveQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading]);
+  }, [tasks, findingsCount, inboxCount, resumeTask, ccStateQuery.data, nextMoveQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading]);
 
   // 3. Execution Engine UI
   const completedToday = tasks.filter(
@@ -211,6 +234,23 @@ export function ExecutiveActionMatrix() {
           </h3>
 
           <div className="flex-1 overflow-y-auto max-h-[300px] scrollbar-thin">
+            {aiBriefing.actionType === "resume" && resumeTask && (
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-90 py-12">
+                <div className="p-4 rounded-full bg-[var(--gold)]/10 border border-[var(--gold)]/30">
+                  <RotateCcw size={28} className="text-[var(--gold)] drop-shadow-[0_0_12px_rgba(255,215,0,0.3)]" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-[var(--gold)]">Open loop from earlier</p>
+                  <Link
+                    href={`/missions#task-${resumeTask.id}`}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-white/90 hover:text-white border border-[var(--gold)]/20 hover:border-[var(--gold)]/50 rounded-lg px-3 py-2 transition"
+                  >
+                    Resume [{resumeTask.title}]
+                    <ArrowRight size={12} className="text-[var(--gold)]" />
+                  </Link>
+                </div>
+              </div>
+            )}
             {aiBriefing.actionType === "hygiene" && <InboxTriageCard isNested />}
             {aiBriefing.actionType === "triage" && <InboxTasksTriage isNested />}
             {aiBriefing.actionType === "execute" && (

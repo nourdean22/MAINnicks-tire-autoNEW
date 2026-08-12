@@ -13,6 +13,7 @@ import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
 import { extractQuality } from "@/lib/chat/extract-message-metadata";
 import { useConversations } from "@/hooks/use-conversations";
+import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
 
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
@@ -59,6 +60,10 @@ export function ChatIsland() {
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
 
   const chat = useChatStream();
+  // BDN-004 · restore ?q=/?seed=/?prompt= prefill + ?cid= conversation
+  // deep-links (orphaned in the chat-v2 migration; 13 callers were
+  // landing on an empty composer). Prefill only — never auto-send.
+  useChatDeepLinkPrefill();
   const conversations = useConversations({
     setMessages: chat.setMessages,
     onError: (message) => console.error("useConversations error:", message),
