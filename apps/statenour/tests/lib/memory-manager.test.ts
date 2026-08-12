@@ -57,6 +57,21 @@ vi.mock("@/lib/brain/wisdom-quality-gate", () => ({
 
 import { BrainMemoryManager } from "@/lib/brain/memory-manager";
 
+/**
+ * The memory gateway (lib/brain/memory-manager.ts:131) fire-and-forgets a
+ * shadow receipt (category "memory_gateway_shadow") through this SAME
+ * brainMemory.create mock on every remember() — Phase-1 default-ON since
+ * #1514, and the write is unawaited, so a prior test's receipt can land in a
+ * later test's spy window after clearAllMocks. Assertions about REAL memory
+ * writes must therefore filter receipts out rather than counting raw calls;
+ * the kill-switch env (NICK_MEMORY_GATEWAY_PHASE1=0) would NOT help — it
+ * gates only the noop verdict, not the shadow write.
+ */
+const realCreateCalls = () =>
+  mocks.brainMemory.create.mock.calls.filter(
+    ([arg]) => arg?.data?.category !== "memory_gateway_shadow",
+  );
+
 describe("BrainMemoryManager.remember", () => {
   let mm: BrainMemoryManager;
   beforeEach(() => {
@@ -80,7 +95,7 @@ describe("BrainMemoryManager.remember", () => {
     await mm.remember("insight", "k1", "x", "test");
     const after = Date.now();
 
-    const createArgs = mocks.brainMemory.create.mock.calls[0][0];
+    const createArgs = realCreateCalls()[0][0];
     expect(createArgs.data.confidence).toBe(0.5);
     const exp = createArgs.data.expiresAt as Date;
     expect(exp.getTime()).toBeGreaterThanOrEqual(before + 24 * 3600_000 - 50);
@@ -92,7 +107,7 @@ describe("BrainMemoryManager.remember", () => {
     mocks.brainMemory.create.mockResolvedValueOnce({ id: "m2" });
 
     await mm.remember("skills", "key", "content", "source");
-    const args = mocks.brainMemory.create.mock.calls[0][0];
+    const args = realCreateCalls()[0][0];
     expect(args.data.category).toBe("skill");
   });
 
@@ -106,7 +121,7 @@ describe("BrainMemoryManager.remember", () => {
     mocks.brainMemory.create.mockResolvedValueOnce({ id: "m3" });
 
     await mm.remember("wisdom", "k", "be excellent", "auto_extracted");
-    const args = mocks.brainMemory.create.mock.calls[0][0];
+    const args = realCreateCalls()[0][0];
     expect(args.data.category).toBe("wisdom_candidate");
     expect(args.data.metadata.gateReject).toBe("too_vague");
     expect(args.data.metadata.originalCategory).toBe("wisdom");
@@ -118,7 +133,7 @@ describe("BrainMemoryManager.remember", () => {
 
     await mm.remember("wisdom", "k", "anything", "manual");
     expect(mocks.gateWisdom).not.toHaveBeenCalled();
-    const args = mocks.brainMemory.create.mock.calls[0][0];
+    const args = realCreateCalls()[0][0];
     expect(args.data.category).toBe("wisdom");
   });
 
@@ -140,7 +155,8 @@ describe("BrainMemoryManager.remember", () => {
     mocks.brainMemory.update.mockResolvedValueOnce({ id: "existing-id" });
 
     await mm.remember("insight", "k", "new content", "test");
-    expect(mocks.brainMemory.create).not.toHaveBeenCalled();
+    // Shadow receipts are the ONLY creates allowed on the reinforce path.
+    expect(realCreateCalls()).toHaveLength(0);
     expect(mocks.brainMemory.update).toHaveBeenCalledOnce();
   });
 });
