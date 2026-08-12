@@ -635,11 +635,11 @@ statenour primitives documented (existence re-verified at
 - **Cost:** two blocked calls + one broken test invocation + ~10 minutes of rerouting; without the gate-doc note the next session re-derives all of it.
 - **Proposed edit:** add to §3 (Changing dependencies): "Global (`-g`) installs never touch repo node_modules but still match the rule via command text, and the harness PINS the session shell cwd to the worktree — `Set-Location` does not persist between calls, so verify cwd before any `node_modules/.bin` invocation. Sanctioned path for a global install: a process runner with a non-worktree cwd (e.g. Desktop Commander), never a rule edit."
 - **Confidence:** high (three sightings in one session: explicit reset message, blocked here-string, cwd-reset vitest failure)
-- **Status:** proposed
+- **Status:** applied 2026-08-12 (operator-approved)
 
 ### P2 · statenour-verify (fire-and-forget writes vs mocked-model call counting)
 - **Trigger (witnessed):** `tests/lib/memory-manager.test.ts` red on main — the Phase-1 gateway fire-and-forgets shadow receipts (category `memory_gateway_shadow`) through the SAME mocked `brainMemory.create` the tests spy on, UNAWAITED, so receipts from earlier tests landed in a later test's spy window after `vi.clearAllMocks` (5 creates visible in one test's window). The sibling `calls[0][0]` reads carried the same latent class. Fixed test-side with a discriminator filter (#1532; suite back to 479/479 · 5,155/5,155 · exit 0).
 - **Cost:** the app suite red on main for ~1 day; one `verify:hard` run died at the test step, leaving four sub-gates unrun until executed individually.
 - **Proposed edit:** add a Traps row: "A fire-and-forget write sharing a mocked model with the code under test spills calls ACROSS tests — `vi.clearAllMocks` cannot fence an unawaited promise. Assert with a discriminator filter (e.g. `category !== "memory_gateway_shadow"`), never raw call counts, and treat `calls[0]` reads as the same hazard."
 - **Confidence:** medium (once, mechanism proven with event-order evidence)
-- **Status:** proposed
+- **Status:** applied 2026-08-12 (operator-approved)

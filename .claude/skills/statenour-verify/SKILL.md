@@ -81,6 +81,14 @@ non-obvious and two of them silently lie if run carelessly.
   on the primary lane — every non-anthropic content turn served with no
   content engine, behind a `prompt:size-check` that had been red since
   #687 and that everyone had learned to ignore.
+- **A fire-and-forget write sharing a mocked model with the code under test
+  spills calls ACROSS tests.** `vi.clearAllMocks` cannot fence an unawaited
+  promise — the Phase-1 memory gateway's shadow receipts ride the SAME mocked
+  `brainMemory.create` the tests spy on, and receipts from earlier tests land
+  in later tests' spy windows (5 visible in one window; red on main for a day,
+  #1532). Assert with a discriminator filter (e.g.
+  `category !== "memory_gateway_shadow"`), never raw call counts, and treat
+  `calls[0]` reads as the same hazard.
 
 ## Before shipping any report / diagnostic section
 
