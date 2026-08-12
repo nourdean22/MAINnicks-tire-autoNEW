@@ -30,6 +30,8 @@ export function useChatStream(): ChatRuntimeController {
   const setConnection = useChatUiStore((s) => s.setConnection);
   // 2026-07-22 · authority-kernel controls (composer selectors)
   const privateMode = useChatUiStore((s) => s.privateMode);
+  const turbo = useChatUiStore((s) => s.turbo);
+  const setTurbo = useChatUiStore((s) => s.setTurbo);
   const posture = useChatUiStore((s) => s.posture);
   const depth = useChatUiStore((s) => s.depth);
   const actionPermission = useChatUiStore((s) => s.actionPermission);
@@ -257,7 +259,16 @@ export function useChatStream(): ChatRuntimeController {
     sendText: (text: string) => {
       sentPrivateRef.current = privateMode;
       clearStall();
-      return chat.sendMessage({ text });
+      // 2026-08-12 · OPTIONAL TURBO: per-MESSAGE body override (race-free —
+      // the option rides this exact send, not the shared bodyRef), consumed
+      // and reset in the same tick so it can never stick to a second turn.
+      // Regenerate/append deliberately do NOT carry it (no automatic
+      // follow-on use, per the turbo contract).
+      const turboOpts = turbo
+        ? { body: { providerOverride: "anthropic" as const } }
+        : undefined;
+      if (turbo) setTurbo(false);
+      return chat.sendMessage({ text }, turboOpts);
     },
     append: ((...args: Parameters<typeof chat.sendMessage>) => {
       sentPrivateRef.current = privateMode;

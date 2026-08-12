@@ -50,15 +50,21 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12: pins FLIPPED on Railway (operator-instructed, verified by
-re-read — `OLLAMA_MODEL=minimax-m3` after a 5-rep finalist rerun 0.84 vs 0.8;
-`OLLAMA_FAST_MODEL=deepseek-v4-flash:0731`; rollback = reset two env vars) and
-`NICK_TOOL_BUDGET` live (default 24, was hardcoded 50; floor 10). Watch first
-prod `provider.success` lines on minimax-m3 tool traffic. Agent next wave:
-Context-Manifest log-only instrumentation → compact-prompt A/B (same Ollama
-model) → Eval-40 baseline → per-tool ranking across tiers (unlocks K≤5) →
-Skeptic-default A/B → deterministic memory max() (Phase-2). Operator-only:
-fund ANTHROPIC_API_KEY iff Turbo is wanted.
+DONE 2026-08-12 (waves 3+4, #1516 + #1518): pins FLIPPED on Railway (verified —
+`OLLAMA_MODEL=minimax-m3` after the 5-rep finalist rerun; `OLLAMA_FAST_MODEL=
+deepseek-v4-flash:0731`; rollback = two env vars) · `NICK_TOOL_BUDGET` live
+(default 24, was hardcoded 50) · Context-Manifest instrumentation live
+(`context_manifest` log line per turn) · deterministic golden-signals suite
+(`tests/ai/vnext/golden-signals.test.ts`). Watch after deploy: first
+`provider.success` lines on minimax-m3 + first `context_manifest` lines.
+**Remaining waves are DATA-GATED on these instruments:** compact-prompt A/B
+(reads manifest section census) → Ollama judge harness → anti-sycophancy pairs
+→ Skeptic-default A/B → per-tool cross-tier ranking (unlocks K≤5) →
+deterministic memory max() (Phase-2). Process trap twice this session: a
+branch cut from pre-squash commits conflicts on docs; force-push is
+hook-blocked (no bypass) — recovery is rebase `--onto origin/main <old-tip>` →
+push NEW branch name → re-PR (#1515→#1516, #1517→#1518). Operator-only: fund
+ANTHROPIC_API_KEY iff Turbo is wanted.
 
 ---
 
