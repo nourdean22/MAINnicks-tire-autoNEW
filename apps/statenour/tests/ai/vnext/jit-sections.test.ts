@@ -41,6 +41,26 @@ describe("applyJitSectionGate", () => {
     expect(r.prompt).toContain("## Response style");
   });
 
+  it("leaves the retrieval pointer when the agenda (live data) was dropped", () => {
+    const r = applyJitSectionGate(PROMPT, "hey what's up");
+    expect(r.prompt).toContain("## Agenda (JIT)");
+    expect(r.prompt).toContain("getAgendaItems");
+  });
+
+  it("no pointer when only static sections exist to drop (no data behind them)", () => {
+    const noAgenda = [
+      "## TRUTH RULE",
+      "x",
+      "## Behavioral patterns · hypotheses, not measurements",
+      "y",
+      "## Processing intake",
+      "z",
+    ].join("\n");
+    const r = applyJitSectionGate(noAgenda, "hey what's up");
+    expect(r.dropped).toHaveLength(2);
+    expect(r.prompt).not.toContain("## Agenda (JIT)");
+  });
+
   it("drops on a content turn (the census content scenario phrasing)", () => {
     const r = applyJitSectionGate(PROMPT, "write me an instagram carousel about winter tire safety");
     expect(r.reason).toBe("content");

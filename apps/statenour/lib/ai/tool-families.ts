@@ -61,6 +61,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getMasteryScores: { family: "personal-read", description: "Current mastery domain scores over last 12 rows", mutates: false, cost: "cheap" },
   getDriftAlerts: { family: "personal-read", description: "Unresolved drift alerts across domains", mutates: false, cost: "cheap" },
   getCommitments: { family: "personal-read", description: "Active commitments (active/in_progress)", mutates: false, cost: "cheap" },
+  getAgendaItems: { family: "personal-read", description: "Active agenda items — witnessed commitments, intentions, contradictions, neglect alerts (JIT complement to the gated inline agenda section)", mutates: false, cost: "cheap" },
   getTasks: { family: "personal-read", description: "INBOX/READY/DOING tasks with mission context", mutates: false, cost: "cheap" },
   getMissions: { family: "personal-read", description: "ACTIVE missions sorted by priority", mutates: false, cost: "cheap" },
   getMissionDetail: { family: "personal-read", description: "One mission with task progress, next actions, deadline health", mutates: false, cost: "cheap" },

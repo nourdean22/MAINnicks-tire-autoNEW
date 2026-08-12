@@ -32,6 +32,7 @@ export const metaTools = {
           "getMasteryScores — Mastery domain scores",
           "getDriftAlerts — Unresolved drift alerts",
           "getCommitments — Active commitments",
+          "getAgendaItems — Active agenda items (witnessed commitments, intentions, contradictions, neglect alerts)",
           "getTasks — Active tasks (INBOX/READY/DOING)",
           "getTasks — Tasks by status",
           "getMissions — Active missions",

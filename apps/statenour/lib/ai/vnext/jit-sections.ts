@@ -59,5 +59,20 @@ export function applyJitSectionGate(
     return true;
   });
   if (dropped.length === 0) return { prompt, dropped: [], reason: null };
-  return { prompt: kept.join("\n"), dropped, reason: casual ? "casual" : "content" };
+
+  // 2026-08-12 · retrieval-side complement: when the AGENDA section
+  // (live data) was dropped, leave a ~180-char pointer so the model
+  // knows the retrieval path — getAgendaItems is guaranteed present on
+  // these turns via the pruner's default tier. The two static blocks
+  // (behavioral hypotheses, intake instructions) have no data behind
+  // them and get no pointer.
+  const droppedAgenda = dropped.includes("## ACTIVE AGENDA ITEMS");
+  const pointer = droppedAgenda
+    ? "\n## Agenda (JIT)\nInline agenda omitted for this turn type. If the operator's commitments, intentions, or agenda matter here, call getAgendaItems."
+    : "";
+  return {
+    prompt: kept.join("\n") + pointer,
+    dropped,
+    reason: casual ? "casual" : "content",
+  };
 }

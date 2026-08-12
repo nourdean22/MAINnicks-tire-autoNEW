@@ -1521,6 +1521,15 @@
     }
   },
   {
+    "name": "getAgendaItems",
+    "description": "Get the operator's active agenda items — witnessed commitments, standing intentions, contradictions, and neglect alerts. Call this when the inline agenda section was omitted for this turn but the operator's agenda matters to the answer.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
     "name": "getAttentionAlerts",
     "description": "What needs Nour's attention NOW — stale leads, unanswered callbacks, overdue WOs, unpaid invoices",
     "inputSchema": {

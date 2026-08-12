@@ -558,7 +558,10 @@ export async function pruneTools(
   // Tier 6: Default extras (if only core tools were matched)
   const coreAndActionInRegistry = [...CORE_TOOLS, ...ACTION_CORE].filter(n => allTools[n]);
   if (selectedNames.size === coreAndActionInRegistry.length) {
-    const defaults = ["getCommitments", "getTasks", "dailyPulse", "findCustomer"];
+    // 2026-08-12 · getAgendaItems added: the default tier fires exactly
+    // on casual turns — the same turns the JIT prompt gate drops the
+    // inline agenda section on, so the retrieval path must be present.
+    const defaults = ["getCommitments", "getAgendaItems", "getTasks", "dailyPulse", "findCustomer"];
     for (const name of defaults) {
       addIfSpace(name);
     }
