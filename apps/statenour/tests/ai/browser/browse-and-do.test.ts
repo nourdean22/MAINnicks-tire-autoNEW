@@ -26,6 +26,10 @@ describe("classifyConsequential", () => {
       "click Sign up",
       "complete the payment",
       "click checkout",
+      // 2026-08-11 · update/save/upload were slipping the guard
+      "click Save",
+      "upload the file resume.pdf",
+      "update the shipping address",
     ]) {
       expect(classifyConsequential(t), t).toBe(true);
     }
@@ -39,6 +43,8 @@ describe("classifyConsequential", () => {
       "open the product details page",
       "click the search icon and type 'brake pads'",
       "select 'Ohio' from the state dropdown",
+      // \bsave\b must not match "saved" (recon over saved state is benign)
+      "scroll to the saved addresses section",
     ]) {
       expect(classifyConsequential(t), t).toBe(false);
     }

@@ -125,6 +125,26 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
   },
 };
 
+/**
+ * 2026-08-11 · Normal-chat cost firewall classification (operator
+ * directive: $0 incremental model spend on normal chat — the Ollama
+ * Cloud flat subscription is the funded lane). A provider KEY existing
+ * in the environment is AVAILABILITY, not spending AUTHORIZATION; the
+ * firewall (lib/ai/provider.ts filterByCostFirewall) separates the two.
+ * Metered lanes serve only explicit operator choices: a per-request
+ * provider override (Turbo), the AI_PROVIDER env pin, or the deep-canary
+ * env attestation. Kill-switch: NICK_COST_FIREWALL=0.
+ */
+export type ProviderCostClass = "zero_incremental" | "metered";
+
+export const PROVIDER_COST_CLASS: Record<RuntimeProviderName, ProviderCostClass> = {
+  ollama: "zero_incremental",
+  gemini: "metered",
+  openai: "metered",
+  anthropic: "metered",
+  openrouter: "metered",
+};
+
 // 2026-07-12 · OLLAMA CLOUD FIRST for every task (operator directive). Ollama
 // Cloud (ollama.com) serves large, lightly-filtered models on a flat un-metered
 // key — no per-token spend cap to hang like Gemini did, and the least-restricted

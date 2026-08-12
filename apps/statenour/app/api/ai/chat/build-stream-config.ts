@@ -29,6 +29,7 @@ import { smoothStream } from "ai";
 import { stepCountIs } from "ai";
 import { GEMINI_SAFETY_OFF, type ProviderName } from "@/lib/ai/provider";
 import { inferProviderName } from "@/lib/ai/stream-with-fallback";
+import { claude5EffortForAttempt } from "@/lib/ai/vnext/effort-policy";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
@@ -97,6 +98,11 @@ export function buildStreamConfigFactory(deps: {
       typeof __fbModel === "object" && __fbModel && "modelId" in __fbModel
         ? String((__fbModel as { modelId?: unknown }).modelId)
         : modelId;
+    // 2026-08-11 · deep-canary effort (NICK_CANARY_DEEP_ANTHROPIC): computed
+    // PER ATTEMPT so it applies only when this attempt actually resolved a
+    // Claude 5 thinking model — a fallback rotation to any other lane never
+    // carries a stray effort param. See lib/ai/vnext/effort-policy.ts.
+    const canaryEffort = claude5EffortForAttempt({ mode, modelId: fbModelId });
 
     return ({
       model: __fbModel,
@@ -106,7 +112,12 @@ export function buildStreamConfigFactory(deps: {
       // mid-generation on flagged content (the likely "messages don't
       // finish" cause) and are an unwanted restriction on this owner-operated
       // OS. See GEMINI_SAFETY_OFF in lib/ai/provider.ts.
-      providerOptions: { google: GEMINI_SAFETY_OFF },
+      // 2026-08-11 · anthropic.effort rides the same per-call providerOptions
+      // pattern — ignored by every non-Anthropic provider.
+      providerOptions: {
+        google: GEMINI_SAFETY_OFF,
+        ...(canaryEffort ? { anthropic: { effort: canaryEffort } } : {}),
+      },
       // v10.0.446 · prompt-quality audit fix #1 · cacheControl wiring.
       // When Anthropic is the active fallback provider, fold the
       // system prompt into messages with `cacheControl: ephemeral`

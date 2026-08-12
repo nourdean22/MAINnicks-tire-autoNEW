@@ -12,10 +12,16 @@
  */
 
 import { afterEach, describe, it, expect } from "vitest";
-import { routeCapability, CLAUDE5_MODELS } from "@/lib/ai/vnext/effort-policy";
+import {
+  routeCapability,
+  canaryDeepForce,
+  claude5EffortForAttempt,
+  CLAUDE5_MODELS,
+} from "@/lib/ai/vnext/effort-policy";
 
 afterEach(() => {
   delete process.env.ANTHROPIC_MYTHOS_ENABLED;
+  delete process.env.NICK_CANARY_DEEP_ANTHROPIC;
 });
 
 describe("routeCapability — lanes", () => {
@@ -96,5 +102,54 @@ describe("routeCapability — conversation effort pin (prompt-cache stability)",
   it("does not pin the fast lane (no effort there at all)", () => {
     const d = routeCapability({ band: "trivial", conversationEffort: "high", mythosEnabled: false });
     expect(d.effort).toBeUndefined();
+  });
+
+  it("refuses a max pin — max stays justify-gated (plan-#20 review finding)", () => {
+    const d = routeCapability({ band: "normal", conversationEffort: "max", mythosEnabled: false });
+    expect(d.effort).toBe("medium"); // band effort stands
+    expect(d.justify).toBeUndefined();
+    expect(d.rationale).toContain("max pin refused");
+  });
+});
+
+describe("canaryDeepForce — deep-mode canary provider force", () => {
+  it("forces anthropic only when enabled AND mode is deep", () => {
+    expect(canaryDeepForce("deep", true)).toBe("anthropic");
+    expect(canaryDeepForce("standard", true)).toBeUndefined();
+    expect(canaryDeepForce("deep", false)).toBeUndefined();
+  });
+
+  it("defaults to the NICK_CANARY_DEEP_ANTHROPIC env attestation (off when unset)", () => {
+    expect(canaryDeepForce("deep")).toBeUndefined();
+    process.env.NICK_CANARY_DEEP_ANTHROPIC = "1";
+    expect(canaryDeepForce("deep")).toBe("anthropic");
+  });
+});
+
+describe("claude5EffortForAttempt — per-attempt effort injection", () => {
+  it("injects high effort only for a resolved Claude 5 thinking model on a deep turn", () => {
+    expect(
+      claude5EffortForAttempt({ mode: "deep", modelId: "claude-fable-5", enabled: true }),
+    ).toBe("high");
+  });
+
+  it("never sends effort to a rotated non-5-family attempt (the stray-param guard)", () => {
+    expect(
+      claude5EffortForAttempt({ mode: "deep", modelId: "claude-sonnet-5", enabled: true }),
+    ).toBeUndefined();
+    expect(
+      claude5EffortForAttempt({ mode: "deep", modelId: "deepseek-v4-pro", enabled: true }),
+    ).toBeUndefined();
+  });
+
+  it("stays silent on standard mode and when the canary is off", () => {
+    expect(
+      claude5EffortForAttempt({ mode: "standard", modelId: "claude-fable-5", enabled: true }),
+    ).toBeUndefined();
+    expect(
+      claude5EffortForAttempt({ mode: "deep", modelId: "claude-fable-5", enabled: false }),
+    ).toBeUndefined();
+    // env default: off when unset
+    expect(claude5EffortForAttempt({ mode: "deep", modelId: "claude-fable-5" })).toBeUndefined();
   });
 });

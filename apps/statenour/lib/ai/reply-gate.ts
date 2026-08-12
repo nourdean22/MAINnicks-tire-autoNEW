@@ -30,6 +30,9 @@ export interface GateDecision {
     empty: boolean;
     stubReply: boolean;
     iDontKnow: boolean;
+    /** 2026-08-11 · the IDK carried its evidence (checked a source, cites
+     *  what came back empty) — grounded honesty, never a regen offense. */
+    evidencedUncertainty: boolean;
     subQuestionMiss: boolean;
     hedgeStorm: boolean;
   };
@@ -39,6 +42,12 @@ export interface GateDecision {
 const STUB_REPLY_RE = /^(ok(?:ay)?|sure|yep|no problem|got it|understood|noted)[.!?]?$/i;
 const I_DONT_KNOW_RE =
   /\b(i (don'?t|do not) (know|have (that|this|the)? (info|data|information))|can'?t (tell|answer|help)|i'?m not sure|i have no (info|data|record))/i;
+// 2026-08-11 · evidence markers that turn an IDK into grounded honesty:
+// the reply names what was checked and that it came back empty, or cites
+// a brain anchor. Penalizing THESE rewarded guessing — the failure is
+// "I don't know" with no retrieval attempt, not uncertainty itself.
+const EVIDENCED_UNCERTAINTY_RE =
+  /\b(no (record|row|entry|match|result)s? (of|for|in)\b|nothing (in|on file|recorded|logged)\b|(found|returned|came up with) (nothing|no (rows?|results?|records?|matches?))|came up empty|evidence (doesn'?t|does not|can'?t|cannot) (establish|support|confirm)|(data|records?|logs?|memory|brain|database|db|system) (doesn'?t|does not|has no|shows? no|show(s|ing)? nothing)|couldn'?t find (it|that|any|anything)\b|not in the (system|db|database|records?|logs?|brain))\b/i;
 const HEDGE_RE =
   /\b(perhaps|maybe|possibly|might|could be|it'?s possible|i think|i believe|seemingly|apparently)\b/gi;
 
@@ -73,6 +82,8 @@ export function runReplyGate(
   const isEmpty = text.length === 0;
   const isStubReply = !isEmpty && text.length < 40 && STUB_REPLY_RE.test(text);
   const iDontKnow = I_DONT_KNOW_RE.test(text);
+  const evidencedUncertainty =
+    iDontKnow && (EVIDENCED_UNCERTAINTY_RE.test(text) || text.includes("[brain:"));
   const hedgeCount = (text.match(HEDGE_RE) ?? []).length;
   const hedgeStorm = hedgeCount >= 4;
 
@@ -91,9 +102,17 @@ export function runReplyGate(
     severity = Math.max(severity, 80);
     reasons.push("stub reply on non-casual turn");
   }
-  if (iDontKnow && (turnSignal.intent === "factual" || turnSignal.intent === "decision")) {
+  // 2026-08-11 · fixed incentive: only an UNGROUNDED IDK (no evidence of a
+  // retrieval attempt) is a regen offense. "I don't know — checked, no
+  // record" is the truth protocol working; pushing regen there taught the
+  // model that guessing scores better than verified uncertainty.
+  if (
+    iDontKnow &&
+    !evidencedUncertainty &&
+    (turnSignal.intent === "factual" || turnSignal.intent === "decision")
+  ) {
     severity = Math.max(severity, 60);
-    reasons.push("I-don't-know on factual/decision turn");
+    reasons.push("I-don't-know on factual/decision turn (no evidence of a check)");
   }
   if (subQuestionMiss) {
     severity = Math.max(severity, 65);
@@ -119,6 +138,7 @@ export function runReplyGate(
       empty: isEmpty,
       stubReply: isStubReply,
       iDontKnow,
+      evidencedUncertainty,
       subQuestionMiss,
       hedgeStorm,
     },

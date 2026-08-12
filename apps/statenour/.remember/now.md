@@ -10,20 +10,27 @@ reports this file as stale, distrust everything below it and re-derive from sour
 > An inventory you cannot verify is worse than no inventory: **delete, don't carry.**
 
 ## Current objective
-NICK VNEXT program: wave 1 (Claude 5 frontier lane) SHIPPED as #1513 — compat
-middleware, refusal-as-first-class, effort router + Claim/Evidence ledger in shadow.
-Gate table: `docs/GATE-2026-08-11-nick-vnext.md` (the 18th mega-plan, ~70% incumbent).
-Remaining program (durable runs · JIT tools · memory graduation · context manifest ·
-eval gates) = 7-to-30-day items; EACH needs its own gate first — memory controller is
-ALREADY WIRED (08-10 #1486 gate) and receipts/provenance ~90% incumbent (08-10 gate).
+NICK VNEXT program, Ollama-first: waves 1-4 SHIPPED (wave 1 = #1513; wave 2-4 =
+second PR same day) — Claude 5 compat + refusal-first-class, deep canary,
+**normal-chat cost firewall** (ollama = only zero-incremental lane; Turbo consent
+opens metered), **memory gateway Phase-1 default-ON**, reply-gate
+evidenced-uncertainty fix, server-derived claim verification, browseAndDo
+update|save|upload guard, Ollama bake-off (`docs/OLLAMA-BAKEOFF-2026-08-11.md`).
+Gates: `docs/GATE-2026-08-11-nick-vnext.md` + addendum (plans #18-#20). Next wave:
+Context-Manifest instrumentation → compact-prompt A/B (V1/V2 shadow-metrics has NO
+live callers — an empty series is not convergence), Eval-40 baseline,
+effort→reasoning-tier remap, proactivity governor, Phase-2 memory (349
+review_required/wk + temporal supersession).
 
 ## Last material decision
-Mythos 5 is strictly attestation-gated (`ANTHROPIC_MYTHOS_ENABLED=1` = operator
-attests approved-org access) — never assumed, and untrusted input ALWAYS routes
-fable (classifier ON). No production default flip: `ANTHROPIC_MODEL` stays
-`claude-sonnet-5`; the flip is one Railway env edit, now safe because the compat
-middleware engages on any fable/mythos/opus-5 id. A refusal does NOT mark the
-provider failed (prompt-specific, not an outage).
+$0 incremental spend is a HARD invariant (operator, 3x): the cost firewall fails
+COST-CLOSED when Ollama is down instead of degrading onto metered credits
+(kill-switch `NICK_COST_FIREWALL=0`; suite pins it off for chain tests). Memory
+Phase-1 default-ON justified by the 7-day shadow review — 1,788 receipts, noop 846
+(47%) at ZERO legacy agreement (kill-switch `NICK_MEMORY_GATEWAY_PHASE1=0`).
+Canary armed but COLD: `ANTHROPIC_MODEL=claude-fable-5` set on Railway, but NO
+`ANTHROPIC_API_KEY` exists on any service — and under the firewall, anthropic also
+needs the canary attestation. A refusal does NOT mark the provider failed.
 
 ## Known failed approaches
 - **Auto fast-forwarding the primary checkout from the scheduled sync — rejected as
@@ -43,10 +50,12 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-Operator: either flip the canary (`ANTHROPIC_MODEL=claude-fable-5` on Railway — now
-safe) or authorize the bake-off. Agent-side next wave: wire `routeCapability()`
-behind an off-by-default flag into the chat route's provider pick, and surface
-`turnMetaSchema` (model/effort/fallback/refusal) in the Context & Evidence panel.
+Operator env decisions: ① `OLLAMA_FAST_MODEL=deepseek-v4-flash:0731` (bake-off:
+incumbent glm-5.2 measurably lost — high confidence); ② `OLLAMA_MODEL=minimax-m3`
+only as canary/after rerun (thin evidence vs prod history); ③ fund an
+ANTHROPIC_API_KEY only if Turbo is wanted. Agent next wave: Context-Manifest
+log-only instrumentation, then the compact-prompt A/B on the same Ollama model,
+then Eval-40 baseline (all gated against incumbents first).
 
 ---
 

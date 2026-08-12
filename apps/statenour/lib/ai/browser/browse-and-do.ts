@@ -37,7 +37,10 @@ export type ActionPermission = "read" | "draft" | "execute";
 // recon ("find the submit button", "where is checkout") doesn't trip it —
 // the guard runs on ACT instructions, which are imperatives.
 const CONSEQUENTIAL_RE =
-  /\b(submit|send|purchase|buy|order|pay|check\s?out|confirm|delete|remove|cancel|publish|post|apply|book|subscribe|unsubscribe|transfer|sign\s?up|register|complete\s+(the\s+)?(order|purchase|payment|booking)|place\s+(the\s+)?order|finali[sz]e)\b/i;
+  // 2026-08-11 · added update|save|upload — outward-facing mutation verbs
+  // that were slipping the guard ("click save", "upload the file",
+  // "update the listing" are act-imperatives, not recon).
+  /\b(submit|send|purchase|buy|order|pay|check\s?out|confirm|delete|remove|cancel|publish|post|apply|book|subscribe|unsubscribe|transfer|sign\s?up|register|update|save|upload|complete\s+(the\s+)?(order|purchase|payment|booking)|place\s+(the\s+)?order|finali[sz]e)\b/i;
 
 /** True when an act() instruction would fire a consequential, hard-to-reverse
  *  step (form submission, purchase, send, delete, publish...). Pure. */

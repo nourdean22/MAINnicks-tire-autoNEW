@@ -31,7 +31,10 @@ export function emptyResponseFallback(finishReason?: string): string {
   // provider rotation is impossible, so the honest move is to NAME the
   // refusal instead of pretending the request was "too heavy".
   if (finishReason === "content-filter") {
-    return "The model refused this one — a provider-side safety classifier, not a system failure. Rephrase it, or retry; a retry may route to a different provider.";
+    // 2026-08-11 (plan-#20 review finding) · no routing promise here — a
+    // retry does NOT guarantee a different provider (refusals deliberately
+    // don't mark the lane failed), so the copy must not imply it.
+    return "The model refused this one — a provider-side safety classifier, not a system failure. Rephrase it and retry.";
   }
   if (finishReason === "tool-calls") {
     return "I went to take an action on that but came back without a written response. Check whether it actually went through before you re-send — re-asking could create a duplicate.";

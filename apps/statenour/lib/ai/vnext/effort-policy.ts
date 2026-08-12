@@ -25,6 +25,8 @@
  * top cost lever.
  */
 
+import { isClaude5ThinkingModel } from "@/lib/ai/claude5-compat";
+
 export type ClaudeEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export type CapabilityBand =
@@ -135,13 +137,63 @@ export function routeCapability(input: RouteInput): RouteDecision {
  * Hold effort constant within a conversation — changing effort breaks
  * the Anthropic prompt-cache prefix. Frontier (justify) runs are exempt:
  * they belong in their own child run, not the cached conversation.
+ *
+ * 2026-08-11 (plan-#20 review finding) · a "max" pin is REFUSED: max is
+ * the justify-gated scarce tier, and honoring a conversation-level max
+ * pin would let every subsequent normal turn run max with no
+ * justification — the exact bypass the justify invariant exists to
+ * prevent. The band's own effort stands instead.
  */
 function pinEffort(input: RouteInput, decision: RouteDecision): RouteDecision {
   if (!input.conversationEffort || decision.lane !== "claude5" || decision.justify) return decision;
+  if (input.conversationEffort === "max") {
+    return {
+      ...decision,
+      rationale: `${decision.rationale} · max pin refused (max is justify-gated, never a conversation default)`,
+    };
+  }
   if (decision.effort === input.conversationEffort) return decision;
   return {
     ...decision,
     effort: input.conversationEffort,
     rationale: `${decision.rationale} · effort pinned to conversation value (changing effort invalidates the prompt cache)`,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Deep-mode canary (2026-08-11) — the FIRST live wiring of this module.
+// NICK_CANARY_DEEP_ANTHROPIC=1 sends deep-mode chat turns to the Anthropic
+// lane first (which ANTHROPIC_MODEL now resolves to claude-fable-5) at
+// effort "high". Degrades safely on two axes, both incumbent patterns:
+//   · no ANTHROPIC_API_KEY → getModel() skips the lane entirely (same as
+//     the dormant high-stakes anthropic pin in the chat route);
+//   · fallback rotation to a non-5-family model → no effort param is sent
+//     (per-attempt gate on the resolved model id).
+// ---------------------------------------------------------------------------
+
+/**
+ * Provider force for the deep-mode canary. Slots in as the LAST fallback in
+ * the chat route's force precedence (tool-mandatory force and the user's
+ * validated override always win).
+ */
+export function canaryDeepForce(
+  mode: string,
+  enabled = process.env.NICK_CANARY_DEEP_ANTHROPIC === "1",
+): "anthropic" | undefined {
+  return enabled && mode === "deep" ? "anthropic" : undefined;
+}
+
+/**
+ * Per-attempt effort injection for the canary. Returns an effort ONLY when
+ * the attempt actually resolved a Claude 5 thinking model — a rotation to
+ * sonnet-5 or any other lane must never carry a stray effort param.
+ */
+export function claude5EffortForAttempt(input: {
+  mode: string;
+  modelId: string;
+  enabled?: boolean;
+}): ClaudeEffort | undefined {
+  const enabled = input.enabled ?? process.env.NICK_CANARY_DEEP_ANTHROPIC === "1";
+  if (!enabled || input.mode !== "deep") return undefined;
+  return isClaude5ThinkingModel(input.modelId) ? "high" : undefined;
 }

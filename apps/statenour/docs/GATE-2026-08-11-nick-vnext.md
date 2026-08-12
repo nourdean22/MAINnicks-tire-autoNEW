@@ -52,3 +52,46 @@ No multi-agent swarm, no always-max Fable, no bigger monolithic prompt, no Outli
 typecheck 0 · lint 0 errors (170 pre-existing warnings) · `tests/ai` **105 files / 1,558 passed,
 exit 0** · targeted 5 files / 51 passed · check:raw-sql ✅ · check:crons ✅ · check:stale-docs
 (strict) ✅ · prompt:size-check PASS · prisma validate ✅ · pre-push turbo-build-affected 80.65s ✅.
+
+---
+
+# Addendum — plans #19 and #20 (arrived mid-session, same day)
+
+**Plan #19 ("Ollama-First VNext blueprint"):** Prisma-7 and Stagehand-v4 claims FALSE again
+(third and second sightings of each); "Llama 3.1 / Qwen 2.5" era-naming vs the live catalog
+(deepseek-v4 / glm-5.x / kimi-k3 / qwen3.5); the "125% cache penalty" repeats the number the
+first synthesis already corrected to a 25% write premium; **idempotency claim REFUTED** — markers
+already release on reported-failure AND throw (`lib/ai/tools/tool-idempotency.ts:96/101`, documented
+in its own header). **Accepted from it:** server-derived claim verification (shipped as
+`parseClaimLedger`) and the `CONSEQUENTIAL_RE` update|save|upload gap (real; shipped).
+
+**Plan #20 ("Canonical Ollama-First"):** the strongest of the four — its routing/shadow-state
+description matches code, and its #1486 correction (session-briefing memory controller ≠
+BrainMemory commit gateway) is RIGHT. All three of its #1513 review findings resolved this
+session: refusal copy's routing promise deleted; `pinEffort` now refuses a conversation-level
+`max` pin (real justify-bypass, confirmed by code-read); caller-supplied verification already
+fixed. Its P0 cost firewall SHIPPED (see the second-wave RECONCILIATION entry). Its "REJECT
+mandatory Fable bake-off" was honored — the bake-off that ran was Ollama-only on the flat
+subscription, per the operator's own zero-spend directive.
+
+**Operator-verified same session:** `ANTHROPIC_MODEL=claude-fable-5` is SET on statenour-web
+(operator-instructed flip) but **no ANTHROPIC_API_KEY exists on statenour-web OR nickstire** —
+the canary is armed and cold; the route comment at `route.ts:397` already documented the keyless
+state. Memory gateway shadow review: **1,788 receipts / 7 days — noop 846 (47%) at 0% legacy
+agreement, add 535 @ 100%, review_required 349, update 58, genuine independent reinforce ≈ 0.**
+
+**Plan #21 ("Canonical Ollama-First Edition", dated 08-12):** the most rigorous of the five, and
+its #1513/routing verification is accurate — yet it STILL asserts "Prisma 7 (`@prisma/adapter-neon
+^7.6.0`)" (fourth sighting of the falsehood; installed 6.19.3, no adapter-neon anywhere). Its
+Mythos self-retraction matches what #1513 already encoded. Of its six 48-hour items, three were
+already live from this session before it arrived (IDK incentive fix · refusal-first-class · $0
+firewall + lane transparency — ours is the stricter COST-CLOSED variant per plan #20 and the
+operator's own directive; the `NICK_COST_FIREWALL=0` kill-switch is its "liveness valve"). Its two
+big remaining SHIPs are **deliberately NOT blind-shipped**: a hard tool budget K≤5 must first
+solve the forced-tool inclusion problem (the toolChoice ladder step-0-pins tools a blind cap could
+exclude — the 2026-07-29 pruner-gap incident is the precedent) and the Skeptic-default persona is
+an every-turn behavior change that its own additive-migration rule routes through the golden-set
+A/B. **Next-wave queue, in its order:** tool budget (with forced-tool union) → instruction
+inventory + prompt compilation → Skeptic-default A/B → deterministic memory conflict resolution
+(max() over serial — pairs with Phase-2 supersession) → two-turn evidence extraction → golden set
+40-60 wired into verify:hard → intra-Ollama capability-router graduation.

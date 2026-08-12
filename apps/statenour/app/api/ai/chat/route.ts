@@ -1,5 +1,6 @@
 import { streamText } from "ai";  // (stepCountIs moved into the extracted pipeline modules, 2026-07-25)
 import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";  // (GEMINI_SAFETY_OFF moved into ./build-stream-config.ts, 2026-07-25)
+import { canaryDeepForce } from "@/lib/ai/vnext/effort-policy";
 import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/ai/system-prompt";
 // (query-shape / turn-intelligence / response-contract imports moved
 // into ./derive-turn-signals.ts with the derivation stack, 2026-07-25)
@@ -348,6 +349,7 @@ async function chatPostInner(req: Request) {
 
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
+  let allowMetered = false;
   try {
     // Apr 28 · Tag-team Venice + Ollama Cloud. When the prompt is in
     // content-mode (heavy v5.0 engine, ~70-100kc), prefer Ollama's
@@ -404,9 +406,23 @@ async function chatPostInner(req: Request) {
           : ("ollama" as const)
         : undefined;
 
-    effectiveForce = toolMandatoryForce ?? validatedProviderOverride;
+    // 2026-08-11 · deep-mode canary (NICK_CANARY_DEEP_ANTHROPIC=1) fills
+    // ONLY the unforced case — tool-mandatory forces and the user override
+    // keep absolute precedence. Keyless Anthropic degrades to the normal
+    // chain exactly like the high-stakes pin above.
+    effectiveForce = toolMandatoryForce ?? validatedProviderOverride ?? canaryDeepForce(mode);
+    if (effectiveForce === "anthropic" && !toolMandatoryForce && !validatedProviderOverride) {
+      log.info("canary_deep_anthropic", { mode });
+    }
+    // 2026-08-11 · Turbo consent (cost firewall): metered lanes open ONLY
+    // on the operator's own explicit choices — a per-request provider
+    // override, or the deep-canary env attestation. Internal tool forces
+    // are NOT consent; under the firewall they degrade to the
+    // zero-incremental lane.
+    allowMetered = Boolean(validatedProviderOverride) || Boolean(canaryDeepForce(mode));
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
+      allowMetered,
       ...(effectiveForce ? { forceProviderFirst: effectiveForce } : {}),
     });
     if (toolMandatoryForce) {
@@ -855,6 +871,7 @@ async function chatPostInner(req: Request) {
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
     forceProviderFirst: effectiveForce,
+    allowMetered,
     buildConfig: buildStreamConfigFactory({
       persistBase,
       provider,
