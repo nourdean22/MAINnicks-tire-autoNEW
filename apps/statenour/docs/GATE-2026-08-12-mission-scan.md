@@ -89,8 +89,11 @@ hygiene + an expiry/sweep design come first, and the bulk mutation is
    plan/execute scripts wrapping `purgeStaleCategory("pending_actions_7d")`:
    468 → 44 pending (424 flipped, reversible; receipts
    `docs/APPROVAL-QUEUE-CLEANUP-{PLAN,EXECUTED}-2026-08-12.json`; census
-   re-run confirms 44, all ≤7d). **Remaining open half:** schedule the
-   purger (or per-rule TTLs) so the queue can't silently regrow, and
+   re-run confirms 44, all ≤7d). **Sweep SCHEDULED same day**
+   (operator: "schedule the purger"): the nightly `data-cleanup` cron
+   now delegates to `purgeStaleCategory("pending_actions_7d")` — one
+   policy, two callers (UI tap + cron); producer pinned incl. fail-loud
+   by `tests/cron/data-cleanup-pending-actions.test.ts`. Still open:
    inspect the two dominant producers (memory_promotion,
    decision_replay_due) for proposal-rate sanity.
 3. **WP: merged receipts timeline shell** (BDN-003) — read-only merge of
