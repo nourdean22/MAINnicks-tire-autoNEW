@@ -108,7 +108,7 @@ export async function buildSystemPrompt(
   const _bucket = _hour < 12 ? "am" : _hour < 17 ? "pm" : "eve";
   const cacheKey = `system_prompt_v3_${effectiveTier}_${variant}_${_dayKey}_${_bucket}`;
 
-  return cached(cacheKey, 300, async () => {
+  const base = await cached(cacheKey, 300, async () => {
     const { buildSystemPromptV2 } = await import("./prompt/v2");
     const out = await buildSystemPromptV2();
     let prompt = trimPromptToBudget(out.prompt, 58000);
@@ -125,6 +125,17 @@ export async function buildSystemPrompt(
 
     return prompt;
   });
+
+  // 2026-08-12 · JIT section gate (VNext) — OUTSIDE the cache on purpose:
+  // the gate depends on the user message (casual / social-content), and
+  // casual + grounded turns can share a cache key (same tier/variant/
+  // bucket), so gating inside the closure would let a casual turn poison
+  // the 300s slot with a sections-dropped prompt served to grounded
+  // turns. Pure regex + split — cheap per call. Evidence: the prompt
+  // A/Bs, both directions (sections win grounded turns, lose casual +
+  // social-content). Kill-switch NICK_JIT_SECTIONS=0.
+  const { applyJitSectionGate } = await import("@/lib/ai/vnext/jit-sections");
+  return applyJitSectionGate(base, userMessage ?? null).prompt;
 }
 
 /**
@@ -228,6 +239,19 @@ export async function buildSystemPromptUncached(
   // has no slot detection — tier alone gates (content/sms callers use
   // buildSystemPrompt).
   prompt = await appendBusinessKnowledgeLayer(prompt, tier, "default", userMessage);
+
+  // 2026-08-12 · JIT section gate (VNext). Evidence from the prompt
+  // A/Bs, both directions: the agenda/behavioral/intake sections earn
+  // their ~9.2K chars on context-grounded turns (the bigger A/B
+  // reversed to incumbent exactly there) and don't on casual + content
+  // turns (the only cases the bare cut ever won). Drop them exactly
+  // there; keep everywhere else. Kill-switch NICK_JIT_SECTIONS=0; the
+  // per-turn context_manifest log shows the effect live.
+  {
+    const { applyJitSectionGate } = await import("@/lib/ai/vnext/jit-sections");
+    const gated = applyJitSectionGate(prompt, userMessage ?? null);
+    prompt = gated.prompt;
+  }
 
   if (userMessage) {
     const { detectStitchPromptIntent, resolveDesignContext, buildEnhancePromptSystemInstructions } = await import("@nour/ai-capabilities");
