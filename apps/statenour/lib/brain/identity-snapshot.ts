@@ -168,7 +168,11 @@ async function computePatienceHorizon(): Promise<Omit<IdentityAxis, "direction" 
 /**
  * Promise integrity — kept vs broken ratio in last 60d.
  */
-async function computePromiseIntegrity(): Promise<Omit<IdentityAxis, "direction" | "manual" | "updated_at">> {
+// Exported for direct unit testing (same rationale as sanitizeDeadline in
+// commitments.ts) — the status-vocabulary this reads is exactly the bug
+// class worth pinning in isolation, without mocking computeIdentitySnapshot's
+// other seven axis computers.
+export async function computePromiseIntegrity(): Promise<Omit<IdentityAxis, "direction" | "manual" | "updated_at">> {
   const since = new Date(Date.now() - 60 * 86400_000);
   const commits = await prisma.commitment.findMany({
     where: { updatedAt: { gte: since }, deletedAt: null },
@@ -177,7 +181,19 @@ async function computePromiseIntegrity(): Promise<Omit<IdentityAxis, "direction"
   if (commits.length < 3) {
     return { value: 60, evidence: [`only ${commits.length} commitments in 60d`] };
   }
-  const kept = commits.filter((c) => c.status === "kept" || c.status === "done" || c.status === "fulfilled").length;
+  // 2026-08-12 · vocabulary-mismatch fix. "kept"/"done"/"fulfilled" are
+  // legacy/aspirational status strings nothing in this codebase ever
+  // writes — the two LIVE completion paths are the completeCommitment
+  // chat tool (status "completed") and the blueprint verifyCommitment
+  // service (status "verified"), and neither was recognized here. Prod
+  // read (2026-08-12): 7 completed + 1 verified vs 1 broken — the old
+  // filter counted 0 kept, forcing the ratio to 0/1 regardless of how
+  // many promises were actually honored. "abandoned" deliberately stays
+  // OUT of both buckets: most abandoned rows are declined machine-
+  // PROPOSED commitments (dismissProposed), never something the
+  // operator promised — counting them as broken would penalize
+  // follow-through for the system's own over-suggestion.
+  const kept = commits.filter((c) => c.status === "kept" || c.status === "done" || c.status === "fulfilled" || c.status === "completed" || c.status === "verified").length;
   const broken = commits.filter((c) => c.status === "broken" || c.status === "missed").length;
   const active = commits.filter((c) => c.status === "active").length;
   const resolved = kept + broken;

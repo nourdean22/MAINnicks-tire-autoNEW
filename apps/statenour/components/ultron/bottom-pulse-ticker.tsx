@@ -45,6 +45,8 @@ interface PulseItem {
   text: string;
   tone: "info" | "warn" | "win" | "mute";
   href?: string;
+  /** 2026-08-12 · set on kind:"commitment" items — enables inline resolve. */
+  commitmentId?: number;
 }
 
 const TONE_COLORS: Record<PulseItem["tone"], string> = {
@@ -70,7 +72,7 @@ const TONE_RANK: Record<PulseItem["tone"], number> = { warn: 0, win: 1, info: 2,
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 export function BottomPulseTicker() {
-  const { data } = trpc.operator.personalPulse.useQuery(undefined, {
+  const { data, refetch: refetchPulse } = trpc.operator.personalPulse.useQuery(undefined, {
     refetchInterval: 300_000,
     retry: false,
   });
@@ -80,6 +82,15 @@ export function BottomPulseTicker() {
   });
   const { dismissed, dismiss } = useDismissedTicker();
   const s = useNourState();
+  // 2026-08-12 · resolve an overdue commitment (Done/Drop) directly from
+  // the sheet — the prior state was chat-only. The server mutation clears
+  // its own 90s cache; refetch() here is what makes the client actually
+  // notice within the same session instead of waiting up to 5 minutes.
+  const resolveCommitment = trpc.operator.resolveCommitment.useMutation({
+    onSuccess: () => {
+      void refetchPulse();
+    },
+  });
 
   const items = useMemo<PulseItem[]>(() => {
     const personalItems = (data?.items ?? []) as PulseItem[];
@@ -228,6 +239,8 @@ export function BottomPulseTicker() {
           activeIdx={safeIdx}
           onClose={() => setOpen(false)}
           onDismiss={(id, kind) => dismiss(id, { kind, source: "bottom", ttlMs: SNOOZE_MS })}
+          onResolve={(commitmentId, action) => resolveCommitment.mutate({ commitmentId, action })}
+          resolvingId={resolveCommitment.isPending ? (resolveCommitment.variables?.commitmentId ?? null) : null}
           onPick={(i) => {
             setIdx(i);
             setOpen(false);
@@ -279,12 +292,18 @@ function PulseFeedSheet({
   activeIdx,
   onClose,
   onDismiss,
+  onResolve,
+  resolvingId,
   onPick,
 }: {
   items: PulseItem[];
   activeIdx: number;
   onClose: () => void;
   onDismiss: (id: string, kind: PulseItem["kind"]) => void;
+  /** 2026-08-12 · fires the resolveCommitment mutation for a commitment row. */
+  onResolve: (commitmentId: number, action: "done" | "drop") => void;
+  /** commitmentId currently in flight, so its own row can show a busy state. */
+  resolvingId: number | null;
   onPick: (i: number) => void;
 }) {
   return (
@@ -331,6 +350,13 @@ function PulseFeedSheet({
                   <PulseContent item={it} row />
                 </button>
               )}
+              {it.kind === "commitment" && it.commitmentId != null && (
+                <CommitmentResolveButtons
+                  commitmentId={it.commitmentId}
+                  busy={resolvingId === it.commitmentId}
+                  onResolve={onResolve}
+                />
+              )}
               <DismissButton
                 onClick={(e) => {
                   e.stopPropagation();
@@ -345,5 +371,50 @@ function PulseFeedSheet({
         </ul>
       </div>
     </>
+  );
+}
+
+/** Inline "Done" / "Drop" for a commitment row — 2026-08-12. Single-tap,
+ *  no confirm dialog: both are reversible status flips (not deletes), and
+ *  every other action in this ticker (pause, snooze) is already single-tap
+ *  — a confirm step here would be inconsistent friction for the least-
+ *  risky actions in the sheet. `busy` disables both buttons for the
+ *  in-flight commitment so a double-tap during the mutation can't race. */
+function CommitmentResolveButtons({
+  commitmentId,
+  busy,
+  onResolve,
+}: {
+  commitmentId: number;
+  busy: boolean;
+  onResolve: (commitmentId: number, action: "done" | "drop") => void;
+}) {
+  return (
+    <div className="shrink-0 flex items-center gap-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={(e) => {
+          e.stopPropagation();
+          onResolve(commitmentId, "done");
+        }}
+        aria-label="Mark this promise done"
+        className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded px-2 text-[9px] font-mono uppercase tracking-wider text-emerald-400/80 hover:text-emerald-300 disabled:opacity-40 focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+      >
+        Done
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={(e) => {
+          e.stopPropagation();
+          onResolve(commitmentId, "drop");
+        }}
+        aria-label="Drop this promise — no longer doing it"
+        className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded px-2 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-rose-400 disabled:opacity-40 focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+      >
+        Drop
+      </button>
+    </div>
   );
 }

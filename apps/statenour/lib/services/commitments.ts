@@ -165,6 +165,41 @@ export async function verifyCommitment(
   return res.count === 1;
 }
 
+// ─── Active-commitment resolution (2026-08-12) ──────────────────────────
+// The Pulse ticker surfaces overdue ACTIVE commitments every day (personal-
+// pulse.ts) but until now the only way to close one out was chat — asking
+// Nick to notice a completion-report turn and call the completeCommitment
+// tool, or waiting up to 90 days for the auto-expiry floor. These give the
+// ticker itself a direct, idempotent resolve path. Status-guarded
+// updateMany (0 or 1 rows) matches the pattern above — a second tap or a
+// race with the chat tool is a no-op, never a P2025 throw.
+
+/** Operator did it — completes an ACTIVE commitment from the pulse ticker.
+ *  Reuses the same "completed" status the completeCommitment chat tool
+ *  writes (not "verified") so a single vocabulary continues to describe
+ *  every UI-driven completion — see identity-snapshot.ts computePromiseIntegrity. */
+export async function completeActiveCommitment(id: number): Promise<boolean> {
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: "active", deletedAt: null },
+    data: { status: "completed", notes: "Completed (pulse ticker)", updatedBy: "operator" },
+  });
+  return res.count === 1;
+}
+
+/** Operator no longer intends to — drops an ACTIVE commitment without
+ *  claiming it was kept. Distinct from "completed": this is an honest
+ *  "I'm not doing this" signal, deliberately excluded from BOTH the
+ *  kept and broken buckets in computePromiseIntegrity (an abandoned
+ *  intention isn't a broken promise any more than a declined machine
+ *  suggestion is). */
+export async function abandonActiveCommitment(id: number): Promise<boolean> {
+  const res = await prisma.commitment.updateMany({
+    where: { id, status: "active", deletedAt: null },
+    data: { status: "abandoned", notes: "Dropped (pulse ticker)", updatedBy: "operator" },
+  });
+  return res.count === 1;
+}
+
 /** Proposed commitments awaiting the operator's verdict, oldest first. */
 export async function listProposed(limit = 10) {
   return prisma.commitment.findMany({
