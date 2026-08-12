@@ -96,6 +96,18 @@ Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
   CI audits this. The SPA hydrates on top of prerendered HTML — so a
   nav change reaches users via the JS bundle immediately, but the
   prerendered HTML (what crawlers see) stays stale until regen.
+- **`lint:source` matches `confirm (` / `prompt (` even inside a
+  single-line JSX comment.** Its comment-skip heuristic tests for a line
+  starting with `//`, `*` or `/*`, and a `{/* … */}` line starts with `{`
+  — so the words "confirm (two-tap)" inside a JSX comment failed a commit
+  (2026-08-12, `ApprovalsSection.tsx`). Reword the comment; do not fight
+  the regex and never `--no-verify`.
+- **`lint:pii` false-positives have a sanctioned line waiver.** A regex
+  CONSTANT like `/email/i` reads to the linter as PII in a URL path
+  (2026-08-12, `services/activityLedger.ts` — the matcher that MASKS
+  emails). The mechanism is `// pii-allow: <reason>` on the line, and the
+  reason is required. Read `scripts/lint-pii.mjs` before assuming a hit
+  is real; it also allowlists the shop's own public numbers.
 - **`pnpm run lint:hooks` audits hook-after-early-return.** A hook
   called after an `if (...) return null` silently breaks React. The
   lint catches it; don't bypass.

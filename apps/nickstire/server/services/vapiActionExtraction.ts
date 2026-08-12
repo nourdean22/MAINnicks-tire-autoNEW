@@ -59,6 +59,26 @@ export interface CallMeta {
   customerPhone: string | null;
   durationSeconds: number;
   endedReason: string | null;
+  /** VAPI's own call type, e.g. "inboundPhoneCall" / "outboundPhoneCall". */
+  callType?: string | null;
+}
+
+/**
+ * OUTBOUND calls are ours: appointment confirmations and declined-work
+ * recovery, placed BY the shop. Their transcripts are full of the same
+ * reschedule/callback language an inbound ask uses, so `classifyCall` — which
+ * has no direction awareness — would happily produce a draft for a customer we
+ * already called, on a booking that already exists.
+ *
+ * Absent type is treated as INBOUND on purpose: the concrete case this closes
+ * is our own outbound lane, which VAPI always types, and refusing every
+ * untyped payload would silently disable the whole feature if the webhook
+ * shape ever drops the field. The cost of the remaining case is one dismissible
+ * draft; the cost of the other default is a feature that looks armed and does
+ * nothing — the failure mode this repo keeps finding.
+ */
+export function isOutboundCall(callType: string | null | undefined): boolean {
+  return typeof callType === "string" && /outbound/i.test(callType);
 }
 
 /**
@@ -67,6 +87,7 @@ export interface CallMeta {
  */
 export function shouldExtract(meta: CallMeta): VapiOutcomeCategory | null {
   if (!meta.callId) return null;
+  if (isOutboundCall(meta.callType)) return null;
   // No verified number = no proposal can safely name a contact. Skip.
   if (!meta.customerPhone || meta.customerPhone.replace(/\D/g, "").length < 7) return null;
   if (meta.transcript.trim().length < 40) return null;

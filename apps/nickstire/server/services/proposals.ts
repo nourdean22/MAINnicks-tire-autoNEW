@@ -20,7 +20,7 @@
  * ledger (action proposal.*, status 'proposed' until execution).
  */
 import { randomUUID } from "crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { adminProposals, type AdminProposal } from "../../drizzle/schema";
@@ -41,22 +41,35 @@ export const PROPOSAL_STATUSES = [
   "executed",
   "failed",
   "rejected",
+  "execution_ambiguous",
 ] as const;
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
 /**
  * Allowed transitions. Terminal states have no exits except failed → approved
  * (an operator retry re-approves, then re-runs the executor).
+ *
+ * `execution_ambiguous` exists because a row abandoned at `executing` cannot be
+ * classified by the system: the process may have died AFTER the executor's
+ * insert and BEFORE the terminal write, so the action may already exist. The
+ * sweep parks it there — the same "may be LIVE" doctrine the IG publish path
+ * uses — and only a human who has checked the real records may resolve it,
+ * either to `executed` (it did happen) or to `failed` (it did not, and the
+ * existing failed → approved retry door reopens).
  */
 export const PROPOSAL_TRANSITIONS: Record<ProposalStatus, readonly ProposalStatus[]> = {
   draft: ["pending_review", "approved", "rejected"],
   pending_review: ["approved", "rejected"],
   approved: ["executing"],
-  executing: ["executed", "failed"],
+  executing: ["executed", "failed", "execution_ambiguous"],
+  execution_ambiguous: ["executed", "failed"],
   failed: ["approved"],
   executed: [],
   rejected: [],
 };
+
+/** How long a row may sit in `executing` before the sweep calls it ambiguous. */
+export const EXECUTING_STALE_MINUTES = 15;
 
 export function canTransition(from: ProposalStatus, to: ProposalStatus): boolean {
   return (PROPOSAL_TRANSITIONS[from] ?? []).includes(to);
@@ -444,6 +457,93 @@ async function runExecution(id: string, reviewer: LedgerActor): Promise<ReviewOu
 }
 
 // ─── Queries ────────────────────────────────────────────────────────────────
+
+/**
+ * Park rows abandoned mid-execution as `execution_ambiguous` so they stop
+ * looking like work in flight. Deliberately does NOT retry: a row here may
+ * have completed its executor insert before the process died, and an
+ * auto-retry is how you double-create.
+ *
+ * Returns the ids it parked so the caller (the pulse cron) can report and
+ * alert. THROWS on a read/write failure — the scheduler records a thrown job
+ * as `failed`, which is what drives the consecutive-failure alert; a returned
+ * error would be logged as `completed` and never surface (the keepalive
+ * lesson, scheduler.ts:627).
+ */
+export async function sweepStaleExecuting(
+  olderThanMinutes: number = EXECUTING_STALE_MINUTES,
+): Promise<{ parked: string[] }> {
+  const d = await db();
+  if (!d) throw new Error("Database not available for the stale-executing sweep");
+
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60_000);
+  const stale = await d
+    .select({ id: adminProposals.id, title: adminProposals.title, actionType: adminProposals.actionType })
+    .from(adminProposals)
+    .where(and(eq(adminProposals.status, "executing"), lt(adminProposals.updatedAt, cutoff)))
+    .limit(100);
+  if (stale.length === 0) return { parked: [] };
+
+  const parked: string[] = [];
+  for (const row of stale) {
+    // CAS per row: a proposal that finished between the SELECT and here must
+    // NOT be dragged out of its terminal state.
+    const moved = await casTransition(row.id, ["executing"], "execution_ambiguous", {
+      executionResult: {
+        error: `Abandoned mid-execution for over ${olderThanMinutes} minutes — the ${row.actionType} may or may not have completed. Verify the real records before resolving.`,
+      },
+    });
+    if (!moved) continue;
+    parked.push(row.id);
+    await recordActivity({
+      action: "proposal.execution_failed",
+      entityType: "proposal",
+      entityId: row.id,
+      actor: { actor: "system:proposal-sweep", actorType: "system" },
+      after: { parkedAs: "execution_ambiguous", actionType: row.actionType, staleMinutes: olderThanMinutes },
+      status: "proposed",
+    });
+    log.warn("proposal parked as execution_ambiguous", { id: row.id, actionType: row.actionType });
+  }
+  return { parked };
+}
+
+/**
+ * Human resolution of an ambiguous row, after they have checked the real
+ * records. `executed` records that the action DID happen (no executor runs —
+ * that is the whole point); `failed` reopens the ordinary retry door.
+ */
+export async function resolveAmbiguous(
+  id: string,
+  reviewer: LedgerActor,
+  outcome: "executed" | "failed",
+  note?: string,
+): Promise<ReviewOutcome> {
+  const moved = await casTransition(id, ["execution_ambiguous"], outcome, {
+    reviewedBy: reviewer.actor,
+    reviewNote: note ?? null,
+    executionResult: {
+      resolvedBy: reviewer.actor,
+      resolution: outcome === "executed" ? "operator confirmed the action exists" : "operator confirmed the action never happened",
+      note: note ?? null,
+    },
+  });
+  if (!moved) {
+    const row = await getProposal(id);
+    return {
+      ok: false,
+      status: (row?.status as ProposalStatus) ?? "missing",
+      error: "Only an execution_ambiguous proposal can be resolved",
+    };
+  }
+  await auditTransition(
+    id,
+    outcome === "executed" ? "proposal.executed" : "proposal.execution_failed",
+    reviewer,
+    { resolvedAmbiguous: true, outcome, note: note ?? null },
+  );
+  return { ok: true, status: outcome };
+}
 
 export async function listProposals(filter: {
   statuses?: readonly ProposalStatus[];

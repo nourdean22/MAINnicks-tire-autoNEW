@@ -14,6 +14,7 @@ import {
   ACTIONABLE_OUTCOMES,
   buildExtractionPrompt,
   buildProposalInputs,
+  isOutboundCall,
   parseExtraction,
   shouldExtract,
   type CallMeta,
@@ -69,6 +70,29 @@ describe("shouldExtract — the deterministic gate", () => {
 
   it("never extracts a trivial transcript", () => {
     expect(shouldExtract(meta({ transcript: "Hello? Anyone there?" }))).toBeNull();
+  });
+
+  it("never extracts an OUTBOUND call — that work already exists", () => {
+    // Our confirmation / recovery calls carry the same reschedule-and-callback
+    // language an inbound ask does, and classifyCall has no direction sense.
+    expect(shouldExtract(meta({ callType: "outboundPhoneCall" }))).toBeNull();
+    expect(
+      shouldExtract(
+        meta({
+          callType: "outboundPhoneCall",
+          transcript:
+            "Receptionist: Just confirming Friday. Caller: Actually can you call me back, I need to reschedule that.",
+          summary: "Outbound confirmation — caller asked to reschedule.",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("still extracts inbound, and treats an ABSENT type as inbound", () => {
+    expect(shouldExtract(meta({ callType: "inboundPhoneCall" }))).toBe("callback_needed");
+    // Deliberate default: a dropped field must not silently disable the feature.
+    expect(shouldExtract(meta({ callType: null }))).toBe("callback_needed");
+    expect(shouldExtract(meta({ callType: undefined }))).toBe("callback_needed");
   });
 
   it("actionable set stays reviewer-facing only — handled calls are excluded", () => {
@@ -165,6 +189,16 @@ describe("buildProposalInputs — verified phone, per-(call,kind) idempotency", 
   it("confidence rides the proposal for the reviewer's low-confidence flag", () => {
     const inputs = buildProposalInputs(actions, meta(), "callback_needed");
     expect(inputs.map((i) => i.confidence)).toEqual([82, 74]);
+  });
+});
+
+describe("isOutboundCall", () => {
+  it("matches VAPI's outbound types and nothing else", () => {
+    expect(isOutboundCall("outboundPhoneCall")).toBe(true);
+    expect(isOutboundCall("OUTBOUND")).toBe(true);
+    expect(isOutboundCall("inboundPhoneCall")).toBe(false);
+    expect(isOutboundCall(null)).toBe(false);
+    expect(isOutboundCall(undefined)).toBe(false);
   });
 });
 

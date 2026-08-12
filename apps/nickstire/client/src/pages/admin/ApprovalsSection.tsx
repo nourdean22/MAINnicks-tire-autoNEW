@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageHeader, LoadingState, ErrorState } from "./shared";
 import {
+  AlertTriangle,
   Bot,
   CheckCircle2,
   ClipboardList,
@@ -36,11 +37,17 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "all", label: "All" },
 ];
 
-const FILTER_STATUSES: Record<StatusFilter, Array<"draft" | "pending_review" | "approved" | "executing" | "executed" | "failed" | "rejected"> | undefined> = {
+type ProposalStatusName =
+  | "draft" | "pending_review" | "approved" | "executing"
+  | "executed" | "failed" | "rejected" | "execution_ambiguous";
+
+const FILTER_STATUSES: Record<StatusFilter, ProposalStatusName[] | undefined> = {
   needs_decision: ["draft", "pending_review"],
   executed: ["executed"],
   rejected: ["rejected"],
-  failed: ["failed", "executing", "approved"],
+  // Everything that needs a human but is not a fresh decision: real failures,
+  // sweep-parked ambiguity, and the two crash-orphan resting states.
+  failed: ["failed", "execution_ambiguous", "executing", "approved"],
   all: undefined,
 };
 
@@ -70,7 +77,8 @@ function StatusPill({ status }: { status: string }) {
     // approved/executing are crash-orphan states when seen at rest — they must
     // read as "needs attention", never as a neutral gray done-ness.
     approved: { cls: "bg-red-500/10 text-red-500", icon: <RefreshCw className="w-3 h-3" /> },
-    executing: { cls: "bg-red-500/10 text-red-500", icon: <Clock className="w-3 h-3" /> },
+    executing: { cls: "bg-amber-500/10 text-amber-600", icon: <Clock className="w-3 h-3" /> },
+    execution_ambiguous: { cls: "bg-red-500/10 text-red-500", icon: <AlertTriangle className="w-3 h-3" /> },
     executed: { cls: "bg-emerald-500/10 text-emerald-500", icon: <CheckCircle2 className="w-3 h-3" /> },
     rejected: { cls: "bg-muted text-muted-foreground", icon: <XCircle className="w-3 h-3" /> },
     failed: { cls: "bg-red-500/10 text-red-500", icon: <XCircle className="w-3 h-3" /> },
@@ -123,6 +131,19 @@ export default function ApprovalsSection() {
     onSuccess: (r) => {
       if (r.ok) toast.success("Retry succeeded");
       else toast.error(`Retry failed — ${r.error ?? r.status}`);
+      invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const resolve = trpc.proposals.resolveAmbiguous.useMutation({
+    onSuccess: (r) => {
+      if (r.ok) {
+        toast.success(
+          r.status === "executed"
+            ? "Recorded as already done — nothing was re-run"
+            : "Recorded as never executed — you can retry it now",
+        );
+      } else toast.error(`Could not resolve — ${r.error ?? r.status}`);
       invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -308,8 +329,35 @@ export default function ApprovalsSection() {
                 )}
                 {p.status === "executing" && (
                   <div className="text-[11px] text-amber-600">
-                    Stuck mid-execution? The action may already exist — verify (callbacks/bookings) before
-                    doing anything by hand. This row never auto-retries.
+                    Running. If it is still here in a few minutes the sweep will park it as ambiguous —
+                    it is never auto-retried, because the action may already exist.
+                  </div>
+                )}
+
+                {/* Ambiguous: the system cannot know whether the action landed.
+                    Only a human who checked the real records may resolve it. */}
+                {p.status === "execution_ambiguous" && (
+                  <div className="space-y-2 pt-1">
+                    <div className="text-[11px] text-red-500">
+                      Abandoned mid-execution — this {p.actionType === "create_callback" ? "callback" : "booking"} may
+                      or may not exist. Check the real records first, then say which.
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => resolve.mutate({ id: p.id, outcome: "executed" })}
+                        disabled={resolve.isPending}
+                        className="flex-1 min-h-[44px] text-xs font-bold bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
+                      >
+                        It DID happen
+                      </button>
+                      <button
+                        onClick={() => resolve.mutate({ id: p.id, outcome: "failed" })}
+                        disabled={resolve.isPending}
+                        className="flex-1 min-h-[44px] text-xs font-bold bg-secondary rounded-md px-3 py-2 hover:bg-secondary/80 disabled:opacity-50"
+                      >
+                        It never happened
+                      </button>
+                    </div>
                   </div>
                 )}
               </li>

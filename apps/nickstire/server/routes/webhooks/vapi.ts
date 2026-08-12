@@ -835,6 +835,9 @@ async function processCallEndReport(
           customerPhone: customer?.number ?? null,
           durationSeconds: extractCallDurationSec(event),
           endedReason: cleanEndedReason,
+          // Direction gate: our own outbound confirmation / recovery calls must
+          // not produce drafts for work that already exists.
+          callType: (event.call as { type?: string })?.type ?? null,
         });
       }
     }
