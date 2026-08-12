@@ -651,14 +651,14 @@ statenour primitives documented (existence re-verified at
 - **Cost:** none this time (caught in design); the inverse class already shipped once as the bridge-send outage (#1485 — a guard querying a column that didn't exist).
 - **Proposed edit:** add a rule under "Do this instead": "Shipping schema.ts columns AHEAD of the hand-applied DDL: grep `.from(<table>)` for projection-less `select()` reads and pin each to the pre-migration column set — a bare select enumerates every schema column and breaks against a database that has not applied the migration. New-column WRITES must be conditional (include the key only when a value is provided) for the same reason."
 - **Confidence:** high (this session + the #1485 sibling incident are the same class in both directions)
-- **Status:** proposed
+- **Status:** applied 2026-08-12 (operator-approved) — new "Shipping `schema.ts` AHEAD of the hand-applied DDL" section
 
 ### P2 · nickstire-verify (two linter behaviors that cost a commit cycle each)
 - **Trigger (witnessed):** (a) lint-source's dialog-global regex rejected a commit over the word sequence "confirm (two-tap)" inside a ONE-LINE JSX comment (`ApprovalsSection.tsx:264` — `{/* ... */}` lines start with "{" and slip the comment-skip heuristic); (b) lint:pii flagged the regex constant `/email/i` in `services/activityLedger.ts:62` as "PII in URL path segment" — it is the key-name matcher that MASKS emails; the fix was the linter's own `// pii-allow: <reason>` waiver, discoverable only by reading `scripts/lint-pii.mjs`.
 - **Cost:** one rejected commit + diagnose cycle each (~5 min total).
 - **Proposed edit:** add two Traps rows: "lint-source matches `confirm (`/`prompt (` even inside single-line JSX comments — reword the comment, don't fight the regex" and "lint:pii false-positives have a sanctioned line waiver: `// pii-allow: <reason>` (reason required)".
 - **Confidence:** medium (each witnessed once, mechanism read from linter source)
-- **Status:** proposed
+- **Status:** applied 2026-08-12 (operator-approved) — two Traps rows added
 
 ## 2026-08-12 · MISSION-scan gate → BDN close-out + retrofit-pass gate (#1535–#1542)
 

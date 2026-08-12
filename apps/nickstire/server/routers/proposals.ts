@@ -21,6 +21,7 @@ import {
   listProposals,
   PROPOSAL_STATUSES,
   rejectProposal,
+  resolveAmbiguous,
   retryExecution,
   submitForReview,
 } from "../services/proposals";
@@ -98,4 +99,21 @@ export const proposalsRouter = router({
   retry: adminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ input, ctx }) => retryExecution(input.id, deriveActor(ctx))),
+
+  /**
+   * Resolve a row the sweep parked as `execution_ambiguous`. The operator has
+   * checked the real records; the system cannot know. `executed` runs NO
+   * executor — it records that the action already exists.
+   */
+  resolveAmbiguous: adminProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        outcome: z.enum(["executed", "failed"]),
+        note: z.string().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) =>
+      resolveAmbiguous(input.id, deriveActor(ctx), input.outcome, input.note),
+    ),
 });

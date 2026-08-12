@@ -238,6 +238,84 @@ describe("retryExecution — crash-orphan semantics", () => {
   });
 });
 
+describe("stale-executing sweep — parks, never retries", () => {
+  const stale = {
+    id: "33333333-3333-4333-8333-333333333333",
+    title: "Callback: Jane",
+    actionType: "create_callback",
+  };
+
+  it("parks an abandoned executing row as execution_ambiguous and runs NO executor", async () => {
+    const { sweepStaleExecuting } = await import("./proposals");
+    dbState.selectRows = [stale];
+    dbState.updateResults = [1];
+    const { parked } = await sweepStaleExecuting(15);
+    expect(parked).toEqual([stale.id]);
+    expect(dbState.updates[0]).toMatchObject({ status: "execution_ambiguous" });
+    // The whole point: the action may already exist, so nothing re-runs.
+    expect(createCallbackRequest).not.toHaveBeenCalled();
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it("skips a row that finished between the read and the CAS", async () => {
+    const { sweepStaleExecuting } = await import("./proposals");
+    dbState.selectRows = [stale];
+    dbState.updateResults = [0]; // it reached a terminal state first
+    const { parked } = await sweepStaleExecuting(15);
+    expect(parked).toEqual([]);
+  });
+
+  it("reports nothing on a healthy queue", async () => {
+    const { sweepStaleExecuting } = await import("./proposals");
+    dbState.selectRows = [];
+    const { parked } = await sweepStaleExecuting(15);
+    expect(parked).toEqual([]);
+    expect(dbState.updates).toHaveLength(0);
+  });
+});
+
+describe("resolveAmbiguous — the human decides, the system never guesses", () => {
+  const id = "44444444-4444-4444-8444-444444444444";
+
+  it("'it DID happen' closes the row as executed WITHOUT running the executor", async () => {
+    const { resolveAmbiguous } = await import("./proposals");
+    dbState.updateResults = [1];
+    const out = await resolveAmbiguous(id, REVIEWER, "executed", "found the callback row");
+    expect(out).toMatchObject({ ok: true, status: "executed" });
+    expect(dbState.updates[0]).toMatchObject({ status: "executed", reviewedBy: REVIEWER.actor });
+    expect(createCallbackRequest).not.toHaveBeenCalled();
+  });
+
+  it("'it never happened' lands on failed, reopening the ordinary retry door", async () => {
+    const { resolveAmbiguous, canTransition } = await import("./proposals");
+    dbState.updateResults = [1];
+    const out = await resolveAmbiguous(id, REVIEWER, "failed");
+    expect(out).toMatchObject({ ok: true, status: "failed" });
+    expect(canTransition("failed", "approved")).toBe(true);
+  });
+
+  it("refuses a row that is not ambiguous", async () => {
+    const { resolveAmbiguous } = await import("./proposals");
+    dbState.updateResults = [0];
+    dbState.selectRows = [{ status: "executed" }];
+    const out = await resolveAmbiguous(id, REVIEWER, "executed");
+    expect(out.ok).toBe(false);
+    expect(out.status).toBe("executed");
+  });
+
+  it("ambiguous is reachable ONLY from executing, and is not a dead end", async () => {
+    const { canTransition, PROPOSAL_STATUSES } = await import("./proposals");
+    for (const from of PROPOSAL_STATUSES) {
+      expect(canTransition(from, "execution_ambiguous"), `${from} → ambiguous`).toBe(from === "executing");
+    }
+    expect(canTransition("execution_ambiguous", "executed")).toBe(true);
+    expect(canTransition("execution_ambiguous", "failed")).toBe(true);
+    // It must never re-enter execution on its own.
+    expect(canTransition("execution_ambiguous", "executing")).toBe(false);
+    expect(canTransition("execution_ambiguous", "approved")).toBe(false);
+  });
+});
+
 describe("rejectProposal", () => {
   it("rejects a reviewable row and never touches an executor", async () => {
     dbState.updateResults = [1];

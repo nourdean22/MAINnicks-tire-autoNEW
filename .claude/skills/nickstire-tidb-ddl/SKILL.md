@@ -54,6 +54,27 @@ the most — the job is parked with no state recorded. Enumerate the values the
 **code** writes, not the ones the comment lists, and widen the column in the
 same migration that adds a longer one.
 
+## Shipping `schema.ts` AHEAD of the hand-applied DDL
+
+Migrations are hand-applied, so there is always a window where the CODE knows
+about a column the DATABASE does not. Two rules make that window survivable:
+
+- **Grep `.from(<table>)` for projection-less `select()` reads and pin each to
+  the pre-migration column set.** A bare `db.select().from(t)` enumerates every
+  column in the drizzle definition, so adding a column to `schema.ts` silently
+  rewrites those queries to name a column prod lacks. Adding the 0110 ledger
+  columns to `audit_log` would have 500'd three such reads
+  (`services/adminAudit.ts`, `services/snapApplications.ts`,
+  `services/complianceLog.ts`) until the DDL landed.
+- **New-column WRITES must be conditional** — build the insert values object
+  and attach each new key only when the caller supplied it, so every
+  pre-existing call site emits byte-identical SQL. `services/auditTrail.ts`
+  does this deliberately.
+
+The inverse of this class already cost an outage: the bridge-send guard queried
+a column that did not exist and failed CLOSED for months (#1485). Same window,
+opposite direction — the code and the schema disagreeing about what is real.
+
 ## DDL that TiDB accepts
 
 - **Additive, idempotent, `INFORMATION_SCHEMA`-guarded** — follow the existing

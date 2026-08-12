@@ -605,6 +605,38 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        /**
+         * Approval-queue orphan sweep. An approval runs its executor inside one
+         * request, so a row still sitting in `executing` minutes later means the
+         * process died mid-flight. It CANNOT be auto-retried — the executor's
+         * insert may have landed before the terminal write — so this parks it as
+         * `execution_ambiguous` ("may already exist") and tells the operator,
+         * exactly as the IG publish path parks an unanswered media_publish.
+         *
+         * Cheap by construction: one indexed status+time read per pulse that
+         * returns nothing on every healthy tick.
+         */
+        name: "proposal-orphan-sweep",
+        handler: async () => {
+          const { sweepStaleExecuting, EXECUTING_STALE_MINUTES } = await import("../services/proposals");
+          const { parked } = await sweepStaleExecuting();
+          if (parked.length > 0) {
+            const { alertSystem } = await import("../services/telegram");
+            await Promise.resolve(
+              alertSystem(
+                `${parked.length} approval proposal(s) abandoned mid-execution`,
+                `Stale >${EXECUTING_STALE_MINUTES}m and parked as AMBIGUOUS — the action may or may not have completed. ` +
+                  `Check the real callback/booking records, then resolve each in /admin → Approvals.`,
+              ),
+            ).catch(() => { /* alerting must not fail the sweep it reports on */ });
+          }
+          return {
+            recordsProcessed: parked.length,
+            details: parked.length === 0 ? "no orphans" : `parked ${parked.length} as ambiguous`,
+          };
+        },
+      },
+      {
         // Higgsfield SESSION KEEPALIVE. The CLI's access token expires ~90 min
         // and, once expired, refuses to auto-refresh ("Session expired — run
         // hf auth login"). Prod only made authenticated Higgsfield calls when
