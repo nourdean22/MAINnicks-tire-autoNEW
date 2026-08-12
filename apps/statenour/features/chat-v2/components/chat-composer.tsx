@@ -270,8 +270,8 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   return (
     <form onSubmit={onSubmit} className="relative mx-auto flex w-full max-w-4xl flex-col gap-2">
       {privateMode && (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-gold" data-testid="private-lab-banner">
-          Private Lab · no history · no memory · no learning
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-gold" data-testid="private-lab-banner">
+          Private Lab · no history · no memory · no learning · provider retention applies
         </div>
       )}
       <div className="flex items-center gap-1.5 px-1" data-testid="authority-controls">

@@ -611,3 +611,19 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add: "Edit old/new strings must never END on a meaningful space — anchor through the next token, or do whitespace-sensitive rewrites with a shell regex and grep-verify the result."
 - **Confidence:** medium (once, clear mechanism, harness-version dependent)
 - **Status:** applied 2026-08-10
+
+## 2026-08-11 · NICK VNEXT mega-plan gate + Claude 5 frontier-lane wave (#1513)
+
+### P1 · `plan-gate` (a plan's own "verified" table is item #0 to re-verify)
+- **Trigger (witnessed):** the pasted NICK VNEXT master plan's §0 "GROUND-TRUTH RECONCILIATION" table asserted **"VERIFIED TRUTH: Prisma 7 (`@prisma/adapter-neon ^7.6.0`)", stamped "verified 2026-08-11 via live code read"**. Reality: workspace catalog pins `prisma: ^6.3.1`, installed `@prisma/client` 6.19.3, no `@prisma/adapter-neon` anywhere in statenour. The same report family earlier claimed Stagehand v4 (installed: 3.7.0). Gate doc: `apps/statenour/docs/GATE-2026-08-11-nick-vnext.md`.
+- **Cost:** near-miss — caught only because the gate re-derived the stack; trusted, a false "Prisma 7" would have shipped into GATE + RECONCILIATION as fact and seeded a future migration assumption.
+- **Proposed edit:** add to plan-gate's "Order of checks" as step 0: "A plan carrying its own 'verified / ground-truth / fact-base' table gets that table re-verified FIRST — self-verification is not evidence, regardless of the tooling the plan says it used (2026-08-11: 'VERIFIED: Prisma 7 via live code read' vs installed 6.19.3)."
+- **Confidence:** high (class recurred: Prisma-7 + Stagehand-v4 in one report family; 16 false claims in the 08-09 campaign gate)
+- **Status:** proposed
+
+### P2 · AGENTS.md §2 "small ships" vs operator's batched-wave preference
+- **Trigger (witnessed):** mid-turn operator instruction this session: "finish everything in one long pass with minimal pr bc the checks take forever." The wave shipped as ONE PR (#1513: 10 code files + a docs commit) against §2's "small ships — 1-4 files + 1 test file per commit; a wave is 4-6 slices."
+- **Cost:** none this session (instruction followed), but the standing rule and the operator's revealed preference now disagree — the next session that obeys §2 will fragment a wave the operator wanted batched.
+- **Proposed edit:** operator policy call on AGENTS.md §2: either append "…unless the operator asks for a batched wave (slow-checks mode: one PR, staged commits inside it)" or reaffirm the rule as-is. Deliberately not an agent edit.
+- **Confidence:** medium (explicit instruction, once)
+- **Status:** proposed
