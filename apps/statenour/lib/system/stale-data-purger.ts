@@ -71,6 +71,10 @@ async function purgeDriftAlerts(): Promise<PurgeResult> {
 }
 
 async function purgePendingActions(): Promise<PurgeResult> {
+  // The 7d window is load-bearing beyond the UI tap: since 2026-08-12 the
+  // nightly data-cleanup cron runs this too (via purgeStaleCategory), so
+  // changing the window changes how long the operator gets to review a
+  // pending autonomous action before it auto-rejects.
   const since7d = new Date(Date.now() - 7 * 86400_000);
   const result = await prisma.autonomousAction.updateMany({
     where: { approval: "pending", createdAt: { lt: since7d } },

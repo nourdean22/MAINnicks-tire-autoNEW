@@ -452,7 +452,7 @@ export const CRONS: CronDef[] = [
     schedule: "0 3 * * *",
     mode: "active",
     category: "hygiene",
-    description: "Nightly via mega-evening fan-out · trims old logs, orphan rows, soft-deleted records past TTL.",
+    description: "Nightly via mega-evening fan-out · trims old logs, orphan rows, soft-deleted records past TTL; since 2026-08-12 also sweeps autonomous_action pending>7d → rejected/auto-purge (the 468-row backlog class, BDN-002).",
     memory: 512,
     maxDuration: 300,
   },

@@ -2,6 +2,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_MEMORY_RETENTION } from "@/config/retention";
+import { purgeStaleCategory } from "@/lib/system/stale-data-purger";
 export const maxDuration = 60;
 
 /**
@@ -78,6 +79,19 @@ export const GET = cronHandler(async () => {
     data: { status: "expired", updatedBy: "cron:data-cleanup" },
   });
   deletedByTable.commitments_expired = expiredCommitments.count;
+
+  // ── AutonomousAction pending-approval sweep (2026-08-12) ──
+  // Same story as the commitment auto-expiry above: the ONLY sweep for
+  // autonomous_action approval="pending" was the operator-tap "purge all"
+  // on /system, so the queue silently grew to 468 rows (90% older than
+  // 7d) and drove the Home "Approvals" badge into meaninglessness.
+  // Delegates to the incumbent stale-data purger — pending >7d becomes
+  // rejected/approvedBy="auto-purge", a status flip, nothing deleted —
+  // so the tap and the cron can never encode two different policies.
+  // A purger throw is deliberately NOT caught: it must land a FAILED
+  // CronJobLog row, not vanish.
+  const pendingActionsSweep = await purgeStaleCategory("pending_actions_7d");
+  deletedByTable.autonomous_actions_auto_purged = pendingActionsSweep.purged;
 
   // v11.0 · BrainMemory category retention · read from config/retention.ts
   // so /system/gaps + /system/power + this cron all share one source
