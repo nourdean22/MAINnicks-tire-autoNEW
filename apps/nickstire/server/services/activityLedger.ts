@@ -59,7 +59,7 @@ export function deriveActor(ctx: LedgerCtx): LedgerActor {
 }
 
 const PHONE_KEY = /phone|mobile|cell/i;
-const EMAIL_KEY = /email/i;
+const EMAIL_KEY = /email/i; // pii-allow: key-name matcher that MASKS email values before they reach a ledger row — no PII here
 
 export function maskPhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
