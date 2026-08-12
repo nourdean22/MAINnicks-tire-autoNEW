@@ -50,7 +50,15 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12 (wave 8): JIT SECTION GATE LIVE — agenda/behavioral/intake
+DONE 2026-08-12 (wave 9): RETRIEVAL-SIDE COMPLEMENT LIVE — `getAgendaItems`
+(agendaItem rows had NO tool exposure; getCommitments reads a different
+table). Four registrations + both pins regenerated (snapshot:mcp-surface,
+snapshot:tool-schemas — the guards caught the gaps as designed). Tier-6
+pruner defaults now carry it (fires exactly on casual turns); the gate
+leaves a ## Agenda (JIT) pointer when it drops the live-data section. The
+VNext arc is now CODE-COMPLETE: everything further is prod observation
+(context_manifest lines · tool receipts · minimax provider.success) or
+operator levers (Turbo key). Prior wave 8: JIT SECTION GATE LIVE — agenda/behavioral/intake
 (9,248 ch) drop ONLY on casual + social-content turns (the exact cases the
 A/Bs measured the cut free-or-winning); grounded + comms turns keep context.
 Receipt: content scenarios −9,248 ch each (headroom 2%→17%), default/sms

@@ -72,6 +72,29 @@ const tasksCoreTools = {
     },
   }),
 
+  // 2026-08-12 · retrieval-side JIT complement. The prompt gate drops
+  // the inline ACTIVE AGENDA section on casual/social-content turns;
+  // this tool is the way back to that data when such a turn needs it
+  // (distinct from getCommitments — agendaItem rows carry witnessed
+  // commitments, standing intentions, contradictions, neglect alerts).
+  getAgendaItems: tool({
+    description:
+      "Get the operator's active agenda items — witnessed commitments, standing intentions, contradictions, and neglect alerts. Call this when the inline agenda section was omitted for this turn but the operator's agenda matters to the answer.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      return prisma.agendaItem
+        .findMany({
+          where: { status: { in: ["ACTIVE", "SNOOZED"] } },
+          orderBy: { createdAt: "desc" },
+          select: { category: true, title: true, description: true, dueDate: true, status: true },
+        })
+        .catch((err): never[] => {
+          void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "getAgendaItems" }, "error"));
+          return [];
+        });
+    },
+  }),
+
   // getOpenLoops retired Apr 18 — use getTasks (already filters
   // INBOX/READY/DOING, includes mission context).
 

@@ -645,6 +645,17 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
+    "name": "get_agenda_items",
+    "camelName": "getAgendaItems",
+    "category": "personal_read",
+    "riskClass": "low",
+    "riskDeclared": false,
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "782579a42e13e60f",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
     "name": "get_attention_alerts",
     "camelName": "getAttentionAlerts",
     "category": "live_shop",
