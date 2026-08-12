@@ -103,6 +103,9 @@ describe("tRPC journal.insightsPreview", () => {
       nextActionPromoted: false,
       // BDN-007 · no commitment row for this take
       commitmentStatus: null,
+      // Evidence-tier WP · legacy take, fields unstamped
+      evidenceTier: null,
+      takeConfidence: null,
     });
   });
 
@@ -203,6 +206,8 @@ describe("tRPC journal.insightsPreview", () => {
       challengePromoted: false,
       nextActionPromoted: false,
       commitmentStatus: null,
+      evidenceTier: null,
+      takeConfidence: null,
     });
   });
 

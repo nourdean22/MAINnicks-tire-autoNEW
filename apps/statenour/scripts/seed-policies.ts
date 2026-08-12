@@ -233,6 +233,48 @@ const CURATED_NON_CRON: PolicyUpsertInput[] = [
     tags: ["cross-ring", "external-write", "high-risk", "lead-pipeline"],
   },
   {
+    // 2026-08-12 · operator-authorized ("do the best recommended fixes")
+    // after the deferred-action deadlock finding (GATE-2026-08-12
+    // producer addendum, #1538): with NO policy row the fail-closed
+    // engine parked every nightly match as approval="pending" — 431 rows
+    // from 221 targets — while the rule's OWN controls (wisdom dupe-guard
+    // + wisdom-quality-gate + confidence-drop on skip) sat inside the
+    // never-executed action. `auto` puts the designed self-limiting
+    // mechanism back in charge; the engine caps it at 3 candidates/night.
+    id: "autonomous-action.memory_promotion",
+    surface: "autonomous-action",
+    name: "memory_promotion",
+    objective:
+      "Promote heavily-reinforced memories (seenCount≥5, confidence≥0.6) to wisdom — THROUGH the dupe-guard and wisdom-quality-gate, which also demote near-misses so the candidate pool converges instead of re-proposing forever.",
+    trigger: "Nightly autonomous-engine pass (mega-evening fan-out → /api/cron/autonomous-engine), top-3 candidates by seenCount (lib/brain/autonomous-engine.ts)",
+    inputs: { seenCountMin: 5, confidenceMin: 0.6, batchPerNight: 3 },
+    approvalClass: "auto",
+    rollback:
+      "Promotion is a category flip + content prefix — set category back and strip '[PROMOTED TO WISDOM] '; gate/dupe skips only lower confidence (reversible update).",
+    successMetric:
+      "The 501-candidate pool (2026-08-12 probe) shrinks night over night — promotions AND gate-rejections both count — and the approval queue stops accumulating memory_promotion pending rows.",
+    tags: ["brain-write", "single-row-write", "self-limiting"],
+  },
+  {
+    // 2026-08-12 · operator-authorized, same finding: with no policy row
+    // this rule's nightly Telegram reminder was parked as a pending queue
+    // row instead — 228 rows from the SAME 3 unreviewed decisions (76
+    // nights each). `auto` restores the rule's designed behavior: a
+    // reminder to the operator, ≤3/night, 24h per-target cooldown.
+    id: "autonomous-action.decision_replay_due",
+    surface: "autonomous-action",
+    name: "decision_replay_due",
+    objective:
+      "Remind the operator (Telegram) when a decision replay's reviewAt has passed — the review loop is the point; the reminder is how due replays stop rotting unreviewed (oldest due since 2026-04-25 at seeding time).",
+    trigger: "Nightly autonomous-engine pass, oldest 3 rows where reviewed=false AND reviewAt<=now (lib/brain/autonomous-engine.ts)",
+    inputs: { batchPerNight: 3, perTargetCooldownHours: 24 },
+    approvalClass: "auto",
+    rollback: "Notification-only — nothing to undo; marking the replay reviewed stops its reminders.",
+    successMetric:
+      "Unreviewed+due decisionReplay count trends to 0 (was 9 at seeding); no decision_replay_due rows accumulate in the approval queue.",
+    tags: ["notification", "operator-facing"],
+  },
+  {
     id: "autonomous-action.auto_score_applicant",
     surface: "autonomous-action",
     name: "auto_score_applicant",

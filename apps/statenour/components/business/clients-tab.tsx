@@ -12,6 +12,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PageNick } from "@/components/ai/page-nick";
 import { logger } from "@/lib/logger";
 
 const log = logger.withSurface("clients-tab");
@@ -129,6 +130,31 @@ export function ClientsTab() {
 
   return (
     <div className="space-y-4">
+      {/* Contextual Nick (BDN-004 WP, 2026-08-12) — the Clients tab had
+          no Nick affordance (Money tab already mounts page="financial").
+          page="crm" has server framing; buildPageData has no crm case,
+          so pass a compact anonymized summary of what's on screen —
+          counts and stage mix only, no contact PII in the prompt. */}
+      <PageNick
+        page="crm"
+        data={
+          data
+            ? {
+                contacts: data.contacts.length,
+                byRole: data.contacts.reduce<Record<string, number>>((acc, c) => {
+                  acc[c.role] = (acc[c.role] ?? 0) + 1;
+                  return acc;
+                }, {}),
+                recentBookings: data.recentBookings.length,
+                recentAgreements: data.recentAgreements.length,
+              }
+            : undefined
+        }
+        presets={[
+          "Which client relationships need attention?",
+          "What does the current lead-to-client mix say?",
+        ]}
+      />
       {/* Toolbar — the former StandardPage `actions`. */}
       <div className="flex items-center justify-end">
         <Button

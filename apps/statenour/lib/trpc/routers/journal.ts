@@ -865,6 +865,8 @@ export const journalRouter = router({
           domain?: string | null;
           nextActionPromoted?: boolean;
         } | null;
+        evidenceTier?: string | null;
+        confidence?: string | null;
       } = {};
       try {
         parsed = JSON.parse(row.content);
@@ -890,6 +892,12 @@ export const journalRouter = router({
         ideaPromoted: parsed.ideaPromoted === true,
         challengePromoted: parsed.challengePromoted === true,
         nextActionPromoted: parsed.nextAction?.nextActionPromoted === true,
+        // Evidence-tier WP (2026-08-12): stamped by generateJournalTake on
+        // new takes; null on legacy rows — the chip simply doesn't render.
+        evidenceTier:
+          typeof parsed.evidenceTier === "string" ? parsed.evidenceTier : null,
+        takeConfidence:
+          typeof parsed.confidence === "string" ? parsed.confidence : null,
       };
     });
 

@@ -111,6 +111,16 @@ export function ProposedCommitments() {
                 </p>
                 <p className="text-[9px] text-white/30 mt-0.5">
                   {item.domain ? `${item.domain} · ` : ""}from {item.sourceRef?.startsWith("journal-take:") ? "journal" : "system"}
+                  {/* Evidence-tier WP (2026-08-12): WHY to trust this
+                      proposal, not just where it came from. Null on
+                      legacy takes — renders nothing. */}
+                  {item.evidenceTier && (
+                    <span className="text-white/25">
+                      {" · "}
+                      {item.evidenceTier.toLowerCase()}
+                      {item.evidenceConfidence && ` · ${item.evidenceConfidence.toLowerCase()} confidence`}
+                    </span>
+                  )}
                 </p>
               </div>
 

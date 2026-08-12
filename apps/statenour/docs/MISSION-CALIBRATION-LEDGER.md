@@ -51,9 +51,42 @@ manifest — live probe shows **done: 1,558 · pending: 0**, drained to
 within the 15-min cadence; its Phase-4 prerequisite `THE-BRIEF.md` does
 not exist in the repo; Phases 3/6/7/8 prescribe surfaces that are native
 or shipped this same day (#1526, #1535-#1540, AutomationPolicy +
-confidence-tier). Survivors registered as WPs: evidence-tier fields
-(needs a real vocabulary source + migration design), streak-semantics
-audit (premise unverified, operator picks the model), PageNick mounts.
+confidence-tier). Survivors registered as WPs — **all three CLOSED same day (operator:
+"do the best recommended fixes")**:
+- **Evidence-tier: SHIPPED, zero-DDL, zero new spend.** The vocabulary
+  source is the MISSION scan's own discipline (OBSERVED/INFERRED/
+  SPECULATIVE × HIGH/MED/LOW — THE-BRIEF.md never existed).
+  `generateJournalTake` stamps `evidenceTier:"INFERRED"` structurally and
+  asks the SAME funded extraction call for nextAction confidence; the take
+  card and the Home proposal card both render the chip (null on legacy
+  takes → nothing renders; a save never blocks). `parseTakeEpistemics`
+  pure + pinned.
+- **Streak audit: DONE — the plan's premise is REFUTED.** No persisted
+  mechanism resets to zero on one miss (DAILY → 1, lazily; WEEKLY never;
+  xp-decay = operator-decided 7d grace + 1%/day). Only read-only display
+  walks zero out. "Never miss twice" NOT built. One real inconsistency
+  flagged for the operator (game-feel domain, same HOLD class as
+  xp-decay): `task-context.ts` labels a daily "broken" at 36h while the
+  persisted counter resets only at ≥2 ET-day gaps — display can say
+  broken while the streak keeps counting.
+- **PageNick mounts: SHIPPED where they add coverage, skipped where
+  incumbent.** Gate-eye correction to the WP itself: Journal and Missions
+  ALREADY carry a Nick surface (NickSidePane) — a second affordance there
+  is clutter, not coverage. Mounted on /system (with the page's own
+  fetched truth — buildPageData has no system case) and the Business
+  Clients tab (page="crm", compact counts only — no contact PII in the
+  prompt). /api/ai/page-insight is cost-firewalled to the ollama lane and
+  rate-limited 10/min.
+
+**Producer decision menu: EXECUTED same day (operator-authorized).**
+`autonomous-action.memory_promotion` + `autonomous-action.decision_replay_due`
+policies seeded `approvalClass:"auto"` via the canonical
+`scripts/seed-policies.ts` (declarations in code, idempotent upsert — NOT a
+one-off DB write; live seed 80/80, both rows probe-verified). The
+deferred-action deadlock is closed at the source: tonight's engine pass runs
+both rules through their built-in gates (≤3 promotions + ≤3 replay reminders
+per night); the 9 due replays start getting their designed reminders.
+
 Calibration rule 5 fired exactly as written — and rule 6 below is new.
 
 ## Calibration rules for the next scan
