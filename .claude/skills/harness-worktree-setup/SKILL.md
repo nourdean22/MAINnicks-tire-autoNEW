@@ -77,6 +77,16 @@ session anchored to a worktree. (It also fires on a plain `cat >> file`
 heredoc whose *document body* merely mentions the command — write those
 with the Edit tool instead.)
 
+**Global (`-g`) installs** never touch repo `node_modules` but still match
+the rule via command text, and the harness PINS the session shell cwd to
+the worktree — `Set-Location` does not persist between calls, so verify
+cwd before any `node_modules/.bin` invocation (a bare `pnpm exec vitest`
+after a silent reset-to-root fails "not recognized" and looks like a
+missing dep). Sanctioned path for a global install: a process runner
+with a non-worktree cwd (e.g. the Desktop Commander MCP), never a rule
+edit. Witnessed 2026-08-12: the CLI update 2.1.150→2.1.228 ran this way
+after two blocked shell attempts.
+
 For **workspace-link-only** changes — adding/removing a `workspace:*`
 dep line, adding/removing a package — hand-edit `pnpm-lock.yaml`:
 
