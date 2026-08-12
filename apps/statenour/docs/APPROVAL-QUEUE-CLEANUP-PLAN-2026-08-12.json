@@ -1,0 +1,2824 @@
+{
+  "generatedAt": "2026-08-12T19:18:44.622Z",
+  "dbHost": "ep-quiet-wave-am320eo1-pooler.c-5.us-east-1.aws.neon.tech",
+  "predicate": "approval=\"pending\" AND createdAt < now-7d (purger-identical)",
+  "executeMechanism": "stale-data-purger purgeStaleCategory(\"pending_actions_7d\") — sets approval=\"rejected\", approvedBy=\"auto-purge\"",
+  "revertRecipe": "UPDATE: set approval=\"pending\", approvedBy=NULL where id in purge[] and approvedBy=\"auto-purge\"",
+  "totals": {
+    "pending": 468,
+    "purge": 424,
+    "keep": 44
+  },
+  "purge": [
+    {
+      "id": "cmpywt28o002801o2u91kx1p8",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-04T03:02:02.136Z"
+    },
+    {
+      "id": "cmpywt2l9002a01o2nefaa2lg",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-04T03:02:02.589Z"
+    },
+    {
+      "id": "cmpywt2x8002e01o204e7gdaq",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-04T03:02:03.020Z"
+    },
+    {
+      "id": "cmpywt3dg002j01o280rdxc6u",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-04T03:02:03.604Z"
+    },
+    {
+      "id": "cmpywt3tn002o01o2lzktm3og",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-04T03:02:04.187Z"
+    },
+    {
+      "id": "cmpywt4fx002q01o28j1utc1t",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-04T03:02:04.989Z"
+    },
+    {
+      "id": "cmpywt4rx002s01o2tz5044cz",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-04T03:02:05.421Z"
+    },
+    {
+      "id": "cmpywt53v002u01o29s6ltvas",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-04T03:02:05.851Z"
+    },
+    {
+      "id": "cmpz9nw8e00rv01o2h8ofmslu",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-04T09:01:56.078Z"
+    },
+    {
+      "id": "cmpz9nwad00rx01o2u3t7srbr",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-04T09:01:56.149Z"
+    },
+    {
+      "id": "cmpz9nwcb00ry01o2zngko35r",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-04T09:01:56.219Z"
+    },
+    {
+      "id": "cmq0c8zdk00g301oynbpfjx9y",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-05T03:02:05.336Z"
+    },
+    {
+      "id": "cmq0c8zpj00g501oyphoih59n",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-05T03:02:05.767Z"
+    },
+    {
+      "id": "cmq0c901l00g701oyewhf50rg",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-05T03:02:06.201Z"
+    },
+    {
+      "id": "cmq0c90o000gb01oy4ljlwqzq",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-05T03:02:07.008Z"
+    },
+    {
+      "id": "cmq0c91cs00gd01oy2n85xhx1",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-05T03:02:07.900Z"
+    },
+    {
+      "id": "cmq0c91o400gf01oyamt6bx33",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-05T03:02:08.308Z"
+    },
+    {
+      "id": "cmq0c91zd00gh01oy1t88dkig",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-05T03:02:08.713Z"
+    },
+    {
+      "id": "cmq0p2f46013201oylcx112zf",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-05T09:00:54.150Z"
+    },
+    {
+      "id": "cmq1rpv7p01z901oyxlldi9jt",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-06T03:02:53.509Z"
+    },
+    {
+      "id": "cmq1rpvkg01zc01oy6vo60h7p",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-06T03:02:53.968Z"
+    },
+    {
+      "id": "cmq1rpvww01ze01oymrqdu920",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-06T03:02:54.416Z"
+    },
+    {
+      "id": "cmq1rpwe101zg01oy8ripeehr",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-06T03:02:55.033Z"
+    },
+    {
+      "id": "cmq1rpx3t01zm01oyekvwy3eq",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-06T03:02:55.961Z"
+    },
+    {
+      "id": "cmq1rpxfj01zo01oypsw887ma",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-06T03:02:56.383Z"
+    },
+    {
+      "id": "cmq1rpxr901zq01oy3y6yyy8v",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-06T03:02:56.805Z"
+    },
+    {
+      "id": "cmq24i66d02ny01oyh95v0uwg",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-06T09:00:49.477Z"
+    },
+    {
+      "id": "cmq24i68f02nz01oy1n5cledm",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-06T09:00:49.551Z"
+    },
+    {
+      "id": "cmq373tjv00ov01quywq1jhf9",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-07T03:01:24.955Z"
+    },
+    {
+      "id": "cmq3jy3ed01da01quupu6fys8",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-07T09:00:52.789Z"
+    },
+    {
+      "id": "cmq4mlb3j02ks01quzirsab1c",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-08T03:02:41.263Z"
+    },
+    {
+      "id": "cmq4mlbfm02ku01qux9lh809l",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-08T03:02:41.698Z"
+    },
+    {
+      "id": "cmq4mlbrb02kw01quj61c8c7e",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-08T03:02:42.119Z"
+    },
+    {
+      "id": "cmq4mlc7702l001quhqd3o58u",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-08T03:02:42.691Z"
+    },
+    {
+      "id": "cmq4mlcuo02l201quxg5n9eki",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-08T03:02:43.536Z"
+    },
+    {
+      "id": "cmq4mld6802l401qucdoh6tux",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-08T03:02:43.953Z"
+    },
+    {
+      "id": "cmq4mldhq02l601qu4ccjcdx3",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-08T03:02:44.366Z"
+    },
+    {
+      "id": "cmq61y7z100ey01t2pz4rvqc5",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-09T03:00:24.157Z"
+    },
+    {
+      "id": "cmq6et9tq01fl01t2q0bsfmln",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-09T09:00:28.286Z"
+    },
+    {
+      "id": "cmq6et9vu01fm01t26h2ahcsn",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-09T09:00:28.362Z"
+    },
+    {
+      "id": "cmq6et9xr01fn01t2rh5c8uzc",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-09T09:00:28.431Z"
+    },
+    {
+      "id": "cmq7hjlks00wo01n1cjhm7mz5",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-10T03:04:41.980Z"
+    },
+    {
+      "id": "cmq7hjlw600wu01n1w8jigysj",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-10T03:04:42.390Z"
+    },
+    {
+      "id": "cmq7hjm7g00wz01n1e4vjpgn2",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-10T03:04:42.796Z"
+    },
+    {
+      "id": "cmq7hjmn200x101n1eyb8wxx5",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-10T03:04:43.358Z"
+    },
+    {
+      "id": "cmq7hjn2a00x301n11vws3ego",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-10T03:04:43.906Z"
+    },
+    {
+      "id": "cmq7hjnnc00x501n1s4uhspyo",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-10T03:04:44.664Z"
+    },
+    {
+      "id": "cmq7hjnyt00x701n1bbu2tj7c",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-10T03:04:45.077Z"
+    },
+    {
+      "id": "cmq7hjoac00x901n18icgfcb7",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-10T03:04:45.492Z"
+    },
+    {
+      "id": "cmq7ub8k301jx01n1aodh0vlw",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-10T09:02:06.867Z"
+    },
+    {
+      "id": "cmq7ub8m401jy01n1n66777oy",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-10T09:02:06.940Z"
+    },
+    {
+      "id": "cmq99pawg005w01pmtq18mh3y",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-11T09:00:43.504Z"
+    },
+    {
+      "id": "cmq99paym005x01pmarup1x9j",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-11T09:00:43.582Z"
+    },
+    {
+      "id": "cmq99pb0k005y01pmqbb4oevh",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-11T09:00:43.652Z"
+    },
+    {
+      "id": "cmq99pb2i005z01pmq8w18evb",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-11T09:00:43.722Z"
+    },
+    {
+      "id": "cmqacdon5005c01rtks84njjx",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-12T03:03:26.465Z"
+    },
+    {
+      "id": "cmqacdoxt005i01rtd6tdpokt",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-12T03:03:26.849Z"
+    },
+    {
+      "id": "cmqacdp8d005o01rt4ijqgckn",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-12T03:03:27.229Z"
+    },
+    {
+      "id": "cmqacdpmk005s01rtdm2emowg",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-12T03:03:27.740Z"
+    },
+    {
+      "id": "cmqacdq8q005x01rtupdmhvli",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-12T03:03:28.538Z"
+    },
+    {
+      "id": "cmqacdqiv006001rt3vxcrzvu",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-12T03:03:28.903Z"
+    },
+    {
+      "id": "cmqacdqt2006301rt6w6psdlx",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-12T03:03:29.270Z"
+    },
+    {
+      "id": "cmqap7m1t009c01o8w1qgbv43",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-12T09:02:38.177Z"
+    },
+    {
+      "id": "cmqap7m3p009e01o8943nucb9",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-12T09:02:38.245Z"
+    },
+    {
+      "id": "cmqap7m5j009f01o8pftowx59",
+      "ruleName": "nick_action_reassign_inbox",
+      "actionType": "reassign_task",
+      "createdAt": "2026-06-12T09:02:38.311Z"
+    },
+    {
+      "id": "cmqc4mbe1016c01qs2redue0u",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-13T09:01:44.617Z"
+    },
+    {
+      "id": "cmqc4mbg2016e01qs4reg4fkd",
+      "ruleName": "nick_action_reassign_inbox",
+      "actionType": "reassign_task",
+      "createdAt": "2026-06-13T09:01:44.690Z"
+    },
+    {
+      "id": "cmqd76uvj00d701r1n02ybmx4",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-14T03:01:28.400Z"
+    },
+    {
+      "id": "cmqd76v6300d901r1xz9shtyc",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-14T03:01:28.779Z"
+    },
+    {
+      "id": "cmqd76vgi00db01r1tb2s6lt8",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-14T03:01:29.154Z"
+    },
+    {
+      "id": "cmqd76vuz00dd01r1mqy3fzpl",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-14T03:01:29.675Z"
+    },
+    {
+      "id": "cmqd76w9400df01r1ywlcd3o4",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-14T03:01:30.184Z"
+    },
+    {
+      "id": "cmqd76wsz00dh01r1oo5gp73w",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-14T03:01:30.899Z"
+    },
+    {
+      "id": "cmqd76x3n00dj01r1xnonovwu",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-14T03:01:31.283Z"
+    },
+    {
+      "id": "cmqd76xea00dm01r13dob3h19",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-14T03:01:31.666Z"
+    },
+    {
+      "id": "cmqdk1y1v011801r1n6l69u7s",
+      "ruleName": "nick_action_nudge_task",
+      "actionType": "nudge_task",
+      "createdAt": "2026-06-14T09:01:34.243Z"
+    },
+    {
+      "id": "cmqdk1y3k011901r1f1njr4ne",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-14T09:01:34.304Z"
+    },
+    {
+      "id": "cmqdk1y59011a01r119uhpm2p",
+      "ruleName": "nick_action_reassign_inbox",
+      "actionType": "reassign_task",
+      "createdAt": "2026-06-14T09:01:34.365Z"
+    },
+    {
+      "id": "cmqemmpsg00do01o483htyptr",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-15T03:01:28.720Z"
+    },
+    {
+      "id": "cmqemmq3a00dq01o4f7qk4kg5",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-15T03:01:29.110Z"
+    },
+    {
+      "id": "cmqemmqdq00ds01o4r8v251t2",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-15T03:01:29.486Z"
+    },
+    {
+      "id": "cmqemmqsb00dv01o444rx80yl",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-15T03:01:30.011Z"
+    },
+    {
+      "id": "cmqeziz47019s01o48fgvj65q",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-15T09:02:29.191Z"
+    },
+    {
+      "id": "cmqeziz68019t01o44x55bl5q",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-15T09:02:29.264Z"
+    },
+    {
+      "id": "cmqeziz7y019u01o4qx6udtbf",
+      "ruleName": "nick_action_reassign_inbox",
+      "actionType": "reassign_task",
+      "createdAt": "2026-06-15T09:02:29.326Z"
+    },
+    {
+      "id": "cmqg237jy00be01p4oe9dqqgd",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-16T03:01:58.655Z"
+    },
+    {
+      "id": "cmqg237uv00bg01p40qn9ylac",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-16T03:01:59.047Z"
+    },
+    {
+      "id": "cmqg2385h00bj01p4hwh8bsv3",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-16T03:01:59.429Z"
+    },
+    {
+      "id": "cmqg238kj00bm01p4az97z0dg",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-16T03:01:59.971Z"
+    },
+    {
+      "id": "cmqg2397g00bp01p4nt7rw9r9",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-16T03:02:00.796Z"
+    },
+    {
+      "id": "cmqg239hv00br01p42x0rizve",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-16T03:02:01.171Z"
+    },
+    {
+      "id": "cmqg239si00bt01p4bhdoaxxh",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-16T03:02:01.554Z"
+    },
+    {
+      "id": "cmqgey2lj00id01safdex8330",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-16T09:01:53.960Z"
+    },
+    {
+      "id": "cmqgey2nr00ie01saajqtreew",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-16T09:01:54.039Z"
+    },
+    {
+      "id": "cmqgey2pp00if01sar068ueph",
+      "ruleName": "nick_action_reassign_inbox",
+      "actionType": "reassign_task",
+      "createdAt": "2026-06-16T09:01:54.109Z"
+    },
+    {
+      "id": "cmqhhk883002y01p7f5qsmxcj",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-17T03:02:53.091Z"
+    },
+    {
+      "id": "cmqhhk8k2003001p736s41rj0",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-17T03:02:53.522Z"
+    },
+    {
+      "id": "cmqhhk8vx003301p742uy5c7d",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-17T03:02:53.949Z"
+    },
+    {
+      "id": "cmqhhk9c2003601p7x5qgc9wh",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-17T03:02:54.530Z"
+    },
+    {
+      "id": "cmqhhk9rx003801p7jqw7ffg1",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-17T03:02:55.101Z"
+    },
+    {
+      "id": "cmqhhkadx003a01p7l7rbl00p",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-17T03:02:55.893Z"
+    },
+    {
+      "id": "cmqhhkapm003c01p7gudi80bs",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-17T03:02:56.314Z"
+    },
+    {
+      "id": "cmqhhkb1b003g01p7qfw3php4",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-17T03:02:56.735Z"
+    },
+    {
+      "id": "cmqhuek1q005v01o4rjpis6q7",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-17T09:02:23.486Z"
+    },
+    {
+      "id": "cmqhuek3q005w01o4472csj47",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-17T09:02:23.558Z"
+    },
+    {
+      "id": "cmqhuek5p005x01o4f3bwrtvx",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-17T09:02:23.629Z"
+    },
+    {
+      "id": "cmqhuek7o005y01o4ag9bv4cu",
+      "ruleName": "nick_action_reassign_inbox",
+      "actionType": "reassign_task",
+      "createdAt": "2026-06-17T09:02:23.700Z"
+    },
+    {
+      "id": "cmqix051e006k01pc1o0omcq6",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-18T03:02:55.874Z"
+    },
+    {
+      "id": "cmqix05dv006n01pc68cvdaqx",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-18T03:02:56.323Z"
+    },
+    {
+      "id": "cmqix05q1006q01pc38r8am64",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-18T03:02:56.761Z"
+    },
+    {
+      "id": "cmqix066o006t01pcxbj0jsum",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-18T03:02:57.360Z"
+    },
+    {
+      "id": "cmqix06wk006w01pcedjhnexl",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-18T03:02:58.292Z"
+    },
+    {
+      "id": "cmqix0788006y01pca6619avf",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-18T03:02:58.712Z"
+    },
+    {
+      "id": "cmqix07l7007001pcywwrm787",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-18T03:02:59.179Z"
+    },
+    {
+      "id": "cmqj9u9gk00wk01pcxa5qvtb3",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-18T09:02:16.676Z"
+    },
+    {
+      "id": "cmqj9u9ie00wm01pctawdozlk",
+      "ruleName": "nick_action_reassign_inbox",
+      "actionType": "reassign_task",
+      "createdAt": "2026-06-18T09:02:16.742Z"
+    },
+    {
+      "id": "cmqkp8jg6007601o3r8sgcuvj",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-19T09:01:03.222Z"
+    },
+    {
+      "id": "cmqlrul8e002501mu26acyqco",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-20T03:01:57.374Z"
+    },
+    {
+      "id": "cmqlruljq002701mu09dj8d7i",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-20T03:01:57.782Z"
+    },
+    {
+      "id": "cmqlrulun002901muz2izeqz5",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-20T03:01:58.175Z"
+    },
+    {
+      "id": "cmqlrumnx002g01mu9r95yvp7",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-20T03:01:59.229Z"
+    },
+    {
+      "id": "cmqlrumz1002i01mu547gjzco",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-20T03:01:59.630Z"
+    },
+    {
+      "id": "cmqlruna5002k01musffexqlh",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-20T03:02:00.029Z"
+    },
+    {
+      "id": "cmqm4ptjg00v701mu1ygmnxwi",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-20T09:02:09.868Z"
+    },
+    {
+      "id": "cmqn7axje00cu01msc5g7byid",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-21T03:02:20.234Z"
+    },
+    {
+      "id": "cmqn7axug00cx01mswhyyr790",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-21T03:02:20.632Z"
+    },
+    {
+      "id": "cmqn7ay5000d101msxhh0lp3o",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-21T03:02:21.012Z"
+    },
+    {
+      "id": "cmqn7ayu000d801ms05v0fbo1",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-21T03:02:21.912Z"
+    },
+    {
+      "id": "cmqn7azel00dq01msk0a46t5a",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-21T03:02:22.653Z"
+    },
+    {
+      "id": "cmqn7azos00ds01msie9gqt2d",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-21T03:02:23.020Z"
+    },
+    {
+      "id": "cmqn7azyz00du01msihbe1kcd",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-21T03:02:23.387Z"
+    },
+    {
+      "id": "cmqnk6c5d014p01mssjzm4rzv",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-21T09:02:40.897Z"
+    },
+    {
+      "id": "cmqozkmb0010v01nyz4l1zzy4",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-22T09:01:27.660Z"
+    },
+    {
+      "id": "cmqq26enw00b601muswpr4ju4",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-23T03:02:09.596Z"
+    },
+    {
+      "id": "cmqq26ezn00b801mu4t13xde7",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-23T03:02:10.019Z"
+    },
+    {
+      "id": "cmqq26fbc00ba01mu06mzfcil",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-23T03:02:10.440Z"
+    },
+    {
+      "id": "cmqq26g7a00bg01mu7scufw6j",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-23T03:02:11.590Z"
+    },
+    {
+      "id": "cmqq26gk900bi01mu8jz1wayz",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-23T03:02:12.057Z"
+    },
+    {
+      "id": "cmqq26gx500bk01mukchnxolk",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-23T03:02:12.521Z"
+    },
+    {
+      "id": "cmqqf10q8011x01mucdq592e3",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-23T09:01:53.264Z"
+    },
+    {
+      "id": "cmqsx4ji6006k01lr3j588ix9",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-25T03:04:03.006Z"
+    },
+    {
+      "id": "cmqsx4jts006p01lrftimfpld",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-25T03:04:03.424Z"
+    },
+    {
+      "id": "cmqsx4k5f006r01lrn7w2o2ja",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-25T03:04:03.843Z"
+    },
+    {
+      "id": "cmqsx4kjx006t01lrw1qz7h7l",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-25T03:04:04.365Z"
+    },
+    {
+      "id": "cmqsx4kxv006v01lr5r4bh8lf",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-25T03:04:04.867Z"
+    },
+    {
+      "id": "cmqsx4lh5007201lryf9i1iv9",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-25T03:04:05.561Z"
+    },
+    {
+      "id": "cmqsx4lrj007501lr8sgy8of6",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-25T03:04:05.935Z"
+    },
+    {
+      "id": "cmqsx4m1x007701lrfozq2g04",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-25T03:04:06.309Z"
+    },
+    {
+      "id": "cmqt9xmge00x601lrya58tw01",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-25T09:02:35.246Z"
+    },
+    {
+      "id": "cmquci2za00e8s601guuwky4x",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-26T03:02:15.190Z"
+    },
+    {
+      "id": "cmqupclqg01ehs601kwhow8ix",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-26T09:01:54.568Z"
+    },
+    {
+      "id": "cmqupcls901eis6017xw4anod",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-26T09:01:54.633Z"
+    },
+    {
+      "id": "cmqupclu201ejs601by3a1vpx",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-26T09:01:54.698Z"
+    },
+    {
+      "id": "cmqvrxnsz002tmd014cmjyg2l",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-27T03:02:02.436Z"
+    },
+    {
+      "id": "cmqvrxo4f002ymd01glahtkth",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-27T03:02:02.847Z"
+    },
+    {
+      "id": "cmqvrxoie0031md01koa25qfn",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-27T03:02:03.350Z"
+    },
+    {
+      "id": "cmqvrxp9r0034md015ztm8e2u",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-27T03:02:04.336Z"
+    },
+    {
+      "id": "cmqvrxpmb003amd014sw06sas",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-27T03:02:04.787Z"
+    },
+    {
+      "id": "cmqw4sxqo010smd01qgf7vjvj",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-27T09:02:17.041Z"
+    },
+    {
+      "id": "cmqw4sxsn010tmd01pq3ybd83",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-27T09:02:17.112Z"
+    },
+    {
+      "id": "cmqw4sxug010umd01d15uo5yp",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-27T09:02:17.177Z"
+    },
+    {
+      "id": "cmqx7dq0r0022qj01isi0x2lc",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-28T03:02:12.219Z"
+    },
+    {
+      "id": "cmqx7dqc40026qj01u9kdk0m8",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-28T03:02:12.629Z"
+    },
+    {
+      "id": "cmqx7dqn7002cqj016twivs0o",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-28T03:02:13.027Z"
+    },
+    {
+      "id": "cmqx7dree002gqj01bnwsq4w3",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-28T03:02:14.007Z"
+    },
+    {
+      "id": "cmqx7drqd002iqj01t4vnembe",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-28T03:02:14.438Z"
+    },
+    {
+      "id": "cmqx7ds28002oqj01bkak5pnh",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-28T03:02:14.864Z"
+    },
+    {
+      "id": "cmqxk7xzt009as001zxncfq1b",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-28T09:01:37.625Z"
+    },
+    {
+      "id": "cmqxk7y1l009bs00176hgi5v7",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-28T09:01:37.690Z"
+    },
+    {
+      "id": "cmqxk7y3c009cs001ltoftc8p",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-28T09:01:37.753Z"
+    },
+    {
+      "id": "cmqxk7y55009ds001ep037b3y",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-06-28T09:01:37.817Z"
+    },
+    {
+      "id": "cmqyzn5yj00x7pv012p7mnz5r",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-29T09:01:08.204Z"
+    },
+    {
+      "id": "cmqyzn60k00x8pv01rwsajhjr",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-29T09:01:08.277Z"
+    },
+    {
+      "id": "cmqyzn62k00x9pv01s1w022zt",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-29T09:01:08.349Z"
+    },
+    {
+      "id": "cmr028zn600jyqk01txmoh8mc",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-30T03:01:51.858Z"
+    },
+    {
+      "id": "cmr028zzd00k1qk01i0q4k3tm",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-30T03:01:52.297Z"
+    },
+    {
+      "id": "cmr0290bo00k3qk01mxp1x1iy",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-06-30T03:01:52.741Z"
+    },
+    {
+      "id": "cmr02916s00kaqk01psu1xgll",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-30T03:01:53.861Z"
+    },
+    {
+      "id": "cmr0291iw00khqk01c1g7h4ie",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-30T03:01:54.296Z"
+    },
+    {
+      "id": "cmr0291vo00knqk01t7e0zm9m",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-06-30T03:01:54.756Z"
+    },
+    {
+      "id": "cmr0f41mv01e6qk01u8kgitf0",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-30T09:01:56.168Z"
+    },
+    {
+      "id": "cmr0f41ov01e9qk01s3l00ro1",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-30T09:01:56.239Z"
+    },
+    {
+      "id": "cmr0f41qt01eaqk01vewuuhha",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-06-30T09:01:56.309Z"
+    },
+    {
+      "id": "cmr0f41sw01ebqk0158apq687",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-30T09:01:56.384Z"
+    },
+    {
+      "id": "cmr0f41v201ecqk01iz1a9ibr",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-06-30T09:01:56.462Z"
+    },
+    {
+      "id": "cmr1hpq8500h3nq01esji3lq1",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-01T03:02:33.222Z"
+    },
+    {
+      "id": "cmr1hpqk300h5nq01xt3wi342",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-01T03:02:33.652Z"
+    },
+    {
+      "id": "cmr1hpqw000h7nq01wo2yyaim",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-01T03:02:34.081Z"
+    },
+    {
+      "id": "cmr1hprgg00hdnq01k7t8ekkc",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-01T03:02:34.816Z"
+    },
+    {
+      "id": "cmr1hps2c00hfnq0153ej0mer",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-01T03:02:35.604Z"
+    },
+    {
+      "id": "cmr1hpse600hhnq01yx05vdme",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-01T03:02:36.030Z"
+    },
+    {
+      "id": "cmr1hpspz00hjnq01cues72jq",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-01T03:02:36.455Z"
+    },
+    {
+      "id": "cmr1ulqar0134nq0150qvpaud",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-01T09:03:21.700Z"
+    },
+    {
+      "id": "cmr1ulqcq0135nq01ggv2m0eb",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-01T09:03:21.770Z"
+    },
+    {
+      "id": "cmr2x522402oinq01by6v1bk4",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-02T03:02:08.813Z"
+    },
+    {
+      "id": "cmr3a05ka03flnq017oxpc39j",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-02T09:02:15.082Z"
+    },
+    {
+      "id": "cmr3a05mi03fmnq01dmx2r40w",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-02T09:02:15.162Z"
+    },
+    {
+      "id": "cmr3a05op03fnnq01locgzz6j",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-02T09:02:15.242Z"
+    },
+    {
+      "id": "cmr3a05qx03fonq01vs9us1qu",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-02T09:02:15.321Z"
+    },
+    {
+      "id": "cmr4cjdjr00gslm01dwi3b5ni",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-03T03:00:57.304Z"
+    },
+    {
+      "id": "cmr4cjdw000gulm01whisuq6t",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-03T03:00:57.745Z"
+    },
+    {
+      "id": "cmr4cje8a00gxlm01yjqjfjf3",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-03T03:00:58.186Z"
+    },
+    {
+      "id": "cmr4cjf4l00h7lm01ajb7oba6",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-03T03:00:59.349Z"
+    },
+    {
+      "id": "cmr4cjfh800helm01l6wvm9yi",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-03T03:00:59.804Z"
+    },
+    {
+      "id": "cmr4cjftp00hhlm019jerog0w",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-03T03:01:00.254Z"
+    },
+    {
+      "id": "cmr4pe4ua015mlm01j8w85qa0",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-07-03T09:00:47.746Z"
+    },
+    {
+      "id": "cmr4pe4wc015nlm01k2ytv7fi",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-03T09:00:47.820Z"
+    },
+    {
+      "id": "cmr64uso500tlsp01oqo6u9tf",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-07-04T09:01:25.542Z"
+    },
+    {
+      "id": "cmr64uspx00tmsp01sgkisov6",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-04T09:01:25.606Z"
+    },
+    {
+      "id": "cmr77faig00kyn5014tr6bv49",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-05T03:01:07.192Z"
+    },
+    {
+      "id": "cmr77faua00l3n5019hqbsji6",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-05T03:01:07.618Z"
+    },
+    {
+      "id": "cmr77fb6700l7n5011vwcqojw",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-05T03:01:08.048Z"
+    },
+    {
+      "id": "cmr77fbyh00ldn501wtzqwn8d",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-05T03:01:09.066Z"
+    },
+    {
+      "id": "cmr77fcad00lgn501hna8k2fd",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-05T03:01:09.493Z"
+    },
+    {
+      "id": "cmr77fcm800ljn501bv1ztp11",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-05T03:01:09.920Z"
+    },
+    {
+      "id": "cmr7k9itj019ln501lraitiyd",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-05T09:00:33.032Z"
+    },
+    {
+      "id": "cmr8zp0rz00rrp501i62skon4",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-06T09:00:16.559Z"
+    },
+    {
+      "id": "cmra2a0zl00ivqp01gz553mur",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-07T03:00:22.017Z"
+    },
+    {
+      "id": "cmra2a1an00izqp01ki7c26xg",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-07T03:00:22.415Z"
+    },
+    {
+      "id": "cmra2a1mf00j7qp015lg5ayqd",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-07T03:00:22.839Z"
+    },
+    {
+      "id": "cmra2a2cr00jbqp016q9ets75",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-07T03:00:23.788Z"
+    },
+    {
+      "id": "cmra2a2nx00jfqp01chircc8h",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-07T03:00:24.189Z"
+    },
+    {
+      "id": "cmra2a2zr00jkqp01ymq55kbm",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-07T03:00:24.616Z"
+    },
+    {
+      "id": "cmraf5ay501ekqp010mita867",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-07T09:00:36.653Z"
+    },
+    {
+      "id": "cmraf5b0501emqp01gelfzb20",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-07T09:00:36.725Z"
+    },
+    {
+      "id": "cmraf5b2801enqp01yncq48s9",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-07T09:00:36.801Z"
+    },
+    {
+      "id": "cmraf5b4901epqp014ny5wk0t",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-07T09:00:36.873Z"
+    },
+    {
+      "id": "cmrbhq80500lzlw01mbng3l3d",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-08T03:00:38.022Z"
+    },
+    {
+      "id": "cmrbhq8ax00m2lw01959oyevi",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-08T03:00:38.409Z"
+    },
+    {
+      "id": "cmrbhq8mi00milw01ycjvnxvu",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-08T03:00:38.827Z"
+    },
+    {
+      "id": "cmrbhq9bk00mslw01je59ejf2",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-08T03:00:39.728Z"
+    },
+    {
+      "id": "cmrbhq9lw00mwlw01w4mdrr60",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-08T03:00:40.100Z"
+    },
+    {
+      "id": "cmrbhq9w900n4lw01s3wnv4xm",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-08T03:00:40.474Z"
+    },
+    {
+      "id": "cmrbumprx01e2lw01se3d3yre",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-08T09:01:49.438Z"
+    },
+    {
+      "id": "cmrbumpu301e4lw01yndkcb6d",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-08T09:01:49.516Z"
+    },
+    {
+      "id": "cmrcx7eeg00m8s001k619x9mw",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-09T03:01:39.880Z"
+    },
+    {
+      "id": "cmrcx7ep500mas001xgdrzpdm",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-09T03:01:40.266Z"
+    },
+    {
+      "id": "cmrcx7ezk00mcs001wuvaoo78",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-09T03:01:40.641Z"
+    },
+    {
+      "id": "cmrcx7fhz00mfs0018ku1ethj",
+      "ruleName": "drift_escalation",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-09T03:01:41.304Z"
+    },
+    {
+      "id": "cmrcx7g1m00mhs001zz571mb2",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-09T03:01:42.011Z"
+    },
+    {
+      "id": "cmrcx7gc600mjs001p0cekf7h",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-09T03:01:42.390Z"
+    },
+    {
+      "id": "cmrcx7gmm00mls001vqkqwf85",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-09T03:01:42.766Z"
+    },
+    {
+      "id": "cmrda1xn701dzs001lkflxb1u",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-09T09:01:19.891Z"
+    },
+    {
+      "id": "cmrecnk1b009wmi012kokuovk",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-10T03:01:54.095Z"
+    },
+    {
+      "id": "cmrecnkdh009ymi015gh1enfs",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-10T03:01:54.533Z"
+    },
+    {
+      "id": "cmrecnkpd00a0mi01puv87bdu",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-10T03:01:54.961Z"
+    },
+    {
+      "id": "cmrecnlkk00a2mi013f06bjm4",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-10T03:01:56.084Z"
+    },
+    {
+      "id": "cmrecnlww00a4mi01vr4rqi6c",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-10T03:01:56.529Z"
+    },
+    {
+      "id": "cmrecnm9000a6mi01xzu7bbbh",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-10T03:01:56.965Z"
+    },
+    {
+      "id": "cmrepg7oh00ttmi013pzri3fr",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-10T09:00:06.497Z"
+    },
+    {
+      "id": "cmrg4wx2e01g0ns01ki2uemfn",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-11T09:00:46.311Z"
+    },
+    {
+      "id": "cmrh7hqpf002uo201cwnd9fq4",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-12T03:00:43.251Z"
+    },
+    {
+      "id": "cmrh7hr1q002yo201krr8mijr",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-12T03:00:43.695Z"
+    },
+    {
+      "id": "cmrh7hrdp0031o201354z112w",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-12T03:00:44.125Z"
+    },
+    {
+      "id": "cmrh7hs8a0038o2019nx8w5on",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-12T03:00:45.226Z"
+    },
+    {
+      "id": "cmrh7hsk4003co20128ttdpyu",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-12T03:00:45.652Z"
+    },
+    {
+      "id": "cmrh7hsw8003eo201la1jk03q",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-12T03:00:46.089Z"
+    },
+    {
+      "id": "cmrhkd39s009eml01nfa0dwdf",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-12T09:01:01.264Z"
+    },
+    {
+      "id": "cmrimxxia003umn0146xhsyns",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-13T03:00:58.978Z"
+    },
+    {
+      "id": "cmrimxxus003wmn01v93z028c",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-13T03:00:59.428Z"
+    },
+    {
+      "id": "cmrimxy740040mn01a6d97395",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-13T03:00:59.872Z"
+    },
+    {
+      "id": "cmrimxyns0042mn013ayryobs",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-13T03:01:00.472Z"
+    },
+    {
+      "id": "cmrimxzbt0044mn01ltie6jye",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-13T03:01:01.338Z"
+    },
+    {
+      "id": "cmrimxznt0046mn01dfqmuab9",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-13T03:01:01.769Z"
+    },
+    {
+      "id": "cmrimxzzu0048mn010f7gh0kf",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-13T03:01:02.202Z"
+    },
+    {
+      "id": "cmrizs73500wqmn01lca58i8k",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-13T09:00:26.465Z"
+    },
+    {
+      "id": "cmrk2dxvo01y8mn01egemyusy",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-14T03:01:06.372Z"
+    },
+    {
+      "id": "cmrk2dy7t01yhmn01ms9tn3ne",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-14T03:01:06.809Z"
+    },
+    {
+      "id": "cmrk2dyjq01ylmn017ra1g32n",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-14T03:01:07.238Z"
+    },
+    {
+      "id": "cmrk2dzcp01ynmn01w7gkmwse",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-14T03:01:08.282Z"
+    },
+    {
+      "id": "cmrk2dzop01yumn01ftosd2o7",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-14T03:01:08.713Z"
+    },
+    {
+      "id": "cmrk2e00n01ywmn0143lp5ovy",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-14T03:01:09.143Z"
+    },
+    {
+      "id": "cmrkf8r2802rfmn01oa0k2al1",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-14T09:00:59.265Z"
+    },
+    {
+      "id": "cmrlhupil00ismt01oxsf4z25",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-15T03:01:49.101Z"
+    },
+    {
+      "id": "cmrlhupuo00ivmt01jmpcgx4s",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-15T03:01:49.537Z"
+    },
+    {
+      "id": "cmrlhuq6r00izmt01ddmue86z",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-15T03:01:49.971Z"
+    },
+    {
+      "id": "cmrlhuqyw00j4mt01p9ef2iji",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-15T03:01:50.985Z"
+    },
+    {
+      "id": "cmrlhuray00j8mt01b67cdt59",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-15T03:01:51.418Z"
+    },
+    {
+      "id": "cmrlhurmp00jcmt018k9knuvg",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-15T03:01:51.841Z"
+    },
+    {
+      "id": "cmrlunqpj017kmt013b7srth9",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-15T09:00:19.063Z"
+    },
+    {
+      "id": "cmrmxa03e01e0mw01va30ajq3",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-16T03:01:23.066Z"
+    },
+    {
+      "id": "cmrmxa0fn01e4mw01le61f9w3",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-16T03:01:23.507Z"
+    },
+    {
+      "id": "cmrna4ppi02btmw0193shpsdb",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-16T09:01:11.335Z"
+    },
+    {
+      "id": "cmrna4prf02bumw01z8f9h0hz",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-16T09:01:11.404Z"
+    },
+    {
+      "id": "cmrna4ptd02bvmw018lbyuqtq",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-16T09:01:11.474Z"
+    },
+    {
+      "id": "cmrna4pvb02bxmw01ivh6f0py",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-16T09:01:11.543Z"
+    },
+    {
+      "id": "cmrocpf97008amq018hcrfsx9",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-17T03:01:02.971Z"
+    },
+    {
+      "id": "cmrocpflq008fmq01vipen1sv",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-17T03:01:03.423Z"
+    },
+    {
+      "id": "cmrocpfxs008hmq01voxja6v6",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-17T03:01:03.856Z"
+    },
+    {
+      "id": "cmrocpgdy008lmq01bc2lu0e3",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-17T03:01:04.439Z"
+    },
+    {
+      "id": "cmrocph4j008rmq01mr2ewjzg",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-17T03:01:05.395Z"
+    },
+    {
+      "id": "cmrps4xzk01ucmq01djlrrm5z",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-18T03:00:47.504Z"
+    },
+    {
+      "id": "cmrps4ydo01uemq01rwl6m94n",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-18T03:00:48.012Z"
+    },
+    {
+      "id": "cmrq4z2nw02nemq01etg8d77k",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-18T09:00:08.636Z"
+    },
+    {
+      "id": "cmrr7kzv004awmq018qx8pmi1",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-19T03:00:56.844Z"
+    },
+    {
+      "id": "cmrr7l07804aymq01stnplu7i",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-19T03:00:57.284Z"
+    },
+    {
+      "id": "cmrr7l0jb04b0mq0118e33lmc",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-19T03:00:57.720Z"
+    },
+    {
+      "id": "cmrr7l0zp04b2mq01wrwu56bc",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-19T03:00:58.310Z"
+    },
+    {
+      "id": "cmrr7l1np04b4mq01dl4cw1s4",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-19T03:00:59.174Z"
+    },
+    {
+      "id": "cmrr7l1z604b6mq01pm9x32jc",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-19T03:00:59.586Z"
+    },
+    {
+      "id": "cmrr7l2ay04b8mq01n6ckyijp",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-19T03:01:00.010Z"
+    },
+    {
+      "id": "cmrrkg1jv051mmq01ufe99rcc",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-07-19T09:01:00.764Z"
+    },
+    {
+      "id": "cmrrkg1lt051nmq01h3p08k6k",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-19T09:01:00.834Z"
+    },
+    {
+      "id": "cmrsn1cbr05w6mq0120cvn566",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-20T03:01:19.912Z"
+    },
+    {
+      "id": "cmrsn1cog05w8mq01k1kglr08",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-20T03:01:20.369Z"
+    },
+    {
+      "id": "cmrsn1d0w05wamq01ta4dp09l",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-20T03:01:20.817Z"
+    },
+    {
+      "id": "cmrsn1dmc05wimq014mosafau",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-20T03:01:21.589Z"
+    },
+    {
+      "id": "cmrsn1eba05wrmq011bluquit",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-20T03:01:22.486Z"
+    },
+    {
+      "id": "cmrsn1en705wtmq016wk9lh19",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-20T03:01:22.916Z"
+    },
+    {
+      "id": "cmrsn1eye05wvmq01j80ylnmz",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-20T03:01:23.319Z"
+    },
+    {
+      "id": "cmrszvq2o06qsmq01rcf22oxw",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-07-20T09:00:52.801Z"
+    },
+    {
+      "id": "cmrszvq4o06qtmq017cr6asug",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-20T09:00:52.872Z"
+    },
+    {
+      "id": "cmru2g4fy008zla01aph8fx8c",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-21T03:00:29.950Z"
+    },
+    {
+      "id": "cmru2g4sk0091la01xf17iv56",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-21T03:00:30.405Z"
+    },
+    {
+      "id": "cmrufbdcu0124la01mzv3juhp",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-07-21T09:00:43.231Z"
+    },
+    {
+      "id": "cmrufbdeo0125la01k2kch8je",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-21T09:00:43.297Z"
+    },
+    {
+      "id": "cmrvhwgbz01snmg01xydn76k9",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-22T03:00:52.270Z"
+    },
+    {
+      "id": "cmrvhwgnt01ssmg01dub1tezh",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-22T03:00:52.697Z"
+    },
+    {
+      "id": "cmrvhwgzh01swmg01pxzx37il",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-22T03:00:53.118Z"
+    },
+    {
+      "id": "cmrvhwhqw01t1mg01xo6zfdt5",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-22T03:00:54.105Z"
+    },
+    {
+      "id": "cmrvhwi2d01t4mg01rq1alij2",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-22T03:00:54.517Z"
+    },
+    {
+      "id": "cmrvhwidx01t7mg01eunjnfrw",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-22T03:00:54.934Z"
+    },
+    {
+      "id": "cmrvusal302nsmg01w9ebqk3g",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-22T09:01:33.208Z"
+    },
+    {
+      "id": "cmrvusan902ntmg01p13prk0k",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-22T09:01:33.285Z"
+    },
+    {
+      "id": "cmrvusap902nwmg01f4vhz3mx",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-22T09:01:33.357Z"
+    },
+    {
+      "id": "cmrvusar702nymg01hzf4oijb",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-22T09:01:33.427Z"
+    },
+    {
+      "id": "cmrwxbocu0026ql01rv0s9gk6",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-23T03:00:22.926Z"
+    },
+    {
+      "id": "cmrwxboq5002bql01qp16wfv8",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-23T03:00:23.405Z"
+    },
+    {
+      "id": "cmrxa6zpq00wfql018i1same8",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-23T09:00:39.374Z"
+    },
+    {
+      "id": "cmrxa6zrt00wgql01ve3suyw5",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-23T09:00:39.449Z"
+    },
+    {
+      "id": "cmrxa6ztw00wiql0136rxhvpt",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-23T09:00:39.525Z"
+    },
+    {
+      "id": "cmrxa6zw000wkql01nl7c5941",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-23T09:00:39.601Z"
+    },
+    {
+      "id": "cmrycrmll02l8ql01a1dbl31t",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-24T03:00:27.562Z"
+    },
+    {
+      "id": "cmrycrmy502lbql01j8uvsuwj",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-24T03:00:28.014Z"
+    },
+    {
+      "id": "cmrycrnbf02lfql0111ap5s93",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-24T03:00:28.491Z"
+    },
+    {
+      "id": "cmrycro5q02lmql01b6g9mu4q",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-24T03:00:29.582Z"
+    },
+    {
+      "id": "cmrycroi702lpql01urd0zp1o",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-24T03:00:30.031Z"
+    },
+    {
+      "id": "cmrycrouf02lsql01c20nuank",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-24T03:00:30.472Z"
+    },
+    {
+      "id": "cmrypn2xu03grql01oa2dces8",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-24T09:00:50.466Z"
+    },
+    {
+      "id": "cmrypn2zt03gsql01jqoql7vz",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-24T09:00:50.537Z"
+    },
+    {
+      "id": "cmrypn31r03gtql0135tlhu2h",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-24T09:00:50.608Z"
+    },
+    {
+      "id": "cmrypn33q03guql01pitd54mm",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-24T09:00:50.678Z"
+    },
+    {
+      "id": "cmrzs83ap0503ql016hysezhg",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-25T03:00:56.113Z"
+    },
+    {
+      "id": "cmrzs83oj0505ql01zhxs3k9i",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-25T03:00:56.611Z"
+    },
+    {
+      "id": "cmrzs841i0507ql01rbt29s0l",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-25T03:00:57.078Z"
+    },
+    {
+      "id": "cmrzs84y90509ql01gloqmtmj",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-25T03:00:58.257Z"
+    },
+    {
+      "id": "cmrzs85b6050bql01ffeohdnq",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-25T03:00:58.723Z"
+    },
+    {
+      "id": "cmrzs85pg050gql01pjq50exr",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-25T03:00:59.237Z"
+    },
+    {
+      "id": "cms0538md05vrql01ia67dyye",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-25T09:01:04.741Z"
+    },
+    {
+      "id": "cms0538od05vsql0175ek5r1m",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-25T09:01:04.814Z"
+    },
+    {
+      "id": "cms0538qe05vtql01fh8pton3",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-25T09:01:04.887Z"
+    },
+    {
+      "id": "cms0538sf05vuql01ztuq8ft0",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-25T09:01:04.960Z"
+    },
+    {
+      "id": "cms17nnlq00a0le01stsxpbsh",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-26T03:00:42.687Z"
+    },
+    {
+      "id": "cms1king1014fle017bfe9iij",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-07-26T09:00:44.209Z"
+    },
+    {
+      "id": "cms1kinhy014gle01cupn8196",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-26T09:00:44.278Z"
+    },
+    {
+      "id": "cms2n3hms00dgo301amkkukdu",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-27T03:00:41.861Z"
+    },
+    {
+      "id": "cms2n3hz300dio3014nk9n6yi",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-27T03:00:42.304Z"
+    },
+    {
+      "id": "cms2n3ibo00dko301gddkpv7w",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-27T03:00:42.757Z"
+    },
+    {
+      "id": "cms2n3irv00dno3015hv8h788",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-27T03:00:43.339Z"
+    },
+    {
+      "id": "cms2n3jft00dpo3018vma8ivf",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-27T03:00:44.201Z"
+    },
+    {
+      "id": "cms2n3js100dro3011mj3o60w",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-27T03:00:44.642Z"
+    },
+    {
+      "id": "cms2n3k4q00dto301mol6i3w1",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-27T03:00:45.098Z"
+    },
+    {
+      "id": "cms2zy61p0176o301ph848ml2",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-27T09:00:28.574Z"
+    },
+    {
+      "id": "cms42jqzk0023nt013cklxdt0",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-28T03:01:00.896Z"
+    },
+    {
+      "id": "cms42jraw0025nt01j14nak1u",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-28T03:01:01.305Z"
+    },
+    {
+      "id": "cms42jrm50027nt01iht79n9n",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-28T03:01:01.709Z"
+    },
+    {
+      "id": "cms42js1t0029nt019qwscz3d",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-28T03:01:02.273Z"
+    },
+    {
+      "id": "cms42jsod002bnt01etm51jx3",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-28T03:01:03.085Z"
+    },
+    {
+      "id": "cms42jszh002dnt01nvz25kfk",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-28T03:01:03.486Z"
+    },
+    {
+      "id": "cms42jtal002fnt01ff0x19m5",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-28T03:01:03.886Z"
+    },
+    {
+      "id": "cms4fe3t3007os10100fpewgm",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-28T09:00:32.584Z"
+    },
+    {
+      "id": "cms4fe3v7007ps101v32isqu0",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-28T09:00:32.659Z"
+    },
+    {
+      "id": "cms4z1spb0041pe01lneggzuf",
+      "ruleName": "nick_event_drift",
+      "actionType": "review_signal",
+      "createdAt": "2026-07-28T18:10:50.640Z"
+    },
+    {
+      "id": "cms4z1sqb0044pe01j5xla1bj",
+      "ruleName": "nick_event_drift",
+      "actionType": "review_signal",
+      "createdAt": "2026-07-28T18:10:50.676Z"
+    },
+    {
+      "id": "cms5hzogt002eo201ye2wsx6f",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-29T03:01:04.541Z"
+    },
+    {
+      "id": "cms5hzotd002ho20120lfnf60",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-29T03:01:04.993Z"
+    },
+    {
+      "id": "cms5hzp4r002jo201diz85ldz",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-29T03:01:05.403Z"
+    },
+    {
+      "id": "cms5hzplp002lo2018455398f",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-29T03:01:06.014Z"
+    },
+    {
+      "id": "cms5hzqa6002no201haiblfrn",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-29T03:01:06.895Z"
+    },
+    {
+      "id": "cms5hzqm2002po201tuw45gdo",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-29T03:01:07.322Z"
+    },
+    {
+      "id": "cms5hzqxh002ro201kszef4it",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-29T03:01:07.734Z"
+    },
+    {
+      "id": "cms5utwbo013yo2012g47esfd",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-29T09:00:29.796Z"
+    },
+    {
+      "id": "cms5utwdw013zo201nyfrt5ru",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-29T09:00:29.876Z"
+    },
+    {
+      "id": "cms5utwfq0140o201kqxl8g55",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-29T09:00:29.942Z"
+    },
+    {
+      "id": "cms5utwhk0141o201f20sd39s",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-29T09:00:30.009Z"
+    },
+    {
+      "id": "cms7aaaxq00jlpa01sz7qlagt",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-30T09:00:55.647Z"
+    },
+    {
+      "id": "cms7aab0600jopa01d164qyrf",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-30T09:00:55.735Z"
+    },
+    {
+      "id": "cms7aab2c00jqpa013dgcvodb",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-07-30T09:00:55.812Z"
+    },
+    {
+      "id": "cms7aab4800jspa01rcyopmn0",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-30T09:00:55.880Z"
+    },
+    {
+      "id": "cms7aabz800k5pa01bsitq3f0",
+      "ruleName": "nick_event_drift",
+      "actionType": "review_signal",
+      "createdAt": "2026-07-30T09:00:56.997Z"
+    },
+    {
+      "id": "cms8cv7wb00duo701mkbwo22a",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-31T03:00:56.891Z"
+    },
+    {
+      "id": "cms8cv88g00dyo701lpvhg5bu",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-31T03:00:57.329Z"
+    },
+    {
+      "id": "cms8cv8jf00e0o7016nfbznyj",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-31T03:00:57.723Z"
+    },
+    {
+      "id": "cms8cv8zd00e3o701lsb6oove",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-07-31T03:00:58.298Z"
+    },
+    {
+      "id": "cms8cv9lg00e6o701iu69uyh0",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-31T03:00:59.093Z"
+    },
+    {
+      "id": "cms8cv9wb00eao701lk0bzw9r",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-31T03:00:59.483Z"
+    },
+    {
+      "id": "cms8cva7b00eeo701cuw6i9jw",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-07-31T03:00:59.879Z"
+    },
+    {
+      "id": "cms8ppnfg00ywo701yzempkga",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-07-31T09:00:32.093Z"
+    },
+    {
+      "id": "cms9sca5z067zo701s7cwp4g3",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-01T03:01:53.399Z"
+    },
+    {
+      "id": "cms9scaig0683o701qmyxnvb0",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-01T03:01:53.848Z"
+    },
+    {
+      "id": "cms9scaul0687o701q5kdjocg",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-01T03:01:54.286Z"
+    },
+    {
+      "id": "cms9scbb40689o701fo02mmb2",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-01T03:01:54.880Z"
+    },
+    {
+      "id": "cms9scbyu068co701xthoicej",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-01T03:01:55.734Z"
+    },
+    {
+      "id": "cms9sccb2068eo701yco032xx",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-01T03:01:56.175Z"
+    },
+    {
+      "id": "cms9sccn8068go701iv38tb9q",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-01T03:01:56.612Z"
+    },
+    {
+      "id": "cmsa55fq506rho701xuku8bgq",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-01T09:00:29.022Z"
+    },
+    {
+      "id": "cmsbklkzk019wnn017b7jeo7w",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-02T09:00:42.752Z"
+    },
+    {
+      "id": "cmscn8pus02alnn01390djy6f",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-03T03:02:27.556Z"
+    },
+    {
+      "id": "cmscn8q5m02aonn01po3abywb",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-03T03:02:27.946Z"
+    },
+    {
+      "id": "cmscn8qgd02aqnn01kenj0tn0",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-03T03:02:28.334Z"
+    },
+    {
+      "id": "cmscn8qvn02asnn01ysqy7q3a",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-03T03:02:28.883Z"
+    },
+    {
+      "id": "cmscn8rhd02aunn01i5207hra",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-03T03:02:29.665Z"
+    },
+    {
+      "id": "cmscn8rs402awnn010avty5uo",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-03T03:02:30.053Z"
+    },
+    {
+      "id": "cmscn8s2w02aynn01p676tl74",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-03T03:02:30.441Z"
+    },
+    {
+      "id": "cmsd01hgq02sunn01okn2oj4l",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-03T09:00:45.098Z"
+    },
+    {
+      "id": "cmsefhst000oknz01rb0uezlv",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-04T09:01:06.709Z"
+    },
+    {
+      "id": "cmsfi3dv700a2s3013mfmqnxs",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-05T03:01:39.187Z"
+    },
+    {
+      "id": "cmsfi3e7e00a4s301a96wkjie",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-05T03:01:39.627Z"
+    },
+    {
+      "id": "cmsfi3ej500a6s301kb7bziv1",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-05T03:01:40.050Z"
+    },
+    {
+      "id": "cmsfi3eyq00a9s3011bahnpz0",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-05T03:01:40.610Z"
+    },
+    {
+      "id": "cmsfi3fmz00abs301kkm99gas",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-05T03:01:41.483Z"
+    },
+    {
+      "id": "cmsfi3fz100ads3013fwwguv9",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-05T03:01:41.918Z"
+    },
+    {
+      "id": "cmsfi3gba00afs3015l3k6ydj",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-05T03:01:42.358Z"
+    },
+    {
+      "id": "cmsfuxaaf00tgs301dbnvp568",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-05T09:00:49.624Z"
+    }
+  ],
+  "keep": [
+    {
+      "id": "cmshad12f01aepg01t2zwtz3j",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-06T09:00:44.584Z"
+    },
+    {
+      "id": "cmsicyhv70073mm01kzezc01n",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-07T03:01:11.539Z"
+    },
+    {
+      "id": "cmsicyi8e0076mm01p3ykshfi",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-07T03:01:12.015Z"
+    },
+    {
+      "id": "cmsicyiln0078mm011py63n0e",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-07T03:01:12.492Z"
+    },
+    {
+      "id": "cmsicyj37007bmm01xibcuned",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-07T03:01:13.124Z"
+    },
+    {
+      "id": "cmsicyjuo007hmm017b7fiwfp",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-07T03:01:14.112Z"
+    },
+    {
+      "id": "cmsicyk7t007lmm01zhe3jx2m",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-07T03:01:14.586Z"
+    },
+    {
+      "id": "cmsicykkt007omm01ndaz1p2q",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-07T03:01:15.053Z"
+    },
+    {
+      "id": "cmsipt5dr00summ013fpvjvx2",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-07T09:00:57.088Z"
+    },
+    {
+      "id": "cmsiptk5300v3mm01wieugzgl",
+      "ruleName": "nick_event_drift",
+      "actionType": "review_signal",
+      "createdAt": "2026-08-07T09:01:16.216Z"
+    },
+    {
+      "id": "cmsjsfurk00lpl401x4va2qt7",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-08T03:02:21.825Z"
+    },
+    {
+      "id": "cmsjsfv2900lrl4018c6b31vo",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-08T03:02:22.210Z"
+    },
+    {
+      "id": "cmsjsfvcu00ltl4016qb99ozr",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-08T03:02:22.591Z"
+    },
+    {
+      "id": "cmsjsfw2i00lvl401tl9jezfj",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-08T03:02:23.514Z"
+    },
+    {
+      "id": "cmsjsfwd100lxl401uy1ig6b9",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-08T03:02:23.893Z"
+    },
+    {
+      "id": "cmsjsfwno00lzl401eihmjhnm",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-08T03:02:24.277Z"
+    },
+    {
+      "id": "cmsk57zgf017ul401d4ue3uby",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-08T09:00:09.664Z"
+    },
+    {
+      "id": "cmsl7uwe300gbnz01dxjklo5x",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-09T03:01:44.187Z"
+    },
+    {
+      "id": "cmsl7ux5r00gdnz01vjb827cb",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-09T03:01:45.184Z"
+    },
+    {
+      "id": "cmslkop5g01ghnz01p8btmir0",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-08-09T09:00:49.876Z"
+    },
+    {
+      "id": "cmslkop7f01ginz01bm7tsih4",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-08-09T09:00:49.947Z"
+    },
+    {
+      "id": "cmslkop9f01gjnz01mnppyhy1",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-08-09T09:00:50.019Z"
+    },
+    {
+      "id": "cmslkopbe01gknz017dryanwf",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-08-09T09:00:50.091Z"
+    },
+    {
+      "id": "cmslkopde01glnz01u9zjdxhx",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-09T09:00:50.162Z"
+    },
+    {
+      "id": "cmsmnaqjg00ikoa01enl7ai9g",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-10T03:01:43.516Z"
+    },
+    {
+      "id": "cmsmnaqvs00imoa01p4z40hop",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-10T03:01:43.960Z"
+    },
+    {
+      "id": "cmsmnar7k00iooa019vu5uebv",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-10T03:01:44.385Z"
+    },
+    {
+      "id": "cmsmnarzn00iqoa01dt820vhd",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-10T03:01:45.396Z"
+    },
+    {
+      "id": "cmsmnasbf00isoa01lwq2ovo9",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-10T03:01:45.820Z"
+    },
+    {
+      "id": "cmsmnasmg00iuoa01mczikpeo",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-10T03:01:46.217Z"
+    },
+    {
+      "id": "cmsn052qo01amoa01qa2hcijn",
+      "ruleName": "nick_action_outreach_top_pick",
+      "actionType": "send_sms_outreach",
+      "createdAt": "2026-08-10T09:01:14.400Z"
+    },
+    {
+      "id": "cmsn052so01aooa01kru70096",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-10T09:01:14.472Z"
+    },
+    {
+      "id": "cmso2pdz4003ds901py3idd9z",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-11T03:00:47.488Z"
+    },
+    {
+      "id": "cmso2petn003ks901n21v1szq",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-11T03:00:48.588Z"
+    },
+    {
+      "id": "cmsofl8no00uvs901p1783w85",
+      "ruleName": "nick_action_commit_journal",
+      "actionType": "commit_journal",
+      "createdAt": "2026-08-11T09:01:28.980Z"
+    },
+    {
+      "id": "cmsofl8pq00uws9016duwwplg",
+      "ruleName": "nick_action_archive_mission",
+      "actionType": "archive_mission",
+      "createdAt": "2026-08-11T09:01:29.054Z"
+    },
+    {
+      "id": "cmsol013b0134s901prlo3ets",
+      "ruleName": "nick_event_drift",
+      "actionType": "review_signal",
+      "createdAt": "2026-08-11T11:32:57.094Z"
+    },
+    {
+      "id": "cmspi6g3z002io201owesvs9n",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-12T03:01:43.823Z"
+    },
+    {
+      "id": "cmspi6glx002oo2012pqcbibc",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-12T03:01:44.470Z"
+    },
+    {
+      "id": "cmspi6gxs002qo2013vfpabfx",
+      "ruleName": "decision_replay_due",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-12T03:01:44.896Z"
+    },
+    {
+      "id": "cmspi6hfe002so2019igbogey",
+      "ruleName": "task_overload_alert",
+      "actionType": "send_telegram",
+      "createdAt": "2026-08-12T03:01:45.530Z"
+    },
+    {
+      "id": "cmspi6i2s002vo201sttwt6lz",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-12T03:01:46.372Z"
+    },
+    {
+      "id": "cmspi6iea002xo201e3ey0sks",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-12T03:01:46.786Z"
+    },
+    {
+      "id": "cmspi6iqd002zo201qtognep7",
+      "ruleName": "memory_promotion",
+      "actionType": "promote_memory",
+      "createdAt": "2026-08-12T03:01:47.222Z"
+    }
+  ]
+}

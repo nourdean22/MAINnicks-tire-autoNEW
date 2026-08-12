@@ -1,0 +1,17 @@
+{
+  "executedAt": "2026-08-12T19:18:54.164Z",
+  "dbHost": "ep-quiet-wave-am320eo1-pooler.c-5.us-east-1.aws.neon.tech",
+  "authorization": "operator, 2026-08-12: \"clean up the 468 queue\"",
+  "mechanism": "purgeStaleCategory(\"pending_actions_7d\") — incumbent stale-data-purger",
+  "before": {
+    "pending": 468,
+    "autoPurged": 0
+  },
+  "purged": 424,
+  "note": "Marked 424 actions rejected (>7d pending)",
+  "after": {
+    "pending": 44,
+    "autoPurged": 424
+  },
+  "planReceipt": "docs/APPROVAL-QUEUE-CLEANUP-PLAN-2026-08-12.json"
+}

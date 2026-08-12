@@ -80,10 +80,19 @@ hygiene + an expiry/sweep design come first, and the bulk mutation is
    composition: decide lane capped at 3 + "view all", resume cue when no
    active engagement, existing queries only. Re-scopes an
    operator-approved composition → needs operator verdict on the default.
-2. **WP: autonomous_action queue hygiene + expiry** (BDN-002) — operator-
-   authorized backlog disposition (plan/execute split per #1528 pattern),
-   then an expiresAt/sweep mechanism so the queue can't silently regrow.
-   Root producers to inspect first: memory_promotion, decision_replay_due.
+2. **WP: autonomous_action queue hygiene + expiry** (BDN-002) —
+   **hygiene EXECUTED same day** (operator: "clean up the 468 queue").
+   Gate-within-the-gate: the planned bespoke mutation was itself ~90%
+   incumbent — `lib/system/stale-data-purger.ts` `purgePendingActions()`
+   already encodes the exact policy (pending >7d → rejected/auto-purge)
+   but is operator-tap-only, which is how the backlog grew. Executed via
+   plan/execute scripts wrapping `purgeStaleCategory("pending_actions_7d")`:
+   468 → 44 pending (424 flipped, reversible; receipts
+   `docs/APPROVAL-QUEUE-CLEANUP-{PLAN,EXECUTED}-2026-08-12.json`; census
+   re-run confirms 44, all ≤7d). **Remaining open half:** schedule the
+   purger (or per-rule TTLs) so the queue can't silently regrow, and
+   inspect the two dominant producers (memory_promotion,
+   decision_replay_due) for proposal-rate sanity.
 3. **WP: merged receipts timeline shell** (BDN-003) — read-only merge of
    entity-audit + action receipts in /system or /brain/continuity; typed
    adapters, no schema. ORGANIZATION-WIRING-AUDIT is the input.
