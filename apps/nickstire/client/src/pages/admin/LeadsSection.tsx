@@ -17,7 +17,7 @@ import {
 // CHART_COLORS Â· ChevronRight Â· ExternalLink Â· FileSpreadsheet).
 // Verified via grep that each had zero body references.
 import {
-  AlertTriangle, Car, CheckCircle2, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List, Calculator
+  AlertTriangle, Car, CheckCircle2, ClipboardList, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List, Calculator
 } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
@@ -78,6 +78,19 @@ export default function LeadsSection() {
   // subscriber. OverviewSection already uses this pattern at L310-314.
   const updateLead = trpc.lead.update.useMutation({
     onSuccess: () => { void utils.lead.list.invalidate(); toast.success("Lead updated"); },
+    onError: (err) => toast.error("Failed: " + err.message),
+  });
+
+  // Phase 7 contextual action: creates a DRAFT in the approval queue — no
+  // callback row exists until a human approves it there (trust ladder).
+  const proposeCallback = trpc.proposals.create.useMutation({
+    onSuccess: (r) => {
+      if (r.created) toast.success("Draft created — review it in Approvals");
+      else if ("deduped" in r && r.deduped) toast.message("Already drafted", { description: "An identical proposal is in the queue." });
+      else toast.error("Could not draft: " + ("error" in r ? r.error : "unknown"));
+      void utils.proposals.list.invalidate();
+      void utils.proposals.counts.invalidate();
+    },
     onError: (err) => toast.error("Failed: " + err.message),
   });
 
@@ -675,6 +688,29 @@ export default function LeadsSection() {
                           </button>
                           <LostReasonButton leadId={lead.id} />
                         </>
+                      )}
+                      {lead.phone && lead.status !== "booked" && lead.status !== "completed" && (
+                        <button
+                          onClick={() =>
+                            proposeCallback.mutate({
+                              actionType: "create_callback",
+                              title: `Callback: ${lead.name} — flagged from Sales Pipeline`,
+                              payload: {
+                                name: lead.name,
+                                phone: lead.phone,
+                                reason: `Flagged from lead #${lead.id}${lead.recommendedService ? ` · ${lead.recommendedService}` : ""}`,
+                                sourcePage: "admin-leads",
+                              },
+                              entityType: "lead",
+                              entityId: String(lead.id),
+                            })
+                          }
+                          disabled={proposeCallback.isPending}
+                          title="Creates a DRAFT in the approval queue — nothing happens until it is approved there"
+                          className="flex items-center gap-2 border border-violet-500/40 text-violet-500 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-violet-500/10 disabled:opacity-50"
+                        >
+                          <ClipboardList className="w-4 h-4" /> FLAG CALLBACK
+                        </button>
                       )}
                       {(lead.status === "booked" || lead.status === "completed" || lead.status === "closed" || lead.status === "lost") && (
                         <button
