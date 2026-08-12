@@ -89,6 +89,25 @@ per night); the 9 due replays start getting their designed reminders.
 
 Calibration rule 5 fired exactly as written — and rule 6 below is new.
 
+## 2026-08-12 (night) — third run: UI/structure re-scan (self-run, in-session)
+
+Evidence base: this repo + same-day prod probes (revealed preference +
+primary builder — the hierarchy's top tiers); no web sweep, stated
+explicitly. Self-audit: prior #1 (retrofit brain-bus consumer) = killed by
+evidence; morning #1 (BDN-001) = ACTED ON (#1539). Repeat hit: trust-ladder
+theme, 3rd consecutive run → elevated conviction, each iteration converging
+on the INCUMBENT mechanism.
+
+| Date | Idea | Conviction | Evidence | Outcome |
+|---|---|---|---|---|
+| 2026-08-12 | BDN-101 · dead-lane wiring census on /system (aerospace pair; the run's contrarian trade: wiring integrity OVER new agent chrome — falsifier: chrome catches a failure class the census misses by 2027-02) | HIGH | OBSERVED (5/5 retroactive detection of this week's defect class) | still live · 14/15 · OPEN |
+| 2026-08-12 | BDN-102 · trust-ladder scoreboard — expose confidence-tier's EXISTING per-type accept tallies on /system/actions; flag flip is the operator's evidence-read (casino pair) | HIGH | OBSERVED (canAutoExecute built, flag-off; verdict data flows from tonight) | still live · 13/15 · OPEN · REPEAT HIT ×3 |
+| 2026-08-12 | BDN-103 · route-aware Nick — measure context_manifest contextRoute arrival, then extend TOOL_BIAS (lane went live in #1540) | MED | OBSERVED | still live · 12/15 · OPEN |
+| 2026-08-12 | BDN-104 · Home decision instrumentation — the shipped BDN-001 composition has NO sensor; its 7-day cheap test never ran (ledger rule-3 integrity item) | MED | OBSERVED | still live · 11/15 · OPEN |
+| 2026-08-12 | BDN-105 · SPC on the wisdom-quality-gate — trend accept/reject/dupe mix weekly; hand-audit week 1 promotions (manufacturing QC pair) | MED | OBSERVED | still live · 10/15 · OPEN |
+| 2026-08-12 | BDN-106 · personal confidence calibration (Brier on HIGH/MED/LOW vs outcomes; intelligence-tradecraft pair) | LOW | INFERRED | parked TOO EARLY · revisit 2026-10-15 |
+| 2026-08-12 | (cut, noted) dismiss-latency as adverse-selection signal (HFT pair) | LOW | INFERRED | parked behind BDN-102 · 9/15 |
+
 ## Calibration rules for the next scan
 
 1. Promote a finding to `HIGH` only after observing behavior or a production
