@@ -84,6 +84,13 @@ opposite direction — the code and the schema disagreeing about what is real.
 - **TiDB rejects `ALTER`-add of a STORED generated column.** Achieve the same
   result with an application-side normalized column plus a unique index (this
   is what the customer-dedup work had to do).
+- **TiDB rejects `CREATE TABLE … AS SELECT`** — `ERROR 1105: 'CREATE TABLE ...
+  SELECT' is not implemented yet` (witnessed 2026-08-12 backing up
+  `__drizzle_migrations`). The backup idiom that DOES work is two statements:
+  `CREATE TABLE bak LIKE orig;` then `INSERT INTO bak SELECT * FROM orig;`.
+  Count the rows in the copy before trusting it — and note this failure mode is
+  benign only because a backup runs BEFORE the mutation it protects; put the
+  backup first so a rejected copy aborts the run instead of orphaning it.
 
 ## Applying
 
