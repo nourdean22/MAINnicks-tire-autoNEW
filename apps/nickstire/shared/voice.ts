@@ -822,6 +822,21 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
     exempt: ["admin"],
     sources: ["voice-compliance"],
   },
+  {
+    id: "positioning.acima-credit-language",
+    pattern:
+      /\bacima['’]?s?\s+(?:financing|finance|credit|loans?)\b|\b(?:financing|finance|credit|loans?)\s+(?:through|via|with|from)\s+acima\b/i,
+    label: "Acima described as financing / credit / a loan",
+    why:
+      "Acima is lease-to-own, not credit. Its merchant terms prohibit presenting the program as credit, and FTC Regulation M governs the trigger terms — the doctrine lives in client/src/components/payments/AcimaLeaseStrip.tsx and client/src/lib/acima.ts",
+    fix: "'Acima lease-to-own' — the only approved vocabulary is 'Lease-to-Own', 'Weekly Lease Payment', 'Initial Payment'",
+    reason: "positioning",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["voice-compliance"],
+    note:
+      "Deliberately scoped to DIRECT conflation ('Acima financing', 'credit via Acima'). Provider lists naming Acima beside real lenders are governed by shared/financing.ts's product-accuracy header, not this rule — lender names themselves are intentional customer copy, not violations.",
+  },
 ]);
 
 // ─── The positive half — previously enforced NOWHERE ────────────────────────

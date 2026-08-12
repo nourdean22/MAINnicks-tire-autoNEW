@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { ClipboardList, ExternalLink } from "lucide-react";
 import { VAPI_LINKS, fmtPhone, fmtDuration, prettyReason } from "./format";
 
 // ─── Drawer ─────────────────────────────────────────────────
@@ -9,6 +10,20 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
     { callId },
     { staleTime: 5 * 60_000 },
   );
+  const utils = trpc.useUtils();
+
+  // Phase 7 contextual action: creates a DRAFT in the approval queue — no
+  // callback row exists until a human approves it there (trust ladder).
+  const proposeCallback = trpc.proposals.create.useMutation({
+    onSuccess: (r) => {
+      if (r.created) toast.success("Draft created — review it in Approvals");
+      else if ("deduped" in r && r.deduped) toast.message("Already drafted", { description: "A proposal for this call is in the queue." });
+      else toast.error("Could not draft: " + ("error" in r ? r.error : "unknown"));
+      void utils.proposals.list.invalidate();
+      void utils.proposals.counts.invalidate();
+    },
+    onError: (err) => toast.error("Failed: " + err.message),
+  });
 
   // wave-181.x Voice Phase 1 · M3 fix · code-review agent caught
   // missing Escape-key close. role="dialog" aria-modal="true" without
@@ -98,6 +113,30 @@ export function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose
                 <span className="font-mono tabular-nums text-foreground/50 text-[11px]">
                   {details.createdAt ? new Date(details.createdAt).toLocaleString() : "—"}
                 </span>
+                {details.customerNumber && (
+                  <button
+                    onClick={() =>
+                      proposeCallback.mutate({
+                        actionType: "create_callback",
+                        title: `Callback: ${details.customerName || fmtPhone(details.customerNumber)} — flagged from call review`,
+                        payload: {
+                          name: details.customerName || "Caller",
+                          phone: details.customerNumber,
+                          reason: `Operator flagged VAPI call ${callId.slice(0, 12)} for a callback`,
+                          sourcePage: "admin-voice",
+                        },
+                        entityType: "vapi_call",
+                        entityId: callId.slice(0, 64),
+                        context: { vapiCallId: callId },
+                      })
+                    }
+                    disabled={proposeCallback.isPending}
+                    title="Creates a DRAFT in the approval queue — nothing happens until it is approved there"
+                    className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] border border-violet-500/40 text-violet-500 px-3 py-2 font-bold text-[11px] tracking-wide uppercase hover:bg-violet-500/10 disabled:opacity-50 rounded"
+                  >
+                    <ClipboardList className="w-3.5 h-3.5" /> Flag callback
+                  </button>
+                )}
               </div>
 
               {/* Recording — keeps prime real estate so you can listen while reading */}

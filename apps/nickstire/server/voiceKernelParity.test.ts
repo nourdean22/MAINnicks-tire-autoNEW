@@ -172,6 +172,7 @@ describe("Voice Kernel — rule hygiene", () => {
       "positioning.appointment-language": "Book Appointment",
       "positioning.schedule-appointment": "Schedule Appointment",
       "positioning.cheap": "affordable tires",
+      "positioning.acima-credit-language": "Acima financing",
       "bot.have-a-great-day": "have a great day",
     };
     for (const r of KILL_RULES) {

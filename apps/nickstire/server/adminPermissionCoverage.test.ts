@@ -129,3 +129,35 @@ describe("the mappings that already existed still hold", () => {
     expect(permissionForAdminProcedure(path, "mutation")).toBe(expected);
   });
 });
+
+describe("approval queue (0111): drafting sits one tier below deciding", () => {
+  it.each([
+    // The two Phase-7 surfaces carrying the FLAG CALLBACK button (Sales
+    // Pipeline, voice call drawer) are front_desk-reachable, and front_desk
+    // does not hold settings.manage — create must therefore resolve to a
+    // permission front_desk actually has, or the button always throws.
+    ["proposals.create", "callbacks.manage"],
+    ["proposals.approve", "settings.manage"],
+    ["proposals.reject", "settings.manage"],
+    ["proposals.retry", "settings.manage"],
+    ["proposals.submitForReview", "settings.manage"],
+  ] as const)("%s resolves to %s", (path, expected) => {
+    expect(permissionForAdminProcedure(path, "mutation")).toBe(expected);
+  });
+
+  it("front_desk can draft but can never decide", () => {
+    expect(hasAdminPermission("front_desk", permissionForAdminProcedure("proposals.create", "mutation"))).toBe(true);
+    expect(hasAdminPermission("front_desk", permissionForAdminProcedure("proposals.approve", "mutation"))).toBe(false);
+  });
+
+  it("viewer and accountant cannot even draft", () => {
+    for (const role of ["viewer", "accountant"] as const) {
+      expect(hasAdminPermission(role, permissionForAdminProcedure("proposals.create", "mutation")), role).toBe(false);
+    }
+  });
+
+  it("queue reads stay admin.view so every role's shell can render the badge", () => {
+    expect(permissionForAdminProcedure("proposals.counts", "query")).toBe("admin.view");
+    expect(permissionForAdminProcedure("proposals.list", "query")).toBe("admin.view");
+  });
+});

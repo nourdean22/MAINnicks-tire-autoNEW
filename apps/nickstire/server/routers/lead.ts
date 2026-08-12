@@ -20,6 +20,7 @@ import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
 import { logAdminAction } from "../services/auditTrail";
+import { withActivityLedger } from "../services/activityLedger";
 
 import { db } from "../lib/db-helper";
 
@@ -81,6 +82,26 @@ export const leadRouter = router({
         // journey-join migration 0068 - localStorage visitor id
         sessionId: z.string().max(64).nullish(),
       })
+    )
+    // Activity ledger (0110): one attributed row per captured lead — actor_type
+    // 'public' for the website form, with a PII-masked after-snapshot. Records
+    // only after the mutation succeeds; a ledger failure never blocks capture.
+    .use((opts) =>
+      withActivityLedger(opts, {
+        action: "lead.created",
+        entityType: "lead",
+        entityId: (_input, data) => (data as { leadId?: number | null })?.leadId,
+        after: (input, data) => {
+          const i = input as { name?: string; phone?: string; source?: string };
+          const r = data as { leadId?: number | null; message?: string };
+          return {
+            name: i.name,
+            phone: i.phone,
+            source: i.source,
+            ...(r?.message ? { note: r.message } : {}),
+          };
+        },
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       try {
@@ -293,6 +314,10 @@ export const leadRouter = router({
 
       return {
         success: true,
+        // Review finding 2026-08-12: without this the activity-ledger row for
+        // every NEW lead recorded entityId "unknown" (only the dedup early
+        // return carried leadId). Additive — no client destructures against it.
+        leadId,
         urgencyScore: scoring.score,
         recommendedService: scoring.recommendedService,
       };

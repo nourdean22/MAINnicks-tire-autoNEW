@@ -49,6 +49,10 @@ export default function SnapDashboardSection() {
     amount: "",
     vehicle: "",
     service: "",
+    // Phase 2 poka-yoke: the server rejects a submission without this
+    // attestation (snapSubmitInput) — the checkbox is the front desk
+    // confirming the customer was shown Snap's disclosure.
+    disclosureAcknowledged: false,
   });
 
   const submit = trpc.snap.submit.useMutation({
@@ -57,7 +61,7 @@ export default function SnapDashboardSection() {
         ? `Submitted to Snap (${r.externalApplicationId ?? "pending id"})`
         : "Logged locally (Snap API not configured)");
       setShowForm(false);
-      setForm({ customerName: "", customerPhone: "", customerEmail: "", amount: "", vehicle: "", service: "" });
+      setForm({ customerName: "", customerPhone: "", customerEmail: "", amount: "", vehicle: "", service: "", disclosureAcknowledged: false });
       // wave-143 — invalidate cache instead of refetch() so any sibling
       // component subscribed to snap.list/summary also updates (cache
       // coherence). Pattern used everywhere else in the codebase.
@@ -74,14 +78,22 @@ export default function SnapDashboardSection() {
     // past the truthy check on form.amount. iOS paste can bypass
     // type="number" so guard explicitly. NaN serializes to null
     // mid-flight and corrupts the Snap payload.
-    let parsedAmount: number | undefined;
-    if (form.amount) {
-      const n = Number(form.amount);
-      if (!Number.isFinite(n) || n < 0) {
-        toast.error("Invalid amount · enter a positive number");
-        return;
-      }
-      parsedAmount = n;
+    // Phase 2: amount and service are partner-REQUIRED — the server schema
+    // (snapSubmitInput) rejects their absence; mirror it here for a clear
+    // message instead of a zod error string.
+    const n = Number(form.amount);
+    if (!form.amount || !Number.isFinite(n) || n <= 0) {
+      toast.error("Amount is required · enter a positive number");
+      return;
+    }
+    const parsedAmount = n;
+    if (form.service.trim().length < 3) {
+      toast.error("Service description is required for a Snap application");
+      return;
+    }
+    if (!form.disclosureAcknowledged) {
+      toast.error("Confirm the customer was shown the Snap disclosure first");
+      return;
     }
 
     // wave-181.x Money Phase 1 · H1 fix · code-review agent flagged
@@ -104,7 +116,8 @@ export default function SnapDashboardSection() {
       customerEmail: form.customerEmail || undefined,
       amount: parsedAmount,
       vehicle: form.vehicle || undefined,
-      service: form.service || undefined,
+      service: form.service.trim(),
+      disclosureAcknowledged: form.disclosureAcknowledged,
     });
   }
 
@@ -200,10 +213,11 @@ export default function SnapDashboardSection() {
                   className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
                 <input
+                  required
                   type="number"
                   step="1"
-                  min="0"
-                  placeholder="Amount requested ($)"
+                  min="1"
+                  placeholder="Amount requested ($) *"
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                   className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
@@ -215,12 +229,27 @@ export default function SnapDashboardSection() {
                   className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
                 <input
-                  placeholder="Service"
+                  required
+                  placeholder="Service *"
                   value={form.service}
                   onChange={(e) => setForm((f) => ({ ...f, service: e.target.value }))}
                   className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
               </div>
+              {/* Phase 2 disclosure attestation — server-enforced (snapSubmitInput
+                  rejects without it); 48px touch row per iOS-PWA rules. */}
+              <label className="flex items-start gap-3 py-2.5 min-h-[48px] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.disclosureAcknowledged}
+                  onChange={(e) => setForm((f) => ({ ...f, disclosureAcknowledged: e.target.checked }))}
+                  className="mt-0.5 w-5 h-5 accent-primary shrink-0"
+                />
+                <span className="text-xs text-muted-foreground leading-snug">
+                  I confirmed the customer was shown Snap&apos;s lease-to-own disclosure
+                  (payment terms, ownership options) before submitting this application. *
+                </span>
+              </label>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"

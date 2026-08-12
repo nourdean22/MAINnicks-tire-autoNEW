@@ -38,6 +38,9 @@ const inputs = (over: Partial<AdminSignalInputs> = {}): AdminSignalInputs => ({
   opsUnknown: false,
   opsTotal: 7,
   opsVideoProviderBlocked: 0,
+  proposalsFailed: false,
+  proposalsReadable: true,
+  proposalsCount: 0,
   ...over,
 });
 
@@ -263,5 +266,37 @@ describe("reel video provider readiness is a signal, not a silence", () => {
 
   it("names its source so the number can be traced", () => {
     expect(providerSignal().source).toBe("contentAdmin.operationsSignal");
+  });
+});
+
+describe("approvals signal (0111 trust ladder)", () => {
+  it("counts reviewable proposals on the approvals badge", () => {
+    const all = buildAdminSignals(inputs({ proposalsCount: 4 }));
+    expect(badgeFor(all, "approvals")).toMatchObject({ state: "counted", count: 4 });
+  });
+
+  it("appears in the exception feed only when something is waiting", () => {
+    const waiting = buildAdminSignals(inputs({ proposalsCount: 2 }));
+    expect(exceptionFeed(waiting).map((s) => s.id)).toContain("pending-proposals");
+    const clear = buildAdminSignals(inputs({ proposalsCount: 0 }));
+    expect(exceptionFeed(clear).map((s) => s.id)).not.toContain("pending-proposals");
+  });
+
+  it("readable:false from the server renders unknown, never zero", () => {
+    // countReviewable's tri-state contract: the server could not count. An
+    // unreadable queue could be any size — it must be a "?" in the feed.
+    const all = buildAdminSignals(inputs({ proposalsReadable: false, proposalsCount: 0 }));
+    expect(badgeFor(all, "approvals").state).toBe("unknown");
+    expect(exceptionFeed(all).map((s) => s.id)).toContain("pending-proposals");
+  });
+
+  it("a transport error is unknown even with stale data present", () => {
+    const all = buildAdminSignals(inputs({ proposalsFailed: true, proposalsCount: 3 }));
+    expect(badgeFor(all, "approvals").state).toBe("unknown");
+  });
+
+  it("is not_measured before the first response, rather than a zero", () => {
+    const all = buildAdminSignals(inputs({ proposalsReadable: undefined, proposalsCount: undefined }));
+    expect(badgeFor(all, "approvals")).toEqual({ state: "not_measured" });
   });
 });

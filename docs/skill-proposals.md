@@ -644,6 +644,22 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** medium (once, mechanism proven with event-order evidence)
 - **Status:** applied 2026-08-12 (operator-approved)
 
+## 2026-08-12 · nickstire admin trust-ladder build (PR #1541, plan-gate 23)
+
+### P1 · nickstire-tidb-ddl (code-side hazard of shipping schema.ts ahead of DDL)
+- **Trigger (witnessed):** adding the 0110 columns to `auditLog` in `drizzle/schema.ts` silently changes every bare `select().from(auditLog)` into a SELECT that names the new columns — three projection-less reads (`services/adminAudit.ts:33`, `services/snapApplications.ts:118+122`, `services/complianceLog.ts:189`) would have 500'd against prod between merge and hand-apply. Caught pre-ship and pinned to explicit pre-0110 projections in commit 669aece88.
+- **Cost:** none this time (caught in design); the inverse class already shipped once as the bridge-send outage (#1485 — a guard querying a column that didn't exist).
+- **Proposed edit:** add a rule under "Do this instead": "Shipping schema.ts columns AHEAD of the hand-applied DDL: grep `.from(<table>)` for projection-less `select()` reads and pin each to the pre-migration column set — a bare select enumerates every schema column and breaks against a database that has not applied the migration. New-column WRITES must be conditional (include the key only when a value is provided) for the same reason."
+- **Confidence:** high (this session + the #1485 sibling incident are the same class in both directions)
+- **Status:** proposed
+
+### P2 · nickstire-verify (two linter behaviors that cost a commit cycle each)
+- **Trigger (witnessed):** (a) lint-source's dialog-global regex rejected a commit over the word sequence "confirm (two-tap)" inside a ONE-LINE JSX comment (`ApprovalsSection.tsx:264` — `{/* ... */}` lines start with "{" and slip the comment-skip heuristic); (b) lint:pii flagged the regex constant `/email/i` in `services/activityLedger.ts:62` as "PII in URL path segment" — it is the key-name matcher that MASKS emails; the fix was the linter's own `// pii-allow: <reason>` waiver, discoverable only by reading `scripts/lint-pii.mjs`.
+- **Cost:** one rejected commit + diagnose cycle each (~5 min total).
+- **Proposed edit:** add two Traps rows: "lint-source matches `confirm (`/`prompt (` even inside single-line JSX comments — reword the comment, don't fight the regex" and "lint:pii false-positives have a sanctioned line waiver: `// pii-allow: <reason>` (reason required)".
+- **Confidence:** medium (each witnessed once, mechanism read from linter source)
+- **Status:** proposed
+
 ## 2026-08-12 · MISSION-scan gate → BDN close-out + retrofit-pass gate (#1535–#1542)
 
 ### P1 · `plan-gate` (re-measure a plan's thesis number live before gating on it)

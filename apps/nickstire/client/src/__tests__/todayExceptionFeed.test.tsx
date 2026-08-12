@@ -150,6 +150,9 @@ describe("the hide list cannot silently swallow a signal", () => {
     // a healthy provider still produces its signal (with count 0) — but keeping a
     // real problem here makes the intent obvious if the encoding ever flips.
     opsVideoProviderBlocked: 1,
+    proposalsFailed: false,
+    proposalsReadable: true,
+    proposalsCount: 1,
   }).map((s) => s.id);
 
   const hiddenIdsFromSource = (constName: string) => {

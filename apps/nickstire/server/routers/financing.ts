@@ -4,6 +4,7 @@
  */
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { withActivityLedger } from "../services/activityLedger";
 import { syncFinancingToSheet } from "../sheets-sync";
 import { FINANCING_PROVIDERS, PROVIDER_MAP } from "../../shared/financing";
 import { z } from "zod";
@@ -40,6 +41,27 @@ export const financingRouter = router({
         // key that ties this click back to the originating lead.
         sessionId: z.string().max(64).nullish(),
       })
+    )
+    // Activity ledger (0110): attributed record of every provider click-through
+    // — the money-adjacent event this router exists for. PII is masked by the
+    // ledger; a ledger failure never blocks the click response.
+    .use((opts) =>
+      withActivityLedger(opts, {
+        action: "financing.click_tracked",
+        entityType: "financing_click",
+        entityId: (input) => (input as { sessionId?: string | null })?.sessionId ?? "no-session",
+        after: (input, data) => {
+          const i = input as { provider?: string; sourcePage?: string; estimatedAmount?: string; customerPhone?: string };
+          const r = data as { success?: boolean; synced?: boolean };
+          return {
+            provider: i.provider,
+            sourcePage: i.sourcePage,
+            estimatedAmount: i.estimatedAmount ?? null,
+            hasContact: Boolean(i.customerPhone),
+            sheetsSynced: r?.synced ?? null,
+          };
+        },
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -153,6 +175,30 @@ export const financingRouter = router({
         status: z.enum(["Applied", "Approved", "Denied", "Funded", "Cancelled"]).default("Applied"),
         notes: z.string().optional(),
       })
+    )
+    // Activity ledger (0110): the front desk logging a lender application is a
+    // financing-domain write with a real human actor — record who logged it.
+    .use((opts) =>
+      withActivityLedger(opts, {
+        action: "financing.application_logged",
+        entityType: "financing_application",
+        entityId: (input) => {
+          const i = input as { provider?: string; customerPhone?: string };
+          return `${i.provider ?? "unknown"}:${(i.customerPhone ?? "").replace(/\D/g, "").slice(-4)}`;
+        },
+        after: (input, data) => {
+          const i = input as { provider?: string; status?: string; estimatedAmount?: string; customerName?: string; customerPhone?: string };
+          const r = data as { synced?: boolean };
+          return {
+            provider: i.provider,
+            status: i.status,
+            estimatedAmount: i.estimatedAmount ?? null,
+            customerName: i.customerName,
+            customerPhone: i.customerPhone,
+            sheetsSynced: r?.synced ?? null,
+          };
+        },
+      }),
     )
     .mutation(async ({ input }) => {
       try {

@@ -6,6 +6,7 @@
  */
 import { z } from "zod";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
+import { withActivityLedger } from "../services/activityLedger";
 import { generateLaborEstimate, type LaborEstimateResult } from "../laborEstimate";
 import { generateEstimate } from "../services/aiEstimateGenerator";
 import { BUSINESS } from "@shared/business";
@@ -26,6 +27,30 @@ export const estimatesRouter = router({
       symptomDescription: z.string().min(3).max(1000),
       mileage: z.number().optional(),
     }))
+    // Activity ledger (0110): every generated estimate gets an attributed row
+    // (actor_type 'public' for the website tool). estimates_log has no server
+    // writer, so this is the only durable record of quote activity.
+    .use((opts) =>
+      withActivityLedger(opts, {
+        action: "estimate.generated",
+        entityType: "estimate",
+        entityId: (input) => {
+          const i = input as { vehicleYear?: number; vehicleMake?: string; vehicleModel?: string };
+          return `${i.vehicleYear ?? "?"}-${(i.vehicleMake ?? "?").toLowerCase()}-${(i.vehicleModel ?? "?").toLowerCase()}`.slice(0, 36);
+        },
+        after: (input, data) => {
+          const i = input as { symptomDescription?: string };
+          const r = data as { _source?: string; grandTotalLow?: number; grandTotalHigh?: number; possibleIssues?: unknown[] };
+          return {
+            symptom: i.symptomDescription?.slice(0, 200),
+            source: r?._source,
+            estimateLow: r?.grandTotalLow ?? null,
+            estimateHigh: r?.grandTotalHigh ?? null,
+            issueCount: Array.isArray(r?.possibleIssues) ? r.possibleIssues.length : null,
+          };
+        },
+      }),
+    )
     .mutation(async ({ input }) => {
       const vehicle = `${input.vehicleYear} ${input.vehicleMake} ${input.vehicleModel}`;
 
@@ -113,6 +138,28 @@ export const estimatesRouter = router({
         partsHigh: z.number(),
       })).optional(),
     }))
+    // Activity ledger (0110): estimate → work order is an admin-attributed
+    // money write (quoted total lands on a work_orders row).
+    .use((opts) =>
+      withActivityLedger(opts, {
+        action: "workorder.created_from_estimate",
+        entityType: "work_order",
+        entityId: (_input, data) => (data as { workOrderId?: string })?.workOrderId,
+        after: (input, data) => {
+          const i = input as { customerName?: string; customerPhone?: string; repairDescription?: string; estimateLow?: number; estimateHigh?: number };
+          const r = data as { orderNumber?: string; vehicle?: string };
+          return {
+            customerName: i.customerName,
+            customerPhone: i.customerPhone ?? null,
+            service: i.repairDescription?.slice(0, 200),
+            estimateLow: i.estimateLow ?? null,
+            estimateHigh: i.estimateHigh ?? null,
+            orderNumber: r?.orderNumber,
+            vehicle: r?.vehicle,
+          };
+        },
+      }),
+    )
     .mutation(async ({ input }) => {
       const { createWorkOrder, addLineItem } = await import("../services/workOrderService");
       const { getDb } = await import("../db");

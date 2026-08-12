@@ -88,6 +88,22 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
     return type === "mutation" ? "settings.manage" : "reports.view";
   }
   if (normalized.startsWith("settings.") || normalized.startsWith("featureflags.") || normalized.startsWith("shopdriver.") || normalized.startsWith("autolabor.") || normalized.startsWith("system.")) return "settings.manage";
+  // Approval queue. DRAFTING is deliberately held one tier below DECIDING:
+  // proposals.create only records an intent (nothing executes — the CAS chain
+  // in services/proposals.ts gates execution behind approve), and the two
+  // surfaces carrying its buttons — Sales Pipeline and the voice call drawer —
+  // are reachable by front_desk, who does NOT hold settings.manage. Without
+  // this override the front desk sees a FLAG CALLBACK button that always
+  // throws FORBIDDEN — a button the gate refuses is the exact class the
+  // palette role-scoping exists to prevent. callbacks.manage matches what a
+  // draft can become (a callback/booking row) and excludes tech/accountant/
+  // viewer. Approve / reject / retry stay operator-grade below.
+  if (normalized === "proposals.create") return "callbacks.manage";
+  // Any admin role may SEE the queue; deciding executes internal writes and
+  // stays operator-grade.
+  if (normalized.startsWith("proposals.")) {
+    return type === "mutation" ? "settings.manage" : "admin.view";
+  }
   if (normalized.startsWith("adminsecurity.")) return "security.manage";
 
   // ── Routers that were falling through to admin.view ────────────────────────

@@ -79,10 +79,22 @@ export interface AdminSignalInputs {
    * — so a healthy provider disappears instead of becoming a standing alarm.
    */
   opsVideoProviderBlocked: number | null | undefined;
+  /**
+   * proposals.counts — the approval queue (0111). The one deliberately-added
+   * poll since this file's no-new-queries doctrine was written: a COUNT(*) on
+   * an indexed status column every 60s, cost reviewed here as that doctrine
+   * requires. `proposalsReadable === false` is the server saying "I could not
+   * count" (tri-state contract in services/proposals.ts countReviewable) and
+   * must render as "?", never zero.
+   */
+  proposalsFailed: boolean;
+  proposalsReadable: boolean | undefined;
+  proposalsCount: number | undefined;
 }
 
 const BUNDLE = "adminDashboard.overviewMediumBundle";
 const OPS = "contentAdmin.operationsSignal";
+const PROPOSALS = "proposals.counts";
 
 function bundleSignal(
   id: string,
@@ -216,6 +228,28 @@ export function buildAdminSignals(inputs: AdminSignalInputs): AdminSignal[] {
       source: OPS,
       updatedAt: null,
       reading: opsReading,
+    },
+
+    // ── Approvals ──────────────────────────────────────────────────────────
+    {
+      // One signal, sectioned "approvals": the sidebar badges that row, and
+      // Today's cross-domain ExceptionFeed picks it up without a duplicate
+      // overview copy (tapping the feed row navigates to the approvals
+      // section). Drafts here are AI-originated intents waiting on a human —
+      // exactly the "needs a decision" the strip exists for.
+      id: "pending-proposals",
+      section: "approvals",
+      label: "proposals awaiting decision",
+      severity: "warning",
+      source: PROPOSALS,
+      updatedAt: null,
+      reading: reading({
+        failed: inputs.proposalsFailed,
+        unknown: inputs.proposalsReadable === false,
+        value: inputs.proposalsReadable === undefined ? undefined : inputs.proposalsCount,
+        sourceLabel: PROPOSALS,
+        notMeasuredReason: `${PROPOSALS} has not reported yet`,
+      }),
     },
   ];
 }

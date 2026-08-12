@@ -154,6 +154,14 @@ export default function Admin() {
     staleTime: 90_000,
     refetchIntervalInBackground: false,
   });
+  // Approval queue (0111): COUNT(*) on an indexed status column. Tri-state on
+  // the server (readable:false = could not count) → unknown badge, never zero.
+  const { data: proposalCounts, isError: proposalsFailed } = trpc.proposals.counts.useQuery(undefined, {
+    enabled: adminReady,
+    refetchInterval: 60_000,
+    staleTime: 45_000,
+    refetchIntervalInBackground: false,
+  });
   /**
    * Three states, not two: a number, "still loading", and "we could not tell".
    * Only the first is a count. A transport error or a server-side `unknown` is a
@@ -179,8 +187,11 @@ export default function Admin() {
         opsUnknown: opsSignal?.unknown === true,
         opsTotal: opsSignal?.total,
         opsVideoProviderBlocked: opsSignal?.videoProviderBlocked,
+        proposalsFailed,
+        proposalsReadable: proposalCounts?.readable,
+        proposalsCount: proposalCounts?.count,
       }),
-    [overviewUnavailable, bundle?.slices, actionableCounts, stats, opsFailed, opsSignal],
+    [overviewUnavailable, bundle?.slices, actionableCounts, stats, opsFailed, opsSignal, proposalsFailed, proposalCounts],
   );
 
   const adminRole = (security?.adminRole ?? "viewer") as AdminRole;

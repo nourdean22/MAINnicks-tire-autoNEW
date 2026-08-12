@@ -92,7 +92,7 @@ export const smsOrchestratorRouter = router({
       status: z.enum(["approved", "rejected"]),
       operatorName: z.string().default("operator"),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDbTyped();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
@@ -100,7 +100,10 @@ export const smsOrchestratorRouter = router({
         .set({
           status: input.status,
           reviewedAt: new Date(),
-          reviewedBy: input.operatorName,
+          // Attribution from the session, not the client payload — a reviewer
+          // identity the browser types for itself is not attribution. The input
+          // field stays accepted as a fallback so existing callers don't break.
+          reviewedBy: ctx.user?.email ?? ctx.user?.name ?? input.operatorName,
         })
         .where(eq(smsLearningRecommendations.id, input.id));
 

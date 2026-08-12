@@ -187,7 +187,19 @@ async function queryBy(action: string, limit: number): Promise<ComplianceEntry[]
   if (!d) return [];
   try {
     const rows = await d
-      .select()
+      // Explicit ComplianceEntry projection: a bare select() enumerates every
+      // schema column, which breaks against a database that has not
+      // hand-applied the 0110 ledger columns yet.
+      .select({
+        id: auditLog.id,
+        actor: auditLog.actor,
+        action: auditLog.action,
+        entityType: auditLog.entityType,
+        entityId: auditLog.entityId,
+        changes: auditLog.changes,
+        ipAddress: auditLog.ipAddress,
+        createdAt: auditLog.createdAt,
+      })
       .from(auditLog)
       .where(eq(auditLog.action, action))
       .orderBy(desc(auditLog.createdAt))

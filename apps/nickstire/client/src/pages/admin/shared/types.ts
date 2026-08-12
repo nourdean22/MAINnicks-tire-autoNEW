@@ -21,7 +21,7 @@ export type AdminSection =
   | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
-  | "opsHub" | "growth" | "intelligence" | "instagram";
+  | "opsHub" | "growth" | "intelligence" | "instagram" | "approvals";
 // 2026-07-19 · `instagram` promoted OUT of growth. It was the 7th pill inside the
 // Growth section, three navigation levels from the front door (Growth > Instagram
 // > Actions), while being the surface that autonomously spends money and posts to

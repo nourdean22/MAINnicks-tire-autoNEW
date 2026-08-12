@@ -61,7 +61,20 @@ export type AuditAction =
   | "database.hygiene_prune"
   // 2026-06-12 · ShopDriver actions
   | "shopdriver.force_sync"
-  | "shopdriver.manual_probe";
+  | "shopdriver.manual_probe"
+  // 2026-08-12 · activity-ledger wired mutations (services/activityLedger.ts)
+  | "lead.created"
+  | "financing.click_tracked"
+  | "financing.application_logged"
+  | "estimate.generated"
+  | "workorder.created_from_estimate"
+  // 2026-08-12 · approval-queue lifecycle (services/proposals.ts)
+  | "proposal.created"
+  | "proposal.submitted"
+  | "proposal.approved"
+  | "proposal.rejected"
+  | "proposal.executed"
+  | "proposal.execution_failed";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {
@@ -76,6 +89,16 @@ export async function logAdminAction(data: {
   // WHO pulled the lever (the audit table can't otherwise say). Defaults to
   // "admin" so all existing callers keep working unchanged.
   actor?: string;
+  // 2026-08-12 · 0110 activity-ledger columns (hand-apply required). These are
+  // included in the INSERT only when provided, so every pre-existing call site
+  // emits byte-identical SQL — and keeps working against a database that has
+  // not applied 0110 yet. Callers that DO pass them (services/activityLedger.ts,
+  // services/proposals.ts) degrade loudly via the catch below until 0110 lands.
+  actorType?: "human_user" | "ai_agent" | "nick_receptionist" | "public" | "system";
+  status?: "executed" | "proposed";
+  idempotencyKey?: string;
+  beforeJson?: Record<string, unknown> | null;
+  afterJson?: Record<string, unknown> | null;
 }): Promise<void> {
   try {
     const { auditLog } = await import("../../drizzle/schema");
@@ -90,14 +113,21 @@ export async function logAdminAction(data: {
       changes.metadata = { old: null, new: data.metadata };
     }
 
-    await d.insert(auditLog).values({
+    const values: typeof auditLog.$inferInsert = {
       id: randomUUID(),
       actor: data.actor ?? "admin",
       action: data.action,
       entityType: data.entityType,
       entityId: String(data.entityId),
       changes: Object.keys(changes).length > 0 ? changes : { detail: { old: null, new: data.details } },
-    });
+    };
+    if (data.actorType !== undefined) values.actorType = data.actorType;
+    if (data.status !== undefined) values.status = data.status;
+    if (data.idempotencyKey !== undefined) values.idempotencyKey = data.idempotencyKey;
+    if (data.beforeJson !== undefined) values.beforeJson = data.beforeJson;
+    if (data.afterJson !== undefined) values.afterJson = data.afterJson;
+
+    await d.insert(auditLog).values(values);
 
     log.info(`${data.action} → ${data.entityType}#${data.entityId}: ${data.details}`);
   } catch (err) {

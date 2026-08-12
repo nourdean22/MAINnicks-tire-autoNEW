@@ -805,6 +805,44 @@ async function processCallEndReport(
       });
     }
   }
+
+  // ─── Trust ladder (Phase 6): actionable call → DRAFT proposals ──────────
+  // Flag-gated (vapi_action_proposals, OFF by default — also the 0111
+  // deploy-order guard). Creates DRAFTS in the approval queue only; nothing
+  // executes without a human tap. Deliberately LAST and try/caught: the
+  // call-log write, claim guard and outbound dispatch above must be complete
+  // and unaffected whether this succeeds, fails, or is disabled.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (await isEnabled("vapi_action_proposals")) {
+      const callId = event.call?.id;
+      if (callId) {
+        const { maybeProposeCallActions } = await import("../../services/vapiActionExtraction");
+        const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+        const transcript =
+          (event as { artifact?: { transcript?: string } }).artifact?.transcript ??
+          (event as { transcript?: string })?.transcript ??
+          "";
+        const summary =
+          (event as { summary?: string; analysis?: { summary?: string } })?.summary ??
+          (event as { analysis?: { summary?: string } })?.analysis?.summary ??
+          null;
+        await maybeProposeCallActions({
+          callId,
+          transcript: typeof transcript === "string" ? transcript : "",
+          summary,
+          customerName: customer?.name ?? null,
+          customerPhone: customer?.number ?? null,
+          durationSeconds: extractCallDurationSec(event),
+          endedReason: cleanEndedReason,
+        });
+      }
+    }
+  } catch (proposalErr) {
+    log.warn("[vapi proposals] extraction pass failed (non-blocking)", {
+      error: proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+    });
+  }
 }
 
 // ─── Main webhook endpoint ─────────────────────────────

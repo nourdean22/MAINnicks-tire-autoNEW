@@ -116,6 +116,13 @@ export const FLAG_DEFINITIONS = [
   // the held queue through the normal window machinery.
   { key: "sms_global_pause", description: "OFF-SWITCH (inverted). Set TRUE to PAUSE all automated customer SMS shop-wide (marketing + follow-ups are durably queued, not dropped; confirmations and internal alerts still send). The first real kill switch for the F25e path — SMS_KILL_SWITCH env only ever gated the dead Twilio fallback." },
   { key: "missed_call_recovery", description: "Proactively text unconverted VAPI missed callers (last 24h) a 'sorry we missed you' follow-up. MASTER enable. Even ON, the cron runs in SHADOW (logs+Telegrams the audience, sends nothing) unless env MISSED_CALL_RECOVERY_SEND=1. Reuses the vapi_forwarded_call_followup type → full opt-out/quiet-hours/STOP-footer/caps compliance. TCPA: relationship follow-up to people who just called the business." },
+  // ─── TRUST LADDER (approval queue) ────────────────
+  // OFF by default ON PURPOSE, and that is also the deploy-order guard: the
+  // extraction writes admin_proposals (migration 0111, hand-applied), so the
+  // flag stays off until 0111 is in prod. Everything it creates is a DRAFT —
+  // no customer contact, no operational rows — a human approves each one in
+  // /admin?tab=approvals before anything executes.
+  { key: "vapi_action_proposals", description: "On call-end, extract explicit caller asks (callback / booking) from actionable VAPI calls via a pinned LLM and land them as DRAFT proposals in the approval queue. Creates drafts only — execution always requires human approval. Requires migration 0111 applied. Flip ON after reviewing the first extractions by hand." },
 
   // ─── COMPETITIVE INTEL ────────────────────────────
   // Decision-forcing by design: threshold breaches only, no digest. The

@@ -2634,12 +2634,74 @@ export const auditLog = mysqlTable("audit_log", {
   entityId: varchar("entity_id", { length: 36 }),
   changes: json("changes"),
   ipAddress: varchar("ip_address", { length: 45 }),
+  // 0110 (hand-apply required) — attributed activity-ledger columns. All
+  // nullable/defaulted so pre-0110 writers and rows are untouched. Writers must
+  // OMIT these keys unless they have values (services/auditTrail.ts does), so
+  // inserts stay valid against a database that has not applied 0110 yet.
+  /** 'human_user' | 'ai_agent' | 'nick_receptionist' | 'public' | 'system' — varchar, not enum: out-of-enum writes lose the row under STRICT_TRANS_TABLES */
+  actorType: varchar("actor_type", { length: 24 }),
+  beforeJson: json("before_json"),
+  afterJson: json("after_json"),
+  /** 'executed' | 'proposed' — a proposed row records intent, not a completed action */
+  status: varchar("status", { length: 32 }).default("executed").notNull(),
+  /** at-most-once claim key; DB unique index, never JSON_EXTRACT dedup (nour-os-query.ts:195 incident) */
+  idempotencyKey: varchar("idempotency_key", { length: 191 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_audit_actor").on(table.actor),
   index("idx_audit_entity").on(table.entityType, table.entityId),
   index("idx_audit_created").on(table.createdAt),
+  uniqueIndex("uniq_audit_idem").on(table.idempotencyKey),
 ]);
+
+/**
+ * Admin Proposals — the generic approval queue (0111, hand-apply required).
+ *
+ * Every row is an INTENT, not an action: payload_json is validated against the
+ * server-side executor registry in services/proposals.ts, and execution is
+ * reachable ONLY through the CAS transition chain
+ * draft/pending_review → approved → executing → executed. The five existing
+ * domain approval lanes (IG studio, review_replies,
+ * sms_learning_recommendations, revenue_opportunities, nickgpt_drafts) keep
+ * their own tables and semantics — this one exists for NEW action classes
+ * (Nick call extractions, one-tap admin actions) that must start as drafts.
+ *
+ * status is varchar, never enum (STRICT_TRANS_TABLES rejects out-of-enum
+ * writes and loses the row — 0099's standing rule).
+ */
+export const adminProposals = mysqlTable("admin_proposals", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** 'nick_receptionist' | 'ai_agent' | 'human_user' | 'system' */
+  source: varchar("source", { length: 24 }).notNull(),
+  actor: varchar("actor", { length: 100 }).notNull(),
+  /** Executor registry key (services/proposals.ts) — e.g. 'create_callback' */
+  actionType: varchar("action_type", { length: 48 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }),
+  entityId: varchar("entity_id", { length: 64 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  payloadJson: json("payload_json").notNull(),
+  /** Provenance for the reviewer: call id, transcript/recording refs, extraction detail */
+  contextJson: json("context_json"),
+  /** Extraction confidence 0-100; null for human-originated proposals */
+  confidence: int("confidence"),
+  /** draft | pending_review | approved | executing | executed | failed | rejected */
+  status: varchar("status", { length: 32 }).default("draft").notNull(),
+  reviewedBy: varchar("reviewed_by", { length: 100 }),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNote: text("review_note"),
+  executedAt: timestamp("executed_at"),
+  executionResultJson: json("execution_result_json"),
+  idempotencyKey: varchar("idempotency_key", { length: 191 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uniq_proposals_idem").on(table.idempotencyKey),
+  index("idx_proposals_status").on(table.status, table.createdAt),
+  index("idx_proposals_entity").on(table.entityType, table.entityId),
+]);
+
+export type AdminProposal = typeof adminProposals.$inferSelect;
+export type InsertAdminProposal = typeof adminProposals.$inferInsert;
 
 /**
  * Service Affinity v2 closed-loop tables (2026-05-24).

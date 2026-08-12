@@ -44,8 +44,11 @@ import { ADMIN_ROLES, type AdminRole } from "@shared/adminPermissions";
  * has to be a deliberate edit here, not a silent by-product.
  */
 const LEGACY_ROLE_SECTIONS: Record<AdminRole, readonly string[]> = {
-  owner: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
-  manager: ["overview", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
+  // "approvals" added 2026-08-12 (trust-ladder queue) — a DELIBERATE grant to
+  // owner + manager only, per this pin's own rule that role changes must be an
+  // explicit edit here, never a silent by-product.
+  owner: ["overview", "approvals", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
+  manager: ["overview", "approvals", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
   front_desk: ["overview", "customers", "leads", "tireOrders", "voiceReceptionist", "callTrackingView"],
   tech: ["overview", "customers", "tireOrders"],
   accountant: ["overview", "revenue", "memberships", "opsHub", "trafficFunnel"],

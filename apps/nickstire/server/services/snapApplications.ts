@@ -28,6 +28,10 @@ export interface SnapApplicationInput {
   externalApplicationId?: string | null;
   status?: string;
   ipAddress?: string | null;
+  /** Admin identity that keyed the application (Phase 2 attribution). */
+  submittedBy?: string;
+  /** Front-desk attestation that the customer saw Snap's disclosure. */
+  disclosureAcknowledged?: boolean;
 }
 
 export async function recordSnapApplication(input: SnapApplicationInput): Promise<string> {
@@ -38,7 +42,11 @@ export async function recordSnapApplication(input: SnapApplicationInput): Promis
   try {
     await d.insert(auditLog).values({
       id,
-      actor: input.customerPhone.slice(0, 100),
+      // Actor is WHO submitted (the admin identity) when known; the legacy
+      // fallback keeps the customer phone so pre-Phase-2 callers are unchanged.
+      // No reader keys off actor for this action (listSnapApplications reads
+      // entityId/changes/createdAt only).
+      actor: (input.submittedBy ?? input.customerPhone).slice(0, 100),
       action: "snap.application_submitted",
       entityType: "snap_application",
       entityId: input.externalApplicationId ?? id,
@@ -51,6 +59,14 @@ export async function recordSnapApplication(input: SnapApplicationInput): Promis
         service: input.service ?? null,
         externalApplicationId: input.externalApplicationId ?? null,
         status: input.status ?? "pending",
+        // Inside `changes` (an existing JSON column), NOT new columns: this
+        // insert must keep working against a database that has not applied
+        // 0110 yet — losing the only record of a Snap application is worse
+        // than a thinner row.
+        ...(input.submittedBy ? { submittedBy: input.submittedBy } : {}),
+        ...(input.disclosureAcknowledged !== undefined
+          ? { disclosureAcknowledged: input.disclosureAcknowledged }
+          : {}),
       },
       ipAddress: input.ipAddress?.slice(0, 45) ?? null,
     });
@@ -114,12 +130,17 @@ export async function listSnapApplications(limit: number = 50): Promise<SnapAppl
   if (!d) return [];
 
   try {
+    // Explicit projections (only the fields the mapping below reads): a bare
+    // select() enumerates every schema column, which breaks against a database
+    // that has not hand-applied the 0110 ledger columns yet.
     const [submissions, statusChanges] = await Promise.all([
-      d.select().from(auditLog)
+      d.select({ id: auditLog.id, entityId: auditLog.entityId, changes: auditLog.changes, createdAt: auditLog.createdAt })
+        .from(auditLog)
         .where(eq(auditLog.action, "snap.application_submitted"))
         .orderBy(desc(auditLog.createdAt))
         .limit(limit),
-      d.select().from(auditLog)
+      d.select({ entityId: auditLog.entityId, changes: auditLog.changes, createdAt: auditLog.createdAt })
+        .from(auditLog)
         .where(eq(auditLog.action, "snap.application_status_changed"))
         .orderBy(desc(auditLog.createdAt))
         .limit(500),

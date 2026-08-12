@@ -153,7 +153,7 @@ Every article follows:
 - Services: Tires (new + used), Brakes, Diagnostics, Emissions/E-Check, Oil Change, AC, Transmission, Electrical, Battery, Exhaust, Cooling, Pre-purchase Inspection
 - Reviews: 4.9★ from 1,700+ Google reviews
 - Service area: Cleveland, Euclid, Lakewood, Parma, East Cleveland, Cleveland Heights, Shaker Heights, South Euclid, Richmond Heights, Mentor, Strongsville
-- Differentiators: Free install package on every tire (mount/balance/valve stems/alignment check), $10-down financing via Acima/Koalafi, written estimate before any wrench moves, walk you under your car on a lift
+- Differentiators: Free install package on every tire (mount/balance/valve stems/alignment check), $10-down payment programs (Acima lease-to-own / Koalafi financing), written estimate before any wrench moves, walk you under your car on a lift
 
 ═══ SEO KEYWORDS (work in naturally — never stuff) ═══
 Cleveland auto repair · check engine light repair · Ohio E-Check · emissions repair Cleveland · tire shop Cleveland · OBD-II code pull · brake repair Cleveland · suspension repair Cleveland · alignment Cleveland`;
