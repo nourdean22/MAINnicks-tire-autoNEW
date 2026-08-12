@@ -34,6 +34,7 @@ import {
   type CompoundSurface,
 } from "@/lib/services/compound-chain";
 import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
+import { HOME_SIGNAL_KINDS, recordHomeSignal } from "@/lib/observability/home-decision-metrics";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
 import { computeCharacterSheet } from "@/lib/mastery/character-sheet";
 import {
@@ -1747,6 +1748,18 @@ export const operatorRouter = router({
     .mutation(async ({ input }) => {
       const ok = await dismissProposed(input.id);
       return { ok };
+    }),
+
+  /**
+   * BDN-104 · Home decision sensor. Fire-and-forget from the Home
+   * decision points so the BDN-001 cheap test can finally run. Decision
+   * signals only — never a record-everything capture layer.
+   */
+  recordHomeSignal: operatorProcedure
+    .input(z.object({ kind: z.enum(HOME_SIGNAL_KINDS) }))
+    .mutation(async ({ input }) => {
+      await recordHomeSignal(input.kind);
+      return { ok: true };
     }),
 
   nickRemembersContext: operatorProcedure.query(async () => {

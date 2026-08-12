@@ -27,6 +27,8 @@ const EMPTY_STATS: StatLevel[] = [];
 
 export function ExecutiveActionMatrix() {
   const [movesCount, setMovesCount] = useState(0);
+  // BDN-104 · decision sensor (fire-and-forget).
+  const signal = trpc.operator.recordHomeSignal.useMutation();
 
   // 1. Core Data
   const tasksQuery = trpc.task.list.useQuery({}, { refetchOnWindowFocus: false });
@@ -258,6 +260,10 @@ export function ExecutiveActionMatrix() {
                   <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-[var(--gold)]">Open loop from earlier</p>
                   <Link
                     href={`/missions#task-${resumeTask.id}`}
+                    // BDN-104 · resume taps have no server trace of their
+                    // own (the tap is a navigation, not a mutation), so
+                    // this is the only place the resume rate can be seen.
+                    onClick={() => signal.mutate({ kind: "resume_tap" })}
                     className="inline-flex items-center gap-2 text-xs font-medium text-white/90 hover:text-white border border-[var(--gold)]/20 hover:border-[var(--gold)]/50 rounded-lg px-3 py-2 transition"
                   >
                     Resume [{resumeTask.title}]

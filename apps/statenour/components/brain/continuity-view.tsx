@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { ReceiptsTimeline } from "@/components/brain/receipts-timeline";
+import { JudgmentQualityPanel } from "@/components/brain/judgment-quality-panel";
 
 interface Memory {
   id: string;
@@ -131,6 +132,10 @@ export function BrainContinuityView() {
           precedent: stop mounting, don't delete); its load-older
           archaeology remains reachable via system.entityHistory drawers. */}
       <ReceiptsTimeline limit={30} />
+
+      {/* BDN-105 + BDN-106 (2026-08-12) · memory-quality readings belong
+          with continuity, not on /system with the ops instruments. */}
+      <JudgmentQualityPanel />
 
       {/* ── Totals ── */}
       <GlassCard>

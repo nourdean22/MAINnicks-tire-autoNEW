@@ -28,6 +28,63 @@
 
 import { prisma } from "@/lib/prisma";
 
+/**
+ * Surface-aware tool bias — BDN-103 (2026-08-12).
+ *
+ * When the operator's request is ambiguous between two tool families,
+ * prefer the family matching the route they're sitting on. Intentionally
+ * small: only cases where two tools could plausibly fire.
+ *
+ * This map was authored while the `contextRoute` lane was DEAD (no
+ * client ever sent the field — Wave 30 → 2026-08-12/#1540), so its
+ * coverage was never checked against the real route set. Extended here
+ * from `components/layout/nav-items.ts` (the single nav source), and
+ * every tool named below is verified present in `lib/ai/tools/catalog.ts`
+ * — a bias naming a tool that does not exist is worse than no bias.
+ *
+ * Module-level + exported so the pin can assert both of those invariants.
+ */
+export const TOOL_BIAS: Record<string, string> = {
+  "/missions": "createTask · completeTask · snoozeTask · setTaskPriority · updateTask",
+  "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
+  "/pins": "pinMemory · searchMemories",
+  "/knowledge": "syncKnowledge · searchColdMemory · searchSkills",
+  // /mastery + /plan + /life + /body all consolidated into /stats · merged tool bias.
+  "/stats": "updateMasteryScore · setLifeGoal · logGoalProgress · archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
+  "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory",
+  "/system": "getCronStatus · toolHealth · getBrainHealth · getFleetTruth",
+  "/business": "getFinancialSnapshot · getProjections · compareLiveRevenue",
+  "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
+  // ── 2026-08-12 · routes that existed in nav but never had a bias ──
+  "/content": "writeCreative · generateImage · getInstagramAutopostStatus · triggerInstagramAutopost · composeEmail",
+  "/market": "getGscSummary · getGscTopQueries · analyzeCompetitiveIntel · compareCompetitors · analyzeTrends",
+  "/people": "getPowerBalanceSummary · analyzePowerDynamics · getContextualGreeneLaws · scheduleFollowUp",
+  "/learn": "searchSkills · getSkillProtocol · suggestSkills · captureSkillFromSource",
+  // Home is the decision surface — bias to reading state, never to
+  // minting new work. Safe ONLY because resolveToolBiasKey matches the
+  // LONGEST prefix; with the old `find(startsWith)` this key would have
+  // swallowed every route in the map depending on key order.
+  "/": "getAttentionAlerts · getDashboardSummary · rankNextActions · recommendNextMove · getAgendaItems",
+};
+
+/**
+ * PURE — longest-prefix match, exported for the pin.
+ *
+ * Replaces `Object.keys(TOOL_BIAS).find((k) => route.startsWith(k))`,
+ * which returned the first key in INSERTION order — correct only by
+ * accident, and silently breakable by reordering the object or adding a
+ * shorter key that prefixes a longer one.
+ */
+export function resolveToolBiasKey(route: string): string | null {
+  let best: string | null = null;
+  for (const key of Object.keys(TOOL_BIAS)) {
+    const matches = key === "/" ? true : route === key || route.startsWith(`${key}/`) || route.startsWith(key);
+    if (!matches) continue;
+    if (!best || key.length > best.length) best = key;
+  }
+  return best;
+}
+
 export interface BuildContextHintsInput {
   /** Number of messages in this turn — `=== 1` enables the Wave 38 fallback. */
   messageCount: number;
@@ -229,19 +286,7 @@ export async function buildContextHints(
     // hallucinated tool calls (e.g. createTask firing when the operator
     // on /journal really meant journalDecision). Mapping is intentionally
     // small · only the cases where two tools could plausibly fire.
-    const TOOL_BIAS: Record<string, string> = {
-      "/missions": "createTask · completeTask · snoozeTask · setTaskPriority · updateTask",
-      "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
-      "/pins": "pinMemory · searchMemories",
-      "/knowledge": "syncKnowledge · searchColdMemory · searchSkills",
-      // /mastery + /plan + /life + /body all consolidated into /stats · merged tool bias.
-      "/stats": "updateMasteryScore · setLifeGoal · logGoalProgress · archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
-      "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory",
-      "/system": "getCronStatus · toolHealth · getBrainHealth",
-      "/business": "getFinancialSnapshot · getProjections · compareLiveRevenue",
-      "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
-    };
-    const biasKey = Object.keys(TOOL_BIAS).find((k) => contextRoute.startsWith(k));
+    const biasKey = resolveToolBiasKey(contextRoute);
     if (biasKey) {
       contextHints.push(
         `Surface-aware tool bias · prefer these tools for ambiguous requests on this route: ${TOOL_BIAS[biasKey]}.`,

@@ -31,6 +31,7 @@ import { ObservabilityRow } from "@/components/ultron/observability/observabilit
 import { PageNick } from "@/components/ai/page-nick";
 import { WiringCensusPanel } from "@/components/system/wiring-census-panel";
 import { TrustLadderPanel } from "@/components/system/trust-ladder-panel";
+import { HomeDecisionPanel } from "@/components/system/home-decision-panel";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
@@ -273,9 +274,10 @@ export default function SystemPage() {
           2026-08-12. Placed ABOVE the hub grid deliberately: a severed
           lane or a type that has earned auto-execute is a reading the
           operator should get before navigating anywhere. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <WiringCensusPanel />
         <TrustLadderPanel />
+        <HomeDecisionPanel />
       </div>
 
       {/* ── NAVIGATION ───────────────────────────────────────────── */}

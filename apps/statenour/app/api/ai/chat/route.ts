@@ -722,12 +722,19 @@ async function chatPostInner(req: Request) {
   // manifest must never touch the turn.
   try {
     const { buildContextManifest } = await import("@/lib/ai/vnext/context-manifest");
+    const { resolveToolBiasKey } = await import("./context-hints");
     const manifest = buildContextManifest(finalSystemPrompt);
     log.info("context_manifest", {
       promptChars: manifest.promptChars,
       promptHash: manifest.promptHash,
       sectionCount: manifest.sectionCount,
       top: manifest.top,
+      // BDN-103 (2026-08-12) · the contextRoute lane was dead from Wave 30
+      // until #1540, so nobody could measure whether route context ever
+      // ARRIVES. Logged here (not a new lane) so a week of manifest lines
+      // answers it: arrival rate, and whether a bias actually fired.
+      contextRoute: contextRoute ?? null,
+      routeBias: contextRoute ? resolveToolBiasKey(contextRoute) : null,
     });
   } catch {
     // instrumentation only — never let it affect the turn

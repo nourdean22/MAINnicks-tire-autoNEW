@@ -102,10 +102,10 @@ on the INCUMBENT mechanism.
 |---|---|---|---|---|
 | 2026-08-12 | BDN-101 · dead-lane wiring census on /system (aerospace pair; the run's contrarian trade: wiring integrity OVER new agent chrome — falsifier: chrome catches a failure class the census misses by 2027-02) | HIGH | OBSERVED (5/5 retroactive detection of this week's defect class) | **ACTED ON same night** — shipped, and its FIRST live run found **17 severed autonomous rules** (policy-less, parking every match) + 1 never-fired rule + a `commitment.transition` handler with zero events ever published. 38 lanes total. |
 | 2026-08-12 | BDN-102 · trust-ladder scoreboard — expose confidence-tier's EXISTING per-type accept tallies on /system/actions; flag flip is the operator's evidence-read (casino pair) | HIGH | OBSERVED (canAutoExecute built, flag-off; verdict data flows from tonight) | **ACTED ON same night** — shipped; the live probe caught a scoreboard defect pre-ship (today's 424 auto-purge flips were counting as operator rejections → every type read 0% accept). Machine verdicts now excluded; honest reading is **0 real operator verdicts in 45d**. REPEAT HIT ×3. |
-| 2026-08-12 | BDN-103 · route-aware Nick — measure context_manifest contextRoute arrival, then extend TOOL_BIAS (lane went live in #1540) | MED | OBSERVED | still live · 12/15 · OPEN |
-| 2026-08-12 | BDN-104 · Home decision instrumentation — the shipped BDN-001 composition has NO sensor; its 7-day cheap test never ran (ledger rule-3 integrity item) | MED | OBSERVED | still live · 11/15 · OPEN |
-| 2026-08-12 | BDN-105 · SPC on the wisdom-quality-gate — trend accept/reject/dupe mix weekly; hand-audit week 1 promotions (manufacturing QC pair) | MED | OBSERVED | still live · 10/15 · OPEN |
-| 2026-08-12 | BDN-106 · personal confidence calibration (Brier on HIGH/MED/LOW vs outcomes; intelligence-tradecraft pair) | LOW | INFERRED | parked TOO EARLY · revisit 2026-10-15 |
+| 2026-08-12 | BDN-103 · route-aware Nick — measure context_manifest contextRoute arrival, then extend TOOL_BIAS (lane went live in #1540) | MED | OBSERVED | **ACTED ON** — manifest now logs `contextRoute` + which bias fired (the arrival sensor); TOOL_BIAS extended from the nav registry (+5 routes incl. a read-only Home entry) and pinned so every named tool must exist in the live catalog. Fixed a latent bug en route: the lookup was `find(startsWith)` over unordered keys — a `/` entry would have swallowed every route; now longest-prefix. |
+| 2026-08-12 | BDN-104 · Home decision instrumentation — the shipped BDN-001 composition has NO sensor; its 7-day cheap test never ran (ledger rule-3 integrity item) | MED | OBSERVED | **ACTED ON** — decision signals only (4 verdict points + resume tap) into AuditEvent `home:signal`, existing 90d retention, no new table. Prod reads 0 with the note "unmeasured, not unused". The 7-day test can finally run. |
+| 2026-08-12 | BDN-105 · SPC on the wisdom-quality-gate — trend accept/reject/dupe mix weekly; hand-audit week 1 promotions (manufacturing QC pair) | MED | OBSERVED | **ACTED ON — and the prod probe caught a defect in it**: rows that never reached the gate (parked by the deadlock) were being silently dropped, so the summary claimed adequate sampling for a gate that had never run. Now a first-class `parked` bucket, and sampling counts DECIDED runs only. **Live reading: 116 parked · 0 decided in 8 weeks.** |
+| 2026-08-12 | BDN-106 · personal confidence calibration (Brier on HIGH/MED/LOW vs outcomes; intelligence-tradecraft pair) | LOW | INFERRED | **ACTED ON as an instrument, NOT a conclusion** — the report ships reporting honest n=0 ("stamping began 2026-08-12; nothing to grade") so the parked item reports itself instead of being forgotten (ledger rule 4). Unresolved commitments are never graded either way. Verdict still parked · revisit 2026-10-15. |
 | 2026-08-12 | (cut, noted) dismiss-latency as adverse-selection signal (HFT pair) | LOW | INFERRED | parked behind BDN-102 · 9/15 |
 
 ### BDN-101/102 build receipts (2026-08-12 night, operator: "101 and 102 go")
@@ -136,6 +136,30 @@ prod run is what made them worth building:
   dormant — the census says "no policy", not "should be on". Seeding
   policies for any of them is the same authorization class as this
   afternoon's two.
+
+### BDN-103..106 build receipts (2026-08-12 night, operator: "now 3, 4, 5, 6")
+
+The whole run-3 slate is now shipped. Three prod-probe catches in one
+night, all the same class — **a read model that looks right against
+fixtures and lies against real data**:
+
+1. BDN-102's ladder counted the day's 424 auto-purge flips as operator
+   rejections (every type read 0% accept).
+2. BDN-105's SPC silently dropped rows that never reached the gate, so it
+   reported adequate sampling for a process that had never run —
+   **116 parked, 0 decided, 8 weeks**.
+3. (BDN-101, earlier) the census found 17 severed rules, not the 2 the
+   hand inspection had found.
+
+**Standing rule now: run every new read model against prod before
+shipping it.** A green unit test over a fixture proves the shape, never
+the reading.
+
+Placement discipline: /system holds the three OPS instruments (census ·
+ladder · Home decisions); the two MEMORY-quality readings (gate SPC +
+confidence calibration) went to /brain Continuity. Stacking all five on
+/system would have recreated exactly the density problem BDN-001 was
+about.
 
 ## Calibration rules for the next scan
 

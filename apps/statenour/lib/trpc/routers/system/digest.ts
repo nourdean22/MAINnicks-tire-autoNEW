@@ -11,6 +11,8 @@ import { buildMemoryEvalReport } from "@/lib/evals/memory-eval-report";
 import { buildActionReceiptFeed } from "@/lib/services/action-receipt-feed";
 import { buildTrustLadder } from "@/lib/ai/trust-ladder";
 import { buildWiringCensus } from "@/lib/observability/wiring-census";
+import { buildHomeDecisionMetrics } from "@/lib/observability/home-decision-metrics";
+import { buildWisdomGateSpc, buildCalibrationReport } from "@/lib/brain/judgment-quality";
 
 export const digestProcedures = {
   /** F2 · "what changed since last reconciliation" + honest deploy status. */
@@ -36,6 +38,14 @@ export const digestProcedures = {
    * registries that actually dispatch. Read-only.
    */
   wiringCensus: operatorProcedure.query(async () => buildWiringCensus()),
+  /** BDN-104 · did the compact-Home composition actually get used? */
+  homeDecisionMetrics: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90) }).optional())
+    .query(async ({ input }) => buildHomeDecisionMetrics(input?.windowDays ?? 7)),
+  /** BDN-105 · wisdom-gate process control (the gate now runs unattended). */
+  wisdomGateSpc: operatorProcedure.query(async () => buildWisdomGateSpc()),
+  /** BDN-106 · stated-confidence vs real outcomes. Honest n=0 until it isn't. */
+  takeCalibration: operatorProcedure.query(async () => buildCalibrationReport()),
   /** Active and snoozed agenda items (witnessed commitments, standing intentions, etc.) */
   agendaItems: operatorProcedure.query(async () => {
     const { prisma } = await import("@/lib/prisma");
