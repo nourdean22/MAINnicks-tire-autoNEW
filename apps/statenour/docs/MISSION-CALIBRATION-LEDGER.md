@@ -40,6 +40,22 @@ operator-approved provenance of the compositions it proposed replacing.
 Next scan should diff against `git log` for the trailing 7 days before
 ranking findings.
 
+## 2026-08-12 (evening) — second plan same day: "RETROFIT BUILD PASS"
+
+An 8-phase unattended retrofit plan arrived hours after the BDN arc
+shipped. **Gated, not executed** — full verdicts in
+[GATE-2026-08-12-retrofit-pass.md](GATE-2026-08-12-retrofit-pass.md).
+~85% incumbent/refuted: its thesis fact ("393 pending brain-bus events,
+zero consumers") is the pre-2026-07-28 snapshot quoted in the cron
+manifest — live probe shows **done: 1,558 · pending: 0**, drained to
+within the 15-min cadence; its Phase-4 prerequisite `THE-BRIEF.md` does
+not exist in the repo; Phases 3/6/7/8 prescribe surfaces that are native
+or shipped this same day (#1526, #1535-#1540, AutomationPolicy +
+confidence-tier). Survivors registered as WPs: evidence-tier fields
+(needs a real vocabulary source + migration design), streak-semantics
+audit (premise unverified, operator picks the model), PageNick mounts.
+Calibration rule 5 fired exactly as written — and rule 6 below is new.
+
 ## Calibration rules for the next scan
 
 1. Promote a finding to `HIGH` only after observing behavior or a production
@@ -53,3 +69,9 @@ ranking findings.
 5. (Added post-gate) Gate against `plan-gate` incumbents BEFORE ranking:
    UPSTREAMS.md, CURRENT-TRUTH.md, the trailing week of `git log`, and this
    ledger.
+6. (Added after the retrofit-pass gate) A number quoted as the plan's
+   thesis ("393 pending", "68 junk wisdoms") must be re-measured live
+   before any phase is built on it — historical snapshots survive in code
+   comments and prior audits long after the state they describe is fixed,
+   and this failure shape has now recurred in three plans (#12, the
+   architecture report, this one).
