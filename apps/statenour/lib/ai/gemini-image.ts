@@ -39,6 +39,98 @@ export interface GeminiImageOptions {
   recordedPrompt?: string;
 }
 
+export type ImageGenerationFailureKind =
+  | "quota"
+  | "rate_limit"
+  | "auth"
+  | "validation"
+  | "upstream"
+  | "unavailable";
+
+export interface ImageGenerationFailureInfo {
+  kind: ImageGenerationFailureKind;
+  retryable: boolean;
+  /** Safe for UI and persisted errorDetails; never includes provider payloads. */
+  userMessage: string;
+}
+
+/**
+ * Convert provider failures into a stable, non-sensitive operator message.
+ * Provider response bodies often contain request metadata and are not a UI
+ * contract. Keep the raw exception in server-side logging only.
+ */
+export function classifyImageGenerationError(error: unknown): ImageGenerationFailureInfo {
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+
+  // A monthly/project spend cap is not a transient 429. The fallback may
+  // still be a separately-billed provider, but the eventual user diagnosis
+  // must not call this a harmless burst or encourage an immediate retry.
+  if (
+    /monthly\s+(spending|spend)\s+cap|spending\s+cap|project\s+has\s+exceeded|exceeded.*monthly|billing\s+hard\s+limit|insufficient_quota/.test(
+      lower,
+    )
+  ) {
+    return {
+      kind: "quota",
+      retryable: false,
+      userMessage:
+        "Image generation is unavailable because the configured provider has reached its spending or quota limit. Raise the cap or wait for the provider reset.",
+    };
+  }
+  if (/not configured|missing.*(key|credential)|api[_ -]?key/.test(lower) && /not configured|missing/.test(lower)) {
+    return {
+      kind: "unavailable",
+      retryable: false,
+      userMessage:
+        "Image generation is unavailable because no usable image provider is configured.",
+    };
+  }
+  if (/\b401\b|\b403\b|unauthorized|forbidden|authentication|invalid.*key/.test(lower)) {
+    return {
+      kind: "auth",
+      retryable: false,
+      userMessage: "Image generation is unavailable because the provider credentials were rejected.",
+    };
+  }
+  if (/\b429\b|rate[_ -]?limit|too many requests/.test(lower)) {
+    return {
+      kind: "rate_limit",
+      retryable: true,
+      userMessage: "Image generation is temporarily rate-limited. Wait a moment and try again.",
+    };
+  }
+  if (/\b400\b|\b422\b|validation|prompt rejected|content_policy|moderation|safety_violation/.test(lower)) {
+    return {
+      kind: "validation",
+      retryable: false,
+      userMessage: "The image request was rejected by the provider. Try a shorter, simpler prompt.",
+    };
+  }
+  if (/\b5\d\d\b|server error|timed out|timeout|fetch failed|connection/.test(lower)) {
+    return {
+      kind: "upstream",
+      retryable: true,
+      userMessage: "The image provider did not complete the request. Try again in a minute.",
+    };
+  }
+  return {
+    kind: "unavailable",
+    retryable: true,
+    userMessage: "Image generation did not complete. Try again once the image provider is available.",
+  };
+}
+
+export class ImageGenerationError extends Error {
+  readonly failure: ImageGenerationFailureInfo;
+
+  constructor(failure: ImageGenerationFailureInfo) {
+    super(failure.userMessage);
+    this.name = "ImageGenerationError";
+    this.failure = failure;
+  }
+}
+
 export function inferAspectRatio(prompt: string): "512x512" | "1024x1024" | "1536x1024" | "1024x1536" {
   if (!prompt) return "1024x1024";
   const p = prompt.toLowerCase();
@@ -309,12 +401,25 @@ export async function generateImageWithFallback(
     return await generateGeminiImage(prompt, { ...options, size });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[ai:image] Direct Gemini failed (${msg.slice(0, 120)}) · trying OpenRouter fallback`);
+    const directFailure = classifyImageGenerationError(err);
+    console.warn(`[ai:image] Direct Gemini failed (${msg.slice(0, 120)})`);
     try {
       return await generateImageOpenRouter(prompt, { ...options, size });
     } catch (orErr) {
-      const orMsg = orErr instanceof Error ? orErr.message : String(orErr);
-      throw new Error(`Both Direct Gemini and OpenRouter failed. Gemini error: ${msg}. OpenRouter error: ${orMsg}`);
+      const fallbackFailure = classifyImageGenerationError(orErr);
+      console.warn(
+        `[ai:image] OpenRouter fallback failed (${orErr instanceof Error ? orErr.message.slice(0, 120) : String(orErr).slice(0, 120)})`,
+      );
+      // Prefer the non-retryable diagnosis when the fallback exposes one;
+      // otherwise preserve the fact that both lanes were unavailable without
+      // concatenating provider payloads into a user-visible exception.
+      const finalFailure =
+        directFailure.kind === "quota" && fallbackFailure.kind === "unavailable"
+          ? directFailure
+          : fallbackFailure.retryable
+            ? directFailure
+            : fallbackFailure;
+      throw new ImageGenerationError(finalFailure);
     }
   }
 }

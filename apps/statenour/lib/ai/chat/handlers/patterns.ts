@@ -48,6 +48,23 @@ export const EARLY_NL_IMAGE =
   /\b(generate|make|create|draw|show\s+me|give\s+me)\s+(me\s+)?(an?\s+|the\s+)?(image|picture|photo|pic|illustration|rendering|artwork|visual)\b/i;
 
 /**
+ * Client-safe image-intent check used to prevent a failed image fast path
+ * from being auto-regenerated through the normal model pipeline. This is
+ * deliberately conservative: a false positive costs a manual retry, while
+ * a false negative can duplicate a provider call and invite fake markdown.
+ */
+export function looksLikeImageGenerationRequest(content: string): boolean {
+  const lower = content.trim().toLowerCase();
+  const slashImage = /^(\/img|\/image|\/picture)(\s|$)/.test(lower);
+  if (slashImage) return true;
+  if (EARLY_IMAGE_NEG.test(content) || EARLY_IDEATION_NEG.test(content)) return false;
+  return (
+    (EARLY_NL_IMAGE_VERB.test(content) && EARLY_NL_IMAGE_NOUN.test(content)) ||
+    EARLY_NL_IMAGE.test(content)
+  );
+}
+
+/**
  * Negative lookahead phrases that LOOK like image asks but are
  * actually metaphor: "image of a roadmap", "picture summary", etc.
  * Without this guard, "give me an image plan" → tries to render.

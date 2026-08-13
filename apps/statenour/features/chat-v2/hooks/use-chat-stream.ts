@@ -13,6 +13,7 @@ import {
   type PageContextPayload,
 } from "@/components/chat/page-context-bridge";
 import type { ChatRuntimeController } from "../types/chat-runtime-controller";
+import { looksLikeImageGenerationRequest } from "@/lib/ai/chat/handlers/patterns";
 
 const PAGE_ANCHOR_KEYS = [
   "lastTaskId",
@@ -182,6 +183,18 @@ export function useChatStream(): ChatRuntimeController {
         (((p as { type: string }).type).startsWith("tool-") || (p as { type: string }).type === "dynamic-tool"),
     );
     if (hadToolPart) return;
+
+    // Image generation is a deterministic server fast path, not a safe
+    // model regeneration. If its stream drops after the provider was called,
+    // auto-regenerate would duplicate the image request and then hand the
+    // same prompt to a model that may not have an image tool attached.
+    const lastUser = [...messagesRef.current].reverse().find((m) => m.role === "user");
+    const lastUserText = lastUser?.parts
+      ?.filter((part) => part.type === "text")
+      .map((part) => ("text" in part && typeof part.text === "string" ? part.text : ""))
+      .join(" ")
+      .trim();
+    if (lastUserText && looksLikeImageGenerationRequest(lastUserText)) return;
 
     // Private Lab: don't auto-replay a privately-sent turn once the mode is off.
     if (sentPrivateRef.current && !privateModeRef.current) return;

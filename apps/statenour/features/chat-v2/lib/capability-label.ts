@@ -67,13 +67,13 @@ export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
   const toolsDegraded = Boolean(toolSummary && (toolSummary.degraded > 0 || toolSummary.down > 0));
   if (connection !== "online" || toolsDegraded) {
     return {
-      label: toolSummary ? `${toolSummary.totalTools} tools ready` : "checking capabilities",
+      label: toolSummary ? `${toolSummary.totalTools} catalog tools` : "checking capabilities",
       cautious: true,
       unknown: !toolSummary,
     };
   }
   return {
-    label: toolSummary ? `${toolSummary.totalTools} tools ready` : "checking capabilities",
+    label: toolSummary ? `${toolSummary.totalTools} catalog tools` : "checking capabilities",
     cautious: !toolSummary,
     unknown: !toolSummary,
   };

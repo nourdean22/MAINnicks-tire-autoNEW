@@ -38,14 +38,10 @@ export async function handleImage(
   // had better text rendering than the older Venice models.
   // v10.0.477 · REVERTED to generateVeniceImage. OpenAI's gpt-image-1
   // hit Nour's billing cap ($0.19-0.25/img) and the chat path failed.
-  // v10.0.529.47 · NOW uses generateImageWithFallback (Venice → Gemini
-  // gemini-2.5-flash-image on 402 · 429 · 5xx). Same ImageResult shape ·
-  // streaming + persist pipeline unchanged. The "generateOpenAiImage"
-  // alias kept for historical readability · the import target swapped
-  // under the hood. Real-world rationale: Venice 402'd during the
-  // 2026-05-13 outage and the chat surface had no image fallback ·
-  // Gemini's nano-banana is free-tier on Google AI Studio.
-  const { generateImageWithFallback: generateOpenAiImage } = await import("@/lib/ai/gemini-image");
+  // The image lane owns its provider fallback and returns a safe typed
+  // failure. Keep provider response bodies out of the stream and history.
+  const { generateImageWithFallback, classifyImageGenerationError, ImageGenerationError } =
+    await import("@/lib/ai/gemini-image");
   let imagePrompt = userContent.trim();
   if (isSlash) {
     imagePrompt = imagePrompt.replace(/^\/(img|image|picture)\s*/i, "").trim();
@@ -259,7 +255,7 @@ export async function handleImage(
         // portrait) → 1024x1536 (gpt portrait); 1024x768 (Venice landscape)
         // → 1536x1024 (gpt landscape); square stays square. Default quality
         // = "high" for marketing-grade output.
-        const imgResult = await generateOpenAiImage(brandedPrompt, {
+        const imgResult = await generateImageWithFallback(brandedPrompt, {
           autoAspect: true,
         });
         console.log(
@@ -325,57 +321,10 @@ export async function handleImage(
         recordError("chat:image-gen", imgErr, {
           prompt: userContent.slice(0, 200),
         });
-        // v7 · Apr 28 · Diagnose-aware error text. The provider error now
-        // carries `(${status} ${kind})` so we can show the user the actual
-        // failure mode instead of always claiming "rate-limited".
-        const rawMsg = imgErr instanceof Error ? imgErr.message : "unknown";
-        const isRateLimit = /rate_limit|429/.test(rawMsg);
-        const isValidation = /validation|400|422|prompt rejected|rejected:/.test(rawMsg);
-        const isAuth = /auth|401|403/.test(rawMsg);
-        const isServer = /server|5\d\d/.test(rawMsg);
-        // v10.0.476 · billing-cap detection · OpenAI returns the
-        // "Billing hard limit has been reached" string verbatim when
-        // the org-level monthly cap is hit. Surfacing this clearly
-        // (instead of the generic "validation rejected" banner) lets
-        // the operator know the fix is OpenAI console settings, not
-        // a code change.
-        const isBillingCap = /billing\s+hard\s+limit|billing.*reached|insufficient_quota|exceeded.*quota/i.test(rawMsg);
-        const isModeration = /moderation|content_policy|safety_violation|blocked\s+by/i.test(rawMsg);
-        // Pull the offending field name when the provider tells us
-        // (e.g. "prompt rejected", "size rejected"). Lets the banner be
-        // honest about whether the issue is the prompt vs. another arg.
-        const fieldMatch = /(\w+)\s+rejected:/.exec(rawMsg);
-        const offendingField = fieldMatch?.[1] ?? null;
-        let banner: string;
-        // v10.0.476 · banner provider tags updated · since v10.0.333 the
-        // active path is OpenAI gpt-image-1 (not Venice). Banners now
-        // say "image gen" (provider-agnostic) so the message stays
-        // accurate if the provider swaps again. Billing + moderation
-        // get their own clear messages.
-        if (isBillingCap) {
-          banner = "⚠️ OpenAI billing cap reached — image gen will resume after raising the cap in the OpenAI console (or wait for the monthly reset).";
-        } else if (isModeration) {
-          banner = "⚠️ Image prompt blocked by content moderation. Soften the wording (avoid trademarks · injuries · weapons · public-figure faces) and try again.";
-        } else if (isRateLimit) {
-          banner = "⚠️ Image gen rate-limited (quota burst) — try again in ~30s.";
-        } else if (isValidation) {
-          if (offendingField === "prompt") {
-            banner = "⚠️ Image prompt rejected — likely too long or contains a flagged term. Try a shorter, simpler prompt.";
-          } else if (offendingField === "size") {
-            banner = "⚠️ Image size mismatch — the renderer didn't accept that resolution. Try `/image 1024` or `/image 1536x1024` to be explicit.";
-          } else if (offendingField) {
-            banner = `⚠️ Image gen rejected the \`${offendingField}\` field — bad value passed to the API.`;
-          } else {
-            banner = "⚠️ Image request rejected (validation). Check the prompt and try again.";
-          }
-        } else if (isAuth) {
-          banner = "⚠️ Image gen auth error — check OPENAI_API_KEY in env.";
-        } else if (isServer) {
-          banner = "⚠️ Image gen server error — try again in a minute.";
-        } else {
-          banner = "⚠️ Image generation failed — see error below.";
-        }
-        const errText = `\n\n${banner} (\`${rawMsg.slice(0, 200)}\`)`;
+        const failure = imgErr instanceof ImageGenerationError
+          ? imgErr.failure
+          : classifyImageGenerationError(imgErr);
+        const errText = `\n\n⚠️ ${failure.userMessage}`;
         controller.enqueue(enc({ type: "text-delta", id: "t1", delta: errText }));
         controller.enqueue(enc({ type: "text-end", id: "t1" }));
         // Persist the error too so history reads honestly.
@@ -398,21 +347,13 @@ export async function handleImage(
                 routerReason: "fast-path-image",
                 streamingState: "errored",
                 parts: [{ type: "text", text: errorContent }] as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"],
-                searchableContent: `[image-error] ${rawMsg.slice(0, 500)}`,
+                searchableContent: `[image-error] ${failure.kind}`,
                 errorDetails: {
-                  message: rawMsg.slice(0, 500),
+                  message: failure.userMessage,
                   provider: "openai-image",
-                  retryable: !isValidation, // validation errors aren't retryable
+                  retryable: failure.retryable,
                   occurredAt: new Date().toISOString(),
-                  classification: isRateLimit
-                    ? "rate_limit"
-                    : isValidation
-                      ? "validation"
-                      : isAuth
-                        ? "auth"
-                        : isServer
-                          ? "server"
-                          : "unknown",
+                  classification: failure.kind,
                 } as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["errorDetails"],
               },
             })
