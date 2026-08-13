@@ -20,7 +20,7 @@ import { createLogger } from "../lib/logger";
 import { SERVICE_CATEGORIES } from "../../shared/serviceTypes";
 import type { TopicSignals } from "../../shared/contentTopicMiner";
 import type { FranchiseId } from "../../shared/contentFranchises";
-import { LOCAL_DISCOVERY_LIBRARY, localDiscoveryTopics } from "../../shared/localDiscoveryLibrary";
+import { localDiscoveryTopics, splitLocalDiscoveryTopics } from "../../shared/localDiscoveryLibrary";
 
 const log = createLogger("services:content-topic-signals");
 
@@ -152,10 +152,9 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
   // the declared-first option. Both franchises require government_source
   // evidence (contentFranchises.ts), so autoRenderable() excludes either —
   // the safety property holds regardless of which one is picked.
-  const fresh = localDiscoveryTopics(recentTopics);
-  const echeckSet = new Set(LOCAL_DISCOVERY_LIBRARY.filter((e) => e.category === "e_check").map((e) => e.topic));
-  signals.localDiscoveryTopics = fresh.filter((t) => !echeckSet.has(t));
-  signals.governmentFeedTopics = fresh.filter((t) => echeckSet.has(t));
+  const split = splitLocalDiscoveryTopics(localDiscoveryTopics(recentTopics));
+  signals.localDiscoveryTopics = split.localDiscoveryTopics;
+  signals.governmentFeedTopics = split.governmentFeedTopics;
 
   // Franchise rotation history, newest first.
   try {

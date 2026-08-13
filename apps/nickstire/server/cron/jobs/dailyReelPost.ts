@@ -25,6 +25,7 @@ import { BUSINESS } from "@shared/business";
 import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
+import { parseReelJobPayload } from "@shared/reelJobPayload";
 
 const log = createLogger("cron:daily-reel-post");
 
@@ -81,22 +82,13 @@ export function buildReelShadowJudgeInput(job: {
 } {
   let title = job.briefId;
   let visualIdea = "assembled faceless reel (free lane)";
-  try {
-    const brief = JSON.parse(job.payload ?? "") as {
-      topic?: unknown;
-      archetype?: unknown;
-      objectCharacter?: unknown;
-      mechanicTruth?: unknown;
-    };
-    if (typeof brief.topic === "string" && brief.topic.trim()) title = brief.topic.trim();
-    const visual = [brief.archetype, brief.objectCharacter]
-      .filter((v): v is string => typeof v === "string" && v.length > 0)
-      .join(" · ");
-    if (visual) visualIdea = visual;
-  } catch {
-    // Unparseable payload → judge on the caption alone. Disclosed by the
-    // briefId title rather than hidden behind a skip.
-  }
+  // parseReelJobPayload never throws (returns {} on unparseable JSON), so
+  // this stays the "judge on the caption alone" path without a try/catch —
+  // the empty-view case IS the unparseable case.
+  const brief = parseReelJobPayload(job.payload);
+  if (brief.topic?.trim()) title = brief.topic.trim();
+  const visual = [brief.archetype, brief.objectCharacter].filter((v): v is string => Boolean(v)).join(" · ");
+  if (visual) visualIdea = visual;
   const caption = job.caption || title;
   return {
     campaignAsk: `Autonomous daily Instagram REEL for the shop feed (job ${job.id})`,
@@ -467,18 +459,17 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       const alreadyChecked = await getKv(qcKey);
       if (!alreadyChecked) {
         try {
-          const parsed = JSON.parse(job.payload ?? "{}") as {
-            clevelandAngle?: string;
-            episodeContract?: {
-              disclosureMode?: string;
-              evidence?: Array<{ entailment?: string }>;
-              script?: { voiceover?: string };
-            };
-            storyboardBeats?: Array<{ beatNumber: number; endSecond?: number }>;
-          };
+          // Real, canonical types (StoryboardBeat/EpisodeContract) instead of
+          // a hand-rolled weakened inline type — self-review (2026-08-13)
+          // found the original inline type here dropped disclosureMode from
+          // the real DisclosureMode union to a bare string and entailment
+          // from EntailmentVerdict to string, the same fragmentation class
+          // that made hasCta structurally always false elsewhere.
+          const parsed = parseReelJobPayload(job.payload);
           const { checkReviewReply, hasBlockingFindings } = await import("@shared/reviewReplyQa");
           const { extractBeatStructureSignals } = await import("@shared/beatStructureSignals");
           const { evaluateOriginalityQc } = await import("@shared/originalityQcChecklist");
+          const { normalizeEntailmentVerdict } = await import("@shared/claimEntailment");
 
           const voiceover = parsed.episodeContract?.script?.voiceover ?? "";
           let voiceoverQaBlocking: boolean | null = null;
@@ -490,13 +481,14 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
           const beatStructure = extractBeatStructureSignals({ storyboardBeats: parsed.storyboardBeats });
           const result = evaluateOriginalityQc({
-            claimEntailments: (parsed.episodeContract?.evidence ?? []).map((e) => (e.entailment ?? "not_evaluated") as never),
+            claimEntailments: (parsed.episodeContract?.evidence ?? []).map((e) => normalizeEntailmentVerdict(e.entailment)),
             captionQaBlocking: caption ? hasBlockingFindings(checkReviewReply(caption)) : null,
             voiceoverQaBlocking,
             disclosureMode: parsed.episodeContract?.disclosureMode,
             clevelandAngle: parsed.clevelandAngle,
             caption,
             totalDurationSeconds: beatStructure.totalDurationSeconds,
+            storyboardBeats: parsed.storyboardBeats,
           });
           log.info("daily reel originality/QC checklist (log-only — no gate)", {
             jobId: job.id,

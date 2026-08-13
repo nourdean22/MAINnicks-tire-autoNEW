@@ -7,7 +7,7 @@
  * government-source claim.
  */
 import { describe, it, expect } from "vitest";
-import { LOCAL_DISCOVERY_LIBRARY, localDiscoveryTopics, categoryForTopic } from "../../../shared/localDiscoveryLibrary";
+import { LOCAL_DISCOVERY_LIBRARY, localDiscoveryTopics, categoryForTopic, splitLocalDiscoveryTopics } from "../../../shared/localDiscoveryLibrary";
 import { mineTopicCandidates, autoRenderable } from "../../../shared/contentTopicMiner";
 
 describe("LOCAL_DISCOVERY_LIBRARY", () => {
@@ -31,6 +31,31 @@ describe("LOCAL_DISCOVERY_LIBRARY", () => {
     const some = LOCAL_DISCOVERY_LIBRARY[0].topic;
     expect(localDiscoveryTopics([some])).not.toContain(some);
     expect(localDiscoveryTopics([])).toContain(some);
+  });
+});
+
+describe("splitLocalDiscoveryTopics", () => {
+  // Extracted from contentTopicSignals.ts (post-merge self-review, 2026-08-13)
+  // specifically so it has ONE tested implementation both the live IO layer
+  // and the end-to-end proof-of-work test call — the original inline-only
+  // version let the e2e test silently bypass the split it claimed to prove.
+  it("routes e_check topics to governmentFeedTopics and everything else to localDiscoveryTopics", () => {
+    const all = LOCAL_DISCOVERY_LIBRARY.map((e) => e.topic);
+    const { localDiscoveryTopics: local, governmentFeedTopics: gov } = splitLocalDiscoveryTopics(all);
+    const echeckTopics = LOCAL_DISCOVERY_LIBRARY.filter((e) => e.category === "e_check").map((e) => e.topic);
+    expect(gov.sort()).toEqual(echeckTopics.sort());
+    expect(local.length + gov.length).toBe(all.length);
+    for (const t of local) expect(echeckTopics).not.toContain(t);
+  });
+
+  it("an unrecognized topic (not in the library) defaults to the non-gated bucket", () => {
+    const { localDiscoveryTopics: local, governmentFeedTopics: gov } = splitLocalDiscoveryTopics(["some topic not in the library"]);
+    expect(local).toEqual(["some topic not in the library"]);
+    expect(gov).toEqual([]);
+  });
+
+  it("an empty input produces two empty buckets, never throws", () => {
+    expect(splitLocalDiscoveryTopics([])).toEqual({ localDiscoveryTopics: [], governmentFeedTopics: [] });
   });
 });
 
