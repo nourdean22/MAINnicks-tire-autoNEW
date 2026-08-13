@@ -144,7 +144,10 @@ export function SessionExpiryBanner() {
   const remaining = expiresAt - now;
   if (remaining > WARN_MS) return null;
   if (remaining <= 0) return null; // expired — the next authed request bounces to sign-in
-  if (Date.now() < dismissedUntil) return null;
+  // lint-baseline 2026-08-13 · use the ticking `now` state instead of
+  // Date.now() in render (react-hooks/purity). Dismissal is hours-scale,
+  // so tick granularity is more than enough.
+  if (now < dismissedUntil) return null;
 
   const urgent = remaining <= URGENT_MS;
 

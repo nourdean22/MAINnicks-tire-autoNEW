@@ -29,6 +29,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 /** Parse one SSE frame · "event: NAME\ndata: JSON" · returns null on
  *  malformed/empty frames. */
@@ -116,6 +117,7 @@ export function NickReasoner({
   autoRun?: boolean;
   className?: string;
 }) {
+  const router = useRouter();
   const [question, setQuestion] = useState(initialQuestion ?? "");
   const [tier, setTier] = useState<ReasoningTier | "auto">("auto");
   const [busy, setBusy] = useState(false);
@@ -469,14 +471,16 @@ export function NickReasoner({
                     try {
                       const payload = `Earlier in /reason I asked: ${question.trim().slice(0, 240)}\n\nNick (${result.tier} tier) answered:\n${result.trace.answer.slice(0, 800)}\n\nLet's continue.`;
                       sessionStorage.setItem("chat:pending-seed", payload);
-                      window.location.href = "/chat?h=1";
+                      // lint-baseline 2026-08-13 · soft nav — sessionStorage
+                      // survives client-side navigation identically.
+                      router.push("/chat?h=1");
                     } catch {
                       // sessionStorage blocked (private mode, etc.) ·
                       // fall back to the old query-string path
                       const url = `/chat?seed=${encodeURIComponent(
                         `Earlier in /reason: ${question.trim().slice(0, 80)}`,
                       )}`;
-                      window.location.href = url;
+                      router.push(url);
                     }
                   }}
                   className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:text-[var(--gold)] transition"

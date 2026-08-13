@@ -324,9 +324,11 @@ export function PulseFeedSheet({
   // cancels the exit WITHOUT firing animationend, so the guard can't
   // unmount a sheet that is open again.
   const [mounted, setMounted] = useState(open);
-  useEffect(() => {
-    if (open) setMounted(true);
-  }, [open]);
+  // lint-baseline 2026-08-13 · rising edge moved from an effect to the
+  // React-sanctioned render-phase adjustment ("storing information from
+  // previous renders") — same semantics, no effect-driven cascade. The
+  // falling edge still rides animationend below, unchanged.
+  if (open && !mounted) setMounted(true);
   if (!mounted) return null;
 
   return (
