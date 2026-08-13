@@ -68,7 +68,7 @@ describe("capabilityBadge — real states still report accurately", () => {
       providerErrored: false,
       toolSummary: healthyTools,
     });
-    expect(b.label).toBe("174 tools ready");
+    expect(b.label).toBe("174 catalog tools");
     expect(b.cautious).toBe(false);
     expect(b.unknown).toBe(false);
   });
