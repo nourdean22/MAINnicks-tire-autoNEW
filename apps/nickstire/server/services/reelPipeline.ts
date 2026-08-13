@@ -251,6 +251,14 @@ export interface ReelJobBrief {
     framePrompt: string;
     lockedInvariants: string;
   };
+  /** Set by the pipeline itself, never a caller: a paid provider (veo OR
+   *  higgsfield) ran out of retries per nextStatusFor's own verdict, and
+   *  REEL_FALLBACK_TO_TEMPLATE_STOCK is on. Rather than terminal-failing the
+   *  job (ScanFinish NT-013 — this was Veo's ONLY failure mode; it had no
+   *  fallback at all, unlike Higgsfield's inline per-beat degrade), the job
+   *  gets ONE more attempt forced onto the free local lane. Overrides
+   *  selectReelVideoProvider entirely on the next pulse. */
+  forceProvider?: ReelVideoProvider;
 }
 
 /**
@@ -589,6 +597,14 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
   const affectedRows = (claimRes[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
   if (affectedRows !== 1) return { processed: false }; // another worker claimed it
 
+  // Hoisted above the try so the outer catch (job-level terminal-failure
+  // fallback, below) knows which provider was actually in flight — without
+  // this a job that had ALREADY flipped higgsfield->template_stock inline
+  // and then failed AGAIN would be misread as "a paid provider just failed"
+  // and forced into a fallback that does not exist.
+  let videoProvider: ReelVideoProvider | undefined;
+  let activeProvider: ReelVideoProvider | undefined;
+
   try {
     const brief = JSON.parse(job.payload) as ReelJobBrief;
     const beats = brief.storyboardBeats ?? [];
@@ -596,15 +612,19 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
 
     const { assertDurableStorageForGeneration, storagePut } = await import("../storage");
 
-    const videoProvider = await selectReelVideoProvider();
-    log.info("reel clip generation provider selected", { jobId: job.id, provider: videoProvider });
+    videoProvider = brief.forceProvider ?? (await selectReelVideoProvider());
+    log.info("reel clip generation provider selected", {
+      jobId: job.id,
+      provider: videoProvider,
+      forced: Boolean(brief.forceProvider),
+    });
 
     // The provider actually used for the beat being rendered. It starts as the
     // selected one and only ever moves to template_stock, once, when a paid
     // provider turns out to be unusable (see shouldDegradeToFreeLane). Kept
     // separate from videoProvider so the top-of-function precondition below
     // still reflects the SELECTED provider rather than a mid-job substitution.
-    let activeProvider: ReelVideoProvider = videoProvider;
+    activeProvider = videoProvider;
 
     // Clips this run rendered on the FREE lane. The reservation was priced at
     // enqueue against the SELECTED provider, and the comment on that reserve
@@ -887,12 +907,14 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     // predates that write; re-read the row or every Veo timeout is misread as
     // the ambiguous Higgsfield case and goes terminal instead of resuming.
     let hasRemoteOperationId = false;
+    let freshPayload: string | undefined;
     try {
       const [fresh] = await d
         .select({ payload: reelJobs.payload })
         .from(reelJobs)
         .where(eq(reelJobs.id, job.id))
         .limit(1);
+      freshPayload = fresh?.payload;
       const parsed = JSON.parse(fresh?.payload ?? "{}") as { storyboardBeats?: Array<{ veoOperationName?: string }> };
       hasRemoteOperationId = (parsed.storyboardBeats ?? []).some(
         (b) => typeof b?.veoOperationName === "string" && b.veoOperationName.length > 0,
@@ -904,11 +926,77 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       hasRemoteOperationId,
     });
     const decided = nextStatusFor(verdict, attempt, MAX_ATTEMPTS, "queued");
-    const nextStatus = decided.status;
+    let nextStatus = decided.status;
+    let nextAttempts = decided.attempts;
+    let nextPayload: string | undefined;
+    let forcedFreeLane = false;
+
+    // A paid provider (veo OR higgsfield) just ran out of every retry
+    // nextStatusFor's OWN verdict would give it. Veo had NO fallback at all
+    // until now (ScanFinish NT-013) — only Higgsfield's inline per-beat
+    // degrade existed, and only for the narrower PAUSE_PROVIDER set, so a
+    // RECONCILE_BEFORE_RETRY exhaustion (a session that HANGS instead of
+    // erroring — the exact 2026-08-07 incident) reached this same terminal
+    // path even for Higgsfield. One more attempt, forced onto the free local
+    // lane, beats publishing nothing — same tradeoff shouldDegradeToFreeLane
+    // already made for the inline case, gated behind the SAME opt-in flag.
+    // template_stock itself failing has nowhere lower to fall, hence the
+    // activeProvider guard.
+    if (
+      decided.terminal &&
+      process.env.REEL_FALLBACK_TO_TEMPLATE_STOCK === "true" &&
+      activeProvider &&
+      activeProvider !== "template_stock" &&
+      freshPayload
+    ) {
+      try {
+        const revived = JSON.parse(freshPayload) as ReelJobBrief;
+        revived.forceProvider = "template_stock";
+        nextPayload = JSON.stringify(revived);
+        nextStatus = "queued";
+        nextAttempts = 0; // fresh retry budget for the free lane, same convention as the assembly stage
+        forcedFreeLane = true;
+      } catch (e) {
+        log.warn("could not force the free lane onto this job's payload — falling through to the normal terminal failure", {
+          jobId: job.id,
+          err: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
     await d
       .update(reelJobs)
-      .set({ status: nextStatus, attempts: decided.attempts, error: stampError(verdict, msg).slice(0, 1000) })
+      .set({
+        status: nextStatus,
+        attempts: nextAttempts,
+        error: stampError(verdict, msg).slice(0, 1000),
+        ...(nextPayload ? { payload: nextPayload } : {}),
+      })
       .where(eq(reelJobs.id, job.id));
+
+    if (forcedFreeLane) {
+      // A degrade means the shop is now publishing FREE-LANE video instead of
+      // what it normally ships — the operator must know the same day, not
+      // discover it in an audit (same lesson as the inline Higgsfield degrade
+      // below). Best-effort: a dead Telegram must never take the job down.
+      void import("./telegram")
+        .then(({ sendTelegram }) =>
+          sendTelegram(
+            [
+              `REEL PROVIDER EXHAUSTED — forcing job ${job.id} onto the FREE local lane`,
+              `Was: ${activeProvider}. Verdict: ${verdict.errorClass} (${verdict.action}).`,
+              `Reels will keep publishing, but not with the paid generator. Fix the provider or pin REEL_VIDEO_PROVIDER deliberately.`,
+            ].join("\n"),
+          ),
+        )
+        .catch(() => undefined);
+      log.error("paid reel provider exhausted its retries - forcing the free local lane instead of terminal-failing", {
+        jobId: job.id,
+        was: activeProvider,
+        errorClass: verdict.errorClass,
+      });
+    }
+
     log.warn("reel job failure classified", {
       jobId: job.id,
       errorClass: verdict.errorClass,
@@ -916,6 +1004,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       mayDoubleSpend: verdict.mayDoubleSpend,
       attempt,
       nextStatus,
+      forcedFreeLane,
     });
     if (nextStatus === "failed") {
       // Terminal failure: keep the conservative reservation as the spend
