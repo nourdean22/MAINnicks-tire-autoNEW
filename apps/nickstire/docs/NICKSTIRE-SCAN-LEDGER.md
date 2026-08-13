@@ -115,3 +115,38 @@ props. Fixed with honest defaults (`bookings=[]`, `bookingsTrustworthy=false`
 — absent data renders as unknown, never a clean zero). Targeted runs alone
 would have shipped that crash: the full suite is not optional on new admin
 components.
+
+## Run 2 — 2026-08-13 (same day, scope: reel pipeline / "Faceless Reel Studio")
+
+Trigger: an external mega-brief ("FRONTIER-SCAN findings, two runs 2026-08-11
+and 2026-08-13") asking for a reel "intelligence studio" — anti-repetition
+memory, an originality/QC gate, multi-vendor routing, a local-topic library,
+an attention-microstructure logger, multilingual dubs. Gated per `plan-gate`
+before any code: read this ledger first (per the header rule), diffed
+against `git log`, checked `docs/UPSTREAMS.md`, then dispatched 4 read-only
+Explore agents plus a real serial test run (`vitest run` on the 10 reel/
+Higgsfield test files: **10 files, 124 tests, 0 failures**).
+
+### Premise check
+
+| Brief claim | Verdict | Evidence |
+|---|---|---|
+| Branches `feature/nickstire-faceless-reel-intelligence-studio` and `nickstire/higgsfield-live-run` exist | **REFUTED** | `git branch -a` (local+remote) and `git log --all --grep -i "faceless\|higgsfield"` — neither name appears anywhere, ever |
+| A "Faceless Reel Studio memory layer" exists | **REFUTED (partial-true premise)** | `facelessReelStudioPrompt.ts` / `facelessReelStudio.ts` are real, live files (the reel gen prompt library) — the NAME is real — but no anti-repetition memory layer exists under it or anywhere else |
+| "FRONTIER-SCAN" is this repo's scan protocol | **REFUTED** | 0 hits repo-wide; the actual protocol is `ScanFinish` (this file). Brief is a garbled pointer to real work, not a description of it |
+| Sora API sunset (Sept 2026) threatens the pipeline | **MOOT** | Sora is not referenced anywhere in `apps/nickstire` — not a dependency today |
+
+### Findings
+
+| ID | Finding | Conviction | Evidence | Outcome |
+|---|---|---|---|---|
+| NT-010 | No anti-repetition mechanism for reel topics/hooks. `avoidTopics` (`reelBriefGen.ts:43`) is a pass-through never populated from history; the live cron path `contentManufacturing.ts:1001` doesn't even pass it | HIGH | OBSERVED | ACTED ON (this run) |
+| NT-011 | QC/originality gate is real but partial and 100% non-gating: shadow judge is concept-level (not rendered-video), `reviewReplyQa` covers captions but not VO script, no footage-provenance/before-after/exact-length checks exist | MED | OBSERVED | ACTED ON (this run, additive shadow checks only — gate-flip stays an operator decision per NT-001 precedent) |
+| NT-012 | No per-reel outcome logger distinct from the topic-selection signal; `instagramAnalytics` captures saves/shares/views but nothing logs hook/beat-structure/CTA per reel for a swipe-file/decay-curve read | MED | OBSERVED | ACTED ON (this run) |
+| NT-013 | Vendor fallback is real (Higgsfield/Veo/template_stock, `reelPipeline.ts:102-193`) but one-way: paid→free only, never paid-to-paid. Kling/LTX-2/TikTok Symphony/Sora: zero references anywhere in this repo | MED | OBSERVED | ACTED ON (narrow: ordered paid-to-paid fallback only — no speculative vendor adapters; new-vendor integration is WATCH, not built, pending an actual outage or operator ask) |
+| NT-014 | No Local Discovery content library. Topic mining is signal-driven (`contentTopicMiner.ts`, 7 sources) with NHTSA/E-Check explicitly `fetch_blocked` by design | MED | OBSERVED | ACTED ON (this run, curated seed list wired as an 8th topic source — NHTSA/E-Check auto-fetch stays blocked, untouched) |
+| NT-015 | No multilingual variant hook. An unused "top performer" signal (`recentWinners`, `instagramAdmin.ts:620-637`) already exists as a ready trigger | MED | OBSERVED | see below |
+| NT-016 | This ledger's OPEN/CLOSING/ACTED-ON status is hand-typed, not script-derived — unlike the separate `capability-ledger.json` + `check-capability-ledger.mjs`, which IS script-validated | LOW | OBSERVED | Judged not worth building a parallel automation; the existing discipline (every Outcome cites a real receipt) already satisfies the spirit. NT-012's outcome logger closes the loop specifically for reel findings going forward |
+
+Run-2 build pass and self-review continue below as each item lands, same
+convention as Run 1.
