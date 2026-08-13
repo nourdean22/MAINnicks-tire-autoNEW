@@ -639,6 +639,10 @@ const tasksCoreTools = {
         where: { id: commitmentId },
         data: { status: "completed", notes: outcome || "Completed" },
       });
+      // BDN-208 · chat-path completions carry conditions too (same
+      // fire-and-forget as the service path — never blocks the turn).
+      const { captureCommitmentConditions } = await import("@/lib/services/commitment-conditions");
+      void captureCommitmentConditions(commitmentId, "completed");
       return { completed: true };
     },
   }),
@@ -663,6 +667,11 @@ const tasksCoreTools = {
           },
           select: { id: true, description: true, status: true },
         });
+        // BDN-208 · broken is the HIGHEST-signal outcome class for the
+        // conditions ledger — a break under short_sleep vs rested is
+        // exactly the contrast the mechanism exists to expose.
+        const { captureCommitmentConditions } = await import("@/lib/services/commitment-conditions");
+        void captureCommitmentConditions(commitmentId, "broken");
         return {
           commitmentId: updated.id,
           description: updated.description,

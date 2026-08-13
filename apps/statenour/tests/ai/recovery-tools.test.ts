@@ -56,11 +56,22 @@ describe("wrapToolsWithEmptyHandling · error reflection (BDN-202)", () => {
 });
 
 describe("invokeTool · fail-closed gates (BDN-201)", () => {
-  it("refuses recursive invocation of the recovery tools themselves", async () => {
-    for (const name of ["searchTools", "invokeTool", "queryData"]) {
+  it("refuses recursive invocation of searchTools/invokeTool", async () => {
+    for (const name of ["searchTools", "invokeTool"]) {
       const res = (await asAny.invokeTool.execute({ name, args: {} })) as Record<string, unknown>;
       expect(String(res.error)).toMatch(/recursive/);
     }
+  });
+
+  it("CAN invoke queryData (no cycle exists: its sandbox whitelist excludes invokeTool)", async () => {
+    const res = (await asAny.invokeTool.execute({
+      name: "queryData",
+      args: { code: "return 2 + 2;" },
+    })) as Record<string, unknown>;
+    expect(res.error).toBeUndefined();
+    const inner = res.result as { success?: boolean; result?: unknown };
+    expect(inner.success).toBe(true);
+    expect(inner.result).toBe(4);
   });
 
   it("refuses unknown tool names with a pointer to searchTools", async () => {

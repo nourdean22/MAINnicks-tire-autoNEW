@@ -230,7 +230,20 @@ Three premise corrections surfaced DURING build (rule 6 keeps firing):
 | BDN-205 | **ACTED ON** — Badge API approval count on the PWA icon (`components/hud/app-badge.tsx`, answered-queries-only, cleared never stale); approval **Edit verb** wired — the server had accepted `editedPayload` since the guardian shipped and the UI never sent it (gate-eye catch: the HumanInterrupt "Edit" verb was a one-sided incumbent). **N/A legs:** Remend (Streamdown `parseIncompleteMarkdown` already live, nick-message.tsx:194) and `updateTag()`/`refresh()` (invalidation here is tRPC/react-query, not Next cache tags). |
 | BDN-206 | **ACTED ON, PREMISE PART-CORRECTED** — ★ live check: **no code path calls the DeepSeek API directly** (deepseek models run via Ollama Cloud `/v1`), so DeepSeek peak/off-peak + cache-hit pricing DON'T BIND current spend; off-peak cron moves dropped (and the real mega trigger is a Railway cron → operator-side anyway). The applicable half shipped: the ANTHROPIC ephemeral cache was being defeated per-minute by `relTime()`/`relFromNow()` in the system prompt — now 5-minute-bucketed (renderer.ts). Prefix audit recorded: true stable prefix = staticPrefix+inferredPatterns; volatile from position 5 (temporal) + JIT gate. WATCH: if the fast lane ever moves to api.deepseek.com, the off-peak/cache discipline re-opens. |
 | BDN-207 | **ACTED ON, NARROWED** — `runCode` already existed (vm sandbox, no data access); the genuine delta shipped as `queryData`: same vm pattern + frozen read-only `api.call()` over a 12-tool whitelist, double-gated (whitelist + isReadSafeTool), 10s budget, 20k output cap. No lane restriction (blast radius bounded by read-only surface). |
-| BDN-208 | **ACTED ON (measurement half)** — conditions capture at commitment completion/abandon (sleep/energy/stress/dayState → BrainMemory `commitment_condition`, fire-and-forget) + pure `conditionedCompletionStats` read model, pinned by tests. R/A/G week gamification + AAR re-scoring deliberately NOT built (operator game-feel HOLD class) — revisit once per-condition data has ~30 days of rows. |
+| BDN-208 | **ACTED ON (measurement half)** — conditions capture at commitment completion/abandon (sleep/energy/stress/dayState → BrainMemory `commitment_condition`, fire-and-forget) + pure `conditionedCompletionStats` read model, pinned by tests. Self-review round extended capture to the CHAT-tool paths (`completeCommitment` + `markCommitmentBroken` — broken is the highest-signal class). R/A/G week gamification + AAR re-scoring deliberately NOT built (operator game-feel HOLD class) — revisit once per-condition data has ~30 days of rows. |
+
+**Self-review round (same day):** four defects found in my own run-4 diff,
+all fixed: ① the confidence-tier auto-execute branch OVERWROTE the
+create-time `plannedOutcome` (the one lane where a machine-authorized fire
+most needs its pre-receipt judged) — now merges `outcomeVsPlan` like the
+other lanes; ② `searchTools` could find `queryData` but the recursion
+guard made it un-invocable — a dead end with no actual cycle (queryData's
+sandbox whitelist excludes invokeTool), now allowed + pinned by test;
+③ queryData's 10s deadline timer was never cleared; ④ chat-path
+commitment writes bypassed conditions capture (incl. `broken`). Also
+verified live: the legacy mega route DOES read `EVENING_JOBS` (rewrite
+cron fires tonight) and `MUTATING_PREFIX` catches none of the three
+recovery tools (they survive the read-mode strip as designed).
 
 ## Calibration rules for the next scan
 
