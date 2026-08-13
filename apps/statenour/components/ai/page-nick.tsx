@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   Brain,
@@ -73,6 +74,7 @@ export function PageNick({
   autoLoad = false,
   className,
 }: PageNickProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -167,8 +169,11 @@ export function PageNick({
 
   const openInChat = useCallback(() => {
     const seed = question || `Analyze my ${page} page`;
-    window.location.href = `/chat?q=${encodeURIComponent(seed)}`;
-  }, [page, question]);
+    // lint-baseline 2026-08-13 · client-side nav instead of a full reload;
+    // the chat deep-link prefill hook reads ?q= via useSearchParams, so
+    // soft navigation carries the seed identically.
+    router.push(`/chat?q=${encodeURIComponent(seed)}`);
+  }, [page, question, router]);
 
   const dismiss = useCallback(() => {
     setOpen(false);

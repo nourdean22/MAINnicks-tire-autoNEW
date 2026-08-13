@@ -464,7 +464,9 @@ export function CommandPalette() {
         keywords: ["device", "sync"],
       },
     ],
-    [navigate, openExternal, probe, navCommands],
+    // lint-baseline 2026-08-13 · `openExternal` was flagged as an
+    // unnecessary dep (no longer referenced in the memo body).
+    [navigate, probe, navCommands],
   );
 
   // Keep a ref so the ⌘⇧K keyboard handler can reach the current

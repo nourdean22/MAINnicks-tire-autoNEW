@@ -36,6 +36,7 @@
  */
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { onDataChanged } from "@/lib/events/data-change";
 // Phase J · tRPC migration · OperatorPulse reads via
@@ -88,6 +89,7 @@ export function OperatorPulse({
   surface: PulseSurface;
   className?: string;
 }) {
+  const router = useRouter();
   // Phase J · tRPC · types inferred from the server router · no more
   // manual PulseShape mirror that drifted across H.2 (mega tier),
   // H.5 (cost field), H.6.2 (inFlightUsd) waves.
@@ -139,9 +141,11 @@ export function OperatorPulse({
         const askDeep = () => {
           try {
             sessionStorage.setItem("reason:pending-q", line.text);
-            window.location.href = "/brain?tab=reason&h=1";
+            // lint-baseline 2026-08-13 · soft nav — sessionStorage
+            // survives client-side navigation identically.
+            router.push("/brain?tab=reason&h=1");
           } catch {
-            window.location.href = `/brain?tab=reason&q=${encodeURIComponent(line.text.slice(0, 80))}`;
+            router.push(`/brain?tab=reason&q=${encodeURIComponent(line.text.slice(0, 80))}`);
           }
         };
         const body = (
