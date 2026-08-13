@@ -454,6 +454,66 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       }
     }
 
+    // ── ORIGINALITY + QC CHECKLIST — SHADOW, LOG-ONLY (NT-011, 2026-08-13) ──
+    // One canonical readout of the brief's 9-item list instead of scattered
+    // logs (claim verification, caption claim-safety, format/length all
+    // already existed as SEPARATE, never-jointly-read checks). Same
+    // promotion discipline as the judge above: log everything, gate nothing,
+    // once per job via its own KV marker. Adds ONE genuinely new check this
+    // pass — the voiceover script never ran reviewReplyQa before; only the
+    // caption did.
+    if (process.env.IG_SHADOW_JUDGE !== "false") {
+      const qcKey = `reel_qc_checklist_${job.id}`;
+      const alreadyChecked = await getKv(qcKey);
+      if (!alreadyChecked) {
+        try {
+          const parsed = JSON.parse(job.payload ?? "{}") as {
+            clevelandAngle?: string;
+            episodeContract?: {
+              disclosureMode?: string;
+              evidence?: Array<{ entailment?: string }>;
+              script?: { voiceover?: string };
+            };
+            storyboardBeats?: Array<{ beatNumber: number; endSecond?: number }>;
+          };
+          const { checkReviewReply, hasBlockingFindings } = await import("@shared/reviewReplyQa");
+          const { extractBeatStructureSignals } = await import("@shared/beatStructureSignals");
+          const { evaluateOriginalityQc } = await import("@shared/originalityQcChecklist");
+
+          const voiceover = parsed.episodeContract?.script?.voiceover ?? "";
+          let voiceoverQaBlocking: boolean | null = null;
+          try {
+            voiceoverQaBlocking = voiceover ? hasBlockingFindings(checkReviewReply(voiceover)) : false;
+          } catch {
+            voiceoverQaBlocking = null;
+          }
+
+          const beatStructure = extractBeatStructureSignals({ storyboardBeats: parsed.storyboardBeats });
+          const result = evaluateOriginalityQc({
+            claimEntailments: (parsed.episodeContract?.evidence ?? []).map((e) => (e.entailment ?? "not_evaluated") as never),
+            captionQaBlocking: caption ? hasBlockingFindings(checkReviewReply(caption)) : null,
+            voiceoverQaBlocking,
+            disclosureMode: parsed.episodeContract?.disclosureMode,
+            clevelandAngle: parsed.clevelandAngle,
+            caption,
+            totalDurationSeconds: beatStructure.totalDurationSeconds,
+          });
+          log.info("daily reel originality/QC checklist (log-only — no gate)", {
+            jobId: job.id,
+            passCount: result.passCount,
+            failCount: result.failCount,
+            failed: result.checks.filter((c) => c.status === "fail").map((c) => c.id),
+          });
+          await setKv(qcKey, JSON.stringify({ passCount: result.passCount, failCount: result.failCount, at: new Date().toISOString() }), `Reel originality/QC checklist — job ${job.id}`);
+        } catch (err) {
+          log.warn("daily reel originality/QC checklist failed (run continues — shadow lane)", {
+            jobId: job.id,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
     // EXACTLY-ONCE: claim assembled -> publishing BEFORE the external Meta call,
     // so two overlapping cron ticks cannot both publish this reel. The loser of
     // the CAS simply reports that another run owns it.
