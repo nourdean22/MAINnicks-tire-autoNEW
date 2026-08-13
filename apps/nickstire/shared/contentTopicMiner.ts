@@ -76,9 +76,11 @@ export interface TopicSignals {
    * source (NT-014 side-finding: the source existed in SOURCE_WEIGHT and
    * franchiseForSource since this file's creation but no signal field ever
    * fed it — a real "built, never wired" defect, not this pass's design).
-   * Correctly routes to echeck_escape_room, which requires government_source
-   * evidence — an operator must still attach the Ohio EPA record before an
-   * E-Check reel renders autonomously.
+   * Routes to whichever of ["recall_radar", "echeck_escape_room"]
+   * franchiseForSource picks (lowest rotation penalty; ties favor
+   * recall_radar) — BOTH require government_source evidence
+   * (contentFranchises.ts), so either way an operator must attach the Ohio
+   * EPA record before an E-Check reel renders autonomously.
    */
   governmentFeedTopics?: string[];
 }

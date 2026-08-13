@@ -61,7 +61,16 @@ export async function prepareCleanReelBrief(
   // NT-010). A caller-supplied avoidTopics wins — it usually means "operator
   // is intentionally steering," which real history should not override.
   const recent = await getRecentReelSignals();
-  const avoidTopics = input.avoidTopics && input.avoidTopics.length > 0 ? input.avoidTopics : recent.topics;
+  const baseAvoidTopics = input.avoidTopics && input.avoidTopics.length > 0 ? input.avoidTopics : recent.topics;
+  // Grows across attempts (self-review, 2026-08-13): a caller that pins a
+  // FIXED topic seed already present in history (the admin canary's static
+  // default, or dailyReelPost.ts's manifest fallback) asked the model to
+  // "use topic X" and "avoid topic X" identically on every retry — wasting
+  // the whole attempt budget on the same collision instead of ever getting
+  // real divergence. Once a generated topic is caught as a repeat, it joins
+  // the avoid-list for every remaining attempt.
+  const avoidTopics = [...baseAvoidTopics];
+  let repetitionOnlyRejections = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const { brief } = await generateReelBriefAI({ ...input, avoidTopics });
@@ -80,13 +89,21 @@ export async function prepareCleanReelBrief(
     const blocking = pre.status === "block" ? pre.blocking.map((f) => f.message) : [];
     if (repetition.topicRepeated) {
       blocking.push(`topic repeats a reel from the last ${DEFAULT_REPETITION_WINDOW_DAYS} days: "${brief.topic}"`);
+      if (pre.status !== "block") repetitionOnlyRejections++;
+      if (!avoidTopics.includes(brief.topic)) avoidTopics.push(brief.topic);
     }
     rejected.push(blocking);
     log.warn(`reel brief rejected (attempt ${attempt}/${maxAttempts}) — regenerating`, { blocking });
   }
 
+  // Distinguishable in cron_log from a real M10 preflight defect (the
+  // existing "all briefs preflight-blocked" caller message) — a run where
+  // every rejection was repetition-only means the generator is healthy and
+  // the topic pool is just thin, not that a defective brief shape is
+  // shipping. Same disclosure discipline as topicOrigin.
+  const cause = repetitionOnlyRejections === rejected.length ? "topic repetition only, no preflight defect" : "preflight and/or topic repetition";
   throw new PreflightExhaustedError(
-    `reel brief blocked on all ${maxAttempts} attempts (preflight or topic repetition): ` +
+    `reel brief blocked on all ${maxAttempts} attempts (${cause}): ` +
       rejected.map((b, i) => `#${i + 1}[${b.join("; ")}]`).join(" "),
     rejected,
   );

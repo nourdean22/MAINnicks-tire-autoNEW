@@ -14,11 +14,19 @@ vi.mock("../drizzle/schema", async (importOriginal) => {
   return { ...real, reelJobs: {} };
 });
 
+/** A promise carrying a chained .orderBy().limit() that resolves to the same
+ *  value, so the mock satisfies the real `.where().orderBy().limit()` chain. */
+function thenable(value: unknown[] | Error) {
+  const p = value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
+  p.catch(() => {});
+  return Object.assign(p, { orderBy: () => Object.assign(Promise.resolve(value), { limit: () => p }) });
+}
+
 vi.mock("./db", () => ({
   getDb: async () => ({
     select: () => ({
       from: () => ({
-        where: () => (rows instanceof Error ? Promise.reject(rows) : Promise.resolve(rows)),
+        where: () => thenable(rows),
       }),
     }),
   }),

@@ -69,10 +69,15 @@ const generateTemplateStockClip = vi.hoisted(() => vi.fn());
 vi.mock("./services/templateStockStudio", () => ({ generateTemplateStockClip }));
 
 const failMock = vi.hoisted(() => vi.fn(async () => {}));
+const settleMock = vi.hoisted(() => vi.fn(async () => {}));
+// Provider-aware, not a flat 0 — a flat rate would hide exactly the
+// settlement bug this file's second describe block exists to catch (a
+// resumed PAID clip billed as free once the run's active provider becomes
+// template_stock).
 vi.mock("./services/generationLedger", () => ({
   fail: failMock,
-  settle: vi.fn(async () => {}),
-  reelClipCostUsd: () => 0,
+  settle: settleMock,
+  reelClipCostUsd: (p: string) => (p === "template_stock" ? 0 : 1.5),
 }));
 
 const sendTelegram = vi.hoisted(() => vi.fn(async () => {}));
@@ -100,6 +105,7 @@ beforeEach(() => {
   submitVeoRequest.mockReset();
   generateTemplateStockClip.mockReset();
   failMock.mockClear();
+  settleMock.mockClear();
   sendTelegram.mockClear();
 });
 
@@ -176,5 +182,47 @@ describe("job-level fallback when a paid provider exhausts its own retries", () 
     expect(finalSet.payload).toBeUndefined();
     expect(sendTelegram).not.toHaveBeenCalled();
     expect(failMock).not.toHaveBeenCalled();
+  });
+
+  it("strips stale veoOperationName from the forced payload — a free-lane timeout must not read as a resumable Veo op", async () => {
+    process.env.REEL_FALLBACK_TO_TEMPLATE_STOCK = "true";
+    dbState.jobRow!.payload = brief({
+      storyboardBeats: [{ beatNumber: 1, visual: "a tire", veoOperationName: "projects/x/operations/y" }],
+    });
+    submitVeoRequest.mockRejectedValue(new Error("quota exceeded"));
+
+    await processNextReelJob();
+
+    const finalSet = dbState.updateCalls.at(-1)!.set;
+    const revived = JSON.parse(finalSet.payload as string);
+    expect(revived.storyboardBeats[0].veoOperationName).toBeUndefined();
+  });
+});
+
+describe("a resumed pulse consuming forceProvider (the second pulse, not just the write)", () => {
+  it("bills an ALREADY-RESUMED paid clip at the real provider's rate, never $0, once the run finishes on the free lane", async () => {
+    process.env.REEL_FALLBACK_TO_TEMPLATE_STOCK = "true";
+    // Beat 1 already rendered (resumed, http URL) by the ORIGINAL paid
+    // provider in an earlier attempt; beat 2 still needs rendering and
+    // renders on the free lane this pulse.
+    dbState.jobRow = {
+      id: 1,
+      payload: brief({
+        storyboardBeats: [{ beatNumber: 1, visual: "a tire" }, { beatNumber: 2, visual: "a wheel" }],
+        forceProvider: "template_stock",
+      }),
+      status: "queued",
+      attempts: 0,
+      clipUrlsJson: JSON.stringify(["https://cdn.example/beat1.mp4"]),
+    };
+    generateTemplateStockClip.mockResolvedValue("https://cdn.example/beat2.mp4");
+
+    const res = await processNextReelJob();
+
+    expect(res.status).toBe("assets_ready");
+    // videoProvider must stay "veo" (the real selected provider) even though
+    // activeProvider rendered beat 2 free — that is what settle() prices.
+    expect(settleMock).toHaveBeenCalledWith("reel_job_1", 1.5);
+    expect(settleMock).not.toHaveBeenCalledWith("reel_job_1", 0);
   });
 });

@@ -26,6 +26,15 @@ export interface RecentReelSignals {
 
 export const DEFAULT_REPETITION_WINDOW_DAYS = 21;
 
+/** Hard cap on rows read, independent of the day window. `reel_jobs.payload`
+ *  is MEDIUMTEXT and real briefs run ~70KB (drizzle/schema.ts's own comment
+ *  on that column) — self-review (2026-08-13) found the first version had no
+ *  LIMIT at all on a query that runs on every brief generation across every
+ *  lane (daily cron, drafts, admin, director). Ordered by recency so a busy
+ *  window still returns the MOST RECENT history, which is what repetition-
+ *  avoidance actually cares about. */
+const MAX_ROWS = 100;
+
 const EMPTY: RecentReelSignals = {
   topics: [],
   keywords: [],
@@ -44,12 +53,14 @@ export async function getRecentReelSignals(daysBack = DEFAULT_REPETITION_WINDOW_
     const d = await getDb();
     if (!d) return EMPTY;
     const { reelJobs } = await import("../../drizzle/schema");
-    const { gte } = await import("drizzle-orm");
+    const { gte, desc } = await import("drizzle-orm");
     const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
     const rows = await d
       .select({ payload: reelJobs.payload })
       .from(reelJobs)
-      .where(gte(reelJobs.createdAt, since));
+      .where(gte(reelJobs.createdAt, since))
+      .orderBy(desc(reelJobs.createdAt))
+      .limit(MAX_ROWS);
 
     const signals: RecentReelSignals = { topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [] };
     for (const row of rows) {

@@ -612,19 +612,32 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
 
     const { assertDurableStorageForGeneration, storagePut } = await import("../storage");
 
-    videoProvider = brief.forceProvider ?? (await selectReelVideoProvider());
+    // videoProvider is NEVER overridden by forceProvider — it is the pricing
+    // anchor settle() bills paidClips against below, and a resumed clip from
+    // this job's EARLIER (real, paid) attempt must keep costing what it cost.
+    // Self-review (2026-08-13): the first version set
+    // `videoProvider = brief.forceProvider ?? await selectReelVideoProvider()`,
+    // which on a forced pulse made videoProvider itself "template_stock" —
+    // so `paidClips * reelClipCostUsd(videoProvider)` billed EVERY resumed
+    // paid clip at $0, silently erasing real spend from the daily budget the
+    // instant the rescue succeeded. forceProvider now only ever touches
+    // activeProvider (below), the same variable the existing inline
+    // Higgsfield degrade already uses for exactly this reason.
+    videoProvider = await selectReelVideoProvider();
     log.info("reel clip generation provider selected", {
       jobId: job.id,
       provider: videoProvider,
       forced: Boolean(brief.forceProvider),
     });
 
-    // The provider actually used for the beat being rendered. It starts as the
-    // selected one and only ever moves to template_stock, once, when a paid
-    // provider turns out to be unusable (see shouldDegradeToFreeLane). Kept
-    // separate from videoProvider so the top-of-function precondition below
+    // The provider actually used for the beat being rendered. Starts as
+    // forceProvider when a prior attempt was rescued onto the free lane,
+    // otherwise the selected one, and only ever MOVES to template_stock
+    // (never away from it) when a paid provider turns out to be unusable
+    // (see shouldDegradeToFreeLane). Kept separate from videoProvider so the
+    // top-of-function precondition below
     // still reflects the SELECTED provider rather than a mid-job substitution.
-    activeProvider = videoProvider;
+    activeProvider = brief.forceProvider ?? videoProvider;
 
     // Clips this run rendered on the FREE lane. The reservation was priced at
     // enqueue against the SELECTED provider, and the comment on that reserve
@@ -952,6 +965,15 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       try {
         const revived = JSON.parse(freshPayload) as ReelJobBrief;
         revived.forceProvider = "template_stock";
+        // Self-review (2026-08-13): a Veo job that reached submission always
+        // carries a beat-level veoOperationName (stamped BEFORE polling,
+        // reelPipeline.ts's Veo branch). Left in place, a LOCAL timeout on
+        // the free lane's OWN ffmpeg render would read hasRemoteOperationId
+        // as true, classify as LOCAL_TIMEOUT_REMOTE_RUNNING -> RESUME_OPERATION
+        // (consumesAttempt: false), and requeue forever — the forced lane
+        // never renders Veo again, so there is nothing left to "resume".
+        // These handles are meaningless once the job leaves Veo for good.
+        for (const beat of revived.storyboardBeats ?? []) delete beat.veoOperationName;
         nextPayload = JSON.stringify(revived);
         nextStatus = "queued";
         nextAttempts = 0; // fresh retry budget for the free lane, same convention as the assembly stage

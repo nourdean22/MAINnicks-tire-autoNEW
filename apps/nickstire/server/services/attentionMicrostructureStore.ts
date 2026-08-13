@@ -14,8 +14,27 @@ import { createLogger } from "../lib/logger";
 import { extractHookSignals } from "../../shared/hookSignals";
 import { extractBeatStructureSignals } from "../../shared/beatStructureSignals";
 import type { SwipeFileSample } from "../../shared/attentionMicrostructure";
+import type { CtaType } from "../../shared/instagramStudio";
 
 const log = createLogger("services:attention-microstructure-store");
+
+const LOWER_CTA_TYPES = new Set<string>(["send", "save", "comment", "visit", "none"]);
+
+/**
+ * Self-review (2026-08-13): the first version read `brief.ctaType` — a field
+ * that does not exist on ReelBrief at all (dailyReelPost.ts's own comment
+ * says so: "ReelBrief has no ctaType yet"). The real value lives at
+ * `episodeContract.script.ctaType`, in a DIFFERENT, uppercase domain
+ * ("SEND"|"SAVE"|"COMMENT"|"VISIT"|"FOLLOW"|"NONE") than CtaType
+ * ("send"|"save"|"comment"|"visit"|"none") — so a naive lowercase of every
+ * value is not safe either: "FOLLOW" has no lowercase member. Unrecognized
+ * values (including "follow") degrade to undefined -> extractBeatStructure-
+ * Signals' own "none" default, never a silent miscast.
+ */
+function normalizeCtaType(raw: string | undefined): CtaType | undefined {
+  const lower = raw?.toLowerCase();
+  return lower && LOWER_CTA_TYPES.has(lower) ? (lower as CtaType) : undefined;
+}
 
 interface RawRow {
   jobId: number;
@@ -60,7 +79,10 @@ export async function getSwipeFileSamples(): Promise<SwipeFileSample[]> {
 
     const samples: SwipeFileSample[] = [];
     for (const r of list) {
-      let brief: { storyboardBeats?: Array<{ visual?: string; motion?: string; onScreenText?: string; endSecond?: number; beatNumber: number }>; ctaType?: string } = {};
+      let brief: {
+        storyboardBeats?: Array<{ visual?: string; motion?: string; onScreenText?: string; endSecond?: number; beatNumber: number }>;
+        episodeContract?: { script?: { ctaType?: string } };
+      } = {};
       try {
         brief = JSON.parse(r.payload || "{}");
       } catch {
@@ -78,7 +100,7 @@ export async function getSwipeFileSamples(): Promise<SwipeFileSample[]> {
         }),
         beatStructure: extractBeatStructureSignals({
           storyboardBeats: brief.storyboardBeats,
-          ctaType: brief.ctaType as never,
+          ctaType: normalizeCtaType(brief.episodeContract?.script?.ctaType),
         }),
         metrics: {
           skipRate: r.skipRate === null ? null : Number(r.skipRate),

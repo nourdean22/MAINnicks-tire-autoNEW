@@ -161,3 +161,75 @@ Higgsfield test files: **10 files, 124 tests, 0 failures**).
 
 Run-2 build pass and self-review continue below as each item lands, same
 convention as Run 1.
+
+### Self-review round (same day, adversarial pass over the whole run-2 diff)
+
+Independent `pr-review-toolkit:code-reviewer` pass over `git diff origin/main...HEAD`
+(26 files, ~1877 insertions across 8 commits) — same discipline Run 1 applied
+to itself. Six real defects found in my own new code, all fixed before this
+section was written:
+
+1. **Settlement billed real paid spend as $0.** `reelPipeline.ts`'s forced-
+   fallback pulse set `videoProvider = brief.forceProvider ?? …`, so on the
+   rescue attempt `videoProvider` itself became `"template_stock"` — and
+   `settle()` prices `paidClips * reelClipCostUsd(videoProvider)`. A resumed
+   clip a PRIOR (real, paid) attempt had already rendered got billed at $0
+   the instant the rescue succeeded, silently erasing spend from the daily
+   budget and making `maxGenerationCostPerDayUsd` proportionally more
+   permissive — on the happy path of the new feature, marked `is_estimate:
+   false`. Fixed: `videoProvider` is now NEVER overridden by `forceProvider`
+   — only `activeProvider` (the per-beat lane) is, exactly mirroring how the
+   pre-existing inline Higgsfield degrade already keeps them separate. New
+   test proves a resumed paid clip settles at the real rate, not $0.
+2. **Repetition retry could burn its whole attempt budget against a static
+   seed.** Both production callers of `prepareCleanReelBrief` sometimes pin
+   a FIXED topic (the admin canary's literal default string;
+   `dailyReelPost.ts`'s manifest fallback) — feeding the model "use topic X"
+   and "avoid topic X" identically on every retry once X was already in
+   history, wasting the whole retry budget on the same collision and
+   throwing `PreflightExhaustedError` (skipping the day's reel) purely from
+   a topic-pool thinness that isn't a real generator defect. Fixed:
+   `avoidTopics` now grows across attempts (a rejected brief's own topic
+   joins the list for the next try), and the thrown error/log now states
+   whether the exhaustion was repetition-only vs a real preflight defect, so
+   `cron_log` can tell the two apart.
+3. **`hasCta` was structurally always false.** `attentionMicrostructureStore.ts`
+   read `brief.ctaType as never` — a field that does not exist anywhere on
+   `ReelBrief` (`dailyReelPost.ts`'s own pre-existing comment says so). The
+   `as never` cast is what let a nonexistent field compile. Every sample's
+   `hasCta` was `false`, so the beat-structure half of the swipe file
+   (`getSwipeFileCorrelations`) could never report anything but
+   `"insufficient"` no matter how many reels published — reading as "not
+   enough data yet" rather than "this field is never populated." Fixed: read
+   the REAL location (`episodeContract.script.ctaType`, an UPPERCASE domain
+   different from lowercase `CtaType`) with an explicit, tested
+   normalize/reject function — "FOLLOW" (a value the uppercase domain has
+   and the lowercase one does not) degrades to unknown, never a miscast. The
+   test fixture that made this look correct (`ctaType: "send"` at the
+   payload's TOP level — a shape no real row has) is fixed too.
+4. **A stale `veoOperationName` could make the forced free lane un-
+   terminable.** The forced-fallback payload preserved every beat's
+   `veoOperationName` (stamped by the Veo path before polling). If the free
+   lane's OWN local ffmpeg render then hit a local timeout, the outer catch
+   would read `hasRemoteOperationId: true` from that stale handle,
+   classify as `LOCAL_TIMEOUT_REMOTE_RUNNING` → `RESUME_OPERATION`
+   (`consumesAttempt: false`) — never terminal, `attempts` never advancing,
+   requeuing indefinitely. Fixed: `veoOperationName` is stripped from every
+   beat when the payload is rewritten for the forced pulse — there is
+   nothing left to "resume" once the job has left Veo for good.
+5. **The unbounded read.** `getRecentReelSignals()` had no `LIMIT` on a
+   `reel_jobs.payload` (MEDIUMTEXT, ~70KB per real brief per the schema's
+   own comment) scan across every lane, run on every brief generation. Fixed:
+   `ORDER BY createdAt DESC LIMIT 100`, matching the cap `contentTopicSignals.ts`
+   already used for an analogous read.
+6. **Nothing exercised the SECOND pulse.** All four original fallback tests
+   only asserted the failure-classification WRITE; none ran a second pulse
+   with `forceProvider` already in the payload, so the entire forced-lane
+   execution path — where defects 1 and 4 both lived — was untested, and the
+   ledger mock (`reelClipCostUsd: () => 0` unconditionally) made the
+   settlement bug structurally invisible. Two new tests now run that second
+   pulse for real: one proves the settlement math, one proves the stripped
+   operation name.
+
+Full regression after all six fixes: **27 files, 327 tests, 0 failures.**
+`pnpm run check`: 0 errors.

@@ -20,11 +20,18 @@ vi.mock("./db", () => ({
 
 import { getSwipeFileSamples } from "./services/attentionMicrostructureStore";
 
+// Real payload shape (self-review, 2026-08-13): a ReelBrief carries NO
+// top-level ctaType field at all — the CTA lives at
+// episodeContract.script.ctaType, in the UPPERCASE domain reelPipeline.ts
+// stamps ("SEND"|"SAVE"|"COMMENT"|"VISIT"|"FOLLOW"|"NONE"), not the
+// lowercase CtaType extractBeatStructureSignals expects. The first version
+// of this fixture invented a field no real row has and could only pass on
+// data the production code never sees.
 const row = (over: Record<string, unknown> = {}) => ({
   jobId: 1,
   payload: JSON.stringify({
     storyboardBeats: [{ beatNumber: 1, visual: "close-up of tread", onScreenText: "Grinding means metal on metal", endSecond: 4 }],
-    ctaType: "send",
+    episodeContract: { script: { ctaType: "SEND" } },
   }),
   reach: 1000,
   saved: 20,
@@ -76,5 +83,17 @@ describe("getSwipeFileSamples", () => {
   it("a DB error degrades to an empty list instead of throwing", async () => {
     rows = new Error("connection refused");
     await expect(getSwipeFileSamples()).resolves.toEqual([]);
+  });
+
+  it("an absent episodeContract.script.ctaType reports hasCta false, not a crash", async () => {
+    rows = [row({ payload: JSON.stringify({ storyboardBeats: [{ beatNumber: 1, visual: "tire" }] }) })];
+    const [s] = await getSwipeFileSamples();
+    expect(s.beatStructure.hasCta).toBe(false);
+  });
+
+  it("an unrecognized CTA value ('FOLLOW' has no lowercase CtaType member) degrades to hasCta false rather than a silent miscast", async () => {
+    rows = [row({ payload: JSON.stringify({ storyboardBeats: [{ beatNumber: 1, visual: "tire" }], episodeContract: { script: { ctaType: "FOLLOW" } } }) })];
+    const [s] = await getSwipeFileSamples();
+    expect(s.beatStructure.hasCta).toBe(false);
   });
 });

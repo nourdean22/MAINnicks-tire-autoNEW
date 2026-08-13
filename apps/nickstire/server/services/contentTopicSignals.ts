@@ -143,8 +143,15 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
 
   // Local Discovery library (NT-014) — cold-start seed prompts, deduped
   // against recent topics same as every other source. Split by category so
-  // e_check keeps routing through the government-evidence-gated franchise
-  // (see contentTopicMiner.ts's TopicSignals doc) rather than bypassing it.
+  // e_check keeps routing through the "government_feed" source (see
+  // contentTopicMiner.ts's TopicSignals doc) rather than bypassing its
+  // evidence gate. Self-review correction: this does NOT guarantee the
+  // echeck_escape_room franchise specifically — franchiseForSource picks the
+  // lowest-rotation-penalty option from ["recall_radar", "echeck_escape_room"],
+  // and with no recent-franchise history both tie and recall_radar wins as
+  // the declared-first option. Both franchises require government_source
+  // evidence (contentFranchises.ts), so autoRenderable() excludes either —
+  // the safety property holds regardless of which one is picked.
   const fresh = localDiscoveryTopics(recentTopics);
   const echeckSet = new Set(LOCAL_DISCOVERY_LIBRARY.filter((e) => e.category === "e_check").map((e) => e.topic));
   signals.localDiscoveryTopics = fresh.filter((t) => !echeckSet.has(t));
