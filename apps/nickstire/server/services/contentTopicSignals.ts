@@ -20,6 +20,7 @@ import { createLogger } from "../lib/logger";
 import { SERVICE_CATEGORIES } from "../../shared/serviceTypes";
 import type { TopicSignals } from "../../shared/contentTopicMiner";
 import type { FranchiseId } from "../../shared/contentFranchises";
+import { LOCAL_DISCOVERY_LIBRARY, localDiscoveryTopics } from "../../shared/localDiscoveryLibrary";
 
 const log = createLogger("services:content-topic-signals");
 
@@ -139,6 +140,15 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
 
   signals.seasonalConditions = seasonalConditionsForMonth(now.getMonth());
   signals.underCoveredServices = underCoveredServices(recentTopics);
+
+  // Local Discovery library (NT-014) — cold-start seed prompts, deduped
+  // against recent topics same as every other source. Split by category so
+  // e_check keeps routing through the government-evidence-gated franchise
+  // (see contentTopicMiner.ts's TopicSignals doc) rather than bypassing it.
+  const fresh = localDiscoveryTopics(recentTopics);
+  const echeckSet = new Set(LOCAL_DISCOVERY_LIBRARY.filter((e) => e.category === "e_check").map((e) => e.topic));
+  signals.localDiscoveryTopics = fresh.filter((t) => !echeckSet.has(t));
+  signals.governmentFeedTopics = fresh.filter((t) => echeckSet.has(t));
 
   // Franchise rotation history, newest first.
   try {
