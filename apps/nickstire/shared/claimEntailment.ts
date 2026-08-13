@@ -31,6 +31,26 @@ export type EntailmentVerdict =
   | "not_supported"
   | "not_evaluated";
 
+const ENTAILMENT_VERDICTS = new Set<string>([
+  "supported",
+  "partially_supported",
+  "contradicted",
+  "not_supported",
+  "not_evaluated",
+]);
+
+/**
+ * Validates a raw string (e.g. from `JSON.parse` on a persisted payload)
+ * against the real EntailmentVerdict union instead of an `as never`/`as
+ * EntailmentVerdict` cast — same escape-hatch pattern that made `hasCta`
+ * structurally always false in attentionMicrostructureStore.ts's first
+ * version (post-merge self-review, 2026-08-13). An unrecognized or missing
+ * value degrades to "not_evaluated", never a silent miscast.
+ */
+export function normalizeEntailmentVerdict(raw: string | undefined): EntailmentVerdict {
+  return raw && ENTAILMENT_VERDICTS.has(raw) ? (raw as EntailmentVerdict) : "not_evaluated";
+}
+
 export interface EntailmentResult {
   verdict: EntailmentVerdict;
   /** Machine-readable grounds, so a hold can explain itself. */

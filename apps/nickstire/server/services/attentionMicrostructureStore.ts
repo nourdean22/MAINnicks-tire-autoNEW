@@ -13,6 +13,7 @@
 import { createLogger } from "../lib/logger";
 import { extractHookSignals } from "../../shared/hookSignals";
 import { extractBeatStructureSignals } from "../../shared/beatStructureSignals";
+import { parseReelJobPayload } from "../../shared/reelJobPayload";
 import type { SwipeFileSample } from "../../shared/attentionMicrostructure";
 import type { CtaType } from "../../shared/instagramStudio";
 
@@ -79,17 +80,13 @@ export async function getSwipeFileSamples(): Promise<SwipeFileSample[]> {
 
     const samples: SwipeFileSample[] = [];
     for (const r of list) {
-      let brief: {
-        storyboardBeats?: Array<{ visual?: string; motion?: string; onScreenText?: string; endSecond?: number; beatNumber: number }>;
-        episodeContract?: { script?: { ctaType?: string } };
-      } = {};
-      try {
-        brief = JSON.parse(r.payload || "{}");
-      } catch {
-        continue; // one unparsable payload must not blank out the rest
-      }
+      // Real, canonical types (StoryboardBeat/EpisodeContract) via the
+      // shared parser — self-review (2026-08-13) found the original inline
+      // type here is exactly what let `brief.ctaType` (a field that does
+      // not exist on any real payload) compile in the first place.
+      const brief = parseReelJobPayload(r.payload);
       const beat1 = brief.storyboardBeats?.[0];
-      if (!beat1) continue;
+      if (!beat1) continue; // one missing-beat row is skipped, not thrown
       const reach = r.reach && r.reach > 0 ? r.reach : null;
       samples.push({
         jobId: r.jobId,

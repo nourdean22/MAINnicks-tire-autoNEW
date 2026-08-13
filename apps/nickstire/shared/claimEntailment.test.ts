@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateEntailment, entailmentAllowsAutonomousPublish } from "./claimEntailment";
+import { evaluateEntailment, entailmentAllowsAutonomousPublish, normalizeEntailmentVerdict } from "./claimEntailment";
 
 /**
  * Provenance proves a URL was fetched. Entailment proves the URL SAYS this.
@@ -131,5 +131,26 @@ describe("publication gate", () => {
 
   it("blocks partial support that declares no qualifier at all", () => {
     expect(entailmentAllowsAutonomousPublish("partially_supported", "s", []).allowed).toBe(false);
+  });
+});
+
+describe("normalizeEntailmentVerdict — validates instead of casting a raw JSON string", () => {
+  // Post-merge self-review (2026-08-13): the original call site
+  // (dailyReelPost.ts) used `as never` to force a raw JSON.parse'd string
+  // into EntailmentVerdict — the same escape-hatch pattern that made
+  // hasCta structurally always false elsewhere in this same run.
+  it.each(["supported", "partially_supported", "contradicted", "not_supported", "not_evaluated"] as const)(
+    "accepts the real member: %s",
+    (v) => expect(normalizeEntailmentVerdict(v)).toBe(v),
+  );
+
+  it("an unrecognized string degrades to not_evaluated, never a silent miscast", () => {
+    expect(normalizeEntailmentVerdict("SUPPORTED")).toBe("not_evaluated"); // wrong case
+    expect(normalizeEntailmentVerdict("maybe")).toBe("not_evaluated");
+    expect(normalizeEntailmentVerdict("")).toBe("not_evaluated");
+  });
+
+  it("undefined (a missing field) degrades to not_evaluated", () => {
+    expect(normalizeEntailmentVerdict(undefined)).toBe("not_evaluated");
   });
 });

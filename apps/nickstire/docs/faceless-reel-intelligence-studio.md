@@ -1,5 +1,18 @@
 # Faceless Reel Intelligence Studio
 
+> **SUPERSEDED — HISTORICAL V1 DESIGN DOC (stamped 2026-08-13, ScanFinish Run 2
+> audit round 2).** Everything below describes the June 2026 V1 as designed:
+> never-posts, kill-switches `false as const`, component not yet routed. All
+> three claims are now false — `PUBLISH_ENABLED`/`GENERATION_ENABLED`/
+> `INSIGHTS_ENABLED` are `true` in `client/src/lib/facelessReelStudio.ts`, the
+> Studio is routed at `/admin/reel-studio`, and a fully autonomous
+> generate-assemble-publish pipeline runs daily (`server/cron/jobs/
+> dailyReelPost.ts` + `server/services/reelPipeline.ts`). Current truth lives
+> in `docs/CURRENT-TRUTH.md`, `docs/runbooks/reel-pipeline.md`, and
+> `docs/NICKSTIRE-SCAN-LEDGER.md`. Kept for the V1 design rationale (the
+> claim-safety banks, quality-gate weights, and 15-22s format contract that
+> later systems inherited), not as guidance.
+
 _Admin-only planning surface for premium faceless educational Instagram Reels for @nicks_tire_euclid. V1 (this PR) is preview-first and draft-first: it plans, scores, validates, and packages — it never generates media and never posts._
 
 ## Purpose

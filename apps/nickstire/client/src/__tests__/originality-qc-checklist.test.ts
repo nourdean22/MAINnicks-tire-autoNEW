@@ -7,6 +7,22 @@
  */
 import { describe, it, expect } from "vitest";
 import { evaluateOriginalityQc, type OriginalityQcInput } from "../../../shared/originalityQcChecklist";
+import type { StoryboardBeat } from "../lib/facelessReelStudio";
+
+function beat(over: Partial<StoryboardBeat> = {}): StoryboardBeat {
+  return {
+    beatNumber: 1,
+    startSecond: 0,
+    endSecond: 5,
+    visual: "a tire",
+    motion: "static",
+    onScreenText: "This bulge is not the pothole's fault.",
+    purpose: "hook",
+    audioCue: "none",
+    safeZoneNotes: "",
+    ...over,
+  };
+}
 
 function base(over: Partial<OriginalityQcInput> = {}): OriginalityQcInput {
   return {
@@ -17,6 +33,7 @@ function base(over: Partial<OriginalityQcInput> = {}): OriginalityQcInput {
     clevelandAngle: "Cleveland winters crack rubber faster than warm-climate cities",
     caption: "Send this to someone whose tires are bald.",
     totalDurationSeconds: 18,
+    storyboardBeats: [beat({ beatNumber: 1 }), beat({ beatNumber: 2, onScreenText: "The pothole found the weak spot." })],
     ...over,
   };
 }
@@ -33,14 +50,26 @@ describe("evaluateOriginalityQc", () => {
     expect(byId.caption_claim_safety).toBe("pass");
     expect(byId.voiceover_claim_safety).toBe("pass");
     expect(byId.format_length).toBe("pass");
+    expect(byId.muted_first_clarity).toBe("pass");
     expect(r.failCount).toBe(0);
   });
 
-  it("reports structural, not pass, for footage/audio provenance — no per-job signal exists", () => {
+  it("reports structural, not pass, for footage/audio/aspect-ratio — no per-job signal exists for these", () => {
     const r = evaluateOriginalityQc(base());
     const byId = Object.fromEntries(r.checks.map((c) => [c.id, c.status]));
     expect(byId.no_copied_footage).toBe("structural");
     expect(byId.no_copyrighted_audio).toBe("structural");
+    expect(byId.format_aspect_ratio).toBe("structural");
+  });
+
+  it("muted_first_clarity fails when any beat has no on-screen text — reuses the real validateMutedFirstClarity check", () => {
+    const r = evaluateOriginalityQc(base({ storyboardBeats: [beat({ onScreenText: "" })] }));
+    expect(r.checks.find((c) => c.id === "muted_first_clarity")!.status).toBe("fail");
+  });
+
+  it("muted_first_clarity is unknown, not a faked pass, when no storyboardBeats are supplied", () => {
+    const r = evaluateOriginalityQc(base({ storyboardBeats: undefined }));
+    expect(r.checks.find((c) => c.id === "muted_first_clarity")!.status).toBe("unknown");
   });
 
   it("reports unknown, never a faked pass, for before/after honesty", () => {
