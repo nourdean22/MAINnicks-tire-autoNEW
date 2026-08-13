@@ -134,10 +134,18 @@ losing the day's reel.
   advance the index (a fresh brief is tried tomorrow). Look for
   `held by rendered-QA gate (...)` in the details.
 - **A skip and an outage are different.** The cron deliberately skips ONLY on
-  `PreflightExhaustedError` (every candidate brief deterministically blocked →
+  `PreflightExhaustedError` (every candidate brief blocked →
   `skipped — all briefs preflight-blocked`). **Any other failure** (provider
   outage, parse/auth error, timeout, DB) now **RETHROWS and fails the cron run**
   so monitoring alerts, instead of masquerading as a normal zero-work tick.
+  Since 2026-08-13 (#1558) a brief can also be rejected for **topic
+  repetition** (its topic matches a `reel_jobs` payload from the last 21
+  days — any status, because a failed brief still consumed its topic); the
+  exhausted error's message says which kind of run it was:
+  `topic repetition only, no preflight defect` means the generator is healthy
+  and the topic pool is thin, NOT that a defective brief shape is shipping.
+  Each rejected topic joins the avoid-list for the remaining attempts, so a
+  fixed seed topic cannot burn the whole attempt budget on one collision.
 
 ## Feature flags (Railway · `MAINnicks-tire-auto`)
 
@@ -150,6 +158,8 @@ losing the day's reel.
 | `REEL_IMAGE_CONDITIONING` | pass the hero frame to Seedance `--start-image` for frame-locked continuity | `true` (verified 2026-07-18) |
 | `RENDERED_QA_ENABLED` | enable rendered QA (the publish gate falls back to `unavailable` when off) | `true` |
 | `HIGGSFIELD_CLI_TIMEOUT_MS` | how long a single Seedance CLI call may run before the child is **SIGKILLed** (prevents an orphan paid job; a retry is then a clean fresh attempt) | `360000` (6m) |
+| `REEL_FALLBACK_TO_TEMPLATE_STOCK` | degrade-not-dark: arms BOTH the inline Higgsfield per-beat degrade and (#1558) the job-level rescue — a terminal paid-provider verdict (Veo **or** Higgsfield) re-queues one forced free-lane attempt instead of terminal-failing. Off = a dead paid provider means no reel | opt-in (measured `true` on Railway 2026-08-07; re-read prod before assuming) |
+| `IG_SHADOW_JUDGE` | `false` disables BOTH reel shadow readouts (NT-001 judge · NT-011 originality/QC checklist) — both are log-only either way | on unless `false` |
 
 Toggle: `railway variables --service MAINnicks-tire-auto --set "FLAG=value"`
 (triggers a redeploy; wait for `uptime` to reset via `/api/health`).
@@ -221,6 +231,8 @@ object in the same environment/lighting across every beat.
 | daily cron details say `held by rendered-QA gate (…)` | the autonomous gate caught a rendered defect | working as designed — index not advanced; a fresh brief is tried tomorrow |
 | daily cron **RUN FAILS** (not a zero-work tick) | generator outage / parse / auth / DB — deliberately rethrown | investigate the provider; only `PreflightExhaustedError` is a benign skip |
 | render error `Higgsfield CLI timed out … process killed` | the CLI exceeded `HIGGSFIELD_CLI_TIMEOUT_MS` and was SIGKILLed | intended — prevents an orphan paid job; the retry is a clean fresh attempt |
+| Telegram: `REEL PROVIDER EXHAUSTED — forcing job N onto the FREE local lane` | (#1558) a paid provider (Veo **or** Higgsfield) hit a terminal verdict AND `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` — the job re-queued ONE forced `template_stock` attempt (`forceProvider` in the payload; stale Veo op handles stripped) instead of terminal-failing | working as designed — the shop publishes a free-lane reel instead of nothing; fix the paid provider, then the NEXT job auto-selects it again. Flag off = the old behavior (terminal fail, nothing publishes). Resumed paid clips still settle at the paid rate |
+| log: `daily reel shadow judge` / `daily reel originality/QC checklist (log-only — no gate)` | the two shadow readouts (NT-001 judge · NT-011 checklist) — one durable KV verdict per job | informational, never blocking; the accumulated disagreement readout is what an operator reads before deciding to promote either to a gate |
 
 ## Quality gates before declaring a reel good
 
