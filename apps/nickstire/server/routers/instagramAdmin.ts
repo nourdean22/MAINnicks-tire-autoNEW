@@ -232,6 +232,29 @@ export const instagramAdminRouter = router({
   }),
 
   /**
+   * Attention Microstructure swipe file (ScanFinish NT-012): joins reel_jobs
+   * (hook + beat structure) to ig_metric_snapshots (saves/shares/skip rate)
+   * and correlates. Same "measure, don't judge" discipline as
+   * scripts/analyze-hook-vs-skip.mjs (which this generalizes rather than
+   * duplicates) — `sufficient: false` below MIN_GROUP_N is the honest
+   * answer, not a failure, and nothing here ever returns HIGH conviction: a
+   * correlation graduates to HIGH/OBSERVED only via a deliberate
+   * contentExperiments.ts run, never from this alone.
+   */
+  getSwipeFileCorrelations: adminProcedure
+    .input(z.object({ metric: z.enum(["savesPerReach", "sharesPerReach", "skipRate"]).default("savesPerReach") }))
+    .query(async ({ input }) => {
+      const { getSwipeFileSamples } = await import("../services/attentionMicrostructureStore");
+      const { compareAllSignals, swipeFileConviction } = await import("../../shared/attentionMicrostructure");
+      const samples = await getSwipeFileSamples();
+      const comparisons = compareAllSignals(samples, input.metric).map((c) => ({
+        ...c,
+        conviction: swipeFileConviction(c),
+      }));
+      return { sampleCount: samples.length, metric: input.metric, comparisons };
+    }),
+
+  /**
    * Trial-reel tracking (Wave C′): Instagram's Trial Reels show a post to
    * non-followers first; the operator reads the 24h numbers in the IG app and
    * records them HERE so the winner/archive decision leaves a durable trail.
