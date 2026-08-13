@@ -255,6 +255,24 @@ export const instagramAdminRouter = router({
     }),
 
   /**
+   * Multilingual variant worklist (ScanFinish NT-015). NOT an automation —
+   * verified before building: Meta's Reels AI translation is a Creator
+   * Studio publish-time toggle with no Graph Content-Publishing API field,
+   * and YouTube auto-dub is moot (no YouTube channel exists in this repo).
+   * Returns which recent top-performing reels are worth the manual few
+   * minutes in Creator Studio, reusing the same getTopPosts() recentWinners
+   * already reads.
+   */
+  getMultilingualDubCandidates: adminProcedure.query(async () => {
+    const { getMultilingualDubCandidates } = await import("../services/multilingualCandidates");
+    const candidates = await getMultilingualDubCandidates();
+    return {
+      candidates,
+      note: "No API triggers Meta AI translation or YouTube auto-dub — enable manually in Instagram Creator Studio for these posts.",
+    };
+  }),
+
+  /**
    * Trial-reel tracking (Wave C′): Instagram's Trial Reels show a post to
    * non-followers first; the operator reads the 24h numbers in the IG app and
    * records them HERE so the winner/archive decision leaves a durable trail.
