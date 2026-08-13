@@ -29,6 +29,7 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { navigateToAdminSection } from "./shared";
+import ArrivalLoadStrip from "./today/ArrivalLoadStrip";
 import ExceptionFeed from "./today/ExceptionFeed";
 import { MorningBrief } from "./today/MorningBrief";
 import { getQueueActionDefinition } from "./today/queueActions";
@@ -381,6 +382,12 @@ export default function OverviewSection() {
           `countActionableLeads` a shared function rather than two SQL
           predicates. It self-suppresses when there is no real signal. */}
       <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} />
+
+      {/* Arrival load (NT-008) — the walk-in shop's planning signal: who said
+          they're coming today (expected_arrivals' FIRST client consumer) +
+          tomorrow's preferred-date bookings from the same bundle this page
+          already fetched. Self-suppresses when empty AND healthy. */}
+      <ArrivalLoadStrip bookings={bookings} bookingsTrustworthy={!unavailable.includes("bookings")} />
 
       {/* Owner Decision Inbox (Wave 4) — the top-5 evidence-backed
           decisions LEAD the day. Everything below is monitoring; this is

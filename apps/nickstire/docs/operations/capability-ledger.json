@@ -6,7 +6,7 @@
       "name": "Reel generation + assembly + render-integrity gate",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "merged through #856 (reel-690001 garbled-text/brand/gloved-hands defense: prevent + hard gate + visualWorld positive framePrompt)",
+        "codeCommit": "merged through #856; free-lane loop closed end-to-end by #1507 (Gemini quota fallback) + #1509 (self-repair instead of needs_paid_repair dead-end) + #1510 (vision critic off the Ollama lane)",
         "tests": [
           "client/faceless-reel-studio.test.ts (37): IN_FRAME_TEXT_PATTERN hard-block, gloves/hands/arms faceless detection, lens-aware clean-scene directive, hard-gate scoring override; server/visualWorld.test.ts: positive framePrompt with no pink-elephant DO-NOT negation quoted into beats",
           "server/reelAssembly render-integrity tests",
@@ -15,32 +15,22 @@
         "liveRuns": [
           "IG 18124540093661758 (reel/Da6DDnzlelQ — job 690001, operator-override publish that surfaced the garbled-text/Nixs-logo/gloved-hands defect classes now fixed in #855+#856)",
           "IG 18018908711883906",
-          "IG 17877918753617173 (frame forensics: 750 frames, 7 distinct sampled)"
+          "IG 17877918753617173 (frame forensics: 750 frames, 7 distinct sampled)",
+          "IG 18102584966600206 (reel/Db52xYAE9W- — job 1470001, published 2026-08-11 14:58Z through a PASSING gate: critic:'vision', 7 frames, 0 findings, forced:false — first sighted evaluation after the #1510 vision-lane fix; runtime-verified in prod)"
         ],
         "renderedAssets": [
           "instagram.com/reel/Da4RUOCAoKi"
         ],
         "deploymentId": "railway main auto-deploy (merged through #856)"
       },
-      "blockers": [
-        {
-          "severity": "P2",
-          "description": "mp4s live on ephemeral storage — reels vanish on redeploy (S3 pending)",
-          "source": "session ledger"
-        },
-        {
-          "severity": "P2",
-          "description": "dead-air fix (sidechain key padding + bed looping + silencedetect render gate + stereo encode) verified by real local render; first PROD render post-merge is the live confirmation",
-          "source": "audio-dead-air-001"
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "edit profiles per archetype",
         "SFX",
         "animated CTA"
       ],
-      "lastVerifiedAt": "2026-07-17",
-      "verificationExpiresAt": "2026-08-16",
+      "lastVerifiedAt": "2026-08-11",
+      "verificationExpiresAt": "2026-09-10",
       "codeState": "merged",
       "operationalState": "visually_verified",
       "exposure": "production"

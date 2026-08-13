@@ -25,7 +25,10 @@
     { "name": "Check Status", "short_name": "Status", "url": "/status", "description": "Track your vehicle repair" },
     { "name": "Order Tires", "short_name": "Tires", "url": "/tires", "description": "Browse and order tires online" },
     { "name": "Get Estimate", "short_name": "Estimate", "url": "/cost-estimator", "description": "Free repair cost estimate" },
-    { "name": "Pay Invoice", "short_name": "Pay", "url": "/pay", "description": "Pay your invoice online" }
+    { "name": "Pay Invoice", "short_name": "Pay", "url": "/pay", "description": "Pay your invoice online" },
+    { "name": "Admin · Approvals", "short_name": "Approvals", "url": "/admin?tab=approvals", "description": "Review Nick's pending drafts — the check-tasks queue" },
+    { "name": "Admin · Today", "short_name": "Today", "url": "/admin?tab=overview", "description": "Today's triage: bookings, leads, callbacks, receipts" },
+    { "name": "Admin · Instagram", "short_name": "IG Ops", "url": "/admin?tab=instagram", "description": "Held reels and Instagram attention items" }
   ],
   "screenshots": [],
   "related_applications": [],

@@ -32,6 +32,7 @@ import {
   Send
 } from "lucide-react";
 import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState } from "../shared";
+import AutonomyCensusPanel from "./AutonomyCensusPanel";
 import SmsOpsStrip from "./SmsOpsStrip";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -301,6 +302,10 @@ export default function SmsOrchestratorSection() {
               })}
             </div>
           </div>
+
+          {/* Autonomy census (NT-004) — read-only declared-vs-live readout,
+              placed directly under the control center it audits. */}
+          <AutonomyCensusPanel />
 
           {/* Human Review Queue (Track L) */}
           {humanReviewQueue && humanReviewQueue.length > 0 && (

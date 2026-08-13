@@ -96,16 +96,17 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
   if (recentTopics.length) signals.recentTopics = recentTopics;
   else empty.push("recent_topics");
 
-  // What actually performed. NOTE: getReelGenerationSignal ranks by
-  // engagementRate across ALL formats with no REELS filter — measured 3 of the
-  // top 8 rows are reels — so these themes are contaminated by static posts.
-  // Still the best performance signal available; the contamination is recorded
-  // rather than hidden.
+  // What actually performed. getReelGenerationSignal is REELS-first since
+  // NT-002 (2026-08-13); when too few reel rows exist it falls back to
+  // all-media and SAYS so — record that provenance instead of hiding it, the
+  // same disclosure discipline as topicOrigin in the cron log.
   try {
     const { getReelGenerationSignal } = await import("../pipelines/instagram-data");
     const sig = await getReelGenerationSignal();
-    if (sig.topThemes.length) signals.topThemes = sig.topThemes;
-    else empty.push("performance_themes");
+    if (sig.topThemes.length) {
+      signals.topThemes = sig.topThemes;
+      if (sig.signalSource === "all_media") empty.push("performance_themes_reels_only");
+    } else empty.push("performance_themes");
   } catch (e) {
     failed.push("performance_themes");
     log.warn("reel generation signal unavailable", { e: String(e) });

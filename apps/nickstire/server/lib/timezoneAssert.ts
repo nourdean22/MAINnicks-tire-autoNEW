@@ -132,3 +132,35 @@ export async function assertBusinessTimezoneAtBoot(): Promise<TimezoneCheck> {
   }
   return result;
 }
+
+/**
+ * Stable YYYY-MM-DD calendar key in the shop's business timezone (server twin
+ * of client/src/lib/businessDate.ts). Any "today"/"past-date" comparison over
+ * customer-facing dates (bookings.preferredDate, no-show sweeps) must use this
+ * instead of bare SQL CURDATE(), whose session timezone is whatever the DB
+ * container runs — between 20:00 ET and midnight ET a UTC session's CURDATE()
+ * is already TOMORROW in Cleveland, flipping today's bookings to "past".
+ *
+ * Failure posture: if Intl cannot resolve the zone (missing tzdata — already
+ * boot-asserted loudly above), fall back to the UTC date of (now − 5h). EST is
+ * the westernmost offset this shop ever has, so the fallback is never LATER
+ * than the true ET date — a sweep can run a few hours late at the boundary,
+ * but can never treat today's bookings as past. Late beats wrong here.
+ */
+export function getBusinessDateKey(now: Date = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now);
+    const v = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    if (v.year && v.month && v.day) return `${v.year}-${v.month}-${v.day}`;
+  } catch (err) {
+    log.warn("getBusinessDateKey: Intl failed — using EST-conservative fallback", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return new Date(now.getTime() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
