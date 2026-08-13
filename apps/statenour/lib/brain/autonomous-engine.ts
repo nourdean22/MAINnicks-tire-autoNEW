@@ -1191,6 +1191,26 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
             if (canAutoExecute(rule.actionType, rate, decided)) {
               try {
                 const autoResult = await rule.action(item);
+                // BDN-204 (self-review fix, 2026-08-13): this branch was
+                // OVERWRITING the create-time plannedOutcome — the one
+                // lane where a machine-authorized fire most needs its
+                // pre-receipt judged. Same merge shape as the normal
+                // auto-execute branch below.
+                const autoTierPayload = planRecord
+                  ? ({
+                      ...(typeof autoResult.payload === "object" && autoResult.payload !== null
+                        ? (autoResult.payload as Record<string, unknown>)
+                        : autoResult.payload != null
+                          ? { actionPayload: autoResult.payload }
+                          : {}),
+                      plannedOutcome: planRecord,
+                      outcomeVsPlan: {
+                        planned: planRecord.statement,
+                        actual: autoResult.result,
+                        recordedAt: new Date().toISOString(),
+                      },
+                    } as Prisma.InputJsonValue)
+                  : ((autoResult.payload ?? null) as Prisma.InputJsonValue);
                 await prisma.autonomousAction
                   .update({
                     where: { id: lockAttempt.row.id },
@@ -1198,7 +1218,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
                       executedAt: new Date(),
                       approval: "approved",
                       result: autoResult.result,
-                      payload: (autoResult.payload ?? null) as Prisma.InputJsonValue,
+                      payload: autoTierPayload,
                     },
                   })
                   .catch(() => undefined);

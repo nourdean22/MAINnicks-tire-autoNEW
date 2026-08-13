@@ -14,6 +14,19 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
+// BDN-201 · lazy memo for searchTools: computing ~180 zod→JSON-schema
+// conversions per call is wasteful — the catalog is static per process,
+// so build the name→schema index once.
+let schemaIndexMemo: Map<string, { name: string; description?: string; inputSchema?: unknown }> | null = null;
+async function getSchemaIndex(): Promise<NonNullable<typeof schemaIndexMemo>> {
+  if (!schemaIndexMemo) {
+    const { computeToolSchemas } = await import("@/lib/ai/tools/schema-digest");
+    const entries = computeToolSchemas() as Array<{ name: string; description?: string; inputSchema?: unknown }>;
+    schemaIndexMemo = new Map(entries.map((e) => [e.name, e]));
+  }
+  return schemaIndexMemo;
+}
+
 export const metaTools = {
   listTools: tool({
     description: "List all available tools organized by category. Use when Nour asks 'what can you do?' or 'show me your tools' or 'what tools do you have?'",
@@ -471,9 +484,7 @@ export const metaTools = {
     execute: async ({ query, limit }) => {
       const { TOOL_CATALOG, getToolRiskClass } = await import("@/lib/ai/tools/catalog");
       const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
-      const { computeToolSchemas } = await import("@/lib/ai/tools/schema-digest");
-      const entries = computeToolSchemas() as Array<{ name: string; description?: string; inputSchema?: unknown }>;
-      const schemas = new Map(entries.map((e) => [e.name, e]));
+      const schemas = await getSchemaIndex();
       const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
       if (tokens.length === 0) return { error: "query produced no usable tokens" };
       const scored = TOOL_CATALOG.map((meta) => {
@@ -496,7 +507,7 @@ export const metaTools = {
           category: meta.category,
           riskClass: getToolRiskClass(name, meta),
           readSafe: isReadSafeTool(name),
-          invocableViaInvokeTool: isReadSafeTool(name) && !["searchTools", "invokeTool", "queryData"].includes(name),
+          invocableViaInvokeTool: isReadSafeTool(name) && !["searchTools", "invokeTool"].includes(name),
           description: schemas.get(name)?.description ?? "(no description)",
           inputSchema: schemas.get(name)?.inputSchema ?? null,
         })),
@@ -512,7 +523,11 @@ export const metaTools = {
       args: z.record(z.string(), z.unknown()).default({}).describe("Arguments matching the tool's input schema."),
     }),
     execute: async ({ name, args }): Promise<Record<string, unknown>> => {
-      if (["searchTools", "invokeTool", "queryData"].includes(name)) {
+      // Self-review fix 2026-08-13: queryData is deliberately ALLOWED —
+      // its sandbox reaches data only via its own 12-tool whitelist
+      // (which excludes invokeTool), so no cycle is possible, and
+      // without this a searchTools hit on queryData was a dead end.
+      if (["searchTools", "invokeTool"].includes(name)) {
         return { error: `refusing recursive invocation of ${name}` };
       }
       type LooseTool = { execute?: (a: unknown) => Promise<unknown>; inputSchema?: z.ZodType };
@@ -594,10 +609,18 @@ export const metaTools = {
         };
         const context = vm.createContext(sandbox);
         vm.runInContext(`__result = (async () => { ${code} })()`, context, { timeout: 2000 });
-        const deadline = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("queryData exceeded its 10s budget")), 10_000),
-        );
-        const value = await Promise.race([sandbox.__result, deadline]);
+        // Self-review fix: keep a handle on the timer so a fast result
+        // doesn't leave a 10s timer holding the event loop.
+        let deadlineTimer: NodeJS.Timeout | undefined;
+        const deadline = new Promise((_, reject) => {
+          deadlineTimer = setTimeout(() => reject(new Error("queryData exceeded its 10s budget")), 10_000);
+        });
+        let value: unknown;
+        try {
+          value = await Promise.race([sandbox.__result, deadline]);
+        } finally {
+          clearTimeout(deadlineTimer);
+        }
         let serialized = JSON.stringify(value ?? null);
         if (serialized && serialized.length > 20_000) {
           serialized = `${serialized.slice(0, 20_000)}…(truncated)`;
