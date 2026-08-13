@@ -157,6 +157,10 @@ export const EVENING_JOBS: readonly string[] = [
   // unstructured signals (chat/captures/decisions) → stat XP. Idempotent;
   // first run backfills history, then only new signals each night.
   "/api/cron/mastery-xp",
+  // 2026-08-13 · BDN-202 · drafts tool-description rewrites from failure
+  // telemetry (≤3 tools/run, fast lane, idempotent per description
+  // fingerprint). Drafts only — a human applies them in code.
+  "/api/cron/tool-description-rewrite",
   // 2026-06-02 · v-truth · Nick autonomy resurrection (NICK_AUTONOMY-gated).
   // Re-plugs runAutonomousActions (~22 proactive rules) which lost its cron
   // route in the Wave-AE prune. The route HARD-SKIPS when NICK_AUTONOMY is

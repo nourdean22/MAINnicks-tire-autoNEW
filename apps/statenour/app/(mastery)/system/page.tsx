@@ -32,6 +32,7 @@ import { PageNick } from "@/components/ai/page-nick";
 import { WiringCensusPanel } from "@/components/system/wiring-census-panel";
 import { TrustLadderPanel } from "@/components/system/trust-ladder-panel";
 import { HomeDecisionPanel } from "@/components/system/home-decision-panel";
+import { ToolUsageCensusPanel } from "@/components/system/tool-usage-census-panel";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
@@ -279,6 +280,11 @@ export default function SystemPage() {
         <TrustLadderPanel />
         <HomeDecisionPanel />
       </div>
+
+      {/* Tool-usage census (BDN-202, 2026-08-13) — do the 177 tools earn
+          their place? Report-only; feeds the description-rewrite cron's
+          queue and the searchTools demotion decision, never automation. */}
+      <ToolUsageCensusPanel />
 
       {/* ── NAVIGATION ───────────────────────────────────────────── */}
       {/* System hub — live-chip cards grouped by domain. Degraded

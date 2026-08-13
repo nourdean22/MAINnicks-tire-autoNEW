@@ -47,6 +47,7 @@
     "snapshot:tool-schemas": "cross-env UPDATE_TOOL_SCHEMAS=1 vitest run tests/ai/tool-schemas.snapshot.test.ts",
     "eval": "tsx tests/eval/run-suite.ts",
     "eval:memory": "tsx scripts/run-memory-evals.ts",
+    "eval:recall": "tsx scripts/recall-eval.ts",
     "eval:live": "tsx tests/eval/run-suite.ts --live",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

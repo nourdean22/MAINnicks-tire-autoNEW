@@ -27,6 +27,9 @@ import { TRPCProvider } from "@/components/providers/trpc-provider";
 // Mounted once at layout root · components call megaConfirm() and
 // get a Promise<boolean>.
 import { MegaConfirmHost } from "@/components/operator/mega-confirm-dialog";
+// BDN-205 (2026-08-13) · AppBadge · pending-approval count on the
+// installed PWA's icon via the Badge API. Must live INSIDE TRPCProvider.
+import { AppBadge } from "@/components/hud/app-badge";
 
 // ── Render mode (audit-2026-06-21 CSP follow-up) ──────────────────────────
 // MUST be force-dynamic. middleware.ts stamps a per-request CSP nonce onto
@@ -122,6 +125,10 @@ export default function MasteryLayout({
       <MegaConfirmHost />
       {/* Global brain-dump capture — Cmd/Ctrl+Shift+J from anywhere. */}
       <BrainDumpModal />
+      {/* BDN-205 · pending-approval count on the PWA icon (Badge API).
+          Renders nothing; feature-detected; count matches the Home
+          header pill. */}
+      <AppBadge />
     </NourStateProvider>
     </TRPCProvider>
   );

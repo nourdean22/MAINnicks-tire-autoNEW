@@ -73,6 +73,28 @@ describe("autonomousActionToReceipt (failures are visible)", () => {
   });
 });
 
+describe("autonomousActionToReceipt — BDN-204 pre-registration surface", () => {
+  it("surfaces the pre-filed plan and the plan-vs-outcome diff from payload", () => {
+    const r = autonomousActionToReceipt(
+      auto({
+        payload: {
+          plannedOutcome: { statement: "Send ONE reminder; no other side effect.", registeredAt: "2026-08-13T00:00:00Z" },
+          outcomeVsPlan: { planned: "Send ONE reminder; no other side effect.", actual: "success", recordedAt: "2026-08-13T00:00:05Z" },
+        },
+      }),
+    );
+    expect(r.metadata?.plannedOutcome).toBe("Send ONE reminder; no other side effect.");
+    expect((r.metadata?.outcomeVsPlan as { actual?: string })?.actual).toBe("success");
+  });
+
+  it("emits NO plan fields for legacy rows without a registered plan (no fake pre-registration)", () => {
+    const r = autonomousActionToReceipt(auto({ payload: { anything: "else" } }));
+    expect(r.metadata && "plannedOutcome" in r.metadata).toBe(false);
+    const legacy = autonomousActionToReceipt(auto({}));
+    expect(legacy.metadata && "plannedOutcome" in legacy.metadata).toBe(false);
+  });
+});
+
 describe("mergeReceipts", () => {
   it("sorts newest-first and counts by status", () => {
     const merged = mergeReceipts([

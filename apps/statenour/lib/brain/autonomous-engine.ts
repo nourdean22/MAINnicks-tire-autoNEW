@@ -43,6 +43,17 @@ interface ActionRule<T = unknown> {
   approval: "auto" | "ask"; // auto = execute immediately, ask = notify and wait
   actionType: string;
   targetType: string;
+  /**
+   * 2026-08-13 · BDN-204 · registered-reports pre-receipt. A rule that
+   * declares plan(item) files WHAT IT INTENDS TO DO into the row's
+   * payload BEFORE execution; after execution the outcome is recorded
+   * BESIDE the pre-filed plan (outcomeVsPlan), so verification judges
+   * against a statement written before the result existed — the agent
+   * cannot narrate success after the fact. Optional and per-rule
+   * meaningful: a generic auto-derived plan would be ceremony, so only
+   * rules with a real intent statement declare it.
+   */
+  plan?: (item: T) => string;
 }
 
 /**
@@ -171,6 +182,9 @@ const RULES: ActionRule[] = [
       );
       return { result: "success" };
     },
+    // BDN-204 · pre-receipt: intent stated before the send fires.
+    plan: (replay) =>
+      `Send ONE Telegram review reminder for decision "${replay.title}" (choice: ${replay.choiceMade}); no other side effect.`,
     approval: "auto",
     actionType: "send_telegram",
     targetType: "decision",
@@ -778,6 +792,11 @@ const RULES: ActionRule[] = [
       );
       return { result: "success", payload: { id: memory.id, seenCount: memory.seenCount } };
     },
+    // BDN-204 · pre-receipt: the plan names BOTH honest outcomes — the
+    // quality gates deciding "skipped" is inside the stated intent, so
+    // a skip is plan-conformant, not a silent divergence.
+    plan: (memory) =>
+      `Evaluate memory ${memory.id} (seen ${memory.seenCount}x) through the dupe guard + wisdom quality gate; promote to wisdom ONLY if both pass, else drop its pick-up confidence. Expected result: success (promoted) or skipped (gated).`,
     approval: "auto",
     actionType: "promote_memory",
     targetType: "memory",
@@ -1010,6 +1029,21 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         // update the row to "success" or "failed". If the lock
         // returns existing=true, another run already claimed this
         // slot — silently skip without re-firing.
+        // BDN-204 · pre-receipt: the plan is computed and PERSISTED at
+        // row creation — before any side effect — so every later branch
+        // (defer, success, failure) carries it. plan() throwing must
+        // never block the action itself.
+        const plannedOutcome = (() => {
+          try {
+            return rule.plan?.(item) ?? null;
+          } catch {
+            return null;
+          }
+        })();
+        const planRecord = plannedOutcome
+          ? { statement: plannedOutcome, registeredAt: new Date().toISOString() }
+          : null;
+
         const lockAttempt = await idempotentCreate({
           model: prisma.autonomousAction,
           key,
@@ -1022,6 +1056,9 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
             approval: rule.approval,
             result: "pending",
             idempotencyKey: key,
+            ...(planRecord
+              ? { payload: { plannedOutcome: planRecord } as Prisma.InputJsonValue }
+              : {}),
           },
         }).catch((err) => {
           log.warn("lock_failed", {
@@ -1197,7 +1234,10 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
               data: {
                 approval: "pending",
                 result: "pending_approval",
-                payload: { deferredItem: item } as Prisma.InputJsonValue,
+                payload: {
+                  deferredItem: item,
+                  ...(planRecord ? { plannedOutcome: planRecord } : {}),
+                } as Prisma.InputJsonValue,
               },
             })
             .catch(() => undefined);
@@ -1222,14 +1262,32 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
 
         try {
           const result = await rule.action(item);
-          // Update the row to "success" with the action result.
+          // Update the row to "success" with the action result. BDN-204:
+          // when a plan was pre-filed, the outcome is recorded BESIDE it
+          // (outcomeVsPlan) instead of overwriting it — rules without a
+          // plan keep the exact legacy payload write.
+          const successPayload = planRecord
+            ? ({
+                ...(typeof result.payload === "object" && result.payload !== null
+                  ? (result.payload as Record<string, unknown>)
+                  : result.payload != null
+                    ? { actionPayload: result.payload }
+                    : {}),
+                plannedOutcome: planRecord,
+                outcomeVsPlan: {
+                  planned: planRecord.statement,
+                  actual: result.result,
+                  recordedAt: new Date().toISOString(),
+                },
+              } as Prisma.InputJsonValue)
+            : ((result.payload ?? null) as Prisma.InputJsonValue);
           await prisma.autonomousAction
             .update({
               where: { id: lockAttempt.row.id },
               data: {
                 executedAt: new Date(),
                 result: result.result,
-                payload: (result.payload ?? null) as Prisma.InputJsonValue,
+                payload: successPayload,
               },
             })
             .catch(() => undefined);
@@ -1392,6 +1450,19 @@ export async function executeApprovedAction(
             ...(payload as Record<string, unknown>),
             executionResult: result.result,
             executedAfterApprovalMs: Date.now() - fireStarted,
+            // BDN-204 · the deferred lane carries plannedOutcome from
+            // row creation; judge the outcome against the PRE-FILED
+            // plan here too, so approval-lane fires are as honest as
+            // auto-lane ones.
+            ...((payload as Record<string, unknown>)?.plannedOutcome
+              ? {
+                  outcomeVsPlan: {
+                    planned: ((payload as Record<string, unknown>).plannedOutcome as { statement?: string })?.statement ?? null,
+                    actual: result.result,
+                    recordedAt: new Date().toISOString(),
+                  },
+                }
+              : {}),
           } as Prisma.InputJsonValue,
         },
       })

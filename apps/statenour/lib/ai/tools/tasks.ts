@@ -138,7 +138,7 @@ const tasksCoreTools = {
 
   createTask: tool({
     description:
-      "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal.",
+      "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     // v10.0.529.85 · Wave 29 · audit-driven shape upgrade. Pre-Wave-29
     // this hardcoded loopKind=ONCE with no goal link · no due date ·
     // no promise. Operator saying "add daily workout tied to fitness
@@ -218,7 +218,7 @@ const tasksCoreTools = {
 
   completeTask: tool({
     description:
-      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE.",
+      "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. Example: {\"taskId\":142}",
     // v10.0.529.85 · Wave 29 · CRITICAL fix · pre-Wave-29 this set
     // status:DONE blindly · DAILY tasks lost their streak on every
     // check-off via chat (streak silently killed). Now routes through
@@ -316,7 +316,7 @@ const tasksCoreTools = {
   // unknown.
   setTaskPriority: tool({
     description:
-      "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where lower = more urgent (0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday).",
+      "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where lower = more urgent (0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday). Example: {\"taskId\":142,\"priority\":15}",
     inputSchema: z.object({
       taskId: z.string().optional().describe("Preferred — the task's id"),
       titleQuery: z
@@ -588,7 +588,7 @@ const tasksCoreTools = {
   }),
 
   createCommitment: tool({
-    description: "Create a new commitment",
+    description: "Create a new commitment — a promise made to a specific person with an optional deadline. Example: {\"toWhom\":\"Nick\",\"description\":\"send the Q3 tire order by Friday\",\"deadline\":\"2026-08-15\"}",
     inputSchema: z.object({
       description: z.string(),
       deadline: z.string().optional(),

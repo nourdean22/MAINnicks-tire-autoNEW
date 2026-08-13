@@ -187,6 +187,12 @@ export async function completeActiveCommitment(
     where: { id, status: "active", deletedAt: null },
     data: { status: "completed", notes, updatedBy },
   });
+  // BDN-208 · stamp the conditions this completion happened under
+  // (sleep/energy/stress/day-state). Fire-and-forget — never blocks.
+  if (res.count === 1) {
+    const { captureCommitmentConditions } = await import("./commitment-conditions");
+    void captureCommitmentConditions(id, "completed");
+  }
   return res.count === 1;
 }
 
@@ -205,6 +211,12 @@ export async function abandonActiveCommitment(
     where: { id, status: "active", deletedAt: null },
     data: { status: "abandoned", notes, updatedBy },
   });
+  // BDN-208 · abandons carry conditions too — the contrast class is what
+  // makes per-condition completion rates readable.
+  if (res.count === 1) {
+    const { captureCommitmentConditions } = await import("./commitment-conditions");
+    void captureCommitmentConditions(id, "abandoned");
+  }
   return res.count === 1;
 }
 

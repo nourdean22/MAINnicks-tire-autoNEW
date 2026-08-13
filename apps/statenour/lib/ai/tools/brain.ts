@@ -286,7 +286,7 @@ export const brainTools = {
   // versus single-source by ~70% on factual claims. Falls back
   // gracefully when only one provider has a key configured.
   searchMemories: tool({
-    description: "Search Nick's brain memories by keyword, category, or confidence threshold. Use to recall past insights, patterns, and stored knowledge.",
+    description: "Search Nick's brain memories by keyword, category, or confidence threshold. Use to recall past insights, patterns, and stored knowledge. Example: {\"query\":\"supplier pricing decision\",\"limit\":5}",
     inputSchema: z.object({
       query: z.string().describe("Keyword to search in memory content and keys"),
       category: z.string().optional().describe("Filter by category: insight, pattern, preference, lesson, fact"),
@@ -733,7 +733,7 @@ export const brainTools = {
   // human-readable form.
   // No parallel table; everything lives in BrainMemory.
   classifyThought: tool({
-    description: "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification.",
+    description: "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification. Example: {\"thought\":\"maybe I should redo the whole homepage again\"}",
     inputSchema: z.object({
       text: z.string().min(1).max(2000),
     }),

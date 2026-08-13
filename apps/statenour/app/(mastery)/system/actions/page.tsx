@@ -156,6 +156,23 @@ export default function ActionsPage() {
     }
   });
 
+  // BDN-205 · Edit verb (agent-inbox HumanInterrupt vocabulary: Accept /
+  // EDIT / Respond / Ignore). The server has accepted `editedPayload`
+  // since the guardian shipped (approveApprovalRequest input) — the UI
+  // never sent it, so "approve with corrected args" meant reject + wait
+  // for a re-request. One request is editable at a time; malformed JSON
+  // disables the button rather than erroring server-side.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const editParse = (() => {
+    if (editingId === null) return { ok: false as const, value: undefined };
+    try {
+      return { ok: true as const, value: JSON.parse(editText) };
+    } catch {
+      return { ok: false as const, value: undefined };
+    }
+  })();
+
   const rejectMutation = trpc.system.rejectApprovalRequest.useMutation({
     onSuccess: () => {
       approvalsQuery.refetch();
@@ -524,10 +541,58 @@ export default function ActionsPage() {
                     </div>
 
                     <div className="rounded bg-black/40 p-3 space-y-1">
-                      <div className="text-[10px] uppercase tracking-wider text-zinc-500">payload parameters</div>
-                      <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-zinc-300 font-mono">
-                        {JSON.stringify(req.payload, null, 2)}
-                      </pre>
+                      <div className="flex items-center justify-between">
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500">payload parameters</div>
+                        <button
+                          onClick={() => {
+                            if (editingId === req.id) {
+                              setEditingId(null);
+                            } else {
+                              setEditingId(req.id);
+                              setEditText(JSON.stringify(req.payload, null, 2));
+                            }
+                          }}
+                          className="min-h-[32px] rounded border border-zinc-800 px-2 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition"
+                        >
+                          {editingId === req.id ? "cancel edit" : "edit args"}
+                        </button>
+                      </div>
+                      {editingId === req.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            rows={Math.min(12, editText.split("\n").length + 1)}
+                            spellCheck={false}
+                            className={cn(
+                              "w-full rounded border bg-black/60 p-2 text-xs font-mono text-zinc-200 focus:outline-none",
+                              editParse.ok ? "border-zinc-700" : "border-rose-500/50",
+                            )}
+                            aria-label="edited payload JSON"
+                          />
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className={cn("text-[10px] font-mono", editParse.ok ? "text-zinc-500" : "text-rose-400")}>
+                              {editParse.ok ? "valid JSON — approval executes with THESE args" : "invalid JSON"}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (!editParse.ok) return;
+                                approveMutation.mutate({ id: req.id, editedPayload: editParse.value });
+                                setEditingId(null);
+                              }}
+                              disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
+                              className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
+                              title={cannotApprove ? "Requires owner privilege" : undefined}
+                            >
+                              Approve edited
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-zinc-300 font-mono">
+                          {JSON.stringify(req.payload, null, 2)}
+                        </pre>
+                      )}
                     </div>
 
                     {cannotApprove && (

@@ -367,6 +367,17 @@ export const CRONS: CronDef[] = [
     description: "FOLDED into mega-evening · roll-up of fresh BrainMemory into consolidated_belief rows.",
   },
   {
+    name: "tool-description-rewrite",
+    schedule: null,
+    mode: "folded",
+    category: "hygiene",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening · BDN-202 · drafts tool-description rewrites from failure telemetry (≤3 tools/run, fast lane, drafts-only into BrainMemory tool_description_draft — a human applies them in code).",
+    addedAt: "2026-08-13",
+    maxDuration: 120,
+  },
+  {
     name: "mastery-xp",
     schedule: null,
     mode: "folded",

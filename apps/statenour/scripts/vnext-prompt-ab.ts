@@ -104,6 +104,20 @@ async function main(): Promise<void> {
   }
   const RUBRIC = `You are grading two assistant replies to the same operator message. The assistant is a small-business chief-of-staff. Pick the reply that is more USEFUL to the operator: concrete and grounded in his actual business context, direct, decision-advancing, and free of invented specifics. End your answer with exactly one word: FIRST or SECOND.`;
 
+  // BDN-204 · frozen BEFORE the first case runs; emitted verbatim into
+  // both artifacts. The graduation rule used to live as prose in the
+  // results writer — i.e. written in the same pass as the results.
+  const { preRegister, renderPreRegistration } = await import("./_lib/ollama-ab");
+  const registration = preRegister({
+    metric: "both-order-stable judge wins across the 14-case set (unstable/error excluded)",
+    decisionRule:
+      "compact may replace incumbent only if it wins-or-ties overall AND does not lose any agenda-dependent case — losing one means the JIT-retrieval half ships BEFORE the sections leave the prompt",
+    futilityStop:
+      "if after 2 full runs (28 judged cases) neither arm leads by ≥3 stable wins, the intervention is ABANDONED as noise — no third run",
+    minCases: 10,
+    arms: ["incumbent", "compact"],
+  });
+
   const results: AbResult[] = [];
   for (const u of USER_PROMPTS) {
     try {
@@ -133,15 +147,16 @@ async function main(): Promise<void> {
     `Dropped sections: ${dropped.join(" · ")}`,
     "Verdicts count ONLY when both judge orders agree.",
     "",
+    renderPreRegistration(registration),
     "| case | verdict |",
     "|---|---|",
     ...results.map((r) => `| ${r.id} | ${r.verdict}${r.note ? ` (${r.note})` : ""} |`),
     "",
     `**Wins:** incumbent=${wins("A")} · compact=${wins("B")} · unstable=${wins("tie-unstable")} · errors=${wins("error")}`,
     "",
-    "Graduation rule (plan #21 / additive migration): compact may replace incumbent only if it wins-or-ties overall AND does not lose the agenda-dependent case — losing that case means the JIT-retrieval half must ship BEFORE the sections leave the prompt.",
+    "Graduation rule: see the frozen pre-registration block above — the verdict is read against it, never rewritten beside the results.",
   ];
-  await writeArtifacts(`PROMPT-AB-${date}`, lines.join("\n"), { incumbentChars: incumbent.length, compactChars: compact.length, dropped, results });
+  await writeArtifacts(`PROMPT-AB-${date}`, lines.join("\n"), { registration, incumbentChars: incumbent.length, compactChars: compact.length, dropped, results });
   console.log(`incumbent=${wins("A")} compact=${wins("B")} unstable=${wins("tie-unstable")}`);
 }
 

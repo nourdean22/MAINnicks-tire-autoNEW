@@ -115,6 +115,21 @@ export async function prepareTools(args: {
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
+  // 2026-08-13 · BDN-201 · the recovery lane is ALWAYS loaded. The pruner
+  // is one-way: when it guesses wrong the model previously hit "tool
+  // unavailable" dead ends (see the 2026-07-15 conversation-tail note —
+  // that was a heuristic patch, this is the recovery path). searchTools
+  // finds pruned-out tools; invokeTool runs READ-SAFE ones only, so no
+  // approval/mutation gate is bypassed. Respects the operator blocklist.
+  {
+    const all = nourTools as unknown as Record<string, unknown>;
+    const disabled = new Set(aiConfig?.disabledTools ?? []);
+    const forced = { ...prunedTools } as Record<string, unknown>;
+    for (const name of ["searchTools", "invokeTool"]) {
+      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+    }
+    prunedTools = forced as unknown as typeof nourTools;
+  }
   // 2026-07-06 bug fix · force the ACTION-INTENT's expected tool into the
   // pruned set. pruneTools attaches read-only CORE_TOOLS + keyword/semantic
   // families, but a keyword-less action turn ("add it", "do it") with a cold

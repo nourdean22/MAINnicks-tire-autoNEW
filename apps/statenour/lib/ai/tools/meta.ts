@@ -448,4 +448,165 @@ export const metaTools = {
   // their own sessions (chat + computer-use) externally (OBS, Loom,
   // screen-recorder) and submits to /api/system/videodb-sessions. These
   // two tools let Nick search across them by transcript + scene content.
+
+  // ═══════════════════════════════════════════════════════════
+  // 2026-08-13 · BDN-201/207 · mid-turn tool RECOVERY + read-only
+  // data sandbox. The pruner (chat-mode.ts) sends ≤NICK_TOOL_BUDGET
+  // tools per turn; when it guesses wrong the model previously hit a
+  // dead end ("tool unavailable" turns, see prepare-tools.ts 2026-07-15
+  // note). searchTools finds what the pruner dropped; invokeTool runs
+  // it — READ-SAFE TOOLS ONLY, fail-closed via capability-registry.
+  // Side-effecting tools stay unreachable through this lane by design:
+  // they must be loaded by the pruner/forces so every existing gate
+  // (approval, read-mode strip, guardian) applies unchanged.
+  // ═══════════════════════════════════════════════════════════
+
+  searchTools: tool({
+    description:
+      "Find tools that are NOT currently loaded this turn. Use when you need a capability you don't see in your available tools — search by what you want to do (e.g. 'sleep data', 'github commits', 'customer lookup'). Returns matching tool names + schemas. Read-only tools can then be run via invokeTool; write tools require asking the operator to rephrase so the tool loads normally. Example: {\"query\":\"habit streaks\"}",
+    inputSchema: z.object({
+      query: z.string().min(2).describe("What you want to do, plain words. Matched against tool names, categories and descriptions."),
+      limit: z.number().int().min(1).max(10).default(5),
+    }),
+    execute: async ({ query, limit }) => {
+      const { TOOL_CATALOG, getToolRiskClass } = await import("@/lib/ai/tools/catalog");
+      const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
+      const { computeToolSchemas } = await import("@/lib/ai/tools/schema-digest");
+      const entries = computeToolSchemas() as Array<{ name: string; description?: string; inputSchema?: unknown }>;
+      const schemas = new Map(entries.map((e) => [e.name, e]));
+      const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
+      if (tokens.length === 0) return { error: "query produced no usable tokens" };
+      const scored = TOOL_CATALOG.map((meta) => {
+        const name = meta.name;
+        const hay = `${name} ${meta.category} ${schemas.get(name)?.description ?? ""}`.toLowerCase();
+        let score = 0;
+        for (const t of tokens) {
+          if (name.toLowerCase().includes(t)) score += 3;
+          if (hay.includes(t)) score += 1;
+        }
+        return { meta, name, score };
+      })
+        .filter((s) => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+      return {
+        count: scored.length,
+        tools: scored.map(({ meta, name }) => ({
+          name,
+          category: meta.category,
+          riskClass: getToolRiskClass(name, meta),
+          readSafe: isReadSafeTool(name),
+          invocableViaInvokeTool: isReadSafeTool(name) && !["searchTools", "invokeTool", "queryData"].includes(name),
+          description: schemas.get(name)?.description ?? "(no description)",
+          inputSchema: schemas.get(name)?.inputSchema ?? null,
+        })),
+      };
+    },
+  }),
+
+  invokeTool: tool({
+    description:
+      "Run a READ-ONLY tool by name that isn't loaded this turn (find it with searchTools first). Refuses anything that mutates state — write tools must load through the normal path so approval gates apply. Example: {\"name\":\"getHabitStreaks\",\"args\":{}}",
+    inputSchema: z.object({
+      name: z.string().min(2).describe("Exact tool name from searchTools."),
+      args: z.record(z.string(), z.unknown()).default({}).describe("Arguments matching the tool's input schema."),
+    }),
+    execute: async ({ name, args }): Promise<Record<string, unknown>> => {
+      if (["searchTools", "invokeTool", "queryData"].includes(name)) {
+        return { error: `refusing recursive invocation of ${name}` };
+      }
+      type LooseTool = { execute?: (a: unknown) => Promise<unknown>; inputSchema?: z.ZodType };
+      const mod = (await import("@/lib/ai/tools")) as unknown as { nourTools: Record<string, LooseTool> };
+      const target: LooseTool | undefined = mod.nourTools[name];
+      if (!target?.execute) return { error: `unknown tool: ${name}. Use searchTools to find valid names.` };
+      const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
+      if (!isReadSafeTool(name)) {
+        return {
+          error: `${name} is not read-safe — it mutates state or is uncataloged. It cannot run through invokeTool; ask the operator so it loads through the normal gated path.`,
+        };
+      }
+      const { isToolBlocked } = await import("@/lib/ai/tool-telemetry");
+      if (isToolBlocked(name)) return { error: `${name} is circuit-breaker blocked (recent repeated failures).` };
+      const { getAiConfig } = await import("@/lib/settings/ai-config");
+      const aiConfig = await getAiConfig().catch(() => null);
+      if (aiConfig?.disabledTools?.includes(name)) return { error: `${name} is disabled by operator config.` };
+      let parsedArgs: unknown = args;
+      if (target.inputSchema && typeof target.inputSchema.safeParse === "function") {
+        const parsed: z.ZodSafeParseResult<unknown> = target.inputSchema.safeParse(args);
+        if (!parsed.success) {
+          return {
+            error: `arguments failed ${name}'s schema`,
+            issues: parsed.error.issues.map((i: z.core.$ZodIssue) => `${i.path.join(".")}: ${i.message}`),
+          };
+        }
+        parsedArgs = parsed.data;
+      }
+      const started = Date.now();
+      const result = await target.execute(parsedArgs);
+      // Proxied calls still count in tool_telemetry under the REAL tool's
+      // name, so the usage census (BDN-202) sees recovery-lane usage.
+      const { recordToolInvocation } = await import("@/lib/ai/tool-telemetry");
+      const softFailed = !!(result && typeof result === "object" && "error" in (result as Record<string, unknown>));
+      void recordToolInvocation({
+        toolName: name,
+        success: !softFailed,
+        durationMs: Date.now() - started,
+        errorMessage: softFailed ? String((result as Record<string, unknown>).error) : undefined,
+      }).catch(() => {});
+      return { tool: name, viaRecoveryLane: true, result };
+    },
+  }),
+
+  queryData: tool({
+    description:
+      "Run JavaScript against a READ-ONLY data API to join/filter/aggregate across sources in one call instead of many separate tool calls. The sandbox exposes `api.call(toolName, args)` (await it) for a whitelisted set of read tools plus `api.tools` (the whitelist). No network, no filesystem, 10s budget. Return the final value. Example: {\"code\":\"const t = await api.call('getTasks',{}); const c = await api.call('getCommitments',{}); return { tasks: t.length ?? t.count, commitments: c.length ?? c.count };\"}",
+    inputSchema: z.object({
+      code: z.string().min(4).max(20_000).describe("JavaScript body. Use `return` for the final value; `await api.call(name, args)` for data."),
+      description: z.string().optional().describe("What this query computes"),
+    }),
+    execute: async ({ code, description }) => {
+      const WHITELIST = [
+        "getTasks", "getCommitments", "getAgendaItems", "getMissions",
+        "getHabitStreaks", "getBodyData", "getHealthToday", "getSleepTrend",
+        "getFinancialSnapshot", "getMasteryScores", "getDriftAlerts", "searchMemories",
+      ] as const;
+      type LooseTool = { execute?: (a: unknown) => Promise<unknown> };
+      const mod = (await import("@/lib/ai/tools")) as unknown as { nourTools: Record<string, LooseTool> };
+      const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
+      const guardedCall = async (name: string, args: unknown = {}): Promise<unknown> => {
+        if (!(WHITELIST as readonly string[]).includes(name)) {
+          throw new Error(`api.call: '${name}' is not in the read-only whitelist: ${WHITELIST.join(", ")}`);
+        }
+        if (!isReadSafeTool(name)) throw new Error(`api.call: '${name}' is not read-safe`);
+        const target: LooseTool | undefined = mod.nourTools[name];
+        if (!target?.execute) throw new Error(`api.call: '${name}' not found`);
+        return target.execute(args);
+      };
+      try {
+        const vm = await import("vm");
+        const logs: string[] = [];
+        const sandbox = {
+          Math, JSON, Array, Object, String, Number, Boolean, Map, Set, RegExp,
+          parseInt, parseFloat, isNaN, isFinite,
+          console: { log: (...a: unknown[]) => { logs.push(a.map(String).join(" ")); } },
+          api: Object.freeze({ call: guardedCall, tools: [...WHITELIST] }),
+          __result: undefined as unknown,
+        };
+        const context = vm.createContext(sandbox);
+        vm.runInContext(`__result = (async () => { ${code} })()`, context, { timeout: 2000 });
+        const deadline = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("queryData exceeded its 10s budget")), 10_000),
+        );
+        const value = await Promise.race([sandbox.__result, deadline]);
+        let serialized = JSON.stringify(value ?? null);
+        if (serialized && serialized.length > 20_000) {
+          serialized = `${serialized.slice(0, 20_000)}…(truncated)`;
+          return { success: true, resultTruncated: serialized, logs: logs.length ? logs : undefined, description };
+        }
+        return { success: true, result: value ?? null, logs: logs.length ? logs : undefined, description };
+      } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+  }),
 };

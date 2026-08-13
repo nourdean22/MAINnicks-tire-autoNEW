@@ -347,6 +347,13 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getTopDecisions",              category: "business_read",  battle: true,  cost: "cheap",  riskClass: "low" },
   { name: "getFleetTruth",                category: "ai_analysis",         battle: true,  cost: "cheap",   riskClass: "low" },
   { name: "fetchVideoTranscript",         category: "research",       battle: true,  cost: "cheap",  riskClass: "low" },
+  // 2026-08-13 · BDN-201/207 · mid-turn recovery lane + read-only sandbox.
+  // invokeTool/queryData proxy READ-SAFE tools only (fail-closed via
+  // capability-registry at call time) — hence not sideEffecting; medium
+  // risk because they execute model-chosen names / model-written code.
+  { name: "searchTools",                  category: "ai_analysis",    battle: true,  cost: "free",   riskClass: "low" },
+  { name: "invokeTool",                   category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },
+  { name: "queryData",                    category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },
 ];
 
 /** Fast lookup: name → meta. Built once. */
