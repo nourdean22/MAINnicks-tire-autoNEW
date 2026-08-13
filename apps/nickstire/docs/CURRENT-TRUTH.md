@@ -126,7 +126,7 @@ Verify first with `SELECT` on the same key — the row's value should contain `"
 - Lead, callback and booking persistence
 - ShopDriver invoice/customer synchronization where configured
 - Selected internal alerts and recovery workflows
-- Reel manufacturing: cron-pulsed clip generation (provider is a pin, NOT fixed: prod read `REEL_VIDEO_PROVIDER=template_stock` on 2026-08-11, the free local ffmpeg lane -- not Higgsfield Seedance 1.5 as this line claimed since the cutover) and ffmpeg assembly with a blocking render-integrity gate (duration contract, video-stream length, frame count, sampled-frame motion proof) — operational contract in [`docs/operations/REEL-PIPELINE.md`](operations/REEL-PIPELINE.md); publish is operator-gated ONLY on the admin surface. `cron/jobs/dailyReelPost.ts` sees an `assembled` job and calls `publishToSocial` itself with no approval step, and prod read `REEL_AUTOPOST_ENABLED=true` + `REEL_PUBLISH_ENABLED=true` + `IG_AUTOPOST_DRYRUN=false` on 2026-08-11. The independent judge (`IG_SHADOW_JUDGE`) gates `runIgAutopost` (the image lane) and does NOT cover this reel lane. To hold reels for review set `REEL_PUBLISH_ENABLED=false` (assembles and waits); `REEL_AUTOPOST_ENABLED=false` stops generation entirely, because that cron both enqueues and publishes
+- Reel manufacturing: cron-pulsed clip generation (provider is a pin, NOT fixed: prod read `REEL_VIDEO_PROVIDER=template_stock` on 2026-08-11, the free local ffmpeg lane -- not Higgsfield Seedance 1.5 as this line claimed since the cutover) and ffmpeg assembly with a blocking render-integrity gate (duration contract, video-stream length, frame count, sampled-frame motion proof) — operational contract in [`docs/operations/REEL-PIPELINE.md`](operations/REEL-PIPELINE.md); publish is operator-gated ONLY on the admin surface. `cron/jobs/dailyReelPost.ts` sees an `assembled` job and calls `publishToSocial` itself with no approval step, and prod read `REEL_AUTOPOST_ENABLED=true` + `REEL_PUBLISH_ENABLED=true` + `IG_AUTOPOST_DRYRUN=false` on 2026-08-11. The independent judge (`IG_SHADOW_JUDGE`) gates `runIgAutopost` (the image lane); on the reel lane it runs **shadow/log-only since 2026-08-13** (one durable verdict per job, never blocking — see the judge section below). To hold reels for review set `REEL_PUBLISH_ENABLED=false` (assembles and waits); `REEL_AUTOPOST_ENABLED=false` stops generation entirely, because that cron both enqueues and publishes. Reel brief generation's performance feedback is **REELS-first since 2026-08-13** (`getReelGenerationSignal` filters `mediaProductType='REELS'`, floor 4 rows, disclosed `signalSource` fallback) — before that, 5/8 of the "reel" training signal was carousels/images
 
 Automation success is valid only when the final system of record confirms the action.
 
@@ -143,7 +143,8 @@ Automation success is valid only when the final system of record confirms the ac
 - **It is not a second reply engine.** The handler's whole job is "run the responder now": it calls the SAME `runReelCommentResponder()` the cron calls, so the arming gate, the `REEL_COMMENT_RESPONDER_LIVE` dry-run gate, the `@shared/reviewReplyQa` claim-safety detector, the watermark dedup and the per-run velocity cap still govern every reply. A webhook that drafted its own replies would fork that policy and the copies would drift.
 - **Fail-closed by construction.** This is the only public unauthenticated surface that can drive an engine which posts publicly to the shop's Instagram. A missing `FB_APP_SECRET` returns 500 rather than accepting unsigned input; `X-Hub-Signature-256` is verified with a constant-time compare over `req.rawBody` (re-serializing `req.body` changes the bytes and breaks every signature); hex length is checked BEFORE `timingSafeEqual` because `Buffer.from(hex)` silently truncates invalid input. The arming gate is re-checked in the handler so subscribing the field in the Meta dashboard cannot silently arm replies while the flag reads off.
 - **Acks before working**, because Meta retries and eventually disables a subscription that times out while the responder does a Graph fetch plus an LLM pass. Bursts are debounced (15s, `IG_WEBHOOK_DEBOUNCE_MS`) behind an in-flight guard.
-- **INERT UNTIL SUBSCRIBED — not runtime-verified.** Meta sends nothing until the operator adds the callback URL and subscribes the `comments` field in the app dashboard. `FB_VERIFY_TOKEN` and `FB_APP_SECRET` were already set in Railway; no new secrets. No live delivery has been observed, so treat delivery-shape assumptions as asserted-by-test, not measured.
+- **SUBSCRIBED AND CHALLENGE-VERIFIED (operator-fired 2026-08-11 ~14:15Z; this line previously said "inert until subscribed").** The one-tap script registered the app-level `instagram`/`comments` subscription and the page-level `feed` subscription; state was read back FROM Meta (`/{app}/subscriptions` shows the callback active), and Meta's synchronous challenge GET during registration was the first observed Meta→endpoint delivery. `FB_VERIFY_TOKEN` and `FB_APP_SECRET` were already set in Railway; no new secrets. **A real comment POST has still not been observed as of 2026-08-13** (recent posts have ~0 comments), so delivery-shape assumptions beyond the challenge remain asserted-by-test; first live one shows `[meta-webhook]` in Railway logs. The cron pulse remains the backstop.
+- **Campaign-keyword comments get a real next step (2026-08-13, NT-003).** Published creative burns `DM "KEYWORD"` into pixels while the stack has **no Instagram DM path** — the webhook subscribes to `comments` only. `matchCampaignKeyword` (exact-token: "POTHOLE!" matches, "potholes" does not; longest keyword wins) now detects a keyword comment — keywords collected from the posted reels' own briefs plus published inventory `interactiveDmKeyword` rows — and the reply prompt is steered to hand off to channels that exist (call/text the shop line, link in bio) and to never promise a DM. Same draft path, same claim-safety detector, same live/dry-run gates and velocity caps as every other reply.
 
 ### Every path to Meta goes through the emergency stop (2026-07-27)
 
@@ -181,6 +182,16 @@ Automation success is valid only when the final system of record confirms the ac
   content rather than resurrecting the rejected draft (a rejection is
   content-specific, not slot-specific). The live-mode judge call is **P0** in the
   Ollama scheduler; dryrun stays P1.
+- **Scope note, verified 2026-08-13: this gate covers the IMAGE lane only**
+  (`runIgAutopost`). The autonomous **reel** lane (`dailyReelPost`) now runs the
+  same judge in **SHADOW — log-only, never blocking** (NT-001, #1552/#1553):
+  one durable verdict per job (`shop_settings` KV `reel_shadow_judge_<jobId>`),
+  fail-OPEN on judge error because rendered-QA already gates reels for pixel
+  defects and nothing may hold a QA-passed reel on a judge outage while the
+  lane is unproven. Promotion to a blocking gate is an **operator decision**
+  after the disagreement readout accumulates — the same shadow→gate path the
+  image lane took 08-05→08-07. Verdicts appear as `daily reel shadow judge`
+  in Railway logs.
 
 ### The AI receptionist improves from its own failed calls (2026-08-06/07)
 
@@ -252,6 +263,7 @@ caller. See ROS-085 and the ISSUE-REGISTRY rows for each.
 - Rehydration atomically claims each row `queued → sending`. A crash-orphaned `sending` row is flipped back by `recoverStaleSendingRows` (>10 min → `queued`, >48h → `failed`) and now HAS a live consumer in the running process — the next timer rehydrate loads it.
 - **Global SMS controls** (2026-07-29): `sms_global_pause` DB flag = the real kill switch for the F25e path (HOLD semantics — marketing+followups queue durably, confirmations+internal flow; drain holds while paused; unreadable state fails closed for marketing only). Shop-wide rolling-24h cap (`SMS_GLOBAL_DAILY_CAP`, default 200) counted from `sms_messages` refuses automated sends over cap. Human takeover is enforced at the `sendSms` chokepoint for automated classes (`humanInitiated: true` = operator-approved exemption). The old `SMS_KILL_SWITCH` env gates only the dead Twilio fallback and is display-only in practice.
 - **SMS autonomy ladder** — `server/services/smsAutonomy.ts` declares level 0-4 per automation; `setRolloutMode` enforces each event type's declared ceiling. Ops surface: `smsOps.opsStatus` + the SMS Ops strip in the admin (pause lever, queue depth/age, caps, suppressions, ladder).
+- **Autonomy census (2026-08-13, NT-004)** — `services/smsAutonomyCensus.ts` + a read-only panel under the Rollout Control Center: derives every lane from `SMS_AUTOMATION_REGISTRY` (never a hand-list) and live-reads each orchestrator lane's mode via the SAME `getRolloutMode` the dispatcher consults. Flags **only `over_ceiling`** as a defect ("off" may be intentionally dormant — operator's call); an unreadable mode renders UNKNOWN, never off; non-orchestrator lanes are listed as a disclosed blind spot. **DB-down honesty:** the dispatcher's reader falls back to `legacy_passthrough` when the DB is unreachable — the census pre-checks the substrate, stamps every lane "ladder unenforceable," and banners it, because in that state passthrough is the dispatcher's true effective behavior, not an operator choice. First PROD reading not yet taken as of 2026-08-13 — fixture-green proves the shape, not the reading.
 - **Bounded retry + dead-letter** (Autopilot Wave 1, 2026-07-29, migration **0104 — hand-apply required**): a definitive drain failure increments `send_attempts` and dead-letters at 5 (`failed`, `failure_reason='max_retries_exceeded: …'`); the 48h rule stamps `stale_sending_expired`. Pre-0104 the code degrades to the old time-bounded-only behavior. Replay: `smsOps.replayFailed` (atomic `failed→queued`, attempts reset, audit-logged, idempotent).
 - **Silent-stall alert**: gateway healthy + in-hours + unpaused + due rows queued >5 min → Telegram (transition-aware, hourly re-alert). Rehydration now runs EVERY drain cycle (60s), recovery stays 5-min throttled.
 - **Stale-lead truth** (Autopilot Wave 1): the 2-24h follow-up cron claims via `lastFollowUpAt IS NULL` and marks a lead `contacted` ONLY after a confirmed dispatch (`sent`/`queued`). A blocked/failed attempt leaves `status='new'` — the 24h `stale_lead` collector surfaces it. The cron also skips leads with a pending callback or inbound SMS within 48h (channel dedupe).
@@ -292,6 +304,18 @@ runs, and a parity test fails the build if the two disagree.
   is `dormant`; a run that succeeds without measuring its output is `unknown`,
   never healthy (ROS-078). Contracts and a pure classifier only — no observer is
   wired to it yet.
+
+- **Shop-time dates** (2026-08-13, NT-009) — `server/lib/timezoneAssert.ts`
+  `getBusinessDateKey()` is the server twin of the client helper: any
+  "today"/"past-date" comparison over customer-facing dates must use it, never
+  bare SQL `CURDATE()` (a UTC session's CURDATE() is already *tomorrow* in
+  Cleveland between 20:00 ET and midnight ET). Converted at the two
+  customer-touching sites: `detectNoShows` (was auto-cancelling + texting on
+  the UTC boundary) and `confirmationCalls`' "tomorrow" (was correct only by
+  coincidence of its 15–18 ET window). Fallback is EST-conservative — a sweep
+  can run late, never early. DST + evening boundaries pinned by test. Bare
+  `CURDATE()` remains in analytics/reporting queries where a ±4h window edge
+  changes a chart, not a customer contact.
 
 Answer-engine crawlers (`OAI-SearchBot`, `ChatGPT-User`, `PerplexityBot`,
 `Claude-User`, `Google-Extended`, `meta-externalagent` and others) now receive
@@ -381,6 +405,7 @@ These must remain visibly labeled as inferred or modeled.
 - Voice call activity: Voice Receptionist admin, with metric definitions from `METRICS-CONTRACT.md`
 - Search performance: official GSC aggregate totals plus separately labeled detailed-row analysis
 - System health: integration-specific timestamps and error states, not a single blended score
+- Arrival load: the Today **Arrival load** strip (2026-08-13) — expected arrivals ("said they're coming today", voice/SMS-captured `expected_arrivals`, first client consumer of `dispatch.expectedArrivals`) + tomorrow's preferred-date bookings from the overview bundle. A planning signal for a deliberately slot-less FCFS shop, **not** a schedule — there is no calendar/slot/bay model anywhere, on purpose. Self-suppresses only when every source answered, is trustworthy, and is empty; an unreadable source renders as unknown, never zero. Home-screen doors: three admin PWA shortcuts (Approvals / Today / IG Ops via registry `?tab=` ids; iOS ignores manifest shortcuts — pin the URLs as separate icons instead)
 - Instagram content: the five-view IG admin (`?igview=` Today / Create / Publish / Community / Insights, 2026-07-24). **Publish is the only queue** — Board (lifecycle × computed health, incl. the Attention lane), List, and Reels segments; Planning, reel recovery, autonomy control and settings live behind the gear. Views, filters and inner tabs are URL-persisted and honor browser history (popstate). Admin-wide rule pinned by tests: a failed read renders as *unknown*, never as an empty/positive state (`adminTruth.test.ts`, `emptyIsNotUnknown.test.ts`); client dialog globals are lint-banned (the iOS PWA suppresses them)
 
 ## Production actions not performed by documentation changes

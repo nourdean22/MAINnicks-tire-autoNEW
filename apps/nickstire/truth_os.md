@@ -25,6 +25,17 @@ detailed in `docs/CURRENT-TRUTH.md`:
   arrivals→invoice receipts — `server/cron/jobs/weeklyRevenueDigest.ts`,
   contract in `docs/CURRENT-TRUTH.md`. The weekly intelligence report
   previously never read `invoices` at all.
+- **The ScanFinish wave landed (2026-08-13, #1552/#1553):** the reel lane's
+  independent judge runs **shadow/log-only** (image-lane gate unchanged,
+  fail-closed); reel brief feedback is REELS-first with a disclosed fallback;
+  campaign-keyword comments get a no-DM public hand-off inside every existing
+  responder gate; a read-only **SMS autonomy census** (declared ceiling vs live
+  mode, registry-derived) sits under the Rollout Control Center; Today gained
+  the **Arrival load** strip (walk-in planning signal — there is deliberately
+  no calendar/slot model); and customer-touching "today" math moved off bare
+  `CURDATE()` onto shop-time `getBusinessDateKey()`. Contracts + scope notes in
+  `docs/CURRENT-TRUTH.md`; per-finding receipts in
+  `docs/NICKSTIRE-SCAN-LEDGER.md`.
 - **An AEO proprietary-data price page exists** (2026-08-11):
   `/tire-prices-cleveland` publishes canon floors plus live per-size retail
   floors from the Gateway feed via public `gatewayTire.publicPriceRanges`
