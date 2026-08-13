@@ -410,7 +410,7 @@
     "riskDeclared": false,
     "sideEffecting": false,
     "requiredEnv": [],
-    "descriptionSha256": "6e23e913cf2ff46c",
+    "descriptionSha256": "9340b2c158fea42f",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -465,7 +465,7 @@
     "riskDeclared": false,
     "sideEffecting": false,
     "requiredEnv": [],
-    "descriptionSha256": "84b17a65245c673d",
+    "descriptionSha256": "7b7eb2853b7ea166",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -487,7 +487,7 @@
     "riskDeclared": false,
     "sideEffecting": false,
     "requiredEnv": [],
-    "descriptionSha256": "975ed746cb026f02",
+    "descriptionSha256": "6fdc1ac2f2c26dd1",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -520,7 +520,7 @@
     "riskDeclared": false,
     "sideEffecting": false,
     "requiredEnv": [],
-    "descriptionSha256": "4b2fab3141725705",
+    "descriptionSha256": "12c78ce45a11bc0c",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -1246,6 +1246,17 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
+    "name": "invoke_tool",
+    "camelName": "invokeTool",
+    "category": "ai_analysis",
+    "riskClass": "medium",
+    "riskDeclared": true,
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "f638eda311038ba5",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
     "name": "journal_decision",
     "camelName": "journalDecision",
     "category": "personal_write",
@@ -1378,6 +1389,17 @@
     "sideEffecting": false,
     "requiredEnv": [],
     "descriptionSha256": "ad594569a76f3f64",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "query_data",
+    "camelName": "queryData",
+    "category": "ai_analysis",
+    "riskClass": "medium",
+    "riskDeclared": true,
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "1475450a166eb970",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -1656,7 +1678,7 @@
     "riskDeclared": false,
     "sideEffecting": false,
     "requiredEnv": [],
-    "descriptionSha256": "295b86545e834ab4",
+    "descriptionSha256": "649ee4608e008556",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -1692,6 +1714,17 @@
     "sideEffecting": false,
     "requiredEnv": [],
     "descriptionSha256": "ffd4b635dc57ef44",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "search_tools",
+    "camelName": "searchTools",
+    "category": "ai_analysis",
+    "riskClass": "low",
+    "riskDeclared": true,
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "e8d6416b3a0cc2aa",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
@@ -1779,7 +1812,7 @@
     "riskDeclared": false,
     "sideEffecting": false,
     "requiredEnv": [],
-    "descriptionSha256": "c3c12324adb936e8",
+    "descriptionSha256": "fb7e8819e1b2b716",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {

@@ -245,7 +245,10 @@ export function buildLexicalTsQuery(topics: string[]): string {
     .join(" or ");
 }
 
-async function getLexicalMatches(topics: string[], limit = 50): Promise<LexicalRow[]> {
+// 2026-08-13 · BDN-203 · exported so scripts/recall-eval.ts can run the
+// lexical lane as a standalone retriever against the eval corpus
+// (grep-first vs vector comparison). Behavior unchanged.
+export async function getLexicalMatches(topics: string[], limit = 50): Promise<LexicalRow[]> {
   const tsQueryText = buildLexicalTsQuery(topics);
   if (!tsQueryText) return [];
   try {

@@ -219,6 +219,9 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   toolHealth: { family: "meta", description: "Check tool health / recent failures", mutates: false, cost: "cheap" },
   getCronStatus: { family: "meta", description: "Query cron fire/fail status", mutates: false, cost: "cheap" },
   runCode: { family: "meta", description: "Execute a script (sandboxed)", mutates: true, cost: "medium" },
+  searchTools: { family: "meta", description: "Find tools the pruner didn't load this turn (mid-turn recovery)", mutates: false, cost: "cheap", tags: ["recovery"] },
+  invokeTool: { family: "meta", description: "Run a read-safe tool by name through the recovery lane (refuses mutations)", mutates: false, cost: "cheap", tags: ["recovery"] },
+  queryData: { family: "meta", description: "Sandboxed JS over a read-only data API (join/filter across sources in one call)", mutates: false, cost: "cheap", tags: ["recovery", "sandbox"] },
 
   // ════════════════════════════════════════════════════════════════
   // 2026-07-11 review backfill · 54 previously-undocumented tools.

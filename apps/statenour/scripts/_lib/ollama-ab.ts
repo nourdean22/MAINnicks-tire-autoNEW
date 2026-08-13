@@ -114,3 +114,49 @@ export async function writeArtifacts(
   await fs.writeFile(path.join(process.cwd(), "docs", `${basename}.json`), JSON.stringify(json, null, 2), "utf8");
   console.log(`wrote docs/${basename}.md (+.json)`);
 }
+
+// ── BDN-204 · pre-registration (n-of-1 trial discipline) ─────────────
+//
+// Every A/B in waves 5-9 hardcoded its metric + graduation rule as
+// prose INSIDE the results writer — i.e. the decision rule was written
+// in the same pass as the results it judged. Pre-registration splits
+// them: the experiment declares metric, decision rule, and a FUTILITY
+// KILL RULE before the first case runs; the registration is frozen
+// (Object.freeze) and emitted verbatim into both artifacts, so the
+// verdict section can be checked against a statement that provably
+// predates the data. Futility matters most for a solo operator:
+// experiments here historically die by abandonment, not by decision.
+
+export interface PreRegistration {
+  /** What is being measured, precisely (e.g. "both-order judge wins over 14 cases"). */
+  metric: string;
+  /** The graduation rule, decided BEFORE results exist. */
+  decisionRule: string;
+  /** Pre-declared kill rule — when to stop and call it dead (e.g. "no arm leads after 2 rounds → abandon"). */
+  futilityStop: string;
+  /** Minimum cases before ANY verdict may be read. */
+  minCases: number;
+  /** Arm labels, for the record. */
+  arms: string[];
+  /** Stamped by preRegister(). */
+  registeredAt?: string;
+}
+
+/** Freeze + timestamp a registration. Call BEFORE running any case. */
+export function preRegister(reg: PreRegistration): Readonly<PreRegistration> {
+  return Object.freeze({ ...reg, registeredAt: new Date().toISOString() });
+}
+
+/** Markdown block for the artifact header — render ABOVE the results. */
+export function renderPreRegistration(reg: Readonly<PreRegistration>): string {
+  return [
+    `## Pre-registration (frozen ${reg.registeredAt ?? "UNSTAMPED — call preRegister()"})`,
+    ``,
+    `- **Metric:** ${reg.metric}`,
+    `- **Decision rule:** ${reg.decisionRule}`,
+    `- **Futility stop:** ${reg.futilityStop}`,
+    `- **Minimum cases:** ${reg.minCases}`,
+    `- **Arms:** ${reg.arms.join(" vs ")}`,
+    ``,
+  ].join("\n");
+}

@@ -11,6 +11,7 @@ import { buildMemoryEvalReport } from "@/lib/evals/memory-eval-report";
 import { buildActionReceiptFeed } from "@/lib/services/action-receipt-feed";
 import { buildTrustLadder } from "@/lib/ai/trust-ladder";
 import { buildWiringCensus } from "@/lib/observability/wiring-census";
+import { buildToolUsageCensus } from "@/lib/observability/tool-usage-census";
 import { buildHomeDecisionMetrics } from "@/lib/observability/home-decision-metrics";
 import { buildWisdomGateSpc, buildCalibrationReport } from "@/lib/brain/judgment-quality";
 
@@ -38,6 +39,12 @@ export const digestProcedures = {
    * registries that actually dispatch. Read-only.
    */
   wiringCensus: operatorProcedure.query(async () => buildWiringCensus()),
+  /**
+   * BDN-202 · tool-usage census — never-invoked / high-failure / stale
+   * over TOOL_CATALOG × tool_telemetry. Read-only; zeros are
+   * pruner-confounded and the payload says so.
+   */
+  toolUsageCensus: operatorProcedure.query(async () => buildToolUsageCensus()),
   /** BDN-104 · did the compact-Home composition actually get used? */
   homeDecisionMetrics: operatorProcedure
     .input(z.object({ windowDays: z.number().int().min(1).max(90) }).optional())

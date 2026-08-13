@@ -85,6 +85,8 @@ export interface AutonomousActionRow {
   result: string | null;
   error: string | null;
   createdAt: Date;
+  /** BDN-204 · optional payload carrying plannedOutcome/outcomeVsPlan. */
+  payload?: unknown;
 }
 
 /** Map an AutonomousAction row → ActionReceipt. Pure. */
@@ -110,7 +112,23 @@ export function autonomousActionToReceipt(a: AutonomousActionRow): ActionReceipt
     userVisibleSummary: summaries[status],
     errorSafeMessage: status === "failed" && a.error ? a.error.split("\n")[0].slice(0, 200) : undefined,
     undoAvailable: false,
-    metadata: { ruleName: a.ruleName, approval: a.approval },
+    // BDN-204 · surface the pre-filed plan + plan-vs-outcome diff when the
+    // rule registered one. Unknown payload shapes pass through as absent.
+    metadata: {
+      ruleName: a.ruleName,
+      approval: a.approval,
+      ...(() => {
+        const p = a.payload as
+          | { plannedOutcome?: { statement?: string }; outcomeVsPlan?: { planned?: string | null; actual?: string } }
+          | null
+          | undefined;
+        if (!p?.plannedOutcome?.statement) return {};
+        return {
+          plannedOutcome: p.plannedOutcome.statement,
+          ...(p.outcomeVsPlan ? { outcomeVsPlan: p.outcomeVsPlan } : {}),
+        };
+      })(),
+    },
     createdAt: a.createdAt.toISOString(),
   };
 }
@@ -188,6 +206,7 @@ async function defaultLoadAutonomous(limit: number): Promise<AutonomousActionRow
     select: {
       id: true, ruleName: true, actionType: true, targetType: true, targetId: true,
       approval: true, executedAt: true, result: true, error: true, createdAt: true,
+      payload: true, // BDN-204 · plannedOutcome/outcomeVsPlan surface
     },
   });
 }

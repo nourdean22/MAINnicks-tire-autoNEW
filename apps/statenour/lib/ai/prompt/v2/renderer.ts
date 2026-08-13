@@ -681,21 +681,27 @@ function relTime(iso: string | null): string {
   if (!iso) return "never";
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 60_000) return "just now";
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
+  // 5-minute buckets under an hour: an exact "3m ago" in the SYSTEM prompt
+  // re-renders every minute, which invalidates the Anthropic ephemeral
+  // prompt cache (build-stream-config.ts cacheControl) on every turn more
+  // than a minute apart. "~5m ago" carries the same signal to the model
+  // and keeps the rendered prompt byte-stable within each 5-minute window.
+  if (ms < 3_600_000) return `~${Math.max(5, Math.ceil(ms / 300_000) * 5)}m ago`;
   if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
   return `${Math.round(ms / 86_400_000)}d ago`;
 }
 
 /**
- * v9.1.7 · "in 12m / in 2h / in 3d" formatter for future timestamps.
- * Mirrors relTime but for the other direction of the time arrow.
+ * v9.1.7 · "in ~15m / in 2h / in 3d" formatter for future timestamps.
+ * Mirrors relTime but for the other direction of the time arrow —
+ * including the 5-minute bucketing (same prompt-cache rationale).
  */
 function relFromNow(iso: string | null): string {
   if (!iso) return "never";
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return "now";
   if (ms < 60_000) return "in <1m";
-  if (ms < 3_600_000) return `in ${Math.round(ms / 60_000)}m`;
+  if (ms < 3_600_000) return `in ~${Math.max(5, Math.ceil(ms / 300_000) * 5)}m`;
   if (ms < 86_400_000) return `in ${Math.round(ms / 3_600_000)}h`;
   return `in ${Math.round(ms / 86_400_000)}d`;
 }

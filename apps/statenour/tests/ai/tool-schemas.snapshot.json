@@ -882,7 +882,7 @@
   },
   {
     "name": "classifyThought",
-    "description": "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification.",
+    "description": "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification. Example: {\"thought\":\"maybe I should redo the whole homepage again\"}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -971,7 +971,7 @@
   },
   {
     "name": "completeTask",
-    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE.",
+    "description": "Mark a task as done. DAILY tasks bump streak + lastCompletedAt and stay READY (loop reappears tomorrow). ONCE/PROMISE flip to DONE. Example: {\"taskId\":142}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -1032,7 +1032,7 @@
   },
   {
     "name": "createCommitment",
-    "description": "Create a new commitment",
+    "description": "Create a new commitment — a promise made to a specific person with an optional deadline. Example: {\"toWhom\":\"Nick\",\"description\":\"send the Q3 tire order by Friday\",\"deadline\":\"2026-08-15\"}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -1222,7 +1222,7 @@
   },
   {
     "name": "createTask",
-    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal.",
+    "description": "Create a new task. Use when Nour needs to do something specific. Set `loopKind` to DAILY for habits, PROMISE for commitments to someone (set `promiseTo`), ONCE for one-shot work. Link to a goal via `goalId` so completing it auto-lifts the goal. Example: {\"title\":\"Call Meineke about the lift quote\",\"loopKind\":\"ONCE\",\"priority\":30}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -2361,6 +2361,33 @@
     }
   },
   {
+    "name": "invokeTool",
+    "description": "Run a READ-ONLY tool by name that isn't loaded this turn (find it with searchTools first). Refuses anything that mutates state — write tools must load through the normal path so approval gates apply. Example: {\"name\":\"getHabitStreaks\",\"args\":{}}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "args": {
+          "additionalProperties": {},
+          "default": {},
+          "description": "Arguments matching the tool's input schema.",
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "name": {
+          "description": "Exact tool name from searchTools.",
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "journalDecision",
     "description": "Log a decision Nour just made during this conversation. Records the what, why, stakes, and chosen option so the Decision Pattern Analyzer can learn from it. Use this whenever Nick helps Nour make a choice.",
     "inputSchema": {
@@ -2698,6 +2725,29 @@
       "required": [
         "title",
         "startISO"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "queryData",
+    "description": "Run JavaScript against a READ-ONLY data API to join/filter/aggregate across sources in one call instead of many separate tool calls. The sandbox exposes `api.call(toolName, args)` (await it) for a whitelisted set of read tools plus `api.tools` (the whitelist). No network, no filesystem, 10s budget. Return the final value. Example: {\"code\":\"const t = await api.call('getTasks',{}); const c = await api.call('getCommitments',{}); return { tasks: t.length ?? t.count, commitments: c.length ?? c.count };\"}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "code": {
+          "description": "JavaScript body. Use `return` for the final value; `await api.call(name, args)` for data.",
+          "maxLength": 20000,
+          "minLength": 4,
+          "type": "string"
+        },
+        "description": {
+          "description": "What this query computes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
       ],
       "type": "object"
     }
@@ -3381,7 +3431,7 @@
   },
   {
     "name": "searchMemories",
-    "description": "Search Nick's brain memories by keyword, category, or confidence threshold. Use to recall past insights, patterns, and stored knowledge.",
+    "description": "Search Nick's brain memories by keyword, category, or confidence threshold. Use to recall past insights, patterns, and stored knowledge. Example: {\"query\":\"supplier pricing decision\",\"limit\":5}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -3485,6 +3535,30 @@
           "maximum": 10,
           "minimum": 1,
           "type": "number"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "searchTools",
+    "description": "Find tools that are NOT currently loaded this turn. Use when you need a capability you don't see in your available tools — search by what you want to do (e.g. 'sleep data', 'github commits', 'customer lookup'). Returns matching tool names + schemas. Read-only tools can then be run via invokeTool; write tools require asking the operator to rephrase so the tool loads normally. Example: {\"query\":\"habit streaks\"}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "limit": {
+          "default": 5,
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "What you want to do, plain words. Matched against tool names, categories and descriptions.",
+          "minLength": 2,
+          "type": "string"
         }
       },
       "required": [
@@ -3748,7 +3822,7 @@
   },
   {
     "name": "setTaskPriority",
-    "description": "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where lower = more urgent (0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday).",
+    "description": "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where lower = more urgent (0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday). Example: {\"taskId\":142,\"priority\":15}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
