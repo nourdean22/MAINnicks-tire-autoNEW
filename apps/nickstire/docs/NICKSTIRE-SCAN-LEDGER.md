@@ -115,3 +115,121 @@ props. Fixed with honest defaults (`bookings=[]`, `bookingsTrustworthy=false`
 — absent data renders as unknown, never a clean zero). Targeted runs alone
 would have shipped that crash: the full suite is not optional on new admin
 components.
+
+## Run 2 — 2026-08-13 (same day, scope: reel pipeline / "Faceless Reel Studio")
+
+Trigger: an external mega-brief ("FRONTIER-SCAN findings, two runs 2026-08-11
+and 2026-08-13") asking for a reel "intelligence studio" — anti-repetition
+memory, an originality/QC gate, multi-vendor routing, a local-topic library,
+an attention-microstructure logger, multilingual dubs. Gated per `plan-gate`
+before any code: read this ledger first (per the header rule), diffed
+against `git log`, checked `docs/UPSTREAMS.md`, then dispatched 4 read-only
+Explore agents plus a real serial test run (`vitest run` on the 10 reel/
+Higgsfield test files: **10 files, 124 tests, 0 failures**).
+
+### Premise check
+
+| Brief claim | Verdict | Evidence |
+|---|---|---|
+| Branches `feature/nickstire-faceless-reel-intelligence-studio` and `nickstire/higgsfield-live-run` exist | **REFUTED** | `git branch -a` (local+remote) and `git log --all --grep -i "faceless\|higgsfield"` — neither name appears anywhere, ever |
+| A "Faceless Reel Studio memory layer" exists | **REFUTED (partial-true premise)** | `facelessReelStudioPrompt.ts` / `facelessReelStudio.ts` are real, live files (the reel gen prompt library) — the NAME is real — but no anti-repetition memory layer exists under it or anywhere else |
+| "FRONTIER-SCAN" is this repo's scan protocol | **REFUTED** | 0 hits repo-wide; the actual protocol is `ScanFinish` (this file). Brief is a garbled pointer to real work, not a description of it |
+| Sora API sunset (Sept 2026) threatens the pipeline | **MOOT** | Sora is not referenced anywhere in `apps/nickstire` — not a dependency today |
+
+### Findings
+
+| ID | Finding | Conviction | Evidence | Outcome |
+|---|---|---|---|---|
+| NT-010 | No anti-repetition mechanism for reel topics/hooks. `avoidTopics` (`reelBriefGen.ts:43`) is a pass-through never populated from history; the live cron path `contentManufacturing.ts:1001` doesn't even pass it | HIGH | OBSERVED | ACTED ON (this run) |
+| NT-011 | QC/originality gate is real but partial and 100% non-gating: shadow judge is concept-level (not rendered-video), `reviewReplyQa` covers captions but not VO script, no footage-provenance/before-after/exact-length checks exist | MED | OBSERVED | ACTED ON (this run, additive shadow checks only — gate-flip stays an operator decision per NT-001 precedent) |
+| NT-012 | No per-reel outcome logger distinct from the topic-selection signal; `instagramAnalytics` captures saves/shares/views but nothing logs hook/beat-structure/CTA per reel for a swipe-file/decay-curve read | MED | OBSERVED | ACTED ON (this run) |
+| NT-013 | Vendor fallback is real (Higgsfield/Veo/template_stock, `reelPipeline.ts:102-193`) but one-way: paid→free only, never paid-to-paid. Kling/LTX-2/TikTok Symphony/Sora: zero references anywhere in this repo | MED | OBSERVED | ACTED ON (narrow: ordered paid-to-paid fallback only — no speculative vendor adapters; new-vendor integration is WATCH, not built, pending an actual outage or operator ask) |
+| NT-014 | No Local Discovery content library. Topic mining is signal-driven (`contentTopicMiner.ts`, 7 sources) with NHTSA/E-Check explicitly `fetch_blocked` by design | MED | OBSERVED | ACTED ON (this run, curated seed list wired as an 8th topic source — NHTSA/E-Check auto-fetch stays blocked, untouched) |
+| NT-014 | **ACTED ON** — new `shared/localDiscoveryLibrary.ts`, 14 curated topic PROMPTS across the brief's 3 categories (tire_symptom, e_check, weather_road). Ohio E-Check facts verified via web search before writing (not assumed): Euclid sits in Cuyahoga County, one of Ohio's 7 E-Check counties (Cuyahoga/Geauga/Lake/Lorain/Medina/Portage/Summit), source Ohio EPA + ohioecheck.info — a real, applicable local topic, not a guess; noted a 2026 legislative repeal effort in flight so topic phrasing stays general rather than asserting a permanent schedule. Wired as a genuinely new `local_discovery` TopicSource into `contentTopicMiner.ts` (weighted below `coverage_gap` — a curated fallback, not a read of the business) and into the live `gatherTopicSignals()` → `dailyReelPost.ts` path, so this is reachable by the autonomous daily cron, not a standalone list. **Side-finding, fixed as a natural byproduct**: `government_feed` was declared in `SOURCE_WEIGHT`/`franchiseForSource` since this file's creation but NO signal field ever fed it — a real "built, never wired" defect (this repo's own dominant defect shape per the ledger header). E-Check topics route through it correctly, preserving the existing government-evidence gate (`echeck_escape_room` requires `government_source`, so E-Check topics are surfaced but marked NOT auto-renderable — an operator must still attach the Ohio EPA record). Metadata tagging for saves/shares/booking-intent measurement: NT-012's swipe-file store already measures saves/shares per reel; `source: "local_discovery"` on the resulting `TopicCandidate` is the durable tag a future analysis groups by — no new schema needed. 7 new tests (`local-discovery-library.test.ts`); the 19 pre-existing `topic-miner-experiments.test.ts` tests stayed green unmodified. `pnpm run check`: 0 errors. |
+| NT-015 | No multilingual variant hook. An unused "top performer" signal (`recentWinners`, `instagramAdmin.ts:620-637`) already exists as a ready trigger | MED | OBSERVED | see below |
+| NT-015 | **ACTED ON, scoped down after web verification refuted the brief's technical premise.** Confirmed by search before writing code (brief's own mandate): Meta's Reels AI translation/dub/lip-sync (about.fb.com) is a Creator-Studio/in-app publish-time OPT-IN TOGGLE with no documented parameter on the Graph API's Content Publishing endpoints (`/media`, `/media_publish`) — the exact API `metaSocial.ts` calls. No code can trigger it. YouTube auto-dub is moot twice over: it is automatic and channel-wide (not per-video, not selectively triggerable), AND nickstire has **no YouTube channel or publish integration anywhere in this repo** (grepped — 3 hits, all incidental blog/voice-line copy). Building fake API-calling code for either would be exactly the "confident guess dressed as fact" the brief's own truthfulness mandate forbids. Built the one honest, useful piece instead: `shared/multilingualCandidates.ts` + `server/services/multilingualCandidates.ts`, reusing `getTopPosts()` (the same read `instagramAdmin.ts`'s `recentWinners` already does) to rank REELS-only, reach-floored top performers into an operator worklist — "these N reels are worth the manual few minutes in Creator Studio" — not an automation. Wired via `instagramAdmin.getMultilingualDubCandidates`. 5 new tests (`multilingual-candidates.test.ts`). `pnpm run check`: 0 errors. |
+| NT-016 | This ledger's OPEN/CLOSING/ACTED-ON status is hand-typed, not script-derived — unlike the separate `capability-ledger.json` + `check-capability-ledger.mjs`, which IS script-validated | LOW | OBSERVED | Judged not worth building a parallel automation; the existing discipline (every Outcome cites a real receipt) already satisfies the spirit. NT-012's outcome logger closes the loop specifically for reel findings going forward |
+
+### Run 2 build pass
+
+| ID | Outcome |
+|---|---|
+| NT-010 | **ACTED ON** — `buildRepetitionChecks` (`facelessReelStudio.ts:1037`) was pure and tested but had zero server callers. New `getRecentReelSignals()` (`services/reelRepetitionHistory.ts`) reads the last 21 days of `reel_jobs` and reduces each payload to topic/keyword/archetype/motionLens/objectCharacter; DB-down or an unparsable row degrades to "no memory" rather than throwing or blanking the window. Wired into `prepareCleanReelBrief` (the autonomous daily-post lane, via `dailyReelPost.ts`) with real enforcement: a repeated topic is treated exactly like an M10 preflight block — reject and regenerate, same proven retry machinery, `PreflightExhaustedError` message widened accordingly. `contentManufacturing.ts:1001` (the human-reviewed draft lane) gets the softer fix — real `avoidTopics` populated, no regenerate-loop added since that path has none for preflight either and a human reviews before publish. 12 new tests (`reelRepetitionHistory.test.ts`, 4; `reelDraftPrep.test.ts`, 4 new + 4 existing updated) prove: real history flows into `avoidTopics`, operator-supplied `avoidTopics` wins over history, a topic repeat forces regeneration even when preflight passes, and DB-down never blocks. `pnpm run check`: 0 errors. Full reel+Higgsfield suite: 15 files, 206 tests, 0 failures. |
+| NT-012 | **ACTED ON — mostly ALREADY BUILT, genuinely new part shipped.** Investigation found the "outcome logger" premise substantially wrong: `ig_metric_snapshots` (append-only, `capturedAt`-stamped, migration 0106) + `shared/contentExperiments.ts` (confound detection, `MIN_SAMPLES_PER_ARM`, 24/72/168h decay-curve horizons, cold-start zero-signal refusal) + `shared/hookSignals.ts`/`scripts/analyze-hook-vs-skip.mjs` (beat-1 hook signals vs skip rate, "measure don't judge", `MIN_GROUP_N=4`) is a mature, tested, ALREADY-SHIPPED experiment-tracking system carrying almost exactly the philosophy the brief asked for verbatim (unproven until real data accumulates; a correlation is a candidate to test, not a rule). Genuinely missing and now built: (1) `shared/beatStructureSignals.ts` — beat count/total duration/CTA type, the "beat structure + CTA" half nothing extracted before; (2) `shared/attentionMicrostructure.ts` — generalizes `compareSignals` from skip-rate-only to any metric (proven against `savesPerReach`/`sharesPerReach`, both real `ig_metric_snapshots` columns the existing script never read) and any signal family (hook OR beat-structure); (3) `server/services/attentionMicrostructureStore.ts` — the DB join made a real, tested, callable function instead of a script the operator has to remember exists; (4) `instagramAdmin.getSwipeFileCorrelations` — wired into the admin router (tRPC), closing the "standalone script nobody calls" complaint. `calls`/`booking_actions` are registered metric NAMES in `contentExperiments.ts` with **zero data source** — `ig_metric_snapshots` has no column for either and Instagram's organic Graph API does not attribute a call to a specific post. **REFUTED-PREMISE, WATCH**: needs new paid call-tracking-number infrastructure + an operator funding decision, not a code fix — did not fabricate a column. 23 new tests (`beat-structure-signals.test.ts` 5, `attention-microstructure.test.ts` 6, `attentionMicrostructureStore.test.ts` 6, plus the pre-existing `hook-signals.test.ts` 38 stayed green unmodified). `pnpm run check`: 0 errors. 143-test targeted run: 0 failures. |
+| NT-011 | **ACTED ON, shadow/log-only** — new `shared/originalityQcChecklist.ts` gives ONE canonical readout of the brief's 9-item list; most checks reuse existing, previously-scattered mechanisms (`episodeClaims` entailment, `reviewReplyQa` caption claim-safety, the `visibly_animated` disclosure contract, `beatStructureSignals.ts`'s duration from NT-012) rather than duplicating them. One genuinely NEW check: `reviewReplyQa` now also runs against the **voiceover script** (`episodeContract.script.voiceover`) — previously only the caption was checked, so an unsafe VO claim could ship unnoticed. Two criteria are honestly reported "structural" not "pass" (no copied footage / no copyrighted audio — no per-job signal exists, only a pipeline-shape guarantee), and one is honestly "unknown" not a faked pass (no misleading before/after — no check built). Wired into `dailyReelPost.ts` as a second shadow block, same once-per-job KV-marker discipline as NT-001's judge — log everything, gate nothing, same operator-owned promotion path. 11 new tests (`originality-qc-checklist.test.ts`). `pnpm run check`: 0 errors. 219-test targeted run: 0 failures. |
+| NT-013 | **ACTED ON (narrow, as gated)** — no Kling/LTX-2/Symphony/Sora adapters built; zero evidence they're needed (repo-wide grep: none referenced anywhere). Real gap fixed instead: Veo had **no fallback of any kind** — a Veo `PAUSE_PROVIDER`/`RECONCILE_BEFORE_RETRY` verdict (`nextStatusFor`) goes terminal on the verdict alone, and only Higgsfield's INLINE per-beat degrade (`shouldDegradeToFreeLane`) ever reached the free lane. Added a job-level escape hatch in `processNextReelJob`'s outer catch (`reelPipeline.ts`): when `nextStatusFor` says a job is genuinely terminal AND `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` AND the failing provider wasn't already `template_stock` (nowhere lower to fall), the job gets ONE more attempt forced onto the free local lane via a new `ReelJobBrief.forceProvider` field (persisted in the job payload, same pattern as `veoOperationName`'s existing resume state) instead of terminal-failing — same opt-in flag, same Telegram same-day alert convention as the existing inline degrade, ledger `fail()` correctly skipped since the job isn't actually done. Did NOT touch the inline Higgsfield per-beat mechanics (Veo resume-vs-resubmit invariant is too load-bearing to risk) — this is a genuinely separate, additive path. 4 new tests (`reelProviderFallbackChain.test.ts`): forces the free lane on a PAUSE_PROVIDER verdict, stays terminal when the flag is off, does not loop when template_stock itself exhausts, and a normal retryable error is untouched. Full existing reel suite (232 tests incl. the 23 source-text-anchored `reelFreeLaneFallback.test.ts` assertions on the untouched inline branch) stayed green throughout. Kling/LTX-2/Symphony/Sora: **WATCH, not built** — revisit only if a real multi-week paid-vendor outage or an explicit operator ask makes cross-vendor (not just paid→free) routing worth the cost/quality tradeoff of switching generators mid-flight. |
+
+Run-2 build pass and self-review continue below as each item lands, same
+convention as Run 1.
+
+### Self-review round (same day, adversarial pass over the whole run-2 diff)
+
+Independent `pr-review-toolkit:code-reviewer` pass over `git diff origin/main...HEAD`
+(26 files, ~1877 insertions across 8 commits) — same discipline Run 1 applied
+to itself. Six real defects found in my own new code, all fixed before this
+section was written:
+
+1. **Settlement billed real paid spend as $0.** `reelPipeline.ts`'s forced-
+   fallback pulse set `videoProvider = brief.forceProvider ?? …`, so on the
+   rescue attempt `videoProvider` itself became `"template_stock"` — and
+   `settle()` prices `paidClips * reelClipCostUsd(videoProvider)`. A resumed
+   clip a PRIOR (real, paid) attempt had already rendered got billed at $0
+   the instant the rescue succeeded, silently erasing spend from the daily
+   budget and making `maxGenerationCostPerDayUsd` proportionally more
+   permissive — on the happy path of the new feature, marked `is_estimate:
+   false`. Fixed: `videoProvider` is now NEVER overridden by `forceProvider`
+   — only `activeProvider` (the per-beat lane) is, exactly mirroring how the
+   pre-existing inline Higgsfield degrade already keeps them separate. New
+   test proves a resumed paid clip settles at the real rate, not $0.
+2. **Repetition retry could burn its whole attempt budget against a static
+   seed.** Both production callers of `prepareCleanReelBrief` sometimes pin
+   a FIXED topic (the admin canary's literal default string;
+   `dailyReelPost.ts`'s manifest fallback) — feeding the model "use topic X"
+   and "avoid topic X" identically on every retry once X was already in
+   history, wasting the whole retry budget on the same collision and
+   throwing `PreflightExhaustedError` (skipping the day's reel) purely from
+   a topic-pool thinness that isn't a real generator defect. Fixed:
+   `avoidTopics` now grows across attempts (a rejected brief's own topic
+   joins the list for the next try), and the thrown error/log now states
+   whether the exhaustion was repetition-only vs a real preflight defect, so
+   `cron_log` can tell the two apart.
+3. **`hasCta` was structurally always false.** `attentionMicrostructureStore.ts`
+   read `brief.ctaType as never` — a field that does not exist anywhere on
+   `ReelBrief` (`dailyReelPost.ts`'s own pre-existing comment says so). The
+   `as never` cast is what let a nonexistent field compile. Every sample's
+   `hasCta` was `false`, so the beat-structure half of the swipe file
+   (`getSwipeFileCorrelations`) could never report anything but
+   `"insufficient"` no matter how many reels published — reading as "not
+   enough data yet" rather than "this field is never populated." Fixed: read
+   the REAL location (`episodeContract.script.ctaType`, an UPPERCASE domain
+   different from lowercase `CtaType`) with an explicit, tested
+   normalize/reject function — "FOLLOW" (a value the uppercase domain has
+   and the lowercase one does not) degrades to unknown, never a miscast. The
+   test fixture that made this look correct (`ctaType: "send"` at the
+   payload's TOP level — a shape no real row has) is fixed too.
+4. **A stale `veoOperationName` could make the forced free lane un-
+   terminable.** The forced-fallback payload preserved every beat's
+   `veoOperationName` (stamped by the Veo path before polling). If the free
+   lane's OWN local ffmpeg render then hit a local timeout, the outer catch
+   would read `hasRemoteOperationId: true` from that stale handle,
+   classify as `LOCAL_TIMEOUT_REMOTE_RUNNING` → `RESUME_OPERATION`
+   (`consumesAttempt: false`) — never terminal, `attempts` never advancing,
+   requeuing indefinitely. Fixed: `veoOperationName` is stripped from every
+   beat when the payload is rewritten for the forced pulse — there is
+   nothing left to "resume" once the job has left Veo for good.
+5. **The unbounded read.** `getRecentReelSignals()` had no `LIMIT` on a
+   `reel_jobs.payload` (MEDIUMTEXT, ~70KB per real brief per the schema's
+   own comment) scan across every lane, run on every brief generation. Fixed:
+   `ORDER BY createdAt DESC LIMIT 100`, matching the cap `contentTopicSignals.ts`
+   already used for an analogous read.
+6. **Nothing exercised the SECOND pulse.** All four original fallback tests
+   only asserted the failure-classification WRITE; none ran a second pulse
+   with `forceProvider` already in the payload, so the entire forced-lane
+   execution path — where defects 1 and 4 both lived — was untested, and the
+   ledger mock (`reelClipCostUsd: () => 0` unconditionally) made the
+   settlement bug structurally invisible. Two new tests now run that second
+   pulse for real: one proves the settlement math, one proves the stripped
+   operation name.
+
+Full regression after all six fixes: **27 files, 327 tests, 0 failures.**
+`pnpm run check`: 0 errors.

@@ -20,6 +20,7 @@ import { createLogger } from "../lib/logger";
 import { SERVICE_CATEGORIES } from "../../shared/serviceTypes";
 import type { TopicSignals } from "../../shared/contentTopicMiner";
 import type { FranchiseId } from "../../shared/contentFranchises";
+import { LOCAL_DISCOVERY_LIBRARY, localDiscoveryTopics } from "../../shared/localDiscoveryLibrary";
 
 const log = createLogger("services:content-topic-signals");
 
@@ -139,6 +140,22 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
 
   signals.seasonalConditions = seasonalConditionsForMonth(now.getMonth());
   signals.underCoveredServices = underCoveredServices(recentTopics);
+
+  // Local Discovery library (NT-014) — cold-start seed prompts, deduped
+  // against recent topics same as every other source. Split by category so
+  // e_check keeps routing through the "government_feed" source (see
+  // contentTopicMiner.ts's TopicSignals doc) rather than bypassing its
+  // evidence gate. Self-review correction: this does NOT guarantee the
+  // echeck_escape_room franchise specifically — franchiseForSource picks the
+  // lowest-rotation-penalty option from ["recall_radar", "echeck_escape_room"],
+  // and with no recent-franchise history both tie and recall_radar wins as
+  // the declared-first option. Both franchises require government_source
+  // evidence (contentFranchises.ts), so autoRenderable() excludes either —
+  // the safety property holds regardless of which one is picked.
+  const fresh = localDiscoveryTopics(recentTopics);
+  const echeckSet = new Set(LOCAL_DISCOVERY_LIBRARY.filter((e) => e.category === "e_check").map((e) => e.topic));
+  signals.localDiscoveryTopics = fresh.filter((t) => !echeckSet.has(t));
+  signals.governmentFeedTopics = fresh.filter((t) => echeckSet.has(t));
 
   // Franchise rotation history, newest first.
   try {

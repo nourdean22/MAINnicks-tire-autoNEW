@@ -38,7 +38,8 @@ export type TopicSource =
   | "customer_question"
   | "seasonal_condition"
   | "coverage_gap"
-  | "government_feed";
+  | "government_feed"
+  | "local_discovery";
 
 export interface TopicSignals {
   /** Themes from posts that actually performed. */
@@ -61,6 +62,27 @@ export interface TopicSignals {
    * rank upstream and stay out of anything a generator sees.
    */
   declinedWork?: string[];
+  /**
+   * Curated local-topic seed prompts for a cold start, from
+   * shared/localDiscoveryLibrary.ts (NT-014) — tire_symptom + weather_road
+   * categories only. E-Check topics go through governmentFeedTopics instead
+   * (below), NOT here, so they still route to the franchise that requires
+   * government_source evidence rather than bypassing that gate.
+   */
+  localDiscoveryTopics?: string[];
+  /**
+   * Government-sourced topic prompts (e.g. the e_check category of
+   * localDiscoveryLibrary.ts). Feeds the PREVIOUSLY-UNWIRED "government_feed"
+   * source (NT-014 side-finding: the source existed in SOURCE_WEIGHT and
+   * franchiseForSource since this file's creation but no signal field ever
+   * fed it — a real "built, never wired" defect, not this pass's design).
+   * Routes to whichever of ["recall_radar", "echeck_escape_room"]
+   * franchiseForSource picks (lowest rotation penalty; ties favor
+   * recall_radar) — BOTH require government_source evidence
+   * (contentFranchises.ts), so either way an operator must attach the Ohio
+   * EPA record before an E-Check reel renders autonomously.
+   */
+  governmentFeedTopics?: string[];
 }
 
 export interface TopicCandidate {
@@ -88,6 +110,10 @@ const SOURCE_WEIGHT: Record<TopicSource, number> = {
   seasonal_condition: 22,
   coverage_gap: 16,
   government_feed: 20,
+  // Below coverage_gap on purpose: a curated seed list is a cold-start
+  // fallback, not a read of THIS business — coverage_gap at least reflects
+  // what the shop's own recent content actually is.
+  local_discovery: 15,
 };
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -131,6 +157,10 @@ export function franchiseForSource(source: TopicSource, recent: FranchiseId[]): 
     seasonal_condition: ["cleveland_car_survival", "rust_files"],
     coverage_gap: ["tire_autopsy", "choose_the_ending", "can_it_be_saved"],
     government_feed: ["recall_radar", "echeck_escape_room"],
+    // No franchise here requires government_source evidence — local_discovery
+    // deliberately excludes E-Check topics (those feed government_feed
+    // instead, above) so this source never needs an operator evidence attach.
+    local_discovery: ["cleveland_car_survival", "rust_files", "mechanic_myth_lab"],
   };
   const options = prefer[source];
   // Lowest rotation penalty wins; ties keep the declared preference order.
@@ -186,6 +216,8 @@ export function mineTopicCandidates(signals: TopicSignals): TopicCandidate[] {
   for (const t of signals.customerQuestions ?? []) add(t, "customer_question");
   for (const t of signals.seasonalConditions ?? []) add(t, "seasonal_condition");
   for (const t of signals.underCoveredServices ?? []) add(t, "coverage_gap");
+  for (const t of signals.localDiscoveryTopics ?? []) add(t, "local_discovery");
+  for (const t of signals.governmentFeedTopics ?? []) add(t, "government_feed");
 
   // Suppress duplicates WITHIN this run too, keeping the higher-scoring one —
   // two sources naming the same subject is common and should not double-spend.

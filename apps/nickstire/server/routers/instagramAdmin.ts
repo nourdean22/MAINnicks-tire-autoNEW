@@ -232,6 +232,47 @@ export const instagramAdminRouter = router({
   }),
 
   /**
+   * Attention Microstructure swipe file (ScanFinish NT-012): joins reel_jobs
+   * (hook + beat structure) to ig_metric_snapshots (saves/shares/skip rate)
+   * and correlates. Same "measure, don't judge" discipline as
+   * scripts/analyze-hook-vs-skip.mjs (which this generalizes rather than
+   * duplicates) — `sufficient: false` below MIN_GROUP_N is the honest
+   * answer, not a failure, and nothing here ever returns HIGH conviction: a
+   * correlation graduates to HIGH/OBSERVED only via a deliberate
+   * contentExperiments.ts run, never from this alone.
+   */
+  getSwipeFileCorrelations: adminProcedure
+    .input(z.object({ metric: z.enum(["savesPerReach", "sharesPerReach", "skipRate"]).default("savesPerReach") }))
+    .query(async ({ input }) => {
+      const { getSwipeFileSamples } = await import("../services/attentionMicrostructureStore");
+      const { compareAllSignals, swipeFileConviction } = await import("../../shared/attentionMicrostructure");
+      const samples = await getSwipeFileSamples();
+      const comparisons = compareAllSignals(samples, input.metric).map((c) => ({
+        ...c,
+        conviction: swipeFileConviction(c),
+      }));
+      return { sampleCount: samples.length, metric: input.metric, comparisons };
+    }),
+
+  /**
+   * Multilingual variant worklist (ScanFinish NT-015). NOT an automation —
+   * verified before building: Meta's Reels AI translation is a Creator
+   * Studio publish-time toggle with no Graph Content-Publishing API field,
+   * and YouTube auto-dub is moot (no YouTube channel exists in this repo).
+   * Returns which recent top-performing reels are worth the manual few
+   * minutes in Creator Studio, reusing the same getTopPosts() recentWinners
+   * already reads.
+   */
+  getMultilingualDubCandidates: adminProcedure.query(async () => {
+    const { getMultilingualDubCandidates } = await import("../services/multilingualCandidates");
+    const candidates = await getMultilingualDubCandidates();
+    return {
+      candidates,
+      note: "No API triggers Meta AI translation or YouTube auto-dub — enable manually in Instagram Creator Studio for these posts.",
+    };
+  }),
+
+  /**
    * Trial-reel tracking (Wave C′): Instagram's Trial Reels show a post to
    * non-followers first; the operator reads the 24h numbers in the IG app and
    * records them HERE so the winner/archive decision leaves a durable trail.
