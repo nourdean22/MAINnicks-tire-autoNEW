@@ -78,6 +78,15 @@ const MODE_RANK: Record<RolloutMode, number> = {
   legacy_passthrough: 3, // same privilege as live_send, different engine
 };
 
+/**
+ * Privilege rank of a rollout mode — exported so consumers (the autonomy
+ * census) compare modes with THIS table instead of keeping a copy that can
+ * drift. Two copies of one policy list is two chances to be wrong.
+ */
+export function rolloutModeRank(mode: RolloutMode): number {
+  return MODE_RANK[mode];
+}
+
 export function isRolloutModeAllowed(key: string, mode: RolloutMode): boolean {
   const policy = SMS_AUTOMATION_REGISTRY.find((p) => p.key === key);
   if (!policy) return true; // unknown event types keep legacy behavior; the parity test keeps this set complete

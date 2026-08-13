@@ -423,23 +423,34 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // Failure is disclosed, never fatal — a judge error must not hold a reel
     // that rendered-QA already passed (this is exactly why it isn't a gate yet).
     if (process.env.IG_SHADOW_JUDGE !== "false") {
-      try {
-        const { judgeSingleConcept } = await import("../../services/conceptTournament");
-        const judgeInput = buildReelShadowJudgeInput({
-          id: job.id, briefId: job.briefId, payload: job.payload, caption,
-        });
-        const verdict = await judgeSingleConcept({ ...judgeInput, priority: 1 });
-        log.info("daily reel shadow judge (log-only — no gate)", {
-          jobId: job.id,
-          total: verdict.total,
-          rejected: verdict.rejected,
-          note: (verdict.note || verdict.rejectionReason || "").slice(0, 200),
-        });
-      } catch (err) {
-        log.warn("daily reel shadow judge failed (run continues — shadow lane)", {
-          jobId: job.id,
-          err: err instanceof Error ? err.message : String(err),
-        });
+      // Once per JOB, not per tick (self-review fix): the assembled branch is
+      // deliberately not wall-clock-gated, so a held reel (publish disabled,
+      // Meta failure) revisits this point on every cron tick — unbounded, that
+      // is N judge calls/day on the same quota-fragile LLM lane the #1507
+      // evening-403 arc was about. A durable KV marks a job as judged; a
+      // FAILED judge writes nothing, so it retries next tick (still log-only).
+      const judgedKey = `reel_shadow_judge_${job.id}`;
+      const alreadyJudged = await getKv(judgedKey);
+      if (!alreadyJudged) {
+        try {
+          const { judgeSingleConcept } = await import("../../services/conceptTournament");
+          const judgeInput = buildReelShadowJudgeInput({
+            id: job.id, briefId: job.briefId, payload: job.payload, caption,
+          });
+          const verdict = await judgeSingleConcept({ ...judgeInput, priority: 1 });
+          log.info("daily reel shadow judge (log-only — no gate)", {
+            jobId: job.id,
+            total: verdict.total,
+            rejected: verdict.rejected,
+            note: (verdict.note || verdict.rejectionReason || "").slice(0, 200),
+          });
+          await setKv(judgedKey, JSON.stringify({ total: verdict.total, rejected: verdict.rejected, at: new Date().toISOString() }), `Reel shadow-judge verdict — job ${job.id}`);
+        } catch (err) {
+          log.warn("daily reel shadow judge failed (run continues — shadow lane)", {
+            jobId: job.id,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
 

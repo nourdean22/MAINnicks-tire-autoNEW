@@ -28,20 +28,13 @@
 import {
   SMS_AUTOMATION_REGISTRY,
   maxRolloutModeForLevel,
+  rolloutModeRank,
   type RolloutMode,
   type SmsAutomationPolicy,
 } from "./smsAutonomy";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:sms-autonomy-census");
-
-const MODE_RANK: Record<RolloutMode, number> = {
-  off: 0,
-  shadow: 1,
-  draft_only: 2,
-  live_send: 3,
-  legacy_passthrough: 3,
-};
 
 export type LaneStatus = "within_ceiling" | "over_ceiling" | "unreadable" | "not_live_read";
 
@@ -58,6 +51,14 @@ export interface CensusLane {
 }
 
 export interface AutonomyCensus {
+  /**
+   * false = the census could not reach the DB. The dispatcher's own reader
+   * falls back to legacy_passthrough in that state, so every orchestrator
+   * lane's ladder is UNENFORCEABLE right now — the lane rows say so and the
+   * panel banners it. Reported, never hidden: a census that shrugs at its own
+   * substrate being down is the failure class it exists to catch.
+   */
+  dbAvailable: boolean;
   lanes: CensusLane[];
   summary: {
     total: number;
@@ -100,7 +101,7 @@ export function classifyLane(policy: SmsAutomationPolicy, liveMode: RolloutMode 
       detail: "live rollout mode could not be read — treat as UNKNOWN, not off",
     };
   }
-  if (MODE_RANK[liveMode] > MODE_RANK[declaredCeiling]) {
+  if (rolloutModeRank(liveMode) > rolloutModeRank(declaredCeiling)) {
     return {
       ...base,
       liveMode,
@@ -118,6 +119,18 @@ export function classifyLane(policy: SmsAutomationPolicy, liveMode: RolloutMode 
 
 export async function runSmsAutonomyCensus(): Promise<AutonomyCensus> {
   const { getRolloutMode } = await import("./smsOrchestrator");
+  // Same-reader principle with the reader's failure mode made EXPLICIT:
+  // getRolloutMode returns "legacy_passthrough" when the DB is unreachable —
+  // that IS the dispatcher's true effective state (the ladder cannot gate
+  // anything), but rendered bare it is indistinguishable from an operator
+  // choice. Pre-check the substrate so the reading carries its own caveat.
+  let dbAvailable = true;
+  try {
+    const { getDbTyped } = await import("../db");
+    dbAvailable = (await getDbTyped()) != null;
+  } catch {
+    dbAvailable = false;
+  }
   const lanes: CensusLane[] = [];
   for (const policy of SMS_AUTOMATION_REGISTRY) {
     if (policy.path !== "orchestrator") {
@@ -126,7 +139,15 @@ export async function runSmsAutonomyCensus(): Promise<AutonomyCensus> {
     }
     try {
       const mode = await getRolloutMode(policy.key);
-      lanes.push(classifyLane(policy, mode));
+      const lane = classifyLane(policy, mode);
+      lanes.push(
+        dbAvailable
+          ? lane
+          : {
+              ...lane,
+              detail: `${lane.detail} · DB UNREACHABLE — dispatcher falls back to legacy_passthrough; the ladder is unenforceable right now`,
+            },
+      );
     } catch (err) {
       log.warn("census: rollout mode read failed", {
         key: policy.key,
@@ -143,6 +164,7 @@ export async function runSmsAutonomyCensus(): Promise<AutonomyCensus> {
     notLiveRead: lanes.filter((l) => l.status === "not_live_read").length,
   };
   return {
+    dbAvailable,
     lanes,
     summary,
     blindSpots: [

@@ -7,7 +7,7 @@
  * sweep's backlog (past dates) into fake demand.
  */
 import { describe, expect, it } from "vitest";
-import { bookingsForDate, tomorrowBusinessDateKey } from "../pages/admin/today/ArrivalLoadStrip";
+import { bookingsForDate, stripHasNothingToSay, tomorrowBusinessDateKey } from "../pages/admin/today/ArrivalLoadStrip";
 import type { BookingItem } from "../pages/admin/today/types";
 
 const b = (over: Partial<BookingItem>): BookingItem => ({
@@ -47,5 +47,33 @@ describe("tomorrowBusinessDateKey", () => {
 
   it("crosses the month boundary correctly", () => {
     expect(tomorrowBusinessDateKey(new Date("2026-08-31T15:00:00Z"))).toBe("2026-09-01");
+  });
+});
+
+describe("stripHasNothingToSay (self-review fix: untrustworthy is never silence)", () => {
+  const quiet = {
+    arrivalsError: false,
+    arrivalsLoaded: true,
+    arrivalsCount: 0,
+    tomorrowCount: 0,
+    bookingsTrustworthy: true,
+  };
+
+  it("suppresses only the genuinely-quiet, fully-trustworthy board", () => {
+    expect(stripHasNothingToSay(quiet)).toBe(true);
+  });
+
+  it("renders when the bookings slice is UNREADABLE even with zero arrivals — the bug this fixes", () => {
+    expect(stripHasNothingToSay({ ...quiet, bookingsTrustworthy: false })).toBe(false);
+  });
+
+  it("renders on an arrivals error (unknown, not empty)", () => {
+    expect(stripHasNothingToSay({ ...quiet, arrivalsError: true })).toBe(false);
+  });
+
+  it("renders while arrivals are still loading, and whenever either count is non-zero", () => {
+    expect(stripHasNothingToSay({ ...quiet, arrivalsLoaded: false })).toBe(false);
+    expect(stripHasNothingToSay({ ...quiet, arrivalsCount: 2 })).toBe(false);
+    expect(stripHasNothingToSay({ ...quiet, tomorrowCount: 1 })).toBe(false);
   });
 });

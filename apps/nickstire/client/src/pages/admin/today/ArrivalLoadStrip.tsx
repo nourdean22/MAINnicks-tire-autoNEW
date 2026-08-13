@@ -51,12 +51,40 @@ export function bookingsForDate(bookings: readonly BookingItem[], dateKey: strin
   );
 }
 
-export default function ArrivalLoadStrip({
-  bookings,
-  bookingsTrustworthy,
-}: {
-  bookings: readonly BookingItem[];
+/**
+ * The strip stays silent ONLY when there is genuinely nothing to say: both
+ * sources answered, both are empty, and the bookings slice is trustworthy.
+ * Self-review fix (2026-08-13): the first version omitted the trustworthiness
+ * arm, so "arrivals empty + bookings UNREADABLE" suppressed the strip — hiding
+ * the exact unknown-not-zero warning it exists to show. Pure + exported so all
+ * four arms are pinned.
+ */
+export function stripHasNothingToSay(args: {
+  arrivalsError: boolean;
+  arrivalsLoaded: boolean;
+  arrivalsCount: number;
+  tomorrowCount: number;
   bookingsTrustworthy: boolean;
+}): boolean {
+  return (
+    !args.arrivalsError &&
+    args.arrivalsLoaded &&
+    args.bookingsTrustworthy &&
+    args.arrivalsCount === 0 &&
+    args.tomorrowCount === 0
+  );
+}
+
+export default function ArrivalLoadStrip({
+  // Bare-mount safe (the admin render matrix mounts every section with no
+  // props — it caught the undefined-crash here within hours of this file
+  // existing). Defaults are the HONEST absence: no bookings data and NOT
+  // trustworthy — absent data must render as unknown, never as a clean zero.
+  bookings = [],
+  bookingsTrustworthy = false,
+}: {
+  bookings?: readonly BookingItem[];
+  bookingsTrustworthy?: boolean;
 }) {
   // Server defaults to today's shop date; keep polling calm — arrivals are
   // captured from voice/SMS, not a firehose.
@@ -70,10 +98,18 @@ export default function ArrivalLoadStrip({
   const tomorrowKey = useMemo(() => tomorrowBusinessDateKey(), []);
   const tomorrowBookings = useMemo(() => bookingsForDate(bookings, tomorrowKey), [bookings, tomorrowKey]);
 
-  // Nothing to plan around and both sources answered → say nothing at all.
-  // (An error is NOT silence: an unreadable arrivals board must not render as
-  // an empty one — loud-failure house rule.)
-  if (!arrivalsQuery.isError && arrivalsQuery.data && arrivals.length === 0 && tomorrowBookings.length === 0) {
+  // Nothing to plan around, every source answered AND is trustworthy → say
+  // nothing at all. (An error or an untrustworthy slice is NOT silence: an
+  // unreadable board must not render as an empty one — loud-failure rule.)
+  if (
+    stripHasNothingToSay({
+      arrivalsError: arrivalsQuery.isError,
+      arrivalsLoaded: arrivalsQuery.data !== undefined,
+      arrivalsCount: arrivals.length,
+      tomorrowCount: tomorrowBookings.length,
+      bookingsTrustworthy,
+    })
+  ) {
     return null;
   }
 

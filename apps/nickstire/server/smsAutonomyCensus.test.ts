@@ -8,13 +8,21 @@
  * registry, so the count is pinned to the registry length — a hand-list
  * cannot drift in.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// runSmsAutonomyCensus deps: dispatcher reader + db availability probe.
+const getRolloutModeMock = vi.fn();
+let dbHandle: unknown = {};
+vi.mock("./services/smsOrchestrator", () => ({
+  getRolloutMode: (...args: unknown[]) => getRolloutModeMock(...args),
+}));
+vi.mock("./db", () => ({ getDbTyped: async () => dbHandle }));
 import {
   SMS_AUTOMATION_REGISTRY,
   maxRolloutModeForLevel,
   type SmsAutomationPolicy,
 } from "./services/smsAutonomy";
-import { classifyLane } from "./services/smsAutonomyCensus";
+import { classifyLane, runSmsAutonomyCensus } from "./services/smsAutonomyCensus";
 
 const orch = (over: Partial<SmsAutomationPolicy>): SmsAutomationPolicy => ({
   key: "test_lane",
@@ -74,5 +82,41 @@ describe("registry derivation", () => {
     }
     // The census's row count IS the registry's — no hand-list to rot.
     expect(SMS_AUTOMATION_REGISTRY.length).toBeGreaterThan(0);
+  });
+});
+
+describe("runSmsAutonomyCensus DB-down honesty (self-review fix)", () => {
+  it("stamps every live-read lane with the unenforceable-ladder caveat when the DB is unreachable", async () => {
+    dbHandle = null;
+    // What the dispatcher's reader actually returns in that state:
+    getRolloutModeMock.mockResolvedValue("legacy_passthrough");
+    const census = await runSmsAutonomyCensus();
+    expect(census.dbAvailable).toBe(false);
+    const liveRead = census.lanes.filter((l) => l.liveMode !== null);
+    expect(liveRead.length).toBeGreaterThan(0);
+    for (const lane of liveRead) {
+      // Rendered bare, legacy_passthrough looks like an operator choice —
+      // the caveat is what makes the reading honest.
+      expect(lane.detail).toContain("unenforceable");
+    }
+  });
+
+  it("adds NO caveat when the DB answered (normal reading stands clean)", async () => {
+    dbHandle = {};
+    getRolloutModeMock.mockResolvedValue("off");
+    const census = await runSmsAutonomyCensus();
+    expect(census.dbAvailable).toBe(true);
+    for (const lane of census.lanes) {
+      expect(lane.detail).not.toContain("unenforceable");
+    }
+  });
+
+  it("a throwing reader yields unreadable lanes, never a fabricated mode", async () => {
+    dbHandle = {};
+    getRolloutModeMock.mockRejectedValue(new Error("boom"));
+    const census = await runSmsAutonomyCensus();
+    const orch = census.lanes.filter((l) => l.path === "orchestrator");
+    expect(orch.every((l) => l.status === "unreadable" && l.liveMode === null)).toBe(true);
+    expect(census.summary.unreadable).toBe(orch.length);
   });
 });

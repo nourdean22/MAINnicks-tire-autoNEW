@@ -65,9 +65,13 @@ export async function runConfirmationCalls(): Promise<RunResult> {
 
   const { bookings, confirmationCalls } = await import("../../../drizzle/schema");
 
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  // "Tomorrow" in SHOP time, not UTC (NT-009 class). The old
+  // toISOString().slice(0,10) happened to be correct only because this job
+  // self-gates to 15:00–17:59 ET, where the UTC and ET calendar days agree —
+  // move that window past 20:00 ET and every call would target the wrong day.
+  // Correct by construction beats correct by coincidence.
+  const { getBusinessDateKey } = await import("../../lib/timezoneAssert");
+  const tomorrowStr = getBusinessDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
 
   let candidates: Array<{
     id: number;
