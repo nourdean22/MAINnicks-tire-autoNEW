@@ -36,6 +36,25 @@ detailed in `docs/CURRENT-TRUTH.md`:
   `CURDATE()` onto shop-time `getBusinessDateKey()`. Contracts + scope notes in
   `docs/CURRENT-TRUTH.md`; per-finding receipts in
   `docs/NICKSTIRE-SCAN-LEDGER.md`.
+- **ScanFinish Run 2 landed same day (2026-08-13, #1558/#1561):** the reel
+  lane now has a real **anti-repetition memory** (the autonomous daily brief
+  regenerates on a topic that repeats the last 21 days of `reel_jobs`; the
+  draft lane gets the same history as a soft `avoidTopics` steer); a
+  **job-level free-lane fallback** closes Veo's zero-resilience gap (a
+  terminal paid-provider verdict re-queues ONE forced `template_stock`
+  attempt when `REEL_FALLBACK_TO_TEMPLATE_STOCK=true`, instead of publishing
+  nothing); an **originality/QC checklist** runs shadow/log-only beside the
+  judge (now incl. voiceover claim-safety and muted-first, one KV verdict per
+  job); the **attention-microstructure swipe file** and a **multilingual dub
+  worklist** render on the Learn admin page; and a curated **Local Discovery
+  topic library** (Cleveland/Euclid, E-Check web-verified) feeds the topic
+  miner — E-Check topics route through the government-evidence gate, never
+  around it. `reel_jobs.payload` readers must use
+  `shared/reelJobPayload.ts`'s `parseReelJobPayload()` (post-merge audit:
+  ad-hoc inline payload types produced a structurally-dead field twice).
+  Kling/LTX-2/TikTok Symphony: WATCH, deliberately not built. Contracts in
+  `docs/CURRENT-TRUTH.md`; receipts + the audit-round-2 postmortem in
+  `docs/NICKSTIRE-SCAN-LEDGER.md`.
 - **An AEO proprietary-data price page exists** (2026-08-11):
   `/tire-prices-cleveland` publishes canon floors plus live per-size retail
   floors from the Gateway feed via public `gatewayTire.publicPriceRanges`
