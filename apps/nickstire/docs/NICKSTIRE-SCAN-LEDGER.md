@@ -81,3 +81,37 @@ Run-2 self-audit obligations: check the reel shadow-judge disagreement readout
 (are verdicts landing in logs?), the census's first PROD reading (fixture-green
 proves shape, not reading), and whether any keyword comment has actually
 arrived.
+
+### Self-review round (same day, operator: "go back over your work")
+
+Adversarial pass over the run-1 diff itself. Four real defects found in MY OWN
+new code, all fixed before this section was written — the standing lesson
+holds even when the read model is hours old:
+
+1. **Census lied under DB-down.** `getRolloutMode` falls back to
+   `legacy_passthrough` when the DB is unreachable — rendered bare, that reads
+   as an operator choice. Now: `dbAvailable` pre-check, per-lane
+   "ladder unenforceable" caveat, red panel banner. (Kept same-reader
+   semantics on purpose: passthrough IS the dispatcher's true effective state
+   in that condition — the caveat, not a different reader, is the fix.)
+2. **Strip suppressed its own warning.** Zero arrivals + UNREADABLE bookings
+   slice hid the strip entirely — silence exactly when it owed the
+   unknown-not-zero line. Extracted `stripHasNothingToSay` (pure, 4 arms
+   pinned); trustworthiness is now a render-forcing condition.
+3. **Shadow judge was unbounded per job.** The assembled branch is
+   deliberately not wall-clock-gated, so a held reel would re-judge on every
+   cron tick — N LLM calls/day on the same quota-fragile lane as the #1507
+   evening-403 arc. Now a durable per-job KV marks judged; a failed judge
+   writes nothing (retries, still log-only).
+4. **MODE_RANK was duplicated** in the census — two copies of one policy
+   table. `rolloutModeRank()` exported from `smsAutonomy`; census consumes it.
+
+Plus one same-class extension: `confirmationCalls` "tomorrow" was UTC —
+correct only by coincidence of its 15-18 ET window; now `getBusinessDateKey`.
+
+**Full serial suite receipt: run 1 caught a 5th defect** — the admin render
+matrix (bare-mounts every section) crashed ArrivalLoadStrip on undefined
+props. Fixed with honest defaults (`bookings=[]`, `bookingsTrustworthy=false`
+— absent data renders as unknown, never a clean zero). Targeted runs alone
+would have shipped that crash: the full suite is not optional on new admin
+components.

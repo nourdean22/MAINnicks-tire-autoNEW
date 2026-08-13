@@ -43,6 +43,12 @@ export default function AutonomyCensusPanel() {
 
   return (
     <div className="bg-card border border-border/30 p-6 space-y-4">
+      {!data.dbAvailable && (
+        <div className="border border-red-500/50 bg-red-500/10 p-2.5 text-[11px] text-red-400 font-semibold">
+          DB UNREACHABLE — the dispatcher falls back to legacy_passthrough, so the autonomy ladder is
+          unenforceable right now. Every mode below is the fallback state, not an operator choice.
+        </div>
+      )}
       <div className="border-b border-border/20 pb-3">
         <h3 className="text-sm font-bold text-foreground/80 flex items-center gap-2">
           <Radar className="w-4.5 h-4.5 text-primary" />
