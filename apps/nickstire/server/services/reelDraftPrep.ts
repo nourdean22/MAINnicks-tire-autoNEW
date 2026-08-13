@@ -17,7 +17,8 @@
  */
 import { generateReelBriefAI, type GenerateReelBriefInput } from "./reelBriefGen";
 import { attachAutonomousVisualWorld } from "./visualWorld";
-import { buildHiggsfieldReelPromptPack, runReelPreflight } from "../../client/src/lib/facelessReelStudio";
+import { buildHiggsfieldReelPromptPack, buildRepetitionChecks, runReelPreflight } from "../../client/src/lib/facelessReelStudio";
+import { DEFAULT_REPETITION_WINDOW_DAYS, getRecentReelSignals } from "./reelRepetitionHistory";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("reel-draft-prep");
@@ -55,26 +56,37 @@ export async function prepareCleanReelBrief(
   const maxAttempts = Math.max(1, opts.maxAttempts ?? 3);
   const rejected: string[][] = [];
 
+  // Real memory, not a hopeful prompt instruction: feed the model what NOT to
+  // pick, and independently verify the topic it picked anyway (ScanFinish
+  // NT-010). A caller-supplied avoidTopics wins — it usually means "operator
+  // is intentionally steering," which real history should not override.
+  const recent = await getRecentReelSignals();
+  const avoidTopics = input.avoidTopics && input.avoidTopics.length > 0 ? input.avoidTopics : recent.topics;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const { brief } = await generateReelBriefAI(input);
+    const { brief } = await generateReelBriefAI({ ...input, avoidTopics });
     const pre = runReelPreflight(brief);
-    if (pre.status !== "block") {
+    const repetition = buildRepetitionChecks(brief, recent);
+    if (pre.status !== "block" && !repetition.topicRepeated) {
       // Clean brief. Attach the visual world + build the prompt pack ONLY now, so
       // a preflight-rejected brief never spends a hero-frame image credit.
       await attachAutonomousVisualWorld(brief);
       brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
       if (attempt > 1) {
-        log.info(`clean reel brief on attempt ${attempt}/${maxAttempts} after ${rejected.length} preflight rejection(s)`);
+        log.info(`clean reel brief on attempt ${attempt}/${maxAttempts} after ${rejected.length} rejection(s)`);
       }
       return { brief, attempts: attempt, rejectedForPreflight: rejected };
     }
-    const blocking = pre.blocking.map((f) => f.message);
+    const blocking = pre.status === "block" ? pre.blocking.map((f) => f.message) : [];
+    if (repetition.topicRepeated) {
+      blocking.push(`topic repeats a reel from the last ${DEFAULT_REPETITION_WINDOW_DAYS} days: "${brief.topic}"`);
+    }
     rejected.push(blocking);
-    log.warn(`reel brief preflight BLOCKED (attempt ${attempt}/${maxAttempts}) — regenerating`, { blocking });
+    log.warn(`reel brief rejected (attempt ${attempt}/${maxAttempts}) — regenerating`, { blocking });
   }
 
   throw new PreflightExhaustedError(
-    `reel brief preflight blocked on all ${maxAttempts} attempts: ` +
+    `reel brief blocked on all ${maxAttempts} attempts (preflight or topic repetition): ` +
       rejected.map((b, i) => `#${i + 1}[${b.join("; ")}]`).join(" "),
     rejected,
   );

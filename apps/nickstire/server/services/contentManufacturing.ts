@@ -997,8 +997,15 @@ export async function runManufacturingPipeline(
             const { generateReelBriefAI } = await import("./reelBriefGen");
             const { enqueueReelJob } = await import("./reelPipeline");
             const { attachAutonomousVisualWorld } = await import("./visualWorld");
+            const { getRecentReelSignals } = await import("./reelRepetitionHistory");
 
-            const { brief } = await generateReelBriefAI({ topic });
+            // Real memory, not a blind spot: this draft lane never populated
+            // avoidTopics before (ScanFinish NT-010) — a human reviews the
+            // draft before it publishes, so this stays a soft steer rather
+            // than the autonomous lane's regenerate-on-repeat enforcement
+            // (reelDraftPrep.prepareCleanReelBrief).
+            const recent = await getRecentReelSignals();
+            const { brief } = await generateReelBriefAI({ topic, avoidTopics: recent.topics });
             brief.id = draftId;
             // Flag-gated (REEL_AUTO_VISUAL_WORLD, default OFF) continuity anchor;
             // no-op + zero cost until enabled, non-fatal on failure.

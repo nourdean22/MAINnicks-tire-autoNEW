@@ -148,5 +148,11 @@ Higgsfield test files: **10 files, 124 tests, 0 failures**).
 | NT-015 | No multilingual variant hook. An unused "top performer" signal (`recentWinners`, `instagramAdmin.ts:620-637`) already exists as a ready trigger | MED | OBSERVED | see below |
 | NT-016 | This ledger's OPEN/CLOSING/ACTED-ON status is hand-typed, not script-derived — unlike the separate `capability-ledger.json` + `check-capability-ledger.mjs`, which IS script-validated | LOW | OBSERVED | Judged not worth building a parallel automation; the existing discipline (every Outcome cites a real receipt) already satisfies the spirit. NT-012's outcome logger closes the loop specifically for reel findings going forward |
 
+### Run 2 build pass
+
+| ID | Outcome |
+|---|---|
+| NT-010 | **ACTED ON** — `buildRepetitionChecks` (`facelessReelStudio.ts:1037`) was pure and tested but had zero server callers. New `getRecentReelSignals()` (`services/reelRepetitionHistory.ts`) reads the last 21 days of `reel_jobs` and reduces each payload to topic/keyword/archetype/motionLens/objectCharacter; DB-down or an unparsable row degrades to "no memory" rather than throwing or blanking the window. Wired into `prepareCleanReelBrief` (the autonomous daily-post lane, via `dailyReelPost.ts`) with real enforcement: a repeated topic is treated exactly like an M10 preflight block — reject and regenerate, same proven retry machinery, `PreflightExhaustedError` message widened accordingly. `contentManufacturing.ts:1001` (the human-reviewed draft lane) gets the softer fix — real `avoidTopics` populated, no regenerate-loop added since that path has none for preflight either and a human reviews before publish. 12 new tests (`reelRepetitionHistory.test.ts`, 4; `reelDraftPrep.test.ts`, 4 new + 4 existing updated) prove: real history flows into `avoidTopics`, operator-supplied `avoidTopics` wins over history, a topic repeat forces regeneration even when preflight passes, and DB-down never blocks. `pnpm run check`: 0 errors. Full reel+Higgsfield suite: 15 files, 206 tests, 0 failures. |
+
 Run-2 build pass and self-review continue below as each item lands, same
 convention as Run 1.
