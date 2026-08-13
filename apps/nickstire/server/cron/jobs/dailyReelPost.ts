@@ -61,6 +61,55 @@ export const MANIFEST: { reel: number; caption: string }[] = [
   { reel: 30, caption: "Get your car a winter coat 🧣 Before the cold sets in, check the battery, tires, fluids, and wipers. A little prep keeps winter from catching you off guard. Stop by and we'll get you ready.\n\n#wintercar #carmaintenance #cartips #euclidohio #clevelandcars #nickstire" },
 ];
 
+/**
+ * NT-001 (2026-08-13) · shadow-judge input for an assembled reel, pure so the
+ * payload-parsing edge cases are testable without the cron flow. The reel
+ * lane's rendered-QA is a DEFECT detector (garbled pixels, gloved hands); the
+ * independent judge is a JUDGMENT check (generic concept, weak hook) — the
+ * image lane's judge caught 5/25 self-eval passes. A reel payload can be
+ * 70KB+ or unparseable; either way this must return something judgeable and
+ * NEVER throw — a broken brief JSON is not a reason to skip the readout.
+ */
+export function buildReelShadowJudgeInput(job: {
+  id: number;
+  briefId: string;
+  payload: string | null;
+  caption: string;
+}): {
+  campaignAsk: string;
+  concept: { title: string; hook: string; coreIdea: string; visualIdea: string; whyItWorks: string };
+} {
+  let title = job.briefId;
+  let visualIdea = "assembled faceless reel (free lane)";
+  try {
+    const brief = JSON.parse(job.payload ?? "") as {
+      topic?: unknown;
+      archetype?: unknown;
+      objectCharacter?: unknown;
+      mechanicTruth?: unknown;
+    };
+    if (typeof brief.topic === "string" && brief.topic.trim()) title = brief.topic.trim();
+    const visual = [brief.archetype, brief.objectCharacter]
+      .filter((v): v is string => typeof v === "string" && v.length > 0)
+      .join(" · ");
+    if (visual) visualIdea = visual;
+  } catch {
+    // Unparseable payload → judge on the caption alone. Disclosed by the
+    // briefId title rather than hidden behind a skip.
+  }
+  const caption = job.caption || title;
+  return {
+    campaignAsk: `Autonomous daily Instagram REEL for the shop feed (job ${job.id})`,
+    concept: {
+      title,
+      hook: caption.split("\n")[0] || caption.slice(0, 120),
+      coreIdea: caption,
+      visualIdea,
+      whyItWorks: "shadow readout — the reel lane has no self-eval notes to quote",
+    },
+  };
+}
+
 async function getKv(key: string): Promise<string | null> {
   const { getDb } = await import("../../db");
   const d = await getDb();
@@ -364,6 +413,34 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       const detail = err instanceof Error ? err.message : String(err);
       log.error(`daily reel: publish gate ERRORED for job ${job.id} — HOLDING (an unreadable gate is not an open gate)`, { err: detail });
       return { recordsProcessed: 0, details: `held: publish gate could not be evaluated (${detail.slice(0, 120)}); index not advanced` };
+    }
+
+    // ── INDEPENDENT JUDGE — SHADOW, LOG-ONLY (NT-001, 2026-08-13) ──
+    // The image lane ran its judge shadow 08-05 → gate 08-07 over a measured
+    // 5/25 blind-spot readout; the reel lane has never had one — rendered-QA
+    // scores pixels, not judgment. Same promotion path: log the verdict, block
+    // NOTHING, and only a future operator flip turns disagreement into a gate.
+    // Failure is disclosed, never fatal — a judge error must not hold a reel
+    // that rendered-QA already passed (this is exactly why it isn't a gate yet).
+    if (process.env.IG_SHADOW_JUDGE !== "false") {
+      try {
+        const { judgeSingleConcept } = await import("../../services/conceptTournament");
+        const judgeInput = buildReelShadowJudgeInput({
+          id: job.id, briefId: job.briefId, payload: job.payload, caption,
+        });
+        const verdict = await judgeSingleConcept({ ...judgeInput, priority: 1 });
+        log.info("daily reel shadow judge (log-only — no gate)", {
+          jobId: job.id,
+          total: verdict.total,
+          rejected: verdict.rejected,
+          note: (verdict.note || verdict.rejectionReason || "").slice(0, 200),
+        });
+      } catch (err) {
+        log.warn("daily reel shadow judge failed (run continues — shadow lane)", {
+          jobId: job.id,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     // EXACTLY-ONCE: claim assembled -> publishing BEFORE the external Meta call,

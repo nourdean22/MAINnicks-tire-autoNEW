@@ -42,12 +42,21 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     const d = await getDb();
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-    // Find bookings where preferredDate is past AND status is still new/confirmed
+    // Find bookings where preferredDate is past AND status is still new/confirmed.
+    //
+    // "Past" is computed in SHOP time, not session time (NT-009). This used to
+    // be bare `CURDATE()`: on a UTC session, between 20:00 ET and midnight ET
+    // that is already tomorrow's date, so a booking for TODAY flipped to
+    // no-show — auto-cancelled + texted — while the customer could still walk
+    // in. preferredDate is a YYYY-MM-DD varchar, so lexicographic < against an
+    // ISO key is exact.
+    const { getBusinessDateKey } = await import("../../lib/timezoneAssert");
+    const todayEt = getBusinessDateKey();
     const [rows] = await d.execute(sql`
       SELECT b.id, b.name, b.phone, b.preferredDate, b.service, b.status
       FROM bookings b
       WHERE b.preferredDate IS NOT NULL
-        AND b.preferredDate < CURDATE()
+        AND b.preferredDate < ${todayEt}
         AND b.status IN ('new', 'confirmed')
         AND b.createdAt > DATE_SUB(NOW(), INTERVAL 60 DAY)
       LIMIT 20

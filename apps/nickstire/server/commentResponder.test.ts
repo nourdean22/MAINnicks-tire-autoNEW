@@ -9,10 +9,12 @@ vi.mock("./services/metaSocial", () => ({ getMediaComments: vi.fn(), replyToComm
 vi.mock("../drizzle/schema", () => ({
   reelJobs: { __name: "reel_jobs" },
   shopSettings: { __name: "shop_settings" },
+  // NT-003: the keyword collector reads published inventory keywords.
+  socialContentInventory: { __name: "social_content_inventory", status: {}, interactiveDmKeyword: {} },
 }));
-vi.mock("drizzle-orm", () => ({ eq: () => ({}), and: () => ({}), isNotNull: () => ({}), desc: () => ({}) }));
+vi.mock("drizzle-orm", () => ({ eq: () => ({}), and: () => ({}), isNotNull: () => ({}), desc: () => ({}), sql: () => ({}) }));
 
-import { draftCommentReply, runReelCommentResponder } from "./services/commentResponder";
+import { collectActiveCampaignKeywords, draftCommentReply, matchCampaignKeyword, runReelCommentResponder } from "./services/commentResponder";
 import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
 import { getMediaComments, replyToComment } from "./services/metaSocial";
@@ -27,7 +29,9 @@ function makeDb(reels: unknown[], kv: unknown[], writeSpy?: (op: string) => void
   return {
     select: () => ({
       from: (table: { __name?: string }) => {
-        const rows = table?.__name === "reel_jobs" ? reels : kv;
+        const rows =
+          table?.__name === "reel_jobs" ? reels :
+          table?.__name === "social_content_inventory" ? [] : kv;
         const b: Record<string, unknown> = {};
         b.where = () => b;
         b.orderBy = () => b;
@@ -132,5 +136,89 @@ describe("runReelCommentResponder — gating", () => {
     expect(replyToComment).toHaveBeenCalledTimes(1);
     expect(r.recordsProcessed).toBe(0);
     expect(writeSpy).not.toHaveBeenCalled(); // cursor frozen on failure -> comment retried, not dropped
+  });
+});
+
+// ── NT-003 · campaign-keyword comment loop ──────────────────────────────────
+// The published creative asks viewers to comment/DM a keyword; there is no DM
+// path, so the matcher + prompt steer are what turn that CTA into a working
+// public hand-off. False-positive cases are the load-bearing assertions
+// (the repo's rule-over-fires lesson): "potholes" must NOT match POTHOLE.
+describe("matchCampaignKeyword", () => {
+  const kws = ["POTHOLE", "TIRES", "TIRESAFE"];
+
+  it("matches the exact token through punctuation, quotes, and case", () => {
+    expect(matchCampaignKeyword('Ok "POTHOLE"!', kws)).toBe("POTHOLE");
+    expect(matchCampaignKeyword("pothole", kws)).toBe("POTHOLE");
+    expect(matchCampaignKeyword("sent: pothole.", kws)).toBe("POTHOLE");
+  });
+
+  it("does NOT match inflected or embedded forms (false-positive guard)", () => {
+    expect(matchCampaignKeyword("so many potholes here", kws)).toBeNull();
+    expect(matchCampaignKeyword("expothole", kws)).toBeNull();
+  });
+
+  it("prefers the longest keyword so TIRESAFE never reads as TIRES", () => {
+    expect(matchCampaignKeyword("TIRESAFE please", kws)).toBe("TIRESAFE");
+  });
+
+  it("returns null on empty inputs", () => {
+    expect(matchCampaignKeyword("", kws)).toBeNull();
+    expect(matchCampaignKeyword("hello", [])).toBeNull();
+    expect(matchCampaignKeyword("hello", ["", "  "])).toBeNull();
+  });
+});
+
+describe("collectActiveCampaignKeywords", () => {
+  const inventoryDb = (rows: Array<{ keyword: string | null }>) => ({
+    select: () => ({
+      from: () => {
+        const b: Record<string, unknown> = {};
+        b.where = () => b;
+        b.limit = () => Promise.resolve(rows);
+        return b;
+      },
+    }),
+  });
+
+  it("merges reel-payload keywords with published inventory keywords", async () => {
+    const jobs = [
+      { payload: JSON.stringify({ campaignKeyword: "POTHOLE" }) },
+      { payload: "{not json" }, // unparseable → contributes nothing, never throws
+      { payload: JSON.stringify({}) },
+    ];
+    const got = await collectActiveCampaignKeywords(inventoryDb([{ keyword: "SURVIVE" }, { keyword: null }]), jobs);
+    expect(got.sort()).toEqual(["POTHOLE", "SURVIVE"]);
+  });
+
+  it("degrades to payload-only when the inventory read throws (run must continue)", async () => {
+    const throwingDb = { select: () => { throw new Error("table missing"); } };
+    const got = await collectActiveCampaignKeywords(throwingDb, [
+      { payload: JSON.stringify({ campaignKeyword: "COST" }) },
+    ]);
+    expect(got).toEqual(["COST"]);
+  });
+});
+
+describe("draftCommentReply keyword steer (NT-003)", () => {
+  it("injects the no-DM hand-off instruction with the real phone line", async () => {
+    mockLLM(JSON.stringify({ replyText: "Check your options - call or text us at the shop line.", classifiedTone: "promo" }));
+    await draftCommentReply("POTHOLE", undefined, { campaignKeyword: "POTHOLE" });
+    const call = (invokeLLM as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+      messages: Array<{ content: string }>;
+    };
+    const prompt = call.messages[0].content;
+    expect(prompt).toContain('campaign keyword "POTHOLE"');
+    expect(prompt).toContain("NO DM automation");
+    expect(prompt).toContain("(216) 862-0005");
+  });
+
+  it("adds NO steer without a keyword (generic path unchanged)", async () => {
+    mockLLM(JSON.stringify({ replyText: "Thanks for stopping by!", classifiedTone: "warm" }));
+    await draftCommentReply("nice reel");
+    const call = (invokeLLM as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+      messages: Array<{ content: string }>;
+    };
+    expect(call.messages[0].content).not.toContain("campaign keyword");
   });
 });

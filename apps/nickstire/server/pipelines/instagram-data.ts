@@ -429,23 +429,50 @@ export function pickTopThemes(rows: Array<{ themesJson?: string | null }>, limit
  * hour (getBestPostingTimes needs >=2 posts/slot, so this is null until data
  * accumulates). Graceful: empty themes + null hour → generation/cadence keep their
  * defaults with ZERO behavior change until the analytics table fills.
+ *
+ * NT-002 (flagged 2026-07-31, fixed 2026-08-13): this ranked the top 8 posts by
+ * engagementRate with NO media filter — measured 5/8 of the "reel" training
+ * signal was carousels/images, whose winning behaviors (saves) are the wrong
+ * objective for reels (sends/watch-time). Now REELS-first: rank reels only,
+ * and only when fewer than MIN_REEL_SIGNAL_ROWS reels exist fall back to
+ * all-media — DISCLOSED via signalSource so a caller/log can tell a reel-taught
+ * brief from a carousel-taught one. mediaProductType is null on pre-0106 rows;
+ * those are not reels-confirmed, so they only participate in the fallback.
  */
-export async function getReelGenerationSignal(): Promise<{ topThemes: string[]; bestPostHour: number | null }> {
+export const MIN_REEL_SIGNAL_ROWS = 4;
+
+export async function getReelGenerationSignal(): Promise<{
+  topThemes: string[];
+  bestPostHour: number | null;
+  signalSource: "reels" | "all_media" | "none";
+}> {
   try {
     const d = await db();
-    if (!d) return { topThemes: [], bestPostHour: null };
-    const rows = await d
+    if (!d) return { topThemes: [], bestPostHour: null, signalSource: "none" };
+    let rows: Array<{ themesJson?: string | null }> = await d
       .select({ themesJson: instagramAnalytics.themesJson })
       .from(instagramAnalytics)
+      .where(eq(instagramAnalytics.mediaProductType, "REELS"))
       .orderBy(desc(instagramAnalytics.engagementRate))
       .limit(8);
-    const topThemes = pickTopThemes(rows as Array<{ themesJson?: string | null }>);
+    let signalSource: "reels" | "all_media" = "reels";
+    if (rows.length < MIN_REEL_SIGNAL_ROWS) {
+      const reelRows = rows.length;
+      rows = await d
+        .select({ themesJson: instagramAnalytics.themesJson })
+        .from(instagramAnalytics)
+        .orderBy(desc(instagramAnalytics.engagementRate))
+        .limit(8);
+      signalSource = "all_media";
+      log.info("reel generation signal falling back to all-media (too few reel rows)", { reelRows });
+    }
+    const topThemes = pickTopThemes(rows);
     const times = await getBestPostingTimes({ limit: 1 });
     const bestPostHour = times.length && Number.isFinite(times[0].hourOfDay) ? times[0].hourOfDay : null;
-    return { topThemes, bestPostHour };
+    return { topThemes, bestPostHour, signalSource };
   } catch (err) {
     log.warn("reel generation signal unavailable", { err: err instanceof Error ? err.message : String(err) });
-    return { topThemes: [], bestPostHour: null };
+    return { topThemes: [], bestPostHour: null, signalSource: "none" };
   }
 }
 

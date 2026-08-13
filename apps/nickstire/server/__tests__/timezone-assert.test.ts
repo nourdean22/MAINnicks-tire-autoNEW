@@ -42,3 +42,31 @@ describe("business timezone check", () => {
     expect(r.ok).toBe(true);
   });
 });
+
+// NT-009 · getBusinessDateKey — the shop-time twin of the client helper.
+// The no-show sweep compares bookings.preferredDate against this key; the bug
+// it replaces (bare CURDATE() on a UTC session) flips TODAY's bookings to
+// "past" between 20:00 ET and midnight ET.
+import { getBusinessDateKey } from "../lib/timezoneAssert";
+
+describe("getBusinessDateKey", () => {
+  it("matches the calendar date in ET during the day", () => {
+    // 15:00 UTC = 11:00 EDT, same calendar date both zones.
+    expect(getBusinessDateKey(new Date("2026-08-13T15:00:00Z"))).toBe("2026-08-13");
+  });
+
+  it("stays on TODAY's ET date when UTC has already rolled over (the CURDATE bug)", () => {
+    // 02:00 UTC Aug 14 = 22:00 EDT Aug 13. CURDATE() on a UTC session says
+    // 2026-08-14 here — which is exactly what auto-cancelled same-day bookings.
+    expect(getBusinessDateKey(new Date("2026-08-14T02:00:00Z"))).toBe("2026-08-13");
+  });
+
+  it("handles the EST (winter) boundary too", () => {
+    // 04:30 UTC Jan 15 = 23:30 EST Jan 14.
+    expect(getBusinessDateKey(new Date("2026-01-15T04:30:00Z"))).toBe("2026-01-14");
+  });
+
+  it("agrees with the UTC date when both zones share a calendar day", () => {
+    expect(getBusinessDateKey(new Date("2026-01-15T18:00:00Z"))).toBe("2026-01-15");
+  });
+});

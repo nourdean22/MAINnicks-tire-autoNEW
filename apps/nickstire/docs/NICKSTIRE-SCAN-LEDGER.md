@@ -60,3 +60,24 @@ env var is marked INFERRED for that reason.
   breaks the moment that window moves past 20:00 ET. Not a live defect.
 - 13 of 48 capabilities sit `unit_verified @ disabled` — a large built-but-dark
   cohort worth its own census, parked behind NT-004.
+
+## Run 1 build pass — 2026-08-13 (operator: "go on 1..9, do them all")
+
+All nine findings executed same day, one PR. Outcome column updates:
+
+| ID | Outcome |
+|---|---|
+| NT-001 | **ACTED ON** — shadow judge wired into `dailyReelPost` before the publish claim: log-only, fail-open by design (a judge error must not hold a QA-passed reel), same shadow→gate promotion path the image lane used 08-05→08-07. Input builder pure + pinned (`buildReelShadowJudgeInput`, 3 tests incl. unparseable-payload). Gate flip stays an OPERATOR decision after the disagreement readout accumulates. |
+| NT-002 | **ACTED ON** — `getReelGenerationSignal` now REELS-first (`mediaProductType = 'REELS'`, floor `MIN_REEL_SIGNAL_ROWS = 4`) with a DISCLOSED all-media fallback (`signalSource`), surfaced through `contentTopicSignals` provenance. Repeat hit closed on the 2nd sighting. |
+| NT-003 | **ACTED ON** as the no-DM-needed variant — `matchCampaignKeyword` (exact-token, lookarounds not `\b`, longest-first, false-positive-pinned) + `collectActiveCampaignKeywords` (reel payloads already in hand + published inventory, degrade-not-fail) + a keyword steer in `draftCommentReply` that hands off to channels that EXIST (call/text line, link in bio) and forbids DM promises. All existing gates untouched: ENABLED/LIVE flags, claim-safety detector, watermark, velocity caps. The cheap test (count keyword comments in prod) remains open — recent posts have ~0 comments. |
+| NT-004 | **ACTED ON** — `smsAutonomyCensus` derives lanes from `SMS_AUTOMATION_REGISTRY` (never a hand-list), live-reads each orchestrator lane's rollout mode via the SAME `getRolloutMode` the dispatcher uses, flags ONLY `over_ceiling` as a defect ("off" may be intentional — operator's call), reports unreadable as UNKNOWN, and prints its own blind spots on the panel. Mounted read-only under the Rollout Control Center. **Standing lesson applies: the first PROD render is the real test** — fixture-green ≠ honest reading. |
+| NT-005 | **ACTED ON** — 3 admin shortcuts added to the PWA manifest (Approvals / Today / IG Ops via the registry's own `?tab=` ids). iOS ignores manifest shortcuts; the iPhone equivalent is pinned icons per URL — `nickstire.org/admin?tab=approvals` works today, zero code. Deliberately NOT precaching admin routes in the SW (auth surface + the 2026-08-01 stale-shell incident says keep admin network-first). |
+| NT-006 | **RECORDED as the standing trade** — reel lane held at $0 spend (already true: template_stock); next build cycles go to AEO/proprietary-data + real-footage lanes. Falsifier unchanged: reel-attributed `customer_events` vs AEO-page-attributed by **2027-02**. No code — this row IS the position; kill it with data, not vibes. |
+| NT-007 | **ACTED ON** — `reel-pipeline-assembly` re-verified with the 2026-08-11 live publish (IG `18102584966600206`, first sighted vision-critic pass, `forced:false`), refuted "S3 pending" blocker REMOVED (bucket `nickstire-media-oq6yt1u22`; REEL-PIPELINE.md already flagged the sentence as plan-corrupting), dead-air blocker closed by the same live render. `lastVerifiedAt` 2026-08-11 → expires **2026-09-10**; checker exit 0; REALITY-LEDGER re-rendered from source. The 4 remaining stale entries are non-load-bearing and deliberately untouched ("re-prove when you next touch them"). |
+| NT-008 | **ACTED ON as the redirect** (slot-booking premise stays REFUTED) — `ArrivalLoadStrip` on Today: first-ever client consumer of `dispatch.expectedArrivals` (the endpoint had ZERO importers — built-tested-unwired, again) + tomorrow's preferred-date bookings derived from the bundle Today already fetches. Self-suppresses when empty AND healthy; unreadable renders as unknown-not-zero (loud-failure rule). |
+| NT-009 | **ACTED ON** — `detectNoShows` now compares against `getBusinessDateKey()` (server twin of the client helper, EST-conservative fallback: late beats wrong) instead of bare `CURDATE()`. DST + evening-boundary pinned by 4 tests. The read-only session-tz probe was NOT run (no prod credentials in this lane) — the fix is correct regardless of what the probe would have said. |
+
+Run-2 self-audit obligations: check the reel shadow-judge disagreement readout
+(are verdicts landing in logs?), the census's first PROD reading (fixture-green
+proves shape, not reading), and whether any keyword comment has actually
+arrived.

@@ -249,7 +249,7 @@ export const smsOrchestratorRouter = router({
     .query(async () => {
       const db = await getDbTyped();
       if (!db) return [];
-      
+
       return await db.select()
         .from(appSecretKv)
         .where(or(
@@ -257,6 +257,14 @@ export const smsOrchestratorRouter = router({
           eq(appSecretKv.k, "sms_orchestrator_global_mode")
         ));
     }),
+
+  // NT-004 · registry-derived declared-vs-live census. Read-only; reports
+  // state, never flips anything. See services/smsAutonomyCensus.ts for the
+  // classification contract and disclosed blind spots.
+  autonomyCensus: adminProcedure.query(async () => {
+    const { runSmsAutonomyCensus } = await import("../services/smsAutonomyCensus");
+    return runSmsAutonomyCensus();
+  }),
 
   setRolloutMode: adminProcedure
     .input(z.object({

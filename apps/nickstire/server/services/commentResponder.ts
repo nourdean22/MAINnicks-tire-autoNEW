@@ -21,6 +21,7 @@ import { createLogger } from "../lib/logger";
 import { checkReviewReply, buildReplyPromptRules, hasBlockingFindings } from "@shared/reviewReplyQa";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("services:comment-responder");
 
@@ -41,7 +42,14 @@ const TONE_GUIDELINES: Record<ReplyTone, string> = {
 export async function draftCommentReply(
   commentText: string,
   tone?: ReplyTone,
+  opts?: { campaignKeyword?: string },
 ): Promise<{ draft: string; toneClassified?: ReplyTone; findings: ReturnType<typeof checkReviewReply>; blocked: boolean }> {
+  // NT-003: a keyword comment is someone doing exactly what the post asked.
+  // There is no DM automation in this stack, so the reply must give the REAL
+  // next step (call/text line, link in bio) — never promise a DM.
+  const keywordSteer = opts?.campaignKeyword
+    ? `\nIMPORTANT: The commenter used our campaign keyword "${opts.campaignKeyword}" — they are answering the post's call-to-action. We have NO DM automation, so do not promise to DM them or ask them to DM us. Give the real next step in the reply itself: call or text ${BUSINESS.phone.display}, or tap the link in our bio.`
+    : "";
   // If tone is not provided, perform sentiment-based classification first
   let prompt = "";
   if (!tone) {
@@ -62,14 +70,14 @@ INSTRUCTIONS:
    - Use soft diagnostics (e.g. "could point to", "worth checking").
    - ASCII-only characters (no emojis, plain text only).
 
-Your output must be a valid JSON object matching the requested schema. No conversational prose.`;
+Your output must be a valid JSON object matching the requested schema. No conversational prose.${keywordSteer}`;
   } else {
     prompt = `You manage the Instagram account for Nick's Tire & Auto, a neighborhood Cleveland-area shop.
 A follower left this comment on one of our posts: "${commentText}"
 
 ${TONE_GUIDELINES[tone]}
 ${buildReplyPromptRules()}
-Keep it under 200 characters.`;
+Keep it under 200 characters.${keywordSteer}`;
   }
 
   let draft = "";
@@ -118,6 +126,73 @@ Keep it under 200 characters.`;
 
 const RECENT_REELS = Number(process.env.REEL_COMMENT_RESPONDER_REELS) || 3;
 const MAX_REPLIES_PER_RUN = Number(process.env.REEL_COMMENT_RESPONDER_MAX) || 5;
+
+/**
+ * NT-003 (2026-08-13) · campaign-keyword comments get a working next step.
+ *
+ * Published creative burns `DM "KEYWORD"` into pixels (reelAssembly CTA text,
+ * carousel slides), but this stack has NO Instagram DM path — the webhook and
+ * this responder see comments only. So a commenter who does exactly what the
+ * reel asked previously got the same generic reply as anyone else, and the
+ * promised loop dead-ended. This matcher spots the keyword so the reply can
+ * hand off to the channels that DO exist (call/text line, link in bio).
+ *
+ * Matching is exact-token: the campaign asks for the literal keyword, so
+ * "POTHOLE!" matches and "potholes" does not. Lookarounds instead of \b on
+ * both ends — a trailing `\b` after a non-word char can never match (the
+ * repo's 4× regex trap), and lookarounds stay correct even if a keyword ever
+ * carries punctuation. Longest keyword wins so "TIRESAFE" beats "TIRES".
+ */
+export function matchCampaignKeyword(text: string, keywords: readonly string[]): string | null {
+  if (!text) return null;
+  const candidates = [...new Set(keywords.map((k) => k.trim()).filter(Boolean))]
+    .sort((a, b) => b.length - a.length);
+  for (const keyword of candidates) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "i");
+    if (re.test(text)) return keyword;
+  }
+  return null;
+}
+
+/**
+ * Active campaign keywords, cheapest sources first: the posted reels already
+ * in hand (their payload carries campaignKeyword — zero extra queries) plus
+ * published inventory items with an interactive DM keyword. Failure returns
+ * what was gathered so far — a keyword miss degrades to a generic reply, it
+ * must never fail the responder run.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function collectActiveCampaignKeywords(d: any, postedJobs: Array<{ payload?: string | null }>): Promise<string[]> {
+  const keywords = new Set<string>();
+  for (const job of postedJobs) {
+    try {
+      const brief = JSON.parse(job.payload ?? "") as { campaignKeyword?: unknown };
+      if (typeof brief.campaignKeyword === "string" && brief.campaignKeyword.trim()) {
+        keywords.add(brief.campaignKeyword.trim());
+      }
+    } catch {
+      // unparseable payload → that reel simply contributes no keyword
+    }
+  }
+  try {
+    const { socialContentInventory } = await import("../../drizzle/schema");
+    const { eq, and, sql } = await import("drizzle-orm");
+    const rows = await d
+      .select({ keyword: socialContentInventory.interactiveDmKeyword })
+      .from(socialContentInventory)
+      .where(and(eq(socialContentInventory.status, "published"), sql`${socialContentInventory.interactiveDmKeyword} IS NOT NULL`))
+      .limit(50);
+    for (const r of rows as Array<{ keyword: string | null }>) {
+      if (r.keyword?.trim()) keywords.add(r.keyword.trim());
+    }
+  } catch (err) {
+    log.warn("campaign keyword inventory read failed (keyword steer degrades, run continues)", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return [...keywords];
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getKv(d: any, key: string): Promise<string | null> {
@@ -170,6 +245,11 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
   }
 
   const { getMediaComments, replyToComment } = await import("./metaSocial");
+  // NT-003: campaign keywords active right now — from the posted reels already
+  // in hand plus published inventory. A keyword comment gets a reply that
+  // hands off to a channel that exists (call/text, link in bio) instead of a
+  // generic pleasantry that leaves the post's own CTA dangling.
+  const activeKeywords = await collectActiveCampaignKeywords(d, posted);
   let postedCount = 0;
   let drafted = 0;
   let blocked = 0;
@@ -204,8 +284,17 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
         advance(c.timestamp);
         continue;
       }
-      // Choose tone dynamically based on comment sentiment (pass no tone parameter)
-      const { draft, toneClassified, blocked: isBlocked } = await draftCommentReply(c.text);
+      // Choose tone dynamically based on comment sentiment (pass no tone
+      // parameter). A campaign-keyword hit adds the hand-off steer (NT-003).
+      const matchedKeyword = matchCampaignKeyword(c.text, activeKeywords);
+      if (matchedKeyword) {
+        log.info("campaign keyword comment detected", { mediaId, commentId: c.id, keyword: matchedKeyword });
+      }
+      const { draft, toneClassified, blocked: isBlocked } = await draftCommentReply(
+        c.text,
+        undefined,
+        matchedKeyword ? { campaignKeyword: matchedKeyword } : undefined,
+      );
       if (!draft || isBlocked) {
         if (isBlocked) blocked++;
         advance(c.timestamp);
