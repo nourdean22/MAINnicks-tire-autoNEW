@@ -682,3 +682,33 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add a Traps row: "`git rm` with a path containing a protected-name segment (`/chat`, …) trips the deletion guard on COMMAND TEXT. Delete via the file tools first, then `git add` the deleted paths — it stages deletions without `git rm`."
 - **Confidence:** medium (once, clear mechanism, same command-text family as the documented heredoc trap)
 - **Status:** proposed
+
+## 2026-08-13 · ScanFinish Run 2 — faceless-reel mega-brief + audit round 2 (#1558, #1561)
+
+### P1 · `nickstire-verify` (a test fixture's SCALE must be traced to the real producer, not invented)
+- **Trigger (witnessed):** `selectMultilingualCandidates`'s reason string double-scaled `engagementRate` — the real producer (`getTopPosts()`, `server/pipelines/instagram-data.ts:576`) returns a PERCENTAGE-scale number (5.23 for 5.23%), but both test fixtures (`multilingual-candidates.test.ts`, `scanfinishRun2EndToEnd.test.ts`) invented a 0-1 fraction production never produces. All tests were green while a real reel would render "523.00%" to the operator. Merged in #1558; caught only by the post-merge adversarial audit; fixed in #1561 with real-scale fixtures + a "523" regression guard.
+- **Cost:** a real display bug shipped to main; one audit round + follow-up PR to catch and fix.
+- **Proposed edit:** add a Traps row: "A numeric test fixture is a claim about the PRODUCER's scale/domain. Before inventing a value (0.05 vs 5.0, cents vs dollars, *10000 vs percent), grep the function that produces it in production and one existing consumer that renders it — a self-consistent wrong-scale fixture keeps every test green around a real ×100 bug."
+- **Confidence:** high (the same session's OTHER fixture-shape bug — `ctaType` at the payload top level, a field no real row has — is the identical class in a second file)
+- **Status:** proposed
+
+### P2 · `nickstire-verify` (`as never` on a parsed-JSON field is a bug factory — validate, never cast)
+- **Trigger (witnessed):** two instances in ONE run's diff: (a) `attentionMicrostructureStore.ts` read `brief.ctaType as never` — a field that does not exist anywhere on a real `reel_jobs.payload` — making `hasCta` structurally always false (the swipe file's beat-structure half could never report anything but "insufficient", indistinguishable from "not enough data yet"); (b) `dailyReelPost.ts:493` force-cast raw JSON strings into `EntailmentVerdict` the same way. Fixed with real normalizers (`normalizeCtaType`, `normalizeEntailmentVerdict`) + a canonical `parseReelJobPayload()` (`shared/reelJobPayload.ts`) so payload readers share one compiler-checked shape.
+- **Cost:** one structurally-dead feature merged in #1558 (would have read as "no data yet" forever); a dormant second instance.
+- **Proposed edit:** add a Traps row: "`as never` / `as unknown as X` on a JSON.parse'd field silences the exact compiler check that would catch a nonexistent field or wrong-domain value. Validate through a normalizer that degrades unknowns honestly, and read `reel_jobs.payload` through `shared/reelJobPayload.ts`'s `parseReelJobPayload()` — never a fresh ad-hoc inline type."
+- **Confidence:** high (two instances in one diff, one load-bearing)
+- **Status:** proposed
+
+### P3 · `harness-worktree-setup` (follow-up PR from the same branch after a squash-merge = phantom conflict; cherry-pick onto a fresh branch instead)
+- **Trigger (witnessed):** PR #1560 (one new commit on the same branch #1558 had squash-merged) reported "the merge commit cannot be cleanly created" — the branch's merge base predated the squash, so GitHub tried to re-apply all 9 already-merged commits. Recovery that worked first try: `git checkout -b <fresh> origin/main && git cherry-pick <new-sha>` → clean apply, PR #1561 merged. Second occurrence of the family: Run 1's ledger records the same shape (#1551's squash made #1552 unmergeable), resolved there with the messier `checkout --ours`.
+- **Cost:** one closed PR + a re-land cycle (~5 minutes) this time; the family has now cost two sessions.
+- **Proposed edit:** add a Traps row: "After an earlier PR from THIS branch squash-merges, any follow-up PR from the same branch phantom-conflicts (its merge base predates the squash). Don't resolve — cherry-pick the new commit(s) onto a fresh branch cut from current origin/main and PR that."
+- **Confidence:** high (recurred 2×, both witnessed in this repo's ledger)
+- **Status:** proposed
+
+### P4 · `nickstire-verify` (an e2e "proof" test must call the SAME transform production calls — extract shared splits)
+- **Trigger (witnessed):** `scanfinishRun2EndToEnd.test.ts` Stage 1 hand-fed all 14 Local Discovery topics (including the 4 e_check ones) into `localDiscoveryTopics` unfiltered, silently bypassing the e_check→government_feed evidence-gate split that the real entry point (`gatherTopicSignals()`, `contentTopicSignals.ts`) performs inline — the test's docstring claimed "the REAL functions... not re-implemented fixtures" while skipping the one load-bearing derivation. Audit-confirmed; fixed in #1561 by extracting `splitLocalDiscoveryTopics()` so the IO layer and the test call one tested implementation, and the test now asserts every government_feed candidate is blocked.
+- **Cost:** the run's headline proof-of-work receipt proved less than it claimed; would have silently kept "passing" if the library were ever reordered.
+- **Proposed edit:** add a Traps row: "When an e2e test hand-builds the input a real IO function normally derives, it can bypass the exact gate it claims to prove. If the derivation is inline in the IO layer, extract it into a pure shared function and call THAT from both the IO layer and the test."
+- **Confidence:** medium (once, clear mechanism, audit-verified)
+- **Status:** proposed
