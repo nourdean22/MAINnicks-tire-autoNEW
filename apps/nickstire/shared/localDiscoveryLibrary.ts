@@ -68,3 +68,23 @@ export function localDiscoveryTopics(exclude: string[] = []): string[] {
 export function categoryForTopic(topic: string): LocalDiscoveryCategory | null {
   return LOCAL_DISCOVERY_LIBRARY.find((e) => e.topic === topic)?.category ?? null;
 }
+
+/**
+ * The e_check/non-e_check split that keeps E-Check topics routed through the
+ * government-evidence-gated franchise (contentTopicMiner.ts's TopicSignals
+ * doc) instead of the ungated local_discovery source. Extracted as its own
+ * pure function (post-merge self-review, 2026-08-13) — it originally lived
+ * only inline inside contentTopicSignals.ts, so the end-to-end proof-of-work
+ * test had no way to exercise the real split and instead fed unfiltered
+ * topics (including e_check ones) straight into `localDiscoveryTopics`,
+ * silently bypassing the exact gate this split exists to enforce. Now both
+ * the live IO layer and the test call this SAME function.
+ */
+export function splitLocalDiscoveryTopics(topics: string[]): { localDiscoveryTopics: string[]; governmentFeedTopics: string[] } {
+  const localDiscoveryTopics: string[] = [];
+  const governmentFeedTopics: string[] = [];
+  for (const t of topics) {
+    (categoryForTopic(t) === "e_check" ? governmentFeedTopics : localDiscoveryTopics).push(t);
+  }
+  return { localDiscoveryTopics, governmentFeedTopics };
+}

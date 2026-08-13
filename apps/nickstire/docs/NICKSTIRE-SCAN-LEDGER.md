@@ -155,7 +155,7 @@ Higgsfield test files: **10 files, 124 tests, 0 failures**).
 | ID | Outcome |
 |---|---|
 | NT-010 | **ACTED ON** — `buildRepetitionChecks` (`facelessReelStudio.ts:1037`) was pure and tested but had zero server callers. New `getRecentReelSignals()` (`services/reelRepetitionHistory.ts`) reads the last 21 days of `reel_jobs` and reduces each payload to topic/keyword/archetype/motionLens/objectCharacter; DB-down or an unparsable row degrades to "no memory" rather than throwing or blanking the window. Wired into `prepareCleanReelBrief` (the autonomous daily-post lane, via `dailyReelPost.ts`) with real enforcement: a repeated topic is treated exactly like an M10 preflight block — reject and regenerate, same proven retry machinery, `PreflightExhaustedError` message widened accordingly. `contentManufacturing.ts:1001` (the human-reviewed draft lane) gets the softer fix — real `avoidTopics` populated, no regenerate-loop added since that path has none for preflight either and a human reviews before publish. 12 new tests (`reelRepetitionHistory.test.ts`, 4; `reelDraftPrep.test.ts`, 4 new + 4 existing updated) prove: real history flows into `avoidTopics`, operator-supplied `avoidTopics` wins over history, a topic repeat forces regeneration even when preflight passes, and DB-down never blocks. `pnpm run check`: 0 errors. Full reel+Higgsfield suite: 15 files, 206 tests, 0 failures. |
-| NT-012 | **ACTED ON — mostly ALREADY BUILT, genuinely new part shipped.** Investigation found the "outcome logger" premise substantially wrong: `ig_metric_snapshots` (append-only, `capturedAt`-stamped, migration 0106) + `shared/contentExperiments.ts` (confound detection, `MIN_SAMPLES_PER_ARM`, 24/72/168h decay-curve horizons, cold-start zero-signal refusal) + `shared/hookSignals.ts`/`scripts/analyze-hook-vs-skip.mjs` (beat-1 hook signals vs skip rate, "measure don't judge", `MIN_GROUP_N=4`) is a mature, tested, ALREADY-SHIPPED experiment-tracking system carrying almost exactly the philosophy the brief asked for verbatim (unproven until real data accumulates; a correlation is a candidate to test, not a rule). Genuinely missing and now built: (1) `shared/beatStructureSignals.ts` — beat count/total duration/CTA type, the "beat structure + CTA" half nothing extracted before; (2) `shared/attentionMicrostructure.ts` — generalizes `compareSignals` from skip-rate-only to any metric (proven against `savesPerReach`/`sharesPerReach`, both real `ig_metric_snapshots` columns the existing script never read) and any signal family (hook OR beat-structure); (3) `server/services/attentionMicrostructureStore.ts` — the DB join made a real, tested, callable function instead of a script the operator has to remember exists; (4) `instagramAdmin.getSwipeFileCorrelations` — wired into the admin router (tRPC), closing the "standalone script nobody calls" complaint. `calls`/`booking_actions` are registered metric NAMES in `contentExperiments.ts` with **zero data source** — `ig_metric_snapshots` has no column for either and Instagram's organic Graph API does not attribute a call to a specific post. **REFUTED-PREMISE, WATCH**: needs new paid call-tracking-number infrastructure + an operator funding decision, not a code fix — did not fabricate a column. 23 new tests (`beat-structure-signals.test.ts` 5, `attention-microstructure.test.ts` 6, `attentionMicrostructureStore.test.ts` 6, plus the pre-existing `hook-signals.test.ts` 38 stayed green unmodified). `pnpm run check`: 0 errors. 143-test targeted run: 0 failures. |
+| NT-012 | **ACTED ON — mostly ALREADY BUILT, genuinely new part shipped.** Investigation found the "outcome logger" premise substantially wrong: `ig_metric_snapshots` (append-only, `capturedAt`-stamped, migration 0106) + `shared/contentExperiments.ts` (confound detection, `MIN_SAMPLES_PER_ARM`, 24/72/168h decay-curve horizons, cold-start zero-signal refusal) + `shared/hookSignals.ts`/`scripts/analyze-hook-vs-skip.mjs` (beat-1 hook signals vs skip rate, "measure don't judge", `MIN_GROUP_N=4`) is a mature, tested, ALREADY-SHIPPED experiment-tracking system carrying almost exactly the philosophy the brief asked for verbatim (unproven until real data accumulates; a correlation is a candidate to test, not a rule). Genuinely missing and now built: (1) `shared/beatStructureSignals.ts` — beat count/total duration/CTA type, the "beat structure + CTA" half nothing extracted before; (2) `shared/attentionMicrostructure.ts` — generalizes `compareSignals` from skip-rate-only to any metric (proven against `savesPerReach`/`sharesPerReach`, both real `ig_metric_snapshots` columns the existing script never read) and any signal family (hook OR beat-structure); (3) `server/services/attentionMicrostructureStore.ts` — the DB join made a real, tested, callable function instead of a script the operator has to remember exists; (4) `instagramAdmin.getSwipeFileCorrelations` — wired into the admin router (tRPC), closing the "standalone script nobody calls" complaint. `calls`/`booking_actions` are registered metric NAMES in `contentExperiments.ts` with **zero data source** — `ig_metric_snapshots` has no column for either and Instagram's organic Graph API does not attribute a call to a specific post. **REFUTED-PREMISE, WATCH**: needs new paid call-tracking-number infrastructure + an operator funding decision, not a code fix — did not fabricate a column. 17 new tests (`beat-structure-signals.test.ts` 5, `attention-microstructure.test.ts` 6, `attentionMicrostructureStore.test.ts` 6 — audit round 2 corrected this total from the originally-written "23", which did not match its own itemization; the store file later grew to 8 in the self-review round), plus the pre-existing `hook-signals.test.ts` 38 stayed green unmodified. `pnpm run check`: 0 errors. 143-test targeted run: 0 failures. |
 | NT-011 | **ACTED ON, shadow/log-only** — new `shared/originalityQcChecklist.ts` gives ONE canonical readout of the brief's 9-item list; most checks reuse existing, previously-scattered mechanisms (`episodeClaims` entailment, `reviewReplyQa` caption claim-safety, the `visibly_animated` disclosure contract, `beatStructureSignals.ts`'s duration from NT-012) rather than duplicating them. One genuinely NEW check: `reviewReplyQa` now also runs against the **voiceover script** (`episodeContract.script.voiceover`) — previously only the caption was checked, so an unsafe VO claim could ship unnoticed. Two criteria are honestly reported "structural" not "pass" (no copied footage / no copyrighted audio — no per-job signal exists, only a pipeline-shape guarantee), and one is honestly "unknown" not a faked pass (no misleading before/after — no check built). Wired into `dailyReelPost.ts` as a second shadow block, same once-per-job KV-marker discipline as NT-001's judge — log everything, gate nothing, same operator-owned promotion path. 11 new tests (`originality-qc-checklist.test.ts`). `pnpm run check`: 0 errors. 219-test targeted run: 0 failures. |
 | NT-013 | **ACTED ON (narrow, as gated)** — no Kling/LTX-2/Symphony/Sora adapters built; zero evidence they're needed (repo-wide grep: none referenced anywhere). Real gap fixed instead: Veo had **no fallback of any kind** — a Veo `PAUSE_PROVIDER`/`RECONCILE_BEFORE_RETRY` verdict (`nextStatusFor`) goes terminal on the verdict alone, and only Higgsfield's INLINE per-beat degrade (`shouldDegradeToFreeLane`) ever reached the free lane. Added a job-level escape hatch in `processNextReelJob`'s outer catch (`reelPipeline.ts`): when `nextStatusFor` says a job is genuinely terminal AND `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` AND the failing provider wasn't already `template_stock` (nowhere lower to fall), the job gets ONE more attempt forced onto the free local lane via a new `ReelJobBrief.forceProvider` field (persisted in the job payload, same pattern as `veoOperationName`'s existing resume state) instead of terminal-failing — same opt-in flag, same Telegram same-day alert convention as the existing inline degrade, ledger `fail()` correctly skipped since the job isn't actually done. Did NOT touch the inline Higgsfield per-beat mechanics (Veo resume-vs-resubmit invariant is too load-bearing to risk) — this is a genuinely separate, additive path. 4 new tests (`reelProviderFallbackChain.test.ts`): forces the free lane on a PAUSE_PROVIDER verdict, stays terminal when the flag is off, does not loop when template_stock itself exhausts, and a normal retryable error is untouched. Full existing reel suite (232 tests incl. the 23 source-text-anchored `reelFreeLaneFallback.test.ts` assertions on the untouched inline branch) stayed green throughout. Kling/LTX-2/Symphony/Sora: **WATCH, not built** — revisit only if a real multi-week paid-vendor outage or an explicit operator ask makes cross-vendor (not just paid→free) routing worth the cost/quality tradeoff of switching generators mid-flight. |
 
@@ -220,8 +220,10 @@ section was written:
 5. **The unbounded read.** `getRecentReelSignals()` had no `LIMIT` on a
    `reel_jobs.payload` (MEDIUMTEXT, ~70KB per real brief per the schema's
    own comment) scan across every lane, run on every brief generation. Fixed:
-   `ORDER BY createdAt DESC LIMIT 100`, matching the cap `contentTopicSignals.ts`
-   already used for an analogous read.
+   `ORDER BY createdAt DESC LIMIT 100`. (Audit round 2 correction: this
+   entry originally claimed the 100 "matched the cap contentTopicSignals.ts
+   already used" — false; that file's caps are 25/12/10. The fix stands on
+   its own merits; the claimed precedent was fabricated and is retracted.)
 6. **Nothing exercised the SECOND pulse.** All four original fallback tests
    only asserted the failure-classification WRITE; none ran a second pulse
    with `forceProvider` already in the payload, so the entire forced-lane
@@ -231,5 +233,86 @@ section was written:
    pulse for real: one proves the settlement math, one proves the stripped
    operation name.
 
-Full regression after all six fixes: **27 files, 327 tests, 0 failures.**
-`pnpm run check`: 0 errors.
+Full regression after all six fixes: **26 files (audit round 2 corrected the
+originally-written "27" — the six fixes edited files already in the diff set,
+adding none), 327 tests, 0 failures.** `pnpm run check`: 0 errors.
+
+## Run 2, audit round 2 — 2026-08-13 (operator: "go back over your work")
+
+Post-merge (PR #1558) multi-agent adversarial audit: 5 independent lenses
+(brief completeness · fresh code-quality sweep · test honesty · ledger-vs-code
+accuracy · unifying-architecture), 30 raw findings, EVERY one independently
+re-verified by a dedicated refuter agent before being acted on. Verdict split:
+the two "critical" completeness findings were **walked back on verification**
+(the QC checklist not hard-gating publish is the deliberate, documented,
+NT-001-precedented shadow rollout — the enforced `evaluateReelPublishGate`
+DOES block publish and runs first; the hand-typed ledger status is the
+already-reasoned NT-016 LOW call, not an oversight). What survived, all fixed
+same-day:
+
+1. **Real display bug: engagement rate double-scaled.** `selectMultilingualCandidates`
+   multiplied an ALREADY-percentage-scale `engagementRate` (getTopPosts()
+   returns 5.23 for 5.23%; Learn.tsx's own render proves the convention) by
+   100 again — a real reel would show "523.00%" in the operator worklist.
+   Untested because every fixture invented a 0-1 fraction production never
+   produces. Fixed + fixtures rewritten to the real scale + a regression
+   assertion that "523" never appears.
+2. **Second `as never` instance, same class as the hasCta bug.**
+   `claimEntailments` in `dailyReelPost.ts` force-cast raw JSON strings into
+   `EntailmentVerdict`. New `normalizeEntailmentVerdict()` in
+   `claimEntailment.ts` validates instead (unknown → `not_evaluated`), with
+   its own tests.
+3. **Root cause of the class, fixed structurally: `shared/reelJobPayload.ts`.**
+   Five mutually-inconsistent ad-hoc inline types were independently parsing
+   the same `reel_jobs.payload` JSON — exactly what let a nonexistent field
+   compile. One canonical `parseReelJobPayload()` (reusing the REAL
+   `StoryboardBeat`/`EpisodeContract` types, unweakened) now serves
+   `buildReelShadowJudgeInput`, the QC-checklist block, and
+   `attentionMicrostructureStore.ts`. Deliberately narrow: the 15+
+   PRE-EXISTING parse sites elsewhere are out of this pass's scope on a live
+   pipeline.
+4. **QC checklist under-covered its own "format/length" line item.** The
+   brief bundles duration + 9:16 + muted-first as one item; only duration was
+   implemented. Added `format_aspect_ratio` (honest "structural" — enforced
+   at render by `reelAssembly.ts`'s 1080x1920 throw, not brief-measurable)
+   and `muted_first_clarity` (reuses the REAL pre-existing
+   `validateMutedFirstClarity`, wired with real `storyboardBeats` from the
+   payload — fail when any beat lacks on-screen text, unknown when beats are
+   absent).
+5. **Both new admin endpoints had zero UI consumers** — real, tested,
+   router-wired, and unreachable by the operator. Both now render on the
+   Learn page (`Learn.tsx`), following its own honest-unknown error
+   conventions (a failed query renders as UNKNOWN, never as empty/zero).
+6. **e2e proof-of-work test bypassed the real e_check split.** Stage 1 fed
+   all 14 library topics (including e_check) into `localDiscoveryTopics`
+   unfiltered — the exact evidence-gate bypass the production split prevents.
+   The split is now extracted to `splitLocalDiscoveryTopics()` (one tested
+   implementation both `gatherTopicSignals()` and the e2e test call), and the
+   e2e test now asserts every government_feed candidate is blocked.
+7. **Ledger arithmetic errors** (corrected in place above, each marked
+   "audit round 2"): NT-012's "23 new tests" vs its own 5+6+6 itemization;
+   "27 files" vs the actual 26; a fabricated "matching cap" precedent claim.
+
+Also confirmed by the audit, no action needed: all 5 shared-logic test files
+are non-tautological; `reelProviderFallbackChain.test.ts` and the repetition
+store tests exercise real production logic; the architecture genuinely does
+carry ONE ReelJobBrief object end-to-end (mining → generation → QC → routing
+→ measurement via the igPostId join) — the audit's architecture lens judged a
+full typed-state refactor WRONG-shaped for this resumable, multi-process
+pipeline and endorsed the narrow shared-parser fix actually taken.
+
+Deliberately NOT actioned, with reasons (the honest Blocked/Won't-do rollup):
+- **QC checklist stays shadow/log-only** — the NT-001 promotion path is an
+  operator decision on accumulated disagreement data, not an agent's.
+- **No Kling/LTX-2/Symphony adapter seam** — re-examined and re-declined: a
+  speculative interface for vendors with zero repo references is YAGNI; the
+  three provider modules' call shapes differ enough (submit/poll vs blocking)
+  that a premature abstraction would guess wrong. WATCH stands.
+- **No ledger-status automation** (NT-016) — stands as reasoned; NT-012's
+  swipe-file store is the data-driven loop for reel findings going forward.
+- **`categoryForTopic` kept** despite only its test importing it — it is the
+  library's lookup primitive and `splitLocalDiscoveryTopics` (added this
+  round) now consumes it in production.
+- **Stale planning doc `docs/faceless-reel-intelligence-studio.md`** — now
+  superseded-stamped (see that file) rather than deleted; it documents V1
+  design intent this ledger's history references.

@@ -32,6 +32,14 @@ export interface DubCandidateInput {
   postId: string;
   mediaProductType: string | null;
   caption: string;
+  /** Already a PERCENTAGE number (5.23 means 5.23%), matching getTopPosts()'s
+   *  own scale (server/pipelines/instagram-data.ts divides the stored
+   *  *10000 column by 100) and the only pre-existing consumer of this same
+   *  field (Learn.tsx prints it with `.toFixed(2)}%`, no further scaling).
+   *  Post-merge self-review (2026-08-13) found the reason string below used
+   *  to multiply this by 100 a SECOND time — untested because the fixtures
+   *  invented a 0-1 fraction production data never produces, so a real
+   *  5.23%-engagement reel rendered "523.00%" to the operator. */
   engagementRate: number;
   reach: number | null;
   saved: number | null;
@@ -59,6 +67,7 @@ export function selectMultilingualCandidates(
     .slice(0, limit)
     .map((p) => ({
       ...p,
-      reason: `top performer by engagement rate (${(p.engagementRate * 100).toFixed(2)}%, reach ${p.reach})`,
+      // engagementRate is ALREADY a percentage — do not re-multiply by 100.
+      reason: `top performer by engagement rate (${p.engagementRate.toFixed(2)}%, reach ${p.reach})`,
     }));
 }

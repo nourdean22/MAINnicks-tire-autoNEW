@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { AlertTriangle, BarChart, DollarSign, Loader2, RefreshCw, Sparkles, TrendingUp, Trophy } from "lucide-react";
+import { AlertTriangle, BarChart, DollarSign, Globe, Loader2, RefreshCw, Sparkles, TrendingUp, Trophy, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,14 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
   const diagnostics = trpc.instagramStudio.diagnostics.useQuery();
   // Money, not attention. Every other metric on this screen measures who LOOKED.
   const revenue = trpc.contentAdmin.contentRevenue.useQuery({ days: 90 });
+  // NT-012/NT-015 (2026-08-13): both real, tested, and wired into the admin
+  // router since the day they shipped, but self-review found neither had a
+  // UI consumer — a "standalone endpoint nobody calls" instead of a
+  // "standalone script nobody calls," which is the same gap in a smaller
+  // costume. This page is the natural home: it already reads real
+  // Instagram/Meta measurement, no fabricated numbers.
+  const swipeFile = trpc.instagramAdmin.getSwipeFileCorrelations.useQuery({ metric: "savesPerReach" });
+  const dubCandidates = trpc.instagramAdmin.getMultilingualDubCandidates.useQuery();
 
   const refresh = async () => {
     await Promise.all([analytics.refetch(), report.refetch(), diagnostics.refetch(), revenue.refetch()]);
@@ -266,6 +274,69 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
             <CardHeader><CardTitle>Evidence-based recommendations</CardTitle><CardDescription>Generated only from stored post types, timing, themes, follower trend, and scores.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
               {recommendations.length === 0 ? <p className="text-sm text-muted-foreground">No recommendation set is available.</p> : recommendations.map((item) => <div key={item} className="rounded-lg border bg-primary/5 p-3 text-sm leading-6">{item}</div>)}
+            </CardContent>
+          </Card>
+
+          {/* Attention-microstructure swipe file (NT-012). A correlation here
+              is MED/INFERRED at best by design — evaluateOriginalityQc's own
+              swipeFileConviction never returns HIGH; that only comes from a
+              deliberate shared/contentExperiments.ts run. */}
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Zap className="h-4 w-4" /> Hook &amp; beat-structure signals</CardTitle><CardDescription>Correlated against saves-per-reach. Directional only — not a rule to enforce.</CardDescription></CardHeader>
+            <CardContent className="space-y-3">
+              {swipeFile.isLoading ? (
+                <p className="text-sm text-muted-foreground">Checking…</p>
+              ) : swipeFile.isError ? (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <span>Could not read swipe-file data — this is <strong>unknown</strong>, not empty. {swipeFile.error?.message}</span>
+                </div>
+              ) : (
+                (() => {
+                  const reportable = (swipeFile.data?.comparisons ?? []).filter((c) => c.sufficient);
+                  if (!swipeFile.data || swipeFile.data.sampleCount === 0) {
+                    return <p className="text-sm text-muted-foreground">No published reels are joined to Instagram metrics yet — this fills in as reels publish and get measured.</p>;
+                  }
+                  if (reportable.length === 0) {
+                    return <p className="text-sm text-muted-foreground">{swipeFile.data.sampleCount} measured reel(s) — not enough per-signal group yet to compare (needs 4+ with vs. without each signal).</p>;
+                  }
+                  return reportable.map((c) => (
+                    <div key={`${c.family}-${c.signal}`} className="rounded-lg border p-3 text-sm">
+                      <div className="flex items-center justify-between"><span className="font-medium">{c.signal}</span><Badge variant="outline">{c.conviction}</Badge></div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        With: {c.withAvg?.toFixed(4) ?? "n/r"} (n={c.withN}) · Without: {c.withoutAvg?.toFixed(4) ?? "n/r"} (n={c.withoutN})
+                      </p>
+                    </div>
+                  ));
+                })()
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Multilingual dub worklist (NT-015). NOT a trigger — verified
+              neither Meta's Reels translation nor YouTube auto-dub exposes a
+              programmatic API this app's automation can call. This is a
+              manual-action list for Instagram Creator Studio. */}
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Globe className="h-4 w-4" /> Multilingual dub worklist</CardTitle><CardDescription>{dubCandidates.data?.note ?? "Top-performing reels worth manually enabling translation for."}</CardDescription></CardHeader>
+            <CardContent className="space-y-3">
+              {dubCandidates.isLoading ? (
+                <p className="text-sm text-muted-foreground">Checking…</p>
+              ) : dubCandidates.isError ? (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <span>Could not read the worklist — this is <strong>unknown</strong>, not empty. {dubCandidates.error?.message}</span>
+                </div>
+              ) : (dubCandidates.data?.candidates.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">No reel currently clears the reach/engagement floor to qualify.</p>
+              ) : (
+                dubCandidates.data!.candidates.map((c) => (
+                  <div key={c.postId} className="rounded-lg border p-3 text-sm">
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{c.caption || "Caption unavailable"}</p>
+                    <p className="mt-1 text-xs">{c.reason}</p>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>

@@ -1,10 +1,14 @@
 /**
  * Originality + QC checklist (ScanFinish NT-011) — one canonical readout of
- * the brief's 9-item list, built from checks that mostly ALREADY EXIST but
- * were scattered across separate logs nothing ever read together:
- * episodeClaims (claim verification), reviewReplyQa (caption AND now VO
- * claim-safety), the faceless/disclosure contract, and
- * beatStructureSignals.ts (format/length — added for NT-012, reused here).
+ * the brief's list (the brief bundles "format/length" as one line covering
+ * duration + 9:16 + muted-first, so this file's 11 checks map to that same
+ * list), built from checks that mostly ALREADY EXIST but were scattered
+ * across separate logs nothing ever read together: episodeClaims (claim
+ * verification), reviewReplyQa (caption AND now VO claim-safety), the
+ * faceless/disclosure contract, beatStructureSignals.ts (duration — added
+ * for NT-012, reused here), and validateMutedFirstClarity (post-merge
+ * self-review, 2026-08-13 — the duration-only version of this checklist
+ * under-covered its own bundled "format/length" line item).
  *
  * SHADOW, LOG-ONLY, same as NT-001's independent judge and NT-013's
  * fallback: nothing here blocks publish. Gate-flip stays an operator
@@ -21,6 +25,7 @@
  * real check built — reported "unknown", not faked as a pass.
  */
 import type { EntailmentVerdict } from "./claimEntailment";
+import { validateMutedFirstClarity, type StoryboardBeat } from "../client/src/lib/facelessReelStudio";
 
 export type QcStatus = "pass" | "fail" | "unknown" | "structural";
 
@@ -43,6 +48,14 @@ export interface OriginalityQcInput {
   clevelandAngle?: string;
   caption?: string;
   totalDurationSeconds: number | null;
+  /** Post-merge self-review (2026-08-13): the brief bundles "format/length
+   *  checks (15-22s, 9:16, muted-first readable)" as ONE line item, and the
+   *  original version of this checklist only implemented the duration
+   *  sub-check — 9:16 and muted-first were enforced elsewhere in the
+   *  pipeline but never surfaced in this "one canonical readout." Passing
+   *  storyboardBeats lets muted_first_clarity below reuse the REAL check
+   *  (validateMutedFirstClarity) instead of re-implementing it. */
+  storyboardBeats?: StoryboardBeat[];
 }
 
 const SAVE_SHARE_LANGUAGE = /\b(send this|share this|tag someone|forward this|send to (?:someone|a friend))\b/i;
@@ -164,6 +177,30 @@ export function evaluateOriginalityQc(input: OriginalityQcInput): { checks: QcCh
         ? "no beat carries an endSecond"
         : `${input.totalDurationSeconds}s against a ${TARGET_DURATION_MIN_S}-${TARGET_DURATION_MAX_S}s target (informational — the enforced production bound is reelAssembly.ts's 3-90s)`,
   });
+
+  checks.push({
+    id: "format_aspect_ratio",
+    label: "Format: 9:16",
+    status: "structural",
+    detail: "not a brief-level property to check — reelAssembly.ts throws on assembly if the rendered output isn't exactly 1080x1920, so this is enforced at render time, not measurable from the brief JSON",
+  });
+
+  if (input.storyboardBeats) {
+    const muted = validateMutedFirstClarity(input.storyboardBeats);
+    checks.push({
+      id: "muted_first_clarity",
+      label: "Muted-first readable",
+      status: muted.ok ? "pass" : "fail",
+      detail: muted.ok ? "every beat carries on-screen text — the reel teaches muted" : (muted.reason ?? "validateMutedFirstClarity failed"),
+    });
+  } else {
+    checks.push({
+      id: "muted_first_clarity",
+      label: "Muted-first readable",
+      status: "unknown",
+      detail: "no storyboardBeats supplied to this check",
+    });
+  }
 
   return {
     checks,
