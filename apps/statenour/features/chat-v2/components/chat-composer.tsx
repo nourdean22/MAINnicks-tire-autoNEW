@@ -12,7 +12,7 @@ import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useSlashCommands } from "@/hooks/use-slash-commands";
 import { useMentionSuggestions } from "@/hooks/use-mention-suggestions";
 import { AttachmentPreview } from "@/components/chat/attachment-preview";
-import { ACCEPT_ATTRIBUTE } from "@/lib/media/attachment-policy";
+import { ACCEPT_ATTRIBUTE, decideAttachment } from "@/lib/media/attachment-policy";
 import { VoiceWaveformOverlay } from "@/components/chat/voice-waveform-overlay";
 import { SlashCommandDropdown, type SlashCommandAction } from "@/components/chat/slash-command-dropdown";
 import { MentionDropdown } from "@/components/chat/mention-dropdown";
@@ -116,7 +116,56 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
 
     try {
       let sendPromise: Promise<void> | void;
-      if (isImageAttached) {
+      // BDN-319 · video takes the UPLOAD lane: the bytes go to
+      // /api/ai/chat/media-upload and the message carries a stream URL.
+      // Base64-ing a video into the message body is the thing the plan
+      // forbids and the reason video was refused before the route existed.
+      const attachedDecision = imgAttached
+        ? decideAttachment({
+            name: imgAttached.file.name,
+            type: imgAttached.file.type,
+            size: imgAttached.file.size,
+          })
+        : null;
+      const needsUpload =
+        attachedDecision?.accepted === true && attachedDecision.lane === "upload";
+
+      if (isImageAttached && needsUpload) {
+        const form = new FormData();
+        form.append("file", imgAttached!.file, imgAttached!.file.name);
+        let uploaded: { url?: string; mediaType?: string; filename?: string } | null = null;
+        try {
+          const res = await fetch("/api/ai/chat/media-upload", { method: "POST", body: form });
+          const json = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(json?.error || `upload failed (${res.status})`);
+          uploaded = json;
+        } catch (e) {
+          // Fail LOUD and keep the draft: silently downgrading to a
+          // text-only send would look like the video was attached.
+          toast.error(
+            `Upload failed: ${e instanceof Error ? e.message : "unknown error"}`,
+            { duration: 5000 },
+          );
+          return;
+        }
+        if (!uploaded?.url) {
+          toast.error("Upload returned no playable URL — not sending.", { duration: 5000 });
+          return;
+        }
+        const parts: Array<
+          | { type: "text"; text: string }
+          | { type: "file"; mediaType: string; url: string; filename: string }
+        > = [];
+        if (resolvedText) parts.push({ type: "text", text: resolvedText });
+        parts.push({
+          type: "file",
+          mediaType: uploaded.mediaType || imgAttached!.file.type,
+          url: uploaded.url,
+          filename: uploaded.filename || imgAttached!.file.name,
+        });
+        sendPromise = chat.append({ id: tempId, role: "user", content: resolvedText, parts });
+        clearImg();
+      } else if (isImageAttached) {
         const result = await readImgAsBase64();
         if (result) {
           const parts: Array<
