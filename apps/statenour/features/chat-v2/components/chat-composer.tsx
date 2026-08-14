@@ -13,6 +13,7 @@ import { useSlashCommands } from "@/hooks/use-slash-commands";
 import { useMentionSuggestions } from "@/hooks/use-mention-suggestions";
 import { AttachmentPreview } from "@/components/chat/attachment-preview";
 import { ACCEPT_ATTRIBUTE, decideAttachment } from "@/lib/media/attachment-policy";
+import { registerVideoId } from "@/lib/media/video-registry";
 import { VoiceWaveformOverlay } from "@/components/chat/voice-waveform-overlay";
 import { SlashCommandDropdown, type SlashCommandAction } from "@/components/chat/slash-command-dropdown";
 import { MentionDropdown } from "@/components/chat/mention-dropdown";
@@ -133,7 +134,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
       if (isImageAttached && needsUpload) {
         const form = new FormData();
         form.append("file", imgAttached!.file, imgAttached!.file.name);
-        let uploaded: { url?: string; mediaType?: string; filename?: string } | null = null;
+        let uploaded: { url?: string; mediaType?: string; filename?: string; videoId?: string } | null = null;
         try {
           const res = await fetch("/api/ai/chat/media-upload", { method: "POST", body: form });
           const json = await res.json().catch(() => null);
@@ -147,6 +148,11 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
             { duration: 5000 },
           );
           return;
+        }
+        // BDN-320 · remember url → videoId so the transcript pane can
+        // fetch timings. Session-scoped by design; see video-registry.
+        if (uploaded?.url && uploaded.videoId) {
+          registerVideoId(uploaded.url, uploaded.videoId);
         }
         if (!uploaded?.url) {
           toast.error("Upload returned no playable URL — not sending.", { duration: 5000 });
