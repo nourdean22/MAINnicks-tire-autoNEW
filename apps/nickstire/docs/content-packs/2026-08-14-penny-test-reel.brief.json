@@ -1,0 +1,72 @@
+{
+  "id": "content-pack-2026-08-14-penny-test",
+  "campaignKeyword": "TREAD",
+  "selectedCaption": "10-second tire check anyone can do at home. If you can see the top of Lincoln's head, it's time. Swing by — we'll check all four, no charge.",
+  "hashtags": ["#ClevelandOH", "#TireSafety", "#PennyTest", "#EuclidAve", "#WalkInShop"],
+  "voiceoverScript": "Your tires might be lying to you. Here's a ten-second check. Grab a penny, flip Lincoln upside down, and push it into the tread groove. See the top of his head? You're under two-thirty-seconds — legally bald. Tread wears uneven, so check three spots per tire: inside, center, outside. Bald tires nearly double your stopping distance on wet roads. Swing by 17625 Euclid — we'll check all four, no charge.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 3,
+      "onScreenText": "Your tires are lying",
+      "visual": "Extreme macro, low-angle push-in on a worn tire tread in a shop bay, harsh overhead work light, shallow depth of field, no people, no faces, no legible logos or text baked into the shot, cinematic grain, slow dolly-in, 4s source clip trimmed to 3s"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 3,
+      "endSecond": 6,
+      "onScreenText": "Grab a penny",
+      "visual": "Top-down macro, a hand holds a single US penny between two fingers above a tire tread, workshop background thrown out of focus, natural light, slight rotate, no faces in frame"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 6,
+      "endSecond": 9,
+      "onScreenText": "Flip Lincoln upside down",
+      "visual": "Macro, the penny flips so Lincoln's head points down toward the tread, hand steadies it, shallow depth of field, no faces"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 9,
+      "endSecond": 12,
+      "onScreenText": "Push into the groove",
+      "visual": "Macro close-up, fingertip presses the penny into a tread groove, tread pattern sharp and visible, natural shop light"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 12,
+      "endSecond": 15,
+      "onScreenText": "See all of his head?",
+      "visual": "Extreme macro, the penny seated in the groove, the full head clearly visible above the rubber — worn tread indicator"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 15,
+      "endSecond": 18,
+      "onScreenText": "That's below 2/32 — bald",
+      "visual": "Macro pulled back slightly, same tread, revealing the wear band across the tire face, slow pan"
+    },
+    {
+      "beatNumber": 7,
+      "startSecond": 18,
+      "endSecond": 21,
+      "onScreenText": "Check 3 spots per tire",
+      "visual": "Medium shot, hand moving the penny test across three points on one tire — inner edge, center, outer edge — smooth left-to-right motion"
+    },
+    {
+      "beatNumber": 8,
+      "startSecond": 21,
+      "endSecond": 24,
+      "onScreenText": "Wet roads = 2x stopping distance",
+      "visual": "Slow motion, low angle, a tire rolling through a wet patch on the shop floor or wet pavement, water spray catching the light"
+    },
+    {
+      "beatNumber": 9,
+      "startSecond": 24,
+      "endSecond": 27,
+      "onScreenText": "17625 Euclid — check all 4, no charge",
+      "visual": "Wide shop-exterior establishing shot near golden hour, brand-neutral framing, no people, no legible AI-generated signage text (swap for a real photo plate of the storefront if available — do not trust AI-rendered text on a sign)"
+    }
+  ]
+}
