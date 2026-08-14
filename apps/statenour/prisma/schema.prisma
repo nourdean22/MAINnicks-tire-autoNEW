@@ -1655,10 +1655,46 @@ model BrainMemory {
   /// (which is for memory-decay TTL): `deletedAt` is for explicit
   /// human/AI delete, recoverable from the lib/db/soft-delete helpers.
   deletedAt  DateTime? @map("deleted_at")
+  /// BDN-310 · 2026-08-14 · temporal validity + supersession.
+  ///
+  /// Distinct from all three existing time fields, and the distinction is
+  /// the point: `expiresAt` = decay TTL (we stop trusting it), `deletedAt`
+  /// = explicit removal (it should not have been there), `lastSeen` = when
+  /// we last OBSERVED it. None of them can express "this was true, then
+  /// stopped being true" — which is the difference between a system that
+  /// remembers more and one that is wiser. A memory whose validity ended
+  /// is not wrong and must not be deleted; it is the evidence that the
+  /// thing CHANGED.
+  ///
+  /// `validUntil` NULL = still believed. `supersededById` points at the
+  /// memory that replaced it, so the chain is walkable in both directions
+  /// and a contradiction is preserved rather than silently merged.
+  /// `lastVerifiedAt` is deliberately NOT lastSeen: recall touches
+  /// lastSeen on every read, so it measures attention, not confirmation.
+  ///
+  /// Scope is intentionally narrow (commitments · identity · financial ·
+  /// safety · active missions) — the gate is enforced in application code,
+  /// not by the schema, so widening it later needs no migration.
+  validFrom      DateTime? @map("valid_from")
+  validUntil     DateTime? @map("valid_until")
+  lastVerifiedAt DateTime? @map("last_verified_at")
+  supersededById String?   @map("superseded_by_id")
+  /// Self-relation. SetNull, never Cascade: if the replacement is hard-
+  /// deleted we want a detectable dangling pointer, not a cascade that
+  /// erases the record that something changed. `supersedes` is a LIST
+  /// because consolidation is the common case — several narrow memories
+  /// collapsing into one broader one.
+  supersededBy   BrainMemory?  @relation("MemorySupersession", fields: [supersededById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  supersedes     BrainMemory[] @relation("MemorySupersession")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
   @@unique([category, key])
+  // BDN-310 · recall must cheaply exclude superseded rows. Partial-index
+  // semantics are expressed in the hand-applied SQL; Prisma models the
+  // plain index.
+  @@index([validUntil])
+  @@index([supersededById])
   @@index([category, confidence])
   @@index([expiresAt])
   // Apr 18: decay queries filter by lastSeen < 30d + confidence > 0.1.

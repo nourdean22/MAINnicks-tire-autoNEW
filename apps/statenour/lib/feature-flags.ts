@@ -241,6 +241,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/confidence-tier.ts",
   },
   {
+    key: "NICK_SPAR_VS",
+    description:
+      "Verbalized Sampling in SPAR's DIVERGE step: the model verbalizes a probability per candidate and draws from the tail of its own distribution instead of returning N phrasings of its modal answer (arXiv 2510.01171, ICML 2026 — 1.6-2.1x diversity, training-free, orthogonal to temperature). Only step 1 changes; attack/tension/converge are byte-identical. EXPERIMENTAL because every published gain is frontier-model and Nick's fast lane is small — the same kill shot as BDN-201, so measure on the A/B harness before trusting it there. Also costs 5 candidate generations per diverge turn.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "SPAR uses the incumbent diverge step: asks for 3-5 distinct options with no sampling mechanism behind the request.",
+    ownerDoc: "lib/ai/prompt/policy/spar-mode.ts",
+  },
+  {
     key: "NICK_EVENT_TRIGGERS",
     description: "Event-driven proactivity: an Inngest event-triggered function reacts to brain-bus events (e.g. a new urgent lead) in seconds instead of waiting for the next cron poll — proposing the action into the /qa approval queue immediately (fail-closed, nothing auto-sends). OFF = poll-only proactivity (today).",
     status: "experimental",

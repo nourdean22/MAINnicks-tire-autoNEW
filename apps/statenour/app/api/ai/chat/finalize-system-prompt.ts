@@ -41,7 +41,7 @@ import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
 import { getBehaviorDirective } from "@/lib/ai/knowledge/behavior-directive";
 import { buildContractDirective } from "@/lib/ai/response-contract";
 import type { ResponseContract } from "@/lib/ai/response-contract";
-import { SPAR_MODE } from "@/lib/ai/prompt/policy/spar-mode";
+import { getSparMode } from "@/lib/ai/prompt/policy/spar-mode";
 import { EARLY_SPAR } from "@/lib/ai/chat/handlers/patterns";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
@@ -255,7 +255,10 @@ You are in Master mode - Nour's operator + strategist.
     EARLY_SPAR.test(userContent) ||
     input.posture === "spar"; // 2026-07-22 · explicit composer posture
   if (sparTurn) {
-    systemPrompt += `\n\n${SPAR_MODE}`;
+    // BDN-308 · getSparMode() returns the incumbent scaffold unless
+    // NICK_SPAR_VS=true selects the Verbalized-Sampling diverge step.
+    // Only step 1 differs; attack/tension/converge are identical.
+    systemPrompt += `\n\n${getSparMode()}`;
   }
 
   // NOTE: authority-kernel posture/permission directives are injected LAST
