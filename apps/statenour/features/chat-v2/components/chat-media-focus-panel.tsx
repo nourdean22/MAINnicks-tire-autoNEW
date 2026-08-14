@@ -3,6 +3,7 @@
 import { PanelRightClose, SkipForward, X } from "lucide-react";
 import { useMediaDockStore } from "../stores/media-dock-store";
 import { MediaPlayerSurface } from "./chat-media-surface";
+import { SaveMomentButton } from "./media-save-moment";
 
 /**
  * ChatMediaFocusPanel (BDN-315) — media plan item #6, desktop half.
@@ -60,6 +61,9 @@ export function ChatMediaFocusPanel() {
             <SkipForward size={16} />
           </button>
         ) : null}
+
+        {/* BDN-316 · explicit save. Never an effect. */}
+        <SaveMomentButton />
 
         <button
           onClick={() => setFocused(false)}
