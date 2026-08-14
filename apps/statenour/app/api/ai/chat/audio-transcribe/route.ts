@@ -8,7 +8,9 @@
  *   · url?:  string       — alternative · publicly fetchable URL
  *
  * Response:
- *   · 200 { transcript, videoId, durationMs }
+ *   · 200 { transcript, videoId, elapsedMs }   ← elapsedMs is the round-trip
+ *     latency of this endpoint, NOT the media's duration. Renamed from
+ *     `durationMs` 2026-08-14 · see lib/videodb/client.ts.
  *   · 400 if neither file nor url given · file too large (≥50MB)
  *   · 503 if VIDEO_DB_API_KEY missing (helpful message + sign-up link)
  *   · 500 with diagnostic on transcription failure

@@ -220,7 +220,17 @@ export async function transcribeAudio(args: {
 }): Promise<{
   transcript: string;
   videoId: string;
-  durationMs: number;
+  /**
+   * WALL-CLOCK time this upload+index+poll round trip took — NOT the
+   * media's duration. Renamed from `durationMs` on 2026-08-14 (BDN-312):
+   * next to `transcript` and `videoId`, that name read as "how long is
+   * the clip", and the media plan's provenance cards (item #4) render a
+   * Duration field — so the first person to wire them up would have shown
+   * transcription latency as clip length. No consumer existed at rename
+   * time; grep confirmed the other `durationMs` fields in the app are
+   * unrelated. Media duration is not currently returned by this client.
+   */
+  elapsedMs: number;
 }> {
   const startedAt = Date.now();
   const { videoId } = await uploadMedia(args);
@@ -234,6 +244,6 @@ export async function transcribeAudio(args: {
   return {
     transcript,
     videoId,
-    durationMs: Date.now() - startedAt,
+    elapsedMs: Date.now() - startedAt,
   };
 }
