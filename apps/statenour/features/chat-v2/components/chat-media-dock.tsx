@@ -26,8 +26,11 @@ import { useMediaDockStore } from "../stores/media-dock-store";
  * seek to the stored offset on mount, record position as it plays.
  *
  * Accessibility: the strip is a landmark region with a live title, and
- * every control has a label. Touch targets are 44px minimum per the
- * iOS-PWA primitives rule — this renders on the operator's phone.
+ * every control has a label. Touch targets are 48x48px minimum — the
+ * figure AGENTS.md actually specifies. The first version of this file
+ * used 44px (the iOS HIG number) and cited the repo rule while missing
+ * it by 4px; review caught it. This renders on the operator's phone, so
+ * the difference is real, not pedantic.
  */
 export function ChatMediaDock() {
   const item = useMediaDockStore((s) => s.item);
@@ -93,7 +96,7 @@ export function ChatMediaDock() {
         {queue.length > 0 ? (
           <button
             onClick={playNext}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
+            className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
             aria-label="Play next in queue"
             title="Next"
           >
@@ -104,7 +107,7 @@ export function ChatMediaDock() {
         {isVideo ? (
           <button
             onClick={toggleExpanded}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
+            className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg"
             aria-label={expanded ? "Collapse player" : "Expand player"}
             aria-expanded={expanded}
             title={expanded ? "Collapse" : "Expand"}
@@ -115,7 +118,7 @@ export function ChatMediaDock() {
 
         <button
           onClick={close}
-          className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-red-400"
+          className="flex h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-red-400"
           aria-label="Close player"
           title="Close"
         >

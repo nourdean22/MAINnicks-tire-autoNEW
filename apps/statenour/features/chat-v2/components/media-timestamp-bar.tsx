@@ -58,7 +58,7 @@ export function MediaTimestampBar({ text }: { text: string }) {
           <button
             key={`${ref.start}-${ref.end ?? ""}`}
             onClick={() => requestSeek(ref.start)}
-            className="inline-flex h-11 items-center rounded-md border border-glass px-2.5 font-mono text-[10px] text-fg-secondary transition-colors hover:border-fg-tertiary hover:text-fg"
+            className="inline-flex h-12 min-w-12 items-center rounded-md border border-glass px-2.5 font-mono text-[10px] text-fg-secondary transition-colors hover:border-fg-tertiary hover:text-fg"
             aria-label={
               ref.end !== undefined
                 ? `Jump to ${label} in ${item.title}`
