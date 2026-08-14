@@ -9,7 +9,7 @@
  * Generation only — it does NOT render video or post. Reel *video* still needs
  * Higgsfield (HIGGSFIELD_API_KEY); the brief/storyboard/caption is the value.
  */
-import { invokeLLM, type OutputSchema } from "../_core/llm";
+import { invokeLLM, resolveEffectiveModel, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReelStudioPrompt";
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
@@ -555,7 +555,10 @@ ${buildFranchiseFragment(input.franchiseId)}`;
   // overhead; only this default string had lagged behind.
   const modelOverride = process.env.REEL_GEN_MODEL || (process.env.GEMINI_API_KEY ? "gemini-2.5-flash" : undefined);
 
-  log.info("Generating initial Reel Brief via LLM", { model: modelOverride });
+  // Log the EFFECTIVE model too: under AI_FORCE_OLLAMA the requested pin is
+  // rerouted inside invokeLLM, and "model=gemini-2.5-flash" in this line sent
+  // a live diagnosis (2026-08-14) chasing the wrong provider.
+  log.info("Generating initial Reel Brief via LLM", { model: modelOverride, effectiveModel: resolveEffectiveModel(modelOverride) });
   const res = await invokeLLM({
     model: modelOverride,
     messages: [

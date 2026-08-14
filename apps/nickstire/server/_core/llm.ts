@@ -342,6 +342,30 @@ const normalizeResponseFormat = ({
 };
 
 /**
+ * Ollama Cloud accepts response_format.json_schema but does NOT forward the
+ * schema to the model. Probed live 2026-08-14 against deepseek-v4-pro: the
+ * model's own reasoning said "The schema is not explicitly provided" and it
+ * invented snake_case key names, which callers' camelCase lookups then
+ * silently coerced to ""/[] — reel briefs reached enqueue with 0 beats and no
+ * caption, and EVERY outputSchema call site on this lane was schema-blind the
+ * same way. Re-probed with the schema embedded as a message: exact keys back.
+ *
+ * So on the Ollama lane the schema is restated in-conversation. Returns the
+ * contract message, or null when the request has no json_schema format.
+ */
+export function buildSchemaContractMessage(
+  format: { type: string; json_schema?: JsonSchema } | undefined,
+): Message | null {
+  if (!format || format.type !== "json_schema" || !format.json_schema?.schema) return null;
+  return {
+    role: "system",
+    content:
+      "OUTPUT CONTRACT: reply with exactly ONE JSON object that validates against this JSON Schema — use these exact property names and types, no markdown fences, no prose:\n" +
+      JSON.stringify(format.json_schema.schema),
+  };
+}
+
+/**
  * Provider escape hatch: AI_FORCE_GEMINI=true reroutes EVERY OpenAI-family
  * request (explicit "gpt-*"/"o*" call-site pins included) onto the Gemini
  * free-tier key. Added 2026-07-17 when the shared OpenRouter account ran out
@@ -474,6 +498,19 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   if (normalizedResponseFormat) {
     payload.response_format = normalizedResponseFormat;
+  }
+
+  // Ollama drops the json_schema on the floor (see buildSchemaContractMessage)
+  // — restate it in-conversation there. A vision-rerouted call goes to Gemini,
+  // which enforces response_format itself; the 403-quota Gemini fallback below
+  // reuses this payload, where the extra contract message is redundant but
+  // harmless. response_format stays on the request either way, so a future
+  // Ollama that starts enforcing it just gets belt and suspenders.
+  if (isOllamaModel(model) && !visionRerouted) {
+    const contractMsg = buildSchemaContractMessage(normalizedResponseFormat);
+    if (contractMsg) {
+      (payload.messages as ReturnType<typeof normalizeMessage>[]).push(normalizeMessage(contractMsg));
+    }
   }
 
   // Ollama Pro allows three concurrent cloud models — every Ollama-bound
