@@ -17,6 +17,18 @@ import { brainMemory } from "../lib/brain/memory-manager";
 const DIRECT_INGEST_DIR = "C:\\Users\\nourd\\NOURCITY-ARCHIVES\\Direct-Ingest";
 const CHUNK_SIZE = 4000;
 
+// 2026-08-14 · brain-export files must never round-trip back in as "documents".
+// The brain→Obsidian exporter stamps its output with these markers; ingesting
+// them re-creates N-th copies of memories that already live in brain_memories
+// (the loop behind the 2026-08-14 personal-memory dedupe: 97 mirror/archive
+// rows retired). Skip any file that carries an export marker.
+const BRAIN_EXPORT_MARKERS = [
+  /^\s*type:\s*"?memory_rollup"?\s*$/m, // exporter frontmatter
+  /Brain Memories Rollup:/, // exporter H1 title
+  /\*Last Synced:/, // rollup sync stamp
+  /# 🧠 Brain Memories:/, // per-category rollup header
+];
+
 async function main() {
   console.log("");
   console.log("═══════════════════════════════════════════════════════════");
@@ -39,6 +51,11 @@ async function main() {
     totalProcessed++;
     const filePath = path.join(DIRECT_INGEST_DIR, file);
     const fullContent = fs.readFileSync(filePath, "utf8");
+
+    if (BRAIN_EXPORT_MARKERS.some((re) => re.test(fullContent))) {
+      console.log(`  [Skipping] ${file} — brain-export rollup (ingesting it would copy the brain's own output back into the brain)`);
+      continue;
+    }
 
     // Chunking logic to prevent exploding the embedding limits
     // OpenAI text-embedding-3-small limit is ~8191 tokens (~32k chars), we chunk at 15k
