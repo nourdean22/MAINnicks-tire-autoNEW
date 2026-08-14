@@ -376,17 +376,6 @@ export async function getTranscript(
   );
 }
 
-/**
- * Back-compat shim for callers that only ever wanted the prose.
- * Kept so widening the return type is not a breaking change.
- */
-export async function getTranscriptText(
-  videoId: string,
-  opts: Parameters<typeof getTranscript>[1] = {},
-): Promise<string> {
-  return (await getTranscript(videoId, opts)).text;
-}
-
 // ── End-to-end transcription helper ──────────────────────────────────
 
 /**
