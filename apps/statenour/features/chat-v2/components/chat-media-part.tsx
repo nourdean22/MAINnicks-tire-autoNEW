@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, FileText, Film, Music, Paperclip } from "lucide-react";
+import { Download, FileText, Film, Music, Paperclip, PictureInPicture2 } from "lucide-react";
+import { useMediaDockStore } from "../stores/media-dock-store";
 
 /**
  * ChatMediaPart — one renderer for every AI-SDK `file` message part.
@@ -153,8 +154,38 @@ function FileCard({
  * Render one file part. Returns the fallback card rather than null for
  * anything it cannot embed — this component never renders nothing.
  */
-export function ChatMediaPart({ part }: { part: ChatFilePart }) {
+export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string }) {
   const kind = classifyMediaPart(part);
+  const dock = useMediaDockStore((s) => s.dock);
+
+  /**
+   * BDN-311 · pop-out affordance.
+   *
+   * Deliberately an EXPLICIT button rather than hijacking the play event.
+   * The originating plan said media should move to the dock "when a user
+   * presses play", but silently relocating a player the moment someone
+   * presses play steals the control they just used and is the kind of
+   * cleverness that reads as a bug. Inline play keeps working for short
+   * clips; the dock is opt-in for the ones worth keeping on screen.
+   */
+  const popOut =
+    (kind === "video" || kind === "audio") && id && isRenderableUrl(part.url) ? (
+      <button
+        onClick={() =>
+          dock({
+            id,
+            url: part.url as string,
+            kind,
+            title: part.filename || `${humanKind(kind)} attachment`,
+          })
+        }
+        className="mt-1 inline-flex h-11 items-center gap-1.5 rounded-md px-2 text-[10px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
+        aria-label="Keep playing while you chat"
+        title="Pop out to the player dock"
+      >
+        <PictureInPicture2 size={12} /> Keep playing
+      </button>
+    ) : null;
 
   if (!isRenderableUrl(part.url)) {
     return <FileCard part={part} kind={kind} reason="unavailable — no usable link" />;
@@ -175,17 +206,20 @@ export function ChatMediaPart({ part }: { part: ChatFilePart }) {
 
   if (kind === "video") {
     return (
-      <video
-        src={part.url}
-        controls
-        preload="metadata"
-        playsInline
-        className="mt-2 max-h-80 w-full rounded-lg border border-glass bg-black"
-        aria-label={label}
-      >
-        {/* Native fallback for a codec the browser cannot decode. */}
-        <FileCard part={part} kind="video" reason="video format not supported here" />
-      </video>
+      <div>
+        <video
+          src={part.url}
+          controls
+          preload="metadata"
+          playsInline
+          className="mt-2 max-h-80 w-full rounded-lg border border-glass bg-black"
+          aria-label={label}
+        >
+          {/* Native fallback for a codec the browser cannot decode. */}
+          <FileCard part={part} kind="video" reason="video format not supported here" />
+        </video>
+        {popOut}
+      </div>
     );
   }
 
@@ -197,6 +231,7 @@ export function ChatMediaPart({ part }: { part: ChatFilePart }) {
           <span className="truncate">{label}</span>
         </div>
         <audio src={part.url} controls preload="metadata" className="w-full" aria-label={label} />
+        {popOut}
       </div>
     );
   }

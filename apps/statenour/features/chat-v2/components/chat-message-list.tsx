@@ -285,7 +285,7 @@ export function ChatMessageList({
                   // paperclip for everything else — no playback, no type
                   // distinction, no way to open the file. ChatMediaPart
                   // plays video/audio natively and always offers a link.
-                  return <ChatMediaPart key={`${message.id}-${index}`} part={part as ChatFilePart} />;
+                  return <ChatMediaPart key={`${message.id}-${index}`} id={`${message.id}-${index}`} part={part as ChatFilePart} />;
                 }
                 if (part.type.startsWith("tool-")) {
                   const toolName = part.type.replace("tool-", "");

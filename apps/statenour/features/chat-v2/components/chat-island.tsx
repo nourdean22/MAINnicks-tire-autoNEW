@@ -6,6 +6,7 @@ import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
 import { ChatComposer } from "./chat-composer";
+import { ChatMediaDock } from "./chat-media-dock";
 import { ChatMessageList } from "./chat-message-list";
 import { ChatCapabilityIndicator } from "./chat-capability-indicator";
 import { OperatorConversationDrawer } from "./operator-conversation-drawer";
@@ -260,6 +261,13 @@ export function ChatIsland() {
           --bottom-chrome-h; .pb-safe adds a hardcoded 96px on top of it,
           which measured as 111px of dead gap between the input and the tab
           bar. One reservation, and it is the self-measuring one. */}
+      {/* BDN-311 · media dock sits ABOVE the composer and renders null
+          when nothing is playing, so the layout is unchanged in the
+          common case. Placed outside the composer container on purpose:
+          it must not inherit the composer's bottom-safe-area padding,
+          which would add dead space under the player. */}
+      <ChatMediaDock />
+
       <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-3 pt-3 backdrop-blur-xl sm:px-4">
         <ChatComposer chat={chat} />
       </div>
