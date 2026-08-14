@@ -297,6 +297,33 @@ resolve, and its "~50 failing traces" + train/val/test split match the
 source (20/40/40). Its link discipline is better than scan A's and should be
 copied forward.
 
+### Run-5 second pass (same day, operator: "what u deliberately didnt do go i approve all")
+
+All four deferred items revisited under approval. **Three built, one
+REFUTED by its own cheap test.** Standing lesson recorded: *approval
+removes the need to ASK; it does not remove the need to MEASURE.*
+
+| ID | Outcome |
+|---|---|
+| BDN-307 (prompt trim) | **REFUTED — deliberately NOT built.** `measure-prompt-size.ts` needs live Neon and its safety wrapper correctly calls that a production write lane; the agent declined to set `CONFIRM_PROD=1` on its own reading that the script is read-only (that reasoning pattern is what caused the 870-row incident). Added `scripts/measure-static-layer.ts` — offline, zero risk, and Layer 1 is the only surface a trim would touch. **Live reading: Layer 1 = 13,274 chars / ~3,319 tokens against the repo's own 40,000-char guard (33% of ceiling).** Context rot operates at 100K+ token contexts, not a 3.3K-token system prompt. Calibration rule 3 applied. ★ The finding was scored payoff-3 in the morning FOR THIS EXACT UNCERTAINTY, and the measurement cashed that caution out correctly. |
+| BDN-308 (Verbalized Sampling) | **ACTED ON — behind `NICK_SPAR_VS`, default OFF.** Only SPAR's DIVERGE step changes; attack/tension/converge byte-identical **by assertion**. ★ The containment test caught real drift in the agent's own draft (the variant had rewritten step 2 to "the strongest SURVIVING option") — that would have made any A/B measure two changes at once. Source fixed, not the test. Flag registered in `FLAG_REGISTRY` with the frontier-only kill shot recorded. |
+| BDN-309 (universal media renderer) | **ACTED ON.** From the operator's media-workspace plan — ★ the FIRST pasted plan in 25 whose central premise SURVIVES the gate, verified against this checkout (the plan cited a different worktree's paths). Before: `<img>` for `image/*` and one undifferentiated paperclip for everything else, with no playback and no link. `ChatMediaPart` plays video/audio natively, types the rest, always offers a link, and never renders nothing. **Zero new dependencies** — the plan proposed Vidstack/Media Chrome; native `<video controls>` already covers scrub/fullscreen/PiP/captions. A player library belongs to the dock work (#2), not to "make files visible". ★ Agent self-correction on the record: an earlier claim that non-image parts "rendered as NOTHING" was WRONG — the paperclip branch existed at `chat-message-list.tsx:285`; the claim came from a grep truncated by `head -25`. |
+| BDN-310 (memory supersession) | **AUTHORED, NOT APPLIED — the DDL half is operator-side.** Schema + `prisma/migrations/20260814120000_brain_memory_supersession/` written and `prisma validate` clean; the agent did NOT run it against Neon (hand-applied migrations, protected operation). Apply command + full rollback in the migration header. Concept added: `expires_at`=decay TTL, `deleted_at`=explicit removal, `last_seen`=last observed (bumped by recall, so it measures ATTENTION not confirmation) — none could say *"this was true, then stopped being true."* FK is `ON DELETE SET NULL` never CASCADE (a dangling pointer is detectable; a cascade erases the record that something changed); `supersedes` is a LIST because consolidation is the common case; **NO BACKFILL** — backfilling `valid_from = created_at` would manufacture a provenance claim never observed, the exact fabrication class TRUTH RULE prevents. |
+
+**Media plan status: 1 of 8 built.** Remaining, with gate verdicts — #2
+persistent cinema dock (**where a player dependency finally earns itself**:
+queue, resume-across-navigation, chapters) · #3 "ask this video" with
+timestamps (**highest StateNour-specific leverage**; `audio-transcribe` and
+`videodb-sessions` routes already exist) · #4 provenance/status media cards
+(**map onto `claims.ts`, do NOT build a parallel evidence structure**) · #5
+multimodal composer · #6 focus/split-screen · #7 timestamp notes (**requires
+explicit save-to-memory; never auto-persist a watched video**) · #8 visual
+polish, last.
+
+**Still WP, not built:** BDN-305 obedience golden set — still needs REAL
+traces. Authoring cases from imagination would be a fixture-only eval, and
+the operator's approval does not convert invented fixtures into evidence.
+
 **Rotation reported EMPTY:** casino risk engineering ↔ capital allocation —
 Kelly is real but the operator's "aggressive" is a register ask, not a
 bet-sizing ask; every 2026 source returned was SEO content.
