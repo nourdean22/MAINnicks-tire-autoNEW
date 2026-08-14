@@ -1,12 +1,17 @@
 "use client";
 
-import { Paperclip, X } from "lucide-react";
+import { FileText, Music, Paperclip, X } from "lucide-react";
 
 /**
  * AttachmentPreview — the thumbnail + filename strip that appears
- * above the composer when the operator attaches a file. Shows a
- * thumbnail for images and a paperclip placeholder for anything else
- * (PDFs, text, docs).
+ * above the composer when the operator attaches a file.
+ *
+ * BDN-314 · was image-thumbnail-or-paperclip, from when the composer
+ * accepted images only. Intake now admits audio and PDFs, so an
+ * undifferentiated paperclip would leave a voice memo and an invoice
+ * looking identical at the exact moment the operator is checking they
+ * picked the right file. Audio and PDF get their own glyph; genuinely
+ * unknown types keep the paperclip.
  *
  * Extracted from app/(mastery)/chat/page.tsx (Wave 83) · ~22 LOC of
  * inline JSX. The parent owns the attachment store via
@@ -23,6 +28,8 @@ export function AttachmentPreview({
   onClear: () => void;
 }) {
   const isImage = file.type.startsWith("image/");
+  const isAudio = file.type.startsWith("audio/");
+  const isPdf = file.type === "application/pdf";
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border-default)]">
       {isImage ? (
@@ -34,7 +41,7 @@ export function AttachmentPreview({
         />
       ) : (
         <div className="w-10 h-10 rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] flex items-center justify-center text-[var(--text-tertiary)]">
-          <Paperclip size={14} />
+          {isAudio ? <Music size={14} /> : isPdf ? <FileText size={14} /> : <Paperclip size={14} />}
         </div>
       )}
       <div className="flex-1 min-w-0">
@@ -47,7 +54,7 @@ export function AttachmentPreview({
       <button
         onClick={onClear}
         className="text-[var(--text-tertiary)] hover:text-red-400 transition-colors"
-        aria-label="Remove attached image"
+        aria-label="Remove attachment"
         title="Remove attachment"
       >
         <X size={12} />
