@@ -25,14 +25,16 @@ const file = (over: Partial<AttachmentCandidate> = {}): AttachmentCandidate => (
 
 describe("attachment-policy · accepted kinds", () => {
   it("accepts images, audio and PDFs", () => {
-    expect(decideAttachment(file())).toEqual({ accepted: true, kind: "image" });
+    expect(decideAttachment(file())).toEqual({ accepted: true, kind: "image", lane: "inline" });
     expect(decideAttachment(file({ name: "memo.m4a", type: "audio/x-m4a" }))).toEqual({
       accepted: true,
       kind: "audio",
+      lane: "inline",
     });
     expect(decideAttachment(file({ name: "inv.pdf", type: "application/pdf" }))).toEqual({
       accepted: true,
       kind: "pdf",
+      lane: "inline",
     });
   });
 
@@ -41,10 +43,11 @@ describe("attachment-policy · accepted kinds", () => {
     // reject most real files.
     expect(
       decideAttachment(file({ name: "memo.mp3", type: "application/octet-stream" })),
-    ).toEqual({ accepted: true, kind: "audio" });
+    ).toEqual({ accepted: true, kind: "audio", lane: "inline" });
     expect(decideAttachment(file({ name: "scan.pdf", type: "" }))).toEqual({
       accepted: true,
       kind: "pdf",
+      lane: "inline",
     });
   });
 
@@ -53,21 +56,45 @@ describe("attachment-policy · accepted kinds", () => {
   });
 });
 
-describe("attachment-policy · video is REFUSED with a reason", () => {
-  it("names the real constraint rather than claiming the type is unsupported", () => {
-    // Every attachment is inlined as base64 and persisted; there is no
-    // upload route. The refusal must say that, or it will outlive the
-    // constraint the way "Images only for now" did.
-    const d = decideAttachment(file({ name: "bay5.mp4", type: "video/mp4" }));
-    expect(d.accepted).toBe(false);
-    if (!d.accepted) {
-      expect(d.reason).toContain("base64");
-      expect(d.reason).toContain("upload lane");
+describe("attachment-policy · video routes to the UPLOAD lane (BDN-319)", () => {
+  it("accepts video, but never on the inline lane", () => {
+    // The lane is the whole point. Accepting video without it would send
+    // it down the base64 path — the outcome the original refusal existed
+    // to prevent.
+    const d = decideAttachment(file({ name: "bay5.mp4", type: "video/mp4", size: 50 * 1024 * 1024 }));
+    expect(d.accepted).toBe(true);
+    if (d.accepted) {
+      expect(d.kind).toBe("video");
+      expect(d.lane).toBe("upload");
     }
   });
 
-  it("refuses video by extension too", () => {
-    expect(isAttachable(file({ name: "clip.mov", type: "application/octet-stream" }))).toBe(false);
+  it("keeps every other kind on the inline lane", () => {
+    for (const f of [
+      file(),
+      file({ name: "m.m4a", type: "audio/x-m4a" }),
+      file({ name: "i.pdf", type: "application/pdf" }),
+    ]) {
+      const d = decideAttachment(f);
+      expect(d.accepted).toBe(true);
+      if (d.accepted) expect(d.lane).toBe("inline");
+    }
+  });
+
+  it("detects video by extension too", () => {
+    const d = decideAttachment(file({ name: "clip.mov", type: "application/octet-stream" }));
+    expect(d.accepted).toBe(true);
+    if (d.accepted) expect(d.lane).toBe("upload");
+  });
+
+  it("gives video a far higher ceiling, since its bytes never enter the message", () => {
+    expect(MAX_BYTES_BY_KIND.video).toBeGreaterThan(MAX_BYTES_BY_KIND.image * 10);
+    expect(isAttachable(file({ name: "a.mp4", type: "video/mp4", size: 400 * 1024 * 1024 }))).toBe(
+      true,
+    );
+    expect(isAttachable(file({ name: "a.mp4", type: "video/mp4", size: 600 * 1024 * 1024 }))).toBe(
+      false,
+    );
   });
 });
 
@@ -112,7 +139,6 @@ describe("attachment-policy · rejections", () => {
 
   it("every rejection carries a non-trivial reason", () => {
     const rejects = [
-      file({ name: "a.mp4", type: "video/mp4" }),
       file({ name: "b.epub", type: "application/epub+zip" }),
       file({ size: 0 }),
       file({ size: 99 * 1024 * 1024 }),
@@ -132,7 +158,7 @@ describe("attachment-policy · picker hint", () => {
     expect(ACCEPT_ATTRIBUTE).toContain("application/pdf");
   });
 
-  it("does NOT advertise video, since the policy refuses it", () => {
-    expect(ACCEPT_ATTRIBUTE).not.toContain("video/");
+  it("advertises video now that the upload lane exists", () => {
+    expect(ACCEPT_ATTRIBUTE).toContain("video/mp4");
   });
 });

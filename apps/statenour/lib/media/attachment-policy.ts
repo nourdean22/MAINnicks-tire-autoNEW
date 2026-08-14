@@ -8,19 +8,23 @@
  * and docs aren't readable yet." So the app could RENDER media it
  * refused to let the operator ATTACH. This module is the widened gate.
  *
- * WHY VIDEO IS STILL REFUSED — and it is a refusal, not an oversight
- * Every attachment in this app is inlined as a `data:` URL into the
- * message parts and stored with the message. There is no upload route
- * anywhere under app/api (checked: no upload/blob/file endpoints), so
- * "attach a video" would mean base64-ing a video into a chat row —
- * roughly +33% over the wire, held in memory on both ends, persisted
- * forever. The originating plan says this explicitly: "do not send huge
- * base64 files through the chat message. Upload them first, then pass a
- * secure media URL plus metadata."
+ * VIDEO: WAS REFUSED, NOW ROUTED (BDN-319, 2026-08-14)
+ * Attachments here were inlined as `data:` URLs into the message parts
+ * and stored with the message, and no upload route existed — so video
+ * was refused outright, with the refusal naming that constraint rather
+ * than pretending the type was unsupported. The constraint is now gone:
+ * /api/ai/chat/media-upload puts the bytes in VideoDB and returns a
+ * stream URL.
  *
- * So video stays refused until an upload lane exists, and the refusal
- * says so rather than pretending the type is unsupported. Shipping
- * base64 video would be building the exact thing the plan warns against.
+ * Video is therefore ACCEPTED on the `upload` lane, never `inline`.
+ * That distinction is load-bearing: accepting video without it would
+ * silently send it down the base64 path — exactly the outcome the
+ * original refusal existed to prevent, and what the plan warns against
+ * ("do not send huge base64 files through the chat message").
+ *
+ * ★ The old refusal message was updated in the same commit as the route.
+ * A rejection that outlives its constraint is how "Images only for now"
+ * survived long past the day PDFs became renderable.
  *
  * SIZE CAPS ARE DELIBERATELY CONSERVATIVE
  * base64 inflates ~33%, and the encoded string is persisted per message.
@@ -37,13 +41,38 @@
  * Pure: no I/O, no DOM, no clock.
  */
 
-export type AttachmentKind = "image" | "audio" | "pdf";
+export type AttachmentKind = "image" | "audio" | "pdf" | "video";
+
+/**
+ * BDN-319 · which path the bytes take.
+ *
+ *   inline — base64'd into the message part and persisted with it.
+ *            Fine for a screenshot, a voice memo, an invoice.
+ *   upload — POSTed to /api/ai/chat/media-upload first; the message
+ *            carries a stream URL, never the bytes.
+ *
+ * This distinction is the whole reason video was refused before the
+ * upload route existed. Accepting video WITHOUT this field would have
+ * silently routed it down the inline path — precisely the outcome the
+ * earlier refusal was protecting against.
+ */
+export type AttachmentLane = "inline" | "upload";
 
 export const MAX_BYTES_BY_KIND: Record<AttachmentKind, number> = {
   image: 10 * 1024 * 1024,
   audio: 8 * 1024 * 1024,
   pdf: 8 * 1024 * 1024,
+  // Video never touches the message body, so the ceiling is the upload
+  // route's, not base64's. Matches the session-capture route.
+  video: 500 * 1024 * 1024,
 };
+
+/** Kinds whose bytes must go through the upload route. */
+export const UPLOAD_LANE_KINDS: readonly AttachmentKind[] = ["video"];
+
+export function laneFor(kind: AttachmentKind): AttachmentLane {
+  return UPLOAD_LANE_KINDS.includes(kind) ? "upload" : "inline";
+}
 
 /** What the file picker should advertise. Not a security boundary. */
 export const ACCEPT_ATTRIBUTE = [
@@ -59,10 +88,13 @@ export const ACCEPT_ATTRIBUTE = [
   "audio/ogg",
   "audio/x-m4a",
   "application/pdf",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
 ].join(",");
 
 export type AttachmentDecision =
-  | { accepted: true; kind: AttachmentKind }
+  | { accepted: true; kind: AttachmentKind; lane: AttachmentLane }
   | { accepted: false; reason: string };
 
 /** Minimal shape so this stays testable without a DOM File. */
@@ -72,7 +104,7 @@ export interface AttachmentCandidate {
   size: number;
 }
 
-function kindOf(candidate: AttachmentCandidate): AttachmentKind | "video" | null {
+function kindOf(candidate: AttachmentCandidate): AttachmentKind | null {
   const type = (candidate.type ?? "").toLowerCase();
   if (type.startsWith("image/")) return "image";
   if (type.startsWith("audio/")) return "audio";
@@ -106,17 +138,10 @@ function mb(bytes: number): string {
 export function decideAttachment(candidate: AttachmentCandidate): AttachmentDecision {
   const kind = kindOf(candidate);
 
-  if (kind === "video") {
-    return {
-      accepted: false,
-      reason:
-        "Video can't be attached yet — it would be inlined into the message as base64. Needs an upload lane first.",
-    };
-  }
   if (kind === null) {
     return {
       accepted: false,
-      reason: `${candidate.type || "That file type"} isn't supported — images, audio and PDFs only.`,
+      reason: `${candidate.type || "That file type"} isn't supported — images, audio, video and PDFs only.`,
     };
   }
 
@@ -137,7 +162,7 @@ export function decideAttachment(candidate: AttachmentCandidate): AttachmentDeci
     };
   }
 
-  return { accepted: true, kind };
+  return { accepted: true, kind, lane: laneFor(kind) };
 }
 
 /** Convenience for callers that only need the boolean. */

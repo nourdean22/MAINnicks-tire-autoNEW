@@ -4,6 +4,7 @@ import { PanelRightClose, SkipForward, X } from "lucide-react";
 import { useMediaDockStore } from "../stores/media-dock-store";
 import { MediaPlayerSurface } from "./chat-media-surface";
 import { SaveMomentButton } from "./media-save-moment";
+import { MediaTranscriptPane } from "./media-transcript-pane";
 
 /**
  * ChatMediaFocusPanel (BDN-315) — media plan item #6, desktop half.
@@ -41,7 +42,7 @@ export function ChatMediaFocusPanel() {
   return (
     <aside
       aria-label={`Media focus — ${item.title}`}
-      className="fixed inset-y-0 right-0 z-50 hidden w-80 flex-col border-l border-edge bg-void shadow-2xl md:flex md:w-96"
+      className="fixed inset-y-0 right-0 z-50 hidden w-80 flex-col border-l border-edge overflow-hidden bg-void shadow-2xl md:flex md:w-96"
     >
       <header className="flex items-center gap-2 border-b border-edge px-3 py-2">
         <div className="min-w-0 flex-1">
@@ -84,18 +85,18 @@ export function ChatMediaFocusPanel() {
         </button>
       </header>
 
-      <div className="p-3">
+      <div className="shrink-0 p-3">
         <MediaPlayerSurface className="w-full rounded-lg border border-glass bg-black" />
       </div>
 
-      {/*
-        Deliberately no transcript pane here yet. The plan's split-screen
-        sketch shows "video / transcript" — but getTranscript returns a
-        flat string with no timing (see lib/videodb/client.ts), so a
-        transcript pane would be an unscrollable, unclickable wall that
-        looks like a feature and behaves like a screenshot. It lands when
-        the client returns segments.
-      */}
+      {/* BDN-320 · the transcript pane the split-screen sketch called
+          for. Correctly withheld until BDN-318 made getTranscript
+          preserve `word_timestamps` — before that it could only have
+          been an unclickable wall. Now every segment seeks the player
+          through the same requestSeek the timestamp bar uses. */}
+      {/* key: remount on media change so transcript state cannot leak
+          from one clip to the next. */}
+      <MediaTranscriptPane key={item.id} />
     </aside>
   );
 }

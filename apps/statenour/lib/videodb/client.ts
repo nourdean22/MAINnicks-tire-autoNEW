@@ -170,21 +170,111 @@ export async function indexSpokenWords(videoId: string): Promise<void> {
 
 // ── Get transcript (with polling) ────────────────────────────────────
 
+/**
+ * BDN-318 (2026-08-14) · the transcript response, per the VideoDB SDK.
+ *
+ * Verified against the primary source rather than guessed —
+ * videodb-python `Video._fetch_transcript` reads exactly two keys off
+ * this endpoint:
+ *
+ *   transcript_data.get("word_timestamps", [])   → timed segments
+ *   transcript_data.get("text", "")              → full plain text
+ *
+ * and `get_transcript` documents the element shape as
+ * "List of dicts with keys: start (float), end (float), text (str)".
+ *
+ * ★ THE BUG THIS FIXES: the previous reader took `json.transcript ??
+ * json.text` and returned a flat string. `transcript` is not even a key
+ * this endpoint returns — the text came through the fallback — and
+ * `word_timestamps` was discarded entirely. Every timing the API
+ * produced was thrown away at the client boundary, which is why
+ * clickable transcripts, chapters and "summarize this section" were all
+ * reported as blocked on the backend.
+ */
+interface TranscriptSegmentRaw {
+  start?: number;
+  end?: number;
+  text?: string;
+}
+
 interface TranscriptResponse {
+  word_timestamps?: TranscriptSegmentRaw[];
+  text?: string;
+  /** Legacy/fallback key kept because the old reader relied on it. */
   transcript?: string;
   status?: string;
-  text?: string;
+}
+
+/** A timed transcript segment. Times are seconds. */
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface TranscriptResult {
+  text: string;
+  segments: TranscriptSegment[];
+  /**
+   * True when the API returned text but NO recognizable timed segments.
+   *
+   * Reported explicitly instead of letting `segments: []` stand, because
+   * an empty array is ambiguous — it reads identically as "silent video"
+   * and as "we failed to parse the timings". Callers that need segments
+   * must be able to tell those apart, and a silent empty is exactly the
+   * false-green this repo keeps relearning.
+   */
+  segmentsUnavailable: boolean;
+}
+
+/**
+ * How the API should split the transcript.
+ *   word     — one segment per word (precise seeking, unreadable as prose)
+ *   sentence — one segment per sentence (what a transcript pane wants)
+ *   time     — fixed-duration windows, size set by `length`
+ */
+export type TranscriptSegmenter = "word" | "sentence" | "time";
+
+export function normalizeSegments(raw: TranscriptSegmentRaw[] | undefined): TranscriptSegment[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TranscriptSegment[] = [];
+  for (const seg of raw) {
+    const text = typeof seg?.text === "string" ? seg.text : "";
+    const start = typeof seg?.start === "number" ? seg.start : NaN;
+    const end = typeof seg?.end === "number" ? seg.end : NaN;
+    // Drop malformed rows rather than emitting NaN timings that would
+    // seek a player to nowhere.
+    if (!text.trim() || !Number.isFinite(start) || !Number.isFinite(end)) continue;
+    if (start < 0 || end < start) continue;
+    out.push({ start, end, text });
+  }
+  return out;
 }
 
 export async function getTranscript(
   videoId: string,
-  opts: { pollMs?: number; maxAttempts?: number } = {},
-): Promise<string> {
+  opts: {
+    pollMs?: number;
+    maxAttempts?: number;
+    /** Default "sentence" — readable prose. "word" for precise seeking. */
+    segmenter?: TranscriptSegmenter;
+    /** Window size in seconds when segmenter === "time". */
+    length?: number;
+  } = {},
+): Promise<TranscriptResult> {
   const pollMs = opts.pollMs ?? POLL_MS;
   const maxAttempts = opts.maxAttempts ?? POLL_MAX_ATTEMPTS;
+  // "sentence" is the default because the first consumer is a transcript
+  // pane. "word" (the SDK's default) yields one segment per word, which
+  // is perfect for seeking and unreadable as prose.
+  const segmenter = opts.segmenter ?? "sentence";
+  const query = new URLSearchParams({ segmenter });
+  if (segmenter === "time") query.set("length", String(opts.length ?? 1));
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const res = await vdbFetch(`/videos/${videoId}/transcription`).catch((e) => {
+    const res = await vdbFetch(
+      `/videos/${videoId}/transcription?${query.toString()}`,
+    ).catch((e) => {
       // 404/425 typically means transcript not ready yet · keep polling
       const err = e as VideoDbError;
       if (err.statusCode === 404 || err.statusCode === 425) return null;
@@ -192,10 +282,18 @@ export async function getTranscript(
     });
     if (res) {
       const json = (await res.json()) as TranscriptResponse;
-      const text = json.transcript ?? json.text;
+      const text = json.text ?? json.transcript;
       const status = json.status ?? "unknown";
       if (text && status !== "indexing" && status !== "processing") {
-        return text;
+        const segments = normalizeSegments(json.word_timestamps);
+        return {
+          text,
+          segments,
+          // Loud, not silent: text present but nothing timed means the
+          // shape changed or indexing produced no timings. A caller must
+          // be able to distinguish that from a genuinely silent clip.
+          segmentsUnavailable: segments.length === 0,
+        };
       }
     }
     if (attempt < maxAttempts - 1) {
@@ -205,6 +303,17 @@ export async function getTranscript(
   throw new Error(
     `VideoDB transcript not ready after ${maxAttempts * (pollMs / 1000)}s · video ${videoId}`,
   );
+}
+
+/**
+ * Back-compat shim for callers that only ever wanted the prose.
+ * Kept so widening the return type is not a breaking change.
+ */
+export async function getTranscriptText(
+  videoId: string,
+  opts: Parameters<typeof getTranscript>[1] = {},
+): Promise<string> {
+  return (await getTranscript(videoId, opts)).text;
 }
 
 // ── End-to-end transcription helper ──────────────────────────────────
@@ -219,6 +328,10 @@ export async function transcribeAudio(args: {
   url?: string;
 }): Promise<{
   transcript: string;
+  /** Timed segments — empty when the API returned none (see segmentsUnavailable). */
+  segments: TranscriptSegment[];
+  /** True when text came back but no timings did. */
+  segmentsUnavailable: boolean;
   videoId: string;
   /**
    * WALL-CLOCK time this upload+index+poll round trip took — NOT the
@@ -240,9 +353,11 @@ export async function transcribeAudio(args: {
     if (err.statusCode === 409 || err.statusCode === 400) return;
     throw e;
   });
-  const transcript = await getTranscript(videoId);
+  const result = await getTranscript(videoId);
   return {
-    transcript,
+    transcript: result.text,
+    segments: result.segments,
+    segmentsUnavailable: result.segmentsUnavailable,
     videoId,
     elapsedMs: Date.now() - startedAt,
   };
