@@ -19,6 +19,8 @@ import {
   BREVITY_DEFAULT,
   INLINE_CITATIONS,
   CONFIDENCE_CUES,
+  ESTIMATIVE_LIKELIHOOD,
+  ANALYTIC_CONFIDENCE,
   TIME_OF_DAY_VOICE,
   MODE_PERSONAS,
   TRUTH_RULE_NEVER_FABRICATE,
@@ -100,6 +102,68 @@ describe("operator-rules · CONFIDENCE_CUES (v10.0.393)", () => {
   it("instructs Don't know rather than invent", () => {
     expect(CONFIDENCE_CUES).toContain("Don't know");
     expect(CONFIDENCE_CUES.toLowerCase()).toContain("never invent");
+  });
+});
+
+describe("operator-rules · BDN-302 likelihood/confidence split", () => {
+  it("ESTIMATIVE_LIKELIHOOD carries the full ODNI seven-point scale", () => {
+    for (const band of [
+      "almost no chance",
+      "very unlikely",
+      "unlikely",
+      "roughly even chance",
+      "likely",
+      "very likely",
+      "almost certain",
+    ]) {
+      expect(ESTIMATIVE_LIKELIHOOD.toLowerCase()).toContain(band);
+    }
+  });
+
+  it("ESTIMATIVE_LIKELIHOOD forbids a bare hedge and exempts hard facts", () => {
+    expect(ESTIMATIVE_LIKELIHOOD.toLowerCase()).toContain("never a bare hedge");
+    expect(ESTIMATIVE_LIKELIHOOD.toLowerCase()).toContain("not estimates");
+  });
+
+  it("ANALYTIC_CONFIDENCE states the separation explicitly", () => {
+    // The load-bearing sentence. If this wording goes, the model loses
+    // the only place the two quantities are distinguished.
+    expect(ANALYTIC_CONFIDENCE.toLowerCase()).toContain("separate from likelihood");
+    expect(ANALYTIC_CONFIDENCE.toLowerCase()).toContain("how good your evidence is");
+  });
+
+  it("ANALYTIC_CONFIDENCE licenses high confidence on a low-probability call", () => {
+    expect(ANALYTIC_CONFIDENCE).toContain("High confidence in a 30% call");
+  });
+
+  it("ANALYTIC_CONFIDENCE specifies the machine-readable tail tag", () => {
+    // parseEstimative() in lib/ai/vnext/truth/estimative.ts reads this
+    // exact shape; changing one without the other breaks the census.
+    expect(ANALYTIC_CONFIDENCE).toContain("conf: high");
+    expect(ANALYTIC_CONFIDENCE).toMatch(/\[~30%/);
+  });
+
+  it("preserves the never-invent / don't-know escape hatch lost from CONFIDENCE_CUES", () => {
+    expect(ANALYTIC_CONFIDENCE).toContain("Don't know");
+    expect(ANALYTIC_CONFIDENCE.toLowerCase()).toContain("never invent");
+  });
+
+  it("does NOT inject the superseded CONFIDENCE_CUES alongside the split", () => {
+    // Two competing uncertainty vocabularies in one prompt is the exact
+    // drift this file exists to prevent (see BROADEN_AND_SUGGEST, 2026-07-11).
+    const block = getOperatorPolicyBlock();
+    expect(block).toContain("LIKELIHOOD —");
+    expect(block).toContain("CONFIDENCE —");
+    expect(block).not.toContain("CONFIDENCE CUES");
+    expect(block).not.toContain("If I had to bet");
+  });
+
+  it("keeps the split roughly size-neutral against the rule it replaced", () => {
+    // BDN-305: marginal prompt prose has negative expected yield, so a
+    // split must not become an expansion. 2.5x the original is the
+    // ceiling; today it sits well under.
+    const combined = ESTIMATIVE_LIKELIHOOD.length + ANALYTIC_CONFIDENCE.length;
+    expect(combined).toBeLessThan(CONFIDENCE_CUES.length * 2.5);
   });
 });
 

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
 import { useState, useCallback } from "react";
 import type { UIMessage } from "ai";
-import { AlertTriangle, CheckCircle2, ExternalLink, Paperclip, ShieldCheck, Wrench } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, ShieldCheck, Wrench } from "lucide-react";
+import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
 import { NickMessage } from "@/components/chat/nick-message";
@@ -280,9 +281,11 @@ export function ChatMessageList({
                   );
                 }
                 if (part.type === "file") {
-                  const file = part as { url?: string; mediaType?: string; filename?: string };
-                  if (file.url && file.mediaType?.startsWith("image/")) return <img key={`${message.id}-${index}`} src={file.url} alt={file.filename || "attached image"} className="mt-2 max-h-64 rounded-lg border border-glass" />;
-                  return <div key={`${message.id}-${index}`} className="mt-2 flex items-center gap-2 rounded-lg border border-edge px-3 py-2 text-xs text-fg-secondary"><Paperclip size={12} />{file.filename || "attachment"}</div>;
+                  // Was: <img> for image/*, and one undifferentiated
+                  // paperclip for everything else — no playback, no type
+                  // distinction, no way to open the file. ChatMediaPart
+                  // plays video/audio natively and always offers a link.
+                  return <ChatMediaPart key={`${message.id}-${index}`} part={part as ChatFilePart} />;
                 }
                 if (part.type.startsWith("tool-")) {
                   const toolName = part.type.replace("tool-", "");

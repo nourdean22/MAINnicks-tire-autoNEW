@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { buildStaticPrefix } from "@/lib/ai/prompt/static";
 import { buildInferredPatternsBlock } from "@/lib/ai/prompt/inferred-patterns";
+import { ESTIMATIVE_LIKELIHOOD } from "@/lib/ai/prompt/policy/operator-rules";
 
 describe("v9.2 · Layer 1 (static.ts)", () => {
   const prefix = buildStaticPrefix();
@@ -70,13 +71,64 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
       ["each-hour-= claim", /each\s+(hour|day|minute)\s+(unanswered|missed|delayed)/i],
       ["X-day-lag claim", /\bwithin\s+\d+\s*d(ay)?s?\b/i],
     ];
+    // BDN-302 carve-out — deliberately narrow, and pinned by the test
+    // below so it cannot widen into a hole.
+    //
+    // ESTIMATIVE_LIKELIHOOD carries the ODNI seven-point probability
+    // scale, and its ranges ("01-05%") read to the signed-magnitude
+    // regex as "-05%". That is a FALSE POSITIVE: this guard exists to
+    // stop hardcoded CAUSAL CLAIMS about the operator's life ("each
+    // hour unanswered = -15% conversion") from sitting beside live
+    // data and being mistaken for measurements. A fixed, citable
+    // probability vocabulary is a DEFINITION, not a claim, and not
+    // sourced from any query — so Layer 1 is exactly where it belongs.
+    //
+    // Only this one known string is exempt. Everything else in the
+    // prefix — including the rest of the operator policy block — is
+    // scanned unchanged.
+    const scanned = prefix.replace(ESTIMATIVE_LIKELIHOOD, "");
+    expect(
+      scanned.length,
+      "ESTIMATIVE_LIKELIHOOD must appear verbatim in Layer 1 — if this fails the carve-out is scanning nothing and silently exempting the whole prefix",
+    ).toBeLessThan(prefix.length);
+
     for (const [label, pattern] of forbidden) {
-      const match = prefix.match(pattern);
+      const match = scanned.match(pattern);
       expect(
         match,
         `Layer 1 contains forbidden pattern (${label}): ${match?.[0]}\n\nMagnitudes belong in Layer 2 (renderer.ts) sourced from real queries, or in inferred-patterns.ts framed as hypotheses.`,
       ).toBeNull();
     }
+  });
+
+  it("pins the BDN-302 carve-out: the ONLY magnitudes exempted are the ODNI bands", () => {
+    // The carve-out above removes ESTIMATIVE_LIKELIHOOD wholesale before
+    // scanning. That is safe only while the string stays a pure
+    // probability scale. If anyone smuggles a causal magnitude into this
+    // rule ("+15% close rate"), it would ride into Layer 1 unscanned —
+    // so the exempted string is itself constrained here.
+    // Pin the full ranges, not just the upper bounds — that fixes both
+    // ends of every band, so a shifted scale cannot slip through.
+    const ranges = ESTIMATIVE_LIKELIHOOD.match(/\d+-\d+%/g) ?? [];
+    expect(ranges).toEqual([
+      "01-05%",
+      "05-20%",
+      "20-45%",
+      "45-55%",
+      "55-80%",
+      "80-95%",
+      "95-99%",
+    ]);
+    // Contiguous and monotonic: each band starts where the last ended.
+    // This is what makes the midpoints in estimative.ts defensible.
+    const bounds = ranges.map((r) => r.replace("%", "").split("-").map(Number));
+    for (let i = 1; i < bounds.length; i++) {
+      expect(bounds[i][0]).toBe(bounds[i - 1][1]);
+    }
+    // No multipliers, no time-lag causation, no per-unit conversion.
+    expect(ESTIMATIVE_LIKELIHOOD).not.toMatch(/\b\d+\s*x\b/i);
+    expect(ESTIMATIVE_LIKELIHOOD).not.toMatch(/\bwithin\s+\d+\s*d(ay)?s?\b/i);
+    expect(ESTIMATIVE_LIKELIHOOD).not.toMatch(/conversion|revenue|close rate|churn/i);
   });
 
   it("does NOT use threat language for tool-calling rules", () => {

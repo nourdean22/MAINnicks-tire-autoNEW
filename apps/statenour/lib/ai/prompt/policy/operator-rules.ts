@@ -46,6 +46,45 @@ export const INLINE_CITATIONS = `INLINE CITATIONS — When you draw on a brain w
 
 export const CONFIDENCE_CUES = `CONFIDENCE CUES — Mark uncertainty explicitly. If guessing or extrapolating, prefix "Best guess:" / "Probably:" / "If I had to bet:" — short markers, not full sentences. When sure (data in hand or principle applies cleanly), state it flat. Never invent · if you don't know, say "Don't know · need to check" and offer the next step.`;
 
+/**
+ * BDN-302 (2026-08-14) · split estimative LIKELIHOOD from analytic
+ * CONFIDENCE.
+ *
+ * CONFIDENCE_CUES (v10.0.393, above) blends two different quantities
+ * into one hedge token: "Best guess:" / "Probably:" / "If I had to
+ * bet:". ICD 203 — the US IC's binding analytic standard — requires
+ * them stated SEPARATELY:
+ *
+ *   likelihood  = probability of the event      ("probable", ~55-80%)
+ *   confidence  = strength of the evidence base (high/moderate/low)
+ *
+ * Why this matters here and not just in doctrine: BDN-106 shipped a
+ * Brier-score calibration report on 2026-08-12 reporting honest n=0.
+ * A Brier score REQUIRES a probability. A blended hedge word is not
+ * one, so the report was structurally ungradeable — the instrument
+ * could not see its target. Splitting the fields is the unblock.
+ *
+ * Second-order: "high confidence in a 30% call" becomes a sayable
+ * sentence. Under the blended token it was linguistically impossible,
+ * which quietly pushed Nick toward stating only what he was sure of.
+ *
+ * Bands are the ODNI seven-point scale, verbatim, so the vocabulary is
+ * citable rather than house-invented.
+ *
+ * Machine-readable tail reuses the INLINE_CITATIONS bracket idiom
+ * (`[Buffett]`) rather than introducing a second syntax — one bracket
+ * vocabulary, two uses. `parseEstimative()` in
+ * lib/ai/vnext/truth/estimative.ts is the reader.
+ *
+ * Size discipline: these two rules together are held to roughly the
+ * footprint of the one they replace. Per the context-rot finding
+ * (BDN-305) marginal prompt prose has negative expected yield, so a
+ * split must not become an expansion.
+ */
+export const ESTIMATIVE_LIKELIHOOD = `LIKELIHOOD — For any uncertain or forward-looking claim, state one band: almost no chance (01-05%) / very unlikely (05-20%) / unlikely (20-45%) / roughly even chance (45-55%) / likely (55-80%) / very likely (80-95%) / almost certain (95-99%). Never a bare hedge — "probably" alone is not a band. Facts read from data are not estimates — state flat.`;
+
+export const ANALYTIC_CONFIDENCE = `CONFIDENCE — Separate from likelihood. Likelihood is the odds of the thing; confidence is how good your evidence is. Say high / moderate / low, and name the weakness when it's not high ("low — one data point, no trend"). High confidence in a 30% call is valid and useful — say it. When a claim carries both, close the sentence with a compact tag: [~30% · conf: high]. If you don't know, say "Don't know · need to check" and give the next step. Never invent.`;
+
 export const TIME_OF_DAY_VOICE = `TIME-OF-DAY VOICE — Morning · crisp, action-oriented, no waffle. Afternoon · operational, follow-up tone. Evening · reflective, narrower scope, no new decisions. Late night (10pm-5am) · terse · operator should be sleeping · gently shorten + suggest tomorrow.`;
 
 export const MODE_PERSONAS = `MODE PERSONAS — Operator may prefix the message with a mode marker:
@@ -119,7 +158,14 @@ export function getOperatorPolicyLines(): readonly string[] {
     NO_SYCOPHANCY,
     BREVITY_DEFAULT,
     INLINE_CITATIONS,
-    CONFIDENCE_CUES,
+    // BDN-302 · CONFIDENCE_CUES replaced in the INJECTED set by the
+    // likelihood/confidence split below. The const stays exported for
+    // archaeology and for its regression test — same treatment
+    // BROADEN_AND_SUGGEST got on 2026-07-11 — but shipping both would
+    // put two competing uncertainty vocabularies in one prompt, which
+    // is the exact drift this file exists to prevent.
+    ESTIMATIVE_LIKELIHOOD,
+    ANALYTIC_CONFIDENCE,
     TIME_OF_DAY_VOICE,
     MODE_PERSONAS,
     "",
