@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronUp, PanelRight, SkipForward, X } from "lucide-react";
 import { useMediaDockStore } from "../stores/media-dock-store";
 import { MediaPlayerSurface } from "./chat-media-surface";
+import { SaveMomentButton } from "./media-save-moment";
 
 /**
  * ChatMediaDock (BDN-311) — media plan item #2, persistent player.
@@ -73,6 +74,9 @@ export function ChatMediaDock() {
             <SkipForward size={16} />
           </button>
         ) : null}
+
+        {/* BDN-316 · explicit save. Never an effect. */}
+        <SaveMomentButton />
 
         {/* Desktop only — a 384px side panel would cover the whole
             conversation on a phone, which is why the dock IS the mobile

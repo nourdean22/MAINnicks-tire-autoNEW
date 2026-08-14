@@ -86,7 +86,7 @@ export function MediaPlayerSurface({ className }: { className?: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-glass bg-[var(--bg-elevated)] px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-glass bg-elevated px-3 py-2">
       <Music size={14} className="shrink-0 text-fg-tertiary" />
       <audio
         ref={mediaRef as React.RefObject<HTMLAudioElement>}
