@@ -17,10 +17,30 @@
  *
  * Auth: `x-access-token: $VIDEO_DB_API_KEY`
  *
- * The endpoints are best-effort transcribed from the docs since the
- * full REST schema isn't published the same way Venice/OpenAI publish
- * theirs. If a call returns 404, the response body usually includes
- * the correct route · we retry once and surface the diagnostic.
+ * ★★★ 2026-08-14 · BDN-321 · LIVE PROBE FOUND THIS CLIENT WAS NEVER
+ * WORKING. The comment above ("best-effort transcribed from the docs")
+ * was accurate and the guesses were wrong in two systematic ways:
+ *
+ *   1. PATHS ARE SINGULAR. `/collections` -> 404; `/collection` -> 200.
+ *      Same for `/videos` -> `/video`, `/indexes` -> `/index`. Verified
+ *      against a live key AND videodb-python's ApiPath constants
+ *      (collection = "collection", video = "video", index = "index").
+ *
+ *   2. EVERY RESPONSE IS ENVELOPED: `{ "data": {...}, "success": true }`.
+ *      This client read `json.collections` / `json.video_id` /
+ *      `json.transcript` off the TOP level, which is always undefined.
+ *      The SDK's http client does `response.json().get("data")` on every
+ *      call; `unwrap()` below is the equivalent.
+ *
+ *   Listing videos is also not nested: `GET /video?collection_id=<id>`,
+ *   not `/collection/<id>/video` (which 404s).
+ *
+ * Corroborating evidence that it never worked: the operator's collection
+ * contained ZERO videos at probe time. If transcribeAudio had ever
+ * succeeded there would be assets.
+ *
+ * Endpoints below are now the VERIFIED ones. Probe:
+ * scripts/probe-videodb-transcript.ts (read-only).
  */
 
 const BASE_URL = "https://api.videodb.io";
@@ -40,6 +60,19 @@ function getKey(): string {
 interface VideoDbError extends Error {
   statusCode?: number;
   responseBody?: string;
+}
+
+/**
+ * Unwrap the `{ data, success }` envelope every VideoDB response uses.
+ * Mirrors videodb-python's `response.json().get("data")`, including its
+ * fallback to the whole body when `data` is absent.
+ */
+function unwrap<T>(body: unknown): T {
+  if (body && typeof body === "object" && "data" in (body as Record<string, unknown>)) {
+    const inner = (body as { data?: unknown }).data;
+    if (inner !== null && inner !== undefined) return inner as T;
+  }
+  return body as T;
 }
 
 async function vdbFetch(
@@ -84,8 +117,8 @@ export async function getDefaultCollection(): Promise<string> {
   if (cachedCollectionId) return cachedCollectionId;
   // Try list first
   try {
-    const res = await vdbFetch("/collections");
-    const data = (await res.json()) as { collections?: Collection[] };
+    const res = await vdbFetch("/collection");
+    const data = unwrap<{ collections?: Collection[] }>(await res.json());
     const first = data.collections?.[0];
     if (first?.id) {
       cachedCollectionId = first.id;
@@ -95,11 +128,11 @@ export async function getDefaultCollection(): Promise<string> {
     // Fall through to create
   }
   // Create one
-  const createRes = await vdbFetch("/collections", {
+  const createRes = await vdbFetch("/collection", {
     method: "POST",
     body: JSON.stringify({ name: "nour-os-default" }),
   });
-  const created = (await createRes.json()) as Collection;
+  const created = unwrap<Collection>(await createRes.json());
   cachedCollectionId = created.id;
   return created.id;
 }
@@ -129,7 +162,7 @@ export async function uploadMedia(args: {
   url?: string;
 }): Promise<UploadedAsset> {
   const collectionId = await getDefaultCollection();
-  const path = `/collections/${collectionId}/upload`;
+  const path = `/collection/${collectionId}/upload`;
 
   let res: Response;
   if (args.file) {
@@ -149,7 +182,7 @@ export async function uploadMedia(args: {
     throw new Error("uploadMedia: either file or url is required");
   }
 
-  const json = (await res.json()) as UploadResponse;
+  const json = unwrap<UploadResponse>(await res.json());
   const videoId = json.video_id ?? json.asset_id ?? json.id;
   if (!videoId) {
     throw new Error(
@@ -162,7 +195,7 @@ export async function uploadMedia(args: {
 // ── Index spoken words ───────────────────────────────────────────────
 
 export async function indexSpokenWords(videoId: string): Promise<void> {
-  await vdbFetch(`/videos/${videoId}/indexes`, {
+  await vdbFetch(`/video/${videoId}/index`, {
     method: "POST",
     body: JSON.stringify({ index_type: "spoken_word" }),
   });
@@ -273,7 +306,7 @@ export async function getTranscript(
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const res = await vdbFetch(
-      `/videos/${videoId}/transcription?${query.toString()}`,
+      `/video/${videoId}/transcription?${query.toString()}`,
     ).catch((e) => {
       // 404/425 typically means transcript not ready yet · keep polling
       const err = e as VideoDbError;
@@ -281,7 +314,7 @@ export async function getTranscript(
       throw e;
     });
     if (res) {
-      const json = (await res.json()) as TranscriptResponse;
+      const json = unwrap<TranscriptResponse>(await res.json());
       const text = json.text ?? json.transcript;
       const status = json.status ?? "unknown";
       if (text && status !== "indexing" && status !== "processing") {
