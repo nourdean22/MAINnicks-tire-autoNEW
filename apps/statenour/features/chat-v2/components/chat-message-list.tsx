@@ -6,6 +6,7 @@ import { useState, useCallback } from "react";
 import type { UIMessage } from "ai";
 import { AlertTriangle, CheckCircle2, ExternalLink, ShieldCheck, Wrench } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
+import { MediaTimestampBar } from "./media-timestamp-bar";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { ToolResultCard, isKnownToolName } from "@/components/chat/tool-result-card";
 import { NickMessage } from "@/components/chat/nick-message";
@@ -274,6 +275,13 @@ export function ChatMessageList({
                       <AssistantMessageShell text={part.text} messageId={message.id} onLongPress={() => setActionSheetMsg({ id: message.id, role: "assistant", text: part.text })} contextBlocks={contextBlocks} quality={quality} citations={citations} onRegen={() => onRetry?.()}>
                         <ReasoningTraceLive steps={reasoningSteps} />
                         <NickMessage text={part.text} streaming={isLoading && isLatestAssistant} messageId={message.id} />
+                        {/* BDN-312 · seek controls for any time refs in the
+                            reply. Renders null unless a player is docked —
+                            a seek control with nothing to seek is a dead
+                            button. Suppressed mid-stream: a half-written
+                            "4:1" parses as nothing and a half-written
+                            "4:12" would flicker a control that then moves. */}
+                        {!(isLoading && isLatestAssistant) && <MediaTimestampBar text={part.text} />}
                       </AssistantMessageShell>
                       {isTruncatedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300"><AlertTriangle size={12} /> Response cut off — regenerate</button>}
                       {isRefusedAssistantTurn(message) && <button onClick={onRetry} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-300"><AlertTriangle size={12} /> Model refused — retry may route differently</button>}
@@ -285,7 +293,7 @@ export function ChatMessageList({
                   // paperclip for everything else — no playback, no type
                   // distinction, no way to open the file. ChatMediaPart
                   // plays video/audio natively and always offers a link.
-                  return <ChatMediaPart key={`${message.id}-${index}`} part={part as ChatFilePart} />;
+                  return <ChatMediaPart key={`${message.id}-${index}`} id={`${message.id}-${index}`} part={part as ChatFilePart} />;
                 }
                 if (part.type.startsWith("tool-")) {
                   const toolName = part.type.replace("tool-", "");
