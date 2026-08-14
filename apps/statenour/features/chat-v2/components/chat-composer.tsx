@@ -12,6 +12,7 @@ import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useSlashCommands } from "@/hooks/use-slash-commands";
 import { useMentionSuggestions } from "@/hooks/use-mention-suggestions";
 import { AttachmentPreview } from "@/components/chat/attachment-preview";
+import { ACCEPT_ATTRIBUTE } from "@/lib/media/attachment-policy";
 import { VoiceWaveformOverlay } from "@/components/chat/voice-waveform-overlay";
 import { SlashCommandDropdown, type SlashCommandAction } from "@/components/chat/slash-command-dropdown";
 import { MentionDropdown } from "@/components/chat/mention-dropdown";
@@ -75,7 +76,12 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     openGallery: openImgGallery,
     readAsBase64: readImgAsBase64,
     attachFromPaste: attachImgFromPaste,
+    attachFromDrop: attachImgFromDrop,
   } = useImageAttachment();
+  // BDN-314 · drag-and-drop. Depth-counted because dragenter/dragleave
+  // fire for every child element crossed — a naive boolean flickers the
+  // highlight off the moment the pointer moves over the textarea.
+  const [dragDepth, setDragDepth] = useState(0);
   const slash = useSlashCommands();
   const mentions = useMentionSuggestions();
 
@@ -132,7 +138,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           });
           clearImg();
         } else {
-          toast.error("Couldn't read the image — sending text only.", { duration: 3000 });
+          toast.error("Couldn't read the attachment — sending text only.", { duration: 3000 });
           sendPromise = chat.sendText(resolvedText);
           clearImg();
         }
@@ -270,7 +276,29 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   };
 
   return (
-    <form onSubmit={onSubmit} className="relative mx-auto flex w-full max-w-4xl flex-col gap-2">
+    <form
+      onSubmit={onSubmit}
+      className={`relative mx-auto flex w-full max-w-4xl flex-col gap-2 ${
+        dragDepth > 0 ? "rounded-xl outline-dashed outline-2 outline-offset-4 outline-fg-tertiary" : ""
+      }`}
+      onDragEnter={(e) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        e.preventDefault();
+        setDragDepth((d) => d + 1);
+      }}
+      onDragOver={(e) => {
+        // Without preventDefault the browser navigates to the dropped
+        // file and the whole chat is replaced by it.
+        if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
+      }}
+      onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
+      onDrop={(e) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        e.preventDefault();
+        setDragDepth(0);
+        attachImgFromDrop(e);
+      }}
+    >
       {privateMode && (
         <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-gold" data-testid="private-lab-banner">
           Private Lab · no history · no memory · no learning · provider retention applies
@@ -444,7 +472,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
 
       <div className="relative flex items-end gap-2 rounded-2xl border border-glass bg-raised/80 p-2 shadow-2xl transition focus-within:border-gold/40 focus-within:ring-2 focus-within:ring-gold/10">
         <div className="flex shrink-0 items-center gap-1 pb-1 pl-1">
-          <button type="button" onClick={openImgGallery} className="flex h-11 w-11 items-center justify-center rounded-xl text-fg-secondary hover:bg-elevated hover:text-fg" aria-label="Attach image">
+          <button type="button" onClick={openImgGallery} className="flex h-11 w-11 items-center justify-center rounded-xl text-fg-secondary hover:bg-elevated hover:text-fg" aria-label="Attach image, audio or PDF">
             <ImageIcon size={18} />
           </button>
           <button
@@ -462,7 +490,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           </button>
         </div>
 
-        <input type="file" ref={imgFileInputRef} onChange={handleImgFileChange} className="hidden" accept="image/jpeg,image/png,image/webp,image/heic,image/gif" title="Attach image from gallery" />
+        <input type="file" ref={imgFileInputRef} onChange={handleImgFileChange} className="hidden" accept={ACCEPT_ATTRIBUTE} title="Attach an image, audio file or PDF" />
         <input type="file" ref={imgCameraInputRef} onChange={handleImgFileChange} className="hidden" accept="image/*" capture="environment" title="Capture image from camera" />
 
         <div className="relative flex-1">

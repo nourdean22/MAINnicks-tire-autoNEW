@@ -12,6 +12,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
+import { decideAttachment } from "@/lib/media/attachment-policy";
 
 export interface AttachedImage {
   file: File;
@@ -29,29 +30,55 @@ export function useImageAttachment() {
   // hang and a doomed multi-hundred-MB request body. The accept attribute
   // is a hint the OS picker can bypass (and paste/drag ignore it), so the
   // guard has to live here.
-  const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        toast.error("Images only for now — PDFs and docs aren't readable yet.", { duration: 4000 });
-      } else if (file.size > MAX_BYTES) {
-        toast.error(
-          `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB — the limit is 10 MB.`,
-          { duration: 4000 },
-        );
-      } else {
-        // Replacing an existing pick · revoke the old object URL first
-        // (pre-fix each replacement leaked the previous blob).
-        setAttached((prev) => {
-          if (prev?.preview) URL.revokeObjectURL(prev.preview);
-          return { file, preview: URL.createObjectURL(file) };
-        });
-      }
+  /**
+   * BDN-314 · the type/size gate now lives in
+   * lib/media/attachment-policy.ts, shared by picker, paste AND drop.
+   *
+   * It previously rejected every non-image with "Images only for now —
+   * PDFs and docs aren't readable yet." That message outlived its
+   * constraint: BDN-309 taught the renderer to display audio and PDFs,
+   * so the app could SHOW media it refused to let the operator ATTACH.
+   * Video is still refused, but now for the real reason (base64 inlining
+   * with no upload lane) rather than by blanket type.
+   */
+  const acceptFile = useCallback((file: File): boolean => {
+    const decision = decideAttachment({ name: file.name, type: file.type, size: file.size });
+    if (!decision.accepted) {
+      toast.error(decision.reason, { duration: 4000 });
+      return false;
     }
-    e.target.value = "";
+    // Replacing an existing pick · revoke the old object URL first
+    // (pre-fix each replacement leaked the previous blob).
+    setAttached((prev) => {
+      if (prev?.preview) URL.revokeObjectURL(prev.preview);
+      return { file, preview: URL.createObjectURL(file) };
+    });
+    return true;
   }, []);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) acceptFile(file);
+      e.target.value = "";
+    },
+    [acceptFile],
+  );
+
+  /**
+   * Drag-and-drop. The `accept` attribute does not apply to drops, so
+   * the policy gate is the only thing standing between a dropped 2 GB
+   * file and a base64 encode — same reasoning as the 2026-07-16 note
+   * above about paste.
+   */
+  const attachFromDrop = useCallback(
+    (e: React.DragEvent<HTMLElement>): boolean => {
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return false;
+      return acceptFile(file);
+    },
+    [acceptFile],
+  );
 
   const clear = useCallback(() => {
     setAttached((prev) => {
@@ -85,7 +112,7 @@ export function useImageAttachment() {
 
       const items = Array.from(dt.items ?? []);
       for (const item of items) {
-        if (item.kind === "file" && item.type.startsWith("image/")) {
+        if (item.kind === "file") {
           const file = item.getAsFile();
           if (!file) continue;
           // Some browsers give pasted images generic names like
@@ -100,17 +127,18 @@ export function useImageAttachment() {
                   `paste-${Date.now()}.${(item.type.split("/")[1] || "png").replace(/\W/g, "")}`,
                   { type: file.type },
                 );
-          const preview = URL.createObjectURL(named);
-          setAttached((prev) => {
-            if (prev?.preview) URL.revokeObjectURL(prev.preview);
-            return { file: named, preview };
-          });
+          // BDN-314 · paste runs the SAME policy gate as picker and drop.
+          // Before this, paste bypassed every check — the clipboard was
+          // the one intake path with no type or size guard at all, and
+          // widening it to non-images without this would have made that
+          // hole strictly worse.
+          if (!acceptFile(named)) return false;
           return true;
         }
       }
       return false;
     },
-    [],
+    [acceptFile],
   );
 
   /**
@@ -141,5 +169,6 @@ export function useImageAttachment() {
     openCamera,
     readAsBase64,
     attachFromPaste,
+    attachFromDrop,
   };
 }
