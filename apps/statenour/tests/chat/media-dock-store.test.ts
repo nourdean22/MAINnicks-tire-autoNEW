@@ -154,3 +154,53 @@ describe("media-dock · resume positions", () => {
     expect(s().resumeAt.a).toBe(88);
   });
 });
+
+describe("media-dock · focus mode (BDN-315)", () => {
+  it("starts unfocused", () => {
+    s().dock(clip("a"));
+    expect(s().focused).toBe(false);
+  });
+
+  it("toggles and sets focus independently of expanded", () => {
+    s().dock(clip("a"));
+    s().setExpanded(true);
+    s().toggleFocused();
+    expect(s().focused).toBe(true);
+    expect(s().expanded).toBe(true);
+  });
+
+  it("keeps focus across a queue advance — the panel stays open", () => {
+    s().dock(clip("a"));
+    s().enqueue(clip("b"));
+    s().setFocused(true);
+    s().playNext();
+    expect(s().item?.id).toBe("b");
+    expect(s().focused).toBe(true);
+  });
+
+  it("drops focus when the queue drains, rather than leaving a dead pane", () => {
+    s().dock(clip("a"));
+    s().setFocused(true);
+    s().playNext();
+    expect(s().item).toBeNull();
+    expect(s().focused).toBe(false);
+  });
+
+  it("close() drops focus so the panel cannot outlive the media", () => {
+    s().dock(clip("a"));
+    s().setFocused(true);
+    s().close();
+    expect(s().focused).toBe(false);
+  });
+
+  it("preserves the resume position across a dock<->focus switch", () => {
+    // The switch remounts the player; only resumeAt saves the position.
+    // This is what makes one-player-at-a-time affordable.
+    s().dock(clip("a"));
+    s().rememberPosition("a", 63);
+    s().setFocused(true);
+    expect(s().resumeAt.a).toBe(63);
+    s().setFocused(false);
+    expect(s().resumeAt.a).toBe(63);
+  });
+});

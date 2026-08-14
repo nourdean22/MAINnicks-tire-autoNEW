@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { ChevronDown, ChevronUp, Music, SkipForward, X } from "lucide-react";
+import { ChevronDown, ChevronUp, PanelRight, SkipForward, X } from "lucide-react";
 import { useMediaDockStore } from "../stores/media-dock-store";
+import { MediaPlayerSurface } from "./chat-media-surface";
 
 /**
  * ChatMediaDock (BDN-311) — media plan item #2, persistent player.
@@ -36,47 +36,17 @@ export function ChatMediaDock() {
   const item = useMediaDockStore((s) => s.item);
   const queue = useMediaDockStore((s) => s.queue);
   const expanded = useMediaDockStore((s) => s.expanded);
-  const seek = useMediaDockStore((s) => s.seek);
-  const resumeAt = useMediaDockStore((s) => s.resumeAt);
+  const focused = useMediaDockStore((s) => s.focused);
   const toggleExpanded = useMediaDockStore((s) => s.toggleExpanded);
+  const setFocused = useMediaDockStore((s) => s.setFocused);
   const close = useMediaDockStore((s) => s.close);
   const playNext = useMediaDockStore((s) => s.playNext);
-  const consumeSeek = useMediaDockStore((s) => s.consumeSeek);
-  const rememberPosition = useMediaDockStore((s) => s.rememberPosition);
 
-  const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
-
-  // Apply a pending seek. Keyed on seek?.token so an identical repeat
-  // timestamp still fires — see the SeekRequest note in the store.
-  useEffect(() => {
-    if (!seek || !mediaRef.current) return;
-    mediaRef.current.currentTime = seek.seconds;
-    void mediaRef.current.play().catch(() => {
-      // Autoplay policy can reject a programmatic play() when the seek
-      // did not originate from a gesture. The seek itself still applied;
-      // the operator presses play. Never surface this as an error.
-    });
-    consumeSeek();
-  }, [seek, consumeSeek]);
-
-  // Restore the previous offset when this item mounts.
-  const itemId = item?.id;
-  useEffect(() => {
-    if (!itemId || !mediaRef.current) return;
-    const offset = resumeAt[itemId];
-    if (offset && offset > 0) mediaRef.current.currentTime = offset;
-    // resumeAt is intentionally NOT a dependency: this must run once per
-    // item, and including it would re-seek on every position write —
-    // pinning playback to wherever it last reported.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemId]);
-
-  if (!item) return null;
-
-  const onTimeUpdate = () => {
-    const el = mediaRef.current;
-    if (el && itemId) rememberPosition(itemId, el.currentTime);
-  };
+  // BDN-315 · when the desktop focus panel owns the player, the dock
+  // renders NOTHING. Two surfaces mounting MediaPlayerSurface would put
+  // two <video> elements on one source — the defect review caught on the
+  // BDN-311 pop-out.
+  if (!item || focused) return null;
 
   const isVideo = item.kind === "video";
 
@@ -104,6 +74,18 @@ export function ChatMediaDock() {
           </button>
         ) : null}
 
+        {/* Desktop only — a 384px side panel would cover the whole
+            conversation on a phone, which is why the dock IS the mobile
+            answer and this control simply does not exist there. */}
+        <button
+          onClick={() => setFocused(true)}
+          className="hidden h-12 w-12 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:text-fg md:flex"
+          aria-label="Open in the focus panel"
+          title="Focus panel"
+        >
+          <PanelRight size={16} />
+        </button>
+
         {isVideo ? (
           <button
             onClick={toggleExpanded}
@@ -127,35 +109,11 @@ export function ChatMediaDock() {
       </div>
 
       <div className="px-3 pb-2 sm:px-4">
-        {isVideo ? (
-          <video
-            ref={mediaRef as React.RefObject<HTMLVideoElement>}
-            src={item.url}
-            controls
-            playsInline
-            preload="metadata"
-            onTimeUpdate={onTimeUpdate}
-            onEnded={playNext}
-            className={`w-full rounded-lg border border-glass bg-black transition-[max-height] duration-200 ${
-              expanded ? "max-h-[60vh]" : "max-h-40"
-            }`}
-            aria-label={item.title}
-          />
-        ) : (
-          <div className="flex items-center gap-2 rounded-lg border border-glass bg-[var(--bg-elevated)] px-3 py-2">
-            <Music size={14} className="shrink-0 text-fg-tertiary" />
-            <audio
-              ref={mediaRef as React.RefObject<HTMLAudioElement>}
-              src={item.url}
-              controls
-              preload="metadata"
-              onTimeUpdate={onTimeUpdate}
-              onEnded={playNext}
-              className="w-full"
-              aria-label={item.title}
-            />
-          </div>
-        )}
+        <MediaPlayerSurface
+          className={`w-full rounded-lg border border-glass bg-black transition-[max-height] duration-200 ${
+            expanded ? "max-h-[60vh]" : "max-h-40"
+          }`}
+        />
       </div>
     </section>
   );
