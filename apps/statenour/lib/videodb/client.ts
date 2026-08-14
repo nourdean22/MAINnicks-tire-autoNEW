@@ -67,6 +67,36 @@ interface VideoDbError extends Error {
  * Mirrors videodb-python's `response.json().get("data")`, including its
  * fallback to the whole body when `data` is absent.
  */
+/**
+ * ★ BDN-321 · VideoDB signals REFUSAL INSIDE HTTP 200.
+ *
+ * Live, verified 2026-08-14 — a completed upload returned:
+ *   200 {"error_code":"low_credit","success":false,
+ *        "message":"Insufficient credit: your balance is $0.00."}
+ *
+ * `res.ok` is TRUE for that. Every status-only check in this file sailed
+ * past it and then failed downstream with a misleading message ("upload
+ * returned no video id") that blames the shape instead of naming the
+ * cause. Same failure class as the REQUEST_DENIED-inside-200 incident
+ * logged 2026-08-03: the transport succeeded, the operation did not.
+ *
+ * Checked in ONE place, before unwrap, so no caller can forget.
+ */
+function assertVideoDbSuccess(body: unknown, path: string): void {
+  if (!body || typeof body !== "object") return;
+  const b = body as { success?: unknown; error_code?: unknown; message?: unknown };
+  if (b.success === false) {
+    const err: VideoDbError = new Error(
+      `VideoDB refused ${path} · ${String(b.error_code ?? "unknown")} · ${String(b.message ?? "no message")}`,
+    );
+    // Not an HTTP status — the transport was fine. Recorded so callers
+    // can tell a refusal from a network fault.
+    err.statusCode = 200;
+    err.responseBody = JSON.stringify(body).slice(0, 300);
+    throw err;
+  }
+}
+
 function unwrap<T>(body: unknown): T {
   if (body && typeof body === "object" && "data" in (body as Record<string, unknown>)) {
     const inner = (body as { data?: unknown }).data;
@@ -118,7 +148,9 @@ export async function getDefaultCollection(): Promise<string> {
   // Try list first
   try {
     const res = await vdbFetch("/collection");
-    const data = unwrap<{ collections?: Collection[] }>(await res.json());
+    const raw = await res.json();
+    assertVideoDbSuccess(raw, "GET /collection");
+    const data = unwrap<{ collections?: Collection[] }>(raw);
     const first = data.collections?.[0];
     if (first?.id) {
       cachedCollectionId = first.id;
@@ -132,7 +164,9 @@ export async function getDefaultCollection(): Promise<string> {
     method: "POST",
     body: JSON.stringify({ name: "nour-os-default" }),
   });
-  const created = unwrap<Collection>(await createRes.json());
+  const createdRaw = await createRes.json();
+  assertVideoDbSuccess(createdRaw, "POST /collection");
+  const created = unwrap<Collection>(createdRaw);
   cachedCollectionId = created.id;
   return created.id;
 }
@@ -182,7 +216,9 @@ export async function uploadMedia(args: {
     throw new Error("uploadMedia: either file or url is required");
   }
 
-  const json = unwrap<UploadResponse>(await res.json());
+  const uploadRaw = await res.json();
+  assertVideoDbSuccess(uploadRaw, "POST /collection/{id}/upload");
+  const json = unwrap<UploadResponse>(uploadRaw);
   const videoId = json.video_id ?? json.asset_id ?? json.id;
   if (!videoId) {
     throw new Error(
@@ -314,7 +350,9 @@ export async function getTranscript(
       throw e;
     });
     if (res) {
-      const json = unwrap<TranscriptResponse>(await res.json());
+      const transcriptRaw = await res.json();
+      assertVideoDbSuccess(transcriptRaw, "GET /video/{id}/transcription");
+      const json = unwrap<TranscriptResponse>(transcriptRaw);
       const text = json.text ?? json.transcript;
       const status = json.status ?? "unknown";
       if (text && status !== "indexing" && status !== "processing") {

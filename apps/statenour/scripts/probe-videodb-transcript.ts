@@ -4,10 +4,10 @@
  * live API without consuming any upload quota.
  *
  * What it checks:
- *   1. auth works (GET /collections)
- *   2. what media already exists (GET /collections/{id}/videos)
+ *   1. auth works (GET /collection)
+ *   2. what media already exists (GET /video?collection_id=<id>)
  *   3. the ACTUAL transcript response shape for an existing video
- *      (GET /videos/{id}/transcription?segmenter=sentence)
+ *      (GET /video/{id}/transcription?segmenter=sentence)
  *
  * BDN-318 assumed, from the videodb-python SDK source, that the response
  * carries `word_timestamps: [{start,end,text}]` and `text`. That was read
@@ -81,7 +81,7 @@ async function main() {
 
   // 2 · existing media
   const vids = await get(`/video?collection_id=${encodeURIComponent(collectionId)}`);
-  console.log(`\n[2] GET /collections/${collectionId}/videos → ${vids.status}`);
+  console.log(`\n[2] GET /video?collection_id=${collectionId} → ${vids.status}`);
   if (vids.status !== 200) {
     console.log(`    body: ${vids.text.slice(0, 300)}`);
     process.exit(1);
