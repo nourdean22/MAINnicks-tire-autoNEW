@@ -245,6 +245,71 @@ verified live: the legacy mega route DOES read `EVENING_JOBS` (rewrite
 cron fires tonight) and `MUTATING_PREFIX` catches none of the three
 recovery tools (they survive the read-mode strip as designed).
 
+## 2026-08-14 — fifth run: Nick Chat CONTENT/persona (two scans merged + gated)
+
+Evidence base: 9 web searches + 3 primary fetches, plus a second independent
+scan supplied by the operator. Both gated against `static.ts`,
+`operator-rules.ts`, `spar-mode.ts`, `judge-eval.ts`, `nick-quality-evals.ts`
+and the trailing week of `git log` BEFORE ranking. Full merge:
+[GATE-2026-08-14-nick-chat-persona.md](GATE-2026-08-14-nick-chat-persona.md).
+
+**Self-audit:** run-4 #1 (BDN-201) = **ACTED ON** (#1556). Repeat hits:
+verification/judgment scarcity ×4 consecutive runs — conviction elevated;
+frontier-only-evidence kill shot ×2 (BDN-201 → BDN-306), now treated as a
+structural property of the fast lane rather than a per-finding caveat.
+
+**GATE: the operator's persona ask is ~80% INCUMBENT.** OWNER AUTHORITY
+(2026-07-05), 8 operator rules, TRUTH_RULE + server-side fabrication
+verifier, SPAR, assertion-pressure gate all pre-exist. **REFUTED:** no
+meaningful refusal layer remains to remove; perceived stonewalling is a
+measurement gap, not a policy gap. The real hole: judge-eval scores
+accuracy/actionability/brevity/tone/evidence — **none of them is obedience,
+sycophancy, calibration, or persona.**
+
+| Date | Idea | Conviction | Evidence | Outcome |
+|---|---|---|---|---|
+| 2026-08-14 | BDN-301 · per-lane persona census (15/15): Anthropic 309,815 convos / May 2026 — identical prompts yield different values per model (Sonnet 4.6 deference +0.14σ, warmth +0.17σ; Opus 4.7 caution +0.24σ, depth +0.23σ; 4 axes ≈15% variance). Nick runs ≥2 lanes, so every persona directive lands at a different gain. | HIGH | OBSERVED | **ACTED ON — NARROWED.** ★ Gate-eye catch on my own #1: lane capture was ALREADY INCUMBENT — `judge-eval.ts` has written `judgedBy="${provider}:${model}"` into every reply_judgment row since v10.0.412. The genuine delta is AGGREGATION, not instrumentation. Shipped `lib/observability/persona-lane-census.ts` as a read model over data already on disk (zero generation spend). Confound is first-class: groups by (lane × taskClass), total-variation distance on task mixes, `comparable:false` above 0.35, underpowered cells (n<5) shown-and-marked never dropped. Composite left at mean-of-5 so history stays comparable. 12 tests. |
+| 2026-08-14 | BDN-302 · split estimative LIKELIHOOD from analytic CONFIDENCE (14/15 — forced pair: intelligence tradecraft ↔ market intelligence): `CONFIDENCE_CUES` blended both into one hedge token; ICD 203 requires them separate. ★ **BDN-106's Brier report was structurally ungradeable** — a Brier needs a probability and a hedge word is not one. | MED | OBSERVED | **ACTED ON — unblocks BDN-106.** `ESTIMATIVE_LIKELIHOOD` (ODNI seven-point scale verbatim) + `ANALYTIC_CONFIDENCE` (+ compact tail tag `[~30% · conf: high]` reusing the INLINE_CITATIONS bracket idiom, not a second syntax). `CONFIDENCE_CUES` stays exported but is NO LONGER INJECTED — the BROADEN_AND_SUGGEST treatment, pinned by test. Reader `lib/ai/vnext/truth/estimative.ts`: `parseEstimative` / `brierScore` / `summarizeEstimativeCompliance`; `brierScore` returns **null not zero** when ungradeable (BDN-105 lesson). ★ Size guard FAILED FIRST at 842 vs 827.5 ceiling — fixed by tightening prose, NOT by raising the bar. 22 tests. |
+| 2026-08-14 | BDN-303 · contrarian trade (13/15, mandated): "labs are converging on less-sycophantic defaults, so apps can inherit directness" is likely WRONG in 12-24mo. GPT-5 cold→warm reversal + 4o reinstated in 24h (Aug **2025** — precedent, not fresh signal); GPT-5.5 goblin incident (OpenAI, Jun 2026) — a Nerdy-persona reward leaked into Codex, goblin mentions +175% then +3,881%, needing persona retirement + data filter + dev-prompt patch; Anthropic's own lineup DIVERGING on identical prompts. Position: own persona at the app layer; treat every model bump as a persona regression event with a blocking gate. Falsifier 2027-08: a vendor ships versioned contractual steerability AND cross-model variance <0.1σ. | MED | OBSERVED | RECORDED — no build. BDN-301's census is the instrument this trade needs. |
+| 2026-08-14 | BDN-304 · trajectory grading over receipts (from the operator's second scan — its strongest item): grade tool selection, evidence freshness, approval-boundary correctness, recovery behavior, hidden tool failures, plan-vs-actual divergence. Answer-only judges reward lucky outputs and hide the mechanism. | MED | OBSERVED | NEW — WP, next slice. Extend the EXISTING receipt/`outcomeVsPlan` substrate; do NOT add an observability vendor before proving the native substrate cannot answer the question. |
+| 2026-08-14 | BDN-305 · obedience + anti-sycophancy golden set (12/15): grep for `sycophan|refusal|obedien` across lib/tests/scripts returns prompt files and guardians, ZERO evals. Steal XSTest's PAIRED-CONTROL design (the +600 toxic controls are the load-bearing half), not the corpus: ~30 real directives Nick hedged on + 10 genuine two-tap-confirm controls, per lane. | MED | OBSERVED | NEW — WP, NOT built. Needs REAL traces; authoring cases from imagination would be a fixture-only eval (false-green lesson). |
+| 2026-08-14 | BDN-306 · tool metadata is an untrusted claim (from the second scan — **missed entirely by scan A**): MCP annotations are hints that MUST NOT be trusted from untrusted servers; the capability registry, not the model-facing description, is the security authority. `lib/agent-bridge/mcp-server.ts` exists, so this is live surface. | MED | OBSERVED | NEW — WP. Local contract checks first; defer OAuth/remote-MCP enforcement. |
+| 2026-08-14 | BDN-307 · delete-before-add prompt trim (11/15): context rot — 18 frontier models degrade 30-50% BEFORE documented limits, U-shaped position curve, coherent structure degrades attention MORE than shuffled. OWNER AUTHORITY's idx-0 placement protects against TRIMMING but not DILUTION. | MED | OBSERVED | **PARKED — deliberately NOT executed.** Nick's live prompt size was NOT re-measured this run (`measure-prompt-size.ts` hits live Neon). Ledger rule 6: measure the thesis number live before building on it. Trimming on an unmeasured premise is exactly the failure that rule exists to stop. |
+| 2026-08-14 | BDN-308 · Verbalized Sampling for SPAR diverge (10/15, CLOSING): CHATS-lab/verbalized-sampling, Apache-2.0, ICML 2026 — training-free, model-agnostic, ORTHOGONAL to temperature, 1.6-2.1x diversity; mode collapse traced to typicality bias in preference data. SPAR step 1 already SPECIFIES "distinct bets, not rewordings" with no mechanism; VS is that mechanism. | MED | OBSERVED | WATCH — not adopted. ALL published gains are frontier-model; costs 5 candidate generations per diverge turn. Run the incumbent A/B harness first. |
+
+**Gated as PARTIAL INCUMBENT (second scan), detail in the gate doc:**
+ClaimLedger (claims.ts + known-truth-guard + fabrication verifier already
+carry claim semantics) · regression bank (`harvest:evals` +
+`caseFromFailedToolCall` + `eval:recall` shipped — the real delta is the
+FROZEN HOLDOUT, and its read that the corpus is still synthetic is CORRECT
+per BDN-203) · memory supersession (**BLOCKED** — 6 new schema fields, and
+statenour DDL is hand-applied + protected; the second scan flagged neither)
+· IntentContract (**REJECT as specified** — `ActionRule.plan()` +
+`outcomeVsPlan` + `approvalClass` already implement the enforcing subset) ·
+context budget (**NATIVE** — prepare-tools/chat-mode prune to
+NICK_TOOL_BUDGET=24; cache prefix fixed in BDN-206) · MCP contrarian
+(**REPEAT of BDN-207**, acted on 2026-08-13).
+
+**Source-quality note:** the second scan's `code to copy` links were
+spot-checked and are **real, not fabricated** — `openai/openai-knowledge-retrieval`,
+the Cerebras fact-checker notebook, and the evaluation-flywheel doc all
+resolve, and its "~50 failing traces" + train/val/test split match the
+source (20/40/40). Its link discipline is better than scan A's and should be
+copied forward.
+
+**Rotation reported EMPTY:** casino risk engineering ↔ capital allocation —
+Kelly is real but the operator's "aggressive" is a register ask, not a
+bet-sizing ask; every 2026 source returned was SEO content.
+
+**Dropped for source quality:** the LLM cost-collapse lane (axis-intelligence,
+aimagicx, packet.ai, gpunex — SEO farms). The tempting figure "DeepSeek
+V4-Flash $0.14/M input" (our pinned fast lane) is SINGLE-SOURCE and
+uncorroborated — do NOT act on it. Same call run 4 made on Ollama GPU tiers.
+
+**TOO EARLY:** persona vectors / activation steering (arXiv 2507.21509) —
+needs open weights + local activation access; operator GPU is an Intel Arc
+iGPU (no CUDA) and both lanes are hosted APIs.
+
 ## Calibration rules for the next scan
 
 1. Promote a finding to `HIGH` only after observing behavior or a production

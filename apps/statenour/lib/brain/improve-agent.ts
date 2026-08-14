@@ -106,7 +106,7 @@ The current rule files live in lib/ai/prompt/policy/operator-rules.ts. Axis → 
   actionability → "Lead with the answer + next step" (in the response-style block)
   brevity → BREVITY_DEFAULT
   tone → NO_SYCOPHANCY
-  evidence → INLINE_CITATIONS / CONFIDENCE_CUES
+  evidence → INLINE_CITATIONS / ESTIMATIVE_LIKELIHOOD / ANALYTIC_CONFIDENCE
 
 Output a single specific edit (40-80 words). Be concrete · name the phrase to add, the threshold to tighten, the example to ban. NEVER write generic advice ("be more careful") · always cite the actual pattern in the reasonings.
 
