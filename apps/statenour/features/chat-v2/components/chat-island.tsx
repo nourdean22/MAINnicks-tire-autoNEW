@@ -7,6 +7,7 @@ import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
 import { ChatComposer } from "./chat-composer";
 import { ChatMediaDock } from "./chat-media-dock";
+import { ChatMediaFocusPanel } from "./chat-media-focus-panel";
 import { ChatMessageList } from "./chat-message-list";
 import { ChatCapabilityIndicator } from "./chat-capability-indicator";
 import { OperatorConversationDrawer } from "./operator-conversation-drawer";
@@ -271,6 +272,12 @@ export function ChatIsland() {
       <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-3 pt-3 backdrop-blur-xl sm:px-4">
         <ChatComposer chat={chat} />
       </div>
+
+      {/* BDN-315 · desktop focus panel. Overlays like the memory
+          inspector rather than re-laying-out the chat column — the plan
+          explicitly warns against forcing a permanent multi-column
+          dashboard. Renders null unless the operator opts in. */}
+      <ChatMediaFocusPanel />
 
       <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} />
 

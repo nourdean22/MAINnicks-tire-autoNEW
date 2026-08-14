@@ -56,6 +56,25 @@ export type MediaDockState = {
   item: DockedMedia | null;
   queue: DockedMedia[];
   expanded: boolean;
+  /**
+   * BDN-315 · desktop focus panel (media plan #6).
+   *
+   * MUTUALLY EXCLUSIVE with the bottom dock by contract: whichever
+   * surface is showing, only ONE renders the media element. Rendering
+   * both would put two <video> elements on the same source — the exact
+   * "two elements producing audio" defect review caught on the pop-out
+   * in BDN-311.
+   *
+   * The mode switch remounts the player, which normally loses position.
+   * It does not here: onTimeUpdate has been writing `resumeAt` all
+   * along, so the new mount restores from it. The resume mechanism built
+   * for the dock pays for this feature for free.
+   *
+   * Desktop-only is enforced in the COMPONENTS (toggle and panel are
+   * md:+ only), not here — the store stays a pure state container with
+   * no viewport opinion.
+   */
+  focused: boolean;
   /** Consumed by the player, then cleared. Null = nothing pending. */
   seek: SeekRequest | null;
   /** id → last known playback offset, in seconds. Memory only. */
@@ -67,6 +86,8 @@ export type MediaDockState = {
   close: () => void;
   setExpanded: (expanded: boolean) => void;
   toggleExpanded: () => void;
+  setFocused: (focused: boolean) => void;
+  toggleFocused: () => void;
   requestSeek: (seconds: number) => void;
   consumeSeek: () => void;
   rememberPosition: (id: string, seconds: number) => void;
@@ -79,6 +100,7 @@ export const useMediaDockStore = create<MediaDockState>((set, get) => ({
   item: null,
   queue: [],
   expanded: false,
+  focused: false,
   seek: null,
   resumeAt: {},
 
@@ -100,14 +122,20 @@ export const useMediaDockStore = create<MediaDockState>((set, get) => ({
   playNext: () =>
     set((s) => {
       const [next, ...rest] = s.queue;
-      if (!next) return { item: null, queue: [], expanded: false };
+      // Draining the queue closes BOTH surfaces — a focus panel left
+      // open over nothing is a dead pane the operator must dismiss.
+      if (!next) return { item: null, queue: [], expanded: false, focused: false };
       return { item: next, queue: rest, seek: null };
     }),
 
-  close: () => set({ item: null, queue: [], expanded: false, seek: null }),
+  close: () =>
+    set({ item: null, queue: [], expanded: false, focused: false, seek: null }),
 
   setExpanded: (expanded) => set({ expanded }),
   toggleExpanded: () => set((s) => ({ expanded: !s.expanded })),
+
+  setFocused: (focused) => set({ focused }),
+  toggleFocused: () => set((s) => ({ focused: !s.focused })),
 
   requestSeek: (seconds) => {
     // Negative timestamps are a parsing artifact, not an intent.
@@ -135,6 +163,7 @@ export function __resetMediaDockForTest() {
     item: null,
     queue: [],
     expanded: false,
+    focused: false,
     seek: null,
     resumeAt: {},
   });
