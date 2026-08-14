@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { Download, FileText, Film, ListPlus, Music, Paperclip, PictureInPicture2 } from "lucide-react";
 import { useMediaDockStore, type DockedMedia } from "../stores/media-dock-store";
+import { MediaProvenanceStrip } from "./media-provenance-strip";
 
 /**
  * ChatMediaPart — one renderer for every AI-SDK `file` message part.
@@ -206,6 +207,38 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
   // the dock's queued-count and skip controls were unreachable (P2).
   const somethingElseDocked = !!dockedItem && dockedItem.id !== id;
 
+  /**
+   * BDN-313 · provenance for playable media.
+   *
+   * Origin is inferred conservatively: a blob:/data: URL is something
+   * this session produced or the operator attached; anything else came
+   * over the wire and is treated as external, hence UNTRUSTED. Guessing
+   * "trusted" from an https URL would be exactly the laundering the
+   * evidence model exists to prevent.
+   *
+   * `states` is honest about what we can actually observe from here:
+   * playable is provable (we are rendering a player); transcribed /
+   * analyzed / cited / saved are NOT knowable from a message part and
+   * are therefore reported as not-reached rather than assumed. Wiring
+   * the real states belongs with the transcript pipeline, which cannot
+   * return segments yet (see lib/videodb/client.ts getTranscript).
+   *
+   * No observedAt is supplied because none is known here — the type no
+   * longer asks for one, so there is nothing to invent.
+   */
+  const provenance = isPlayable ? (
+    <MediaProvenanceStrip
+      input={{
+        id: id as string,
+        origin:
+          (part.url as string).startsWith("blob:") || (part.url as string).startsWith("data:")
+            ? "operator_upload"
+            : "external_fetch",
+        states: ["playable"],
+      }}
+    />
+  ) : null;
+
   const popOut = isPlayable ? (
     <div className="mt-1 flex flex-wrap items-center gap-1">
       <button
@@ -267,6 +300,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
           {/* Native fallback for a codec the browser cannot decode. */}
           <FileCard part={part} kind="video" reason="video format not supported here" />
         </video>
+        {provenance}
         {popOut}
       </div>
     );
@@ -287,6 +321,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
           className="w-full"
           aria-label={label}
         />
+        {provenance}
         {popOut}
       </div>
     );
