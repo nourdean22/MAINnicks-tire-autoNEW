@@ -104,11 +104,21 @@ was accurate and the conclusion it invited was wrong.** Registry: ROS-089…094.
   (`declinedWorkTopics` + `creativeFingerprint`). Counts and dollars rank and
   explain; they never enter the brief (ROS-094).
 
-**OPEN, needs an operator decision (ROS-093):** `declinedWorkRecovery` is
-live-sending SMS against `matched_invoice_id IS NULL`, and that field has been
-written exactly 5 times ever — all on 2026-05-07. "Unmatched" currently means
-"the matcher has not run", not "declined". 22 follow-ups went out in the last 30
-days to a list where an unknown share already paid.
+**OPEN, needs an operator decision (ROS-093) — but NOT still sending.** This
+paragraph read "is live-sending SMS" until 2026-08-15; that has been false since
+2026-08-08, when the operator set `FEATURE_DECLINED_RECOVERY=0` on Railway
+(read-back verified — the guard is `=== "1"`, so it drops to dry-run) and the
+matcher itself was fixed. The matcher was never unscheduled, it was BROKEN: it
+compared phone strings across two tables storing different formats, so it ran on
+every sync and matched nothing. After the repair the match rate went 5 → 20 of
+439, and **15 of the rows sitting in the "declined" list were customers who had
+already paid** — some share of the 22 texts sent in the 30 days before the pause
+went to people in that state.
+
+What is actually open is the judgement, not the danger: re-run the recovery loop
+against the corrected list (real eligible set **53 estimates / $44,331**, not the
+$376,927 the dashboard implied), and decide whether to re-enable the flag and/or
+widen the 60-day window. Full receipts in `docs/ISSUE-REGISTRY.md` (ROS-093).
 
 **Prod pin changed 2026-08-08:** `REEL_VIDEO_PROVIDER=template_stock`
 (read-back verified). Higgsfield's session is revoked; nothing is blocked on it.
@@ -140,14 +150,25 @@ each date in a `Verify by` column; whether something is currently PAST it is pri
 by `node apps/nickstire/scripts/check-capability-ledger.mjs`, never by the file
 (CI diffs that file, so it must not change on a clock tick).
 
-**OPEN, dated — `reel-pipeline-assembly` expires 2026-08-16.** It is the only
-`exposure: production` capability, so on that date it becomes the first load-bearing
-stale claim and **`completion-authority` CI goes red and stays red** until someone
-acts. Re-verifying means a real prod IG render, which is an operator-authorized
-publish and never an agent's call. To lower the claim instead:
-`node apps/nickstire/scripts/regress-capability.mjs reel-pipeline-assembly P2 "<reason>" "freshness gate"`.
+**CLOSED 2026-08-11, corrected here 2026-08-15 — `reel-pipeline-assembly` was
+re-verified and now expires 2026-09-10.** This paragraph previously read "expires
+2026-08-16" and warned that `completion-authority` CI would go red on that date;
+that deadline had already been retired and the warning was left standing. It is
+still the only `exposure: production` capability, so it is still the only one whose
+staleness can fail a build — just not this week. `node
+apps/nickstire/scripts/check-capability-ledger.mjs` prints the live answer and is
+the thing to believe; this file is a cache of it.
 Four other capabilities (`format-directors`, `evidence-resolution`,
-`drive-creative-vault`, `higgsfield-keepalive`) are already past their dates and are
-reported without failing anything — that is the intended behaviour, not a backlog.
+`drive-creative-vault`, `higgsfield-keepalive`) are past their dates (2026-08-07)
+and are reported without failing anything — that is the intended behaviour, not a
+backlog. Re-verifying the reel capability still means a real prod IG render, which
+is an operator-authorized publish and never an agent's call; to lower a claim
+instead: `node apps/nickstire/scripts/regress-capability.mjs <id> P2 "<reason>"
+"freshness gate"`.
+
+**Coverage note (2026-08-15):** only 12 of 48 capabilities carry a
+`verificationExpiresAt` at all. The freshness axis is real but it is not yet a
+property of the ledger — 36 claims cannot go stale because nothing dates them.
+That is a gap, not a guarantee.
 
 The older file under `docs/_archive/root_reports/truth_os.md` is historical evidence only. Do not treat archived audit claims as current without re-verification.
