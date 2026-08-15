@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { formatTimestamp } from "@/lib/media/timestamp-refs";
 import { toMemoryCandidate } from "@/lib/media/media-moment";
+import { inferOriginFromUrl, toEvidenceRef } from "@/lib/media/media-evidence";
 import { useMediaDockStore } from "../stores/media-dock-store";
 
 /**
@@ -66,11 +67,40 @@ export function SaveMomentButton() {
       seconds,
       note: note.trim() || undefined,
     });
+
+    /**
+     * BDN-322 · the moment carries its PROVENANCE, in claims.ts's own
+     * vocabulary, not a media-shaped copy of it.
+     *
+     * Self-audit found `toEvidenceRef` had no caller: media claimed to
+     * be the claim ledger's first producer and never produced anything.
+     * This is that call site. `observedAt` is taken here — inside a
+     * click handler, never in render — so it is a real observation time
+     * rather than the fabricated epoch the audit caught earlier.
+     *
+     * Origin comes from the SHARED inference, so a clip cannot display
+     * as TRUSTED in the provenance strip while its saved evidence says
+     * otherwise.
+     */
+    const evidence = toEvidenceRef(
+      {
+        id: item.id,
+        origin: inferOriginFromUrl(item.url),
+        // Saving is the operator citing this media — `cited` and `saved`
+        // are now true of it. `transcribed`/`analyzed` are NOT asserted:
+        // nothing here knows them, and claiming them would be the
+        // fabricated-provenance failure this module already guards.
+        states: ["playable", "cited", "saved"],
+      },
+      new Date().toISOString(),
+    );
+
     record.mutate({
       category: candidate.category,
       key: candidate.key,
       content: candidate.content,
       source: candidate.source,
+      metadata: { evidence, seconds, mediaTitle: item.title },
     });
   };
 

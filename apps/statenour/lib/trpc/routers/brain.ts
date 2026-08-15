@@ -46,8 +46,10 @@ import {
   decideLinkCandidate,
   ReviewRowNotFoundError,
 } from "@/lib/services/link-review";
+import { listMediaMoments } from "@/lib/services/media-moments";
 import {
   listPins,
+  // BDN-322 · saved media moments (read side of media plan #7).
   createPin,
   updatePin,
   deletePin,
@@ -293,6 +295,17 @@ export const brainRouter = router({
    * this query · prisma-expert + neon-postgres lens confirm zero
    * findings).
    */
+  /**
+   * BDN-322 · owner-only · saved media moments for ONE media item,
+   * earliest offset first. Scoped to a single id on purpose: a moment
+   * stores an offset but no URL, so a seek is only guaranteed to land
+   * when that media is already in the player. See lib/services/
+   * media-moments.ts for why a global list would show dead entries.
+   */
+  mediaMoments: operatorProcedure
+    .input(z.object({ mediaId: z.string().min(1).max(300) }))
+    .query(async ({ input }) => listMediaMoments(input.mediaId)),
+
   pinned: operatorProcedure
     .input(
       z

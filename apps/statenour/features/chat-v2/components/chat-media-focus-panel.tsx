@@ -5,6 +5,7 @@ import { useMediaDockStore } from "../stores/media-dock-store";
 import { MediaPlayerSurface } from "./chat-media-surface";
 import { SaveMomentButton } from "./media-save-moment";
 import { MediaTranscriptPane } from "./media-transcript-pane";
+import { SavedMomentsList } from "./media-saved-moments";
 
 /**
  * ChatMediaFocusPanel (BDN-315) — media plan item #6, desktop half.
@@ -88,6 +89,10 @@ export function ChatMediaFocusPanel() {
       <div className="shrink-0 p-3">
         <MediaPlayerSurface className="w-full rounded-lg border border-glass bg-black" />
       </div>
+
+      {/* BDN-322 · saved moments for THIS media. Renders null when
+          there are none — an empty block on every clip is noise. */}
+      <SavedMomentsList />
 
       {/* BDN-320 · the transcript pane the split-screen sketch called
           for. Correctly withheld until BDN-318 made getTranscript
