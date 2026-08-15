@@ -712,3 +712,77 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add a Traps row: "When an e2e test hand-builds the input a real IO function normally derives, it can bypass the exact gate it claims to prove. If the derivation is inline in the IO layer, extract it into a pure shared function and call THAT from both the IO layer and the test."
 - **Confidence:** medium (once, clear mechanism, audit-verified)
 - **Status:** proposed
+
+## 2026-08-15 · monorepo deep run (PR #1588) — prerender payload, skill discovery, red-gate triage
+
+### P1 · NEW rule for `nickstire-verify` (it already owns "the prerender regen rule")
+- **Trigger (witnessed):** `prerender:semantic-check` validated title, description,
+  canonical, H1, NAP and JSON-LD across 9 routes and passed every one of these:
+  a 1-star review rendered under the homepage's "five-star reviews" headline
+  (fixed a7240ee9b); `/tire-prices-cleveland` prerendered with ZERO per-size floor
+  rows from 2026-08-11 while the live endpoint served 9; and **10 blog articles
+  serving HTTP 200 with "ARTICLE NOT FOUND"**, all in the 273-URL sitemap, while
+  `content.articleBySlug` returned full content for every one of them.
+- **Cost:** ten acquisition pages invisible to search for four days, plus the
+  flagship AEO page's proprietary data, with every internal signal green.
+- **Proposed edit:** add — "A check that a page EXISTS is not a check that it
+  CARRIES its content. Prod serves two documents: crawlers get ~150KB of
+  committed prerendered HTML, browsers get the ~14KB SPA shell. Assert the
+  payload (row counts, card counts, absence of a not-found branch), not just the
+  metadata."
+- **Confidence:** high (three distinct instances in one session)
+- **Status:** proposed
+
+### P2 · NEW rule for `nickstire-verify` — regen environment determines what breaks
+- **Trigger (witnessed):** bisecting the committed tree showed `8d31ca036`
+  (2026-08-10, CI refresh) healthy and `6d99b9e3c` (2026-08-11, a LOCAL
+  `pnpm run regen`) breaking all 10 blog articles plus the price floors, in one
+  344-file rewrite. Running a CI refresh to test the fix then regressed a
+  DIFFERENT payload: `/reviews` went 132,918 bytes / 5 review cards → 107,213 / 0,
+  because the workflow has no `GOOGLE_MAPS_API_KEY`.
+- **Cost:** the prerendered tree has oscillated for weeks (`9a6c5ef04` broke the
+  same blogs on 2026-07-09 and a later weekly refresh silently fixed them). Each
+  refresh trades one set of losses for another.
+- **Proposed edit:** add — "Never run `pnpm run regen` locally to refresh the
+  committed tree. A local regen loses DB-backed payloads; CI loses
+  Places-API-backed ones unless `GOOGLE_MAPS_API_KEY` is set. Check what the
+  environment can actually reach BEFORE regenerating, and diff the payload
+  afterwards."
+- **Confidence:** high (three separate regressions, two environments)
+- **Status:** proposed
+
+### P3 · NEW rule for `harness-worktree-setup` Traps table — `git add <dir>` after `git mv`
+- **Trigger (witnessed):** commit 6612733b3 moved two skills with `git mv`, then
+  staged with `git add <dir>`. The rename was recorded and the in-file edits were
+  NOT — short status showed `RM` (renamed in index, modified in worktree) — so the
+  commit shipped both skills still carrying their old `name:` frontmatter and a
+  cross-reference to the old path. Caught only by reading `git status` before a
+  rebase; fixed in a follow-up commit.
+- **Cost:** a half-applied rename shipped in the exact commit whose purpose was to
+  fix a half-wired skill.
+- **Proposed edit:** add a Traps row — "`git add <dir>` after a `git mv` stages the
+  RENAME but can leave content edits unstaged (`RM` in short status). Stage moved
+  files by explicit path and re-read `git status` before committing."
+- **Confidence:** medium (once, clear mechanism, self-caught)
+- **Status:** proposed
+
+### P4 · NEW rule for `nickstire-verify` (or wherever red-gate triage belongs) — fix the instrument first
+- **Trigger (witnessed):** the `gitleaks` hard gate failed printing only
+  `leaks found: 1` — no rule, no file, no line. I inferred it was a
+  `google-site-verification` meta tag, shipped an allowlist for it with
+  `regexTarget = "line"`, and the gate stayed red. The real finding was
+  `generic-api-key` on `data-key="…"` (the public Ahrefs analytics site key) at
+  `prerendered/reviews/index.html:228`. Adding `--report-format json
+  --report-path` produced the exact rule/file/line on the next run.
+  Worse, the guessed fix was mis-scoped: these files are minified, so
+  `regexTarget = "line"` covered 15,487 characters of the whole document body —
+  a real secret sharing that line would have been exempted with it.
+- **Cost:** two wasted CI cycles, plus a security exception shipped for a pattern
+  that was never failing, at a scope that would have punched a genuine hole.
+- **Proposed edit:** add — "When a gate reports a failure COUNT without a
+  LOCATION, fix the instrument before the finding. Guessing which secret/rule/file
+  it meant is how wrong allowlists get shipped. Scope any allowlist to the matched
+  text, never to a line — minified HTML makes 'the line' the whole document."
+- **Confidence:** high (the guess was wrong in both target AND scope; the
+  instrument fix resolved it in one run)
+- **Status:** proposed
