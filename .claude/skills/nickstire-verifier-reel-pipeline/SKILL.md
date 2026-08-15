@@ -1,5 +1,5 @@
 ---
-name: verifier-reel-pipeline
+name: nickstire-verifier-reel-pipeline
 description: Runtime-verify changes to nickstire's Instagram reel pipeline — reelVoice, reelAssembly, reelPipeline, reelBriefGen, or the reel-pipeline cron. Use this whenever you are asked to verify, test end-to-end, or observe the real behavior of anything under apps/nickstire/server/services/reel*, or when a change affects how reel jobs move through queued → generating → assets_ready → assembling → assembled. Read this BEFORE attempting to run the pipeline locally: it documents a live-production hazard (the repo's only DATABASE_URL points at prod TiDB) and a live-publish endpoint that will post to the real Instagram account. Also use it when a reel-pipeline verification looks blocked — it records exactly which paths are dead ends and why.
 ---
 

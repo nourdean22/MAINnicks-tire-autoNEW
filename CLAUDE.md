@@ -16,7 +16,9 @@ only Claude-specific routing.
   Client confirm/alert/prompt UI → **nickstire-ios-pwa-primitives** (applies to statenour too).
   Shared-`main` pushes while sibling sessions run → **nickstire-shared-main-push**. Prod-DB or
   side-effect lanes → **prod-db-guard**. A pasted mega-plan → **plan-gate**. "Turn this
-  book/doc/repo into a skill" → **source-to-skill**. Working in a `.claude/worktrees/*` path (or
+  book/doc/repo into a skill" → **source-to-skill**. Reel content (ideate/pack/draft) →
+  **nickstire-reel-operator**; verifying reel *pipeline code* → **nickstire-verifier-reel-pipeline**.
+  Working in a `.claude/worktrees/*` path (or
   `tsc` "not recognized") → **harness-worktree-setup** FIRST. End of a wave, or after the operator
   corrects you → **session-observer** (propose-only; appends to
   [docs/skill-proposals.md](docs/skill-proposals.md)). Apply the

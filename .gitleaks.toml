@@ -1,0 +1,54 @@
+# gitleaks configuration — extends the default ruleset, never replaces it.
+#
+# The secret-scan workflow is a HARD gate on `base..head` for every PR. It stayed
+# green for months, then failed on 2026-08-15 for a PR that re-added ONE committed
+# prerendered page. The finding:
+#
+#   RuleID  generic-api-key
+#   Match   data-key="<32-char token>"
+#   File    apps/nickstire/prerendered/reviews/index.html
+#
+# That is the **Ahrefs Web Analytics site key**, on their tracking script tag:
+#
+#   <script src="https://analytics.ahrefs.com/analytics.js" data-key="..."></script>
+#
+# It is public by design — the analogue of a GA measurement ID or a Meta Pixel ID.
+# It is injected client-side from `apps/nickstire/client/index.html`, so it ships
+# to every browser that loads the site. Receipts taken before writing this file:
+#
+#   · `curl https://nickstire.org/` serves the attribute to any caller
+#   · the same script tag is in 344 prerendered files already on `main`
+#   · its only source is a <script> tag in the client entry HTML
+#
+# Nothing leaked. The gate had simply never scanned a re-added prerendered file
+# before, and it would fire again on the next one — including a prerender refresh,
+# if one ever came through a PR.
+#
+# SCOPING — why `regexTarget = "match"`:
+# The default target is the bare secret, which here is a 32-character token; a
+# regex for that would exempt any 32-character token anywhere in the repo, which
+# is a real hole. The obvious alternative, `regexTarget = "line"`, is WORSE here:
+# these prerendered files are minified, so "the line" is 15,487 characters of the
+# entire document body, and a genuine secret sharing that line would be exempted
+# with it. "match" tests only the matched text — `data-key="..."` — which is an
+# HTML data attribute and therefore client-visible by construction.
+#
+# `useDefault = true` keeps every default rule. Every other file, rule and finding
+# is scanned exactly as before.
+#
+# An earlier version of this file allowlisted the google-site-verification meta
+# tag instead. That was a GUESS at what was failing, made while the gate reported
+# only "leaks found: 1" with no rule or file, and it was wrong — the tag is
+# genuinely public, but it was never the finding. It has been removed rather than
+# left in place: a security exception nothing can justify is worse than none. The
+# workflow now prints its findings, so the next failure needs no guessing.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ahrefs Web Analytics site key — a public client-side identifier, required in served HTML"
+regexTarget = "match"
+regexes = [
+  '''data-key=["'][A-Za-z0-9+/=_-]{16,64}["']''',
+]

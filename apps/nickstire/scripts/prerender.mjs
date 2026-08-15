@@ -278,7 +278,17 @@ async function main() {
   // converts "one crash kills all remaining routes" into "one route fails,
   // the rest still render." ROUTE_BUDGET_MS covers goto(12s)+wait(3s)+
   // title-wait(8s)+content/serialize with headroom.
-  const ROUTE_BUDGET_MS = 35000;
+  //
+  // 2026-08-15: raised 35s → 50s to fit the soft-404 reload below. This is a
+  // CAP, not a delay — a healthy route still finishes in ~15-23s and never
+  // touches it. Only a route that captured a not-found branch spends the extra
+  // ~14s, and there are ~10 of those out of 346.
+  const ROUTE_BUDGET_MS = 50000;
+
+  // Visible copy of a client-side not-found branch. Must stay in sync with the
+  // same list in scripts/check-prerender-semantic.mjs, which fails the build
+  // when one of these reaches the committed tree.
+  const SOFT_404_MARKERS = ["ARTICLE NOT FOUND", "PAGE NOT FOUND"];
   for (let i = 0; i < routes.length; i += BATCH_SIZE) {
     const batch = routes.slice(i, i + BATCH_SIZE);
     // If Chrome died on the previous batch, relaunch before continuing so
@@ -347,6 +357,42 @@ async function main() {
 
           // Get the full HTML
           let html = await page.content();
+
+          // ── Soft-404 guard ────────────────────────────────────────────
+          // A DB-backed article renders BlogPost's not-found branch whenever
+          // its tRPC query has not resolved — or has errored past `retry: 1` —
+          // by capture time. What gets committed is a SOFT 404: HTTP 200, full
+          // Article JSON-LD, "ARTICLE NOT FOUND" as the only visible copy, and
+          // the URL sitting in the sitemap. Ten shipped that way in 6d99b9e3c
+          // (2026-08-11) and a clean CI refresh still produced eight, so this is
+          // not a one-off — it is nondeterministic per route, and it has
+          // happened before (9a6c5ef04, 2026-07-09).
+          //
+          // React will not refetch a query that already settled, so waiting
+          // longer cannot fix an errored one — reload and capture again. Costs
+          // nothing on the 336 routes that never match. If the article genuinely
+          // does not exist, the second attempt renders the same not-found HTML
+          // and behaviour is exactly as before.
+          if (SOFT_404_MARKERS.some((marker) => html.includes(marker))) {
+            console.log(`    [soft-404] ${routePath}: not-found branch captured — reloading once`);
+            try {
+              await page.reload({ waitUntil: "networkidle2", timeout: 8000 });
+            } catch {
+              /* capture whatever rendered, same as the goto path above */
+            }
+            await page
+              .waitForFunction(
+                (markers) => !markers.some((m) => (document.body?.innerText || "").includes(m)),
+                { timeout: 6000 },
+                SOFT_404_MARKERS,
+              )
+              .catch(() => {});
+            html = await page.content();
+            const stillBroken = SOFT_404_MARKERS.some((marker) => html.includes(marker));
+            console.log(
+              `    [soft-404] ${routePath}: ${stillBroken ? "STILL not-found after reload" : "recovered"}`,
+            );
+          }
 
           // Inject correct SEO tags from route registry if React's useEffect didn't update them
           const routeInfo = routeMap.get(routePath);
