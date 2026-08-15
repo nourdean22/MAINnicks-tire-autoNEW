@@ -185,6 +185,19 @@ in CI.
 
 ---
 
+### 1.2d Two more, found only because the tree finally got compared to something
+
+- **`/estimate` was flagged `prerender: true` while 301ing to `/pricing`.** The
+  refresh deleted its 99KB file and `prerender:check` reported it MISSING every
+  run afterwards. The deletion was right; the flag was the defect. Verified live
+  (`301 → /pricing` to a Googlebot UA), and it was already `sitemap: false` for
+  the same reason. Now `prerender: false`; gate back to `missing: 0`.
+- **A route skipped during regen is DELETED from the committed tree**, because
+  regen swaps the whole directory. A transient timeout is therefore
+  indistinguishable from an intentional removal — the mechanism that once wiped
+  the tree in PR #615. Here it happened to be correct. Not fixed in this run;
+  worth a guard that fails when a `prerender: true` route loses its file.
+
 ## 2 · Assumptions the evidence refuted
 
 | Assumption | Reality |
