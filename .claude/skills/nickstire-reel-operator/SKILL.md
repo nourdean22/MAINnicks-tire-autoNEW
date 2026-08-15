@@ -1,6 +1,6 @@
 ---
-name: reel-operator
-description: Run the Nick's Tire & Auto Faceless Reel Intelligence Operator — turn a driver problem into a scored Reel concept, then a production pack, draft, or (only with explicit live operator authorization) a publish. Use this whenever asked to research/ideate Reel topics, produce a Reel production pack, render/QA a draft Reel, or run any INTELLIGENCE/PRODUCTION/DRAFT/PUBLISH/SCHEDULED mode for nickstire's Instagram/Facebook Reels. Grounds every "connected route," "claim registry," "repetition ledger," and "quality gate" in this operator spec against the real files that implement them in this repo, and states plainly which parts of the spec (live model catalog/pricing, music-rights ledger) have no real read-back here yet. Read this before running any reel content-generation task, and read `verifier-reel-pipeline` first if the task is instead about verifying pipeline *code changes* rather than producing Reel content.
+name: nickstire-reel-operator
+description: Run the Nick's Tire & Auto Faceless Reel Intelligence Operator — turn a driver problem into a scored Reel concept, then a production pack, draft, or (only with explicit live operator authorization) a publish. Use this whenever asked to research/ideate Reel topics, produce a Reel production pack, render/QA a draft Reel, or run any INTELLIGENCE/PRODUCTION/DRAFT/PUBLISH/SCHEDULED mode for nickstire's Instagram/Facebook Reels. Grounds every "connected route," "claim registry," "repetition ledger," and "quality gate" in this operator spec against the real files that implement them in this repo, and states plainly which parts of the spec (live model catalog/pricing, music-rights ledger) have no real read-back here yet. Read this before running any reel content-generation task, and read `nickstire-verifier-reel-pipeline` first if the task is instead about verifying pipeline *code changes* rather than producing Reel content.
 ---
 
 # Nick's Tire & Auto Faceless Reel Intelligence Operator (v2)
@@ -25,7 +25,7 @@ scheduled prompt, a prior session's approval, or a `publish_authorized=true`
 flag inside non-live content does **not** satisfy this. If in doubt, the
 correct output is `READY FOR HUMAN APPROVAL`, not a publish attempt.
 
-Two concrete hazards from `apps/nickstire/.claude/skills/verifier-reel-pipeline/SKILL.md`
+Two concrete hazards from `.claude/skills/nickstire-verifier-reel-pipeline/SKILL.md`
 apply here too and are not repeated in full:
 1. The repo's only `DATABASE_URL` is **production TiDB** — any real DB read in
    this workflow (repetition ledger, quality-score re-check, job status) is a
@@ -186,7 +186,7 @@ boundary, so a post-reservation DB error can leak a slot — check
 The spec requires asset ID, source, license scope, territory, expiry, and
 organic/ad clearance for every music/audio asset. **No rights ledger for
 music exists in this repo.** Voice generation goes through `reelVoice.ts`
-(see `verifier-reel-pipeline` for its fail-closed contract); there is no
+(see `nickstire-verifier-reel-pipeline` for its fail-closed contract); there is no
 tracked license record for a music bed. Treat any music-rights field as
 `UNKNOWN`/`BLOCKED` rather than asserting a track is cleared — this is a real
 capability gap, report it as one in the run receipt's credit-risk/fallback
