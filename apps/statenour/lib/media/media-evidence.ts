@@ -137,6 +137,27 @@ export function evidenceClassForOrigin(origin: MediaOrigin): EvidenceRef["eviden
   }
 }
 
+/**
+ * Infer origin from the media URL.
+ *
+ * Extracted 2026-08-14 so the provenance STRIP and the save-a-moment
+ * path cannot disagree: before this each inferred origin inline, and a
+ * divergence would have meant a clip displayed as TRUSTED while its
+ * saved evidence said otherwise — a contradiction the operator could
+ * see but not explain.
+ *
+ * Conservative by construction: `blob:`/`data:` mean this session
+ * produced or the operator attached it; anything arriving over the wire
+ * is treated as external, hence UNTRUSTED. Guessing "trusted" from an
+ * https URL would be exactly the laundering this module exists to
+ * prevent.
+ */
+export function inferOriginFromUrl(url: string | undefined): MediaOrigin {
+  const u = (url ?? "").trim();
+  if (u.startsWith("blob:") || u.startsWith("data:")) return "operator_upload";
+  return "external_fetch";
+}
+
 /** `media:<id>` — the sourceRef namespace for media, beside brain:/receipt:. */
 export function mediaSourceRef(id: string): string {
   return `media:${id}`;

@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { Download, FileText, Film, ListPlus, Music, Paperclip, PictureInPicture2 } from "lucide-react";
 import { useMediaDockStore, type DockedMedia } from "../stores/media-dock-store";
 import { MediaProvenanceStrip } from "./media-provenance-strip";
+import { inferOriginFromUrl } from "@/lib/media/media-evidence";
 
 /**
  * ChatMediaPart — one renderer for every AI-SDK `file` message part.
@@ -230,10 +231,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
     <MediaProvenanceStrip
       input={{
         id: id as string,
-        origin:
-          (part.url as string).startsWith("blob:") || (part.url as string).startsWith("data:")
-            ? "operator_upload"
-            : "external_fetch",
+        origin: inferOriginFromUrl(part.url),
         states: ["playable"],
       }}
     />
