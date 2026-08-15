@@ -91,8 +91,24 @@ function countOccurrences(html, needle) {
   return html.split(needle).length - 1;
 }
 
-// A review card is a `tilt-card` container whose body ends in a "Google Review"
-// attribution; its star SVGs sit above that label inside the same container.
+// The PER-CARD attribution label, and only that. Matching the bare string
+// "Google Review" is what a first draft of this file did, and it is wrong:
+// /reviews carries 9 such hits of which only 5 are review cards — the other
+// four are the "1,705+ Google Reviews" stat, two "Leave a Google Review →"
+// CTAs and an aria-label, all of which render with zero reviews on the page.
+// A threshold set against the loose count therefore has a static floor built
+// into it and passes on a nearly empty page. Measured 2026-08-15: loose 9 vs
+// exact 5 on /reviews, loose 5 vs exact 3 on /.
+const REVIEW_LABEL = ">Google Review</span>";
+
+function countReviewLabels(html) {
+  return countOccurrences(html, REVIEW_LABEL);
+}
+
+// A review card is a `tilt-card` container holding one attribution label; its
+// star SVGs sit above that label inside the same container. Homepage cards
+// render only the stars they earned (`[...Array(r.stars)]`), so counting
+// `lucide-star` up to the label yields the rating. Measured: [5, 5, 5].
 function reviewCards(html) {
   const starts = [];
   const marker = /tilt-card/g;
@@ -102,7 +118,7 @@ function reviewCards(html) {
   const cards = [];
   for (let i = 0; i < starts.length; i++) {
     const segment = html.slice(starts[i], starts[i + 1] ?? html.length);
-    const labelAt = segment.indexOf("Google Review");
+    const labelAt = segment.indexOf(REVIEW_LABEL);
     if (labelAt === -1) continue; // a tilt-card that is not a review card
     cards.push({ stars: countOccurrences(segment.slice(0, labelAt), "lucide-star") });
   }
@@ -132,13 +148,16 @@ const PAYLOAD_RULES = [
   },
   {
     route: "/reviews",
+    // Threshold is 3, not "however many the API returned today": Google can
+    // return fewer reviews without anything being broken, and this rule exists
+    // to catch the page rendering EMPTY, not to pin a count. Measured 5.
     label: "reviews page carries review content",
     fatal: true,
     check(html) {
-      const attributions = countOccurrences(html, "Google Review");
-      return attributions >= 5
+      const attributions = countReviewLabels(html);
+      return attributions >= 3
         ? []
-        : [`only ${attributions} review attribution(s) rendered, expected >=5`];
+        : [`only ${attributions} review card(s) rendered, expected >=3`];
     },
   },
   {

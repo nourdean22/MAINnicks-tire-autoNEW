@@ -82,10 +82,25 @@ Recall that prod serves **two different documents**: Googlebot gets 153KB of
 committed prerendered HTML, a browser gets the ~14KB SPA shell. The crawler copy
 is the one that matters for acquisition, and it had no monitoring on its content.
 
-Three payload rules now run off the committed HTML — `/` (≥3 review cards, none
-under 4 stars), `/reviews` (≥5 attributions), `/tire-prices-cleveland` (≥1 size
-row). Tested against the real failure mode, not a synthetic one: pointed at the
-pre-fix snapshot the homepage rule exits 1 with `1 review card(s) under 4 stars (1)`.
+Three payload rules now run off the committed HTML:
+
+| route | rule | fatal |
+|---|---|---|
+| `/` | ≥3 review cards, none under 4 stars | yes |
+| `/reviews` | ≥3 review-card attribution labels | yes |
+| `/tire-prices-cleveland` | ≥1 per-size floor row | reported |
+
+Both fatal rules are proven against real failure modes, not synthetic ones:
+pointed at the pre-fix snapshot the homepage rule exits 1 with `1 review card(s)
+under 4 stars (1)`; with the attribution labels stripped, `/reviews` exits 1 with
+`only 0 review card(s) rendered`.
+
+**Calibration matters here and the first draft got it wrong.** Counting the bare
+string `Google Review` on /reviews yields 9 hits of which only 5 are cards — the
+rest are two "Leave a Google Review →" CTAs, the "1,705+ Google Reviews" stat and
+an aria-label, all of which render on an empty page. A threshold set against that
+loose count carries a 4-hit static floor and passes with ONE real review. The
+rules now match the exact per-card label `>Google Review</span>`.
 
 ### 1.3 truth_os.md carried two stale claims, one of them alarming
 
