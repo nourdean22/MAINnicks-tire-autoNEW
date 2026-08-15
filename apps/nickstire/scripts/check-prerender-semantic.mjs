@@ -12,6 +12,10 @@ const BUSINESS_NAME = /Nick(?:'|’|&#39;|&apos;)s Tire/i;
 const ROUTES = [
   "/", "/tires", "/brakes", "/oil-change", "/diagnostics",
   "/emissions", "/services", "/about", "/contact",
+  // The AEO price page had no metadata coverage at all despite being the one
+  // page built to be quoted by answer engines. It passes every rule below
+  // today (checked 2026-08-15) — it was simply never added.
+  "/tire-prices-cleveland",
 ];
 
 function routeFile(route) {
@@ -128,7 +132,12 @@ function reviewCards(html) {
 const PAYLOAD_RULES = [
   {
     route: "/",
-    label: "homepage showcase: >=3 review cards, none under 4 stars",
+    // FIVE, not four. Home.tsx filters the showcase to `rating >= 5` precisely
+    // because the headline above it says "five-star reviews", so a gate set at
+    // >=4 is looser than the source's own guarantee: a regression that relaxed
+    // the filter to >=4 would pass this check while recreating the exact
+    // headline/content contradiction the rule exists to prevent.
+    label: "homepage showcase: >=3 review cards, all five-star",
     fatal: true,
     check(html) {
       const cards = reviewCards(html);
@@ -136,10 +145,10 @@ const PAYLOAD_RULES = [
       if (cards.length < 3) {
         errors.push(`only ${cards.length} review card(s) rendered, expected >=3`);
       }
-      const low = cards.filter((card) => card.stars < 4);
+      const low = cards.filter((card) => card.stars < 5);
       if (low.length > 0) {
         errors.push(
-          `${low.length} review card(s) under 4 stars (${low.map((c) => c.stars).join(", ")}) — ` +
+          `${low.length} review card(s) under 5 stars (${low.map((c) => c.stars).join(", ")}) — ` +
             "the section headline above them claims five-star reviews",
         );
       }
@@ -163,12 +172,15 @@ const PAYLOAD_RULES = [
   {
     route: "/tire-prices-cleveland",
     label: "AEO price page carries live per-size floors",
-    // NON-FATAL, deliberately: this rule fails right now. The committed snapshot
-    // predates the first tirePriceFloors write, so it has 0 size rows while the
-    // live endpoint serves 9 (source: "snapshot", written same-day). The next
-    // prerender refresh captures them — the regen boots with a cold cache and
-    // takes exactly that snapshot path. FLIP TO fatal: true once a refresh has
-    // run and this passes; leaving it fatal today would only redden a shared gate.
+    // NON-FATAL until the next refresh lands. The first draft of this comment
+    // blamed the snapshot predating the first tirePriceFloors write; that was
+    // wrong. Real cause, found by bisecting the committed tree: commit
+    // 6d99b9e3c (2026-08-11) rewrote all 344 prerendered files from a LOCAL
+    // `pnpm run regen` in which no DB-backed payload resolved, overwriting the
+    // healthy tree the 2026-08-10 CI refresh had produced. The same commit turned
+    // 10 dynamic blog articles into soft-404s (see the soft404 rule below).
+    // A CI refresh regenerates correctly — 8d31ca036 proves it. FLIP TO
+    // fatal: true once one has run and this passes.
     fatal: false,
     check(html) {
       const sizes = new Set(html.match(/\b\d{3}\/\d{2}R\d{2}\b/g) ?? []);
@@ -178,6 +190,32 @@ const PAYLOAD_RULES = [
     },
   },
 ];
+
+// Tree-wide, not per-route: a prerendered page that renders the client's
+// "not found" branch is a SOFT 404 — HTTP 200, full Article JSON-LD, and
+// "ARTICLE NOT FOUND" as the only visible copy. Google is being handed these
+// in the sitemap. Ten of them shipped in 6d99b9e3c and nothing noticed for four
+// days; the same thing happened once before in 9a6c5ef04 (2026-07-09) and was
+// only cleaned up by the next weekly refresh happening to run.
+const SOFT_404_MARKERS = ["ARTICLE NOT FOUND", "PAGE NOT FOUND"];
+
+function collectPrerenderedFiles(dir, found = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) collectPrerenderedFiles(full, found);
+    else if (entry.name === "index.html") found.push(full);
+  }
+  return found;
+}
+
+function findSoft404s() {
+  return collectPrerenderedFiles(PRERENDERED)
+    .filter((file) => {
+      const html = fs.readFileSync(file, "utf8");
+      return SOFT_404_MARKERS.some((marker) => html.includes(marker));
+    })
+    .map((file) => "/" + path.relative(PRERENDERED, file).replace(/\\/g, "/").replace(/\/?index\.html$/, ""));
+}
 
 function inspectPayload(rule) {
   const file = routeFile(rule.route);
@@ -198,6 +236,17 @@ for (const rule of PAYLOAD_RULES) {
   const issues = inspectPayload(rule);
   if (issues.length === 0) continue;
   (rule.fatal ? payloadFatal : payloadReported).push(...issues);
+}
+
+// Same non-fatal reasoning as the tire-price rule, and the same flip condition:
+// 10 pages fail today, the fix is a prerender refresh rather than a code change.
+const soft404s = findSoft404s();
+if (soft404s.length > 0) {
+  payloadReported.push(
+    `${soft404s.length} prerendered page(s) render a NOT FOUND branch at HTTP 200 — ` +
+      `soft 404s, and they are in the sitemap: ${soft404s.slice(0, 6).join(", ")}` +
+      (soft404s.length > 6 ? `, +${soft404s.length - 6} more` : ""),
+  );
 }
 
 if (payloadReported.length > 0) {

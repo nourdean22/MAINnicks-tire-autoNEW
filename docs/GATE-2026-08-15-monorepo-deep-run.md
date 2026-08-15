@@ -72,11 +72,38 @@ through:
   review, because Places returns the most *recent* reviews at any rating. Fixed
   in `a7240ee9b`; nothing would have caught the next one.
 - **2026-08-11 → present, LIVE VERIFIED** — `/tire-prices-cleveland` prerenders
-  with **zero per-size floor rows**. The live endpoint serves **9 sizes right
-  now** (`source: "snapshot"`, written same-day). The committed snapshot was
-  captured before the first `shop_settings.tirePriceFloors` write, so the
-  proprietary data that is the entire point of an AEO page has been invisible to
-  Googlebot for four days.
+  with **zero per-size floor rows**, while the live endpoint serves **9 sizes**.
+- **2026-08-11 → present, LIVE VERIFIED** — **ten blog articles are soft 404s.**
+  `/blog/brakes-grinding-what-to-do` and nine siblings return **HTTP 200** to
+  Googlebot with "ARTICLE NOT FOUND" as their only visible copy, full Article
+  JSON-LD still attached, **and all ten are in the sitemap** (273 URLs). The
+  articles are real: `content.articleBySlug` returns each of them, ~4KB with
+  title and meta, so browsers see the article and crawlers see a 404.
+
+### 1.2b One commit caused both — and my first diagnosis was wrong
+
+I initially wrote that the price-page snapshot "predates the first
+`tirePriceFloors` write". That was plausible and **false**. Bisecting the
+committed tree gives the real answer:
+
+| commit | date | blog pages |
+|---|---|---|
+| `8d31ca036` weekly CI refresh | 2026-08-10 | healthy — 0 soft 404s |
+| `6d99b9e3c` AEO price page PR | 2026-08-11 | **all 10 broken** |
+
+`6d99b9e3c` rewrote **344 prerendered files** from a *local* `pnpm run regen` in
+which no DB-backed payload resolved, overwriting the healthy tree CI had produced
+the day before. Every DB-backed payload degraded at once — the price floors
+(`shop_settings`) and the dynamic articles (`dynamic_articles`) — while
+everything static, and the Places-API-backed homepage reviews, captured fine.
+That single distinction is the whole diagnosis.
+
+It had happened once before: `9a6c5ef04` (2026-07-09) shipped the same soft 404s,
+and they were cleaned up only because the next weekly refresh happened to run.
+**Nothing has ever detected this class; it has been self-healing by luck.** The
+2026-08-03 refresh failed outright, and no refresh has succeeded since 08-10.
+
+A tree-wide soft-404 sweep now runs with the payload rules.
 
 Recall that prod serves **two different documents**: Googlebot gets 153KB of
 committed prerendered HTML, a browser gets the ~14KB SPA shell. The crawler copy
@@ -86,13 +113,14 @@ Three payload rules now run off the committed HTML:
 
 | route | rule | fatal |
 |---|---|---|
-| `/` | ≥3 review cards, none under 4 stars | yes |
+| `/` | ≥3 review cards, **all five-star** | yes |
 | `/reviews` | ≥3 review-card attribution labels | yes |
 | `/tire-prices-cleveland` | ≥1 per-size floor row | reported |
+| *(whole tree)* | no page renders a NOT FOUND branch | reported |
 
 Both fatal rules are proven against real failure modes, not synthetic ones:
 pointed at the pre-fix snapshot the homepage rule exits 1 with `1 review card(s)
-under 4 stars (1)`; with the attribution labels stripped, `/reviews` exits 1 with
+under 5 stars (1)`, and at a synthesised 4-star card with `(4)`; with the attribution labels stripped, `/reviews` exits 1 with
 `only 0 review card(s) rendered`.
 
 **Calibration matters here and the first draft got it wrong.** Counting the bare
