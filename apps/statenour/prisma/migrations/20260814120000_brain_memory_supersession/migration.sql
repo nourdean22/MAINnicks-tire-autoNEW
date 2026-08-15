@@ -43,46 +43,60 @@
 --
 -- Every statement is IF NOT EXISTS / IF EXISTS so a re-run is a no-op.
 --
--- ============================ NOT APPLIED ============================
--- statenour migrations are HAND-APPLIED and DDL is a protected operation.
--- This file was authored under operator approval but deliberately NOT run
--- against Neon by the agent. To apply:
---   psql "$DATABASE_URL" -f prisma/migrations/20260814120000_brain_memory_supersession/migration.sql
--- Then `pnpm prisma generate`. Rollback is at the bottom of this file.
+-- ===================== TABLE NAME · READ THIS ========================
+-- The table is "brain_memories", NOT "BrainMemory". The Prisma model is
+-- BrainMemory with @@map("brain_memories") (schema.prisma:86).
+--
+-- The first draft of this file hardcoded "BrainMemory" and would have
+-- FAILED ON EVERY STATEMENT against prod. It was caught by a read-only
+-- preflight that checked the table existed before any DDL ran — which is
+-- the entire reason prod-db-guard requires proving state instead of
+-- assuming it. Index names follow the existing house convention on this
+-- table (brain_memories_<cols>_idx).
+--
+-- Apply with the autocommit runner, never `prisma db push`:
+--   pnpm tsx scripts/apply-pending-migration.ts --     prisma/migrations/20260814120000_brain_memory_supersession/migration.sql
+-- Then: prisma migrate resolve --applied · prisma migrate status · typecheck.
+-- Rollback is at the bottom of this file.
 -- =====================================================================
 
-ALTER TABLE "BrainMemory" ADD COLUMN IF NOT EXISTS "valid_from" TIMESTAMP(3);
-ALTER TABLE "BrainMemory" ADD COLUMN IF NOT EXISTS "valid_until" TIMESTAMP(3);
-ALTER TABLE "BrainMemory" ADD COLUMN IF NOT EXISTS "last_verified_at" TIMESTAMP(3);
-ALTER TABLE "BrainMemory" ADD COLUMN IF NOT EXISTS "superseded_by_id" TEXT;
+ALTER TABLE "brain_memories" ADD COLUMN IF NOT EXISTS "valid_from" TIMESTAMP(3);
+ALTER TABLE "brain_memories" ADD COLUMN IF NOT EXISTS "valid_until" TIMESTAMP(3);
+ALTER TABLE "brain_memories" ADD COLUMN IF NOT EXISTS "last_verified_at" TIMESTAMP(3);
+ALTER TABLE "brain_memories" ADD COLUMN IF NOT EXISTS "superseded_by_id" TEXT;
 
 -- Self-reference. SET NULL, never CASCADE — see design notes above.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'BrainMemory_superseded_by_id_fkey'
-  ) THEN
-    ALTER TABLE "BrainMemory"
-      ADD CONSTRAINT "BrainMemory_superseded_by_id_fkey"
-      FOREIGN KEY ("superseded_by_id") REFERENCES "BrainMemory"("id")
-      ON DELETE SET NULL ON UPDATE CASCADE;
-  END IF;
-END $$;
+--
+-- Written as DROP-IF-EXISTS + ADD rather than a DO $$ ... $$ guard ON
+-- PURPOSE. scripts/apply-pending-migration.ts splits this file on `;`
+-- with a parser whose own comment says it assumes no semicolons inside
+-- DO blocks — a DO block here would be shattered into invalid fragments,
+-- and the runner applies statements best-effort, so the earlier ALTERs
+-- would land while the FK silently did not. These two statements are
+-- idempotent, parser-safe, and touch no data: on a first run the DROP is
+-- a no-op, and the constraint being dropped is one this migration owns.
+ALTER TABLE "brain_memories"
+  DROP CONSTRAINT IF EXISTS "brain_memories_superseded_by_id_fkey";
+
+ALTER TABLE "brain_memories"
+  ADD CONSTRAINT "brain_memories_superseded_by_id_fkey"
+  FOREIGN KEY ("superseded_by_id") REFERENCES "brain_memories"("id")
+  ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Hot path: "give me the still-valid memories". Partial, so the
 -- superseded tail never enters the index.
-CREATE INDEX IF NOT EXISTS "BrainMemory_active_validity_idx"
-  ON "BrainMemory" ("category", "confidence")
+CREATE INDEX IF NOT EXISTS "brain_memories_active_validity_idx"
+  ON "brain_memories" ("category", "confidence")
   WHERE "valid_until" IS NULL AND "deleted_at" IS NULL;
 
 -- Walking a supersession chain forward, and auditing dangling pointers.
-CREATE INDEX IF NOT EXISTS "BrainMemory_superseded_by_id_idx"
-  ON "BrainMemory" ("superseded_by_id")
+CREATE INDEX IF NOT EXISTS "brain_memories_superseded_by_id_idx"
+  ON "brain_memories" ("superseded_by_id")
   WHERE "superseded_by_id" IS NOT NULL;
 
 -- Staleness sweeps: "what have we not re-verified in N days?"
-CREATE INDEX IF NOT EXISTS "BrainMemory_last_verified_at_idx"
-  ON "BrainMemory" ("last_verified_at");
+CREATE INDEX IF NOT EXISTS "brain_memories_last_verified_at_idx"
+  ON "brain_memories" ("last_verified_at");
 
 -- NO BACKFILL. Existing rows keep all four columns NULL, which reads as
 -- "no known validity window, never explicitly verified" — the honest
@@ -91,11 +105,11 @@ CREATE INDEX IF NOT EXISTS "BrainMemory_last_verified_at_idx"
 -- the fabrication class the TRUTH RULE exists to prevent.
 
 -- ROLLBACK (safe: additive-only, no data depends on these yet)
--- DROP INDEX IF EXISTS "BrainMemory_last_verified_at_idx";
--- DROP INDEX IF EXISTS "BrainMemory_superseded_by_id_idx";
--- DROP INDEX IF EXISTS "BrainMemory_active_validity_idx";
--- ALTER TABLE "BrainMemory" DROP CONSTRAINT IF EXISTS "BrainMemory_superseded_by_id_fkey";
--- ALTER TABLE "BrainMemory" DROP COLUMN IF EXISTS "superseded_by_id";
--- ALTER TABLE "BrainMemory" DROP COLUMN IF EXISTS "last_verified_at";
--- ALTER TABLE "BrainMemory" DROP COLUMN IF EXISTS "valid_until";
--- ALTER TABLE "BrainMemory" DROP COLUMN IF EXISTS "valid_from";
+-- DROP INDEX IF EXISTS "brain_memories_last_verified_at_idx";
+-- DROP INDEX IF EXISTS "brain_memories_superseded_by_id_idx";
+-- DROP INDEX IF EXISTS "brain_memories_active_validity_idx";
+-- ALTER TABLE "brain_memories" DROP CONSTRAINT IF EXISTS "brain_memories_superseded_by_id_fkey";
+-- ALTER TABLE "brain_memories" DROP COLUMN IF EXISTS "superseded_by_id";
+-- ALTER TABLE "brain_memories" DROP COLUMN IF EXISTS "last_verified_at";
+-- ALTER TABLE "brain_memories" DROP COLUMN IF EXISTS "valid_until";
+-- ALTER TABLE "brain_memories" DROP COLUMN IF EXISTS "valid_from";
