@@ -47,8 +47,6 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const setPosture = useChatUiStore((s) => s.setPosture);
   const depth = useChatUiStore((s) => s.depth);
   const setDepth = useChatUiStore((s) => s.setDepth);
-  const actionPermission = useChatUiStore((s) => s.actionPermission);
-  const setActionPermission = useChatUiStore((s) => s.setActionPermission);
 
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -289,11 +287,10 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   // is just the collapsed state.
   const POSTURES = ["auto", "execute", "counsel", "spar"] as const;
   const DEPTHS = ["auto", "standard", "deep"] as const;
-  const PERMISSIONS = ["draft", "read", "execute"] as const;
-  const [openControl, setOpenControl] = useState<null | "posture" | "depth" | "actions">(null);
+  const [openControl, setOpenControl] = useState<null | "posture" | "depth">(null);
 
   const CONTROL_OPTIONS: Record<
-    "posture" | "depth" | "actions",
+    "posture" | "depth",
     { title: string; options: Array<{ value: string; label: string; hint: string }> }
   > = {
     posture: {
@@ -313,20 +310,11 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         { value: "deep", label: "Deep", hint: "Slower, thorough multi-step analysis" },
       ],
     },
-    actions: {
-      title: "Permission — what Nick may do",
-      options: [
-        { value: "draft", label: "Draft only", hint: "Answer and prepare — nothing runs" },
-        { value: "read", label: "Read data", hint: "May read connected business data" },
-        { value: "execute", label: "Execute", hint: "May run approved actions (receipts always)" },
-      ],
-    },
   };
 
-  const applyControl = (control: "posture" | "depth" | "actions", value: string) => {
+  const applyControl = (control: "posture" | "depth", value: string) => {
     if (control === "posture") setPosture(value as (typeof POSTURES)[number]);
-    else if (control === "depth") setDepth(value as (typeof DEPTHS)[number]);
-    else setActionPermission(value as (typeof PERMISSIONS)[number]);
+    else setDepth(value as (typeof DEPTHS)[number]);
     setOpenControl(null);
   };
 
@@ -388,22 +376,6 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         >
           {depth === "auto" ? "depth" : depth}
         </button>
-        <button
-          type="button"
-          onClick={() => setOpenControl(openControl === "actions" ? null : "actions")}
-          aria-label={`Action permission: ${actionPermission} (tap to choose)`}
-          aria-expanded={openControl === "actions"}
-          className={cn(
-            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
-            actionPermission === "draft"
-              ? "border-glass text-fg-tertiary hover:text-fg-secondary"
-              : actionPermission === "read"
-                ? "border-sky-500/40 bg-sky-500/10 text-sky-300"
-                : "border-gold/40 bg-gold/10 text-gold",
-          )}
-        >
-          {actionPermission === "draft" ? "actions" : actionPermission}
-        </button>
         <div className="flex-1" />
         <button
           type="button"
@@ -445,7 +417,7 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           </div>
           {sheet.options.map((opt) => {
             const current =
-              openControl === "posture" ? posture : openControl === "depth" ? depth : actionPermission;
+              openControl === "posture" ? posture : depth;
             const selected = current === opt.value;
             return (
               <button
