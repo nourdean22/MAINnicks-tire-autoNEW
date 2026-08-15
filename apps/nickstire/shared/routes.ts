@@ -1039,9 +1039,14 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Auto Repair Cost Estimator — Nick's Tire & Auto",
     description: "Get an instant repair cost estimate for your vehicle. Transparent pricing from Nick's Tire & Auto, Cleveland. No surprises.",
     group: "utility",
-    // 301s to /pricing (redirects.ts) — keep out of sitemap.
+    // 301s to /pricing (redirects.ts) — keep out of sitemap, and out of
+    // prerender too: capturing HTML for a URL that 301s produces a file that
+    // can never be served. The 2026-08-15 refresh deleted it and
+    // `prerender:check` then reported it MISSING every run — a permanent false
+    // alarm caused by this flag, not by a lost page. Verified live: /estimate
+    // returns 301 → /pricing to a Googlebot UA.
     sitemap: false,
-    prerender: true,
+    prerender: false,
   },
   {
     path: "/pricing",
@@ -1110,9 +1115,14 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Repair Cost Estimator — Nick's Tire & Auto",
     description: "Estimate your auto repair cost online. Transparent pricing from Nick's Tire & Auto, Cleveland. Know the cost before you visit.",
     group: "utility",
-    // 301s to /pricing (redirects.ts) — keep out of sitemap.
+    // 301s to /pricing (redirects.ts) — keep out of sitemap, and out of
+    // prerender too: capturing HTML for a URL that 301s produces a file that
+    // can never be served. The 2026-08-15 refresh deleted it and
+    // `prerender:check` then reported it MISSING every run — a permanent false
+    // alarm caused by this flag, not by a lost page. Verified live: /estimate
+    // returns 301 → /pricing to a Googlebot UA.
     sitemap: false,
-    prerender: true,
+    prerender: false,
   },
   {
     path: "/status",
