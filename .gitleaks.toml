@@ -1,0 +1,30 @@
+# gitleaks configuration — extends the default ruleset, never replaces it.
+#
+# The secret-scan workflow is a HARD gate on `base..head` for every PR. It stayed
+# green for months and then failed on 2026-08-15 for a PR that re-added ONE
+# committed prerendered page. The finding was a false positive, and it is a
+# landmine for any future PR that touches `apps/nickstire/prerendered/**`:
+#
+#   <meta name="google-site-verification" content="<43-char token>">
+#
+# That token is public BY DESIGN — Google Search Console requires it to be served
+# in the page's HTML in order to verify domain ownership. Receipts taken
+# 2026-08-15: the identical token appears in 344 prerendered files already on
+# `main`, and `curl https://nickstire.org/` returns it to anyone who asks. It
+# tripped only because re-adding a file presents every line as new.
+#
+# The allowlist is deliberately narrow. `regexTarget = "line"` means the match is
+# against the whole source line, so it exempts the verification META TAG rather
+# than exempting 43-character high-entropy strings generally — a bare token
+# pattern would have punched a real hole in the gate. Every other default rule,
+# and every other file, is scanned exactly as before.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Google Search Console site-verification meta tag — public by design, required in served HTML"
+regexTarget = "line"
+regexes = [
+  '''name=["']google-site-verification["']\s+content=["'][A-Za-z0-9_-]{20,64}["']''',
+]
