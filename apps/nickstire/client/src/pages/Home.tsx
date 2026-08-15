@@ -461,9 +461,19 @@ const FALLBACK_REVIEWS = [
 
 function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
   const { totalReviews, googleReviews } = reviewData;
-  const displayReviews = googleReviews && googleReviews.length > 0
-    ? googleReviews.slice(0, 3).map(r => ({ name: r.authorName, stars: r.rating, text: r.text }))
-    : FALLBACK_REVIEWS;
+  // These three cards sit directly under a "five-star reviews" headline, but the
+  // Places API hands back the most RECENT reviews at ANY rating — so a fresh
+  // 1-star landed in the showcase and contradicted the heading above it. Keep
+  // only 5-star here and top up from FALLBACK_REVIEWS so the grid always fills.
+  // Same spirit as the rating >= 4 gate serviceReviews.forService/forCity apply.
+  // /reviews stays deliberately unfiltered ("unfiltered Google data" is printed
+  // on that page) and admin surfaces still see every rating.
+  const displayReviews = [
+    ...(googleReviews ?? [])
+      .filter(r => r.rating >= 5)
+      .map(r => ({ name: r.authorName, stars: r.rating, text: r.text })),
+    ...FALLBACK_REVIEWS,
+  ].slice(0, 3);
 
   return (
     <section className="section-elevated py-24 lg:py-32">
