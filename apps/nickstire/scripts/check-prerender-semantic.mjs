@@ -69,16 +69,134 @@ function inspect(route) {
   return errors;
 }
 
+// ─── Payload rules ────────────────────────────────────
+// The checks above prove a page EXISTS for crawlers with the right identity.
+// They cannot prove it still carries the content it exists FOR — and prod
+// serves two different documents: browsers get the ~14KB SPA shell, crawlers
+// get this committed HTML. A page can therefore lose its entire value here
+// while every other signal stays green (200, title, canonical, JSON-LD).
+//
+// Two live misses that motivated these rules, both invisible to the checks above:
+//   · 2026-08-15 — the homepage five-star showcase rendered a 1-star review,
+//     because Places returns the most RECENT reviews at any rating.
+//   · 2026-08-11 → present — /tire-prices-cleveland prerendered with zero
+//     per-size floor rows: the snapshot was captured before the first
+//     shop_settings.tirePriceFloors write, so the page's proprietary data
+//     (the whole point of an AEO page) is absent for Googlebot.
+//
+// A rule may be non-fatal ONLY with a stated reason and a flip condition — the
+// same stale-vs-invalid split the capability ledger uses. Non-fatal still prints.
+
+function countOccurrences(html, needle) {
+  return html.split(needle).length - 1;
+}
+
+// A review card is a `tilt-card` container whose body ends in a "Google Review"
+// attribution; its star SVGs sit above that label inside the same container.
+function reviewCards(html) {
+  const starts = [];
+  const marker = /tilt-card/g;
+  let match;
+  while ((match = marker.exec(html)) !== null) starts.push(match.index);
+
+  const cards = [];
+  for (let i = 0; i < starts.length; i++) {
+    const segment = html.slice(starts[i], starts[i + 1] ?? html.length);
+    const labelAt = segment.indexOf("Google Review");
+    if (labelAt === -1) continue; // a tilt-card that is not a review card
+    cards.push({ stars: countOccurrences(segment.slice(0, labelAt), "lucide-star") });
+  }
+  return cards;
+}
+
+const PAYLOAD_RULES = [
+  {
+    route: "/",
+    label: "homepage showcase: >=3 review cards, none under 4 stars",
+    fatal: true,
+    check(html) {
+      const cards = reviewCards(html);
+      const errors = [];
+      if (cards.length < 3) {
+        errors.push(`only ${cards.length} review card(s) rendered, expected >=3`);
+      }
+      const low = cards.filter((card) => card.stars < 4);
+      if (low.length > 0) {
+        errors.push(
+          `${low.length} review card(s) under 4 stars (${low.map((c) => c.stars).join(", ")}) — ` +
+            "the section headline above them claims five-star reviews",
+        );
+      }
+      return errors;
+    },
+  },
+  {
+    route: "/reviews",
+    label: "reviews page carries review content",
+    fatal: true,
+    check(html) {
+      const attributions = countOccurrences(html, "Google Review");
+      return attributions >= 5
+        ? []
+        : [`only ${attributions} review attribution(s) rendered, expected >=5`];
+    },
+  },
+  {
+    route: "/tire-prices-cleveland",
+    label: "AEO price page carries live per-size floors",
+    // NON-FATAL, deliberately: this rule fails right now. The committed snapshot
+    // predates the first tirePriceFloors write, so it has 0 size rows while the
+    // live endpoint serves 9 (source: "snapshot", written same-day). The next
+    // prerender refresh captures them — the regen boots with a cold cache and
+    // takes exactly that snapshot path. FLIP TO fatal: true once a refresh has
+    // run and this passes; leaving it fatal today would only redden a shared gate.
+    fatal: false,
+    check(html) {
+      const sizes = new Set(html.match(/\b\d{3}\/\d{2}R\d{2}\b/g) ?? []);
+      return sizes.size >= 1
+        ? []
+        : ["no per-size tire rows — the page's proprietary data is invisible to crawlers"];
+    },
+  },
+];
+
+function inspectPayload(rule) {
+  const file = routeFile(rule.route);
+  if (!fs.existsSync(file)) return [`${rule.route}: missing ${path.relative(ROOT, file)}`];
+  return rule.check(fs.readFileSync(file, "utf8")).map((issue) => `${rule.route}: ${issue}`);
+}
+
 if (!fs.existsSync(PRERENDERED)) {
   console.error("[prerender:semantic] prerendered/ is missing");
   process.exit(1);
 }
 
 const failures = ROUTES.flatMap(inspect);
-if (failures.length) {
-  console.error(`[prerender:semantic] FAIL · ${failures.length} semantic issue(s)`);
-  for (const failure of failures) console.error(`  - ${failure}`);
+
+const payloadFatal = [];
+const payloadReported = [];
+for (const rule of PAYLOAD_RULES) {
+  const issues = inspectPayload(rule);
+  if (issues.length === 0) continue;
+  (rule.fatal ? payloadFatal : payloadReported).push(...issues);
+}
+
+if (payloadReported.length > 0) {
+  console.warn(
+    `[prerender:semantic] \u29D7 ${payloadReported.length} payload issue(s) reported, not fatal — ` +
+      "see the rule comment for the flip condition:",
+  );
+  for (const issue of payloadReported) console.warn(`  - ${issue}`);
+}
+
+const allFatal = [...failures, ...payloadFatal];
+if (allFatal.length) {
+  console.error(`[prerender:semantic] FAIL · ${allFatal.length} semantic issue(s)`);
+  for (const failure of allFatal) console.error(`  - ${failure}`);
   process.exit(1);
 }
 
-console.log(`[prerender:semantic] OK · ${ROUTES.length} key routes match current identity and metadata rules`);
+console.log(
+  `[prerender:semantic] OK · ${ROUTES.length} key routes match current identity and metadata rules; ` +
+    `${PAYLOAD_RULES.length} payload rules checked`,
+);
