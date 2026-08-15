@@ -149,6 +149,40 @@ the operator about sends that stopped.
 `verificationExpiresAt`. The other 36 cannot go stale because nothing dates them.
 A green ledger is not full coverage.
 
+### 1.2c The real structural defect: neither regen environment can produce a
+### complete tree
+
+Running the refresh to test the diagnosis produced the most valuable result of
+the run, because it half-failed:
+
+| payload | source | local regen (08-11) | CI regen (08-15) |
+|---|---|---|---|
+| per-size price floors | `shop_settings` (DB) | **lost** | fixed — 9 rows |
+| dynamic blog articles | `dynamic_articles` (DB) | **lost — 10 soft 404s** | 2 recovered, **8 still lost** |
+| /reviews review cards | Google Places API | 5 cards | **lost — 0 cards** |
+
+The CI refresh has no `GOOGLE_MAPS_API_KEY` — the workflow passes `DATABASE_URL`
+and four dummy auth values, nothing else — so `getGoogleReviews()` returns
+nothing and /reviews renders "No reviews match your filters" to crawlers. It went
+132,918 bytes / 5 review cards → 107,213 bytes / **0**. The homepage survived only
+because it falls back to `FALLBACK_REVIEWS`.
+
+**So every refresh silently trades one set of losses for another**, and which
+pages are broken depends only on where the regen ran. That is why the tree has
+oscillated for weeks: 9a6c5ef04 (07-09) broke the blogs, a weekly refresh fixed
+them, 6d99b9e3c (08-11) broke them again. Nothing ever compared the output to
+what the pages are supposed to contain — which is exactly what the payload rules
+now do, and they caught the /reviews regression on the first run.
+
+The /reviews page was restored from the pre-refresh version on this branch, and
+the workflow now passes `GOOGLE_MAPS_API_KEY` through if the secret exists
+(harmless while unset — empty string is today's behaviour). **Adding that secret
+is an operator action, and no refresh should run until it exists**, or reviews
+get stripped again.
+
+The tire-price rule is now **fatal**: the refresh proved the DB payload resolves
+in CI.
+
 ---
 
 ## 2 · Assumptions the evidence refuted

@@ -60,6 +60,13 @@ jobs:
         working-directory: apps/nickstire
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRERENDER_RO || secrets.DATABASE_URL }}
+          # Without this, every refresh STRIPS the live Google reviews from
+          # /reviews: getGoogleReviews() returns nothing, the page renders
+          # "No reviews match your filters", and 5 real review cards leave the
+          # crawler-visible HTML. Measured 2026-08-15 (133KB/5 cards -> 107KB/0).
+          # The homepage survives only because it falls back to FALLBACK_REVIEWS.
+          # Harmless while the secret is unset (empty string = today's behaviour).
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           # Boot-only dummies. server/_core/index.ts REQUIRED_ENV hard-exits
           # without OWNER_OPEN_ID / ADMIN_API_KEY / STATENOUR_SYNC_KEY and
           # enforces >=32 chars on the key material (the old 31-char

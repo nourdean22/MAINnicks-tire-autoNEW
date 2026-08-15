@@ -172,16 +172,12 @@ const PAYLOAD_RULES = [
   {
     route: "/tire-prices-cleveland",
     label: "AEO price page carries live per-size floors",
-    // NON-FATAL until the next refresh lands. The first draft of this comment
-    // blamed the snapshot predating the first tirePriceFloors write; that was
-    // wrong. Real cause, found by bisecting the committed tree: commit
-    // 6d99b9e3c (2026-08-11) rewrote all 344 prerendered files from a LOCAL
-    // `pnpm run regen` in which no DB-backed payload resolved, overwriting the
-    // healthy tree the 2026-08-10 CI refresh had produced. The same commit turned
-    // 10 dynamic blog articles into soft-404s (see the soft404 rule below).
-    // A CI refresh regenerates correctly — 8d31ca036 proves it. FLIP TO
-    // fatal: true once one has run and this passes.
-    fatal: false,
+    // FATAL as of 2026-08-15. It was reported-only while the committed tree
+    // carried zero rows; the refresh in run 31910225706 captured all 9, proving
+    // the DB-backed payload resolves in CI. Root cause of the outage was commit
+    // 6d99b9e3c (2026-08-11), a LOCAL `pnpm run regen` whose DB payloads did not
+    // resolve, overwriting the healthy tree CI had produced the day before.
+    fatal: true,
     check(html) {
       const sizes = new Set(html.match(/\b\d{3}\/\d{2}R\d{2}\b/g) ?? []);
       return sizes.size >= 1
