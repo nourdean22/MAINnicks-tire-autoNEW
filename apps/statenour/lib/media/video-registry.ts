@@ -36,8 +36,3 @@ export function videoIdForUrl(url: string | undefined): string | null {
   if (!url) return null;
   return urlToVideoId.get(url) ?? null;
 }
-
-/** Test seam. */
-export function __clearVideoRegistryForTest(): void {
-  urlToVideoId.clear();
-}

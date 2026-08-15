@@ -20,11 +20,25 @@
  * against. So this module produces EvidenceRef values FOR that ledger
  * instead.
  *
- * ★ AND claims.ts HAS ZERO IMPORTERS. It is built, typed, tested and
+ * ★ claims.ts HAS ZERO IMPORTERS. It is built, typed, tested and
  * completely unwired — the BUILT-TESTED-UNWIRED shape this repo has hit
  * four times before. Media is a good first producer precisely because
  * attaching a file is an unambiguous, operator-initiated observation:
  * there is no modelling judgment to get wrong on the way in.
+ *
+ * ★★ HONEST STATUS (self-audit, 2026-08-14) — READ THIS BEFORE CITING
+ * THIS MODULE AS "WIRED". The PR that introduced it claimed media was
+ * claims.ts's "first real producer". That is TRUE at the import level
+ * and FALSE in behaviour: `toEvidenceRef` and `canSupportAlone` have no
+ * caller outside tests, so no EvidenceRef is ever actually minted. Only
+ * `buildMediaProvenance` (the display model) is wired, via
+ * MediaProvenanceStrip.
+ *
+ * So this module is itself currently BUILT-TESTED-UNWIRED — the exact
+ * pattern its own header criticises. Recorded rather than quietly fixed
+ * because the wiring is a real design decision: minting evidence means
+ * deciding WHICH claims rest on media, and that belongs with whoever
+ * builds the claim-producing path, not with a media adapter.
  *
  * WHAT IS GENUINELY NEW HERE
  * Media has CAPABILITY states the claim ledger has no opinion about —

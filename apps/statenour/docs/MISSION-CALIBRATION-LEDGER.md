@@ -337,6 +337,55 @@ uncorroborated — do NOT act on it. Same call run 4 made on Ollama GPU tiers.
 needs open weights + local activation access; operator GPU is an Intel Arc
 iGPU (no CUDA) and both lanes are hosted APIs.
 
+## 2026-08-14 (later) — media workspace arc + VideoDB live verification (BDN-309..321)
+
+Executed on operator instruction across 8 merged PRs (#1570-#1578). Full
+contracts registered in [CURRENT-TRUTH.md](CURRENT-TRUTH.md). Highlights
+that change what a future scan should believe:
+
+| ID | Outcome |
+|---|---|
+| BDN-309..317 | Media workspace, all 8 plan items. ★ The plan's premise SURVIVED the gate — the first pasted plan in 25 to do so. Deliberately NO player dependency at any point: native `<video>` covers scrub/fullscreen/PiP/captions, and the two items where a library was "supposed to earn itself" (dock, focus panel) did not need one. |
+| BDN-318 | ★★★ `getTranscript` was DISCARDING every timing the API returns. Read `json.transcript ?? json.text` — `transcript` is not a key this endpoint returns — and threw away `word_timestamps`. Three features looked backend-blocked; the blocker was ours. |
+| BDN-319 | Upload lane (`/api/ai/chat/media-upload`). Video accepted on `lane:"upload"`, never `inline` — accepting it without the lane would have silently base64'd video into chat rows. |
+| BDN-320 | Transcript pane, five distinct empty states. Honest limit stated IN THE UI: url→videoId is session-scoped memory, so it says so after a reload rather than guessing a parse it could not verify. |
+| BDN-321 | ★★★ **The VideoDB client had NEVER worked** — 4 bugs (singular paths · `{data,success}` envelope · 3-step presigned upload · **refusal inside HTTP 200**). ★★★ **Account balance is $0.00** — the remaining blocker is COMMERCIAL, not code. |
+
+**★★★ SELF-AUDIT OF THIS ARC (operator asked; findings are about MY OWN
+work, and they were real):**
+
+1. **Four instruments shipped UNWIRED** — `summarizePersonaByLane`,
+   `summarizeEstimativeCompliance`, `toEvidenceRef`,
+   `reopenTargetFromKey` had no caller outside tests. The BDN-313 PR
+   claimed media was claims.ts's "first real producer": true at the
+   import level, FALSE in behaviour — nothing mints an EvidenceRef.
+   Corrected in the source header rather than quietly patched.
+   `scripts/report-nick-instruments.ts` now makes the two censuses
+   runnable.
+2. **★★★ A real defect in BDN-301's confound guard.** Nothing in the app
+   records `taskClass` — judge-eval persists only `judgedBy` + `rubric`.
+   Every row therefore arrives "unknown", both lanes get an identical
+   one-bucket mix, total-variation distance is 0, and the guard reported
+   `comparable: true`. **It would have certified a completely
+   UNSTRATIFIED comparison as safe to rank on** — the exact failure it
+   exists to prevent, reached from the opposite direction. Fixed: an
+   all-unknown census is never comparable. Pinned by test.
+3. **Dead code deleted**: `getTranscriptText` (a back-compat shim for
+   callers that did not exist) and `__clearVideoRegistryForTest` (a test
+   seam no test used).
+4. **Docs were skipped across 8 PRs** — CURRENT-TRUTH had zero mention of
+   the arc until this audit. `check:stale-docs`: 0 critical.
+
+**Standing lesson: a measurement that cannot be invoked measures
+nothing.** Grep for IMPORTERS of every new read model before calling it
+shipped — this session criticised claims.ts for exactly this and then
+reproduced it four times in one arc.
+
+**★★★ LANDMINE — BDN-310:** the Prisma client now TYPES columns
+(`valid_from`/`valid_until`/`last_verified_at`/`superseded_by_id`) that
+the database does NOT have. The migration is authored and deliberately
+NOT applied. Apply it before any code reads those fields.
+
 ## Calibration rules for the next scan
 
 1. Promote a finding to `HIGH` only after observing behavior or a production

@@ -139,3 +139,43 @@ describe("persona-lane-census · cells", () => {
     expect(c.disclosures.join(" ")).toContain("no resolvable provider");
   });
 });
+
+describe("persona-lane-census · the unstratified trap (self-audit fix)", () => {
+  it("refuses to call an ALL-UNKNOWN comparison comparable", () => {
+    // Nothing in the app records taskClass today (judge-eval persists
+    // only judgedBy + rubric). Every row therefore arrives "unknown",
+    // both lanes get an identical one-bucket mix, and total-variation
+    // distance is 0 — which the original guard read as "safe to
+    // compare". It would have certified a completely unstratified
+    // comparison. Identically-stratified and not-stratified-at-all are
+    // different facts.
+    const data: JudgmentRow[] = [
+      ...rows(10, row("ollama:deepseek-v4-flash", "unknown", { tone: 5 })),
+      ...rows(10, row("anthropic:claude-opus-5", "unknown", { tone: 9 })),
+    ];
+    const c = summarizePersonaByLane(data);
+    expect(c.mixDivergence).toBe(0); // the metric still says "identical"
+    expect(c.comparisons.find((x) => x.axis === "tone")?.comparable).toBe(false);
+    expect(c.disclosures.join(" ")).toContain("UNSTRATIFIED");
+  });
+
+  it("becomes comparable once ANY row carries a real taskClass", () => {
+    const data: JudgmentRow[] = [
+      ...rows(10, row("ollama:x", "quick_check", { tone: 6 })),
+      ...rows(10, row("anthropic:y", "quick_check", { tone: 8 })),
+    ];
+    const c = summarizePersonaByLane(data);
+    expect(c.comparisons.find((x) => x.axis === "tone")?.comparable).toBe(true);
+  });
+
+  it("still refuses when one lane is entirely unknown and the other is not", () => {
+    // Mixed case: the divergence metric would flag this anyway, but the
+    // stratification check must not accidentally re-enable it.
+    const data: JudgmentRow[] = [
+      ...rows(10, row("ollama:x", "unknown", { tone: 6 })),
+      ...rows(10, row("anthropic:y", "strategy", { tone: 9 })),
+    ];
+    const c = summarizePersonaByLane(data);
+    expect(c.comparisons.find((x) => x.axis === "tone")?.comparable).toBe(false);
+  });
+});
