@@ -381,10 +381,21 @@ nothing.** Grep for IMPORTERS of every new read model before calling it
 shipped — this session criticised claims.ts for exactly this and then
 reproduced it four times in one arc.
 
-**★★★ LANDMINE — BDN-310:** the Prisma client now TYPES columns
-(`valid_from`/`valid_until`/`last_verified_at`/`superseded_by_id`) that
-the database does NOT have. The migration is authored and deliberately
-NOT applied. Apply it before any code reads those fields.
+**BDN-310 — APPLIED 2026-08-14 (landmine closed).** `prisma migrate
+deploy` against prod Neon; `migrate status` now reads "Database schema is
+up to date!" with 48/48 applied. Post-apply probe: 4/4 columns, FK, all 3
+indexes · 25,381 rows unchanged · pgvector installed.
+
+★★★ **TWO defects caught by reading BEFORE running — the whole point of
+prod-db-guard.** (1) The migration hardcoded `"BrainMemory"`; the Prisma
+model carries `@@map("brain_memories")`, so EVERY statement would have
+failed against prod. (2) It used a `DO $$ ... $$` guard for the FK, and
+`scripts/apply-pending-migration.ts` splits on `;` with a parser whose own
+comment says it assumes no semicolons inside DO blocks — the block would
+have shattered into invalid fragments while the earlier ALTERs landed,
+i.e. a partially-applied migration. Rewritten as DROP-IF-EXISTS + ADD.
+**Neither defect was reachable by reading the migration alone; both
+needed the live table and the runner's source.**
 
 ## Calibration rules for the next scan
 
