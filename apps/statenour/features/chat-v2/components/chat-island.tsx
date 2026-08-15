@@ -52,7 +52,6 @@ export function ChatIsland() {
   const historyDrawerOpen = useChatUiStore((state) => state.historyDrawerOpen);
   const posture = useChatUiStore((state) => state.posture);
   const depth = useChatUiStore((state) => state.depth);
-  const actionPermission = useChatUiStore((state) => state.actionPermission);
   const privateMode = useChatUiStore((state) => state.privateMode);
   const setHistoryDrawerOpen = useChatUiStore((state) => state.setHistoryDrawerOpen);
   const setActiveConversationId = useChatUiStore((state) => state.setActiveConversationId);
@@ -222,9 +221,6 @@ export function ChatIsland() {
             {" · "}
             <span className={depth !== "auto" ? "text-gold" : undefined}>{depth === "auto" ? "auto depth" : depth}</span>
             {" · "}
-            <span className={actionPermission === "execute" ? "text-gold" : actionPermission === "read" ? "text-sky-300" : undefined}>
-              {actionPermission === "draft" ? "draft only" : actionPermission === "read" ? "read access" : "execute enabled"}
-            </span>
             {privateMode && <span className="text-gold"> · PRIVATE</span>}
           </p>
         </div>

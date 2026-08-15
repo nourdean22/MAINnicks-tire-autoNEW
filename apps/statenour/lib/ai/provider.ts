@@ -1077,6 +1077,47 @@ export async function aiChat(
     if (p.available() && !toTry.includes(p)) toTry.push(p);
   }
 
+  // 2026-08-15 · LAST-RESORT RESCUE HOP.
+  //
+  // Two correct decisions collided. TASK_ROUTING_PREFERENCES (2026-07-12)
+  // keeps openrouter as the 2nd hop explicitly "so a cooldown never
+  // dead-ends a turn". The cost firewall (2026-08-11) then classed every
+  // non-ollama provider as `metered` and filtered it out of normal chat.
+  // The firewall runs on the list the failover loop iterates, so the 2nd
+  // hop stopped existing and a cooldown DOES dead-end a turn.
+  //
+  // Live receipts, statenour-web 2026-08-15T22:52Z, two turns ~10s apart:
+  //   provider.failed   provider="ollama" error="This operation was aborted"
+  //   provider.all_failed  tried=["ollama"] failureCount=1
+  //   provider.garbage  provider="ollama" chars=0 preview=""
+  //   provider.all_failed  tried=["ollama"] failureCount=1
+  // Four other provider keys were configured and idle on that service.
+  //
+  // This appends metered providers as a TAIL, so they are reached only
+  // after every zero-incremental candidate has actually been tried and
+  // failed. A healthy turn returns from the ollama hop and never touches
+  // them — the $0-incremental directive holds for all normal traffic. The
+  // only spend is in place of a turn that was otherwise already dead.
+  //
+  // OFF by default: enabling it authorizes real per-token spend, which is
+  // the operator's call, not this file's. Set NICK_FAILOVER_RESCUE=1.
+  if (
+    process.env.NICK_FAILOVER_RESCUE === "1" &&
+    isCostFirewallOn() &&
+    !(opts.allowMetered ?? false)
+  ) {
+    const rescue = orderedProviders.filter(
+      (p) => p.available() && !toTry.includes(p),
+    );
+    if (rescue.length > 0) {
+      log.info("provider.rescue_armed", {
+        funded: toTry.map((p) => p.name),
+        rescue: rescue.map((p) => p.name),
+      });
+      for (const p of rescue) toTry.push(p);
+    }
+  }
+
   // v10.0.184 · timeout + maxOutputTokens task-aware.
   //
   // Pre-fix: PROVIDER_TIMEOUT was 45s for ALL tasks. Long-form
