@@ -1,7 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Plus, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface HQProps {
@@ -13,13 +12,22 @@ export function HQ({ onNavigate }: HQProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-medium">Headquarters</h3>
-        <Button onClick={() => onNavigate("studio")} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Enter Studio
-        </Button>
-      </div>
+      {/*
+        This is the TAIL SECTION OF TODAY, not a screen of its own — HQ has
+        exactly one importer (Today.tsx) and no view key. It used to open with an
+        "Headquarters" heading and its own "Enter Studio" button, which made it
+        read as a separate destination and gave the Today screen a THIRD
+        context-free door to Create (alongside "New content" and "Reel" directly
+        above it). The heading now describes what the section actually contains,
+        and creation is reached by the one canonical control.
+
+        `onNavigate` is still required: PipelineHealthCard below uses it for the
+        reel-recovery link, which carries real intent rather than duplicating a
+        door.
+      */}
+      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+        Creation brief &amp; pipeline
+      </h3>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="col-span-full">
@@ -136,12 +144,22 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
           <div className="grid gap-4 md:grid-cols-4">
             <div className="p-4 rounded border bg-card">
               <div className="text-sm font-medium text-muted-foreground mb-1">Storage</div>
+              {/* The flags behind these were INVERTED for the shape production
+                  runs — see server/routers/instagramAdmin.ts. With them corrected
+                  the states are right, but the old failure copy still named the
+                  wrong requirement: it listed the CDN variable as mandatory when
+                  only S3_BUCKET is enforced (assertDurableStorageForGeneration),
+                  sending the operator hunting for a CloudFront distribution they
+                  do not need. It also called the degraded case ephemeral, when
+                  the real degradation is a 24h presigned URL. */}
               <div className="flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${health.storage.configured ? "bg-green-500" : "bg-red-500"}`} />
-                <span>{health.storage.configured ? "Configured" : "Missing S3/CF"}</span>
+                <span>{health.storage.configured ? "Durable bucket" : "No durable bucket"}</span>
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                {health.storage.permanentUrls ? "Permanent URLs Enabled" : "Ephemeral Only"}
+                {health.storage.permanentUrls
+                  ? health.storage.cdn ? "Permanent URLs via CDN" : "Permanent URLs via the app"
+                  : "Expiring URLs — set S3_ENDPOINT or CLOUDFRONT_DOMAIN"}
               </div>
             </div>
 

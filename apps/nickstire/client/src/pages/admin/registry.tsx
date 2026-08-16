@@ -176,11 +176,30 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
   },
   {
     id: "content",
-    label: "Content & AI",
+    /**
+     * "Content & AI" read as a second, generic Instagram composer sitting beside
+     * the Instagram section — the operator's own words were "which internal
+     * system do you want to use?". It is nothing of the kind. Its nine
+     * sub-surfaces are Articles, Notifications, AI Generator, GBP Posts, Command
+     * Queue, Generation Log, Specials and Prompt Health: the OWNED properties —
+     * nickstire.org/blog, the site notification ticker, Google Business Profile,
+     * coupons — plus an AI-safety eval harness. It generates no Instagram posts
+     * and shares no procedure, generator or table with the Instagram composer.
+     *
+     * So the collision was in the WORD "content", not in the function. Renamed to
+     * name the job. `id` and every alias are unchanged, so deep links, the
+     * command palette and ?tab=content all keep working.
+     */
+    label: "Website & Local",
     icon: <Sparkles className="w-4 h-4" />,
     component: ContentSection,
-    aliases: ["content", "content-and-ai", "specials", "coupons", "qa", "seoengine"],
-    keywords: ["content", "post", "social", "blog", "ai", "seo", "specials"],
+    // "gbp" is deliberately NOT here: the `growth` section already claims that
+    // alias, and admin-registry-integrity.test.ts enforces one owner per alias.
+    // Adding it broke that pre-existing test — caught by self-audit, not by me,
+    // because I had only been running server/*.test.ts and never
+    // client/src/__tests__/.
+    aliases: ["content", "content-and-ai", "website", "specials", "coupons", "qa", "seoengine", "blog"],
+    keywords: ["website", "blog", "article", "notification", "gbp", "google business", "seo", "specials", "coupons", "prompt health", "content"],
     group: "Reach",
     priority: 20,
     showInSidebar: true,

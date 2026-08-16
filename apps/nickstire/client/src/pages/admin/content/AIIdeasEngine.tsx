@@ -79,6 +79,11 @@ export function AIIdeasEngine() {
 
   // Build ideas from intelligence data
   const ideas: ContentIdea[] = [];
+  /** Did the three intelligence reads actually RESOLVE? Distinguishes an empty
+   *  payload from an unread one, so a 0 can name its own cause. */
+  const intelligenceRead = !chatError && !compError && !contentError
+    && !chatLoading && !compLoading && !contentLoading
+    && (chatFunnel !== undefined || competitor !== undefined || contentPerf !== undefined);
 
   // The 3 intelligence procedures (chatFunnel, competitorGap, contentPerformance)
   // return loose shapes from the analytics layer — we read from any of several
@@ -146,6 +151,8 @@ export function AIIdeasEngine() {
   const season = getMonthSeason();
   const seasonalIdeas = SEASONAL_TOPICS[season] || [];
 
+  const intelligenceIdeaCount = ideas.filter((i) => i.source !== "seasonal").length;
+
   // Deduplicate: don't show seasonal ideas if intelligence already covered them
   const existingTopicLower = new Set(ideas.map(i => i.topic.toLowerCase()));
   seasonalIdeas.forEach(s => {
@@ -193,7 +200,15 @@ export function AIIdeasEngine() {
         />
         <StatCard
           label="From Intelligence"
-          value={ideas.filter(i => i.source !== "seasonal").length}
+          // A ZERO here needs a cause. `pickArray` probes several possible
+          // property names on each intelligence payload and silently yields []
+          // when none match — and none DO match today: intelligence.chatFunnel
+          // returns a funnel ({opened, engaged, sharedInfo, convertedToLead,
+          // booked, dropOffStage}), with no questions or topics in it at all. So
+          // this counter has been reading a permanent 0 that looks measured. The
+          // suffix distinguishes "read it, no topics in the payload" from "never
+          // read it".
+          value={`${intelligenceIdeaCount}${intelligenceIdeaCount === 0 ? (intelligenceRead ? " (payloads carry no topics)" : " (not read)") : ""}`}
           icon={<TrendingUp className="w-4 h-4" />}
           color="text-blue-400"
         />

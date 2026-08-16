@@ -99,7 +99,19 @@ export default function Settings() {
           ? `Configured, but the Graph API rejected the token: ${live.error ?? "unknown error"}`
           : "Configured — no live verification result is available yet.";
   const tokenReady = Boolean(connection.data?.token?.present);
-  const storageReady = Boolean(health.data?.storage?.configured && health.data?.storage?.permanentUrls);
+  /**
+   * THREE storage states, not two.
+   *
+   * `configured && permanentUrls` collapsed into one boolean, so the plain-AWS
+   * shape (S3_BUCKET set, no S3_ENDPOINT, no CloudFront — permanent=false because
+   * storagePut hands back a 24h presigned URL) rendered the NO-BUCKET copy while
+   * the bucket was set and generation would proceed. Writing one failure string
+   * for a two-flag condition is what produced that; self-audit caught it as a
+   * NEW falsehood introduced by the fix for the old one.
+   */
+  const storageState: "none" | "expiring" | "permanent" = !health.data?.storage?.configured
+    ? "none"
+    : health.data?.storage?.permanentUrls ? "permanent" : "expiring";
   const generatorReady = Boolean(health.data?.generator?.configured);
 
   return (
@@ -112,7 +124,26 @@ export default function Settings() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatusCard label="Meta connection" state={metaState} detail={metaDetail} icon={Server} />
         <StatusCard label="Access token" state={tokenReady ? "ready" : "attention"} detail={tokenReady ? "A persisted token is present. Its raw value is hidden." : "No persisted Meta access token is available."} icon={KeyRound} />
-        <StatusCard label="Permanent media" state={storageReady ? "ready" : "attention"} detail={storageReady ? "S3 and CloudFront are configured for Meta-readable permanent URLs." : "S3_BUCKET and CLOUDFRONT_DOMAIN must both be configured."} icon={Database} />
+        {/* Both strings used to be wrong for the shape production actually runs.
+            The success copy asserted CloudFront was configured when it is
+            deliberately absent, and the failure copy demanded CLOUDFRONT_DOMAIN
+            when only S3_BUCKET is enforced (assertDurableStorageForGeneration).
+            CloudFront is a bandwidth offload, not a permanence requirement — so
+            name the DELIVERY PATH instead of listing env vars. */}
+        <StatusCard
+          label="Permanent media"
+          state={storageState === "permanent" ? "ready" : "attention"}
+          detail={
+            storageState === "permanent"
+              ? health.data?.storage?.cdn
+                ? "Permanent Meta-readable URLs, delivered through the CloudFront CDN."
+                : "Permanent Meta-readable URLs, served through the app from S3. A CDN is optional."
+              : storageState === "expiring"
+                ? "Durable bucket, but its URLs EXPIRE after 24h (presigned). Meta stores the URL, so set S3_ENDPOINT for app-proxied permanent URLs, or CLOUDFRONT_DOMAIN for a CDN."
+                : "No durable bucket — set S3_BUCKET. Generation refuses to spend credits without it."
+          }
+          icon={Database}
+        />
         <StatusCard label="Media generation" state={generatorReady ? "ready" : "attention"} detail={generatorReady ? "The configured media provider has credentials." : "The Reel/media generation provider is not fully configured."} icon={ImageIcon} />
       </div>
 

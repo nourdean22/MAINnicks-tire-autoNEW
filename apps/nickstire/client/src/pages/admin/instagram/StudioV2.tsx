@@ -55,6 +55,11 @@ function initialFromHandoff() {
     format: handoff.format && handoff.format !== "reel" && ["post", "carousel", "story", "ad"].includes(handoff.format)
       ? (handoff.format as Exclude<InstagramFormat, "reel">)
       : null,
+    // "reel" is not a value the STATIC format state can hold, but it is a real
+    // operator intent that was being silently discarded here — the only way into
+    // the reel lane was a second tap on this screen. Surfaced as its own flag so
+    // a caller can ask for the reel wizard directly.
+    startInReel: handoff.format === "reel",
     objective: handoff.objective && (INSTAGRAM_OBJECTIVES as readonly string[]).includes(handoff.objective)
       ? (handoff.objective as InstagramObjective)
       : null,
@@ -110,11 +115,11 @@ function gateClass(gate: string) {
   return "border-amber-500/40 bg-amber-500/10 text-amber-400";
 }
 
-export default function StudioV2() {
+export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish" | "today") => void } = {}) {
   // Handoff from Community/Insights/Today — consumed exactly once, before
   // first render, so a preloaded source is indistinguishable from a typed one.
   const [handoff] = useState(() => initialFromHandoff());
-  const [showReelStudio, setShowReelStudio] = useState(false);
+  const [showReelStudio, setShowReelStudio] = useState(handoff?.startInReel ?? false);
   const [sourceType, setSourceType] = useState<InstagramSourceType>(handoff?.sourceType ?? "manual_idea");
   const [sourceRecordId, setSourceRecordId] = useState(handoff?.recordId ?? "");
   const [sourceDetail, setSourceDetail] = useState(handoff?.detail ?? "");
@@ -357,12 +362,17 @@ export default function StudioV2() {
             rendered with no props at all, so the selected record was dropped at
             the boundary and the reel wizard reopened at "what is the source of
             this post?" with an empty raw-record-id box. */}
+        {/* onNavigate was NOT passed, and Studio.tsx guards its exit on the
+            prop being present — so after successfully staging a reel the
+            operator was left sitting in the wizard with only a toast, with no
+            indication the work had landed in Publish. */}
         <LegacyStudio
           initialSource={{
             type: sourceType,
             recordId: sourceRecordId || undefined,
             detail: sourceDetail || undefined,
           }}
+          onNavigate={(legacyTab) => onNavigate?.(legacyTab === "queue" ? "publish" : "today")}
         />
       </div>
     );

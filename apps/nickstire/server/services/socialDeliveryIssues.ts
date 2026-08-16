@@ -13,6 +13,7 @@
  *    a defect. Painting deliberate stops red trains the operator to ignore red.
  */
 import { createLogger } from "../lib/logger";
+import { durableStorageConfigured, ephemeralStorageOverride, servesPermanentUrls } from "../storage";
 
 const log = createLogger("services:social-delivery-issues");
 
@@ -41,6 +42,8 @@ export interface SocialDeliveryIssue {
 export interface DeliveryFacts {
   storageConfigured: boolean;
   permanentUrls: boolean;
+  /** Explicit opt-in to ephemeral output — generation PROCEEDS without a bucket. */
+  ephemeralOverride: boolean;
   metaConfigured: boolean;
   /** null = we could not ASK Meta (transport), which is not "rejected". */
   metaLive: boolean | null;
@@ -67,7 +70,19 @@ const SEVERITY_ORDER: Record<DeliveryIssueSeverity, number> = { blocker: 0, warn
 export function deriveDeliveryIssues(f: DeliveryFacts): SocialDeliveryIssue[] {
   const issues: SocialDeliveryIssue[] = [];
 
-  if (!f.storageConfigured) {
+  if (!f.storageConfigured && f.ephemeralOverride) {
+    // Not a blocker: assertDurableStorageForGeneration has TWO passing
+    // conditions and this is the second one, so generation is running. It is
+    // still LOSING files on every restart, which is a warning, not calm.
+    issues.push({
+      key: "storage_ephemeral_by_override",
+      layer: "asset_hosting",
+      severity: "warning",
+      reason: "Generation is running WITHOUT durable storage by explicit opt-in — every generated file is lost on the next deploy or restart.",
+      evidence: "S3_BUCKET unset and REEL_ALLOW_EPHEMERAL_STORAGE=true (the second passing branch of assertDurableStorageForGeneration).",
+      nextAction: "Set S3_BUCKET to keep output, or leave the override if this is a throwaway environment.",
+    });
+  } else if (!f.storageConfigured) {
     issues.push({
       key: "storage_bucket_not_connected",
       layer: "asset_hosting",
@@ -330,9 +345,17 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
 
   return {
     // Matches enforcement, not display: storage.ts hard-requires S3_BUCKET
-    // only; CLOUDFRONT_DOMAIN is the permanent-URL upgrade.
-    storageConfigured: !!process.env.S3_BUCKET,
-    permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
+    // only; CLOUDFRONT_DOMAIN is a CDN offload, NOT the permanence condition.
+    //
+    // `permanentUrls` was `!!CLOUDFRONT_DOMAIN` — the INVERSE of the proxied-reads
+    // path. The issue text below had already been reasoned down to severity
+    // "info" with the correct explanation, but the flag feeding it stayed wrong,
+    // so prod raised a storage_urls_not_permanent issue while serving permanent
+    // proxied URLs. Read the storage module's own authority instead of keeping a
+    // second definition here.
+    storageConfigured: durableStorageConfigured(),
+    permanentUrls: servesPermanentUrls(),
+    ephemeralOverride: ephemeralStorageOverride(),
     metaConfigured,
     metaLive,
     metaLiveError,

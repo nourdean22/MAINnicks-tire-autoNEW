@@ -74,6 +74,47 @@ export function durableStorageConfigured(): boolean {
 }
 
 /**
+ * Does a stored object get a URL that stays valid forever?
+ *
+ * This mirrors `storagePut`'s ACTUAL branching, which has two permanent paths
+ * and one expiring one:
+ *
+ *   CLOUDFRONT_DOMAIN set          -> https://{cdn}/{key}                 PERMANENT
+ *   usesProxiedReads() (S3_ENDPOINT
+ *   set, CLOUDFRONT_DOMAIN unset)  -> {SITE_URL}/generated/{key}          PERMANENT
+ *   neither                        -> presigned, expiresIn 86400          EXPIRES
+ *
+ * It exists because two health surfaces were computing permanence as
+ * `!!CLOUDFRONT_DOMAIN`, which is the exact INVERSE of the proxied-reads
+ * condition — so production (S3 set, CloudFront deliberately absent) reported
+ * "Ephemeral Only" while serving permanent proxied URLs. A health check must not
+ * carry its own second definition of a condition the module already decides;
+ * this is that single definition.
+ */
+export function servesPermanentUrls(): boolean {
+  return !!process.env.CLOUDFRONT_DOMAIN || usesProxiedReads();
+}
+
+/**
+ * Has the operator explicitly accepted ephemeral output?
+ *
+ * `assertDurableStorageForGeneration` has TWO passing conditions — a durable
+ * bucket, OR this override — but every health surface only ever read the first.
+ * So in this state the admin showed a red storage blocker while generation ran
+ * perfectly well, which is the same class of false alarm as the CloudFront
+ * inversion: a status surface carrying its own partial copy of a decision the
+ * module already makes.
+ *
+ * It is deliberately a SEPARATE predicate rather than folded into
+ * `durableStorageConfigured()`. Storage genuinely is not durable here — output IS
+ * lost on the next restart — so the honest report is "running, and losing files",
+ * not "healthy".
+ */
+export function ephemeralStorageOverride(): boolean {
+  return process.env.REEL_ALLOW_EPHEMERAL_STORAGE === "true";
+}
+
+/**
  * Precondition for anything that SPENDS money to produce media (Veo clips,
  * paid image gen): refuse to start unless the result can be durably kept.
  * Otherwise the pipeline pays for a clip, writes it to ephemeral disk, and a

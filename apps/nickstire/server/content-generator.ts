@@ -326,7 +326,20 @@ export async function saveGeneratedArticle(article: GeneratedArticle): Promise<n
       sectionsJson: JSON.stringify(article.sections),
       relatedServicesJson: JSON.stringify(article.relatedServices),
       tagsJson: JSON.stringify(article.tags),
-      status: "published",
+      // DRAFT, not published.
+      //
+      // This wrote "published", overriding the column's own
+      // .default("draft") (drizzle/schema.ts) — so every AI-generated article
+      // went LIVE on nickstire.org/blog and into the sitemap the moment it was
+      // generated, while the admin told the operator it had a draft to review.
+      // ContentManager renders a "Drafts" counter, a draft filter and an
+      // approve control for exactly this workflow; the writer skipped all three,
+      // so the counter could never be anything but zero for AI articles.
+      //
+      // Neither caller wants immediate publication: generateArticle is an admin
+      // mutation that RETURNS the article, and runContentGeneration is a batch
+      // generator. Publishing is one click away in the UI and now requires it.
+      status: "draft",
       generatedBy: "ai",
       publishDate: today,
     });
@@ -363,7 +376,11 @@ export async function saveGeneratedNotifications(notifications: GeneratedNotific
         ctaHref: notif.ctaHref,
         icon: notif.icon,
         season: notif.season as any,
-        isActive: 1,
+        // Same defect on the ticker: generated notifications went live on the
+        // PUBLIC NotificationBar immediately. ContentManager already renders an
+        // ACTIVE/INACTIVE badge and an activate toggle per row — this now starts
+        // inactive so that control means something.
+        isActive: 0,
         generatedBy: "ai",
         priority: 0,
       });
@@ -402,11 +419,28 @@ export async function getAllDynamicArticles() {
     .limit(500);
 }
 
+/**
+ * PUBLISHED only — this feeds a PUBLIC route.
+ *
+ * The status filter was missing, so this returned a row for any slug regardless
+ * of status while its sibling `getPublishedArticles` (the listing) filtered to
+ * published. That asymmetry was harmless only because the AI generator wrote
+ * every article as "published" on creation. Gating the generator to "draft"
+ * turned it into a real hole: an unreviewed AI article stayed unlisted and out of
+ * the sitemap, yet was fully readable at its guessable slug URL — so the review
+ * step it now waits for could be bypassed by knowing the title. A `rejected`
+ * article was equally readable.
+ *
+ * Caught by self-audit, which correctly refuted the claim that drafts are "not on
+ * the public blog until approved". Only consumer is client BlogPost.tsx (the
+ * public page), which already renders null for a missing row, so a draft now
+ * behaves exactly like a nonexistent one.
+ */
 export async function getDynamicArticleBySlug(slug: string) {
   const db = await getDb();
   if (!db) return null;
   const results = await db.select().from(dynamicArticles)
-    .where(eq(dynamicArticles.slug, slug))
+    .where(and(eq(dynamicArticles.slug, slug), eq(dynamicArticles.status, "published")))
     .limit(1);
   return results[0] ?? null;
 }

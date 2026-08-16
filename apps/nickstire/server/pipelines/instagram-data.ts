@@ -74,6 +74,18 @@ export interface ContentPerformanceReport {
   bestTimes: BestPostingTime[];
   followerGrowth: FollowerGrowth;
   recommendations: string[];
+  /**
+   * Why `recommendations` is empty, or null when it is empty for the honest
+   * reason (nothing to say).
+   *
+   * The LLM failure used to be CAUGHT here and returned as
+   * `recommendations: ["Unable to generate recommendations. Check pipeline
+   * logs."]` — a successful HTTP 200 whose payload rendered a pipeline error as
+   * a bullet in a list titled "Evidence-based recommendations". The client could
+   * not tell failure from advice: `isError` was never true, so its unavailable
+   * branch was unreachable for the failure that actually happens.
+   */
+  recommendationsError: string | null;
 }
 
 // ─── DAY NAMES ──────────────────────────────────────────
@@ -652,6 +664,7 @@ export async function generatePerformanceReport(): Promise<ContentPerformanceRep
 
   // Generate AI recommendations based on the data
   let recommendations: string[] = [];
+  let recommendationsError: string | null = null;
   try {
     const dataContext = JSON.stringify({
       topPostThemes: topPosts.flatMap(p => p.themes),
@@ -699,7 +712,11 @@ Focus on: posting frequency, content types, timing, engagement tactics, and cont
     }
   } catch (error) {
     log.error("[Instagram Pipeline] Recommendation generation failed:", error);
-    recommendations = ["Unable to generate recommendations. Check pipeline logs."];
+    // Report the failure AS a failure. Leaving the array empty and naming the
+    // cause lets the surface distinguish "the model could not answer" from "the
+    // model had nothing to add" — previously identical to the operator.
+    recommendations = [];
+    recommendationsError = error instanceof Error ? error.message : String(error);
   }
 
   return {
@@ -708,5 +725,6 @@ Focus on: posting frequency, content types, timing, engagement tactics, and cont
     bestTimes,
     followerGrowth,
     recommendations,
+    recommendationsError,
   };
 }

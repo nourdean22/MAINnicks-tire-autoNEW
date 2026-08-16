@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
+import { readStatus, readStatusOfList, unavailableCopy } from "@/lib/queryState";
 import { 
   MessageSquare, 
   ArrowRight, 
@@ -38,11 +39,25 @@ export function Inbox({ onNavigate }: InboxProps) {
   const [commentFilter, setCommentFilter] = useState<"all" | "unanswered" | "replied">("all");
 
   // Load Content Opportunities from reviews
-  const { data: optData, isLoading: isOptLoading } = trpc.reviewReplies.getContentClusters.useQuery();
+  // `isError` was not even destructured here, so a FAILED cluster read fell
+  // through to "No prominent themes found right now." — a confident empty from a
+  // read that never succeeded.
+  const optQuery = trpc.reviewReplies.getContentClusters.useQuery();
+  const { data: optData } = optQuery;
   const clusters = optData?.clusters;
+  const optStatus = readStatus(optQuery, (d) => {
+    const c = (d as { clusters?: unknown[] } | undefined)?.clusters;
+    return Array.isArray(c) && c.length === 0;
+  });
 
   // Load Live Post Feed
-  const { data: posts, isLoading: loadingFeed, isError: feedError, error: feedErrorDetail, refetch: refetchFeed } = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
+  const feedQuery = trpc.instagramAdmin.getLiveFeed.useQuery({ limit: 12 });
+  const { data: posts, isLoading: loadingFeed, isError: feedError, error: feedErrorDetail, refetch: refetchFeed } = feedQuery;
+  // The isError branch below is already honest. This catches the OTHER
+  // not-read state: an offline/paused query leaves isError AND isLoading false
+  // with data undefined, which fell through to "No posts cached. Make sure
+  // Instagram credentials are set." — blaming a cause it never established.
+  const feedStatus = readStatusOfList(feedQuery);
 
   // Load Comments for selected post
   const { data: commentsRes, isLoading: loadingComments, refetch: refetchComments } = trpc.instagramAdmin.getComments.useQuery(
@@ -187,9 +202,24 @@ export function Inbox({ onNavigate }: InboxProps) {
                   </button>
                 );
               })
+            ) : feedStatus.state === "unavailable" ? (
+              <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-3">
+                <AlertTriangle className="h-6 w-6 text-amber-500" />
+                <p className="text-sm">{unavailableCopy(feedStatus.reason)}</p>
+                <Button size="sm" variant="outline" onClick={() => refetchFeed()}>Retry</Button>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-4">
-                <p className="text-sm text-muted-foreground">No posts cached. Make sure Instagram credentials are set.</p>
+                {/* The procedure returned an empty list. Deliberately NOT phrased
+                    as "the cache was read and is empty" — that overclaims, and
+                    was corrected in self-audit. server/instagram.ts loadCache()
+                    returns null BOTH when instagram-cache.json is absent AND when
+                    reading or parsing it throws (the catch logs and falls
+                    through), and getInstagramPosts turns either into []. So the
+                    client cannot distinguish "empty cache" from "unreadable
+                    cache" — it can only report what it received. Sync is still
+                    the right next action for both. */}
+                <p className="text-sm text-muted-foreground">The feed cache returned no posts.</p>
                 <Button size="sm" onClick={() => syncFeed.mutate()} disabled={syncFeed.isPending}>
                   Sync Feed Cache
                 </Button>
@@ -478,10 +508,15 @@ export function Inbox({ onNavigate }: InboxProps) {
           <CardDescription>We analyzed recent reviews to find topics your customers care about.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isOptLoading ? (
+          {optStatus.state === "loading" ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span>Analyzing insights...</span>
+            </div>
+          ) : optStatus.state === "unavailable" ? (
+            <div className="flex items-center gap-2 py-4 text-sm">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+              <span>{unavailableCopy(optStatus.reason)}</span>
             </div>
           ) : clusters && clusters.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

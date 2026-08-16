@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink, TRPCClientError } from "@trpc/client";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -26,6 +26,21 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: true, // refresh when admin tabs back in
       staleTime: 10_000,            // 10s — most data is acceptable that fresh
       gcTime: 5 * 60_000,           // keep cached data 5 min after unmount
+      /**
+       * ONE retry, not query-core's default of three.
+       *
+       * The per-request ceiling below is armed INSIDE the fetch, so every retry
+       * attempt gets a fresh timer. At the default 3 retries the worst case was
+       * 4 x 120s plus backoff — about 8 minutes — and the spinner survived all of
+       * it, because query-core's `failed` transition does not clear fetchStatus:
+       * it stays "fetching", which every loading branch in this admin reads as
+       * "still working". A per-attempt bound is not a bound on the SPINNER unless
+       * the attempt count is bounded too.
+       *
+       * One retry keeps the genuine benefit (a single transient blip recovers
+       * silently) while capping the visible worst case at roughly 2 x 120s + 1s.
+       */
+      retry: 1,
     },
   },
 });
@@ -57,17 +72,120 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+/**
+ * A ceiling on how long a request may hang before it becomes an ERROR.
+ *
+ * WHY THIS EXISTS. This fetch wrapper passed `init` through with no signal of
+ * its own, so a request that never settled left react-query in
+ * `isPending && isFetching` forever — and every admin surface renders a spinner
+ * off that. The operator's report was Community showing "Loading feed..."
+ * indefinitely, but the cause is here, in the transport, and therefore applied
+ * to EVERY query in the admin. A stalled connection was indistinguishable from
+ * work in progress, with no bound.
+ *
+ * 120s is deliberately a BACKSTOP, not an SLA. It has to clear the slowest
+ * legitimate call — the LLM-backed generate/brief mutations run tens of seconds
+ * — while still guaranteeing that "forever" is not a state the UI can reach.
+ * Tighten per-procedure if a real SLA is ever wanted; do not tighten here.
+ */
+const REQUEST_CEILING_MS = 120_000;
+
+/**
+ * Bound a request without discarding tRPC's own cancellation signal.
+ *
+ * MANUAL COMPOSITION ON PURPOSE — do not "simplify" this to `AbortSignal.timeout`
+ * plus `AbortSignal.any`. Review of the first version (PR #1601) caught two
+ * defects in exactly that approach:
+ *
+ *  1. `AbortSignal.timeout` was called unconditionally. On an iOS/Safari build
+ *     without it, EVERY tRPC call would throw synchronously here instead of
+ *     issuing a request — breaking the whole admin far worse than the stalled
+ *     spinner this exists to fix.
+ *  2. Where `timeout` existed but `AbortSignal.any` did not, the fallback
+ *     forwarded only the caller's signal and silently DROPPED the ceiling, so
+ *     the fix quietly did nothing on those browsers.
+ *
+ * `AbortController` + `addEventListener` are available everywhere this PWA runs,
+ * so composing by hand needs no feature detection and keeps BOTH guarantees:
+ * tRPC's unmount cancellation still propagates, and the ceiling always applies.
+ *
+ * THE TIMER IS DELIBERATELY NOT CLEARED WHEN THE FETCH PROMISE SETTLES. An
+ * earlier version did that via `.finally()`, which looked tidier and quietly
+ * reopened the hole: `fetch` resolves at response HEADERS, while tRPC then reads
+ * the body (`await res.json()`) with nothing watching it. Clearing on headers
+ * therefore left a response that answers and then stalls mid-body completely
+ * unbounded — the exact failure this is for. Because the same signal is attached
+ * to the Response body stream, keeping the timer alive bounds the body read too.
+ *
+ * The cost is one pending timer per in-flight request for up to the ceiling, and
+ * a late `abort()` on an already-settled controller, which is a documented no-op.
+ * That is the right trade: a cheap idle timer against a class of hang the UI
+ * renders as a permanent spinner.
+ */
+function boundedSignal(existing: AbortSignal | null | undefined): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(
+    () => controller.abort(new DOMException(`request exceeded ${REQUEST_CEILING_MS}ms`, "TimeoutError")),
+    REQUEST_CEILING_MS,
+  );
+
+  if (existing) {
+    // Already cancelled before we got here — mirror it immediately.
+    if (existing.aborted) controller.abort(existing.reason);
+    else existing.addEventListener("abort", () => controller.abort(existing.reason), { once: true });
+  }
+  return controller.signal;
+}
+
+/**
+ * Procedures that must NOT share a batch.
+ *
+ * `httpBatchLink` puts every concurrent query into ONE HTTP request, so the
+ * slowest procedure in the batch decides when EVERY other procedure's data
+ * arrives. Insights was the visible casualty: it fires six queries, five of them
+ * local table reads, and one — `getPerformanceReport` — makes an `invokeLLM`
+ * call. All six landed in one request, so the whole page sat behind a spinner
+ * waiting on a model, and the five fast cards could not render early even though
+ * their data was ready on the server.
+ *
+ * Anything LLM-backed and read on page load belongs here. This is a latency
+ * boundary, not a correctness one: batching is still the right default for the
+ * dozens of quick admin reads.
+ *
+ * SCOPE, STATED HONESTLY. Insights' other five queries still share one batch, so
+ * they still arrive TOGETHER — the slowest of the five gates the other four. That
+ * is intended: all five are local table reads, and splitting them would trade one
+ * request for five to save nothing. What was wrong was batching a model call with
+ * them. So this fixes the LLM case specifically, not "every card renders
+ * independently" — if one of the five is ever measured slow, it joins this set
+ * rather than the batch being abandoned.
+ */
+const UNBATCHED_SLOW_PROCEDURES = new Set<string>([
+  "instagramAdmin.getPerformanceReport",
+]);
+
+const httpOptions = {
+  url: "/api/trpc",
+  transformer: superjson,
+  // `signal` is listed AFTER the spread on purpose: tRPC also supplies one, and
+  // the composed signal must win rather than be overwritten by it.
+  fetch(input: URL | RequestInfo, init?: RequestInit) {
+    return globalThis.fetch(input, {
+      ...(init ?? {}),
+      credentials: "include",
+      signal: boundedSignal(init?.signal),
+    });
+  },
+};
+
 const trpcClient = trpc.createClient({
   links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
-      fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
-      },
+    splitLink({
+      condition: (op) => UNBATCHED_SLOW_PROCEDURES.has(op.path),
+      // Its own request: it can take as long as it takes without holding
+      // anything else hostage.
+      true: httpLink(httpOptions),
+      false: httpBatchLink(httpOptions),
     }),
   ],
 });
