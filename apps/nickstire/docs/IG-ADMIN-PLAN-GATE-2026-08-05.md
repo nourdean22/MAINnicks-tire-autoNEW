@@ -241,3 +241,63 @@ the highest-volume autonomous lane.
 **Operator decision 2026-08-05:** let the first free-lane reel publish unreviewed rather than hold
 it. Recorded because the `template-stock-reel-lane` P2 ("keep it draft-first") explicitly advises
 otherwise, and a deliberate override should not read as an oversight later.
+
+---
+
+## Addendum, 2026-08-16: the four-tab IA and Reel-as-a-format, both gated
+
+A second pasted plan proposed renaming the shell to **Compose / Queue / Inbox** and making Reel a
+FORMAT of one Compose surface. Appended rather than edited in, per this file's own rule.
+
+### REJECT — the Compose / Queue / Inbox rename
+
+It is a **reversal of a reasoned decision**, not a completion of an unfinished one.
+
+- Commit `388c0a1ff` (PR #1040, 2026-07-24) introduced `today/create/publish/community/insights` in
+  ONE deliberate act whose message reads *"The operator has five jobs, not nine equal tabs."*
+- The pre-rename labels were literally **HQ / Studio / Queue / Actions / Planning / Inbox / Learn /
+  Control / Settings**. **"Compose" was never a label in this repo's history.**
+- `docs/CURRENT-TRUTH.md` records **"Publish is the only queue"** — the word *queue* was
+  deliberately freed and reassigned.
+- `server/igShellNavigation.test.ts` pins the key array *and its order*, titled "in operator-job
+  order". `LEGACY_TAB_KEYS` has never been edited since it was authored.
+
+Renaming back would be the third naming of the same tabs and would strand that pin for no operator
+gain. **The operator's actual complaint — fragmentation — needed none of it:** Today carried THREE
+context-free doors to Create (two byte-identical buttons plus HQ's own "Enter Studio", HQ being
+Today's tail section, not a screen). Fixing that is the whole of it.
+
+### REJECT — Reel as a format of Compose
+
+The input contracts are **disjoint, not a superset**:
+
+| | Static | Reel |
+|---|---|---|
+| Per-beat visual / on-screen text / motion | — | 3 fields × 4–6 beats |
+| Voiceover script | — | full audio track |
+| Visual World | — | **paid** 3-image sub-loop, pick one before enqueue |
+| Re-score interlock | server-side, automatic | **hard** — every edit nulls the score |
+| Business objective | 1 of 7, required | **hardcoded `"DISCOVERY"`** — no control exists |
+
+The server refuses reel through the static path at **five** distinct points, the primary being a zod
+`.refine` on the `generate` input. Merging would flatten a paid loop into a dropdown.
+
+**Also true, and separate:** the reel ENQUEUE input is `z.enum(["review","declined_work","manual"])`.
+Widening resolution does NOT widen enqueue — adding `special_offer` to the client's resolvable list
+turned a working lane (harmlessly collapsed to `"manual"`) into a hard enqueue failure.
+
+### The finding worth more than either verdict
+
+`buildDraftWorkspace` — which assembles Truth / Concepts / Execution / Preflight / compiled prompts
+— had **ZERO callers**, its tRPC proc included, while `validateSourceGrounding` HARD-BLOCKED enqueue
+on `sourceNotes` + `mechanicTruth` and all twelve truth-layer fields had zero occurrences in
+`Studio.tsx`. The operator was approving a brief whose pass/fail inputs were unrenderable. It is pure,
+so it now runs on the in-memory brief and recomputes as beats are edited.
+
+### Still open from THIS file's P1, and still the highest-leverage quality change
+
+`dailyReelPost.ts` still does not call `runConceptTournament`. The autonomous lane that posts every
+day asks one model to ideate, score and pick in a single call, while the tournament built to replace
+exactly that remains reachable only from the operator's Campaign Package. It is a cost decision
+(5 LLM calls per brief vs 1) and therefore an operator decision, not an engineering one.
+

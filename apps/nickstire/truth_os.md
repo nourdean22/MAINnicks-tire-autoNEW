@@ -94,6 +94,53 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-08-16 — Create is grounded in records, and the admin stopped guessing
+
+Full architecture: [docs/IG-EVIDENCE-ARCHITECTURE.md](docs/IG-EVIDENCE-ARCHITECTURE.md). Read that
+before touching IG source selection, the quality gate, or any admin read state.
+
+**The declined-work picker was reading a column nothing writes.** It filtered
+`work_order_items.declined = true`; the only writers insert with the false default or set it FALSE on
+recovery, and no migration updates it — so the query was `WHERE false` and the list was permanently
+empty. The canonical lane is `alg_estimates` (unmatched), which is what `nour-os-query.ts` and
+`customer_metrics` already used. The picker now agrees with the rest of the system.
+
+**The decline on that lane is INFERRED, not recorded.** `alg_estimates` has no `declined` column —
+it is derived from `matched_invoice_id IS NULL` through a ±10%/30-day matcher, so a failed match is
+indistinguishable from a refusal. Facts now carry `basis: recorded | inferred | operator`, and
+`inferred` can never reach "sufficient" alone. Do not reword the assertion text to say a customer
+declined anything.
+
+**The quality gate measured string length.** `source_grounding` was `detail?.trim() ? 8 : 6` — one
+character earned 8/10 and silenced its own warning — and `buildEvalArgs` never passed the resolved
+evidence, so the evaluator could not inspect what it scored. Now scored from structured facts, which
+ride on the draft's `source` so they survive the round trip (a plain `z.object` strips unknown keys;
+without that every re-score re-graded a grounded draft as ungrounded).
+
+**Four surfaces claimed "empty" for reads that never happened** (Community feed and clusters,
+Automation Lift, Database Hygiene — the last showing a green "Database is perfectly clean!" without
+examining a row). react-query pauses when offline, leaving `isError` AND `isLoading` false with
+`data` undefined. `client/src/lib/queryState.ts` encodes the guard.
+
+**Storage health was inverted.** CloudFront being ABSENT is what enables permanent proxied URLs, so
+`!!CLOUDFRONT_DOMAIN` reported "Ephemeral Only" exactly when they worked. Three states now, and the
+`REEL_ALLOW_EPHEMERAL_STORAGE` branch is reported as a warning rather than a blocker.
+
+**AI content no longer publishes itself.** Generated articles were written `status: "published"`,
+overriding the column default, so every one went live on the blog and into the sitemap while the
+admin showed an approve control that could never apply. Now draft; notifications start inactive; and
+`getDynamicArticleBySlug` filters to published so the gate is not bypassable by URL.
+
+**No navigation was renamed.** The Compose/Queue/Inbox proposal REVERSES commit 388c0a1ff and
+`CURRENT-TRUTH.md`'s "Publish is the only queue"; Reel-as-a-format was rejected because the input
+contracts are disjoint (reel has no objective control at all; static has no per-beat, VO, or paid
+Visual World fields). What was actually wrong was three context-free doors on Today.
+
+**Method note worth keeping.** Two adversarial audits of this same work refuted 17 of its claims and
+found 3 criticals, including two pre-existing tests broken by a rename — missed because only
+`server/*.test.ts` was being run while `client/src` (56 files, 1,019 tests) sat unrun. Run BOTH roots
+before quoting a test count.
+
 ## 2026-08-12 — the approval queue is live, and it is the one door
 
 `admin_proposals` (migration 0111) + the attributed activity ledger on `audit_log` (0110) shipped

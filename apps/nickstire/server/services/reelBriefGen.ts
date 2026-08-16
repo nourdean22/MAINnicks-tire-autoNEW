@@ -15,7 +15,7 @@ import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReel
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
 import { buildBrandBibleFragment } from "../../shared/brandBible";
-import type { EvidenceFact } from "../../shared/evidenceSufficiency";
+import { assessEvidence, evidenceDirective, type EvidenceFact } from "../../shared/evidenceSufficiency";
 import { PUBLIC_SOURCE_REGISTRY } from "./evidenceResolver";
 import { buildFranchiseFragment, type FranchiseId } from "../../shared/contentFranchises";
 import {
@@ -421,7 +421,13 @@ export async function resolveSourceProvenance(
           .from(algEstimates)
           .where(and(eq(algEstimates.id, algId), sql`${algEstimates.matchedInvoiceId} IS NULL`))
           .limit(1);
-        if (rows[0]) {
+        // CONTENT GUARD, matching the other two lanes. This gated on row
+        // existence alone while review requires reviewText and the work-order
+        // lane requires description — and BOTH HTML parse paths in the estimate
+        // sync write serviceDescription as null, so a row with no service text
+        // and no vehicle resolved isVerified:true and the sufficiency gate rated
+        // it 10/10 "EVIDENCE: strong" off nothing but a date and an amount.
+        if (rows[0] && (rows[0].serviceDescription?.trim() || rows[0].vehicleInfo?.trim())) {
           const row = rows[0];
           const day = isoDay(row.estimateDate);
           // WORDING IS LOAD-BEARING. There is no `declined` column on
@@ -502,7 +508,15 @@ export async function resolveSourceProvenance(
     try {
       const rows = await db.select().from(specials).where(eq(specials.id, sourceId)).limit(1);
       const row = rows[0];
-      if (row?.isActive) {
+      // `isActive` ALONE is not enough. Nothing in the repo sets is_active=false
+      // when a special expires, which is exactly why every other reader filters
+      // expiry explicitly (routers/specials.ts, services/igAutopost.ts,
+      // services/gbpAutoPost.ts, and the IG picker itself). Gating on isActive
+      // only meant an expired offer resolved as a VERIFIED "Active offer" and
+      // could be published as live.
+      const notExpired = !row?.expiresAt || new Date(row.expiresAt).getTime() >= Date.now();
+      const notStarted = !!row?.startsAt && new Date(row.startsAt).getTime() > Date.now();
+      if (row?.isActive && notExpired && !notStarted) {
         const expires = isoDay(row.expiresAt);
         return {
           evidence: `Active offer "${row.title}"${row.description ? ` — ${row.description}` : ""}${expires ? ` (ends ${expires})` : ""}.`,
@@ -665,9 +679,17 @@ function offerFacts(
     role: "anchor",
     basis: "recorded",
   }];
-  if (row.discountValue) {
-    const shaped = row.discountType === "percent" ? `${row.discountValue}% off` : `${centsToUsd(Number(row.discountValue) * 100)} off`;
-    facts.push({ key: "discount", label: "Discount", value: shaped, role: "magnitude", basis: "recorded" });
+  // discountType is a FOUR-value enum (percent | fixed | free_service | bundle,
+  // routers/specials.ts:46). Branching on "percent" vs everything-else invented a
+  // dollar amount for free_service and bundle rows — and a free_service row is
+  // reachable from the seeded specials path. Only the two NUMERIC kinds get a
+  // magnitude; the others describe themselves.
+  if (row.discountType === "percent" && row.discountValue) {
+    facts.push({ key: "discount", label: "Discount", value: `${row.discountValue}% off`, role: "magnitude", basis: "recorded" });
+  } else if (row.discountType === "fixed" && row.discountValue) {
+    facts.push({ key: "discount", label: "Discount", value: `${centsToUsd(Number(row.discountValue) * 100)} off`, role: "magnitude", basis: "recorded" });
+  } else if (row.discountType === "free_service" || row.discountType === "bundle") {
+    facts.push({ key: "discount_kind", label: "Offer type", value: row.discountType === "free_service" ? "a free service" : "a bundle", role: "context", basis: "recorded" });
   }
   if (expires) {
     facts.push({ key: "offer_ends", label: "Offer ends", value: expires, role: "temporal", basis: "recorded" });
@@ -756,6 +778,14 @@ export async function generateReelBriefAI(
     avoidRecentTopics: input.avoidTopics,
     proprietaryEvidence,
     resolvedEvidence: resolved.evidence,
+    // resolved.facts was computed and then DISCARDED here: the reel lane got only
+    // the flattened prose, so nothing told the model which facts were inferred
+    // rather than recorded, and neither assessEvidence nor evidenceDirective had
+    // any reel caller at all. The reel lane is the one the operator reported.
+    resolvedFactLines: (resolved.facts ?? []).map(
+      (f) => `- ${f.label}: ${f.value}${f.basis === "inferred" ? "  [INFERRED — qualify, never assert]" : ""}`,
+    ),
+    evidenceDirective: evidenceDirective(assessEvidence(resolved.facts ?? [], input.sourceDetail)),
   });
 
   if (input.thesis) {

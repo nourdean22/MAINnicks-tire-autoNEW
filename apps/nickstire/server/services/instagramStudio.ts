@@ -162,7 +162,11 @@ export function evaluateInstagramDraft(input: {
   // holds it), but a VERIFIED record no longer earns a flat 10 just for
   // existing: a row that resolved to nothing but an order number is thin, and
   // now says so.
-  const evidence = assessEvidence(input.evidenceFacts ?? [], input.source.detail);
+  // `?? input.source.facts` is what makes the re-score paths work. Generation
+  // passes evidenceFacts explicitly; evaluate / render / stage pass a DRAFT, whose
+  // facts ride on `source`. Reading only the explicit argument meant every path
+  // after generation scored zero facts.
+  const evidence = assessEvidence(input.evidenceFacts ?? input.source.facts ?? [], input.source.detail);
   const sourceGrounding = requiresVerifiedSource && input.source.evidenceStatus !== "verified"
     ? 0
     : evidence.groundingScore;
@@ -245,8 +249,14 @@ export function evaluateInstagramDraft(input: {
       novelty < 7 ? (noveltyFinding ?? "Give the concept a distinct angle instead of generic service copy.") : undefined),
   ];
 
+  // "block" findings were SILENT. The loop collected only status "warn", so any
+  // dimension scoring below blockAt (5) contributed its finding to nothing —
+  // neither `warnings` nor `blockers`, which are populated separately. That made
+  // a low score quieter than a middling one. Collect both so a finding can never
+  // be discarded by being too severe; what BLOCKS is still decided by `blockers`
+  // alone, so this makes the gate louder without newly failing anything.
   for (const item of dimensions) {
-    if (item.status === "warn" && item.finding) warnings.push(item.finding);
+    if ((item.status === "warn" || item.status === "block") && item.finding) warnings.push(item.finding);
   }
 
   const overall = Math.round(dimensions.reduce((sum, item) => sum + item.score * item.weight, 0) * 10);

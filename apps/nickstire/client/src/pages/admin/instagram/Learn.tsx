@@ -29,9 +29,15 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
     // Was: refetch four of the six, then toast success unconditionally — so a
     // refresh that failed still congratulated the operator, and swipeFile /
     // dubCandidates never refreshed at all.
+    // `throwOnError: true` is REQUIRED. react-query's refetch() swallows the
+    // rejection by default and resolves with the errored query result, so
+    // allSettled saw six fulfilled promises no matter what failed — both error
+    // branches below were dead code and the success toast was still
+    // unconditional, which is the very thing this block claimed to fix.
     const results = await Promise.allSettled([
-      analytics.refetch(), report.refetch(), diagnostics.refetch(),
-      revenue.refetch(), swipeFile.refetch(), dubCandidates.refetch(),
+      analytics.refetch({ throwOnError: true }), report.refetch({ throwOnError: true }),
+      diagnostics.refetch({ throwOnError: true }), revenue.refetch({ throwOnError: true }),
+      swipeFile.refetch({ throwOnError: true }), dubCandidates.refetch({ throwOnError: true }),
     ]);
     const failed = results.filter((r) => r.status === "rejected").length;
     if (failed === 0) toast.success("Live Instagram intelligence refreshed");

@@ -311,8 +311,17 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish"
 
   const discardAndSwitch = (target: NonNullable<typeof pendingSwitch>) => {
     reqSeq.current += 1; // in-flight responses for the old concept are now stale
-    if (target.kind === "source") setSourceType(target.value);
-    else setFormat(target.value);
+    if (target.kind === "source") {
+      setSourceType(target.value);
+      // A RECORD ID BELONGS TO ONE LANE. Carrying it across a source switch used
+      // to fail loudly — the old resolver looked up review ids only in review
+      // tables — but now that declined_work resolves INT ids against
+      // alg_estimates, a leftover review id like "7" finds estimate 7 and returns
+      // it as isVerified:true with a different customer's vehicle, service and
+      // dollar amount. A loud block became silent wrong-record grounding, so the
+      // id must not outlive its lane.
+      setSourceRecordId("");
+    } else setFormat(target.value);
     setDraft(null);
     setRowVersion(null);
     setSavedAt(null);

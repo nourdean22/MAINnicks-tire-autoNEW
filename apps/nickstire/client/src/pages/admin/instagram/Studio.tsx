@@ -37,15 +37,16 @@ function asSourceType(value: string | undefined): SourceType | null {
 }
 
 /**
- * Source types the server can resolve to a real record
- * (`resolveSourceProvenance`). Anything else is honestly enqueued as "manual".
+ * Tracks the reel ENQUEUE contract, which is NOT the resolver's.
  *
- * `special_offer` joins the set now that `specials` is queried. This list was
- * inlined twice as `source === "review" || source === "declined_work"`, so
- * extending resolution server-side would have silently kept collapsing the new
- * type to "manual" — the enqueue would have discarded a resolvable source.
+ * "special_offer" was added here when the resolver learned to read `specials` —
+ * but contentAdmin.enqueueReelJob accepts only z.enum(["review",
+ * "declined_work", "manual"]) (routers/content.ts:1663). So a special_offer reel
+ * sent a sourceType the server rejects and failed at enqueue: a source that had
+ * previously WORKED (collapsed harmlessly to "manual") became unusable. Widening
+ * resolution does not widen enqueue.
  */
-const RESOLVABLE_REEL_SOURCES: readonly SourceType[] = ["review", "declined_work", "special_offer"];
+const RESOLVABLE_REEL_SOURCES: readonly SourceType[] = ["review", "declined_work"];
 
 export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps) {
   const inherited = asSourceType(initialSource?.type);
@@ -224,6 +225,11 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
       });
       setStep("source");
       setSource(null);
+      // The post-publish reset cleared everything EXCEPT the record id, so the
+      // next composition started with a stale id already attached to whatever
+      // source was picked next — the same wrong-record hazard as a source switch.
+      setSourceId("");
+      setSourceDetail("");
       setFormat(null);
       setContent("");
       setMediaUrl("");
@@ -269,6 +275,10 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
 
   const handleSourceSelect = (t: SourceType) => {
     setSource(t);
+    // Clear the record id with the lane — see StudioV2's discardAndSwitch. A
+    // review id left over on the declined_work lane now resolves an unrelated ALG
+    // estimate as VERIFIED rather than failing closed.
+    if (t !== source) setSourceId("");
     setStep("format");
   };
 
