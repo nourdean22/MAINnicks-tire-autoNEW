@@ -220,7 +220,12 @@ export function ChatIsland() {
             <span className={posture !== "auto" ? "text-gold" : undefined}>{posture === "auto" ? "auto posture" : posture}</span>
             {" · "}
             <span className={depth !== "auto" ? "text-gold" : undefined}>{depth === "auto" ? "auto depth" : depth}</span>
-            {" · "}
+            {/* No separator here: the PRIVATE span below carries its own. This
+                line used to read `depth` + " · " + <permission label>, and
+                removing the permission picker (#1589) left the delimiter behind
+                — the live header rendered "auto posture · auto depth ·" with
+                nothing after it, and "auto depth ·  · PRIVATE" when private
+                mode was on. Mine; caught on the deployed page, not in review. */}
             {privateMode && <span className="text-gold"> · PRIVATE</span>}
           </p>
         </div>

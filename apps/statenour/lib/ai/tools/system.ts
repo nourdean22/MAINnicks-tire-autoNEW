@@ -753,7 +753,29 @@ export const systemTools = {
           // keeps the losing promise from surfacing as an unhandled rejection
           // after the race resolves.
           const r = await Promise.race([
-            askPerplexica(query).catch(() => null),
+            // `.catch(() => null)` used to discard the reason outright, and the
+            // reason was the whole answer. Perplexica has returned ZERO completed
+            // searches; its logs carried
+            //   400 prompt too long; exceeded max context length by 47237 tokens
+            // on every attempt — thrown by askPerplexica, then dropped here, so
+            // the failure looked generic for weeks. Not a dead sidecar, not a
+            // retired model id (gpt-oss:120b is alive): the synthesis prompt is
+            // 30-60 scraped sources folded into one call, ~175k tokens, against
+            // gpt-oss:120b's 128k window. Already on optimizationMode "speed",
+            // the leanest setting, so the model is the fix, not the mode —
+            // minimax-m3 and deepseek-v4-flash both carry 1M on the same flat plan.
+            // Log the reason, then degrade exactly as before.
+            askPerplexica(query).catch(async (err) => {
+              const message = String((err as { message?: string })?.message ?? err);
+              const { logger } = await import("@/lib/logger");
+              logger
+                .withSurface("ai/tools/arsenalWebSearch")
+                .warn("perplexica_primary_error", {
+                  contextOverflow: /max context length|prompt too long/i.test(message),
+                  error: message.slice(0, 240),
+                });
+              return null;
+            }),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), PERPLEXICA_PRIMARY_MS)),
           ]);
           if (!r?.content?.trim() && ++perplexicaMisses >= PERPLEXICA_MISS_LIMIT) {
