@@ -391,10 +391,19 @@ async function pgvectorSemanticSearch(
   const memoryIds = allHits
     .filter((h) => h.sourceType === "brain_memory")
     .map((h) => h.sourceId);
+  // `deletedAt: null` is not a refinement here — it is the ONLY thing that keeps
+  // deleted memories out of recall. knnSearch reads `vector_embeddings` with no
+  // join back to `brain_memories`, and the loop below takes its text from
+  // `hit.content` (the embedding row's own copy), so a deleted memory stays
+  // fully readable through the index unless it is dropped here. Measured on prod
+  // 2026-08-16: of 9,919 searchable brain_memory entries, only 2,526 (25.5%)
+  // pointed at a live memory — 2,526 were soft-deleted and 4,867 had no memory
+  // row at all. Three of every four candidates were content the operator had
+  // already removed.
   const memories = memoryIds.length
     ? await prisma.brainMemory
         .findMany({
-          where: { id: { in: memoryIds } },
+          where: { id: { in: memoryIds }, deletedAt: null },
           select: { id: true, confidence: true, createdAt: true, category: true, seenCount: true },
         })
         .catch((): never[] => [])
@@ -412,6 +421,12 @@ async function pgvectorSemanticSearch(
 
     const meta = metaMap.get(hit.sourceId);
     const isMem = hit.sourceType === "brain_memory";
+    // A brain_memory hit with no live metadata row is deleted or gone. It used
+    // to survive this loop on the `confidence ?? 0.5` fallback and be served
+    // from hit.content, which is how soft-deleting a memory failed to remove it
+    // from Nick's context. Non-memory source types legitimately have no row here
+    // and are unaffected.
+    if (isMem && !meta) continue;
     const confidenceScore = isMem ? meta?.confidence ?? 0.5 : 0.6;
     const ageDays =
       isMem && meta ? (now - meta.createdAt.getTime()) / 86400000 : maxAgeDays / 2;
