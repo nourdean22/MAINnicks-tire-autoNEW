@@ -739,6 +739,34 @@ export const systemTools = {
       // — degrades to the multi-source quorum instead of throwing (which the
       // model would otherwise surface as a confident failure claim).
       try {
+        // Rung 0 · SearXNG direct. Perplexica's only addition over raw SearXNG
+        // is an LLM synthesis pass, and statenour's own model re-synthesizes
+        // whatever it returns — so that pass costs 25-46s to write a paraphrase
+        // for a reader that immediately rewrites it. Measured 2026-08-16:
+        // SearXNG 2.4-6.1s vs Perplexica 30.8-52.1s for the same three queries.
+        // Additive: on any failure this falls through to the chain below, so
+        // the worst case is exactly the previous behaviour.
+        const { hasSearxng, askSearxng } = await import("@/lib/integrations/searxng");
+        if (hasSearxng()) {
+          const r = await askSearxng(query).catch(async (err) => {
+            const { logger } = await import("@/lib/logger");
+            logger
+              .withSurface("ai/tools/arsenalWebSearch")
+              .warn("searxng_direct_failed_falling_through", {
+                error: String((err as { message?: string })?.message ?? err).slice(0, 240),
+              });
+            return null;
+          });
+          if (r?.content?.trim()) {
+            return {
+              content: fence(r.content),
+              citations: r.citations ?? [],
+              model: "searxng",
+              source: "arsenal/searxng",
+            };
+          }
+        }
+
         if (hasPerplexica() && Date.now() >= perplexicaSkipUntil) {
           const { askPerplexica } = await import("@/lib/integrations/perplexica");
           // 2026-07-12 · FAIL-FAST on a hung primary. When perplexica's synth

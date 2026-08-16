@@ -1,0 +1,67 @@
+# SearXNG settings · Perplexica-compatible.
+# use_default_settings:true inherits SearXNG's full default config; we only
+# override what Perplexica needs:
+#   - search.formats += json   (Perplexica calls the JSON API; default is html-only)
+#   - server.limiter: false    (the bot limiter would 429 the internal API caller)
+# The secret_key literal "ultrasecretkey" is substituted with $SEARXNG_SECRET
+# by the image entrypoint at boot; if substitution is unavailable it still boots
+# with the literal (acceptable for an internal, non-public metasearch instance).
+use_default_settings: true
+
+server:
+  secret_key: "ultrasecretkey"
+  limiter: false
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json
+  autocomplete: "google"
+
+engines:
+  - name: wolframalpha
+    disabled: false
+
+  # ─── Engine selection, measured 2026-08-16 from this service's own IP ───
+  #
+  # SearXNG's default general-web set is Google/DDG/Brave/Startpage. All four
+  # refuse traffic from a datacenter IP, so this instance returned *zero* results
+  # for every web query while reporting HTTP 200:
+  #
+  #   brave       -> too many requests      startpage -> Suspended: CAPTCHA
+  #   duckduckgo  -> CAPTCHA                wikidata  -> access denied
+  #   google cse  -> too many requests
+  #
+  # Each candidate below was probed individually (`&engines=<name>`) against this
+  # live instance before being switched on. Re-run that probe before editing —
+  # engine reachability is a property of the IP, not of the config.
+
+  # WORKS from here — 10 results in 189ms, the fastest mainstream index available.
+  - name: bing
+    disabled: false
+  # WORKS from here — 10 results in 1184ms. Note this is the *alternate* DDG
+  # scraper, a different engine from `duckduckgo`, and it is NOT CAPTCHA'd while
+  # the default one is. Do not "deduplicate" these two.
+  - name: duckduckgo web
+    disabled: false
+  # WORKS from here — 31 results in 1031ms. Small independent index, lower
+  # precision, kept as a third source so a single upstream block cannot return
+  # the whole instance to zero results again. Perplexica reranks by embedding,
+  # so extra recall costs little.
+  - name: mwmbl
+    disabled: false
+
+  # BLOCKED from here. Left explicitly disabled rather than deleted: each one
+  # costs ~3s of timeout per query while contributing nothing, and naming them
+  # records *why* they are off. Re-enable and re-probe if the egress IP changes.
+  - name: duckduckgo
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: brave
+    disabled: true
+  - name: google cse
+    disabled: true
+  - name: wikidata
+    disabled: true
