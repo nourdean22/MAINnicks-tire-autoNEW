@@ -25,6 +25,7 @@
 
 import { and, eq, gte, lte, isNull, sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
+import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { createLogger } from "../../lib/logger";
 import {
 
@@ -181,7 +182,10 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   const { algEstimates, customers } = await import("../../../drizzle/schema");
 
   const now = new Date();
-  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+  // Same constant the estimate mirror feeds backfillMatches() — see
+  // DECLINED_RECOVERY_WINDOW_DAYS. If these diverge, this job texts people
+  // the matcher can no longer clear.
+  const sixtyDaysAgo = new Date(now.getTime() - DECLINED_RECOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   // All unmatched estimates in the recovery window.

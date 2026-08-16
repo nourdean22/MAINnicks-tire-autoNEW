@@ -26,6 +26,7 @@
  */
 
 import { eq, and, gte, lte, isNull, sql, desc } from "drizzle-orm";
+import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
 
@@ -998,7 +999,13 @@ export async function runEstimateMirror(): Promise<{ recordsProcessed: number; d
   });
 
   const upsert = await upsertEstimates(unique);
-  const backfill = await backfillMatches();
+  // ROS-093 · the backfill MUST cover the whole declined-recovery send window.
+  // This called backfillMatches() with no options, so it used the 30-day
+  // default while declinedWorkRecovery texts on a 60-day window — estimates
+  // aged 31-60 days could never be matched, stayed "declined" forever, and the
+  // 30-day touch fired precisely where the matcher had gone blind. Shared
+  // constant so the two cannot drift apart again.
+  const backfill = await backfillMatches({ sinceDays: DECLINED_RECOVERY_WINDOW_DAYS });
   const backfillMatched = backfill.matched;
 
   lastEstimateSync = new Date();

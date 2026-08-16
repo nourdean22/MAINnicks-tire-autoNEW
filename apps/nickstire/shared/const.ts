@@ -39,3 +39,29 @@ export type GBPArchetypeConst = (typeof GBP_ARCHETYPES)[number];
 /** IG post archetypes — GBP superset + question + process */
 export const IG_ARCHETYPES = ["proof", "anti", "math", "seasonal", "question", "process"] as const;
 export type IGArchetypeConst = (typeof IG_ARCHETYPES)[number];
+
+/**
+ * ROS-093 · the declined-work recovery window, in days.
+ *
+ * TWO systems must agree on this number and, until 2026-08-16, did not:
+ *
+ *   · `declinedWorkRecovery` texts customers whose ALG estimate is unmatched
+ *     and newer than 60 days.
+ *   · `backfillMatches()` — the thing that DECIDES whether an estimate is
+ *     matched — defaulted to 30 days, and `runEstimateMirror()` called it with
+ *     no options.
+ *
+ * So estimates aged 31-60 days sat inside the send window and outside the
+ * matcher's reach: permanently "unmatched", therefore permanently "declined",
+ * and the 30-day SMS touch fired exactly when the matcher had stopped looking
+ * at them. A customer who paid on day 35 could still be told they declined.
+ *
+ * That is the ROS-093 defect class in a narrower band. The original was a
+ * matcher that compared phone strings across two tables storing different
+ * formats, so it matched NOTHING and 15 already-paid customers sat in the
+ * "declined" list. This is the same failure — a window, not a format.
+ *
+ * Both sides now import this constant. Widening the recovery window without
+ * widening the matcher is no longer possible.
+ */
+export const DECLINED_RECOVERY_WINDOW_DAYS = 60;
