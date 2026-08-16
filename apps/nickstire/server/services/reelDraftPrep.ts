@@ -61,6 +61,19 @@ export async function prepareCleanReelBrief(
   // NT-010). A caller-supplied avoidTopics wins — it usually means "operator
   // is intentionally steering," which real history should not override.
   const recent = await getRecentReelSignals();
+
+  // Pattern Lab, connected. `social_reel_patterns` captured operator-judged
+  // structure since migration 0107 and nothing outside the admin CRUD screen
+  // ever read it — patterns went in and never came out. Selection is by
+  // rotation, not ranking, because no pattern -> outcome link exists yet; the
+  // recording below is what creates it. A null hint leaves the brief exactly as
+  // it was before this existed.
+  const { pickStructureHint, recordStructureUse } = await import("./reelStructurePrior");
+  // No hook-type exclusion: RecentReelSignals tracks topics/keywords/archetypes/
+  // lenses/characters, not hook shape, and inventing a field here would mean
+  // passing something the repetition ledger never actually measured. Rotation
+  // by least-used already spreads hook types in practice.
+  const structure = await pickStructureHint();
   const baseAvoidTopics = input.avoidTopics && input.avoidTopics.length > 0 ? input.avoidTopics : recent.topics;
   // Grows across attempts (self-review, 2026-08-13): a caller that pins a
   // FIXED topic seed already present in history (the admin canary's static
@@ -73,7 +86,11 @@ export async function prepareCleanReelBrief(
   let repetitionOnlyRejections = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const { brief } = await generateReelBriefAI({ ...input, avoidTopics });
+    const { brief } = await generateReelBriefAI({
+      ...input,
+      avoidTopics,
+      ...(structure ? { structureHint: structure } : {}),
+    });
     const pre = runReelPreflight(brief);
     const repetition = buildRepetitionChecks(brief, recent);
     if (pre.status !== "block" && !repetition.topicRepeated) {
@@ -81,6 +98,16 @@ export async function prepareCleanReelBrief(
       // a preflight-rejected brief never spends a hero-frame image credit.
       await attachAutonomousVisualWorld(brief);
       brief.higgsfieldPromptPack = buildHiggsfieldReelPromptPack(brief);
+      // Stamp the pattern onto the brief so it reaches reel_jobs.payload. This
+      // is the cohort key the schema was shaped for ("pattern x trial results")
+      // and never got — without it, no later pass can ask which captured
+      // structure actually earned distribution. Recorded only now, after
+      // preflight: counting rejected attempts would rotate the lab on work that
+      // never shipped and starve the genuinely unused patterns.
+      if (structure) {
+        brief.structurePatternId = structure.patternId;
+        await recordStructureUse(structure.patternId);
+      }
       if (attempt > 1) {
         log.info(`clean reel brief on attempt ${attempt}/${maxAttempts} after ${rejected.length} rejection(s)`);
       }
