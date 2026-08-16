@@ -1402,7 +1402,16 @@
         "productionMeasurement": "Ranking effect measured on the live account 2026-08-16, not asserted: OLD (engagementRate = likes+comments) ranked educational #1, community #3. NEW (saves/shares/retention over 475 ig_metric_snapshots rows) ranks local-appeal #1 and community LAST at 0.000 across 32 posts. Deployed image confirmed to contain /app/apps/nickstire/docs/reel-packs with all five packs, which is the pack registry's second candidate path."
       },
       "blockers": [
-        "Pattern Lab ROTATES, it does not rank: no pattern -> outcome link existed, so ranking would be fabrication. #1613 stamps structurePatternId into reel_jobs.payload to CREATE that join; ranking becomes possible only once enough stamped jobs carry metrics."
+        {
+          "severity": "P2",
+          "description": "Pattern Lab ROTATES, it does not rank. No pattern -> outcome link existed, so ranking would be fabrication; #1613 stamps structurePatternId into reel_jobs.payload to CREATE that join. Ranking becomes possible only once enough stamped jobs carry metrics.",
+          "source": "code read 2026-08-16: social_reel_patterns referenced only by instagramAdmin.ts; timesUsed/lastUsedAt never incremented"
+        },
+        {
+          "severity": "P2",
+          "description": "No reel has yet been SELECTED by the distribution ranker in a live cron run. The ranking was measured against production DATA, which is not the same as having run. Re-verify after the next dailyReelPost firing and promote operationalState to live_verified only then.",
+          "source": "measured against prod ig_metric_snapshots 2026-08-16; no live selection observed"
+        }
       ],
       "deferredScope": [
         "ranking patterns by measured outcome (needs the cohort join above to accumulate)",
@@ -1412,7 +1421,7 @@
       "verificationExpiresAt": "2026-09-15",
       "codeState": "merged",
       "operationalState": "unit_verified",
-      "exposure": "production"
+      "exposure": "internal"
     }
   ],
   "axes": {
