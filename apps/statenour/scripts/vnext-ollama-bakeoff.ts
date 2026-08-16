@@ -182,27 +182,71 @@ const INSIGHT_PROMPT =
 const OBVIOUS_EXCLUDED = /\b(loyalty program|rewards program|follow[- ]?up text|reminder email|punch card)\b/gi;
 const TRADEOFF = /\b(but|however|unless|trade[- ]?off|downside|risk|caveat|the catch|fails? when|counter)\b/gi;
 const HEDGE = /\b(it depends|consider|make sure|important to|be sure to|keep in mind|in general|generally speaking)\b/gi;
+// Insight usually REFRAMES rather than answers: it attacks the premise, or says
+// the number means something other than what was assumed. Slop accepts the
+// question as posed and returns tactics.
+const REFRAME = /\b(the real (question|problem|issue)|measuring the wrong|wrong (question|metric|thing)|premise|reframe|actually (a|an|the)|isn'?t (a|an|the) .{0,20}problem|misread)\b/gi;
 
+/**
+ * Length-normalised insight proxies.
+ *
+ * v1 (2026-08-15, same day) counted RAW OCCURRENCES: novel words >= 40,
+ * numbers >= 2. Every real model blew through both by 6-10x simply by writing a
+ * long answer — first run showed novel=287/249/262 against a threshold of 40 —
+ * so the axis saturated at 1.0 and discriminated nothing. Worse, the check I ran
+ * before shipping it compared a SHORT slop sample against a LONG good sample, so
+ * what it actually validated was that the scorer separates short from long.
+ * Real answers are all long. The verification was as length-confounded as the
+ * metric.
+ *
+ * v2 scores DENSITIES (per 100 words) plus lexical variety, both invariant to
+ * answer length, and adds a reframing signal. `words` is now reported in the
+ * note so thresholds can be calibrated against a real distribution instead of
+ * guessed a second time.
+ *
+ * Still proxies, still gameable, still deterministic on purpose. A low score
+ * remains strong evidence; a high score remains weak evidence.
+ */
 function scoreInsight(answer: string): { points: number; note: string } {
   const text = answer.toLowerCase();
-  const promptTerms = new Set(INSIGHT_PROMPT.toLowerCase().match(/[a-z]{5,}/g) ?? []);
-  const novel = new Set((text.match(/[a-z]{5,}/g) ?? []).filter((w) => !promptTerms.has(w)));
+  const allWords = text.match(/[a-z][a-z'-]{2,}/g) ?? [];
+  const words = allWords.length;
+  if (words < 60) {
+    return { points: -2, note: `words=${words} (too short to assess)` };
+  }
+  const per100 = 100 / words;
 
+  const promptTerms = new Set(INSIGHT_PROMPT.toLowerCase().match(/[a-z]{5,}/g) ?? []);
+  const content = allWords.filter((w) => w.length >= 5);
+  const distinct = new Set(content);
+  const novel = new Set([...distinct].filter((w) => !promptTerms.has(w)));
+
+  // Lexical variety: distinct content words / content words. Slop recycles a
+  // small vocabulary of advice nouns; dense analysis keeps introducing terms.
+  const variety = content.length > 0 ? distinct.size / content.length : 0;
+  const novelShare = distinct.size > 0 ? novel.size / distinct.size : 0;
+
+  const tradeoffD = (answer.match(TRADEOFF) ?? []).length * per100;
+  const numberD = (answer.match(/\b\d+(\.\d+)?%?\b/g) ?? []).length * per100;
+  const hedgeD = (answer.match(HEDGE) ?? []).length * per100;
   const obvious = (answer.match(OBVIOUS_EXCLUDED) ?? []).length;
-  const tradeoffs = (answer.match(TRADEOFF) ?? []).length;
-  const hedges = (answer.match(HEDGE) ?? []).length;
-  const numbers = (answer.match(/\b\d+(\.\d+)?%?\b/g) ?? []).length;
+  const reframes = (answer.match(REFRAME) ?? []).length;
 
   let points = 0;
-  if (novel.size >= 40) points += 1;      // brings its own vocabulary, not the prompt's
-  if (tradeoffs >= 1) points += 1;        // names a cost, not just a recommendation
-  if (numbers >= 2) points += 1;          // concrete, not generic advice
-  if (obvious > 0) points -= 2;           // returned an answer explicitly ruled out
-  if (hedges >= 3) points -= 1;           // advice-shaped filler
+  if (variety >= 0.5) points += 1;      // varied vocabulary, not recycled advice nouns
+  if (novelShare >= 0.85) points += 1;  // brings its own terms rather than echoing the prompt
+  if (tradeoffD >= 0.5) points += 1;    // names a cost at least once per 200 words
+  if (numberD >= 0.5) points += 1;      // concrete at least once per 200 words
+  if (reframes >= 1) points += 1;       // challenges the premise instead of answering it flat
+  if (hedgeD >= 1) points -= 1;         // advice-shaped filler
+  if (obvious > 0) points -= 3;         // returned an answer the prompt ruled out
 
   return {
     points,
-    note: `novel=${novel.size} tradeoff=${tradeoffs} num=${numbers} obvious=${obvious} hedge=${hedges}`,
+    note:
+      `words=${words} var=${variety.toFixed(2)} novelShare=${novelShare.toFixed(2)} ` +
+      `tradeoff/100=${tradeoffD.toFixed(2)} num/100=${numberD.toFixed(2)} ` +
+      `hedge/100=${hedgeD.toFixed(2)} reframe=${reframes} obvious=${obvious}`,
   };
 }
 
@@ -281,7 +325,7 @@ async function runProbe(model: string, probe: string): Promise<ProbeResult> {
       });
       const { content } = messageOf(json);
       const { points, note } = scoreInsight(content);
-      return { probe, pass: points >= 2, latencyMs, note };
+      return { probe, pass: points >= 3, latencyMs, note };
     }
     // json probe
     const { json, latencyMs } = await chat(model, {
@@ -361,7 +405,10 @@ async function main(): Promise<void> {
       continue;
     }
     const results: ProbeResult[] = [];
-    for (const probe of ["tool", "instruction", "reasoning", "json", "insight"]) {
+    const PROBE_SET = (process.env.BAKEOFF_PROBES || "")
+      .split(",").map((x) => x.trim()).filter(Boolean);
+    const probes = PROBE_SET.length > 0 ? PROBE_SET : ["tool", "instruction", "reasoning", "json", "insight"];
+    for (const probe of probes) {
       for (let i = 0; i < REPS; i++) {
         const r = await runProbe(model, probe);
         results.push(r);
