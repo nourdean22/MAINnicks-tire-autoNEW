@@ -71,8 +71,9 @@ in #1541; both migrations are applied to prod and read-back verified. **Every ne
 originated write lands there as a DRAFT and executes only through a compare-and-set approval
 chain** — a rejected row cannot reach execution structurally, and executors create internal records
 only (callbacks, bookings at status `new`), never a customer send. Nick's call-end extraction feeds
-it draft-only and ships **flag-gated OFF** (`vapi_action_proposals`) — flip it, then hand-review the
-first ~10 drafts against their recordings. Contract detail in `docs/CURRENT-TRUTH.md`.
+it draft-only. That flag (`vapi_action_proposals`) shipped OFF and was **turned ON 2026-08-16** at
+the operator's instruction, read-back verified against live Railway env — so drafts accumulate from
+now on. Hand-review the first ~10 against their recordings before trusting the queue. Contract detail in `docs/CURRENT-TRUTH.md`.
 
 ## 2026-08-08 — five defects that every internal signal reported as healthy
 
@@ -104,21 +105,28 @@ was accurate and the conclusion it invited was wrong.** Registry: ROS-089…094.
   (`declinedWorkTopics` + `creativeFingerprint`). Counts and dollars rank and
   explain; they never enter the brief (ROS-094).
 
-**OPEN, needs an operator decision (ROS-093) — but NOT still sending.** This
-paragraph read "is live-sending SMS" until 2026-08-15; that has been false since
-2026-08-08, when the operator set `FEATURE_DECLINED_RECOVERY=0` on Railway
-(read-back verified — the guard is `=== "1"`, so it drops to dry-run) and the
-matcher itself was fixed. The matcher was never unscheduled, it was BROKEN: it
-compared phone strings across two tables storing different formats, so it ran on
-every sync and matched nothing. After the repair the match rate went 5 → 20 of
-439, and **15 of the rows sitting in the "declined" list were customers who had
-already paid** — some share of the 22 texts sent in the 30 days before the pause
-went to people in that state.
+**OPEN, and it IS still sending — corrected 2026-08-16 against live prod.** This paragraph has
+now been wrong in both directions. It read "is live-sending SMS" until 2026-08-15, was rewritten to
+"NOT still sending" on the strength of `docs/ISSUE-REGISTRY.md` (ROS-093, "operator set
+`FEATURE_DECLINED_RECOVERY=0` on Railway, read-back verified"), and that rewrite was false. Reading
+the live service env on 2026-08-16 returns `FEATURE_DECLINED_RECOVERY=1`; the guard at
+`server/services/declinedWorkRecovery.ts:239` is `=== "1"`, so the send path is armed. `cron_log`
+agrees — `Sent 0/3d + 4/7d` on 08-13, `1/14d` on 08-14, `1/14d` on 08-15, i.e. **6 customer texts in
+three days**, and 31 follow-up stamps on `alg_estimates` in the last 30. Either the flag was flipped
+back after 08-08 or the read-back was never done. **Do not restate this flag from a doc — read the
+service env.**
 
-What is actually open is the judgement, not the danger: re-run the recovery loop
-against the corrected list (real eligible set **53 estimates / $44,331**, not the
-$376,927 the dashboard implied), and decide whether to re-enable the flag and/or
-widen the 60-day window. Full receipts in `docs/ISSUE-REGISTRY.md` (ROS-093).
+The judgement is still open, but the exposure is live, not historical. The matcher was never
+unscheduled, it was BROKEN: it compared phone strings across two tables storing different formats,
+so it ran on every sync and matched nothing. After the repair the match rate went 5 → 20 of 439, and
+**15 of the rows sitting in the "declined" list were customers who had already paid**. The 30-day
+matcher window then left a second blind band, closed in #1592 (`DECLINED_RECOVERY_WINDOW_DAYS = 60`,
+matching what sends actually target). As of 2026-08-16 the live eligible set is **49 unmatched
+estimates inside 60 days, 27 of them (55%) in the 31-60 day band the matcher could not reach until
+#1592 merged** — so the list this loop has been texting was demonstrably wrong until that PR, and
+should re-verify itself as syncs run. The operator's call on 2026-08-16 was to leave it running
+rather than pause: volume is low and the band is now closed in code. Full receipts in
+`docs/ISSUE-REGISTRY.md` (ROS-093), which carries the superseded `=0` claim.
 
 **Prod pin changed 2026-08-08:** `REEL_VIDEO_PROVIDER=template_stock`
 (read-back verified). Higgsfield's session is revoked; nothing is blocked on it.
