@@ -98,9 +98,31 @@ async function main() {
   console.log(`\nempty content: ${empty.length}/${rows.length} (${Math.round((empty.length / rows.length) * 100)}%)`);
   console.log("finish_reason:", [...byFinish].map(([k, v]) => `${k}=${v}`).join(" · "));
   if (empty.length > 0) {
+    // 2026-08-15 · CORRECTED. The first version keyed the verdict on
+    // `reasoning_content` alone and printed "MECHANISM B — upstream returned
+    // nothing" for a run whose own numbers disproved it: the empty call had
+    // finish_reason="length" and completion_tokens=4000. A provider that
+    // returned nothing bills ~0 completion tokens; 4000 generated tokens with
+    // zero delivered characters is budget exhaustion by an INVISIBLE trace —
+    // this API exposes no reasoning_content at all, so absence of that field
+    // says nothing. Token count is the discriminator, not the field.
     const withReasoning = empty.filter((r) => r.reasoning > 0).length;
-    console.log(`of the empty ones: ${withReasoning} had reasoning_content (answer lost to the trace), ${empty.length - withReasoning} were wholly empty`);
-    console.log("verdict:", withReasoning > 0 ? "MECHANISM A — thinking consumed the budget" : "MECHANISM B — upstream returned nothing");
+    const burnedBudget = empty.filter((r) => (r.completionTokens ?? 0) >= MAX_TOKENS * 0.9).length;
+    console.log(
+      `of the empty ones: ${burnedBudget} burned >=90% of the token budget · ${withReasoning} exposed reasoning_content`,
+    );
+    console.log(
+      "verdict:",
+      burnedBudget > 0
+        ? `MECHANISM A — thinking consumed the budget (raise max_tokens; ${burnedBudget}/${empty.length} generated a full budget and delivered nothing)`
+        : "MECHANISM B — upstream returned nothing (retry + failover; budget is not the constraint)",
+    );
+    const truncated = rows.filter((r) => r.finish === "length").length;
+    if (truncated > 0) {
+      console.log(
+        `NOTE: ${truncated}/${rows.length} hit finish_reason="length" — answers are being cut off, not just the empty ones.`,
+      );
+    }
   }
 }
 

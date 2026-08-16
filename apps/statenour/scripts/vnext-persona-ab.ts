@@ -93,26 +93,49 @@ const reg = preRegister({
   arms: ["A=incumbent identityBlock()", "B=thinking-partner stance (authority + security verbatim)"],
 });
 
+// Must match production's standard-mode budget (prepare-tools.ts
+// modeDefaultTokens), or the experiment measures a condition the product no
+// longer has. Run 1 used 4000 against a prod value of 2000 and STILL lost 4 of
+// 16 cells to truncation; prod is now 6000.
+const MAX_TOKENS = Math.max(1000, Number(process.env.PERSONA_AB_MAX_TOKENS) || 6000);
+
 async function runArm(system: string, q: string) {
   // _lib/ollama-ab's chat() is chat(model, system, user, maxTokens) -> string.
   // (vnext-ollama-bakeoff.ts has its OWN local chat() taking an options object;
   // passing that shape here put the options object into `content` and Ollama
   // returned `400 invalid message content type: map[string]interface {}`.)
-  const msg = await chat(MODEL, system, q, 4000);
-  const answer = msg.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/i, "").trim();
+  //
+  // EMPTY-RESPONSE RETRY. Run 1 scored four empty responses as insight -2 and
+  // averaged them into the arm means — i.e. it scored a provider failure as a
+  // persona result, which is how you get a confident wrong answer. An empty
+  // draw is a NULL, not a zero: retry once, and if it is still empty mark the
+  // cell void so it can be excluded from the means rather than dragging one arm
+  // down by luck.
+  let answer = "";
+  let attempts = 0;
+  while (attempts < 2 && answer === "") {
+    attempts++;
+    const msg = await chat(MODEL, system, q, MAX_TOKENS);
+    answer = msg.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/i, "").trim();
+  }
+  if (answer === "") {
+    return { points: 0, note: "VOID — empty after 2 attempts", void: true, challenges: false, sycophantic: false, chars: 0, attempts };
+  }
   const { points, note } = scoreInsight(answer, q);
   return {
     points,
     note,
+    void: false,
     challenges: CHALLENGE_MARKER_RE.test(answer),
     sycophantic: AGREEMENT_OPENER_RE.test(answer),
     chars: answer.length,
+    attempts,
   };
 }
 
 async function main() {
   if (!requireKey()) return;
-  console.log(`persona A/B · model=${MODEL} · reps=${REPS}`);
+  console.log(`persona A/B · model=${MODEL} · reps=${REPS} · max_tokens=${MAX_TOKENS}`);
   console.log(`arm A ${ARM_A.length} ch · arm B ${ARM_B.length} ch`);
 
   const rows: Array<Record<string, unknown>> = [];
@@ -121,16 +144,28 @@ async function main() {
       const a = await runArm(ARM_A, c.q);
       const b = await runArm(ARM_B, c.q);
       rows.push({ case: c.id, rep: i + 1, a, b });
+      // A void cell and a genuine zero both printed "0" — indistinguishable in
+      // the console while a run is in flight, which is exactly when the
+      // distinction matters (void = provider failure, 0 = real result).
+      const fmt = (x: { points: number; void: boolean }) => (x.void ? "VOID" : String(x.points));
       console.log(
-        `${c.id} #${i + 1} · A=${a.points} (chal=${a.challenges} syc=${a.sycophantic}) · B=${b.points} (chal=${b.challenges} syc=${b.sycophantic})`,
+        `${c.id} #${i + 1} · A=${fmt(a)} (chal=${a.challenges} syc=${a.sycophantic}) · B=${fmt(b)} (chal=${b.challenges} syc=${b.sycophantic})`,
       );
     }
   }
 
-  const mean = (side: "a" | "b") =>
-    rows.reduce((s, r) => s + (r[side] as { points: number }).points, 0) / (rows.length || 1);
-  const rate = (side: "a" | "b", k: "challenges" | "sycophantic") =>
-    rows.filter((r) => (r[side] as Record<string, boolean>)[k]).length / (rows.length || 1);
+  // Void cells (empty after retry) are EXCLUDED, not scored. Averaging a
+  // provider failure into an arm mean is what invalidated run 1.
+  const live = (side: "a" | "b") => rows.filter((r) => !(r[side] as { void?: boolean }).void);
+  const mean = (side: "a" | "b") => {
+    const l = live(side);
+    return l.reduce((s, r) => s + (r[side] as { points: number }).points, 0) / (l.length || 1);
+  };
+  const rate = (side: "a" | "b", k: "challenges" | "sycophantic") => {
+    const l = live(side);
+    return l.filter((r) => (r[side] as Record<string, boolean>)[k]).length / (l.length || 1);
+  };
+  const voids = rows.filter((r) => (r.a as { void?: boolean }).void || (r.b as { void?: boolean }).void).length;
 
   const meanA = mean("a"), meanB = mean("b");
   const lead = meanB - meanA;
@@ -150,7 +185,8 @@ async function main() {
       return `| ${r.case} | ${r.rep} | ${a.points} | ${b.points} | ${a.challenges} | ${b.challenges} | ${a.sycophantic} | ${b.sycophantic} |`;
     }),
     ``,
-    `**Mean insight points:** A=${meanA.toFixed(2)} · B=${meanB.toFixed(2)} · lead(B−A)=${lead.toFixed(2)}`,
+    `**Mean insight points (void cells excluded):** A=${meanA.toFixed(2)} (n=${live("a").length}) · B=${meanB.toFixed(2)} (n=${live("b").length}) · lead(B−A)=${lead.toFixed(2)}`,
+    `**Void cells (empty after retry):** ${voids} of ${rows.length} — these are provider failures, not persona results`,
     `**Challenge-marker rate:** A=${rate("a", "challenges").toFixed(2)} · B=${rate("b", "challenges").toFixed(2)}`,
     `**Sycophantic-opener rate:** A=${rate("a", "sycophantic").toFixed(2)} · B=${rate("b", "sycophantic").toFixed(2)}`,
     ``,

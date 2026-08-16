@@ -355,7 +355,10 @@ async function main(): Promise<void> {
         a.medianLatencyMs - b.medianLatencyMs,
     )[0];
 
-  const date = process.env.BAKEOFF_DATE || "undated";
+  // Defaulting to "undated" produced OLLAMA-BAKEOFF-undated.md, which cannot
+  // be tied to a run or compared against the dated ones beside it, and the
+  // next run silently overwrites it. Default to today.
+  const date = process.env.BAKEOFF_DATE || new Date().toISOString().slice(0, 10);
   const lines: string[] = [
     `# Ollama Cloud bake-off · ${date}`,
     "",
