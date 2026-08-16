@@ -36,3 +36,43 @@ describe("chat-recall quarantine", () => {
     expect(RECALL_EXCLUDE_CATEGORIES).toContain(BRAIN_CATEGORIES.SUGGESTION_HYPOTHESIS);
   });
 });
+
+/**
+ * Graduated-flag defaults (2026-08-16). Both of this wave's new capabilities
+ * were flipped default-ON by operator instruction WITHOUT the shadow-review
+ * evidence that graduated Phase-1. These tests pin the kill-switches, because
+ * an accepted-risk default is only acceptable while its rollback lever works.
+ */
+describe("graduated flag defaults", () => {
+  it("registers NICK_NOVELTY_RECALL as default-ON with a working kill-switch", async () => {
+    const { FLAG_REGISTRY, getFlag } = await import("@/lib/feature-flags");
+    const spec = FLAG_REGISTRY.find((f) => f.key === "NICK_NOVELTY_RECALL");
+    // An UNREGISTERED key makes getFlag return null and the `?? false` idiom at
+    // the call site swallow it — the feature would be permanently, silently off.
+    expect(spec).toBeDefined();
+    expect(spec?.defaultOn).toBe(true);
+
+    const prev = process.env.NICK_NOVELTY_RECALL;
+    try {
+      delete process.env.NICK_NOVELTY_RECALL;
+      expect(getFlag("NICK_NOVELTY_RECALL")?.isOn).toBe(true);
+      process.env.NICK_NOVELTY_RECALL = "0";
+      expect(getFlag("NICK_NOVELTY_RECALL")?.isOn).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.NICK_NOVELTY_RECALL;
+      else process.env.NICK_NOVELTY_RECALL = prev;
+    }
+  });
+
+  it("leaves non-graduated flags default-OFF", async () => {
+    const { getFlag } = await import("@/lib/feature-flags");
+    const prev = process.env.NICK_IMPORTANCE_RECALL;
+    try {
+      delete process.env.NICK_IMPORTANCE_RECALL;
+      expect(getFlag("NICK_IMPORTANCE_RECALL")?.isOn).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.NICK_IMPORTANCE_RECALL;
+      else process.env.NICK_IMPORTANCE_RECALL = prev;
+    }
+  });
+});

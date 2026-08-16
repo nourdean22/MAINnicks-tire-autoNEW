@@ -283,12 +283,16 @@ export class BrainMemoryManager {
             return existing;
           }
 
-          // 2026-08-16 · Phase-2 — opt-IN (`=1`), unlike Phase-1's kill-switch.
-          // Phase-1 flipped default-on only after a 7-day shadow review proved
-          // the noop slice was 0% legacy-agreeing. Phase-2 has no equivalent
-          // run yet, so the operator chooses the blast radius. Re-run
-          // scripts/probe-gateway-agrees.ts before considering a default flip.
-          if (process.env.NICK_MEMORY_GATEWAY_PHASE2 === "1") {
+          // 2026-08-16 · Phase-2 — LIVE by default, kill-switch
+          // NICK_MEMORY_GATEWAY_PHASE2=0, matching Phase-1's shape.
+          //
+          // Honest provenance: Phase-1 earned default-on with a 7-day shadow
+          // review (1,788 receipts, noop at 0% legacy agreement). Phase-2 has
+          // NO equivalent run — it shipped opt-in for that reason and was
+          // flipped on explicit operator instruction ("we can take the risk"),
+          // not on evidence. If write behavior looks wrong, set the kill-switch
+          // FIRST and diagnose second; then run scripts/probe-gateway-agrees.ts.
+          if (process.env.NICK_MEMORY_GATEWAY_PHASE2 !== "0") {
             // "update" = an equal-strength source CHANGED the claim. Legacy
             // treats that as corroboration and adds +0.1 — the audit's exact
             // P0. Take the new content, refuse the confidence.

@@ -49,8 +49,10 @@
 > Phase-1 acted only on `noop`; `update` and `review_required` fell through to
 > legacy `reinforce()`, which replaces content **and** adds +0.1 confidence — so
 > a weak inference could overwrite an operator-stated claim and gain confidence
-> doing it. Phase-2 ships **opt-IN** (`NICK_MEMORY_GATEWAY_PHASE2=1`, unlike
-> Phase-1's kill-switch) because there is no shadow-review evidence for it yet:
+> doing it. Phase-2 ships **LIVE BY DEFAULT** (kill-switch
+> `NICK_MEMORY_GATEWAY_PHASE2=0`). It was built opt-in because there is no
+> shadow-review evidence for it, then flipped on in the same session by explicit
+> operator instruction — accepted risk, not measured safety:
 > `update` takes content without the bump; `review_required` parks in the
 > EXISTING `/brain` Review queue (`research_pack` staging + `knowledge_candidate`
 > metadata, so zero new UI, routes or categories). Deliberately scoped to
@@ -65,9 +67,13 @@
 > lexical, category, topic, CoALA kind) rewards FIT. A surprising one-off sits at
 > 0.5 forever and loses to a banality re-observed nightly to 1.0 — which is why
 > the machine generated interesting findings and then sorted them below the fold.
-> Added `noveltyMultiplier` (0.95-1.18, flag `NICK_NOVELTY_RECALL`, default OFF,
-> registered in FLAG_REGISTRY — an unregistered key resolves to permanently-off
-> in silence). Applied **after** the reranker, because rerank overwrites `hybrid`
+> Added `noveltyMultiplier` (0.95-1.18, `NICK_NOVELTY_RECALL`, **LIVE by
+> default**, kill-switch `=0`). Registration in FLAG_REGISTRY is load-bearing —
+> an unregistered key resolves to permanently-off in silence — and expressing a
+> default-ON flag needed a new `defaultOn` field, because `computeIsOn` returned
+> false for an empty value unconditionally. Without it a graduated flag has to
+> bypass `getFlag` and read `process.env` directly, which makes
+> /system/migrations report the flag OFF while the code runs it. Applied **after** the reranker, because rerank overwrites `hybrid`
 > with `0.5 + 0.5 * r.score` for the top 25 and silently discards every
 > post-fusion multiplier — a hole `importanceMultiplier` still has. Cost is zero
 > extra queries: `getSemanticScores` already JSON.parsed every candidate's
@@ -134,9 +140,22 @@
 > novelty multiplier (both fail on an inverted implementation, restore to green).
 >
 > **Flagged · NOT fixed**
-> - **Phase-2 and novelty are both OFF by default and unproven.** Phase-1 earned
->   default-on with a 7-day shadow review; neither of these has one. Re-run
->   `scripts/probe-gateway-agrees.ts` and `pnpm eval:recall` before flipping.
+> - **★ Phase-2 and novelty are both LIVE by default and UNPROVEN.** Phase-1
+>   earned default-on with a 7-day shadow review; neither of these has one. They
+>   were switched on by explicit operator instruction, accepting the risk. The
+>   evidence run is now owed AFTER the fact rather than before it:
+>   `scripts/probe-gateway-agrees.ts` and `pnpm eval:recall`. Rollback levers:
+>   `NICK_MEMORY_GATEWAY_PHASE2=0` / `NICK_NOVELTY_RECALL=0`.
+> - **Self-review caught three defects in this diff before merge** (5 adversarial
+>   lenses, 31 raw findings, 6 surviving refutation): `rateDiscovery` resolved
+>   `{ok:false}` on a refused verdict and the client only had a `catch`, so a lost
+>   "already knew" tap looked identical to success (now `NOT_FOUND`, matching the
+>   sibling `resolveContradiction`); the provenance label called any unrecognized
+>   source "unverified", which covers `source: "operator"` and the operator's own
+>   `pin:chat` rows (now "unclassified"); and `<h2 className="text-sm">` loses to
+>   an UNLAYERED `h2` rule in base.css, so both new headings would have painted
+>   20px uppercase Barlow (now `<p role="heading">`, the fix
+>   `mastery-section-label.tsx` already documents from a Chrome walkthrough).
 > - **The eval corpus is unblocked, not populated.** `recordDecision` now has two
 >   real callers, but the corpus grows only as the operator actually judges
 >   nudges and discoveries. `pnpm harvest:evals` + `scripts/corpus-odometer.ts`

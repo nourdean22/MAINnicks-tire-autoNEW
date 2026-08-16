@@ -79,9 +79,17 @@ export function ContradictionSlot() {
     <GlassCard critical className="p-4 space-y-3">
       <div className="flex items-center gap-2">
         <AlertTriangle size={14} className="text-rose-300 shrink-0" />
-        <h2 className="text-sm font-semibold text-fg">
+        {/* 2026-08-16 self-review · NOT an <h2>. app/styles/base.css:28 styles
+            h2 as Barlow Condensed 1.25rem UPPERCASE, and globals.css imports
+            it UNLAYERED — so per the cascade-layers spec it beats every
+            Tailwind utility (which ship inside @layer utilities) regardless of
+            specificity. `text-sm` would have emitted CSS and still lost, and
+            the heading would paint 20px uppercase on the operator's phone.
+            components/mastery/mastery-section-label.tsx:57-66 documents this
+            exact trap from a Chrome walkthrough; reuse its fix. */}
+        <p role="heading" aria-level={2} className="text-sm font-semibold text-fg">
           You&apos;ve reversed on something
-        </h2>
+        </p>
         <span className="ml-auto rounded border border-glass px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-fg-secondary">
           {items.length} open
         </span>

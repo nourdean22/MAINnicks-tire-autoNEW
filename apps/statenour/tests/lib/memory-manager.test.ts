@@ -212,8 +212,11 @@ describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
     return mm.remember("pattern", "k", "changed claim", "insight-engine-b");
   };
 
-  it("OFF: an equal-strength content change still bumps confidence (legacy)", async () => {
-    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+  it("KILLED (=0): an equal-strength content change still bumps confidence (legacy)", async () => {
+    // 2026-08-16 · Phase-2 flipped default-ON on operator instruction, so the
+    // legacy path is now reached only via the explicit kill-switch. This test
+    // is the rollback lever's regression guard.
+    process.env.NICK_MEMORY_GATEWAY_PHASE2 = "0";
     await equalStrengthChange();
     const data = mocks.brainMemory.update.mock.calls[0][0].data;
     expect(data.confidence).toBe(0.7); // 0.6 + 0.1
@@ -221,8 +224,8 @@ describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
     expect(data.content).toBe("changed claim");
   });
 
-  it("ON: an equal-strength content change takes the content WITHOUT the confidence bump", async () => {
-    process.env.NICK_MEMORY_GATEWAY_PHASE2 = "1";
+  it("DEFAULT (unset): an equal-strength content change takes the content WITHOUT the confidence bump", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
     await equalStrengthChange();
     const data = mocks.brainMemory.update.mock.calls[0][0].data;
     expect(data.confidence).toBe(0.6); // unchanged — a change is not corroboration
@@ -230,8 +233,8 @@ describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
     expect(data.content).toBe("changed claim"); // but the new claim IS taken
   });
 
-  it("ON: weaker evidence contradicting a stronger claim parks instead of overwriting", async () => {
-    process.env.NICK_MEMORY_GATEWAY_PHASE2 = "1";
+  it("DEFAULT: weaker evidence contradicting a stronger claim parks instead of overwriting", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
     const existing = {
       id: "existing-id",
       category: "pattern",
@@ -262,8 +265,8 @@ describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
     expect(parked.create.metadata.targetKey).toBe("k");
   });
 
-  it("ON: an UNKNOWN category is deliberately NOT parked (volume guard)", async () => {
-    process.env.NICK_MEMORY_GATEWAY_PHASE2 = "1";
+  it("DEFAULT: an UNKNOWN category is deliberately NOT parked (volume guard)", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
     mocks.isKnownCategory.mockReturnValue(false);
     const existing = {
       id: "existing-id",

@@ -698,7 +698,29 @@ export const brainRouter = router({
         verdict: z.enum(["investigate", "known", "noise"]),
       }),
     )
-    .mutation(async ({ input }) => rateDiscovery(input.id, input.verdict)),
+    .mutation(async ({ input }) => {
+      const result = await rateDiscovery(input.id, input.verdict);
+      // 2026-08-16 self-review · rateDiscovery RESOLVES with { ok: false } when
+      // the row is gone, soft-deleted, or out of category — it never throws. The
+      // client awaits mutateAsync and only has a catch, so a refused verdict
+      // arrived as HTTP 200, wrote nothing to metadata OR the outcome ledger,
+      // showed no error, and then vanished from the list on invalidate: pixel
+      // identical to success. The precondition is routine, not exotic — the
+      // nightly consolidate cron soft-deletes merged duplicates and none of the
+      // four discovery categories is in CONSOLIDATION_EXCLUDE_CATEGORIES, while
+      // refetchOnWindowFocus is off app-wide so a stale card can sit on screen
+      // for hours. Losing the "already knew" tap silently is exactly the
+      // failure class this whole change set exists to remove.
+      // `resolveContradiction` two procedures down already maps a missing row to
+      // NOT_FOUND; match it rather than inventing a second contract.
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "That discovery is no longer available — it may have been consolidated or expired.",
+        });
+      }
+      return result;
+    }),
 
   contradictions: operatorProcedure
     .input(

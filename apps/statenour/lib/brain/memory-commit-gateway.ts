@@ -1,34 +1,40 @@
 /**
  * Memory Commit Gateway (spine-2, 2026-07-28 · Phase-1 live 2026-08-11 ·
- * Phase-2 opt-in 2026-08-16).
+ * Phase-2 live 2026-08-16).
+ *
+ * The problem it exists to fix: BrainMemory's legacy write semantics treat any
+ * category/key re-sighting as corroboration — reinforce() bumps confidence,
+ * three sightings make the row permanent, and changed content REPLACES the old
+ * claim while STRENGTHENING it, even when every sighting came from the same
+ * repeating automation. That is the audit's P0: no universal commit authority.
  *
  * ENFORCEMENT STATUS — read this before assuming a verdict is obeyed:
- *   · `noop`            ENFORCED by default (Phase-1, kill-switch
- *                       NICK_MEMORY_GATEWAY_PHASE1=0)
- *   · `update`          ENFORCED when NICK_MEMORY_GATEWAY_PHASE2=1
- *   · `review_required` ENFORCED when NICK_MEMORY_GATEWAY_PHASE2=1, and only
- *                       for reasonCode "weaker_evidence". "unknown_category"
- *                       still falls through on purpose — it is the larger
- *                       slice of the 349/wk and parking it would freeze
- *                       whole categories of automation writes.
+ *   · `noop`            ENFORCED by default. Phase-1, kill-switch
+ *                       NICK_MEMORY_GATEWAY_PHASE1=0.
+ *   · `update`          ENFORCED by default. Phase-2, kill-switch
+ *                       NICK_MEMORY_GATEWAY_PHASE2=0. Takes the new content
+ *                       WITHOUT the confidence bump or promotion progress.
+ *   · `review_required` ENFORCED by default (same Phase-2 switch) but ONLY for
+ *                       reasonCode "weaker_evidence". "unknown_category" still
+ *                       falls through on purpose — it is the larger slice of
+ *                       the measured 349/wk, and parking it would freeze whole
+ *                       categories of automation writes.
  *   · `supersede` / `reinforce` / `add` — legacy behavior is already correct.
- * The enforcement itself lives in lib/brain/memory-manager.ts remember();
- * this module stays a pure decision function plus its shadow recorder.
  *
- * BrainMemory's write semantics treat any category/key re-sighting as
- * corroboration: reinforce() bumps confidence, three sightings make the
- * row permanent, and a changed content REPLACES the old claim while
- * STRENGTHENING it — even when every sighting came from the same
- * repeating automation. That is the audit's P0: no universal commit
- * authority.
+ * Provenance of those defaults, stated plainly because it changes how you should
+ * debug them: Phase-1 earned default-on with a 7-day shadow review (1,788
+ * receipts; the noop slice agreed with the legacy path 0% of the time).
+ * **Phase-2 has no equivalent run.** It shipped opt-in for exactly that reason
+ * and was flipped default-on the same day by explicit operator instruction, as
+ * accepted risk rather than measured safety. If writes look wrong, throw the
+ * kill-switch FIRST and diagnose second, then run
+ * scripts/probe-gateway-agrees.ts to get the evidence that was skipped.
  *
- * This module is the authority's first form. It does NOT change any
- * write today. `shadowMemoryCommit()` runs the pure evaluator beside
- * every remember() call and records what the gateway WOULD have decided
- * as a self-expiring shadow receipt. After ~a week the receipts get
- * compared against what the legacy path actually did; only then do
- * high-value writers route through the gateway for real (spine-3
- * deliberately ships only the safe subset).
+ * The enforcement itself lives in lib/brain/memory-manager.ts remember(); this
+ * module stays a pure decision function plus its shadow recorder.
+ * `shadowMemoryCommit()` still runs beside every remember() call and records
+ * what the gateway WOULD decide as a self-expiring receipt — that is the corpus
+ * the deferred review reads.
  *
  * Design rule from the audit, kept: deterministic provenance + conflict
  * detection FIRST — no LLM in the write path.

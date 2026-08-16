@@ -53,9 +53,12 @@ export function KnowledgeRefreshPanel() {
   return (
     <Panel>
       <div className="flex items-center justify-between mb-2 gap-2">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-1">
+        {/* <p role="heading"> not <h2> — see contradiction-slot.tsx for the
+            unlayered-base.css cascade trap. This markup rode along from the
+            retired /knowledge page with the same latent bug. */}
+        <p role="heading" aria-level={2} className="text-sm font-semibold text-white flex items-center gap-1">
           <Sparkles className="h-4 w-4" /> Knowledge corpus refresh
-        </h2>
+        </p>
         <button
           onClick={runRefresh}
           disabled={refreshing}

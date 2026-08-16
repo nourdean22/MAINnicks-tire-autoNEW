@@ -31,20 +31,28 @@
   corpus never grew, and why `scripts/data-census.ts` records "corrections: 0/200".
   Not low volume: a missing writer. `recordDecisionByContent()` joins on the
   indexed `contentHash`; wired on nudge dismissal and the new Discover verdicts.
-- **★★ Gateway Phase-2 is LIVE but OPT-IN** — `NICK_MEMORY_GATEWAY_PHASE2=1`
-  (Phase-1 is a kill-switch; Phase-2 is not, because it has no shadow-review
-  evidence yet). Honors `update` (content, no confidence bump) and
+- **★★★ Gateway Phase-2 is LIVE BY DEFAULT** — kill-switch
+  `NICK_MEMORY_GATEWAY_PHASE2=0`. ★ It was flipped on by explicit operator
+  instruction ("we can take the risk"), NOT by the 7-day shadow review that
+  graduated Phase-1 — accepted risk, not measured safety. If writes look
+  wrong, throw the kill-switch FIRST, then run
+  `scripts/probe-gateway-agrees.ts`. Honors `update` (content, no bump) and
   `review_required` ONLY for `reasonCode: "weaker_evidence"`. `unknown_category`
   still falls through on purpose — it is the larger slice of the 349/wk, and
   parking it would freeze whole categories of automation writes.
 - **★★ Recall renders PROVENANCE, not a confidence percentage.**
-  `[category · you stated · seen 4x]` replaced `[category] (NN%)`. That percentage
+  `[category · you stated · seen 4x]` replaced `[category] (NN%)`. ★ An
+  unrecognized source renders **"unclassified", never "unverified"** — the
+  first cut said "unverified" and the ladder matches operator sources by EXACT
+  equality, so `source: "operator"` and the operator's own `pin:chat` rows
+  would have been announced to the model as untrusted. That percentage
   was never certainty: confidence is `0.5 + 0.1 × (sightings − 1)`, i.e. the
   sighting count restated. Labels come from the commit gateway's evidence ladder —
   one vocabulary, not a fourth taxonomy.
 - **★★★ Confidence is a FREQUENCY COUNT and recall sorted by it** — so surprise,
   being low-frequency, structurally lost every ranking contest. `NICK_NOVELTY_RECALL`
-  (default OFF, registered in FLAG_REGISTRY) adds a 0.95–1.18 novelty term AFTER
+  (**LIVE by default**, kill-switch `=0`; also operator-authorized without an
+  eval win) adds a 0.95–1.18 novelty term AFTER
   the reranker, because rerank overwrites `hybrid` for the top 25 and discards
   every post-fusion multiplier — `importanceMultiplier` still has that hole.
 - **`research_claim_candidate` is NOW actually quarantined from chat recall.**

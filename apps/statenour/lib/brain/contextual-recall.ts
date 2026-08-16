@@ -121,7 +121,17 @@ const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
   supported_inference: "inferred",
   generated_summary: "summary",
   prediction: "prediction",
-  weak_inference: "unverified",
+  // NOT "unverified" — that asserts a check was run and failed. This class is
+  // the ladder's FALLBACK for any source string it does not recognize, and
+  // real operator-authored writers land here: `source: "operator"`
+  // (app/api/relationships/log-outreach, lib/media/media-moment — whose own
+  // comment calls that source "load-bearing, not decoration") and `pin:chat` /
+  // `pin:manual` from lib/services/pins.ts, since the operator_stated test is
+  // three EXACT equality checks (user/manual/skill_ingestion), not a prefix.
+  // Labelling those "unverified" told the model the operator's own logged
+  // action and his explicit pins were untrusted — the same overclaim, inverted,
+  // that this whole change set exists to remove. Admit ignorance instead.
+  weak_inference: "unclassified",
 };
 
 /**
@@ -138,7 +148,7 @@ const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
  * Follows the `· `-separated bracket convention already used by
  * appendCrossSourceContext, so the block stays visually consistent.
  */
-function provenancePrefix(m: RelevantMemory): string {
+export function provenancePrefix(m: RelevantMemory): string {
   const cls = evidenceClassForSource(m.source ?? "");
   const seen = m.seenCount && m.seenCount > 1 ? ` · seen ${m.seenCount}x` : "";
   return `[${m.category} · ${EVIDENCE_LABEL[cls]}${seen}]`;
@@ -149,7 +159,7 @@ function provenancePrefix(m: RelevantMemory): string {
 // brief audio).
 import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 
-interface RelevantMemory {
+export interface RelevantMemory {
   category: string;
   content: string;
   confidence: number;
