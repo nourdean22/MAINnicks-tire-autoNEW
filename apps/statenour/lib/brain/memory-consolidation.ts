@@ -230,9 +230,27 @@ export async function promoteToWisdom(): Promise<{ promoted: number }> {
 // ─── 3. PRUNE: Garbage collect noise ─────────────────────
 
 export async function pruneNoise(): Promise<{ pruned: number }> {
-  // Delete expired temporary memories
-  const expired = await prisma.brainMemory.deleteMany({
-    where: { expiresAt: { lt: new Date() } },
+  // TTL expiry now SOFT-deletes. It hard-deleted until 2026-08-16, and that is
+  // where the distilled content went: of 4,867 memories found surviving only as
+  // orphaned embeddings, the largest categories were `insight` (1,046),
+  // `nick_advice` (648), `wisdom` (254) and `blind_spot` (249) — none of which
+  // are "temporary memories". A TTL landing on an insight destroyed it nightly.
+  //
+  // Hard-delete was also the outlier in this file: the paragraph below and
+  // mergeMemories both soft-delete deliberately, "to preserve source evidence +
+  // keep rows recoverable/auditable". This makes expiry consistent with that.
+  //
+  // Nothing about what gets RECALLED changes — recall filters `deletedAt: null`
+  // — so the TTL still ends the memory's working life. It just no longer
+  // destroys the only copy. Measured when this shipped: 180 rows were already
+  // past their TTL awaiting the next sweep, including insight and wisdom rows.
+  //
+  // The embedding is intentionally LEFT in place: the row still exists, so this
+  // is not an orphan, and dropping the vector would force a re-embed if the
+  // operator restores the memory from /brain/wisdom.
+  const expired = await prisma.brainMemory.updateMany({
+    where: { expiresAt: { lt: new Date() }, deletedAt: null },
+    data: { deletedAt: new Date() },
   });
 
   // Soft-delete very low confidence memories (below 0.1) that haven't
@@ -274,7 +292,11 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
       // separately + log via structured logger so /system/errors
       // surfaces a stuck-on-this-row regression.
       try {
+        // Duplicates ARE hard-deleted — a verbatim copy carries no evidence the
+        // keeper lacks — so the embedding must go with it or it orphans.
+        const { dropEmbeddingsForMemories } = await import("@/lib/brain/memory-tombstone");
         await prisma.brainMemory.delete({ where: { id: f.id } });
+        await dropEmbeddingsForMemories([f.id], "pruneNoise.duplicate");
         dupesPruned++;
       } catch (err) {
         dupeDeleteFailures++;

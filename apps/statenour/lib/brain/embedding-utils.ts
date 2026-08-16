@@ -19,6 +19,7 @@ import {
   padToVectorDim,
   VECTOR_DIM_1536,
 } from "@/lib/db/pgvector";
+import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 import { logError } from "@/lib/utils/error-log";
 
@@ -374,7 +375,20 @@ async function pgvectorSemanticSearch(
   const fanLimit = Math.min(limit * 2, 200);
   const hitsByType = await Promise.all(
     sourceTypes.map((st) =>
-      knnSearch(queryVec, { sourceType: st, limit: fanLimit, metric: "cosine" }),
+      // RECALL_EXCLUDE_CATEGORIES is enforced HERE, at the vector boundary, so
+      // all twelve semanticSearch callers inherit it. It was previously honoured
+      // only by callers that hand-wrote `category: { notIn: [...] }` into a
+      // Prisma where-clause, which the vector path never did — so the quarantine
+      // did not hold for grounding.ts or contradiction-surfacer.ts. Those two
+      // matter epistemically: groundClaim() could match an un-promoted
+      // research_claim_candidate and return "source_supported", i.e. one
+      // unverified external claim corroborating another.
+      knnSearch(queryVec, {
+        sourceType: st,
+        limit: fanLimit,
+        metric: "cosine",
+        excludeCategories: RECALL_EXCLUDE_CATEGORIES,
+      }),
     ),
   );
   // forensic-audit MEDIUM · knnSearch returns null on FAILURE and [] on a
@@ -391,10 +405,19 @@ async function pgvectorSemanticSearch(
   const memoryIds = allHits
     .filter((h) => h.sourceType === "brain_memory")
     .map((h) => h.sourceId);
+  // `deletedAt: null` is not a refinement here — it is the ONLY thing that keeps
+  // deleted memories out of recall. knnSearch reads `vector_embeddings` with no
+  // join back to `brain_memories`, and the loop below takes its text from
+  // `hit.content` (the embedding row's own copy), so a deleted memory stays
+  // fully readable through the index unless it is dropped here. Measured on prod
+  // 2026-08-16: of 9,919 searchable brain_memory entries, only 2,526 (25.5%)
+  // pointed at a live memory — 2,526 were soft-deleted and 4,867 had no memory
+  // row at all. Three of every four candidates were content the operator had
+  // already removed.
   const memories = memoryIds.length
     ? await prisma.brainMemory
         .findMany({
-          where: { id: { in: memoryIds } },
+          where: { id: { in: memoryIds }, deletedAt: null },
           select: { id: true, confidence: true, createdAt: true, category: true, seenCount: true },
         })
         .catch((): never[] => [])
@@ -412,6 +435,12 @@ async function pgvectorSemanticSearch(
 
     const meta = metaMap.get(hit.sourceId);
     const isMem = hit.sourceType === "brain_memory";
+    // A brain_memory hit with no live metadata row is deleted or gone. It used
+    // to survive this loop on the `confidence ?? 0.5` fallback and be served
+    // from hit.content, which is how soft-deleting a memory failed to remove it
+    // from Nick's context. Non-memory source types legitimately have no row here
+    // and are unaffected.
+    if (isMem && !meta) continue;
     const confidenceScore = isMem ? meta?.confidence ?? 0.5 : 0.6;
     const ageDays =
       isMem && meta ? (now - meta.createdAt.getTime()) / 86400000 : maxAgeDays / 2;
@@ -474,10 +503,20 @@ export async function semanticSearch(
   const memoryIds = rows
     .filter((r) => r.sourceType === "brain_memory")
     .map((r) => r.sourceId);
+  // Same liveness + quarantine contract as the pgvector path above. This branch
+  // runs precisely when pgvector is unavailable or every knnSearch failed —
+  // i.e. during an outage — so leaving it unguarded meant deleted and
+  // quarantined content became recallable exactly when the system was already
+  // degraded. `deletedAt: null` and the category filter are the whole guard;
+  // the scoring loop below drops any brain_memory whose metadata is absent.
   const memories = sourceTypes.includes("brain_memory") && memoryIds.length > 0
     ? await prisma.brainMemory
         .findMany({
-          where: { id: { in: memoryIds } },
+          where: {
+            id: { in: memoryIds },
+            deletedAt: null,
+            category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+          },
           select: {
             id: true,
             confidence: true,
@@ -506,6 +545,11 @@ export async function semanticSearch(
 
       const meta = metaMap.get(row.sourceId);
       const isMem = row.sourceType === "brain_memory";
+      // No live metadata row = deleted, orphaned, or quarantined. Dropping it
+      // here is what makes the filter above bite: the `confidence ?? 0.5`
+      // default below would otherwise carry it through with a plausible score,
+      // and its text comes from the embedding's own `content` copy.
+      if (isMem && !meta) continue;
 
       // Non-memory rows default to a synthetic confidence so they're
       // not crushed by missing metadata. brain_dump / reflection /

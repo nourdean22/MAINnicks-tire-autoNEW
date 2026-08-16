@@ -19,6 +19,7 @@
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
+import { TELEMETRY_CATEGORY_LIST } from "@/lib/brain/embedding-policy";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("cron/embed-backfill");
@@ -27,6 +28,14 @@ export const maxDuration = 60;
 
 const BATCH_PER_TYPE = 15;
 
+/**
+ * brain_memory gets its own, larger batch. The other source types are genuinely
+ * steady-state; brain_memory had a 12,791-row backlog (83.5% of the table) that
+ * the shared 15 could never have drained.
+ */
+const BRAIN_BATCH = 100;
+
+
 export const GET = cronHandler(async () => {
   const report: Record<string, { processed: number; success: number; remaining: number }> = {};
   let totalProcessed = 0;
@@ -34,24 +43,48 @@ export const GET = cronHandler(async () => {
 
   // ── brain_memory ──
   {
-    const embedded = await prisma.vectorEmbedding
-      .findMany({ where: { sourceType: "brain_memory" }, select: { sourceId: true }, orderBy: { createdAt: "desc" }, take: 5000 });
-    const embeddedSet = new Set(embedded.map((e) => e.sourceId));
-    // BrainMemory is retention='forever' (decays by confidence, never
-    // deleted) so it grows unbounded and rows carry large content
-    // (e.g. base64 audio). This block picks the top ~15 by confidence,
-    // so a bounded highest-confidence window is all it needs — an
-    // unbounded scan materializes the whole table twice a day to keep
-    // 15 rows. `take: 200` matches brain_dump/reflection below; a
-    // backlog drains over the twice-daily cadence.
-    const memories = await prisma.brainMemory.findMany({
-      where: { confidence: { gte: 0.2 } },
-      orderBy: { confidence: "desc" },
-      select: { id: true, category: true, key: true, content: true },
-      take: 200,
-    });
-    const missing = memories.filter((m) => !embeddedSet.has(m.id));
-    const batch = missing.slice(0, BATCH_PER_TYPE);
+    // 2026-08-16 · this block could not drain, and the shape of the bug is worth
+    // keeping. It was:
+    //
+    //   embedded = vectorEmbedding.findMany({ take: 5000 })          // truncated
+    //   memories = brainMemory.findMany({ orderBy: confidence desc, take: 200 })
+    //   missing  = memories.filter(m => !embeddedSet.has(m.id))
+    //
+    // The candidate set was a FIXED WINDOW, not a queue: the same top-200 rows
+    // by confidence every run. Measured on prod, the floor of that window was
+    // confidence 1.0 — 9,490 active rows sit at the ceiling — so `take: 200`
+    // never descended past it and 6,182 rows below the floor could never be
+    // selected at ANY cadence. Result: 12,791 of 15,317 active memories (83.5%)
+    // had no embedding, and recall is a vector search, so an unembedded row is
+    // not a weak memory, it is an absent one.
+    //
+    // It also inverted value. Bulk-imported chunks are stamped confidence 1.0
+    // while reasoned memories carry calibrated confidence, so the window
+    // admitted 7,069 archive_document chunks and excluded `insight` (1 of 78 at
+    // the ceiling), `chat_summary` (0 of 70) and `nick_advice` (69 of 502) —
+    // the distilled layers, excluded precisely for being honest.
+    //
+    // The fix is to ask the database for rows that are ACTUALLY unembedded, as
+    // an anti-join, so embedded rows drop out and the query always advances.
+    // Ordering stays confidence-first (still the right priority) but with `id`
+    // as a stable tiebreak, and the LIMIT now bounds work instead of defining
+    // the candidate universe.
+    const missing = await prisma.$queryRaw<
+      { id: string; category: string; key: string; content: string }[]
+    >`
+      SELECT bm.id, bm.category, bm.key, bm.content
+      FROM brain_memories bm
+      WHERE bm.deleted_at IS NULL
+        AND bm.confidence >= 0.2
+        AND NOT (bm.category = ANY(${TELEMETRY_CATEGORY_LIST}))
+        AND NOT EXISTS (
+          SELECT 1 FROM vector_embeddings v
+          WHERE v."sourceType" = 'brain_memory' AND v."sourceId" = bm.id
+        )
+      ORDER BY bm.confidence DESC, bm.id
+      LIMIT ${BRAIN_BATCH}
+    `;
+    const batch = missing;
     let success = 0;
     for (const m of batch) {
       try {
@@ -64,7 +97,21 @@ export const GET = cronHandler(async () => {
         log.warn("embed_failed", { err: err instanceof Error ? err.message : String(err) });
       }
     }
-    report.brain_memory = { processed: batch.length, success, remaining: missing.length - batch.length };
+    // `remaining` used to be `missing.length - batch.length`, which was always 0
+    // once the fixed window was exhausted — it reported "nothing left" while
+    // 12,791 rows sat dark. Count the real backlog instead.
+    const [{ n: remaining }] = await prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT COUNT(*)::bigint AS n
+      FROM brain_memories bm
+      WHERE bm.deleted_at IS NULL
+        AND bm.confidence >= 0.2
+        AND NOT (bm.category = ANY(${TELEMETRY_CATEGORY_LIST}))
+        AND NOT EXISTS (
+          SELECT 1 FROM vector_embeddings v
+          WHERE v."sourceType" = 'brain_memory' AND v."sourceId" = bm.id
+        )
+    `;
+    report.brain_memory = { processed: batch.length, success, remaining: Number(remaining) };
     totalProcessed += batch.length;
     totalSuccess += success;
   }

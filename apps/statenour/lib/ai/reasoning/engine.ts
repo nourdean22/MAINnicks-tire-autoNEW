@@ -1499,12 +1499,24 @@ export async function rotateReasoningTraces(): Promise<{
   try {
     const { prisma } = await import("@/lib/prisma");
     const cutoff = new Date(Date.now() - 30 * 86_400_000);
+    // Ids first: deleteMany returns only a count, and vector_embeddings rows are
+    // keyed by memory id. Without them the embedding outlives the memory — and
+    // it carries a `content` copy, so the trace stays readable forever with no
+    // row to manage it. See lib/brain/memory-tombstone.ts.
+    const { dropEmbeddingsForMemories } = await import("@/lib/brain/memory-tombstone");
+    const ageIds = (
+      await prisma.brainMemory.findMany({
+        where: {
+          category: BRAIN_CATEGORIES.REASONING_TRACE,
+          createdAt: { lt: cutoff },
+        },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
     const ageDel = await prisma.brainMemory.deleteMany({
-      where: {
-        category: BRAIN_CATEGORIES.REASONING_TRACE,
-        createdAt: { lt: cutoff },
-      },
+      where: { id: { in: ageIds } },
     });
+    await dropEmbeddingsForMemories(ageIds, "reasoning.rotate.age");
     // After age-pruning, enforce 500-row cap. Cheap because the index
     // on (category, createdAt) makes the offset query bounded.
     const count = await prisma.brainMemory.count({
@@ -1519,9 +1531,11 @@ export async function rotateReasoningTraces(): Promise<{
         take: excess,
         select: { id: true },
       });
+      const capIds = oldRows.map((r) => r.id);
       const result = await prisma.brainMemory.deleteMany({
-        where: { id: { in: oldRows.map((r) => r.id) } },
+        where: { id: { in: capIds } },
       });
+      await dropEmbeddingsForMemories(capIds, "reasoning.rotate.cap");
       capDel = result.count;
     }
     return { deletedByAge: ageDel.count, deletedByCap: capDel };

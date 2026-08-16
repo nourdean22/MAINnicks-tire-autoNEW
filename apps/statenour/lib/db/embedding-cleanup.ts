@@ -18,10 +18,28 @@
  *   · reflection         → row missing
  *   · photo              → row missing
  *
- * Hard-delete (not soft-delete) the orphan vector_embeddings rows.
- * They reference sources that are gone or archived; keeping the
- * embedding adds zero value (can't recover the source from a
- * 1024-dim vector).
+ * ⚠ CORRECTED 2026-08-16 — THE ORIGINAL JUSTIFICATION HERE WAS FALSE.
+ *
+ * This header used to read: "keeping the embedding adds zero value (can't
+ * recover the source from a 1024-dim vector)". That reasoned about the vector
+ * and forgot the `content` TEXT column sitting beside it. `vector_embeddings`
+ * stores the ORIGINAL TEXT, so for a source row that was HARD-deleted the
+ * embedding row is frequently the last surviving copy.
+ *
+ * Measured on prod 2026-08-16: of 4,867 brain_memory orphans whose memory row
+ * is gone, **0 had a surviving brain_memories row with the same key — 100% were
+ * the last copy**. Sampled content included distilled `wisdom_*` rules,
+ * `conversation_insight_*` rows, `nick_advice`, and journal concerns, averaging
+ * 464 chars and spanning 2026-04-26 to 2026-08-15.
+ *
+ * Running this against that population deletes four months of Nick's distilled
+ * output permanently, and the header said it was worthless. Anything that
+ * removes brain_memory orphans MUST archive `content` first.
+ *
+ * Recall no longer needs this cleanup to be correct or fast: as of 2026-08-16
+ * `knnSearch` filters source liveness IN SQL, so dead rows neither surface nor
+ * consume a LIMIT slot. Orphan removal is now a storage question, not a
+ * correctness one — which removes the only reason to be in a hurry about it.
  *
  * Idempotent: re-running on a clean table returns 0 deleted.
  * Safe: each sourceType is its own DELETE so a future schema change
@@ -53,13 +71,26 @@ interface OrphanQuery {
   joinColumn?: string; // default "id"
 }
 
+/**
+ * brain_memory is DELIBERATELY ABSENT from this list.
+ *
+ * It used to be the first entry. For a HARD-deleted memory the embedding row's
+ * `content` column is the last surviving copy of the text — measured 2026-08-16,
+ * 100% of 4,867 such orphans had no surviving brain_memories row with the same
+ * key. Deleting them is not cleanup, it is destroying four months of distilled
+ * wisdom, insights and journal entries with no backup.
+ *
+ * A corrected comment is not a guard, so the entry is removed rather than
+ * annotated: an operator running this script cannot now destroy that content by
+ * trusting the old header.
+ *
+ * To remove brain_memory orphans deliberately, first archive the text —
+ * `CREATE TABLE _bak_vector_embeddings_brainmem_<yyyymmdd> AS SELECT * FROM ...`
+ * per the house pattern in prod-db-guard — then delete against the backup.
+ * Recall does not need it: knnSearch filters liveness in SQL as of 2026-08-16,
+ * so these rows neither surface nor consume a LIMIT slot.
+ */
 const ORPHAN_QUERIES: OrphanQuery[] = [
-  {
-    sourceType: "brain_memory",
-    joinTable: "brain_memories",
-    joinAlias: "live",
-    liveCheck: 'live.id IS NULL OR live.deleted_at IS NOT NULL',
-  },
   {
     sourceType: "chat_message",
     joinTable: "chat_messages",
