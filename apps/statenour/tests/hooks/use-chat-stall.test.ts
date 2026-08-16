@@ -85,12 +85,36 @@ describe("useChatStall — the stall handler must always fire", () => {
     ).not.toMatch(/\bmessages\b/);
   });
 
-  it("keeps the abort threshold at 90s and the warn threshold at 30s", () => {
+  it("keeps the abort threshold at 180s and the warn threshold at 30s", () => {
     const code = codeOnly(SRC);
-    // Pins the documented tuning (raised from 6s/22s after the v11.1 image-gen
-    // incident). If these move, the change should be deliberate — the server
-    // side has no deadline of its own, so this IS the app's only timeout.
+    // Pins the documented tuning. If these move, the change should be
+    // deliberate — the server side has no deadline of its own, so this IS the
+    // app's only timeout. (History: 6s/22s → 90s after the v11.1 image-gen
+    // incident, where a 22s abort auto-killed slow image generations and
+    // immediately retried, spawning a duplicate-image storm.)
+    //
+    // 2026-08-16 · 90s → 180s. This pin did its job: it failed CI on the change
+    // and forced the rationale to be written down rather than assumed.
+    //
+    // The abort is COUPLED to prepare-tools' maxOutputTokens, which was raised
+    // the same day (2000 → 6000 standard, 4500 → 10000 deep) to stop a THINKING
+    // model being truncated mid-answer. Measured on the live pin
+    // (scripts/probe-empty-responses.ts, 12 calls): 13.2 ms/token mean, 16.1
+    // worst. Projected wall time — and remember this clock starts at SUBMIT, so
+    // server pre-stream time counts against it:
+    //
+    //     2000 tok (old)      26s mean /  32s worst   safe under 90s
+    //     3300 tok (typical)  44s mean /  53s worst   safe under 90s
+    //     6000 tok (standard) 79s mean /  97s worst   EXCEEDED 90s
+    //    10000 tok (deep)    132s mean / 161s worst   FAR EXCEEDED 90s
+    //
+    // ...and those are bare-prompt figures: no ~40k system prompt, no tool
+    // round-trips. Left at 90s, the budget raise would have converted truncated
+    // answers into aborted ones — the same user-visible complaint with a harder
+    // cause to find, since an abort and a completion are indistinguishable to
+    // onFinish. Known residual: a deep turn genuinely consuming all 10000
+    // tokens can still reach 180s.
     expect(code).toMatch(/warningMs\s*=\s*30_000/);
-    expect(code).toMatch(/abortMs\s*=\s*90_000/);
+    expect(code).toMatch(/abortMs\s*=\s*180_000/);
   });
 });
