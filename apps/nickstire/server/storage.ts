@@ -74,6 +74,28 @@ export function durableStorageConfigured(): boolean {
 }
 
 /**
+ * Does a stored object get a URL that stays valid forever?
+ *
+ * This mirrors `storagePut`'s ACTUAL branching, which has two permanent paths
+ * and one expiring one:
+ *
+ *   CLOUDFRONT_DOMAIN set          -> https://{cdn}/{key}                 PERMANENT
+ *   usesProxiedReads() (S3_ENDPOINT
+ *   set, CLOUDFRONT_DOMAIN unset)  -> {SITE_URL}/generated/{key}          PERMANENT
+ *   neither                        -> presigned, expiresIn 86400          EXPIRES
+ *
+ * It exists because two health surfaces were computing permanence as
+ * `!!CLOUDFRONT_DOMAIN`, which is the exact INVERSE of the proxied-reads
+ * condition — so production (S3 set, CloudFront deliberately absent) reported
+ * "Ephemeral Only" while serving permanent proxied URLs. A health check must not
+ * carry its own second definition of a condition the module already decides;
+ * this is that single definition.
+ */
+export function servesPermanentUrls(): boolean {
+  return !!process.env.CLOUDFRONT_DOMAIN || usesProxiedReads();
+}
+
+/**
  * Precondition for anything that SPENDS money to produce media (Veo clips,
  * paid image gen): refuse to start unless the result can be durably kept.
  * Otherwise the pipeline pays for a clip, writes it to ephemeral disk, and a

@@ -15,6 +15,7 @@
  */
 import { trpc } from "@/lib/trpc";
 import { Activity, Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { readStatus, unavailableCopy } from "@/lib/queryState";
 
 // Router's dynamic imports defeat tRPC inference for the row array —
 // mirror the mapped select in closedLoop.recent explicitly.
@@ -52,14 +53,28 @@ export default function ClosedLoopLiftPanel() {
       </div>
     );
   }
-  if (summaryQ.isError || recentQ.isError) {
+  // Guarding on isError ALONE left the paused/offline case to fall through to
+  // the `?? { lifted: 0, ... }` default below — rendering measured zeros for a
+  // read that never happened, which is the "$0 RECOVERABLE" class of lie this
+  // admin has closed eleven times elsewhere. An offline PWA leaves isError AND
+  // isLoading false with data undefined, so the data itself is the only
+  // trustworthy signal.
+  const summaryStatus = readStatus(summaryQ);
+  const recentStatus = readStatus(recentQ);
+  if (summaryStatus.state === "unavailable" || recentStatus.state === "unavailable") {
+    const reason = summaryStatus.state === "unavailable" ? summaryStatus.reason : recentStatus.reason;
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
-        <p className="text-sm text-red-500">Automation lift couldn&apos;t load — state unknown, not healthy.</p>
+        <p className="text-sm text-red-500">
+          Automation lift couldn&apos;t load — state unknown, not healthy.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{unavailableCopy(reason)}</p>
       </div>
     );
   }
 
+  // Reachable only once the read genuinely succeeded, so the default is now a
+  // shape guard rather than a stand-in for missing data.
   const s = summaryQ.data ?? { lifted: 0, noLift: 0, regression: 0, pending: 0, total: 0 };
   const measurements: LiftMeasurement[] = (recentQ.data?.measurements ?? []) as LiftMeasurement[];
   const verdict = verdictOf(s);

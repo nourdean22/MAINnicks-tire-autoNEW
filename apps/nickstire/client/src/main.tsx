@@ -57,6 +57,39 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+/**
+ * A ceiling on how long a request may hang before it becomes an ERROR.
+ *
+ * WHY THIS EXISTS. This fetch wrapper passed `init` through with no signal of
+ * its own, so a request that never settled left react-query in
+ * `isPending && isFetching` forever — and every admin surface renders a spinner
+ * off that. The operator's report was Community showing "Loading feed..."
+ * indefinitely, but the cause is here, in the transport, and therefore applied
+ * to EVERY query in the admin. A stalled connection was indistinguishable from
+ * work in progress, with no bound.
+ *
+ * 120s is deliberately a BACKSTOP, not an SLA. It has to clear the slowest
+ * legitimate call — the LLM-backed generate/brief mutations run tens of seconds
+ * — while still guaranteeing that "forever" is not a state the UI can reach.
+ * Tighten per-procedure if a real SLA is ever wanted; do not tighten here.
+ */
+const REQUEST_CEILING_MS = 120_000;
+
+/**
+ * Bound a request without discarding tRPC's own cancellation signal.
+ *
+ * `AbortSignal.any` is not on every browser this PWA runs on (the operator is on
+ * iOS), so fall back to forwarding only the caller's signal rather than
+ * overwriting it — losing the ceiling degrades to today's behaviour, whereas
+ * losing cancellation would leak requests on every unmount.
+ */
+function boundedSignal(existing: AbortSignal | null | undefined): AbortSignal | undefined {
+  const timeout = AbortSignal.timeout(REQUEST_CEILING_MS);
+  if (!existing) return timeout;
+  const anyOf = (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any;
+  return typeof anyOf === "function" ? anyOf([existing, timeout]) : existing;
+}
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
@@ -66,6 +99,7 @@ const trpcClient = trpc.createClient({
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
+          signal: boundedSignal(init?.signal),
         });
       },
     }),

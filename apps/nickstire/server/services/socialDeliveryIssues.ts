@@ -13,6 +13,7 @@
  *    a defect. Painting deliberate stops red trains the operator to ignore red.
  */
 import { createLogger } from "../lib/logger";
+import { durableStorageConfigured, servesPermanentUrls } from "../storage";
 
 const log = createLogger("services:social-delivery-issues");
 
@@ -330,9 +331,16 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
 
   return {
     // Matches enforcement, not display: storage.ts hard-requires S3_BUCKET
-    // only; CLOUDFRONT_DOMAIN is the permanent-URL upgrade.
-    storageConfigured: !!process.env.S3_BUCKET,
-    permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
+    // only; CLOUDFRONT_DOMAIN is a CDN offload, NOT the permanence condition.
+    //
+    // `permanentUrls` was `!!CLOUDFRONT_DOMAIN` — the INVERSE of the proxied-reads
+    // path. The issue text below had already been reasoned down to severity
+    // "info" with the correct explanation, but the flag feeding it stayed wrong,
+    // so prod raised a storage_urls_not_permanent issue while serving permanent
+    // proxied URLs. Read the storage module's own authority instead of keeping a
+    // second definition here.
+    storageConfigured: durableStorageConfigured(),
+    permanentUrls: servesPermanentUrls(),
     metaConfigured,
     metaLive,
     metaLiveError,

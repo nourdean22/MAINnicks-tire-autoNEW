@@ -28,6 +28,7 @@ import { sanitizeText } from "../sanitize";
 import { affectedRowCount } from "../lib/db-affected";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
+import { durableStorageConfigured, servesPermanentUrls } from "../storage";
 
 const log = createLogger("routers:instagramAdmin");
 
@@ -123,8 +124,22 @@ export const instagramAdminRouter = router({
 
     return {
       storage: {
-        configured: !!process.env.S3_BUCKET && !!process.env.CLOUDFRONT_DOMAIN,
-        permanentUrls: !!process.env.CLOUDFRONT_DOMAIN,
+        // Was `S3_BUCKET && CLOUDFRONT_DOMAIN` / `!!CLOUDFRONT_DOMAIN`, which
+        // INVERTED the truth for the shape production actually runs.
+        // storage.ts:40 `usesProxiedReads()` is `S3_ENDPOINT && !CLOUDFRONT_DOMAIN`
+        // — CloudFront being ABSENT is the condition under which permanent URLs
+        // are served, through {SITE_URL}/generated/{key}. So with S3 set and CF
+        // deliberately unset (prod, measured 2026-07-29) this card reported
+        // "Missing S3/CF" and "Ephemeral Only" at exactly the moment permanent
+        // URLs were working.
+        //
+        // socialDeliveryIssues.ts already reasoned this out correctly and
+        // downgraded its own message to severity "info" with honest wording —
+        // but it left the FLAG computed the same wrong way, and this card was
+        // never touched. The wording was fixed where someone looked; the
+        // definition was not. Both now read the storage module's own authority.
+        configured: durableStorageConfigured(),
+        permanentUrls: servesPermanentUrls(),
       },
       generator: await (async () => {
         // The background reel pipeline generates video with VEO, not Higgsfield.
