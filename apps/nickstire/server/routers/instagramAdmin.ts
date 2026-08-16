@@ -28,7 +28,7 @@ import { sanitizeText } from "../sanitize";
 import { affectedRowCount } from "../lib/db-affected";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
-import { durableStorageConfigured, servesPermanentUrls } from "../storage";
+import { durableStorageConfigured, ephemeralStorageOverride, servesPermanentUrls } from "../storage";
 
 const log = createLogger("routers:instagramAdmin");
 
@@ -153,6 +153,10 @@ export const instagramAdminRouter = router({
          * permanent; only the delivery path differs.
          */
         cdn: !!process.env.CLOUDFRONT_DOMAIN,
+        /** Generation proceeds without a durable bucket by explicit opt-in.
+         *  Reported so the card can say "running, and losing files" instead
+         *  of showing a blocker for a state the operator chose. */
+        ephemeralOverride: ephemeralStorageOverride(),
       },
       generator: await (async () => {
         // The background reel pipeline generates video with VEO, not Higgsfield.

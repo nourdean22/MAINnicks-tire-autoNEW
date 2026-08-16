@@ -354,10 +354,19 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating from stored performance…
                 </p>
-              ) : reportStatus.state === "unavailable" ? (
+              ) : reportStatus.state === "unavailable" || report.data?.recommendationsError ? (
+                /* `recommendationsError` is the branch that actually fires. The
+                   server CATCHES its own LLM failure, so the query succeeds and
+                   readStatus can never report unavailable for it — the real
+                   failure used to arrive as a fake bullet in this very list.
+                   Both conditions are kept: one for a transport failure, one for
+                   a swallowed upstream failure. */
                 <p className="flex items-start gap-2 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <span>Could not generate recommendations — <strong>unknown</strong>, not "none". {unavailableCopy(reportStatus.reason)}</span>
+                  <span>
+                    Could not generate recommendations — <strong>unknown</strong>, not "none".{" "}
+                    {report.data?.recommendationsError ?? unavailableCopy(reportStatus.reason)}
+                  </span>
                 </p>
               ) : recommendations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recommendation set is available.</p>

@@ -96,6 +96,25 @@ export function servesPermanentUrls(): boolean {
 }
 
 /**
+ * Has the operator explicitly accepted ephemeral output?
+ *
+ * `assertDurableStorageForGeneration` has TWO passing conditions — a durable
+ * bucket, OR this override — but every health surface only ever read the first.
+ * So in this state the admin showed a red storage blocker while generation ran
+ * perfectly well, which is the same class of false alarm as the CloudFront
+ * inversion: a status surface carrying its own partial copy of a decision the
+ * module already makes.
+ *
+ * It is deliberately a SEPARATE predicate rather than folded into
+ * `durableStorageConfigured()`. Storage genuinely is not durable here — output IS
+ * lost on the next restart — so the honest report is "running, and losing files",
+ * not "healthy".
+ */
+export function ephemeralStorageOverride(): boolean {
+  return process.env.REEL_ALLOW_EPHEMERAL_STORAGE === "true";
+}
+
+/**
  * Precondition for anything that SPENDS money to produce media (Veo clips,
  * paid image gen): refuse to start unless the result can be durably kept.
  * Otherwise the pipeline pays for a clip, writes it to ephemeral disk, and a

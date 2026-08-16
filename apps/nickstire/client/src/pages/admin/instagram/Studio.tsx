@@ -323,12 +323,27 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
     // could only ever produce an error toast on a reel that was already in the
     // queue. Say so instead of firing a request that cannot succeed.
     if (format === "reel") {
+      // TAKE the operator there instead of telling them to go.
+      //
+      // This branch ALWAYS fires: the format grid below is filtered to
+      // `key === "reel"`, so `format` cannot hold anything else in this
+      // component. That made the stageDraft path beneath it unreachable, and with
+      // it the `onNavigate("queue")` in its onSuccess — so the only exit from the
+      // reel wizard was a toast telling the operator to navigate manually, which
+      // is the dead end this whole wave is about. Self-audit caught that wiring
+      // onNavigate had not, on its own, made the exit fire.
       toast.success("Already in the Queue", {
-        description: `This reel was queued when its video was generated${jobId ? ` (job ${jobId})` : ""}. Open the Queue tab to review, approve and publish it.`,
+        description: `This reel was queued when its video was generated${jobId ? ` (job ${jobId})` : ""}. Opening the Queue now.`,
       });
+      onNavigate?.("queue");
       return;
     }
 
+    // UNREACHABLE while the format grid is reel-only (see above). Kept as the
+    // defensive path rather than deleted, because the server ALSO rejects a reel
+    // here (stageDraft throws BAD_REQUEST for format "reel"), and that pairing is
+    // what keeps a widened format filter from silently staging a reel down the
+    // wrong lane.
     publishDraft.mutate({
       format: format || "single",
       caption: content,

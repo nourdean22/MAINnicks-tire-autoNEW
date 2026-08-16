@@ -151,6 +151,14 @@ function boundedSignal(existing: AbortSignal | null | undefined): AbortSignal {
  * Anything LLM-backed and read on page load belongs here. This is a latency
  * boundary, not a correctness one: batching is still the right default for the
  * dozens of quick admin reads.
+ *
+ * SCOPE, STATED HONESTLY. Insights' other five queries still share one batch, so
+ * they still arrive TOGETHER — the slowest of the five gates the other four. That
+ * is intended: all five are local table reads, and splitting them would trade one
+ * request for five to save nothing. What was wrong was batching a model call with
+ * them. So this fixes the LLM case specifically, not "every card renders
+ * independently" — if one of the five is ever measured slow, it joins this set
+ * rather than the batch being abandoned.
  */
 const UNBATCHED_SLOW_PROCEDURES = new Set<string>([
   "instagramAdmin.getPerformanceReport",

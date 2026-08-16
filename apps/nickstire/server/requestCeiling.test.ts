@@ -98,6 +98,47 @@ describe("cancellation still propagates", () => {
   });
 });
 
+describe("the ephemeral-storage override is reported, not alarmed about", () => {
+  // BEHAVIOURAL: deriveDeliveryIssues is pure, so this calls it rather than
+  // grepping for it. assertDurableStorageForGeneration has TWO passing branches
+  // — a durable bucket, or this override — and every health surface only read
+  // the first, so the admin raised a BLOCKER for a state in which generation was
+  // running fine.
+  const FACTS = {
+    storageConfigured: true, permanentUrls: true, ephemeralOverride: false,
+    metaConfigured: true, metaLive: true, metaLiveError: null,
+    generatorProvider: "veo", generatorConfigured: true, generationEnabled: true,
+    reelPublishArmed: true,
+    controls: { globalKillSwitch: false, publishingKillSwitch: false, generationKillSwitch: false },
+    controlsSource: "policy", publishAmbiguousReelJobs: 0, jobsNeedingAttention: 0,
+  };
+
+  it("no bucket AND no override is still a blocker", async () => {
+    const { deriveDeliveryIssues } = await import("./services/socialDeliveryIssues");
+    const issues = deriveDeliveryIssues({ ...FACTS, storageConfigured: false, permanentUrls: false });
+    const storage = issues.find((i) => i.key === "storage_bucket_not_connected");
+    expect(storage?.severity).toBe("blocker");
+  });
+
+  it("no bucket WITH the override is a warning that names the real cost", async () => {
+    const { deriveDeliveryIssues } = await import("./services/socialDeliveryIssues");
+    const issues = deriveDeliveryIssues({
+      ...FACTS, storageConfigured: false, permanentUrls: false, ephemeralOverride: true,
+    });
+    expect(issues.find((i) => i.key === "storage_bucket_not_connected")).toBeUndefined();
+    const override = issues.find((i) => i.key === "storage_ephemeral_by_override");
+    expect(override?.severity).toBe("warning");
+    // It must not read as calm: files ARE being lost.
+    expect(override?.reason).toMatch(/lost on the next deploy or restart/);
+  });
+
+  it("a healthy bucket raises no storage issue at all", async () => {
+    const { deriveDeliveryIssues } = await import("./services/socialDeliveryIssues");
+    const issues = deriveDeliveryIssues(FACTS);
+    expect(issues.filter((i) => i.layer === "asset_hosting")).toHaveLength(0);
+  });
+});
+
 describe("the copy under test has not drifted from the real source", () => {
   it("main.tsx composes manually with the same ceiling and the same branches", () => {
     const main = readFileSync(resolve(process.cwd(), "client/src/main.tsx"), "utf8");

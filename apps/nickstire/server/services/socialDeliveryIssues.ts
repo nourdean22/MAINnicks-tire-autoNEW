@@ -13,7 +13,7 @@
  *    a defect. Painting deliberate stops red trains the operator to ignore red.
  */
 import { createLogger } from "../lib/logger";
-import { durableStorageConfigured, servesPermanentUrls } from "../storage";
+import { durableStorageConfigured, ephemeralStorageOverride, servesPermanentUrls } from "../storage";
 
 const log = createLogger("services:social-delivery-issues");
 
@@ -42,6 +42,8 @@ export interface SocialDeliveryIssue {
 export interface DeliveryFacts {
   storageConfigured: boolean;
   permanentUrls: boolean;
+  /** Explicit opt-in to ephemeral output — generation PROCEEDS without a bucket. */
+  ephemeralOverride: boolean;
   metaConfigured: boolean;
   /** null = we could not ASK Meta (transport), which is not "rejected". */
   metaLive: boolean | null;
@@ -68,7 +70,19 @@ const SEVERITY_ORDER: Record<DeliveryIssueSeverity, number> = { blocker: 0, warn
 export function deriveDeliveryIssues(f: DeliveryFacts): SocialDeliveryIssue[] {
   const issues: SocialDeliveryIssue[] = [];
 
-  if (!f.storageConfigured) {
+  if (!f.storageConfigured && f.ephemeralOverride) {
+    // Not a blocker: assertDurableStorageForGeneration has TWO passing
+    // conditions and this is the second one, so generation is running. It is
+    // still LOSING files on every restart, which is a warning, not calm.
+    issues.push({
+      key: "storage_ephemeral_by_override",
+      layer: "asset_hosting",
+      severity: "warning",
+      reason: "Generation is running WITHOUT durable storage by explicit opt-in — every generated file is lost on the next deploy or restart.",
+      evidence: "S3_BUCKET unset and REEL_ALLOW_EPHEMERAL_STORAGE=true (the second passing branch of assertDurableStorageForGeneration).",
+      nextAction: "Set S3_BUCKET to keep output, or leave the override if this is a throwaway environment.",
+    });
+  } else if (!f.storageConfigured) {
     issues.push({
       key: "storage_bucket_not_connected",
       layer: "asset_hosting",
@@ -341,6 +355,7 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
     // second definition here.
     storageConfigured: durableStorageConfigured(),
     permanentUrls: servesPermanentUrls(),
+    ephemeralOverride: ephemeralStorageOverride(),
     metaConfigured,
     metaLive,
     metaLiveError,
