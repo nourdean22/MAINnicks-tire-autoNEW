@@ -21,6 +21,37 @@ import { hasPerplexica } from "@/lib/integrations/perplexica";
 // a time, or an overlapping write corrupts the in-flight job's credentials.
 let moneyprinterInFlight = false;
 
+// ── Perplexica primary-source breaker (2026-08-15) ──────────────────────
+//
+// arsenalWebSearch races Perplexica as the PRIMARY, then falls back to a
+// multi-source quorum (Tavily ~2s). The race cap was a hardcoded 30s, chosen
+// in July when Perplexica was healthy (24.7-28.4s typical synthesis). It is
+// not healthy now, and the 30s buys nothing:
+//
+//   searxng-perplexica, 500 log lines sampled 2026-08-15: ZERO healthy
+//   responses · 116 SearxEngineCaptchaException (81 DuckDuckGo) · 29
+//   TooManyRequests · 2 AccessDenied. Engines blocked: duckduckgo, wikipedia,
+//   startpage, brave, google cse.
+//   perplexica, 400 lines: ZERO completed searches · 28 errors · 14x
+//   `status: 400 invalid_request_error` from its own chat backend.
+//
+// So every web search paid 30 seconds to a source that cannot answer, before
+// the quorum that can. That is a third of the client's 90s stall budget spent
+// before the model emits a token — two searches in a turn and the turn cannot
+// finish. It reads to the operator as "tools don't work, messages get cut off".
+//
+// Two changes. The cap drops to 6s (env-tunable) — even a HEALTHY Perplexica
+// took 24-28s, so it was already losing to Tavily on latency for most queries;
+// 6s simply stops pretending otherwise. And a breaker: after three consecutive
+// misses the primary is skipped entirely for ten minutes, so the cost is paid
+// once per window instead of once per search. A single success re-arms it, so
+// recovery is automatic and needs no deploy.
+const PERPLEXICA_PRIMARY_MS = Math.max(1_000, Number(process.env.PERPLEXICA_PRIMARY_MS) || 6_000);
+const PERPLEXICA_MISS_LIMIT = 3;
+const PERPLEXICA_COOLDOWN_MS = 10 * 60_000;
+let perplexicaMisses = 0;
+let perplexicaSkipUntil = 0;
+
 /**
  * Pull the rendered video paths out of MoneyPrinterTurbo's CLI output.
  *
@@ -708,7 +739,7 @@ export const systemTools = {
       // — degrades to the multi-source quorum instead of throwing (which the
       // model would otherwise surface as a confident failure claim).
       try {
-        if (hasPerplexica()) {
+        if (hasPerplexica() && Date.now() >= perplexicaSkipUntil) {
           const { askPerplexica } = await import("@/lib/integrations/perplexica");
           // 2026-07-12 · FAIL-FAST on a hung primary. When perplexica's synth
           // backend stalls (e.g. the Gemini key hit its spending cap →
@@ -721,12 +752,23 @@ export const systemTools = {
           // 30-60 sources; the ~38s tail loses to Tavily by design. `.catch`
           // keeps the losing promise from surfacing as an unhandled rejection
           // after the race resolves.
-          const PRIMARY_MS = 30_000;
           const r = await Promise.race([
             askPerplexica(query).catch(() => null),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), PRIMARY_MS)),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), PERPLEXICA_PRIMARY_MS)),
           ]);
+          if (!r?.content?.trim() && ++perplexicaMisses >= PERPLEXICA_MISS_LIMIT) {
+            perplexicaSkipUntil = Date.now() + PERPLEXICA_COOLDOWN_MS;
+            perplexicaMisses = 0;
+            const { logger } = await import("@/lib/logger");
+            logger
+              .withSurface("ai/tools/arsenalWebSearch")
+              .warn("perplexica_primary_tripped_skipping", {
+                cooldownMs: PERPLEXICA_COOLDOWN_MS,
+                capMs: PERPLEXICA_PRIMARY_MS,
+              });
+          }
           if (r?.content?.trim()) {
+            perplexicaMisses = 0;
             // 2026-07-05 improvement · attribute web claims. arsenalWebSearch was
             // the lone web tool discarding citations (searchWebVerified /
             // arsenalDeepResearch already ship them). Each source returns
