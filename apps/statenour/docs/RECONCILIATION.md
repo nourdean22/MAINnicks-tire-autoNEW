@@ -78,8 +78,18 @@
 >   `zooming-magic`, `function-bun`. NOT touched: silence is not evidence of
 >   deadness. (`comfortable-growth` WAS deleted 2026-08-16, operator-instructed:
 >   300 log lines, 300 failures, zero successes.)
-> - **Nothing watches for a pinned model being retired upstream.** `deepseek-v4-pro`
->   vanished mid-session; had it still been pinned, chat would simply be dead.
+> - ~~Nothing watches for a pinned model being retired upstream.~~ **RETRACTED
+>   2026-08-16, same day — this was FALSE and I wrote it.**
+>   `/api/cron/ollama-model-liveness` (2026-08-01) does exactly this: it probes
+>   the chat / fast / vision lanes daily via `resolveProviderModel` — the same
+>   function the app uses, so it tests what production would actually resolve —
+>   raises Telegram on any non-200, and calls out 410 separately because that
+>   means "retired forever, do not retry". It IS scheduled: `MORNING_JOBS`
+>   line 57 (`lib/inngest/jobs.ts`).
+>   `deepseek-v4-pro` was NOT a pin when it vanished (`minimax-m3` is the chat
+>   pin), so there was correctly nothing to alert on. The system behaved as
+>   designed and I flagged a gap that did not exist — the same
+>   claim-without-checking-the-incumbent that `docs/UPSTREAMS.md` exists to stop.
 
 > ## 2026-08-12 (thirteenth wave, out-of-arc) · MISSION-scan gate → full BDN close-out + two more plans gated · 7 ships (#1535-#1540, #1542)
 >
