@@ -225,8 +225,16 @@ A directory per pack (not a date-prefixed flat file) because a pack is several
 files and grows more — `brief.json` exists on exactly one of the eight, and it is
 the only one a pipeline can consume without a human re-typing it.
 
-Before writing, `ls apps/nickstire/docs/reel-packs/` and check the topic is not
-already covered.
+Before writing, check BOTH — the directory only shows MERGED packs, and every
+reel pack opens as a draft PR:
+
+    ls apps/nickstire/docs/reel-packs/
+    gh pr list --state open --search "reel pack in:title"
+
+The second command is not optional. On 2026-08-16 three runs fired within two
+hours; #1610 duplicated #1607's battery topic exactly, because at 20:36 #1607 was
+still an unmerged draft and therefore invisible to `ls`. Checking only the
+directory is blind during precisely the window when collisions happen.
 
 ## Required final response
 
