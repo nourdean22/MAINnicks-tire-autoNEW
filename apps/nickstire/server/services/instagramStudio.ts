@@ -12,6 +12,7 @@ import {
   type InstagramSourceInput,
   type InstagramStudioDraft,
 } from "../../shared/instagramStudio";
+import { assessEvidence, evidenceDirective, type EvidenceFact } from "../../shared/evidenceSufficiency";
 import { invokeLLM, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { sanitizeText } from "../sanitize";
@@ -132,6 +133,17 @@ export function evaluateInstagramDraft(input: {
   /** Recent concept keys (fetchRecentConceptKeys) so novelty measures actual
    *  distinctness. Absent = recency unknown — scored honestly as unchecked. */
   recentConceptKeys?: string[];
+  /**
+   * The RESOLVED record's structured facts (resolveSourceProvenance).
+   *
+   * Grounding was previously scored from `evidenceStatus` and string
+   * non-emptiness, so the dimension could not fail: one character in the
+   * context box scored 8/10 and silenced its own warning. The evaluator never
+   * received the evidence itself — `buildEvalArgs` passed `source` but not the
+   * resolved text — so nothing downstream could compare a claim to a record.
+   * Absent = assessed from operator context alone, which caps at `thin`.
+   */
+  evidenceFacts?: EvidenceFact[];
 }): InstagramQualityResult {
   const caption = input.caption.trim();
   const firstLine = caption.split(/\n+/)[0]?.trim() ?? "";
@@ -145,9 +157,15 @@ export function evaluateInstagramDraft(input: {
   }
 
   const claimSafety = blockers.length ? 0 : 10;
-  const sourceGrounding = requiresVerifiedSource
-    ? input.source.evidenceStatus === "verified" ? 10 : 0
-    : input.source.detail?.trim() || input.source.recordId?.trim() ? 8 : 6;
+  // Deterministic assessment over the resolved facts. An unverified
+  // review/declined-work draft keeps its hard 0 (the blocker above already
+  // holds it), but a VERIFIED record no longer earns a flat 10 just for
+  // existing: a row that resolved to nothing but an order number is thin, and
+  // now says so.
+  const evidence = assessEvidence(input.evidenceFacts ?? [], input.source.detail);
+  const sourceGrounding = requiresVerifiedSource && input.source.evidenceStatus !== "verified"
+    ? 0
+    : evidence.groundingScore;
 
   let hookStrength = 4;
   if (firstLine.length >= 12 && firstLine.length <= 90) hookStrength += 2;
@@ -208,7 +226,11 @@ export function evaluateInstagramDraft(input: {
   const dimensions = [
     dimension("claim_safety", "Claim safety", claimSafety, 0.25, blockers[0]),
     dimension("source_grounding", "Source grounding", sourceGrounding, 0.15,
-      sourceGrounding < 7 ? "Add a verified record or specific operator context." : undefined),
+      // The assessment's own reason names WHAT is missing, so the finding stops
+      // being a generic instruction the operator cannot act on.
+      sourceGrounding < 7
+        ? `${evidence.reason}${evidence.missing.length ? ` Needs: ${evidence.missing.join(", ")}.` : ""}`
+        : undefined),
     dimension("hook_strength", "Hook strength", hookStrength, 0.15,
       hookStrength < 7 ? "Lead with one specific fact, tension point, or useful question." : undefined),
     dimension("voice_match", "Nick voice", voiceMatch, 0.12,
@@ -241,20 +263,42 @@ export function evaluateInstagramDraft(input: {
   };
 }
 
-async function resolveEvidence(source: InstagramSourceInput): Promise<InstagramSourceInput & { resolvedEvidence: string }> {
-  if (source.type === "review" || source.type === "declined_work") {
+/** Source types with a real first-party table behind them. */
+const RESOLVABLE_SOURCE_TYPES = new Set(["review", "declined_work", "special_offer"]);
+
+async function resolveEvidence(
+  source: InstagramSourceInput,
+): Promise<InstagramSourceInput & { resolvedEvidence: string; facts: EvidenceFact[] }> {
+  // `special_offer` joins the resolvable set: `specials` is a real table with an
+  // index on (is_active, starts_at, expires_at) that this path never queried, so
+  // an offer the shop actually authored arrived as retyped operator prose.
+  if (RESOLVABLE_SOURCE_TYPES.has(source.type)) {
     const { resolveSourceProvenance } = await import("./reelBriefGen");
     const resolved = await resolveSourceProvenance(source.type, source.recordId, source.detail);
+    // A failed lookup must not read as an absent record. `unverified` covers
+    // both today; the availability field is what distinguishes them, and it is
+    // logged so an operator staring at an empty picker has a trail.
+    if (resolved.availability === "source_unavailable") {
+      log.warn("evidence source unavailable — not an empty result", {
+        sourceType: source.type,
+        recordId: source.recordId,
+      });
+    }
     return {
       ...source,
       evidenceStatus: resolved.isVerified ? "verified" : "unverified",
       resolvedEvidence: resolved.evidence,
+      facts: resolved.facts ?? [],
     };
   }
+  const typed = source.detail?.trim();
   return {
     ...source,
-    evidenceStatus: source.detail?.trim() || source.recordId?.trim() ? "operator_context" : "unverified",
-    resolvedEvidence: source.detail?.trim() || "No additional operator context supplied.",
+    evidenceStatus: typed || source.recordId?.trim() ? "operator_context" : "unverified",
+    resolvedEvidence: typed || "No additional operator context supplied.",
+    facts: typed
+      ? [{ key: "operator_context", label: "Operator context", value: typed, role: "context", basis: "operator" }]
+      : [],
   };
 }
 
@@ -276,6 +320,12 @@ export function buildEvalArgs(d: {
   conceptKey: string;
   cta: string;
   carouselSlides: Array<{ headline: string; body: string }>;
+  /**
+   * Resolved facts. This builder previously omitted them, which is why the
+   * grounding dimension could only ever see a status flag: the evaluator was
+   * structurally unable to inspect the evidence it was scoring.
+   */
+  evidenceFacts?: EvidenceFact[];
 }) {
   return {
     source: d.source,
@@ -287,6 +337,7 @@ export function buildEvalArgs(d: {
     conceptKey: d.conceptKey,
     cta: d.cta,
     carouselSlides: d.carouselSlides,
+    evidenceFacts: d.evidenceFacts,
   };
 }
 
@@ -330,6 +381,9 @@ ${JSON.stringify(businessFacts)}
 SOURCE TYPE: ${source.type}
 SOURCE EVIDENCE STATUS: ${source.evidenceStatus}
 SOURCE EVIDENCE: ${source.resolvedEvidence}
+${source.facts.length ? `RESOLVED FACTS (the ONLY specifics you may state — each is a real stored value):
+${source.facts.map((f) => `- ${f.label}: ${f.value}${f.basis === "inferred" ? "  [INFERRED — qualify, never assert]" : ""}`).join("\n")}` : "RESOLVED FACTS: none — no stored record backs this piece."}
+${evidenceDirective(assessEvidence(source.facts, source.detail))}
 SUBJECT PHOTO: ${input.evidenceImageUrls?.length
     ? "A REAL shop photograph is attached and will be the visual subject — write artDirection that frames and annotates THIS photo, never a generated scene."
     : "None — a branded visual-family background will be used."}
@@ -392,6 +446,7 @@ Return only JSON matching the schema.`;
       conceptKey: normalized.conceptKey,
       cta: normalized.cta,
       carouselSlides,
+      evidenceFacts: source.facts,
     }),
     recentConceptKeys: input.recentConceptKeys,
   });

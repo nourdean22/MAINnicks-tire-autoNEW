@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   INSTAGRAM_FORMATS,
@@ -471,53 +471,166 @@ export const instagramStudioRouter = router({
    * evidence resolver uses (reviewReplies first, then reviewPipeline), so
    * what the picker shows is what generation grounds on.
    */
+  /**
+   * Real records for the source picker.
+   *
+   * TWO defects fixed here, both of which produced the same symptom — an empty
+   * list the operator could only escape by typing prose, which is what made
+   * generated posts read as category marketing:
+   *
+   * 1. WRONG TABLE. Declined work was read from `work_order_items.declined`.
+   *    Nothing in this repo ever sets that column to `true`: the only writers
+   *    are `workOrderService.ts` (insert, column defaults false) and
+   *    `declinedWorkRecovery.ts` (sets it to FALSE on recovery). So the query
+   *    was `WHERE false` in practice and the picker was permanently empty. The
+   *    canonical declined-work lane is `alg_estimates` — the table the live
+   *    Declined Work admin surface reads (routers/advanced/invoices.ts
+   *    `declined`) and the only one with an automated writer.
+   *
+   * 2. A SWALLOWED ERROR READ AS "NO ROWS". Every lane sat behind
+   *    `catch { /* honest empty *\/ }`, so a failed read was indistinguishable
+   *    from a verified absence. It is now reported per lane, following the
+   *    ROS-083 rule already applied to the declined-estimates router: unknown
+   *    is not zero.
+   *
+   * `customerName` / `customerPhone` are deliberately NOT selected. The creative
+   * needs the vehicle, the service, the date and the amount; the identity adds
+   * nothing and these rows flow toward a prompt.
+   */
   sourceOptions: adminProcedure.query(async () => {
     const database = await dbTyped();
     if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — source records cannot be listed." });
-    const { reviewReplies, reviewPipeline, workOrderItems } = await import("../../drizzle/schema");
+    const { reviewReplies, reviewPipeline, algEstimates, specials } = await import("../../drizzle/schema");
 
-    let reviews: Array<{ recordId: string; label: string; detail: string }> = [];
+    type Option = { recordId: string; label: string; detail: string };
+    /** `unavailable` is a THIRD state: the lane could not be read at all. */
+    type Lane = { options: Option[]; status: "ok" | "unavailable"; note?: string };
+
+    const reviewLane: Lane = { options: [], status: "ok" };
     try {
       const replies = await database
-        .select({ id: reviewReplies.id, author: reviewReplies.reviewerName, text: reviewReplies.reviewText })
+        .select({ id: reviewReplies.id, author: reviewReplies.reviewerName, text: reviewReplies.reviewText, date: reviewReplies.reviewDate })
         .from(reviewReplies)
         .where(eq(reviewReplies.reviewRating, 5))
         .orderBy(desc(reviewReplies.id))
         .limit(8);
-      reviews = replies
+      reviewLane.options = replies
         .filter((row) => (row.text ?? "").trim().length > 0)
-        .map((row) => ({ recordId: String(row.id), label: `${row.author || "Anonymous"} · 5★`, detail: (row.text ?? "").slice(0, 220) }));
-    } catch { /* table variant absent — fall through to pipeline */ }
-    if (reviews.length === 0) {
+        .map((row) => ({
+          recordId: String(row.id),
+          // The date was previously never selected, so the operator could not
+          // tell a review from this week apart from one from two years ago.
+          label: `${row.author || "Anonymous"} · 5★${row.date ? ` · ${new Date(row.date).toISOString().slice(0, 10)}` : ""}`,
+          detail: (row.text ?? "").slice(0, 220),
+        }));
+    } catch (e) {
+      reviewLane.status = "unavailable";
+      reviewLane.note = `review_replies unreadable: ${String(e).slice(0, 120)}`;
+    }
+    if (reviewLane.options.length === 0) {
       try {
         const pipeline = await database
-          .select({ id: reviewPipeline.id, author: reviewPipeline.authorName, text: reviewPipeline.reviewText })
+          .select({ id: reviewPipeline.id, author: reviewPipeline.authorName, text: reviewPipeline.reviewText, time: reviewPipeline.reviewTime })
           .from(reviewPipeline)
           .where(eq(reviewPipeline.rating, 5))
           .orderBy(desc(reviewPipeline.id))
           .limit(8);
-        reviews = pipeline
+        const mapped = pipeline
           .filter((row) => (row.text ?? "").trim().length > 0)
-          .map((row) => ({ recordId: String(row.id), label: `${row.author || "Anonymous"} · 5★`, detail: (row.text ?? "").slice(0, 220) }));
-      } catch { /* honest empty below */ }
+          .map((row) => ({
+            recordId: String(row.id),
+            label: `${row.author || "Anonymous"} · 5★${row.time ? ` · ${new Date(row.time * 1000).toISOString().slice(0, 10)}` : ""}`,
+            detail: (row.text ?? "").slice(0, 220),
+          }));
+        if (mapped.length > 0) {
+          reviewLane.options = mapped;
+          reviewLane.status = "ok";
+          reviewLane.note = undefined;
+        }
+      } catch (e) {
+        reviewLane.status = "unavailable";
+        reviewLane.note = `review tables unreadable: ${String(e).slice(0, 120)}`;
+      }
     }
 
-    let declinedWork: Array<{ recordId: string; label: string; detail: string }> = [];
+    const declinedLane: Lane = { options: [], status: "ok" };
     try {
-      const items = await database
-        .select({ id: workOrderItems.id, description: workOrderItems.description, notes: workOrderItems.notes })
-        .from(workOrderItems)
-        .where(eq(workOrderItems.declined, true))
-        .orderBy(desc(workOrderItems.id))
-        .limit(10);
-      declinedWork = items.map((row) => ({
-        recordId: row.id,
-        label: row.description.slice(0, 80),
-        detail: (row.notes ?? "").slice(0, 220) || "Declined by the customer.",
-      }));
-    } catch { /* honest empty */ }
+      // 18 months keeps the list to stories a driver could plausibly still be
+      // living with, and keeps the scan bounded.
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - 18);
+      const rows = await database
+        .select({
+          id: algEstimates.id,
+          vehicleInfo: algEstimates.vehicleInfo,
+          serviceDescription: algEstimates.serviceDescription,
+          estimatedAmount: algEstimates.estimatedAmount,
+          estimateDate: algEstimates.estimateDate,
+        })
+        .from(algEstimates)
+        .where(and(
+          gte(algEstimates.estimateDate, cutoff),
+          sql`${algEstimates.matchedInvoiceId} IS NULL`,
+        ))
+        .orderBy(desc(algEstimates.estimateDate))
+        .limit(12);
+      declinedLane.options = rows.map((row) => {
+        const day = row.estimateDate ? new Date(row.estimateDate).toISOString().slice(0, 10) : null;
+        const amount = row.estimatedAmount > 0 ? `$${Math.round(row.estimatedAmount / 100)}` : null;
+        return {
+          recordId: String(row.id),
+          // Vehicle + date + amount up front: this is what lets the operator
+          // pick the STRONG story instead of the first row.
+          label: [row.vehicleInfo?.trim() || "Vehicle not recorded", day, amount].filter(Boolean).join(" · "),
+          detail: (row.serviceDescription ?? "").trim().slice(0, 220) || "Service not recorded on the estimate.",
+        };
+      });
+    } catch (e) {
+      declinedLane.status = "unavailable";
+      declinedLane.note = `alg_estimates unreadable: ${String(e).slice(0, 120)}`;
+    }
 
-    return { reviews, declinedWork };
+    const offerLane: Lane = { options: [], status: "ok" };
+    try {
+      const now = new Date();
+      const rows = await database
+        .select({ id: specials.id, title: specials.title, description: specials.description, expiresAt: specials.expiresAt })
+        .from(specials)
+        .where(and(eq(specials.isActive, true), sql`(${specials.expiresAt} IS NULL OR ${specials.expiresAt} >= ${now})`))
+        .orderBy(desc(specials.startsAt))
+        .limit(8);
+      offerLane.options = rows.map((row) => ({
+        recordId: row.id,
+        label: [row.title, row.expiresAt ? `ends ${new Date(row.expiresAt).toISOString().slice(0, 10)}` : null].filter(Boolean).join(" · "),
+        detail: (row.description ?? "").slice(0, 220) || "No description on the offer.",
+      }));
+    } catch (e) {
+      offerLane.status = "unavailable";
+      offerLane.note = `specials unreadable: ${String(e).slice(0, 120)}`;
+    }
+
+    const unavailable = ([[reviewLane, "reviews"], [declinedLane, "declinedWork"], [offerLane, "offers"]] as const)
+      .filter(([lane]) => lane.status === "unavailable");
+    if (unavailable.length > 0) {
+      const { createLogger } = await import("../lib/logger");
+      const laneLog = createLogger("routers:instagramStudio");
+      for (const [lane, name] of unavailable) {
+        laneLog.warn("source lane unavailable — not an empty result", { lane: name, note: lane.note });
+      }
+    }
+
+    return {
+      // Shape preserved for the existing client, extended with the lane status
+      // so the UI can say "cannot read this source" instead of "none found".
+      reviews: reviewLane.options,
+      declinedWork: declinedLane.options,
+      offers: offerLane.options,
+      availability: {
+        reviews: reviewLane.status,
+        declinedWork: declinedLane.status,
+        offers: offerLane.status,
+      },
+    };
   }),
 
   /**

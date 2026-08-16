@@ -27,6 +27,19 @@ import LegacyStudio from "./Studio";
 import CampaignPackageCard from "@/components/admin/CampaignPackageCard";
 import { consumeCreateHandoff } from "./igViews";
 
+/** Per-lane copy. Keyed by lane so adding a resolvable source is one entry. */
+const RECORD_LANE_LABELS = {
+  reviews: "Pick the real review",
+  declinedWork: "Pick the real quoted work",
+  offers: "Pick the active offer",
+} as const;
+
+const RECORD_LANE_PLACEHOLDERS = {
+  reviews: "…or paste a review ID",
+  declinedWork: "…or paste an estimate ID",
+  offers: "…or paste an offer ID",
+} as const;
+
 /** One-shot mount initializer from the cross-view handoff contract. */
 function initialFromHandoff() {
   const handoff = consumeCreateHandoff();
@@ -141,7 +154,7 @@ export default function StudioV2() {
   const utils = trpc.useUtils();
   // Real records to create from — no more raw database IDs.
   const sourceOptions = trpc.instagramStudio.sourceOptions.useQuery(undefined, {
-    enabled: sourceType === "review" || sourceType === "declined_work",
+    enabled: sourceType === "review" || sourceType === "declined_work" || sourceType === "special_offer",
     staleTime: 60_000,
   });
   // Autosaved drafts to resume — the work survives refresh/relaunch now.
@@ -305,8 +318,25 @@ export default function StudioV2() {
     else setPendingSwitch(target);
   };
 
+  /**
+   * Which types BLOCK without a record. Unchanged on purpose — `special_offer`
+   * gets a picker below but is NOT added here, so an operator can still post
+   * about something not yet in the `specials` table. Showing records and
+   * requiring records are separate decisions; conflating them would tighten an
+   * existing gate as a side effect of adding a convenience.
+   */
   const requiresRecord = sourceType === "review" || sourceType === "declined_work";
   const canGenerate = !requiresRecord || sourceRecordId.trim().length > 0;
+
+  /** Which lane of real records to OFFER for the selected source, if any. */
+  const recordLane: "reviews" | "declinedWork" | "offers" | null =
+    sourceType === "review" ? "reviews"
+    : sourceType === "declined_work" ? "declinedWork"
+    : sourceType === "special_offer" ? "offers"
+    : null;
+  const recordOptions = recordLane ? (sourceOptions.data?.[recordLane] ?? []) : [];
+  const laneUnavailable =
+    recordLane !== null && sourceOptions.data?.availability?.[recordLane] === "unavailable";
   const assembledCaption = useMemo(() => {
     if (!draft) return "";
     const tags = draft.hashtags.map((tag) => `#${tag}`).join(" ");
@@ -323,7 +353,17 @@ export default function StudioV2() {
         <Button variant="outline" onClick={() => setShowReelStudio(false)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Studio V2
         </Button>
-        <LegacyStudio />
+        {/* Carry the source the operator already chose. This was previously
+            rendered with no props at all, so the selected record was dropped at
+            the boundary and the reel wizard reopened at "what is the source of
+            this post?" with an empty raw-record-id box. */}
+        <LegacyStudio
+          initialSource={{
+            type: sourceType,
+            recordId: sourceRecordId || undefined,
+            detail: sourceDetail || undefined,
+          }}
+        />
       </div>
     );
   }
@@ -383,18 +423,27 @@ export default function StudioV2() {
               </div>
             </div>
 
-            {requiresRecord && (
+            {recordLane && (
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  {sourceType === "review" ? "Pick the real review" : "Pick the declined work"}
+                  {RECORD_LANE_LABELS[recordLane]}
                 </label>
                 {sourceOptions.isLoading ? (
                   <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading records…</div>
                 ) : sourceOptions.isError ? (
                   <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">Records could not be listed — unknown, not empty. You can still paste an ID below.</p>
+                ) : laneUnavailable ? (
+                  /* The QUERY succeeded but THIS lane's read threw. Distinct
+                     from both "request failed" and "verified empty", and it was
+                     previously invisible: the server swallowed it and returned
+                     an empty array, so a broken table read displayed as "no
+                     matching records found". */
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                    This source could not be read — unknown, not empty. Do not conclude there are none.
+                  </p>
                 ) : (
                   <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                    {(sourceType === "review" ? sourceOptions.data?.reviews : sourceOptions.data?.declinedWork)?.map((option) => (
+                    {recordOptions.map((option) => (
                       <button
                         type="button"
                         key={option.recordId}
@@ -405,13 +454,15 @@ export default function StudioV2() {
                         {option.detail && <p className="mt-1 line-clamp-2 text-muted-foreground">{option.detail}</p>}
                       </button>
                     ))}
-                    {(sourceType === "review" ? sourceOptions.data?.reviews : sourceOptions.data?.declinedWork)?.length === 0 && (
+                    {recordOptions.length === 0 && (
                       <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">No matching records found — verified empty.</p>
                     )}
                   </div>
                 )}
-                <Input value={sourceRecordId} onChange={(event) => setSourceRecordId(event.target.value)} placeholder={sourceType === "review" ? "…or paste a review ID" : "…or paste a work item ID"} />
-                <p className="text-xs text-muted-foreground">The server blocks generation when this record cannot be verified.</p>
+                <Input value={sourceRecordId} onChange={(event) => setSourceRecordId(event.target.value)} placeholder={RECORD_LANE_PLACEHOLDERS[recordLane]} />
+                {requiresRecord && (
+                  <p className="text-xs text-muted-foreground">The server blocks generation when this record cannot be verified.</p>
+                )}
               </div>
             )}
 
