@@ -205,6 +205,29 @@ subtitles`, SRT captions, ffmpeg/CapCut assembly instructions matching the
 render-integrity contract above, IG/FB copy) — exactly the two options the
 spec allows, never a quietly weaker asset presented as finished.
 
+### Where the pack goes — one location, not a new one each run
+
+    apps/nickstire/docs/reel-packs/<YYYY-MM-DD>-<slug>/
+        README.md      the pack: script, per-beat prompts, assembly, IG/FB copy
+        captions.srt   captions, when produced
+        brief.json     machine-readable brief, when produced
+
+**Use this path. Do not invent another.** Between 2026-08-14 and 2026-08-15,
+eight scheduled runs produced eight packs in **eight different directories** —
+`docs/marketing/faceless-shorts/`, `ad-factory/<date>/`, `reel-brief-pack/<date>/`,
+`apps/nickstire/docs/content-packs/`, `apps/nickstire/docs/content/reel-packs/`,
+and three variants of a bare `REEL-PACK-*.md` at the docs root. Three of them
+covered the SAME topic. Every run was individually reasonable; none could see the
+others, because this file described how to produce a pack and never said where to
+put it.
+
+A directory per pack (not a date-prefixed flat file) because a pack is several
+files and grows more — `brief.json` exists on exactly one of the eight, and it is
+the only one a pipeline can consume without a human re-typing it.
+
+Before writing, `ls apps/nickstire/docs/reel-packs/` and check the topic is not
+already covered.
+
 ## Required final response
 
 Follow the spec's 9-point receipt shape. Map its generic asks onto this

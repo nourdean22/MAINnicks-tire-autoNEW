@@ -1,0 +1,32 @@
+1
+00:00:00,000 --> 00:00:02,000
+Your tread just got fingerprinted.
+
+2
+00:00:02,000 --> 00:00:05,000
+Four patterns. Four suspects.
+
+3
+00:00:05,000 --> 00:00:10,000
+Flat across the center?
+Suspect: overinflation.
+
+4
+00:00:10,000 --> 00:00:15,000
+Worn on both edges?
+Suspect: underinflation.
+
+5
+00:00:15,000 --> 00:00:20,000
+Worn on just one edge?
+Suspect: alignment — not air.
+
+6
+00:00:20,000 --> 00:00:25,000
+Cupped, scalloped patches?
+Suspect: worn suspension.
+
+7
+00:00:25,000 --> 00:00:30,000
+One clue never closes the case.
+Worth checking — not worth guessing.
