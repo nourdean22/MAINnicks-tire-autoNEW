@@ -46,10 +46,28 @@ export const DISCOVERY_CATEGORIES: readonly string[] = [
  */
 export type DiscoveryVerdict = "investigate" | "known" | "noise";
 
-/** Ledger decisions these map to (OutcomeDecision in outcome-ledger.ts). */
-const VERDICT_TO_DECISION: Record<DiscoveryVerdict, "accepted" | "dismissed"> = {
+/**
+ * Ledger decisions these map to (OutcomeDecision in outcome-ledger.ts).
+ *
+ * `known` is deliberately NOT "dismissed" (review fix, 2026-08-16). Every
+ * harvester selects correction cases with
+ * `OR: [{ decision: "dismissed" }, { outcomeUseful: false }]` —
+ * outcomesNeedingReview(), recall-corpus-builder.ts:197 and
+ * export-eval-datasets.ts:35 — and NONE of them reads `resultRef`. Mapping
+ * "already knew" to dismissed would therefore harvest a claim the operator
+ * confirmed TRUE as though it had been wrong, poisoning the accuracy corpus
+ * with the one signal that is not about accuracy at all.
+ *
+ * "already knew" is a NOVELTY defect, not an accuracy defect. `ignored`
+ * records that it was surfaced and not acted on without asserting it was
+ * incorrect, and keeps it out of every correction harvest. The novelty signal
+ * itself lives in `resultRef` (`discovery_verdict:known`). Nothing consumes
+ * that yet, and that is the honest state: this wave built the measurement,
+ * not a consumer for it.
+ */
+const VERDICT_TO_DECISION: Record<DiscoveryVerdict, "accepted" | "dismissed" | "ignored"> = {
   investigate: "accepted",
-  known: "dismissed",
+  known: "ignored",
   noise: "dismissed",
 };
 
@@ -60,6 +78,8 @@ export interface Discovery {
   content: string;
   source: string;
   createdAt: Date;
+  /** When an engine last wrote this row. The recency axis — see listDiscoveries. */
+  lastSeen: Date;
   /** Set once the operator has judged it; unrated discoveries surface first. */
   verdict: DiscoveryVerdict | null;
 }
@@ -77,17 +97,34 @@ function readVerdict(metadata: unknown): DiscoveryVerdict | null {
 
 export interface ListDiscoveriesResult {
   items: Discovery[];
-  /** Unrated count — drives the tab badge and the "nothing new" empty state. */
+  /**
+   * Unrated count among the rows actually scanned — drives the tab badge and
+   * the "nothing new" empty state. When `truncated` is true this is a FLOOR,
+   * not a total: the scan stopped at MAX_SCAN or once `limit` unrated rows
+   * were in hand. Reported rather than silently capped.
+   */
   unrated: number;
+  /** Rows examined this call. */
+  scanned: number;
+  /** True when the scan stopped early — `unrated` is then a lower bound. */
+  truncated: boolean;
 }
+
+/** Hard ceiling on rows scanned per call. Surfaced in the result, never silent. */
+const MAX_SCAN = 300;
+const PAGE = 60;
 
 /**
  * Recent discoveries, newest first, unrated ones first within that.
  *
- * `deletedAt: null` matters here: the nightly data-cleanup soft-deletes
- * low-confidence rows, and every discovery is born at 0.5 and never reinforced
- * (nothing re-sights a one-off correlation), so this pool is exactly the
- * population most exposed to confidence-based GC.
+ * `deletedAt: null` matters here — but NOT for the reason first written. The
+ * original note claimed these rows were the population most exposed to
+ * confidence-based GC because they are "born at 0.5 and never reinforced".
+ * Both halves were wrong: pruneNoise gates on confidence < 0.1, well below
+ * 0.5, and two of the four engines DO reinforce (stable keys, see below). The
+ * real soft-delete producer is the nightly consolidate cron's merge stage —
+ * none of the four discovery categories is in CONSOLIDATION_EXCLUDE_CATEGORIES,
+ * so a merged duplicate loses every non-keeper row.
  */
 export async function listDiscoveries(
   opts: { limit?: number; includeRated?: boolean; withinDays?: number } = {},
@@ -96,43 +133,80 @@ export async function listDiscoveries(
   const withinDays = Math.max(1, Math.min(365, opts.withinDays ?? 30));
   const since = new Date(Date.now() - withinDays * 86_400_000);
 
-  const rows = await prisma.brainMemory.findMany({
-    where: {
-      category: { in: [...DISCOVERY_CATEGORIES] },
-      deletedAt: null,
-      createdAt: { gte: since },
-    },
-    // Recency, NOT confidence — see the module header. Ordering these by
-    // confidence would reproduce the exact bias this surface exists to undo.
-    orderBy: { createdAt: "desc" },
-    take: limit * 3,
-    select: {
-      id: true,
-      category: true,
-      key: true,
-      content: true,
-      source: true,
-      createdAt: true,
-      metadata: true,
-    },
-  });
+  const unrated: Discovery[] = [];
+  const rated: Discovery[] = [];
+  let scanned = 0;
+  let truncated = false;
 
-  const all: Discovery[] = rows.map((r) => ({
-    id: r.id,
-    category: r.category,
-    key: r.key,
-    content: r.content,
-    source: r.source,
-    createdAt: r.createdAt,
-    verdict: readVerdict(r.metadata),
-  }));
+  // Page rather than taking `limit * 3` once (review fix, 2026-08-16). The
+  // verdict lives in a jsonb blob, so it cannot be filtered in the query
+  // without brittle path-null semantics — and filtering AFTER a single fixed
+  // take meant that once `limit * 3` NEWER discoveries had been judged, every
+  // older unjudged one fell outside the window. The feed would report
+  // `items: []` and `unrated: 0` — rendering "Nothing new to judge" — while
+  // pending work sat just past the cut.
+  for (let skip = 0; skip < MAX_SCAN; skip += PAGE) {
+    const rows = await prisma.brainMemory.findMany({
+      where: {
+        category: { in: [...DISCOVERY_CATEGORIES] },
+        deletedAt: null,
+        // lastSeen, NOT createdAt (review fix). correlation-finder writes the
+        // stable key `corr_<a>_<b>` and teaching-moments a stable domain/topic
+        // key, so a re-run goes through remember() -> reinforce(), which
+        // refreshes content and lastSeen but NEVER createdAt. Filtering on
+        // createdAt permanently hid those two engines once their original row
+        // aged past the window, however fresh the finding was.
+        lastSeen: { gte: since },
+      },
+      // Recency, NOT confidence — see the module header. Ordering by
+      // confidence would reproduce the exact bias this surface exists to undo.
+      orderBy: { lastSeen: "desc" },
+      skip,
+      take: PAGE,
+      select: {
+        id: true,
+        category: true,
+        key: true,
+        content: true,
+        source: true,
+        createdAt: true,
+        lastSeen: true,
+        metadata: true,
+      },
+    });
+    if (rows.length === 0) break;
+    scanned += rows.length;
 
-  const unrated = all.filter((d) => d.verdict === null);
+    for (const r of rows) {
+      const d: Discovery = {
+        id: r.id,
+        category: r.category,
+        key: r.key,
+        content: r.content,
+        source: r.source,
+        createdAt: r.createdAt,
+        lastSeen: r.lastSeen,
+        verdict: readVerdict(r.metadata),
+      };
+      (d.verdict === null ? unrated : rated).push(d);
+    }
+
+    // Ran out of rows inside the window — the counts below are exact.
+    if (rows.length < PAGE) break;
+
+    // Enough to show. Stop, but say so: `unrated` is now a floor.
+    if (!opts.includeRated && unrated.length >= limit) {
+      truncated = true;
+      break;
+    }
+    if (skip + PAGE >= MAX_SCAN) truncated = true;
+  }
+
   const items = opts.includeRated
-    ? [...unrated, ...all.filter((d) => d.verdict !== null)].slice(0, limit)
+    ? [...unrated, ...rated].slice(0, limit)
     : unrated.slice(0, limit);
 
-  return { items, unrated: unrated.length };
+  return { items, unrated: unrated.length, scanned, truncated };
 }
 
 /**

@@ -68,6 +68,10 @@ const VERDICTS: Array<{ key: Verdict; label: string; hint: string }> = [
   { key: "noise", label: "Noise", hint: "not useful" },
 ];
 
+// Ages by lastSeen, matching the query's recency axis. Using createdAt here
+// would print "45d ago" on a finding an engine refreshed last night —
+// correlation-finder and teaching-moments both write stable keys, so a
+// re-run reinforces the original row rather than creating a new one.
 function ageLabel(iso: string | Date): string {
   const ms = Date.now() - new Date(iso).getTime();
   const days = Math.floor(ms / 86_400_000);
@@ -138,7 +142,7 @@ export function DiscoverTab() {
         action={
           <button
             onClick={() => setShowRated((v) => !v)}
-            className="min-h-[44px] sm:min-h-[28px] rounded-md border border-glass px-3 text-[11px] font-mono uppercase tracking-wider text-fg-secondary transition hover:text-fg"
+            className="min-h-[48px] min-w-[48px] sm:min-h-[28px] rounded-md border border-glass px-3 text-[11px] font-mono uppercase tracking-wider text-fg-secondary transition hover:text-fg"
           >
             {showRated ? "unjudged only" : "include judged"}
           </button>
@@ -181,7 +185,7 @@ export function DiscoverTab() {
                     {meta.label}
                   </span>
                   <span className="text-[10px] font-mono text-fg-secondary">
-                    {ageLabel(d.createdAt)}
+                    {ageLabel(d.lastSeen)}
                   </span>
                   {d.verdict && (
                     <span className="ml-auto rounded border border-glass px-2 py-0.5 text-[10px] font-mono uppercase text-fg-secondary">
@@ -206,7 +210,13 @@ export function DiscoverTab() {
                         title={v.hint}
                         aria-label={`${v.label} — ${v.hint}`}
                         className={cn(
-                          "min-h-[44px] rounded-lg border px-3 text-xs font-medium transition disabled:opacity-50",
+                          // 48x48 minimum, both dimensions — root AGENTS.md
+                          // mandates 48x48 for the standalone iOS PWA, and a
+                          // short label like "Noise" missed it on width even at
+                          // min-h-[44px]. These are the primary verdict
+                          // controls; a mis-tap writes the wrong signal into
+                          // the ledger this feature exists to fill.
+                          "min-h-[48px] min-w-[48px] rounded-lg border px-4 text-xs font-medium transition disabled:opacity-50",
                           v.key === "investigate"
                             ? "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15"
                             : "border-glass bg-white/[0.02] text-fg-secondary hover:text-fg hover:bg-white/[0.05]",

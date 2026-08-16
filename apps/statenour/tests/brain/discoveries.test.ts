@@ -41,6 +41,7 @@ const row = (over: Partial<Record<string, unknown>> = {}) => ({
   content: "A moves with B",
   source: "correlation-finder",
   createdAt: new Date("2026-08-15T00:00:00Z"),
+  lastSeen: new Date("2026-08-15T00:00:00Z"),
   metadata: {},
   ...over,
 });
@@ -65,11 +66,15 @@ describe("listDiscoveries", () => {
     mocks.brainMemory.findMany.mockResolvedValueOnce([row()]);
     await listDiscoveries();
     const args = mocks.brainMemory.findMany.mock.calls[0][0];
-    expect(args.orderBy).toEqual({ createdAt: "desc" });
+    // lastSeen, not createdAt: two of the four engines write STABLE keys, so a
+    // nightly re-run reinforces the original row and never touches createdAt.
+    expect(args.orderBy).toEqual({ lastSeen: "desc" });
     expect(JSON.stringify(args.orderBy)).not.toContain("confidence");
+    expect(args.where.lastSeen.gte).toBeInstanceOf(Date);
+    expect(args.where.createdAt).toBeUndefined();
   });
 
-  it("excludes soft-deleted rows — this pool is the most GC-exposed there is", async () => {
+  it("excludes soft-deleted rows — the nightly consolidate merge produces them", async () => {
     mocks.brainMemory.findMany.mockResolvedValueOnce([]);
     await listDiscoveries();
     expect(mocks.brainMemory.findMany.mock.calls[0][0].where.deletedAt).toBeNull();
@@ -101,6 +106,46 @@ describe("listDiscoveries", () => {
     const res = await listDiscoveries();
     expect(res.items[0].verdict).toBeNull();
   });
+
+  it("pages past judged rows instead of reporting a false 'nothing new'", async () => {
+    // The regression: a single `take: limit * 3` filtered AFTER the fetch meant
+    // that once enough NEWER discoveries were judged, older unjudged ones fell
+    // outside the window entirely and the feed rendered "Nothing new to judge"
+    // with unrated: 0 — while pending work sat one row past the cut.
+    const judgedPage = Array.from({ length: 60 }, (_, i) =>
+      row({ id: `judged-${i}`, metadata: { discoveryVerdict: "known" } }),
+    );
+    mocks.brainMemory.findMany
+      .mockResolvedValueOnce(judgedPage)
+      .mockResolvedValueOnce([row({ id: "old-but-unjudged" })]);
+
+    const res = await listDiscoveries({ limit: 5 });
+
+    expect(mocks.brainMemory.findMany).toHaveBeenCalledTimes(2);
+    expect(mocks.brainMemory.findMany.mock.calls[1][0].skip).toBe(60);
+    expect(res.items.map((d) => d.id)).toEqual(["old-but-unjudged"]);
+    expect(res.unrated).toBe(1);
+  });
+
+  it("reports when the scan stopped early rather than capping silently", async () => {
+    const full = Array.from({ length: 60 }, (_, i) => row({ id: `u-${i}` }));
+    mocks.brainMemory.findMany.mockResolvedValueOnce(full);
+    const res = await listDiscoveries({ limit: 5 });
+    expect(res.truncated).toBe(true);
+    expect(res.scanned).toBe(60);
+  });
+
+  it("does not page forever when every row is judged", async () => {
+    const judged = Array.from({ length: 60 }, (_, i) =>
+      row({ id: `j-${i}`, metadata: { discoveryVerdict: "noise" } }),
+    );
+    mocks.brainMemory.findMany.mockResolvedValue(judged);
+    const res = await listDiscoveries({ limit: 5 });
+    // MAX_SCAN 300 / PAGE 60 = 5 pages, then stop.
+    expect(mocks.brainMemory.findMany).toHaveBeenCalledTimes(5);
+    expect(res.items).toEqual([]);
+    expect(res.truncated).toBe(true);
+  });
 });
 
 describe("rateDiscovery", () => {
@@ -110,7 +155,7 @@ describe("rateDiscovery", () => {
     mocks.recordDecision.mockResolvedValue(true);
   });
 
-  it('maps "known" to a ledger DISMISSAL — the novelty signal', async () => {
+  it('maps "known" to IGNORED, never dismissed — it is a novelty signal, not an error', async () => {
     mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
     mocks.brainMemory.update.mockResolvedValueOnce({});
 
@@ -118,12 +163,13 @@ describe("rateDiscovery", () => {
 
     expect(res.ok).toBe(true);
     expect(mocks.brainMemory.update.mock.calls[0][0].data.metadata.discoveryVerdict).toBe("known");
+    // NOT "dismissed": every harvester treats a dismissed row as a wrong
+    // recommendation, and "already knew" means the claim was RIGHT.
     expect(mocks.recordDecision).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "ledger-1", decision: "dismissed" }),
+      expect.objectContaining({ id: "ledger-1", decision: "ignored" }),
     );
-    // The verdict itself must survive into the ledger — "already knew" and
-    // "noise" both dismiss, and collapsing them would destroy the only
-    // distinction between a novelty defect and an accuracy defect.
+    // The verdict itself must also survive verbatim, so a future novelty
+    // consumer can tell "already knew" from any other ignored row.
     expect(mocks.recordDecision.mock.calls[0][0].resultRef).toBe("discovery_verdict:known");
   });
 

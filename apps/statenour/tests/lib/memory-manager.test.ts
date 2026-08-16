@@ -265,6 +265,39 @@ describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
     expect(parked.create.metadata.targetKey).toBe("k");
   });
 
+  it("rewrites FULL review metadata when re-parking, so a previously rejected candidate is visible again", async () => {
+    // The regression: the upsert's update arm only set content/deletedAt, so a
+    // candidate the operator had REJECTED (metadata gateDecision "reject",
+    // soft-deleted) was revived by deletedAt:null but kept the old verdict.
+    // listPendingKnowledgeCandidates() filters on gateDecision ===
+    // "review_required", so the re-parked claim stayed invisible while this
+    // module logged memory_gateway_parked as though it were queued.
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    const existing = {
+      id: "existing-id",
+      category: "pattern",
+      key: "k",
+      content: "operator's own claim",
+      source: "manual",
+      confidence: 0.9,
+      seenCount: 4,
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.upsert.mockResolvedValueOnce({ id: "parked" });
+
+    await mm.remember("pattern", "k", "a bot disagrees", "scraper");
+
+    const call = mocks.brainMemory.upsert.mock.calls[0][0];
+    // BOTH arms must carry the same review state.
+    for (const arm of [call.create.metadata, call.update.metadata]) {
+      expect(arm.gateDecision).toBe("review_required");
+      expect(arm.recordType).toBe("knowledge_candidate");
+      expect(arm.kind).toBe("observation");
+      expect(arm.targetCategory).toBe("pattern");
+    }
+    expect(call.update.deletedAt).toBeNull();
+  });
+
   it("DEFAULT: an UNKNOWN category is deliberately NOT parked (volume guard)", async () => {
     delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
     mocks.isKnownCategory.mockReturnValue(false);

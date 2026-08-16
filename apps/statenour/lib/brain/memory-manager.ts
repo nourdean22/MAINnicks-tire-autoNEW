@@ -97,6 +97,26 @@ async function parkForReview(args: {
       .digest("hex");
     const candidateId = `mg_${contentHash.slice(0, 24)}`;
 
+    // One definition, used by BOTH upsert arms — a revived row must land in
+    // the review queue in exactly the state a fresh one would.
+    const parkedMetadata = {
+      recordType: "knowledge_candidate",
+      candidateId,
+      contentHash,
+      gateDecision: "review_required",
+      gateReasons: [args.verdict.reason],
+      reasonCode: args.verdict.reasonCode,
+      kind: "observation",
+      sourceType: "system",
+      parkedBy: "memory-commit-gateway-phase2",
+      candidateEvidence: args.verdict.candidateEvidence,
+      targetCategory: args.category,
+      targetKey: args.key,
+      blockedClaim: args.existingContent.slice(0, 500),
+      blockedClaimSource: args.existingSource,
+      parkedAt: new Date().toISOString(),
+    };
+
     await prisma.brainMemory.upsert({
       where: {
         category_key: {
@@ -111,28 +131,25 @@ async function parkForReview(args: {
         confidence: 0,
         source: `memory_gateway:${args.source}`,
         expiresAt: null,
-        metadata: {
-          recordType: "knowledge_candidate",
-          candidateId,
-          contentHash,
-          gateDecision: "review_required",
-          gateReasons: [args.verdict.reason],
-          reasonCode: args.verdict.reasonCode,
-          kind: "observation",
-          sourceType: "system",
-          parkedBy: "memory-commit-gateway-phase2",
-          candidateEvidence: args.verdict.candidateEvidence,
-          targetCategory: args.category,
-          targetKey: args.key,
-          blockedClaim: args.existingContent.slice(0, 500),
-          blockedClaimSource: args.existingSource,
-          parkedAt: new Date().toISOString(),
-        } as never,
+        metadata: parkedMetadata as never,
       },
+      // The update arm must rewrite the FULL metadata, not just content
+      // (review fix, 2026-08-16). A candidate the operator previously REJECTED
+      // is soft-deleted with `gateDecision: "reject"` on the row. Re-parking
+      // the same claim revives it via `deletedAt: null` — but
+      // listPendingKnowledgeCandidates() filters on
+      // `metadata.gateDecision === "review_required"`, so leaving the old
+      // verdict in place made the revived row invisible to the review queue
+      // while this module logged `memory_gateway_parked` as if it were
+      // waiting. Same metadata object as `create` for exactly that reason.
       update: {
         content: args.content,
+        confidence: 0,
+        source: `memory_gateway:${args.source}`,
+        expiresAt: null,
         deletedAt: null,
         lastSeen: new Date(),
+        metadata: parkedMetadata as never,
       },
     });
   } catch (err) {
