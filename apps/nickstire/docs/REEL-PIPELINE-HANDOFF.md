@@ -2,7 +2,23 @@
 
 **Date:** 2026-06-18 · **From:** a sibling session that built + production-verified the reel generation/assembly/posting pipeline (3 reels posted live to @nicks_tire_euclid).
 **For:** the session working the Instagram admin tab (`nickstire/ig-prompt-pass` / `ig-autopost*`).
-**TL;DR:** The Faceless Reel Studio's **Generate / Assemble / Publish** modes are no longer hypothetical. Every missing step now has a working reference script. Wire them behind the existing dry-run + kill-switch gates, and add **one new thing: a storage bucket**.
+**TL;DR:** The Faceless Reel Studio's **Generate / Assemble / Publish** modes are no longer hypothetical. Every missing step has a working reference path. Keep execution behind the existing dry-run + kill-switch gates and use the configured durable media bucket for public Reel URLs.
+
+## Current execution update (2026-08-13)
+
+The Meta/Instagram publisher is now verified live for `@nicks_tire_euclid`.
+Use the existing `server/services/metaSocial.ts` / `publishToSocial()` rail;
+do not build a second browser uploader. Required configuration names are
+`META_PAGE_ACCESS_TOKEN`, `META_IG_USER_ID`, and `META_PAGE_ID`, with a
+durable `app_secret_kv.meta_page_access_token` fallback. Never expose token
+values.
+
+The current publish contract is: approved and QA-checked MP4 -> permanent
+public HTTPS media URL -> Meta `REELS` container with `share_to_feed=true` ->
+poll `FINISHED` -> one `media_publish` call -> media ID and read-back
+permalink. A lost response after dispatch is ambiguous; reconcile it before
+retrying. Recurring generation remains approval-gated unless publication is
+explicitly authorized.
 
 ---
 
@@ -31,7 +47,7 @@ All in `C:\Users\nourd\NOURCITY\apps\nickstire\scratch\` (read by absolute path 
 | Generate clips + music | `gen-reel1-assets.ts`, `gen-reels-23-assets.ts` | 4 Seedance clips/reel + Sonilo music, saved per reel |
 | Narration | `gen-vo.ts <reel> <google\|elevenlabs>` | TTS → `vo.wav` (Google Neural2 = free/commercial-clean; ElevenLabs = richer) |
 | Assemble | `assemble-reel.ts <reel>` | ffmpeg: trim/concat beats, **burn captions**, VO over ducked music → 1080×1920 H.264 |
-| Publish | `post-reels.ts <url1> <url2> <url3>` | Meta REELS: container → poll FINISHED → publish → permalink |
+| Publish | `server/services/metaSocial.ts` via `publishToSocial()` | Meta REELS: public URL → container → poll FINISHED → publish → media ID + permalink; the scratch script is historical reference only |
 | Single-clip retry | `retry-reel3-clip4.ts` | retry pattern for transient 502s |
 | Creds refresh | `update-railway-with-fresh-creds.ts` | ⚠️ token path fails — see gotchas |
 
@@ -56,11 +72,11 @@ All in `C:\Users\nourd\NOURCITY\apps\nickstire\scratch\` (read by absolute path 
 4. **Assemble:** server-side ffmpeg per `assemble-reel.ts` (system ffmpeg is on the box; repo already shells ffmpeg in `stitchVideos`). Note the **half-open caption intervals** (`gte(t,a)*lt(t,b)`) — inclusive `between()` double-renders one frame at each cut.
 5. **Publish:** route the Studio's "Publish Prep" → `metaSocial` REELS flow, **behind the dry-run flag + the existing claim-safety + quality gate**. Captions stay claim-safe (soft CTA, no prices).
 
-## ⚠️ The one hard blocker: hosting
+## Historical blocker: hosting (resolved)
 
-Meta's REELS API **fetches the video from a public URL** — it cannot take an upload. Carousel *images* dodge this (Higgsfield returns them on a public CDN URL). **Reels are assembled locally, so they need hosting.** Today we bridged with a throwaway public HF dataset — **not production-grade**, and the agent sandbox (correctly) blocks publishing brand content to ad-hoc external hosts without explicit user consent.
+Meta's REELS API **fetches the video from a public URL** — it cannot take an upload. Carousel *images* dodge this (Higgsfield returns them on a public CDN URL). **Reels are assembled locally, so they need hosting.** The durable Railway media bucket is now configured and should be the production path; a throwaway public HF dataset is only a temporary operator-approved fallback, not the default.
 
-**→ Highest-leverage add: wire a real bucket (Vercel Blob / Cloudflare R2 / S3).** Upload the assembled mp4, hand Meta the public URL, delete after publish. Everything else above is validated plumbing; this is the only genuinely new infra.
+**→ Resolved:** upload the assembled MP4 to the configured durable bucket, hand Meta its permanent public object URL, and retain the asset according to the media-retention policy. Verify the URL with `HEAD` before creating the Meta container.
 
 ## Gotchas (save yourself hours)
 
