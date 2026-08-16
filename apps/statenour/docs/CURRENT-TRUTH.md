@@ -2,7 +2,7 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-07-28**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-08-16**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
 
 ## Since 2026-07-20 (verified 2026-07-28 — headline deltas)
@@ -15,6 +15,51 @@
 - **Home** simplified around four questions; canonical chat consolidation landed. Follow-up dismissals are DURABLE — `agendaDismissFollowUp` writes to `agenda_items` (`lib/trpc/routers/operator.ts`) and `components/home/follow-ups-list.tsx` reads it; the localStorage era is over. (This line previously said the opposite, two lines above the evening-waves entry that records the fix.)
 
 - **Evening waves (same day):** durable Home agenda (FOLLOW_UP in agenda_items; localStorage dismissals dead) · memory commit gateway observing in SHADOW (review ~08-04) · alerts have resolve/mute lifecycle · chat command console (control sheet, authority strip, Context & Evidence, typed tool cards) · `getFleetTruth`/`getTopDecisions`/`fetchVideoTranscript` chat tools · execute-before-prose split (attempt-tense + receipt-backed completion messages) · intelligence_outcomes ledger live on Neon with two producers · /system/fleet + /system/chat-states pages · PR #1152 engine-lock wrapper merged.
+
+## Since 2026-08-16 — chat quality: it was a token budget, not the model
+
+- **`maxOutputTokens` was truncating every substantive answer.** Standard mode
+  allowed **2000**; the pinned THINKING model (`minimax-m3`) needs **3000-3600**
+  completion tokens to finish one. Measured, 12 calls
+  (`scripts/probe-empty-responses.ts`): the 8 that completed used 3013-3611; 4 hit
+  `finish_reason="length"`, one returning a 500-char fragment and one returning
+  **content=0 with completion_tokens=4000** — a full budget generated, none
+  delivered. Now **6000 standard / 10000 deep** (#1590).
+- **`provider.garbage ... chars=0` means BUDGET EXHAUSTION, not a dead upstream.**
+  `completion_tokens=4000` on an empty response proves the model generated a full
+  budget. Check `finish_reason` + `completion_tokens` before concluding anything
+  about an empty response.
+- **The client stall abort is the ONLY deadline in the system** — `maxDuration` is
+  inert on Railway, the server has none — and its clock starts at SUBMIT. It is
+  now **180s** (was 90s), because it is coupled to the token ceiling above: at
+  13.2 ms/token measured, 6000 tokens = 79s mean / 97s worst and 10000 = 132s /
+  161s, both past 90s before the ~40k system prompt and tool round-trips (#1591).
+  The extreme deep tail can still reach 180s.
+- **Chat had no failover.** Prod: `provider.all_failed tried=["ollama"]` with FIVE
+  provider keys configured and idle — `TASK_ROUTING_PREFERENCES` keeps openrouter
+  2nd "so a cooldown never dead-ends a turn", and the cost firewall filters the
+  very list the failover loop iterates. Last-resort rescue tail added, **OFF by
+  default**, `NICK_FAILOVER_RESCUE=1` (#1589; operator enabled it 2026-08-15).
+- **The chat permission picker was FAKE and is gone.** `draft` and `execute` were
+  the same code path — `"execute"` never appears server-side as a permission
+  value; only `=== "read"` branches. "Draft only — nothing runs" was false.
+  Server-side read-mode enforcement (`stripMutatingTools`) is untouched and still
+  covered by `tests/security/agentic-redteam.test.ts`.
+- **Web search runs on Tavily alone.** `searxng-perplexica` returns ZERO healthy
+  responses (116 CAPTCHA across duckduckgo/wikipedia/startpage/brave/google-cse);
+  `perplexica` returns ZERO completed searches (`400 invalid_request_error` —
+  **not** a retired model id; `gpt-oss:120b` is alive). The primary cap is now 6s
+  with a 3-miss/10-min breaker (was a hardcoded 30s tax on every search).
+- **Model pins: `minimax-m3` is correct.** With the de-confounded bake-off it is
+  the only model in the catalog that **reframes**. `deepseek-v4-pro` is DEAD
+  (retired upstream mid-session), `kimi-k3` is HTTP 402 (outside the flat plan),
+  `deepseek-v3.1:671b` is long gone (410) — **do not recommend it**.
+- **REFUTED, do not re-propose:** wrong model pinned · tool overload (the pruner
+  caps exposure at 24, `NICK_TOOL_BUDGET`) · prompt/context bloat
+  (`PROMPT-AB-2026-08-12`+`12b` — incumbent 4 / compact 3, below the
+  pre-registered ≥3 lead → abandoned as noise) · stale pin · persona stance
+  (`PERSONA-AB-2026-08-16-clean`: A=3.50 / B=3.08, lead −0.42, inside ±0.75 on
+  both runs → abandoned per its frozen pre-registration).
 
 ## Since 2026-08-14 — Nick media workspace + VideoDB (BDN-301..321)
 
