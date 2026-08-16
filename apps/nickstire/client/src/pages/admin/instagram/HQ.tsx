@@ -13,13 +13,22 @@ export function HQ({ onNavigate }: HQProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-medium">Headquarters</h3>
-        <Button onClick={() => onNavigate("studio")} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Enter Studio
-        </Button>
-      </div>
+      {/*
+        This is the TAIL SECTION OF TODAY, not a screen of its own — HQ has
+        exactly one importer (Today.tsx) and no view key. It used to open with an
+        "Headquarters" heading and its own "Enter Studio" button, which made it
+        read as a separate destination and gave the Today screen a THIRD
+        context-free door to Create (alongside "New content" and "Reel" directly
+        above it). The heading now describes what the section actually contains,
+        and creation is reached by the one canonical control.
+
+        `onNavigate` is still required: PipelineHealthCard below uses it for the
+        reel-recovery link, which carries real intent rather than duplicating a
+        door.
+      */}
+      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+        Creation brief &amp; pipeline
+      </h3>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="col-span-full">

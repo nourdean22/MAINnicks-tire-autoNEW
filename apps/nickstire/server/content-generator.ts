@@ -326,7 +326,20 @@ export async function saveGeneratedArticle(article: GeneratedArticle): Promise<n
       sectionsJson: JSON.stringify(article.sections),
       relatedServicesJson: JSON.stringify(article.relatedServices),
       tagsJson: JSON.stringify(article.tags),
-      status: "published",
+      // DRAFT, not published.
+      //
+      // This wrote "published", overriding the column's own
+      // .default("draft") (drizzle/schema.ts) — so every AI-generated article
+      // went LIVE on nickstire.org/blog and into the sitemap the moment it was
+      // generated, while the admin told the operator it had a draft to review.
+      // ContentManager renders a "Drafts" counter, a draft filter and an
+      // approve control for exactly this workflow; the writer skipped all three,
+      // so the counter could never be anything but zero for AI articles.
+      //
+      // Neither caller wants immediate publication: generateArticle is an admin
+      // mutation that RETURNS the article, and runContentGeneration is a batch
+      // generator. Publishing is one click away in the UI and now requires it.
+      status: "draft",
       generatedBy: "ai",
       publishDate: today,
     });
@@ -363,7 +376,11 @@ export async function saveGeneratedNotifications(notifications: GeneratedNotific
         ctaHref: notif.ctaHref,
         icon: notif.icon,
         season: notif.season as any,
-        isActive: 1,
+        // Same defect on the ticker: generated notifications went live on the
+        // PUBLIC NotificationBar immediately. ContentManager already renders an
+        // ACTIVE/INACTIVE badge and an activate toggle per row — this now starts
+        // inactive so that control means something.
+        isActive: 0,
         generatedBy: "ai",
         priority: 0,
       });

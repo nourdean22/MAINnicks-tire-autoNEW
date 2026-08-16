@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +7,7 @@ import { Loader2, Zap, AlertTriangle, CheckCircle2, AlertCircle, Wand2, Image as
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { evaluateQuality, ContentSourceRegistry, FormatRegistry, type SourceType, type PostFormat, type ContentQualityScore } from "@/lib/instagram/quality";
+import { buildDraftWorkspace, type DraftWorkspaceView } from "@/lib/facelessReelStudio";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
@@ -82,6 +83,20 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
 
   // Real ReelBrief workflow state
   const [reelBrief, setReelBrief] = useState<any>(null);
+  /**
+   * The compiler's own output, made inspectable. Recomputed from the live brief
+   * so an edit to a beat immediately re-runs preflight — the operator sees the
+   * block clear (or appear) as they work, instead of discovering it at enqueue.
+   * Wrapped in try/catch because a partially-formed brief must not take the
+   * whole review screen down.
+   */
+  const workspace: DraftWorkspaceView | null = useMemo(() => {
+    if (!reelBrief) return null;
+    try { return buildDraftWorkspace(reelBrief); } catch { return null; }
+  }, [reelBrief]);
+  /** Advisory findings — PreflightReport has no `warnings` field; severity lives
+   *  on each finding, and `blocking` is only the "block" subset. */
+  const preflightWarnings = (workspace?.preflight.findings ?? []).filter((f) => f.severity === "warn");
   const [jobId, setJobId] = useState<number | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
@@ -538,6 +553,97 @@ export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps
                           <span className="font-semibold capitalize text-foreground">{reelBrief.objectCharacter?.replace("_", " ") || "None"}</span>
                         </div>
                       </div>
+
+                      {/*
+                        THE BLOCKING INPUTS, MADE VISIBLE.
+
+                        `validateSourceGrounding` HARD-BLOCKS enqueue on
+                        sourceNotes + mechanicTruth, and the /75 score reads
+                        concepts + winningConceptId — yet none of those twelve
+                        truth-layer fields appeared anywhere in this file. The
+                        operator was asked to approve a brief whose pass/fail
+                        inputs were invisible, and to debug a block whose cause
+                        was unrenderable.
+
+                        buildDraftWorkspace already assembled exactly this view
+                        and had ZERO callers (its tRPC proc too — only tests
+                        imported it). It is PURE, so it runs on the in-memory
+                        brief with no round trip and cannot drift from what will
+                        actually be compiled.
+                      */}
+                      {workspace && (
+                        <div className="space-y-3">
+                          <h4 className="font-bold text-sm flex items-center gap-2 border-b pb-2">
+                            <ShieldCheck className="h-4 w-4 text-primary" />
+                            Truth &amp; preflight
+                            {/* PreflightReport.status is only "pass" | "block";
+                                advisory items live in findings[].severity. */}
+                            <Badge variant="outline" className={
+                              workspace.preflight.status === "block" ? "border-red-500/40 text-red-400"
+                              : preflightWarnings.length > 0 ? "border-amber-500/40 text-amber-400"
+                              : "border-emerald-500/40 text-emerald-400"
+                            }>
+                              {workspace.preflight.status === "block"
+                                ? "block"
+                                : preflightWarnings.length > 0 ? "pass · advisories" : "pass"}
+                            </Badge>
+                          </h4>
+
+                          {/* The blockers first: this is why enqueue is refused. */}
+                          {workspace.preflight.blocking.length > 0 && (
+                            <ul className="space-y-1 rounded border border-red-500/30 bg-red-500/5 p-3 text-xs">
+                              {workspace.preflight.blocking.map((b) => (
+                                <li key={`${b.category}-${b.message}`} className="flex gap-2">
+                                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-red-400" />
+                                  <span><span className="uppercase text-red-400">{b.category}</span> · {b.message}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          <div className="grid gap-2 text-xs sm:grid-cols-2">
+                            <div className="rounded border bg-muted/20 p-3 space-y-1">
+                              <p className="font-semibold text-foreground">Mechanic truth</p>
+                              <p className="text-muted-foreground">
+                                {workspace.truth.mechanicTruth || <span className="text-red-400">missing — grounding will block</span>}
+                              </p>
+                            </div>
+                            <div className="rounded border bg-muted/20 p-3 space-y-1">
+                              <p className="font-semibold text-foreground">Evidence ({workspace.truth.evidence.length})</p>
+                              {workspace.truth.evidence.length === 0 ? (
+                                <p className="text-red-400">no proof source — grounding will block</p>
+                              ) : (
+                                <ul className="space-y-0.5 text-muted-foreground">
+                                  {workspace.truth.evidence.map((e: string) => <li key={e}>· {e}</li>)}
+                                </ul>
+                              )}
+                            </div>
+                            {workspace.truth.clevelandAngle && (
+                              <div className="rounded border bg-muted/20 p-3 space-y-1">
+                                <p className="font-semibold text-foreground">Cleveland angle</p>
+                                <p className="text-muted-foreground">{workspace.truth.clevelandAngle}</p>
+                              </div>
+                            )}
+                            <div className="rounded border bg-muted/20 p-3 space-y-1">
+                              <p className="font-semibold text-foreground">Concepts</p>
+                              <p className="text-muted-foreground">
+                                {workspace.concepts.count} pitched
+                                {workspace.concepts.winningConceptId
+                                  ? ` · winner ${workspace.concepts.winningConceptId}`
+                                  : " · no judged winner (single-model self-scoring)"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {preflightWarnings.length > 0 && (
+                            <ul className="space-y-1 rounded border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                              {preflightWarnings.map((w) => (
+                                <li key={`${w.category}-${w.message}`}>· <span className="uppercase">{w.category}</span> · {w.message}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
 
                       {/* Storyboard Beats */}
                       <div className="space-y-4">

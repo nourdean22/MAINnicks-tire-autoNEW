@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { trpc } from "@/lib/trpc";
 import type { InstagramStudioDraft } from "../../../../shared/instagramStudio";
 import type { IgView } from "./igViews";
+import { writeCreateHandoff } from "./igViews";
 import { HQ } from "./HQ";
 
 /**
@@ -168,7 +169,28 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             <Button className="min-h-11" onClick={() => onNavigate("create")}><Plus className="mr-1 h-4 w-4" /> New content</Button>
-            <Button variant="outline" className="min-h-11" onClick={() => onNavigate("create")}><Film className="mr-1 h-4 w-4" /> Reel</Button>
+            {/*
+              This button was byte-identical to the one on its left — both called
+              onNavigate("create") — so a Film-icon control labelled "Reel"
+              silently landed the operator on the STATIC composer with
+              format="post". Two buttons, one behaviour, and the more specific
+              label was the false one.
+
+              It now declares reel intent through the existing handoff contract,
+              which StudioV2 honours by opening the reel lane directly. That also
+              removes the second tap ("Open Advanced Reel Studio") that every
+              reel previously cost.
+            */}
+            <Button
+              variant="outline"
+              className="min-h-11"
+              onClick={() => {
+                writeCreateHandoff({ sourceType: "manual_idea", format: "reel" });
+                onNavigate("create");
+              }}
+            >
+              <Film className="mr-1 h-4 w-4" /> Reel
+            </Button>
             <Button variant="outline" className="min-h-11" onClick={() => onNavigate("insights")}><DollarSign className="mr-1 h-4 w-4" /> What earned</Button>
           </CardContent>
         </Card>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Settings2 } from "lucide-react";
+import { AlertTriangle, Settings2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import DraftBoardPanel from "../DraftBoardPanel";
 import PatternLab from "./PatternLab";
 import AutonomyCommandCenter from "@/components/admin/AutonomyCommandCenter";
 import ActionCenter from "./ActionCenter";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 /**
  * The canonical five-view shell (audit Wave 4). The operator has five jobs —
@@ -145,9 +146,33 @@ export function InstagramAdmin() {
         </div>
       )}
 
+      {/*
+        A render throw inside ANY of these views used to reach the app-root
+        boundary and replace the WHOLE application — admin header, tab row and
+        all — with a full-screen recovery card, so a single bad field in Insights
+        took out every other surface. Scoped here, the tab row survives and the
+        operator can navigate away.
+
+        `key={activeView}` is load-bearing: it remounts the boundary per view, so
+        switching tabs CLEARS a caught error instead of stranding the operator on
+        the fallback until a full reload.
+      */}
+      <ErrorBoundary
+        key={activeView}
+        fallback={
+          <div className="flex h-64 flex-col items-center justify-center gap-3 p-6 text-center">
+            <AlertTriangle className="h-6 w-6 text-amber-500" />
+            <p className="text-sm font-medium">This view failed to render.</p>
+            <p className="max-w-md text-xs text-muted-foreground">
+              The rest of the Instagram admin still works — switch tabs and come back. If it keeps
+              failing, the browser console holds the error.
+            </p>
+          </div>
+        }
+      >
       <div className="min-h-0 flex-1">
         {activeView === "today" && <Today onNavigate={navigate} />}
-        {activeView === "create" && <StudioV2 />}
+        {activeView === "create" && <StudioV2 onNavigate={navigate} />}
         {activeView === "publish" && <QueueV2 />}
         {activeView === "community" && <Inbox onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
         {activeView === "insights" && <Learn onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
@@ -157,6 +182,7 @@ export function InstagramAdmin() {
         {activeView === "control" && <AutonomyCommandCenter />}
         {activeView === "settings" && <Settings />}
       </div>
+      </ErrorBoundary>
     </div>
   );
 }
