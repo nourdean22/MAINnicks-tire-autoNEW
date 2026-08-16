@@ -19,6 +19,7 @@ import {
   padToVectorDim,
   VECTOR_DIM_1536,
 } from "@/lib/db/pgvector";
+import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 import { logError } from "@/lib/utils/error-log";
 
@@ -374,7 +375,20 @@ async function pgvectorSemanticSearch(
   const fanLimit = Math.min(limit * 2, 200);
   const hitsByType = await Promise.all(
     sourceTypes.map((st) =>
-      knnSearch(queryVec, { sourceType: st, limit: fanLimit, metric: "cosine" }),
+      // RECALL_EXCLUDE_CATEGORIES is enforced HERE, at the vector boundary, so
+      // all twelve semanticSearch callers inherit it. It was previously honoured
+      // only by callers that hand-wrote `category: { notIn: [...] }` into a
+      // Prisma where-clause, which the vector path never did — so the quarantine
+      // did not hold for grounding.ts or contradiction-surfacer.ts. Those two
+      // matter epistemically: groundClaim() could match an un-promoted
+      // research_claim_candidate and return "source_supported", i.e. one
+      // unverified external claim corroborating another.
+      knnSearch(queryVec, {
+        sourceType: st,
+        limit: fanLimit,
+        metric: "cosine",
+        excludeCategories: RECALL_EXCLUDE_CATEGORIES,
+      }),
     ),
   );
   // forensic-audit MEDIUM · knnSearch returns null on FAILURE and [] on a
