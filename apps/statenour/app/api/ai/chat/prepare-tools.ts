@@ -195,7 +195,33 @@ export async function prepareTools(args: {
   // 2026-07-12 · raised standard default 1200 → 2000 (operator: replies read
   // too short). Shape-specific budgets (query-shape.ts) still tighten yes/no +
   // casual turns; this only lifts the ceiling for substantive "default" turns.
-  const modeDefaultTokens = mode === "deep" ? 4500 : 2000;
+  //
+  // 2026-08-15 · raised again, 2000 → 6000 / 4500 → 10000, because the 2000 was
+  // tuned for an era that ended. The chat lane now runs a THINKING model
+  // (OLLAMA_MODEL=minimax-m3), whose reasoning consumes completion tokens
+  // BEFORE the answer starts and is never exposed — the OpenAI-compat response
+  // carries no `reasoning_content`, so the trace is invisible and unbudgeted.
+  //
+  // Measured against the live model (scripts/probe-empty-responses.ts, 12 calls,
+  // max_tokens 4000): the eight calls that COMPLETED used 3013 / 3217 / 3270 /
+  // 3288 / 3289 / 3549 / 3585 / 3611 completion tokens. Every finished answer
+  // needed more than 3000. The other four hit finish_reason="length" at the
+  // 4000 cap — one returned a 500-char fragment and one returned NOTHING AT ALL
+  // (content=0 with completion_tokens=4000: a full budget of tokens generated,
+  // none of it reaching the user).
+  //
+  // So standard mode was truncating essentially every substantive answer, and
+  // 4000 was still short a third of the time. That is the operator's "messages
+  // get cut short", and it is a large part of "responses feel shallow" — the
+  // reply ends before the substance arrives. It also explains the
+  // `provider.garbage chars=0` warnings in prod: those are not upstream
+  // failures, they are budget exhaustion.
+  //
+  // 6000 covers the observed completion distribution (max 3611) with room for a
+  // longer trace on harder questions. Output tokens on the funded Ollama Cloud
+  // lane are flat-rate, so the ceiling costs nothing; query-shape still clamps
+  // casual and yes/no turns to 80-150, so short questions stay short and fast.
+  const modeDefaultTokens = mode === "deep" ? 10000 : 6000;
   const maxOutputTokens = queryShape.tokenBudget > 0
     ? queryShape.tokenBudget
     : modeDefaultTokens;

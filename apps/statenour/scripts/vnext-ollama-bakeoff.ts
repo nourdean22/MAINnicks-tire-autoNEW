@@ -77,6 +77,7 @@ interface ModelReport {
   toolRate: number;
   instructionRate: number;
   reasoningRate: number;
+  insightRate: number;
   jsonRate: number;
   medianLatencyMs: number;
 }
@@ -106,21 +107,55 @@ async function chat(
   }
 }
 
+// 2026-08-15 · THE CONFOUND THIS FIXES.
+// Every serious candidate on Ollama Cloud is a THINKING model (the catalog
+// lists `thinking` on deepseek-v4-pro, minimax-m3, kimi-k3, nemotron-3-ultra,
+// qwen3.5). They emit a reasoning trace before the answer — either fenced in
+// <think> tags inside content, or in a sibling `reasoning_content` field.
+//
+// The original instruction probe asked for "Reply with exactly the word OK"
+// with max_tokens: 20. A thinking model spends those 20 tokens on its trace and
+// never reaches "OK", so `content === "OK"` fails for reasons that have nothing
+// to do with instruction-following. In the 2026-08-11 sweep NINE of twelve
+// models scored instruction 0 — that is the signature of a broken probe, not
+// twelve models that cannot follow a one-word instruction. Instruction carried
+// weight .2, so ~20% of every score was an artifact, and the published ranking
+// (and the pin chosen from it) inherited it.
+//
+// Fix: separate the trace from the answer and score only the answer. Token
+// budgets are raised at each call site for the same reason.
 function messageOf(json: unknown): {
   content: string;
+  reasoning: string;
   toolCalls: Array<{ function?: { name?: string; arguments?: string } }>;
 } {
   const j = json as {
     choices?: Array<{
       message?: {
         content?: string | null;
+        reasoning_content?: string | null;
         tool_calls?: Array<{ function?: { name?: string; arguments?: string } }>;
       };
     }>;
   };
   const msg = j.choices?.[0]?.message;
-  return { content: (msg?.content ?? "").trim(), toolCalls: msg?.tool_calls ?? [] };
+  const raw = msg?.content ?? "";
+  // Fenced traces: <think>…</think>, and an unterminated <think> when the
+  // budget truncated mid-trace (answer never arrived — correctly scores 0).
+  const fenced = raw.match(/<think>[\s\S]*?<\/think>/gi)?.join("\n") ?? "";
+  const answer = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<think>[\s\S]*$/i, "")
+    .trim();
+  return {
+    content: answer,
+    reasoning: [msg?.reasoning_content ?? "", fenced].filter(Boolean).join("\n").trim(),
+    toolCalls: msg?.tool_calls ?? [],
+  };
 }
+
+import { INSIGHT_PROMPT, scoreInsight } from "./_lib/insight-score";
+
 
 const CREATE_TASK_TOOL = {
   type: "function" as const,
@@ -168,7 +203,9 @@ async function runProbe(model: string, probe: string): Promise<ProbeResult> {
     if (probe === "instruction") {
       const { json, latencyMs } = await chat(model, {
         messages: [{ role: "user", content: "Reply with exactly the word OK and nothing else." }],
-        max_tokens: 20,
+        // 1500, not 20: a thinking model needs room to finish its trace before
+        // the answer exists at all. See messageOf().
+        max_tokens: 1500,
       });
       const { content } = messageOf(json);
       return { probe, pass: content.replace(/[.!]/g, "").trim() === "OK", latencyMs, note: content.slice(0, 40) };
@@ -182,11 +219,20 @@ async function runProbe(model: string, probe: string): Promise<ProbeResult> {
               "A shop sells 4 tires at $180 each with a $50 install package, minus a $75 rebate. Reply with only the final total dollar amount.",
           },
         ],
-        max_tokens: 400,
+        max_tokens: 3000,
       });
       const { content } = messageOf(json);
       // 4*180 + 50 - 75 = 695
       return { probe, pass: /695/.test(content), latencyMs, note: content.slice(0, 40) };
+    }
+    if (probe === "insight") {
+      const { json, latencyMs } = await chat(model, {
+        messages: [{ role: "user", content: INSIGHT_PROMPT }],
+        max_tokens: 4000,
+      });
+      const { content } = messageOf(json);
+      const { points, note } = scoreInsight(content);
+      return { probe, pass: points >= 3, latencyMs, note };
     }
     // json probe
     const { json, latencyMs } = await chat(model, {
@@ -197,7 +243,7 @@ async function runProbe(model: string, probe: string): Promise<ProbeResult> {
             'Return ONLY a JSON object with keys "status" (string "green") and "count" (number 3). No prose, no code fence.',
         },
       ],
-      max_tokens: 120,
+      max_tokens: 1500,
     });
     const { content } = messageOf(json);
     let pass = false;
@@ -260,13 +306,16 @@ async function main(): Promise<void> {
     if (liveIds && !liveIds.has(model)) {
       reports.push({
         model, live: false, results: [], score: 0,
-        toolRate: 0, instructionRate: 0, reasoningRate: 0, jsonRate: 0, medianLatencyMs: -1,
+        toolRate: 0, instructionRate: 0, reasoningRate: 0, jsonRate: 0, insightRate: 0, medianLatencyMs: -1,
       });
       console.log(`SKIP ${model} — not in /v1/models`);
       continue;
     }
     const results: ProbeResult[] = [];
-    for (const probe of ["tool", "instruction", "reasoning", "json"]) {
+    const PROBE_SET = (process.env.BAKEOFF_PROBES || "")
+      .split(",").map((x) => x.trim()).filter(Boolean);
+    const probes = PROBE_SET.length > 0 ? PROBE_SET : ["tool", "instruction", "reasoning", "json", "insight"];
+    for (const probe of probes) {
       for (let i = 0; i < REPS; i++) {
         const r = await runProbe(model, probe);
         results.push(r);
@@ -277,16 +326,21 @@ async function main(): Promise<void> {
     const instructionRate = rate(results, "instruction");
     const reasoningRate = rate(results, "reasoning");
     const jsonRate = rate(results, "json");
-    // Tool fidelity dominates — the OS runs on tool calls (provider.ts's
-    // own model-selection rationale). Weights: tool .4 · reasoning .25 ·
-    // instruction .2 · json .15.
-    const score = toolRate * 0.4 + reasoningRate * 0.25 + instructionRate * 0.2 + jsonRate * 0.15;
+    const insightRate = rate(results, "insight");
+    // Tool fidelity still leads — the OS runs on tool calls, and a model that
+    // cannot call them breaks the product no matter how interesting it is. But
+    // insight now carries real weight (.25): the previous weighting could not
+    // distinguish a sharp thinking partner from a dull one, which is the exact
+    // complaint that prompted this axis. Weights: tool .3 · insight .25 ·
+    // reasoning .2 · instruction .15 · json .1.
+    const score =
+      toolRate * 0.3 + insightRate * 0.25 + reasoningRate * 0.2 + instructionRate * 0.15 + jsonRate * 0.1;
     reports.push({
       model,
       live: results.some((r) => r.latencyMs >= 0),
       results,
       score: Math.round(score * 1000) / 1000,
-      toolRate, instructionRate, reasoningRate, jsonRate,
+      toolRate, instructionRate, reasoningRate, jsonRate, insightRate,
       medianLatencyMs: median(results.map((r) => r.latencyMs)),
     });
   }
@@ -306,13 +360,17 @@ async function main(): Promise<void> {
     `# Ollama Cloud bake-off · ${date}`,
     "",
     "Deterministic probes on the existing flat subscription (no judge, no new spend).",
-    `Reps per probe: ${REPS} · weights: tool .4 / reasoning .25 / instruction .2 / json .15`,
+    `Reps per probe: ${REPS} · weights: tool .3 / insight .25 / reasoning .2 / instruction .15 / json .1`,
     "",
-    "| model | score | tool | reasoning | instruction | json | median ms |",
+    "Insight is scored by deterministic PROXIES (novel vocabulary, named trade-offs,",
+    "concreteness, and a penalty for returning answers the prompt explicitly excluded).",
+    "A low score is strong evidence; a high score is weak evidence. See scoreInsight().",
+    "",
+    "| model | score | tool | insight | reasoning | instruction | json | median ms |",
     "|---|---|---|---|---|---|---|",
     ...reports.map(
       (r) =>
-        `| ${r.model} | ${r.live ? r.score : "DEAD"} | ${r.toolRate} | ${r.reasoningRate} | ${r.instructionRate} | ${r.jsonRate} | ${r.medianLatencyMs} |`,
+        `| ${r.model} | ${r.live ? r.score : "DEAD"} | ${r.toolRate} | ${r.insightRate} | ${r.reasoningRate} | ${r.instructionRate} | ${r.jsonRate} | ${r.medianLatencyMs} |`,
     ),
     "",
     `**Chat/reason lane pick:** ${chatPick ? `${chatPick.model} (score ${chatPick.score})` : "none live"}`,
