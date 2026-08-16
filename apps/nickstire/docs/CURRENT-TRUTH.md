@@ -192,6 +192,24 @@ Automation success is valid only when the final system of record confirms the ac
   after the disagreement readout accumulates — the same shadow→gate path the
   image lane took 08-05→08-07. Verdicts appear as `daily reel shadow judge`
   in Railway logs.
+- **That readout had no reader until 2026-08-16, so it could not have
+  "accumulated" into anything.** The KV verdict was written once per job and read
+  only as a boolean dedupe marker (two references repo-wide, both in the writer).
+  The image lane could justify its flip because it persists verdicts to
+  `ig_autopost_log`, a queryable table, and ships
+  `scripts/ig-dual-judge-readout.ts`; the reel lane used the settings KV and
+  shipped no reader. Now: `server/services/reelShadowReadout.ts` (pure,
+  28 behavioural tests) + `scripts/reel-shadow-judge-readout.ts` (READ-ONLY;
+  **the operator runs it** — the only `DATABASE_URL` here is production). The
+  judge KV row carries `briefId`/`topic`/`note` from 2026-08-16 so a verdict is
+  identifiable. Three things the readout must keep saying, because each is a way
+  to misread it: the corpus is **conditioned** (every row already cleared
+  rendered-QA, so it is a blind-spot rate and never a quality base rate); an
+  **unusable verdict is neither a block nor a pass** (reusing `shadowJudgeGate`,
+  which fails CLOSED, would score an Ollama timeout as a quality defect); and a
+  **judge that throws writes nothing**, so its failures shrink the corpus instead
+  of appearing in it — hence the `coverage` line counting posted reels with no
+  verdict at all. No new LLM spend: the judge call was already being paid for.
 
 ### The AI receptionist improves from its own failed calls (2026-08-06/07)
 

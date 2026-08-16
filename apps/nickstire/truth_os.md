@@ -94,6 +94,47 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-08-16 - the reel lane's independent judge is readable, and its own gate doc was stale
+
+**The reel lane has had an independent judge since 2026-08-13 and could not consult it.** NT-001
+wired `judgeSingleConcept` into `dailyReelPost.ts` - one LLM call per about-to-publish reel, deduped
+by a KV marker - and wrote the verdict to `shop_settings` as `reel_shadow_judge_<jobId>`. Nothing
+ever read it: two references in the whole repo, both in the writing file, and the only read is
+`if (!alreadyJudged)`, a boolean. The judgment was bought and discarded.
+
+**Why the image lane could flip its gate and this one could not.** `igAutopost` persists verdicts to
+`ig_autopost_log`, a queryable log table, and ships a reader (`scripts/ig-dual-judge-readout.ts`).
+That is how the measured 5/25 blind-spot readout existed to justify the 2026-08-07 flip. The reel
+lane put the same measurement in the settings KV and shipped no reader - same signal, wrong
+substrate. Now readable via `server/services/reelShadowReadout.ts` (pure) plus
+`scripts/reel-shadow-judge-readout.ts` (read-only; the operator runs it, since the only
+`DATABASE_URL` here is production). No migration: the KV key is `LIKE`-scannable.
+
+**Three ways a naive reader would have been worse than none**, each pinned by a behavioural test:
+
+1. `shadowJudgeGate` fails CLOSED - correct for an unattended publisher, wrong for a shadow readout,
+   where the reel lane fails OPEN on purpose. Reusing it directly scores every Ollama timeout as a
+   quality blind spot and inflates the statistic a gate flip would rest on. Unusable verdicts get a
+   third bucket and are counted on neither side.
+2. The corpus is CONDITIONED: the judge runs only after `evaluateReelPublishGate` already allowed
+   the reel, so every row cleared rendered-QA. That is a blind-spot rate, never a quality base rate,
+   and the readout states it above the numbers.
+3. A judge that throws writes NOTHING, so its failures never appear as errored rows - the corpus
+   just shrinks, and a small corpus with no blocks reads as an all-clear. `coverage` reports posted
+   reels carrying no verdict at all.
+
+The readout also reports judge-vs-QC agreement: if the free deterministic checklist already flags
+what the LLM judge flags, the lane can gate at zero LLM cost.
+
+**A doc asserting a value is a cache with no invalidation - this file's sibling proved it again.**
+`docs/IG-ADMIN-PLAN-GATE-2026-08-05.md` called wiring `runConceptTournament` "the single
+highest-leverage change", on the premise that the daily lane self-scores. True on 2026-08-05, stale
+from 2026-08-13, and the 2026-08-16 addendum repeated it without re-reading the service. Corrected
+in place: pre-generation concept selection (5 calls, still open, still an operator spend decision) is
+a different stage from the post-render verdict (already paid for, now readable). Run the readout
+before spending on the tournament - the image lane set the precedent that this call is made on a
+number.
+
 ## 2026-08-16 — Create is grounded in records, and the admin stopped guessing
 
 Full architecture: [docs/IG-EVIDENCE-ARCHITECTURE.md](docs/IG-EVIDENCE-ARCHITECTURE.md). Read that

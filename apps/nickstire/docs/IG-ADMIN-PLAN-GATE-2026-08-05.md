@@ -301,3 +301,66 @@ day asks one model to ideate, score and pick in a single call, while the tournam
 exactly that remains reachable only from the operator's Campaign Package. It is a cost decision
 (5 LLM calls per brief vs 1) and therefore an operator decision, not an engineering one.
 
+---
+
+## CORRECTION 2026-08-16 — this file's own P1 was mis-scoped, and it hid a free fix
+
+**Everything above about the tournament conflates two different judges at two different stages.**
+The claim "the lane that actually posts every day self-scores" was true when written on 2026-08-05.
+It went stale on **2026-08-13**, when NT-001 wired `judgeSingleConcept` into `dailyReelPost.ts`. The
+2026-08-16 addendum immediately above repeated the claim without re-reading the service first — the
+same failure this repo has already named once: *a doc asserting a value is a cache with no
+invalidation.* Read the service.
+
+The two stages, correctly separated:
+
+| Stage | What runs today | Independent judgment | Cost to close |
+|---|---|---|---|
+| **Pre-generation** concept pick | `prepareCleanReelBrief` → `reelBriefGen` asks ONE model to ideate, score and pick | none | **5 LLM calls** (the tournament) |
+| **Post-render** quality verdict | `judgeSingleConcept`, live since 2026-08-13, once per job, KV-deduped | yes — and already paid for | **zero** |
+
+### The zero-cost half — SHIPPED 2026-08-16
+
+The post-render verdict was **write-only**. `reel_shadow_judge_<jobId>` had two references in the
+entire repo, both in the file that writes it, and the only read was `if (!alreadyJudged)` — a boolean
+dedupe marker. The image lane could justify its 2026-08-07 gate flip because it persists verdicts to
+**`ig_autopost_log`, a queryable log table**, and has a reader (`scripts/ig-dual-judge-readout.ts`).
+The reel lane wrote the same measurement into **`shop_settings`, the settings KV** — same signal,
+wrong substrate — and shipped no reader. It had been paying for a judgment it could not consult.
+
+Now closed, with no migration (the KV key is `LIKE`-scannable) and no new LLM spend:
+
+- `server/services/reelShadowReadout.ts` — pure summarizer. Imports `JUDGE_GATE_MIN_TOTAL` /
+  `shadowJudgeGate` rather than re-hardcoding `60` a **third** time
+  (`ig-dual-judge-readout.ts` already keeps a second copy).
+- `scripts/reel-shadow-judge-readout.ts` — read-only reader. **Operator runs it**; this repo's only
+  `DATABASE_URL` is production.
+- The judge KV row now carries `briefId`, `topic` and `note`, so a verdict is identifiable. Nothing
+  unread was added — the QC row was deliberately left alone for that reason.
+
+**Three traps that make a naive version of this reader worse than none**, all encoded in tests:
+
+1. **`shadowJudgeGate` fails CLOSED; the reel shadow lane fails OPEN.** Reusing the gate predicate
+   directly counts an Ollama timeout as a quality blind spot and inflates the exact statistic an
+   operator would flip a live publisher on. Unusable verdicts get a third bucket.
+2. **The corpus is CONDITIONED, not a base rate.** The judge runs *after* `evaluateReelPublishGate`
+   allows the reel, so every row already cleared rendered-QA. That is the right conditioning for a
+   blind-spot rate and the wrong conditioning for "how good are our reels". The readout says so in
+   its own header.
+3. **A judge that throws writes NOTHING** (deliberately — the next tick retries). So judge failures
+   never appear as errored rows; the corpus just gets *smaller*, and a small corpus with no blocks
+   in it reads as an all-clear. Hence `coverage`: posted reels carrying no verdict at all.
+
+The readout also reports **judge-vs-QC agreement**. If the free deterministic checklist already
+flags what the LLM judge flags, the reel lane can gate at zero LLM cost — which would retire the
+spend question below rather than answer it.
+
+### The 5-call half — STILL OPEN, still the operator's
+
+`prepareCleanReelBrief` genuinely has no independent concept selection, and wiring
+`runConceptTournament` there is genuinely 5 calls where there is now 1. That decision is unchanged
+and is not an engineering call. What changed is that it is **no longer the only lever**, and it is no
+longer the cheapest one: run the readout first. A measured blind-spot rate tells you whether
+pre-generation selection needs fixing at all, and the image lane set the precedent that this
+decision is made on a number, not on an argument.
+
