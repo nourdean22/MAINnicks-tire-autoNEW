@@ -84,42 +84,47 @@ command would not:
 
 Verified working: exit 0, both NDJSON files written, run logged.
 
-### BLOCKED as of 2026-08-16 — one manual step first
+### Registered 2026-08-16 — verified end to end
 
-The task is **not registered**, deliberately. There is nowhere stable to point it:
-
-- the **primary checkout** `C:\Users\nourd\NOURCITY` is on a DETACHED HEAD,
-  **51 commits behind** `origin/main`, and does not contain this script
-- it cannot fast-forward: **six tracked files carry uncommitted changes**, and
-  four are ~125 lines of genuine runbook edits that are **not on main** —
-  `REEL-PIPELINE.md` (+53), `social-pipeline-runbook.md` (+37),
-  `REEL-PIPELINE-HANDOFF.md` (+21/-5), `META_TOKEN_RENEWAL.md` (+14)
-- `main` is checked out in the `.worktrees/graphify-relabel` worktree, so the
-  primary cannot simply switch to it
-
-Registering a task against that tree would produce a job that fails every night
-while *looking* scheduled — the same anti-pattern this runbook rejects for the
-Railway cron above.
-
-Running the wrapper against it proved the guards rather than assuming them: it
-declined the merge ("local changes would be overwritten"), detected the missing
-script, exited 1, and left the checkout untouched.
-
-**Decide what happens to those uncommitted docs first** — they look worth
-committing, not discarding. Then:
-
-```powershell
-cd C:\Users\nourd\NOURCITY
-git fetch origin main
-git merge --ff-only origin/main
-
-$action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File C:\Users\nourd\NOURCITY\apps\statenour\scripts\run-brain-archive.ps1"
-$trigger = New-ScheduledTaskTrigger -Daily -At 3am
-Register-ScheduledTask -TaskName "statenour-brain-archive" -Action $action -Trigger $trigger -Description "Nightly complete brain archive to the OneDrive-synced vault"
+```
+Task      statenour-brain-archive
+State     Ready
+Trigger   Daily 03:00 (enabled)
+Action    powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+          C:\Users\nourd\NOURCITY\apps\statenour\scripts\run-brain-archive.ps1
 ```
 
-Confirm with `Get-ScheduledTask statenour-brain-archive`, and check
-`archive-run.log` after the first fire.
+Proven by firing it through Task Scheduler rather than trusting "Ready":
+`LastTaskResult: 0`, both NDJSON files written, run appended to
+`archive-run.log`.
+
+It was blocked until the same day. The primary checkout sat on a detached HEAD
+**51 commits behind** and could not fast-forward, because six tracked files
+carried uncommitted changes — and four of those were ~126 lines of runbook work
+that existed nowhere else. That work was committed first (#1605), each edit was
+then verified present on `origin/main` line by line, and only then were the local
+copies stashed (`pre-ff-2026-08-16`, recoverable) and the checkout fast-forwarded.
+
+Nothing was discarded before it was preserved. If a future run of this procedure
+finds local modifications, do the same: commit them, verify on main, stash,
+then fast-forward.
+
+### Checking on it
+
+```powershell
+Get-ScheduledTask statenour-brain-archive | Select-Object TaskName,State
+Get-ScheduledTaskInfo statenour-brain-archive | Select-Object LastRunTime,LastTaskResult
+```
+
+`LastTaskResult` of `0` is success. The authoritative record is
+`archive-run.log` beside the archive — the wrapper exits non-zero and logs
+`FATAL` on failure, so a silent no-op is not possible.
+
+To remove it:
+
+```powershell
+Unregister-ScheduledTask -TaskName "statenour-brain-archive" -Confirm:$false
+```
 
 ## Why the vault directory
 

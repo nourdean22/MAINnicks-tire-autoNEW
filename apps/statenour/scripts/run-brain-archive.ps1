@@ -30,7 +30,9 @@ $log = Join-Path $logDir "archive-run.log"
 
 function Write-Log($msg) {
   $line = "{0}  {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
-  Add-Content -Path $log -Value $line
+  # -Encoding utf8: the export prints '·' and em dashes, and the default
+  # encoding mangled them into '-+' and 'G??' in the log.
+  Add-Content -Path $log -Value $line -Encoding utf8
   Write-Output $line
 }
 
