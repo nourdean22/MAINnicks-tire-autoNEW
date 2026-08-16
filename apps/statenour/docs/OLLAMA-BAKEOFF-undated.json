@@ -1,0 +1,777 @@
+[
+  {
+    "model": "deepseek-v4-pro",
+    "live": false,
+    "results": [],
+    "score": 0,
+    "toolRate": 0,
+    "instructionRate": 0,
+    "reasoningRate": 0,
+    "jsonRate": 0,
+    "insightRate": 0,
+    "medianLatencyMs": -1
+  },
+  {
+    "model": "glm-5.2",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 555
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 464
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 751,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 679,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1308,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1366,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1419
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 930
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 15728,
+        "note": "words=728 var=0.72 novelShare=0.96 tradeoff/100=1.51 num/100=3.16 hedge/100=0.00 reframe=0 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 16967,
+        "note": "words=850 var=0.76 novelShare=0.96 tradeoff/100=0.59 num/100=2.59 hedge/100=0.00 reframe=0 obvious=0"
+      }
+    ],
+    "score": 1,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 1,
+    "medianLatencyMs": 1308
+  },
+  {
+    "model": "glm-5.1",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1822
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1832
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 2128,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 1914,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 3725,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 3189,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 2437
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 2030
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 43296,
+        "note": "words=879 var=0.73 novelShare=0.97 tradeoff/100=0.34 num/100=2.50 hedge/100=0.00 reframe=0 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 37727,
+        "note": "words=797 var=0.72 novelShare=0.95 tradeoff/100=0.88 num/100=3.01 hedge/100=0.00 reframe=0 obvious=0"
+      }
+    ],
+    "score": 1,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 1,
+    "medianLatencyMs": 2437
+  },
+  {
+    "model": "qwen3.5:397b",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2185
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2158
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 3955,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 3655,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": false,
+        "latencyMs": 30843,
+        "note": ""
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 30907,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 2946
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 3803
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 34161,
+        "note": "words=942 var=0.68 novelShare=0.97 tradeoff/100=0.42 num/100=3.61 hedge/100=0.00 reframe=0 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": 40078,
+        "note": "words=1003 var=0.69 novelShare=0.97 tradeoff/100=0.30 num/100=3.79 hedge/100=0.00 reframe=0 obvious=1"
+      }
+    ],
+    "score": 0.775,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 0.5,
+    "jsonRate": 1,
+    "insightRate": 0.5,
+    "medianLatencyMs": 3955
+  },
+  {
+    "model": "kimi-k3",
+    "live": false,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "tool",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "instruction",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "reasoning",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "reasoning",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "json",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "json",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": -1,
+        "note": "HTTP 402 {\"error\":{\"message\":\"this model uses extra usage only (not included plan usage) and your extra usage balance is"
+      }
+    ],
+    "score": 0,
+    "toolRate": 0,
+    "instructionRate": 0,
+    "reasoningRate": 0,
+    "jsonRate": 0,
+    "insightRate": 0,
+    "medianLatencyMs": -1
+  },
+  {
+    "model": "mistral-large-3:675b",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 923
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 950
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 590,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 621,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": false,
+        "latencyMs": 687,
+        "note": "795"
+      },
+      {
+        "probe": "reasoning",
+        "pass": false,
+        "latencyMs": 667,
+        "note": "795"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 806
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 694
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": 39058,
+        "note": "words=1049 var=0.62 novelShare=0.96 tradeoff/100=0.10 num/100=3.05 hedge/100=0.00 reframe=0 obvious=1"
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": 43448,
+        "note": "words=1225 var=0.58 novelShare=0.97 tradeoff/100=0.33 num/100=3.84 hedge/100=0.00 reframe=0 obvious=2"
+      }
+    ],
+    "score": 0.55,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 0,
+    "jsonRate": 1,
+    "insightRate": 0,
+    "medianLatencyMs": 806
+  },
+  {
+    "model": "nemotron-3-ultra",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2808
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2364
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 1259,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 5404,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 2319,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 8560,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1428
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 2110
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 52273,
+        "note": "words=956 var=0.70 novelShare=0.97 tradeoff/100=0.21 num/100=5.33 hedge/100=0.00 reframe=0 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 42531,
+        "note": "words=750 var=0.68 novelShare=0.97 tradeoff/100=0.27 num/100=3.47 hedge/100=0.00 reframe=0 obvious=0"
+      }
+    ],
+    "score": 1,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 1,
+    "medianLatencyMs": 2808
+  },
+  {
+    "model": "minimax-m3",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2704
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1274
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 1199,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 984,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1053,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1058,
+        "note": "695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1323
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1237
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 41730,
+        "note": "words=779 var=0.69 novelShare=0.95 tradeoff/100=0.13 num/100=4.36 hedge/100=0.00 reframe=2 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 46142,
+        "note": "words=985 var=0.67 novelShare=0.96 tradeoff/100=0.30 num/100=2.94 hedge/100=0.00 reframe=1 obvious=0"
+      }
+    ],
+    "score": 1,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 1,
+    "medianLatencyMs": 1274
+  },
+  {
+    "model": "gpt-oss:120b",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1110
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 775
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 860,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 743,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1350,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1092,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 759
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 903
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 24903,
+        "note": "words=1424 var=0.57 novelShare=0.97 tradeoff/100=0.00 num/100=8.57 hedge/100=0.00 reframe=0 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": 22076,
+        "note": "words=1401 var=0.57 novelShare=0.98 tradeoff/100=0.29 num/100=5.64 hedge/100=0.00 reframe=0 obvious=2"
+      }
+    ],
+    "score": 0.875,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 0.5,
+    "medianLatencyMs": 1092
+  },
+  {
+    "model": "deepseek-v4-flash:0731",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 866
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 714
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 641,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 668,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 747,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1210,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 723
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 798
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": 16197,
+        "note": "words=854 var=0.70 novelShare=0.96 tradeoff/100=0.12 num/100=4.10 hedge/100=0.12 reframe=1 obvious=3"
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": 19239,
+        "note": "words=787 var=0.70 novelShare=0.95 tradeoff/100=0.76 num/100=4.45 hedge/100=0.00 reframe=1 obvious=2"
+      }
+    ],
+    "score": 0.75,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 0,
+    "medianLatencyMs": 798
+  },
+  {
+    "model": "nemotron-3-nano:30b",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1286
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1210
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 1196,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 679,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1640,
+        "note": "$695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1570,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 2923
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 868
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 20498,
+        "note": "words=1012 var=0.60 novelShare=0.97 tradeoff/100=0.30 num/100=3.75 hedge/100=0.00 reframe=0 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": false,
+        "latencyMs": 26290,
+        "note": "words=1443 var=0.56 novelShare=0.98 tradeoff/100=0.28 num/100=4.85 hedge/100=0.00 reframe=0 obvious=2"
+      }
+    ],
+    "score": 0.875,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 0.5,
+    "medianLatencyMs": 1570
+  },
+  {
+    "model": "gpt-oss:20b",
+    "live": true,
+    "results": [
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 2255
+      },
+      {
+        "probe": "tool",
+        "pass": true,
+        "latencyMs": 1493
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 1174,
+        "note": "OK"
+      },
+      {
+        "probe": "instruction",
+        "pass": true,
+        "latencyMs": 942,
+        "note": "OK"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 1061,
+        "note": "695"
+      },
+      {
+        "probe": "reasoning",
+        "pass": true,
+        "latencyMs": 2639,
+        "note": "$695"
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 1084
+      },
+      {
+        "probe": "json",
+        "pass": true,
+        "latencyMs": 934
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 28483,
+        "note": "words=1104 var=0.66 novelShare=0.98 tradeoff/100=0.27 num/100=2.54 hedge/100=0.00 reframe=0 obvious=0"
+      },
+      {
+        "probe": "insight",
+        "pass": true,
+        "latencyMs": 23893,
+        "note": "words=629 var=0.74 novelShare=0.96 tradeoff/100=0.48 num/100=11.13 hedge/100=0.00 reframe=0 obvious=0"
+      }
+    ],
+    "score": 1,
+    "toolRate": 1,
+    "instructionRate": 1,
+    "reasoningRate": 1,
+    "jsonRate": 1,
+    "insightRate": 1,
+    "medianLatencyMs": 1493
+  }
+]

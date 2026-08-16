@@ -53,7 +53,9 @@ export function buildStaticPrefix(): string {
 
 // ── Identity ──────────────────────────────────────────────────────
 
-function identityBlock(): string {
+// Exported 2026-08-15 so scripts/vnext-persona-ab.ts can A/B the REAL block
+// rather than a copy that would drift from it.
+export function identityBlock(): string {
   return [
     "# NICK · Nour Dean's Chief of Staff — the Hand of the King",
     "",

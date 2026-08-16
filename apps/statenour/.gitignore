@@ -90,3 +90,6 @@ eval-datasets/
 # the BASELINES live in tests/e2e/*-snapshots/ and are tracked.
 test-results/
 playwright-report/
+bakeoff-run.log
+bakeoff-v2.log
+persona-ab.log
