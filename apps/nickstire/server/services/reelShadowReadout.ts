@@ -59,6 +59,53 @@ export interface ReelJobOutcome {
   jobId: number;
   status: string;
   igPostId?: string | null;
+  /** Required for coverage: it is what proves the reel was judge-ELIGIBLE. */
+  briefId?: string | null;
+}
+
+/**
+ * NT-001 shipped the reel shadow judge on 2026-08-13. A reel posted before that
+ * could never carry a verdict, so counting it as a coverage gap invents one.
+ */
+export const SHADOW_JUDGE_ROLLOUT_DATE = "2026-08-13";
+
+/**
+ * `dailyReelPost` publishes ONLY the job it enqueued for the day:
+ * `where(eq(reelJobs.briefId, "autopost-" + date))`. The shadow judge lives
+ * inside that same function, so this prefix IS the eligibility test — a reel
+ * published through any other path (`routes/adminRoutes.ts` operator publish,
+ * `routers/content.ts`) never reaches the judge, and `contentManufacturing` also
+ * enqueues with source "cron" while publishing elsewhere, which is why `source`
+ * is NOT the right signal here.
+ *
+ * The date is parsed from the briefId rather than a timestamp column on purpose:
+ * `updatedAt` is `onUpdateNow` and would drift if anything touched the row, and
+ * `createdAt` is enqueue time, not publish time. The briefId's date is immutable
+ * and is the reel's own calendar day.
+ */
+const AUTOPOST_BRIEF_ID = /^autopost-(\d{4}-\d{2}-\d{2})$/;
+
+export type EligibilityReason =
+  | "eligible"
+  | "not_posted"
+  | "other_publish_path"
+  | "before_rollout";
+
+/**
+ * Was this posted reel ever capable of carrying a shadow verdict? Returns the
+ * REASON as well as the verdict so the readout can show what it filtered out —
+ * a silent filter on a coverage denominator is the same class of defect as the
+ * silent gap coverage exists to expose.
+ */
+export function shadowJudgeEligibility(
+  outcome: ReelJobOutcome,
+  rolloutDate: string = SHADOW_JUDGE_ROLLOUT_DATE,
+): { eligible: boolean; reason: EligibilityReason } {
+  if (isPublished(outcome) !== true) return { eligible: false, reason: "not_posted" };
+  const m = AUTOPOST_BRIEF_ID.exec(outcome.briefId ?? "");
+  if (!m) return { eligible: false, reason: "other_publish_path" };
+  if (m[1] < rolloutDate) return { eligible: false, reason: "before_rollout" };
+  return { eligible: true, reason: "eligible" };
 }
 
 export type ShadowVerdictBucket = "would_block" | "clear" | "no_verdict";
@@ -106,9 +153,20 @@ export interface ReelShadowSummary {
    * corpus with no blocks in it reads as an all-clear. A posted reel with no
    * verdict row was never judged at all.
    *
+   * The denominator is ELIGIBLE posted reels only — see `shadowJudgeEligibility`.
+   * Counting every historically posted reel would have fabricated a coverage gap
+   * out of reels that predate the judge or published through a path it does not
+   * sit in, which is the same lie in the opposite direction. `excluded` reports
+   * what the filter removed, so the filter itself is never silent.
+   *
    * null when no outcome rows were supplied: coverage is then unknown, not full.
    */
-  coverage: { published: number; withVerdict: number; withoutVerdict: number } | null;
+  coverage: {
+    published: number;
+    withVerdict: number;
+    withoutVerdict: number;
+    excluded: { beforeRollout: number; otherPublishPath: number };
+  } | null;
   rows: ReelShadowRow[];
 }
 
@@ -140,6 +198,8 @@ export function summarizeReelShadow(input: {
   judge: ReelShadowJudgeRow[];
   qc?: ReelShadowQcRow[];
   outcomes?: ReelJobOutcome[];
+  /** Override only in tests. Defaults to the NT-001 ship date. */
+  rolloutDate?: string;
 }): ReelShadowSummary {
   const qcById = new Map((input.qc ?? []).map((r) => [r.jobId, r]));
   const outcomeById = new Map((input.outcomes ?? []).map((r) => [r.jobId, r]));
@@ -216,12 +276,20 @@ export function summarizeReelShadow(input: {
   // that asymmetry is the entire point. Callers pass every posted reel; the ones
   // absent from `judge` are the invisible judge failures.
   const judgedIds = new Set(input.judge.map((r) => r.jobId));
-  const postedOutcomes = (input.outcomes ?? []).filter((o) => isPublished(o) === true);
+  const graded = (input.outcomes ?? []).map((o) => ({
+    o,
+    ...shadowJudgeEligibility(o, input.rolloutDate),
+  }));
+  const eligible = graded.filter((g) => g.eligible).map((g) => g.o);
   const coverage = input.outcomes?.length
     ? {
-        published: postedOutcomes.length,
-        withVerdict: postedOutcomes.filter((o) => judgedIds.has(o.jobId)).length,
-        withoutVerdict: postedOutcomes.filter((o) => !judgedIds.has(o.jobId)).length,
+        published: eligible.length,
+        withVerdict: eligible.filter((o) => judgedIds.has(o.jobId)).length,
+        withoutVerdict: eligible.filter((o) => !judgedIds.has(o.jobId)).length,
+        excluded: {
+          beforeRollout: graded.filter((g) => g.reason === "before_rollout").length,
+          otherPublishPath: graded.filter((g) => g.reason === "other_publish_path").length,
+        },
       }
     : null;
 
@@ -326,19 +394,29 @@ export function formatReelShadowReadout(s: ReelShadowSummary): string[] {
   out.push("");
   if (s.coverage) {
     const c = s.coverage;
-    out.push(`JUDGE COVERAGE over posted reels ... ${c.withVerdict}/${c.published} (${pct(c.withVerdict, c.published)})`);
+    out.push(`JUDGE COVERAGE over ELIGIBLE posted reels ... ${c.withVerdict}/${c.published} (${pct(c.withVerdict, c.published)})`);
+    out.push(`  Eligible = briefId 'autopost-<date>' (the only jobs dailyReelPost publishes,`);
+    out.push(`  and the judge lives inside it) with that date on/after the rollout`);
+    out.push(`  ${SHADOW_JUDGE_ROLLOUT_DATE}. Excluded as never-eligible:`);
+    out.push(`    posted before rollout ..... ${c.excluded.beforeRollout}`);
+    out.push(`    other publish path ........ ${c.excluded.otherPublishPath}`);
+    out.push("  Those are stated rather than dropped quietly: counting them would invent a");
+    out.push("  coverage gap, and hiding them would conceal how narrow this denominator is.");
     if (c.withoutVerdict > 0) {
-      out.push(`  ${c.withoutVerdict} posted reel(s) carry NO verdict row at all.`);
+      out.push(`  ${c.withoutVerdict} ELIGIBLE posted reel(s) carry NO verdict row at all.`);
       out.push("  A judge that throws writes nothing, so those reels were never judged —");
       out.push("  they are missing from every number above rather than counted in it. Until");
       out.push("  this reaches 0, treat the blind-spot rate as a rate over the reels the");
       out.push("  judge MANAGED to score, not over the reels that published.");
+    } else if (c.published > 0) {
+      out.push("  Every eligible posted reel carries a verdict — that sample is complete.");
     } else {
-      out.push("  Every posted reel carries a verdict — the sample above is complete.");
+      out.push("  NO eligible posted reels yet, so coverage proves nothing either way.");
     }
   } else {
     out.push("JUDGE COVERAGE ... not supplied. Coverage is UNKNOWN, not complete: pass");
-    out.push("  the posted reel_jobs rows to detect reels that published unjudged.");
+    out.push("  the posted reel_jobs rows (WITH briefId) to detect reels that published");
+    out.push("  unjudged.");
   }
 
   if (s.qcAgreement) {

@@ -120,8 +120,18 @@ substrate. Now readable via `server/services/reelShadowReadout.ts` (pure) plus
    the reel, so every row cleared rendered-QA. That is a blind-spot rate, never a quality base rate,
    and the readout states it above the numbers.
 3. A judge that throws writes NOTHING, so its failures never appear as errored rows - the corpus
-   just shrinks, and a small corpus with no blocks reads as an all-clear. `coverage` reports posted
-   reels carrying no verdict at all.
+   just shrinks, and a small corpus with no blocks reads as an all-clear. `coverage` reports
+   eligible posted reels carrying no verdict at all.
+
+**And the fix for (3) needed its own fix.** A P1 review caught `coverage` counting EVERY
+historically posted `reel_jobs` row, so pre-rollout reels and reels published by the operator route
+or `contentManufacturing` were reported as judge failures - fabricating the gap coverage exists to
+expose, which is the same lie in the opposite direction. Eligible now = `briefId` matching
+`autopost-<YYYY-MM-DD>` (the only jobs `dailyReelPost` selects, and the judge sits inside that
+function) with that date on/after the 2026-08-13 rollout, and the readout PRINTS what it excluded so
+the filter is not silent either. `source` is not the signal: `contentManufacturing` also enqueues
+`source: "cron"` while publishing elsewhere. The date is read from the briefId because it is
+immutable - `updatedAt` is `onUpdateNow` and `createdAt` is enqueue time, not publish time.
 
 The readout also reports judge-vs-QC agreement: if the free deterministic checklist already flags
 what the LLM judge flags, the lane can gate at zero LLM cost.

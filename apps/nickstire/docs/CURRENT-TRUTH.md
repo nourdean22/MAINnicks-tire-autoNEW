@@ -208,8 +208,19 @@ Automation success is valid only when the final system of record confirms the ac
   **unusable verdict is neither a block nor a pass** (reusing `shadowJudgeGate`,
   which fails CLOSED, would score an Ollama timeout as a quality defect); and a
   **judge that throws writes nothing**, so its failures shrink the corpus instead
-  of appearing in it — hence the `coverage` line counting posted reels with no
-  verdict at all. No new LLM spend: the judge call was already being paid for.
+  of appearing in it — hence the `coverage` line. No new LLM spend: the judge call
+  was already being paid for.
+- **Coverage counts only reels that COULD have been judged**, and says which it
+  excluded. Eligible = `briefId` of the form `autopost-<YYYY-MM-DD>` (the only
+  jobs `dailyReelPost` selects — `where(eq(reelJobs.briefId, "autopost-" + date))`
+  — and the judge sits inside that function) with that date on/after the
+  **2026-08-13** rollout. A P1 review caught the first version counting every
+  historically posted row, which would have reported pre-rollout reels and
+  operator/`contentManufacturing` publishes as judge failures — fabricating the
+  gap coverage exists to expose. **`source` is NOT the signal**:
+  `contentManufacturing` also enqueues with `source: "cron"` but publishes
+  elsewhere. The date comes from the briefId, not `updatedAt` (`onUpdateNow`,
+  drifts) or `createdAt` (enqueue, not publish).
 
 ### The AI receptionist improves from its own failed calls (2026-08-06/07)
 

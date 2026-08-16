@@ -19,6 +19,8 @@ import {
   isPublished,
   parseJudgeRow,
   parseQcRow,
+  shadowJudgeEligibility,
+  SHADOW_JUDGE_ROLLOUT_DATE,
   summarizeReelShadow,
   type ReelShadowJudgeRow,
 } from "./services/reelShadowReadout";
@@ -134,42 +136,109 @@ describe("realized exposure counts only reels that actually went live", () => {
   });
 });
 
-describe("a judge that never wrote a row cannot hide behind a small corpus", () => {
-  it("counts posted reels that carry NO verdict at all", () => {
-    // dailyReelPost writes nothing when the judge throws, so these reels are
-    // absent from `judge` entirely — not present-and-errored. Without coverage
-    // they vanish from every statistic instead of appearing in one.
+describe("the coverage denominator counts only reels that COULD have been judged", () => {
+  // P1 review finding on this PR, and it was right: the first version counted
+  // every historically posted reel_jobs row. The judge only began on 2026-08-13
+  // and only runs inside dailyReelPost, so older reels and reels published via
+  // routes/adminRoutes.ts or routers/content.ts were being reported as judge
+  // failures. That fabricates the very gap coverage exists to expose.
+  const AP = (d: string) => `autopost-${d}`;
+
+  it("excludes reels posted BEFORE the judge existed", () => {
+    expect(shadowJudgeEligibility({ jobId: 1, status: "posted", briefId: AP("2026-08-12") }))
+      .toEqual({ eligible: false, reason: "before_rollout" });
+    expect(shadowJudgeEligibility({ jobId: 2, status: "posted", briefId: AP(SHADOW_JUDGE_ROLLOUT_DATE) }))
+      .toEqual({ eligible: true, reason: "eligible" });
+  });
+
+  it("excludes reels published through a path the judge does not sit in", () => {
+    // contentManufacturing also enqueues with source "cron" but publishes
+    // elsewhere, which is exactly why briefId — not source — is the signal.
+    for (const briefId of ["manual-kickoff", "campaign-abc", "reel-42", null, ""]) {
+      expect(shadowJudgeEligibility({ jobId: 1, status: "posted", briefId }).reason)
+        .toBe("other_publish_path");
+    }
+  });
+
+  it("a reel that never posted is not a coverage gap", () => {
+    expect(shadowJudgeEligibility({ jobId: 1, status: "assembled", briefId: AP("2026-08-14") }).reason)
+      .toBe("not_posted");
+    expect(shadowJudgeEligibility({ jobId: 2, status: "publish_ambiguous", briefId: AP("2026-08-14") }).reason)
+      .toBe("not_posted");
+  });
+
+  it("coverage is computed over the eligible set and REPORTS what it excluded", () => {
     const s = summarizeReelShadow({
       judge: [judged({ jobId: 1, total: 90 })],
       outcomes: [
-        { jobId: 1, status: "posted" },
-        { jobId: 2, status: "posted" },
-        { jobId: 3, status: "posted" },
+        { jobId: 1, status: "posted", briefId: AP("2026-08-14") }, // eligible, judged
+        { jobId: 2, status: "posted", briefId: AP("2026-08-15") }, // eligible, NOT judged
+        { jobId: 3, status: "posted", briefId: AP("2026-08-01") }, // pre-rollout
+        { jobId: 4, status: "posted", briefId: "campaign-xyz" },   // other path
+        { jobId: 5, status: "assembled", briefId: AP("2026-08-15") }, // never posted
       ],
     });
-    expect(s.coverage).toEqual({ published: 3, withVerdict: 1, withoutVerdict: 2 });
-    // And the judged stats are unchanged — coverage discloses the gap, it does
-    // not paper over it by inventing verdicts.
-    expect(s.judged).toBe(1);
-    expect(s.wouldBlock).toBe(0);
+    expect(s.coverage).toEqual({
+      published: 2, withVerdict: 1, withoutVerdict: 1,
+      excluded: { beforeRollout: 1, otherPublishPath: 1 },
+    });
   });
 
-  it("the readout refuses to let an unjudged reel read as a clean sample", () => {
+  it("without the eligibility filter this exact input would have lied", () => {
+    // Regression guard for the review finding: 4 posted rows, 1 judged. The old
+    // denominator said 3 unjudged reels; only 1 is a real gap.
+    const s = summarizeReelShadow({
+      judge: [judged({ jobId: 1, total: 90 })],
+      outcomes: [
+        { jobId: 1, status: "posted", briefId: AP("2026-08-14") },
+        { jobId: 2, status: "posted", briefId: AP("2026-08-15") },
+        { jobId: 3, status: "posted", briefId: AP("2026-07-20") },
+        { jobId: 4, status: "posted", briefId: "operator-publish-9" },
+      ],
+    });
+    expect(s.coverage?.withoutVerdict).toBe(1);
+    expect(s.coverage?.withoutVerdict).not.toBe(3);
+  });
+
+  it("the readout names the eligibility rule and the exclusion counts", () => {
     const text = formatReelShadowReadout(
       summarizeReelShadow({
         judge: [judged({ jobId: 1, total: 90 })],
-        outcomes: [{ jobId: 1, status: "posted" }, { jobId: 2, status: "posted" }],
+        outcomes: [
+          { jobId: 1, status: "posted", briefId: AP("2026-08-14") },
+          { jobId: 2, status: "posted", briefId: AP("2026-08-15") },
+          { jobId: 3, status: "posted", briefId: AP("2026-07-01") },
+        ],
       }),
     ).join("\n");
-    expect(text).toMatch(/1 posted reel\(s\) carry NO verdict row at all/);
+    expect(text).toMatch(/ELIGIBLE posted reels/);
+    expect(text).toMatch(/posted before rollout \.+ 1/);
+    expect(text).toMatch(/1 ELIGIBLE posted reel\(s\) carry NO verdict row at all/);
     expect(text).toMatch(/never judged/);
+    // The filter must not be silent about itself.
+    expect(text).toContain(SHADOW_JUDGE_ROLLOUT_DATE);
   });
 
-  it("says so plainly when coverage IS complete", () => {
+  it("says so plainly when eligible coverage IS complete", () => {
     const text = formatReelShadowReadout(
-      summarizeReelShadow({ judge: [judged({ jobId: 1, total: 90 })], outcomes: [{ jobId: 1, status: "posted" }] }),
+      summarizeReelShadow({
+        judge: [judged({ jobId: 1, total: 90 })],
+        outcomes: [{ jobId: 1, status: "posted", briefId: AP("2026-08-14") }],
+      }),
     ).join("\n");
-    expect(text).toMatch(/the sample above is complete/);
+    expect(text).toMatch(/that sample is complete/);
+  });
+
+  it("zero ELIGIBLE reels proves nothing — it must not read as complete", () => {
+    // All excluded: an empty eligible set with 0 gaps is vacuous, not clean.
+    const s = summarizeReelShadow({
+      judge: [],
+      outcomes: [{ jobId: 1, status: "posted", briefId: AP("2026-07-01") }],
+    });
+    expect(s.coverage).toMatchObject({ published: 0, withoutVerdict: 0 });
+    const text = formatReelShadowReadout(s).join("\n");
+    expect(text).toMatch(/proves nothing either way/);
+    expect(text).not.toMatch(/sample is complete/);
   });
 
   it("no outcomes at all means coverage UNKNOWN, not coverage complete", () => {
@@ -178,19 +247,20 @@ describe("a judge that never wrote a row cannot hide behind a small corpus", () 
     expect(formatReelShadowReadout(s).join("\n")).toMatch(/Coverage is UNKNOWN, not complete/);
   });
 
-  it("only 'posted' counts as published for coverage — held and ambiguous do not", () => {
-    // Counting `assembled` would understate coverage (those were never eligible
-    // for a verdict yet); counting `publish_ambiguous` would assert a live post
-    // the system explicitly refuses to assert.
-    const s = summarizeReelShadow({
-      judge: [],
-      outcomes: [
-        { jobId: 1, status: "assembled" },
-        { jobId: 2, status: "publish_ambiguous" },
-        { jobId: 3, status: "posted" },
-      ],
-    });
-    expect(s.coverage).toEqual({ published: 1, withVerdict: 0, withoutVerdict: 1 });
+  it("the rollout boundary is inclusive and compared as a date, not a timestamp", () => {
+    // briefId dates are immutable and lexicographically ordered, so no Date
+    // parsing or timezone is involved — a deliberate choice over updatedAt.
+    const on = shadowJudgeEligibility({ jobId: 1, status: "posted", briefId: AP("2026-08-13") });
+    const before = shadowJudgeEligibility({ jobId: 2, status: "posted", briefId: AP("2026-08-12") });
+    const after = shadowJudgeEligibility({ jobId: 3, status: "posted", briefId: AP("2026-12-31") });
+    expect([on.eligible, before.eligible, after.eligible]).toEqual([true, false, true]);
+  });
+
+  it("a malformed autopost briefId is not silently treated as eligible", () => {
+    for (const bad of ["autopost-", "autopost-2026-8-13", "autopost-20260813", "autopost-2026-08-13-retry"]) {
+      expect(shadowJudgeEligibility({ jobId: 1, status: "posted", briefId: bad }).reason)
+        .toBe("other_publish_path");
+    }
   });
 });
 

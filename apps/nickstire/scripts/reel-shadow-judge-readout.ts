@@ -83,12 +83,21 @@ async function main(): Promise<void> {
   // judged ones. A judge that throws writes no KV row, so a reel that published
   // unjudged is invisible unless the posted set is fetched independently. That
   // difference is what `summary.coverage` reports.
-  type RawJobRow = { jobId: unknown; status: unknown; igPostId: unknown };
+  // briefId is fetched because it is what proves ELIGIBILITY: dailyReelPost
+  // publishes only `autopost-<date>` jobs and the judge lives inside it, so a
+  // reel published by the operator route or by contentManufacturing was never
+  // judge-eligible. Counting those would fabricate a coverage gap — the same lie
+  // as hiding one. summarizeReelShadow filters and reports what it excluded.
+  type RawJobRow = { jobId: unknown; status: unknown; igPostId: unknown; briefId: unknown };
   const judgedIds = judge.map((r) => r.jobId);
   const toOutcome = (r: RawJobRow) => ({
-    jobId: r.jobId as number, status: r.status as string, igPostId: r.igPostId as string | null,
+    jobId: r.jobId as number, status: r.status as string,
+    igPostId: r.igPostId as string | null, briefId: r.briefId as string | null,
   });
-  const cols = { jobId: reelJobs.id, status: reelJobs.status, igPostId: reelJobs.igPostId };
+  const cols = {
+    jobId: reelJobs.id, status: reelJobs.status,
+    igPostId: reelJobs.igPostId, briefId: reelJobs.briefId,
+  };
 
   const posted = ((await db.select(cols).from(reelJobs)
     .where(eq(reelJobs.status, "posted"))) as RawJobRow[]).map(toOutcome);
