@@ -67,20 +67,54 @@ describe("readStatus classifies the state react-query cannot express with isLoad
 
 describe("the transport can no longer hang forever", () => {
   const main = read("client/src/main.tsx");
+  const fn = main.slice(main.indexOf("function boundedSignal"), main.indexOf("const UNBATCHED"));
 
-  it("the tRPC fetch passes a bounded signal", () => {
-    expect(main).toContain("signal: boundedSignal(init?.signal)");
+  it("the tRPC fetch composes a bounded signal and clears its timer", () => {
+    expect(main).toContain("const { signal, done } = boundedSignal(init?.signal)");
+    // `finally`, not an abort listener: the NORMAL path must clear the timer too.
+    expect(main).toContain(".finally(done)");
   });
 
-  it("the ceiling is a real timeout, not a comment", () => {
-    expect(main).toContain("AbortSignal.timeout(REQUEST_CEILING_MS)");
+  it("does NOT call AbortSignal.timeout — it would throw where that API is absent", () => {
+    // Review caught this: an unconditional AbortSignal.timeout meant EVERY tRPC
+    // call threw synchronously on an iOS/Safari build without it — breaking the
+    // whole admin far worse than the stalled spinner being fixed.
+    //
+    // Asserted against the function BODY, not the whole file: `fn` is sliced from
+    // `function boundedSignal`, which sits after the JSDoc, so the doc comment
+    // above it is free to NAME the two APIs it is warning against. Checking the
+    // file would match that warning and fail — as it did on first run.
+    expect(fn).not.toContain("AbortSignal.timeout");
+    expect(fn).not.toContain("AbortSignal.any");
   });
 
-  it("cancellation survives when AbortSignal.any is unavailable", () => {
-    // The fallback must forward the CALLER's signal. Returning the timeout
-    // instead would silently drop tRPC's unmount cancellation on older Safari.
-    const fn = main.slice(main.indexOf("function boundedSignal"), main.indexOf("const trpcClient"));
-    expect(fn).toContain("anyOf([existing, timeout]) : existing");
+  it("composes manually, so the ceiling applies on EVERY browser", () => {
+    // The previous fallback forwarded only the caller's signal, silently
+    // dropping the ceiling wherever AbortSignal.any was missing.
+    expect(fn).toContain("new AbortController()");
+    expect(fn).toContain("setTimeout(");
+    expect(fn).toContain("REQUEST_CEILING_MS");
+  });
+
+  it("still propagates tRPC's cancellation, including an already-aborted signal", () => {
+    expect(fn).toContain("existing.aborted");
+    expect(fn).toContain('existing.addEventListener("abort"');
+  });
+});
+
+describe("storage copy names the delivery path instead of asserting CloudFront", () => {
+  it("health reports WHICH permanent-URL mode is in use", () => {
+    expect(read("server/routers/instagramAdmin.ts")).toContain("cdn: !!process.env.CLOUDFRONT_DOMAIN");
+  });
+
+  it("Settings no longer claims CloudFront is configured when it is absent", () => {
+    // Making `configured` true on S3 alone left this consumer swapping one false
+    // health report for another — caught in review.
+    const settings = read("client/src/pages/admin/instagram/Settings.tsx");
+    expect(settings).not.toContain("S3 and CloudFront are configured");
+    expect(settings).not.toContain("S3_BUCKET and CLOUDFRONT_DOMAIN must both be configured");
+    expect(settings).toContain("health.data?.storage?.cdn");
+    expect(settings).toMatch(/served through the app from S3/);
   });
 });
 

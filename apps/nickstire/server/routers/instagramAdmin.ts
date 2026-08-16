@@ -140,6 +140,19 @@ export const instagramAdminRouter = router({
         // definition was not. Both now read the storage module's own authority.
         configured: durableStorageConfigured(),
         permanentUrls: servesPermanentUrls(),
+        /**
+         * DESCRIPTIVE, not a verdict — which permanent-URL MODE is in use, so a
+         * consumer can name it without re-deriving (and re-inverting) the
+         * condition. Review of the first fix caught that making `configured`
+         * true on S3 alone left Settings.tsx claiming "S3 and CloudFront are
+         * configured" while CloudFront is deliberately absent: one false health
+         * report swapped for another.
+         *
+         * false = app-proxied via {SITE_URL}/generated/{key} (the production
+         * shape); true = CloudFront CDN in front of the bucket. Both are
+         * permanent; only the delivery path differs.
+         */
+        cdn: !!process.env.CLOUDFRONT_DOMAIN,
       },
       generator: await (async () => {
         // The background reel pipeline generates video with VEO, not Higgsfield.

@@ -78,16 +78,39 @@ const REQUEST_CEILING_MS = 120_000;
 /**
  * Bound a request without discarding tRPC's own cancellation signal.
  *
- * `AbortSignal.any` is not on every browser this PWA runs on (the operator is on
- * iOS), so fall back to forwarding only the caller's signal rather than
- * overwriting it — losing the ceiling degrades to today's behaviour, whereas
- * losing cancellation would leak requests on every unmount.
+ * MANUAL COMPOSITION ON PURPOSE — do not "simplify" this to `AbortSignal.timeout`
+ * plus `AbortSignal.any`. Review of the first version (PR #1601) caught two
+ * defects in exactly that approach:
+ *
+ *  1. `AbortSignal.timeout` was called unconditionally. On an iOS/Safari build
+ *     without it, EVERY tRPC call would throw synchronously here instead of
+ *     issuing a request — breaking the whole admin far worse than the stalled
+ *     spinner this exists to fix.
+ *  2. Where `timeout` existed but `AbortSignal.any` did not, the fallback
+ *     forwarded only the caller's signal and silently DROPPED the ceiling, so
+ *     the fix quietly did nothing on those browsers.
+ *
+ * `AbortController` + `addEventListener` are available everywhere this PWA runs,
+ * so composing by hand needs no feature detection and keeps BOTH guarantees:
+ * tRPC's unmount cancellation still propagates, and the ceiling always applies.
+ *
+ * Returns the signal plus a `done()` the caller MUST invoke when the request
+ * settles — otherwise a 120s timer stays pending per request.
  */
-function boundedSignal(existing: AbortSignal | null | undefined): AbortSignal | undefined {
-  const timeout = AbortSignal.timeout(REQUEST_CEILING_MS);
-  if (!existing) return timeout;
-  const anyOf = (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any;
-  return typeof anyOf === "function" ? anyOf([existing, timeout]) : existing;
+function boundedSignal(existing: AbortSignal | null | undefined): { signal: AbortSignal; done: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new DOMException(`request exceeded ${REQUEST_CEILING_MS}ms`, "TimeoutError")),
+    REQUEST_CEILING_MS,
+  );
+  const done = () => clearTimeout(timer);
+
+  if (existing) {
+    // Already cancelled before we got here — mirror it immediately.
+    if (existing.aborted) controller.abort(existing.reason);
+    else existing.addEventListener("abort", () => controller.abort(existing.reason), { once: true });
+  }
+  return { signal: controller.signal, done };
 }
 
 /**
@@ -113,11 +136,10 @@ const httpOptions = {
   url: "/api/trpc",
   transformer: superjson,
   fetch(input: URL | RequestInfo, init?: RequestInit) {
-    return globalThis.fetch(input, {
-      ...(init ?? {}),
-      credentials: "include",
-      signal: boundedSignal(init?.signal),
-    });
+    const { signal, done } = boundedSignal(init?.signal);
+    // `finally` on the fetch promise, not an abort listener: the timer must be
+    // cleared on the NORMAL path too, which abort never reaches.
+    return globalThis.fetch(input, { ...(init ?? {}), credentials: "include", signal }).finally(done);
   },
 };
 
