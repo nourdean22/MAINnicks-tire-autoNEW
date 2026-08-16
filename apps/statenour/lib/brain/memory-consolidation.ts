@@ -230,10 +230,21 @@ export async function promoteToWisdom(): Promise<{ promoted: number }> {
 // ─── 3. PRUNE: Garbage collect noise ─────────────────────
 
 export async function pruneNoise(): Promise<{ pruned: number }> {
-  // Delete expired temporary memories
+  // Delete expired temporary memories. Collect the ids FIRST: deleteMany only
+  // returns a count, and without the ids the matching vector_embeddings rows
+  // cannot be removed — which is how this sweep silently produced orphans that
+  // outlived their memory (vector_embeddings keeps a `content` copy).
+  const expiringIds = (
+    await prisma.brainMemory.findMany({
+      where: { expiresAt: { lt: new Date() } },
+      select: { id: true },
+    })
+  ).map((r) => r.id);
   const expired = await prisma.brainMemory.deleteMany({
-    where: { expiresAt: { lt: new Date() } },
+    where: { id: { in: expiringIds } },
   });
+  const { dropEmbeddingsForMemories } = await import("@/lib/brain/memory-tombstone");
+  await dropEmbeddingsForMemories(expiringIds, "pruneNoise.expired");
 
   // Soft-delete very low confidence memories (below 0.1) that haven't
   // been seen in 14+ days. Was a hard deleteMany; the rest of this file
@@ -275,6 +286,7 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
       // surfaces a stuck-on-this-row regression.
       try {
         await prisma.brainMemory.delete({ where: { id: f.id } });
+        await dropEmbeddingsForMemories([f.id], "pruneNoise.duplicate");
         dupesPruned++;
       } catch (err) {
         dupeDeleteFailures++;

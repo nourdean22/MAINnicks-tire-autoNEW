@@ -353,6 +353,11 @@ export class BrainMemoryManager {
    */
   async purge(memoryId: string): Promise<void> {
     await prisma.brainMemory.delete({ where: { id: memoryId } });
+    // A scrub that leaves the text in vector_embeddings is not a scrub: that
+    // table keeps a `content` copy, so the memory stayed fully readable after
+    // "permanent hard-delete". This path is documented as the GDPR-style scrub.
+    const { dropEmbeddingsForMemories } = await import("@/lib/brain/memory-tombstone");
+    await dropEmbeddingsForMemories([memoryId], "memory-manager.purge");
   }
 
   /**

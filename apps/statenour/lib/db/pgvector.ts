@@ -179,6 +179,19 @@ export interface KnnSearchOptions {
   limit?: number;
   /** Distance operator. "cosine" → `<=>`. "l2" → `<->`. Defaults cosine. */
   metric?: "cosine" | "l2";
+  /**
+   * Exclude brain_memory hits whose memory is soft-deleted or gone. Default ON.
+   *
+   * This MUST happen in SQL, not in the caller. `LIMIT` is applied by the
+   * database, so filtering afterwards shrinks the result set instead of
+   * deepening the search: measured 2026-08-16, only 25.5% of the searchable
+   * brain_memory index pointed at a live memory, so a caller asking for 16
+   * candidates and filtering in JS was left with about 4. Filtering here makes
+   * the LIMIT count live rows.
+   *
+   * Set false only to inspect the raw index (orphan probes, cleanup tooling).
+   */
+  includeDeletedSources?: boolean;
 }
 
 /**
@@ -198,6 +211,19 @@ export async function knnSearch(
 ): Promise<KnnHit[] | null> {
   if (!(await isPgvectorAvailable())) return null;
   const limit = Math.min(Math.max(opts.limit ?? 10, 1), 100);
+
+  // Liveness predicate. Scoped to brain_memory: it is the only source type in
+  // this index with a soft-delete column, and the only one measured to have a
+  // dead majority. Other source types pass through untouched — a blanket join
+  // would silently drop chat_message/document/skill hits that are perfectly
+  // valid. `sourceId` is a text column here and `brain_memories.id` is a cuid,
+  // so the comparison is text-to-text with no cast.
+  const liveOnly =
+    opts.includeDeletedSources === true
+      ? ""
+      : ` AND ("sourceType" <> 'brain_memory' OR EXISTS (
+             SELECT 1 FROM brain_memories bm
+             WHERE bm.id = vector_embeddings."sourceId" AND bm.deleted_at IS NULL))`;
   const sourceType = opts.sourceType;
   const op = opts.metric === "l2" ? "<->" : "<=>";
   const lit = vectorLiteral(embedding);
@@ -225,7 +251,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE "sourceType" = $1 AND embedding_vec IS NOT NULL
-           AND vector_dims(embedding_vec) = ${dim}
+           AND vector_dims(embedding_vec) = ${dim}${liveOnly}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
         sourceType,
@@ -237,7 +263,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE embedding_vec IS NOT NULL
-           AND vector_dims(embedding_vec) = ${dim}
+           AND vector_dims(embedding_vec) = ${dim}${liveOnly}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
       );
