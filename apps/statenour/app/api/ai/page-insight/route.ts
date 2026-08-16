@@ -41,7 +41,6 @@ const PAGE_FRAMING: Record<string, string> = {
   decisions: "You are looking at Nour's decision log. Look for patterns: what does he decide well vs poorly? Flag decisions that need replay (made in drift, under stress, or with incomplete data).",
   commitments: "You are looking at Nour's commitments. Keep rate, broken reasons, patterns. A broken commitment is data — not shame.",
   loops: "You are looking at Nour's open loops. More than 8 open = scattered state + poor sleep. Triage aggressively: what can be closed, what should be killed, what's genuinely urgent.",
-  knowledge: "You are looking at Nour's knowledge corpus. Surface what he should revisit, what's becoming stale, what's worth promoting to the hot system prompt.",
   mastery: "You are looking at Nour's 10-domain mastery tree. Current average ~4.6/10. Identify the one domain with the highest-leverage single move for the next 7 days.",
   "war-room": "You are looking at the war room — strategic overview, Greene laws, current situation. Recommend the ONE power move for the next 48h.",
   revenue: "You are looking at business revenue data. Target is $20K+/month. Flag decay points: stale leads, aging estimates, dropped follow-ups. Every stale estimate is $300-800 walking out the door.",

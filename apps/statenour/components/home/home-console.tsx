@@ -5,7 +5,7 @@
  * consolidation, audit P1, operator-approved scope):
  *
  *   1. Is anything broken?        → HomeHealthChip (measured, /system link)
- *   2. What requires my decision? → FollowUpsList (was an imported-but-
+ *   2. What requires my decision? → ContradictionSlot + FollowUpsList (the latter was an
  *                                    never-rendered orphan; now mounted)
  *   3. What should I do now?      → ExecutiveActionMatrix (honest copy)
  *   4. What changed since last visit? → SinceLastVisitCard
@@ -24,6 +24,7 @@ import Link from "next/link";
 import { HomeIdentityHeader } from "./home-identity-header";
 import { CognitivePartner } from "./cognitive-partner";
 import { FollowUpsList } from "./follow-ups-list";
+import { ContradictionSlot } from "./contradiction-slot";
 import { ProposedCommitments } from "./proposed-commitments";
 import { ExecutiveActionMatrix } from "./executive-action-matrix";
 import { HomeHealthChip } from "./home-health-chip";
@@ -59,7 +60,11 @@ export function HomeConsole() {
       </section>
 
       {/* Q2 · What requires my decision? */}
-      <section aria-label="Decisions awaiting" className="min-w-0">
+      <section aria-label="Decisions awaiting" className="min-w-0 space-y-4">
+        {/* 2026-08-16 · the one knowledge-layer signal that earns Home. Renders
+            NOTHING when there is no unresolved contradiction — see the
+            component header for why nothing else from /brain qualifies. */}
+        <ContradictionSlot />
         <FollowUpsList />
         {/* WP-16 · journal nextActions arrive here as proposals awaiting verdict */}
         <ProposedCommitments />

@@ -267,10 +267,16 @@ ${scraped.markdown}
       data: { lastFetched: new Date() },
     });
 
-    // 6b. Governed final leg — promote source-supported claims into the brain as
-    // LOW-TRUST candidates (research_claim_candidate; quarantined from chat recall
-    // until a human promotes them). Best-effort: a promotion failure never fails
-    // ingestion, and the write is bounded + idempotent (see lib/intelligence/promote.ts).
+    // 6b. Governed final leg — promote memory-matching claims into the brain as
+    // LOW-TRUST candidates (research_claim_candidate). Quarantined from chat
+    // recall until a human promotes them — enforced since 2026-08-16 by
+    // RECALL_EXCLUDE_CATEGORIES in lib/brain/categories.ts. (This comment
+    // asserted the quarantine for months before anything implemented it; the
+    // category was never in the exclusion list and the rows were recallable.)
+    // Note "source_supported" here means cosine >= 0.75 against our own
+    // memory, NOT source verification — see lib/intelligence/grounding.ts.
+    // Best-effort: a promotion failure never fails ingestion, and the write is
+    // bounded + idempotent (see lib/intelligence/promote.ts).
     try {
       const { promoteIntelligenceClaims } = await import("./promote");
       const promo = await promoteIntelligenceClaims({ claimIds: createdClaimIds });

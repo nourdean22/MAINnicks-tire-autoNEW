@@ -31,6 +31,15 @@ import { classifyQuery, coalaKindOf, coalaKindBoost } from "@/lib/brain/coala";
 import { classifyQueryTopics, tagWisdomTopics, topicBoost } from "@/lib/brain/wisdom-topic-tagger";
 import { getFlag } from "@/lib/feature-flags";
 import { scoreMessage } from "@/lib/brain/importance-scorer";
+// 2026-08-16 · ONE evidence vocabulary. The write gate already grades every
+// source; recall now shows that grade instead of a confidence percentage the
+// model was reading as certainty. Value-import is safe here (recall is
+// server-only and already pulls prisma) — unlike lib/ai/vnext/truth/claims.ts,
+// which must stay client-reachable and so type-imports it instead.
+import {
+  evidenceClassForSource,
+  type MemoryEvidenceClass,
+} from "@/lib/brain/memory-commit-gateway";
 
 /**
  * v-truth · Importance-weighted recall (Generative-Agents R+R+I).
@@ -48,17 +57,117 @@ function importanceMultiplier(content: string, enabled: boolean): number {
   const s = scoreMessage(content).score; // 0..10, pure/no-IO
   return 0.92 + 0.033 * s; // 0.92 (s=0) .. 1.25 (s=10)
 }
+
+/**
+ * NOVELTY AXIS (2026-08-16) — the answer to "why does it only tell me things
+ * I already know?"
+ *
+ * BrainMemory `confidence` is not a certainty. It starts at 0.5 and rises
+ * +0.1 per re-sighting (memory-manager.ts reinforce), so it is a FREQUENCY
+ * COUNT. Recall ranks by it. Surprise is, by definition, low-frequency —
+ * which means a one-off surprising correlation sits at 0.5 forever and loses
+ * every ranking contest to a banality that got re-observed nightly until it
+ * hit 1.0. Every other signal in this pipeline (semantic similarity, lexical
+ * overlap, category weight, topic match, CoALA kind) also rewards FIT. A
+ * ranking function whose every term rewards fit converges on reciting the
+ * operator's own priors back at him.
+ *
+ * This is the one term that rewards DIFFERENCE: how far a memory sits from
+ * the ones already selected. Not from the query — from the answer set. A
+ * memory that says something the top picks do not already say gets a nudge.
+ *
+ * Deliberately gentle (0.95..1.18) and gated OFF by default, mirroring
+ * importanceMultiplier: it must never dominate relevance, and a novelty term
+ * that over-surfaces genuine noise is worse than none. Promote it only on an
+ * eval win (pnpm eval:recall).
+ *
+ * Cost: zero extra queries — `selectedVectors` are the embeddings
+ * getSemanticScores already parsed. O(k) per memory against a capped
+ * selection set, NOT O(N²) over the 300-row candidate pool.
+ */
+export function noveltyMultiplier(
+  vec: number[] | undefined,
+  selectedVectors: number[][],
+  enabled: boolean,
+): number {
+  if (!enabled) return 1.0;
+  if (!vec || vec.length === 0 || selectedVectors.length === 0) return 1.0;
+  let maxSim = 0;
+  for (const other of selectedVectors) {
+    if (other.length !== vec.length) continue;
+    const sim = cosineSimilarity(vec, other);
+    if (sim > maxSim) maxSim = sim;
+  }
+  // maxSim 1.0 (says exactly what we already picked) → 0.95
+  // maxSim 0.0 (orthogonal to everything picked)     → 1.18
+  const novelty = 1 - Math.max(0, Math.min(1, maxSim));
+  return 0.95 + 0.23 * novelty;
+}
+
+/** How many already-selected memories a candidate is compared against. */
+const NOVELTY_COMPARISON_SET = 5;
+
+/**
+ * Short, honest evidence labels for the prompt. Reuses the memory commit
+ * gateway's ladder rather than inventing a fourth taxonomy — that ladder is
+ * already the shared vocabulary between the write gate and the vNext claim
+ * ledger (compile-time locked in lib/ai/vnext/truth/claims.ts).
+ */
+const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
+  operator_stated: "you stated",
+  system_receipt: "receipt",
+  direct_observation: "observed",
+  external_source: "external",
+  supported_inference: "inferred",
+  generated_summary: "summary",
+  prediction: "prediction",
+  // NOT "unverified" — that asserts a check was run and failed. This class is
+  // the ladder's FALLBACK for any source string it does not recognize, and
+  // real operator-authored writers land here: `source: "operator"`
+  // (app/api/relationships/log-outreach, lib/media/media-moment — whose own
+  // comment calls that source "load-bearing, not decoration") and `pin:chat` /
+  // `pin:manual` from lib/services/pins.ts, since the operator_stated test is
+  // three EXACT equality checks (user/manual/skill_ingestion), not a prefix.
+  // Labelling those "unverified" told the model the operator's own logged
+  // action and his explicit pins were untrusted — the same overclaim, inverted,
+  // that this whole change set exists to remove. Admit ignorance instead.
+  weak_inference: "unclassified",
+};
+
+/**
+ * The provenance prefix for one recalled memory.
+ *
+ * Replaces `(NN%)`. That percentage read as certainty, but BrainMemory
+ * confidence is `0.5 + 0.1 × (sightings − 1)` capped at 1.0 — it IS the
+ * sighting count, restated. Printing both would print one fact twice, so the
+ * count replaces the percentage rather than joining it. What the model was
+ * missing is not a number: it is WHERE the claim came from. Without it a
+ * blind-spot inference the system generated itself rendered identically to
+ * something the operator said out loud.
+ *
+ * Follows the `· `-separated bracket convention already used by
+ * appendCrossSourceContext, so the block stays visually consistent.
+ */
+export function provenancePrefix(m: RelevantMemory): string {
+  const cls = evidenceClassForSource(m.source ?? "");
+  const seen = m.seenCount && m.seenCount > 1 ? ` · seen ${m.seenCount}x` : "";
+  return `[${m.category} · ${EVIDENCE_LABEL[cls]}${seen}]`;
+}
 // 2026-05-17 follow-up · exclude binary-payload categories from
 // every recall path · keeps the prompt builder from pulling 100KB+
 // base64 audio blobs that have no semantic value (Phase 5 morning
 // brief audio).
 import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 
-interface RelevantMemory {
+export interface RelevantMemory {
   category: string;
   content: string;
   confidence: number;
   relevance: "direct" | "supporting" | "background";
+  /** Raw BrainMemory.source — mapped to an evidence class at render time. */
+  source?: string;
+  /** Re-sighting count. confidence is derived from this, not from evidence. */
+  seenCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +472,11 @@ export async function getContextualMemories(
 
   // v-truth · importance axis · off by default (ranking unchanged).
   const importanceOn = getFlag("NICK_IMPORTANCE_RECALL")?.isOn ?? false;
+  // 2026-08-16 · novelty axis · off by default (ranking unchanged).
+  // NOTE: getFlag returns null for any key missing from FLAG_REGISTRY, and
+  // `?? false` swallows that silently — the entry in lib/feature-flags.ts is
+  // load-bearing, not documentation.
+  const noveltyOn = getFlag("NICK_NOVELTY_RECALL")?.isOn ?? false;
 
   const topics = await timed("topics", () => extractTopics(recentMessages));
 
@@ -448,6 +562,7 @@ export async function getContextualMemories(
     getSemanticScores(queryText, candidatePool, opts.queryEmbedding),
   );
   const useEmbeddings = semanticScores !== null;
+  const memoryVectors = semanticScores?.vectors ?? null;
 
   // v10.0.361 · RRF (Reciprocal Rank Fusion) replaces linear weighted
   // fusion. Per /hybrid-search-implementation skill, RRF is more robust
@@ -487,7 +602,7 @@ export async function getContextualMemories(
     return {
       ...m,
       sSemantic: useEmbeddings
-        ? (semanticScores.get(m.id) ?? 0)
+        ? (semanticScores.scores.get(m.id) ?? 0)
         : keywordScore(m, topics),
       sKeyword: keywordScore(m, topics),
       sLexical: lexicalRankById.get(m.id) ?? 0,
@@ -549,6 +664,10 @@ export async function getContextualMemories(
       confidence: m.confidence,
       createdAt: m.createdAt,
       source: m.source,
+      // 2026-08-16 · seenCount IS selected by the main query but was dropped
+      // here, so provenance at render time read `undefined`. `source` survived
+      // this map; seenCount did not.
+      seenCount: m.seenCount,
       hybrid,
       semantic: m.sSemantic,
     };
@@ -592,6 +711,31 @@ export async function getContextualMemories(
     }
   }
 
+  // ── Novelty pass · AFTER rerank, deliberately ────────────────────────────
+  // The rerank block above OVERWRITES `hybrid` with `0.5 + 0.5 * r.score` for
+  // the top 25, discarding every post-fusion multiplier for exactly the
+  // memories that matter most. importanceMultiplier (folded in at the
+  // multiplier block) silently suffers this today. Applying novelty here
+  // instead means it survives whether or not the reranker fired.
+  //
+  // Greedy diversification: walk the ranked list, and score each candidate
+  // against the last few ALREADY-ACCEPTED memories. This is the standard MMR
+  // shape (relevance vs. redundancy), kept to a capped comparison window so
+  // the hot path stays O(n·k) — the candidate pool is up to 300 rows and this
+  // block runs inside a 3s timeout on every chat turn.
+  if (noveltyOn && memoryVectors) {
+    const accepted: number[][] = [];
+    for (const m of scored) {
+      const vec = memoryVectors.get(m.id);
+      m.hybrid *= noveltyMultiplier(vec, accepted, true);
+      if (vec) {
+        accepted.push(vec);
+        if (accepted.length > NOVELTY_COMPARISON_SET) accepted.shift();
+      }
+    }
+    scored.sort((a, b) => b.hybrid - a.hybrid);
+  }
+
   // Build result: always include top wisdom + top scored
   const relevant: RelevantMemory[] = [];
   // v-truth · NICK_EPISODIC_SPLIT (default-OFF) · on an episodic
@@ -617,6 +761,8 @@ export async function getContextualMemories(
       content: w.content,
       confidence: w.confidence,
       relevance: "background",
+      source: w.source,
+      seenCount: w.seenCount,
     });
   }
 
@@ -655,6 +801,8 @@ export async function getContextualMemories(
       content: m.content,
       confidence: m.confidence,
       relevance: m.hybrid >= 0.5 ? "direct" : m.hybrid >= 0.15 ? "supporting" : "background",
+      source: m.source,
+      seenCount: m.seenCount,
     });
     addedIds.add(m.id);
   }
@@ -670,6 +818,8 @@ export async function getContextualMemories(
       content: m.content,
       confidence: m.confidence,
       relevance: m.hybrid >= 0.5 ? "direct" : "supporting",
+      source: m.source,
+      seenCount: m.seenCount,
     });
   }
 
@@ -684,6 +834,8 @@ export async function getContextualMemories(
         content: m.content,
         confidence: m.confidence,
         relevance: "background",
+        source: m.source,
+        seenCount: m.seenCount,
       });
     }
   }
@@ -704,7 +856,14 @@ export async function getContextualMemories(
   // (the first `wisdomSlots` entries) are PRESERVED · operator-grade
   // guarantee that the always-on wisdom layer never gets dropped.
   const budgetChars = tokenBudget * CHARS_PER_TOKEN_APPROX;
-  let totalChars = relevant.reduce((s, m) => s + m.content.length, 0);
+  // 2026-08-16 · count the rendered PREFIX too. The trimmer summed only
+  // content.length, so the `[category · evidence · seen Nx] ` prefix (and the
+  // `[category] (NN%) ` one before it) was invisible to the 4000-token cap —
+  // the block could run ~10-15% over its declared budget.
+  let totalChars = relevant.reduce(
+    (s, m) => s + m.content.length + provenancePrefix(m).length + 1,
+    0,
+  );
   let budgetDropped = 0;
   if (totalChars > budgetChars) {
     // Strip from the END (lowest-relevance first) but never below the
@@ -714,7 +873,7 @@ export async function getContextualMemories(
     while (relevant.length > minKeep && totalChars > budgetChars) {
       const dropped = relevant.pop();
       if (dropped) {
-        totalChars -= dropped.content.length;
+        totalChars -= dropped.content.length + provenancePrefix(dropped).length + 1;
         budgetDropped++;
       }
     }
@@ -733,21 +892,21 @@ export async function getContextualMemories(
   if (direct.length > 0) {
     lines.push(`### Directly Relevant`);
     for (const m of direct) {
-      lines.push(`[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${m.content.slice(0, 200)}`);
+      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 200)}`);
     }
   }
 
   if (supporting.length > 0) {
     lines.push(`### Supporting Context`);
     for (const m of supporting) {
-      lines.push(`[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${m.content.slice(0, 150)}`);
+      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 150)}`);
     }
   }
 
   if (background.length > 0) {
     lines.push(`### Core Knowledge`);
     for (const m of background) {
-      lines.push(`[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${m.content.slice(0, 150)}`);
+      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 150)}`);
     }
   }
 
@@ -977,7 +1136,7 @@ async function getSemanticScores(
   memories: { id: string; category: string; key: string; content: string }[],
   /** v10.0.529.106 · Wave 81 · pre-computed embedding short-circuit. */
   precomputedEmbedding?: number[],
-): Promise<Map<string, number> | null> {
+): Promise<{ scores: Map<string, number>; vectors: Map<string, number[]> } | null> {
   // Generate query embedding · or use the pre-computed one when supplied.
   const queryVec = precomputedEmbedding && precomputedEmbedding.length > 0
     ? precomputedEmbedding
@@ -995,6 +1154,10 @@ async function getSemanticScores(
   if (embeddingRows.length < 5) return null;
 
   const scores = new Map<string, number>();
+  // 2026-08-16 · keep the parsed vectors. This loop already JSON.parsed every
+  // candidate's embedding and threw it away after one cosine — so the novelty
+  // axis below costs zero extra queries and zero extra embedding calls.
+  const vectors = new Map<string, number[]>();
 
   let corrupted = 0;
   for (const row of embeddingRows) {
@@ -1002,6 +1165,7 @@ async function getSemanticScores(
       const vec = JSON.parse(row.embedding) as number[];
       if (vec.length !== queryVec.length) continue;
       scores.set(row.sourceId, cosineSimilarity(queryVec, vec));
+      vectors.set(row.sourceId, vec);
     } catch {
       // Skip corrupted rows · aggregated below — recall runs every chat
       // turn over up to 300 rows, so per-row logging would flood ErrorLog
@@ -1017,7 +1181,7 @@ async function getSemanticScores(
     );
   }
 
-  return scores;
+  return { scores, vectors };
 }
 
 // ---------------------------------------------------------------------------
@@ -1165,14 +1329,20 @@ async function getFallbackMemories(max: number): Promise<string> {
     },
     orderBy: { confidence: "desc" },
     take: max,
-    select: { category: true, content: true, confidence: true },
+    // 2026-08-16 · source + seenCount added so this path renders the SAME
+    // provenance as the main one. Patching only the three main render sites
+    // would leave the no-topics path printing bare lines — an inconsistency
+    // that reads as a bug.
+    select: { category: true, content: true, confidence: true, source: true, seenCount: true },
   });
 
   if (memories.length === 0) return "";
 
   const lines = [`## Nick Brain — Top Memories (${memories.length} by confidence)`];
   for (const m of memories) {
-    lines.push(`[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${m.content.slice(0, 200)}`);
+    lines.push(
+      `${provenancePrefix({ ...m, relevance: "background" })} ${m.content.slice(0, 200)}`,
+    );
   }
 
   return lines.join("\n");

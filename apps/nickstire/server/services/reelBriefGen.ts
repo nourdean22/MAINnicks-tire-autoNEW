@@ -15,6 +15,7 @@ import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReel
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
 import { buildBrandBibleFragment } from "../../shared/brandBible";
+import type { EvidenceFact } from "../../shared/evidenceSufficiency";
 import { PUBLIC_SOURCE_REGISTRY } from "./evidenceResolver";
 import { buildFranchiseFragment, type FranchiseId } from "../../shared/contentFranchises";
 import {
@@ -283,6 +284,36 @@ export interface ResolvedSource {
   isVerified: boolean;
   provenanceId?: string;
   sourceType: string;
+  /**
+   * The resolved record as STRUCTURED facts, each carrying a usefulness `role`
+   * and a truth `basis`. Optional so the pre-existing callers (and the tests
+   * that mock this function) keep working unchanged.
+   *
+   * This exists because `evidence` is a single prose string: the moment a row
+   * was resolved, its date, rating, vehicle, urgency and topics were flattened
+   * into one sentence and could never be inspected again. The quality gate
+   * consequently scored grounding from a BOOLEAN, and no downstream check could
+   * ask "does the caption's date match the record's date" — there was no date.
+   */
+  facts?: EvidenceFact[];
+  /**
+   * Whether the lookup itself succeeded. `verified_empty` (no such row) and
+   * `source_unavailable` (the query threw / no DB) were previously identical:
+   * both arrived as `isVerified: false` through a bare `catch (e) {}`, so a
+   * broken table read was indistinguishable from an honest absence.
+   */
+  availability?: "resolved" | "verified_empty" | "source_unavailable";
+}
+
+/** Cents → a human figure. ALG stores estimate totals in cents. */
+function centsToUsd(cents: number): string {
+  return `$${(cents / 100).toFixed(2).replace(/\.00$/, "")}`;
+}
+
+function isoDay(value: unknown): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
 export async function resolveSourceProvenance(
@@ -293,15 +324,24 @@ export async function resolveSourceProvenance(
   const { getDb } = await import("../db");
   const db = await getDb();
   if (!db) {
-    return { evidence: sourceDetail || "", isVerified: false, sourceType };
+    // No DB is NOT an empty result. Say which one it was.
+    return {
+      evidence: sourceDetail || "",
+      isVerified: false,
+      sourceType,
+      facts: operatorFacts(sourceDetail),
+      availability: "source_unavailable",
+    };
   }
+
+  let lookupFailed = false;
 
   if (sourceType === "review" && sourceId) {
     const numericId = parseInt(sourceId, 10);
     if (!isNaN(numericId)) {
       const { reviewReplies, reviewPipeline } = await import("../../drizzle/schema");
       const { eq, and } = await import("drizzle-orm");
-      
+
       try {
         const replies = await db
           .select()
@@ -312,14 +352,20 @@ export async function resolveSourceProvenance(
           .where(and(eq(reviewReplies.id, numericId), eq(reviewReplies.reviewRating, 5)))
           .limit(1);
         if (replies[0]?.reviewText) {
+          const row = replies[0];
           return {
-            evidence: `Grounded 5-Star Review by ${replies[0].reviewerName || "Anonymous"}: "${replies[0].reviewText}"`,
+            evidence: `Grounded 5-Star Review by ${row.reviewerName || "Anonymous"}: "${row.reviewText}"`,
             isVerified: true,
             provenanceId: sourceId,
-            sourceType
+            sourceType,
+            facts: reviewFacts(row.reviewerName, 5, row.reviewText, isoDay(row.reviewDate)),
+            availability: "resolved",
           };
         }
-      } catch (e) {}
+      } catch (e) {
+        lookupFailed = true;
+        log.warn("review provenance lookup failed (review_replies)", { sourceId, error: String(e) });
+      }
 
       try {
         const pipeline = await db
@@ -328,21 +374,78 @@ export async function resolveSourceProvenance(
           .where(and(eq(reviewPipeline.id, numericId), eq(reviewPipeline.rating, 5)))
           .limit(1);
         if (pipeline[0]?.reviewText) {
+          const row = pipeline[0];
           return {
-            evidence: `Grounded 5-Star Review by ${pipeline[0].authorName || "Anonymous"}: "${pipeline[0].reviewText}"`,
+            evidence: `Grounded 5-Star Review by ${row.authorName || "Anonymous"}: "${row.reviewText}"`,
             isVerified: true,
             provenanceId: sourceId,
-            sourceType
+            sourceType,
+            facts: reviewFacts(
+              row.authorName,
+              row.rating,
+              row.reviewText,
+              row.reviewTime ? isoDay(new Date(row.reviewTime * 1000)) : null,
+            ),
+            availability: "resolved",
           };
         }
-      } catch (e) {}
+      } catch (e) {
+        lookupFailed = true;
+        log.warn("review provenance lookup failed (review_pipeline)", { sourceId, error: String(e) });
+      }
     }
   }
 
   if (sourceType === "declined_work" && sourceId) {
-    const { workOrders, workOrderItems } = await import("../../drizzle/schema");
-    const { eq, and } = await import("drizzle-orm");
-    
+    const { workOrders, workOrderItems, algEstimates } = await import("../../drizzle/schema");
+    const { eq, and, sql } = await import("drizzle-orm");
+
+    // ALG estimates are the CANONICAL declined-work lane — the one the live
+    // Declined Work admin surface reads (routers/advanced/invoices.ts
+    // `declined`) and the only one with an automated writer. Tried first.
+    //
+    // ALG ids are ints; work_order_items ids are varchar(36) UUIDs, so the
+    // numeric parse disambiguates the two lanes without ambiguity.
+    const algId = parseInt(sourceId, 10);
+    if (!isNaN(algId) && String(algId) === sourceId.trim()) {
+      try {
+        const rows = await db
+          .select({
+            id: algEstimates.id,
+            vehicleInfo: algEstimates.vehicleInfo,
+            serviceDescription: algEstimates.serviceDescription,
+            serviceCategory: algEstimates.serviceCategory,
+            estimatedAmount: algEstimates.estimatedAmount,
+            estimateDate: algEstimates.estimateDate,
+          })
+          .from(algEstimates)
+          .where(and(eq(algEstimates.id, algId), sql`${algEstimates.matchedInvoiceId} IS NULL`))
+          .limit(1);
+        if (rows[0]) {
+          const row = rows[0];
+          const day = isoDay(row.estimateDate);
+          // WORDING IS LOAD-BEARING. There is no `declined` column on
+          // alg_estimates: "declined" is inferred from
+          // `matched_invoice_id IS NULL`, and the matcher requires same phone
+          // AND amount within ±10% AND an invoice inside a 30-day window. An
+          // estimate the matcher merely failed to clear reads identically to a
+          // customer refusal, so this assertion states the RECORDED fact
+          // (unmatched estimate) and never the inference (a refusal).
+          return {
+            evidence: `Estimate #${row.id} written ${day ?? "on an unrecorded date"} for ${row.vehicleInfo || "an unrecorded vehicle"} — ${row.serviceDescription || "service unrecorded"} — has no matching paid invoice.`,
+            isVerified: true,
+            provenanceId: sourceId,
+            sourceType,
+            facts: algDeclinedFacts(row),
+            availability: "resolved",
+          };
+        }
+      } catch (e) {
+        lookupFailed = true;
+        log.warn("declined provenance lookup failed (alg_estimates)", { sourceId, error: String(e) });
+      }
+    }
+
     try {
       const items = await db
         .select()
@@ -350,14 +453,20 @@ export async function resolveSourceProvenance(
         .where(and(eq(workOrderItems.id, sourceId), eq(workOrderItems.declined, true)))
         .limit(1);
       if (items[0]?.description) {
+        const row = items[0];
         return {
-          evidence: `Grounded Declined Work Item: "${items[0].description}" (Notes: ${items[0].notes || "None"})`,
+          evidence: `Grounded Declined Work Item: "${row.description}" (Notes: ${row.notes || "None"})`,
           isVerified: true,
           provenanceId: sourceId,
-          sourceType
+          sourceType,
+          facts: workOrderItemFacts(row),
+          availability: "resolved",
         };
       }
-    } catch (e) {}
+    } catch (e) {
+      lookupFailed = true;
+      log.warn("declined provenance lookup failed (work_order_items)", { sourceId, error: String(e) });
+    }
 
     try {
       const orders = await db
@@ -366,21 +475,207 @@ export async function resolveSourceProvenance(
         .where(and(eq(workOrders.id, sourceId), eq(workOrders.status, "declined")))
         .limit(1);
       if (orders[0]?.orderNumber) {
+        const row = orders[0];
+        const vehicle = [row.vehicleYear, row.vehicleMake, row.vehicleModel].filter(Boolean).join(" ");
         return {
-          evidence: `Grounded Work Order #${orders[0].orderNumber} (Vehicle ID: ${orders[0].vehicleId || "Unknown"})`,
+          evidence: `Grounded Work Order #${row.orderNumber}${vehicle ? ` (${vehicle})` : ""}`,
           isVerified: true,
           provenanceId: sourceId,
-          sourceType
+          sourceType,
+          facts: workOrderFacts(row, vehicle),
+          availability: "resolved",
         };
       }
-    } catch (e) {}
+    } catch (e) {
+      lookupFailed = true;
+      log.warn("declined provenance lookup failed (work_orders)", { sourceId, error: String(e) });
+    }
+  }
+
+  if (sourceType === "special_offer" && sourceId) {
+    // `specials` is a real table with an index on exactly (is_active, starts_at,
+    // expires_at), so an active-offer read is cheap. It was never queried here:
+    // an active promotion — a fact the shop authored and can stand behind — fell
+    // through to whatever the operator retyped from memory.
+    const { specials } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    try {
+      const rows = await db.select().from(specials).where(eq(specials.id, sourceId)).limit(1);
+      const row = rows[0];
+      if (row?.isActive) {
+        const expires = isoDay(row.expiresAt);
+        return {
+          evidence: `Active offer "${row.title}"${row.description ? ` — ${row.description}` : ""}${expires ? ` (ends ${expires})` : ""}.`,
+          isVerified: true,
+          provenanceId: sourceId,
+          sourceType,
+          facts: offerFacts(row, expires),
+          availability: "resolved",
+        };
+      }
+    } catch (e) {
+      lookupFailed = true;
+      log.warn("offer provenance lookup failed (specials)", { sourceId, error: String(e) });
+    }
   }
 
   return {
     evidence: sourceDetail || "",
     isVerified: false,
-    sourceType
+    sourceType,
+    facts: operatorFacts(sourceDetail),
+    availability: lookupFailed ? "source_unavailable" : "verified_empty",
   };
+}
+
+/** Operator-typed context is a real input, but its basis is never `recorded`. */
+function operatorFacts(detail?: string | null): EvidenceFact[] {
+  const text = (detail ?? "").trim();
+  if (!text) return [];
+  return [{
+    key: "operator_context",
+    label: "Operator context",
+    value: text,
+    role: "context",
+    basis: "operator",
+  }];
+}
+
+function reviewFacts(
+  author: string | null | undefined,
+  rating: number | null | undefined,
+  text: string | null | undefined,
+  day: string | null,
+): EvidenceFact[] {
+  const facts: EvidenceFact[] = [];
+  if (text?.trim()) {
+    facts.push({ key: "review_quote", label: "Review, in the customer's words", value: text.trim(), role: "quote", basis: "recorded" });
+  }
+  if (author?.trim()) {
+    facts.push({ key: "reviewer", label: "Reviewer", value: author.trim(), role: "anchor", basis: "recorded" });
+  }
+  if (typeof rating === "number") {
+    facts.push({ key: "rating", label: "Star rating", value: `${rating} of 5`, role: "magnitude", basis: "recorded" });
+  }
+  if (day) {
+    facts.push({ key: "review_date", label: "Review date", value: day, role: "temporal", basis: "recorded" });
+  }
+  return facts;
+}
+
+function algDeclinedFacts(row: {
+  id: number;
+  vehicleInfo: string | null;
+  serviceDescription: string | null;
+  serviceCategory: string | null;
+  estimatedAmount: number;
+  estimateDate: Date | string | null;
+}): EvidenceFact[] {
+  const facts: EvidenceFact[] = [];
+  // Customer name and phone are deliberately NOT resolved. The story needs the
+  // vehicle, the service and the date; the identity adds no creative value and
+  // every field pulled here can reach a prompt.
+  if (row.vehicleInfo?.trim()) {
+    facts.push({ key: "vehicle", label: "Vehicle", value: row.vehicleInfo.trim(), role: "anchor", basis: "recorded" });
+  }
+  if (row.serviceDescription?.trim()) {
+    facts.push({ key: "quoted_service", label: "Service quoted", value: row.serviceDescription.trim(), role: "anchor", basis: "recorded" });
+  }
+  if (row.serviceCategory?.trim()) {
+    facts.push({ key: "service_category", label: "Service category", value: row.serviceCategory.trim(), role: "context", basis: "recorded" });
+  }
+  const day = isoDay(row.estimateDate);
+  if (day) {
+    facts.push({ key: "quoted_on", label: "Quoted on", value: day, role: "temporal", basis: "recorded" });
+  }
+  if (row.estimatedAmount > 0) {
+    facts.push({ key: "quoted_amount", label: "Amount quoted", value: centsToUsd(row.estimatedAmount), role: "magnitude", basis: "recorded" });
+  }
+  // The decline itself is the ONLY inferred fact here, and it is marked so the
+  // sufficiency gate cannot treat it as a stated outcome.
+  facts.push({
+    key: "not_yet_returned",
+    label: "Status",
+    value: "no matching paid invoice — work not recorded as done",
+    role: "context",
+    basis: "inferred",
+  });
+  return facts;
+}
+
+function workOrderItemFacts(row: {
+  description: string;
+  notes: string | null;
+  urgency: string | null;
+  declineReason: string | null;
+  declineRecoveredAt: Date | null;
+  createdAt: Date;
+}): EvidenceFact[] {
+  const facts: EvidenceFact[] = [{
+    key: "declined_service",
+    label: "Declined line",
+    value: row.description,
+    role: "anchor",
+    basis: "recorded",
+  }];
+  if (row.urgency) {
+    facts.push({ key: "urgency", label: "Inspection urgency", value: row.urgency, role: "context", basis: "recorded" });
+  }
+  if (row.declineReason) {
+    facts.push({ key: "decline_reason", label: "Reason given", value: row.declineReason, role: "context", basis: "recorded" });
+  }
+  const day = isoDay(row.createdAt);
+  if (day) {
+    facts.push({ key: "declined_on", label: "Declined on", value: day, role: "temporal", basis: "recorded" });
+  }
+  // A line that came BACK is the strongest first-party story the shop owns, and
+  // unlike the ALG lane it is a recorded transition rather than an inference.
+  const recovered = isoDay(row.declineRecoveredAt);
+  if (recovered) {
+    facts.push({ key: "recovered_on", label: "Later approved on", value: recovered, role: "temporal", basis: "recorded" });
+  }
+  return facts;
+}
+
+function workOrderFacts(
+  row: { orderNumber: string; customerComplaint: string | null; vehicleMileage: number | null },
+  vehicle: string,
+): EvidenceFact[] {
+  const facts: EvidenceFact[] = [];
+  if (vehicle) {
+    facts.push({ key: "vehicle", label: "Vehicle", value: vehicle, role: "anchor", basis: "recorded" });
+  }
+  if (row.customerComplaint?.trim()) {
+    facts.push({ key: "complaint", label: "What the customer said was wrong", value: row.customerComplaint.trim(), role: "quote", basis: "recorded" });
+  }
+  if (row.vehicleMileage) {
+    facts.push({ key: "mileage", label: "Mileage", value: `${row.vehicleMileage.toLocaleString()} miles`, role: "magnitude", basis: "recorded" });
+  }
+  return facts;
+}
+
+function offerFacts(
+  row: { title: string; description: string | null; discountType: string; discountValue: string | null; couponCode: string | null },
+  expires: string | null,
+): EvidenceFact[] {
+  const facts: EvidenceFact[] = [{
+    key: "offer_title",
+    label: "Offer",
+    value: row.title,
+    role: "anchor",
+    basis: "recorded",
+  }];
+  if (row.discountValue) {
+    const shaped = row.discountType === "percent" ? `${row.discountValue}% off` : `${centsToUsd(Number(row.discountValue) * 100)} off`;
+    facts.push({ key: "discount", label: "Discount", value: shaped, role: "magnitude", basis: "recorded" });
+  }
+  if (expires) {
+    facts.push({ key: "offer_ends", label: "Offer ends", value: expires, role: "temporal", basis: "recorded" });
+  }
+  if (row.couponCode) {
+    facts.push({ key: "coupon", label: "Code", value: row.couponCode, role: "context", basis: "recorded" });
+  }
+  return facts;
 }
 
 /** Generate a ready-to-review ReelBrief from the Studio's master prompt. */

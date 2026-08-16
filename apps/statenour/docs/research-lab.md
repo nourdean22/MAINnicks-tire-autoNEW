@@ -95,9 +95,33 @@ pnpm research:notebooklm --slug "nicks-tire-seo-domination" --create-tasks
 Any claim ingested from NotebookLM is treated as unverified unless supported by source pack evidence.
 The system chunks `sources.md` and generates vector embeddings locally, comparing them to the claim text:
 
-* **Cosine Similarity >= 0.80**: Classified as `source_supported`. The `requires_source_verification` flag is cleared (`false`).
-* **0.55 to 0.79**: Classified as `weak_support`. Flag remains `true`.
-* **Below 0.55**: Classified as `requires_source_verification`. Flag remains `true`.
+**Corrected 2026-08-16.** This section previously documented a 0.80 threshold
+and a `requires_source_verification` status. Neither has ever existed in the
+code: the real threshold is **0.75**, and the third status is `unverified`.
+A test in `tests/lib/research-lab.test.ts` re-implemented these wrong constants
+inline instead of importing the module, so it stayed green while describing a
+contract the product did not have. Both are now pinned against
+`lib/intelligence/grounding.ts`.
+
+The real behavior (`GROUNDING_STRONG_THRESHOLD` / `GROUNDING_WEAK_THRESHOLD`):
+
+* **Cosine similarity >= 0.75** → `source_supported`
+* **0.55 to 0.749** → `weak_support`
+* **Below 0.55, zero matches, or a failed check** → `unverified`
+
+**What these actually mean.** The comparison is against **BrainMemory** — what
+the system already believes — not against the source pack. So `source_supported`
+means "closely resembles a belief we already hold", which is *similarity*, not
+verification, and because BrainMemory contains the system's own prior
+inferences a machine-generated belief can "support" a new claim. The stored
+enum is kept (it is an indexed column with two exact-literal query filters), but
+every place the value reaches a human or a model now goes through
+`describeGroundingStatus()`, which says so in words. See the header of
+`lib/intelligence/grounding.ts`.
+
+Note `unverified` is overloaded three ways — low similarity, no matches at all,
+and a thrown error. It fails closed (only `source_supported` is promotable), and
+the error path now logs loudly so the three are distinguishable in production.
 
 ---
 

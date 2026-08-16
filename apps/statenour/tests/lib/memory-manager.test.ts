@@ -17,7 +17,7 @@
  * The recall path is queried via raw findMany already · trust the
  * generated client there.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   brainMemory: {
@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     findUniqueOrThrow: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    upsert: vi.fn(),
     delete: vi.fn(),
   },
   storeMemoryEmbedding: vi.fn().mockResolvedValue(undefined),
@@ -32,6 +33,10 @@ const mocks = vi.hoisted(() => ({
   restore: vi.fn().mockResolvedValue({}),
   canonicalCategory: vi.fn((c: string) => c),
   isKnownCategory: vi.fn(() => true),
+  // parkForReview() dynamically imports BRAIN_CATEGORIES for the staging
+  // category — the mock must expose it or Phase-2 parking throws into its
+  // own catch and the test silently passes on the wrong path.
+  BRAIN_CATEGORIES: { RESEARCH_PACK: "research_pack" } as Record<string, string>,
   DEPRECATED_CATEGORY_MAP: { skills: "skill" } as Record<string, string>,
   gateWisdom: vi.fn(() => ({ pass: true })),
 }));
@@ -50,6 +55,7 @@ vi.mock("@/lib/brain/categories", () => ({
   canonicalCategory: mocks.canonicalCategory,
   isKnownCategory: mocks.isKnownCategory,
   DEPRECATED_CATEGORY_MAP: mocks.DEPRECATED_CATEGORY_MAP,
+  BRAIN_CATEGORIES: mocks.BRAIN_CATEGORIES,
 }));
 vi.mock("@/lib/brain/wisdom-quality-gate", () => ({
   gateWisdom: mocks.gateWisdom,
@@ -138,25 +144,180 @@ describe("BrainMemoryManager.remember", () => {
   });
 
   it("reinforces an existing memory instead of duplicating", async () => {
-    mocks.brainMemory.findUnique.mockResolvedValueOnce({
+    // 2026-08-16 · TWO fixes, both needed before this exercised anything.
+    // (1) `content`/`source` added — without them the gateway's norm() threw
+    //     on undefined and the test ran the FAIL-OPEN CATCH, not the verdict.
+    // (2) category "insight" → "pattern". The gateway resolves categories via
+    //     a dynamic `import("./categories")`, which bypasses this file's
+    //     vi.mock and hits the REAL module — and "insight" is not a
+    //     registered BRAIN_CATEGORY, so every verdict short-circuited to
+    //     unknown_category before any content comparison ran.
+    const existing = {
       id: "existing-id",
-      category: "insight",
+      category: "pattern",
       key: "k",
+      content: "old content",
+      source: "test",
       confidence: 0.6,
       seenCount: 1,
-    });
-    mocks.brainMemory.findUniqueOrThrow.mockResolvedValueOnce({
-      id: "existing-id",
-      category: "insight",
-      key: "k",
-      confidence: 0.6,
-      seenCount: 1,
-    });
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.findUniqueOrThrow.mockResolvedValueOnce(existing);
     mocks.brainMemory.update.mockResolvedValueOnce({ id: "existing-id" });
 
-    await mm.remember("insight", "k", "new content", "test");
+    await mm.remember("pattern", "k", "new content", "test");
     // Shadow receipts are the ONLY creates allowed on the reinforce path.
     expect(realCreateCalls()).toHaveLength(0);
+    expect(mocks.brainMemory.update).toHaveBeenCalledOnce();
+  });
+});
+
+/**
+ * Gateway Phase-2 enforcement (2026-08-16). These assert that remember()
+ * ACTS on the verdict — the decision rules themselves are already pinned in
+ * tests/brain/memory-commit-gateway.test.ts.
+ */
+describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
+  let mm: BrainMemoryManager;
+  const prevFlag = process.env.NICK_MEMORY_GATEWAY_PHASE2;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isKnownCategory.mockReturnValue(true);
+    mocks.gateWisdom.mockReturnValue({ pass: true });
+    mocks.canonicalCategory.mockImplementation((c: string) => c);
+    mm = new BrainMemoryManager();
+  });
+
+  afterEach(() => {
+    if (prevFlag === undefined) delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    else process.env.NICK_MEMORY_GATEWAY_PHASE2 = prevFlag;
+  });
+
+  /** Equal-strength source changed the claim → verdict "update". */
+  const equalStrengthChange = () => {
+    const existing = {
+      id: "existing-id",
+      category: "pattern",
+      key: "k",
+      content: "old claim",
+      source: "insight-engine-a", // supported_inference
+      confidence: 0.6,
+      seenCount: 1,
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.findUniqueOrThrow.mockResolvedValueOnce(existing);
+    mocks.brainMemory.update.mockResolvedValueOnce({ id: "existing-id" });
+    // different source, SAME evidence class (both map to supported_inference)
+    return mm.remember("pattern", "k", "changed claim", "insight-engine-b");
+  };
+
+  it("KILLED (=0): an equal-strength content change still bumps confidence (legacy)", async () => {
+    // 2026-08-16 · Phase-2 flipped default-ON on operator instruction, so the
+    // legacy path is now reached only via the explicit kill-switch. This test
+    // is the rollback lever's regression guard.
+    process.env.NICK_MEMORY_GATEWAY_PHASE2 = "0";
+    await equalStrengthChange();
+    const data = mocks.brainMemory.update.mock.calls[0][0].data;
+    expect(data.confidence).toBe(0.7); // 0.6 + 0.1
+    expect(data.seenCount).toBe(2);
+    expect(data.content).toBe("changed claim");
+  });
+
+  it("DEFAULT (unset): an equal-strength content change takes the content WITHOUT the confidence bump", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    await equalStrengthChange();
+    const data = mocks.brainMemory.update.mock.calls[0][0].data;
+    expect(data.confidence).toBe(0.6); // unchanged — a change is not corroboration
+    expect(data.seenCount).toBe(1); // no progress toward the 3-sighting promotion
+    expect(data.content).toBe("changed claim"); // but the new claim IS taken
+  });
+
+  it("DEFAULT: weaker evidence contradicting a stronger claim parks instead of overwriting", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    const existing = {
+      id: "existing-id",
+      category: "pattern",
+      key: "k",
+      content: "operator's own claim",
+      source: "manual", // operator_stated, strength 6
+      confidence: 0.9,
+      seenCount: 4,
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.upsert.mockResolvedValueOnce({ id: "parked" });
+
+    const result = await mm.remember("pattern", "k", "a bot disagrees", "scraper");
+
+    // The stronger claim is returned untouched — no overwrite, no bump.
+    expect(result).toEqual(existing);
+    expect(mocks.brainMemory.update).not.toHaveBeenCalled();
+    // ...and the losing claim is parked in the EXISTING review queue.
+    expect(mocks.brainMemory.upsert).toHaveBeenCalledOnce();
+    const parked = mocks.brainMemory.upsert.mock.calls[0][0];
+    expect(parked.create.category).toBe("research_pack");
+    expect(parked.create.metadata.recordType).toBe("knowledge_candidate");
+    expect(parked.create.metadata.gateDecision).toBe("review_required");
+    expect(parked.create.metadata.reasonCode).toBe("weaker_evidence");
+    // candidate-store refuses to promote "action"/"question" kinds.
+    expect(parked.create.metadata.kind).toBe("observation");
+    expect(parked.create.metadata.targetCategory).toBe("pattern");
+    expect(parked.create.metadata.targetKey).toBe("k");
+  });
+
+  it("rewrites FULL review metadata when re-parking, so a previously rejected candidate is visible again", async () => {
+    // The regression: the upsert's update arm only set content/deletedAt, so a
+    // candidate the operator had REJECTED (metadata gateDecision "reject",
+    // soft-deleted) was revived by deletedAt:null but kept the old verdict.
+    // listPendingKnowledgeCandidates() filters on gateDecision ===
+    // "review_required", so the re-parked claim stayed invisible while this
+    // module logged memory_gateway_parked as though it were queued.
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    const existing = {
+      id: "existing-id",
+      category: "pattern",
+      key: "k",
+      content: "operator's own claim",
+      source: "manual",
+      confidence: 0.9,
+      seenCount: 4,
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.upsert.mockResolvedValueOnce({ id: "parked" });
+
+    await mm.remember("pattern", "k", "a bot disagrees", "scraper");
+
+    const call = mocks.brainMemory.upsert.mock.calls[0][0];
+    // BOTH arms must carry the same review state.
+    for (const arm of [call.create.metadata, call.update.metadata]) {
+      expect(arm.gateDecision).toBe("review_required");
+      expect(arm.recordType).toBe("knowledge_candidate");
+      expect(arm.kind).toBe("observation");
+      expect(arm.targetCategory).toBe("pattern");
+    }
+    expect(call.update.deletedAt).toBeNull();
+  });
+
+  it("DEFAULT: an UNKNOWN category is deliberately NOT parked (volume guard)", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    mocks.isKnownCategory.mockReturnValue(false);
+    const existing = {
+      id: "existing-id",
+      category: "made_up",
+      key: "k",
+      content: "old",
+      source: "test",
+      confidence: 0.5,
+      seenCount: 1,
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.findUniqueOrThrow.mockResolvedValueOnce(existing);
+    mocks.brainMemory.update.mockResolvedValueOnce({ id: "existing-id" });
+
+    await mm.remember("made_up", "k", "new", "test");
+    // unknown_category is ~5x the weaker_evidence volume; parking it would
+    // freeze whole categories of automation writes. Legacy path stands.
+    expect(mocks.brainMemory.upsert).not.toHaveBeenCalled();
     expect(mocks.brainMemory.update).toHaveBeenCalledOnce();
   });
 });

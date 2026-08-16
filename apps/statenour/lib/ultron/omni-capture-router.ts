@@ -7,7 +7,7 @@
  *   /decide — decision log entry (stakes / chosen / reasoning)
  *   /dump   — brain dump, Nick parses + sorts
  *   /park   — store in parking lot for Sunday review
- *   /search — knowledge base search
+ *   /search — memory/knowledge search (routes to /chat?q=)
  *   /plan   — AI compiles 3-6 executable steps from free-text intent
  *   /reflect— opens the structured reflection composer on /journal
  *

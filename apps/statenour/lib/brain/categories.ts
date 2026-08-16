@@ -683,6 +683,17 @@ export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.MORNING_BRIEF_AUDIO,
   // 2026-05-21 · operator-facing meta-analysis · must not leak into chat recall
   BRAIN_CATEGORIES.SUGGESTION_HYPOTHESIS,
+  // 2026-08-16 · MAKING A COMMENT TRUE. lib/intelligence/ingest.ts and
+  // promote.ts both stated these rows were "quarantined from chat recall
+  // until a human promotes them". They were not: this list was the only
+  // quarantine mechanism and never contained the category, while candidates
+  // are minted at confidence 0.3 against contextual-recall's `gte: 0.3`
+  // floor — so they passed the filter exactly. Un-promoted external claims,
+  // whose only grounding is cosine similarity to our own memory, were
+  // retrievable into the chat prompt as `[research_claim_candidate] (30%)`.
+  // Promotion to the trusted `research_claim` category is what makes a claim
+  // recallable; until then it belongs to /brain, not to the model.
+  BRAIN_CATEGORIES.RESEARCH_CLAIM_CANDIDATE,
 ];
 
 /**

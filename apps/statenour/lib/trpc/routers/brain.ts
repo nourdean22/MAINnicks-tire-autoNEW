@@ -95,6 +95,7 @@ import {
   harvestBeliefs,
 } from "@/lib/brain/belief-harvester";
 import { computeNudges, dismissNudge } from "@/lib/brain/cross-system-nudge";
+import { listDiscoveries, rateDiscovery } from "@/lib/brain/discoveries";
 import {
   loadCurrentPatterns,
   runPatternClustering,
@@ -642,6 +643,85 @@ export const brainRouter = router({
    * column (no Prisma Json) · no TS2589 firewall needed. Distinct from
    * `system.contradictions` (the ultron card's camelCase view).
    */
+  /**
+   * 2026-08-16 · owner-only · the Discover feed — what the nightly creative
+   * engines found that the operator has not yet judged. Ordered by RECENCY,
+   * never confidence (see lib/brain/discoveries.ts for why that matters).
+   *
+   * Ledgers each surfacing so the verdict below has a row to decide on;
+   * recordShown dedups on the content hash within 24h, so re-mounting the
+   * tab does not inflate the denominator.
+   */
+  discoveries: operatorProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(50).optional(),
+          includeRated: z.boolean().optional(),
+          withinDays: z.number().int().min(1).max(365).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const result = await listDiscoveries({
+        limit: input?.limit,
+        includeRated: input?.includeRated,
+        withinDays: input?.withinDays,
+      });
+      void (async () => {
+        const { recordShown } = await import("@/lib/services/outcome-ledger");
+        for (const d of result.items) {
+          if (d.verdict !== null) continue;
+          await recordShown({
+            kind: "suggestion",
+            sourceEngine: `discovery:${d.category}`,
+            summary: d.content,
+            shownSurface: "brain-discover",
+          });
+        }
+      })().catch(() => {
+        /* ledger failure must never break the feed */
+      });
+      return result;
+    }),
+
+  /**
+   * 2026-08-16 · owner-only · judge a discovery. "known" is the important
+   * one: it is the only measurement of "you told me something I already
+   * knew", and therefore the only evidence that can ever justify tuning the
+   * novelty axis (NICK_NOVELTY_RECALL).
+   */
+  rateDiscovery: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        verdict: z.enum(["investigate", "known", "noise"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const result = await rateDiscovery(input.id, input.verdict);
+      // 2026-08-16 self-review · rateDiscovery RESOLVES with { ok: false } when
+      // the row is gone, soft-deleted, or out of category — it never throws. The
+      // client awaits mutateAsync and only has a catch, so a refused verdict
+      // arrived as HTTP 200, wrote nothing to metadata OR the outcome ledger,
+      // showed no error, and then vanished from the list on invalidate: pixel
+      // identical to success. The precondition is routine, not exotic — the
+      // nightly consolidate cron soft-deletes merged duplicates and none of the
+      // four discovery categories is in CONSOLIDATION_EXCLUDE_CATEGORIES, while
+      // refetchOnWindowFocus is off app-wide so a stale card can sit on screen
+      // for hours. Losing the "already knew" tap silently is exactly the
+      // failure class this whole change set exists to remove.
+      // `resolveContradiction` two procedures down already maps a missing row to
+      // NOT_FOUND; match it rather than inventing a second contract.
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "That discovery is no longer available — it may have been consolidated or expired.",
+        });
+      }
+      return result;
+    }),
+
   contradictions: operatorProcedure
     .input(
       z.object({ includeResolved: z.boolean().optional() }).optional(),
@@ -743,6 +823,28 @@ export const brainRouter = router({
    */
   nudges: operatorProcedure.query(async () => {
     const nudges = await computeNudges();
+    // 2026-08-16 · ledger the surfacing so the dismissal below has something
+    // to decide ON. Before this, IntelligenceOutcome had five producers and
+    // zero deciders — `decision` was NULL on every row, `outcomesNeedingReview`
+    // always returned empty, and the recall-eval corpus could never grow past
+    // its synthetic seeds. The nudge lane closes the loop because it is the
+    // one surface where the same TEXT is available on both the show and the
+    // dismiss side (see recordDecisionByContent).
+    // Fire-and-forget: recordShown dedups identical summaries within 24h, so
+    // repeated panel mounts do not inflate the denominator.
+    void (async () => {
+      const { recordShown } = await import("@/lib/services/outcome-ledger");
+      for (const n of nudges) {
+        await recordShown({
+          kind: "suggestion",
+          sourceEngine: `nudge:${n.source}`,
+          summary: n.text,
+          shownSurface: "brain-nudge-panel",
+        });
+      }
+    })().catch(() => {
+      /* ledger failure must never break the nudge feed */
+    });
     return { nudges };
   }),
 
@@ -763,13 +865,24 @@ export const brainRouter = router({
         until: z.enum(["today", "7d", "forever"]).optional(),
       }),
     )
-    .mutation(async ({ input }) =>
-      dismissNudge({
+    .mutation(async ({ input }) => {
+      const result = await dismissNudge({
         source: input.source,
         text: input.text,
         until: input.until,
-      }),
-    ),
+      });
+      // 2026-08-16 · the other half of the learning loop. A dismissal is the
+      // operator saying "this recommendation was not useful" — the exact
+      // signal outcomesNeedingReview() harvests into recall-eval cases.
+      // Joined by content hash, not id: see recordDecisionByContent.
+      void (async () => {
+        const { recordDecisionByContent } = await import("@/lib/services/outcome-ledger");
+        await recordDecisionByContent(input.text, "dismissed", `nudge:${input.source}`);
+      })().catch(() => {
+        /* the dismissal itself already succeeded — never fail it on the ledger */
+      });
+      return result;
+    }),
 
   /**
    * Phase B.6d · owner-only · record a silent page visit for brain

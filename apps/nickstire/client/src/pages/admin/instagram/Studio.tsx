@@ -14,18 +14,71 @@ type Step = "source" | "format" | "draft";
 
 interface StudioProps {
   onNavigate?: (tab: string) => void;
+  /**
+   * Source already chosen upstream (StudioV2), so the reel path INHERITS the
+   * record instead of restarting the hunt for it.
+   *
+   * This boundary previously passed nothing — StudioV2 rendered this component
+   * with no props, and `StudioProps` had no source field at all. An operator who
+   * had just tapped a real review card in StudioV2 arrived here at step "source"
+   * facing an empty raw-record-id box, and had to re-find the same record by its
+   * database id. The cross-view handoff contract (igViews.ts `CreateHandoff`)
+   * already existed and was already consumed by StudioV2 from Inbox / Learn /
+   * DraftBoard — only this one hop was missing.
+   */
+  initialSource?: { type: string; recordId?: string; detail?: string };
 }
 
-export default function UnifiedStudio({ onNavigate }: StudioProps) {
-  const [step, setStep] = useState<Step>("source");
-  const [source, setSource] = useState<SourceType | null>(null);
+/** The reel wizard's own source union is narrower than the shared one. */
+function asSourceType(value: string | undefined): SourceType | null {
+  if (!value) return null;
+  return value in ContentSourceRegistry ? (value as SourceType) : null;
+}
+
+/**
+ * Source types the server can resolve to a real record
+ * (`resolveSourceProvenance`). Anything else is honestly enqueued as "manual".
+ *
+ * `special_offer` joins the set now that `specials` is queried. This list was
+ * inlined twice as `source === "review" || source === "declined_work"`, so
+ * extending resolution server-side would have silently kept collapsing the new
+ * type to "manual" — the enqueue would have discarded a resolvable source.
+ */
+const RESOLVABLE_REEL_SOURCES: readonly SourceType[] = ["review", "declined_work", "special_offer"];
+
+export default function UnifiedStudio({ onNavigate, initialSource }: StudioProps) {
+  const inherited = asSourceType(initialSource?.type);
+  const [step, setStep] = useState<Step>(inherited ? "format" : "source");
+  const [source, setSource] = useState<SourceType | null>(inherited);
   const [format, setFormat] = useState<PostFormat | null>(null);
-  const [sourceDetail, setSourceDetail] = useState("");
-  const [sourceId, setSourceId] = useState("");
+  const [sourceDetail, setSourceDetail] = useState(initialSource?.detail ?? "");
+  const [sourceId, setSourceId] = useState(initialSource?.recordId ?? "");
   const [content, setContent] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [score, setScore] = useState<Pick<ContentQualityScore, "overall" | "gate" | "reasoning"> | null>(null);
+
+  /**
+   * Which lane of real records backs the selected source, if any.
+   *
+   * Only these three have a first-party table behind them. The remaining six
+   * source types are operator-authored by design, so offering them a record
+   * picker would be theatre.
+   */
+  const recordLane: "reviews" | "declinedWork" | "offers" | null =
+    source === "review" ? "reviews"
+    : source === "declined_work" ? "declinedWork"
+    : source === "special_offer" ? "offers"
+    : null;
+
+  // The SAME procedure StudioV2 uses — no second source-listing endpoint.
+  const sourceOptions = trpc.instagramStudio.sourceOptions.useQuery(undefined, {
+    enabled: recordLane !== null,
+    staleTime: 60_000,
+  });
+  const recordOptions = recordLane ? (sourceOptions.data?.[recordLane] ?? []) : [];
+  const laneUnavailable =
+    recordLane !== null && sourceOptions.data?.availability?.[recordLane] === "unavailable";
 
   // Real ReelBrief workflow state
   const [reelBrief, setReelBrief] = useState<any>(null);
@@ -330,19 +383,62 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                 <CardDescription>Ground the Reel in database records. Providing a concrete ID is required for Reviews and Declined Work.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground block">Concrete Record ID (e.g., 5-Star Review or Work Order ID)</label>
-                    <Input 
-                      placeholder="E.g., 104"
-                      value={sourceId}
-                      onChange={(e) => setSourceId(e.target.value)}
-                      className="bg-background h-10"
-                    />
-                  </div>
+                <div className="space-y-4">
+                  {recordLane && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-muted-foreground block">
+                        Pick the record — these are real rows, newest first
+                      </label>
+                      {sourceOptions.isLoading && (
+                        <p className="text-xs text-muted-foreground">Loading records…</p>
+                      )}
+                      {/* SOURCE UNAVAILABLE and VERIFIED EMPTY are different
+                          facts and must never render as the same sentence. */}
+                      {sourceOptions.isError && (
+                        <p className="text-xs text-destructive">
+                          Could not read this source. This is a read failure, not an empty list — the records may exist.
+                        </p>
+                      )}
+                      {!sourceOptions.isLoading && !sourceOptions.isError && laneUnavailable && (
+                        <p className="text-xs text-destructive">
+                          This source could not be read. Not the same as "none found" — do not conclude there are none.
+                        </p>
+                      )}
+                      {!sourceOptions.isLoading && !sourceOptions.isError && !laneUnavailable && recordOptions.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No records found. The source read cleanly — there genuinely are none to use.
+                        </p>
+                      )}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {recordOptions.map((option) => (
+                          <button
+                            type="button"
+                            key={option.recordId}
+                            onClick={() => setSourceId(option.recordId)}
+                            className={`min-h-11 w-full rounded-lg border p-3 text-left text-xs transition ${
+                              sourceId === option.recordId
+                                ? "border-primary bg-primary/10"
+                                : "border-border/70 hover:border-primary/40"
+                            }`}
+                          >
+                            <div className="font-semibold">{option.label}</div>
+                            {option.detail && (
+                              <p className="mt-1 line-clamp-2 text-muted-foreground">{option.detail}</p>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <Input
+                        placeholder="…or paste a record ID"
+                        value={sourceId}
+                        onChange={(e) => setSourceId(e.target.value)}
+                        className="bg-background h-10"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground block">Operator Context / Notes (unverified)</label>
-                    <Textarea 
+                    <Textarea
                       placeholder={`E.g., "Customer complained about pedal pulsation..."`}
                       value={sourceDetail}
                       onChange={(e) => setSourceDetail(e.target.value)}
@@ -635,7 +731,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                 enqueueReelJob.mutate({
                                   brief: {
                                     ...reelBrief,
-                                    sourceType: source === "review" || source === "declined_work" ? source : "manual",
+                                    sourceType: source && RESOLVABLE_REEL_SOURCES.includes(source) ? source : "manual",
                                     sourceOrigin: source ?? undefined,
                                     sourceId: sourceId || undefined,
                                   },
@@ -716,7 +812,7 @@ export default function UnifiedStudio({ onNavigate }: StudioProps) {
                                 enqueueReelJob.mutate({
                                   brief: {
                                     ...reelBrief,
-                                    sourceType: source === "review" || source === "declined_work" ? source : "manual",
+                                    sourceType: source && RESOLVABLE_REEL_SOURCES.includes(source) ? source : "manual",
                                     sourceOrigin: source ?? undefined,
                                     sourceId: sourceId || undefined,
                                   },

@@ -30,7 +30,6 @@ import {
   Bot,
   Brain,
   Clock,
-  Database,
   FileText,
   Gauge,
   Zap,
@@ -148,12 +147,6 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
           icon: Brain,
           label: "Brain",
           subtitle: "memories · patterns · automation rules · graph explorer",
-        },
-        {
-          href: "/knowledge",
-          icon: Database,
-          label: "Knowledge base",
-          subtitle: "Drive ingest · laws · notes · research pins",
         },
         {
           href: "/journal",

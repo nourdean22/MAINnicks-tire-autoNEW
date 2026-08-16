@@ -29,8 +29,7 @@ export type PageContext =
   | "body"
   | "financial"
   | "decisions"
-  | "brief"
-  | "knowledge";
+  | "brief";
 
 export async function buildPageData(page: string): Promise<string> {
   const weekAgo = toDateString(daysAgo(7));
@@ -314,9 +313,6 @@ export async function buildPageData(page: string): Promise<string> {
 
     // "brief" case retired Apr 17 — morning-brief cron removed; the
     // TodoDesk + BottomPulseTicker surface today's context live.
-
-    case "knowledge":
-      return "Knowledge base search page. User is browsing their personal knowledge files.";
 
     // ── Mastery surfaces (added 2026-05-26 for Phase 5 FULL propagation)
     // Each surface has a NickSidePane mount calling /api/ai/side-pane-chat
