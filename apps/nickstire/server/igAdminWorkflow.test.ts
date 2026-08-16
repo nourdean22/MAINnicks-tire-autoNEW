@@ -47,6 +47,25 @@ describe("Today has ONE context-free door to Create, not three", () => {
     // Removing the prop would have taken a USEFUL shortcut with the duplicate.
     expect(hq).toMatch(/onNavigate\?\.\("actions"\)/);
   });
+
+  it("removing the button left no dead imports behind", () => {
+    // Button and Plus each had exactly ONE usage — the deleted CTA. Self-audit
+    // caught them still imported; typecheck and lint:source both passed anyway
+    // (noUnusedLocals is off), so nothing else would have.
+    expect(hq).not.toContain('from "@/components/ui/button"');
+    expect(hq).not.toMatch(/\bPlus\b/);
+  });
+
+  it("HQ's storage copy names the enforced requirement, not CloudFront", () => {
+    // "Missing S3/CF" sent the operator hunting for a CloudFront distribution
+    // they do not need — only S3_BUCKET is enforced by
+    // assertDurableStorageForGeneration. Same class as the Settings.tsx finding
+    // raised in review; this was the last consumer still saying it.
+    expect(hq).not.toContain("Missing S3/CF");
+    expect(hq).not.toContain("Ephemeral Only");
+    expect(hq).toContain("health.storage.cdn");
+    expect(hq).toMatch(/Permanent URLs via the app/);
+  });
 });
 
 describe("reel intent survives the handoff instead of being discarded", () => {

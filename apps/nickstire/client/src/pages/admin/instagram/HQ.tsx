@@ -1,7 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Plus, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface HQProps {
@@ -145,12 +144,22 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
           <div className="grid gap-4 md:grid-cols-4">
             <div className="p-4 rounded border bg-card">
               <div className="text-sm font-medium text-muted-foreground mb-1">Storage</div>
+              {/* The flags behind these were INVERTED for the shape production
+                  runs — see server/routers/instagramAdmin.ts. With them corrected
+                  the states are right, but the old failure copy still named the
+                  wrong requirement: it listed the CDN variable as mandatory when
+                  only S3_BUCKET is enforced (assertDurableStorageForGeneration),
+                  sending the operator hunting for a CloudFront distribution they
+                  do not need. It also called the degraded case ephemeral, when
+                  the real degradation is a 24h presigned URL. */}
               <div className="flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${health.storage.configured ? "bg-green-500" : "bg-red-500"}`} />
-                <span>{health.storage.configured ? "Configured" : "Missing S3/CF"}</span>
+                <span>{health.storage.configured ? "Durable bucket" : "No durable bucket"}</span>
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                {health.storage.permanentUrls ? "Permanent URLs Enabled" : "Ephemeral Only"}
+                {health.storage.permanentUrls
+                  ? health.storage.cdn ? "Permanent URLs via CDN" : "Permanent URLs via the app"
+                  : "Expiring URLs — set S3_ENDPOINT or CLOUDFRONT_DOMAIN"}
               </div>
             </div>
 
