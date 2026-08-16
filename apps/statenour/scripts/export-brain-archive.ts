@@ -17,6 +17,18 @@
  *   difference). No rendering, no cap, no truncation — NDJSON costs Obsidian
  *   nothing because nothing tries to render it.
  *
+ * IT ALSO ARCHIVES ORPHANED EMBEDDINGS. `vector_embeddings` rows whose
+ * brain_memory is gone are the LAST COPY of their text — measured 2026-08-16,
+ * 100% of them had no surviving row with the same key. They are invisible to a
+ * `brain_memories` export by definition, so a memories-only archive silently
+ * omits exactly the content most at risk. 2,158 rows / 1.5M chars, including
+ * 123 gmail_thread.
+ *
+ * They are archived, NOT restored. Restoring would put raw email content back
+ * into recall; archiving preserves the text while it stays structurally
+ * invisible (no memory row means no recall path can reach it). Those are
+ * different decisions and only one of them is reversible without a PII call.
+ *
  * WHY IT LIVES IN THE VAULT. Not for Obsidian to read, but because the vault
  * directory is OneDrive-synced — which makes it an OFF-MACHINE copy without
  * standing up any new infrastructure. The DB is the primary; this is the
@@ -107,16 +119,60 @@ async function main() {
   await new Promise<void>((res, rej) => stream.end((e?: Error) => (e ? rej(e) : res())));
   fs.renameSync(tmp, target);
 
+  // ── orphaned embeddings ──────────────────────────────────────────────
+  // Paged the same way, into a separate file: they are a different kind of
+  // record (no memory row, so no confidence/metadata) and mixing them into the
+  // memories archive would make a restore ambiguous about what it is reading.
+  const orphanPath = path.join(dir, "brain-orphans.ndjson");
+  const orphanTmp = `${orphanPath}.partial`;
+  const orphanStream = fs.createWriteStream(orphanTmp, { encoding: "utf8" });
+  let orphans = 0;
+  let orphanCursor = "";
+  for (;;) {
+    const batch = await prisma.$queryRaw<
+      { id: string; sourceId: string; content: string; createdAt: Date }[]
+    >`
+      SELECT v.id, v."sourceId", v.content, v."createdAt"
+      FROM vector_embeddings v
+      LEFT JOIN brain_memories bm ON bm.id = v."sourceId"
+      WHERE v."sourceType" = 'brain_memory' AND bm.id IS NULL AND v.id > ${orphanCursor}
+      ORDER BY v.id ASC
+      LIMIT ${PAGE}
+    `;
+    if (batch.length === 0) break;
+    for (const o of batch) {
+      // Recover the category from the "[category] key: body" prefix — with
+      // position(), not regex: POSIX rejects [^\]] and JS template literals eat
+      // the backslashes, and both failures are SILENT (everything parses as
+      // unknown) rather than throwing.
+      const close = o.content.indexOf("]");
+      const category =
+        o.content.startsWith("[") && close > 1 ? o.content.slice(1, close) : null;
+      orphanStream.write(
+        JSON.stringify({ ...o, category, orphaned: true, lastCopy: true }) + "\n",
+      );
+      orphans++;
+    }
+    orphanCursor = batch[batch.length - 1].id;
+  }
+  await new Promise<void>((res, rej) =>
+    orphanStream.end((e?: Error) => (e ? rej(e) : res())),
+  );
+  fs.renameSync(orphanTmp, orphanPath);
+
   const manifest = {
     exportedAt: new Date().toISOString(),
     total,
     softDeleted: deleted,
     live: total - deleted,
+    orphanedEmbeddings: orphans,
     categories: Object.keys(byCategory).length,
     byCategory,
     note:
       "Complete archive. The Obsidian category rollups are a READING surface capped at 100 rows " +
-      "per category and exclude soft-deleted rows; this file is the backup and excludes nothing.",
+      "per category and exclude soft-deleted rows; these files are the backup and exclude nothing. " +
+      "brain-orphans.ndjson holds embeddings whose memory row is gone — the last copy of that text, " +
+      "archived but deliberately NOT restored (restoring would return raw content, incl. email, to recall).",
   };
   fs.writeFileSync(path.join(dir, "brain-memories.manifest.json"), JSON.stringify(manifest, null, 2));
 
@@ -125,6 +181,8 @@ async function main() {
   console.log(`  memories ....... ${total}  (${total - deleted} live · ${deleted} soft-deleted)`);
   console.log(`  categories ..... ${Object.keys(byCategory).length}`);
   console.log(`  size ........... ${(bytes / 1e6).toFixed(1)} MB`);
+  console.log(`wrote ${orphanPath}`);
+  console.log(`  orphans ........ ${orphans}  (last copy — no memory row exists)`);
   await prisma.$disconnect();
 }
 

@@ -35,8 +35,26 @@ pnpm exec tsx scripts/export-brain-archive.ts --env <path-to-.env>
 
 Writes to `<vault>/Statenour/_archive/`:
 
-- `brain-memories.ndjson` — the archive
+- `brain-memories.ndjson` — every memory, live and soft-deleted
+- `brain-orphans.ndjson` — embeddings whose memory row is gone
 - `brain-memories.manifest.json` — counts, per-category totals, export timestamp
+
+## Why orphans get their own file
+
+`vector_embeddings` rows whose `brain_memory` is gone are the **last copy** of
+their text — measured 2026-08-16, 100% had no surviving row with the same key.
+They are invisible to a `brain_memories` export *by definition*, so a
+memories-only archive silently omitted exactly the content most at risk: 2,158
+rows / 1.5M chars, including 123 `gmail_thread`.
+
+They are **archived, not restored.** Restoring would put raw content — including
+email — back into recall. Archiving preserves the text while it stays
+structurally invisible: no memory row means no recall path can reach it. Those
+are different decisions, and only one of them is reversible without a PII call.
+
+Separate file because they are a different kind of record (no confidence, no
+metadata, no category column — the category is recovered from the content
+prefix), and mixing them in would make a restore ambiguous about what it reads.
 
 Override the destination with `--out <dir>`. It writes to a `.partial` file and
 renames on success, so a crash mid-export cannot replace a complete archive with
