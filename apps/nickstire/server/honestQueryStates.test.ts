@@ -110,6 +110,33 @@ describe("Community states what it actually read", () => {
   });
 });
 
+describe("a scan that never ran is not a clean database", () => {
+  const panel = read("client/src/pages/admin/settings/DatabaseHygienePanel.tsx");
+
+  it("bails BEFORE the counts that fabricate the all-clear", () => {
+    // `data?.fake.length ?? 0` summed three short-circuited zeros into
+    // totalCount === 0, which renders a green check and "Database is perfectly
+    // clean!". The unavailable guard must precede that arithmetic, not follow it.
+    const guardAt = panel.indexOf('if (scanStatus.state === "unavailable")');
+    const countAt = panel.indexOf("const fakeCount = data?.fake.length ?? 0;");
+    expect(guardAt, "the unavailable guard is missing").toBeGreaterThan(-1);
+    expect(countAt, "the count line moved — re-anchor this test").toBeGreaterThan(-1);
+    expect(guardAt).toBeLessThan(countAt);
+  });
+
+  it("the all-clear claim is still reachable for a REAL clean scan", () => {
+    // The fix must not delete the honest success state: a scan that ran and
+    // found nothing is a true zero and should still say so.
+    expect(panel).toContain("Database is perfectly clean!");
+    expect(panel).toContain("totalCount === 0");
+  });
+
+  it("says unknown, not clean, and offers a retry", () => {
+    expect(panel).toMatch(/unknown<\/strong>, not clean/);
+    expect(panel).toContain("Retry scan");
+  });
+});
+
 describe("storage health reads the storage module's own authority", () => {
   it("neither health surface computes permanence from CLOUDFRONT_DOMAIN any more", () => {
     // This was the inversion: usesProxiedReads() is (S3_ENDPOINT && !CLOUDFRONT),

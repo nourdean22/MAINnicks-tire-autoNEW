@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { readStatus, unavailableCopy } from "@/lib/queryState";
 import { toast } from "sonner";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
@@ -48,9 +49,10 @@ export default function DatabaseHygienePanel() {
   const [selectedStale, setSelectedStale] = useState<Record<number, boolean>>({});
   const [activeTab, setActiveTab] = useState<"fake" | "duplicates" | "stale">("fake");
 
-  const { data, isLoading, isRefetching, refetch } = trpc.adminDashboard.dbCleanupScan.useQuery(undefined, {
+  const scanQuery = trpc.adminDashboard.dbCleanupScan.useQuery(undefined, {
     staleTime: 60000,
   });
+  const { data, isLoading, isRefetching, refetch } = scanQuery;
 
   useEffect(() => {
     if (data) {
@@ -172,6 +174,38 @@ export default function DatabaseHygienePanel() {
           <RefreshCw className="w-6 h-6 animate-spin text-primary mr-3" />
           <span className="text-[13px] text-foreground/50">Scanning database for hygiene signals...</span>
         </div>
+      </div>
+    );
+  }
+
+  // A scan that never ran is not a clean database.
+  //
+  // `data?.x.length ?? 0` short-circuits to 0 when data is undefined, and the
+  // three zeros then summed to totalCount === 0, which renders a green check and
+  // "Database is perfectly clean!". react-query leaves data undefined with BOTH
+  // isError and isLoading false whenever it pauses the query (offline PWA), so
+  // the most reassuring message on the page was reachable without a single row
+  // ever being examined. Bail before the counts are computed.
+  const scanStatus = readStatus(scanQuery);
+  if (scanStatus.state === "unavailable") {
+    return (
+      <div className="bg-card border border-border/30 p-6">
+        <div className="flex items-start gap-2.5 p-4 border border-amber-500/20 bg-amber-500/5 rounded">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-[13px] text-foreground/70">
+              Could not scan the database — this is <strong>unknown</strong>, not clean.
+            </p>
+            <p className="text-[11px] text-foreground/40">{unavailableCopy(scanStatus.reason)}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="mt-3 text-[12px] text-primary hover:underline"
+        >
+          Retry scan
+        </button>
       </div>
     );
   }
