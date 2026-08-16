@@ -40,6 +40,11 @@ vi.mock("@/lib/ai/provider", () => ({
 // Import redactPaths utility & math
 import { redactPaths } from "@/lib/research/redact";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
+import {
+  describeGroundingStatus,
+  GROUNDING_STRONG_THRESHOLD,
+  GROUNDING_WEAK_THRESHOLD,
+} from "@/lib/intelligence/grounding";
 
 describe("Research Lab - Path Redaction", () => {
   it("redacts Windows absolute user paths", () => {
@@ -79,33 +84,41 @@ describe("Research Lab - Cosine Similarity", () => {
   });
 });
 
-describe("Research Lab - Tiered Semantic Grounding Rules (Rule 7)", () => {
-  function getTier(score: number): { status: string; requiresVerification: boolean } {
-    if (score >= 0.80) {
-      return { status: "source_supported", requiresVerification: false };
-    } else if (score >= 0.55) {
-      return { status: "weak_support", requiresVerification: true };
-    } else {
-      return { status: "requires_source_verification", requiresVerification: true };
+/**
+ * 2026-08-16 · REWRITTEN. This block used to re-implement the classifier
+ * INLINE and assert against the copy — never importing grounding.ts at all.
+ * The copy used a 0.80 threshold (the real code has always used 0.75) and a
+ * status `requires_source_verification` that exists nowhere in production.
+ * It was green, it looked like grounding coverage, and it would have stayed
+ * green through any change to the real thresholds. Now it imports the actual
+ * constants, so drift breaks the build instead of hiding behind a pass.
+ */
+describe("Research Lab - Tiered Semantic Grounding (real thresholds)", () => {
+  it("pins the REAL thresholds — 0.75 / 0.55, not the 0.80 the docs claimed", () => {
+    expect(GROUNDING_STRONG_THRESHOLD).toBe(0.75);
+    expect(GROUNDING_WEAK_THRESHOLD).toBe(0.55);
+  });
+
+  it("describes every stored status without claiming verification", () => {
+    for (const status of ["source_supported", "weak_support", "unverified"] as const) {
+      const text = describeGroundingStatus(status).toLowerCase();
+      // The whole point of the rename-free fix: whatever the enum is called,
+      // the words a model or a human reads must not assert source support.
+      expect(text).toMatch(/similar|no similar/);
+      expect(text).not.toMatch(/verified by|confirmed/);
     }
-  }
-
-  it("classifies score >= 0.80 as source_supported (Rule 7)", () => {
-    const tier = getTier(0.85);
-    expect(tier.status).toBe("source_supported");
-    expect(tier.requiresVerification).toBe(false);
   });
 
-  it("classifies score between 0.55 and 0.79 as weak_support (Rule 7)", () => {
-    const tier = getTier(0.65);
-    expect(tier.status).toBe("weak_support");
-    expect(tier.requiresVerification).toBe(true);
+  it("says out loud that the strong tier is similarity, NOT verification", () => {
+    const text = describeGroundingStatus("source_supported");
+    expect(text).toContain("NOT independent verification");
+    expect(text).toContain(String(GROUNDING_STRONG_THRESHOLD));
   });
 
-  it("classifies score < 0.55 as requires_source_verification (Rule 7)", () => {
-    const tier = getTier(0.42);
-    expect(tier.status).toBe("requires_source_verification");
-    expect(tier.requiresVerification).toBe(true);
+  it("keeps `unverified` honest about covering the could-not-run case", () => {
+    // `unverified` is overloaded three ways (low similarity, zero matches,
+    // thrown error). The description must not assert "no match was found".
+    expect(describeGroundingStatus("unverified")).toContain("could not run");
   });
 });
 

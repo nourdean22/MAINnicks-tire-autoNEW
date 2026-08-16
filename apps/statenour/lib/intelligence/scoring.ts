@@ -7,6 +7,10 @@ import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
 import { extractStructured } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
+// 2026-08-16 · the raw `status` enum overclaims when a model reads it —
+// "source_supported" means "cosine >= 0.75 against our OWN memory", not
+// "a source confirmed this". Describe it truthfully at the prompt boundary.
+import { describeGroundingStatus, type GroundingStatus } from "@/lib/intelligence/grounding";
 
 const log = rootLogger.withSurface("intelligence/scoring");
 
@@ -112,7 +116,7 @@ ${claims
       `Claim #${idx + 1}:
 - Text: "${c.text}"
 - Category: ${c.category}
-- Grounding Status: ${c.status} (Verification Score: ${c.verificationScore})
+- Memory match: ${describeGroundingStatus(c.status as GroundingStatus)} (cosine ${c.verificationScore})
 - Source: ${c.document.source.name} (${c.document.source.domain})`
   )
   .join("\n\n")}`;

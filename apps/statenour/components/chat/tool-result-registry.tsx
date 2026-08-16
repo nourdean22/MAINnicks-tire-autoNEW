@@ -842,10 +842,11 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Syncing your knowledge layer…",
     icon: Brain,
     color: "gold",
-    // v10.0.529.88 · Wave 32 · /knowledge is the actual file/category
-    // browser · /brain shows raw memories. Re-pointed for the right
-    // landing.
-    link: { href: "/knowledge", label: "Knowledge" },
+    // 2026-08-16 · reverting the Wave-32 re-point. Its premise — "/knowledge
+    // is the actual file/category browser" — was already false when written:
+    // that page had rendered zero files since the monorepo import. /brain is
+    // where syncKnowledge's writes actually land.
+    link: { href: "/brain", label: "Brain" },
     subtitle: (out) => {
       const o = out as { classified?: number; chatPromoted?: number; tasksRebalanced?: number } | null;
       if (!o) return null;

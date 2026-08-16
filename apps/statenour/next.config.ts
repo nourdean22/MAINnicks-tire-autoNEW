@@ -172,6 +172,13 @@ const nextConfig: NextConfig = {
     { source: "/plan", destination: "/stats", permanent: true },
     { source: "/mastery", destination: "/stats", permanent: true },
     { source: "/nick", destination: "/chat", permanent: true },
+    // 2026-08-16 · /knowledge retired. It was a filesystem browser over a
+    // NOUR-OS vault layout that stopped existing at the monorepo import, so
+    // it rendered zero files in prod and locally. /brain already owns the
+    // real surfaces: Memory (browse), Review (governance queue), Graph
+    // (explore), Discover (what is new). Non-permanent so a future
+    // /knowledge can reclaim the path without a cached 308 in the way.
+    { source: "/knowledge", destination: "/brain", permanent: false },
 
     // Wave AD · 2026-05-28 · mega-delete redirects · 41 pages deleted ·
     // routing the previously-canonical paths to their new canonical home

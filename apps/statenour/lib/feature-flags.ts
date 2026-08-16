@@ -45,6 +45,18 @@ export interface FeatureFlag {
   onValue: string;
   /** What the default behavior is when the env var is unset. */
   defaultBehavior: string;
+  /**
+   * 2026-08-16 · true = the feature is LIVE when the env var is unset, and the
+   * var acts as a kill-switch (set it to anything that is not `onValue` — by
+   * convention "0" — to disable).
+   *
+   * Added because the registry previously had no way to express a graduated
+   * flag: computeIsOn returned false for an empty value unconditionally, so a
+   * default-ON feature had to bypass getFlag and read process.env directly.
+   * That works, but it makes /system/migrations report the flag as OFF while
+   * the code runs it — a status surface that lies. Model it here instead.
+   */
+  defaultOn?: boolean;
   /** Optional · linked migration in docs/migrations/. */
   relatedMigration?: string;
   /** Optional · ADR or doc path that captures the trade-off. */
@@ -121,15 +133,29 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
 
   // ── v-truth · Next-level intelligence pass (2026-06-02) ──────────
-  // Every capability below ships DEFAULT-OFF. Flip the env var on
+  // Most capabilities below ship DEFAULT-OFF. Flip the env var on
   // Railway to enable; surfaced on /system/migrations. Built so the
   // default code path is byte-for-byte unchanged when off.
+  // EXCEPTION (2026-08-16): NICK_NOVELTY_RECALL carries defaultOn:true —
+  // it is LIVE unless explicitly killed with =0. Do not read this block
+  // header as covering it.
   {
     key: "NICK_IMPORTANCE_RECALL",
     description: "Adds the Generative-Agents 'importance' axis (R+R+I) to brain recall ranking — weights memories by how much they MATTER (decision/commitment/insight/pain signals), not just confidence. Gentle 0.92-1.25x multiplier computed at recall time (no migration). OFF = recall ranking unchanged.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "Recall ranks on relevance+recency+confidence+trust only (importance multiplier = 1.0).",
+    ownerDoc: "lib/brain/contextual-recall.ts",
+  },
+  {
+    key: "NICK_NOVELTY_RECALL",
+    description:
+      "Adds a NOVELTY axis to brain recall — penalizes a memory for repeating what the higher-ranked picks already say, using the embeddings getSemanticScores already parses (zero extra queries). Fixes the structural bias that makes recall recite known facts: BrainMemory confidence is a re-sighting COUNT (0.5 +0.1/sighting), so a surprising one-off can never outrank a re-observed banality. Gentle 0.95-1.18x, applied AFTER the reranker so it is not overwritten. LIVE by default since 2026-08-16 on operator instruction — set NICK_NOVELTY_RECALL=0 to disable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win — `pnpm eval:recall` has never been run against a real (non-synthetic) corpus, so this is an accepted-risk default, not a measured one.",
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
   {
@@ -470,7 +496,8 @@ export function getAllFlags(): ResolvedFlag[] {
  *      · on iff rawValue equals onValue (case-insensitive)
  */
 function computeIsOn(spec: FeatureFlag, rawValue: string): boolean {
-  if (!rawValue) return false;
+  // Unset → the flag's declared default. Only graduated flags set defaultOn.
+  if (!rawValue) return spec.defaultOn === true;
   const lower = rawValue.toLowerCase();
 
   if (spec.onValue === "<any-non-empty-string>") return true;

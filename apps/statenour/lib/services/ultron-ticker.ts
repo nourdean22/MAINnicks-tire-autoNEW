@@ -395,9 +395,14 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
         import("@/lib/brain/contradiction-surfacer"),
         import("@/lib/brain/identity-snapshot"),
       ]);
-    const [nudges, openContradictions, snap] = await Promise.all([
+    const [nudges, recentContradictions, snap] = await Promise.all([
       nudgeMod.computeNudges().catch(() => []),
-      contradictionMod.countUnresolved(14).catch(() => 0),
+      // 2026-08-16 · was countUnresolved(14), which returns a bare number —
+      // so the item below could only ever link at "/brain" generally. The
+      // receiving panel has read `?resolve=<key>` and scrolled that row into
+      // view since it shipped; only the sender was missing. Same 14-day
+      // window, now carrying the keys.
+      contradictionMod.loadRecentContradictions(14, false).catch(() => []),
       identityMod.loadIdentitySnapshot().catch(() => null),
     ]);
     void maturityMod; // silence unused import warning
@@ -430,15 +435,20 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
       });
     }
 
-    // Open contradictions counter
+    // Open contradictions counter — deep-links to the specific row when
+    // there is exactly one thing to look at, and to the panel otherwise.
+    const openContradictions = recentContradictions.length;
     if (openContradictions > 0) {
+      const only = openContradictions === 1 ? recentContradictions[0] : null;
       items.push({
         id: `brain-contradict`,
         category: BRAIN_CATEGORIES.BRAIN,
         symbol: "BRAIN",
         label: `⚠ ${openContradictions} open contradiction${openContradictions > 1 ? "s" : ""}`,
         severity: "warn",
-        href: "/brain",
+        href: only
+          ? `/brain?tab=memory&resolve=${encodeURIComponent(only.key)}`
+          : "/brain?tab=memory#contradictions",
       });
     }
 
