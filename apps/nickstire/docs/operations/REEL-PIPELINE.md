@@ -35,6 +35,59 @@ Studio wizard (Advanced Reel Studio, admin → Growth → Instagram → Studio)
 | `GEMINI_API_KEY` | brief generation | works for generateContent even while dead for Veo model access |
 | `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` | degrade instead of going dark | when the paid provider returns a `PAUSE_PROVIDER` verdict (plan wall, dead session), render the rest of that reel on the free local ffmpeg lane. **Since #1558 (2026-08-13) this same flag also arms the JOB-level rescue**: any paid provider (Veo included — Veo previously had NO fallback path at all) whose failure `nextStatusFor` rules terminal re-queues ONE forced `template_stock` attempt (`forceProvider` in the payload, stale Veo op handles stripped, Telegram alert) instead of terminal-failing. Resumed paid clips still settle at the paid rate. **Off by default** — it changes what the shop publishes |
 
+## Meta publishing contract
+
+The live social handoff uses the existing Meta Graph rail in
+`server/services/metaSocial.ts` through `publishToSocial()`. Do not create a
+parallel browser-upload path for production reels.
+
+Required configuration is `META_PAGE_ACCESS_TOKEN`, `META_IG_USER_ID`, and
+`META_PAGE_ID`. The service may reload the page token from the durable
+`app_secret_kv` record `meta_page_access_token`, so an environment-variable
+check alone is not a complete disarm or readiness check. Never print token
+values; report only presence and safe account-readback status.
+
+Before a live post:
+
+1. Confirm the final MP4 passed rendered-media QA and has human approval.
+2. Confirm the video is available at a permanent public HTTPS URL. Meta cannot
+   fetch a local Windows path. Use the configured durable media bucket and its
+   public object URL for assembled reels.
+3. Make a read-only Graph identity check for the configured Instagram account.
+4. Create the `REELS` container with `share_to_feed: true`, then poll until
+   `status_code=FINISHED`.
+5. Call `media_publish` once. A timeout or lost response is `publish_ambiguous`;
+   reconcile recent media or the publish-attempt ledger before considering a
+   retry.
+6. Record the returned media ID and read-back permalink in the content ledger.
+   A container ID without those receipts is not proof of publication.
+
+For explicit Facebook targets, use the same approved master through the
+existing social publisher and record the Facebook post ID separately. Do not
+publish from a recurring batch unless the task explicitly authorizes it and
+the approval gate is satisfied.
+
+## Creative quality floor
+
+The Reel product is motion-first. A single image, static poster, Ken-Burns
+zoom, or repeated loop with voiceover is not a finished Reel and must not pass
+the publish gate.
+
+Every publishable reel must show 5-8 purposeful visual beats across roughly
+20-35 seconds, at least 4 distinct video source clips (or 5 verified motion
+beats), a visual change about every 1.5-2.5 seconds, and at least one physical
+action. The sequence should include a hook, symptom/detail, explanation or
+cutaway, consequence/proof, safe action, and branded CTA ending. Captions and
+logos are composited in post; voiceover is an audio layer, not a replacement
+for footage.
+
+The image-only routes in `server/services/igAutopost.ts` are not a valid
+finished-Reel fallback. Prefer the real motion route in
+`server/services/higgsfieldStudio.ts` (`generateReelClipVideo` -> Seedance /
+Higgsfield, then `stitchVideos`) and use lower-cost motion routes for support
+beats. If multi-shot motion cannot be produced or verified, stop at draft /
+production-ready status and do not publish.
+
 Durable object storage IS configured (verified 2026-08-05): Railway Bucket
 `nickstire-media-oq6yt1u22`, wired via `S3_BUCKET` + `S3_ENDPOINT` + `S3_REGION` +
 `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`. `CLOUDFRONT_DOMAIN` is deliberately

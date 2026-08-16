@@ -16,6 +16,41 @@ Content Generation  →  Reel Pipeline  →  Live Publishing
 All gates default **OFF**. The operator enables them sequentially via the
 admin Feature Flags panel (DB flags) or Railway env vars (env gates).
 
+## Verified Meta execution path
+
+Explicitly authorized Instagram publishing uses the existing Meta Graph
+implementation in `server/services/metaSocial.ts`, called through the app's
+social publish path. The browser is a review surface, not the production media
+transport.
+
+Required Meta configuration:
+
+| Variable / store key | Purpose |
+|---|---|
+| `META_PAGE_ACCESS_TOKEN` | Page token used for Graph calls; the service can also load durable `app_secret_kv.meta_page_access_token` |
+| `META_IG_USER_ID` | Linked Instagram Business Account ID |
+| `META_PAGE_ID` | Facebook Page ID for Facebook targets |
+| `META_PAGE_ACCESS_TOKEN_EXPIRES_AT` | Operator warning metadata when a renewal date is known |
+
+Readiness is two-stage: presence is not validity. First report only whether
+the configuration is present, then make a read-only Graph identity check for
+the configured Instagram account. Never print or place a token in logs,
+captions, URLs, artifacts, or operator messages. The repository `.env` is
+discovery-only; production readiness must be verified through the deployed
+app/status path or a live Graph readback.
+
+For a finished reel, the media must be at a permanent public HTTPS URL before
+Meta container creation. Use the configured durable media bucket and its
+public object URL; Meta cannot fetch a local file path. Create a `REELS`
+container with `share_to_feed=true`, poll `status_code` to `FINISHED`, call
+`media_publish` once, and verify both the returned media ID and read-back
+permalink. A timeout after dispatch is `publish_ambiguous`, not a safe retry.
+Reconcile recent media or the publish-attempt ledger first.
+
+Recurring batches remain approval-gated. A user request such as "post this
+reel" or an explicitly configured publish run is required before any live
+side effect.
+
 ---
 
 ## Quick Reference — All Kill-Switches
@@ -190,6 +225,8 @@ call. Use this to verify the current armed state before and after each wave.
 2. Set new token as `META_PAGE_ACCESS_TOKEN` on Railway
 3. Token auto-persists to `app_secret_kv` table on first use
 4. Verify via Admin → Growth → Automation Armed State
+5. Perform a read-only Graph identity check and confirm the first post by
+   media ID plus permalink; do not infer live validity from key presence alone.
 
 ---
 

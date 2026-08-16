@@ -114,6 +114,20 @@ Verify that the application detects the new token by checking the **Armed State*
 // Ensure `ig.envTokenPresent` or `ig.durableTokenPresent` is true.
 ```
 
+Presence is not proof of a usable token. After the armed-state check, make a
+read-only Graph identity request for the configured Instagram Business Account
+and confirm the returned account matches `nicks_tire_euclid` before any live
+post. Never print the token or include it in a URL, log, caption, artifact, or
+operator response.
+
+For an approved reel, the current publisher requires a permanent public HTTPS
+video URL. It creates a `REELS` container with `share_to_feed=true`, waits for
+`status_code=FINISHED`, calls `media_publish` once, and records the returned
+media ID plus a read-back permalink. A timeout after `media_publish` is
+ambiguous and must be reconciled against recent media or the publish-attempt
+ledger before retrying. Local Windows file paths cannot be sent directly to
+Meta; use the configured durable media bucket/public object URL.
+
 ---
 
 ## HITL Verification Record
