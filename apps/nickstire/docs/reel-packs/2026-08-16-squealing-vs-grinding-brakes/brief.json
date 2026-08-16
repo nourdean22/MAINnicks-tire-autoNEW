@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-16-squealing-vs-grinding-brakes",
+  "generatedAt": "2026-08-16",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #2",
+  "campaignKeyword": "BRAKE-NOISE",
+  "hookText": "Grinding when you brake is not \"almost time.\" It is past time.",
+  "ctaText": "Send this to someone whose car is making one of these sounds.",
+  "durationSeconds": 27,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Grinding when you brake is not \"almost time.\" It is past time.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro, brake caliper gripping a rotor, studio-lit garage bay, shallow depth of field, slow push-in, sparks of reflected light off brushed metal, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "Squealing is usually the wear indicator doing its job — an early warning.",
+      "onScreenText": "",
+      "providerScene": "Close-up of a brake pad off the vehicle, thin metal wear-indicator tab visible against worn friction material, hand-free rotating turntable reveal, soft key light, shallow DOF, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 14,
+      "narration": "Grinding is metal on metal. You are cutting into the rotor right now.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a rotor surface with visible score-mark grooves, dim garage bay lighting shifting to harsher red-orange practical light, slow lateral dolly across the grooved surface, texture-forward, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 14,
+      "endSecond": 20,
+      "narration": "One is a brake job. The other is a brake job, plus rotors.",
+      "onScreenText": "",
+      "providerScene": "Two brake rotors laid side by side on a clean shop workbench, one lightly worn, one deeply grooved, top-down comparison shot, even overhead light, slow pull-back, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 20,
+      "endSecond": 27,
+      "narration": "Send this to someone whose car is making one of these sounds. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient garage room-tone / light metallic clink SFX only, royalty-free",
+    "sfxNotes": "optional single metallic 'clink' sting under beat 3 (grinding reveal) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 9 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 6 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (62/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "62/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}
