@@ -43,11 +43,6 @@ import {
   bodyEntrySchema,
 } from "@/lib/services/body-tracking";
 import {
-  listKnowledgeFiles,
-  readKnowledgeFile,
-  searchKnowledge,
-} from "@/lib/mastery/knowledge";
-import {
   computeIdentitySnapshot,
   loadIdentitySnapshot,
   loadIdentityHistory,
@@ -256,54 +251,15 @@ export const operatorRouter = router({
     .input(bodyEntrySchema)
     .mutation(async ({ input }) => logBodyEntry(input)),
 
-  /**
-   * Phase ZZ (2026-05-19 AM) · owner-only · list filesystem-backed
-   * knowledge files (markdown corpus in `data/knowledge/`). Returns
-   * the manifest + categories.
-   *
-   * Delegates to `lib/mastery/knowledge.listKnowledgeFiles` which
-   * the legacy REST endpoint also calls · drift impossible.
-   */
-  knowledgeFiles: operatorProcedure.query(async () => {
-    const files = listKnowledgeFiles();
-    const categories = [...new Set(files.map((f) => f.category))];
-    return { files, categories, total: files.length };
-  }),
-
-  /**
-   * Phase ZZ · owner-only · read a single knowledge file's content.
-   * Throws NOT_FOUND when the path doesn't resolve to a real file.
-   */
-  knowledgeFile: operatorProcedure
-    .input(z.object({ path: z.string().min(1).max(400) }))
-    .query(async ({ input }) => {
-      const content = readKnowledgeFile(input.path);
-      if (!content) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "File not found" });
-      }
-      return { path: input.path, content };
-    }),
-
-  /**
-   * Phase ZZ · owner-only · search across the knowledge corpus.
-   * Returns ranked matches with snippet excerpts.
-   */
-  knowledgeSearch: operatorProcedure
-    .input(z.object({ q: z.string().min(1).max(200) }))
-    .query(async ({ input }) => {
-      const results = searchKnowledge(input.q);
-      return {
-        query: input.q,
-        results: results.map((r) => ({
-          name: r.file.name,
-          category: r.file.category,
-          path: r.file.relativePath,
-          match_count: r.matches.length,
-          matches: r.matches,
-        })),
-        total: results.length,
-      };
-    }),
+  // 2026-08-16 · knowledgeFiles / knowledgeFile / knowledgeSearch REMOVED.
+  // They served app/(mastery)/knowledge, a filesystem browser whose loader
+  // resolved process.cwd()/../.. to a NOUR-OS vault layout that stopped
+  // existing at the monorepo import — every one of its 20 configured
+  // directories was absent, so listKnowledgeFiles() returned [] on every call
+  // in prod and locally. The page and lib/mastery/knowledge.ts are deleted;
+  // /knowledge redirects to /brain (next.config.ts). `knowledgeRefresh` below
+  // is UNRELATED and stays — it fans out the ingest crons and now lives in
+  // the UI at /system/crons.
 
   // ──────────────── Settings · identity snapshot (UU.2) ────────────────
 

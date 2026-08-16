@@ -21,6 +21,7 @@ import { BrainContinuityView } from "@/components/brain/continuity-view";
 import { KnowledgeActionOutcomes } from "@/components/brain/knowledge-action-outcomes";
 import { KnowledgeReviewTab } from "@/components/brain/knowledge-review-tab";
 import { HomeBrainGraph } from "@/components/home/home-brain-graph";
+import { DiscoverTab } from "@/components/brain/discover-tab";
 
 function GovernedKnowledgeReview() {
   return (
@@ -46,6 +47,10 @@ export default function BrainPage() {
           tabs={[
             { key: "graph", label: "Graph", render: () => <HomeBrainGraph variant="full" /> },
             { key: "memory", label: "Memory", render: () => <MemoryTab /> },
+            // 2026-08-16 · Discover sits next to Memory on purpose: Memory is
+            // what we believe, Discover is what the engines noticed and the
+            // operator has not ruled on yet.
+            { key: "discover", label: "Discover", render: () => <DiscoverTab /> },
             { key: "review", label: "Review", render: () => <GovernedKnowledgeReview /> },
             { key: "board", label: "Board", render: () => <BoardTab /> },
             { key: "wisdom", label: "Wisdom", render: () => <WisdomTab /> },

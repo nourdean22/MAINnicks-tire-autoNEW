@@ -4,6 +4,161 @@
 
 > **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-16 (chat-quality arc: truncation root-caused + fixed, 4 PRs #1589-#1591; prior: MISSION-scan gate → BDN close-out, 7 ships #1535-#1542); detail in the top entry
 
+> ## 2026-08-16 (fifteenth wave) · knowledge/intelligence review → three severed joints reconnected · 1 PR
+>
+> **An independent review of the Knowledge/Intelligence layer found almost nothing
+> missing and three things disconnected.** The backend is stronger than the
+> operator experience revealed: an 8-class evidence ladder, a deterministic
+> commit gateway, RRF + cross-encoder rerank over pgvector, contradiction
+> detection injected per chat turn, a governed candidate queue with human
+> promotion, and a LongMemEval-shaped recall-eval harness. The defects were
+> wiring, not capability.
+>
+> **Joint 1 — `/knowledge` was dead and had always been.** `lib/mastery/knowledge.ts`
+> resolved `process.cwd()/../..` and looked for `knowledge/context`,
+> `mastery/wisdom`, `brain/50_vault` — a NOUR-OS vault layout that stopped
+> existing at the monorepo import (`CP3 · import statenour-os`). All 20
+> configured directories are absent from the repo root; `listKnowledgeFiles()`
+> returned `[]` unconditionally, in prod and locally, with zero test coverage.
+> The page was reachable five ways and its empty state told the operator to
+> "run a corpus refresh" that could never populate those directories. **Retired**
+> — page, loader, the 3 tRPC procedures, `knowledge-compiler.ts` (same dead
+> paths, zero runtime importers) and `scripts/refresh-digest.ts`. `/knowledge`
+> now redirects to `/brain`. `KnowledgeRefreshPanel` was NOT deleted with it: it
+> is unrelated load-bearing function (the only manual trigger for the
+> 8-subsystem ingest fan-out + prompt-cache flush) and moved to `/system/crons`.
+> Also fixed in passing: the `/search` slash-command pushed `/knowledge?q=` at a
+> page that never read a `q` param, and the `syncKnowledge` tool card's Wave-32
+> re-point to `/knowledge` rested on a premise ("the actual file browser") that
+> was already false when written.
+>
+> **Joint 2 — the outcome ledger never learned.** `recordShown()` had five
+> producers; `recordDecision()` and `recordOutcome()` had **zero callers in the
+> entire app**. So `decision`/`outcomeUseful` were NULL on every row,
+> `outcomesNeedingReview()` always returned empty, the recall-eval corpus could
+> never grow past synthetic seeds, and by the harness's own promotion rule every
+> ranking weight was frozen as an untested prior. The reason nobody called them:
+> not one producer persists the returned cuid anywhere a dismiss handler can
+> reach (briefs to BriefingLog, which has no metadata column; pushes to Telegram;
+> the chat tool discards it). Fixed with `recordDecisionByContent()`, joining on
+> the already-indexed `contentHash` — no id plumbing, no migration. Wired on the
+> nudge lane (`brain.nudges` shows, `brain.dismissNudge` decides) and on the new
+> Discover surface.
+>
+> **Joint 3 — the commit gateway computed the right verdict and discarded it.**
+> Phase-1 acted only on `noop`; `update` and `review_required` fell through to
+> legacy `reinforce()`, which replaces content **and** adds +0.1 confidence — so
+> a weak inference could overwrite an operator-stated claim and gain confidence
+> doing it. Phase-2 ships **opt-IN** (`NICK_MEMORY_GATEWAY_PHASE2=1`, unlike
+> Phase-1's kill-switch) because there is no shadow-review evidence for it yet:
+> `update` takes content without the bump; `review_required` parks in the
+> EXISTING `/brain` Review queue (`research_pack` staging + `knowledge_candidate`
+> metadata, so zero new UI, routes or categories). Deliberately scoped to
+> `reasonCode: "weaker_evidence"` only — `unknown_category` is the larger slice
+> of the measured 349/wk and parking it would freeze whole categories of
+> automation writes. A `reasonCode` field was added to the verdict so the two are
+> distinguished structurally rather than by string-matching `reason`.
+>
+> **The deeper fix — the ranking function selected against surprise.**
+> BrainMemory `confidence` starts at 0.5 and rises +0.1 per re-sighting: it is a
+> FREQUENCY COUNT. Recall orders by it, and every other signal (semantic,
+> lexical, category, topic, CoALA kind) rewards FIT. A surprising one-off sits at
+> 0.5 forever and loses to a banality re-observed nightly to 1.0 — which is why
+> the machine generated interesting findings and then sorted them below the fold.
+> Added `noveltyMultiplier` (0.95-1.18, flag `NICK_NOVELTY_RECALL`, default OFF,
+> registered in FLAG_REGISTRY — an unregistered key resolves to permanently-off
+> in silence). Applied **after** the reranker, because rerank overwrites `hybrid`
+> with `0.5 + 0.5 * r.score` for the top 25 and silently discards every
+> post-fusion multiplier — a hole `importanceMultiplier` still has. Cost is zero
+> extra queries: `getSemanticScores` already JSON.parsed every candidate's
+> embedding and threw it away; it now returns them.
+>
+> **Provenance in the prompt.** Memories rendered as `[category] (NN%) content`.
+> That percentage read as certainty but IS the sighting count restated, so a
+> blind-spot inference the system generated itself rendered identically to
+> something the operator said out loud. Now `[category · you stated · seen 4x]`,
+> using the commit gateway's evidence ladder — one vocabulary, not a fourth
+> taxonomy. All four render sites (three main plus the no-topics fallback, which
+> had a narrower select) plus the token-budget accounting, which counted only
+> `content.length` and so under-counted the prefix by ~10-15%.
+>
+> **Quarantine made real.** `ingest.ts` and `promote.ts` both stated that promoted
+> external claims were "quarantined from chat recall until a human promotes
+> them". Nothing implemented it: `RECALL_EXCLUDE_CATEGORIES` never contained
+> `research_claim_candidate`, and candidates are minted at confidence 0.3 against
+> recall's `gte: 0.3` floor — passing exactly, not narrowly. Now excluded, and
+> pinned by a test.
+>
+> **Honest labels.** `groundClaim()` called cosine >= 0.75 `source_supported` and
+> that literal reached an LLM prompt as "Grounding Status" — a model reads it as
+> "a source confirmed this" when it means "resembles something already in our own
+> memory", which can include the system's own prior inferences. The persisted
+> enum is UNCHANGED (indexed String column, two exact-literal query filters; a
+> rename needs a prod backfill plus ALTER DEFAULT and fails SILENTLY if code
+> ships first). Instead `describeGroundingStatus()` tells the truth at the only
+> boundary where the value reaches a human or a model. Same defect fixed at
+> `app/api/research/packs/items/route.ts:53`, which defaulted `verificationStatus`
+> to `"source_supported"` and `verificationScore` to `1.0` reading a metadata key
+> with **zero writers** — asserting a clean bill of health that was never computed.
+>
+> **Delivery.** New `/brain` Discover tab reads the four nightly creative
+> categories (`counter_intuitive`, `hidden_correlation`, `blind_spot`,
+> `teaching_moment`) by RECENCY, labels each card's epistemic kind
+> (INFERRED / SPECULATIVE) before its content, and offers three verdicts:
+> Worth investigating / Already knew / Noise. "Already knew" is the only
+> measurement of the operator's actual complaint and the only evidence that could
+> ever justify flipping `NICK_NOVELTY_RECALL`; collapsing it into a generic
+> dismiss would destroy the distinction between a novelty defect and an accuracy
+> defect. Home gains exactly ONE knowledge signal — an unresolved contradiction —
+> which renders `null` on measured zero and deep-links into the EXISTING
+> resolution panel rather than rebuilding its four-verdict flow (that would have
+> been the third implementation, and would have shipped its 24px touch targets to
+> the phone). The bottom ticker's contradiction item finally carries a key: the
+> receiving panel has read `?resolve=<key>` since it shipped; only the sender was
+> missing.
+>
+> **Test-integrity fixes found along the way.** `tests/lib/research-lab.test.ts`
+> re-implemented the grounding classifier INLINE with a wrong threshold (0.80 vs
+> the real 0.75) and a status (`requires_source_verification`) that exists nowhere
+> in production — green forever, measuring nothing. Rewritten to import the real
+> constants. `tests/lib/memory-manager.test.ts`'s reinforce test never reached the
+> gateway at all: its mock lacked `content`/`source` (so `norm()` threw into the
+> fail-open catch) AND used category `"insight"`, which is not a registered
+> BRAIN_CATEGORY — the gateway resolves categories through a dynamic
+> `import("./categories")` that bypasses the file's `vi.mock` and hits the real
+> module, short-circuiting every verdict to `unknown_category`. Both fixed;
+> Phase-2 branches are red-green verified.
+>
+> **Receipts:** typecheck 0 · lint 0 errors · **505 files / 5,452 tests / exit 0**
+> · `next build` green · red-green executed on the quarantine guard and the
+> novelty multiplier (both fail on an inverted implementation, restore to green).
+>
+> **Flagged · NOT fixed**
+> - **Phase-2 and novelty are both OFF by default and unproven.** Phase-1 earned
+>   default-on with a 7-day shadow review; neither of these has one. Re-run
+>   `scripts/probe-gateway-agrees.ts` and `pnpm eval:recall` before flipping.
+> - **The eval corpus is unblocked, not populated.** `recordDecision` now has two
+>   real callers, but the corpus grows only as the operator actually judges
+>   nudges and discoveries. `pnpm harvest:evals` + `scripts/corpus-odometer.ts`
+>   are the gauges; nothing downstream is measurable until that reads above 0.
+> - **`importanceMultiplier` still dies at the reranker.** Novelty was placed
+>   after the rerank swap to survive it; the older axis was left where it is
+>   rather than silently changing a second flag's behavior in this PR.
+> - **Temporal supersession columns still have no reader.** `validFrom` /
+>   `validUntil` / `lastVerifiedAt` / `supersededById` are applied to prod with
+>   indexes and remain unread — deliberately deferred until Phase-2 produces its
+>   first real supersede verdicts.
+> - **The candidate adapters still have no cron.** Obsidian/NotebookLM/Graphify
+>   ingestion stays manual-script-only; automating it into a queue nobody works
+>   would manufacture a backlog (the 468-pending-actions precedent).
+> - **No live browser verification.** Local dev and prod both sit behind the
+>   Google OAuth wall; the new surfaces are typecheck/test/build-verified only.
+>   An operator visual pass on `/brain?tab=discover`, Home, and `/system/crons`
+>   is still owed.
+> - **`unverified` remains overloaded three ways** (low similarity, zero matches,
+>   thrown error). It fails closed and the error path now logs loudly, but the
+>   stored value cannot distinguish them without a prod backfill.
+
 > ## 2026-08-16 (fourteenth wave) · chat-quality arc — six hypotheses, five refuted, one cause · 4 ships (#1589-#1591 + prerender)
 >
 > Operator: *"half the tools won't work half the time, messages get cut short"* and

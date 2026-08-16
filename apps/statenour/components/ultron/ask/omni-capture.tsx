@@ -8,7 +8,7 @@
  *   /decide → decision log
  *   /dump   → brain-dump + auto-sort via /api/journal/capture
  *   /park   → parking lot (localStorage v1)
- *   /search → knowledge search (nav to /knowledge?q=...)
+ *   /search → nav to /chat?q=... (was /knowledge?q=, retired 2026-08-16)
  *
  * No prefix → auto-classify (see lib/ultron/omni-capture-router).
  *
@@ -327,7 +327,12 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
           break;
         }
         case "search": {
-          router.push(`/knowledge?q=${encodeURIComponent(text)}`);
+          // 2026-08-16 · was `/knowledge?q=` — a page that never read a `q`
+          // param and, after the monorepo import, rendered zero files. The
+          // slash-command has been a no-op search for months. /chat prefills
+          // its composer from `?q=` (restored in #1539) and can actually
+          // search memory via tools.
+          router.push(`/chat?q=${encodeURIComponent(text)}`);
           break;
         }
         case "plan": {

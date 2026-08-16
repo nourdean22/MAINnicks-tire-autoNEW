@@ -16,6 +16,55 @@
 
 - **Evening waves (same day):** durable Home agenda (FOLLOW_UP in agenda_items; localStorage dismissals dead) · memory commit gateway observing in SHADOW (review ~08-04) · alerts have resolve/mute lifecycle · chat command console (control sheet, authority strip, Context & Evidence, typed tool cards) · `getFleetTruth`/`getTopDecisions`/`fetchVideoTranscript` chat tools · execute-before-prose split (attempt-tense + receipt-backed completion messages) · intelligence_outcomes ledger live on Neon with two producers · /system/fleet + /system/chat-states pages · PR #1152 engine-lock wrapper merged.
 
+## Since 2026-08-16 — knowledge/intelligence: three severed joints, not missing capability
+
+- **★★★ `/knowledge` is RETIRED and now redirects to `/brain`.** Its loader
+  resolved `process.cwd()/../..` to a NOUR-OS vault layout that stopped existing
+  at the monorepo import, so it rendered ZERO files in prod and locally, always,
+  with no test coverage. Deleted with `lib/mastery/knowledge.ts`, the 3 tRPC
+  procedures, `lib/ai/knowledge-compiler.ts` and `scripts/refresh-digest.ts`.
+  `KnowledgeRefreshPanel` is UNRELATED and survived — it moved to `/system/crons`
+  and is still the only manual trigger for the ingest fan-out + prompt-cache flush.
+- **★★★ The outcome ledger had zero deciders.** `recordDecision`/`recordOutcome`
+  had NO callers anywhere, so `decision` was NULL on every IntelligenceOutcome row
+  and `outcomesNeedingReview()` always returned empty — that is why the recall-eval
+  corpus never grew, and why `scripts/data-census.ts` records "corrections: 0/200".
+  Not low volume: a missing writer. `recordDecisionByContent()` joins on the
+  indexed `contentHash`; wired on nudge dismissal and the new Discover verdicts.
+- **★★ Gateway Phase-2 is LIVE but OPT-IN** — `NICK_MEMORY_GATEWAY_PHASE2=1`
+  (Phase-1 is a kill-switch; Phase-2 is not, because it has no shadow-review
+  evidence yet). Honors `update` (content, no confidence bump) and
+  `review_required` ONLY for `reasonCode: "weaker_evidence"`. `unknown_category`
+  still falls through on purpose — it is the larger slice of the 349/wk, and
+  parking it would freeze whole categories of automation writes.
+- **★★ Recall renders PROVENANCE, not a confidence percentage.**
+  `[category · you stated · seen 4x]` replaced `[category] (NN%)`. That percentage
+  was never certainty: confidence is `0.5 + 0.1 × (sightings − 1)`, i.e. the
+  sighting count restated. Labels come from the commit gateway's evidence ladder —
+  one vocabulary, not a fourth taxonomy.
+- **★★★ Confidence is a FREQUENCY COUNT and recall sorted by it** — so surprise,
+  being low-frequency, structurally lost every ranking contest. `NICK_NOVELTY_RECALL`
+  (default OFF, registered in FLAG_REGISTRY) adds a 0.95–1.18 novelty term AFTER
+  the reranker, because rerank overwrites `hybrid` for the top 25 and discards
+  every post-fusion multiplier — `importanceMultiplier` still has that hole.
+- **`research_claim_candidate` is NOW actually quarantined from chat recall.**
+  Two comments claimed it for months; `RECALL_EXCLUDE_CATEGORIES` never contained
+  it, and candidates mint at confidence 0.3 against recall's `gte: 0.3` floor —
+  passing exactly, not narrowly. Pinned by `tests/brain/recall-quarantine.test.ts`.
+- **"source_supported" means cosine ≥ 0.75 against OUR OWN MEMORY, not source
+  verification.** The stored enum is unchanged (indexed column, 2 exact-literal
+  query filters; a rename needs a prod backfill + ALTER DEFAULT and fails SILENTLY
+  if code ships first). `describeGroundingStatus()` tells the truth at the only
+  boundary where the value reaches a human or a model. Real thresholds are
+  **0.75 / 0.55** — `docs/research-lab.md` said 0.80, and a false-green test
+  re-implemented that wrong number inline instead of importing the module.
+- **New surfaces:** `/brain` → **Discover** (the four nightly creative categories,
+  ordered by recency, each labelled INFERRED/SPECULATIVE, with
+  investigate / already-knew / noise verdicts that write the ledger) and ONE Home
+  contradiction slot that renders `null` on measured zero and deep-links to the
+  EXISTING resolution panel. The ticker's contradiction item now carries
+  `?resolve=<key>` — the receiving panel had always read it; only the sender was missing.
+
 ## Since 2026-08-16 — chat quality: it was a token budget, not the model
 
 - **`maxOutputTokens` was truncating every substantive answer.** Standard mode

@@ -133,6 +133,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
   {
+    key: "NICK_NOVELTY_RECALL",
+    description:
+      "Adds a NOVELTY axis to brain recall — penalizes a memory for repeating what the higher-ranked picks already say, using the embeddings getSemanticScores already parses (zero extra queries). Fixes the structural bias that makes recall recite known facts: BrainMemory confidence is a re-sighting COUNT (0.5 +0.1/sighting), so a surprising one-off can never outrank a re-observed banality. Gentle 0.95-1.18x, applied AFTER the reranker so it is not overwritten. OFF = recall ranking unchanged.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "Novelty multiplier = 1.0; ranking is byte-for-byte today's behavior. Promote only on an eval win (pnpm eval:recall).",
+    ownerDoc: "lib/brain/contextual-recall.ts",
+  },
+  {
     key: "NICK_VERIFIED_REGEN",
     description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass (today's behavior). Adds latency on the regen path only.",
     status: "experimental",

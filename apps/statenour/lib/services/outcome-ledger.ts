@@ -103,6 +103,48 @@ export async function recordDecision(params: {
   }
 }
 
+/**
+ * Record a decision when the caller has the surfaced TEXT but not the ledger
+ * id (2026-08-16).
+ *
+ * Why this exists: recordDecision() needs a cuid, but not one of the five
+ * recordShown() producers persists the id anywhere a dismiss handler can
+ * reach — briefs go to BriefingLog (no metadata column), pushes go to
+ * Telegram, the chat tool discards it. That is the whole reason `decision`
+ * and `outcomeUseful` were NULL on every row in the table: not low volume,
+ * a missing join. `contentHash` is indexed (schema.prisma @@index), and
+ * outcomeContentHash() is deterministic over the normalized summary — so the
+ * text the operator dismissed is enough to find the row it was shown from,
+ * with no id plumbing and no migration.
+ *
+ * Scoped to a 30-day window so an old identical summary can't absorb a fresh
+ * decision, and ordered newest-first so the most recent surfacing wins.
+ * Returns false (never throws) when there is no matching row — a surface can
+ * call this unconditionally without knowing whether it was ledgered.
+ */
+export async function recordDecisionByContent(
+  summary: string,
+  decision: OutcomeDecision,
+  resultRef?: string | null,
+): Promise<boolean> {
+  try {
+    const trimmed = summary.trim();
+    if (!trimmed) return false;
+    const contentHash = outcomeContentHash(trimmed);
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const row = await prisma.intelligenceOutcome.findFirst({
+      where: { contentHash, decision: null, shownAt: { gte: since } },
+      orderBy: { shownAt: "desc" },
+      select: { id: true },
+    });
+    if (!row) return false;
+    return await recordDecision({ id: row.id, decision, resultRef });
+  } catch (err) {
+    logError("intel.outcome-ledger", err, { stage: "record-decision-by-content" }, "warn");
+    return false;
+  }
+}
+
 /** The real-world outcome landed (or the operator judged usefulness). */
 export async function recordOutcome(params: {
   id: string;

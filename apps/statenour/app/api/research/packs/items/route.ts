@@ -49,8 +49,16 @@ export const GET = apiHandler(
         content: redactPaths(p.content),
         citation: meta.citation ? redactPaths(meta.citation) : null,
         requiresSourceVerification: meta.requiresSourceVerification || false,
-        verificationScore: meta.verificationScore || 1.0,
-        verificationStatus: meta.verification_status || "source_supported",
+        // 2026-08-16 · these two defaults ASSERTED a verification that was
+        // never computed. `verification_status` has zero writers anywhere in
+        // the repo (grep: this line and test fixtures only), so every row
+        // returned the optimistic literal "source_supported"; `verificationScore`
+        // fell back to a perfect 1.0 for the same reason. Missing data now
+        // reads as missing — null/"unknown" — instead of as a clean bill of
+        // health. Same defect class as the grounding labels in
+        // lib/intelligence/grounding.ts.
+        verificationScore: typeof meta.verificationScore === "number" ? meta.verificationScore : null,
+        verificationStatus: meta.verification_status || "unknown",
       };
     });
 

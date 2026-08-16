@@ -134,9 +134,13 @@ goal/project/task bridge + tasks + journal + knowledge + devices.
 - **Status:** ACTIVE · under heavy development
 - **Nick write access:** `none`
 - **Monitored:** `true`
-- **Surfaces:** `/` (HQ Ultron) · `/chat` · `/brain` · `/tasks` ·
+- **Surfaces:** (this list is STALE beyond the 2026-08-16 `/knowledge` removal —
+  `/tasks`, `/plan`, `/intel`, `/body` and `/financial` were consolidated away in
+  the 2026-05-28 mega-delete and are still listed here; only `/knowledge` was
+  verified and removed in this pass. Trust `components/layout/nav-items.ts`.)
+  `/` (HQ Ultron) · `/chat` · `/brain` · `/tasks` ·
   `/journal` · `/plan` · `/pins` · `/intel` · `/social` ·
-  `/photo-improver` · `/content/history` · `/knowledge` · `/devices` ·
+  `/photo-improver` · `/content/history` · `/devices` ·
   `/body` · `/financial` · `/system` (incl `/system/history` ·
   `/system/costs` · `/system/prompt` · `/system/errors`) · `/settings`
 - **DB hardening (v7.6 → v8.0 · 2026-04-29):**

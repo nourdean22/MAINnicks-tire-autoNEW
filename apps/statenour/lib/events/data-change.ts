@@ -55,10 +55,6 @@ export type DataDomain =
   // Cold Memory card refresh.
   | "journal"
   | "settings"
-  // v10.0.529.88 · Wave 32 · knowledge domain · syncKnowledge writes
-  // Drive corpus + indexes. /knowledge page subscribes for targeted
-  // refresh instead of "any" fanout.
-  | "knowledge"
   | "people"
   | "any";
 

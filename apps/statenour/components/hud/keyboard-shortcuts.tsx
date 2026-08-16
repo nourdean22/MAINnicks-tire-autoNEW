@@ -37,7 +37,6 @@ const GO_ROUTES: Record<string, string> = {
   t: "/missions",
   j: "/journal",
   b: "/brain",
-  k: "/knowledge",
   m: "/stats",
   f: "/business?tab=money",
   y: "/stats#body",             // y = bodY (b is brain) · body is a /stats section

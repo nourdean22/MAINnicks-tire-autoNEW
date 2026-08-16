@@ -55,6 +55,96 @@ function validateAndCanonicalizeCategory(
 }
 
 /**
+ * Phase-2 park target. A `review_required` verdict must not overwrite the
+ * stronger claim, but it must not vanish either — so it lands as a staging
+ * row in the queue the operator ALREADY has at /brain → Review.
+ *
+ * Deliberate choices:
+ *  · Direct `prisma.brainMemory.upsert`, never `brainMemory.remember()` —
+ *    routing back through remember() would re-enter the gateway on the
+ *    staging write and, because candidate-store already imports this module,
+ *    close an import cycle. `shadowMemoryCommit` writes the same way.
+ *  · Category `research_pack` because that is the exact category
+ *    lib/knowledge/candidate-store.ts scans (CANDIDATE_STAGING_CATEGORY), and
+ *    it is a registered BRAIN_CATEGORIES value so nothing mints new taxonomy.
+ *  · The metadata shape satisfies candidate-store's `isCandidateMetadata`
+ *    (recordType + string candidateId) and its jsonb filter on
+ *    `gateDecision === "review_required"`, so the existing GET/POST review
+ *    route and the existing Review tab pick it up with zero new UI.
+ *  · `kind: "observation"` — candidate-store refuses to promote "action" or
+ *    "question" kinds (canonicalEligible check), and a parked memory write is
+ *    exactly an observation awaiting corroboration.
+ *  · `sourceType: "system"` + `parkedBy` so these rows are distinguishable
+ *    from the Obsidian/NotebookLM/Graphify candidates sharing the queue.
+ *
+ * Never throws into the write path: a failed park falls through to the
+ * caller's normal return, which is the pre-Phase-2 behavior.
+ */
+async function parkForReview(args: {
+  category: string;
+  key: string;
+  content: string;
+  source: string;
+  verdict: { decision: string; reason: string; reasonCode: string; candidateEvidence: string };
+  existingContent: string;
+  existingSource: string;
+}): Promise<void> {
+  try {
+    const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
+    const { createHash } = await import("node:crypto");
+    const contentHash = createHash("sha256")
+      .update(`${args.category}:${args.key}:${args.content}`)
+      .digest("hex");
+    const candidateId = `mg_${contentHash.slice(0, 24)}`;
+
+    await prisma.brainMemory.upsert({
+      where: {
+        category_key: {
+          category: BRAIN_CATEGORIES.RESEARCH_PACK,
+          key: `candidate_${candidateId.slice(3)}`,
+        },
+      },
+      create: {
+        category: BRAIN_CATEGORIES.RESEARCH_PACK,
+        key: `candidate_${candidateId.slice(3)}`,
+        content: args.content,
+        confidence: 0,
+        source: `memory_gateway:${args.source}`,
+        expiresAt: null,
+        metadata: {
+          recordType: "knowledge_candidate",
+          candidateId,
+          contentHash,
+          gateDecision: "review_required",
+          gateReasons: [args.verdict.reason],
+          reasonCode: args.verdict.reasonCode,
+          kind: "observation",
+          sourceType: "system",
+          parkedBy: "memory-commit-gateway-phase2",
+          candidateEvidence: args.verdict.candidateEvidence,
+          targetCategory: args.category,
+          targetKey: args.key,
+          blockedClaim: args.existingContent.slice(0, 500),
+          blockedClaimSource: args.existingSource,
+          parkedAt: new Date().toISOString(),
+        } as never,
+      },
+      update: {
+        content: args.content,
+        deletedAt: null,
+        lastSeen: new Date(),
+      },
+    });
+  } catch (err) {
+    log.warn("memory_gateway_park_failed", {
+      category: args.category,
+      key: args.key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * Brain Memory Lifecycle:
  * 1. Raw observation → temporary insight (expires in 24h)
  * 2. Seen 3+ times → promoted to persistent memory (confidence boost)
@@ -192,6 +282,53 @@ export class BrainMemoryManager {
             });
             return existing;
           }
+
+          // 2026-08-16 · Phase-2 — opt-IN (`=1`), unlike Phase-1's kill-switch.
+          // Phase-1 flipped default-on only after a 7-day shadow review proved
+          // the noop slice was 0% legacy-agreeing. Phase-2 has no equivalent
+          // run yet, so the operator chooses the blast radius. Re-run
+          // scripts/probe-gateway-agrees.ts before considering a default flip.
+          if (process.env.NICK_MEMORY_GATEWAY_PHASE2 === "1") {
+            // "update" = an equal-strength source CHANGED the claim. Legacy
+            // treats that as corroboration and adds +0.1 — the audit's exact
+            // P0. Take the new content, refuse the confidence.
+            if (verdict.decision === "update") {
+              log.info("memory_gateway_update_no_boost", {
+                category: effectiveCategory,
+                key,
+                source,
+                reason: verdict.reason,
+              });
+              return this.reinforce(existing.id, content, { bumpConfidence: false });
+            }
+
+            // "review_required" = weaker evidence contradicting a stronger
+            // claim. Park it for operator review instead of overwriting.
+            // DELIBERATELY NOT the unknown_category slice: that is the larger
+            // share of the measured 349/wk and parking it would freeze whole
+            // categories of automation writes behind a queue nobody asked for.
+            if (
+              verdict.decision === "review_required" &&
+              verdict.reasonCode === "weaker_evidence"
+            ) {
+              await parkForReview({
+                category: effectiveCategory,
+                key,
+                content,
+                source,
+                verdict,
+                existingContent: existing.content,
+                existingSource: existing.source,
+              });
+              log.info("memory_gateway_parked", {
+                category: effectiveCategory,
+                key,
+                source,
+                reason: verdict.reason,
+              });
+              return existing;
+            }
+          }
         } catch (err) {
           log.warn("memory_gateway_phase1_error", {
             category: effectiveCategory,
@@ -228,15 +365,30 @@ export class BrainMemoryManager {
   /**
    * Reinforce a memory — boost confidence and update last seen.
    * After 3+ sightings, remove expiry (memory becomes permanent).
+   *
+   * `opts.bumpConfidence: false` (2026-08-16, gateway Phase-2) takes the new
+   * CONTENT without treating the sighting as corroboration: no +0.1, and no
+   * progress toward the 3-sighting permanence promotion. A changed claim is
+   * a change, not extra evidence for the claim it replaced.
+   *
+   * Default stays `true` on purpose — lib/brain/pipeline-controller.ts uses
+   * reinforce() as an action-FREQUENCY counter and depends on both bumps.
    */
-  async reinforce(memoryId: string, newContent?: string): Promise<BrainMemory> {
+  async reinforce(
+    memoryId: string,
+    newContent?: string,
+    opts: { bumpConfidence?: boolean } = {},
+  ): Promise<BrainMemory> {
+    const bumpConfidence = opts.bumpConfidence !== false;
     const memory = await prisma.brainMemory.findUniqueOrThrow({
       where: { id: memoryId },
     });
 
-    const newSeenCount = memory.seenCount + 1;
-    const newConfidence = Math.min(1.0, memory.confidence + 0.1);
-    const shouldPromote = newSeenCount >= 3;
+    const newSeenCount = bumpConfidence ? memory.seenCount + 1 : memory.seenCount;
+    const newConfidence = bumpConfidence
+      ? Math.min(1.0, memory.confidence + 0.1)
+      : memory.confidence;
+    const shouldPromote = bumpConfidence && newSeenCount >= 3;
 
     const updated = await prisma.brainMemory.update({
       where: { id: memoryId },

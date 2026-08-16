@@ -48,10 +48,11 @@ export const TOOL_BIAS: Record<string, string> = {
   "/missions": "createTask · completeTask · snoozeTask · setTaskPriority · updateTask",
   "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
   "/pins": "pinMemory · searchMemories",
-  "/knowledge": "syncKnowledge · searchColdMemory · searchSkills",
   // /mastery + /plan + /life + /body all consolidated into /stats · merged tool bias.
   "/stats": "updateMasteryScore · setLifeGoal · logGoalProgress · archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
-  "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory",
+  // 2026-08-16 · syncKnowledge / searchColdMemory / searchSkills folded in
+  // from the retired "/knowledge" key so the three tools keep a bias route.
+  "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory · syncKnowledge · searchColdMemory · searchSkills",
   "/system": "getCronStatus · toolHealth · getBrainHealth · getFleetTruth",
   "/business": "getFinancialSnapshot · getProjections · compareLiveRevenue",
   "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
