@@ -1386,6 +1386,33 @@
       "codeState": "merged",
       "operationalState": "integration_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-outcome-learning",
+      "name": "Reel topic selection ranked by distribution, Pattern Lab rotation, cross-lane topic awareness",
+      "owner": "system",
+      "evidence": {
+        "codeCommit": "#1613 — three joints that existed on both sides and were never connected",
+        "tests": [
+          "shared/reelPerformancePrior.test.ts (9): null-not-zero for unreported metrics, re-weighting over present metrics, inverted skipRate, outlier ceiling, MIN_POSTS_PER_THEME drop-not-demote, basis provenance",
+          "shared/reelStructureRotation.test.ts (6): least-used first, never-used before repeat, deterministic tie-break, hook-type exclusion with full-set fallback",
+          "server/reelPackRegistry.test.ts (7): directory resolution, brief.json optional, unparseable brief survives, campaign keyword in avoid-list, age bound, no-throw on missing dir",
+          "server/reelBriefStructureTrajectory.test.ts: structurePatternId survives brief -> persisted payload"
+        ],
+        "productionMeasurement": "Ranking effect measured on the live account 2026-08-16, not asserted: OLD (engagementRate = likes+comments) ranked educational #1, community #3. NEW (saves/shares/retention over 475 ig_metric_snapshots rows) ranks local-appeal #1 and community LAST at 0.000 across 32 posts. Deployed image confirmed to contain /app/apps/nickstire/docs/reel-packs with all five packs, which is the pack registry's second candidate path."
+      },
+      "blockers": [
+        "Pattern Lab ROTATES, it does not rank: no pattern -> outcome link existed, so ranking would be fabrication. #1613 stamps structurePatternId into reel_jobs.payload to CREATE that join; ranking becomes possible only once enough stamped jobs carry metrics."
+      ],
+      "deferredScope": [
+        "ranking patterns by measured outcome (needs the cohort join above to accumulate)",
+        "feeding pack CONTENT into generation — deliberately out of scope: a pack is pending human review by construction, and treating it as approved inventory would turn a review queue into an autopost queue"
+      ],
+      "lastVerifiedAt": "2026-08-16",
+      "verificationExpiresAt": "2026-09-15",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "production"
     }
   ],
   "axes": {
