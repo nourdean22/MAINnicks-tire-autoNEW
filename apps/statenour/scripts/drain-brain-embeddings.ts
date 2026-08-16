@@ -17,7 +17,7 @@
  * is a slot a real memory could have occupied at recall time. The denylist is
  * imported from lib/brain/embedding-policy so the two cannot drift apart.
  *
- * IT COUNTS EFFECT, NOT INTENT. The first version of this script ran 25 minutes
+ * IT COUNTS EFFECT, NOT INTENT — per row, not just per page. The first version of this script ran 25 minutes
  * and wrote NOTHING: `storeGenericEmbedding` swallows its own failures, so the
  * try/catch never fired, `done++` ran anyway, and since no row was written the
  * anti-join re-served the same 100 rows forever. Every log line said
@@ -53,8 +53,15 @@ loadEnvConfig(process.cwd());
     }
   }
 }
-import { prisma } from "@/lib/prisma";
-import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
+// NOT static imports. ES imports are hoisted ABOVE the --env parser above, so
+// `lib/prisma` would build its Neon adapter before DATABASE_URL existed and fail
+// with "No database host or connection string was set" — while the host print
+// below still showed the parsed value, because that reads process.env at call
+// time. The advertised `--env` recovery path was therefore broken on exactly the
+// harness worktrees it exists for; it only appeared to work when DATABASE_URL
+// was also exported into the shell. Loaded inside main(), after parsing.
+type Prisma = typeof import("@/lib/prisma")["prisma"];
+type StoreFn = typeof import("@/lib/brain/embedding-utils")["storeGenericEmbedding"];
 import { TELEMETRY_CATEGORY_LIST } from "@/lib/brain/embedding-policy";
 
 const APPLY = process.argv.includes("--apply");
@@ -67,7 +74,7 @@ const PAGE = 100;
 
 type Row = { id: string; category: string; key: string; content: string };
 
-async function page(): Promise<Row[]> {
+async function page(prisma: Prisma): Promise<Row[]> {
   return prisma.$queryRaw<Row[]>`
     SELECT bm.id, bm.category, bm.key, bm.content
     FROM brain_memories bm
@@ -84,7 +91,7 @@ async function page(): Promise<Row[]> {
 }
 
 /** Live count of brain_memory embeddings — the only honest progress signal. */
-async function embeddedCount(): Promise<number> {
+async function embeddedCount(prisma: Prisma): Promise<number> {
   const [r] = await prisma.$queryRaw<{ n: bigint }[]>`
     SELECT COUNT(*)::bigint AS n FROM vector_embeddings WHERE "sourceType" = 'brain_memory'
   `;
@@ -92,6 +99,10 @@ async function embeddedCount(): Promise<number> {
 }
 
 async function main() {
+  const { prisma }: { prisma: Prisma } = await import("@/lib/prisma");
+  const { storeGenericEmbedding }: { storeGenericEmbedding: StoreFn } = await import(
+    "@/lib/brain/embedding-utils"
+  );
   const host = (process.env.DATABASE_URL ?? "").replace(/^.*@/, "").replace(/[/?].*$/, "");
   console.log(`database host : ${host || "(unset)"}`);
   console.log(`mode          : ${APPLY ? "APPLY (writes vector_embeddings)" : "DRY RUN (no writes)"}`);
@@ -121,10 +132,10 @@ async function main() {
 
   for (;;) {
     if (done >= LIMIT) break;
-    const rows = await page();
+    const rows = await page(prisma);
     if (rows.length === 0) break;
 
-    const before = APPLY ? await embeddedCount() : 0;
+    const before = APPLY ? await embeddedCount(prisma) : 0;
 
     for (const r of rows) {
       if (done >= LIMIT) break;
@@ -137,6 +148,21 @@ async function main() {
           console.warn(`  FAILED ${r.id} (${r.category}): ${String((err as Error)?.message ?? err).slice(0, 120)}`);
           continue;
         }
+        // storeGenericEmbedding CATCHES provider and DB failures internally and
+        // returns normally, so the catch above fires for almost nothing. Ask the
+        // database whether the row exists instead of trusting the call to have
+        // worked. The page-level delta check only catches the all-zero case: with
+        // one success among ninety-nine failures it passes, and every failure
+        // would otherwise be counted as embedded — a false total, and `--limit`
+        // stopping short of the requested count while reporting success.
+        const landed = await prisma.vectorEmbedding.count({
+          where: { sourceType: "brain_memory", sourceId: r.id },
+        });
+        if (landed === 0) {
+          failed++;
+          if (failed <= 5) console.warn(`  NO ROW WRITTEN for ${r.id} (${r.category})`);
+          continue;
+        }
       }
       done++;
       if (done % 250 === 0) console.log(`  ...${done} embedded (${failed} failed)`);
@@ -147,7 +173,7 @@ async function main() {
 
     // EFFECT CHECK · if a whole page wrote nothing, the anti-join hands back the
     // same rows next time and this loop spins forever reporting success. Stop.
-    const after = await embeddedCount();
+    const after = await embeddedCount(prisma);
     if (after === before) {
       console.error(
         "ABORT - a full page of " + rows.length + " rows produced ZERO new embeddings (count " +

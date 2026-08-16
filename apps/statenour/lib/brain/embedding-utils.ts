@@ -503,10 +503,20 @@ export async function semanticSearch(
   const memoryIds = rows
     .filter((r) => r.sourceType === "brain_memory")
     .map((r) => r.sourceId);
+  // Same liveness + quarantine contract as the pgvector path above. This branch
+  // runs precisely when pgvector is unavailable or every knnSearch failed —
+  // i.e. during an outage — so leaving it unguarded meant deleted and
+  // quarantined content became recallable exactly when the system was already
+  // degraded. `deletedAt: null` and the category filter are the whole guard;
+  // the scoring loop below drops any brain_memory whose metadata is absent.
   const memories = sourceTypes.includes("brain_memory") && memoryIds.length > 0
     ? await prisma.brainMemory
         .findMany({
-          where: { id: { in: memoryIds } },
+          where: {
+            id: { in: memoryIds },
+            deletedAt: null,
+            category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+          },
           select: {
             id: true,
             confidence: true,
@@ -535,6 +545,11 @@ export async function semanticSearch(
 
       const meta = metaMap.get(row.sourceId);
       const isMem = row.sourceType === "brain_memory";
+      // No live metadata row = deleted, orphaned, or quarantined. Dropping it
+      // here is what makes the filter above bite: the `confidence ?? 0.5`
+      // default below would otherwise carry it through with a plausible score,
+      // and its text comes from the embedding's own `content` copy.
+      if (isMem && !meta) continue;
 
       // Non-memory rows default to a synthetic confidence so they're
       // not crushed by missing metadata. brain_dump / reflection /
