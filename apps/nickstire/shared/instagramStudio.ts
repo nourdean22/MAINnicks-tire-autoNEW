@@ -171,3 +171,42 @@ export const INSTAGRAM_FORMAT_LABELS: Record<InstagramFormat, string> = {
   story: "Story",
   ad: "Ad",
 };
+
+/**
+ * Does this source need operator prose alongside (or instead of) a record?
+ *
+ * Lives here rather than in the client's own registry because it was previously
+ * declared in a SECOND copy of this taxonomy, keyed by a structurally identical
+ * union — so the two could drift silently. `Record<InstagramSourceType, …>` is
+ * the poka-yoke: adding a member to INSTAGRAM_SOURCE_TYPES now fails to compile
+ * until every derived record has an entry.
+ *
+ * NOTE this is a separate question from whether generation is BLOCKED without a
+ * verified record (review / declined_work only, enforced server-side in
+ * services/instagramStudio.ts). `real_shop_photo` is the one source that needs
+ * no prose at all — the photograph is the evidence.
+ */
+export const INSTAGRAM_SOURCE_REQUIRES_DETAIL: Record<InstagramSourceType, boolean> = {
+  review: true,
+  declined_work: true,
+  customer_question: true,
+  season_weather: true,
+  proven_post: true,
+  special_offer: true,
+  manual_idea: true,
+  real_shop_photo: false,
+  faq_service_education: true,
+};
+
+/** lucide-react icon names for the source pickers. Presentation-only. */
+export const INSTAGRAM_SOURCE_ICONS: Record<InstagramSourceType, string> = {
+  review: "Star",
+  declined_work: "AlertTriangle",
+  customer_question: "MessageSquare",
+  season_weather: "Cloud",
+  proven_post: "TrendingUp",
+  special_offer: "Tag",
+  manual_idea: "Lightbulb",
+  real_shop_photo: "Camera",
+  faq_service_education: "HelpCircle",
+};

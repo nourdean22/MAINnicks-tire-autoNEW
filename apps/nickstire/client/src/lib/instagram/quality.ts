@@ -1,28 +1,53 @@
+import {
+  INSTAGRAM_SOURCE_ICONS,
+  INSTAGRAM_SOURCE_LABELS,
+  INSTAGRAM_SOURCE_REQUIRES_DETAIL,
+  INSTAGRAM_SOURCE_TYPES,
+  type InstagramSourceType,
+} from "@shared/instagramStudio";
+
 export type ContentQualityGate = "pass" | "warn" | "block";
 
-export type SourceType = 
-  | "review"
-  | "declined_work"
-  | "customer_question"
-  | "season_weather"
-  | "proven_post"
-  | "special_offer"
-  | "manual_idea"
-  | "real_shop_photo"
-  | "faq_service_education";
+/**
+ * The source taxonomy is DERIVED, not redeclared.
+ *
+ * This file used to declare its own nine-member union plus its own label table,
+ * and `server/services/ig/quality.ts` held a third copy. The unions were
+ * structurally identical, so TypeScript accepted all three and nothing could
+ * detect drift — which had already happened in the labels: the same source read
+ * "Verified Review" in Studio V2 and "5-Star Review" here, "Proven Post Sequel"
+ * there and "Proven Post (Sequel)" here, "FAQ / Service Education" there and the
+ * truncated "FAQ / Service Ed" here. One source, three names, depending on which
+ * screen the operator happened to be on.
+ *
+ * `shared/instagramStudio.ts` is canonical because it is the layer both the
+ * client and the server already import. The alias below is kept so the ~10 local
+ * `SourceType` references stay unchanged.
+ */
+export type SourceType = InstagramSourceType;
 
-export const ContentSourceRegistry: Record<SourceType, { label: string; requiresDetail: boolean; icon: string }> = {
-  review: { label: "5-Star Review", requiresDetail: true, icon: "Star" },
-  declined_work: { label: "Declined Work", requiresDetail: true, icon: "AlertTriangle" },
-  customer_question: { label: "Customer Question", requiresDetail: true, icon: "MessageSquare" },
-  season_weather: { label: "Season / Weather", requiresDetail: true, icon: "Cloud" },
-  proven_post: { label: "Proven Post (Sequel)", requiresDetail: true, icon: "TrendingUp" },
-  special_offer: { label: "Special / Offer", requiresDetail: true, icon: "Tag" },
-  manual_idea: { label: "Manual Idea", requiresDetail: true, icon: "Lightbulb" },
-  real_shop_photo: { label: "Real Shop Photo", requiresDetail: false, icon: "Camera" },
-  faq_service_education: { label: "FAQ / Service Ed", requiresDetail: true, icon: "HelpCircle" },
-};
+export const ContentSourceRegistry: Record<SourceType, { label: string; requiresDetail: boolean; icon: string }> =
+  Object.fromEntries(
+    INSTAGRAM_SOURCE_TYPES.map((type) => [
+      type,
+      {
+        label: INSTAGRAM_SOURCE_LABELS[type],
+        requiresDetail: INSTAGRAM_SOURCE_REQUIRES_DETAIL[type],
+        icon: INSTAGRAM_SOURCE_ICONS[type],
+      },
+    ]),
+  ) as Record<SourceType, { label: string; requiresDetail: boolean; icon: string }>;
 
+/**
+ * DELIBERATELY NOT unified with the shared `INSTAGRAM_FORMATS`.
+ *
+ * That union's first member is `"post"`; this one's is `"single"`. They are
+ * different vocabularies, not a duplication — aliasing them would silently
+ * rename a value that flows into `enqueueReelJob` and the quality score. The
+ * only real duplication of this registry lived in the dead
+ * `server/services/ig/quality.ts`, which this change deletes, so there is now
+ * exactly one FormatRegistry and nothing left to drift against.
+ */
 export type PostFormat = "single" | "carousel" | "reel" | "story" | "ad";
 
 export const FormatRegistry: Record<PostFormat, { label: string; bestFor: string[] }> = {
