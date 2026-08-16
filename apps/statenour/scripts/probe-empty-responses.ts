@@ -111,12 +111,21 @@ async function main() {
     console.log(
       `of the empty ones: ${burnedBudget} burned >=90% of the token budget · ${withReasoning} exposed reasoning_content`,
     );
-    console.log(
-      "verdict:",
-      burnedBudget > 0
-        ? `MECHANISM A — thinking consumed the budget (raise max_tokens; ${burnedBudget}/${empty.length} generated a full budget and delivered nothing)`
-        : "MECHANISM B — upstream returned nothing (retry + failover; budget is not the constraint)",
-    );
+    // Report BOTH classifications (review, 2026-08-16). A single verdict keyed
+    // on `burnedBudget > 0` labelled an entire run mechanism A even when most
+    // empties were mechanism B — and the two need DIFFERENT fixes (raise the
+    // budget vs retry/failover). One row of the wrong kind would have sent the
+    // reader after the wrong repair.
+    const upstream = empty.length - burnedBudget;
+    console.log(`  MECHANISM A (budget exhausted, raise max_tokens): ${burnedBudget}`);
+    console.log(`  MECHANISM B (upstream returned nothing, retry + failover): ${upstream}`);
+    if (burnedBudget > 0 && upstream > 0) {
+      console.log("verdict: MIXED — both mechanisms present; each needs its own fix, do not treat as one cause");
+    } else if (burnedBudget > 0) {
+      console.log("verdict: MECHANISM A — every empty response burned its budget; raise max_tokens");
+    } else {
+      console.log("verdict: MECHANISM B — no empty response burned its budget; budget is not the constraint");
+    }
     const truncated = rows.filter((r) => r.finish === "length").length;
     if (truncated > 0) {
       console.log(

@@ -357,8 +357,16 @@ async function main(): Promise<void> {
 
   // Defaulting to "undated" produced OLLAMA-BAKEOFF-undated.md, which cannot
   // be tied to a run or compared against the dated ones beside it, and the
-  // next run silently overwrites it. Default to today.
-  const date = process.env.BAKEOFF_DATE || new Date().toISOString().slice(0, 10);
+  // next run silently overwrites it. Default to today — in CLEVELAND time.
+  //
+  // `toISOString()` is UTC (review, 2026-08-16): a run between 8pm and midnight
+  // Eastern during DST stamps TOMORROW's date, mislabelling the very artifacts
+  // this default exists to make traceable. Root AGENTS.md is explicit — every
+  // "today" calculation uses America/New_York semantics, never the server
+  // default. `en-CA` yields YYYY-MM-DD.
+  const date =
+    process.env.BAKEOFF_DATE ||
+    new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const lines: string[] = [
     `# Ollama Cloud bake-off · ${date}`,
     "",

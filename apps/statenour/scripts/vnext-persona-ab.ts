@@ -156,7 +156,17 @@ async function main() {
 
   // Void cells (empty after retry) are EXCLUDED, not scored. Averaging a
   // provider failure into an arm mean is what invalidated run 1.
-  const live = (side: "a" | "b") => rows.filter((r) => !(r[side] as { void?: boolean }).void);
+  //
+  // PAIRED exclusion (review, 2026-08-16): filtering each arm INDEPENDENTLY was
+  // wrong. If A voids on a hard case and B does not, A's mean is then computed
+  // over an easier subset than B's — the two arms no longer cover the same case
+  // set, which biases the lead and can flip the graduation verdict. This is an
+  // A/B; the unit of comparison is the PAIR. Drop the whole row when either
+  // side is void.
+  const paired = rows.filter(
+    (r) => !(r.a as { void?: boolean }).void && !(r.b as { void?: boolean }).void,
+  );
+  const live = (_side: "a" | "b") => paired;
   const mean = (side: "a" | "b") => {
     const l = live(side);
     return l.reduce((s, r) => s + (r[side] as { points: number }).points, 0) / (l.length || 1);
@@ -186,7 +196,7 @@ async function main() {
     }),
     ``,
     `**Mean insight points (void cells excluded):** A=${meanA.toFixed(2)} (n=${live("a").length}) · B=${meanB.toFixed(2)} (n=${live("b").length}) · lead(B−A)=${lead.toFixed(2)}`,
-    `**Void cells (empty after retry):** ${voids} of ${rows.length} — these are provider failures, not persona results`,
+    `**Rows dropped (either arm void):** ${rows.length - paired.length} of ${rows.length} — excluded as PAIRS so both arms cover the same cases; provider failures, not persona results`,
     `**Challenge-marker rate:** A=${rate("a", "challenges").toFixed(2)} · B=${rate("b", "challenges").toFixed(2)}`,
     `**Sycophantic-opener rate:** A=${rate("a", "sycophantic").toFixed(2)} · B=${rate("b", "sycophantic").toFixed(2)}`,
     ``,
