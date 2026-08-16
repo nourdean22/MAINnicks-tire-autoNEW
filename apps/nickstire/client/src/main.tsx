@@ -37,10 +37,18 @@ const queryClient = new QueryClient({
        * "still working". A per-attempt bound is not a bound on the SPINNER unless
        * the attempt count is bounded too.
        *
-       * One retry keeps the genuine benefit (a single transient blip recovers
-       * silently) while capping the visible worst case at roughly 2 x 120s + 1s.
+       * 1 retry was the first attempt at bounding it, but the ceiling then had to
+       * rise to 300s to clear the server's own budgets (see REQUEST_CEILING_MS),
+       * which put the worst case back near 600s — worse than the problem.
+       *
+       * 0 is the honest answer now that a failed read renders an explicit
+       * "unavailable" state with a Retry control (client/src/lib/queryState.ts)
+       * rather than an indefinite spinner. Polling queries still recover on their
+       * own interval and every query still refetches on window focus, so the
+       * operator gets an actionable error within ONE ceiling instead of a silent
+       * wait of several.
        */
-      retry: 1,
+      retry: 0,
     },
   },
 });
@@ -83,12 +91,22 @@ queryClient.getMutationCache().subscribe(event => {
  * to EVERY query in the admin. A stalled connection was indistinguishable from
  * work in progress, with no bound.
  *
- * 120s is deliberately a BACKSTOP, not an SLA. It has to clear the slowest
- * legitimate call — the LLM-backed generate/brief mutations run tens of seconds
- * — while still guaranteeing that "forever" is not a state the UI can reach.
- * Tighten per-procedure if a real SLA is ever wanted; do not tighten here.
+ * THE CEILING MUST EXCEED THE SERVER'S OWN BUDGET, and the first value (120s)
+ * did not. `generateReelBrief` makes TWO sequential invokeLLM calls each
+ * configured timeoutMs 120000 — a 240s server budget before any provider
+ * failover — and `postInstagramReel` budgets ~15s of container creation plus
+ * 30 x 5s of status polling (~165s) before it even calls media_publish. At 120s
+ * this aborted work the server was still legitimately doing: the operator was
+ * told "failed" for a reel that WENT LIVE, and paid twice for a brief that was
+ * still generating. A ceiling below the server budget converts healthy slowness
+ * into false failure on non-idempotent, money-spending calls — strictly worse
+ * than the hang it replaced.
+ *
+ * 300s clears both measured budgets with headroom, and pairs with `retry: 0`
+ * above so the bound is 300s TOTAL rather than a multiple of it. Re-measure the
+ * longest legitimate server call before lowering either number.
  */
-const REQUEST_CEILING_MS = 120_000;
+const REQUEST_CEILING_MS = 300_000;
 
 /**
  * Bound a request without discarding tRPC's own cancellation signal.

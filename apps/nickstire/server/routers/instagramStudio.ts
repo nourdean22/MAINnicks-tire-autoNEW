@@ -22,11 +22,23 @@ import { captionClaimBlockers, publishToSocial } from "../services/socialPublish
 import { IG_CAPTION_MAX } from "./instagramAdmin";
 import type { AutonomyPolicy } from "../../client/src/lib/autonomyPolicy";
 
+/** Resolved evidence facts, accepted so they survive the client round trip.
+ *  Without this the parent z.object silently strips them and every re-score
+ *  re-grades a grounded draft as ungrounded. */
+const evidenceFactSchema = z.object({
+  key: z.string().max(64),
+  label: z.string().max(120),
+  value: z.string().max(1200),
+  role: z.enum(["quote", "anchor", "temporal", "magnitude", "context"]),
+  basis: z.enum(["recorded", "inferred", "operator"]),
+});
+
 const sourceSchema = z.object({
   type: z.enum(INSTAGRAM_SOURCE_TYPES),
   recordId: z.string().trim().max(80).optional(),
   detail: z.string().trim().max(2000).optional(),
   evidenceStatus: z.enum(["verified", "operator_context", "unverified"]).optional(),
+  facts: z.array(evidenceFactSchema).max(20).optional(),
 });
 
 const qualityDimensionSchema = z.object({

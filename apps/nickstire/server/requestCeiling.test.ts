@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const REQUEST_CEILING_MS = 120_000;
+const REQUEST_CEILING_MS = 300_000; // must match client/src/main.tsx — pinned below
 
 function boundedSignal(existing: AbortSignal | null | undefined): AbortSignal {
   const controller = new AbortController();
@@ -144,13 +144,16 @@ describe("the copy under test has not drifted from the real source", () => {
     const main = readFileSync(resolve(process.cwd(), "client/src/main.tsx"), "utf8");
     const fn = main.slice(main.indexOf("function boundedSignal"), main.indexOf("const UNBATCHED"));
     expect(fn, "boundedSignal not found — re-anchor this test").toContain("new AbortController()");
-    expect(main).toContain("const REQUEST_CEILING_MS = 120_000;");
+    // 300s, not 120s: the ceiling must exceed the server's own budget
+    // (generateReelBrief 240s, postInstagramReel ~165s) or it converts healthy
+    // slowness into false failure on non-idempotent, money-spending calls.
+    expect(main).toContain("const REQUEST_CEILING_MS = 300_000;");
     // Same two propagation branches this file exercises.
     expect(fn).toContain("existing.aborted");
     expect(fn).toContain('existing.addEventListener("abort"');
     // And the timer must NOT be cleared on settle — the body-stall regression.
     expect(main).not.toContain(".finally(done)");
     // Retries must stay bounded, or a per-attempt ceiling is not a bound.
-    expect(main).toContain("retry: 1");
+    expect(main).toContain("retry: 0,");
   });
 });

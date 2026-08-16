@@ -94,6 +94,27 @@ export interface InstagramSourceInput {
   recordId?: string;
   detail?: string;
   evidenceStatus?: InstagramEvidenceStatus;
+  /**
+   * The resolved record's structured facts, carried ON the draft so they SURVIVE
+   * the round trip.
+   *
+   * Generation resolved these and scored grounding from them, but the router's
+   * draftSchema is a plain z.object — which STRIPS unknown keys — so the client
+   * handed the draft back for evaluate/render/stage and the facts were gone. Every
+   * re-score after generation therefore graded a fully-grounded draft as "no
+   * concrete evidence", and the mandatory next button (Render) is a re-score. The
+   * feature was destroyed by the very next click.
+   *
+   * Typed loosely as the shared fact shape rather than importing the assessor here
+   * so `shared/instagramStudio.ts` stays dependency-free.
+   */
+  facts?: Array<{
+    key: string;
+    label: string;
+    value: string;
+    role: "quote" | "anchor" | "temporal" | "magnitude" | "context";
+    basis: "recorded" | "inferred" | "operator";
+  }>;
 }
 
 export interface InstagramCarouselSlide {

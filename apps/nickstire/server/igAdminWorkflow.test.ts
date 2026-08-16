@@ -177,8 +177,10 @@ describe("Insights states what it read", () => {
 
   it("refresh reports what actually failed and covers all six reads", () => {
     expect(learn).toContain("Promise.allSettled");
-    expect(learn).toContain("swipeFile.refetch()");
-    expect(learn).toContain("dubCandidates.refetch()");
+    // `throwOnError: true` is required — refetch() does not reject by default, so
+    // allSettled saw six fulfilled promises and both error branches were dead.
+    expect(learn).toContain("swipeFile.refetch({ throwOnError: true })");
+    expect(learn).toContain("dubCandidates.refetch({ throwOnError: true })");
     expect(learn).toMatch(/Refresh failed — nothing was updated/);
   });
 });

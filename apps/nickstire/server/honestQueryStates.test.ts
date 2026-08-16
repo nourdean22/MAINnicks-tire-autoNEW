@@ -83,8 +83,11 @@ describe("the transport can no longer hang forever", () => {
 
   it("bounds the retry count, because a per-attempt ceiling is not a bound", () => {
     // query-core defaults to 3 retries and its `failed` transition leaves
-    // fetchStatus === "fetching", so the spinner survived 4 x 120s + backoff.
-    expect(main).toContain("retry: 1");
+    // fetchStatus === "fetching", so the spinner survived 4 x ceiling + backoff.
+    // Now 0, not 1: the ceiling had to rise to 300s to clear the server's own
+    // budgets, which put 1 retry back near 600s. A failed read renders an
+    // explicit unavailable state with a Retry control instead.
+    expect(main).toContain("retry: 0,");
   });
 
   it("does NOT call AbortSignal.timeout — it would throw where that API is absent", () => {
@@ -139,7 +142,10 @@ describe("Community states what it actually read", () => {
 
   it("the feed distinguishes unavailable from verified empty", () => {
     expect(inbox).toContain('feedStatus.state === "unavailable"');
-    expect(inbox).toContain("the cache was read and is empty");
+    // Copy corrected in self-audit: loadCache() returns null both when the file
+    // is ABSENT and when reading it THROWS, so "the cache was read" overclaimed.
+    // The client can only report what it received.
+    expect(inbox).toContain("The feed cache returned no posts.");
   });
 
   it("the cluster panel has an unavailable branch at all — it previously had none", () => {

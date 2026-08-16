@@ -82,9 +82,24 @@ export const QUOTE_MIN_CHARS = 60;
  */
 export const OPERATOR_SUBSTANCE_MIN_CHARS = 40;
 
-/** A digit, or a multi-word phrase containing a capitalized non-leading word. */
+/**
+ * Does this prose name something specific?
+ *
+ * The first version was a digit OR a non-leading capitalised word, which
+ * rejected most of this shop's actual vocabulary: measured against ten realistic
+ * operator briefs it called six legitimate ones insufficient, because
+ * "customer came in with a bad TPMS sensor" has no digit and no
+ * capital-then-lowercase token — TPMS is all caps. Forcing those briefs to
+ * "produce only general education" is the opposite of the intent.
+ *
+ * Now: a digit, OR a word-boundary ALL-CAPS acronym of 3+ letters (TPMS, ABS,
+ * TPS, DVI, VIN, AWD, ECHECK) — three not two, so "OK" and "IT" cannot make
+ * filler read as specific —
+ * OR a capitalised word that is not merely the first character of the sentence.
+ */
 function hasConcreteToken(text: string): boolean {
   if (/\d/.test(text)) return true;
+  if (/\b[A-Z]{3,}\b/.test(text)) return true;
   return /\s[A-Z][a-z]{2,}/.test(text);
 }
 
@@ -96,9 +111,16 @@ const GROUNDING_SCORE: Record<EvidenceSufficiency, number> = {
   // operator-authored brief does not permanently warn, while still landing
   // BELOW the 8 that typing a single character used to earn.
   thin: 7,
-  // Nothing concrete. Below the threshold, so this raises a warning and the
-  // draft cannot reach `pass` — the existing mechanism, now fed a true input.
-  insufficient: 3,
+  // Nothing concrete. MUST land in the WARN band, not below it.
+  //
+  // This was 3, which was a real regression: scoreStatus treats < 5 as "block",
+  // and the evaluator's warning loop collects only dimensions whose status is
+  // exactly "warn". A score of 3 therefore produced NEITHER a blocker NOR a
+  // warning, so a completely ungrounded draft could reach gate "pass" — where the
+  // old rule's 6 held it at "warn". Aiming for severity made the gate weaker.
+  // 5 is the floor of the warn band: strictly below the 8 that typing one
+  // character used to earn, and still loud.
+  insufficient: 5,
 };
 
 function has(facts: EvidenceFact[], role: EvidenceFactRole): boolean {

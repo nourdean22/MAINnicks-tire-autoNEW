@@ -61,6 +61,12 @@ export interface ReelPromptOptions {
   avoidRecentStyles?: string[];
   proprietaryEvidence?: ProprietaryEvidence;
   resolvedEvidence?: string;
+  /** The resolved record as labelled facts, plus the deterministic
+   *  evidence-sufficiency directive. The reel lane previously received ONLY the
+   *  flattened prose above, so it never learned which facts were INFERRED rather
+   *  than recorded — and the reel lane is the one the operator complained about. */
+  resolvedFactLines?: string[];
+  evidenceDirective?: string;
 }
 
 const listOf = (record: Record<string, { label: string; essence: string }>) =>
@@ -76,6 +82,16 @@ export function buildFacelessReelSystemPrompt(opts: ReelPromptOptions = {}): str
     sections.push(`# GROUNDED SOURCE EVIDENCE
 This is the verified, database-grounded source evidence for this reel. You MUST base the core factual claims of the Reel and caption on this evidence. Do not extrapolate, make up national-average statistics, or fabricate customer scenarios:
 ${opts.resolvedEvidence}`);
+  }
+
+  if (opts.resolvedFactLines?.length || opts.evidenceDirective) {
+    const factBlock = opts.resolvedFactLines?.length
+      ? opts.resolvedFactLines.join("\n")
+      : "none — no stored record backs this reel.";
+    sections.push(`# RESOLVED FACTS
+These are the ONLY specifics you may state. Each is a real stored value; anything marked INFERRED must be qualified, never asserted as a customer's decision.
+${factBlock}
+${opts.evidenceDirective ?? ""}`.trim());
   }
 
   sections.push(`# ROLE
