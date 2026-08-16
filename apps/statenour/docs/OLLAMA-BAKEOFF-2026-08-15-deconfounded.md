@@ -1,4 +1,4 @@
-# Ollama Cloud bake-off · undated
+# Ollama Cloud bake-off · 2026-08-15 (de-confounded instrument)
 
 Deterministic probes on the existing flat subscription (no judge, no new spend).
 Reps per probe: 2 · weights: tool .3 / insight .25 / reasoning .2 / instruction .15 / json .1

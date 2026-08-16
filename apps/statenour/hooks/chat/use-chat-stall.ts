@@ -37,9 +37,37 @@ interface UseChatStallOptions {
    *  calls that rate-limited the whole pipeline. 30s gives normal
    *  slow operations breathing room without missing real stalls. */
   warningMs?: number;
-  /** Default: 90s. v11.1 had this at 22s which auto-killed image
+  /** Default: 180s. v11.1 had this at 22s which auto-killed image
    *  gens that took >22s and immediately retried, spawning the
-   *  duplicate-image storm. 90s only fires on truly dead streams. */
+   *  duplicate-image storm.
+   *
+   *  2026-08-15 · raised 90s -> 180s alongside the output-budget fix
+   *  (prepare-tools maxOutputTokens 2000 -> 6000 standard / 4500 -> 10000
+   *  deep). Those two numbers are coupled and were not coupled before:
+   *  this client abort is the ONLY deadline in the system — `maxDuration`
+   *  is inert on Railway and the server has no bound — and its clock
+   *  starts at SUBMIT, so all server pre-stream time is charged to it.
+   *
+   *  Measured on the live pin (scripts/probe-empty-responses.ts, 12 calls):
+   *  13.2 ms/token mean, 16.1 worst. Projected wall time at the new caps:
+   *
+   *      2000 tok (old)   26s mean /  32s worst   safe under 90s
+   *      3300 tok (typical complete answer)
+   *                       44s mean /  53s worst   safe under 90s
+   *      6000 tok (new standard)
+   *                       79s mean /  97s worst   EXCEEDS 90s
+   *     10000 tok (new deep)
+   *                      132s mean / 161s worst   FAR EXCEEDS 90s
+   *
+   *  ...and those are bare-prompt numbers: no ~40k-char system prompt, no
+   *  tool round-trips. Left at 90s, raising the token ceiling would have
+   *  traded truncated answers for aborted ones — the same complaint with a
+   *  different cause.
+   *
+   *  180s covers standard comfortably and deep in the mean; the extreme
+   *  deep tail (a turn that actually consumes all 10000 tokens) can still
+   *  reach it. The 30s warning is unchanged, so a slow turn is visible long
+   *  before it is killed, and the stall banner carries a Retry action. */
   abortMs?: number;
 }
 
@@ -50,7 +78,7 @@ export interface UseChatStallResult {
 }
 
 export function useChatStall(opts: UseChatStallOptions): UseChatStallResult {
-  const { messages, isStreaming, stop, setError, warningMs = 30_000, abortMs = 90_000 } = opts;
+  const { messages, isStreaming, stop, setError, warningMs = 30_000, abortMs = 180_000 } = opts;
 
   const stallHandlerRef = useRef<() => void>(() => {});
 

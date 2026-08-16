@@ -2,7 +2,84 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-12 (MISSION-scan gate → BDN close-out + retrofit-pass gate, 7 ships #1535-#1542; top entry; prior: Commitments cleanup + Pulse ticker staleness; prior: VNext arc waves 1-9 (#1513-#1523); detail in the top entry)
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-16 (chat-quality arc: truncation root-caused + fixed, 4 PRs #1589-#1591; prior: MISSION-scan gate → BDN close-out, 7 ships #1535-#1542); detail in the top entry
+
+> ## 2026-08-16 (fourteenth wave) · chat-quality arc — six hypotheses, five refuted, one cause · 4 ships (#1589-#1591 + prerender)
+>
+> Operator: *"half the tools won't work half the time, messages get cut short"* and
+> *"it's not intelligent enough... just telling me what I already know."* Root cause
+> was **not** the model, the persona, the context size, or the tool count. It was
+> `maxOutputTokens = 2000` truncating a THINKING model that needs 3,000-3,600 tokens
+> to finish an answer. Measured, not inferred.
+>
+> **#1589 · the permission picker was fake, and chat dead-ended on one provider.**
+> `draft` and `execute` were the SAME code path — `"execute"` appears nowhere in the
+> server as a permission value; only `=== "read"` branches. "Draft only — nothing
+> runs" was false: mutating tools stayed callable. Removed per operator decision.
+> Separately, prod showed `provider.all_failed tried=["ollama"] failureCount=1`
+> while FIVE provider keys sat configured and idle: `TASK_ROUTING_PREFERENCES`
+> (2026-07-12) keeps openrouter 2nd "so a cooldown never dead-ends a turn", and the
+> cost firewall (2026-08-11) filters the very list the failover loop iterates.
+> Added a last-resort rescue tail behind `NICK_FAILOVER_RESCUE=1` (operator enabled).
+>
+> **#1590 · the chat lane was truncating every substantive answer.**
+> `scripts/probe-empty-responses.ts` (new, read-only), 12 calls to `minimax-m3`:
+> the 8 that COMPLETED used 3013-3611 completion tokens; 4 hit
+> `finish_reason="length"`, one returning a 500-char fragment and one returning
+> **content=0 with completion_tokens=4000** — a full budget generated, none
+> delivered. Production allowed 2000. Fixed → 6000 standard / 10000 deep. This also
+> re-reads the `provider.garbage chars=0` warnings: **budget exhaustion, not
+> upstream failure.** Same PR: web search stopped paying 30s to a dead primary
+> (`searxng-perplexica` = ZERO healthy responses, 116 CAPTCHA; `perplexica` = ZERO
+> completed searches) — cap → 6s + a 3-miss/10-min breaker.
+>
+> **#1591 · that fix would have traded truncation for timeouts.**
+> `use-chat-stall.ts abortMs = 90_000` is the ONLY deadline in the system
+> (`maxDuration` is inert on Railway) and its clock starts at SUBMIT. Measured 13.2
+> ms/token mean: 6000 tokens = 79s mean / 97s worst, 10000 = 132s / 161s — both past
+> 90s, before the ~40k system prompt and tool round-trips. Raised to 180s. Same PR
+> carries a self-audit of #1590's own artifacts (a probe printing a verdict its own
+> data refuted; reports written as `-undated`; VOID indistinguishable from 0).
+>
+> **Measurement fixes — the earlier answers were wrong because the instruments were.**
+> The bake-off's instruction probe asked for `"Reply with exactly the word OK"` at
+> `max_tokens: 20`; every candidate is a thinking model, so **9 of 12 scored
+> instruction 0** and that artifact carried weight .2 in the ranking that chose the
+> pin. Traces stripped, budgets raised — `glm-5.2` went 0 → PASS. An **insight axis**
+> was added (operator-requested), then rewritten when v1 turned out to measure
+> answer LENGTH; v2 scores densities per 100 words plus a reframing signal, verified
+> on length-matched samples. `scoreInsight` extracted to `scripts/_lib/` so the
+> bake-off and persona A/B share ONE definition.
+>
+> **Verdicts.** `minimax-m3` stays pinned — with the de-confounded instrument it is
+> the ONLY model in the catalog that reframes. `deepseek-v4-pro` is **DEAD** (retired
+> upstream mid-session); `kimi-k3` is **HTTP 402**, outside the flat plan.
+> Persona A/B abandoned per its frozen pre-registration (A=3.50 / B=3.08, lead −0.42,
+> inside ±0.75 on both runs) — and its clean rerun independently corroborated the
+> truncation fix: **0 void cells vs 4 of 16**, both arms ~1.3 points higher.
+>
+> **Refuted — do NOT re-propose:** wrong model pinned · tool overload (pruner caps at
+> 24) · prompt/context bloat (`PROMPT-AB-2026-08-12`+`12b`: incumbent 4 / compact 3,
+> below the pre-registered ≥3 lead → abandoned as noise) · stale pin · persona stance.
+>
+> **Flagged · NOT fixed**
+> - **The 90s→180s raise does not cover the extreme deep tail** — a turn genuinely
+>   consuming all 10,000 tokens can still reach 180s. Stated in the doc comment.
+> - **`perplexica` returns `400 invalid_request_error` on every search.**
+>   `PERPLEXICA_CHAT_MODEL=gpt-oss:120b` is NOT the cause (that id is alive — proved
+>   in the same-day bake-off). Suspect a message-SHAPE mismatch: an identical
+>   `400 invalid message content type: map[string]interface {}` was reproduced by
+>   passing the wrong argument shape to the OpenAI-compat endpoint. Web search
+>   currently runs on Tavily alone.
+> - **`searxng-perplexica` is CAPTCHA-blocked across every engine** (duckduckgo,
+>   wikipedia, startpage, brave, google cse). Environmental; the breaker limits the
+>   cost while it lasts.
+> - **Three Railway services produce zero log output** — `ingenious-fascination`,
+>   `zooming-magic`, `function-bun`. NOT touched: silence is not evidence of
+>   deadness. (`comfortable-growth` WAS deleted 2026-08-16, operator-instructed:
+>   300 log lines, 300 failures, zero successes.)
+> - **Nothing watches for a pinned model being retired upstream.** `deepseek-v4-pro`
+>   vanished mid-session; had it still been pinned, chat would simply be dead.
 
 > ## 2026-08-12 (thirteenth wave, out-of-arc) · MISSION-scan gate → full BDN close-out + two more plans gated · 7 ships (#1535-#1540, #1542)
 >
@@ -213,7 +290,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-12 (MISSION-scan gate → BDN close-out + retrofit-pass gate, 7 ships #1535-#1542; top entry. Prior stamp: 2026-08-10 agent-bridge observability + risk truth)
+**Last verified:** 2026-08-16 (chat-quality arc: truncation root-caused + fixed, 4 PRs #1589-#1591; prior: MISSION-scan gate → BDN close-out, 7 ships #1535-#1542); top entry.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

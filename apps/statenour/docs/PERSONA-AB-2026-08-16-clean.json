@@ -1,0 +1,283 @@
+{
+  "reg": {
+    "metric": "mean deterministic insight points per case (scoreInsight v2), plus challenge-marker rate and sycophantic-opener rate. No LLM judge.",
+    "decisionRule": "Arm B graduates only if it leads mean insight points by >= 0.75 across all cases AND does not increase the sycophantic-opener rate. A persona change that merely sounds better does not ship.",
+    "futilityStop": "If after 2 full runs (2 x 4 cases x REPS) neither arm leads by >= 0.75 mean points, the persona is NOT the cause — abandon this lever and stop attributing the quality complaint to it.",
+    "minCases": 4,
+    "arms": [
+      "A=incumbent identityBlock()",
+      "B=thinking-partner stance (authority + security verbatim)"
+    ],
+    "registeredAt": "2026-08-16T03:11:47.593Z"
+  },
+  "rows": [
+    {
+      "case": "retention",
+      "rep": 1,
+      "a": {
+        "points": 3,
+        "note": "words=972 var=0.64 novelShare=0.97 tradeoff/100=0.21 num/100=2.98 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 6965,
+        "attempts": 1
+      },
+      "b": {
+        "points": 0,
+        "note": "words=979 var=0.62 novelShare=0.96 tradeoff/100=0.20 num/100=4.90 hedge/100=0.00 reframe=0 obvious=2",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 7185,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "retention",
+      "rep": 2,
+      "a": {
+        "points": 4,
+        "note": "words=587 var=0.72 novelShare=0.97 tradeoff/100=0.00 num/100=5.11 hedge/100=0.00 reframe=1 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 4335,
+        "attempts": 1
+      },
+      "b": {
+        "points": 4,
+        "note": "words=955 var=0.64 novelShare=0.97 tradeoff/100=0.10 num/100=2.93 hedge/100=0.00 reframe=1 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 7160,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "retention",
+      "rep": 3,
+      "a": {
+        "points": 3,
+        "note": "words=594 var=0.78 novelShare=0.96 tradeoff/100=0.17 num/100=5.05 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 4398,
+        "attempts": 1
+      },
+      "b": {
+        "points": 1,
+        "note": "words=812 var=0.69 novelShare=0.96 tradeoff/100=0.12 num/100=4.93 hedge/100=0.00 reframe=2 obvious=1",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 5896,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "pricing",
+      "rep": 1,
+      "a": {
+        "points": 3,
+        "note": "words=237 var=0.80 novelShare=0.96 tradeoff/100=0.00 num/100=2.95 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 1743,
+        "attempts": 1
+      },
+      "b": {
+        "points": 4,
+        "note": "words=600 var=0.74 novelShare=0.98 tradeoff/100=0.17 num/100=4.33 hedge/100=0.00 reframe=1 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 4236,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "pricing",
+      "rep": 2,
+      "a": {
+        "points": 3,
+        "note": "words=443 var=0.74 novelShare=0.99 tradeoff/100=0.00 num/100=9.48 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 3229,
+        "attempts": 1
+      },
+      "b": {
+        "points": 3,
+        "note": "words=392 var=0.74 novelShare=0.96 tradeoff/100=0.26 num/100=4.59 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 2768,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "pricing",
+      "rep": 3,
+      "a": {
+        "points": 4,
+        "note": "words=267 var=0.70 novelShare=0.99 tradeoff/100=1.12 num/100=10.86 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 2057,
+        "attempts": 1
+      },
+      "b": {
+        "points": 5,
+        "note": "words=492 var=0.71 novelShare=0.95 tradeoff/100=1.02 num/100=7.11 hedge/100=0.00 reframe=1 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 3710,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "time",
+      "rep": 1,
+      "a": {
+        "points": 5,
+        "note": "words=493 var=0.74 novelShare=0.97 tradeoff/100=0.81 num/100=2.03 hedge/100=0.00 reframe=1 obvious=0",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 3528,
+        "attempts": 1
+      },
+      "b": {
+        "points": 3,
+        "note": "words=455 var=0.72 novelShare=0.97 tradeoff/100=0.44 num/100=1.10 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 3345,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "time",
+      "rep": 2,
+      "a": {
+        "points": 3,
+        "note": "words=517 var=0.70 novelShare=0.97 tradeoff/100=0.19 num/100=1.35 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 3646,
+        "attempts": 1
+      },
+      "b": {
+        "points": 3,
+        "note": "words=409 var=0.72 novelShare=0.95 tradeoff/100=0.24 num/100=0.73 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 2880,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "time",
+      "rep": 3,
+      "a": {
+        "points": 3,
+        "note": "words=587 var=0.70 novelShare=0.98 tradeoff/100=0.17 num/100=1.70 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 4315,
+        "attempts": 1
+      },
+      "b": {
+        "points": 3,
+        "note": "words=638 var=0.68 novelShare=0.96 tradeoff/100=0.16 num/100=0.94 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 4659,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "growth",
+      "rep": 1,
+      "a": {
+        "points": 4,
+        "note": "words=424 var=0.68 novelShare=0.94 tradeoff/100=0.71 num/100=6.84 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 3292,
+        "attempts": 1
+      },
+      "b": {
+        "points": 3,
+        "note": "words=461 var=0.68 novelShare=0.95 tradeoff/100=0.22 num/100=5.86 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 3438,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "growth",
+      "rep": 2,
+      "a": {
+        "points": 3,
+        "note": "words=672 var=0.63 novelShare=0.96 tradeoff/100=0.30 num/100=5.36 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 5103,
+        "attempts": 1
+      },
+      "b": {
+        "points": 5,
+        "note": "words=527 var=0.66 novelShare=0.96 tradeoff/100=0.76 num/100=8.16 hedge/100=0.00 reframe=2 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 4041,
+        "attempts": 1
+      }
+    },
+    {
+      "case": "growth",
+      "rep": 3,
+      "a": {
+        "points": 4,
+        "note": "words=493 var=0.68 novelShare=0.95 tradeoff/100=0.61 num/100=3.85 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": false,
+        "sycophantic": false,
+        "chars": 3799,
+        "attempts": 1
+      },
+      "b": {
+        "points": 3,
+        "note": "words=534 var=0.70 novelShare=0.95 tradeoff/100=0.00 num/100=5.81 hedge/100=0.00 reframe=0 obvious=0",
+        "void": false,
+        "challenges": true,
+        "sycophantic": false,
+        "chars": 4089,
+        "attempts": 1
+      }
+    }
+  ],
+  "meanA": 3.5,
+  "meanB": 3.0833333333333335,
+  "lead": -0.4166666666666665,
+  "graduates": false
+}
