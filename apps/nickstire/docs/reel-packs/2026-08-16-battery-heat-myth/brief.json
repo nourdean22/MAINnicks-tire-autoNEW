@@ -1,0 +1,230 @@
+{
+  "id": "pack-2026-08-16-battery-heat-myth",
+  "createdAt": "2026-08-16T00:00:00.000Z",
+  "updatedAt": "2026-08-16T00:00:00.000Z",
+  "status": "draft",
+  "mode": "PRODUCTION",
+  "isSample": false,
+
+  "topic": "Everyone blames winter for a dead battery. Summer already did the damage.",
+  "mechanicTruth": "Heat, not cold, is the primary driver of battery failure: elevated under-hood temperature accelerates the internal chemical reaction, corrodes the plates faster, and evaporates electrolyte fluid over the course of a hot season. The failure is usually only noticed on the first cold morning, when a weakened battery can no longer deliver enough cold-cranking amps — but the damage accumulated all summer, not that morning.",
+  "driverConfusion": "Drivers associate a dead battery with cold weather because that's when the no-start actually happens, so they check/replace batteries heading into winter and never think about a Cleveland summer as the risk window.",
+  "clevelandAngle": "Cleveland runs both halves of this myth for real: humid 80-90F summer stretches cook a battery under the hood, then the area's sharp autumn cold snap is exactly when the weakened battery finally fails to crank. REEL-SLATE-2026-07-31.md item #12 already carries the brand-voice-approved line 'Most batteries last three to five years. Cleveland winters are hard on them' — this pack extends that with the heat mechanism, it does not contradict it.",
+  "sourceNotes": [
+    {
+      "claim": "Batteries usually last three to five years.",
+      "status": "precedent-approved-copy",
+      "note": "Verbatim line already brand-voice-approved in docs/REEL-SLATE-2026-07-31.md item #12 (2026-07-31, approved by Nour per that doc's header). NOT re-verified against a live EvidenceRecord this run — treated as precedent, not fresh entailment."
+    },
+    {
+      "claim": "Heat accelerates internal battery corrosion and fluid evaporation, and is a leading cause of battery failure alongside cold cranking demand.",
+      "status": "UNKNOWN — not live-evaluated",
+      "note": "Standard automotive-education claim (category matches APPROVED_SOURCES entries like 'Car Care Council' in facelessReelStudio.ts) but this session has no path to businessFacts.ts (no DATABASE_URL access) or evidenceResolver.ts (no reel/social FactChannel exists yet — documented gap in nickstire-reel-operator SKILL.md). Flagged UNKNOWN, not asserted as verified. Script wording kept as a general mechanism statement, not a specific diagnosis of the viewer's car."
+    },
+    {
+      "claim": "\"Free check\" service offer",
+      "status": "BLOCKED — pending human clearance",
+      "note": "Wording matches SEED_FACTS factKey 'repair.pricing_policy' verbatim ('free check, written quote, you don't pay until you say yes'), but that fact's channels array is ['sms','voice','web'] only per apps/nickstire/server/services/businessFacts.ts:57-133 — there is no 'reel'/'social' FactChannel yet. Coincidental wording match is NOT the same as this fact being cleared for social/video use. Do not enqueue without an operator explicitly clearing 'free check' for reel copy."
+    }
+  ],
+
+  "factBucket": "myth_buster",
+  "campaignKeyword": "BATTERY",
+  "archetype": "myth_vs_reality",
+  "motionLens": "xray_cutaway",
+  "objectCharacter": "battery_heat_victim",
+  "usefulAbsurdity": "The battery is treated as a quiet heat-stroke victim nobody checks on all summer — the x-ray reveal shows it 'sweating' corrosion while everyone's attention is on the AC, not the engine bay.",
+
+  "concepts": [
+    {
+      "id": "c-battery-1",
+      "hook": "You've been told it's winter. Cameras don't lie — it's summer.",
+      "coreFact": "Heat, not cold, does most of the damage; cold just reveals it",
+      "factBucket": "myth_buster",
+      "driverEmotion": "wait, I had the season backwards",
+      "campaignKeyword": "BATTERY",
+      "archetype": "myth_vs_reality",
+      "motionLens": "xray_cutaway",
+      "objectCharacter": "battery_heat_victim",
+      "usefulAbsurdity": "X-ray reveal of a battery quietly corroding under a blazing engine bay while the driver blasts the AC and never looks under the hood",
+      "localAngle": "Cleveland's humid summer heat plus its sharp fall cold snap runs both halves of the myth for real",
+      "beatOutline": [
+        "Split-screen: snowy no-start vs sunny engine bay, text sets up the myth",
+        "Turn: x-ray reveal into the battery under summer heat",
+        "Mechanism: heat speeds corrosion, evaporates fluid, all season",
+        "Payoff: the cold-morning symptom, but the cause started in July",
+        "CTA + loop back to the split-screen open"
+      ],
+      "loopIdea": "Closing frame lands back on the same split-screen framing the opener uses, cold side now visibly weaker",
+      "captionAngle": "The season that gets blamed isn't the season that did it",
+      "saveShareReason": "Reframes a common seasonal assumption drivers have been repeating for years — save-before-fall value",
+      "nickFitReason": "Battery testing/replacement is a core shop service; the reel invites a check, not a sale",
+      "nonGenericReason": "X-ray heat-damage reveal beats a generic 'battery tips' listicle",
+      "rejectionRisk": "The myth-correction hook needs a strong first-frame visual or it reads as a lecture, not a reveal",
+      "scores": { "hook": 9, "truth": 9, "save": 9, "local": 8, "absurdity": 8, "fit": 10 }
+    },
+    {
+      "id": "c-battery-2",
+      "hook": "Meet the part that's been suffering all summer and nobody checked.",
+      "coreFact": "Battery degradation from heat is invisible and cumulative",
+      "factBucket": "myth_buster",
+      "driverEmotion": "quiet guilt / empathy for a part",
+      "campaignKeyword": "BATTERY",
+      "archetype": "part_as_character_drama",
+      "motionLens": "tilt_shift_miniature",
+      "objectCharacter": "battery_heat_victim",
+      "usefulAbsurdity": "A tiny diorama battery slowly wilting under a miniature sun all summer while a miniature driver runs errands obliviously",
+      "localAngle": "Cleveland summer heat waves as the diorama's sun",
+      "beatOutline": [
+        "Miniature battery under a bright diorama sun, wilting slightly",
+        "Driver's miniature car comes and goes, no one checks",
+        "Wilt deepens over a simulated summer montage",
+        "First cold diorama morning — it finally can't crank",
+        "CTA + loop back to the sunny open"
+      ],
+      "loopIdea": "Final frame returns to the same bright diorama sun the opener starts on",
+      "captionAngle": "Nobody checks on the part that's quietly cooking",
+      "saveShareReason": "Character empathy is shareable but less directly actionable than the myth-correction framing",
+      "nickFitReason": "Softer sell, still ties to battery service",
+      "nonGenericReason": "Diorama-victim framing is distinct from the x-ray approach",
+      "rejectionRisk": "Whimsical framing may undersell the 'check before fall' urgency vs concept A",
+      "scores": { "hook": 8, "truth": 8, "save": 7, "local": 6, "absurdity": 9, "fit": 8 }
+    }
+  ],
+  "winningConceptId": "c-battery-1",
+
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 2,
+      "visual": "Split screen: left half a snowy pre-dawn driveway, dead-battery dashboard icon glowing; right half the same car's engine bay in blazing summer sun, heat shimmer visible",
+      "motion": "Hard cut into the split frame, both halves static-held for readability",
+      "onScreenText": "You'll blame WINTER for this.",
+      "purpose": "Set the myth the reel is about to correct",
+      "audioCue": "Cold wind sfx (left) crossfades under a cicada/heat-drone sfx (right)",
+      "safeZoneNotes": "Text centered in the gutter between the two halves, clear of both edges"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 2,
+      "endSecond": 5,
+      "visual": "Push through the summer half into an x-ray cutaway of the battery casing, plates visible inside",
+      "motion": "Fast push-in through the engine-bay heat shimmer into the translucent x-ray layer",
+      "onScreenText": "Summer already did the damage.",
+      "purpose": "The turn — reveal where the real cause lives",
+      "audioCue": "Whoosh into a low schematic drone",
+      "safeZoneNotes": "Title upper third, x-ray glow kept out of bottom safe zone (caption/UI area)"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 5,
+      "endSecond": 14,
+      "visual": "Inside the x-ray cutaway: visible corrosion creeping across the plates, fluid level line slowly dropping, heat-glow pulsing around the casing",
+      "motion": "Slow continuous reveal, corrosion crawl and fluid drop animated in real time across the beat",
+      "onScreenText": "Heat corrodes the plates. All summer.",
+      "purpose": "Teach the mechanism — this is the mechanic-truth payload",
+      "audioCue": "Low mechanical hum, occasional corrosion 'tick' sfx",
+      "safeZoneNotes": "Keep corrosion detail in upper two-thirds; lower third reserved for caption burn-in"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 14,
+      "endSecond": 24,
+      "visual": "Cut back to the left (winter) half of the original split screen: dashboard slow-crank animation, headlights dimming at idle",
+      "motion": "Match-cut back to the winter framing from beat 1, now with visible strain (dimming, slow crank)",
+      "onScreenText": "The warning shows up on the FIRST COLD MORNING.",
+      "purpose": "Payoff — connect the symptom the driver actually notices back to the cause just taught",
+      "audioCue": "Slow, straining starter-motor sfx",
+      "safeZoneNotes": "Dashboard icon kept centered, away from bottom caption band"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 24,
+      "endSecond": 30,
+      "visual": "Pull back to the full split-screen framing from the opener, both halves now visibly connected by a single glowing thread running between them",
+      "motion": "Slow pull-back to loop-match the opening frame",
+      "onScreenText": "3-5 yr lifespan. Check it before the cold snap.",
+      "purpose": "CTA + loop",
+      "audioCue": "Music swells and resolves on the loop point",
+      "safeZoneNotes": "CTA text in lower third above IG UI safe zone; shop info NOT burned in-frame (goes in caption/bio per posting spec)"
+    }
+  ],
+
+  "promptPack": [
+    {
+      "beatNumber": 1,
+      "prompt": "Split-screen composition, left half: snowy pre-dawn suburban driveway, sedan with dashboard battery-warning glow visible through windshield, cold blue light. Right half: same sedan's open engine bay under blazing midday sun, visible heat shimmer above the battery. Technical x-ray cutaway visualization, translucent layered materials, cool schematic glow, clean dark field, precise engineering aesthetic. No people, no license plates, no readable badges.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "styleKit": "xray_cutaway / myth_vs_reality split",
+      "safeZoneGuidance": "Keep the vertical gutter between the two halves clear for the caption overlay; nothing critical in the bottom 20% (IG UI safe zone)",
+      "sceneStatus": "clean",
+      "sceneFindings": [],
+      "conditioningMode": "reference-frame-lock"
+    },
+    {
+      "beatNumber": 2,
+      "prompt": "Fast push-in through summer engine-bay heat shimmer into a translucent x-ray cutaway of a car battery casing, internal plates and electrolyte fluid visible in cool schematic glow. Technical x-ray cutaway visualization, translucent layered materials, cool schematic glow, clean dark field, precise engineering aesthetic.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "styleKit": "xray_cutaway",
+      "safeZoneGuidance": "Title band reserved in upper third; keep the glow contained above the bottom caption band",
+      "sceneStatus": "clean",
+      "sceneFindings": [],
+      "conditioningMode": "reference-frame-lock"
+    },
+    {
+      "beatNumber": 3,
+      "prompt": "Extreme detail x-ray cutaway of battery plates inside translucent casing: visible corrosion crawling across plate surfaces, electrolyte fluid line slowly receding, subtle heat-glow pulsing around the casing exterior. Technical x-ray cutaway visualization, translucent layered materials, cool schematic glow, clean dark field, precise engineering aesthetic, slow continuous real-time reveal.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "styleKit": "xray_cutaway",
+      "safeZoneGuidance": "Corrosion/fluid detail confined to upper two-thirds of frame; lower third clear for caption burn-in",
+      "sceneStatus": "clean",
+      "sceneFindings": [],
+      "conditioningMode": "reference-frame-lock"
+    },
+    {
+      "beatNumber": 4,
+      "prompt": "Match-cut to the winter half of the split-screen: pre-dawn driveway, sedan dashboard viewed through windshield, slow-crank animation implied by a dimming dashboard glow, cold blue exterior light. Photoreal but restrained, no film grain.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "styleKit": "xray_cutaway / myth_vs_reality split (return to reality half)",
+      "safeZoneGuidance": "Dashboard glow centered, clear of the bottom caption band",
+      "sceneStatus": "clean",
+      "sceneFindings": [],
+      "conditioningMode": "reference-frame-lock"
+    },
+    {
+      "beatNumber": 5,
+      "prompt": "Slow pull-back to the full split-screen frame from the opener (snowy driveway left, summer engine bay right), a single thin glowing schematic thread now visibly connecting the two halves. Technical x-ray cutaway visualization accents, cool schematic glow, clean dark field, precise engineering aesthetic, composition matches beat 1 for the loop cut.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "styleKit": "xray_cutaway / myth_vs_reality split (loop close)",
+      "safeZoneGuidance": "CTA text band in lower third, above IG UI safe zone; no shop contact info burned into frame",
+      "sceneStatus": "clean",
+      "sceneFindings": [],
+      "conditioningMode": "reference-frame-lock"
+    }
+  ],
+  "higgsfieldPromptPack": [],
+
+  "ffmpegAssemblyNotes": "1) Concatenate the 5 rendered beat clips in order (beatNumber 1-5) at their storyboard durations (2s, 3s, 9s, 10s, 6s = 30s total) with a hard cut at beat 1->2 and beat 3->4, a fast push-cut at beat 2->3, and a slow cross-dissolve (~0.3s) into the beat 5 pull-back for the loop feel. 2) Normalize all clips to 1080x1920 (9:16), 30fps, before concat. 3) Burn in onScreenText per beat using the caption timing in captions.srt (see below) — center-safe, outside the bottom ~20% IG UI zone per each beat's safeZoneNotes. 4) Mix voiceover (see script below) under a low, non-distracting schematic/tension music bed (no lyrics) ducked -8dB under VO. 5) Add a 3s hard-freeze on the final loop frame per the render-integrity contract's SAVE-freeze convention before the file terminates, so the loop reads cleanly on repeat. 6) Run the render-integrity checks before treating this as finished: container duration within 0.75s of 30s+3s freeze = 33s, video-stream duration matches, >=80% of expected 30fps frame count, >=3 distinct MD5s among 5 sampled frames (motion proof) — see reelAssembly.ts '#800/#801' gate this pack was written to satisfy.",
+
+  "voiceoverScript": "[0:00-0:02] You'll blame winter for this.\n[0:02-0:05] But summer already did the damage.\n[0:05-0:14] Heat speeds up the chemical reaction inside a battery. It corrodes the plates and evaporates the fluid — quietly, all summer, under a hot engine hood.\n[0:14-0:24] The first sign shows up on a cold morning — a slow crank, dim headlights at idle. But by then the battery had been weakening since July.\n[0:24-0:30] Batteries usually last three to five years. Cleveland heat shortens that. Free check before the first cold morning strands you.",
+
+  "captionHooks": [
+    "You'll blame winter. Summer already did the damage.",
+    "The season that gets blamed isn't the season that did it.",
+    "Your battery has been quietly cooking since July."
+  ],
+  "selectedCaption": "Everyone blames the first cold morning. The real damage happened all summer.\n\nHeat speeds up the chemical reaction inside a battery — it corrodes the plates and evaporates the fluid, quietly, all season, under a hot engine hood. The cold morning is just when it finally shows.\n\nMost batteries last three to five years, and Cleveland heat shortens that. If yours is close, come by for a free check before the first cold snap.\n\n17625 Euclid Ave, Cleveland OH · (216) 862-0005\n\n#carbattery #clevelandohio #cartips #euclidohio",
+  "hashtags": ["#carbattery", "#clevelandohio", "#cartips", "#euclidohio", "#carmaintenance"],
+
+  "avoidedForRepetition": "Deliberately did not reuse the PRESSURE (tire_pressure_balloonist), POTHOLE (pothole_gremlin / forensic_evidence_scan), or BRAKES (brake_pad_lifeguard / rotor_alarm_bell) keyword+lens+character combinations already used in apps/nickstire/client/src/lib/facelessReelStudioSamples.ts, nor the TREAD/penny_test_inspector or DOT-style date-code angles already used in the two prior full packs in this directory (2026-08-14-penny-test, 2026-08-14-tire-expiration, 2026-08-15-tread-fingerprint). BATTERY + battery_heat_victim + xray_cutaway + myth_vs_reality has zero prior usage found in either the sample file or the existing reel-packs directory (grep-verified this run). The real getRecentReelSignals() 21-day DB read was NOT performed — this is a paper substitute, not a live repetition-ledger clearance; an operator should run the live check before enqueue.",
+
+  "visualWorld": null,
+
+  "qualityScore": 65,
+  "assetPlan": "5 beat clips (2s/3s/9s/10s/6s = 30s) + 3s loop-freeze = 33s container. Cover frame: beat 1's split-screen composition (snowy vs summer engine bay) — highest scroll-stop candidate among the 5 frames. File naming: 2026-08-16-battery-heat-myth_beat{1-5}.mp4, final assembled 2026-08-16-battery-heat-myth_final.mp4. No clips generated this run — asset plan only.",
+  "instagramUrl": null,
+  "operatorNotes": "Manual quality-score estimate is 65/75 (see README.md sec 5 for the full per-dimension breakdown) — below the real 70/75 auto-gate floor in facelessReelStudio.ts, driven mainly by the 'sourced fact' dimension (5/10, since the heat-corrosion mechanism wasn't run through a live evidenceResolver this session) and the concept not clearing the >=57/60 'winning concept' bonus band (c-battery-1 scored 53/60). To close the gap before a live enqueue: (1) have an operator confirm the heat-corrosion claim against a live EvidenceRecord or an approved source, (2) operator must explicitly clear 'free check' wording for reel/social use since businessFacts.ts has no reel channel yet, (3) consider punching up beat 1's hook visual for a stronger first-frame score. This pack is READY FOR HUMAN APPROVAL, not auto-enqueue-ready as scored.",
+  "plannedDate": "2026-08-16",
+  "notes": "Generated by a scheduled/automated Claude Code session per apps/nickstire's nickstire-reel-operator skill. No live DB read, no reel-canary call, no generation spend, no publish — pack-only per the skill's hard rule (a scheduled firing is never publish authorization)."
+}
