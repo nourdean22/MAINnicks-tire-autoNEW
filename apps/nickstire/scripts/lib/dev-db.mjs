@@ -44,7 +44,17 @@ const NICKSTIRE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 // documents as the SAFE way to exercise this code — so on main today, nobody
 // could run it. `grep -c "= mysqlTable(" drizzle/schema.ts` reports 143 on
 // origin/main as well, so this is drift on main, not something a branch added.
-export const EXPECTED_TABLE_COUNT = 143;
+// 2026-08-16: 143 -> 145. Looked, as instructed, and the two additions are real
+// and dated: `vapi_call_archives` (the VAPI Ossuary) and `admin_proposals` (the
+// admin trust-ladder, #1541/#1546), both landing 2026-08-12 in c91238a4c.
+// `grep -c "= mysqlTable(" drizzle/schema.ts` reports 145. Third time this pin
+// has gone stale and blocked the SAFE verification target while prod stayed one
+// env var away -- a guard that fails closed on the harmless direction pushes
+// people toward the dangerous one. Left as `!==` per the note above (that
+// decision is still right); what changed is the error text below, which named
+// ONLY the truncation cause and so misdirected the diagnosis when the count
+// came in HIGH -- which is precisely when a human is supposed to look.
+export const EXPECTED_TABLE_COUNT = 145;
 
 // The full column set drizzle expects for search_performance, but with the page
 // index as a PREFIX (page(768)) instead of the full varchar(1000) that blows
@@ -109,9 +119,14 @@ export async function startDevDb({ dbName = "nickstire", applySchema = true, qui
     );
     await verifyConn.end();
     if (n !== EXPECTED_TABLE_COUNT) {
-      throw new Error(
-        `schema applied ${n}/${EXPECTED_TABLE_COUNT} tables. If this dropped, the search_performance shim likely drifted from drizzle/schema.ts — reconcile SEARCH_PERFORMANCE_SHIM in scripts/lib/dev-db.mjs.`,
-      );
+      // Name BOTH directions: they have opposite causes and opposite fixes. The
+      // old text described only the LOW case, so when the count came in HIGH --
+      // the case the `!==` exists to surface to a human -- it sent the reader
+      // hunting the search_performance shim instead of the stale pin.
+      const hint = n < EXPECTED_TABLE_COUNT
+        ? 'FEWER than expected: drizzle-kit push is sequential, so the search_performance key-length trap truncates it silently. Reconcile SEARCH_PERFORMANCE_SHIM in scripts/lib/dev-db.mjs.'
+        : 'MORE than expected: this pin is stale, not the schema. Run: grep -c "= mysqlTable(" drizzle/schema.ts, confirm the new tables are real, then bump EXPECTED_TABLE_COUNT with a dated note.';
+      throw new Error(`schema applied ${n}/${EXPECTED_TABLE_COUNT} tables. ${hint}`);
     }
     log(`schema applied: ${n}/${EXPECTED_TABLE_COUNT} tables`);
   } catch (err) {

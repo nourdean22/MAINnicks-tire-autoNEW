@@ -129,7 +129,14 @@ async function main(): Promise<void> {
   console.log("publisher — the image lane's equivalent flip was 2026-08-07.");
 }
 
-main().catch((err) => {
-  console.error("readout failed:", err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+// `process.exit(0)` is required, not decoration: getDb() opens a mysql2 pool
+// with no exported close, so without it the script prints everything and then
+// HANGS until the operator interrupts it. Caught by actually running this — the
+// verification harness's timeout killed the child and reported exit `null`.
+// Same shape as scripts/data-census.ts:122, the repo's existing DB-script tail.
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("readout failed:", err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
