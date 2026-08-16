@@ -83,13 +83,25 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
   // own inline state below, and main.tsx routes it out of the request batch so
   // its latency no longer decides when the other five arrive.
   const shellStatus = readStatus(analytics);
-  if (shellStatus.state === "loading" || diagnostics.isLoading) {
+  // `&& !analytics.data` is load-bearing. readStatus reports "loading" whenever
+  // fetchStatus === "fetching", which includes a BACKGROUND refetch that already
+  // has cached data — and with refetchOnWindowFocus:true + staleTime:10_000
+  // (main.tsx) that fires every time the operator returns to the PWA after ten
+  // seconds. Gating on it alone made this shell STRICTLY WIDER than the
+  // `analytics.isLoading` it replaced, replacing a populated page with a
+  // full-screen spinner on every refocus. Block only when there is nothing to
+  // show yet; otherwise keep rendering the data we already have while it
+  // revalidates.
+  const firstLoad = !analytics.data;
+  if (firstLoad && (shellStatus.state === "loading" || diagnostics.isLoading)) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
   // A read that never happened is not an empty account. Without this, a paused
   // (offline) query left isLoading AND isError false with data undefined, and the
   // page rendered every card's zero as measured fact.
-  if (shellStatus.state === "unavailable") {
+  // Same reasoning inverted: only claim "could not read" when we have NOTHING.
+  // A failed background refetch over good cached data should not blank the page.
+  if (firstLoad && shellStatus.state === "unavailable") {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
         <AlertTriangle className="h-6 w-6 text-amber-500" />
@@ -103,6 +115,12 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
   const winners = analytics.data?.topPosts ?? [];
   const recommendations = report.data?.recommendations ?? [];
   const reportStatus = readStatus(report);
+  // These two cards were ADDED to this page in the same PR that fixed the
+  // others, and reproduced the identical defect: an isLoading -> isError ->
+  // empty chain, so a paused/offline read printed "no published reels are
+  // joined" and "no reel clears the flags" as findings. Self-audit caught it.
+  const swipeStatus = readStatus(swipeFile);
+  const dubStatus = readStatus(dubCandidates);
 
   return (
     <div className="space-y-8 pb-12">
@@ -356,12 +374,12 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><Zap className="h-4 w-4" /> Hook &amp; beat-structure signals</CardTitle><CardDescription>Correlated against saves-per-reach. Directional only — not a rule to enforce.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
-              {swipeFile.isLoading ? (
+              {swipeStatus.state === "loading" ? (
                 <p className="text-sm text-muted-foreground">Checking…</p>
-              ) : swipeFile.isError ? (
+              ) : swipeStatus.state === "unavailable" ? (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <span>Could not read swipe-file data — this is <strong>unknown</strong>, not empty. {swipeFile.error?.message}</span>
+                  <span>Could not read swipe-file data — this is <strong>unknown</strong>, not empty. {swipeFile.error?.message ?? unavailableCopy(swipeStatus.reason)}</span>
                 </div>
               ) : (
                 (() => {
@@ -392,12 +410,12 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><Globe className="h-4 w-4" /> Multilingual dub worklist</CardTitle><CardDescription>{dubCandidates.data?.note ?? "Top-performing reels worth manually enabling translation for."}</CardDescription></CardHeader>
             <CardContent className="space-y-3">
-              {dubCandidates.isLoading ? (
+              {dubStatus.state === "loading" ? (
                 <p className="text-sm text-muted-foreground">Checking…</p>
-              ) : dubCandidates.isError ? (
+              ) : dubStatus.state === "unavailable" ? (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <span>Could not read the worklist — this is <strong>unknown</strong>, not empty. {dubCandidates.error?.message}</span>
+                  <span>Could not read the worklist — this is <strong>unknown</strong>, not empty. {dubCandidates.error?.message ?? unavailableCopy(dubStatus.reason)}</span>
                 </div>
               ) : (dubCandidates.data?.candidates.length ?? 0) === 0 ? (
                 <p className="text-sm text-muted-foreground">No reel currently clears the reach/engagement floor to qualify.</p>

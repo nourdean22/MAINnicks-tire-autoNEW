@@ -26,6 +26,21 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: true, // refresh when admin tabs back in
       staleTime: 10_000,            // 10s — most data is acceptable that fresh
       gcTime: 5 * 60_000,           // keep cached data 5 min after unmount
+      /**
+       * ONE retry, not query-core's default of three.
+       *
+       * The per-request ceiling below is armed INSIDE the fetch, so every retry
+       * attempt gets a fresh timer. At the default 3 retries the worst case was
+       * 4 x 120s plus backoff — about 8 minutes — and the spinner survived all of
+       * it, because query-core's `failed` transition does not clear fetchStatus:
+       * it stays "fetching", which every loading branch in this admin reads as
+       * "still working". A per-attempt bound is not a bound on the SPINNER unless
+       * the attempt count is bounded too.
+       *
+       * One retry keeps the genuine benefit (a single transient blip recovers
+       * silently) while capping the visible worst case at roughly 2 x 120s + 1s.
+       */
+      retry: 1,
     },
   },
 });
@@ -94,23 +109,32 @@ const REQUEST_CEILING_MS = 120_000;
  * so composing by hand needs no feature detection and keeps BOTH guarantees:
  * tRPC's unmount cancellation still propagates, and the ceiling always applies.
  *
- * Returns the signal plus a `done()` the caller MUST invoke when the request
- * settles — otherwise a 120s timer stays pending per request.
+ * THE TIMER IS DELIBERATELY NOT CLEARED WHEN THE FETCH PROMISE SETTLES. An
+ * earlier version did that via `.finally()`, which looked tidier and quietly
+ * reopened the hole: `fetch` resolves at response HEADERS, while tRPC then reads
+ * the body (`await res.json()`) with nothing watching it. Clearing on headers
+ * therefore left a response that answers and then stalls mid-body completely
+ * unbounded — the exact failure this is for. Because the same signal is attached
+ * to the Response body stream, keeping the timer alive bounds the body read too.
+ *
+ * The cost is one pending timer per in-flight request for up to the ceiling, and
+ * a late `abort()` on an already-settled controller, which is a documented no-op.
+ * That is the right trade: a cheap idle timer against a class of hang the UI
+ * renders as a permanent spinner.
  */
-function boundedSignal(existing: AbortSignal | null | undefined): { signal: AbortSignal; done: () => void } {
+function boundedSignal(existing: AbortSignal | null | undefined): AbortSignal {
   const controller = new AbortController();
-  const timer = setTimeout(
+  setTimeout(
     () => controller.abort(new DOMException(`request exceeded ${REQUEST_CEILING_MS}ms`, "TimeoutError")),
     REQUEST_CEILING_MS,
   );
-  const done = () => clearTimeout(timer);
 
   if (existing) {
     // Already cancelled before we got here — mirror it immediately.
     if (existing.aborted) controller.abort(existing.reason);
     else existing.addEventListener("abort", () => controller.abort(existing.reason), { once: true });
   }
-  return { signal: controller.signal, done };
+  return controller.signal;
 }
 
 /**
@@ -135,11 +159,14 @@ const UNBATCHED_SLOW_PROCEDURES = new Set<string>([
 const httpOptions = {
   url: "/api/trpc",
   transformer: superjson,
+  // `signal` is listed AFTER the spread on purpose: tRPC also supplies one, and
+  // the composed signal must win rather than be overwritten by it.
   fetch(input: URL | RequestInfo, init?: RequestInit) {
-    const { signal, done } = boundedSignal(init?.signal);
-    // `finally` on the fetch promise, not an abort listener: the timer must be
-    // cleared on the NORMAL path too, which abort never reaches.
-    return globalThis.fetch(input, { ...(init ?? {}), credentials: "include", signal }).finally(done);
+    return globalThis.fetch(input, {
+      ...(init ?? {}),
+      credentials: "include",
+      signal: boundedSignal(init?.signal),
+    });
   },
 };
 

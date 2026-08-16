@@ -419,11 +419,28 @@ export async function getAllDynamicArticles() {
     .limit(500);
 }
 
+/**
+ * PUBLISHED only — this feeds a PUBLIC route.
+ *
+ * The status filter was missing, so this returned a row for any slug regardless
+ * of status while its sibling `getPublishedArticles` (the listing) filtered to
+ * published. That asymmetry was harmless only because the AI generator wrote
+ * every article as "published" on creation. Gating the generator to "draft"
+ * turned it into a real hole: an unreviewed AI article stayed unlisted and out of
+ * the sitemap, yet was fully readable at its guessable slug URL — so the review
+ * step it now waits for could be bypassed by knowing the title. A `rejected`
+ * article was equally readable.
+ *
+ * Caught by self-audit, which correctly refuted the claim that drafts are "not on
+ * the public blog until approved". Only consumer is client BlogPost.tsx (the
+ * public page), which already renders null for a missing row, so a draft now
+ * behaves exactly like a nonexistent one.
+ */
 export async function getDynamicArticleBySlug(slug: string) {
   const db = await getDb();
   if (!db) return null;
   const results = await db.select().from(dynamicArticles)
-    .where(eq(dynamicArticles.slug, slug))
+    .where(and(eq(dynamicArticles.slug, slug), eq(dynamicArticles.status, "published")))
     .limit(1);
   return results[0] ?? null;
 }

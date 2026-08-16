@@ -99,7 +99,19 @@ export default function Settings() {
           ? `Configured, but the Graph API rejected the token: ${live.error ?? "unknown error"}`
           : "Configured — no live verification result is available yet.";
   const tokenReady = Boolean(connection.data?.token?.present);
-  const storageReady = Boolean(health.data?.storage?.configured && health.data?.storage?.permanentUrls);
+  /**
+   * THREE storage states, not two.
+   *
+   * `configured && permanentUrls` collapsed into one boolean, so the plain-AWS
+   * shape (S3_BUCKET set, no S3_ENDPOINT, no CloudFront — permanent=false because
+   * storagePut hands back a 24h presigned URL) rendered the NO-BUCKET copy while
+   * the bucket was set and generation would proceed. Writing one failure string
+   * for a two-flag condition is what produced that; self-audit caught it as a
+   * NEW falsehood introduced by the fix for the old one.
+   */
+  const storageState: "none" | "expiring" | "permanent" = !health.data?.storage?.configured
+    ? "none"
+    : health.data?.storage?.permanentUrls ? "permanent" : "expiring";
   const generatorReady = Boolean(health.data?.generator?.configured);
 
   return (
@@ -120,13 +132,15 @@ export default function Settings() {
             name the DELIVERY PATH instead of listing env vars. */}
         <StatusCard
           label="Permanent media"
-          state={storageReady ? "ready" : "attention"}
+          state={storageState === "permanent" ? "ready" : "attention"}
           detail={
-            storageReady
+            storageState === "permanent"
               ? health.data?.storage?.cdn
                 ? "Permanent Meta-readable URLs, delivered through the CloudFront CDN."
                 : "Permanent Meta-readable URLs, served through the app from S3. A CDN is optional."
-              : "No durable bucket — set S3_BUCKET. Generation refuses to spend credits without it."
+              : storageState === "expiring"
+                ? "Durable bucket, but its URLs EXPIRE after 24h (presigned). Meta stores the URL, so set S3_ENDPOINT for app-proxied permanent URLs, or CLOUDFRONT_DOMAIN for a CDN."
+                : "No durable bucket — set S3_BUCKET. Generation refuses to spend credits without it."
           }
           icon={Database}
         />

@@ -69,10 +69,22 @@ describe("the transport can no longer hang forever", () => {
   const main = read("client/src/main.tsx");
   const fn = main.slice(main.indexOf("function boundedSignal"), main.indexOf("const UNBATCHED"));
 
-  it("the tRPC fetch composes a bounded signal and clears its timer", () => {
-    expect(main).toContain("const { signal, done } = boundedSignal(init?.signal)");
-    // `finally`, not an abort listener: the NORMAL path must clear the timer too.
-    expect(main).toContain(".finally(done)");
+  it("the tRPC fetch composes a bounded signal, listed AFTER the spread", () => {
+    expect(main).toContain("signal: boundedSignal(init?.signal)");
+  });
+
+  it("does NOT clear the timer when the fetch promise settles", () => {
+    // Self-audit finding: `fetch` resolves at response HEADERS, and tRPC then
+    // reads the body with nothing watching. Clearing on settle left a
+    // stalled-body response unbounded — the exact hang class this exists for.
+    // Behavioural coverage lives in server/requestCeiling.test.ts.
+    expect(main).not.toContain(".finally(done)");
+  });
+
+  it("bounds the retry count, because a per-attempt ceiling is not a bound", () => {
+    // query-core defaults to 3 retries and its `failed` transition leaves
+    // fetchStatus === "fetching", so the spinner survived 4 x 120s + backoff.
+    expect(main).toContain("retry: 1");
   });
 
   it("does NOT call AbortSignal.timeout — it would throw where that API is absent", () => {

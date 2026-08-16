@@ -210,10 +210,16 @@ export function Inbox({ onNavigate }: InboxProps) {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 h-full text-center space-y-4">
-                {/* VERIFIED empty: the read succeeded and returned no posts. The
-                    cache genuinely holds nothing — that is a real state and the
-                    sync button is the right next action. */}
-                <p className="text-sm text-muted-foreground">No posts in the feed cache — the cache was read and is empty.</p>
+                {/* The procedure returned an empty list. Deliberately NOT phrased
+                    as "the cache was read and is empty" — that overclaims, and
+                    was corrected in self-audit. server/instagram.ts loadCache()
+                    returns null BOTH when instagram-cache.json is absent AND when
+                    reading or parsing it throws (the catch logs and falls
+                    through), and getInstagramPosts turns either into []. So the
+                    client cannot distinguish "empty cache" from "unreadable
+                    cache" — it can only report what it received. Sync is still
+                    the right next action for both. */}
+                <p className="text-sm text-muted-foreground">The feed cache returned no posts.</p>
                 <Button size="sm" onClick={() => syncFeed.mutate()} disabled={syncFeed.isPending}>
                   Sync Feed Cache
                 </Button>

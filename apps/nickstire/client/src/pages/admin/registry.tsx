@@ -193,7 +193,12 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     label: "Website & Local",
     icon: <Sparkles className="w-4 h-4" />,
     component: ContentSection,
-    aliases: ["content", "content-and-ai", "website", "specials", "coupons", "qa", "seoengine", "gbp", "blog"],
+    // "gbp" is deliberately NOT here: the `growth` section already claims that
+    // alias, and admin-registry-integrity.test.ts enforces one owner per alias.
+    // Adding it broke that pre-existing test — caught by self-audit, not by me,
+    // because I had only been running server/*.test.ts and never
+    // client/src/__tests__/.
+    aliases: ["content", "content-and-ai", "website", "specials", "coupons", "qa", "seoengine", "blog"],
     keywords: ["website", "blog", "article", "notification", "gbp", "google business", "seo", "specials", "coupons", "prompt health", "content"],
     group: "Reach",
     priority: 20,
