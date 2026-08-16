@@ -10,6 +10,36 @@ The active operating contract is:
 - [`docs/REVENUE-OPS-ROADMAP.md`](docs/REVENUE-OPS-ROADMAP.md)
 - [`docs/operations/SMS-REVENUE-AGENT-OS.md`](docs/operations/SMS-REVENUE-AGENT-OS.md) — operator runbook for the SMS Revenue Agent OS (2026-07-29 arc: levers, gates, daily loop, symptom table)
 
+## What is ARMED in production — read this, do not quote it
+
+**Nine of the ten flags that produce an external side effect are ON.** Read at
+2026-08-16T11:53Z from the live `MAINnicks-tire-auto` service, not from a doc and
+not from `.env`:
+
+| flag | live | side effect when ARMED |
+|---|---|---|
+| `FEATURE_DECLINED_RECOVERY` | `1` | SMS · "you declined this work" follow-ups (ROS-093) |
+| `FEATURE_VOICE_RECOVERY` | `1` | VOICE · outbound recovery calls |
+| `FEATURE_CONFIRMATION_CALLS` | `1` | VOICE · outbound confirmation calls |
+| `FEATURE_FOLLOWUP_CADENCE` | `1` | SMS · multi-touch follow-up cadence |
+| `ENABLE_CUSTOMER_CONFIRMATIONS` | `true` | SMS · booking confirmations |
+| `REEL_PUBLISH_ENABLED` | `true` | PUBLISH · reels to Instagram |
+| `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
+| `REEL_COMMENT_RESPONDER_ENABLED` | `true` | PUBLISH · public replies to IG comments |
+| `SOCIAL_INVENTORY_PUBLISH_ENABLED` | `true` | PUBLISH · inventory posts |
+| `FEATURE_UNPAID_INVOICE_RECOVERY` | *(unset)* | SMS · unpaid-invoice chase — read the guard, `=== "1"` and `!== "false"` disagree about unset |
+
+Four of these — the voice and cadence flags — had **never appeared in any
+canonical doc** before 2026-08-16. They were not stale; they were absent. Nobody
+reading this file would have known Nick was placing outbound calls.
+
+**Regenerate, never retype:** `node scripts/probe-live-send-flags.mjs`. A flag
+value written into a doc is a cache with no invalidation — on 2026-08-15 this
+file asserted `FEATURE_DECLINED_RECOVERY=0` on the authority of
+`docs/ISSUE-REGISTRY.md` while the service had it at `1` and the cron was sending.
+`scripts/audit-feature-flag-state.ts` could not have caught it: it reads the
+`feature_flags` DB table, and every flag above is an environment variable.
+
 Two 2026-08-07 contracts worth knowing before you debug a quiet automation, both
 detailed in `docs/CURRENT-TRUTH.md`:
 
