@@ -17,6 +17,15 @@
  * is a slot a real memory could have occupied at recall time. The denylist is
  * imported from lib/brain/embedding-policy so the two cannot drift apart.
  *
+ * IT COUNTS EFFECT, NOT INTENT. The first version of this script ran 25 minutes
+ * and wrote NOTHING: `storeGenericEmbedding` swallows its own failures, so the
+ * try/catch never fired, `done++` ran anyway, and since no row was written the
+ * anti-join re-served the same 100 rows forever. Every log line said
+ * `embedding.all_failed` while the counter reported progress. Two guards make
+ * that impossible now: a preflight proving the provider returns a real vector
+ * before any row is touched, and a per-page delta check that aborts when a full
+ * page produces zero new embeddings.
+ *
  * SAFETY (prod-db-guard): DRY RUN unless `--apply` is passed. It prints the
  * database host before doing anything, bounds work with `--limit`, and is
  * resumable — it selects only rows that are still unembedded, so re-running
@@ -28,8 +37,22 @@
  *   pnpm exec tsx scripts/drain-brain-embeddings.ts --limit 50    # dry run, 50
  *   pnpm exec tsx scripts/drain-brain-embeddings.ts --apply       # write
  */
+import fs from "node:fs";
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
+
+// Explicit env file, applied BEFORE anything reads process.env. Harness
+// worktrees carry no .env, so loadEnvConfig finds nothing and COHERE_API_KEY is
+// absent — which is precisely how the silent no-op described above happened.
+{
+  const i = process.argv.indexOf("--env");
+  if (i >= 0 && process.argv[i + 1]) {
+    for (const line of fs.readFileSync(process.argv[i + 1], "utf8").split(/\r?\n/)) {
+      const m = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+    }
+  }
+}
 import { prisma } from "@/lib/prisma";
 import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
 import { TELEMETRY_CATEGORY_LIST } from "@/lib/brain/embedding-policy";
@@ -60,12 +83,37 @@ async function page(): Promise<Row[]> {
   `;
 }
 
+/** Live count of brain_memory embeddings — the only honest progress signal. */
+async function embeddedCount(): Promise<number> {
+  const [r] = await prisma.$queryRaw<{ n: bigint }[]>`
+    SELECT COUNT(*)::bigint AS n FROM vector_embeddings WHERE "sourceType" = 'brain_memory'
+  `;
+  return Number(r.n);
+}
+
 async function main() {
   const host = (process.env.DATABASE_URL ?? "").replace(/^.*@/, "").replace(/[/?].*$/, "");
   console.log(`database host : ${host || "(unset)"}`);
   console.log(`mode          : ${APPLY ? "APPLY (writes vector_embeddings)" : "DRY RUN (no writes)"}`);
   console.log(`limit         : ${LIMIT === Number.POSITIVE_INFINITY ? "all" : LIMIT}`);
   console.log(`excluding     : ${TELEMETRY_CATEGORY_LIST.length} telemetry categories\n`);
+
+  if (APPLY) {
+    // PREFLIGHT · getEmbedding returns [] on a missing key rather than throwing,
+    // and storeGenericEmbedding swallows that. Without this the entire run is a
+    // silent no-op that looks like progress.
+    const { getEmbedding } = await import("@/lib/ai/provider");
+    const probe = await getEmbedding("preflight: does the embedding provider work").catch(() => []);
+    if (!Array.isArray(probe) || probe.length === 0) {
+      console.error(
+        "ABORT - the embedding provider returned no vector. COHERE_API_KEY / OPENAI_API_KEY " +
+          "is probably missing; pass --env <path-to-.env>. Nothing was written.",
+      );
+      await prisma.$disconnect();
+      process.exit(1);
+    }
+    console.log(`preflight ok  : provider returned a ${probe.length}-dim vector`);
+  }
 
   let done = 0;
   let failed = 0;
@@ -75,6 +123,8 @@ async function main() {
     if (done >= LIMIT) break;
     const rows = await page();
     if (rows.length === 0) break;
+
+    const before = APPLY ? await embeddedCount() : 0;
 
     for (const r of rows) {
       if (done >= LIMIT) break;
@@ -94,6 +144,17 @@ async function main() {
 
     // A dry run never writes, so the same page returns forever — stop after one.
     if (!APPLY) break;
+
+    // EFFECT CHECK · if a whole page wrote nothing, the anti-join hands back the
+    // same rows next time and this loop spins forever reporting success. Stop.
+    const after = await embeddedCount();
+    if (after === before) {
+      console.error(
+        "ABORT - a full page of " + rows.length + " rows produced ZERO new embeddings (count " +
+          "stayed at " + after + "). The provider is failing silently. Nothing further attempted.",
+      );
+      break;
+    }
   }
 
   console.log(`\n${APPLY ? "embedded" : "would embed"}: ${done}${failed ? ` · failed: ${failed}` : ""}`);
