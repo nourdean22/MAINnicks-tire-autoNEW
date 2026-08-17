@@ -24,7 +24,7 @@
  * scope list, admin exclusion, comment skipping, diff line accounting, output
  * shape and exit codes.
  */
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,15 +71,53 @@ function isCommentLine(text: string): boolean {
   return t.startsWith("//") || t.startsWith("*") || t.startsWith("/*");
 }
 
+/**
+ * 64 MiB. `execSync`/`execFileSync` default to 1 MiB and THROW ENOBUFS past it.
+ * That default is what made this script fail open: a merge staging
+ * `prerendered/**` overflowed the read, the catch swallowed it, and a scan of
+ * zero files printed the same `ok` line a genuinely clean commit prints. The
+ * per-file read below makes an overflow implausible; this makes it impossible
+ * for any realistic single file.
+ */
+const GIT_MAX_BUFFER = 64 * 1024 * 1024;
+
+/** git with a bounded buffer and no shell — argv array, so paths are literal. */
+function git(args: string[]): string {
+  return execFileSync("git", args, { cwd: APP_ROOT, encoding: "utf8", maxBuffer: GIT_MAX_BUFFER });
+}
+
 // ─── PRE-COMMIT MODE: scan only ADDED lines in the staged diff ──────────────
-function scanStagedDiff(): { findings: Finding[]; filesScanned: number } {
-  let diff: string;
+function scanStagedDiff(): { findings: Finding[]; filesScanned: number; unreadable: string | null } {
+  // STAGE 1 — names only. Bounded by the FILE COUNT, not by the diff size, so a
+  // commit that stages a megabyte of prerendered HTML costs a few hundred bytes
+  // here. This is what removes the overflow at the root rather than papering
+  // over it with a bigger buffer.
+  let staged: string[];
   try {
-    // -U0 = no context lines, only changed lines.
-    diff = execSync("git diff --cached -U0", { cwd: APP_ROOT, encoding: "utf8" });
+    staged = git(["diff", "--cached", "--name-only"])
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
   } catch (err) {
-    console.error("[brand-voice] git diff failed:", (err as Error).message);
-    return { findings: [], filesScanned: 0 };
+    return { findings: [], filesScanned: 0, unreadable: `git diff --name-only failed: ${(err as Error).message}` };
+  }
+
+  // STAGE 2 — keep only voice surfaces BEFORE asking for any content. Most
+  // commits stage nothing in scope, so most runs now read no diff at all.
+  const inScope = staged.filter((f) => scopeOf(f) !== null);
+  if (inScope.length === 0) return { findings: [], filesScanned: 0, unreadable: null };
+
+  // STAGE 3 — one diff per file. Concatenated per-file diffs are still a valid
+  // unified diff (each carries its own `+++ b/…` header and hunks), so the
+  // parser below is untouched. Paths go through an argv array, never a shell
+  // string, so a space or a quote in a filename cannot change the command.
+  let diff = "";
+  for (const file of inScope) {
+    try {
+      diff += git(["diff", "--cached", "-U0", "--", file]);
+    } catch (err) {
+      return { findings: [], filesScanned: 0, unreadable: `git diff of ${file} failed: ${(err as Error).message}` };
+    }
   }
 
   const findings: Finding[] = [];
@@ -161,7 +199,7 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number } {
 
 // ─── AUDIT MODE: scan ALL in-scope files ────────────────────────────────────
 function scanAllFiles(): { findings: Finding[]; filesScanned: number } {
-  const out = execSync("git ls-files", { cwd: APP_ROOT, encoding: "utf8" });
+  const out = git(["ls-files"]);
   const files = out
     .split("\n")
     .filter(Boolean)
@@ -196,12 +234,30 @@ function scanAllFiles(): { findings: Finding[]; filesScanned: number } {
       });
     }
   }
-  return { findings, filesScanned: files.length };
+  return { findings, filesScanned: files.length, unreadable: null };
 }
 
 // ─── MAIN ───────────────────────────────────────────────────────────────────
-const { findings, filesScanned } = AUDIT_MODE ? scanAllFiles() : scanStagedDiff();
+const { findings, filesScanned, unreadable } = AUDIT_MODE ? scanAllFiles() : scanStagedDiff();
 const blocking = findings.filter((f) => f.severity === "block");
+
+// UNKNOWN is not CLEAN. Handled before any counting, because every count below
+// is zero when the read failed, and zero renders as a pass.
+//
+// This FAILS CLOSED, unlike the unattended publishers in this codebase that
+// deliberately fail open — and the difference is that a human is standing right
+// here. A pre-commit gate that blocks tells the operator something is wrong and
+// they can act or use --no-verify; a pre-commit gate that passes silently tells
+// them nothing and the unscanned copy ships. The three-stage read above makes
+// this branch essentially unreachable, so blocking costs nothing in practice.
+if (unreadable) {
+  console.error(`\n[brand-voice] SKIPPED — COULD NOT READ THE STAGED DIFF. Nothing was scanned.`);
+  console.error(`  cause: ${unreadable}`);
+  console.error(`  This is NOT a pass. The brand-voice kernel did not run against these changes.`);
+  console.error(`  Re-run: pnpm run lint:brand-voice   ·   audit everything: pnpm exec tsx scripts/lint-brand-voice.ts --audit`);
+  console.error(`  To commit anyway, deliberately: git commit --no-verify`);
+  process.exit(1);
+}
 
 if (findings.length === 0) {
   console.log(

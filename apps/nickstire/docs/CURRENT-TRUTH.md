@@ -221,6 +221,36 @@ Automation success is valid only when the final system of record confirms the ac
   `contentManufacturing` also enqueues with `source: "cron"` but publishes
   elsewhere. The date comes from the briefId, not `updatedAt` (`onUpdateNow`,
   drifts) or `createdAt` (enqueue, not publish).
+- **Higgsfield now has a KEY-BASED lane that never expires (shipped 2026-08-17),
+  and the CLI-session lane went dead for four days first.** Probed prod
+  (read-only, operator-authorized): keepalive **332 completed** (08-10 08:47 ->
+  08-13 18:07), then **372 CONSECUTIVE failures** (08-13 18:11 -> 08-17), every
+  one `Session expired. Hint: Run: hf auth login`; cadence stayed perfect the
+  whole time (largest gap 15.4 min), so the token was simply revoked, not
+  starved or raced. Nobody noticed because `socialDeliveryIssues` computed
+  `generatorConfigured` as `!!credentialsJson` - a PRESENCE check.
+  `higgsfieldSessionHealth()` existed for exactly this since the 2026-07-31
+  incident and was never wired in. Fixed: a dead session is now a
+  `generator_session_expired` BLOCKER (#1628). The keepalive also now clears its
+  in-process credential cache on failure, so a re-login lands within 15 minutes
+  instead of requiring a redeploy.
+- **`server/services/higgsfieldApiClient.ts`** talks to Higgsfield's OFFICIAL
+  REST API directly (no new npm dependency - `pnpm install` is policy-blocked in
+  harness worktrees): `Authorization: Key <HIGGSFIELD_API_KEY_ID>:<HIGGSFIELD_API_KEY_SECRET>`
+  against `https://platform.higgsfield.ai`, submit to the DoP image-to-video
+  endpoint, poll `/requests/{id}/status` to a terminal state. No session, no
+  device flow, nothing to revoke. `generateReelClipVideo` prefers this lane
+  automatically whenever both env vars are set, falling back to the CLI session
+  lane on any API-side error (except a first-call 401/403, which is reported
+  immediately rather than masked). `probeHiggsfieldApiCredentials()` verifies a
+  key for FREE - no generation, no credit spend - by reading the response to a
+  status lookup on an id that cannot exist. **UNVERIFIED against a live
+  Higgsfield account** - built from the official docs and the official Node SDK,
+  tested against a mocked `fetch`, never exercised against Higgsfield's real
+  servers (that is a credit spend and an operator decision). Do not trust
+  apidog.com's Higgsfield write-up - it contradicts the official docs on base
+  URL and auth header shape and was rejected as a source. Runbook:
+  `docs/runbooks/higgsfield-session.md` section 6.
 
 ### The AI receptionist improves from its own failed calls (2026-08-06/07)
 

@@ -108,6 +108,9 @@ describe("the ephemeral-storage override is reported, not alarmed about", () => 
     storageConfigured: true, permanentUrls: true, ephemeralOverride: false,
     metaConfigured: true, metaLive: true, metaLiveError: null,
     generatorProvider: "veo", generatorConfigured: true, generationEnabled: true,
+    // Spelled out because tsconfig.typecheck excludes *.test.ts: an omitted
+    // field is not a type error here, it silently arrives as undefined.
+    generatorSessionHealthy: null, generatorSessionReason: null,
     reelPublishArmed: true,
     controls: { globalKillSwitch: false, publishingKillSwitch: false, generationKillSwitch: false },
     controlsSource: "policy", publishAmbiguousReelJobs: 0, jobsNeedingAttention: 0,

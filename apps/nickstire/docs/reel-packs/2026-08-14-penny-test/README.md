@@ -1,5 +1,15 @@
 # Content pack — "The Penny Test" faceless reel
 
+> **Correction 2026-08-17.** This document cites `HIGGSFIELD_API_KEY` as
+> Higgsfield's auth mechanism, quoting a comment in `reelBriefGen.ts` as evidence.
+> **That env var does not exist** — nothing in the repo reads it, and the comment
+> has been corrected. Higgsfield auth is a rotating CLI *session* credential in
+> `app_secret_kv`, refreshed every 15 min by `higgsfield-session-keepalive`. See
+> [`docs/runbooks/higgsfield-session.md`](../../runbooks/higgsfield-session.md).
+> The rest of this pack is unaffected; a comment is not a source of truth about
+> configuration.
+
+
 Generated 2026-08-14. **No video file was rendered.** This is a production-ready
 pack, per the fallback path in the source instructions — see "Tool check" below
 for exactly why, and "How this plugs into the real pipeline" for how an operator

@@ -13,14 +13,22 @@ import {
   type DeliveryFacts,
 } from "./services/socialDeliveryIssues";
 
+// Every field is spelled out even where a default would do. tsconfig.typecheck
+// EXCLUDES **/*.test.ts and vitest only strips types, so an omitted field is not
+// a type error here — it silently arrives as `undefined` and a branch keyed on
+// it takes neither path, passing while proving nothing. `ephemeralOverride` had
+// already drifted out of this literal that way before the fields below were added.
 const ALL_GREEN: DeliveryFacts = {
   storageConfigured: true,
   permanentUrls: true,
+  ephemeralOverride: false,
   metaConfigured: true,
   metaLive: true,
   metaLiveError: null,
   generatorProvider: "veo",
   generatorConfigured: true,
+  generatorSessionHealthy: null,
+  generatorSessionReason: null,
   generationEnabled: true,
   reelPublishArmed: true,
   controls: { globalKillSwitch: false, publishingKillSwitch: false, generationKillSwitch: false },
@@ -134,5 +142,232 @@ describe("deriveDeliveryIssues", () => {
       expect(issue.evidence.length).toBeGreaterThan(5);
       expect(issue.nextAction.length).toBeGreaterThan(10);
     }
+  });
+});
+
+describe("a stored Higgsfield blob is not a working session", () => {
+  // THE FOUR-DAY OUTAGE THIS EXISTS FOR. Verified against production cron_log on
+  // 2026-08-17: 332 completed keepalive runs (2026-08-10 08:47 -> 2026-08-13
+  // 18:07), then 372 CONSECUTIVE failures (2026-08-13 18:11 -> 2026-08-17), every
+  // one `Session expired. Hint: Run: hf auth login`. Cadence was healthy the whole
+  // time (largest gap 15.4 min), so nothing was broken except that this surface
+  // asked `!!credentialsJson` — a PRESENCE check — and reported the generator as
+  // configured. `higgsfieldSessionHealth()` was written for exactly this in the
+  // 2026-07-31 incident and had never been wired in here.
+  const HF = {
+    ...ALL_GREEN,
+    generatorProvider: "higgsfield",
+    generatorConfigured: true,
+  } satisfies DeliveryFacts;
+
+  it("a session PROVEN dead is a BLOCKER, not a warning — the lane produces nothing", () => {
+    const issues = deriveDeliveryIssues({
+      ...HF,
+      generatorSessionHealthy: false,
+      generatorSessionReason: "Session expired. Hint: Run: hf auth login",
+    });
+    const hit = issues.find((i) => i.key === "generator_session_expired");
+    expect(hit?.severity).toBe("blocker");
+    expect(hit?.layer).toBe("generation");
+    // It must quote the cause the keepalive established, not a guess.
+    expect(hit?.evidence).toContain("Session expired");
+    expect(hit?.evidence).toContain("keepalive");
+  });
+
+  it("and it names the ONE recovery path, because no retry can fix a revoked token", () => {
+    // The reason must NAME a revocation. A placeholder used to pass here, which
+    // was the P2 defect: any credsValid:false — including a missing binary or a
+    // timeout — got "re-authenticate, no retry helps". Remediation is now keyed
+    // on the recorded cause, so this test supplies a real one.
+    const hit = deriveDeliveryIssues({
+      ...HF,
+      generatorSessionHealthy: false,
+      generatorSessionReason: "Session expired. Hint: Run: hf auth login",
+    })
+      .find((i) => i.key === "generator_session_expired");
+    expect(hit?.nextAction).toContain("hf auth login");
+    expect(hit?.nextAction).toContain("Settings");
+    expect(hit?.nextAction).toMatch(/cannot be restored by any retry/);
+  });
+
+  it("does NOT also raise credentials_missing — one fault, one instruction", () => {
+    // Presence and liveness are different findings; emitting both would send the
+    // operator down two paths at once.
+    const keys = deriveDeliveryIssues({ ...HF, generatorSessionHealthy: false, generatorSessionReason: "Session expired" })
+      .map((i) => i.key);
+    expect(keys).toContain("generator_session_expired");
+    expect(keys).not.toContain("generator_credentials_missing");
+  });
+
+  it("a HEALTHY session raises no generation issue at all", () => {
+    const issues = deriveDeliveryIssues({
+      ...HF,
+      generatorSessionHealthy: true,
+      generatorSessionReason: "keepalive refreshed the session",
+    });
+    expect(issues.filter((i) => i.layer === "generation")).toHaveLength(0);
+  });
+
+  it("UNKNOWN liveness warns — it must not read as healthy, and must not cry blocker", () => {
+    const hit = deriveDeliveryIssues({
+      ...HF,
+      generatorSessionHealthy: null,
+      generatorSessionReason: "keepalive has never run",
+    }).find((i) => i.key === "generator_session_unknown");
+    expect(hit?.severity).toBe("warning");
+    expect(hit?.evidence).toContain("never run");
+  });
+
+  it("an OMITTED field counts as unknown, not as healthy", () => {
+    // The luck this nearly shipped on: with the field absent it is `undefined`,
+    // which `=== null` misses, so neither branch fired and a dead session read
+    // clean. Spelled with an explicit cast because the type forbids what vitest
+    // permits at runtime.
+    const partial = { ...HF } as Record<string, unknown>;
+    delete partial.generatorSessionHealthy;
+    delete partial.generatorSessionReason;
+    const keys = deriveDeliveryIssues(partial as unknown as DeliveryFacts).map((i) => i.key);
+    expect(keys).toContain("generator_session_unknown");
+  });
+
+  it("liveness is only asked of the session provider — veo/template_stock stay silent", () => {
+    for (const provider of ["veo", "template_stock"]) {
+      const keys = deriveDeliveryIssues({ ...ALL_GREEN, generatorProvider: provider }).map((i) => i.key);
+      expect(keys, provider).not.toContain("generator_session_unknown");
+      expect(keys, provider).not.toContain("generator_session_expired");
+    }
+  });
+
+  it("MISSING credentials still points at the paste field, not at Railway", () => {
+    // Higgsfield's durable store is app_secret_kv. A static Railway env pair is
+    // the design that died ~90 min after login because the CLI rotates tokens,
+    // so the old nextAction named the one place that cannot hold a live session.
+    const hit = deriveDeliveryIssues({ ...HF, generatorConfigured: false })
+      .find((i) => i.key === "generator_credentials_missing");
+    expect(hit?.nextAction).toContain("hf auth login");
+    expect(hit?.nextAction).not.toContain("Railway");
+    // Non-session providers keep the env-var instruction.
+    const veo = deriveDeliveryIssues({ ...ALL_GREEN, generatorConfigured: false })
+      .find((i) => i.key === "generator_credentials_missing");
+    expect(veo?.nextAction).toContain("Railway");
+  });
+});
+
+describe("a dead Higgsfield session is visible even when another provider is active", () => {
+  // P1 REVIEW, 2026-08-17. The first version only read session health when
+  // generatorProvider === "higgsfield", which made the whole fix useless in the
+  // exact state prod was in: on `template_stock` a stored-but-DEAD session
+  // produced NO issue, so the runbook's "confirm no blocker" step read as
+  // satisfied and the operator would flip back to Higgsfield and send renders
+  // into a dead session. Visible-but-not-urgent is the correct shape.
+  const DEAD = {
+    generatorSessionHealthy: false as boolean | null,
+    generatorSessionReason: "Session expired. Hint: Run: hf auth login",
+  };
+
+  it("template_stock active + dead stored session = a WARNING, not silence", () => {
+    const issues = deriveDeliveryIssues({ ...ALL_GREEN, generatorProvider: "template_stock", ...DEAD });
+    const hit = issues.find((i) => i.key === "generator_session_expired");
+    expect(hit, "a dead session must not be silent just because another lane is rendering").toBeTruthy();
+    expect(hit?.severity).toBe("warning");
+    expect(hit?.reason).toMatch(/nothing is failing right now/);
+    expect(hit?.reason).toMatch(/switching to Higgsfield would send renders into a dead session/);
+  });
+
+  it("higgsfield active + dead session = a BLOCKER, because renders are failing now", () => {
+    const hit = deriveDeliveryIssues({ ...ALL_GREEN, generatorProvider: "higgsfield", ...DEAD })
+      .find((i) => i.key === "generator_session_expired");
+    expect(hit?.severity).toBe("blocker");
+  });
+
+  it("veo active + dead stored session is still reported", () => {
+    const hit = deriveDeliveryIssues({ ...ALL_GREEN, generatorProvider: "veo", ...DEAD })
+      .find((i) => i.key === "generator_session_expired");
+    expect(hit?.severity).toBe("warning");
+  });
+
+  it("a HEALTHY stored session stays silent on every provider — no new noise", () => {
+    for (const provider of ["template_stock", "veo", "higgsfield"]) {
+      const issues = deriveDeliveryIssues({
+        ...ALL_GREEN,
+        generatorProvider: provider,
+        generatorSessionHealthy: true,
+        generatorSessionReason: "keepalive refreshed the session",
+      });
+      expect(issues.filter((i) => i.key === "generator_session_expired"), provider).toHaveLength(0);
+    }
+  });
+
+  it("UNKNOWN liveness stays gated on the active provider — deliberately", () => {
+    // "We could not establish liveness" is only worth attention for the lane
+    // actually rendering. Raising it for an idle provider would fire on every
+    // template_stock deploy, and noise is what trains an operator to ignore the
+    // card. A PROVEN-dead session is the different case, covered above.
+    const idle = deriveDeliveryIssues({
+      ...ALL_GREEN, generatorProvider: "template_stock",
+      generatorSessionHealthy: null, generatorSessionReason: "keepalive has never run",
+    });
+    expect(idle.find((i) => i.key === "generator_session_unknown")).toBeFalsy();
+
+    const active = deriveDeliveryIssues({
+      ...ALL_GREEN, generatorProvider: "higgsfield",
+      generatorSessionHealthy: null, generatorSessionReason: "keepalive has never run",
+    });
+    expect(active.find((i) => i.key === "generator_session_unknown")?.severity).toBe("warning");
+  });
+});
+
+describe("revocation and infrastructure failure get DIFFERENT remediation", () => {
+  // P2 REVIEW, 2026-08-17. getHiggsfieldAccountHealth() returns credsValid:false
+  // for a missing CLI binary, a child-process error and a probe timeout as well
+  // as a real revocation, and the keepalive records all of them identically. So
+  // "re-authenticate, no retry can help" is wrong advice for a transient or a
+  // missing binary, where re-login is irrelevant.
+  const base = { ...ALL_GREEN, generatorProvider: "higgsfield", generatorSessionHealthy: false as boolean | null };
+
+  it("a reason that NAMES an expired session prescribes re-login", () => {
+    const hit = deriveDeliveryIssues({ ...base, generatorSessionReason: "Session expired. Hint: Run: hf auth login" })
+      .find((i) => i.key === "generator_session_expired");
+    expect(hit?.nextAction).toMatch(/hf auth login/);
+    expect(hit?.nextAction).toMatch(/cannot be restored by any retry/);
+  });
+
+  it("401/403 and 'refresh token' also read as revocation", () => {
+    for (const reason of ["HTTP 401 unauthorized", "refresh token revoked", "403 forbidden"]) {
+      const hit = deriveDeliveryIssues({ ...base, generatorSessionReason: reason })
+        .find((i) => i.key === "generator_session_expired");
+      expect(hit?.nextAction, reason).toMatch(/hf auth login/);
+    }
+  });
+
+  it("a missing binary does NOT prescribe re-login, and does not claim retry is futile", () => {
+    const hit = deriveDeliveryIssues({
+      ...base,
+      generatorSessionReason: "spawn hf ENOENT — Higgsfield CLI binary not found",
+    }).find((i) => i.key === "generator_session_expired");
+    expect(hit?.nextAction).toMatch(/NOT identified as a revoked session/);
+    expect(hit?.nextAction).not.toMatch(/cannot be restored by any retry/);
+    expect(hit?.nextAction).toMatch(/cron_log/);
+  });
+
+  it("a timeout is likewise not treated as revocation", () => {
+    const hit = deriveDeliveryIssues({
+      ...base,
+      generatorSessionReason: "Higgsfield CLI timed out after 15000ms",
+    }).find((i) => i.key === "generator_session_expired");
+    expect(hit?.nextAction).toMatch(/NOT identified as a revoked session/);
+  });
+
+  it("the revocation path points at the API-key lane as the permanent fix", () => {
+    const hit = deriveDeliveryIssues({ ...base, generatorSessionReason: "Session expired" })
+      .find((i) => i.key === "generator_session_expired");
+    expect(hit?.nextAction).toMatch(/HIGGSFIELD_API_KEY_ID/);
+  });
+
+  it("and it warns that `hf` on PATH is the wrong binary", () => {
+    // The trap that cost a day on 2026-07-31: local `hf` is huggingface_hub.
+    const hit = deriveDeliveryIssues({ ...base, generatorSessionReason: "Session expired" })
+      .find((i) => i.key === "generator_session_expired");
+    expect(hit?.nextAction).toMatch(/NOT the huggingface_hub/);
   });
 });

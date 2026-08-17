@@ -6,8 +6,15 @@
  * funded Gemini with a strict JSON schema, and assembles a ReelBrief the
  * existing Studio UI consumes.
  *
- * Generation only — it does NOT render video or post. Reel *video* still needs
- * Higgsfield (HIGGSFIELD_API_KEY); the brief/storyboard/caption is the value.
+ * Generation only — it does NOT render video or post. Reel *video* still needs a
+ * video provider; the brief/storyboard/caption is the value.
+ *
+ * This line used to say "Higgsfield (HIGGSFIELD_API_KEY)". There is no such
+ * mechanism: nothing in this repo reads HIGGSFIELD_API_KEY, and Higgsfield auth
+ * is a rotating CLI SESSION credential stored in app_secret_kv
+ * (docs/runbooks/higgsfield-session.md). The phantom env var was cited as fact in
+ * two committed reel-pack docs, both quoting THIS COMMENT as their evidence — a
+ * comment is not a source of truth about configuration.
  */
 import { invokeLLM, resolveEffectiveModel, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
