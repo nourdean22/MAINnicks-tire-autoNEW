@@ -13,6 +13,8 @@
  * server's rejection would be caught — not by grepping for a string.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   generateReelClipVideoViaApi,
   higgsfieldApiCredentialsFromEnv,
@@ -335,5 +337,49 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the free probe is REACHABLE — an unrunnable safety check is not one", () => {
+  // This shipped with ZERO callers: exported, named in the runbook as "the
+  // intended first step", and invocable only by hand-writing TypeScript. That is
+  // the built-tested-unwired defect this arc has now found four times — the reel
+  // shadow-judge readout, higgsfieldSessionHealth, buildDraftWorkspace, and then
+  // my own probe. These pin the two reachable entry points so it cannot silently
+  // become unreachable again.
+  const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+  it("a CLI probe script exists and calls the real function", () => {
+    const src = read("scripts/probe-higgsfield-api-key.mts");
+    expect(src).toContain("probeHiggsfieldApiCredentials");
+    expect(src).toContain("higgsfieldApiCredentialsFromEnv");
+  });
+
+  it("that script does NOT force-exit — it would kill the in-flight socket", () => {
+    // First run crashed with libuv's UV_HANDLE_CLOSING assertion because
+    // process.exit() raced undici's socket teardown. Exit code was still 0, so it
+    // was pure noise printed directly under a verdict line — which reads as a
+    // crash to an operator.
+    const src = read("scripts/probe-higgsfield-api-key.mts");
+    expect(src).not.toMatch(/process\.exit\(/);
+    expect(src).toContain("process.exitCode = 0");
+  });
+
+  it("the admin health procedure reports BOTH lanes and names the one that wins", () => {
+    // Reporting only the CLI session would describe a mechanism the pipeline is
+    // not using once the key is set; reporting both without saying which is
+    // authoritative would leave the operator to infer it, and inferring it wrong
+    // is how a dead session read as fine for four days.
+    const src = read("server/routers/instagramAdmin.ts");
+    expect(src).toContain("probeHiggsfieldApiCredentials");
+    expect(src).toContain("preferredLane");
+    expect(src).toMatch(/api_key/);
+    expect(src).toMatch(/cli_session/);
+  });
+
+  it("the health procedure skips the probe when no key is set — no cost, no change", () => {
+    const src = read("server/routers/instagramAdmin.ts");
+    expect(src).toContain("higgsfieldApiCredentialsFromEnv()");
+    expect(src).toMatch(/configured: false/);
   });
 });

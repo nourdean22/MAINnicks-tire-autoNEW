@@ -31,13 +31,28 @@
  * `lib/publicFetch.ts` talks to arbitrary hosts. Installing the real SDK later
  * is a drop-in replacement for this file, not a rewrite of its callers.
  *
- * UNVERIFIED AGAINST A LIVE ACCOUNT. Built from documentation, not exercised
- * against Higgsfield's servers — this repo's only funded lane so far is the CLI
- * session, and spending its credits to smoke-test a new integration is an
- * operator decision, not mine. `probeHiggsfieldApiCredentials()` below is the
- * SAFE first call: it hits the status endpoint with a garbage id, which costs
- * nothing and distinguishes "the key works" (404/not-found) from "the key is
- * wrong" (401/403) without spending a single credit.
+ * WHAT IS AND IS NOT VERIFIED (be precise — this changed on 2026-08-17).
+ *
+ * VERIFIED LIVE: the base URL, and that Higgsfield's server PARSES this auth
+ * header. `scripts/probe-higgsfield-api-key.mts` run with a deliberately bogus
+ * key returned **HTTP 401** from platform.higgsfield.ai — not a connection
+ * error, not a 404. A 401 is the server saying "these credentials are wrong",
+ * which it can only say after understanding the `Authorization: Key id:secret`
+ * scheme and routing the request. So the transport, host and auth SHAPE are
+ * confirmed against the real service, not just the docs.
+ *
+ * STILL UNVERIFIED: generation itself — the submit body, the DoP endpoint path,
+ * the status polling shape, and the result URL field. Those are built from
+ * docs.higgsfield.ai and the official Node SDK and tested against a mocked
+ * `fetch`; exercising them for real spends credits, which is an operator
+ * decision. Run the probe first, then one real clip, before trusting this lane
+ * for a scheduled reel.
+ *
+ * `probeHiggsfieldApiCredentials()` is the SAFE first call and costs nothing: it
+ * looks up a request id that cannot exist, so 404 means the key works, 401/403
+ * means it is rejected, and anything else is reported as UNKNOWN rather than
+ * guessed. Reachable via `pnpm exec tsx scripts/probe-higgsfield-api-key.mts`
+ * and via the Higgsfield health button on Today -> HQ.
  */
 import { createLogger } from "../lib/logger";
 

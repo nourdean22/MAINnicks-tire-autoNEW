@@ -1149,7 +1149,29 @@ Keep it under 200 characters.`;
    *  with its own loading state, not folded into the fast getProviderHealth. */
   getHiggsfieldHealth: adminProcedure.query(async () => {
     const { getHiggsfieldAccountHealth } = await import("../services/higgsfieldStudio");
-    return getHiggsfieldAccountHealth();
+    const cli = await getHiggsfieldAccountHealth();
+
+    // The API-KEY lane's health is reported alongside the CLI session's, because
+    // that lane is what generateReelClipVideo actually PREFERS when configured —
+    // reporting only the session would describe a mechanism the pipeline is not
+    // using. `probeHiggsfieldApiCredentials` shipped with ZERO callers, which made
+    // the one free pre-flight check unreachable from the operator's phone; this is
+    // where it becomes reachable. It costs one ~10s HTTP call and NO credits, and
+    // it is skipped entirely when the key is unset, so the existing CLI-only
+    // behaviour is unchanged for anyone who has not opted in.
+    const { higgsfieldApiCredentialsFromEnv, probeHiggsfieldApiCredentials } = await import(
+      "../services/higgsfieldApiClient",
+    );
+    const apiCreds = higgsfieldApiCredentialsFromEnv();
+    const api = apiCreds
+      ? { configured: true as const, ...(await probeHiggsfieldApiCredentials(apiCreds)) }
+      : { configured: false as const, healthy: null, reason: "HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET not set" };
+
+    // `preferredLane` is the honest answer to "which one will actually run?" —
+    // a surface that showed both healths without saying which is authoritative
+    // would leave the operator to infer it, and inferring it wrong is how a dead
+    // session got read as fine for four days.
+    return { ...cli, api, preferredLane: api.configured ? ("api_key" as const) : ("cli_session" as const) };
   }),
   getProviderHealth: adminProcedure.query(async () => {
     // Text LLM (server/_core/llm.ts) prefers GEMINI_API_KEY, else OPENAI_API_KEY.
