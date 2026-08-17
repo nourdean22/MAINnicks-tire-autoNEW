@@ -219,14 +219,32 @@ returns 401/403, that is reported immediately rather than masked, because a
 wrong key will fail identically on every future call and a silent fallback would
 burn a CLI attempt for nothing while hiding a config mistake.
 
-**WARNING: UNVERIFIED AGAINST A LIVE HIGGSFIELD ACCOUNT.** This was built from the
-official docs (docs.higgsfield.ai) and the official Node SDK
-(github.com/higgsfield-ai/higgsfield-js), and tested with `fetch` mocked to
-match their documented shapes - never exercised against Higgsfield's real
-servers, because spending credits to smoke-test a new integration is an
-operator decision. **Run `probeHiggsfieldApiCredentials()` first** (free) before
-trusting this lane for a real reel. If the wire shape has drifted from the docs,
-that call is where it will show up cheaply, not mid-render.
+### What is verified, precisely
+
+**VERIFIED LIVE (2026-08-17):** the base URL and the auth scheme. Running the
+probe with a deliberately bogus key returned **HTTP 401 from
+platform.higgsfield.ai** - not a connection error, not a 404. A 401 is the server
+saying "these credentials are wrong", which it can only say after parsing
+`Authorization: Key <id>:<secret>` and routing the request. Transport, host and
+auth shape are confirmed against the real service.
+
+**STILL UNVERIFIED:** generation itself - the submit body, the DoP endpoint path,
+the polling shape and the result URL field. Those come from the official docs and
+the official Node SDK, tested against a mocked `fetch`. Exercising them spends
+credits, so it is your call.
+
+**Sequence: probe (free) -> one real clip -> trust it for the schedule.**
+
+```bash
+# free: proves the key authenticates, spends nothing
+HIGGSFIELD_API_KEY_ID=... HIGGSFIELD_API_KEY_SECRET=... pnpm exec tsx scripts/probe-higgsfield-api-key.mts
+
+# or against prod's env (touches no database)
+railway run --service MAINnicks-tire-auto -- pnpm exec tsx scripts/probe-higgsfield-api-key.mts
+```
+
+From your phone: **Today -> HQ -> the Higgsfield health refresh button** now
+reports BOTH lanes and says which one will actually run (`preferredLane`).
 
 **No new npm dependency.** The official `@higgsfield/client` SDK exists but
 adding it here is policy-blocked from this worktree (`harness-worktree-setup`
