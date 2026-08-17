@@ -13,14 +13,22 @@ import {
   type DeliveryFacts,
 } from "./services/socialDeliveryIssues";
 
+// Every field is spelled out even where a default would do. tsconfig.typecheck
+// EXCLUDES **/*.test.ts and vitest only strips types, so an omitted field is not
+// a type error here — it silently arrives as `undefined` and a branch keyed on
+// it takes neither path, passing while proving nothing. `ephemeralOverride` had
+// already drifted out of this literal that way before the fields below were added.
 const ALL_GREEN: DeliveryFacts = {
   storageConfigured: true,
   permanentUrls: true,
+  ephemeralOverride: false,
   metaConfigured: true,
   metaLive: true,
   metaLiveError: null,
   generatorProvider: "veo",
   generatorConfigured: true,
+  generatorSessionHealthy: null,
+  generatorSessionReason: null,
   generationEnabled: true,
   reelPublishArmed: true,
   controls: { globalKillSwitch: false, publishingKillSwitch: false, generationKillSwitch: false },
@@ -134,5 +142,105 @@ describe("deriveDeliveryIssues", () => {
       expect(issue.evidence.length).toBeGreaterThan(5);
       expect(issue.nextAction.length).toBeGreaterThan(10);
     }
+  });
+});
+
+describe("a stored Higgsfield blob is not a working session", () => {
+  // THE FOUR-DAY OUTAGE THIS EXISTS FOR. Verified against production cron_log on
+  // 2026-08-17: 332 completed keepalive runs (2026-08-10 08:47 -> 2026-08-13
+  // 18:07), then 372 CONSECUTIVE failures (2026-08-13 18:11 -> 2026-08-17), every
+  // one `Session expired. Hint: Run: hf auth login`. Cadence was healthy the whole
+  // time (largest gap 15.4 min), so nothing was broken except that this surface
+  // asked `!!credentialsJson` — a PRESENCE check — and reported the generator as
+  // configured. `higgsfieldSessionHealth()` was written for exactly this in the
+  // 2026-07-31 incident and had never been wired in here.
+  const HF = {
+    ...ALL_GREEN,
+    generatorProvider: "higgsfield",
+    generatorConfigured: true,
+  } satisfies DeliveryFacts;
+
+  it("a session PROVEN dead is a BLOCKER, not a warning — the lane produces nothing", () => {
+    const issues = deriveDeliveryIssues({
+      ...HF,
+      generatorSessionHealthy: false,
+      generatorSessionReason: "Session expired. Hint: Run: hf auth login",
+    });
+    const hit = issues.find((i) => i.key === "generator_session_expired");
+    expect(hit?.severity).toBe("blocker");
+    expect(hit?.layer).toBe("generation");
+    // It must quote the cause the keepalive established, not a guess.
+    expect(hit?.evidence).toContain("Session expired");
+    expect(hit?.evidence).toContain("keepalive");
+  });
+
+  it("and it names the ONE recovery path, because no retry can fix a revoked token", () => {
+    const hit = deriveDeliveryIssues({ ...HF, generatorSessionHealthy: false, generatorSessionReason: "x" })
+      .find((i) => i.key === "generator_session_expired");
+    expect(hit?.nextAction).toContain("hf auth login");
+    expect(hit?.nextAction).toContain("Settings");
+    expect(hit?.nextAction).toMatch(/cannot be restored by any retry/);
+  });
+
+  it("does NOT also raise credentials_missing — one fault, one instruction", () => {
+    // Presence and liveness are different findings; emitting both would send the
+    // operator down two paths at once.
+    const keys = deriveDeliveryIssues({ ...HF, generatorSessionHealthy: false, generatorSessionReason: "x" })
+      .map((i) => i.key);
+    expect(keys).toContain("generator_session_expired");
+    expect(keys).not.toContain("generator_credentials_missing");
+  });
+
+  it("a HEALTHY session raises no generation issue at all", () => {
+    const issues = deriveDeliveryIssues({
+      ...HF,
+      generatorSessionHealthy: true,
+      generatorSessionReason: "keepalive refreshed the session",
+    });
+    expect(issues.filter((i) => i.layer === "generation")).toHaveLength(0);
+  });
+
+  it("UNKNOWN liveness warns — it must not read as healthy, and must not cry blocker", () => {
+    const hit = deriveDeliveryIssues({
+      ...HF,
+      generatorSessionHealthy: null,
+      generatorSessionReason: "keepalive has never run",
+    }).find((i) => i.key === "generator_session_unknown");
+    expect(hit?.severity).toBe("warning");
+    expect(hit?.evidence).toContain("never run");
+  });
+
+  it("an OMITTED field counts as unknown, not as healthy", () => {
+    // The luck this nearly shipped on: with the field absent it is `undefined`,
+    // which `=== null` misses, so neither branch fired and a dead session read
+    // clean. Spelled with an explicit cast because the type forbids what vitest
+    // permits at runtime.
+    const partial = { ...HF } as Record<string, unknown>;
+    delete partial.generatorSessionHealthy;
+    delete partial.generatorSessionReason;
+    const keys = deriveDeliveryIssues(partial as unknown as DeliveryFacts).map((i) => i.key);
+    expect(keys).toContain("generator_session_unknown");
+  });
+
+  it("liveness is only asked of the session provider — veo/template_stock stay silent", () => {
+    for (const provider of ["veo", "template_stock"]) {
+      const keys = deriveDeliveryIssues({ ...ALL_GREEN, generatorProvider: provider }).map((i) => i.key);
+      expect(keys, provider).not.toContain("generator_session_unknown");
+      expect(keys, provider).not.toContain("generator_session_expired");
+    }
+  });
+
+  it("MISSING credentials still points at the paste field, not at Railway", () => {
+    // Higgsfield's durable store is app_secret_kv. A static Railway env pair is
+    // the design that died ~90 min after login because the CLI rotates tokens,
+    // so the old nextAction named the one place that cannot hold a live session.
+    const hit = deriveDeliveryIssues({ ...HF, generatorConfigured: false })
+      .find((i) => i.key === "generator_credentials_missing");
+    expect(hit?.nextAction).toContain("hf auth login");
+    expect(hit?.nextAction).not.toContain("Railway");
+    // Non-session providers keep the env-var instruction.
+    const veo = deriveDeliveryIssues({ ...ALL_GREEN, generatorConfigured: false })
+      .find((i) => i.key === "generator_credentials_missing");
+    expect(veo?.nextAction).toContain("Railway");
   });
 });

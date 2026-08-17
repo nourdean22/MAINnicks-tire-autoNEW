@@ -1,5 +1,15 @@
 # Reel production pack — "Squealing vs. grinding brakes" (2026-08-16)
 
+> **Correction 2026-08-17.** This document cites `HIGGSFIELD_API_KEY` as
+> Higgsfield's auth mechanism, quoting a comment in `reelBriefGen.ts` as evidence.
+> **That env var does not exist** — nothing in the repo reads it, and the comment
+> has been corrected. Higgsfield auth is a rotating CLI *session* credential in
+> `app_secret_kv`, refreshed every 15 min by `higgsfield-session-keepalive`. See
+> [`docs/runbooks/higgsfield-session.md`](../../runbooks/higgsfield-session.md).
+> The rest of this pack is unaffected; a comment is not a source of truth about
+> configuration.
+
+
 Scheduled-task run · 2026-08-16 · mode `PRODUCTION` (pack only, per
 `.claude/skills/nickstire-reel-operator/SKILL.md`) · campaign keyword **BRAKE-NOISE**
 · source: [`REEL-SLATE-2026-07-31.md`](../../REEL-SLATE-2026-07-31.md) item #2

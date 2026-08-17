@@ -50,6 +50,26 @@ export interface DeliveryFacts {
   metaLiveError: string | null;
   generatorProvider: string;
   generatorConfigured: boolean;
+  /**
+   * Are the generator's credentials actually WORKING, as opposed to merely
+   * present? Separate from `generatorConfigured` because for a session-based
+   * provider they are different questions, and the difference is an outage.
+   *
+   * `getHiggsfieldCredentialsJson` returns the stored blob without parsing it,
+   * so an expired session is indistinguishable from a live one at a presence
+   * check — which is exactly how this surface reported `generatorConfigured:
+   * true` through the 2026-07-31 expiry, and again through a FOUR-DAY one:
+   * 372 consecutive keepalive failures from 2026-08-13 18:11 to 2026-08-17,
+   * every message `Session expired. Hint: Run: hf auth login`, while this
+   * surface still called the generator configured. `higgsfieldSessionHealth()`
+   * was written for precisely this and had never been wired in here.
+   *
+   * `null` = not knowable or not applicable (a provider with no session, or a
+   * keepalive verdict too old to vouch for). Never rendered as healthy.
+   */
+  generatorSessionHealthy: boolean | null;
+  /** The keepalive's own words, so the issue can quote a cause it established. */
+  generatorSessionReason: string | null;
   generationEnabled: boolean;
   /** As enforced at the choke point (env read), not as displayed anywhere else. */
   reelPublishArmed: boolean;
@@ -239,7 +259,46 @@ export function deriveDeliveryIssues(f: DeliveryFacts): SocialDeliveryIssue[] {
       severity: "warning",
       reason: `The active video provider (${f.generatorProvider}) has no credentials — reel generation will fail at submit.`,
       evidence: "provider selected by the same selector the pipeline uses; its credential check returned false.",
-      nextAction: "Add the provider's credentials in Railway, or switch REEL_VIDEO_PROVIDER.",
+      // Higgsfield's durable store is app_secret_kv, NOT a Railway env var — a
+      // static env pair is the design that died 90 minutes after login, because
+      // the CLI rotates tokens. Sending the operator to Railway for this
+      // provider points at the one place that cannot hold a working session.
+      nextAction: f.generatorProvider === "higgsfield"
+        ? "Run `hf auth login` locally, then paste the credentials JSON into Instagram → Settings → Replace Higgsfield credentials JSON."
+        : "Add the provider's credentials in Railway, or switch REEL_VIDEO_PROVIDER.",
+    });
+  } else if (f.generatorSessionHealthy === false) {
+    // A BLOCKER, not a warning: credentials exist but the session is dead, so
+    // every clip submit fails and the lane produces nothing. This is the state
+    // that ran unreported for four days while the surface said "configured".
+    issues.push({
+      key: "generator_session_expired",
+      layer: "generation",
+      severity: "blocker",
+      reason: `${f.generatorProvider} credentials are stored but the session is NOT working — reel generation fails at submit until it is re-authenticated.`,
+      evidence: `higgsfield-session-keepalive (runs every 15 min) last reported: ${f.generatorSessionReason ?? "an invalid session"}`,
+      nextAction: "Run `hf auth login` locally, then paste the refreshed credentials JSON into Instagram → Settings → Replace Higgsfield credentials JSON. A revoked refresh token cannot be restored by any retry.",
+    });
+  } else if (
+    (f.generatorSessionHealthy === null || f.generatorSessionHealthy === undefined) &&
+    f.generatorProvider === "higgsfield"
+  ) {
+    // `undefined` is checked alongside `null` on purpose. The type says
+    // `boolean | null`, but tsconfig.typecheck.json EXCLUDES **/*.test.ts, so a
+    // facts literal missing this field type-checks nowhere and vitest only
+    // strips types — it would arrive as undefined, silently take neither branch,
+    // and the test would pass while proving nothing. Treat "not established" as
+    // one state however it is spelled.
+    // Unknown must not render as healthy — the whole point of the three-state
+    // return. Warning, not blocker: we have not established a fault, only that
+    // we cannot vouch for the session.
+    issues.push({
+      key: "generator_session_unknown",
+      layer: "generation",
+      severity: "warning",
+      reason: "Higgsfield credentials are stored, but whether the session WORKS is unknown — a stored blob is not proof of a live session.",
+      evidence: f.generatorSessionReason ?? "no recent higgsfield-session-keepalive verdict to read",
+      nextAction: "Check that the higgsfield-session-keepalive cron is still firing; its verdict is what this reads.",
     });
   }
   if (!f.generationEnabled) {
@@ -325,6 +384,12 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
   const { selectReelVideoProvider } = await import("./reelPipeline");
   const generatorProvider = await selectReelVideoProvider();
   let generatorConfigured = false;
+  // Liveness is a SECOND question from presence, and only a session-based
+  // provider has it. Read from the keepalive's durable cron_log verdict, never
+  // by spawning the CLI: this is a request-path display surface and a
+  // per-render subprocess would be worse than the problem it reports.
+  let generatorSessionHealthy: boolean | null = null;
+  let generatorSessionReason: string | null = null;
   try {
     if (generatorProvider === "template_stock") {
       // Local ffmpeg lane — no credentials exist to be missing. Falling through
@@ -333,8 +398,16 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
       // REEL_VIDEO_PROVIDER away from a lane that was working.
       generatorConfigured = true;
     } else if (generatorProvider === "higgsfield") {
-      const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");
+      const { getHiggsfieldCredentialsJson, higgsfieldSessionHealth } = await import("./higgsfieldStudio");
       generatorConfigured = !!(await getHiggsfieldCredentialsJson());
+      if (generatorConfigured) {
+        // Only ask about liveness once presence is established — "no session"
+        // and "dead session" are different findings with different fixes, and
+        // reporting both would send the operator down two paths at once.
+        const health = await higgsfieldSessionHealth();
+        generatorSessionHealthy = health.healthy;
+        generatorSessionReason = health.reason;
+      }
     } else {
       const { veoCredentialsPresent } = await import("./veoStudio");
       generatorConfigured = veoCredentialsPresent();
@@ -361,6 +434,8 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
     metaLiveError,
     generatorProvider,
     generatorConfigured,
+    generatorSessionHealthy,
+    generatorSessionReason,
     generationEnabled: process.env.REEL_GENERATION_ENABLED === "true",
     reelPublishArmed: process.env.REEL_PUBLISH_ENABLED === "true",
     controls,
