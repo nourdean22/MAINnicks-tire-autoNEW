@@ -149,6 +149,30 @@ export interface DopVideoRequest {
 }
 
 /**
+ * Thrown once a generation has been SUBMITTED, i.e. once Higgsfield may bill for
+ * it. Carries the request id so a caller can log it, and — critically — tells the
+ * caller it MUST NOT retry this clip on another provider.
+ *
+ * This distinction is the whole reason the class exists. Higgsfield's DoP call
+ * has no resumable handle, so a caller that reacts to a post-submit failure by
+ * generating the same clip again pays TWICE for one beat. That is not
+ * hypothetical: "re-submitting is what doubled the paid spend on every timeout"
+ * is the recorded history of the CLI lane, which is why that lane KILLS its child
+ * process on timeout rather than abandoning it. A silent provider fallback would
+ * have reintroduced exactly that bug with a friendlier face.
+ */
+export class HiggsfieldApiSubmittedError extends Error {
+  readonly requestId: string;
+  /** Always true — the marker a caller checks before deciding to retry. */
+  readonly spendMayHaveOccurred = true;
+  constructor(requestId: string, message: string) {
+    super(message);
+    this.name = "HiggsfieldApiSubmittedError";
+    this.requestId = requestId;
+  }
+}
+
+/**
  * Submit + poll a DoP (image-to-video) generation to completion.
  *
  * Deliberately mirrors the CLI lane's safety properties rather than trusting the
@@ -195,9 +219,11 @@ export async function generateReelClipVideoViaApi(
 
   while (true) {
     if (Date.now() >= deadline) {
-      throw new Error(
+      throw new HiggsfieldApiSubmittedError(
+        requestId,
         `Higgsfield API generation timed out after ${timeoutMs}ms polling request ${requestId} — ` +
-        `the job may still complete server-side; this request_id was NOT cancelled, only abandoned locally`,
+        `the job may still complete server-side and BILL; this request_id was NOT cancelled, only abandoned locally. ` +
+        `Do NOT regenerate this clip on another provider: that is how one beat gets paid for twice.`,
       );
     }
     await new Promise((r) => setTimeout(r, pollIntervalMs));
@@ -215,11 +241,17 @@ export async function generateReelClipVideoViaApi(
     if (!TERMINAL_STATUSES.has(result.status)) continue;
 
     if (result.status !== "completed") {
-      throw new Error(`Higgsfield API generation ${result.status} for request ${requestId}: ${result.error ?? "no error detail"}`);
+      throw new HiggsfieldApiSubmittedError(
+        requestId,
+        `Higgsfield API generation ${result.status} for request ${requestId}: ${result.error ?? "no error detail"}`,
+      );
     }
     const url = result.video?.url ?? result.images?.[0]?.url;
     if (!url) {
-      throw new Error(`Higgsfield API reported completed but returned no video/image URL for request ${requestId}: ${JSON.stringify(result).slice(0, 300)}`);
+      throw new HiggsfieldApiSubmittedError(
+        requestId,
+        `Higgsfield API reported completed but returned no video/image URL for request ${requestId}: ${JSON.stringify(result).slice(0, 300)}`,
+      );
     }
     log.info("Higgsfield API generation completed", { requestId });
     return url;

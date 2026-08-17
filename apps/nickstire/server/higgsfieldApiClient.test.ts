@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   generateReelClipVideoViaApi,
   higgsfieldApiCredentialsFromEnv,
+  HiggsfieldApiSubmittedError,
   probeHiggsfieldApiCredentials,
 } from "./services/higgsfieldApiClient";
 
@@ -235,5 +236,104 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     global.fetch = spy;
     await expect(generateReelClipVideoViaApi({ prompt: "x" })).rejects.toThrow(/not configured/);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("SPEND SAFETY: a submitted generation must never be retried elsewhere", () => {
+  // Found by the render-spend-trajectory gate, not by me. DoP has no resumable
+  // handle, so regenerating a clip after a POST-SUBMIT failure pays twice for one
+  // beat — the recorded history of this vendor is literally "re-submitting is what
+  // doubled the paid spend on every timeout". Pre-submit failures spent nothing
+  // and are safe to fall back on. The error TYPE is what carries that distinction
+  // to the caller, so these tests pin the type, not just the message.
+  afterEach(() => vi.restoreAllMocks());
+
+  function creds() {
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
+  }
+
+  it("a POST-SUBMIT timeout throws HiggsfieldApiSubmittedError carrying the request id", async () => {
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_spend_1" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "processing", request_id: "req_spend_1" }) } as Response;
+    });
+    creds();
+    vi.useFakeTimers();
+    try {
+      const p = generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const assertion = expect(p).rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
+      await vi.advanceTimersByTimeAsync(65_000);
+      await assertion;
+      await p.catch((e: unknown) => {
+        expect((e as HiggsfieldApiSubmittedError).requestId).toBe("req_spend_1");
+        expect((e as HiggsfieldApiSubmittedError).spendMayHaveOccurred).toBe(true);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a POST-SUBMIT 'failed' status is also submitted-typed — the credit may still be spent", async () => {
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_spend_2" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "failed", request_id: "req_spend_2", error: "policy" }) } as Response;
+    });
+    creds();
+    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+      .rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
+  });
+
+  it("a completed-but-URL-less response is submitted-typed — it definitely billed", async () => {
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_spend_3" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_spend_3" }) } as Response;
+    });
+    creds();
+    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+      .rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
+  });
+
+  it("PRE-SUBMIT failures are PLAIN errors, so the caller may safely fall back", async () => {
+    // A non-2xx submit means nothing was queued and nothing can bill.
+    global.fetch = vi.fn(async () => ({ status: 500, text: async () => JSON.stringify({ error: "upstream" }) }) as Response);
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
+  });
+
+  it("a submit that returns no request_id is PRE-SUBMIT — there is no id that could bill", async () => {
+    global.fetch = vi.fn(async () => ({ status: 200, text: async () => JSON.stringify({ status: "queued" }) }) as Response);
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
+    expect((err as Error).message).toMatch(/no request_id/);
+  });
+
+  it("the submitted error TELLS the caller not to regenerate, in words", async () => {
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_spend_4" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "processing", request_id: "req_spend_4" }) } as Response;
+    });
+    creds();
+    vi.useFakeTimers();
+    try {
+      const p = generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const assertion = expect(p).rejects.toThrow(/paid for twice/);
+      await vi.advanceTimersByTimeAsync(65_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

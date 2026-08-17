@@ -452,13 +452,32 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
   // The one exception is credentials genuinely wrong (401/403 on the FIRST
   // call) — that is reported immediately rather than masked by a fallback that
   // will only fail the same way every time and burn a CLI attempt for nothing.
-  const { higgsfieldApiCredentialsFromEnv, generateReelClipVideoViaApi } = await import("./higgsfieldApiClient");
+  const { higgsfieldApiCredentialsFromEnv, generateReelClipVideoViaApi, HiggsfieldApiSubmittedError } =
+    await import("./higgsfieldApiClient");
   if (higgsfieldApiCredentialsFromEnv()) {
     try {
       return await generateReelClipVideoViaApi({ prompt, startImageUrl });
     } catch (err) {
+      // THE FALLBACK IS ONLY SAFE BEFORE SUBMIT. Once a generation is submitted
+      // Higgsfield may bill for it, and DoP has no resumable handle — so
+      // generating the same clip again on the CLI lane pays TWICE for one beat.
+      // That is the recorded history of this exact vendor ("re-submitting is
+      // what doubled the paid spend on every timeout"), which is why the CLI
+      // path below KILLS its child on timeout instead of abandoning it. A
+      // blanket catch here would have reintroduced that bug wearing a
+      // friendlier face, and the render-spend gate is what surfaced it.
+      //
+      // Pre-submit failures (bad key, DNS, connect timeout, a non-2xx submit)
+      // spent nothing, so those DO fall through and cost only latency.
+      if (err instanceof HiggsfieldApiSubmittedError) {
+        log.error(
+          "Higgsfield API generation was SUBMITTED then failed — NOT falling back, to avoid paying twice for one clip",
+          { requestId: err.requestId, err: err.message },
+        );
+        throw err;
+      }
       const msg = err instanceof Error ? err.message : String(err);
-      log.warn("Higgsfield API lane failed — falling back to CLI session lane", { err: msg });
+      log.warn("Higgsfield API lane failed BEFORE submit — falling back to CLI session lane (nothing was spent)", { err: msg });
       // Falls through to the CLI path below.
     }
   }
