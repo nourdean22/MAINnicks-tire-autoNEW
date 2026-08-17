@@ -656,6 +656,21 @@ export function startTieredScheduler(): void {
           const health = await getHiggsfieldAccountHealth();
           if (!health.credsValid) {
             log.error("Higgsfield session keepalive FAILED — refresh token likely revoked; re-login required", { raw: health.raw.slice(0, 200) });
+            // Drop the in-process credential cache so the NEXT pulse re-reads
+            // app_secret_kv. `getHiggsfieldCredentialsJson` latches
+            // `credentialsLoadAttempted` on first read and never consults the DB
+            // again, so a process holding a DEAD blob keeps presenting it
+            // forever even after a good one is stored. The admin paste path
+            // (instagramAdmin.updateMetaConfig) already clears this — but only in
+            // the process that served the request, so with more than one replica
+            // the others would need a redeploy to notice. Clearing here makes
+            // recovery land within 15 minutes whichever process took the paste.
+            //
+            // Deliberately AFTER the log and BEFORE the throw: the throw is what
+            // records status='failed' and reaches the observer, and that path is
+            // not being altered.
+            const { clearRuntimeHiggsfieldCache } = await import("../services/higgsfieldStudio");
+            clearRuntimeHiggsfieldCache();
             // THROW, do not return. A returned failure is recorded as
             // status='completed', and cron/observer.ts:109 counts a run as
             // failing only when status === 'failed'. That gap cost 4 days of

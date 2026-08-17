@@ -6,26 +6,60 @@ exists so that step takes 60 seconds instead of a day.
 
 ---
 
-## 1 · The 3-step recovery (do this when reels stop)
+## 1 · Recovery (do this when reels stop)
 
-1. On your laptop: `hf auth login` (opens a browser, completes the OAuth flow).
-2. Copy the whole credentials JSON the CLI wrote. Default locations:
-   - macOS / Linux: `~/.higgsfield/credentials.json`
-   - Windows: `%USERPROFILE%\.higgsfield\credentials.json`
+### ⚠️ FIRST: `hf` on your machine is the WRONG CLI
 
-   If it is not there, `HIGGSFIELD_CREDENTIALS_PATH` overrides the location.
-3. Paste it into **Instagram → Settings → "Replace Higgsfield credentials JSON"**
-   and save. That writes `app_secret_kv.higgsfield_credentials_json`, which the
-   app PREFERS over any env var.
+`which hf` here resolves to `Python314/Scripts/hf` — **huggingface_hub**, which
+also has an `auth login` subcommand and will cheerfully succeed while doing
+nothing for Higgsfield. This exact trap burned 2026-07-31: the login was run,
+believed done, and the canary failed identically. The `Hint: Run: hf auth login`
+text in the error comes from the **Higgsfield** CLI on Railway, where `hf` is a
+different binary.
 
-Within 15 minutes `higgsfield-session-keepalive` picks it up, rotates it, and
-writes the rotated pair back. Confirm on **Today → HQ → the Higgsfield health
-refresh button**, or wait for the Delivery card's blocker to clear.
+Invoke Higgsfield's binary by PATH, never by name. `higgsfieldBinary.ts` resolves
+it from `node_modules/@higgsfield/cli/vendor/hf[.exe]`, and downloads it to the OS
+temp dir if absent — so the same lookup works locally:
+
+```bash
+node -e "import('./server/services/higgsfieldBinary.ts')" # or use the vendor path directly
+ls node_modules/@higgsfield/cli/vendor/          # hf / hf.exe lives here
+```
+
+Then run **that** binary's `auth login` — a device flow.
+
+### The steps
+
+1. Run `<vendor>/hf auth login` and complete the device flow in the browser.
+   **The post-login redirect DROPS the device code**, so go back to
+   `/device?code=…` and click Connect — it took two clicks on 2026-07-31.
+   It writes `~/.config/higgsfield/credentials.json`
+   (`%USERPROFILE%\.config\higgsfield\credentials.json` on Windows).
+2. Get it into `app_secret_kv`, either way:
+   - **From your phone:** paste the file's contents into
+     **Instagram → Settings → "Replace Higgsfield credentials JSON"**.
+   - **From this machine:** `pnpm exec node scripts/push-higgsfield-creds.mjs`
+     (dry run), then `--apply`. It refuses unless the file parses with BOTH
+     `access_token` and `refresh_token`, refuses if it is not NEWER than the
+     stored row, and prints only lengths/hashes — never token material.
+3. Confirm, do not infer: `pnpm exec tsx scripts/probe-higgsfield-session-health.mts`
+   (or the Higgsfield refresh button on Today → HQ). The Delivery card's
+   `generator_session_expired` blocker clears on its own once keepalive succeeds.
+
+**A redeploy is no longer required.** `getHiggsfieldCredentialsJson` latches
+`credentialsLoadAttempted` on first read and never re-reads the DB, so a stale
+in-process blob used to survive any paste — which is why the 2026-07-31 sequence
+ended in "REDEPLOY; the DB write alone does nothing". Two invalidations now cover
+it: `updateMetaConfig` clears the cache in the process that served the paste, and
+(added 2026-08-17) the keepalive clears it whenever it finds the session invalid,
+so recovery lands within 15 minutes whichever process took the write.
+
+**Then delete the local credentials file.** One owner of the token — prod. See §3.
 
 **Do NOT put credentials in a Railway env var.** `HIGGSFIELD_CREDENTIALS_JSON` is
-read as a last-resort fallback only. A static env pair dies ~90 minutes after
-login (measured 2026-07-16) because the CLI rotates tokens and the rotated
-successor has nowhere to go. The DB row is the only store that survives rotation.
+a last-resort fallback that the `app_secret_kv` row SHADOWS completely. A static
+env pair also dies ~90 min after login (measured 2026-07-16) because the CLI
+rotates tokens and the rotated successor has nowhere to go.
 
 ---
 
@@ -98,6 +132,14 @@ How to read it:
 | Runs completing, but `app_secret_kv.updated_at` frozen | The CLI is refreshing without rotating, or the persist path is failing. Rotation only writes when the blob CHANGES. |
 | No rows at all | The job never ran. Check `REEL_VIDEO_PROVIDER` and that the scheduler is up. |
 
+### ⚠ Timestamps in these tables are UTC
+
+`cron_log` stores UTC and mysql2 hands back naive values that Node labels with the
+LOCAL zone, so every value reads ~4h AHEAD of real Eastern. Durations and GAPS are
+unaffected (both endpoints shift together); only absolute wall-clock is. Use
+`scripts/probe-cron-clock.mjs`. The absolute times below are as-read (UTC-labelled
+Eastern), i.e. subtract 4h for real ET.
+
 ### Worked example — the four-day outage (2026-08-13 → 08-17)
 
 Probed 2026-08-17: **332** completed keepalive runs (08-10 08:47 → 08-13 18:07),
@@ -136,3 +178,36 @@ is now the thing that tells you.
 
 `HIGGSFIELD_API_KEY` does not exist as a mechanism. Nothing reads it; it survived
 only as a stale comment. Auth is the CLI session credential described above.
+
+---
+
+## 6 · If you want to stop needing a login at all: that already exists
+
+`veoStudio.ts` is, in its own docstring, "the production replacement for the
+Higgsfield/Seedance CLI". Auth is `GEMINI_API_KEY` (or `GOOGLE_SERVICE_ACCOUNT_*`)
+— **an API key: nothing expires, no device flow, no rotation, no session to
+revoke.** It was proven end-to-end in #1256 (real billable generation, S3 rehost,
+range-fetched URL), and it is the better pipeline path besides: Veo persists a
+per-beat `veoOperationName` so a timeout RESUMES the same operation, while
+Higgsfield is a single blocking call with no resumable handle — re-submitting is
+what doubled paid spend on every timeout.
+
+**It was not rejected for capability. It was rejected on cost** (operator decision
+2026-07-31): Higgsfield measured ~$1.30/reel over 23 reels; Veo bills per
+generation and reels average 5.25 clips. That trade may read differently now that
+a revoked session has cost four days of the paid lane.
+
+**The correct flip is to DELETE `REEL_VIDEO_PROVIDER`, not to set it to `veo`.**
+Auto-select prefers Veo when credentialed AND retains automatic Higgsfield
+fallback; an explicit `veo` pin forfeits that fallback and repeats the original bug
+in mirror image — an explicit pin is exactly what made the session expiry fatal,
+because `selectReelVideoProvider()` never consults its credential-based fallback
+when a value is set.
+
+Two Railway traps if you do flip, both measured 2026-07-31: `railway variable
+delete` does NOT reliably reach the running container, and `railway redeploy
+--yes` was a silent no-op. Only `railway variable set K=V` (without
+`--skip-deploys`) actually deployed, and the new container took ~20 min. **Verify
+from behaviour prod REPORTS** — the `provider selected provider="…"` log line, or
+the clip filename (`veo-…mp4` vs `hf_…mp4`) — never from an API readback or a low
+uptime.
