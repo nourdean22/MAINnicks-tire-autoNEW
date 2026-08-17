@@ -378,8 +378,66 @@ describe("the free probe is REACHABLE — an unrunnable safety check is not one"
   });
 
   it("the health procedure skips the probe when no key is set — no cost, no change", () => {
+    // Reads the DB-AWARE resolver: this assertion originally named the env-only
+    // one, which was correct until the key became settable from the admin UI. A
+    // caller left on the env resolver would be blind to a pasted key.
     const src = read("server/routers/instagramAdmin.ts");
-    expect(src).toContain("higgsfieldApiCredentialsFromEnv()");
+    expect(src).toContain("await getHiggsfieldApiCredentials()");
     expect(src).toMatch(/configured: false/);
+  });
+});
+
+describe("the API key is settable from the PHONE, not just a Railway env var", () => {
+  // WHY: an env var needs Railway access and a redeploy that measured ~20 minutes
+  // to reach the container. A DB row is pasted from Instagram -> Settings and takes
+  // effect immediately, because the write clears the cache. For an operator whose
+  // reel lane is down, that is a 60-second fix versus a deploy cycle. Same reason
+  // the CLI credential blob already lives in app_secret_kv.
+  const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+  it("the resolver prefers the DB and falls back to env", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    expect(fn).toContain("higgsfield_api_key_id");
+    expect(fn).toContain("higgsfield_api_key_secret");
+    // env is the FALLBACK, reached via the env-only resolver
+    expect(fn).toContain("higgsfieldApiCredentialsFromEnv()");
+  });
+
+  it("it requires BOTH rows — a half-configured key would 401 and read as 'wrong key'", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    expect(fn).toContain("if (id && secret)");
+  });
+
+  it("the mutation accepts both fields and CLEARS the cache, or the paste would not take effect", () => {
+    const src = read("server/routers/instagramAdmin.ts");
+    expect(src).toContain("higgsfieldApiKeyId");
+    expect(src).toContain("higgsfieldApiKeySecret");
+    expect(src).toContain('k: "higgsfield_api_key_id"');
+    expect(src).toContain('k: "higgsfield_api_key_secret"');
+    // The invalidation is the whole point — getHiggsfieldApiCredentials latches.
+    expect(src).toContain("clearRuntimeHiggsfieldApiKeyCache");
+  });
+
+  it("the Settings UI masks the secret and reports whether one is already stored", () => {
+    const ui = read("client/src/pages/admin/instagram/Settings.tsx");
+    expect(ui).toContain("higgsfieldApiKeySecret");
+    expect(ui).toContain('type="password"');
+    expect(ui).toContain("hasHiggsfieldApiKey");
+  });
+
+  it("every generation/health caller reads the DB-aware resolver, not the env-only one", () => {
+    // If a caller kept the env-only resolver, a pasted key would be invisible to it
+    // — the built-tested-unwired shape, one level down.
+    for (const f of [
+      "server/services/higgsfieldStudio.ts",
+      "server/services/socialDeliveryIssues.ts",
+      "server/routers/instagramAdmin.ts",
+    ]) {
+      const src = read(f);
+      expect(src, f).toContain("getHiggsfieldApiCredentials");
+      expect(src, f).not.toContain("higgsfieldApiCredentialsFromEnv()");
+    }
   });
 });

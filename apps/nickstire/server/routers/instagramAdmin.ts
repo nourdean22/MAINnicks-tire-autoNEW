@@ -1159,10 +1159,10 @@ Keep it under 200 characters.`;
     // where it becomes reachable. It costs one ~10s HTTP call and NO credits, and
     // it is skipped entirely when the key is unset, so the existing CLI-only
     // behaviour is unchanged for anyone who has not opted in.
-    const { higgsfieldApiCredentialsFromEnv, probeHiggsfieldApiCredentials } = await import(
+    const { getHiggsfieldApiCredentials, probeHiggsfieldApiCredentials } = await import(
       "../services/higgsfieldApiClient",
     );
-    const apiCreds = higgsfieldApiCredentialsFromEnv();
+    const apiCreds = await getHiggsfieldApiCredentials();
     const api = apiCreds
       ? { configured: true as const, ...(await probeHiggsfieldApiCredentials(apiCreds)) }
       : { configured: false as const, healthy: null, reason: "HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET not set" };
@@ -1733,6 +1733,7 @@ Keep it under 200 characters.`;
 
     let imageProvider = "";
     let hasHiggsfieldCreds = false;
+    let hasHiggsfieldApiKey = false;
     try {
       const database = await db();
       if (database) {
@@ -1745,11 +1746,13 @@ Keep it under 200 characters.`;
             inArray(appSecretKv.k, [
               "ig_autopost_image_provider",
               "higgsfield_credentials_json",
+              "higgsfield_api_key_id",
             ])
           );
         for (const r of rows) {
           if (r.k === "ig_autopost_image_provider") imageProvider = r.v;
           if (r.k === "higgsfield_credentials_json" && r.v) hasHiggsfieldCreds = true;
+          if (r.k === "higgsfield_api_key_id" && r.v) hasHiggsfieldApiKey = true;
         }
       }
     } catch (err) {
@@ -1767,6 +1770,7 @@ Keep it under 200 characters.`;
       hasSecret: !!appSecret,
       imageProvider,
       hasHiggsfieldCreds,
+      hasHiggsfieldApiKey,
     };
   }),
 
@@ -1779,6 +1783,11 @@ Keep it under 200 characters.`;
       appSecret: z.string().trim().optional(),
       imageProvider: z.enum(["openai", "gemini", "higgsfield"]).optional(),
       higgsfieldCredentialsJson: z.string().trim().optional(),
+      // The API KEY lane. Stored in app_secret_kv rather than a Railway env var
+      // so it can be set from the phone and take effect immediately — an env var
+      // needs a redeploy that measured ~20 minutes.
+      higgsfieldApiKeyId: z.string().trim().max(200).optional(),
+      higgsfieldApiKeySecret: z.string().trim().max(400).optional(),
     }))
     .mutation(async ({ input }) => {
       const database = await db();
@@ -1808,6 +1817,13 @@ Keep it under 200 characters.`;
         updates.push({ k: "higgsfield_credentials_json", v: input.higgsfieldCredentialsJson });
       }
 
+      if (input.higgsfieldApiKeyId) {
+        updates.push({ k: "higgsfield_api_key_id", v: input.higgsfieldApiKeyId });
+      }
+      if (input.higgsfieldApiKeySecret) {
+        updates.push({ k: "higgsfield_api_key_secret", v: input.higgsfieldApiKeySecret });
+      }
+
       for (const item of updates) {
         await database
           .insert(appSecretKv)
@@ -1820,6 +1836,13 @@ Keep it under 200 characters.`;
 
       const { clearRuntimeHiggsfieldCache } = await import("../services/higgsfieldStudio");
       clearRuntimeHiggsfieldCache();
+
+      // Same reason as the line above: getHiggsfieldApiCredentials latches on
+      // first read and never re-queries, so without this the pasted key would not
+      // take effect until a redeploy — which is the entire friction this DB-backed
+      // path exists to remove.
+      const { clearRuntimeHiggsfieldApiKeyCache } = await import("../services/higgsfieldApiClient");
+      clearRuntimeHiggsfieldApiKeyCache();
 
       return { success: true };
     }),

@@ -431,8 +431,8 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
   // expire and generateReelClipVideo prefers it, so asking would be a false alarm
   // about a mechanism nothing uses. See docs/runbooks/higgsfield-session.md §6.
   try {
-    const { higgsfieldApiCredentialsFromEnv } = await import("./higgsfieldApiClient");
-    if (!higgsfieldApiCredentialsFromEnv()) {
+    const { getHiggsfieldApiCredentials } = await import("./higgsfieldApiClient");
+    if (!(await getHiggsfieldApiCredentials())) {
       const { getHiggsfieldCredentialsJson, higgsfieldSessionHealth } = await import("./higgsfieldStudio");
       if (await getHiggsfieldCredentialsJson()) {
         // Only ask about liveness once presence is established — "no session"
@@ -455,8 +455,8 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
       // REEL_VIDEO_PROVIDER away from a lane that was working.
       generatorConfigured = true;
     } else if (generatorProvider === "higgsfield") {
-      const { higgsfieldApiCredentialsFromEnv } = await import("./higgsfieldApiClient");
-      if (higgsfieldApiCredentialsFromEnv()) {
+      const { getHiggsfieldApiCredentials } = await import("./higgsfieldApiClient");
+      if (await getHiggsfieldApiCredentials()) {
         generatorConfigured = true;
       } else {
         const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");

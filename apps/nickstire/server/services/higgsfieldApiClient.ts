@@ -67,12 +67,72 @@ export interface HiggsfieldApiCredentials {
   keySecret: string;
 }
 
-/** Reads HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET. Never logs the secret. */
+/**
+ * ENV-ONLY resolver. Kept for callers that must stay synchronous, and as the
+ * fallback layer beneath the DB. Never logs the secret.
+ */
 export function higgsfieldApiCredentialsFromEnv(): HiggsfieldApiCredentials | null {
   const keyId = process.env.HIGGSFIELD_API_KEY_ID?.trim();
   const keySecret = process.env.HIGGSFIELD_API_KEY_SECRET?.trim();
   if (!keyId || !keySecret) return null;
   return { keyId, keySecret };
+}
+
+let cachedApiCreds: HiggsfieldApiCredentials | null = null;
+let apiCredsLoadAttempted = false;
+
+/** Drop the cache so the next read re-queries the DB. Called after a write. */
+export function clearRuntimeHiggsfieldApiKeyCache(): void {
+  cachedApiCreds = null;
+  apiCredsLoadAttempted = false;
+}
+
+/**
+ * DB-FIRST resolver: `app_secret_kv` rows `higgsfield_api_key_id` /
+ * `higgsfield_api_key_secret`, falling back to the env vars.
+ *
+ * WHY THE DB IS PREFERRED, exactly as it is for the CLI credentials
+ * (`getHiggsfieldCredentialsJson`): a Railway env var can only be changed by
+ * someone with Railway CLI/dashboard access, and setting one requires a redeploy
+ * that measured ~20 minutes to come up. A DB row can be pasted from the admin UI
+ * on a phone and takes effect immediately, because the write clears this cache.
+ * For an operator whose reel lane is down, that is the difference between a
+ * 60-second fix and a deploy cycle.
+ *
+ * Unlike the CLI credential blob, this one is NEVER rewritten by a rotation —
+ * an API key is static, which is the entire reason this lane exists.
+ */
+export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
+  if (apiCredsLoadAttempted) return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+  apiCredsLoadAttempted = true;
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (d) {
+      const { appSecretKv } = await import("../../drizzle/schema");
+      const { inArray } = await import("drizzle-orm");
+      const rows = await d
+        .select()
+        .from(appSecretKv)
+        .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
+      let id: string | null = null;
+      let secret: string | null = null;
+      for (const r of rows as { k: string; v: string | null }[]) {
+        if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
+        if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
+      }
+      // BOTH or neither — a half-configured key would fail every call with a 401
+      // and read as "the key is wrong" rather than "the key is incomplete".
+      if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
+    }
+  } catch (err) {
+    // Never log the values, and never let a DB blip look like "no key" —
+    // the env fallback below still applies.
+    log.error("failed to load Higgsfield API credentials from database", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
 }
 
 function authHeader(creds: HiggsfieldApiCredentials): string {
