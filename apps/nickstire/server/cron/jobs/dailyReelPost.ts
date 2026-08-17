@@ -456,7 +456,22 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
             rejected: verdict.rejected,
             note: (verdict.note || verdict.rejectionReason || "").slice(0, 200),
           });
-          await setKv(judgedKey, JSON.stringify({ total: verdict.total, rejected: verdict.rejected, at: new Date().toISOString() }), `Reel shadow-judge verdict — job ${job.id}`);
+          await setKv(judgedKey, JSON.stringify({
+            total: verdict.total,
+            rejected: verdict.rejected,
+            // briefId + topic make the row JOINABLE and identifiable, and the
+            // note carries the WHY. Without them the corpus is a bag of numbers:
+            // this verdict was written for three days with no reader at all, and
+            // a reader could not have named which reel a score belonged to.
+            // Every field here is consumed by reelShadowReadout.parseJudgeRow —
+            // an unread field would repeat the defect this fixes.
+            briefId: job.briefId,
+            topic: judgeInput.concept.title,
+            // Bounded at 200 like the log line above, so one pathological
+            // verdict cannot bloat a shop_settings row.
+            note: (verdict.note || verdict.rejectionReason || "").slice(0, 200),
+            at: new Date().toISOString(),
+          }), `Reel shadow-judge verdict — job ${job.id}`);
         } catch (err) {
           log.warn("daily reel shadow judge failed (run continues — shadow lane)", {
             jobId: job.id,

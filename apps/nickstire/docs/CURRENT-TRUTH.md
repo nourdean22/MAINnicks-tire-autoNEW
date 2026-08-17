@@ -192,6 +192,35 @@ Automation success is valid only when the final system of record confirms the ac
   after the disagreement readout accumulates — the same shadow→gate path the
   image lane took 08-05→08-07. Verdicts appear as `daily reel shadow judge`
   in Railway logs.
+- **That readout had no reader until 2026-08-16, so it could not have
+  "accumulated" into anything.** The KV verdict was written once per job and read
+  only as a boolean dedupe marker (two references repo-wide, both in the writer).
+  The image lane could justify its flip because it persists verdicts to
+  `ig_autopost_log`, a queryable table, and ships
+  `scripts/ig-dual-judge-readout.ts`; the reel lane used the settings KV and
+  shipped no reader. Now: `server/services/reelShadowReadout.ts` (pure,
+  28 behavioural tests) + `scripts/reel-shadow-judge-readout.ts` (READ-ONLY;
+  **the operator runs it** — the only `DATABASE_URL` here is production). The
+  judge KV row carries `briefId`/`topic`/`note` from 2026-08-16 so a verdict is
+  identifiable. Three things the readout must keep saying, because each is a way
+  to misread it: the corpus is **conditioned** (every row already cleared
+  rendered-QA, so it is a blind-spot rate and never a quality base rate); an
+  **unusable verdict is neither a block nor a pass** (reusing `shadowJudgeGate`,
+  which fails CLOSED, would score an Ollama timeout as a quality defect); and a
+  **judge that throws writes nothing**, so its failures shrink the corpus instead
+  of appearing in it — hence the `coverage` line. No new LLM spend: the judge call
+  was already being paid for.
+- **Coverage counts only reels that COULD have been judged**, and says which it
+  excluded. Eligible = `briefId` of the form `autopost-<YYYY-MM-DD>` (the only
+  jobs `dailyReelPost` selects — `where(eq(reelJobs.briefId, "autopost-" + date))`
+  — and the judge sits inside that function) with that date on/after the
+  **2026-08-13** rollout. A P1 review caught the first version counting every
+  historically posted row, which would have reported pre-rollout reels and
+  operator/`contentManufacturing` publishes as judge failures — fabricating the
+  gap coverage exists to expose. **`source` is NOT the signal**:
+  `contentManufacturing` also enqueues with `source: "cron"` but publishes
+  elsewhere. The date comes from the briefId, not `updatedAt` (`onUpdateNow`,
+  drifts) or `createdAt` (enqueue, not publish).
 
 ### The AI receptionist improves from its own failed calls (2026-08-06/07)
 
