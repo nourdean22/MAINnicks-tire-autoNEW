@@ -257,7 +257,27 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         // episode simply runs as control and is recorded as such.
         log.warn("hook arm lookup failed — generating as control", { err: err instanceof Error ? err.message : String(err) });
       }
-      prepared = await prepareCleanReelBrief({ topic, hookStyle }, { maxAttempts: 6 });
+      // The pack lane and this lane were mutually invisible until 2026-08-16:
+      // scheduled agent runs commit production packs to docs/reel-packs/ for
+      // HUMAN review, this cron posts autonomously, and nothing under server/
+      // referenced that directory. On 2026-08-16 two scheduled runs produced the
+      // same battery topic within two hours while this cron remained free to
+      // pick it a third time. Adding covered topics to the avoid-list is the
+      // whole bridge — packs stay a review queue, they just stop colliding.
+      let packTopics: string[] = [];
+      try {
+        const { packCoveredTopics } = await import("../../services/reelPackRegistry");
+        packTopics = packCoveredTopics(30);
+        if (packTopics.length) log.info("avoiding topics already covered by committed packs", { count: packTopics.length });
+      } catch (err) {
+        log.warn("pack registry unavailable — proceeding without pack awareness", {
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+      prepared = await prepareCleanReelBrief(
+        { topic, hookStyle, ...(packTopics.length ? { additionalAvoidTopics: packTopics } : {}) },
+        { maxAttempts: 6 },
+      );
     } catch (err) {
       if (err instanceof PreflightExhaustedError) {
         // Deliberate benign skip: every candidate deterministically preflight-

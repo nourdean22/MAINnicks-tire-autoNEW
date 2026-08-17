@@ -37,11 +37,31 @@ import {
 const log = createLogger("services:reelBriefGen");
 
 export interface GenerateReelBriefInput {
+  /**
+   * A captured structure from Pattern Lab (social_reel_patterns), selected by
+   * rotation in reelStructurePrior. Structure only — hook shape, pacing, loop
+   * mechanics — never content: the whole point of the table is that it stores
+   * HOW a reference reel was built, not what it said.
+   */
+  structureHint?: {
+    patternId: string;
+    label: string;
+    hookType: string;
+    loopType: string;
+    pattern: unknown;
+  };
   topic?: string;
   campaignKeyword?: string;
   factBucket?: string;
   archetype?: string;
   avoidTopics?: string[];
+  /**
+   * Machine-supplied topics that are ALWAYS merged with whatever steer is in
+   * play, never substituted for it. Distinct from `avoidTopics`, which is the
+   * operator-override channel: routing pack coverage through that one would
+   * drop real reel history from the model's steer the moment a pack existed.
+   */
+  additionalAvoidTopics?: string[];
   sourceType?: string;
   sourceId?: string;
   sourceDetail?: string;
@@ -868,6 +888,35 @@ ${buildFranchiseFragment(input.franchiseId)}`;
       "\"let's talk about\", a place-name preamble (\"In Cleveland, ...\"), and any trailing ellipsis. " +
       "Open with the symptom, the defect, or a direct question about it — e.g. \"Grinding means metal on metal\" or " +
       "\"What is hiding under your car?\". A viewer who leaves in three seconds never reaches the caption, so the first words carry the whole reel.";
+  }
+
+  // PATTERN LAB — captured STRUCTURE, appended late so it shapes execution
+  // without overriding the experiment arm above.
+  //
+  // This block is what makes `structurePatternId` on the brief mean anything.
+  // The first version of this change selected a pattern, stamped its id onto
+  // the brief, and incremented its usage — while never showing it to the model.
+  // The reel would not have followed the pattern, but the persisted cohort key
+  // would have claimed it did, so the pattern -> performance ranking this whole
+  // change exists to enable would have been trained on false attribution. A
+  // corrupted ledger is worse than an empty one.
+  if (input.structureHint) {
+    const h = input.structureHint;
+    const p = (h.pattern ?? {}) as {
+      pacing?: { totalSeconds?: number; beatCount?: number; firstTextAtSecond?: number };
+      loopMechanic?: string;
+    };
+    const pacing = p.pacing;
+    systemPrompt +=
+      `
+
+STRUCTURE REFERENCE — "${h.label}" (Pattern Lab, id ${h.patternId}). ` +
+      `Follow this SHAPE, never its subject matter: this is a captured structure, not content to reuse. ` +
+      `Hook type: ${h.hookType}. Loop type: ${h.loopType}.` +
+      (pacing?.beatCount ? ` Target ${pacing.beatCount} beats` : "") +
+      (pacing?.totalSeconds ? ` across ~${pacing.totalSeconds}s` : "") +
+      (pacing?.firstTextAtSecond != null ? `, first on-screen text at ~${pacing.firstTextAtSecond}s` : "") +
+      `. If the topic genuinely cannot carry this shape, prioritise the topic — a forced structure reads worse than a plain one.`;
   }
 
   const skillPayload = await applyCreativeSkills({ type: "reel_brief" });

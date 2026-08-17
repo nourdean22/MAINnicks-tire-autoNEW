@@ -418,6 +418,19 @@ export async function getBestPostingTimes(opts?: { limit?: number }): Promise<Be
 // ─── REEL GENERATION SIGNAL (Phase 5.4 feedback loop) ───
 
 /** Pure: the most-frequent AI-tagged themes across rows (highest-engagement first). */
+/** How many joined posts to consider. 60 covers ~6 months at this cadence. */
+const DISTRIBUTION_SAMPLE_LIMIT = 60;
+
+/** Tolerant themesJson parse, shared by both ranking paths. */
+function parseThemes(themesJson?: string | null): string[] {
+  try {
+    const t = JSON.parse(themesJson || "[]");
+    return Array.isArray(t) ? t.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function pickTopThemes(rows: Array<{ themesJson?: string | null }>, limit = 3): string[] {
   const counts = new Map<string, number>();
   for (const r of rows) {
@@ -454,6 +467,130 @@ export function pickTopThemes(rows: Array<{ themesJson?: string | null }>, limit
 export const MIN_REEL_SIGNAL_ROWS = 4;
 
 export async function getReelGenerationSignal(): Promise<{
+  topThemes: string[];
+  bestPostHour: number | null;
+  signalSource: "reels" | "all_media" | "none" | "distribution";
+  /** Set when ranking used ig_metric_snapshots rather than engagementRate. */
+  distributionBasis?: string[];
+}> {
+  // Preferred path: rank by what actually earned DISTRIBUTION — saves, shares,
+  // retention — from ig_metric_snapshots. `engagementRate` below is
+  // (likes + comments) / followers, which on Reels mostly measures the audience
+  // Instagram ALREADY delivered to; it answers "what did our followers react
+  // to" when the question is "what gets pushed to strangers". The richer
+  // metrics have been collected since migration 0108 and nothing ranked on
+  // them. Falls through to the legacy ordering when too few posts carry them,
+  // and SAYS which it used rather than hiding the difference.
+  try {
+    const distribution = await getDistributionRankedThemes();
+    if (distribution.themes.length) {
+      const times = await getBestPostingTimes({ limit: 1 });
+      return {
+        topThemes: distribution.themes,
+        bestPostHour: times.length && Number.isFinite(times[0].hourOfDay) ? times[0].hourOfDay : null,
+        signalSource: "distribution",
+        distributionBasis: distribution.basis,
+      };
+    }
+    log.info("distribution signal unavailable, falling back to engagementRate ordering", {
+      reason: distribution.reason,
+    });
+  } catch (err) {
+    log.warn("distribution signal threw, falling back to engagementRate ordering", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return getEngagementRateSignal();
+}
+
+/**
+ * Join instagram_analytics (themes) to ig_metric_snapshots (real metrics) on
+ * postId, newest snapshot per post, and rank with the pure scorer.
+ */
+async function getDistributionRankedThemes(): Promise<{
+  themes: string[];
+  basis: string[];
+  reason?: string;
+}> {
+  const d = await db();
+  if (!d) return { themes: [], basis: [], reason: "no_db" };
+
+  const { rankThemesByDistribution } = await import("@shared/reelPerformancePrior");
+
+  // ONE ROW PER POST, via a WINDOW FUNCTION over a derived table — NOT a
+  // subquery in the ON clause. TiDB rejects that outright:
+  // "ON condition doesn't support subqueries yet" (ER 1105). Caught by running
+  // it against prod rather than trusting it to parse; the catch below would
+  // otherwise have swallowed the error and silently reverted this whole path to
+  // the engagementRate ordering it exists to replace.
+  //
+  // `ig_metric_snapshots` is APPEND-ONLY — the sync writes a
+  // new row for a post every time it refreshes, so a naive join plus a global
+  // "newest 60" returns the same Reel many times. Two consequences, both
+  // corrupting: a single post refreshed twice satisfies MIN_POSTS_PER_THEME on
+  // its own, and frequently-refreshed recent posts crowd older distinct posts
+  // out of the sample entirely. Deduplicate to each post's LATEST snapshot
+  // before the limit applies, so the sample is 60 posts and not 60 rows.
+  const rows = await d.execute(sql`
+    SELECT a.themesJson         AS themesJson,
+           m.reach              AS reach,
+           m.saved              AS saved,
+           m.views              AS views,
+           m.shares             AS shares,
+           m.avg_watch_time_ms  AS avgWatchTimeMs,
+           m.skip_rate          AS skipRate
+    FROM instagram_analytics a
+    JOIN (
+      SELECT s.*,
+             ROW_NUMBER() OVER (PARTITION BY s.postId ORDER BY s.capturedAt DESC, s.id DESC) AS rn
+      FROM ig_metric_snapshots s
+    ) m ON m.postId = a.postId AND m.rn = 1
+    WHERE a.mediaProductType = 'REELS'
+    ORDER BY m.capturedAt DESC
+    LIMIT ${DISTRIBUTION_SAMPLE_LIMIT}
+  `);
+
+  // mysql2 returns [rows, fields]; drizzle's execute passes that through.
+  const joined = (Array.isArray(rows) ? rows[0] : rows) as unknown[];
+  if (!Array.isArray(joined) || joined.length === 0) {
+    return { themes: [], basis: [], reason: "no_joined_rows" };
+  }
+
+  // Explicit row type: the innerJoin widens drizzle's inference enough that `r`
+  // lands as implicit any, and an untyped mapper here would silently pass
+  // undefined into the scorer.
+  type JoinedRow = {
+    themesJson: string | null;
+    reach: number | null;
+    saved: number | null;
+    views: number | null;
+    shares: number | null;
+    avgWatchTimeMs: number | null;
+    skipRate: string | null;
+  };
+
+  const scored = rankThemesByDistribution(
+    (joined as JoinedRow[]).map((r) => ({
+      themes: parseThemes(r.themesJson),
+      reach: r.reach,
+      saved: r.saved,
+      views: r.views,
+      shares: r.shares,
+      avgWatchTimeMs: r.avgWatchTimeMs,
+      // decimal comes back as a string from mysql2
+      skipRate: r.skipRate == null ? null : Number(r.skipRate),
+    })),
+  );
+  if (scored.length === 0) return { themes: [], basis: [], reason: "no_theme_met_minimum" };
+
+  return {
+    themes: scored.map((t) => t.theme),
+    basis: [...new Set(scored.flatMap((t) => t.basis))],
+  };
+}
+
+/** Legacy ordering, kept as the fallback. See the note in the caller. */
+async function getEngagementRateSignal(): Promise<{
   topThemes: string[];
   bestPostHour: number | null;
   signalSource: "reels" | "all_media" | "none";

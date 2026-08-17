@@ -474,6 +474,16 @@ export interface ReelVisualWorld {
 }
 
 export interface ReelBrief {
+  /**
+   * Which social_reel_patterns row this brief was built on, when Pattern Lab
+   * supplied a structure. This is the cohort key the pattern table was shaped
+   * for — its own schema comment promised "future cohort joins (pattern x trial
+   * results)" — and which never existed, so nothing could ask which captured
+   * structure actually earned distribution. It rides the brief into
+   * reel_jobs.payload; joining it against ig_metric_snapshots is what turns
+   * rotation into ranking later.
+   */
+  structurePatternId?: string;
   id: string;
   createdAt: string;
   updatedAt: string;
