@@ -1,0 +1,79 @@
+{
+  "concept": "exhaust-smoke-color",
+  "title": "What your exhaust smoke color is telling you",
+  "createdDate": "2026-08-17",
+  "mode": "PRODUCTION",
+  "renderStatus": "NOT_RENDERED",
+  "publishStatus": "NOT_PUBLISHED",
+  "targetDurationSec": 30,
+  "aspectRatio": "9:16",
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "label": "hook",
+      "startSec": 0.0,
+      "endSec": 3.0,
+      "vo": "Exhaust smoke color is a clue.",
+      "prompt": "Close-up static shot of a car exhaust tailpipe at idle in a dim shop bay, faint haze in the air, shallow depth of field, realistic automotive documentary lighting, no visible smoke yet"
+    },
+    {
+      "index": 2,
+      "label": "blue-smoke",
+      "startSec": 3.0,
+      "endSec": 11.0,
+      "vo": "Blue-gray smoke usually points to oil getting into the engine and burning off — often worn valve seals or piston rings.",
+      "prompt": "Close-up slow-motion shot of thick blue-gray smoke puffing rhythmically from a car exhaust pipe against dark wet asphalt, cool overcast light, realistic vapor texture, shallow depth of field",
+      "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
+    },
+    {
+      "index": 3,
+      "label": "white-smoke",
+      "startSec": 11.0,
+      "endSec": 19.0,
+      "vo": "Thick white smoke that doesn't clear after warm-up can point to coolant getting into the engine — that one shouldn't wait.",
+      "prompt": "Close-up shot of thick white smoke billowing continuously from a car exhaust pipe in cold shop-bay air, dense opaque vapor, moody fluorescent garage lighting, realistic texture",
+      "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
+    },
+    {
+      "index": 4,
+      "label": "black-smoke-cta",
+      "startSec": 19.0,
+      "endSec": 27.0,
+      "vo": "Black smoke usually means the engine's running rich, burning more fuel than it should — worth having someone check, not a guess.",
+      "prompt": "Close-up shot of black sooty smoke puffing from an exhaust pipe during hard acceleration on a city street, gritty high-contrast look, slight handheld drift, realistic exhaust soot texture",
+      "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
+    },
+    {
+      "index": 5,
+      "label": "save-freeze",
+      "startSec": 27.0,
+      "endSec": 30.0,
+      "vo": null,
+      "prompt": "Wide static shot of a tire and auto repair shop bay with the door open, organized tools and a lift in the background, warm inviting late-afternoon light, empty of people, held completely still for a 3-second freeze",
+      "ctaText": "Worth checking, not guessing. Stop by and we'll take a look. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland"
+    }
+  ],
+  "musicRights": "BLOCKED_NO_LEDGER",
+  "capabilityPreflight": {
+    "higgsfieldAccountHealthCalled": false,
+    "reelVideoProviderLiveRead": false,
+    "reelVideoProviderLastKnown": "template_stock",
+    "reelGenerationEnabledLiveRead": false,
+    "ttsCalled": false,
+    "reelCanaryCalled": false,
+    "prodDbRead": false
+  },
+  "qaMatrix": {
+    "briefQualityScore": "BLOCKED",
+    "enqueueRescore": "BLOCKED",
+    "renderIntegrityGate": "BLOCKED",
+    "renderedQaVisionCritic": "BLOCKED",
+    "repairRouter": "BLOCKED",
+    "sevenWayAutomationDecision": "BLOCKED",
+    "consolidatedPublishGate": "BLOCKED",
+    "evidenceEntailment": "UNKNOWN"
+  },
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL",
+  "operationalFlag": "23 open PRs titled 'reel production pack' found at write time, roughly hourly cadence, at least 2 topic collisions unreconciled (battery, brakes) — see README.md top section"
+}
