@@ -13,6 +13,8 @@
  * live publish gate on. The first four describes exist for that one bug.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { JUDGE_GATE_MIN_TOTAL } from "./services/igJudgeGate";
 import {
   formatReelShadowReadout,
@@ -261,6 +263,46 @@ describe("the coverage denominator counts only reels that COULD have been judged
       expect(shadowJudgeEligibility({ jobId: 1, status: "posted", briefId: bad }).reason)
         .toBe("other_publish_path");
     }
+  });
+});
+
+describe("the eligibility regex is pinned to its PRODUCER, not just to itself", () => {
+  // The silent-failure path this closes: shadowJudgeEligibility matches
+  // /^autopost-(\d{4}-\d{2}-\d{2})$/. If dailyReelPost ever formats that date
+  // differently, EVERY row becomes "other_publish_path", coverage reports 0/0,
+  // and the readout looks calm while measuring nothing. A consumer-only test
+  // cannot see that — so assert the producer, per the pin-the-producer rule.
+  const cron = readFileSync(
+    resolve(process.cwd(), "server/cron/jobs/dailyReelPost.ts"),
+    "utf8",
+  );
+
+  it("dailyReelPost still builds the briefId as `autopost-${date}`", () => {
+    expect(cron).toContain("const briefId = `autopost-${date}`;");
+  });
+
+  it("and still formats that date as YYYY-MM-DD via the en-CA locale", () => {
+    // en-CA is what yields YYYY-MM-DD; a switch to en-US would give M/D/YYYY and
+    // break the regex silently. Anchored on the CALL, not the trailing comment.
+    expect(cron).toContain('toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone })');
+  });
+
+  it("a briefId built exactly the way the cron builds one IS eligible", () => {
+    // Behavioural end of the contract: construct the value the producer emits
+    // (en-CA of a fixed instant in the shop's timezone) and run it through the
+    // real predicate, rather than trusting a hand-typed literal.
+    const date = new Date("2026-08-20T17:00:00Z").toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+    expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(shadowJudgeEligibility({ jobId: 1, status: "posted", briefId: `autopost-${date}` }))
+      .toEqual({ eligible: true, reason: "eligible" });
+  });
+
+  it("the rollout constant is itself in the format the regex compares against", () => {
+    // `m[1] < rolloutDate` is a STRING compare; a rollout constant in any other
+    // shape would silently mis-order every row.
+    expect(SHADOW_JUDGE_ROLLOUT_DATE).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 
