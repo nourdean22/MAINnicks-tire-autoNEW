@@ -181,26 +181,89 @@ only as a stale comment. Auth is the CLI session credential described above.
 
 ---
 
-## 6 · If you want to stop needing a login at all: that already exists
+## 6 - Stop needing a login at all - Higgsfield's OFFICIAL API key lane
+
+**Shipped 2026-08-17.** Higgsfield has an official REST API with key-based auth
+- `cloud.higgsfield.ai -> API section -> generate a key`. No session, no device
+flow, no rotation, nothing to revoke. Set both:
+
+```
+HIGGSFIELD_API_KEY_ID=...
+HIGGSFIELD_API_KEY_SECRET=...
+```
+
+and `generateReelClipVideo` (`server/services/higgsfieldStudio.ts`) prefers this
+lane automatically - no `REEL_VIDEO_PROVIDER` change needed, both values sit
+inside the `higgsfield` provider. Unset either var to force the CLI session lane.
+
+Verify the key works for FREE before pointing production at it - no generation,
+no credit spend:
+
+```ts
+import { probeHiggsfieldApiCredentials } from "../services/higgsfieldApiClient";
+await probeHiggsfieldApiCredentials();
+// { healthy: true }  -> key authenticates
+// { healthy: false }  -> key is wrong/revoked
+// { healthy: null }   -> not knowable (network blip, unexpected response) - re-check, don't conclude
+```
+
+It hits the status endpoint with a request id that cannot exist: a 404 proves
+the key authenticated (the server processed the request and correctly reported
+not-found); a 401/403 proves the key itself is rejected. Neither branch spends a
+credit.
+
+**On failure, `generateReelClipVideo` FALLS BACK to the CLI session lane** rather
+than propagating the API error - an API-side outage costs one clip's extra
+latency, never the whole reel. The one exception: if the very first API call
+returns 401/403, that is reported immediately rather than masked, because a
+wrong key will fail identically on every future call and a silent fallback would
+burn a CLI attempt for nothing while hiding a config mistake.
+
+**WARNING: UNVERIFIED AGAINST A LIVE HIGGSFIELD ACCOUNT.** This was built from the
+official docs (docs.higgsfield.ai) and the official Node SDK
+(github.com/higgsfield-ai/higgsfield-js), and tested with `fetch` mocked to
+match their documented shapes - never exercised against Higgsfield's real
+servers, because spending credits to smoke-test a new integration is an
+operator decision. **Run `probeHiggsfieldApiCredentials()` first** (free) before
+trusting this lane for a real reel. If the wire shape has drifted from the docs,
+that call is where it will show up cheaply, not mid-render.
+
+**No new npm dependency.** The official `@higgsfield/client` SDK exists but
+adding it here is policy-blocked from this worktree (`harness-worktree-setup`
+skill) - the integration talks plain HTTP/JSON directly
+(`server/services/higgsfieldApiClient.ts`), the same way `lib/publicFetch.ts`
+talks to arbitrary hosts. Installing the real SDK later is a drop-in
+replacement for that one file, not a rewrite of its callers.
+
+**Do not trust apidog.com's Higgsfield write-up.** It was found in the same
+search and contradicts the official docs on base URL, the auth header format
+(`Bearer` vs the real `Key <id>:<secret>`), and the endpoint path. It reads
+AI-generated and wrong for this specific vendor.
+
+---
+
+## 7 - If you'd rather stop using Higgsfield entirely
 
 `veoStudio.ts` is, in its own docstring, "the production replacement for the
 Higgsfield/Seedance CLI". Auth is `GEMINI_API_KEY` (or `GOOGLE_SERVICE_ACCOUNT_*`)
-— **an API key: nothing expires, no device flow, no rotation, no session to
+- **an API key: nothing expires, no device flow, no rotation, no session to
 revoke.** It was proven end-to-end in #1256 (real billable generation, S3 rehost,
 range-fetched URL), and it is the better pipeline path besides: Veo persists a
 per-beat `veoOperationName` so a timeout RESUMES the same operation, while
-Higgsfield is a single blocking call with no resumable handle — re-submitting is
+Higgsfield is a single blocking call with no resumable handle - re-submitting is
 what doubled paid spend on every timeout.
 
 **It was not rejected for capability. It was rejected on cost** (operator decision
 2026-07-31): Higgsfield measured ~$1.30/reel over 23 reels; Veo bills per
 generation and reels average 5.25 clips. That trade may read differently now that
-a revoked session has cost four days of the paid lane.
+a revoked session has cost four days of the paid lane - though §6's API key lane
+answers the SAME "stop needing a login" problem without leaving Higgsfield at all,
+which is a smaller change if the pricing is acceptable.
 
 **The correct flip is to DELETE `REEL_VIDEO_PROVIDER`, not to set it to `veo`.**
 Auto-select prefers Veo when credentialed AND retains automatic Higgsfield
 fallback; an explicit `veo` pin forfeits that fallback and repeats the original bug
-in mirror image — an explicit pin is exactly what made the session expiry fatal,
+in mirror image - an explicit pin is exactly what made the session expiry fatal,
 because `selectReelVideoProvider()` never consults its credential-based fallback
 when a value is set.
 
@@ -208,6 +271,6 @@ Two Railway traps if you do flip, both measured 2026-07-31: `railway variable
 delete` does NOT reliably reach the running container, and `railway redeploy
 --yes` was a silent no-op. Only `railway variable set K=V` (without
 `--skip-deploys`) actually deployed, and the new container took ~20 min. **Verify
-from behaviour prod REPORTS** — the `provider selected provider="…"` log line, or
-the clip filename (`veo-…mp4` vs `hf_…mp4`) — never from an API readback or a low
+from behaviour prod REPORTS** - the `provider selected provider="..."` log line, or
+the clip filename (`veo-...mp4` vs `hf_...mp4`) - never from an API readback or a low
 uptime.

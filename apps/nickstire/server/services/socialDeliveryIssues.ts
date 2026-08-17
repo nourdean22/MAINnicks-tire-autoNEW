@@ -398,15 +398,27 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
       // REEL_VIDEO_PROVIDER away from a lane that was working.
       generatorConfigured = true;
     } else if (generatorProvider === "higgsfield") {
-      const { getHiggsfieldCredentialsJson, higgsfieldSessionHealth } = await import("./higgsfieldStudio");
-      generatorConfigured = !!(await getHiggsfieldCredentialsJson());
-      if (generatorConfigured) {
-        // Only ask about liveness once presence is established — "no session"
-        // and "dead session" are different findings with different fixes, and
-        // reporting both would send the operator down two paths at once.
-        const health = await higgsfieldSessionHealth();
-        generatorSessionHealthy = health.healthy;
-        generatorSessionReason = health.reason;
+      // API-KEY LANE FIRST. If it is configured, generateReelClipVideo prefers
+      // it and it has no session to expire — asking the CLI session's liveness
+      // here would raise a false generator_session_expired blocker for a lane
+      // the pipeline is not even using, the exact false-alarm class the
+      // template_stock branch above already exists to avoid for a different
+      // reason. See docs/runbooks/higgsfield-session.md §6.
+      const { higgsfieldApiCredentialsFromEnv } = await import("./higgsfieldApiClient");
+      if (higgsfieldApiCredentialsFromEnv()) {
+        generatorConfigured = true;
+      } else {
+        const { getHiggsfieldCredentialsJson, higgsfieldSessionHealth } = await import("./higgsfieldStudio");
+        generatorConfigured = !!(await getHiggsfieldCredentialsJson());
+        if (generatorConfigured) {
+          // Only ask about liveness once presence is established — "no
+          // session" and "dead session" are different findings with different
+          // fixes, and reporting both would send the operator down two paths
+          // at once.
+          const health = await higgsfieldSessionHealth();
+          generatorSessionHealthy = health.healthy;
+          generatorSessionReason = health.reason;
+        }
       }
     } else {
       const { veoCredentialsPresent } = await import("./veoStudio");

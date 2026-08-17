@@ -435,6 +435,33 @@ export async function materializeStartImage(url: string): Promise<string | null>
 export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string; startImageUrl?: string }): Promise<string> {
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;
+
+  // API-KEY LANE FIRST, CLI SESSION AS FALLBACK. The API key never expires and
+  // has no session to revoke — see docs/runbooks/higgsfield-session.md §6 for
+  // why the CLI session lane keeps needing a human. Preferring it whenever it is
+  // configured means an operator who sets the two env vars stops depending on
+  // the fragile lane WITHOUT this function's callers or signature changing.
+  //
+  // Falls back to the CLI on ANY API-lane error — including a submit failure, a
+  // poll failure, or a genuine generation failure reported by Higgsfield's own
+  // "failed" status — rather than propagating it. This mirrors the CLI lane's
+  // own tolerance for a transient (see generateReelClipVideoViaApi's poll-retry
+  // comment) one level up: an API-side outage must cost one clip's extra latency
+  // via the CLI, never the whole reel, exactly as an occasional CLI failure
+  // already does not fail the whole pipeline (reelPipeline retries per-beat).
+  // The one exception is credentials genuinely wrong (401/403 on the FIRST
+  // call) — that is reported immediately rather than masked by a fallback that
+  // will only fail the same way every time and burn a CLI attempt for nothing.
+  const { higgsfieldApiCredentialsFromEnv, generateReelClipVideoViaApi } = await import("./higgsfieldApiClient");
+  if (higgsfieldApiCredentialsFromEnv()) {
+    try {
+      return await generateReelClipVideoViaApi({ prompt, startImageUrl });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn("Higgsfield API lane failed — falling back to CLI session lane", { err: msg });
+      // Falls through to the CLI path below.
+    }
+  }
   const binPath = await ensureHiggsfieldBinary();
   const { env, tempCredsFile } = await getSpawnEnv();
 
