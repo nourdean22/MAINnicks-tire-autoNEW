@@ -268,21 +268,48 @@ export function deriveDeliveryIssues(f: DeliveryFacts): SocialDeliveryIssue[] {
         : "Add the provider's credentials in Railway, or switch REEL_VIDEO_PROVIDER.",
     });
   } else if (f.generatorSessionHealthy === false) {
-    // A BLOCKER, not a warning: credentials exist but the session is dead, so
-    // every clip submit fails and the lane produces nothing. This is the state
-    // that ran unreported for four days while the surface said "configured".
+    // TWO AXES, both from review (2026-08-17).
+    //
+    // SEVERITY depends on whether Higgsfield is the ACTIVE provider. Dead session
+    // + active = renders are failing right now (blocker). Dead session + a
+    // different provider = nothing is broken yet, but the operator is one env var
+    // away from breaking it, and the runbook tells them to confirm "no blocker"
+    // before flipping — so it must be VISIBLE (warning), never silent. Silence
+    // here is what made the first version useless on prod, which runs
+    // template_stock.
+    //
+    // REMEDIATION depends on WHY. `getHiggsfieldAccountHealth()` returns
+    // credsValid:false for a missing CLI binary, a child-process error and a
+    // probe timeout as well as a real revocation, and the keepalive records all
+    // of them identically. Telling the operator to re-authenticate — and
+    // asserting no retry can help — is wrong advice for a transient or a missing
+    // binary. Only claim revocation when the recorded reason actually says so.
+    const looksRevoked = /session expired|hf auth login|refresh token|unauthor|401|403/i.test(
+      f.generatorSessionReason ?? "",
+    );
+    const active = f.generatorProvider === "higgsfield";
     issues.push({
       key: "generator_session_expired",
       layer: "generation",
-      severity: "blocker",
-      reason: `${f.generatorProvider} credentials are stored but the session is NOT working — reel generation fails at submit until it is re-authenticated.`,
+      severity: active ? "blocker" : "warning",
+      reason: active
+        ? `${f.generatorProvider} credentials are stored but the session is NOT working — reel generation fails at submit until it is fixed.`
+        : `Stored Higgsfield credentials are NOT working. The active provider is ${f.generatorProvider}, so nothing is failing right now — but switching to Higgsfield would send renders into a dead session.`,
       evidence: `higgsfield-session-keepalive (runs every 15 min) last reported: ${f.generatorSessionReason ?? "an invalid session"}`,
-      nextAction: "Run `hf auth login` locally, then paste the refreshed credentials JSON into Instagram → Settings → Replace Higgsfield credentials JSON. A revoked refresh token cannot be restored by any retry.",
+      nextAction: looksRevoked
+        ? "Run Higgsfield's OWN `hf auth login` (NOT the huggingface_hub `hf` on PATH — see docs/runbooks/higgsfield-session.md §1), then paste the refreshed credentials JSON into Instagram → Settings → Replace Higgsfield credentials JSON. A revoked refresh token cannot be restored by any retry. Setting HIGGSFIELD_API_KEY_ID/SECRET avoids this failure mode entirely (§6)."
+        : "The keepalive is failing but the cause is NOT identified as a revoked session — it may be a missing CLI binary, a child-process error, or a timeout, where re-login is irrelevant. Read the keepalive's error in cron_log first (docs/runbooks/higgsfield-session.md §4), and only re-authenticate if it names an expired session.",
     });
   } else if (
     (f.generatorSessionHealthy === null || f.generatorSessionHealthy === undefined) &&
     f.generatorProvider === "higgsfield"
   ) {
+    // NOTE: still gated on the active provider ON PURPOSE. "We could not
+    // establish liveness" is only worth the operator's attention for the lane
+    // actually rendering; raising it for an idle provider would be noise on
+    // every template_stock deploy, and noise is what trains an operator to
+    // ignore this card. A PROVEN-dead session is different and is reported
+    // above regardless of which provider is active.
     // `undefined` is checked alongside `null` on purpose. The type says
     // `boolean | null`, but tsconfig.typecheck.json EXCLUDES **/*.test.ts, so a
     // facts literal missing this field type-checks nowhere and vitest only
@@ -390,6 +417,36 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
   // per-render subprocess would be worse than the problem it reports.
   let generatorSessionHealthy: boolean | null = null;
   let generatorSessionReason: string | null = null;
+  // HIGGSFIELD SESSION HEALTH IS READ REGARDLESS OF THE ACTIVE PROVIDER (P1
+  // review, 2026-08-17). The first version only asked when
+  // generatorProvider === "higgsfield", which made the fix useless in the exact
+  // state prod was in: on `template_stock`, a stored-but-DEAD Higgsfield session
+  // produced no issue at all, so the runbook's "confirm no blocker" step would
+  // read as satisfied and the operator would flip back to Higgsfield and send
+  // renders straight into a dead session. A latent fault the operator is one env
+  // var away from stepping on has to be VISIBLE, just not urgent — so it is read
+  // always and the SEVERITY is what varies (see deriveDeliveryIssues).
+  //
+  // Skipped only when the API-key lane is configured: that lane has no session to
+  // expire and generateReelClipVideo prefers it, so asking would be a false alarm
+  // about a mechanism nothing uses. See docs/runbooks/higgsfield-session.md §6.
+  try {
+    const { higgsfieldApiCredentialsFromEnv } = await import("./higgsfieldApiClient");
+    if (!higgsfieldApiCredentialsFromEnv()) {
+      const { getHiggsfieldCredentialsJson, higgsfieldSessionHealth } = await import("./higgsfieldStudio");
+      if (await getHiggsfieldCredentialsJson()) {
+        // Only ask about liveness once presence is established — "no session"
+        // and "dead session" are different findings with different fixes, and
+        // reporting both would send the operator down two paths at once.
+        const health = await higgsfieldSessionHealth();
+        generatorSessionHealthy = health.healthy;
+        generatorSessionReason = health.reason;
+      }
+    }
+  } catch (err) {
+    log.warn("higgsfield session health unreadable", { err: err instanceof Error ? err.message : String(err) });
+  }
+
   try {
     if (generatorProvider === "template_stock") {
       // Local ffmpeg lane — no credentials exist to be missing. Falling through
@@ -398,27 +455,12 @@ export async function gatherDeliveryFacts(): Promise<DeliveryFacts> {
       // REEL_VIDEO_PROVIDER away from a lane that was working.
       generatorConfigured = true;
     } else if (generatorProvider === "higgsfield") {
-      // API-KEY LANE FIRST. If it is configured, generateReelClipVideo prefers
-      // it and it has no session to expire — asking the CLI session's liveness
-      // here would raise a false generator_session_expired blocker for a lane
-      // the pipeline is not even using, the exact false-alarm class the
-      // template_stock branch above already exists to avoid for a different
-      // reason. See docs/runbooks/higgsfield-session.md §6.
       const { higgsfieldApiCredentialsFromEnv } = await import("./higgsfieldApiClient");
       if (higgsfieldApiCredentialsFromEnv()) {
         generatorConfigured = true;
       } else {
-        const { getHiggsfieldCredentialsJson, higgsfieldSessionHealth } = await import("./higgsfieldStudio");
+        const { getHiggsfieldCredentialsJson } = await import("./higgsfieldStudio");
         generatorConfigured = !!(await getHiggsfieldCredentialsJson());
-        if (generatorConfigured) {
-          // Only ask about liveness once presence is established — "no
-          // session" and "dead session" are different findings with different
-          // fixes, and reporting both would send the operator down two paths
-          // at once.
-          const health = await higgsfieldSessionHealth();
-          generatorSessionHealthy = health.healthy;
-          generatorSessionReason = health.reason;
-        }
       }
     } else {
       const { veoCredentialsPresent } = await import("./veoStudio");
