@@ -275,7 +275,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         });
       }
       prepared = await prepareCleanReelBrief(
-        { topic, hookStyle, ...(packTopics.length ? { avoidTopics: packTopics } : {}) },
+        { topic, hookStyle, ...(packTopics.length ? { additionalAvoidTopics: packTopics } : {}) },
         { maxAttempts: 6 },
       );
     } catch (err) {

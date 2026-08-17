@@ -1397,9 +1397,10 @@
           "shared/reelPerformancePrior.test.ts (9): null-not-zero for unreported metrics, re-weighting over present metrics, inverted skipRate, outlier ceiling, MIN_POSTS_PER_THEME drop-not-demote, basis provenance",
           "shared/reelStructureRotation.test.ts (6): least-used first, never-used before repeat, deterministic tie-break, hook-type exclusion with full-set fallback",
           "server/reelPackRegistry.test.ts (7): directory resolution, brief.json optional, unparseable brief survives, campaign keyword in avoid-list, age bound, no-throw on missing dir",
-          "server/reelBriefStructureTrajectory.test.ts: structurePatternId survives brief -> persisted payload"
+          "server/reelBriefStructureTrajectory.test.ts: structurePatternId survives brief -> persisted payload",
+          "server/reelReviewFixes.test.ts (4): duplicate-snapshot consequence, avoid-list merge-not-substitute"
         ],
-        "productionMeasurement": "Ranking effect measured on the live account 2026-08-16, not asserted: OLD (engagementRate = likes+comments) ranked educational #1, community #3. NEW (saves/shares/retention over 475 ig_metric_snapshots rows) ranks local-appeal #1 and community LAST at 0.000 across 32 posts. Deployed image confirmed to contain /app/apps/nickstire/docs/reel-packs with all five packs, which is the pack registry's second candidate path."
+        "productionMeasurement": "Ranking effect measured on the live account 2026-08-16 against a DEDUPLICATED sample of 32 distinct reels. OLD (engagementRate = likes+comments) ranked educational #1, seasonal #2, community #3. NEW (saves/shares/retention) ranks promo #1 (0.0059, 12 posts), seasonal #2, educational #3 (0.0032, 31 posts), community #4 (0.0017). CORRECTION: an earlier measurement in this PR claimed local-appeal #1 and community at 0.000 — both were artifacts of counting one post many times. ig_metric_snapshots is append-only and the first query returned the newest 60 ROWS, which was only 19 distinct posts at 3.2 snapshots each. Review caught it; the query now takes the newest snapshot PER POST via a window function. Deployed image confirmed to contain /app/apps/nickstire/docs/reel-packs with all five packs."
       },
       "blockers": [
         {
@@ -1411,6 +1412,11 @@
           "severity": "P2",
           "description": "No reel has yet been SELECTED by the distribution ranker in a live cron run. The ranking was measured against production DATA, which is not the same as having run. Re-verify after the next dailyReelPost firing and promote operationalState to live_verified only then.",
           "source": "measured against prod ig_metric_snapshots 2026-08-16; no live selection observed"
+        },
+        {
+          "severity": "P2",
+          "description": "TiDB rejects subqueries in an ON clause (ER 1105 'ON condition doesn't support subqueries yet'), so the per-post dedupe uses ROW_NUMBER() over a derived table. Any future simplification back to a correlated subquery will throw at runtime and be SWALLOWED by the catch, silently reverting theme ranking to the engagementRate ordering this capability replaces.",
+          "source": "live prod probe 2026-08-16: the subquery form threw ER 1105 before this was shipped"
         }
       ],
       "deferredScope": [

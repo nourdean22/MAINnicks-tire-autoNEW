@@ -74,7 +74,22 @@ export async function prepareCleanReelBrief(
   // passing something the repetition ledger never actually measured. Rotation
   // by least-used already spreads hook types in practice.
   const structure = await pickStructureHint();
-  const baseAvoidTopics = input.avoidTopics && input.avoidTopics.length > 0 ? input.avoidTopics : recent.topics;
+  // TWO CHANNELS, because they mean different things.
+  //
+  // `avoidTopics` keeps its original contract: an operator-supplied list WINS
+  // over real history, because it usually means "the operator is intentionally
+  // steering" and history should not fight a human. A test pins that on purpose.
+  //
+  // `additionalAvoidTopics` is the machine channel and is ALWAYS merged. It
+  // exists because dailyReelPost now passes topics already covered by committed
+  // packs, and routing those through `avoidTopics` would have silently dropped
+  // the entire reel_jobs history from the model's steer the moment any pack
+  // existed — exact repeats would still be caught after generation, but the
+  // preventive signal would vanish, so the cron could burn all six attempts or
+  // produce a semantic near-repeat that exact matching never catches.
+  // Pack awareness must ADD a constraint, never remove one.
+  const steer = input.avoidTopics && input.avoidTopics.length > 0 ? input.avoidTopics : recent.topics;
+  const baseAvoidTopics = [...new Set([...steer, ...(input.additionalAvoidTopics ?? [])])];
   // Grows across attempts (self-review, 2026-08-13): a caller that pins a
   // FIXED topic seed already present in history (the admin canary's static
   // default, or dailyReelPost.ts's manifest fallback) asked the model to
