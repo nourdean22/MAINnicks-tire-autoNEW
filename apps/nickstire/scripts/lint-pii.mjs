@@ -234,11 +234,26 @@ function isInScope(relPath) {
   return IN_SCOPE.some((rx) => rx.test(relPath));
 }
 
+/**
+ * Set when the staged-file read FAILED, as distinct from "nothing in scope was
+ * staged". Both yield an empty list and both fall through to audit mode, but
+ * audit mode does not BLOCK (see MAIN) — so a failed read silently downgrades a
+ * blocking gate to an advisory one, and the plain `(audit)` label cannot be told
+ * apart from the ordinary no-in-scope-files case that most commits produce.
+ * AGENTS.md already warns to "confirm it actually scanned staged files rather
+ * than silently passing"; this makes that confirmable instead of a habit.
+ *
+ * The escalation itself is GOOD and is kept: a failed read widens the scan to
+ * every in-scope file rather than skipping. Only the silence is fixed.
+ */
+let stagedReadError = null;
+
 function getStagedFiles() {
   try {
     const out = execSync("git diff --cached --name-only --diff-filter=ACMR", {
       cwd: APP_ROOT,
       encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
     });
     return out
       .split("\n")
@@ -246,7 +261,8 @@ function getStagedFiles() {
       .filter(Boolean)
       .map((f) => f.replace(/^apps\/nickstire\//, ""))
       .filter(isInScope);
-  } catch {
+  } catch (err) {
+    stagedReadError = err && err.message ? err.message : String(err);
     return [];
   }
 }
@@ -256,6 +272,7 @@ function getAddedLines(relPath) {
     const diff = execSync(`git diff --cached -U0 -- "${relPath}"`, {
       cwd: APP_ROOT,
       encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
     });
     const lines = [];
     let lineNum = 0;
@@ -273,7 +290,10 @@ function getAddedLines(relPath) {
       }
     }
     return lines;
-  } catch {
+  } catch (err) {
+    // An unreadable per-file diff means this file's added lines were NOT
+    // examined. Say so — returning [] silently makes it look clean.
+    console.error(`⚠ lint-pii: could not read the staged diff for ${relPath} — its added lines were NOT scanned: ${err && err.message ? err.message : err}`);
     return [];
   }
 }
@@ -359,6 +379,15 @@ function scanFile(relPath, mode) {
 // ─── MAIN ─────────────────────────────────────────────
 const stagedFiles = AUDIT_MODE ? [] : getStagedFiles();
 const mode = AUDIT_MODE || stagedFiles.length === 0 ? "audit" : "pre-commit";
+if (stagedReadError) {
+  console.error(`
+⚠ lint-pii: COULD NOT READ THE STAGED FILE LIST — falling back to a full audit.`);
+  console.error(`  cause: ${stagedReadError}`);
+  console.error(`  Consequence: this run scans MORE files but does NOT BLOCK, so a staged`);
+  console.error(`  PII violation would be printed and the commit would still succeed.`);
+  console.error(`  Treat a clean result here as UNCONFIRMED for your staged changes.
+`);
+}
 
 let files;
 if (mode === "pre-commit") {
@@ -372,7 +401,7 @@ if (mode === "pre-commit") {
 const allViolations = files.flatMap((f) => scanFile(f, mode));
 
 if (allViolations.length === 0) {
-  console.log(`✅ lint-pii (${mode}): clean (${files.length} files scanned)`);
+  console.log(`✅ lint-pii (${mode}${stagedReadError ? " · STAGED READ FAILED, not a confirmation" : ""}): clean (${files.length} files scanned)`);
   process.exit(0);
 }
 
