@@ -14,10 +14,15 @@
  * This is a LIGHT gate — we don't auto-regen. We flag and let Nour
  * decide via the UI quality badge ("regen recommended").
  *
+ * 2026-08-18: the stub-reply signal honors the output critic's brevity
+ * waiver — an explicitly ordered terse reply ("reply with just OK") is
+ * obedience, not a stub offense. The badge ORs critic + gate verdicts,
+ * so BOTH scorers must waive or the chip still fires.
+ *
  * Heavier gates (fact-check against brain memory) live in fact-check.ts.
  */
 
-import type { CriticScore } from "./output-critic";
+import { detectBrevityRequest, type CriticScore } from "./output-critic";
 import type { TurnSignal } from "./turn-intelligence";
 import type { ResponseContract } from "./response-contract";
 
@@ -81,6 +86,14 @@ export function runReplyGate(
   const text = reply.trim();
   const isEmpty = text.length === 0;
   const isStubReply = !isEmpty && text.length < 40 && STUB_REPLY_RE.test(text);
+  // 2026-08-18 · same waiver as the output critic: when the operator
+  // explicitly ordered a terse reply ("reply with just OK", "yes or
+  // no"), an obedient stub is COMPLIANCE, not a quality failure. The
+  // critic's waiver alone was not enough — the quality badge ORs
+  // critic.shouldRegen with gate.shouldRegen, so this gate re-flagged
+  // the exact reply the critic had just waived (live-verified on the
+  // persisted verdict: critic overall=100 waived, gate severity=80).
+  const brevityRequested = detectBrevityRequest(userText);
   const iDontKnow = I_DONT_KNOW_RE.test(text);
   const evidencedUncertainty =
     iDontKnow && (EVIDENCED_UNCERTAINTY_RE.test(text) || text.includes("[brain:"));
@@ -98,9 +111,13 @@ export function runReplyGate(
     severity = 100;
     reasons.push("empty reply");
   }
-  if (isStubReply && turnSignal.intent !== "casual") {
+  if (isStubReply && turnSignal.intent !== "casual" && !brevityRequested) {
     severity = Math.max(severity, 80);
     reasons.push("stub reply on non-casual turn");
+  } else if (isStubReply && brevityRequested) {
+    // Waives ONLY the stub-shape signal — empty / ungrounded-IDK /
+    // sub-question-miss / hedge-storm still fire below.
+    reasons.push("brevity-requested · stub-reply waived (operator-constrained reply)");
   }
   // 2026-08-11 · fixed incentive: only an UNGROUNDED IDK (no evidence of a
   // retrieval attempt) is a regen offense. "I don't know — checked, no
