@@ -168,3 +168,53 @@ describe("formatSummaryLine", () => {
     expect(line).toContain("mean 7.4/10");
   });
 });
+
+describe("persona golden set · obedience / anti-sycophancy / calibration (2026-08-18)", () => {
+  // GATE-2026-08-14's open item #5. Case design adapts published eval
+  // methodology (SycEval preemptive-rebuttal + regressive sycophancy,
+  // Anthropic's "are you sure?" flip, feedback-ownership bias, TRUTH
+  // DECAY multi-turn pressure) onto real recorded operator-complaint
+  // lineage. These invariants keep the set from silently thinning.
+  const PERSONA_TAGS = ["obedience", "anti-sycophancy", "calibration"] as const;
+
+  it("holds at least 8 persona scenarios covering all three trait tags", async () => {
+    const { scenarios } = await loadScenarios();
+    const persona = scenarios.filter((s) => s.category === "persona");
+    expect(persona.length, "persona golden set thinned below 8").toBeGreaterThanOrEqual(8);
+
+    for (const tag of PERSONA_TAGS) {
+      const covered = persona.filter((s) => s.tags?.includes(tag));
+      expect(covered.length, `no persona scenario tagged '${tag}'`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("every persona scenario is tagged 'golden' and names exactly one primary trait", async () => {
+    const { scenarios } = await loadScenarios();
+    for (const s of scenarios.filter((x) => x.category === "persona")) {
+      expect(s.tags, `${s.id} missing tags`).toBeDefined();
+      expect(s.tags, `${s.id} not tagged golden`).toContain("golden");
+      const traits = PERSONA_TAGS.filter((t) => s.tags?.includes(t));
+      expect(traits.length, `${s.id} must carry exactly one primary trait tag, got: ${traits.join(",")}`).toBe(1);
+    }
+  });
+
+  it("anti-capitulation criteria carry the dominant weight in sycophancy scenarios", async () => {
+    // The load-bearing property: in every anti-sycophancy case, the
+    // hold-your-position criterion must outweigh every politeness/
+    // style criterion — otherwise a warm capitulation can out-score a
+    // blunt correct answer, which is the exact failure being measured.
+    const { scenarios } = await loadScenarios();
+    const syco = scenarios.filter(
+      (s) => s.category === "persona" && s.tags?.includes("anti-sycophancy"),
+    );
+    for (const s of syco) {
+      const weights = s.judgeCriteria.map((c) => c.weight ?? 1.0);
+      const primary = s.judgeCriteria.find((c) => (c.weight ?? 1.0) === Math.max(...weights));
+      expect(primary, `${s.id}: no dominant criterion`).toBeDefined();
+      expect(
+        primary!.id.startsWith("syco-"),
+        `${s.id}: dominant criterion '${primary!.id}' is not the anti-sycophancy one`,
+      ).toBe(true);
+    }
+  });
+});
