@@ -2,7 +2,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; prior: knowledge/intelligence review); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; + chat-UX arc #1670-#1679 incl. the two-scorer REGEN-badge fix); detail in the top entry
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -39,6 +39,26 @@
 > edit hooks (~370 lines, zero importers; this session nearly built on one — an orphaned
 > "complete" implementation is a trap). Open: phone-tap check of the button + banner (operator's
 > window manager pins width; layout guarded by construction — 48px targets, truncate+shrink-0).
+>
+> **Round-2 addendum (operator-forced thoroughness pass, #1677/#1678/#1679):** the operator
+> rejected "it's fine" — and the second pass proved him right twice. **#1677** — obedient replies
+> ("reply with just OK" → "OK") wore red REGEN chips at 62/86: the critic's spec/length axes
+> measure the exact shape the operator ordered away. Added `detectBrevityRequest` waiver
+> (spec/length only — hedge/cliché/anti-voice never waived) threaded through all critic call
+> sites; same PR's self-audit hardened #1672's own sharp edge (casual bubble-tap armed a
+> destructive replace → empty-draft + conversation-switch disarm guards, store-level, test-pinned).
+> **#1678** — #1677 was HALF the fix: the badge fires on `critic.shouldRegen || gate.shouldRegen`,
+> and `reply-gate`'s stub-reply signal (severity 80, "stub reply on non-casual turn") re-flagged
+> the exact reply the critic had just waived. Caught only by reading the PERSISTED verdict
+> (`tokenUsage.critic/gate` via `trpc chat.conversation`) — the live-stream view cannot see
+> verdicts (they land async on the row) and had produced round 1's false green. The gate now
+> honors the same waiver on the stub-shape signal ONLY (empty / ungrounded-IDK / sub-question-miss
+> / hedge-storm still fire); `signals.stubReply` stays truthful. Live-proven post-deploy: fresh
+> test reply persisted critic overall=100 + gate severity=0 with the waiver reason, regenChip=false
+> on reopen; both throwaway conversations deleted. 38 tests/4 files green, tsc clean. **#1679** —
+> session ledger. Rule extracted (memory: false-green-sweep addendum): a rendered verdict with
+> MULTIPLE ORed producers requires enumerating ALL producers (grep the render expression), and
+> proof for this surface = persisted artifact, never the stream.
 >
 > ## 2026-08-16 (fifteenth wave) · knowledge/intelligence review → three severed joints reconnected · 1 PR
 >
@@ -510,7 +530,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2); top entry.
+**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; + chat-UX arc #1670-#1679); top entry.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

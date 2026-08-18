@@ -847,3 +847,26 @@ statenour primitives documented (existence re-verified at
   sentinels."
 - **Confidence:** high (breaker cooldown confirmed by identical-command re-run going green)
 - **Status:** proposed
+
+## 2026-08-18 · chat-UX round 2 — the operator-forced thoroughness pass (#1677/#1678)
+
+### P1 · `statenour-verify` — ORed-verdict surfaces: enumerate ALL producers, verify the persisted artifact
+- **Trigger (witnessed):** #1677 waived the output-critic for operator-ordered terse replies
+  and was declared fixed off a live-stream screenshot. The operator rejected "it's fine";
+  reading the PERSISTED verdict (`tokenUsage.critic/gate` via `trpc chat.conversation`)
+  showed the critic waived (overall=100, waiver reason present) while `reply-gate`'s
+  stub-reply signal (severity 80) still fired — the chip renders on
+  `critic.shouldRegen || gate.shouldRegen`, so one waived scorer changed nothing. #1678
+  fixed the second scorer; live re-proof: gate severity=0, regenChip=false on reopen.
+- **Cost:** an overclaiming PR title frozen in merged history ("obedient replies no longer
+  flagged REGEN"), a second fix PR, and an operator correction that should not have been
+  needed — round 1's evidence could never have seen the defect (verdicts land async on the
+  persisted row; the live view is structurally blind to them).
+- **Proposed edit:** add — "Before declaring a producer-side fix done on any rendered
+  flag/badge: grep the RENDER expression for every producer it ORs/aggregates and check each
+  one. For chat quality verdicts specifically, proof = reload + read the persisted
+  `tokenUsage.critic/gate` blob (trpc `chat.conversation`); a live-stream screenshot is a
+  blind instrument for this surface."
+- **Confidence:** high (same blind-instrument class as the leverage-layer gate lesson;
+  witnessed false green + witnessed second producer, both receipted this session)
+- **Status:** proposed
