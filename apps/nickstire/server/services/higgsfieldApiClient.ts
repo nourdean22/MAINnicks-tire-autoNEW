@@ -83,10 +83,17 @@ const BASE_URL = "https://platform.higgsfield.ai";
  * call self-corrects instead of failing. The path that works is LOGGED so the
  * loser can be deleted once reality is known.
  */
-const DOP_SUBMIT_PATHS = [
-  "/higgsfield-ai/dop/standard",
-  "/v1/image2video/dop",
-] as const;
+// SETTLED 2026-08-18 by the vendor's own OpenAPI spec, which enumerates all 50
+// paths: `/higgsfield-ai/dop/standard` exists, `/v1/image2video/dop` does NOT (no
+// path in the spec contains "image2video"). The live 422 and 403 both came from
+// the first path, so it is demonstrably the routed one. The comment above said the
+// loser should be deleted once reality was known - it is, so it is.
+//
+// The array stays because the loop that reads it is the thing keeping a future
+// path change from being a silent outage. The spec also offers cheaper DoP tiers
+// - `/higgsfield-ai/dop/lite` and `/dop/turbo`, identical request schema - which
+// is the lever to pull if credit cost per clip becomes the constraint.
+const DOP_SUBMIT_PATHS = ["/higgsfield-ai/dop/standard"] as const;
 
 /** Statuses meaning "wrong path", as distinct from "bad request to the right path". */
 const PATH_MISS_STATUSES = new Set([404, 405]);
@@ -311,15 +318,25 @@ export async function probeHiggsfieldApiCredentials(
 
 export interface DopVideoRequest {
   prompt: string;
-  /** A publicly fetchable image URL - the API fetches it server-side. */
+  /**
+   * REQUIRED by the vendor spec despite being optional here, because the caller
+   * may not have one and the error must name why. A publicly fetchable image URL
+   * - the API fetches it server-side.
+   *
+   * THIS IMAGE DETERMINES THE CLIP'S ASPECT RATIO. DoP has no aspect_ratio
+   * parameter (see the body construction), so a 9:16 clip requires a 9:16 still.
+   */
   startImageUrl?: string;
-  /** Defaults to REEL_CLIP_DEFAULTS.aspectRatio. Portrait is NOT optional for reels. */
-  aspectRatio?: string;
-  /** Seconds. Defaults to REEL_CLIP_DEFAULTS.durationSeconds. */
-  durationSeconds?: number;
-  /** Defaults to REEL_CLIP_DEFAULTS.resolution. */
-  resolution?: string;
 }
+
+/**
+ * The CLI lane's proven clip arguments - what `buildSeedanceArgs` passes, and
+ * therefore what produced every reel this shop has actually published.
+ *
+ * NOT sent to the API lane. DoP's spec has no duration/resolution/aspect_ratio
+ * field at all, so passing these there did nothing; they are kept here because
+ * the CLI lane does use them and a test pins that lane's args to these values.
+ */
 
 /**
  * MIRRORED FROM THE PROVEN CLI ARG SET, not invented and not from a doc page.
@@ -328,16 +345,21 @@ export interface DopVideoRequest {
  *
  *     --aspect_ratio 9:16   --duration 4   --resolution 1080p
  *
- * The API lane shipped passing NONE of them, which was a latent defect big enough
- * to waste real credits: `reelAssembly` throws unless a clip is 1080x1920, DoP
- * would have used its own defaults, and every generated clip would have failed the
- * render-integrity gate AFTER being paid for. Worse, clip length feeds the
- * 15-22s total-duration target, so a default duration silently changes how long
- * every reel is depending on which lane happened to run.
+ * CORRECTION, 2026-08-18. #1653 added these to the API request body and its commit
+ * message claimed the API lane would otherwise have "paid for landscape clips the
+ * assembler rejects". THAT WAS WRONG. The vendor's OpenAPI spec defines DoP's whole
+ * body as `prompt, image_url, motions, end_image_url, seed, enhance_prompt` - there
+ * is no duration, resolution or aspect_ratio field, so those three were ignored and
+ * never controlled anything on that lane.
  *
- * These live as DEFAULTS in the client rather than as caller arguments on purpose:
- * a caller that forgets them produced a broken clip, and there is no reason for
- * every call site to re-remember the shop's format.
+ * What actually sets a DoP clip's shape is the ASPECT RATIO OF THE INPUT STILL,
+ * because DoP is image-to-video. So satisfying reelAssembly's 1080x1920 gate is a
+ * constraint on `brief.visualWorld.heroFrameUrl`, not something a request parameter
+ * can buy. The genuine format risk is real, it just lives one step upstream.
+ *
+ * These therefore describe the CLI LANE ONLY. They stay exported because a test
+ * pins `buildSeedanceArgs` to them, which keeps the lane that does honour them from
+ * drifting.
  */
 export const REEL_CLIP_DEFAULTS = {
   aspectRatio: "9:16",
@@ -413,45 +435,48 @@ export async function generateReelClipVideoViaApi(
   const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000));
   const deadline = Date.now() + timeoutMs;
 
-  const aspectRatio = req.aspectRatio ?? REEL_CLIP_DEFAULTS.aspectRatio;
-  const durationSeconds = req.durationSeconds ?? REEL_CLIP_DEFAULTS.durationSeconds;
-  const resolution = req.resolution ?? REEL_CLIP_DEFAULTS.resolution;
-
+  // THE VENDOR'S OWN OpenAPI SPEC (docs.higgsfield.ai/docs/openapi.json, read
+  // 2026-08-18) DEFINES DoP's ENTIRE REQUEST BODY AS:
+  //
+  //     required: prompt, image_url
+  //     properties: seed, prompt, motions, image_url, end_image_url, enhance_prompt
+  //
+  // There is NO duration, NO resolution, NO aspect_ratio and NO model field.
+  // This file used to send all four, and #1653's commit message claimed they were
+  // what kept a clip portrait and priced. That was WRONG and worth stating
+  // plainly: unknown fields are simply ignored, so those four never controlled
+  // anything. The 422 we measured was about image_url alone.
+  //
+  // WHAT ACTUALLY DETERMINES PORTRAIT: the ASPECT RATIO OF `image_url`. DoP is
+  // image-to-video and inherits its frame from the still. So a 9:16 clip requires
+  // a 9:16 hero frame - reelAssembly's 1080x1920 gate cannot be satisfied by a
+  // request parameter, only by the input image. That is a real constraint on
+  // brief.visualWorld.heroFrameUrl, not a knob here.
+  //
+  // KEPT, because the spec confirms it is real AND defaults to TRUE:
+  // `enhance_prompt`. Letting the vendor rewrite copy server-side would put
+  // UNREVIEWED text into a published reel for a business that must not make
+  // unsupported claims - a compliance hole, not a quality feature. This is the
+  // one format field that was doing work all along.
   const body: Record<string, unknown> = {
-    model: "dop-standard",
     prompt: req.prompt,
-    aspect_ratio: aspectRatio,
-    duration: durationSeconds,
-    resolution,
-    // enhance_prompt FALSE, deliberately. This prompt has already passed the
-    // repo's claim-safety gate (reviewReplyQa / the M10 preflight); letting the
-    // vendor rewrite it server-side would put UNREVIEWED copy into a published
-    // reel for a business that must not make unsupported claims. Any provider
-    // knob that edits our text after our own gate has run is a compliance hole,
-    // not a quality feature.
     enhance_prompt: false,
   };
 
-  // MEASURED AGAINST THE LIVE API 2026-08-18, and it refuted this file's own
-  // previous shape. DoP replied:
+  // MEASURED AGAINST THE LIVE API 2026-08-18, then confirmed by the spec:
   //
   //   HTTP 422 {"detail":[{"type":"missing","loc":["body","image_url"],
   //                        "msg":"Field required"}]}
   //
-  // Two bugs in one line, neither visible to 53 mocked tests because the mock
-  // accepted whatever we sent:
-  //   1. The field is a TOP-LEVEL STRING `image_url`. The old
-  //      `input_images: [{ type, image_url }]` is the SOUL (text-to-image)
-  //      request shape, copied across to a different endpoint by analogy.
-  //   2. It is REQUIRED, not optional. The comment here already said "DoP is
-  //      image-to-video" and then made the image optional and merely WARNED --
-  //      the warning described the exact reason the request could not work.
+  // `image_url` is a REQUIRED TOP-LEVEL STRING. The old
+  // `input_images: [{ type, image_url }]` is the SOUL (text-to-image) shape,
+  // carried to a different endpoint by analogy; 53 mocked tests could not see the
+  // difference because the mock accepted whatever we sent.
   //
-  // So a beat with no hero frame cannot use this lane at all. Throwing here is
-  // deliberate and it is FREE: `HiggsfieldApiSubmittedError` is not used, so
-  // generateReelClipVideo treats this as PRE-submit and falls back to the CLI
-  // lane having spent nothing, instead of paying a round-trip for a request the
-  // vendor is guaranteed to reject.
+  // A beat with no hero frame therefore cannot use this lane at all, and throwing
+  // here is FREE: this is not a HiggsfieldApiSubmittedError, so
+  // generateReelClipVideo treats it as PRE-submit and falls back having spent
+  // nothing, rather than paying a round-trip for a guaranteed rejection.
   if (!req.startImageUrl) {
     throw new Error(
       "Higgsfield API DoP requires a start image (body.image_url) - it is image-to-video only. " +
@@ -464,10 +489,9 @@ export async function generateReelClipVideoViaApi(
 
   log.info("submitting Higgsfield API DoP video generation", {
     promptLen: req.prompt.length,
-    hasStartImage: !!req.startImageUrl,
-    aspectRatio,
-    durationSeconds,
-    resolution,
+    // Portrait is inherited from this image, not requested - so the URL is the
+    // thing worth logging when a clip comes back the wrong shape.
+    startImage: req.startImageUrl,
   });
 
   // Try each candidate path. A 404/405 means "wrong path", and crucially it means

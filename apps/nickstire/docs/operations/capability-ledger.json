@@ -1447,7 +1447,8 @@
         "liveRuns": [
           "AUTH: a deliberately bogus key returns a real HTTP 401 from platform.higgsfield.ai; a control probe against a nonexistent path returned the SAME 401, so auth is checked BEFORE routing.",
           "REQUEST SHAPE, measured 2026-08-18: the shipped body was rejected with HTTP 422 'body.image_url Field required' - image_url is a REQUIRED TOP-LEVEL STRING, and the previous input_images array was the Soul text-to-image shape. Fixed in #1654.",
-          "CREDITS, measured 2026-08-18: the corrected body returns HTTP 403 'not_enough_credits'. Generation has therefore never produced a clip. Nothing was spent - both failures are pre-submit."
+          "CREDITS, measured 2026-08-18: the corrected body returns HTTP 403 'not_enough_credits'. Generation has therefore never produced a clip. Nothing was spent - both failures are pre-submit.",
+          "REQUEST CONTRACT, from the vendor's OpenAPI spec 2026-08-18 (not by analogy): DoP's whole body is required[prompt, image_url] + optional[seed, motions, end_image_url, enhance_prompt]. There is NO duration, resolution, aspect_ratio or model field, so #1653's four format fields were ignored and its 'paid for landscape clips' reasoning was WRONG. A DoP clip inherits its aspect from the INPUT STILL, making 1080x1920 a constraint on brief.visualWorld.heroFrameUrl rather than a request parameter. enhance_prompt is real and defaults TRUE, so sending false is load-bearing. The spec also settles the submit path: /higgsfield-ai/dop/standard exists, /v1/image2video/dop does not."
         ]
       },
       "blockers": [
@@ -1463,8 +1464,8 @@
         },
         {
           "severity": "P2",
-          "description": "The DoP submit path is unsettled: docs imply /higgsfield-ai/dop/standard, the official Node SDK calls /v1/image2video/dop. Submit tries both and logs the winner, advancing only on 404/405 (never routed, nothing billed). The live 422 and 403 both came from the FIRST path, which is therefore the real one.",
-          "source": "PR #1653"
+          "description": "A 9:16 clip requires a 9:16 HERO FRAME. DoP has no aspect_ratio parameter, so nothing in the request can make a landscape still produce a portrait clip - reelAssembly's 1080x1920 gate must be satisfied upstream, when the visual-world hero is generated. Unverified end to end because generation has never run (403 not_enough_credits).",
+          "source": "PR #1659"
         }
       ],
       "deferredScope": [

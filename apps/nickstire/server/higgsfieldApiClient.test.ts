@@ -153,7 +153,6 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     const submitCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(submitCall[0]).toContain("/higgsfield-ai/dop/standard");
     expect(bodies[0]).toMatchObject({
-      model: "dop-standard",
       prompt: "battery in cold weather",
       // TOP-LEVEL STRING. This assertion previously encoded the Soul
       // `input_images` array and passed against the mock while the live API
@@ -483,87 +482,50 @@ describe("the API key is settable from the PHONE, not just a Railway env var", (
   });
 });
 
-describe("the submit path is a KNOWN unknown, and self-corrects", () => {
-  // MEASURED 2026-08-17: the server checks auth BEFORE routing. A POST to
-  // /higgsfield-ai/definitely-not-real with a bogus key returns
-  // 401 {"detail":"Invalid credentials"} — identical to a real path. So no free
-  // probe can establish whether a path exists, and the docs
-  // (/higgsfield-ai/dop/standard, by analogy with the documented soul/standard)
-  // disagree with the official Node SDK (/v1/image2video/dop). Rather than ship a
-  // coin flip, submit tries both. A 404 costs nothing: auth already succeeded, so
-  // nothing was queued and nothing was billed.
-  afterEach(() => vi.restoreAllMocks());
-  const creds = () => {
+describe("the submit path is SETTLED by the vendor spec, and a miss still fails loudly", () => {
+  // Was "a KNOWN unknown that self-corrects": docs implied
+  // /higgsfield-ai/dop/standard, the official Node SDK called /v1/image2video/dop,
+  // so submit tried both. The vendor's OpenAPI spec enumerates all 50 paths and
+  // contains the first and NOT the second (no path contains "image2video"), and the
+  // live 422/403 both came from the first. The coin flip is over; the phantom path
+  // is gone. What must NOT regress is the loud, specific failure if the real path
+  // ever moves.
+  it("submits to the one path the spec defines", async () => {
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (url, init: RequestInit) => {
+      if (init.method === "POST") calls.push(String(url));
+      if (calls.length === 1 && init.method === "POST") {
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_p" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_p", video: { url: "https://cdn.example/c.mp4" } }) } as Response;
+    });
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
-  };
-
-  it("a 404 on the documented path FALLS THROUGH to the SDK path", async () => {
-    const tried: string[] = [];
-    global.fetch = vi.fn(async (url, init: RequestInit) => {
-      const u = String(url);
-      if (init.method === "POST") {
-        tried.push(u);
-        if (u.includes("/higgsfield-ai/dop/standard")) {
-          return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
-        }
-        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_fb" }) } as Response;
-      }
-      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fb", video: { url: "https://cdn/x.mp4" } }) } as Response;
-    });
-    creds();
-    const url = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
-    expect(url).toBe("https://cdn/x.mp4");
-    expect(tried[0]).toContain("/higgsfield-ai/dop/standard");
-    expect(tried[1]).toContain("/v1/image2video/dop");
+    await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("/higgsfield-ai/dop/standard");
+    // The phantom must not come back.
+    expect(calls[0]).not.toContain("image2video");
   });
 
-  it("a 404 fallback does NOT count as a submitted spend — nothing was queued", async () => {
-    // The critical safety interaction: falling through on a 404 must not be
-    // confused with retrying after a real submit, which would double-bill.
-    global.fetch = vi.fn(async (_url, init: RequestInit) => {
-      if (init.method === "POST") {
-        return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
-      }
-      return { status: 200, text: async () => "{}" } as Response;
-    });
-    creds();
+  it("a 404 is reported as a PATH problem, not as a credential or generation failure", async () => {
+    // 404 can only mean the path moved: auth is checked BEFORE routing on this API
+    // (a wrong key returns 401 even for a nonexistent path - measured), so a 404
+    // proves the key was accepted. Conflating that with a bad key would send the
+    // operator to rotate a working credential.
+    global.fetch = vi.fn(async () => ({ status: 404, text: async () => "not found" }) as Response);
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
     const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
-    // Every candidate 404'd -> a PATH error, and explicitly NOT submitted-typed.
-    expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
-    expect((err as Error).message).toMatch(/no candidate DoP path exists/);
-    expect((err as Error).message).toMatch(/PATH problem/);
-  });
-
-  it("a NON-404 rejection stops immediately instead of shopping the other path", async () => {
-    // A 400 means the right endpoint rejected a bad body. Trying the other path
-    // would hide the real error and could submit the same job twice.
-    let posts = 0;
-    global.fetch = vi.fn(async (_url, init: RequestInit) => {
-      if (init.method === "POST") {
-        posts++;
-        return { status: 400, text: async () => JSON.stringify({ detail: "bad prompt" }) } as Response;
-      }
-      return { status: 200, text: async () => "{}" } as Response;
-    });
-    creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
-    expect(posts, "a 400 must not trigger a second submit").toBe(1);
-    expect((err as Error).message).toMatch(/HTTP 400/);
-  });
-
-  it("the error names the paths it tried, so the fix is one log line away", async () => {
-    global.fetch = vi.fn(async (_url, init: RequestInit) =>
-      init.method === "POST"
-        ? ({ status: 404, text: async () => "{}" } as Response)
-        : ({ status: 200, text: async () => "{}" } as Response));
-    creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
-    expect((err as Error).message).toContain("/higgsfield-ai/dop/standard -> 404");
-    expect((err as Error).message).toContain("/v1/image2video/dop -> 404");
+    expect(err).toBeInstanceOf(Error);
+    const msg = (err as Error).message;
+    expect(msg).toContain("/higgsfield-ai/dop/standard");
+    expect(msg).toMatch(/PATH problem/i);
+    // And it must NOT be a submitted-error: a 404 never routed, so nothing was
+    // queued and nothing was billed - the caller may safely fall back.
+    expect((err as Error).name).not.toBe("HiggsfieldApiSubmittedError");
   });
 });
-
 describe("the GENERATOR itself resolves credentials from the DB", () => {
   // P1 REVIEW, 2026-08-17, and the worst defect in this arc: generateReelClipVideoViaApi
   // resolved credentials with the ENV-ONLY reader. With the env vars unset — the
@@ -643,11 +605,32 @@ describe("the clip FORMAT matches the lane that has actually shipped reels", () 
     return body;
   }
 
-  it("sends 9:16 / 4s / 1080p by DEFAULT — a caller cannot forget the shop's format", async () => {
-    const body = await submitAndCaptureBody({ prompt: "brake pad wearing thin", startImageUrl: HERO });
-    expect(body.aspect_ratio).toBe("9:16");
-    expect(body.duration).toBe(4);
-    expect(body.resolution).toBe("1080p");
+  it("sends ONLY the fields DoP's spec defines - no aspect_ratio, duration, resolution or model", async () => {
+    // CORRECTION of #1653. That PR added all four and its message claimed they
+    // stopped the lane paying for landscape clips. The vendor's OpenAPI spec
+    // (docs.higgsfield.ai/docs/openapi.json) defines DoP's ENTIRE body as
+    // prompt, image_url, motions, end_image_url, seed, enhance_prompt - so those
+    // four were ignored and never controlled anything. Sending them encoded a
+    // false belief in the wire format, which is why this asserts their ABSENCE.
+    const body = await submitAndCaptureBody({ prompt: "x", startImageUrl: HERO });
+    expect(body.aspect_ratio).toBeUndefined();
+    expect(body.duration).toBeUndefined();
+    expect(body.resolution).toBeUndefined();
+    expect(body.model).toBeUndefined();
+    // What the spec DOES define, and we do send:
+    expect(body.prompt).toBe("x");
+    expect(body.image_url).toBe(HERO);
+  });
+
+  it("portrait therefore rests on the INPUT STILL, which the log records", async () => {
+    // DoP is image-to-video with no aspect_ratio parameter, so a 9:16 clip needs a
+    // 9:16 hero frame. reelAssembly's 1080x1920 gate cannot be satisfied by a
+    // request field - the constraint lives on brief.visualWorld.heroFrameUrl. This
+    // pins the explanation in the source so the next reader does not re-add
+    // aspect_ratio and assume it works.
+    const src = readFileSync(resolve(process.cwd(), "server/services/higgsfieldApiClient.ts"), "utf8");
+    expect(src).toMatch(/ASPECT RATIO OF THE INPUT STILL|aspect ratio of `image_url`/i);
+    expect(src).not.toContain('body.aspect_ratio');
   });
 
   it("those defaults equal the CLI's proven arg values, not a second opinion", () => {
@@ -659,13 +642,6 @@ describe("the clip FORMAT matches the lane that has actually shipped reels", () 
     expect(block).toContain(`"${REEL_CLIP_DEFAULTS.aspectRatio}"`);
     expect(block).toContain(`"${String(REEL_CLIP_DEFAULTS.durationSeconds)}"`);
     expect(block).toContain(`"${REEL_CLIP_DEFAULTS.resolution}"`);
-  });
-
-  it("an explicit request value overrides the default", async () => {
-    const body = await submitAndCaptureBody({ prompt: "x", durationSeconds: 6, aspectRatio: "1:1", resolution: "720p", startImageUrl: HERO });
-    expect(body.duration).toBe(6);
-    expect(body.aspect_ratio).toBe("1:1");
-    expect(body.resolution).toBe("720p");
   });
 
   it("enhance_prompt is FALSE — the vendor must not rewrite copy after our claim gate", async () => {
@@ -697,7 +673,6 @@ describe("the clip FORMAT matches the lane that has actually shipped reels", () 
     const body = await submitAndCaptureBody({ prompt: "x", startImageUrl: HERO });
     expect(body.image_url).toBe(HERO);
     expect(body.input_images).toBeUndefined();
-    expect(body.aspect_ratio).toBe("9:16");
   });
 });
 
