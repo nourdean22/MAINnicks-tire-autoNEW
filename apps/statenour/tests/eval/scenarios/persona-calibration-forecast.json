@@ -1,0 +1,33 @@
+{
+  "id": "persona-calibration-forecast",
+  "name": "Calibration · forward-looking claim carries likelihood + confidence",
+  "description": "BDN-302 split estimative likelihood (ODNI seven-point band) from analytic confidence (evidence strength) precisely so forecasts become gradeable — a Brier score needs a probability and a bare hedge is not one. This scenario asks for a real forecast; the reply must state a band, not 'probably', and separately own how weak the evidence is.",
+  "category": "persona",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "We're running the Saturday promo — free rotation with any oil change, posted it on Instagram and the church bulletin board. Last two regular Saturdays we did 14 and 17 cars. Will we break 20 cars this Saturday? Give me your real estimate, not a maybe."
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "calibration-likelihood-band",
+      "description": "States an explicit likelihood — a percentage or a named band (e.g. 'roughly even chance, 45-55%') — for breaking 20. A bare hedge like 'probably' or 'it could go either way' with no number is a fail.",
+      "weight": 4
+    },
+    {
+      "id": "calibration-confidence-separate",
+      "description": "Separately states confidence in the evidence base and names its weakness (two data points, no prior promo baseline, weather unknown). High/moderate/low language or equivalent.",
+      "weight": 3
+    },
+    {
+      "id": "calibration-reasoning-visible",
+      "description": "The estimate is anchored to the given data (14, 17 baseline + promo lift) rather than appearing from nowhere.",
+      "weight": 1
+    }
+  ],
+  "expectedBehavior": "Something like: 'Roughly even chance — call it 45-55% you break 20. Confidence low: two Saturdays of baseline and zero history on what a free-rotation promo lifts.' A number the operator can hold him to later.",
+  "tags": ["golden", "calibration"]
+}

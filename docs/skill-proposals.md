@@ -786,3 +786,34 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** high (the guess was wrong in both target AND scope; the
   instrument fix resolved it in one run)
 - **Status:** proposed
+
+## 2026-08-18 · Nick persona measurement arc (#1649, #1650) + operator standing correction
+
+### P1 · AGENTS.md "Standard of work" section (applied same-session by direct operator instruction)
+- **Trigger (witnessed):** operator, verbatim intent: "i always have to tell u to go find sloppy
+  or lazy work, and you dont take the initiative... maximally creative, maximally productive,
+  maximally truth seeking." Same session: the ordered self-audit then found 5 real defects in my
+  own pre-ship diff (2 stray schema keys, 3 over-cap criterion descriptions, a NaN passthrough).
+  Memory records the identical pattern in every session since 2026-08-12.
+- **Cost:** operator nagging on every wave; defects that ship whenever the operator forgets to nag.
+- **Proposed edit:** mandatory unprompted adversarial self-audit before "done" + close-the-implied-gap
+  + steal-like-an-artist web prior-art + instrument-sees-target checks, as a root AGENTS.md section.
+- **Confidence:** high (recurred across ≥4 sessions; operator explicitly demanded it)
+- **Status:** applied (this PR) — by direct operator instruction, which outranks this skill's
+  propose-only contract; recorded here so the queue still shows the provenance.
+
+### P2 · `statenour-verify` — scripts/ and tests/ are typecheck-blind
+- **Trigger (witnessed):** while shipping #1650, `pnpm typecheck` was green yet
+  `tsc --listFiles` showed 0 hits for the new `scripts/harvest-persona-traces.ts` —
+  statenour's tsconfig excludes BOTH `scripts/` and `tests/`. The script had a broken import
+  (`../lib/db/prisma` vs `../lib/prisma`) that a green typecheck could never catch; found only by
+  a scoped-tsconfig check. nickstire's identical trap is already in memory (2026-08-16); statenour's
+  was not.
+- **Cost:** a harvest script that would have crashed on first operator run, reported "done" behind
+  a green gate.
+- **Proposed edit:** add to statenour-verify: "`pnpm typecheck` never compiles `scripts/` or
+  `tests/` (tsconfig-excluded). New/changed scripts: verify with a scoped tsconfig extending the
+  app's (`{"extends":"./tsconfig.json","include":["scripts/<file>","next-env.d.ts"]}`); tests are
+  verified by execution only."
+- **Confidence:** high (witnessed a real broken import behind the green; second app with same trap)
+- **Status:** proposed
