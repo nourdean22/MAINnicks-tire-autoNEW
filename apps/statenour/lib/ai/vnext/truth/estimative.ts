@@ -204,6 +204,30 @@ export function parseEstimative(text: string): EstimativeReading {
 }
 
 /**
+ * Map a probability back to its ODNI band (2026-08-18, k-sample
+ * upgrade). Inverse of the band→midpoint direction the parser takes.
+ * Inclusive containment first; probabilities in the scale's edge gaps
+ * (<0.01, >0.99) and at contested boundaries fall to the band with the
+ * nearest midpoint, so the function is total over [0,1] and callers
+ * never invent band labels of their own.
+ */
+export function bandForProbability(p: number): EstimativeBand | null {
+  if (!Number.isFinite(p) || p < 0 || p > 1) return null;
+  const contained = ESTIMATIVE_BANDS.find((b) => p >= b.low && p <= b.high);
+  if (contained) return contained;
+  let nearest: EstimativeBand | null = null;
+  let best = Number.POSITIVE_INFINITY;
+  for (const b of ESTIMATIVE_BANDS) {
+    const d = Math.abs(b.mid - p);
+    if (d < best) {
+      best = d;
+      nearest = b;
+    }
+  }
+  return nearest;
+}
+
+/**
  * Brier score for a single forecast. Lower is better; 0 is perfect.
  *
  * Deliberately takes ONLY the likelihood. Confidence is not scoreable

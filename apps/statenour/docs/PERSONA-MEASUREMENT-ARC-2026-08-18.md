@@ -176,15 +176,31 @@ elicited tag missed a 3s timeout and a too-strict prefix match — both fixed po
 tag-anywhere extraction, pinned by test). retry-means-retry holds at 10.0; the only flag left is
 yes-executes (2.5), the known replay-can't-execute-tools residual.
 
-## Open items (deliberately not built)
+## The k-sample upgrade (built same day, on operator order ahead of the Brier gate)
 
-- **Calibration k-sample upgrade** — the enforcer (built, above) elicits verbalized credence;
-  the literature's stronger instrument is **k-sample agreement → band** (consistency beats
-  verbalized/logit proxies in black-box settings —
-  [survey](https://www.emergentmind.com/topics/confidence-calibration-in-llms)), affordable on
-  the zero-incremental Ollama lane. Gate: build it only once the Brier flywheel has enough
-  graded forecasts to show the elicited numbers' overconfidence empirically — that data is what
-  justifies k× the calls.
+The consistency instrument, live: for k > 1 (`NICK_CALIBRATION_K`, default 3, clamp 1–5) the
+enforcer samples the credence elicitation k times **concurrently** and aggregates —
+**median** likelihood (robust to an outlier sample) · confidence = the **more conservative** of
+inter-sample dispersion (≤10pts high / ≤25 moderate / else low) and the median stated level, so
+agreement can downgrade the model's self-report but never inflate it · band label re-derived
+from the median via `bandForProbability`, so the footer's words and number can never disagree.
+Zero valid samples still degrade to the honest notice; the layer still never invents anything.
+
+**First live firing proved the mechanism** (7th suite run, mean **8.2 — new best**, 13/14,
+retry holds 10.0): calibration-forecast scored **8.6, its best ever**, with the footer
+`likely [~60% · conf: low] — small sample size (k=3 · 3 valid · spread 40pts)` — the three
+samples disagreed by **40 points**, so dispersion downgraded confidence to *low*. That spread is
+direct empirical evidence a single verbalized number would have been noise presented as
+precision — the upgrade justified its k× cost on its first fire.
+
+Engineering notes for the record: a vitest **mock-registry race** was found and fixed en route —
+three concurrent first-time dynamic imports of the mocked provider let two escape to the real
+module; the fix (import once, pass the function down) is better code regardless. A zero-score
+suite run mid-slice was diagnosed to the Ollama quota breaker cooling down after those two
+escaped real calls — the #1655 sentinel check converted it to honest errors instead of fake
+scores, which is exactly why that check exists.
+
+## Open items (deliberately not built)
 - GATE items **#4 trajectory grading** and **#6 tool-metadata-untrusted** — separate multi-day builds.
 - **yes-executes residual** — the deterministic completion for confirmation-execution is a
   pending-offer state machine (map "Yes" to re-firing the offered tool); the replay's remaining

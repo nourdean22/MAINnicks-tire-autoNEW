@@ -15,17 +15,24 @@ import {
 } from "@/lib/ai/vnext/truth/forecast-detector";
 import {
   CALIBRATION_MARKER,
+  aggregateSamples,
   buildUncalibratedNotice,
   enforceCalibration,
+  getCalibrationK,
   hasCalibrationFooter,
 } from "@/lib/ai/chat/calibration-enforcer";
-import { parseEstimative } from "@/lib/ai/vnext/truth/estimative";
+import { bandForProbability, parseEstimative } from "@/lib/ai/vnext/truth/estimative";
 
 vi.mock("@/lib/ai/provider", () => ({ aiChat: vi.fn() }));
+
+// Single-shot tests pin k=1 so mock counts stay deterministic; the
+// k-sample block below sets its own k.
+process.env.NICK_CALIBRATION_K = "1";
 
 afterEach(async () => {
   vi.clearAllMocks();
   delete process.env.NICK_CALIBRATION_ENFORCER;
+  process.env.NICK_CALIBRATION_K = "1";
 });
 
 // The golden-set scenario ask + the 2.4/10 real failure reply shape.
@@ -187,6 +194,113 @@ describe("enforceCalibration · elicit, validate, fail open", () => {
     expect(r.action).toBe("skipped");
     expect(r.skipReason).toBe("not-a-forecast-ask");
     expect(vi.mocked(aiChat)).not.toHaveBeenCalled();
+  });
+});
+
+describe("k-sample upgrade · aggregation (pure)", () => {
+  const s = (likelihood: number, confidence: "high" | "moderate" | "low", weakness: string | null = null) => ({
+    likelihood,
+    confidence,
+    weakness,
+  });
+
+  it("takes the MEDIAN likelihood — robust to one outlier sample", () => {
+    const agg = aggregateSamples([s(0.6, "moderate"), s(0.65, "moderate"), s(0.95, "high")]);
+    expect(agg?.likelihood).toBeCloseTo(0.65, 5);
+    expect(agg?.bandLabel).toBe("likely"); // words and number can never disagree
+  });
+
+  it("tight agreement keeps confidence; wide dispersion DOWNGRADES it", () => {
+    const tight = aggregateSamples([s(0.6, "high"), s(0.62, "high"), s(0.65, "high")]);
+    expect(tight?.confidence).toBe("high");
+    expect(tight?.spreadPts).toBeCloseTo(5, 1);
+
+    const wide = aggregateSamples([s(0.3, "high"), s(0.6, "high"), s(0.85, "high")]);
+    expect(wide?.confidence).toBe("low"); // 55pt spread — agreement proxy wins
+  });
+
+  it("dispersion can only downgrade, never inflate, the stated confidence", () => {
+    // Samples agree tightly but the model itself says the evidence is
+    // weak — tight agreement must NOT promote low to high.
+    const agg = aggregateSamples([s(0.5, "low"), s(0.5, "low"), s(0.52, "low")]);
+    expect(agg?.confidence).toBe("low");
+  });
+
+  it("even sample counts average the middle pair", () => {
+    const agg = aggregateSamples([s(0.4, "moderate"), s(0.6, "moderate")]);
+    expect(agg?.likelihood).toBeCloseTo(0.5, 5);
+    expect(agg?.bandLabel).toBe("roughly even chance");
+  });
+
+  it("single valid sample degrades gracefully; zero returns null", () => {
+    const one = aggregateSamples([s(0.7, "moderate", "thin baseline")]);
+    expect(one?.validCount).toBe(1);
+    expect(one?.spreadPts).toBe(0);
+    expect(one?.weakness).toBe("thin baseline");
+    expect(aggregateSamples([])).toBeNull();
+  });
+});
+
+describe("k-sample upgrade · bandForProbability (pure)", () => {
+  it("maps contained probabilities to their band", () => {
+    expect(bandForProbability(0.65)?.label).toBe("likely");
+    expect(bandForProbability(0.5)?.label).toBe("roughly even chance");
+    expect(bandForProbability(0.03)?.label).toBe("almost no chance");
+  });
+
+  it("edge-gap probabilities snap to the nearest band instead of failing", () => {
+    expect(bandForProbability(0.005)?.label).toBe("almost no chance");
+    expect(bandForProbability(0.999)?.label).toBe("almost certain");
+  });
+
+  it("rejects out-of-range input", () => {
+    expect(bandForProbability(-0.1)).toBeNull();
+    expect(bandForProbability(1.5)).toBeNull();
+    expect(bandForProbability(Number.NaN)).toBeNull();
+  });
+});
+
+describe("k-sample upgrade · enforceCalibration with k=3", () => {
+  it("fires k concurrent elicitations and aggregates the valid ones", async () => {
+    process.env.NICK_CALIBRATION_K = "3";
+    const { aiChat } = await import("@/lib/ai/provider");
+    vi.mocked(aiChat)
+      .mockResolvedValueOnce({
+        content: "Calibration: likely [~60% · conf: moderate] — two data points",
+        provider: "ollama",
+        model: "x",
+      } as never)
+      .mockResolvedValueOnce({
+        content: "Calibration: likely [~70% · conf: high] — promo lift unknown",
+        provider: "ollama",
+        model: "x",
+      } as never)
+      .mockResolvedValueOnce({
+        content: "garbage with no tag",
+        provider: "ollama",
+        model: "x",
+      } as never);
+
+    const r = await enforceCalibration(FORECAST_ASK, POINT_ESTIMATE_REPLY);
+    expect(r.action).toBe("elicited");
+    expect(vi.mocked(aiChat)).toHaveBeenCalledTimes(3);
+    // median of [60,70] = 65 · spread 10pts → dispersion high, stated
+    // median moderate → conservative min = moderate
+    const reading = parseEstimative(r.text);
+    expect(reading.likelihood).toBeCloseTo(0.65, 5);
+    expect(reading.confidence).toBe("moderate");
+    expect(r.text).toContain("(k=3 · 2 valid · spread 10pts)");
+  });
+
+  it("clamps and defaults NICK_CALIBRATION_K sanely", () => {
+    process.env.NICK_CALIBRATION_K = "99";
+    expect(getCalibrationK()).toBe(5);
+    process.env.NICK_CALIBRATION_K = "abc";
+    expect(getCalibrationK()).toBe(3);
+    process.env.NICK_CALIBRATION_K = "0";
+    expect(getCalibrationK()).toBe(1);
+    delete process.env.NICK_CALIBRATION_K;
+    expect(getCalibrationK()).toBe(3); // operator-ordered default
   });
 });
 
