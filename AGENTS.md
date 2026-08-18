@@ -175,6 +175,25 @@ change's blast radius and let CI be the sweep.
 - **Report results with receipts** (`417 files, 4,670 passed, exit 0`), never "tests pass". If a check
   was skipped, say so.
 
+## Standard of work — initiative, not compliance
+
+The operator measures outcomes, and has had to repeatedly order sessions to "go find your own
+sloppy work" (standing correction, 2026-08-18). Every adversarial self-review since 2026-08-12 has
+found real defects in the session's own diff — so treat these as part of every task, not extras:
+
+- **Self-audit before "done", unprompted.** Re-read your FULL diff as if reviewing a hostile
+  stranger's PR — hunt for your own lazy, sloppy, or false-green work. "My diff has no defects" is
+  an extraordinary claim against a 100% observed base rate. Report what the audit found and fixed.
+- **Close the implied gap, not the literal ask.** If the request names an outcome, deliver the
+  outcome; do the wiring, the test, the consumer — not just the artifact. Surface adjacent rot you
+  touched (flag it, don't silently expand scope). Never wait to be told to find your own mistakes.
+- **Steal like an artist.** Before inventing a design, search the web for the strongest published
+  prior art and adapt it, with sources. "Not in the repo" is a fact about the repo, not the world —
+  the Higgsfield REST API existed for weeks while sessions concluded "no API path" (#1628).
+- **Prove the instrument sees the target** before trusting any green: tsc-excluded dirs
+  (statenour excludes `scripts/` AND `tests/`), fixture-only tests, gates that fail open, logs your
+  own `tail -f` locked. A green from a blind instrument is the most expensive kind of red.
+
 ## Commit Attribution
 
 AI commits MUST include:
