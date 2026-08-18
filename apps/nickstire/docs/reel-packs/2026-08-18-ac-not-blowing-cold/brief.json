@@ -1,0 +1,80 @@
+{
+  "topic": "AC blowing warm, not cold",
+  "createdAt": "2026-08-18",
+  "mode": "PRODUCTION",
+  "generated": false,
+  "note": "Machine-readable companion to README.md. Not produced by content.generateReelBrief or enqueueReelJob — authored by hand in a scheduled Claude Code session with no live server/DB access. Do not treat qualityScoreSelfEstimate as calculateReelQualityScore() output.",
+  "durationSeconds": 28,
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "window": "0:00-0:03",
+      "narration": "Your AC blowing warm in August isn't 'give it a minute.' It's a system telling you something.",
+      "visualPrompt": "Close-up on a car dashboard AC vent, hand adjusting the temperature dial to the coldest blue setting, warm afternoon light through the windshield, macro shot, shallow depth of field, slow push-in.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchFallback": ["car dashboard AC vent close up", "hand adjusting car AC dial"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "window": "0:03-0:09",
+      "narration": "Weak or warm airflow usually means one of three things — low refrigerant, a failing compressor, or a clogged cabin filter.",
+      "visualPrompt": "Engine bay macro shot of an AC compressor and serpentine belt pulley, slow pan, garage bay ambient light.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchFallback": ["car engine bay AC compressor", "serpentine belt pulley closeup"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "window": "0:09-0:16",
+      "narration": "Refrigerant doesn't just run low on its own — if it's low, there's a leak somewhere in the system.",
+      "visualPrompt": "Macro shot of an AC low-pressure service port and gauge fitting under the hood, garage bay ambient light, slow rack focus.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchFallback": ["AC service port gauge macro", "car refrigerant gauge closeup"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "window": "0:16-0:22",
+      "narration": "Ignore it and a struggling compressor can seize completely — that's the expensive fix.",
+      "visualPrompt": "Close-up of an AC compressor clutch engaging, slow-motion belt movement, engine bay macro texture.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchFallback": ["AC compressor clutch engine bay slow motion"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "window": "0:22-0:28",
+      "narration": "Warm air out of your vents? Send this to whoever's sweating in traffic right now. Nick's Tire and Auto — link in bio.",
+      "visualPrompt": "Wide shot of a garage service bay entrance, warm inviting light, slow dolly out.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchFallback": ["auto repair garage bay wide shot", "car service bay interior"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "generated": false,
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": null,
+    "musicRightsStatus": "UNKNOWN/BLOCKED — no music rights ledger exists in this repo; no track assigned"
+  },
+  "captionsFile": "captions.srt",
+  "qualityScoreSelfEstimate": {
+    "value": 61,
+    "max": 75,
+    "isRealPipelineScore": false,
+    "note": "Hand-estimated for planning only. calculateReelQualityScore() was not called (no live server). Weak dimensions: sourced-fact (no EvidenceRecord backing refrigerant/compressor claims) and loop (CTA frame does not loop cleanly to hook frame)."
+  },
+  "costEstimateUsd": {
+    "route": "template_stock (current prod pin)",
+    "clips": 0,
+    "voiceover": 0.05,
+    "briefCompile": 0.01,
+    "total": 0.06,
+    "basis": "generationLedger.ts COST_ESTIMATES_USD, code-read only, not a live balance check"
+  },
+  "finalStatus": "READY FOR HUMAN APPROVAL"
+}
