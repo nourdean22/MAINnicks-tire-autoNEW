@@ -95,7 +95,16 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   setPosture: (posture) => set({ posture }),
   setDepth: (depth) => set({ depth }),
   setActionPermission: (actionPermission) => set({ actionPermission }),
-  setDraft: (draft) => set({ draft }),
+  // 2026-08-18 self-audit fix · emptying the draft DISARMS edit-resend.
+  // A casual bubble tap arms editing (with the banner) — but if the
+  // operator then clears the prefill to type something NEW, sending
+  // must not cascade-delete the tapped message. Empty draft = new
+  // intent. (The banner + cancel + Escape remain the explicit outs.)
+  setDraft: (draft) =>
+    set((s) => ({
+      draft,
+      editingMessageId: draft.trim() === "" ? null : s.editingMessageId,
+    })),
   editingMessageId: null,
   setEditingMessageId: (editingMessageId) => set({ editingMessageId }),
   setConnection: (connection) => set({ connection }),

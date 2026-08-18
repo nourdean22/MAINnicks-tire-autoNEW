@@ -284,6 +284,7 @@ export async function runAlternatePaths(args: {
             typeof maybePreStreamRegen
           >[0]["intent"],
           shape: turnSignal.outputShape,
+          userPrompt: userContent,
           generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
           regenOnce: ({ suggestedSystemPrefix }) =>
             genOnce(
