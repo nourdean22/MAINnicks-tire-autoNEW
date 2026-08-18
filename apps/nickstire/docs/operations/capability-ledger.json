@@ -852,8 +852,8 @@
     },
     {
       "owner": "system",
-      "lastVerifiedAt": "2026-07-17",
-      "verificationExpiresAt": "2026-08-07",
+      "lastVerifiedAt": "2026-08-18",
+      "verificationExpiresAt": "2026-09-08",
       "deferredScope": [],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
@@ -867,7 +867,8 @@
         ],
         "deploymentId": "railway 7c86cad0 (2026-07-17 15:50 EDT)",
         "liveRuns": [
-          "fresh creds pushed + deploy live; render 690001 generating on the refreshed session"
+          "fresh creds pushed + deploy live; render 690001 generating on the refreshed session",
+          "END-TO-END LIVE PROOF 2026-08-18: operator restored the session (higgsfield auth login + push-higgsfield-creds --apply at 15:41 ET; keepalive flipped to 'session refreshed, 2733.62 credits' nine minutes later after 5 days of refresh-token-revoked failures). The restored session then generated reel job 1650001's clips (seedance1_5, Higgsfield CloudFront URLs), the reel passed rendered-QA after an operator-authorized paid repair loop (needs_paid_repair -> requestBeatRepair cycles), and PUBLISHED to Instagram: igPostId 18105354986172908, briefId autopost-2026-08-18. First reject -> autonomous repair -> pass -> post cycle ever completed without a human touching a button beyond authorization."
         ]
       },
       "blockers": [
@@ -1448,7 +1449,8 @@
           "AUTH: a deliberately bogus key returns a real HTTP 401 from platform.higgsfield.ai; a control probe against a nonexistent path returned the SAME 401, so auth is checked BEFORE routing.",
           "REQUEST SHAPE, measured 2026-08-18: the shipped body was rejected with HTTP 422 'body.image_url Field required' - image_url is a REQUIRED TOP-LEVEL STRING, and the previous input_images array was the Soul text-to-image shape. Fixed in #1654.",
           "CREDITS, measured 2026-08-18: the corrected body returns HTTP 403 'not_enough_credits'. Generation has therefore never produced a clip. Nothing was spent - both failures are pre-submit.",
-          "REQUEST CONTRACT, from the vendor's OpenAPI spec 2026-08-18 (not by analogy): DoP's whole body is required[prompt, image_url] + optional[seed, motions, end_image_url, enhance_prompt]. There is NO duration, resolution, aspect_ratio or model field, so #1653's four format fields were ignored and its 'paid for landscape clips' reasoning was WRONG. A DoP clip inherits its aspect from the INPUT STILL, making 1080x1920 a constraint on brief.visualWorld.heroFrameUrl rather than a request parameter. enhance_prompt is real and defaults TRUE, so sending false is load-bearing. The spec also settles the submit path: /higgsfield-ai/dop/standard exists, /v1/image2video/dop does not."
+          "REQUEST CONTRACT, from the vendor's OpenAPI spec 2026-08-18 (not by analogy): DoP's whole body is required[prompt, image_url] + optional[seed, motions, end_image_url, enhance_prompt]. There is NO duration, resolution, aspect_ratio or model field, so #1653's four format fields were ignored and its 'paid for landscape clips' reasoning was WRONG. A DoP clip inherits its aspect from the INPUT STILL, making 1080x1920 a constraint on brief.visualWorld.heroFrameUrl rather than a request parameter. enhance_prompt is real and defaults TRUE, so sending false is load-bearing. The spec also settles the submit path: /higgsfield-ai/dop/standard exists, /v1/image2video/dop does not.",
+          "HERO-FRAME P2 CONFIRMED LIVE 2026-08-18: on reel job 1650001 every beat was skipped by the pre-submit guard ('DoP requires a start image... this beat has no hero frame - nothing was submitted, nothing was spent') and generation fell back to the CLI session lane, free. The brief carried no visualWorld.heroFrameUrl, continuity ran on prompt text alone, and rendered-QA flagged SUBJECT_CONTINUITY on 4 of 5 beats - the P2 is not just a blocker for this lane, it is a QUALITY cost on the lane that does run. Next lever: generate a hero frame per autonomous brief."
         ]
       },
       "blockers": [
