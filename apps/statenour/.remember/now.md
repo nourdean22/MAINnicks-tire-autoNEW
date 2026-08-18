@@ -24,7 +24,17 @@ one-shot-key expiry audit across other brain categories · Brier-evidence
 accrual before any k-sample retune.
 
 ## Last material decision
-Prompt prose is the WEAK lever, measured twice today: the retry regression
+Chat-UX round 2 (#1678, 2026-08-18): the REGEN badge ORs TWO scorers
+(output-critic AND reply-gate) — #1677's critic waiver alone still left the
+chip firing on obedient stubs ("OK" on "reply with just OK": critic waived
+overall=100, gate sev=80 stub-reply). Both must waive; verified on the
+PERSISTED verdict (tokenUsage via trpc chat.conversation) — the live-stream
+view cannot see the verdict and is a blind instrument for this surface.
+LIVE-PROVEN post-deploy: fresh "reply with just OK" → persisted critic
+overall=100 + gate sev=0 (waiver reason present), UI regenChip=false on
+reopen; both throwaway convos deleted. Full playbook in memory:
+statenour-false-green-sweep-2026-08-04.md (ORed-producers addendum).
+Earlier: prompt prose is the WEAK lever, measured twice today: the retry regression
 survived a verified-present prompt rule (1.1/10) and was fixed only by a
 DETERMINISTIC re-delivery interceptor (5.1→10.0) — LLMs regenerate, never copy.
 Same doctrine on calibration: the layer NEVER invents a probability (elicit →
