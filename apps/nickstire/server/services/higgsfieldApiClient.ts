@@ -431,18 +431,36 @@ export async function generateReelClipVideoViaApi(
     // not a quality feature.
     enhance_prompt: false,
   };
-  if (req.startImageUrl) body.input_images = [{ type: "image_url", image_url: req.startImageUrl }];
 
+  // MEASURED AGAINST THE LIVE API 2026-08-18, and it refuted this file's own
+  // previous shape. DoP replied:
+  //
+  //   HTTP 422 {"detail":[{"type":"missing","loc":["body","image_url"],
+  //                        "msg":"Field required"}]}
+  //
+  // Two bugs in one line, neither visible to 53 mocked tests because the mock
+  // accepted whatever we sent:
+  //   1. The field is a TOP-LEVEL STRING `image_url`. The old
+  //      `input_images: [{ type, image_url }]` is the SOUL (text-to-image)
+  //      request shape, copied across to a different endpoint by analogy.
+  //   2. It is REQUIRED, not optional. The comment here already said "DoP is
+  //      image-to-video" and then made the image optional and merely WARNED --
+  //      the warning described the exact reason the request could not work.
+  //
+  // So a beat with no hero frame cannot use this lane at all. Throwing here is
+  // deliberate and it is FREE: `HiggsfieldApiSubmittedError` is not used, so
+  // generateReelClipVideo treats this as PRE-submit and falls back to the CLI
+  // lane having spent nothing, instead of paying a round-trip for a request the
+  // vendor is guaranteed to reject.
   if (!req.startImageUrl) {
-    // DoP is image-to-video, so with no start image the vendor has nothing to
-    // inherit framing or identity from. `aspect_ratio` above is the only thing
-    // keeping the clip portrait, and identity drift across beats is the measured
-    // consequence of text-only generation (one body per beat, three lighting
-    // worlds) that REEL_IMAGE_CONDITIONING exists to fix.
-    log.warn("Higgsfield API DoP submit has NO start image - relying on aspect_ratio alone for portrait, and expect identity drift across beats", {
-      aspectRatio,
-    });
+    throw new Error(
+      "Higgsfield API DoP requires a start image (body.image_url) - it is image-to-video only. " +
+        "This beat has no hero frame, so the API lane cannot run it. In production the anchor is " +
+        "brief.visualWorld.heroFrameUrl, shared by every beat for identity lock (reelPipeline.ts). " +
+        "Nothing was submitted and nothing was spent.",
+    );
   }
+  body.image_url = req.startImageUrl;
 
   log.info("submitting Higgsfield API DoP video generation", {
     promptLen: req.prompt.length,
