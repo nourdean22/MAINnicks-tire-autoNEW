@@ -2,6 +2,9 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { execFileSync } from "child_process";
+
+/** Pinned to apps/nickstire/package.json's `@higgsfield/cli`. A test enforces it. */
+export const HIGGSFIELD_CLI_VERSION = "0.2.3";
 import { createRequire } from "module";
 import { createLogger } from "../lib/logger";
 
@@ -48,7 +51,16 @@ export async function ensureHiggsfieldBinary(): Promise<string> {
   }
 
   // 3. Download and extract the native binary from GitHub Releases
-  const version = "0.2.2";
+  // MUST MATCH apps/nickstire/package.json's @higgsfield/cli pin. It said "0.2.2"
+  // against a 0.2.3 dependency, so the download URL pointed at a release the repo
+  // does not use - silent drift that only surfaces as a 404 on a machine with no
+  // cached binary, i.e. exactly the machine that needs `higgsfield auth login`.
+  //
+  // Kept as a plain constant rather than read from the package at runtime: a JSON
+  // import would have to survive the esbuild bundle, and a test asserting this
+  // equals the pin catches drift with no runtime risk at all
+  // (higgsfieldBinaryVersion.test.ts).
+  const version = HIGGSFIELD_CLI_VERSION;
   const PLATFORM_MAP: Record<string, string> = { darwin: "darwin", linux: "linux", win32: "windows" };
   const ARCH_MAP: Record<string, string> = { x64: "amd64", arm64: "arm64" };
   const platform = PLATFORM_MAP[process.platform];

@@ -170,7 +170,16 @@ export const instagramAdminRouter = router({
         const { selectReelVideoProvider } = await import("../services/reelPipeline");
         const provider = await selectReelVideoProvider();
         const { veoCredentialsPresent } = await import("../services/veoStudio");
-        const higgsfieldConfigured = !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson());
+        // LIVENESS, NOT PRESENCE. `!!getHiggsfieldCredentialsJson()` used to decide
+        // this, and a revoked refresh token leaves that blob perfectly intact -
+        // which is precisely how a dead session read as "configured" for four days
+        // (#1628). It mattered little while provider stayed template_stock and
+        // would have become a live lie the moment it flipped to higgsfield.
+        // `higgsfieldSessionLiveness` reads the keepalive's own recorded verdict:
+        // one indexed lookup, no vendor round-trip, three states.
+        const { higgsfieldSessionLiveness } = await import("../services/higgsfieldStudio");
+        const hfSession = await higgsfieldSessionLiveness();
+        const higgsfieldConfigured = hfSession.credsPresent;
         // template_stock renders locally with ffmpeg — it has NO credentials to
         // check, so it is always configured. Reporting Veo's key state for it
         // would paint the card red while the lane runs perfectly.
@@ -178,7 +187,10 @@ export const instagramAdminRouter = router({
           provider === "template_stock"
             ? true
             : provider === "higgsfield"
-              ? higgsfieldConfigured
+              // `=== true` so UNKNOWN (null) does not read as configured. Unknown
+              // is reported through hfSession below rather than borrowing either
+              // boolean.
+              ? hfSession.live === true
               : veoCredentialsPresent();
         return {
           provider,
@@ -186,8 +198,22 @@ export const instagramAdminRouter = router({
           enabled: process.env.REEL_GENERATION_ENABLED === "true",
           // Kept so the Settings UI can still surface Higgsfield status separately
           // (it's the carousel/image path), without conflating it with the reel
-          // video generator's health.
+          // video generator's health. This is PRESENCE of the credentials blob -
+          // deliberately named as such now that liveness is reported beside it.
           higgsfieldConfigured,
+          /**
+           * The honest three-state session verdict, plus the ONLY account credit
+           * balance this app can read (the API lane has no balance endpoint - every
+           * GET on it returns 405). `live: null` means the keepalive verdict is
+           * missing or stale, which is UNKNOWN and not dead.
+           */
+          higgsfieldSession: {
+            live: hfSession.live,
+            credsPresent: hfSession.credsPresent,
+            balanceCredits: hfSession.balanceCredits,
+            checkedAt: hfSession.checkedAt,
+            reason: hfSession.reason,
+          },
         };
       })(),
       /**
@@ -1262,9 +1288,14 @@ Keep it under 200 characters.`;
     // poster) needs NO AI key at all but fell through to the openai branch and
     // reported unconfigured; anything unrecognized now reports false instead
     // of borrowing openai's status.
+    // Same presence-vs-liveness correction as getPipelineHealth. `higgsfieldCreds`
+    // proves a blob exists; it does NOT prove the session works, and IG autopost
+    // image generation runs through that same session.
+    const { higgsfieldSessionLiveness } = await import("../services/higgsfieldStudio");
+    const hfSession = await higgsfieldSessionLiveness();
     const imageHealthy =
       imageProvider === "adrender" ? true
-      : imageProvider === "higgsfield" ? higgsfieldCreds
+      : imageProvider === "higgsfield" ? hfSession.live === true
       : imageProvider.includes("gemini") ? geminiKey
       : imageProvider === "openai" || imageProvider === "openrouter" ? openaiKey
       : false;
@@ -1278,7 +1309,14 @@ Keep it under 200 characters.`;
       image: {
         provider: imageProvider,
         configured: imageHealthy,
+        /** PRESENCE of the credentials blob - not liveness. See higgsfieldSession. */
         higgsfieldCreds,
+        higgsfieldSession: {
+          live: hfSession.live,
+          balanceCredits: hfSession.balanceCredits,
+          checkedAt: hfSession.checkedAt,
+          reason: hfSession.reason,
+        },
       },
       autopost: { recentRuns, recentFailures, lastError, lastErrorAt },
     };

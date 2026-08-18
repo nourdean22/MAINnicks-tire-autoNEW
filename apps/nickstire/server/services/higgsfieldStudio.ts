@@ -432,6 +432,98 @@ export async function materializeStartImage(url: string): Promise<string | null>
   }
 }
 
+/** How the keepalive's last verdict reads. `live === null` means UNKNOWN. */
+export type HiggsfieldSessionLiveness = {
+  /** true = proven live, false = proven dead, null = could not tell. */
+  live: boolean | null;
+  /** Whether a credentials blob exists at all - PRESENCE, not liveness. */
+  credsPresent: boolean;
+  /** Account credit balance from the last successful keepalive, if it logged one. */
+  balanceCredits: number | null;
+  /** When the verdict was produced. */
+  checkedAt: Date | null;
+  reason: string;
+};
+
+/** Older than this and the last keepalive verdict is not evidence any more. */
+const KEEPALIVE_STALE_MS = 45 * 60_000;
+
+/**
+ * SESSION LIVENESS FOR HEALTH SURFACES, read from the keepalive's own record.
+ *
+ * WHY THIS EXISTS. Health cards used to report `!!getHiggsfieldCredentialsJson()` -
+ * a PRESENCE check - as though it were liveness. A revoked refresh token leaves the
+ * blob perfectly intact, which is exactly how a dead session read as "configured"
+ * for four days (#1628). The same shape then reappeared as `dbReachable` on the API
+ * key lane (P2, PR #1653): a truthy handle proving only that a value was SET.
+ *
+ * WHY cron_log AND NOT A LIVE CLI CALL. `higgsfieldSessionHealth()` spawns the
+ * Higgsfield binary, which costs seconds - unacceptable on a page-load query, and
+ * the reason the existing button is behind an explicit refresh. The keepalive
+ * already performs a credit-free `hf account status` every 15 minutes and records
+ * the verdict, so the evidence exists; reading it costs one indexed lookup
+ * (idx_cron_job) and no vendor round-trip. It also carries the credit balance,
+ * which nothing else in the app can see - the API lane has no readable balance
+ * endpoint (every GET returns 405).
+ *
+ * THREE STATES, DELIBERATELY. A missing or STALE row is `null`, never `false`:
+ * "the keepalive has not run" and "the session is dead" need opposite responses
+ * from the operator, and collapsing them is the defect this whole helper exists to
+ * stop repeating.
+ */
+export async function higgsfieldSessionLiveness(): Promise<HiggsfieldSessionLiveness> {
+  const credsPresent = !!(await getHiggsfieldCredentialsJson());
+  const base = { credsPresent, balanceCredits: null as number | null, checkedAt: null as Date | null };
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) {
+      return { ...base, live: null, reason: "no database handle - cannot read the keepalive verdict" };
+    }
+    const { cronLog } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+    const rows = await d
+      .select({ status: cronLog.status, details: cronLog.details, errorMessage: cronLog.errorMessage, startedAt: cronLog.startedAt })
+      .from(cronLog)
+      .where(eq(cronLog.jobName, "higgsfield-session-keepalive"))
+      .orderBy(desc(cronLog.startedAt))
+      .limit(1);
+    const row = (rows as { status: string; details: string | null; errorMessage: string | null; startedAt: Date }[])[0];
+    if (!row) {
+      return { ...base, live: null, reason: "the keepalive has never recorded a run" };
+    }
+    const checkedAt = row.startedAt instanceof Date ? row.startedAt : new Date(row.startedAt);
+    const ageMs = Date.now() - checkedAt.getTime();
+    // The keepalive logs ", N credits" on success - the only balance this app can see.
+    const credits = /(\d+)\s*credits/.exec(row.details ?? "");
+    const balanceCredits = credits ? Number(credits[1]) : null;
+    if (ageMs > KEEPALIVE_STALE_MS) {
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: `last keepalive verdict is ${Math.round(ageMs / 60_000)} min old (stale past ${KEEPALIVE_STALE_MS / 60_000} min) - UNKNOWN, not dead`,
+      };
+    }
+    // The scheduler records success as "completed"; treat anything non-failed as live.
+    const failed = row.status === "failed";
+    return {
+      credsPresent,
+      balanceCredits,
+      checkedAt,
+      live: !failed,
+      reason: failed
+        ? (row.details ?? row.errorMessage ?? "keepalive failed").slice(0, 200)
+        : `keepalive ${row.status}${balanceCredits != null ? `, ${balanceCredits} credits` : ""}`,
+    };
+  } catch (err) {
+    // A read failure is UNKNOWN. Reporting it as dead would send the operator to
+    // re-login over a database blip.
+    return { ...base, live: null, reason: `could not read the keepalive verdict: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
 export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string; startImageUrl?: string }): Promise<string> {
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;
