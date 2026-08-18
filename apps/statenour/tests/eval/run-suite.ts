@@ -180,6 +180,20 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
       ],
       "reason",
     );
+    // 2026-08-18 · aiChat NEVER throws on total provider failure — it
+    // returns a SENTINEL (repo gotcha: check result.provider ===
+    // "emergency" | "none"). Without this check the judge scores the
+    // outage text against the scenario criteria: witnessed on the first
+    // live run, where persona-obedience-yes-executes "passed" 7.9/10
+    // with Nick's reply being "I'm having trouble connecting to my AI
+    // providers". A transient infra failure must be an ERRORED
+    // scenario (re-run covers it), never a fake pass or fail.
+    if (result.provider === "emergency" || result.provider === "none") {
+      return {
+        response: "",
+        error: `provider sentinel (${result.provider}) — transient chain failure, not a Nick reply`,
+      };
+    }
     return {
       response: (result.content ?? "").trim(),
       error: null,
