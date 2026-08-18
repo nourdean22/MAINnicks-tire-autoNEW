@@ -1428,6 +1428,42 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "higgsfield-api-lane",
+      "name": "Higgsfield REST API reel-clip lane (static key auth, no CLI session)",
+      "owner": "nickstire",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "codeCommit": "server/services/higgsfieldApiClient.ts - key-based REST lane (Authorization: Key <id>:<secret>) preferred by generateReelClipVideo over the expiring CLI session. Credentials resolve DB-first from app_secret_kv (set from the phone via Instagram Settings), env vars as fallback only; prod carries NO env copy, so the DB path is the only one.",
+        "tests": [
+          "server/higgsfieldApiClient.test.ts (43): auth header shape is 'Key id:secret' and NOT Bearer; submit sends aspect_ratio 9:16 / duration 4 / resolution 1080p / enhance_prompt false; post-submit failures raise HiggsfieldApiSubmittedError instead of falling back; the credential latch sits inside the try so a transient DB fault is not cached as absence",
+          "25 files / 335 tests green across the full higgsfield + socialDeliveryIssues blast radius",
+          "410 files / 4658 tests green, full nickstire server suite, serial"
+        ],
+        "liveRuns": [
+          "AUTH ONLY, and stated as such: a deliberately bogus key returns a real HTTP 401 from platform.higgsfield.ai (not a connection error, not a 404), which the server can only answer after parsing the Key header. A control probe against a nonexistent path returned the SAME 401, proving auth is checked BEFORE routing - so a 401 says nothing about whether an endpoint exists, and no free endpoint-path probe is possible."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "GENERATION IS UNPROVEN. The submit body, DoP endpoint path, polling shape and result-URL field are exercised against a mocked fetch only. Proving them spends credits and is the operator's call. Do not read the live 401 as evidence that generation works - it is evidence that auth works.",
+          "source": "PR #1653"
+        },
+        {
+          "severity": "P2",
+          "description": "The DoP submit path is unsettled: docs.higgsfield.ai implies /higgsfield-ai/dop/standard, the official Node SDK calls /v1/image2video/dop. Submit tries both and logs the winner, advancing only on 404/405 (request never routed, so nothing queued and nothing billed). A non-404 stops at the first path so a real rejection cannot become a second submit.",
+          "source": "PR #1653"
+        }
+      ],
+      "deferredScope": [
+        "No npm dependency added - the official SDK exists but installs are policy-blocked in harness worktrees, so this speaks plain HTTP/JSON. Swapping the SDK in later replaces one file and no callers.",
+        "REEL_VIDEO_PROVIDER is still template_stock in prod, so this lane is not the active generator. Flipping it is a separate, operator-authorized step that must follow this deploy."
+      ]
     }
   ],
   "axes": {
