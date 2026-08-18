@@ -260,10 +260,39 @@ export async function probeHiggsfieldApiCredentials(
 
 export interface DopVideoRequest {
   prompt: string;
-  /** A publicly fetchable image URL — the API fetches it server-side. */
+  /** A publicly fetchable image URL - the API fetches it server-side. */
   startImageUrl?: string;
+  /** Defaults to REEL_CLIP_DEFAULTS.aspectRatio. Portrait is NOT optional for reels. */
   aspectRatio?: string;
+  /** Seconds. Defaults to REEL_CLIP_DEFAULTS.durationSeconds. */
+  durationSeconds?: number;
+  /** Defaults to REEL_CLIP_DEFAULTS.resolution. */
+  resolution?: string;
 }
+
+/**
+ * MIRRORED FROM THE PROVEN CLI ARG SET, not invented and not from a doc page.
+ * `buildSeedanceArgs` in higgsfieldStudio.ts has produced every real reel this
+ * shop has published, and it passes exactly:
+ *
+ *     --aspect_ratio 9:16   --duration 4   --resolution 1080p
+ *
+ * The API lane shipped passing NONE of them, which was a latent defect big enough
+ * to waste real credits: `reelAssembly` throws unless a clip is 1080x1920, DoP
+ * would have used its own defaults, and every generated clip would have failed the
+ * render-integrity gate AFTER being paid for. Worse, clip length feeds the
+ * 15-22s total-duration target, so a default duration silently changes how long
+ * every reel is depending on which lane happened to run.
+ *
+ * These live as DEFAULTS in the client rather than as caller arguments on purpose:
+ * a caller that forgets them produced a broken clip, and there is no reason for
+ * every call site to re-remember the shop's format.
+ */
+export const REEL_CLIP_DEFAULTS = {
+  aspectRatio: "9:16",
+  durationSeconds: 4,
+  resolution: "1080p",
+} as const;
 
 /**
  * Thrown once a generation has been SUBMITTED, i.e. once Higgsfield may bill for
@@ -333,11 +362,44 @@ export async function generateReelClipVideoViaApi(
   const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000));
   const deadline = Date.now() + timeoutMs;
 
-  const body: Record<string, unknown> = { model: "dop-standard", prompt: req.prompt };
-  if (req.startImageUrl) body.input_images = [{ type: "image_url", image_url: req.startImageUrl }];
-  if (req.aspectRatio) body.aspect_ratio = req.aspectRatio;
+  const aspectRatio = req.aspectRatio ?? REEL_CLIP_DEFAULTS.aspectRatio;
+  const durationSeconds = req.durationSeconds ?? REEL_CLIP_DEFAULTS.durationSeconds;
+  const resolution = req.resolution ?? REEL_CLIP_DEFAULTS.resolution;
 
-  log.info("submitting Higgsfield API DoP video generation", { promptLen: req.prompt.length, hasStartImage: !!req.startImageUrl });
+  const body: Record<string, unknown> = {
+    model: "dop-standard",
+    prompt: req.prompt,
+    aspect_ratio: aspectRatio,
+    duration: durationSeconds,
+    resolution,
+    // enhance_prompt FALSE, deliberately. This prompt has already passed the
+    // repo's claim-safety gate (reviewReplyQa / the M10 preflight); letting the
+    // vendor rewrite it server-side would put UNREVIEWED copy into a published
+    // reel for a business that must not make unsupported claims. Any provider
+    // knob that edits our text after our own gate has run is a compliance hole,
+    // not a quality feature.
+    enhance_prompt: false,
+  };
+  if (req.startImageUrl) body.input_images = [{ type: "image_url", image_url: req.startImageUrl }];
+
+  if (!req.startImageUrl) {
+    // DoP is image-to-video, so with no start image the vendor has nothing to
+    // inherit framing or identity from. `aspect_ratio` above is the only thing
+    // keeping the clip portrait, and identity drift across beats is the measured
+    // consequence of text-only generation (one body per beat, three lighting
+    // worlds) that REEL_IMAGE_CONDITIONING exists to fix.
+    log.warn("Higgsfield API DoP submit has NO start image - relying on aspect_ratio alone for portrait, and expect identity drift across beats", {
+      aspectRatio,
+    });
+  }
+
+  log.info("submitting Higgsfield API DoP video generation", {
+    promptLen: req.prompt.length,
+    hasStartImage: !!req.startImageUrl,
+    aspectRatio,
+    durationSeconds,
+    resolution,
+  });
 
   // Try each candidate path. A 404/405 means "wrong path", and crucially it means
   // NOTHING was queued and NOTHING was billed — so advancing to the next candidate

@@ -18,6 +18,7 @@ import { resolve } from "node:path";
 import {
   generateReelClipVideoViaApi,
   higgsfieldApiCredentialsFromEnv,
+  REEL_CLIP_DEFAULTS,
   HiggsfieldApiSubmittedError,
   probeHiggsfieldApiCredentials,
 } from "./services/higgsfieldApiClient";
@@ -349,20 +350,33 @@ describe("the free probe is REACHABLE — an unrunnable safety check is not one"
   // become unreachable again.
   const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
-  it("a CLI probe script exists and calls the real function", () => {
+  it("a CLI probe script exists and reads the SAME source generation reads", () => {
+    // This asserted the env-only reader until 2026-08-18. That was the bug: the
+    // probe reported "configured: NO" for a key correctly stored in app_secret_kv,
+    // telling the operator their save had failed when it had succeeded. A
+    // verification tool reading a different source than the code it verifies is
+    // not a verification tool.
     const src = read("scripts/probe-higgsfield-api-key.mts");
     expect(src).toContain("probeHiggsfieldApiCredentials");
-    expect(src).toContain("higgsfieldApiCredentialsFromEnv");
+    expect(src).toContain("getHiggsfieldApiCredentials");
+    // And it must load .env, or db() is null and "could not look" prints as
+    // "not configured" — unknown rendered as absent.
+    expect(src).toContain("loadEnvFromDotenv");
+    // It must distinguish those two states rather than collapsing them.
+    expect(src).toContain("dbReachable");
+    expect(src).toMatch(/configured: UNKNOWN/);
   });
 
-  it("that script does NOT force-exit — it would kill the in-flight socket", () => {
-    // First run crashed with libuv's UV_HANDLE_CLOSING assertion because
-    // process.exit() raced undici's socket teardown. Exit code was still 0, so it
-    // was pure noise printed directly under a verdict line — which reads as a
-    // crash to an operator.
+  it("that script DOES force-exit, because it now holds a mysql pool", () => {
+    // REVERSED 2026-08-18, and the reversal is the lesson. This asserted the
+    // opposite while the probe opened no DB: then it only had undici's closing
+    // socket, and forcing the exit produced a libuv UV_HANDLE_CLOSING assertion —
+    // cosmetic noise under a verdict line. Once the key moved to app_secret_kv the
+    // probe opens a POOL, which never drains on its own, and setting exitCode alone
+    // made the script HANG with zero output. A hang is strictly worse than one line
+    // of stderr noise, and every sibling probe force-exits for this exact reason.
     const src = read("scripts/probe-higgsfield-api-key.mts");
-    expect(src).not.toMatch(/process\.exit\(/);
-    expect(src).toContain("process.exitCode = 0");
+    expect(src).toMatch(/process\.exit\(0\)/);
   });
 
   it("the admin health procedure reports BOTH lanes and names the one that wins", () => {
@@ -574,5 +588,70 @@ describe("the GENERATOR itself resolves credentials from the DB", () => {
   it("generation reports the DB-or-Settings path in its not-configured error", () => {
     const src = read("server/services/higgsfieldApiClient.ts");
     expect(src).toMatch(/Settings.*app_secret_kv|app_secret_kv.*Settings/s);
+  });
+});
+
+describe("the clip FORMAT matches the lane that has actually shipped reels", () => {
+  // The API lane shipped passing no aspect ratio, no duration and no resolution,
+  // while buildSeedanceArgs — which produced every reel this shop has published —
+  // passes `--aspect_ratio 9:16 --duration 4 --resolution 1080p`. reelAssembly
+  // THROWS unless a clip is 1080x1920, so DoP defaults would have produced clips
+  // that failed the render gate AFTER being paid for. Clip length also feeds the
+  // 15-22s total-duration target, so a default duration silently changes reel
+  // length depending on which lane ran.
+  afterEach(() => vi.restoreAllMocks());
+
+  async function submitAndCaptureBody(req: Parameters<typeof generateReelClipVideoViaApi>[0]) {
+    let body: Record<string, unknown> = {};
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        body = JSON.parse(init.body as string);
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_fmt" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fmt", video: { url: "https://cdn/f.mp4" } }) } as Response;
+    });
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
+    await generateReelClipVideoViaApi(req, { pollIntervalMs: 1 });
+    return body;
+  }
+
+  it("sends 9:16 / 4s / 1080p by DEFAULT — a caller cannot forget the shop's format", async () => {
+    const body = await submitAndCaptureBody({ prompt: "brake pad wearing thin" });
+    expect(body.aspect_ratio).toBe("9:16");
+    expect(body.duration).toBe(4);
+    expect(body.resolution).toBe("1080p");
+  });
+
+  it("those defaults equal the CLI's proven arg values, not a second opinion", () => {
+    // Pinned against the arg builder itself, so the two lanes cannot drift into
+    // producing different-shaped clips for the same reel.
+    const cli = readFileSync(resolve(process.cwd(), "server/services/higgsfieldStudio.ts"), "utf8");
+    const args = cli.slice(cli.indexOf("export function buildSeedanceArgs"));
+    const block = args.slice(0, args.indexOf("];"));
+    expect(block).toContain(`"${REEL_CLIP_DEFAULTS.aspectRatio}"`);
+    expect(block).toContain(`"${String(REEL_CLIP_DEFAULTS.durationSeconds)}"`);
+    expect(block).toContain(`"${REEL_CLIP_DEFAULTS.resolution}"`);
+  });
+
+  it("an explicit request value overrides the default", async () => {
+    const body = await submitAndCaptureBody({ prompt: "x", durationSeconds: 6, aspectRatio: "1:1", resolution: "720p" });
+    expect(body.duration).toBe(6);
+    expect(body.aspect_ratio).toBe("1:1");
+    expect(body.resolution).toBe("720p");
+  });
+
+  it("enhance_prompt is FALSE — the vendor must not rewrite copy after our claim gate", async () => {
+    // This shop cannot make unsupported claims. The prompt has already passed
+    // reviewReplyQa / the M10 preflight; a server-side rewrite would put
+    // unreviewed copy into a published reel.
+    const body = await submitAndCaptureBody({ prompt: "x" });
+    expect(body.enhance_prompt).toBe(false);
+  });
+
+  it("warns when there is no start image, because portrait then rests on one field", async () => {
+    const body = await submitAndCaptureBody({ prompt: "x" });
+    expect(body.input_images).toBeUndefined();
+    expect(body.aspect_ratio).toBe("9:16");
   });
 });
