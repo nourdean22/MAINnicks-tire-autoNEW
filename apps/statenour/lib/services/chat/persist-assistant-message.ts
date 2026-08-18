@@ -91,7 +91,8 @@ export async function persistAssistantMessage(a: {
     personality, userContent, posture, log,
   } = a;
   let cleanedText = a.cleanedText;
-  void userContent;
+  // (the `void userContent` keep-alive is gone — the calibration
+  // enforcer below is a real consumer now)
   // Hoisted out of the hasContent block so the fabrication-rewrite
   // block far below can patch the persisted assistant row. Stays
   // null when the response had no content (block never assigns it).
@@ -232,6 +233,30 @@ export async function persistAssistantMessage(a: {
         const kinds = [...new Set(truthFlags.map((f) => f.kind))];
         cleanedText = `${buildKnownTruthBanner(kinds)}${cleanedText}`;
         log.info("known_truth_banner_applied", { kinds });
+      }
+    }
+
+    // 2026-08-18 · calibration lever. Forecast-shaped ask + reply with
+    // no likelihood band -> elicit Nick's own credence (distractor-first,
+    // validated through parseEstimative) or, on failure, append the
+    // deterministic uncalibrated-forecast notice. Same pre-persist
+    // station as the verifier banners above; skipped when a verifier
+    // banner already fired (that diagnosis is more urgent). Kill-switch
+    // NICK_CALIBRATION_ENFORCER=0. Detection is precision-first — see
+    // lib/ai/vnext/truth/forecast-detector.ts.
+    if (!isVerifierRewritten(cleanedText)) {
+      try {
+        const { enforceCalibration } = await import("@/lib/ai/chat/calibration-enforcer");
+        const calibrated = await enforceCalibration(userContent, cleanedText);
+        if (calibrated.action !== "skipped") {
+          cleanedText = calibrated.text;
+          log.info("calibration_enforced", { action: calibrated.action });
+        }
+      } catch (err) {
+        // The lever must never block a persist.
+        log.warn("calibration_enforcer_error", {
+          err: err instanceof Error ? err.message.slice(0, 160) : String(err),
+        });
       }
     }
 

@@ -148,20 +148,43 @@ trade-off). Mean 7.7 → 8.0.** One new flag appeared, calibration-forecast 2.4:
 with no likelihood band — the known weakest-trait failure surfacing stochastically, unrelated to
 this slice, and confirmation that calibration is the next behavior lever.
 
+## The calibration lever (built same day) — enforce application, not more prose
+
+Both instruments flagged calibration weakest; the literature says more prompting stays
+overconfident. So the lever is a **pipeline layer** at the same pre-persist station as the
+fabrication verifier (L2), in production AND in the eval runner (single source):
+
+- **Detection** (`lib/ai/vnext/truth/forecast-detector.ts`, pure, precision-first): fires only
+  on forecast-shaped ASKS ("will we…", odds/chances, estimate/forecast/predict, target-crossing)
+  whose reply carries no scoreable likelihood+confidence per `parseEstimative`. Skip taxonomy:
+  already-calibrated · honest don't-know · question-back · stub replies. Decision asks,
+  diagnosis asks, and business-metric percentages never fire it.
+- **Enforcement** (`lib/ai/chat/calibration-enforcer.ts`): elicit Nick's OWN credence with one
+  cheap classify call — distractor-first per [arXiv 2509.25532](https://arxiv.org/html/2509.25532v2)
+  (naming alternatives before committing breaks anchoring) — **validated through the same
+  `parseEstimative` the Brier flywheel reads; an elicitation the flywheel can't score never
+  ships.** On any failure: a deterministic `[calibration missing …]` notice. **The layer never
+  invents a probability itself** — honest absence beats fake precision. Kill-switch
+  `NICK_CALIBRATION_ENFORCER=0`; never blocks persist.
+- **Why elicit at all:** every enforced turn becomes Brier-gradeable (`[~NN% · conf: x]` tag),
+  so BDN-106's calibration report finally accumulates real n — and empirically measures how
+  overconfident the elicited numbers are, which is the evidence the k-sample upgrade needs.
+
+**Measured (live suite, lever in loop): mean 8.1 — best yet — 13/14 passing;
+calibration-forecast 6.3 → 7.4 (passing).** The run fired the honest FALLBACK notice (the
+elicited tag missed a 3s timeout and a too-strict prefix match — both fixed post-run: 6s,
+tag-anywhere extraction, pinned by test). retry-means-retry holds at 10.0; the only flag left is
+yes-executes (2.5), the known replay-can't-execute-tools residual.
+
 ## Open items (deliberately not built)
 
-- **Calibration — the armed next lever.** Both instruments independently flag it weakest
-  (backfill mean 6.03; live suite's only non-harvested flag). Nick has the *vocabulary* layer
-  (ESTIMATIVE_LIKELIHOOD's ODNI bands) but fails to apply it under load — and the published
-  evidence says more prompting won't close that: verbalized confidence stays overconfident
-  without further alignment (Lin et al. 2022 lineage), while **consistency/sampling-based
-  confidence reliably outperforms verbalized and logit proxies in black-box settings** —
-  agreement across k samples tracks correctness. Two steal-worthy designs for the slice:
-  [self-generated distractors](https://arxiv.org/html/2509.25532v2) (ICLR '26 — distribute
-  probability over model-generated alternatives to break anchoring) and k-sample agreement →
-  band mapping, which is affordable on the zero-incremental Ollama lane. Survey grounding:
-  [Confidence Calibration in LLMs](https://www.emergentmind.com/topics/confidence-calibration-in-llms).
-  The suite's two calibration scenarios are the pre/post instrument.
+- **Calibration k-sample upgrade** — the enforcer (built, above) elicits verbalized credence;
+  the literature's stronger instrument is **k-sample agreement → band** (consistency beats
+  verbalized/logit proxies in black-box settings —
+  [survey](https://www.emergentmind.com/topics/confidence-calibration-in-llms)), affordable on
+  the zero-incremental Ollama lane. Gate: build it only once the Brier flywheel has enough
+  graded forecasts to show the elicited numbers' overconfidence empirically — that data is what
+  justifies k× the calls.
 - GATE items **#4 trajectory grading** and **#6 tool-metadata-untrusted** — separate multi-day builds.
 - **yes-executes residual** — the deterministic completion for confirmation-execution is a
   pending-offer state machine (map "Yes" to re-firing the offered tool); the replay's remaining
