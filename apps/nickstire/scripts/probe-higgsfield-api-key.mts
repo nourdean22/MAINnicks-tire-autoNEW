@@ -1,92 +1,149 @@
 /**
  * probe-higgsfield-api-key.mts · READ-ONLY, ZERO SPEND (2026-08-17)
  *
- * Answers one question: does the Higgsfield API KEY work? No generation, no
- * credit spend, no publish, no DB write. It looks up a request id that cannot
- * exist, so the server's own reply tells us whether the key authenticated:
+ * Answers one question: does the Higgsfield API KEY work? No generation, no credit
+ * spend, no publish, no DB write. It looks up a request id that cannot exist, so
+ * the server's own reply tells us whether the key authenticated:
  *
  *   404       -> the key WORKS (request was authenticated and processed)
  *   401/403   -> the key is REJECTED (wrong or revoked)
  *   anything  -> UNKNOWN, reported as such and never as a clean bill
  *
- * WHY THIS FILE EXISTS. `probeHiggsfieldApiCredentials()` shipped with ZERO
- * callers — exported, documented in the runbook as "the intended first step", and
- * reachable only by writing TypeScript by hand. That is the same
- * built-tested-unwired defect this arc has now found four times (the reel
- * shadow-judge readout, `higgsfieldSessionHealth`, `buildDraftWorkspace`, and
- * then my own probe). A safety check you cannot run is not a safety check.
+ * PRECISELY WHAT IS PROVEN. The base URL and auth scheme are VERIFIED LIVE: with a
+ * deliberately bogus key this returned a real HTTP 401 from platform.higgsfield.ai
+ * — not a connection error, not a 404 — which the server can only answer after
+ * parsing `Authorization: Key <id>:<secret>`. GENERATION is still unverified: the
+ * submit body, DoP endpoint path, polling shape and result URL field come from
+ * docs.higgsfield.ai and the official Node SDK, tested against a mocked `fetch`.
+ * Exercising those spends credits and is the operator's call.
  *
- * Run it BEFORE letting the API lane near a real reel — it is the cheapest
- * possible way to learn that the documented wire shape has drifted.
+ * FOUR BUGS THIS FILE SHIPPED, all the same shape, all worth not repeating:
+ *   1. It read the ENV-ONLY resolver while the key lives in `app_secret_kv`, so it
+ *      printed "configured: NO" for a key that was correctly stored — telling the
+ *      operator their save had failed when it had succeeded.
+ *   2. It never loaded `.env`, so `db()` returned null, the DB was never queried,
+ *      and "I could not look" was reported as "it is not there".
+ *   3. A scan-and-replace of mine then matched the string "configured: NO" inside
+ *      an explanatory COMMENT rather than the console.log, and clobbered the
+ *      credential resolution outright.
+ *   4. It then carried a `dbReachable` guard that LOOKED like it prevented all of
+ *      the above and did not. `getDb()` builds a lazy mysql pool -
+ *      `mysql.createPool` is synchronous and opens no socket - so a truthy handle
+ *      proved only that DATABASE_URL was SET. Against a set-but-unreachable
+ *      database the guard passed, the query failed inside the resolver, and this
+ *      printed "configured: NO" for a key it had never managed to look for.
+ *      Caught in review by Codex on PR #1653, not by me and not by a test.
+ *      Reachability is now DERIVED from the lookup (`resolution.dbError`).
+ * The through-line: a verification tool that reads a different source than the code
+ * it verifies is not a verification tool, and unknown must never render as absent.
+ * A presence check wearing a liveness check's name is worse than no check at all.
  *
- * PRECISELY WHAT IS PROVEN. The base URL and auth scheme are VERIFIED LIVE: run
- * with a deliberately bogus key, this returned a real HTTP 401 from
- * platform.higgsfield.ai — not a connection error, not a 404 — and a 401 is
- * something the server can only answer after parsing
- * `Authorization: Key <id>:<secret>` and routing the request. GENERATION is still
- * unverified: the submit body, DoP endpoint path, polling shape and result URL
- * field come from docs.higgsfield.ai and the official Node SDK, tested against a
- * mocked `fetch`. Exercising those spends credits and is the operator's call.
+ * Usage — locally (reads `.env` for DATABASE_URL, so it sees the stored key):
+ *   pnpm exec tsx scripts/probe-higgsfield-api-key.mts
  *
- * Usage — locally, with the two vars exported:
- *   HIGGSFIELD_API_KEY_ID=... HIGGSFIELD_API_KEY_SECRET=... pnpm exec tsx scripts/probe-higgsfield-api-key.mts
- *
- * Usage — against prod's env (no DB access needed; this touches no database):
+ * Usage — against prod's injected env:
  *   railway run --service MAINnicks-tire-auto -- pnpm exec tsx scripts/probe-higgsfield-api-key.mts
  */
-const { probeHiggsfieldApiCredentials, higgsfieldApiCredentialsFromEnv } = await import(
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+/** Mirrors scripts/data-census.ts. Under `railway run` this is a no-op. */
+function loadEnvFromDotenv(): void {
+  try {
+    const text = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+    for (const line of text.split(/\r?\n/)) {
+      const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  } catch {
+    /* the shell may already carry the vars */
+  }
+}
+loadEnvFromDotenv();
+
+const { probeHiggsfieldApiCredentials, resolveHiggsfieldApiCredentials } = await import(
   "../server/services/higgsfieldApiClient"
 );
 
-const creds = higgsfieldApiCredentialsFromEnv();
+// Reachability is DERIVED FROM THE LOOKUP, never probed separately (P2 review,
+// Codex, PR #1653). The version this replaces called `db()` and treated a truthy
+// handle as "the database is reachable" — but `mysql.createPool` is synchronous
+// and opens no socket, so that only proved DATABASE_URL was SET. With a set-but
+// -unreachable database the handle was truthy, the credential query failed inside
+// the resolver, and this script printed "configured: NO" for a key it had never
+// managed to look for. `dbError` is non-null ONLY when a lookup could not
+// complete, so the three states below cannot collapse into each other again.
+const resolution = await resolveHiggsfieldApiCredentials();
+const creds = resolution.credentials;
 
-console.log("\n── Higgsfield API key ──");
-if (!creds) {
+console.log("\n-- Higgsfield API key --");
+
+if (!creds && resolution.dbError) {
+  console.log("  configured: UNKNOWN - the key store could not be read");
+  console.log(`    why: ${resolution.dbError}`);
+  console.log("    The key lives in app_secret_kv, so this cannot see it without a");
+  console.log("    WORKING database connection - not merely a DATABASE_URL. Only the");
+  console.log("    env vars were checked, and those are unset.");
+  console.log("");
+  console.log("VERDICT: UNKNOWN - not a clean bill, and not a missing key. Re-run with");
+  console.log("prod env:  railway run --service MAINnicks-tire-auto -- \\");
+  console.log("             pnpm exec tsx scripts/probe-higgsfield-api-key.mts");
+  console.log("Or from the phone: Today -> HQ -> Higgsfield health.");
+  console.log("");
+} else if (!creds) {
   console.log("  configured: NO");
-  console.log("    HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET — both are required,");
-  console.log("    and a whitespace-only value counts as unset.");
-  console.log("\nVERDICT: the API lane is INERT. generateReelClipVideo will use the CLI");
-  console.log("session lane, which is the one that expires (runbook section 1).");
-  console.log("Get a key at cloud.higgsfield.ai -> API section. See runbook section 6.\n");
+  console.log("    The lookup COMPLETED and found nothing, so this is real absence");
+  console.log("    and not a failure to look - the distinction this script exists for.");
+  console.log("    Checked app_secret_kv (higgsfield_api_key_id / _secret) AND the env");
+  console.log("    vars. BOTH halves are required in whichever store you use, and a");
+  console.log("    whitespace-only value counts as unset.");
+  console.log("");
+  console.log("VERDICT: the API lane is INERT. generateReelClipVideo uses the CLI session");
+  console.log("lane, which is the one that expires (runbook section 1).");
+  console.log("Get a key at cloud.higgsfield.ai -> API section. See runbook section 6.");
+  console.log("");
 } else {
-  // Never print the secret, or its length — a length is a hint. Only the id's shape.
-  console.log(`  configured: YES  (key id ends ...${creds.keyId.slice(-4)})`);
-  console.log("  probing platform.higgsfield.ai — no generation, no credits\n");
+  // Never print the secret, nor its length - a length is a hint. Only the id tail.
+  console.log(`  configured: YES  (key id ends ...${creds.keyId.slice(-4)}, from ${resolution.store})`);
+  console.log("  probing platform.higgsfield.ai - no generation, no credits\n");
 
   const r = await probeHiggsfieldApiCredentials(creds);
 
   if (r.healthy === true) {
     console.log("  key: WORKS");
     console.log(`  detail: ${r.reason}`);
-    console.log("\nVERDICT: the API lane will be PREFERRED by generateReelClipVideo.");
-    console.log("It has no session to expire, so the four-day-outage failure mode cannot");
-    console.log("recur on this lane. Still unproven for GENERATION — this call only proves");
-    console.log("auth, exactly as veoCredentialsPresent() proves presence and not quota.");
+    console.log("");
+    console.log("VERDICT: the API lane will be PREFERRED by generateReelClipVideo. It has no");
+    console.log("session to expire, so the four-day-outage failure mode cannot recur on it.");
+    console.log("Still unproven for GENERATION - this proves auth only, exactly as");
+    console.log("veoCredentialsPresent() proves presence and not quota.");
   } else if (r.healthy === false) {
     console.log("  key: REJECTED");
     console.log(`  detail: ${r.reason}`);
-    console.log("\nVERDICT: fix the key before relying on this lane. generateReelClipVideo");
+    console.log("");
+    console.log("VERDICT: fix the key before relying on this lane. generateReelClipVideo");
     console.log("reports a first-call 401/403 immediately instead of silently falling back,");
     console.log("so a wrong key surfaces rather than hiding behind the CLI lane.");
   } else {
     console.log("  key: UNKNOWN");
     console.log(`  detail: ${r.reason}`);
-    console.log("\nVERDICT: cannot tell — treated as UNKNOWN, never as a clean bill. A");
+    console.log("");
+    console.log("VERDICT: cannot tell - treated as UNKNOWN, never as a clean bill. A");
     console.log("transport blip and a dead key are different faults; re-run before");
     console.log("concluding anything, and do NOT rotate a key on this result alone.");
   }
   console.log("");
 }
 
-// NO FORCED EXIT ANYWHERE, unlike the sibling probes — they terminate the process
-// explicitly because a mysql pool holds the event loop open, and this probe opens
-// no DB. Terminating while undici's socket is still closing crashes on Windows
-// with libuv's `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` — observed
-// on this script's very first run. The exit code was still 0, so it was pure noise
-// printed directly under a verdict line, which reads as a crash to an operator.
+// FORCE THE EXIT. I had this backwards: the comment here used to claim the loop
+// would "drain", but a mysql pool never drains on its own — and this probe now
+// opens one, because the key lives in app_secret_kv. Setting only exitCode made the
+// script HANG with zero output, which is precisely the failure I fixed in
+// reel-shadow-judge-readout.mts and then reintroduced here.
 //
-// (Worded without the literal API name on purpose: the test that pins this rule
-// greps the source, and naming the forbidden call in prose is how a scan
-// assertion ends up matching its own explanatory comment — a mistake this session
-// has now made four separate times.)
-process.exitCode = 0;
+// The libuv UV_HANDLE_CLOSING assertion that made me avoid this applied to the
+// NO-DATABASE case, where nothing held the loop and the only open handle was
+// undici's closing socket. Every await above has already settled by this line, and
+// a hang is strictly worse than one line of cosmetic stderr noise. Sibling probes
+// force-exit for exactly this reason.
+process.exit(0);

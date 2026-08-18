@@ -1159,19 +1159,51 @@ Keep it under 200 characters.`;
     // where it becomes reachable. It costs one ~10s HTTP call and NO credits, and
     // it is skipped entirely when the key is unset, so the existing CLI-only
     // behaviour is unchanged for anyone who has not opted in.
-    const { getHiggsfieldApiCredentials, probeHiggsfieldApiCredentials } = await import(
+    const { resolveHiggsfieldApiCredentials, probeHiggsfieldApiCredentials } = await import(
       "../services/higgsfieldApiClient",
     );
-    const apiCreds = await getHiggsfieldApiCredentials();
-    const api = apiCreds
-      ? { configured: true as const, ...(await probeHiggsfieldApiCredentials(apiCreds)) }
-      : { configured: false as const, healthy: null, reason: "HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET not set" };
+    // `configured` is THREE-STATE here, not boolean-with-a-null (P2 review, Codex,
+    // PR #1653). The version this replaces read a null credential as "not set" —
+    // but the key lives in app_secret_kv and `getDb()` opens no socket, so an
+    // unreachable database produced a confident "not set" for a key that may well
+    // be sitting in the row. On the operator's phone that is the worst possible
+    // wrong answer: it says "paste a key" when the truth is "fix connectivity",
+    // and it is the same shape as the dead session that read as fine for four days.
+    const resolution = await resolveHiggsfieldApiCredentials();
+    const api = resolution.credentials
+      ? {
+          configured: true as const,
+          store: resolution.store,
+          ...(await probeHiggsfieldApiCredentials(resolution.credentials)),
+        }
+      : resolution.dbError
+        ? {
+            configured: "unknown" as const,
+            store: resolution.store,
+            healthy: null,
+            reason: `the key store could not be read, so this is UNKNOWN and not "unset": ${resolution.dbError}`,
+          }
+        : {
+            configured: false as const,
+            store: resolution.store,
+            healthy: null,
+            reason:
+              "the lookup COMPLETED and found nothing: no app_secret_kv rows (set them in Instagram -> Settings) and no HIGGSFIELD_API_KEY_ID / _SECRET env vars",
+          };
 
     // `preferredLane` is the honest answer to "which one will actually run?" —
     // a surface that showed both healths without saying which is authoritative
     // would leave the operator to infer it, and inferring it wrong is how a dead
     // session got read as fine for four days.
-    return { ...cli, api, preferredLane: api.configured ? ("api_key" as const) : ("cli_session" as const) };
+    // An UNKNOWN api lane must not be reported as the preferred one — the pipeline
+    // only prefers a lane it can actually get credentials for, so `=== true` is the
+    // honest test. Reading `api.configured` as truthy would make the string
+    // "unknown" select api_key and describe a lane that cannot run.
+    return {
+      ...cli,
+      api,
+      preferredLane: api.configured === true ? ("api_key" as const) : ("cli_session" as const),
+    };
   }),
   getProviderHealth: adminProcedure.query(async () => {
     // Text LLM (server/_core/llm.ts) prefers GEMINI_API_KEY, else OPENAI_API_KEY.

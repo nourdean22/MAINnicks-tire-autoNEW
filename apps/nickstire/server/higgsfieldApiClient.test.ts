@@ -12,12 +12,13 @@
  * change to the request shape or the auth header is caught the same way a real
  * server's rejection would be caught — not by grepping for a string.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   generateReelClipVideoViaApi,
   higgsfieldApiCredentialsFromEnv,
+  REEL_CLIP_DEFAULTS,
   HiggsfieldApiSubmittedError,
   probeHiggsfieldApiCredentials,
 } from "./services/higgsfieldApiClient";
@@ -349,20 +350,44 @@ describe("the free probe is REACHABLE — an unrunnable safety check is not one"
   // become unreachable again.
   const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
-  it("a CLI probe script exists and calls the real function", () => {
+  it("a CLI probe script exists and reads the SAME source generation reads", () => {
+    // This asserted the env-only reader until 2026-08-18. That was the bug: the
+    // probe reported "configured: NO" for a key correctly stored in app_secret_kv,
+    // telling the operator their save had failed when it had succeeded. A
+    // verification tool reading a different source than the code it verifies is
+    // not a verification tool.
     const src = read("scripts/probe-higgsfield-api-key.mts");
     expect(src).toContain("probeHiggsfieldApiCredentials");
-    expect(src).toContain("higgsfieldApiCredentialsFromEnv");
+    expect(src).toContain("resolveHiggsfieldApiCredentials");
+    // And it must load .env, or db() is null and "could not look" prints as
+    // "not configured" — unknown rendered as absent.
+    expect(src).toContain("loadEnvFromDotenv");
+    // It must distinguish those two states rather than collapsing them — and it
+    // must do so from the LOOKUP, not from a separate reachability guess. The
+    // `dbReachable` check this replaces called db() and read a truthy handle as
+    // "reachable", but mysql.createPool opens no socket, so a set-but-unreachable
+    // DATABASE_URL printed "configured: NO" for a key never looked for (P2 review,
+    // Codex, PR #1653). The old name must not come back.
+    // Anchored on the DECLARATION, not the bare name: this file's own comment
+    // explains the `dbReachable` bug by name, and a bare not.toContain matched
+    // that prose - the sixth time in this arc a scan assertion hit its own
+    // explanatory text. A variable cannot exist without being declared, so the
+    // declaration is the thing worth forbidding.
+    expect(src).not.toContain("const dbReachable");
+    expect(src).toContain("resolution.dbError");
+    expect(src).toMatch(/configured: UNKNOWN/);
   });
 
-  it("that script does NOT force-exit — it would kill the in-flight socket", () => {
-    // First run crashed with libuv's UV_HANDLE_CLOSING assertion because
-    // process.exit() raced undici's socket teardown. Exit code was still 0, so it
-    // was pure noise printed directly under a verdict line — which reads as a
-    // crash to an operator.
+  it("that script DOES force-exit, because it now holds a mysql pool", () => {
+    // REVERSED 2026-08-18, and the reversal is the lesson. This asserted the
+    // opposite while the probe opened no DB: then it only had undici's closing
+    // socket, and forcing the exit produced a libuv UV_HANDLE_CLOSING assertion —
+    // cosmetic noise under a verdict line. Once the key moved to app_secret_kv the
+    // probe opens a POOL, which never drains on its own, and setting exitCode alone
+    // made the script HANG with zero output. A hang is strictly worse than one line
+    // of stderr noise, and every sibling probe force-exits for this exact reason.
     const src = read("scripts/probe-higgsfield-api-key.mts");
-    expect(src).not.toMatch(/process\.exit\(/);
-    expect(src).toContain("process.exitCode = 0");
+    expect(src).toMatch(/process\.exit\(0\)/);
   });
 
   it("the admin health procedure reports BOTH lanes and names the one that wins", () => {
@@ -382,8 +407,15 @@ describe("the free probe is REACHABLE — an unrunnable safety check is not one"
     // one, which was correct until the key became settable from the admin UI. A
     // caller left on the env resolver would be blind to a pasted key.
     const src = read("server/routers/instagramAdmin.ts");
-    expect(src).toContain("await getHiggsfieldApiCredentials()");
+    expect(src).toContain("await resolveHiggsfieldApiCredentials()");
     expect(src).toMatch(/configured: false/);
+    // THREE STATES on the operator's phone. A null credential used to render as
+    // "not set", so an unreachable key store told the operator to paste a key they
+    // had already pasted. "unknown" must exist as its own state, and the preferred
+    // lane must be chosen with === true so the truthy string cannot select a lane
+    // that has no credentials.
+    expect(src).toMatch(/configured: "unknown"/);
+    expect(src).toContain("api.configured === true");
   });
 });
 
@@ -397,7 +429,7 @@ describe("the API key is settable from the PHONE, not just a Railway env var", (
 
   it("the resolver prefers the DB and falls back to env", () => {
     const src = read("server/services/higgsfieldApiClient.ts");
-    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    const fn = src.slice(src.indexOf("export async function resolveHiggsfieldApiCredentials"));
     expect(fn).toContain("higgsfield_api_key_id");
     expect(fn).toContain("higgsfield_api_key_secret");
     // env is the FALLBACK, reached via the env-only resolver
@@ -406,7 +438,7 @@ describe("the API key is settable from the PHONE, not just a Railway env var", (
 
   it("it requires BOTH rows — a half-configured key would 401 and read as 'wrong key'", () => {
     const src = read("server/services/higgsfieldApiClient.ts");
-    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    const fn = src.slice(src.indexOf("export async function resolveHiggsfieldApiCredentials"));
     expect(fn).toContain("if (id && secret)");
   });
 
@@ -559,8 +591,8 @@ describe("the GENERATOR itself resolves credentials from the DB", () => {
     // forever. A transient fault must not become a permanent blind spot.
     const src = read("server/services/higgsfieldApiClient.ts");
     const fn = src.slice(
+      src.indexOf("export async function resolveHiggsfieldApiCredentials"),
       src.indexOf("export async function getHiggsfieldApiCredentials"),
-      src.indexOf("export interface DopVideoRequest"),
     );
     const latchAt = fn.indexOf("apiCredsLoadAttempted = true;");
     const catchAt = fn.indexOf("} catch (err) {");
@@ -574,5 +606,243 @@ describe("the GENERATOR itself resolves credentials from the DB", () => {
   it("generation reports the DB-or-Settings path in its not-configured error", () => {
     const src = read("server/services/higgsfieldApiClient.ts");
     expect(src).toMatch(/Settings.*app_secret_kv|app_secret_kv.*Settings/s);
+  });
+});
+
+describe("the clip FORMAT matches the lane that has actually shipped reels", () => {
+  // The API lane shipped passing no aspect ratio, no duration and no resolution,
+  // while buildSeedanceArgs — which produced every reel this shop has published —
+  // passes `--aspect_ratio 9:16 --duration 4 --resolution 1080p`. reelAssembly
+  // THROWS unless a clip is 1080x1920, so DoP defaults would have produced clips
+  // that failed the render gate AFTER being paid for. Clip length also feeds the
+  // 15-22s total-duration target, so a default duration silently changes reel
+  // length depending on which lane ran.
+  afterEach(() => vi.restoreAllMocks());
+
+  async function submitAndCaptureBody(req: Parameters<typeof generateReelClipVideoViaApi>[0]) {
+    let body: Record<string, unknown> = {};
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        body = JSON.parse(init.body as string);
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_fmt" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fmt", video: { url: "https://cdn/f.mp4" } }) } as Response;
+    });
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
+    await generateReelClipVideoViaApi(req, { pollIntervalMs: 1 });
+    return body;
+  }
+
+  it("sends 9:16 / 4s / 1080p by DEFAULT — a caller cannot forget the shop's format", async () => {
+    const body = await submitAndCaptureBody({ prompt: "brake pad wearing thin" });
+    expect(body.aspect_ratio).toBe("9:16");
+    expect(body.duration).toBe(4);
+    expect(body.resolution).toBe("1080p");
+  });
+
+  it("those defaults equal the CLI's proven arg values, not a second opinion", () => {
+    // Pinned against the arg builder itself, so the two lanes cannot drift into
+    // producing different-shaped clips for the same reel.
+    const cli = readFileSync(resolve(process.cwd(), "server/services/higgsfieldStudio.ts"), "utf8");
+    const args = cli.slice(cli.indexOf("export function buildSeedanceArgs"));
+    const block = args.slice(0, args.indexOf("];"));
+    expect(block).toContain(`"${REEL_CLIP_DEFAULTS.aspectRatio}"`);
+    expect(block).toContain(`"${String(REEL_CLIP_DEFAULTS.durationSeconds)}"`);
+    expect(block).toContain(`"${REEL_CLIP_DEFAULTS.resolution}"`);
+  });
+
+  it("an explicit request value overrides the default", async () => {
+    const body = await submitAndCaptureBody({ prompt: "x", durationSeconds: 6, aspectRatio: "1:1", resolution: "720p" });
+    expect(body.duration).toBe(6);
+    expect(body.aspect_ratio).toBe("1:1");
+    expect(body.resolution).toBe("720p");
+  });
+
+  it("enhance_prompt is FALSE — the vendor must not rewrite copy after our claim gate", async () => {
+    // This shop cannot make unsupported claims. The prompt has already passed
+    // reviewReplyQa / the M10 preflight; a server-side rewrite would put
+    // unreviewed copy into a published reel.
+    const body = await submitAndCaptureBody({ prompt: "x" });
+    expect(body.enhance_prompt).toBe(false);
+  });
+
+  it("warns when there is no start image, because portrait then rests on one field", async () => {
+    const body = await submitAndCaptureBody({ prompt: "x" });
+    expect(body.input_images).toBeUndefined();
+    expect(body.aspect_ratio).toBe("9:16");
+  });
+});
+
+describe("UNKNOWN vs ABSENT: the store either answered, or it did not", () => {
+  // P2 REVIEW BY CODEX ON PR #1653 - caught by a reviewer, not by me and not by
+  // any test above. Every test in this file that touched credential resolution
+  // was a SOURCE SCAN, and a source scan cannot see this bug at all: the text was
+  // fine, the behaviour was not.
+  //
+  // `getDb()` builds a LAZY mysql pool. `mysql.createPool` is synchronous and
+  // opens no socket, so a truthy Drizzle handle proves only that DATABASE_URL is
+  // SET. Against a set-but-unreachable TiDB the handle was truthy, the credential
+  // query threw inside the resolver, and callers saw a bare `null` - which the
+  // probe and the phone both reported as "no key configured". The operator would
+  // be told to paste a key already sitting in the row, and told nothing about the
+  // connectivity fault that was the actual problem.
+  //
+  // These drive the resolver with a mocked db-helper and assert the STATE, which
+  // is the only way this class of defect is visible.
+  const ENV_KEYS = ["HIGGSFIELD_API_KEY_ID", "HIGGSFIELD_API_KEY_SECRET"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    vi.resetModules();
+    for (const k of ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    vi.doUnmock("./lib/db-helper");
+    vi.resetModules();
+    // Restore-or-delete: the suite shares ONE process under singleFork, so a
+    // leaked env var reorders results in a later file.
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k]!;
+    }
+  });
+
+  /** A drizzle-shaped stub whose terminal `where` decides what the query does. */
+  const mockDb = (where: () => Promise<unknown>) =>
+    vi.doMock("./lib/db-helper", () => ({
+      db: async () => ({ select: () => ({ from: () => ({ where }) }) }),
+    }));
+
+  const resolveFresh = async () => {
+    const mod = await import("./services/higgsfieldApiClient");
+    return mod.resolveHiggsfieldApiCredentials();
+  };
+
+  it("a QUERY that throws is UNKNOWN - not 'no key'", async () => {
+    mockDb(async () => {
+      throw new Error("ECONNREFUSED gateway01.us-east-1.prod.aws.tidbcloud.com");
+    });
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.store).toBe("none");
+    // The whole point: absence is NOT established, and the reason is carried out
+    // so the caller can say so instead of inventing a verdict.
+    expect(r.dbError).toMatch(/ECONNREFUSED/);
+  });
+
+  it("a COMPLETED query with no rows is genuine ABSENCE - dbError is null", async () => {
+    mockDb(async () => []);
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.store).toBe("none");
+    // "Queried and found nothing" is a real answer. This is the only state that
+    // may legitimately print "configured: NO".
+    expect(r.dbError).toBeNull();
+  });
+
+  it("no database handle at all is UNKNOWN, because nothing was asked", async () => {
+    vi.doMock("./lib/db-helper", () => ({ db: async () => null }));
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.dbError).toMatch(/no database handle/);
+  });
+
+  it("both rows present resolve from app_secret_kv, and report that store", async () => {
+    mockDb(async () => [
+      { k: "higgsfield_api_key_id", v: "id-from-the-phone" },
+      { k: "higgsfield_api_key_secret", v: "secret-from-the-phone" },
+    ]);
+    const r = await resolveFresh();
+    expect(r.credentials).toEqual({ keyId: "id-from-the-phone", keySecret: "secret-from-the-phone" });
+    expect(r.store).toBe("app_secret_kv");
+    expect(r.dbError).toBeNull();
+  });
+
+  it("a HALF-configured DB key is absence, not a broken key", async () => {
+    // Only the id. Returning it would 401 on every call and read as "the key is
+    // wrong" rather than "the key is incomplete".
+    mockDb(async () => [{ k: "higgsfield_api_key_id", v: "only-the-id" }]);
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.dbError).toBeNull();
+  });
+
+  it("a whitespace-only row counts as unset", async () => {
+    mockDb(async () => [
+      { k: "higgsfield_api_key_id", v: "   " },
+      { k: "higgsfield_api_key_secret", v: String.fromCharCode(9) + String.fromCharCode(10) },
+    ]);
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+  });
+
+  it("env vars are the FALLBACK when the DB has nothing, and are labelled as such", async () => {
+    mockDb(async () => []);
+    process.env.HIGGSFIELD_API_KEY_ID = "env-id";
+    process.env.HIGGSFIELD_API_KEY_SECRET = "env-secret";
+    const r = await resolveFresh();
+    expect(r.credentials).toEqual({ keyId: "env-id", keySecret: "env-secret" });
+    expect(r.store).toBe("env");
+  });
+
+  it("an env key does NOT mask a DB fault - store is env but the fault is reported", async () => {
+    // Prod has no env copy, so this is the reverse-direction guard: if someone
+    // adds one later, a dead key store must stay visible rather than be papered
+    // over by a fallback that happens to succeed.
+    mockDb(async () => {
+      throw new Error("read ETIMEDOUT");
+    });
+    process.env.HIGGSFIELD_API_KEY_ID = "env-id";
+    process.env.HIGGSFIELD_API_KEY_SECRET = "env-secret";
+    const r = await resolveFresh();
+    expect(r.credentials).not.toBeNull();
+    expect(r.store).toBe("env");
+    expect(r.dbError).toMatch(/ETIMEDOUT/);
+  });
+
+  it("getHiggsfieldApiCredentials still returns a bare credential for lane selection", async () => {
+    // The thin wrapper must keep working: most callers only ask "can I use this
+    // lane?", and a null there correctly means "do not".
+    mockDb(async () => [
+      { k: "higgsfield_api_key_id", v: "i" },
+      { k: "higgsfield_api_key_secret", v: "s" },
+    ]);
+    const mod = await import("./services/higgsfieldApiClient");
+    await expect(mod.getHiggsfieldApiCredentials()).resolves.toEqual({ keyId: "i", keySecret: "s" });
+  });
+
+  it("a transient failure is RETRIED - the latch is not set on a failed lookup", async () => {
+    let calls = 0;
+    vi.doMock("./lib/db-helper", () => ({
+      db: async () => ({
+        select: () => ({
+          from: () => ({
+            where: async () => {
+              calls += 1;
+              if (calls === 1) throw new Error("transient");
+              return [
+                { k: "higgsfield_api_key_id", v: "later-id" },
+                { k: "higgsfield_api_key_secret", v: "later-secret" },
+              ];
+            },
+          }),
+        }),
+      }),
+    }));
+    const mod = await import("./services/higgsfieldApiClient");
+    const first = await mod.resolveHiggsfieldApiCredentials();
+    expect(first.credentials).toBeNull();
+    expect(first.dbError).toMatch(/transient/);
+    // The second call must actually hit the database again. A latch set before the
+    // query would make this null forever.
+    const second = await mod.resolveHiggsfieldApiCredentials();
+    expect(second.credentials).toEqual({ keyId: "later-id", keySecret: "later-secret" });
+    expect(second.dbError).toBeNull();
+    expect(calls).toBe(2);
   });
 });

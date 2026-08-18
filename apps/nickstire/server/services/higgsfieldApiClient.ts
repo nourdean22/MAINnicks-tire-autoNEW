@@ -131,8 +131,45 @@ export function clearRuntimeHiggsfieldApiKeyCache(): void {
  * Unlike the CLI credential blob, this one is NEVER rewritten by a rotation —
  * an API key is static, which is the entire reason this lane exists.
  */
-export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
-  if (apiCredsLoadAttempted) return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+export type HiggsfieldApiCredentialsResolution = {
+  credentials: HiggsfieldApiCredentials | null;
+  /** Where the returned credentials came from. "none" when there are none. */
+  store: "app_secret_kv" | "env" | "none";
+  /**
+   * `null` means a lookup COMPLETED, so a null `credentials` is genuine absence.
+   * A string means the store could not be read, so absence is UNKNOWN.
+   */
+  dbError: string | null;
+};
+
+/**
+ * WHY THIS RETURNS A RESOLUTION AND NOT JUST A NULLABLE CREDENTIAL (P2 review by
+ * Codex on PR #1653, and the sharpest catch of this arc from outside it).
+ *
+ * `getDb()` builds a LAZY mysql pool: `mysql.createPool` is synchronous and never
+ * opens a socket, so a truthy Drizzle handle proves only that DATABASE_URL is
+ * SET. If TiDB is unreachable or rejects the credentials, the handle is still
+ * truthy and the FAILURE surfaces later, inside the query. A consumer that reads
+ * a null credential as "no key configured" therefore announces absence when the
+ * truth is "I could not look" — and those need opposite responses: one says paste
+ * a key, the other says fix connectivity and do NOT rotate anything.
+ *
+ * My own probe had exactly that bug while carrying a `dbReachable` check that
+ * looked like it prevented it. A presence check wearing a liveness check's name
+ * is worse than no check, so the distinction now lives HERE, where every consumer
+ * gets it, rather than being re-derived correctly-or-not at four call sites.
+ */
+export async function resolveHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentialsResolution> {
+  const settle = (dbError: string | null): HiggsfieldApiCredentialsResolution => {
+    if (cachedApiCreds) return { credentials: cachedApiCreds, store: "app_secret_kv", dbError };
+    const env = higgsfieldApiCredentialsFromEnv();
+    if (env) return { credentials: env, store: "env", dbError };
+    return { credentials: null, store: "none", dbError };
+  };
+
+  // A completed earlier lookup is a real answer: nothing left to be unknown.
+  if (apiCredsLoadAttempted) return settle(null);
+
   // The latch is set only after a load that actually COMPLETED (P2 review,
   // 2026-08-17). Setting it up-front meant a single DB outage or a thrown query
   // pinned `apiCredsLoadAttempted = true` with a null cache forever, so every
@@ -142,34 +179,48 @@ export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCreden
   try {
     const { db } = await import("../lib/db-helper");
     const d = await db();
-    if (d) {
-      const { appSecretKv } = await import("../../drizzle/schema");
-      const { inArray } = await import("drizzle-orm");
-      const rows = await d
-        .select()
-        .from(appSecretKv)
-        .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
-      let id: string | null = null;
-      let secret: string | null = null;
-      for (const r of rows as { k: string; v: string | null }[]) {
-        if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
-        if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
-      }
-      // BOTH or neither — a half-configured key would fail every call with a 401
-      // and read as "the key is wrong" rather than "the key is incomplete".
-      if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
+    if (!d) {
+      // Not "no key" — no way to ask. DATABASE_URL unset, or the pool could not
+      // even be constructed.
+      return settle("no database handle (DATABASE_URL unset or pool unavailable)");
     }
+    const { appSecretKv } = await import("../../drizzle/schema");
+    const { inArray } = await import("drizzle-orm");
+    const rows = await d
+      .select()
+      .from(appSecretKv)
+      .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
+    let id: string | null = null;
+    let secret: string | null = null;
+    for (const r of rows as { k: string; v: string | null }[]) {
+      if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
+      if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
+    }
+    // BOTH or neither — a half-configured key would fail every call with a 401
+    // and read as "the key is wrong" rather than "the key is incomplete".
+    if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
     // Reached only on a completed query — with or without rows. "Queried and
     // found nothing" is a real answer worth caching; "could not query" is not.
     apiCredsLoadAttempted = true;
+    return settle(null);
   } catch (err) {
-    // Never log the values, and never let a DB blip look like "no key" —
-    // the env fallback below still applies.
-    log.error("failed to load Higgsfield API credentials from database", {
-      err: err instanceof Error ? err.message : String(err),
-    });
+    // Never log the values, and never let a DB blip look like "no key" — the env
+    // fallback still applies, and the error is REPORTED rather than swallowed so
+    // the caller can say UNKNOWN instead of NO.
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("failed to load Higgsfield API credentials from database", { err: message });
+    return settle(message);
   }
-  return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+}
+
+/**
+ * DB-FIRST resolver, thin wrapper over {@link resolveHiggsfieldApiCredentials}.
+ * Kept because most callers only need "can I use this lane?" — but any caller
+ * that REPORTS on configuration must use the resolution instead, or it will state
+ * absence it has not established.
+ */
+export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
+  return (await resolveHiggsfieldApiCredentials()).credentials;
 }
 
 function authHeader(creds: HiggsfieldApiCredentials): string {
@@ -260,10 +311,39 @@ export async function probeHiggsfieldApiCredentials(
 
 export interface DopVideoRequest {
   prompt: string;
-  /** A publicly fetchable image URL — the API fetches it server-side. */
+  /** A publicly fetchable image URL - the API fetches it server-side. */
   startImageUrl?: string;
+  /** Defaults to REEL_CLIP_DEFAULTS.aspectRatio. Portrait is NOT optional for reels. */
   aspectRatio?: string;
+  /** Seconds. Defaults to REEL_CLIP_DEFAULTS.durationSeconds. */
+  durationSeconds?: number;
+  /** Defaults to REEL_CLIP_DEFAULTS.resolution. */
+  resolution?: string;
 }
+
+/**
+ * MIRRORED FROM THE PROVEN CLI ARG SET, not invented and not from a doc page.
+ * `buildSeedanceArgs` in higgsfieldStudio.ts has produced every real reel this
+ * shop has published, and it passes exactly:
+ *
+ *     --aspect_ratio 9:16   --duration 4   --resolution 1080p
+ *
+ * The API lane shipped passing NONE of them, which was a latent defect big enough
+ * to waste real credits: `reelAssembly` throws unless a clip is 1080x1920, DoP
+ * would have used its own defaults, and every generated clip would have failed the
+ * render-integrity gate AFTER being paid for. Worse, clip length feeds the
+ * 15-22s total-duration target, so a default duration silently changes how long
+ * every reel is depending on which lane happened to run.
+ *
+ * These live as DEFAULTS in the client rather than as caller arguments on purpose:
+ * a caller that forgets them produced a broken clip, and there is no reason for
+ * every call site to re-remember the shop's format.
+ */
+export const REEL_CLIP_DEFAULTS = {
+  aspectRatio: "9:16",
+  durationSeconds: 4,
+  resolution: "1080p",
+} as const;
 
 /**
  * Thrown once a generation has been SUBMITTED, i.e. once Higgsfield may bill for
@@ -333,11 +413,44 @@ export async function generateReelClipVideoViaApi(
   const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000));
   const deadline = Date.now() + timeoutMs;
 
-  const body: Record<string, unknown> = { model: "dop-standard", prompt: req.prompt };
-  if (req.startImageUrl) body.input_images = [{ type: "image_url", image_url: req.startImageUrl }];
-  if (req.aspectRatio) body.aspect_ratio = req.aspectRatio;
+  const aspectRatio = req.aspectRatio ?? REEL_CLIP_DEFAULTS.aspectRatio;
+  const durationSeconds = req.durationSeconds ?? REEL_CLIP_DEFAULTS.durationSeconds;
+  const resolution = req.resolution ?? REEL_CLIP_DEFAULTS.resolution;
 
-  log.info("submitting Higgsfield API DoP video generation", { promptLen: req.prompt.length, hasStartImage: !!req.startImageUrl });
+  const body: Record<string, unknown> = {
+    model: "dop-standard",
+    prompt: req.prompt,
+    aspect_ratio: aspectRatio,
+    duration: durationSeconds,
+    resolution,
+    // enhance_prompt FALSE, deliberately. This prompt has already passed the
+    // repo's claim-safety gate (reviewReplyQa / the M10 preflight); letting the
+    // vendor rewrite it server-side would put UNREVIEWED copy into a published
+    // reel for a business that must not make unsupported claims. Any provider
+    // knob that edits our text after our own gate has run is a compliance hole,
+    // not a quality feature.
+    enhance_prompt: false,
+  };
+  if (req.startImageUrl) body.input_images = [{ type: "image_url", image_url: req.startImageUrl }];
+
+  if (!req.startImageUrl) {
+    // DoP is image-to-video, so with no start image the vendor has nothing to
+    // inherit framing or identity from. `aspect_ratio` above is the only thing
+    // keeping the clip portrait, and identity drift across beats is the measured
+    // consequence of text-only generation (one body per beat, three lighting
+    // worlds) that REEL_IMAGE_CONDITIONING exists to fix.
+    log.warn("Higgsfield API DoP submit has NO start image - relying on aspect_ratio alone for portrait, and expect identity drift across beats", {
+      aspectRatio,
+    });
+  }
+
+  log.info("submitting Higgsfield API DoP video generation", {
+    promptLen: req.prompt.length,
+    hasStartImage: !!req.startImageUrl,
+    aspectRatio,
+    durationSeconds,
+    resolution,
+  });
 
   // Try each candidate path. A 404/405 means "wrong path", and crucially it means
   // NOTHING was queued and NOTHING was billed — so advancing to the next candidate
