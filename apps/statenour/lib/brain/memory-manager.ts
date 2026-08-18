@@ -35,7 +35,12 @@ import { computeExpiresAt } from "@/lib/brain/category-ttl";
  * probation is load-bearing (pipeline-controller counts reinforce()
  * calls as an action-frequency signal).
  */
-const ONE_SHOT_RECORD_CATEGORIES: ReadonlySet<string> = new Set(["reply_judgment"]);
+const ONE_SHOT_RECORD_CATEGORIES: ReadonlySet<string> = new Set([
+  "reply_judgment",
+  // 2026-08-18 · GATE #4 · traj_<messageId> keys are one-shot by the
+  // same construction as judge_<messageId>.
+  "trajectory_judgment",
+]);
 
 /**
  * Runtime validation for category strings passed to remember().

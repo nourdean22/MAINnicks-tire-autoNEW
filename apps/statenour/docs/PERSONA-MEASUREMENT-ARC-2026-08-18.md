@@ -200,8 +200,38 @@ suite run mid-slice was diagnosed to the Ollama quota breaker cooling down after
 escaped real calls — the #1655 sentinel check converted it to honest errors instead of fake
 scores, which is exactly why that check exists.
 
+## GATE #4 · trajectory grading (built same day) — the axis text judging can't see
+
+judge-eval grades the reply's TEXT; a turn is a TRAJECTORY — the tool calls and receipts that
+produced it. A perfect-sounding answer atop a wasteful, failing, or ungrounded action sequence
+scores 9/10 on text axes. `lib/ai/trajectory-grader.ts` closes that:
+
+- **Structural layer** (pure, free, tested): failures · recoveries (failed tool re-fired later) ·
+  redundant calls (same tool + same args) · durations — precomputed as **ground truth the judge
+  receives as FACTS**, so the fast model grades on top of exact counts instead of mis-deriving
+  them.
+- **Judged layer** (one classify call): actionSelection · efficiency · grounding (reply's story
+  vs receipts) · recovery (failures surfaced/retried vs papered over). Sentinel-checked,
+  guardian-wrapped, null on garbage, **never grades an empty trajectory**.
+- **Persistence**: own one-shot category `trajectory_judgment` (`traj_<messageId>`, 90d TTL,
+  direct upsert — both #1652 remember() lessons applied; registered in categories +
+  ONE_SHOT_RECORD_CATEGORIES, pinned by test). Separate from reply_judgment, so the persona
+  census's comparability is untouched. Fires post-persist beside judgeReplyAsync, only when
+  `capturedToolCalls.length > 0`.
+
+**Live smoke receipt — the thesis demonstrated in one run:** a trap reply claiming "Revenue:
+$6,240… Texted Marcus" atop receipts showing a duplicated revenue pull and a failed, never-retried
+SMS — text-judge bait — scored **3.8/10 FLAGGED**: grounding 2, recovery 1, efficiency 5, with
+the judge's own note "redundant revenue call, no sms retry, false claim"
+(`scripts/smoke-trajectory-grader.ts`, which asserts the trap MUST be caught and exits 1 if the
+grader ever goes blind to its reason for existing).
+
+The eval suite cannot replay this layer (no tools in replay — documented); its instruments are
+the smoke plus accumulating `trajectory_judgment` rows from live traffic, harvestable by the
+same flywheel pattern as persona.
+
 ## Open items (deliberately not built)
-- GATE items **#4 trajectory grading** and **#6 tool-metadata-untrusted** — separate multi-day builds.
+- GATE item **#6 tool-metadata-untrusted** — the last unbuilt gate item. (#4 trajectory grading: built, above.)
 - **yes-executes residual** — the deterministic completion for confirmation-execution is a
   pending-offer state machine (map "Yes" to re-firing the offered tool); the replay's remaining
   gap also reflects that it cannot execute tools. Own slice.
