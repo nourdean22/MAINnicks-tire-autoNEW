@@ -20,8 +20,8 @@
  *
  *   Auth:   Authorization: Key <KEY_ID>:<KEY_SECRET>
  *   Base:   https://platform.higgsfield.ai
- *   Submit: POST /higgsfield-ai/dop/standard, falling back to /v1/image2video/dop
- *           (the docs and the official SDK disagree; see DOP_SUBMIT_PATHS)
+ *   Submit: POST /higgsfield-ai/dop/standard   (settled by the vendor's OpenAPI
+ *           spec 2026-08-18; body = prompt + image_url, both REQUIRED)
  *   Status: GET  /requests/{request_id}/status
  *   Cancel: POST /requests/{request_id}/cancel
  *
@@ -42,13 +42,21 @@
  * scheme and routing the request. So the transport, host and auth SHAPE are
  * confirmed against the real service, not just the docs.
  *
- * STILL UNVERIFIED: generation itself — the submit body, the DoP endpoint path
- * (which is why submit tries TWO candidates; see DOP_SUBMIT_PATHS), the status
- * polling shape, and the result URL field. Those are built from
- * docs.higgsfield.ai and the official Node SDK and tested against a mocked
- * `fetch`; exercising them for real spends credits, which is an operator
- * decision. Run the probe first, then one real clip, before trusting this lane
- * for a scheduled reel.
+ * STILL UNVERIFIED: GENERATION — and measured 2026-08-18, so this is now precise
+ * rather than merely cautious. The request SHAPE and the PATH are SETTLED by the
+ * vendor's OpenAPI spec: body is `prompt` + `image_url`, both required, POSTed to
+ * `/higgsfield-ai/dop/standard`. The blocker is CREDIT: the API answers
+ * `403 {"detail":"not_enough_credits"}`, down to the cheapest configuration tried
+ * (480p/3s). API credit is funded at cloud.higgsfield.ai/credits and is SEPARATE
+ * from the consumer app subscription. No clip has ever been produced on this lane,
+ * so the polling shape and the result-URL field remain exercised only against a
+ * mocked `fetch`.
+ *
+ * A SECOND blocker sits upstream: DoP requires an input still, and recent briefs
+ * carry no `visualWorld.heroFrameUrl` (newest is autopost-2026-08-02, because
+ * template_stock needs no hero). Both must clear before REEL_VIDEO_PROVIDER goes
+ * back to `higgsfield`. Run the probe first, then one real clip, before trusting
+ * this lane for a scheduled reel.
  *
  * `probeHiggsfieldApiCredentials()` is the SAFE first call and costs nothing: it
  * looks up a request id that cannot exist, so 404 means the key works, 401/403
@@ -62,26 +70,33 @@ const log = createLogger("services:higgsfield-api");
 
 const BASE_URL = "https://platform.higgsfield.ai";
 /**
- * TWO CANDIDATE SUBMIT PATHS, tried in order, because the two authoritative
- * sources disagree and NEITHER can be verified without a working key.
+ * THE SUBMIT PATH, SETTLED 2026-08-18 by the vendor's own OpenAPI spec.
  *
- * docs.higgsfield.ai documents image generation at
- * `/higgsfield-ai/soul/standard`, so the DoP analogue is
- * `/higgsfield-ai/dop/standard`. The OFFICIAL Node SDK's README instead calls
- * `higgsfield.subscribe('/v1/image2video/dop', …)`.
+ * `/higgsfield-ai/dop/standard` EXISTS. `/v1/image2video/dop` does NOT — the spec
+ * enumerates all 50 paths and none contains "image2video", so the official Node
+ * SDK's README is simply wrong. The live 422 and 403 both came from the standard
+ * path, which is therefore demonstrably the routed one. There is ONE candidate now;
+ * a 404 means the path MOVED and the loop throws immediately, naming it.
  *
- * WHY A PROBE CANNOT SETTLE IT (measured 2026-08-17). The server checks auth
- * BEFORE routing: a request to `/higgsfield-ai/definitely-not-real` with a bogus
- * key returns `401 {"detail":"Invalid credentials"}`, identical to a real path.
- * So 401 proves the host and auth SCHEME are right and says NOTHING about
- * whether a path exists — a free path-existence probe is impossible, and any
- * future attempt to build one will hit the same wall. Do not re-derive this.
+ * WHY IT WAS EVER TWO — kept because the wrong answer was reached by ANALOGY and
+ * held for a day. docs.higgsfield.ai documents image generation at
+ * `/higgsfield-ai/soul/standard`, so the DoP analogue *looked* like
+ * `/higgsfield-ai/dop/standard`, while the SDK called `/v1/image2video/dop`. Rather
+ * than pick, the submit tried both.
  *
- * Rather than ship a coin flip, the submit tries the documented path and falls
- * through to the SDK path on a 404/405. A 404 costs nothing — auth already
- * succeeded, no generation was queued, no credit was spent — so the first real
- * call self-corrects instead of failing. The path that works is LOGGED so the
- * loser can be deleted once reality is known.
+ * The same analogy caused the real bug: `input_images: [{type, image_url}]` is the
+ * SOUL body shape, and DoP wants a top-level `image_url` string. Reading the spec
+ * would have cost one fetch; reasoning by analogy cost a day and 19 green tests
+ * asserting a request the vendor rejects. FETCH THE SPEC FIRST.
+ *
+ * WHY A PROBE CANNOT SETTLE A PATH (measured 2026-08-17, still true and still worth
+ * not re-deriving). The server checks auth BEFORE routing: a request to
+ * `/higgsfield-ai/definitely-not-real` with a bogus key returns
+ * `401 {"detail":"Invalid credentials"}`, identical to a real path. So a 401 proves
+ * the host and auth SCHEME and says NOTHING about whether a path exists. GET is
+ * likewise `405` on every path including nonexistent ones. A free path-existence
+ * probe is impossible on this API — which is exactly why the SPEC, not a probe, is
+ * what settled this.
  */
 // SETTLED 2026-08-18 by the vendor's own OpenAPI spec, which enumerates all 50
 // paths: `/higgsfield-ai/dop/standard` exists, `/v1/image2video/dop` does NOT (no
