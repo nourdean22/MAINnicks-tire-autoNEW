@@ -26,6 +26,20 @@
 >
 > **Flagged · NOT fixed:** yes-executes residual (replay can't execute tools; deterministic completion = pending-offer state machine, own slice) · calibration-dont-know replay artifact ("I'm sorry, but I can't help with that" tail from the small replay model — passes on no-invention criteria, watch it) · ~104 uncurated harvest candidates (re-curate only after new organic low scores) · one-shot-key expiry audit across OTHER brain categories (the `remember()` 24h-probation leak generalizes) · k-sample Brier evidence still accumulating (the flywheel needs graded outcomes before retuning).
 >
+> **Same-day addendum (chat UX, 3 PRs #1670/#1672/#1673):** operator-reported chat fixes
+> after the wave entry above. **#1670** — jump-to-latest button (48px, shares the auto-follow's
+> `isNearBottom` predicate so the two can never disagree; live-verified on prod both directions).
+> **#1672** — editing a sent message now REPLACES it: the chat-v2 migration had severed V1's
+> edit contract ("saving will resend, retriggering a regeneration"), leaving edit as a bare
+> composer prefill that APPENDED a duplicate. Restored natively: visible gold editing banner +
+> cancel/Escape, optimistic truncate → the same `deleteMessageCascade` the long-press delete
+> uses → resend; cascade now also resolves by `clientMessageId` (a just-sent message still
+> carries its client UUID — the #1 edit case used to NOT_FOUND). Live-verified end-to-end on
+> prod including the reload-survives-cascade proof. **#1673** — deleted the two orphaned V1
+> edit hooks (~370 lines, zero importers; this session nearly built on one — an orphaned
+> "complete" implementation is a trap). Open: phone-tap check of the button + banner (operator's
+> window manager pins width; layout guarded by construction — 48px targets, truncate+shrink-0).
+>
 > ## 2026-08-16 (fifteenth wave) · knowledge/intelligence review → three severed joints reconnected · 1 PR
 >
 > **An independent review of the Knowledge/Intelligence layer found almost nothing
