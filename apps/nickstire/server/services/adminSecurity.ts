@@ -7,6 +7,8 @@ export interface AdminSecurityState {
   adminRole: AdminRole;
   mfaEnabled: boolean;
   mfaVerifiedAt: Date | null;
+  /** DB-computed minutes since mfaVerifiedAt; null when never verified or unreadable. */
+  mfaAgeMinutes: number | null;
   encryptedSecret: string | null;
 }
 
@@ -35,6 +37,7 @@ export const MFA_NOT_REQUIRED_STATE: AdminSecurityState = {
   adminRole: "owner",
   mfaEnabled: false,
   mfaVerifiedAt: null,
+  mfaAgeMinutes: null,
   encryptedSecret: null,
 };
 
@@ -73,7 +76,8 @@ export async function getAdminSecurityState(openId: string): Promise<AdminSecuri
   const db = await getDb();
   if (!db) return null;
   const result = await db.execute(sql`
-    SELECT adminRole, mfaEnabled, mfaVerifiedAt, mfaSecretEncrypted
+    SELECT adminRole, mfaEnabled, mfaVerifiedAt, mfaSecretEncrypted,
+           TIMESTAMPDIFF(MINUTE, mfaVerifiedAt, UTC_TIMESTAMP()) AS mfaAgeMinutes
     FROM users
     WHERE openId = ${openId}
     LIMIT 1
@@ -84,6 +88,14 @@ export async function getAdminSecurityState(openId: string): Promise<AdminSecuri
     adminRole: (row.adminRole as AdminRole | null) ?? "viewer",
     mfaEnabled: Boolean(row.mfaEnabled),
     mfaVerifiedAt: row.mfaVerifiedAt ? new Date(row.mfaVerifiedAt as string | Date) : null,
+    // DB-computed age. The parsed Date above is skewed +4h on an ET host (mysql2
+    // decodes DATETIME as connection-local while the server returns UTC), which
+    // silently stretched the 12h MFA re-verification window to ~16h. The
+    // comparison now happens where the clock is trustworthy.
+    mfaAgeMinutes:
+      row.mfaAgeMinutes === null || row.mfaAgeMinutes === undefined || row.mfaAgeMinutes === ""
+        ? null
+        : Number(row.mfaAgeMinutes),
     encryptedSecret: (row.mfaSecretEncrypted as string | null) ?? null,
   };
 }
@@ -115,8 +127,17 @@ export async function markMfaVerified(openId: string): Promise<void> {
   await db.execute(sql`UPDATE users SET mfaVerifiedAt = NOW() WHERE openId = ${openId}`);
 }
 
-export function isMfaVerificationFresh(at: Date | null, maxAgeHours = 12): boolean {
-  return Boolean(at && Date.now() - at.getTime() <= maxAgeHours * 60 * 60 * 1000);
+/**
+ * Freshness from the DB-COMPUTED age, never from a driver-parsed Date.
+ *
+ * The predecessor compared `Date.now()` against the parsed `mfaVerifiedAt`, and
+ * mysql2's local-zone DATETIME decoding made that timestamp read ~4h in the
+ * future on an ET host - so the "verified within the last 12h" gate actually
+ * accepted ~16h. FAIL CLOSED: an unknown or incomputable age requires
+ * re-verification; assuming fresh is how a stale factor becomes a bypass.
+ */
+export function isMfaVerificationFresh(ageMinutes: number | null, maxAgeHours = 12): boolean {
+  return ageMinutes !== null && Number.isFinite(ageMinutes) && ageMinutes >= 0 && ageMinutes <= maxAgeHours * 60;
 }
 
 export async function setAdminRole(openId: string, role: AdminRole): Promise<void> {

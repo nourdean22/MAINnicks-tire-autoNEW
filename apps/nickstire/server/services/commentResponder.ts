@@ -232,16 +232,40 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
 
   if (posted.length === 0) return { recordsProcessed: 0, details: "no recently-posted reels to scan" };
 
-  // Calculate dynamic velocity limit (first-hour bonus)
+  // Calculate dynamic velocity limit (first-hour bonus).
+  //
+  // AGE IS COMPUTED BY THE DATABASE, not from a driver-parsed Date. mysql2 parses
+  // DATETIME columns in the connection's LOCAL zone while this DB returns UTC, so
+  // `Date.now() - parsedDate` ran ~4 hours NEGATIVE on an ET host - which made
+  // "posted in the last hour" true for roughly the last FIVE hours, and the
+  // first-hour reply-velocity bonus applied all afternoon (measured 2026-08-18;
+  // same skew broke the keepalive staleness guard the same day). Also:
+  // `job.publishedAt` was consulted here and reel_jobs HAS no such column - the
+  // fallback to createdAt was the only branch that ever ran.
   let dynamicLimit = MAX_REPLIES_PER_RUN;
-  for (const job of posted) {
-    const pubDate = job.publishedAt ? new Date(job.publishedAt) : new Date(job.createdAt);
-    const ageMinutes = (Date.now() - pubDate.getTime()) / (60 * 1000);
-    if (ageMinutes <= 60) {
-      log.info(`Reel ${job.id} was posted in the last hour (${Math.round(ageMinutes)}m ago). Raising comment responder limit to 15.`);
+  try {
+    const { sql } = await import("drizzle-orm");
+    const fresh = await d
+      .select({ n: sql<number>`COUNT(*)` })
+      .from(reelJobs)
+      .where(
+        and(
+          eq(reelJobs.status, "posted"),
+          isNotNull(reelJobs.igPostId),
+          sql`TIMESTAMPDIFF(MINUTE, ${reelJobs.createdAt}, UTC_TIMESTAMP()) <= 60`,
+        ),
+      );
+    const n = Number((fresh as { n: number | string }[])[0]?.n ?? 0);
+    if (Number.isFinite(n) && n > 0) {
+      log.info(`A reel posted within the last hour (${n}) - raising comment responder limit to 15.`);
       dynamicLimit = 15;
-      break;
     }
+  } catch (err) {
+    // Fail CLOSED to the normal limit - a broken bonus query must not widen the
+    // reply-velocity envelope.
+    log.warn("first-hour bonus query failed - keeping the base reply limit", {
+      err: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const { getMediaComments, replyToComment } = await import("./metaSocial");

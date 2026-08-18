@@ -1,3 +1,4 @@
+import { parseReelJson } from "./reelBriefGen";
 import { eq, and, desc, sql, gte, lte, like } from "drizzle-orm";
 import { getDbTyped } from "../db";
 import {
@@ -16,6 +17,22 @@ import { createLogger } from "../lib/logger";
 import { checkWeatherTriggers } from "./weatherIntelligence";
 import { applyCreativeSkills } from "./skillRouter";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
+
+/**
+ * EVERY LLM completion in this file goes through this, never bare JSON.parse.
+ * Measured 2026-08-18: the daily-reel brief lane received HTTP 200 whose CONTENT
+ * was a plain "Aborted: c..." string, and JSON.parse's SyntaxError showed ten
+ * characters of it - three cron ticks failed with an error that hid the text
+ * needed to diagnose them. parseReelJson strips fences/prose, names truncation
+ * (unbalanced braces -> "raise maxTokens"), and carries the raw head for
+ * everything else. This file had SEVEN bare parses - the same landmine, seven
+ * copies. Returns `any` deliberately: that is exactly what JSON.parse returned,
+ * so call sites keep their existing (loose) typing without seven fresh casts.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseLlmContent(raw: unknown): any {
+  return parseReelJson(String(raw ?? ""));
+}
 
 const log = createLogger("services:contentManufacturing");
 
@@ -185,7 +202,7 @@ You must return a valid JSON object matching the requested schema. No conversati
     }
   });
 
-  const parsed = JSON.parse(response.choices[0].message.content as string);
+  const parsed = parseLlmContent(response.choices[0].message.content);
   return parsed.angles || [];
 }
 
@@ -244,7 +261,7 @@ You must return a valid JSON object matching the requested schema. No conversati
     }
   });
 
-  const parsed = JSON.parse(response.choices[0].message.content as string);
+  const parsed = parseLlmContent(response.choices[0].message.content);
   const hooks: Hook[] = parsed.hooks || [];
 
   // Calculate weighted overall hook strength programmatically
@@ -537,7 +554,7 @@ Return a valid JSON object matching the requested schema. No conversational pros
     }
   });
 
-  const parsed = JSON.parse(response.choices[0].message.content as string);
+  const parsed = parseLlmContent(response.choices[0].message.content);
   const rawHooks: Hook[] = parsed.hooks || [];
 
   const scoredHooks = rawHooks.map(h => {
@@ -588,7 +605,7 @@ Your output must be JSON matching the schema, indicating the index (0, 1, or 2) 
     }
   });
 
-  const criticParsed = JSON.parse(criticRes.choices[0].message.content as string);
+  const criticParsed = parseLlmContent(criticRes.choices[0].message.content);
   const champIdx = criticParsed.championIndex ?? 0;
   const champion = top3[champIdx] || top3[0];
   log.info(`Champion selected: "${champion.hookText}" (Reason: ${criticParsed.reason})`);
@@ -715,7 +732,7 @@ You must return a valid JSON object matching the requested schema. No conversati
     }
   });
 
-  const parsed = JSON.parse(response.choices[0].message.content as string) as SocialDraft;
+  const parsed = parseLlmContent(response.choices[0].message.content) as SocialDraft;
 
   // Ground weather trigger field if weather condition matches
   if (weatherCond) {
@@ -786,7 +803,7 @@ You must return a valid JSON object matching the requested schema. No conversati
     }
   });
 
-  return JSON.parse(response.choices[0].message.content as string);
+  return parseLlmContent(response.choices[0].message.content);
 }
 
 /**
@@ -850,7 +867,7 @@ You must return a valid JSON object matching the requested schema. No conversati
     }
   });
 
-  return JSON.parse(response.choices[0].message.content as string);
+  return parseLlmContent(response.choices[0].message.content);
 }
 
 /**
