@@ -277,10 +277,14 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
 
       // ═══ Apr 19 · Output critic ═══
+      // 2026-08-18 · pass the operator's prompt so operator-constrained
+      // brevity ("reply with just OK") waives the spec/length axes —
+      // obedient terse replies were wearing red REGEN chips (witnessed
+      // at overall 62 and 86 on prod).
       const critic = hasContent
         ? contentMode
           ? critiqueContent(cleanedText, turnSignal.outputShape)
-          : critiqueOutput(cleanedText, turnSignal.outputShape)
+          : critiqueOutput(cleanedText, turnSignal.outputShape, { userPrompt: userContent })
         : null;
       if (critic) {
         log.info("critic_applied", { summary: formatCriticSummary(critic) });
