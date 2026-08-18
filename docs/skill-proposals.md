@@ -817,3 +817,33 @@ statenour primitives documented (existence re-verified at
   verified by execution only."
 - **Confidence:** high (witnessed a real broken import behind the green; second app with same trap)
 - **Status:** proposed
+
+## 2026-08-18 · persona arc, later slices (#1655-#1665)
+
+### P1 · `statenour-verify` (or a NEW cross-cutting testing note) — the vitest mock-registry race
+- **Trigger (witnessed):** in #1662's k-sample work, three CONCURRENT first-time
+  `await import("@/lib/ai/provider")` calls inside a `vi.mock`ed test let TWO escape to the
+  REAL module — 2 real `provider.success` lines and a 4.2s test inside a fully mocked suite;
+  the mock spy counted 1 call. Diagnosed by refusing "called 1 times" and tracing the stray
+  provider logs; empirical probe confirmed k=3 fan-out.
+- **Cost:** ~20 min of false theories; 2 unbilled-but-real provider calls, which then tripped
+  the Ollama quota breaker and produced a 14/14-errored suite run 6 minutes later.
+- **Proposed edit:** add — "In vitest, N concurrent FIRST-TIME dynamic imports of a mocked
+  module can race the mock registry: some callers get the real module. Import once before the
+  fan-out and pass the binding down. A mocked test emitting the real module's logs, or taking
+  seconds, is this bug."
+- **Confidence:** high (reproduced, root-caused, fix verified — 599ms and 3/3 mocked after)
+- **Status:** proposed
+
+### P2 · `statenour-verify` — a zero-score eval run is a breaker symptom before it is a code bug
+- **Trigger (witnessed):** a 14/14-errored-in-6s persona suite run right after the mock-race
+  strays; every Nick call returned the cost-firewall sentinel. The identical command re-ran
+  green minutes later — the Ollama quota breaker had been cooling down. The #1655 sentinel
+  check was what converted it into honest errors instead of fake judged scores.
+- **Cost:** one wasted live run (~1c) + the risk (avoided) of "diagnosing" healthy code.
+- **Proposed edit:** add — "When every scenario errors with the provider sentinel in seconds,
+  check the provider breaker/cooldown FIRST (recent stray or failed calls trip it). Re-run the
+  identical command before touching code. Never grade or trust a run whose Nick calls were
+  sentinels."
+- **Confidence:** high (breaker cooldown confirmed by identical-command re-run going green)
+- **Status:** proposed
