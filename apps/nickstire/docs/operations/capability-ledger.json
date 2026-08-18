@@ -1445,18 +1445,25 @@
           "410 files / 4658 tests green, full nickstire server suite, serial"
         ],
         "liveRuns": [
-          "AUTH ONLY, and stated as such: a deliberately bogus key returns a real HTTP 401 from platform.higgsfield.ai (not a connection error, not a 404), which the server can only answer after parsing the Key header. A control probe against a nonexistent path returned the SAME 401, proving auth is checked BEFORE routing - so a 401 says nothing about whether an endpoint exists, and no free endpoint-path probe is possible."
+          "AUTH: a deliberately bogus key returns a real HTTP 401 from platform.higgsfield.ai; a control probe against a nonexistent path returned the SAME 401, so auth is checked BEFORE routing.",
+          "REQUEST SHAPE, measured 2026-08-18: the shipped body was rejected with HTTP 422 'body.image_url Field required' - image_url is a REQUIRED TOP-LEVEL STRING, and the previous input_images array was the Soul text-to-image shape. Fixed in #1654.",
+          "CREDITS, measured 2026-08-18: the corrected body returns HTTP 403 'not_enough_credits'. Generation has therefore never produced a clip. Nothing was spent - both failures are pre-submit."
         ]
       },
       "blockers": [
         {
           "severity": "P1",
-          "description": "GENERATION IS UNPROVEN. The submit body, DoP endpoint path, polling shape and result-URL field are exercised against a mocked fetch only. Proving them spends credits and is the operator's call. Do not read the live 401 as evidence that generation works - it is evidence that auth works.",
-          "source": "PR #1653"
+          "description": "GENERATION IS BLOCKED ON VENDOR CREDITS, measured live 2026-08-18 (not merely unproven, which is what this said before running it). With the corrected request shape the API answers HTTP 403 {\"detail\":\"not_enough_credits\"} - so the request clears validation AND auth and reaches the credit check, which is as far as it can get. OPERATOR ACTION: DoP credits must be available to the API key's account at platform.higgsfield.ai; a web-app subscription is not evidence of API credit. Failure is PRE-submit, so nothing is spent on each attempt.",
+          "source": "PR #1654"
         },
         {
           "severity": "P2",
-          "description": "The DoP submit path is unsettled: docs.higgsfield.ai implies /higgsfield-ai/dop/standard, the official Node SDK calls /v1/image2video/dop. Submit tries both and logs the winner, advancing only on 404/405 (request never routed, so nothing queued and nothing billed). A non-404 stops at the first path so a real rejection cannot become a second submit.",
+          "description": "Recent briefs carry NO visualWorld.heroFrameUrl - the newest job with one is autopost-2026-08-02, because template_stock needs no hero. DoP requires image_url, so even with credits the lane cannot run a beat until a hero frame is generated for the brief. Both blockers must clear before flipping REEL_VIDEO_PROVIDER to higgsfield.",
+          "source": "PR #1654"
+        },
+        {
+          "severity": "P2",
+          "description": "The DoP submit path is unsettled: docs imply /higgsfield-ai/dop/standard, the official Node SDK calls /v1/image2video/dop. Submit tries both and logs the winner, advancing only on 404/405 (never routed, nothing billed). The live 422 and 403 both came from the FIRST path, which is therefore the real one.",
           "source": "PR #1653"
         }
       ],

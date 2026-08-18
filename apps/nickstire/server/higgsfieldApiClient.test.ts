@@ -15,6 +15,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+// DoP is image-to-video and `image_url` is REQUIRED - the live API returns 422
+// without it (measured 2026-08-18). Every request in this file therefore carries a
+// start image, exactly as production does via brief.visualWorld.heroFrameUrl.
+const HERO = "https://nickstire.org/generated/hero/hero-frame.jpg";
 import {
   generateReelClipVideoViaApi,
   higgsfieldApiCredentialsFromEnv,
@@ -119,7 +124,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    await generateReelClipVideoViaApi({ prompt: "a brake pad wearing thin" }, { pollIntervalMs: 1 });
+    await generateReelClipVideoViaApi({ prompt: "a brake pad wearing thin", startImageUrl: HERO }, { pollIntervalMs: 1 });
 
     const submitHeaders = calls[0].headers as Record<string, string>;
     expect(submitHeaders.Authorization).toBe(`Key ${CREDS.keyId}:${CREDS.keySecret}`);
@@ -128,7 +133,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     expect(submitHeaders.Authorization).not.toMatch(/^Bearer /);
   });
 
-  it("posts to the DoP endpoint with model + prompt, and input_images only when a start image is given", async () => {
+  it("posts to the DoP endpoint with model + prompt + the required top-level image_url", async () => {
     const bodies: unknown[] = [];
     global.fetch = vi.fn(async (url, init: RequestInit) => {
       if (init.method === "POST") bodies.push(JSON.parse(init.body as string));
@@ -150,8 +155,12 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     expect(bodies[0]).toMatchObject({
       model: "dop-standard",
       prompt: "battery in cold weather",
-      input_images: [{ type: "image_url", image_url: "https://example.com/frame.jpg" }],
+      // TOP-LEVEL STRING. This assertion previously encoded the Soul
+      // `input_images` array and passed against the mock while the live API
+      // answered 422 "body.image_url Field required".
+      image_url: "https://example.com/frame.jpg",
     });
+    expect((bodies[0] as Record<string, unknown>).input_images).toBeUndefined();
   });
 
   it("polls until a TERMINAL status, ignoring in-progress states", async () => {
@@ -169,7 +178,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
+    const url = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
     expect(url).toBe("https://cdn.example/done.mp4");
     expect(pollCount).toBe(3);
   });
@@ -184,7 +193,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }))
       .rejects.toThrow(/req_4/);
   });
 
@@ -201,7 +210,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
+    const url = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
     expect(url).toBe("https://cdn.example/ok.mp4");
   });
 
@@ -223,7 +232,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     vi.useFakeTimers();
     try {
       const p = expect(
-        generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 }),
+        generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 }),
       ).rejects.toThrow(/timed out.*req_6.*NOT cancelled/s);
       await vi.advanceTimersByTimeAsync(65_000);
       await p;
@@ -237,7 +246,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     delete process.env.HIGGSFIELD_API_KEY_SECRET;
     const spy = vi.fn();
     global.fetch = spy;
-    await expect(generateReelClipVideoViaApi({ prompt: "x" })).rejects.toThrow(/not configured/);
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO })).rejects.toThrow(/not configured/);
     expect(spy).not.toHaveBeenCalled();
   });
 });
@@ -267,7 +276,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     creds();
     vi.useFakeTimers();
     try {
-      const p = generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const p = generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 });
       const assertion = expect(p).rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
       await vi.advanceTimersByTimeAsync(65_000);
       await assertion;
@@ -288,7 +297,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
       return { status: 200, text: async () => JSON.stringify({ status: "failed", request_id: "req_spend_2", error: "policy" }) } as Response;
     });
     creds();
-    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }))
       .rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
   });
 
@@ -300,7 +309,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
       return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_spend_3" }) } as Response;
     });
     creds();
-    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }))
       .rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
   });
 
@@ -308,7 +317,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     // A non-2xx submit means nothing was queued and nothing can bill.
     global.fetch = vi.fn(async () => ({ status: 500, text: async () => JSON.stringify({ error: "upstream" }) }) as Response);
     creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
   });
@@ -316,7 +325,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
   it("a submit that returns no request_id is PRE-SUBMIT — there is no id that could bill", async () => {
     global.fetch = vi.fn(async () => ({ status: 200, text: async () => JSON.stringify({ status: "queued" }) }) as Response);
     creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
     expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
     expect((err as Error).message).toMatch(/no request_id/);
   });
@@ -331,7 +340,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     creds();
     vi.useFakeTimers();
     try {
-      const p = generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const p = generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 });
       const assertion = expect(p).rejects.toThrow(/paid for twice/);
       await vi.advanceTimersByTimeAsync(65_000);
       await assertion;
@@ -503,7 +512,7 @@ describe("the submit path is a KNOWN unknown, and self-corrects", () => {
       return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fb", video: { url: "https://cdn/x.mp4" } }) } as Response;
     });
     creds();
-    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
+    const url = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
     expect(url).toBe("https://cdn/x.mp4");
     expect(tried[0]).toContain("/higgsfield-ai/dop/standard");
     expect(tried[1]).toContain("/v1/image2video/dop");
@@ -519,7 +528,7 @@ describe("the submit path is a KNOWN unknown, and self-corrects", () => {
       return { status: 200, text: async () => "{}" } as Response;
     });
     creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
     // Every candidate 404'd -> a PATH error, and explicitly NOT submitted-typed.
     expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
     expect((err as Error).message).toMatch(/no candidate DoP path exists/);
@@ -538,7 +547,7 @@ describe("the submit path is a KNOWN unknown, and self-corrects", () => {
       return { status: 200, text: async () => "{}" } as Response;
     });
     creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
     expect(posts, "a 400 must not trigger a second submit").toBe(1);
     expect((err as Error).message).toMatch(/HTTP 400/);
   });
@@ -549,7 +558,7 @@ describe("the submit path is a KNOWN unknown, and self-corrects", () => {
         ? ({ status: 404, text: async () => "{}" } as Response)
         : ({ status: 200, text: async () => "{}" } as Response));
     creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
     expect((err as Error).message).toContain("/higgsfield-ai/dop/standard -> 404");
     expect((err as Error).message).toContain("/v1/image2video/dop -> 404");
   });
@@ -635,7 +644,7 @@ describe("the clip FORMAT matches the lane that has actually shipped reels", () 
   }
 
   it("sends 9:16 / 4s / 1080p by DEFAULT — a caller cannot forget the shop's format", async () => {
-    const body = await submitAndCaptureBody({ prompt: "brake pad wearing thin" });
+    const body = await submitAndCaptureBody({ prompt: "brake pad wearing thin", startImageUrl: HERO });
     expect(body.aspect_ratio).toBe("9:16");
     expect(body.duration).toBe(4);
     expect(body.resolution).toBe("1080p");
@@ -653,7 +662,7 @@ describe("the clip FORMAT matches the lane that has actually shipped reels", () 
   });
 
   it("an explicit request value overrides the default", async () => {
-    const body = await submitAndCaptureBody({ prompt: "x", durationSeconds: 6, aspectRatio: "1:1", resolution: "720p" });
+    const body = await submitAndCaptureBody({ prompt: "x", durationSeconds: 6, aspectRatio: "1:1", resolution: "720p", startImageUrl: HERO });
     expect(body.duration).toBe(6);
     expect(body.aspect_ratio).toBe("1:1");
     expect(body.resolution).toBe("720p");
@@ -663,12 +672,30 @@ describe("the clip FORMAT matches the lane that has actually shipped reels", () 
     // This shop cannot make unsupported claims. The prompt has already passed
     // reviewReplyQa / the M10 preflight; a server-side rewrite would put
     // unreviewed copy into a published reel.
-    const body = await submitAndCaptureBody({ prompt: "x" });
+    const body = await submitAndCaptureBody({ prompt: "x", startImageUrl: HERO });
     expect(body.enhance_prompt).toBe(false);
   });
 
-  it("warns when there is no start image, because portrait then rests on one field", async () => {
-    const body = await submitAndCaptureBody({ prompt: "x" });
+  it("NO start image throws BEFORE submit and never calls fetch - measured against the live API", async () => {
+    // The live API refuted the previous shape of this file:
+    //   HTTP 422 {"detail":[{"type":"missing","loc":["body","image_url"],...}]}
+    // DoP is image-to-video and the image is REQUIRED, so a beat with no hero
+    // frame cannot use this lane. Throwing pre-submit is FREE and lets
+    // generateReelClipVideo fall back having spent nothing; paying a round-trip
+    // for a request the vendor is guaranteed to reject is the alternative.
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    await expect(generateReelClipVideoViaApi({ prompt: "x" })).rejects.toThrow(/requires a start image/i);
+    // The assertion that matters: no HTTP call at all.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("the start image is a TOP-LEVEL image_url string, not the Soul input_images array", async () => {
+    // `input_images: [{ type, image_url }]` is the SOUL (text-to-image) shape,
+    // carried across to a different endpoint by analogy. 53 mocked tests could
+    // not see the difference because the mock accepted whatever we sent.
+    const body = await submitAndCaptureBody({ prompt: "x", startImageUrl: HERO });
+    expect(body.image_url).toBe(HERO);
     expect(body.input_images).toBeUndefined();
     expect(body.aspect_ratio).toBe("9:16");
   });
