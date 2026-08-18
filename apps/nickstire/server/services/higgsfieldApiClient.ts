@@ -20,8 +20,8 @@
  *
  *   Auth:   Authorization: Key <KEY_ID>:<KEY_SECRET>
  *   Base:   https://platform.higgsfield.ai
- *   Submit: POST /higgsfield-ai/dop/standard, falling back to /v1/image2video/dop
- *           (the docs and the official SDK disagree; see DOP_SUBMIT_PATHS)
+ *   Submit: POST /higgsfield-ai/dop/standard   (settled by the vendor's OpenAPI
+ *           spec 2026-08-18; body = prompt + image_url, both REQUIRED)
  *   Status: GET  /requests/{request_id}/status
  *   Cancel: POST /requests/{request_id}/cancel
  *
@@ -65,10 +65,18 @@ const BASE_URL = "https://platform.higgsfield.ai";
  * TWO CANDIDATE SUBMIT PATHS, tried in order, because the two authoritative
  * sources disagree and NEITHER can be verified without a working key.
  *
- * docs.higgsfield.ai documents image generation at
- * `/higgsfield-ai/soul/standard`, so the DoP analogue is
- * `/higgsfield-ai/dop/standard`. The OFFICIAL Node SDK's README instead calls
- * `higgsfield.subscribe('/v1/image2video/dop', …)`.
+ * SETTLED 2026-08-18 — and worth keeping the history, because the wrong answer was
+ * reached by ANALOGY and held for a day. docs.higgsfield.ai documents image
+ * generation at `/higgsfield-ai/soul/standard`, so the DoP analogue looked like
+ * `/higgsfield-ai/dop/standard`, while the official Node SDK's README calls
+ * `higgsfield.subscribe('/v1/image2video/dop', ...)`. The vendor's own OpenAPI spec
+ * enumerates all 50 paths: the first EXISTS, the second does NOT, and no path
+ * contains "image2video". The live 422 and 403 both came from the first.
+ *
+ * The same analogy caused the real bug: `input_images: [{type, image_url}]` is the
+ * SOUL body shape, and DoP wants a top-level `image_url` string. Reading the spec
+ * would have cost one fetch; reasoning by analogy cost a day and 19 green tests
+ * that were asserting a request the vendor rejects.
  *
  * WHY A PROBE CANNOT SETTLE IT (measured 2026-08-17). The server checks auth
  * BEFORE routing: a request to `/higgsfield-ai/definitely-not-real` with a bogus
