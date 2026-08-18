@@ -141,6 +141,7 @@ export function ChatMessageList({
   const diagnosticReport = useChatUiStore((state) => state.diagnosticReport);
   const setDiagnosticReport = useChatUiStore((state) => state.setDiagnosticReport);
   const setDraft = useChatUiStore((state) => state.setDraft);
+  const setEditingMessageId = useChatUiStore((state) => state.setEditingMessageId);
   const [actionSheetMsg, setActionSheetMsg] = useState<{ id: string; role: "user" | "assistant"; text: string } | null>(null);
   const [reasoningTraceMsg, setReasoningTraceMsg] = useState<string | null>(null);
 
@@ -264,7 +265,11 @@ export function ChatMessageList({
               {message.parts?.map((part, index) => {
                 if (part.type === "text") {
                   if (message.role === "user") {
-                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => setDraft(part.text)} onLongPress={() => setActionSheetMsg({ id: message.id, role: "user", text: part.text })} />;
+                    // 2026-08-18 · tap-to-edit ARMS edit-resend (draft +
+                    // editingMessageId) instead of bare prefill — sending
+                    // used to APPEND a duplicate while the original stayed.
+                    // The composer shows a visible editing banner w/ cancel.
+                    return <UserMessageBubble key={`${message.id}-${index}`} text={part.text} onClick={() => { setDraft(part.text); setEditingMessageId(message.id); }} onLongPress={() => setActionSheetMsg({ id: message.id, role: "user", text: part.text })} />;
                   }
                   const contextBlocks = extractContextBlocks(message, liveContextBlocksRef?.current || null);
                   const quality = extractQuality(message);
@@ -352,7 +357,7 @@ export function ChatMessageList({
         role={actionSheetMsg?.role || "user"}
         text={actionSheetMsg?.text || ""}
         onCopy={() => actionSheetMsg?.text && void copyToClipboard(actionSheetMsg.text)}
-        onEdit={actionSheetMsg?.role === "user" ? () => actionSheetMsg?.text && setDraft(actionSheetMsg.text) : undefined}
+        onEdit={actionSheetMsg?.role === "user" ? () => { if (actionSheetMsg?.text) { setDraft(actionSheetMsg.text); setEditingMessageId(actionSheetMsg.id); } } : undefined}
         onShowReasoning={() => {
           if (actionSheetMsg?.id) setReasoningTraceMsg(actionSheetMsg.id);
           setActionSheetMsg(null);
