@@ -2,8 +2,30 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-16 (chat-quality arc: truncation root-caused + fixed, 4 PRs #1589-#1591; prior: MISSION-scan gate → BDN close-out, 7 ships #1535-#1542); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; prior: knowledge/intelligence review); detail in the top entry
 
+> ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
+>
+> **The operator's persona ask (maximally truth-seeking / obedient / non-sycophantic /
+> calibrated) went from ~80%-in-the-prompt-but-measured-nowhere to enforced-by-code-or-
+> measured-by-instrument, in one day.** Canonical consolidated record:
+> [`PERSONA-MEASUREMENT-ARC-2026-08-18.md`](PERSONA-MEASUREMENT-ARC-2026-08-18.md) —
+> PR chain with merge SHAs, architecture, readouts with caveats, runbook. Suite
+> trajectory: unmeasured → 7.7 → 8.0 → 8.1 → **8.2** (14-scenario persona golden set).
+>
+> - **#1649** — obedience/nonSycophancy/calibration axes in the live per-reply judge; composite stays mean-of-5 (pinned).
+> - **#1650** — 10-scenario golden set (SycEval / "are-you-sure" / TRUTH-DECAY methodology) + `pnpm harvest:persona` flywheel + census aggregation.
+> - **#1651** — root `AGENTS.md` "Standard of work" (unprompted self-audit · implied-gap · prior-art · instrument-sees-target).
+> - **#1652** — prod backfill (203 replies judged, $0.02, DB-verified) + **the 24h expiry leak fixed** (one-shot `judge_*` rows died daily; `ONE_SHOT_RECORD_CATEGORIES` + explicit 90d TTL) + dead judge smoke un-crashed.
+> - **#1654** — curation: 108 real-trace candidates → 4 promoted (suite=14, zero PII); judge-noise classes documented (backfill judge had no brain context — the 6.03 calibration mean is a ceiling, not a point estimate).
+> - **#1655** — live baseline (mean 7.7) + eval-runner sentinel fix (a provider outage had scored 7.9 as a pass); both flagged scenarios = the two harvested-from-production regressions.
+> - **#1656/#1657** — regressions fixed: retry 5.1→**10.0 via deterministic re-delivery interceptor** (the prompt rule measurably failed — LLMs regenerate, never copy; witnessed then routed around); + self-audit caught a wrong-source bug in the fix itself.
+> - **#1659/#1662** — calibration lever: pipeline enforcement of likelihood bands (never invents a probability; fail-open to an honest notice) + k-sample upgrade (median-of-k, dispersion-conservative confidence) — first live fire showed a **40pt spread across samples → conf honestly downgraded to low**.
+> - **#1663** — GATE #4 trajectory grading: receipts precomputed as FACTS + 4-axis judge; live trap reply (claimed an SMS its receipts show failed) scored **3.8 FLAGGED**; own `trajectory_judgment` 90d one-shot category.
+> - **#1665** — GATE #6: catalog flags → checked invariants (`catalog-claims.ts`); reasoning whitelist un-`server-only`'d and verified read-only; **zero violations across 181 tools** after aligning the checker to the field's documented semantic (first probe cried wolf 26×).
+>
+> **Flagged · NOT fixed:** yes-executes residual (replay can't execute tools; deterministic completion = pending-offer state machine, own slice) · calibration-dont-know replay artifact ("I'm sorry, but I can't help with that" tail from the small replay model — passes on no-invention criteria, watch it) · ~104 uncurated harvest candidates (re-curate only after new organic low scores) · one-shot-key expiry audit across OTHER brain categories (the `remember()` 24h-probation leak generalizes) · k-sample Brier evidence still accumulating (the flywheel needs graded outcomes before retuning).
+>
 > ## 2026-08-16 (fifteenth wave) · knowledge/intelligence review → three severed joints reconnected · 1 PR
 >
 > **An independent review of the Knowledge/Intelligence layer found almost nothing
@@ -474,7 +496,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-16 (chat-quality arc: truncation root-caused + fixed, 4 PRs #1589-#1591; prior: MISSION-scan gate → BDN close-out, 7 ships #1535-#1542); top entry.
+**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2); top entry.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
