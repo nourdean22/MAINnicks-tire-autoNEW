@@ -230,8 +230,33 @@ The eval suite cannot replay this layer (no tools in replay — documented); its
 the smoke plus accumulating `trajectory_judgment` rows from live traffic, harvestable by the
 same flywheel pattern as persona.
 
+## GATE #6 · tool metadata becomes a VERIFIED claim (built same day — the gate is now fully executed)
+
+The last gate item. The catalog's labels are load-bearing — strict mode gates approval on
+`sideEffecting`, mode pruning trusts `battle`, and the reasoning engine's entire safety story is
+a whitelist that *claims* read-only — yet nothing verified the flags themselves (membership
+drift was already pinned; semantics were not). `lib/ai/tools/catalog-claims.ts` turns each
+trusted claim into a checked invariant: whitelist entries must exist (W1) and must not be
+sideEffecting (W2 — the engine OBSERVES, never ACTS) · no `battle`+`sideEffecting`
+self-contradictions (B1) · `business_write` without `sideEffecting` = approval bypass (C1) ·
+`*_read` claiming sideEffecting = a lie somewhere (C2) · no blank `requiredEnv` (E1).
+Exceptions are reviewed decisions keyed per violation, and **stale exceptions are themselves
+violations** — silence is how blind spots rot in.
+
+The whitelist was extracted verbatim to a pure module (`lib/ai/reasoning/whitelist.ts`) because
+it lived behind `server-only` — the one claim the file rests on was structurally untestable.
+
+**Truth-seeking receipt:** the first live probe returned **26 violations**, and honest triage
+showed the *checker* over-reached, not the catalog lying — `sideEffecting`'s documented semantic
+is **external** state ("business writes, SMS, payment"), while `personal_write` mutates Nick's
+own DB and `comms` contains pure reads. The invariant was aligned to the documented semantic
+(recorded in the module header), after which reality reads **zero violations across 181 tools
+and all 37 whitelist entries — no exceptions needed**. The live assertion runs in `pnpm test`
+(verify:hard's suite), with a sanity floor refusing to call a near-empty input "clean"
+(instrument-sees-target). Mislabeling a tool now fails the gate instead of shipping.
+
 ## Open items (deliberately not built)
-- GATE item **#6 tool-metadata-untrusted** — the last unbuilt gate item. (#4 trajectory grading: built, above.)
+- *(none from the gate — every buildable GATE-2026-08-14 item is executed above)*
 - **yes-executes residual** — the deterministic completion for confirmation-execution is a
   pending-offer state machine (map "Yes" to re-firing the offered tool); the replay's remaining
   gap also reflects that it cannot execute tools. Own slice.

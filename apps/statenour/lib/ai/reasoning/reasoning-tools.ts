@@ -23,6 +23,8 @@
  */
 import "server-only";
 
+import { REASONING_TOOL_WHITELIST_ENTRIES } from "./whitelist";
+
 import { businessTools } from "@/lib/ai/tools/business";
 import { systemTools } from "@/lib/ai/tools/system";
 import { brainTools } from "@/lib/ai/tools/brain";
@@ -37,50 +39,10 @@ import { brainTools } from "@/lib/ai/tools/brain";
  *   3. Useful for grounding — provides real numbers the engine
  *      would otherwise fabricate
  */
-const REASONING_TOOL_WHITELIST = new Set([
-  // Business reads
-  "getDashboardSummary",
-  "getRevenueStats",
-  "getReviewStats",
-  "getTopServices",
-  "getShopSnapshot",
-  "queryNickstire",
-  "compareLiveRevenue",
-  "getEstimateLeaks",
-  "getGscSummary",
-  "getGscTopQueries",
-  "getMarketingAttribution",
-  "getAttentionAlerts",
-  "getPendingRevenueMoves",
-  "pricingAdvisorySummary",
-  "getCameraIntelligence",
-  "findCustomer",
-  // System reads (if any read-safe ones exist)
-  "last30days",
-  "getFleetTruth",
-  "getTopDecisions",
-  // Wave 3 · draft is READ-ONLY (deterministic template + risk label). The
-  // send/staging tool stays OUT of this list — the engine observes, never acts.
-  "draftOpportunitySms",
-  "arsenalNotebookLM",
-  // Brain reads — analyzers + Greene + power dynamics + dark psychology
-  "analyzeMentalHealth",
-  "analyzeGoals",
-  "analyzeTrends",
-  "analyzeSleep",
-  "analyzeWeightTrend",
-  "analyzeFitness",
-  "analyzeWorkHealth",
-  "getEmotionalState",
-  "getBrainHealth",
-  "searchGreeneLaws",
-  "analyzePowerDynamics",
-  "getDarkPsychologyTactics",
-  "getPowerBalanceSummary",
-  "getContextualGreeneLaws",
-  "analyzeComposure",
-  "analyzeCompetitiveIntel",
-] as const);
+// 2026-08-18 · GATE #6 — the whitelist ENTRIES moved verbatim to
+// ./whitelist.ts (pure, no server-only) so catalog-claims.ts can
+// verify the read-only claim on every test run. Single source.
+const REASONING_TOOL_WHITELIST = new Set<string>(REASONING_TOOL_WHITELIST_ENTRIES);
 
 /**
  * Returns the curated read-only tool subset for the reasoning engine.
