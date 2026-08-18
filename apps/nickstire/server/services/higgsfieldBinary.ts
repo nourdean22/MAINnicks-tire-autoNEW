@@ -73,7 +73,21 @@ export async function ensureHiggsfieldBinary(): Promise<string> {
     fs.writeFileSync(tarballPath, buffer);
 
     log.info(`Extracting Higgsfield native binary to temp folder: ${tempDir}`);
-    execFileSync("tar", ["-xzf", tarballPath, "-C", tempDir, binName]);
+    // RUN FROM tempDir AND PASS ONLY RELATIVE NAMES. Measured 2026-08-18: passing
+    // absolute paths failed on Windows with
+    //
+    //   tar (child): Cannot connect to C: resolve failed
+    //
+    // because GNU tar reads a leading `C:\...` as a REMOTE `host:path` spec. Git
+    // for Windows ships GNU tar on PATH ahead of Windows' own bsdtar, so which tar
+    // answers depends on the shell that started node - meaning this worked in
+    // production (Linux) and broke only on the operator's machine, which is exactly
+    // where `hf auth login` has to be run.
+    //
+    // `--force-local` would fix GNU tar and BREAK bsdtar, which does not accept the
+    // flag. Using cwd removes the drive letter from the argv entirely, so both tars
+    // are happy and no platform branch is needed.
+    execFileSync("tar", ["-xzf", tarball, binName], { cwd: tempDir });
 
     if (process.platform !== "win32") {
       fs.chmodSync(tempBinPath, 0o755);
