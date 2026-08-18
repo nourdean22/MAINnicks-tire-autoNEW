@@ -14,11 +14,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const KEEPALIVE = "higgsfield-session-keepalive";
 
 describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", () => {
-  beforeEach(() => vi.resetModules());
+  // `credsPresent` resolves through getHiggsfieldCredentialsJson, whose DB read
+  // fails against the mocked db-helper (different query chain) and falls back to
+  // the HIGGSFIELD_CREDENTIALS_JSON env var - so that var is the test's handle on
+  // presence. Saved/restored because singleFork shares ONE process across files.
+  const CREDS_ENV = "HIGGSFIELD_CREDENTIALS_JSON";
+  let savedCreds: string | undefined;
+
+  beforeEach(() => {
+    vi.resetModules();
+    savedCreds = process.env[CREDS_ENV];
+    process.env[CREDS_ENV] = '{"access_token":"t","refresh_token":"r"}';
+  });
   afterEach(() => {
     vi.doUnmock("./lib/db-helper");
     vi.doUnmock("./services/higgsfieldStudio");
     vi.resetModules();
+    if (savedCreds === undefined) delete process.env[CREDS_ENV];
+    else process.env[CREDS_ENV] = savedCreds;
   });
 
   /** Mocks db-helper so the final `limit()` resolves to the given rows. */
@@ -40,7 +53,7 @@ describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", 
     expect(r.reason).toMatch(/revoked/i);
   });
 
-  it("a COMPLETED keepalive is live:true and parses the credit balance", async () => {
+  it("a fresh REFRESH receipt with credentials present is live:true, and parses the balance", async () => {
     // The balance is the only account credit figure this app can read - the API
     // lane has no balance endpoint (every GET returns 405).
     mockRows([{ status: "completed", details: "session refreshed, 2986 credits", errorMessage: null, startedAt: new Date(), ageMinutes: 3 }]);
@@ -49,11 +62,43 @@ describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", 
     expect(r.balanceCredits).toBe(2986);
   });
 
+  it("a SKIP row ('no higgsfield creds') is UNKNOWN - the keepalive tested nothing", async () => {
+    // P1 REVIEW, #1668. The keepalive handler returns NORMALLY when no credentials
+    // are stored, and the scheduler records that as `completed` - so "any
+    // non-failed row is live" declared a credential-LESS lane alive, and both
+    // health surfaces would have shown configured:true while generation was
+    // impossible. A skip is not a verdict.
+    mockRows([{ status: "completed", details: "no higgsfield creds — skip", errorMessage: null, startedAt: new Date(), ageMinutes: 2 }]);
+    const r = await load();
+    expect(r.live).toBeNull();
+    expect(r.reason).toMatch(/nothing was tested/i);
+  });
+
+  it("a refresh receipt does NOT survive credential deletion - live:true needs creds NOW", async () => {
+    // The blob can be deleted between keepalive ticks; the old tick's verdict must
+    // not outlive the credentials it verified.
+    delete process.env.HIGGSFIELD_CREDENTIALS_JSON;
+    mockRows([{ status: "completed", details: "session refreshed, 100 credits", errorMessage: null, startedAt: new Date(), ageMinutes: 2 }]);
+    const r = await load();
+    expect(r.credsPresent).toBe(false);
+    expect(r.live).toBeNull();
+    expect(r.reason).toMatch(/predates the removal/i);
+  });
+
+  it("a completed row WITHOUT a refresh receipt is UNKNOWN, not live", async () => {
+    // Unknown beats a confident guess about an unrecognised row shape.
+    mockRows([{ status: "completed", details: "something new this helper has never seen", errorMessage: null, startedAt: new Date(), ageMinutes: 2 }]);
+    const r = await load();
+    expect(r.live).toBeNull();
+    expect(r.reason).toMatch(/without a refresh receipt/i);
+  });
+
   it("a STALE verdict is UNKNOWN (null), never dead", async () => {
-    // The keepalive runs every 15 min. An hour-old verdict is not evidence, and
-    // "has not run" needs a different response from "is dead". Age comes from the
+    // The keepalive runs every 15 min; the SHARED window (KEEPALIVE_FRESH_WINDOW_MS,
+    // also used by higgsfieldSessionHealth so the two surfaces cannot contradict
+    // each other - P2, #1668) is 60 min. 90 is clearly past it. Age comes from the
     // DATABASE, so this fixture states it directly rather than faking a clock.
-    mockRows([{ status: "completed", details: "session refreshed, 2986 credits", errorMessage: null, startedAt: new Date(), ageMinutes: 60 }]);
+    mockRows([{ status: "completed", details: "session refreshed, 2986 credits", errorMessage: null, startedAt: new Date(), ageMinutes: 90 }]);
     const r = await load();
     expect(r.live).toBeNull();
     expect(r.reason).toMatch(/stale|old/i);

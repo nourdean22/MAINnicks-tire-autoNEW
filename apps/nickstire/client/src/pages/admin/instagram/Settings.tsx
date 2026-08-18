@@ -115,6 +115,25 @@ export default function Settings() {
     ? "none"
     : health.data?.storage?.permanentUrls ? "permanent" : "expiring";
   const generatorReady = Boolean(health.data?.generator?.configured);
+  // THREE STATES for the generator card (P2 review, #1668): "unknown" is when the
+  // active lane is the CLI session and its keepalive verdict could not be read or
+  // is stale - which needs connectivity or patience, NOT a credential re-paste.
+  // HealthState already had "unknown"; it was simply never fed.
+  const generatorSession = health.data?.generator?.higgsfieldSession;
+  const generatorState: HealthState = generatorReady
+    ? "ready"
+    : health.data?.generator?.provider === "higgsfield" && generatorSession?.live === null
+      ? "unknown"
+      : "attention";
+  const generatorDetail = generatorReady
+    ? `The configured media provider has credentials.${
+        health.data?.generator?.higgsfieldLane ? ` Active Higgsfield lane: ${health.data.generator.higgsfieldLane}.` : ""
+      }${generatorSession?.balanceCredits != null ? ` Account balance: ${generatorSession.balanceCredits} credits.` : ""}`
+    : generatorState === "unknown"
+      ? `Session state could not be verified — not the same as missing credentials. ${generatorSession?.reason ?? ""}`
+      : generatorSession?.credsPresent
+        ? `Credentials are present but the session is DEAD — re-login required. ${generatorSession?.reason ?? ""}`
+        : "The Reel/media generation provider is not fully configured.";
 
   return (
     <div className="space-y-7 pb-12">
@@ -146,7 +165,7 @@ export default function Settings() {
           }
           icon={Database}
         />
-        <StatusCard label="Media generation" state={generatorReady ? "ready" : "attention"} detail={generatorReady ? "The configured media provider has credentials." : "The Reel/media generation provider is not fully configured."} icon={ImageIcon} />
+        <StatusCard label="Media generation" state={generatorState} detail={generatorDetail} icon={ImageIcon} />
       </div>
 
       {/* null means the count FAILED, and `?? 0` turned that into an all-clear —

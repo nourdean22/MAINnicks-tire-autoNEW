@@ -177,13 +177,41 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
                     Check CLI
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${health.generator.configured ? "bg-green-500" : "bg-red-500"}`} />
-                  <span>
-                    {health.generator.provider ? `${health.generator.provider.toUpperCase()}: ` : ""}
-                    {health.generator.configured ? "Configured" : "Missing API Key"}
-                  </span>
-                </div>
+                {/* THREE STATES, NEVER TWO (P2 review, #1668). This dot collapsed the
+                    server's session verdict to a boolean, so a revoked session and an
+                    unknown/stale verdict both rendered as red "Missing API Key" - telling
+                    the operator to paste credentials they may already have. The yellow
+                    state exists precisely for "could not tell": its fix is connectivity
+                    or patience, never a re-paste. `=== null` tests, not truthiness. */}
+                {(() => {
+                  const sess = health.generator.higgsfieldSession;
+                  const isHf = health.generator.provider === "higgsfield";
+                  const unknown = isHf && !health.generator.configured && sess?.live === null;
+                  const dot = health.generator.configured ? "bg-green-500" : unknown ? "bg-yellow-500" : "bg-red-500";
+                  const label = health.generator.configured
+                    ? `Configured${health.generator.higgsfieldLane ? ` (${health.generator.higgsfieldLane})` : ""}${
+                        isHf && sess?.balanceCredits != null ? ` · ${sess.balanceCredits} cr` : ""
+                      }`
+                    : unknown
+                      ? "Session UNKNOWN — not missing, could not verify"
+                      : isHf && sess?.credsPresent
+                        ? "Session DEAD — re-login required"
+                        : "Missing credentials";
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${dot}`} />
+                        <span>
+                          {health.generator.provider ? `${health.generator.provider.toUpperCase()}: ` : ""}
+                          {label}
+                        </span>
+                      </div>
+                      {isHf && !health.generator.configured && sess?.reason && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{sess.reason}</div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="text-xs text-muted-foreground mt-1">
                   {health.generator.enabled ? "Generation Enabled" : "Generation Paused"}
                 </div>

@@ -446,12 +446,15 @@ export type HiggsfieldSessionLiveness = {
 };
 
 /**
- * Older than this and the last keepalive verdict is not evidence any more. In
- * MINUTES because the comparison is done by the DATABASE (TIMESTAMPDIFF), not from a
- * driver-parsed Date - see the query below for why that distinction is load-bearing.
- * The keepalive runs every 15 min, so 45 tolerates two missed ticks.
+ * Older than this and the last keepalive verdict is not evidence any more. DERIVED
+ * from KEEPALIVE_FRESH_WINDOW_MS above so the two operator surfaces that read the
+ * same cron_log evidence cannot contradict each other (P2 review, #1668: this was
+ * an independent 45 while higgsfieldSessionHealth used 60, so a 46-59 min old row
+ * read "unknown" on one card and "healthy" on the other). In MINUTES because the
+ * comparison is done by the DATABASE (TIMESTAMPDIFF), not from a driver-parsed
+ * Date - see the query below for why that distinction is load-bearing.
  */
-const KEEPALIVE_STALE_MINUTES = 45;
+const KEEPALIVE_STALE_MINUTES = KEEPALIVE_FRESH_WINDOW_MS / 60_000;
 
 /**
  * SESSION LIVENESS FOR HEALTH SURFACES, read from the keepalive's own record.
@@ -540,16 +543,60 @@ export async function higgsfieldSessionLiveness(): Promise<HiggsfieldSessionLive
           : "could not compute the age of the last keepalive verdict - UNKNOWN, not dead",
       };
     }
-    // The scheduler records success as "completed"; treat anything non-failed as live.
-    const failed = row.status === "failed";
+    // A NON-FAILED ROW IS NOT PROOF OF LIFE (P1 review, #1668). The keepalive
+    // handler returns NORMALLY when no credentials are stored ("no higgsfield
+    // creds - skip"), and the scheduler records that as completed - so "any
+    // non-failed row is live" declared a credential-LESS lane alive. live: true
+    // therefore requires all three: a non-failed row, evidence the keepalive
+    // actually REFRESHED a session (its success detail always starts
+    // "session refreshed"), and credentials still present NOW - a blob deleted
+    // after the last successful tick must not inherit that tick's verdict.
+    const detail = row.details ?? "";
+    if (row.status === "failed") {
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: false,
+        reason: (row.details ?? row.errorMessage ?? "keepalive failed").slice(0, 200),
+      };
+    }
+    if (/no higgsfield creds/i.test(detail)) {
+      // The keepalive TESTED NOTHING - it skipped. Unknown, not alive.
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: "keepalive skipped - no credentials were stored, so nothing was tested",
+      };
+    }
+    if (!/session refreshed/i.test(detail)) {
+      // Completed, but not a refresh receipt this helper recognises. Unknown
+      // beats a confident guess about an unrecognised row shape.
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: `keepalive ${row.status} without a refresh receipt: ${detail.slice(0, 140) || "(no detail)"}`,
+      };
+    }
+    if (!credsPresent) {
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: "last keepalive refreshed a session, but the credentials blob is GONE now - the verdict predates the removal",
+      };
+    }
     return {
       credsPresent,
       balanceCredits,
       checkedAt,
-      live: !failed,
-      reason: failed
-        ? (row.details ?? row.errorMessage ?? "keepalive failed").slice(0, 200)
-        : `keepalive ${row.status}${balanceCredits != null ? `, ${balanceCredits} credits` : ""}`,
+      live: true,
+      reason: `keepalive ${row.status}${balanceCredits != null ? `, ${balanceCredits} credits` : ""}`,
     };
   } catch (err) {
     // A read failure is UNKNOWN. Reporting it as dead would send the operator to

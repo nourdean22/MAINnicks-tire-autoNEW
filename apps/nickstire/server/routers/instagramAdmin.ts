@@ -180,6 +180,11 @@ export const instagramAdminRouter = router({
         const { higgsfieldSessionLiveness } = await import("../services/higgsfieldStudio");
         const hfSession = await higgsfieldSessionLiveness();
         const higgsfieldConfigured = hfSession.credsPresent;
+        // The lane the video generator will ACTUALLY use, resolved exactly as
+        // generateReelClipVideo resolves it: API key first (DB-then-env), CLI
+        // session only as the fallback.
+        const { getHiggsfieldApiCredentials } = await import("../services/higgsfieldApiClient");
+        const higgsfieldApiCreds = provider === "higgsfield" ? await getHiggsfieldApiCredentials() : null;
         // template_stock renders locally with ffmpeg — it has NO credentials to
         // check, so it is always configured. Reporting Veo's key state for it
         // would paint the card red while the lane runs perfectly.
@@ -187,10 +192,14 @@ export const instagramAdminRouter = router({
           provider === "template_stock"
             ? true
             : provider === "higgsfield"
-              // `=== true` so UNKNOWN (null) does not read as configured. Unknown
-              // is reported through hfSession below rather than borrowing either
-              // boolean.
-              ? hfSession.live === true
+              // MIRROR generateReelClipVideo's OWN lane selection (P2 review,
+              // #1668): when API-key credentials exist the generator uses the
+              // key-based REST lane and never touches the CLI session, so judging
+              // readiness by the session verdict would paint a working generator
+              // red. Only when the CLI session is the lane that will run does its
+              // liveness decide - and `=== true` so UNKNOWN (null) does not read
+              // as configured.
+              ? higgsfieldApiCreds !== null || hfSession.live === true
               : veoCredentialsPresent();
         return {
           provider,
@@ -214,6 +223,11 @@ export const instagramAdminRouter = router({
             checkedAt: hfSession.checkedAt,
             reason: hfSession.reason,
           },
+          /** Which Higgsfield lane the generator would run: the API key needs no
+           *  session, so the session verdict is IRRELEVANT while this is
+           *  "api_key". Null when the provider is not higgsfield. */
+          higgsfieldLane:
+            provider === "higgsfield" ? (higgsfieldApiCreds ? ("api_key" as const) : ("cli_session" as const)) : null,
         };
       })(),
       /**
