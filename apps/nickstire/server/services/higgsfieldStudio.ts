@@ -452,9 +452,9 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
   // The one exception is credentials genuinely wrong (401/403 on the FIRST
   // call) — that is reported immediately rather than masked by a fallback that
   // will only fail the same way every time and burn a CLI attempt for nothing.
-  const { higgsfieldApiCredentialsFromEnv, generateReelClipVideoViaApi, HiggsfieldApiSubmittedError } =
+  const { getHiggsfieldApiCredentials, generateReelClipVideoViaApi, HiggsfieldApiSubmittedError } =
     await import("./higgsfieldApiClient");
-  if (higgsfieldApiCredentialsFromEnv()) {
+  if (await getHiggsfieldApiCredentials()) {
     try {
       return await generateReelClipVideoViaApi({ prompt, startImageUrl });
     } catch (err) {

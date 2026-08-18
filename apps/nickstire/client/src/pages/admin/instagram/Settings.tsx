@@ -44,6 +44,8 @@ export default function Settings() {
   const [appSecret, setAppSecret] = useState("");
   const [imageProvider, setImageProvider] = useState<"openai" | "gemini" | "higgsfield">("gemini");
   const [higgsfieldCredentialsJson, setHiggsfieldCredentialsJson] = useState("");
+  const [higgsfieldApiKeyId, setHiggsfieldApiKeyId] = useState("");
+  const [higgsfieldApiKeySecret, setHiggsfieldApiKeySecret] = useState("");
 
   useEffect(() => {
     if (!config.data) return;
@@ -173,7 +175,16 @@ export default function Settings() {
           <CardHeader><CardTitle>Generation Provider</CardTitle><CardDescription>Studio V2 static cards render deterministically. This provider remains available for autonomous imagery and Reel assets.</CardDescription></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Image provider</label><select value={imageProvider} onChange={(event) => setImageProvider(event.target.value as typeof imageProvider)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="gemini">Gemini</option><option value="openai">OpenAI-compatible</option><option value="higgsfield">Higgsfield</option></select></div>
-            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Replace Higgsfield credentials JSON</label><Textarea value={higgsfieldCredentialsJson} onChange={(event) => setHiggsfieldCredentialsJson(event.target.value)} className="min-h-40 font-mono text-xs" placeholder={config.data?.hasHiggsfieldCreds ? "Credentials already stored — leave blank to keep them" : "Paste credentials JSON only when rotating credentials"} /></div>
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3">
+              <p className="text-xs leading-5 text-muted-foreground">
+                <strong className="text-foreground">Higgsfield API key (preferred).</strong> A static key — nothing
+                expires, no device flow, nothing to revoke. Set BOTH fields and reel generation uses this lane
+                automatically. Get one at cloud.higgsfield.ai → API. Leave blank to keep the stored key.
+              </p>
+              <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">API Key ID</label><Input value={higgsfieldApiKeyId} onChange={(event) => setHiggsfieldApiKeyId(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "API key already stored — leave blank to keep it" : "d8781441-..."} /></div>
+              <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">API Key Secret</label><Input type="password" value={higgsfieldApiKeySecret} onChange={(event) => setHiggsfieldApiKeySecret(event.target.value)} className="font-mono text-xs" placeholder={config.data?.hasHiggsfieldApiKey ? "Stored — leave blank to keep it" : "paste the secret"} /></div>
+            </div>
+            <div className="space-y-1"><label className="text-xs font-semibold uppercase text-muted-foreground">Replace Higgsfield credentials JSON (CLI session — legacy, expires)</label><Textarea value={higgsfieldCredentialsJson} onChange={(event) => setHiggsfieldCredentialsJson(event.target.value)} className="min-h-40 font-mono text-xs" placeholder={config.data?.hasHiggsfieldCreds ? "Credentials already stored — leave blank to keep them" : "Paste credentials JSON only when rotating credentials"} /></div>
             <div className="rounded-lg border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground"><CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-400" />Studio V2 post, ad, carousel, and Story layouts do not depend on generative text rendering, preventing the garbled lettering shown in the old poster.</div>
           </CardContent>
         </Card>
@@ -187,6 +198,8 @@ export default function Settings() {
           appSecret: appSecret.trim() || undefined,
           imageProvider,
           higgsfieldCredentialsJson: higgsfieldCredentialsJson.trim() || undefined,
+          higgsfieldApiKeyId: higgsfieldApiKeyId.trim() || undefined,
+          higgsfieldApiKeySecret: higgsfieldApiKeySecret.trim() || undefined,
         })}>{update.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save configuration</Button>
       </div>
     </div>

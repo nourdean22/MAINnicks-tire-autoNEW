@@ -20,7 +20,8 @@
  *
  *   Auth:   Authorization: Key <KEY_ID>:<KEY_SECRET>
  *   Base:   https://platform.higgsfield.ai
- *   Submit: POST /higgsfield-ai/dop/standard   (image-to-video, DoP model)
+ *   Submit: POST /higgsfield-ai/dop/standard, falling back to /v1/image2video/dop
+ *           (the docs and the official SDK disagree; see DOP_SUBMIT_PATHS)
  *   Status: GET  /requests/{request_id}/status
  *   Cancel: POST /requests/{request_id}/cancel
  *
@@ -41,8 +42,9 @@
  * scheme and routing the request. So the transport, host and auth SHAPE are
  * confirmed against the real service, not just the docs.
  *
- * STILL UNVERIFIED: generation itself — the submit body, the DoP endpoint path,
- * the status polling shape, and the result URL field. Those are built from
+ * STILL UNVERIFIED: generation itself — the submit body, the DoP endpoint path
+ * (which is why submit tries TWO candidates; see DOP_SUBMIT_PATHS), the status
+ * polling shape, and the result URL field. Those are built from
  * docs.higgsfield.ai and the official Node SDK and tested against a mocked
  * `fetch`; exercising them for real spends credits, which is an operator
  * decision. Run the probe first, then one real clip, before trusting this lane
@@ -59,20 +61,115 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("services:higgsfield-api");
 
 const BASE_URL = "https://platform.higgsfield.ai";
-/** DoP = Higgsfield's image-to-video model family; "standard" is the base tier. */
-const DOP_SUBMIT_PATH = "/higgsfield-ai/dop/standard";
+/**
+ * TWO CANDIDATE SUBMIT PATHS, tried in order, because the two authoritative
+ * sources disagree and NEITHER can be verified without a working key.
+ *
+ * docs.higgsfield.ai documents image generation at
+ * `/higgsfield-ai/soul/standard`, so the DoP analogue is
+ * `/higgsfield-ai/dop/standard`. The OFFICIAL Node SDK's README instead calls
+ * `higgsfield.subscribe('/v1/image2video/dop', …)`.
+ *
+ * WHY A PROBE CANNOT SETTLE IT (measured 2026-08-17). The server checks auth
+ * BEFORE routing: a request to `/higgsfield-ai/definitely-not-real` with a bogus
+ * key returns `401 {"detail":"Invalid credentials"}`, identical to a real path.
+ * So 401 proves the host and auth SCHEME are right and says NOTHING about
+ * whether a path exists — a free path-existence probe is impossible, and any
+ * future attempt to build one will hit the same wall. Do not re-derive this.
+ *
+ * Rather than ship a coin flip, the submit tries the documented path and falls
+ * through to the SDK path on a 404/405. A 404 costs nothing — auth already
+ * succeeded, no generation was queued, no credit was spent — so the first real
+ * call self-corrects instead of failing. The path that works is LOGGED so the
+ * loser can be deleted once reality is known.
+ */
+const DOP_SUBMIT_PATHS = [
+  "/higgsfield-ai/dop/standard",
+  "/v1/image2video/dop",
+] as const;
+
+/** Statuses meaning "wrong path", as distinct from "bad request to the right path". */
+const PATH_MISS_STATUSES = new Set([404, 405]);
 
 export interface HiggsfieldApiCredentials {
   keyId: string;
   keySecret: string;
 }
 
-/** Reads HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET. Never logs the secret. */
+/**
+ * ENV-ONLY resolver. Kept for callers that must stay synchronous, and as the
+ * fallback layer beneath the DB. Never logs the secret.
+ */
 export function higgsfieldApiCredentialsFromEnv(): HiggsfieldApiCredentials | null {
   const keyId = process.env.HIGGSFIELD_API_KEY_ID?.trim();
   const keySecret = process.env.HIGGSFIELD_API_KEY_SECRET?.trim();
   if (!keyId || !keySecret) return null;
   return { keyId, keySecret };
+}
+
+let cachedApiCreds: HiggsfieldApiCredentials | null = null;
+let apiCredsLoadAttempted = false;
+
+/** Drop the cache so the next read re-queries the DB. Called after a write. */
+export function clearRuntimeHiggsfieldApiKeyCache(): void {
+  cachedApiCreds = null;
+  apiCredsLoadAttempted = false;
+}
+
+/**
+ * DB-FIRST resolver: `app_secret_kv` rows `higgsfield_api_key_id` /
+ * `higgsfield_api_key_secret`, falling back to the env vars.
+ *
+ * WHY THE DB IS PREFERRED, exactly as it is for the CLI credentials
+ * (`getHiggsfieldCredentialsJson`): a Railway env var can only be changed by
+ * someone with Railway CLI/dashboard access, and setting one requires a redeploy
+ * that measured ~20 minutes to come up. A DB row can be pasted from the admin UI
+ * on a phone and takes effect immediately, because the write clears this cache.
+ * For an operator whose reel lane is down, that is the difference between a
+ * 60-second fix and a deploy cycle.
+ *
+ * Unlike the CLI credential blob, this one is NEVER rewritten by a rotation —
+ * an API key is static, which is the entire reason this lane exists.
+ */
+export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
+  if (apiCredsLoadAttempted) return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+  // The latch is set only after a load that actually COMPLETED (P2 review,
+  // 2026-08-17). Setting it up-front meant a single DB outage or a thrown query
+  // pinned `apiCredsLoadAttempted = true` with a null cache forever, so every
+  // later call skipped the database and returned only the env fallback — a
+  // DB-only key stayed invisible until a config write or a process restart. A
+  // transient fault must not become a permanent blind spot.
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (d) {
+      const { appSecretKv } = await import("../../drizzle/schema");
+      const { inArray } = await import("drizzle-orm");
+      const rows = await d
+        .select()
+        .from(appSecretKv)
+        .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
+      let id: string | null = null;
+      let secret: string | null = null;
+      for (const r of rows as { k: string; v: string | null }[]) {
+        if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
+        if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
+      }
+      // BOTH or neither — a half-configured key would fail every call with a 401
+      // and read as "the key is wrong" rather than "the key is incomplete".
+      if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
+    }
+    // Reached only on a completed query — with or without rows. "Queried and
+    // found nothing" is a real answer worth caching; "could not query" is not.
+    apiCredsLoadAttempted = true;
+  } catch (err) {
+    // Never log the values, and never let a DB blip look like "no key" —
+    // the env fallback below still applies.
+    log.error("failed to load Higgsfield API credentials from database", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
 }
 
 function authHeader(creds: HiggsfieldApiCredentials): string {
@@ -134,8 +231,13 @@ async function apiFetch(
  * when the answer is not knowable, never a guess rendered as a pass.
  */
 export async function probeHiggsfieldApiCredentials(
-  creds: HiggsfieldApiCredentials = higgsfieldApiCredentialsFromEnv() ?? { keyId: "", keySecret: "" },
+  explicit?: HiggsfieldApiCredentials,
 ): Promise<{ healthy: boolean | null; reason: string }> {
+  // Default-resolve through the DB-AWARE path, not the env-only one. The same
+  // defect as the generator (P1 review): a bare call would have probed the env
+  // vars while generation used the DB key, so the health surface could report
+  // "not configured" about a lane that was about to run fine — or vice versa.
+  const creds = explicit ?? (await getHiggsfieldApiCredentials()) ?? { keyId: "", keySecret: "" };
   if (!creds.keyId || !creds.keySecret) {
     return { healthy: null, reason: "HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET not configured" };
   }
@@ -206,8 +308,24 @@ export async function generateReelClipVideoViaApi(
   req: DopVideoRequest,
   opts: { pollIntervalMs?: number; timeoutMs?: number } = {},
 ): Promise<string> {
-  const creds = higgsfieldApiCredentialsFromEnv();
-  if (!creds) throw new Error("Higgsfield API credentials not configured (HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET)");
+  // DB-AWARE, not env-only (P1 review, 2026-08-17). This line read
+  // `higgsfieldApiCredentialsFromEnv()` and that defeated the entire feature: with
+  // the env vars unset — the phone-only configuration this lane exists for — the
+  // CALLER's check passed on the DB key, then this threw "not configured" and
+  // generateReelClipVideo fell through to the legacy CLI lane. A key pasted into
+  // Settings would never have generated anything.
+  //
+  // My own test missed it because it asserted the three CALLER files used the
+  // DB-aware resolver and excluded this file from that loop — so the one place
+  // that actually resolves credentials went unchecked. The test below now covers
+  // the generator itself.
+  const creds = await getHiggsfieldApiCredentials();
+  if (!creds) {
+    throw new Error(
+      "Higgsfield API credentials not configured — set them in Instagram -> Settings " +
+      "(app_secret_kv) or via HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET",
+    );
+  }
 
   const pollIntervalMs = opts.pollIntervalMs ?? 5_000;
   // Matches the CLI lane's floor/default so operator-facing latency expectations
@@ -221,16 +339,50 @@ export async function generateReelClipVideoViaApi(
 
   log.info("submitting Higgsfield API DoP video generation", { promptLen: req.prompt.length, hasStartImage: !!req.startImageUrl });
 
-  const submit = await apiFetch(creds, DOP_SUBMIT_PATH, { method: "POST", body, timeoutMs: 20_000 });
+  // Try each candidate path. A 404/405 means "wrong path", and crucially it means
+  // NOTHING was queued and NOTHING was billed — so advancing to the next candidate
+  // cannot double-charge. Any other non-2xx is a real rejection of a real endpoint
+  // and stops immediately rather than blindly retrying elsewhere.
+  let submit: { status: number; json: unknown } | null = null;
+  let usedPath = "";
+  const attempted: string[] = [];
+  for (const candidate of DOP_SUBMIT_PATHS) {
+    const res = await apiFetch(creds, candidate, { method: "POST", body, timeoutMs: 20_000 });
+    attempted.push(`${candidate} -> ${res.status}`);
+    if (PATH_MISS_STATUSES.has(res.status)) {
+      log.warn("Higgsfield API submit path not found — trying the next candidate", {
+        path: candidate,
+        status: res.status,
+      });
+      continue;
+    }
+    submit = res;
+    usedPath = candidate;
+    break;
+  }
+  if (!submit) {
+    throw new Error(
+      `Higgsfield API submit: no candidate DoP path exists. Tried ${attempted.join(", ")}. ` +
+      `Auth succeeded (a wrong KEY returns 401, not 404), so this is a PATH problem: check ` +
+      `docs.higgsfield.ai and @higgsfield/client for the current image-to-video endpoint.`,
+    );
+  }
   if (submit.status < 200 || submit.status >= 300) {
-    throw new Error(`Higgsfield API submit failed: HTTP ${submit.status} ${JSON.stringify(submit.json).slice(0, 300)}`);
+    throw new Error(
+      `Higgsfield API submit failed on ${usedPath}: HTTP ${submit.status} ${JSON.stringify(submit.json).slice(0, 300)}`,
+    );
+  }
+  if (usedPath !== DOP_SUBMIT_PATHS[0]) {
+    // Worth a loud line: it means the documented path is wrong and the fallback
+    // carried the call. Delete the loser from DOP_SUBMIT_PATHS once confirmed.
+    log.warn("Higgsfield API submit used the FALLBACK path — the documented one 404'd", { usedPath });
   }
   const submitted = submit.json as SubmitResponse;
   if (!submitted?.request_id) {
     throw new Error(`Higgsfield API submit returned no request_id: ${JSON.stringify(submit.json).slice(0, 300)}`);
   }
   const requestId = submitted.request_id;
-  log.info("Higgsfield API generation submitted", { requestId });
+  log.info("Higgsfield API generation submitted", { requestId, path: usedPath });
 
   while (true) {
     if (Date.now() >= deadline) {

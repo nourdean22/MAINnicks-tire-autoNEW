@@ -378,8 +378,201 @@ describe("the free probe is REACHABLE — an unrunnable safety check is not one"
   });
 
   it("the health procedure skips the probe when no key is set — no cost, no change", () => {
+    // Reads the DB-AWARE resolver: this assertion originally named the env-only
+    // one, which was correct until the key became settable from the admin UI. A
+    // caller left on the env resolver would be blind to a pasted key.
     const src = read("server/routers/instagramAdmin.ts");
-    expect(src).toContain("higgsfieldApiCredentialsFromEnv()");
+    expect(src).toContain("await getHiggsfieldApiCredentials()");
     expect(src).toMatch(/configured: false/);
+  });
+});
+
+describe("the API key is settable from the PHONE, not just a Railway env var", () => {
+  // WHY: an env var needs Railway access and a redeploy that measured ~20 minutes
+  // to reach the container. A DB row is pasted from Instagram -> Settings and takes
+  // effect immediately, because the write clears the cache. For an operator whose
+  // reel lane is down, that is a 60-second fix versus a deploy cycle. Same reason
+  // the CLI credential blob already lives in app_secret_kv.
+  const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+  it("the resolver prefers the DB and falls back to env", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    expect(fn).toContain("higgsfield_api_key_id");
+    expect(fn).toContain("higgsfield_api_key_secret");
+    // env is the FALLBACK, reached via the env-only resolver
+    expect(fn).toContain("higgsfieldApiCredentialsFromEnv()");
+  });
+
+  it("it requires BOTH rows — a half-configured key would 401 and read as 'wrong key'", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    expect(fn).toContain("if (id && secret)");
+  });
+
+  it("the mutation accepts both fields and CLEARS the cache, or the paste would not take effect", () => {
+    const src = read("server/routers/instagramAdmin.ts");
+    expect(src).toContain("higgsfieldApiKeyId");
+    expect(src).toContain("higgsfieldApiKeySecret");
+    expect(src).toContain('k: "higgsfield_api_key_id"');
+    expect(src).toContain('k: "higgsfield_api_key_secret"');
+    // The invalidation is the whole point — getHiggsfieldApiCredentials latches.
+    expect(src).toContain("clearRuntimeHiggsfieldApiKeyCache");
+  });
+
+  it("the Settings UI masks the secret and reports whether one is already stored", () => {
+    const ui = read("client/src/pages/admin/instagram/Settings.tsx");
+    expect(ui).toContain("higgsfieldApiKeySecret");
+    expect(ui).toContain('type="password"');
+    expect(ui).toContain("hasHiggsfieldApiKey");
+  });
+
+  it("every generation/health caller reads the DB-aware resolver, not the env-only one", () => {
+    // If a caller kept the env-only resolver, a pasted key would be invisible to it
+    // — the built-tested-unwired shape, one level down.
+    for (const f of [
+      "server/services/higgsfieldStudio.ts",
+      "server/services/socialDeliveryIssues.ts",
+      "server/routers/instagramAdmin.ts",
+    ]) {
+      const src = read(f);
+      expect(src, f).toContain("getHiggsfieldApiCredentials");
+      expect(src, f).not.toContain("higgsfieldApiCredentialsFromEnv()");
+    }
+  });
+});
+
+describe("the submit path is a KNOWN unknown, and self-corrects", () => {
+  // MEASURED 2026-08-17: the server checks auth BEFORE routing. A POST to
+  // /higgsfield-ai/definitely-not-real with a bogus key returns
+  // 401 {"detail":"Invalid credentials"} — identical to a real path. So no free
+  // probe can establish whether a path exists, and the docs
+  // (/higgsfield-ai/dop/standard, by analogy with the documented soul/standard)
+  // disagree with the official Node SDK (/v1/image2video/dop). Rather than ship a
+  // coin flip, submit tries both. A 404 costs nothing: auth already succeeded, so
+  // nothing was queued and nothing was billed.
+  afterEach(() => vi.restoreAllMocks());
+  const creds = () => {
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
+  };
+
+  it("a 404 on the documented path FALLS THROUGH to the SDK path", async () => {
+    const tried: string[] = [];
+    global.fetch = vi.fn(async (url, init: RequestInit) => {
+      const u = String(url);
+      if (init.method === "POST") {
+        tried.push(u);
+        if (u.includes("/higgsfield-ai/dop/standard")) {
+          return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
+        }
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_fb" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fb", video: { url: "https://cdn/x.mp4" } }) } as Response;
+    });
+    creds();
+    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
+    expect(url).toBe("https://cdn/x.mp4");
+    expect(tried[0]).toContain("/higgsfield-ai/dop/standard");
+    expect(tried[1]).toContain("/v1/image2video/dop");
+  });
+
+  it("a 404 fallback does NOT count as a submitted spend — nothing was queued", async () => {
+    // The critical safety interaction: falling through on a 404 must not be
+    // confused with retrying after a real submit, which would double-bill.
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
+      }
+      return { status: 200, text: async () => "{}" } as Response;
+    });
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    // Every candidate 404'd -> a PATH error, and explicitly NOT submitted-typed.
+    expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
+    expect((err as Error).message).toMatch(/no candidate DoP path exists/);
+    expect((err as Error).message).toMatch(/PATH problem/);
+  });
+
+  it("a NON-404 rejection stops immediately instead of shopping the other path", async () => {
+    // A 400 means the right endpoint rejected a bad body. Trying the other path
+    // would hide the real error and could submit the same job twice.
+    let posts = 0;
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        posts++;
+        return { status: 400, text: async () => JSON.stringify({ detail: "bad prompt" }) } as Response;
+      }
+      return { status: 200, text: async () => "{}" } as Response;
+    });
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    expect(posts, "a 400 must not trigger a second submit").toBe(1);
+    expect((err as Error).message).toMatch(/HTTP 400/);
+  });
+
+  it("the error names the paths it tried, so the fix is one log line away", async () => {
+    global.fetch = vi.fn(async (_url, init: RequestInit) =>
+      init.method === "POST"
+        ? ({ status: 404, text: async () => "{}" } as Response)
+        : ({ status: 200, text: async () => "{}" } as Response));
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    expect((err as Error).message).toContain("/higgsfield-ai/dop/standard -> 404");
+    expect((err as Error).message).toContain("/v1/image2video/dop -> 404");
+  });
+});
+
+describe("the GENERATOR itself resolves credentials from the DB", () => {
+  // P1 REVIEW, 2026-08-17, and the worst defect in this arc: generateReelClipVideoViaApi
+  // resolved credentials with the ENV-ONLY reader. With the env vars unset — the
+  // phone-only configuration this whole lane exists for — the caller's check passed
+  // on the DB key, this threw "not configured", and generateReelClipVideo fell
+  // through to the legacy CLI lane. A key pasted into Settings would never have
+  // generated anything: the feature was defeated one layer below where I "fixed" it.
+  //
+  // My earlier test asserted the three CALLER files used the DB-aware resolver and
+  // EXCLUDED this file from the loop, so the only place that actually resolves
+  // credentials was never checked. These tests assert the resolution path itself.
+  const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+  it("the generator awaits the DB-aware resolver, not the env-only one", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function generateReelClipVideoViaApi"));
+    const body = fn.slice(0, fn.indexOf("const body:"));
+    expect(body).toContain("await getHiggsfieldApiCredentials()");
+    // Anchored on the CALL, so the explanatory comment naming the old reader
+    // cannot satisfy or break this — the mistake this session made four times.
+    expect(body).not.toContain("= higgsfieldApiCredentialsFromEnv();");
+  });
+
+  it("the probe's default also resolves through the DB", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function probeHiggsfieldApiCredentials"));
+    const body = fn.slice(0, fn.indexOf("try {"));
+    expect(body).toContain("await getHiggsfieldApiCredentials()");
+  });
+
+  it("a FAILED db load does not permanently latch — the DB is retried", () => {
+    // P2 review: apiCredsLoadAttempted was set BEFORE the query, so one outage
+    // pinned it true with a null cache and every later call skipped the DB
+    // forever. A transient fault must not become a permanent blind spot.
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(
+      src.indexOf("export async function getHiggsfieldApiCredentials"),
+      src.indexOf("export interface DopVideoRequest"),
+    );
+    const latchAt = fn.indexOf("apiCredsLoadAttempted = true;");
+    const catchAt = fn.indexOf("} catch (err) {");
+    expect(latchAt, "the latch must exist").toBeGreaterThan(-1);
+    // The latch must sit INSIDE the try, before the catch — i.e. only on a
+    // completed query — not above it.
+    expect(latchAt).toBeLessThan(catchAt);
+    expect(fn.slice(0, fn.indexOf("try {"))).not.toContain("apiCredsLoadAttempted = true;");
+  });
+
+  it("generation reports the DB-or-Settings path in its not-configured error", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    expect(src).toMatch(/Settings.*app_secret_kv|app_secret_kv.*Settings/s);
   });
 });
