@@ -407,6 +407,14 @@ export async function runInterceptors(
   let previousAssistantWasImage = false;
   let priorAssistantContent: string | null = null;
   let priorUserContent: string | null = null;
+  // 2026-08-18 self-audit fix · re-delivery must re-serve the MOST
+  // RECENT non-image assistant turn regardless of length.
+  // priorAssistantContent is the wrong source for it: that variable
+  // feeds the image-prompt synthesizer and deliberately prefers the
+  // last >50-char SUBSTANTIVE turn — so when the reply just lost was
+  // short ("Done — sent."), a "resend" would deterministically
+  // re-serve an OLDER, wrong message. Tracked separately.
+  let redeliveryContent: string | null = null;
   if (args.convId && args.convId !== "temp") {
     try {
       // Pull last 5 assistant turns + last user turn. We need to look back
@@ -462,6 +470,12 @@ export async function runInterceptors(
           (m.content?.length ?? 0) > 50, // skip stub replies
       );
       priorAssistantContent = lastText?.content || mostRecent?.content || null;
+      // Re-delivery source: the most recent assistant turn itself, when
+      // it's a text turn (image/clarification turns already suppress the
+      // redelivery intent via previousAssistantWasImage).
+      if (mostRecent && !previousAssistantWasImage) {
+        redeliveryContent = mostRecent.content || null;
+      }
       if (priorUser) {
         priorUserContent = priorUser.content || null;
       }
@@ -479,7 +493,7 @@ export async function runInterceptors(
   // message itself.
   if (
     intent.redelivery &&
-    !priorAssistantContent &&
+    !redeliveryContent &&
     !(intent.slashImage || intent.nlImage || intent.decision || intent.brainDump || intent.slashSave || intent.strict || intent.chill)
   ) {
     return { kind: "pass" };
@@ -491,7 +505,7 @@ export async function runInterceptors(
     args.lastUserMsg,
   );
 
-  if (intent.redelivery && priorAssistantContent) {
+  if (intent.redelivery && redeliveryContent) {
     // Deterministic re-serve of the stored last assistant text — no
     // model call, no drift. See lib/ai/chat/redelivery.ts for why the
     // prompt-rule approach measurably failed here.
@@ -499,7 +513,7 @@ export async function runInterceptors(
       kind: "handled",
       response: await buildFastStream(
         convId,
-        priorAssistantContent,
+        redeliveryContent,
         "redelivery",
         "retry-redelivery",
       ),

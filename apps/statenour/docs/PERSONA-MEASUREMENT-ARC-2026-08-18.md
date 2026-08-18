@@ -150,9 +150,21 @@ this slice, and confirmation that calibration is the next behavior lever.
 
 ## Open items (deliberately not built)
 
+- **Calibration — the armed next lever.** Both instruments independently flag it weakest
+  (backfill mean 6.03; live suite's only non-harvested flag). Nick has the *vocabulary* layer
+  (ESTIMATIVE_LIKELIHOOD's ODNI bands) but fails to apply it under load — and the published
+  evidence says more prompting won't close that: verbalized confidence stays overconfident
+  without further alignment (Lin et al. 2022 lineage), while **consistency/sampling-based
+  confidence reliably outperforms verbalized and logit proxies in black-box settings** —
+  agreement across k samples tracks correctness. Two steal-worthy designs for the slice:
+  [self-generated distractors](https://arxiv.org/html/2509.25532v2) (ICLR '26 — distribute
+  probability over model-generated alternatives to break anchoring) and k-sample agreement →
+  band mapping, which is affordable on the zero-incremental Ollama lane. Survey grounding:
+  [Confidence Calibration in LLMs](https://www.emergentmind.com/topics/confidence-calibration-in-llms).
+  The suite's two calibration scenarios are the pre/post instrument.
 - GATE items **#4 trajectory grading** and **#6 tool-metadata-untrusted** — separate multi-day builds.
-- **Nick's retry behavior** — the golden set now *proves* the failure; fixing it is a
-  prompt/behavior change that deserves its own measured slice (BDN-305: marginal prompt prose
-  has negative expected yield — measure first, then cut, then add).
+- **yes-executes residual** — the deterministic completion for confirmation-execution is a
+  pending-offer state machine (map "Yes" to re-firing the offered tool); the replay's remaining
+  gap also reflects that it cannot execute tools. Own slice.
 - Re-curation of the remaining ~104 candidates — only pays after new organic low scores accumulate.
 - The one-shot-key expiry audit across *other* brain categories.
