@@ -34,7 +34,7 @@ describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", 
   const load = async () => (await import("./services/higgsfieldStudio")).higgsfieldSessionLiveness();
 
   it("a FAILED keepalive is live:false, and carries the reason", async () => {
-    mockRows([{ status: "failed", details: "Higgsfield keepalive FAILED - re-login required (refresh token revoked)", errorMessage: null, startedAt: new Date() }]);
+    mockRows([{ status: "failed", details: "Higgsfield keepalive FAILED - re-login required (refresh token revoked)", errorMessage: null, startedAt: new Date(), ageMinutes: 2 }]);
     const r = await load();
     expect(r.live).toBe(false);
     expect(r.reason).toMatch(/revoked/i);
@@ -43,7 +43,7 @@ describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", 
   it("a COMPLETED keepalive is live:true and parses the credit balance", async () => {
     // The balance is the only account credit figure this app can read - the API
     // lane has no balance endpoint (every GET returns 405).
-    mockRows([{ status: "completed", details: "session refreshed, 2986 credits", errorMessage: null, startedAt: new Date() }]);
+    mockRows([{ status: "completed", details: "session refreshed, 2986 credits", errorMessage: null, startedAt: new Date(), ageMinutes: 3 }]);
     const r = await load();
     expect(r.live).toBe(true);
     expect(r.balanceCredits).toBe(2986);
@@ -51,13 +51,49 @@ describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", 
 
   it("a STALE verdict is UNKNOWN (null), never dead", async () => {
     // The keepalive runs every 15 min. An hour-old verdict is not evidence, and
-    // "has not run" needs a different response from "is dead".
-    mockRows([{ status: "completed", details: "session refreshed, 2986 credits", errorMessage: null, startedAt: new Date(Date.now() - 60 * 60_000) }]);
+    // "has not run" needs a different response from "is dead". Age comes from the
+    // DATABASE, so this fixture states it directly rather than faking a clock.
+    mockRows([{ status: "completed", details: "session refreshed, 2986 credits", errorMessage: null, startedAt: new Date(), ageMinutes: 60 }]);
     const r = await load();
     expect(r.live).toBeNull();
     expect(r.reason).toMatch(/stale|old/i);
     // The balance is still reported - it is the last KNOWN figure, just aged.
     expect(r.balanceCredits).toBe(2986);
+  });
+
+  it("age is computed SERVER-SIDE, because the driver skews DATETIME by the local offset", async () => {
+    // MEASURED 2026-08-18: mysql2 parses DATETIME in the connection's local zone
+    // while this DB returns UTC, so a parsed `startedAt` landed 4 HOURS IN THE
+    // FUTURE on an ET machine (DB NOW() read 20:10 when true UTC was 16:10). The
+    // first version of this helper derived age as `Date.now() - startedAt`, which
+    // goes NEGATIVE under that skew - so every stale verdict within the offset read
+    // as FRESH, the precise opposite of the guard's purpose.
+    const src = (await import("node:fs")).readFileSync(
+      (await import("node:path")).resolve(process.cwd(), "server/services/higgsfieldStudio.ts"),
+      "utf8",
+    );
+    const fn = src.slice(src.indexOf("export async function higgsfieldSessionLiveness"));
+    const body = fn.slice(0, fn.indexOf("\n}\n"));
+    expect(body).toContain("TIMESTAMPDIFF(MINUTE");
+    expect(body).toContain("UTC_TIMESTAMP()");
+    // The skewed derivation must not come back.
+    expect(body).not.toContain("Date.now() - checkedAt");
+  });
+
+  it("an age the DB could not compute is UNKNOWN, not assumed fresh", async () => {
+    // Assuming fresh is how a stale verdict becomes a confident one.
+    mockRows([{ status: "completed", details: "session refreshed, 10 credits", errorMessage: null, startedAt: new Date(), ageMinutes: null }]);
+    const r = await load();
+    expect(r.live).toBeNull();
+    expect(r.reason).toMatch(/could not compute/i);
+  });
+
+  it("MySQL returning the age as a STRING still works", async () => {
+    // Computed columns commonly arrive as strings from mysql2.
+    mockRows([{ status: "completed", details: "session refreshed, 7 credits", errorMessage: null, startedAt: new Date(), ageMinutes: "5" }]);
+    const r = await load();
+    expect(r.live).toBe(true);
+    expect(r.balanceCredits).toBe(7);
   });
 
   it("NO keepalive row at all is UNKNOWN, not dead", async () => {

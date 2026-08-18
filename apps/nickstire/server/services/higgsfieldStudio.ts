@@ -445,8 +445,13 @@ export type HiggsfieldSessionLiveness = {
   reason: string;
 };
 
-/** Older than this and the last keepalive verdict is not evidence any more. */
-const KEEPALIVE_STALE_MS = 45 * 60_000;
+/**
+ * Older than this and the last keepalive verdict is not evidence any more. In
+ * MINUTES because the comparison is done by the DATABASE (TIMESTAMPDIFF), not from a
+ * driver-parsed Date - see the query below for why that distinction is load-bearing.
+ * The keepalive runs every 15 min, so 45 tolerates two missed ticks.
+ */
+const KEEPALIVE_STALE_MINUTES = 45;
 
 /**
  * SESSION LIVENESS FOR HEALTH SURFACES, read from the keepalive's own record.
@@ -481,29 +486,58 @@ export async function higgsfieldSessionLiveness(): Promise<HiggsfieldSessionLive
       return { ...base, live: null, reason: "no database handle - cannot read the keepalive verdict" };
     }
     const { cronLog } = await import("../../drizzle/schema");
-    const { eq, desc } = await import("drizzle-orm");
+    const { eq, desc, sql } = await import("drizzle-orm");
+    // AGE IS COMPUTED BY THE DATABASE, deliberately. mysql2 parses DATETIME columns
+    // in the connection's LOCAL zone, and this DB returns UTC - so a parsed
+    // `startedAt` lands 4 hours in the FUTURE on an ET machine (measured
+    // 2026-08-18: DB NOW() read 20:10 while true UTC was 16:10). Deriving age from
+    // `Date.now() - startedAt` therefore yields a NEGATIVE number, and every stale
+    // verdict up to the offset would have read as fresh - the exact opposite of what
+    // this staleness guard exists to do. TIMESTAMPDIFF against UTC_TIMESTAMP() is
+    // evaluated server-side and cannot be skewed by the driver.
     const rows = await d
-      .select({ status: cronLog.status, details: cronLog.details, errorMessage: cronLog.errorMessage, startedAt: cronLog.startedAt })
+      .select({
+        status: cronLog.status,
+        details: cronLog.details,
+        errorMessage: cronLog.errorMessage,
+        startedAt: cronLog.startedAt,
+        ageMinutes: sql<number>`TIMESTAMPDIFF(MINUTE, ${cronLog.startedAt}, UTC_TIMESTAMP())`,
+      })
       .from(cronLog)
       .where(eq(cronLog.jobName, "higgsfield-session-keepalive"))
       .orderBy(desc(cronLog.startedAt))
       .limit(1);
-    const row = (rows as { status: string; details: string | null; errorMessage: string | null; startedAt: Date }[])[0];
+    const row = (rows as {
+      status: string;
+      details: string | null;
+      errorMessage: string | null;
+      startedAt: Date;
+      ageMinutes: number | string | null;
+    }[])[0];
     if (!row) {
       return { ...base, live: null, reason: "the keepalive has never recorded a run" };
     }
     const checkedAt = row.startedAt instanceof Date ? row.startedAt : new Date(row.startedAt);
-    const ageMs = Date.now() - checkedAt.getTime();
+    // MySQL may return the computed column as a string; Number() covers both. A null
+    // or unparseable age is UNKNOWN rather than assumed-fresh, because assuming
+    // fresh is how a stale verdict becomes a confident one.
+    // Number(null) === 0, NOT NaN - so a null age would read as "0 minutes old",
+    // i.e. maximally fresh and confident. Caught by the test for this exact case.
+    const rawAge = row.ageMinutes;
+    const ageMinutes = rawAge === null || rawAge === undefined || rawAge === "" ? Number.NaN : Number(rawAge);
+    const ageKnown = Number.isFinite(ageMinutes);
     // The keepalive logs ", N credits" on success - the only balance this app can see.
     const credits = /(\d+)\s*credits/.exec(row.details ?? "");
     const balanceCredits = credits ? Number(credits[1]) : null;
-    if (ageMs > KEEPALIVE_STALE_MS) {
+    if (!ageKnown || ageMinutes > KEEPALIVE_STALE_MINUTES) {
       return {
         credsPresent,
         balanceCredits,
         checkedAt,
         live: null,
-        reason: `last keepalive verdict is ${Math.round(ageMs / 60_000)} min old (stale past ${KEEPALIVE_STALE_MS / 60_000} min) - UNKNOWN, not dead`,
+        reason: ageKnown
+          ? `last keepalive verdict is ${ageMinutes} min old (stale past ${KEEPALIVE_STALE_MINUTES} min) - UNKNOWN, not dead`
+          : "could not compute the age of the last keepalive verdict - UNKNOWN, not dead",
       };
     }
     // The scheduler records success as "completed"; treat anything non-failed as live.
