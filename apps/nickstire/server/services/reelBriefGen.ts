@@ -249,7 +249,15 @@ export function parseReelJson(raw: string): Record<string, unknown> {
         `Reel brief JSON is TRUNCATED (braces ${opens}/${closes}, brackets ${arrOpens}/${arrCloses}) — the model hit its output-token budget mid-structure. Raise maxTokens for this call.`,
       );
     }
-    throw err;
+    // NON-JSON CONTENT: name what actually arrived. JSON.parse's own error shows
+    // ~10 characters ("Unexpected token 'A', \"Aborted: c\"...") - measured
+    // 2026-08-18, when the provider returned HTTP 200 whose CONTENT was a plain
+    // "Aborted: c..." string and three cron ticks failed with an error that hid
+    // the very text needed to diagnose it. The raw head is data the operator
+    // already paid for; the error must carry it.
+    throw new Error(
+      `Reel brief content is NOT JSON. Raw head (first 200 chars): ${JSON.stringify(s.slice(0, 200))} - parser said: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
