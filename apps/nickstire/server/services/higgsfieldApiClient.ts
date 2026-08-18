@@ -20,7 +20,8 @@
  *
  *   Auth:   Authorization: Key <KEY_ID>:<KEY_SECRET>
  *   Base:   https://platform.higgsfield.ai
- *   Submit: POST /higgsfield-ai/dop/standard   (image-to-video, DoP model)
+ *   Submit: POST /higgsfield-ai/dop/standard, falling back to /v1/image2video/dop
+ *           (the docs and the official SDK disagree; see DOP_SUBMIT_PATHS)
  *   Status: GET  /requests/{request_id}/status
  *   Cancel: POST /requests/{request_id}/cancel
  *
@@ -41,8 +42,9 @@
  * scheme and routing the request. So the transport, host and auth SHAPE are
  * confirmed against the real service, not just the docs.
  *
- * STILL UNVERIFIED: generation itself — the submit body, the DoP endpoint path,
- * the status polling shape, and the result URL field. Those are built from
+ * STILL UNVERIFIED: generation itself — the submit body, the DoP endpoint path
+ * (which is why submit tries TWO candidates; see DOP_SUBMIT_PATHS), the status
+ * polling shape, and the result URL field. Those are built from
  * docs.higgsfield.ai and the official Node SDK and tested against a mocked
  * `fetch`; exercising them for real spends credits, which is an operator
  * decision. Run the probe first, then one real clip, before trusting this lane
@@ -59,8 +61,35 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("services:higgsfield-api");
 
 const BASE_URL = "https://platform.higgsfield.ai";
-/** DoP = Higgsfield's image-to-video model family; "standard" is the base tier. */
-const DOP_SUBMIT_PATH = "/higgsfield-ai/dop/standard";
+/**
+ * TWO CANDIDATE SUBMIT PATHS, tried in order, because the two authoritative
+ * sources disagree and NEITHER can be verified without a working key.
+ *
+ * docs.higgsfield.ai documents image generation at
+ * `/higgsfield-ai/soul/standard`, so the DoP analogue is
+ * `/higgsfield-ai/dop/standard`. The OFFICIAL Node SDK's README instead calls
+ * `higgsfield.subscribe('/v1/image2video/dop', …)`.
+ *
+ * WHY A PROBE CANNOT SETTLE IT (measured 2026-08-17). The server checks auth
+ * BEFORE routing: a request to `/higgsfield-ai/definitely-not-real` with a bogus
+ * key returns `401 {"detail":"Invalid credentials"}`, identical to a real path.
+ * So 401 proves the host and auth SCHEME are right and says NOTHING about
+ * whether a path exists — a free path-existence probe is impossible, and any
+ * future attempt to build one will hit the same wall. Do not re-derive this.
+ *
+ * Rather than ship a coin flip, the submit tries the documented path and falls
+ * through to the SDK path on a 404/405. A 404 costs nothing — auth already
+ * succeeded, no generation was queued, no credit was spent — so the first real
+ * call self-corrects instead of failing. The path that works is LOGGED so the
+ * loser can be deleted once reality is known.
+ */
+const DOP_SUBMIT_PATHS = [
+  "/higgsfield-ai/dop/standard",
+  "/v1/image2video/dop",
+] as const;
+
+/** Statuses meaning "wrong path", as distinct from "bad request to the right path". */
+const PATH_MISS_STATUSES = new Set([404, 405]);
 
 export interface HiggsfieldApiCredentials {
   keyId: string;
@@ -281,16 +310,50 @@ export async function generateReelClipVideoViaApi(
 
   log.info("submitting Higgsfield API DoP video generation", { promptLen: req.prompt.length, hasStartImage: !!req.startImageUrl });
 
-  const submit = await apiFetch(creds, DOP_SUBMIT_PATH, { method: "POST", body, timeoutMs: 20_000 });
+  // Try each candidate path. A 404/405 means "wrong path", and crucially it means
+  // NOTHING was queued and NOTHING was billed — so advancing to the next candidate
+  // cannot double-charge. Any other non-2xx is a real rejection of a real endpoint
+  // and stops immediately rather than blindly retrying elsewhere.
+  let submit: { status: number; json: unknown } | null = null;
+  let usedPath = "";
+  const attempted: string[] = [];
+  for (const candidate of DOP_SUBMIT_PATHS) {
+    const res = await apiFetch(creds, candidate, { method: "POST", body, timeoutMs: 20_000 });
+    attempted.push(`${candidate} -> ${res.status}`);
+    if (PATH_MISS_STATUSES.has(res.status)) {
+      log.warn("Higgsfield API submit path not found — trying the next candidate", {
+        path: candidate,
+        status: res.status,
+      });
+      continue;
+    }
+    submit = res;
+    usedPath = candidate;
+    break;
+  }
+  if (!submit) {
+    throw new Error(
+      `Higgsfield API submit: no candidate DoP path exists. Tried ${attempted.join(", ")}. ` +
+      `Auth succeeded (a wrong KEY returns 401, not 404), so this is a PATH problem: check ` +
+      `docs.higgsfield.ai and @higgsfield/client for the current image-to-video endpoint.`,
+    );
+  }
   if (submit.status < 200 || submit.status >= 300) {
-    throw new Error(`Higgsfield API submit failed: HTTP ${submit.status} ${JSON.stringify(submit.json).slice(0, 300)}`);
+    throw new Error(
+      `Higgsfield API submit failed on ${usedPath}: HTTP ${submit.status} ${JSON.stringify(submit.json).slice(0, 300)}`,
+    );
+  }
+  if (usedPath !== DOP_SUBMIT_PATHS[0]) {
+    // Worth a loud line: it means the documented path is wrong and the fallback
+    // carried the call. Delete the loser from DOP_SUBMIT_PATHS once confirmed.
+    log.warn("Higgsfield API submit used the FALLBACK path — the documented one 404'd", { usedPath });
   }
   const submitted = submit.json as SubmitResponse;
   if (!submitted?.request_id) {
     throw new Error(`Higgsfield API submit returned no request_id: ${JSON.stringify(submit.json).slice(0, 300)}`);
   }
   const requestId = submitted.request_id;
-  log.info("Higgsfield API generation submitted", { requestId });
+  log.info("Higgsfield API generation submitted", { requestId, path: usedPath });
 
   while (true) {
     if (Date.now() >= deadline) {

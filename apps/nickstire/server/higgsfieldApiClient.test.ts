@@ -441,3 +441,84 @@ describe("the API key is settable from the PHONE, not just a Railway env var", (
     }
   });
 });
+
+describe("the submit path is a KNOWN unknown, and self-corrects", () => {
+  // MEASURED 2026-08-17: the server checks auth BEFORE routing. A POST to
+  // /higgsfield-ai/definitely-not-real with a bogus key returns
+  // 401 {"detail":"Invalid credentials"} — identical to a real path. So no free
+  // probe can establish whether a path exists, and the docs
+  // (/higgsfield-ai/dop/standard, by analogy with the documented soul/standard)
+  // disagree with the official Node SDK (/v1/image2video/dop). Rather than ship a
+  // coin flip, submit tries both. A 404 costs nothing: auth already succeeded, so
+  // nothing was queued and nothing was billed.
+  afterEach(() => vi.restoreAllMocks());
+  const creds = () => {
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
+  };
+
+  it("a 404 on the documented path FALLS THROUGH to the SDK path", async () => {
+    const tried: string[] = [];
+    global.fetch = vi.fn(async (url, init: RequestInit) => {
+      const u = String(url);
+      if (init.method === "POST") {
+        tried.push(u);
+        if (u.includes("/higgsfield-ai/dop/standard")) {
+          return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
+        }
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_fb" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fb", video: { url: "https://cdn/x.mp4" } }) } as Response;
+    });
+    creds();
+    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
+    expect(url).toBe("https://cdn/x.mp4");
+    expect(tried[0]).toContain("/higgsfield-ai/dop/standard");
+    expect(tried[1]).toContain("/v1/image2video/dop");
+  });
+
+  it("a 404 fallback does NOT count as a submitted spend — nothing was queued", async () => {
+    // The critical safety interaction: falling through on a 404 must not be
+    // confused with retrying after a real submit, which would double-bill.
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
+      }
+      return { status: 200, text: async () => "{}" } as Response;
+    });
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    // Every candidate 404'd -> a PATH error, and explicitly NOT submitted-typed.
+    expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
+    expect((err as Error).message).toMatch(/no candidate DoP path exists/);
+    expect((err as Error).message).toMatch(/PATH problem/);
+  });
+
+  it("a NON-404 rejection stops immediately instead of shopping the other path", async () => {
+    // A 400 means the right endpoint rejected a bad body. Trying the other path
+    // would hide the real error and could submit the same job twice.
+    let posts = 0;
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        posts++;
+        return { status: 400, text: async () => JSON.stringify({ detail: "bad prompt" }) } as Response;
+      }
+      return { status: 200, text: async () => "{}" } as Response;
+    });
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    expect(posts, "a 400 must not trigger a second submit").toBe(1);
+    expect((err as Error).message).toMatch(/HTTP 400/);
+  });
+
+  it("the error names the paths it tried, so the fix is one log line away", async () => {
+    global.fetch = vi.fn(async (_url, init: RequestInit) =>
+      init.method === "POST"
+        ? ({ status: 404, text: async () => "{}" } as Response)
+        : ({ status: 200, text: async () => "{}" } as Response));
+    creds();
+    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    expect((err as Error).message).toContain("/higgsfield-ai/dop/standard -> 404");
+    expect((err as Error).message).toContain("/v1/image2video/dop -> 404");
+  });
+});
