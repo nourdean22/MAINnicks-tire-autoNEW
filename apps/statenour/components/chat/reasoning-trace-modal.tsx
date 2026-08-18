@@ -27,12 +27,18 @@ import { bdiLabel, bdiTone, type BdiType } from "@/lib/brain/bdi";
 
 // JudgeRubric is the shape of the (intentionally `unknown`-typed)
 // feedback.judgment.rubric field · kept local for the readout cast.
+// obedience/nonSycophancy/calibration (2026-08-18) are persona axes —
+// scored by lib/ai/judge-eval.ts but excluded from `composite`, see
+// that file's header for why.
 interface JudgeRubric {
   accuracy?: number;
   actionability?: number;
   brevity?: number;
   tone?: number;
   evidence?: number;
+  obedience?: number;
+  nonSycophancy?: number;
+  calibration?: number;
 }
 
 const BDI_ORDER: BdiType[] = ["belief", "desire", "intention", "observation"];
@@ -155,13 +161,16 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                     )}
                   </p>
                   {!!data.feedback.judgment.rubric && (
-                    <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-[11px] font-mono">
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] font-mono">
                       {([
                         ["accuracy", "ACC"],
                         ["actionability", "ACT"],
                         ["brevity", "BRV"],
                         ["tone", "TONE"],
                         ["evidence", "EVD"],
+                        ["obedience", "OBEY"],
+                        ["nonSycophancy", "HNST"],
+                        ["calibration", "CAL"],
                       ] as const).map(([key, label]) => {
                         const v = (data.feedback!.judgment!.rubric as JudgeRubric)[key];
                         if (v === undefined) return null;
