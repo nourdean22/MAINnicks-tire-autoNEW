@@ -61,6 +61,14 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   counter_intuitive: { days: 180, notes: "things Nour does opposite of advice" },
 
   // ── MEDIUM (90d) ─────────────────────────────────────────────
+  // 2026-08-18 · explicit policy (was silently on the 90d default).
+  // reply_judgment rows are one-shot records (`judge_<messageId>` is
+  // never re-seen), so remember()'s 24h-until-reinforced probation was
+  // erasing every judgment within a day — witnessed: only 22 of the 200
+  // most-recent replies still had rows, starving the persona-lane
+  // census. memory-manager's ONE_SHOT_RECORD_CATEGORIES routes these
+  // through this policy instead of the probation.
+  reply_judgment: { days: 90, notes: "LLM-judge scores · one-shot records, no reinforcement path" },
   industry_intel: { days: 90, notes: "RSS pulls · still relevant for content" },
   content_performance: { days: 90, notes: "post engagement metrics" },
   // v10.0.529.106 · Wave 76 · content approval queue · 90d covers

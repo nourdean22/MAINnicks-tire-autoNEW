@@ -1,6 +1,28 @@
 // v10.0.412 · validate the refactored judge actually fires + persists.
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
+
+// 2026-08-18 · neutralize `server-only` for bare tsx — judgeReply
+// dynamically imports traced-aichat.ts (`import "server-only"`, wave-AO)
+// which throws outside a react-server context, so this smoke crashed
+// before judging anything. Same Module._load pattern as
+// scripts/measure-prompt-size.ts / backfill-persona-judgments.ts.
+//
+// ENV NOTE: .env.local carries a placeholder OLLAMA_API_KEY + localhost
+// OLLAMA_BASE_URL (test isolation) which @next/env prefers over .env —
+// under the cost firewall the chain then sees zero available providers.
+// Lift the real values into process env before running:
+//   export OLLAMA_API_KEY=<from .env> ; export OLLAMA_BASE_URL=https://ollama.com
+import { Module } from "node:module";
+{
+  const cjs = Module as unknown as {
+    _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+  };
+  const original = cjs._load;
+  cjs._load = (request, parent, isMain) =>
+    request === "server-only" ? {} : original(request, parent, isMain);
+}
+
 import { judgeReply } from "@/lib/ai/judge-eval";
 
 async function main() {

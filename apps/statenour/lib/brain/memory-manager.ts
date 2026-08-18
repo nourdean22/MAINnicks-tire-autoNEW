@@ -13,6 +13,29 @@ import {
   DEPRECATED_CATEGORY_MAP,
 } from "@/lib/brain/categories";
 import { gateWisdom } from "@/lib/brain/wisdom-quality-gate";
+import { computeExpiresAt } from "@/lib/brain/category-ttl";
+
+/**
+ * 2026-08-18 · categories whose rows are one-shot RECORDS, exempt from
+ * the 24h-until-reinforced probation below.
+ *
+ * The probation mechanic assumes a key can be RE-SEEN: repeat sightings
+ * reinforce toward permanence, unseen rows age out in a day. That is
+ * right for observations ("Nour does X") and wrong for records —
+ * `judge_<messageId>` is written exactly once by construction, so every
+ * judgment expired within 24h and the data-cleanup cron's purgeExpired
+ * erased it. Witnessed 2026-08-18: only 22 of the 200 most-recent
+ * assistant replies still had reply_judgment rows; the persona-lane
+ * census (BDN-301) was reading ~1 day of history while believing it had
+ * months. Records take their category-ttl policy (reply_judgment · 90d)
+ * at create time instead.
+ *
+ * Add a category here ONLY if its keys are structurally one-shot — for
+ * anything a second sighting can legitimately corroborate, the
+ * probation is load-bearing (pipeline-controller counts reinforce()
+ * calls as an action-frequency signal).
+ */
+const ONE_SHOT_RECORD_CATEGORIES: ReadonlySet<string> = new Set(["reply_judgment"]);
 
 /**
  * Runtime validation for category strings passed to remember().
@@ -362,7 +385,9 @@ export class BrainMemoryManager {
       return this.reinforce(existing.id, content);
     }
 
-    // New memory — temporary (24h expiry) until reinforced
+    // New memory — temporary (24h expiry) until reinforced. One-shot
+    // RECORD categories skip the probation and take their category-ttl
+    // policy directly — see ONE_SHOT_RECORD_CATEGORIES above.
     const created = await prisma.brainMemory.create({
       data: {
         category: effectiveCategory,
@@ -370,7 +395,9 @@ export class BrainMemoryManager {
         content,
         confidence: 0.5,
         source,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        expiresAt: ONE_SHOT_RECORD_CATEGORIES.has(effectiveCategory)
+          ? computeExpiresAt(effectiveCategory)
+          : new Date(Date.now() + 24 * 60 * 60 * 1000),
         metadata: { ...(metadata ?? {}), ...gateMetadata } as any,
       },
     });
