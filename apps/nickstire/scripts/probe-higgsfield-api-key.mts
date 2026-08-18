@@ -17,7 +17,7 @@
  * docs.higgsfield.ai and the official Node SDK, tested against a mocked `fetch`.
  * Exercising those spends credits and is the operator's call.
  *
- * THREE BUGS THIS FILE SHIPPED, all the same shape, all worth not repeating:
+ * FOUR BUGS THIS FILE SHIPPED, all the same shape, all worth not repeating:
  *   1. It read the ENV-ONLY resolver while the key lives in `app_secret_kv`, so it
  *      printed "configured: NO" for a key that was correctly stored — telling the
  *      operator their save had failed when it had succeeded.
@@ -26,8 +26,17 @@
  *   3. A scan-and-replace of mine then matched the string "configured: NO" inside
  *      an explanatory COMMENT rather than the console.log, and clobbered the
  *      credential resolution outright.
+ *   4. It then carried a `dbReachable` guard that LOOKED like it prevented all of
+ *      the above and did not. `getDb()` builds a lazy mysql pool -
+ *      `mysql.createPool` is synchronous and opens no socket - so a truthy handle
+ *      proved only that DATABASE_URL was SET. Against a set-but-unreachable
+ *      database the guard passed, the query failed inside the resolver, and this
+ *      printed "configured: NO" for a key it had never managed to look for.
+ *      Caught in review by Codex on PR #1653, not by me and not by a test.
+ *      Reachability is now DERIVED from the lookup (`resolution.dbError`).
  * The through-line: a verification tool that reads a different source than the code
  * it verifies is not a verification tool, and unknown must never render as absent.
+ * A presence check wearing a liveness check's name is worse than no check at all.
  *
  * Usage — locally (reads `.env` for DATABASE_URL, so it sees the stored key):
  *   pnpm exec tsx scripts/probe-higgsfield-api-key.mts
@@ -52,33 +61,29 @@ function loadEnvFromDotenv(): void {
 }
 loadEnvFromDotenv();
 
-const { probeHiggsfieldApiCredentials, getHiggsfieldApiCredentials } = await import(
+const { probeHiggsfieldApiCredentials, resolveHiggsfieldApiCredentials } = await import(
   "../server/services/higgsfieldApiClient"
 );
 
-/**
- * Whether we could reach the store the key actually lives in. Without this, a
- * missing DATABASE_URL is indistinguishable from a missing key — and those need
- * opposite responses from the operator.
- */
-const dbReachable = await (async () => {
-  try {
-    const { db } = await import("../server/lib/db-helper");
-    return Boolean(await db());
-  } catch {
-    return false;
-  }
-})();
-
-// DB-first resolver, matching what generateReelClipVideo itself uses.
-const creds = await getHiggsfieldApiCredentials();
+// Reachability is DERIVED FROM THE LOOKUP, never probed separately (P2 review,
+// Codex, PR #1653). The version this replaces called `db()` and treated a truthy
+// handle as "the database is reachable" — but `mysql.createPool` is synchronous
+// and opens no socket, so that only proved DATABASE_URL was SET. With a set-but
+// -unreachable database the handle was truthy, the credential query failed inside
+// the resolver, and this script printed "configured: NO" for a key it had never
+// managed to look for. `dbError` is non-null ONLY when a lookup could not
+// complete, so the three states below cannot collapse into each other again.
+const resolution = await resolveHiggsfieldApiCredentials();
+const creds = resolution.credentials;
 
 console.log("\n-- Higgsfield API key --");
 
-if (!creds && !dbReachable) {
-  console.log("  configured: UNKNOWN - no database connection");
-  console.log("    The key is stored in app_secret_kv, so this cannot see it without");
-  console.log("    DATABASE_URL. Only the env vars were checked, and those are unset.");
+if (!creds && resolution.dbError) {
+  console.log("  configured: UNKNOWN - the key store could not be read");
+  console.log(`    why: ${resolution.dbError}`);
+  console.log("    The key lives in app_secret_kv, so this cannot see it without a");
+  console.log("    WORKING database connection - not merely a DATABASE_URL. Only the");
+  console.log("    env vars were checked, and those are unset.");
   console.log("");
   console.log("VERDICT: UNKNOWN - not a clean bill, and not a missing key. Re-run with");
   console.log("prod env:  railway run --service MAINnicks-tire-auto -- \\");
@@ -87,6 +92,8 @@ if (!creds && !dbReachable) {
   console.log("");
 } else if (!creds) {
   console.log("  configured: NO");
+  console.log("    The lookup COMPLETED and found nothing, so this is real absence");
+  console.log("    and not a failure to look - the distinction this script exists for.");
   console.log("    Checked app_secret_kv (higgsfield_api_key_id / _secret) AND the env");
   console.log("    vars. BOTH halves are required in whichever store you use, and a");
   console.log("    whitespace-only value counts as unset.");
@@ -97,7 +104,7 @@ if (!creds && !dbReachable) {
   console.log("");
 } else {
   // Never print the secret, nor its length - a length is a hint. Only the id tail.
-  console.log(`  configured: YES  (key id ends ...${creds.keyId.slice(-4)}, from ${dbReachable ? "app_secret_kv or env" : "env"})`);
+  console.log(`  configured: YES  (key id ends ...${creds.keyId.slice(-4)}, from ${resolution.store})`);
   console.log("  probing platform.higgsfield.ai - no generation, no credits\n");
 
   const r = await probeHiggsfieldApiCredentials(creds);

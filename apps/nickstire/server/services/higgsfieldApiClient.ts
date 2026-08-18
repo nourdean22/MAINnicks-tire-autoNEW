@@ -131,8 +131,45 @@ export function clearRuntimeHiggsfieldApiKeyCache(): void {
  * Unlike the CLI credential blob, this one is NEVER rewritten by a rotation —
  * an API key is static, which is the entire reason this lane exists.
  */
-export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
-  if (apiCredsLoadAttempted) return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+export type HiggsfieldApiCredentialsResolution = {
+  credentials: HiggsfieldApiCredentials | null;
+  /** Where the returned credentials came from. "none" when there are none. */
+  store: "app_secret_kv" | "env" | "none";
+  /**
+   * `null` means a lookup COMPLETED, so a null `credentials` is genuine absence.
+   * A string means the store could not be read, so absence is UNKNOWN.
+   */
+  dbError: string | null;
+};
+
+/**
+ * WHY THIS RETURNS A RESOLUTION AND NOT JUST A NULLABLE CREDENTIAL (P2 review by
+ * Codex on PR #1653, and the sharpest catch of this arc from outside it).
+ *
+ * `getDb()` builds a LAZY mysql pool: `mysql.createPool` is synchronous and never
+ * opens a socket, so a truthy Drizzle handle proves only that DATABASE_URL is
+ * SET. If TiDB is unreachable or rejects the credentials, the handle is still
+ * truthy and the FAILURE surfaces later, inside the query. A consumer that reads
+ * a null credential as "no key configured" therefore announces absence when the
+ * truth is "I could not look" — and those need opposite responses: one says paste
+ * a key, the other says fix connectivity and do NOT rotate anything.
+ *
+ * My own probe had exactly that bug while carrying a `dbReachable` check that
+ * looked like it prevented it. A presence check wearing a liveness check's name
+ * is worse than no check, so the distinction now lives HERE, where every consumer
+ * gets it, rather than being re-derived correctly-or-not at four call sites.
+ */
+export async function resolveHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentialsResolution> {
+  const settle = (dbError: string | null): HiggsfieldApiCredentialsResolution => {
+    if (cachedApiCreds) return { credentials: cachedApiCreds, store: "app_secret_kv", dbError };
+    const env = higgsfieldApiCredentialsFromEnv();
+    if (env) return { credentials: env, store: "env", dbError };
+    return { credentials: null, store: "none", dbError };
+  };
+
+  // A completed earlier lookup is a real answer: nothing left to be unknown.
+  if (apiCredsLoadAttempted) return settle(null);
+
   // The latch is set only after a load that actually COMPLETED (P2 review,
   // 2026-08-17). Setting it up-front meant a single DB outage or a thrown query
   // pinned `apiCredsLoadAttempted = true` with a null cache forever, so every
@@ -142,34 +179,48 @@ export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCreden
   try {
     const { db } = await import("../lib/db-helper");
     const d = await db();
-    if (d) {
-      const { appSecretKv } = await import("../../drizzle/schema");
-      const { inArray } = await import("drizzle-orm");
-      const rows = await d
-        .select()
-        .from(appSecretKv)
-        .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
-      let id: string | null = null;
-      let secret: string | null = null;
-      for (const r of rows as { k: string; v: string | null }[]) {
-        if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
-        if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
-      }
-      // BOTH or neither — a half-configured key would fail every call with a 401
-      // and read as "the key is wrong" rather than "the key is incomplete".
-      if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
+    if (!d) {
+      // Not "no key" — no way to ask. DATABASE_URL unset, or the pool could not
+      // even be constructed.
+      return settle("no database handle (DATABASE_URL unset or pool unavailable)");
     }
+    const { appSecretKv } = await import("../../drizzle/schema");
+    const { inArray } = await import("drizzle-orm");
+    const rows = await d
+      .select()
+      .from(appSecretKv)
+      .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
+    let id: string | null = null;
+    let secret: string | null = null;
+    for (const r of rows as { k: string; v: string | null }[]) {
+      if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
+      if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
+    }
+    // BOTH or neither — a half-configured key would fail every call with a 401
+    // and read as "the key is wrong" rather than "the key is incomplete".
+    if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
     // Reached only on a completed query — with or without rows. "Queried and
     // found nothing" is a real answer worth caching; "could not query" is not.
     apiCredsLoadAttempted = true;
+    return settle(null);
   } catch (err) {
-    // Never log the values, and never let a DB blip look like "no key" —
-    // the env fallback below still applies.
-    log.error("failed to load Higgsfield API credentials from database", {
-      err: err instanceof Error ? err.message : String(err),
-    });
+    // Never log the values, and never let a DB blip look like "no key" — the env
+    // fallback still applies, and the error is REPORTED rather than swallowed so
+    // the caller can say UNKNOWN instead of NO.
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("failed to load Higgsfield API credentials from database", { err: message });
+    return settle(message);
   }
-  return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+}
+
+/**
+ * DB-FIRST resolver, thin wrapper over {@link resolveHiggsfieldApiCredentials}.
+ * Kept because most callers only need "can I use this lane?" — but any caller
+ * that REPORTS on configuration must use the resolution instead, or it will state
+ * absence it has not established.
+ */
+export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
+  return (await resolveHiggsfieldApiCredentials()).credentials;
 }
 
 function authHeader(creds: HiggsfieldApiCredentials): string {
