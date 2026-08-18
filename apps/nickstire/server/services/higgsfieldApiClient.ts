@@ -133,7 +133,12 @@ export function clearRuntimeHiggsfieldApiKeyCache(): void {
  */
 export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
   if (apiCredsLoadAttempted) return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
-  apiCredsLoadAttempted = true;
+  // The latch is set only after a load that actually COMPLETED (P2 review,
+  // 2026-08-17). Setting it up-front meant a single DB outage or a thrown query
+  // pinned `apiCredsLoadAttempted = true` with a null cache forever, so every
+  // later call skipped the database and returned only the env fallback — a
+  // DB-only key stayed invisible until a config write or a process restart. A
+  // transient fault must not become a permanent blind spot.
   try {
     const { db } = await import("../lib/db-helper");
     const d = await db();
@@ -154,6 +159,9 @@ export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCreden
       // and read as "the key is wrong" rather than "the key is incomplete".
       if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
     }
+    // Reached only on a completed query — with or without rows. "Queried and
+    // found nothing" is a real answer worth caching; "could not query" is not.
+    apiCredsLoadAttempted = true;
   } catch (err) {
     // Never log the values, and never let a DB blip look like "no key" —
     // the env fallback below still applies.
@@ -223,8 +231,13 @@ async function apiFetch(
  * when the answer is not knowable, never a guess rendered as a pass.
  */
 export async function probeHiggsfieldApiCredentials(
-  creds: HiggsfieldApiCredentials = higgsfieldApiCredentialsFromEnv() ?? { keyId: "", keySecret: "" },
+  explicit?: HiggsfieldApiCredentials,
 ): Promise<{ healthy: boolean | null; reason: string }> {
+  // Default-resolve through the DB-AWARE path, not the env-only one. The same
+  // defect as the generator (P1 review): a bare call would have probed the env
+  // vars while generation used the DB key, so the health surface could report
+  // "not configured" about a lane that was about to run fine — or vice versa.
+  const creds = explicit ?? (await getHiggsfieldApiCredentials()) ?? { keyId: "", keySecret: "" };
   if (!creds.keyId || !creds.keySecret) {
     return { healthy: null, reason: "HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET not configured" };
   }
@@ -295,8 +308,24 @@ export async function generateReelClipVideoViaApi(
   req: DopVideoRequest,
   opts: { pollIntervalMs?: number; timeoutMs?: number } = {},
 ): Promise<string> {
-  const creds = higgsfieldApiCredentialsFromEnv();
-  if (!creds) throw new Error("Higgsfield API credentials not configured (HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET)");
+  // DB-AWARE, not env-only (P1 review, 2026-08-17). This line read
+  // `higgsfieldApiCredentialsFromEnv()` and that defeated the entire feature: with
+  // the env vars unset — the phone-only configuration this lane exists for — the
+  // CALLER's check passed on the DB key, then this threw "not configured" and
+  // generateReelClipVideo fell through to the legacy CLI lane. A key pasted into
+  // Settings would never have generated anything.
+  //
+  // My own test missed it because it asserted the three CALLER files used the
+  // DB-aware resolver and excluded this file from that loop — so the one place
+  // that actually resolves credentials went unchecked. The test below now covers
+  // the generator itself.
+  const creds = await getHiggsfieldApiCredentials();
+  if (!creds) {
+    throw new Error(
+      "Higgsfield API credentials not configured — set them in Instagram -> Settings " +
+      "(app_secret_kv) or via HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET",
+    );
+  }
 
   const pollIntervalMs = opts.pollIntervalMs ?? 5_000;
   // Matches the CLI lane's floor/default so operator-facing latency expectations

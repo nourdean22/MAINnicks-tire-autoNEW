@@ -522,3 +522,57 @@ describe("the submit path is a KNOWN unknown, and self-corrects", () => {
     expect((err as Error).message).toContain("/v1/image2video/dop -> 404");
   });
 });
+
+describe("the GENERATOR itself resolves credentials from the DB", () => {
+  // P1 REVIEW, 2026-08-17, and the worst defect in this arc: generateReelClipVideoViaApi
+  // resolved credentials with the ENV-ONLY reader. With the env vars unset — the
+  // phone-only configuration this whole lane exists for — the caller's check passed
+  // on the DB key, this threw "not configured", and generateReelClipVideo fell
+  // through to the legacy CLI lane. A key pasted into Settings would never have
+  // generated anything: the feature was defeated one layer below where I "fixed" it.
+  //
+  // My earlier test asserted the three CALLER files used the DB-aware resolver and
+  // EXCLUDED this file from the loop, so the only place that actually resolves
+  // credentials was never checked. These tests assert the resolution path itself.
+  const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+  it("the generator awaits the DB-aware resolver, not the env-only one", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function generateReelClipVideoViaApi"));
+    const body = fn.slice(0, fn.indexOf("const body:"));
+    expect(body).toContain("await getHiggsfieldApiCredentials()");
+    // Anchored on the CALL, so the explanatory comment naming the old reader
+    // cannot satisfy or break this — the mistake this session made four times.
+    expect(body).not.toContain("= higgsfieldApiCredentialsFromEnv();");
+  });
+
+  it("the probe's default also resolves through the DB", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(src.indexOf("export async function probeHiggsfieldApiCredentials"));
+    const body = fn.slice(0, fn.indexOf("try {"));
+    expect(body).toContain("await getHiggsfieldApiCredentials()");
+  });
+
+  it("a FAILED db load does not permanently latch — the DB is retried", () => {
+    // P2 review: apiCredsLoadAttempted was set BEFORE the query, so one outage
+    // pinned it true with a null cache and every later call skipped the DB
+    // forever. A transient fault must not become a permanent blind spot.
+    const src = read("server/services/higgsfieldApiClient.ts");
+    const fn = src.slice(
+      src.indexOf("export async function getHiggsfieldApiCredentials"),
+      src.indexOf("export interface DopVideoRequest"),
+    );
+    const latchAt = fn.indexOf("apiCredsLoadAttempted = true;");
+    const catchAt = fn.indexOf("} catch (err) {");
+    expect(latchAt, "the latch must exist").toBeGreaterThan(-1);
+    // The latch must sit INSIDE the try, before the catch — i.e. only on a
+    // completed query — not above it.
+    expect(latchAt).toBeLessThan(catchAt);
+    expect(fn.slice(0, fn.indexOf("try {"))).not.toContain("apiCredsLoadAttempted = true;");
+  });
+
+  it("generation reports the DB-or-Settings path in its not-configured error", () => {
+    const src = read("server/services/higgsfieldApiClient.ts");
+    expect(src).toMatch(/Settings.*app_secret_kv|app_secret_kv.*Settings/s);
+  });
+});
