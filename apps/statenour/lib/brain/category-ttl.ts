@@ -69,6 +69,7 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   // census. memory-manager's ONE_SHOT_RECORD_CATEGORIES routes these
   // through this policy instead of the probation.
   reply_judgment: { days: 90, notes: "LLM-judge scores · one-shot records, no reinforcement path" },
+  trajectory_judgment: { days: 90, notes: "GATE #4 · action-sequence grades · same one-shot shape as reply_judgment" },
   industry_intel: { days: 90, notes: "RSS pulls · still relevant for content" },
   content_performance: { days: 90, notes: "post engagement metrics" },
   // v10.0.529.106 · Wave 76 · content approval queue · 90d covers

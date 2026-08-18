@@ -72,6 +72,7 @@ export const BRAIN_CATEGORIES = {
   WISDOM_CANDIDATE: "wisdom_candidate", // v10.0.356 · gated wisdom · review queue
   WISDOM_CONTRADICTION: "wisdom_contradiction",
   REPLY_JUDGMENT: "reply_judgment", // v10.0.366 · LLM-as-judge eval scores
+  TRAJECTORY_JUDGMENT: "trajectory_judgment", // 2026-08-18 · GATE item #4 · action-sequence grades
   ADVERSARIAL_OBJECTION: "adversarial_objection", // v10.0.369 · counter-arguments to recommendations
   EVAL_RUN: "eval_run", // v10.0.370 · daily quality benchmark run results
   DOMAIN_KNOWLEDGE: "domain_knowledge", // v10.0.371 · extracted facts (semantic-kind in CoALA)

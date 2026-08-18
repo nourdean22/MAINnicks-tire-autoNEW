@@ -126,6 +126,20 @@ describe("BrainMemoryManager.remember", () => {
     expect(exp.getTime()).toBeLessThanOrEqual(after + ninetyDays + 50);
   });
 
+  it("trajectory_judgment (GATE #4) gets the same one-shot 90d treatment", async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
+    mocks.brainMemory.create.mockResolvedValueOnce({ id: "m-traj" });
+
+    const before = Date.now();
+    await mm.remember("trajectory_judgment", "traj_msg1", "Trajectory 8/10", "trajectory-grader");
+    const after = Date.now();
+
+    const exp = realCreateCalls()[0][0].data.expiresAt as Date;
+    const ninetyDays = 90 * 24 * 3600_000;
+    expect(exp.getTime()).toBeGreaterThanOrEqual(before + ninetyDays - 50);
+    expect(exp.getTime()).toBeLessThanOrEqual(after + ninetyDays + 50);
+  });
+
   it("rewrites a deprecated category to its canonical form before write", async () => {
     mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
     mocks.brainMemory.create.mockResolvedValueOnce({ id: "m2" });
