@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Brain, History, Mic, MicOff } from "lucide-react";
+import { ArrowDown, Brain, History, Mic, MicOff } from "lucide-react";
+import { isNearBottom } from "../lib/scroll-position";
 import { useChatUiStore } from "../stores/chat-ui-store";
 import { useChatStream } from "../hooks/use-chat-stream";
 import { resolveIslandHeight } from "../lib/island-height";
@@ -20,16 +21,39 @@ import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // 2026-08-18 · drives the jump-to-latest button. Same predicate as
+  // the auto-follow below (isNearBottom) so the button can never show
+  // while auto-follow is active, and vice versa.
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     let rafId: number | null = null;
+
+    const measure = () => {
+      const near = isNearBottom(
+        container.scrollHeight,
+        container.scrollTop,
+        container.clientHeight,
+      );
+      setIsAtBottom(near);
+      return near;
+    };
+
+    // Operator scrolling — the button's show/hide signal.
+    const onScroll = () => void measure();
+    container.addEventListener("scroll", onScroll, { passive: true });
+    measure();
+
+    // Content growth — auto-follow when near the bottom, and re-measure
+    // either way (streaming can push the bottom away without a single
+    // scroll event firing).
     const observer = new MutationObserver(() => {
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        if (container.scrollHeight - container.scrollTop - container.clientHeight < 150) {
+        if (measure()) {
           endRef.current?.scrollIntoView({ behavior: "smooth" });
         }
       });
@@ -37,11 +61,16 @@ function useScrollToBottom<T extends HTMLElement>() {
     observer.observe(container, { childList: true, subtree: true, characterData: true });
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
+      container.removeEventListener("scroll", onScroll);
       observer.disconnect();
     };
   }, []);
 
-  return { containerRef, endRef };
+  const scrollToBottom = useCallback(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, []);
+
+  return { containerRef, endRef, isAtBottom, scrollToBottom };
 }
 
 export function ChatIsland() {
@@ -69,7 +98,7 @@ export function ChatIsland() {
     setMessages: chat.setMessages,
     onError: (message) => console.error("useConversations error:", message),
   });
-  const { containerRef, endRef } = useScrollToBottom<HTMLDivElement>();
+  const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom<HTMLDivElement>();
   const islandRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -242,7 +271,12 @@ export function ChatIsland() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      {/* `relative` anchors the jump-to-latest button only — plain
+          relative creates no containing block for `position: fixed`
+          descendants (the voice overlay's `fixed inset-0` still anchors
+          to the viewport; only transform/filter would re-anchor it —
+          the state-aura 2545px lesson). */}
+      <div className="relative flex flex-1 overflow-hidden">
         <div ref={containerRef} className="flex-1 overflow-y-auto">
           <ChatMessageList
             messages={chat.messages}
@@ -256,6 +290,19 @@ export function ChatIsland() {
           />
           <div ref={endRef} />
         </div>
+        {/* Jump to latest — shows only once the operator has scrolled
+            away from the bottom (same isNearBottom predicate as the
+            auto-follow, so the two can never disagree). 48px circle =
+            the iOS-PWA touch-target floor. */}
+        {!isAtBottom && (
+          <button
+            onClick={scrollToBottom}
+            aria-label="Scroll to latest message"
+            className="absolute bottom-3 right-3 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge bg-void/90 text-fg-secondary shadow-lg backdrop-blur-xl transition-colors hover:text-fg active:scale-95"
+          >
+            <ArrowDown size={18} />
+          </button>
+        )}
         {isVoiceDocked && <RealtimeVoiceOverlay open={isVoiceDocked} onClose={toggleVoiceDock} />}
       </div>
 
