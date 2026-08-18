@@ -126,6 +126,28 @@ pnpm eval --filter=persona       # validate scenario schemas (free, CI-safe)
 pnpm eval:live --filter=persona  # replay the frozen suite (~1¢)
 ```
 
+## The fix slice (same day) — what the measurement then bought
+
+Operator ordered the two regressions fixed. The instrument earned its keep immediately:
+
+1. **Prompt rule first** (`CONFIRMATION_EXECUTES` in operator-rules.ts) — and the post-rule run
+   showed it **measurably did not fix retry** (1.1/10, rule verified present in the replay
+   prompt). Decisive lesson: an LLM re-GENERATES; it does not copy its prior turn.
+2. **Deterministic re-delivery interceptor** (`lib/ai/chat/redelivery.ts`, wired into the
+   production chat route's interceptor stage AND the eval runner, same exported classifier):
+   "app bugged, retry" / "resend that" re-serves the stored last assistant text verbatim, no
+   model call. Tight scope: bare "retry" without loss context, any modifier ("retry but
+   shorter"), and post-image turns all fall through to the model.
+3. **Harness fairness fix**: `contextSetup` was shown only to the judge — Nick was graded
+   against constraints he never saw. It now reaches Nick's system prompt in replay.
+
+**Result (full-stack run vs baseline): retry-means-retry 5.1 → 10.0 — fixed outright,
+structurally guaranteed. yes-executes 1.6 → 5.4 — direction fixed (dodge → committed intent),
+full fix in production is the tool loop itself, which replay can't execute (documented harness
+trade-off). Mean 7.7 → 8.0.** One new flag appeared, calibration-forecast 2.4: a point estimate
+with no likelihood band — the known weakest-trait failure surfacing stochastically, unrelated to
+this slice, and confirmation that calibration is the next behavior lever.
+
 ## Open items (deliberately not built)
 
 - GATE items **#4 trajectory grading** and **#6 tool-metadata-untrusted** — separate multi-day builds.

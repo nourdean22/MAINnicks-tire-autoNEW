@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  CONFIRMATION_EXECUTES,
   DO_NOT_AUTO_TASKIFY,
   NO_SYCOPHANCY,
   BREVITY_DEFAULT,
@@ -47,6 +48,38 @@ describe("operator-rules · DO_NOT_AUTO_TASKIFY (v10.0.391)", () => {
   it("instructs to ASK rather than fire when in doubt", () => {
     expect(DO_NOT_AUTO_TASKIFY.toLowerCase()).toContain("ask");
     expect(DO_NOT_AUTO_TASKIFY).toContain("want me to add");
+  });
+});
+
+describe("operator-rules · CONFIRMATION_EXECUTES (2026-08-18 · the two live regressions)", () => {
+  // Earned by measurement, not speculation: the persona golden set's
+  // live baseline flagged exactly these two behaviors, both promoted
+  // from real production failures, both reproducing across three runs.
+  it("makes a bare yes to Nick's own offer an execution order", () => {
+    expect(CONFIRMATION_EXECUTES).toContain('"Yes"');
+    expect(CONFIRMATION_EXECUTES.toLowerCase()).toContain("authorization");
+    expect(CONFIRMATION_EXECUTES).toContain("Execute THAT turn");
+  });
+
+  it("bans the dodge shapes the eval caught", () => {
+    expect(CONFIRMATION_EXECUTES.toLowerCase()).toContain("re-asking for inputs you already have");
+    expect(CONFIRMATION_EXECUTES.toLowerCase()).toContain("restating caveats");
+  });
+
+  it("keeps the honest-inability escape hatch (never dressed as policy)", () => {
+    expect(CONFIRMATION_EXECUTES.toLowerCase()).toContain("real blocker");
+    expect(CONFIRMATION_EXECUTES.toLowerCase()).toContain("closest real path");
+  });
+
+  it("makes retry a re-delivery of the SAME deliverable", () => {
+    expect(CONFIRMATION_EXECUTES).toContain('"Retry"');
+    expect(CONFIRMATION_EXECUTES).toContain("RE-DELIVERY");
+    expect(CONFIRMATION_EXECUTES).toContain("SAME deliverable");
+    expect(CONFIRMATION_EXECUTES.toLowerCase()).toContain("expanded content");
+  });
+
+  it("is injected into the policy block", () => {
+    expect(getOperatorPolicyBlock()).toContain("CONFIRMATION EXECUTES");
   });
 });
 
