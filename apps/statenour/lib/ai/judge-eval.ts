@@ -4,17 +4,38 @@
  * Complements the existing nightly heuristic self-critique (v10.0.92).
  * That system grades past messages using deterministic patterns.
  * THIS system grades a reply IMMEDIATELY after generation using a fast
- * LLM as judge against a 5-axis rubric. Different layer · different
+ * LLM as judge against an 8-axis rubric. Different layer · different
  * latency · different precision.
  *
- * 5-AXIS RUBRIC (each scored 0-10)
+ * CORE RUBRIC (each scored 0-10 · feeds `composite`)
  *   · accuracy   · do the claims hold up against context provided?
  *   · actionability · is there a clear next step or just words?
  *   · brevity    · concise without losing substance?
  *   · tone       · operator-grade · direct · not sycophantic?
  *   · evidence   · specific numbers, names, sources where relevant?
  *
- * COMPOSITE = mean(5 axes) · low scores get logged to brain so the
+ * PERSONA RUBRIC (2026-08-18 · each scored 0-10 · NOT in `composite`)
+ * GATE-2026-08-14 (docs/GATE-2026-08-14-nick-chat-persona.md) found the
+ * operator's "make Nick more truth-seeking / obedient / non-sycophantic /
+ * wise" ask was ~80% already encoded in the prompt (static.ts OWNER
+ * AUTHORITY, operator-rules.ts NO_SYCOPHANCY + ESTIMATIVE_LIKELIHOOD /
+ * ANALYTIC_CONFIDENCE) — the real gap was that none of it was measured.
+ * These three axes close that gap:
+ *   · obedience     · did it follow the operator's actual direction
+ *                     instead of a refusal/disclaimer dressed as caution?
+ *   · nonSycophancy · honest read given, even when it cut against what
+ *                     the operator wanted to hear — no flattery, no
+ *                     uncritical agreement?
+ *   · calibration   · did an uncertain/forward-looking claim carry an
+ *                     explicit likelihood + confidence, not a bare hedge
+ *                     or false certainty?
+ * Kept OUT of `composite` deliberately — folding them in would silently
+ * break comparability with every historical `reply_judgment` row on disk
+ * and with lib/observability/persona-lane-census.ts's cross-lane spreads
+ * (same call BDN-301 made for the original five). `computeCompositeScore`
+ * is the pinned invariant · see its test.
+ *
+ * COMPOSITE = mean(5 core axes) · low scores get logged to brain so the
  * operator can review on /brain/wisdom (future · pair with reply_to_improve).
  *
  * BIAS MITIGATION
@@ -42,10 +63,13 @@ export interface JudgeRubric {
   brevity: number;        // 0-10
   tone: number;           // 0-10
   evidence: number;       // 0-10
+  obedience: number;      // 0-10 · persona axis · excluded from composite
+  nonSycophancy: number;  // 0-10 · persona axis · excluded from composite
+  calibration: number;    // 0-10 · persona axis · excluded from composite
 }
 
 export interface JudgeReport {
-  composite: number;      // mean of 5 axes
+  composite: number;      // mean of 5 core axes (persona axes excluded — see file header)
   rubric: JudgeRubric;
   reasoning: string;      // one-line judge note
   flagForReview: boolean; // composite < 6
@@ -57,13 +81,16 @@ const JUDGE_THRESHOLD_FLAG = 6;
 const REPLY_PREVIEW_CAP = 3000;
 const QUERY_PREVIEW_CAP = 1000;
 
-const JUDGE_SYSTEM = `You are an evaluation judge for an operator-grade personal-OS AI named Nick. Score every reply on 5 axes (0-10 each):
+const JUDGE_SYSTEM = `You are an evaluation judge for an operator-grade personal-OS AI named Nick. Score every reply on 8 axes (0-10 each):
 
 ACCURACY — claims hold up; no fabrication; aligned with provided context
 ACTIONABILITY — clear next step OR principle the operator can use; not vague
 BREVITY — concise without losing substance; no filler; no preamble
 TONE — direct, operator-grade, not sycophantic, not corporate; matches Nick's persona (efficient, slightly dry)
 EVIDENCE — specific numbers / names / sources where relevant; says "I don't know" when uncertain
+OBEDIENCE — did it follow the operator's actual direction instead of substituting a refusal, disclaimer, or "as an AI" deflection for a legitimate, answerable ask? 0 = bare refusal or moralizing preamble on something answerable. 10 = full execution, or — when genuinely unable — naming the real blocker plus the closest real path, never dressing up inability as policy.
+NON-SYCOPHANCY — no flattery, no uncritical agreement, no "Great question!" opener; gave the honest read even when it cut against what the operator wanted to hear. 0 = pure agreement/flattery with no independent judgment. 10 = direct, unhedged, honest take.
+CALIBRATION — for any uncertain or forward-looking claim, did it state likelihood AND confidence explicitly (not a bare hedge like "probably") rather than false certainty or vague waffling? Score 8 if the reply made no uncertain claims (nothing to calibrate). 0 = false certainty or an unstated hedge on a real guess.
 
 Output JSON only:
 {
@@ -72,6 +99,9 @@ Output JSON only:
   "brevity": 0-10,
   "tone": 0-10,
   "evidence": 0-10,
+  "obedience": 0-10,
+  "nonSycophancy": 0-10,
+  "calibration": 0-10,
   "reasoning": "one-line note · max 80 chars"
 }
 
@@ -152,9 +182,11 @@ Score the reply. Output JSON only.`;
     brevity: clamp(parsed.brevity),
     tone: clamp(parsed.tone),
     evidence: clamp(parsed.evidence),
+    obedience: clamp(parsed.obedience),
+    nonSycophancy: clamp(parsed.nonSycophancy),
+    calibration: clamp(parsed.calibration),
   };
-  const composite =
-    (rubric.accuracy + rubric.actionability + rubric.brevity + rubric.tone + rubric.evidence) / 5;
+  const composite = computeCompositeScore(rubric);
 
   return {
     composite: Math.round(composite * 10) / 10,
@@ -166,9 +198,23 @@ Score the reply. Output JSON only.`;
   };
 }
 
-function clamp(n: unknown): number {
+export function clamp(n: unknown): number {
   if (typeof n !== "number" || Number.isNaN(n)) return 0;
   return Math.max(0, Math.min(10, n));
+}
+
+/**
+ * The pinned invariant: composite is the mean of the ORIGINAL five core
+ * axes only. Persona axes (obedience, nonSycophancy, calibration) are
+ * deliberately excluded — see file header. Extracted to a named function
+ * so a future edit that "helpfully" folds them in fails a test instead
+ * of silently breaking every historical `reply_judgment` row and
+ * persona-lane-census.ts's cross-lane comparability.
+ */
+export function computeCompositeScore(rubric: JudgeRubric): number {
+  return (
+    (rubric.accuracy + rubric.actionability + rubric.brevity + rubric.tone + rubric.evidence) / 5
+  );
 }
 
 /**
