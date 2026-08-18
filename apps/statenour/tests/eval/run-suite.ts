@@ -223,8 +223,21 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
         error: `provider sentinel (${result.provider}) — transient chain failure, not a Nick reply`,
       };
     }
+    // 2026-08-18 · calibration lever, same single-source layer the
+    // production persist path runs (lib/ai/chat/calibration-enforcer):
+    // forecast-shaped ask + no likelihood band -> elicit-or-notice. The
+    // suite replays the system, not the bare model.
+    let text = (result.content ?? "").trim();
+    try {
+      const { enforceCalibration } = await import("@/lib/ai/chat/calibration-enforcer");
+      const lastUser = [...scenario.input.messages].reverse().find((m) => m.role === "user");
+      const calibrated = await enforceCalibration(lastUser?.content ?? "", text);
+      text = calibrated.text;
+    } catch {
+      // fail-open — the eval grades whatever the layer produced or didn't
+    }
     return {
-      response: (result.content ?? "").trim(),
+      response: text,
       error: null,
     };
   } catch (err) {
