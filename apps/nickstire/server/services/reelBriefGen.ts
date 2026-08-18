@@ -249,16 +249,54 @@ export function parseReelJson(raw: string): Record<string, unknown> {
         `Reel brief JSON is TRUNCATED (braces ${opens}/${closes}, brackets ${arrOpens}/${arrCloses}) — the model hit its output-token budget mid-structure. Raise maxTokens for this call.`,
       );
     }
-    // NON-JSON CONTENT: name what actually arrived. JSON.parse's own error shows
-    // ~10 characters ("Unexpected token 'A', \"Aborted: c\"...") - measured
-    // 2026-08-18, when the provider returned HTTP 200 whose CONTENT was a plain
-    // "Aborted: c..." string and three cron ticks failed with an error that hid
-    // the very text needed to diagnose it. The raw head is data the operator
-    // already paid for; the error must carry it.
-    throw new Error(
-      `Reel brief content is NOT JSON. Raw head (first 200 chars): ${JSON.stringify(s.slice(0, 200))} - parser said: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    // NON-JSON CONTENT: name what actually arrived - WITHOUT echoing it blindly.
+    // JSON.parse's own error shows ~10 characters ("Unexpected token 'A',
+    // \"Aborted: c\"..."), which hid the diagnosis behind six live probes on
+    // 2026-08-18. The first fix quoted the raw head verbatim; P1 review (#1676)
+    // caught what that trades away: a malformed model response often ECHOES the
+    // prompt, this generator's prompts carry grounded customer review text and
+    // reviewer names, and daily-reel-post persists thrown messages into cron_log
+    // - so a parse failure could have written customer PII into diagnostic logs.
+    //
+    // ALLOWLIST, not masking: only content matching known INFRASTRUCTURE shapes
+    // (provider aborts, model refusals, HTML error pages, JSON-ish error bodies)
+    // is quoted verbatim - those are the strings worth reading and they are not
+    // user content. Everything else reduces to a classification plus structural
+    // stats, with ZERO raw text, because a redactor that tries to mask names
+    // inside arbitrary prose only has to miss once. Both of the day's real
+    // catches ("Aborted: c..." and "I cannot p...") pass the allowlist whole.
+    throw new Error(`Reel brief content is NOT JSON. ${describeNonJsonContent(s)} - parser said: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+/**
+ * Diagnostic description of non-JSON LLM content that is SAFE to persist in
+ * logs. Infrastructure-shaped heads are quoted verbatim; anything that could be
+ * echoed prompt content (which may contain customer PII) is described only
+ * structurally. Exported for tests.
+ */
+export function describeNonJsonContent(raw: string): string {
+  const head = raw.slice(0, 200);
+  // Shapes produced by providers/gateways/models-about-themselves - never by
+  // grounded shop content. Anchored at the start of the content.
+  const INFRA_SHAPES: RegExp[] = [
+    /^Aborted[:.]/i,
+    /^(I can(?:no|')t|I cannot|I'm sorry|I am sorry|I'm unable|I am unable|As an AI)/i,
+    /^\s*<(!DOCTYPE|html|head|body)/i,
+    /^\s*\{\s*"(error|detail|message)"/i,
+    /^(Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|Too Many Requests|Request Entity Too Large)/i,
+    /^(Error|TypeError|RangeError|FetchError|AbortError)\b/,
+  ];
+  if (INFRA_SHAPES.some((re) => re.test(head))) {
+    return `Infrastructure text in place of JSON. Head (first 200 chars): ${JSON.stringify(head)}`;
+  }
+  const braces = (raw.match(/{/g) || []).length;
+  const closes = (raw.match(/}/g) || []).length;
+  const fence = raw.includes("\u0060\u0060\u0060") || raw.includes("```");
+  return (
+    `Unrecognized non-JSON content - raw text withheld from logs because it may echo grounded prompt content ` +
+    `(len=${raw.length}, braces=${braces}/${closes}, fenced=${fence}, firstCharCode=${raw.length ? raw.charCodeAt(0) : -1})`
+  );
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));

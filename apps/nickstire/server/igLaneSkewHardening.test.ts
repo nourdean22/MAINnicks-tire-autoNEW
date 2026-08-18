@@ -81,3 +81,38 @@ describe("the comment responder's first-hour bonus is computed by the database",
     expect(src).not.toMatch(/const pubDate = job\.publishedAt/);
   });
 });
+
+describe("non-JSON LLM content is described PII-safely (P1, #1676)", () => {
+  // A malformed model response often echoes the prompt, and reel prompts carry
+  // grounded customer review text - so the raw head must only be quoted when it
+  // matches a known INFRASTRUCTURE shape. Everything else: stats, zero raw text.
+  it("infrastructure shapes are quoted verbatim - the day's two real catches", async () => {
+    const { describeNonJsonContent } = await import("./services/reelBriefGen");
+    expect(describeNonJsonContent("Aborted: context canceled")).toContain("Aborted: context canceled");
+    expect(describeNonJsonContent("I cannot produce that brief because...")).toContain("I cannot produce");
+    expect(describeNonJsonContent('{"error":"rate limited"}')).toContain("rate limited");
+    expect(describeNonJsonContent("<html><body>502</body></html>")).toContain("<html>");
+  });
+
+  it("anything else is withheld - a review echo must not reach cron_log", async () => {
+    const { describeNonJsonContent } = await import("./services/reelBriefGen");
+    const echo = "Reviewer Jane D. said: my brakes ground metal on metal near Parma, call me at 216-555-0134";
+    const out = describeNonJsonContent(echo);
+    expect(out).not.toContain("Jane");
+    expect(out).not.toContain("216");
+    expect(out).toContain("withheld");
+    expect(out).toContain(`len=${echo.length}`);
+  });
+
+  it("the parse error path routes through the safe description", async () => {
+    const { parseReelJson } = await import("./services/reelBriefGen");
+    let msg = "";
+    try {
+      parseReelJson("Customer Bob Smith complained about squealing");
+    } catch (e) {
+      msg = e instanceof Error ? e.message : String(e);
+    }
+    expect(msg).toContain("NOT JSON");
+    expect(msg).not.toContain("Bob Smith");
+  });
+});
