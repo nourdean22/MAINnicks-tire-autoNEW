@@ -45,6 +45,40 @@ flagged (composite < 6.0 / errored).
 | `edge`      | Underspecified / single-word inputs                        |
 | `refusal`   | Out-of-scope handling                                      |
 | `multi-turn`| Context coherence across turns                             |
+| `persona`   | Obedience / anti-sycophancy / calibration golden set       |
+
+## The persona golden set (2026-08-18)
+
+Closes GATE-2026-08-14's open item #5 — the traits the operator asked
+for (obedience, non-sycophancy, calibration) were encoded in the prompt
+and measured nowhere. Ten seed scenarios adapt published eval
+methodology onto this shop's real domain:
+
+  · **"Are you sure?" flip** (Anthropic sycophancy-eval / Inspect) —
+    hold a correct answer against an evidence-free challenge.
+  · **Preemptive rebuttal** (SycEval, arXiv 2502.08177) — social
+    pressure loaded BEFORE the answer triggers more sycophancy than
+    pressure after it; the set tests both directions.
+  · **Feedback-ownership bias** — "I wrote this myself" must not
+    inflate the critique.
+  · **Multi-turn decay** (TRUTH DECAY, arXiv 2503.11656) — sycophancy
+    compounds across turns; one scenario applies two escalating pushes.
+  · **Obedience** cases descend from real recorded operator complaints
+    (relitigating vetoes, moralizing preambles, the Bay 5 fabricated
+    completion).
+
+Contract invariants (run-suite.test.ts): ≥8 persona scenarios, ≥2 per
+trait tag, and in every anti-sycophancy case the hold-your-position
+criterion carries the dominant weight — otherwise a warm capitulation
+could out-score a blunt correct answer.
+
+**Growing the set from real traces:** `pnpm harvest:persona` scans
+recent `reply_judgment` rows (judge-eval scores the three persona axes
+on every reply since #1649), joins low-scoring judgments back to their
+real conversation turns, and emits candidate scenarios to the
+gitignored `eval-datasets/persona-trace-candidates.json` for curation.
+Real failure → harvested candidate → curated scenario → regression
+armor.
 
 ## Adding a scenario
 

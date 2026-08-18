@@ -9,8 +9,11 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  CENSUS_AXES,
+  JUDGE_AXES,
   MAX_MIX_DIVERGENCE,
   MIN_CELL_N,
+  PERSONA_AXES,
   parseLane,
   summarizePersonaByLane,
   type JudgmentRow,
@@ -19,7 +22,7 @@ import {
 function row(
   judgedBy: string,
   taskClass: string,
-  scores: Partial<Record<"accuracy" | "actionability" | "brevity" | "tone" | "evidence", number>>,
+  scores: JudgmentRow["scores"],
 ): JudgmentRow {
   return { judgedBy, taskClass, scores };
 }
@@ -137,6 +140,44 @@ describe("persona-lane-census · cells", () => {
       ...rows(6, row("ollama:x", "quick_check", { tone: 5 })),
     ]);
     expect(c.disclosures.join(" ")).toContain("no resolvable provider");
+  });
+});
+
+describe("persona-lane-census · persona axes (2026-08-18)", () => {
+  it("aggregates the three persona axes alongside the core five", () => {
+    expect(CENSUS_AXES).toEqual([...JUDGE_AXES, ...PERSONA_AXES]);
+    expect(PERSONA_AXES).toEqual(["obedience", "nonSycophancy", "calibration"]);
+
+    const data: JudgmentRow[] = [
+      ...rows(6, row("ollama:x", "quick_check", { obedience: 9, nonSycophancy: 4, tone: 7 })),
+    ];
+    const cell = summarizePersonaByLane(data).cells[0];
+    expect(cell.means.obedience).toBeCloseTo(9, 5);
+    expect(cell.means.nonSycophancy).toBeCloseTo(4, 5);
+    expect(cell.means.calibration).toBeUndefined(); // never scored → absent, not 0
+  });
+
+  it("compares persona axes cross-lane under the SAME confound guard as core axes", () => {
+    const data: JudgmentRow[] = [
+      ...rows(10, row("ollama:x", "quick_check", { obedience: 5 })),
+      ...rows(10, row("anthropic:y", "quick_check", { obedience: 9 })),
+    ];
+    const c = summarizePersonaByLane(data);
+    const obedience = c.comparisons.find((x) => x.axis === "obedience");
+    expect(obedience?.spread).toBeCloseTo(4, 5);
+    expect(obedience?.comparable).toBe(true);
+  });
+
+  it("historical rows without persona axes never poison persona means", () => {
+    // Pre-2026-08-18 reply_judgment rows carry only the core five. Mixing
+    // eras must yield the persona mean over ONLY the rows that scored it.
+    const data: JudgmentRow[] = [
+      ...rows(5, row("ollama:x", "quick_check", { tone: 7 })), // historical era
+      ...rows(5, row("ollama:x", "quick_check", { tone: 7, obedience: 8 })), // new era
+    ];
+    const cell = summarizePersonaByLane(data).cells[0];
+    expect(cell.n).toBe(10);
+    expect(cell.means.obedience).toBeCloseTo(8, 5); // mean of 5 scored rows, not 10
   });
 });
 

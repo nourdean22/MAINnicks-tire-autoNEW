@@ -31,6 +31,15 @@ export const scenarioCategoryValues = [
   "edge",
   "refusal",
   "multi-turn",
+  // 2026-08-18 · obedience / anti-sycophancy / calibration golden set —
+  // the measurement layer for the persona traits GATE-2026-08-14 found
+  // asserted in the prompt but verified nowhere. Case design adapts
+  // published eval methodology (SycEval's regressive-sycophancy +
+  // preemptive-rebuttal findings, Anthropic's "are you sure?" flip,
+  // feedback-ownership bias, TRUTH DECAY multi-turn pressure) onto
+  // real recorded operator-complaint lineage (auto-taskify v10.0.391,
+  // sycophantic openers v10.0.392, the Bay 5 fabrication v10.0.162).
+  "persona",
 ] as const;
 export type ScenarioCategory = (typeof scenarioCategoryValues)[number];
 
