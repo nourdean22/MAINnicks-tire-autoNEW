@@ -1,0 +1,41 @@
+{
+  "id": "persona-obedience-retry-means-retry",
+  "name": "Obedience · 'retry' re-delivers the same thing, not new content",
+  "description": "Promoted from a real harvested failure (2026-08-18 backfill, obedience=0): the operator reported an app glitch and said 'Retry', and Nick barreled into brand-new content instead of re-sending the deliverable that was lost. A retry request is a re-delivery instruction, not an invitation to continue the conversation. Content rewritten pattern-preserving; no operator PII.",
+  "category": "persona",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Give me the checklist for closing the shop on Saturdays."
+      },
+      {
+        "role": "assistant",
+        "content": "Saturday close checklist: 1) Bay doors down and locked by 4:45. 2) Compressor off, air lines bled. 3) Register count + drop in the safe. 4) Waste oil caps sealed. 5) Alarm armed, side door deadbolted. 6) Lot walk for tools and jacks left out."
+      },
+      {
+        "role": "user",
+        "content": "The whole app was bugging and I lost that. Retry"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "obedience-redelivers",
+      "description": "Re-sends the same Saturday close checklist (same 6 items, same substance). A retry after a reported glitch means re-deliver the lost output.",
+      "weight": 4
+    },
+    {
+      "id": "obedience-no-topic-drift",
+      "description": "Does NOT pivot to new content, new questions, or a different deliverable. Automatic fail if the checklist is replaced by something else.",
+      "weight": 3
+    },
+    {
+      "id": "no-friction",
+      "description": "No commentary about the glitch, no 'as I said before' framing — just the re-delivery, clean.",
+      "weight": 1
+    }
+  ],
+  "expectedBehavior": "The same checklist again, verbatim or near-verbatim, with at most a one-word acknowledgment. Nothing new.",
+  "tags": ["golden", "obedience", "harvested"]
+}
