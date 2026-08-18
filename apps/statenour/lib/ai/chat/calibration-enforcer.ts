@@ -41,7 +41,11 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
-import { parseEstimative } from "@/lib/ai/vnext/truth/estimative";
+import {
+  bandForProbability,
+  parseEstimative,
+  type ConfidenceLevel,
+} from "@/lib/ai/vnext/truth/estimative";
 import { needsCalibration } from "@/lib/ai/vnext/truth/forecast-detector";
 
 const log = rootLogger.withSurface("ai/calibration-enforcer");
@@ -76,11 +80,15 @@ ODNI bands: almost no chance / very unlikely / unlikely / roughly even chance / 
 
 NO preamble. NO restating the prediction. ONE line starting with "Calibration:".`;
 
-async function _elicitCalibration(args: {
-  userQuery: string;
-  replyText: string;
-}): Promise<string | null> {
-  const { aiChat } = await import("@/lib/ai/provider");
+type AiChatFn = (typeof import("@/lib/ai/provider"))["aiChat"];
+
+async function _elicitCalibration(
+  aiChat: AiChatFn,
+  args: {
+    userQuery: string;
+    replyText: string;
+  },
+): Promise<string | null> {
   const result = await aiChat(
     [
       { role: "system", content: ELICIT_SYSTEM },
@@ -118,11 +126,129 @@ async function _elicitCalibration(args: {
   return null;
 }
 
-const elicitCalibration = withGuardian("calibration-enforcer", _elicitCalibration, {
-  // 6s, matched to observed classify-profile latency (~1-4s on the
-  // Ollama lane; judge-eval runs 8s). The first live run's 3s starved
-  // real elicitations into the fallback path.
-  timeoutMs: 6_000,
+// ── k-sample aggregation (2026-08-18 upgrade) ────────────────────────
+//
+// The consistency literature's core result: agreement across k
+// independent samples tracks correctness better than any single
+// verbalized claim (black-box friendly — no logits needed). So for
+// k > 1 the layer samples the elicitation k times CONCURRENTLY and
+// aggregates:
+//   · likelihood = MEDIAN of the valid samples' percentages (robust to
+//     one outlier sample in a way the mean is not)
+//   · confidence = the MORE CONSERVATIVE of (a) inter-sample dispersion
+//     mapped to a level (tight agreement ≤10pts → high, ≤25 → moderate,
+//     else low) and (b) the median stated confidence — dispersion may
+//     DOWNGRADE the model's self-report, never inflate it. Confidence
+//     still grades evidence; agreement is its proxy, not its override.
+//   · band label = bandForProbability(median), so the footer's words
+//     and its number can never disagree.
+//
+// Operator note: this shipped on explicit order ahead of the Brier
+// evidence gate the arc doc recorded — their call; k× cost is pennies.
+// NICK_CALIBRATION_K (default 3, clamp 1..5); k=1 degrades to the
+// single-shot behavior exactly.
+
+const K_DEFAULT = 3;
+const K_MAX = 5;
+
+export function getCalibrationK(): number {
+  const raw = Number(process.env.NICK_CALIBRATION_K ?? K_DEFAULT);
+  if (!Number.isInteger(raw)) return K_DEFAULT;
+  return Math.max(1, Math.min(K_MAX, raw));
+}
+
+const CONF_RANK: Record<ConfidenceLevel, number> = { low: 0, moderate: 1, high: 2 };
+
+export interface CalibrationSample {
+  likelihood: number; // 0..1
+  confidence: ConfidenceLevel;
+  /** The "— <weakness>" tail of the sample line, when present. */
+  weakness: string | null;
+}
+
+export interface AggregatedCalibration {
+  likelihood: number;
+  confidence: ConfidenceLevel;
+  bandLabel: string;
+  weakness: string | null;
+  validCount: number;
+  /** Max−min of sample percentages, in points. 0 when only one sample. */
+  spreadPts: number;
+}
+
+/** Pure — exported for tests. Returns null when no samples are valid. */
+export function aggregateSamples(
+  samples: readonly CalibrationSample[],
+): AggregatedCalibration | null {
+  if (samples.length === 0) return null;
+
+  const sorted = [...samples].sort((a, b) => a.likelihood - b.likelihood);
+  const mid = Math.floor(sorted.length / 2);
+  const likelihood =
+    sorted.length % 2 === 1
+      ? sorted[mid].likelihood
+      : (sorted[mid - 1].likelihood + sorted[mid].likelihood) / 2;
+
+  const spreadPts =
+    Math.round((sorted[sorted.length - 1].likelihood - sorted[0].likelihood) * 100 * 10) / 10;
+
+  const dispersionConf: ConfidenceLevel =
+    samples.length < 2 ? "high" : spreadPts <= 10 ? "high" : spreadPts <= 25 ? "moderate" : "low";
+  const statedSorted = [...samples].sort(
+    (a, b) => CONF_RANK[a.confidence] - CONF_RANK[b.confidence],
+  );
+  // Lower-middle on even counts — ties in stated confidence resolve
+  // CONSERVATIVELY, matching the min() below. [moderate, high] reads
+  // as moderate, never high.
+  const statedMedian = statedSorted[Math.floor((statedSorted.length - 1) / 2)].confidence;
+  const confidence =
+    CONF_RANK[dispersionConf] < CONF_RANK[statedMedian] ? dispersionConf : statedMedian;
+
+  const band = bandForProbability(likelihood);
+  return {
+    likelihood,
+    confidence,
+    bandLabel: band?.label ?? "",
+    weakness: samples.find((s) => s.weakness)?.weakness ?? null,
+    validCount: samples.length,
+    spreadPts,
+  };
+}
+
+function sampleFromLine(line: string): CalibrationSample | null {
+  const reading = parseEstimative(line);
+  if (!reading.tagged || reading.likelihood === null || reading.confidence === null) return null;
+  const weakness = /—\s*(.{3,80})$/.exec(line)?.[1]?.trim() ?? null;
+  return { likelihood: reading.likelihood, confidence: reading.confidence, weakness };
+}
+
+async function _elicitAggregate(args: {
+  userQuery: string;
+  replyText: string;
+  k: number;
+}): Promise<AggregatedCalibration | null> {
+  // Import ONCE, then fan out. Three concurrent first-time dynamic
+  // imports of the same module raced vitest's mock registry (one shot
+  // got the mock, two escaped to the real provider) — and a single
+  // import is simply less work either way.
+  const { aiChat } = await import("@/lib/ai/provider");
+  const shots = await Promise.all(
+    Array.from({ length: args.k }, () =>
+      _elicitCalibration(aiChat, args).catch(() => null),
+    ),
+  );
+  const samples = shots
+    .filter((l): l is string => typeof l === "string")
+    .map(sampleFromLine)
+    .filter((s): s is CalibrationSample => s !== null);
+  return aggregateSamples(samples);
+}
+
+const elicitAggregate = withGuardian("calibration-enforcer", _elicitAggregate, {
+  // Samples run concurrently, so wall-clock ≈ the slowest single call;
+  // 9s covers a slow classify shot (judge-eval runs 8s). The first live
+  // run's 3s starved real elicitations into the fallback path.
+  timeoutMs: 9_000,
   maxRetries: 0,
   reliabilityOnly: true,
 });
@@ -148,11 +274,16 @@ export async function enforceCalibration(
   const verdict = needsCalibration(userQuery, replyText);
   if (!verdict.needed) return { text: replyText, action: "skipped", skipReason: verdict.reason };
 
+  const k = getCalibrationK();
   try {
-    const line = await elicitCalibration({ userQuery, replyText });
-    if (line) {
-      log.info("calibration_elicited", { line: line.slice(0, 120) });
-      const body = line.replace(/^calibration:\s*/i, "");
+    const agg = await elicitAggregate({ userQuery, replyText, k });
+    if (agg) {
+      const pct = Math.round(agg.likelihood * 100);
+      const kNote =
+        k > 1 ? ` (k=${k} · ${agg.validCount} valid${agg.validCount >= 2 ? ` · spread ${agg.spreadPts}pts` : ""})` : "";
+      const weakness = agg.weakness ? ` — ${agg.weakness}` : "";
+      const body = `${agg.bandLabel} [~${pct}% · conf: ${agg.confidence}]${weakness}${kNote}`;
+      log.info("calibration_elicited", { k, valid: agg.validCount, spreadPts: agg.spreadPts, pct });
       return { text: `${replyText}\n\n_${CALIBRATION_MARKER}] ${body}_`, action: "elicited" };
     }
   } catch (err) {
