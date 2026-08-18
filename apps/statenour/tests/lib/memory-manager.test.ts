@@ -108,6 +108,24 @@ describe("BrainMemoryManager.remember", () => {
     expect(exp.getTime()).toBeLessThanOrEqual(after + 24 * 3600_000 + 50);
   });
 
+  it("gives one-shot record categories their TTL policy, not the 24h probation", async () => {
+    // 2026-08-18 · reply_judgment keys (`judge_<messageId>`) are written
+    // exactly once — the 24h-until-reinforced probation was erasing every
+    // judgment within a day (witnessed: 22/200 recent replies still had
+    // rows). Records take category-ttl (reply_judgment → 90d) at create.
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
+    mocks.brainMemory.create.mockResolvedValueOnce({ id: "m-judge" });
+
+    const before = Date.now();
+    await mm.remember("reply_judgment", "judge_msg1", "Score 7.4/10", "judge-eval");
+    const after = Date.now();
+
+    const exp = realCreateCalls()[0][0].data.expiresAt as Date;
+    const ninetyDays = 90 * 24 * 3600_000;
+    expect(exp.getTime()).toBeGreaterThanOrEqual(before + ninetyDays - 50);
+    expect(exp.getTime()).toBeLessThanOrEqual(after + ninetyDays + 50);
+  });
+
   it("rewrites a deprecated category to its canonical form before write", async () => {
     mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
     mocks.brainMemory.create.mockResolvedValueOnce({ id: "m2" });
