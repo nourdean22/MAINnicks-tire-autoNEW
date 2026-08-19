@@ -15,15 +15,21 @@
 >   outcomeUseful:false on an operator-confirmed-TRUE claim). rateDiscovery "noise" is
 >   the first writer; "known"/"investigate" deliberately write NO outcome (known is a
 >   novelty defect on a true claim — an outcome:false would poison the accuracy harvest).
-> - **Task completion teaches** — completion moment asks ONE question: the todo-desk
->   finish action opens an outcome dialog (confirm-dialog idiom, iOS-PWA-safe, 1-tap
->   chips OUTSTANDING→FAILED + optional lesson, "just done" skips). Transport runs the
->   whole PATCH path: taskUpdateSchema → updateTask completion delegation → checkTask →
->   `RATING_MULTIPLIER` (1.25/1.0/0.6/0.3) scales the domain bump, `outcomeLesson`
->   upserts a `task_lesson` BrainMemory (direct prisma — remember()'s 24h probation
->   erases one-shot keys) + embedding, and an OUTSTANDING/SATISFACTORY vs
->   SUBSTANDARD/FAILED rating lands the ledger outcome by title hash. DAILY rows keep
->   the LATEST completion's judgment (review: the pair was silently dropped).
+> - **Task completion teaches** — completion moment asks ONE question on the LIVE
+>   surface: /missions handleCompleteTask (board + Execution Mode, verified live on
+>   prod) opens an outcome dialog (confirm-dialog idiom, iOS-PWA-safe, 1-tap chips
+>   OUTSTANDING→FAILED + optional lesson). ★ #1714 correction: the first producer went
+>   into the todo-desk, which is UNMOUNTED dead code (TodayZone has no importers) —
+>   caught by post-merge zero-write prod verification; today-zone.tsx now carries an
+>   UNMOUNTED header. Prompt calibrated against the fatigue literature (Apple 3/365d
+>   review-prompt cap, ESM compliance decay, Complice/Intend batch reflection):
+>   recurring loops never prompt, and dismissal COMPLETES unrated — never gates the
+>   primary action. Transport runs the whole PATCH path: taskUpdateSchema → updateTask
+>   completion delegation → checkTask → `RATING_MULTIPLIER` (1.25/1.0/0.6/0.3) scales
+>   the domain bump, `outcomeLesson` upserts a `task_lesson` BrainMemory (direct
+>   prisma — remember()'s 24h probation erases one-shot keys) + embedding, and an
+>   OUTSTANDING/SATISFACTORY vs SUBSTANDARD/FAILED rating lands the ledger outcome by
+>   title hash. DAILY rows keep the last RATED completion's judgment.
 > - **Reasoning conclusions re-enter recall** — persistTrace fire-and-forgets a
 >   distilled `reasoning_conclusion` companion ("Reasoned (tier): Q → concluded: A",
 >   embedded, 90d TTL via data-cleanup). Companion CATEGORY keeps budget.ts honest

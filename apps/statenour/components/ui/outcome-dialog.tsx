@@ -13,14 +13,21 @@
  *
  * Speed contract: rating a completion costs ONE tap — the chips resolve
  * immediately, carrying whatever lesson text is in the box. "just done"
- * completes without a rating (lesson still carried if typed). Escape /
- * outside-click cancels the whole completion (null), matching
- * usePromptDialog's null-means-cancel convention.
+ * resolves {rating:null} (lesson still carried if typed). Escape /
+ * outside-click resolves null — "dismissed without answering".
+ *
+ * ★ Callers MUST treat null as complete-unrated, never as cancel. The
+ * prompt-fatigue literature (Apple review-prompt caps, ESM compliance
+ * decay) is unambiguous: gating the primary action on a rating prompt
+ * punishes dismissal and breeds reflexive garbage ratings — which then
+ * poison the mastery multiplier. Also: don't prompt recurring loops.
  *
  *   const { collectOutcome, dialog } = useOutcomeDialog();
  *   const outcome = await collectOutcome({ title: "how did it go?" });
- *   if (outcome === null) return; // cancelled — don't complete
- *   complete({ outcomeRating: outcome.rating, outcomeLesson: outcome.lesson });
+ *   complete({
+ *     outcomeRating: outcome?.rating ?? undefined,   // null → unrated
+ *     outcomeLesson: outcome?.lesson ?? undefined,
+ *   });
  */
 
 import * as React from "react";

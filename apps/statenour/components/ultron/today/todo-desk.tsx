@@ -214,16 +214,16 @@ export function TodoDesk() {
 
   const start = (id: string) => patchTask(id, { status: "DOING" }, "started");
   const finish = async (id: string) => {
-    // One tap on a rating chip (or "just done") completes; escape/outside
-    // cancels the completion entirely — the task stays where it was.
+    // One tap on a rating chip (or "just done") completes with the rating;
+    // escape/outside completes UNRATED — never gate the primary action on
+    // the prompt (see outcome-dialog.tsx header for the fatigue evidence).
     const outcome = await collectOutcome({ title: "how did it go?" });
-    if (outcome === null) return;
     await patchTask(
       id,
       {
         status: "DONE",
-        ...(outcome.rating ? { outcomeRating: outcome.rating } : {}),
-        ...(outcome.lesson ? { outcomeLesson: outcome.lesson } : {}),
+        ...(outcome?.rating ? { outcomeRating: outcome.rating } : {}),
+        ...(outcome?.lesson ? { outcomeLesson: outcome.lesson } : {}),
       },
       "done · whisperer next",
     );
