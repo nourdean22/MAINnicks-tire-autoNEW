@@ -21,11 +21,7 @@ import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
-import {
-  attentionTone,
-  describeConfidenceAsAttention,
-  sightingsFromConfidence,
-} from "@/lib/brain/attention-label";
+import { attentionTone } from "@/lib/brain/attention-label";
 import {
   Activity,
   AlertCircle,
@@ -42,6 +38,8 @@ interface CategoryHealth {
   vectorized: number;
   vectorizedPct: number;
   avgConfidence: number;
+  avgSeen: number;
+  telemetry: boolean;
   newest: string | null;
   oldest: string | null;
   ageNewestHours: number | null;
@@ -56,6 +54,8 @@ interface MemoryHealthPayload {
     vectorized: number;
     vectorizedPct: number;
     categoryCount: number;
+    telemetry: number;
+    knowledge: number;
   };
   categories: CategoryHealth[];
   flags: Array<{ category: string; flag: string }>;
@@ -126,9 +126,14 @@ export function BrainHealthView() {
               <span className="section-label">Totals</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Counter label="live rows" value={data.totals.live} tone="gold" />
+              {/* 2026-08-19 · knowledge leads, not "live rows". The flat
+                  total counted gateway shadows, XP events and critic
+                  scores as if the brain "knew" them — on prod that was
+                  ~30% of the window's writes. Telemetry is still shown,
+                  labeled as what it is. */}
+              <Counter label="knowledge" value={data.totals.knowledge} tone="gold" />
+              <Counter label="telemetry" value={data.totals.telemetry} tone="tertiary" />
               <Counter label="permanent" value={data.totals.permanent} tone="emerald" />
-              <Counter label="decayed" value={data.totals.decayed} tone="rose" />
               <Counter label="categories" value={data.totals.categoryCount} tone="violet" />
             </div>
             <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50">
@@ -223,13 +228,14 @@ function Counter({
 }: {
   label: string;
   value: number;
-  tone: "gold" | "emerald" | "rose" | "violet";
+  tone: "gold" | "emerald" | "rose" | "violet" | "tertiary";
 }) {
   const colorMap = {
     gold: "text-[var(--gold)]",
     emerald: "text-emerald-300",
     rose: "text-rose-300",
     violet: "text-violet-300",
+    tertiary: "text-[var(--text-tertiary)]",
   };
   return (
     <div className="rounded-lg bg-[var(--bg-base)]/40 border border-[var(--border-default)] px-2 py-2 text-center">
@@ -278,11 +284,15 @@ function VectorizationBar({
 }
 
 function CategoryRow({ c }: { c: CategoryHealth }) {
-  // 2026-08-19 · was `Math.round(avgConfidence * 100) + "%"`, which read as
-  // a probability. confidence is a re-sighting counter (0.5 + 0.1×(n−1)),
-  // so the mean inverts exactly to a mean sighting count — report that.
-  const avgSightings = sightingsFromConfidence(c.avgConfidence);
-  const attention = describeConfidenceAsAttention(c.avgConfidence);
+  // 2026-08-19 (second pass) · the first pass inverted mean confidence
+  // through 0.5+0.1×(n−1). Measured against prod the same day, that
+  // inversion FABRICATES: 73% of recent seen_count=1 rows carry a
+  // writer-stamped confidence (0.9s and 1.0s from critics and event
+  // buses), so the "seen ~N×" it printed was fiction. seen_count is the
+  // real column and the rollup now ships its mean — report that.
+  const avgSightings = Math.max(1, Math.round(c.avgSeen || 1));
+  const attention =
+    c.avgSeen > 0 ? `seen ~${avgSightings}× avg` : "sightings unknown";
   const tone = attentionTone(avgSightings);
   const confColor =
     tone === "hot"
@@ -352,8 +362,7 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
           </span>
         </span>
         <span className="text-[var(--text-tertiary)]">
-          <span className={cn("tabular-nums", confColor)}>{attention}</span>{" "}
-          avg
+          <span className={cn("tabular-nums", confColor)}>{attention}</span>
         </span>
         <span
           className={cn(
