@@ -116,7 +116,7 @@ export async function recentScoreSnapshots(days = 14): Promise<LegacyScoreRow[]>
     }
   }
   if (parseFailures > 0) {
-    logError("brain.legacy-shims", new Error(`${parseFailures} snapshot parse failures`), { fn: "recentScoreSnapshots.parse" });
+    logError("brain.legacy-shims", new Error(`${parseFailures} snapshot parse failures`), { fn: "recentScoreSnapshots.parse" }, "warn");
   }
   return out;
 }

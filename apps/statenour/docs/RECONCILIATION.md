@@ -1,9 +1,402 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-19 · Brain wave 2 — the honesty pass: dead ends made visible, dead code removed (1 PR)
+>
+> Everything the wave-1 entry below flagged as "NOT built", built — plus a finding that
+> reframed the biggest item. All claims measured against prod read-only before implementing.
+>
+> **★★★ THE RESEARCH PIPELINE IS STRUCTURALLY DEAD-ENDED, and the UI was hiding it.**
+> The plan was to merge Discover + Review + the orphaned `research_claim_candidate` queue.
+> Measuring first killed that plan and produced a better one: `research_claim_candidate` has
+> **0 rows** — not because the exit is blocked, but because **the upstream door never opens**.
+> `intelligence_claims` holds **876 `unverified` + 17 `weak_support` + 0 `source_supported`**,
+> and `source_supported` (score ≥ 0.75) is the ONLY status `lib/intelligence/promote.ts` will
+> promote. **Best verification score in the entire 893-claim corpus: 0.58** — 0.17 below the
+> gate, never once approached. Worse, `source_supported` means *cosine ≥ 0.75 against our OWN
+> memory* (`lib/intelligence/grounding.ts`), i.e. the gate rewards claims that already resemble
+> something we believe — **anti-correlated with novelty**, which is the only reason to ingest
+> research at all. Second surface silently starved by the same gate:
+> `lib/intelligence/compose-daily-brief.ts:62` filters `status: "source_supported"` AND
+> `confidence >= 0.8`, so the daily brief's research section is permanently empty too.
+> Merging queues would have made a prettier empty box. Instead: new
+> `GET /api/knowledge/pipeline-status` + `ResearchPipelineStatus` panel at the top of Review
+> report the real numbers — **"893 claims ingested, none has ever been promotable, best score
+> 0.58 vs a 0.75 gate"** — and name the operator's actual options (lower the gate, ground
+> against something other than our own memory, or retire the lane). **An empty queue and a
+> structurally dead queue must never look the same.** Each read is `allSettled`; a failed read
+> renders "unknown, not zero".
+>
+> **Supersession finally has a writer** — the columns applied to prod 2026-08-14 had **0 of
+> 18,527 rows populated** (measured). Root cause found: `remember()` upserts on
+> `(category, key)`, so a `supersede` verdict fell through to
+> `reinforce(existing.id, content)` — the row was overwritten in place and the prior claim was
+> lost forever; there was no second row for `superseded_by_id` to point at. Fix:
+> `snapshotSupersededVersion()` freezes the OUTGOING version into a new
+> `superseded_snapshot` category row under a timestamped key (so it cannot collide with the
+> canonical unique), carrying `validFrom` = when the claim began, `validUntil` = the moment it
+> stopped being true, and `supersededById` → the canonical row, giving a walkable forward
+> chain. The canonical row's `validFrom`/`lastVerifiedAt` advance to now. Snapshots are
+> **excluded from recall** (`RECALL_EXCLUDE_CATEGORIES`) — a superseded claim is one the system
+> explicitly stopped holding; recalling it would feed the model something we replaced on
+> purpose. Bounded by a 90d TTL. **OPT-IN, default OFF behind `NICK_MEMORY_SUPERSESSION=1`** —
+> a new write path on a 28,777-row table earns default-on with measured evidence, exactly how
+> gateway Phase-1 and Phase-2 each shipped. Until flipped the columns stay empty, which is the
+> honest state rather than theater.
+>
+> **Confidence stopped pretending to be a probability.** It is a re-sighting counter
+> (`0.5 + 0.1×(n−1)`, capped 1.0 — memory-manager.ts:540). The 2026-08-16 wave fixed the RECALL
+> boundary; three operator surfaces still printed `NN%`, and **two printed it directly beside
+> the sighting count — the same number twice, one copy lying**: continuity-view rendered
+> `{confPct}%` next to `×{seenCount}`; wisdom-tab rendered `NN% conf` next to `fired N×`;
+> health-view rendered `conf NN%` over a category mean. One shared helper
+> (`lib/brain/attention-label.ts`) now inverts the formula exactly (it is arithmetic, not
+> estimation), renders `seen N×` / `seen ~N×`, and flags the ceiling as `seen 6×+` instead of
+> letting 1.0 read as certainty. Tone no longer runs a red→green truth ramp: a rarely-seen
+> memory is *quiet*, not *bad*.
+>
+> **Dead code removed — and the earlier "orphaned" list falsified.** The wave-1 flag claimed 6
+> orphaned tRPC procedures; grepping them myself found most have **real consumers**
+> (`reflect` 9, `activityStream` 6, `graphNeighborhood` 5 — the last one alive precisely
+> because wave-1's new detail panel started consuming it). Only `decideLinkReview` is genuinely
+> orphaned, and it is deliberately KEPT: it is the natural consumer for a future ruling queue.
+> `global-activity-stream.tsx` also KEPT — an explicit prior "stop mounting, don't delete"
+> decision, and its procedure has a live consumer in `since-last-visit-card`. Deleted only what
+> was proven unreferenced: `memory-graph-explorer.tsx`, `categories-view.tsx`,
+> `graphify-snapshot-card.tsx` (~1,100 lines; the only hits were stale *comments* in a schema
+> test). **Three broken RecallInboxPanel drill-links fixed**: `/brain#pinned` (no such anchor →
+> the real `/pins` page), `/brain/link-review` (not a route → `?tab=review`),
+> `/brain#contradictions` (missing `?tab=memory`, so it landed on the Map tab).
+>
+> **Pre-merge adversarial re-audit found 2 defects IN THIS DIFF** (5 independent lenses +
+> per-defect judging, plus my own sweep — the base rate held again):
+> **(1) A fabrication bug in the new pipeline panel.** `promotable` derives from
+> `statusCounts?.find(...)?.count ?? 0`, so a REJECTED status query left `statusCounts` null,
+> `promotable` fell back to 0, and `gateUnreachable` flipped **true** — rendering "none has
+> ever been promotable · this queue cannot fill" off a read that merely FAILED. That is the
+> morning's fail-open defect inverted: asserting alarming certainty from missing data instead
+> of health from missing data. Both are lies. Fixed with an explicit `statusCounts !== null`
+> guard and 5 tests pinning every degraded-input combination.
+> **(2) Two confidence-as-percentage sites were MISSED** by the first pass, found by sweeping
+> the whole app rather than the reported list: `components/journal/memory-calibration.tsx:200`
+> rendered `seen {seenCount}× · c{confidence*100}` — the same double-lie — and
+> `components/chat/reasoning-trace-modal.tsx:275` printed recall-hit confidence as `NN% conf`
+> directly beside a REAL cosine `match NN%`, making two unlike numbers look like the same kind
+> of evidence. Both now use the shared helper. Deliberately left as genuine percentages after
+> checking what each number actually is: prediction/forecast confidences
+> (`stats/calibration-section`, `forecast-duel`), reasoning-trace confidence, opportunity
+> scores, and board/advisor confidences — those are model-reported probabilities, and
+> blanket-replacing them would be the same category error in reverse.
+>
+> **Verified:** typecheck 0 errors · full suite **527 files / 5,638 passed / exit 0** · 13 new
+> tests across 2 new files (confidence inversion incl. the ceiling case; supersession row shape,
+> recall quarantine and opt-in default) plus wave-1's 15 · eslint 0 errors on the diff (4
+> pre-existing warnings, none in changed lines) · check:crons / raw-sql / get-auth / soft-delete
+> PASS.
+>
+> **Flagged · NOT built:** the Discover+Review merge is **deliberately abandoned** — measured,
+> Discover holds 265 live items (blind_spot 252, all created in the last 30d) while Review holds
+> **1** and the third queue holds 0 and cannot fill; merging them would be motion, not progress.
+> The real decision is the promotion gate, and that is the operator's call, now visible on the
+> page. Also still open: `memory_edges` is queried with a bare `sourceId IN (...)` that cannot
+> use its composite index (harmless at 1,046 rows — measured 0.3ms — but seq-scan by
+> construction); `decay()` still has no caller so any "weakening" arrow would be fabricated;
+> board/advisor confidences were **left as percentages on purpose** — those are model-reported
+> probabilities, not sighting counts, and blanket-replacing them would have been the same
+> category error in reverse.
+
+> ## 2026-08-19 · Brain truth pass — /brain stops hanging, and the graph stops lying (1 PR)
+>
+> **Root cause of the infinite spinner, proven, not guessed:** every layer of the
+> `/brain` request path was allowed to wait forever. `lib/prisma.ts` constructed
+> `PrismaNeon` with no `connectionTimeoutMillis` and no `query_timeout`, and the vendored
+> Neon driver defaults to `max:10` with an **untimed checkout queue** (`@neondatabase/serverless`
+> index.js:1110) plus `connect_timeout=0`. The graph route was the widest DB fan-out in the
+> app — one `Promise.all` of 8 concurrent queries needing 8 of those 10 slots — and the client
+> used a bare `fetch()` with no AbortController/timeout whose `setLoading(false)` lived only in
+> `finally`. Railway ignores `maxDuration`. So any sustained pool contention became a request
+> that never settles and a spinner that is mathematically permanent. Two self-inflicted
+> amplifiers kept the pool contended: `fetchGraphData`'s dependency chain included
+> `selectedNode` + `searchQuery` (via `drawGraph` → `triggerAnimationLoop`), so **every
+> keystroke and every node click re-fired the whole graph fetch un-aborted** — interacting with
+> the graph is what made it hang harder — and the 51-route in-process cron fleet shares the same
+> 10 connections, with the evening fan-out landing at 10-11pm Cleveland.
+> **Independent prod corroboration (read-only, operator-supplied credential):** the #1 pattern
+> in `error_logs` is `[err_*] Database hiccup · the engine couldn't reach state` at **730 of
+> 1,427 rows / 30d** — the same starvation class, visible in a second instrument. Falsified
+> along the way: the builder is NOT slow at scale (all graph queries measured 33-75ms; it reads
+> at most 170 rows, never 25k) and there is no per-node KNN or O(n²) similarity in the path.
+>
+> **Fixes so an infinite spinner is structurally impossible:** driver-level
+> `connectionTimeoutMillis: 10s` + `query_timeout: 30s` (the one line that also bounds the 730
+> "Database hiccup" hangs app-wide) · the builder is now `allSettled` with an 8s **per-domain**
+> deadline, so a slow domain arrives MISSING AND NAMED in a new `degraded[]` field instead of
+> holding the brain hostage · the client carries AbortController + 12s timeout + a sequence
+> guard that drops stale responses, fetches **only** on `[variant, focusId, localOnly]`, and
+> resolves to exactly one of USEFUL / DEGRADED / EMPTY / ACTIONABLE-ERROR (with retry); a failed
+> *refresh* keeps the working graph on screen instead of destroying it.
+>
+> **The graph stopped lying.** It rendered on frequency and invented structure: node weight was
+> `confidence * 10` where confidence IS a re-sighting count (`0.5 + 0.1×(sightings−1)`), so it
+> visually enlarged re-observed banalities; edges were invented by keyword-matching titles
+> (`title.includes("tire")`) and a blanket "attach every orphan to an anchor" pass; six fossil
+> anchor nodes asserted a 2026-05 model lineup ("OLLAMA GLM-5.2", "GEMINI BACKUP") against
+> CURRENT-TRUTH's never-assert-a-model rule; decision nodes deep-linked to `/decisions`, which
+> **has no page** (404 on every decision node); memory labels were raw machine keys
+> (`blindspot_domain_1712…`); and the detail panel was ~80 lines of per-type canned prose
+> ("why this matters", "next best move") that read no field of the actual record. All removed.
+> Now: every edge declares an `origin` (fk · memory_edge · semantic · contradiction · category ·
+> domain) and nothing else may create one — **unlinked nodes stay visibly unlinked, because
+> isolation is signal**; goal→domain edges use the goal's own `domain` field; weight is
+> attention on a **log** scale (prod `seenCount` spans 1 → 6,516, mean 3.69 — a linear map
+> saturated at 8 sightings and flattened the real hubs); memory nodes carry the commit gateway's
+> evidence ladder, `seen N×`, age, TTL distance and contradiction involvement; the renderer maps
+> evidence class → ring opacity (an inference can never render as solid as something the
+> operator stated), contradiction → dashed rose halo, `<7d` → gold notch, and the only glow on
+> the canvas is the focused node.
+>
+> **Severed joints reconnected:** `runSemanticLinker` shipped 2026-05-02 and **never acquired a
+> caller** — `semantic_edges` froze at **114 rows, newest 2026-05-28** (measured), so every
+> memory-to-memory "related" edge in the graph was a three-month-old fossil; it now runs nightly
+> in the evening fan-out (`/api/cron/semantic-link`, batch 25 · top-3 pgvector KNN, and it
+> reports `ok:false` when pgvector is unavailable so the new logCronRun detector files a real
+> failure). `buildGraphNeighborhood` — a working service with **zero consumers** — is now the
+> detail panel's "stored relationships" section. Real contradiction pairs
+> (`BRAIN_CATEGORIES.CONTRADICTION`, via the constant so a rename can't blind the reader) become
+> the `contradicts` edges the renderer always supported but never received. **Honest status:
+> that store is currently EMPTY in prod (0 rows), so contradiction edges render zero today** —
+> a correct reader over an empty store, lighting up the moment the surfacer flags a pair.
+>
+> **Product:** lenses (ALL / BUSINESS / PEOPLE / GOALS / DECISIONS / MIND / LAST 30D) filter the
+> loaded payload client-side and keep one hop of context — a lens can only hide, never invent,
+> and costs zero network. Tabs reordered to the mental model (Map → Discover/Review → Memory/
+> Wisdom → Board/Reason → Changed/Health) with **every tab key unchanged**, because
+> `?tab=memory&resolve=`, `?tab=reason&q=`, `?tab=wisdom&focus=`, `?tab=board`, `?tab=health`
+> and `?tab=continuity` are live deep-link contracts from Home, the ticker, the command palette
+> and chat tool results. **Mobile:** the full graph previously had mouse handlers ONLY — on the
+> operator's iPhone it was frozen scenery; it now supports pan, tap-to-select and pinch-zoom,
+> with the inspector as a bottom sheet and 48px targets.
+>
+> **Prior art (principles, not pixels):** search-first entry and expand-on-demand over
+> whole-graph overview (van Ham & Perer's "Search, Show Context, Expand on Demand"; Neo4j Bloom
+> Perspectives/Scenes); active-thought centering (TheBrain); focus + expand-by-degree (Kumu);
+> the documented Obsidian global-graph-hairball failure as the thing to avoid; one visual channel
+> = one variable, motion only on state change (Kumu data-driven decorations, dark-dashboard
+> practice). **Deliberately NOT adopted:** a renderer swap — peer-reviewed benchmarks put
+> canvas at ~5,000 interactive nodes vs this product's 100-2,000 visible, so sigma/cytoscape
+> would trade renderer control for algorithms implementable in a day; continuous timeline
+> animation (theater); freeform LLM-to-query search (unreliable); multi-analyst case ceremony.
+>
+> **Verified:** typecheck 0 errors · full suite **525 files / 5,624 passed / exit 0** · 15 new
+> brain-graph tests (first-ever coverage for this builder — including a domain that NEVER
+> settles, proving degradation replaces the hang) · eslint 0 errors on the diff ·
+> check:crons/raw-sql/get-auth/soft-delete/mutations:strict all PASS · all Brain claims
+> falsified against prod read-only before shipping (which is how the empty-contradiction-store,
+> the two dead category filters and the saturating weight formula were caught **in my own
+> diff**).
+>
+> **Flagged · NOT built (evidence-backed, for the next wave):** Discover + Review + the
+> orphaned `research_claim_candidate` queue should merge into ONE ruling surface — candidates
+> mint at confidence 0.3 with `requiresHumanPromotion` and **no UI reads that category**, while
+> the Review tab reviews a different queue whose only producers are manual scripts (a roach
+> motel) · supersession columns (`valid_from`/`valid_until`/`superseded_by_id`) are applied to
+> prod with **zero readers or writers**; wiring the gateway's existing `supersede` verdict would
+> give the graph a walkable history chain and make "what changed" honest instead of theater ·
+> 4 dead components + 6 orphaned tRPC procedures + 4 REST fossils under /brain · 3 broken
+> hrefs in RecallInboxPanel (`/brain#pinned`, `/brain/link-review`, `/brain#contradictions`) ·
+> `memory_edges` is queried with a bare `sourceId IN (...)` that cannot use its composite index
+> (harmless today at 1,046 rows — measured 0.3ms — but it is a seq scan by construction) ·
+> confidence still renders as a percentage on Continuity/Health/Wisdom/Board/Review · memory
+> `decay()` has no caller, so any "weakening" arrow would be fabricated.
+
+> ## 2026-08-19 · OS-Health truth pass — the dashboard stops lying by construction (1 PR)
+>
+> **Trigger:** operator asked "what are all these failures" on /system/health (5,486 cron ops ·
+> 2% fail · 1,423 errors · green ALL CLEAR banner above both). Four parallel read-only audits
+> traced every number to source; the findings were measurement defects and fail-open
+> instruments, not an outage. One PR fixes the instrument layer:
+>
+> - **Banner rewired** (`page.tsx OperationalStatus`): was computed from eval + probes ONLY —
+>   cron failures and error volume could never turn it red, `ev===null` (the eval store has NO
+>   producer) made `evalBad` a compile-time false, and 0 probe rows read as all-clear. Now
+>   three-state (all clear / degraded / needs attention) fed by cron fail-rate, error+fatal
+>   count, probe staleness, and unknown-instrument states, with a reasons line. **Deliberate
+>   consequence: the banner shows DEGRADED (amber, "no eval run in 7d") until the eval store
+>   has a producer again or the tile is removed — unknown never counts as healthy
+>   (fleet-truth rule).**
+> - **`partial` ≠ `failed`** (`system-health.ts`): the 2% headline folded mega fan-out
+>   "partial" heartbeats (a slow-but-successful child) into hard failures. Split everywhere,
+>   rose tier at ≥10% fail / zero-rows ("NO RUNS LOGGED" — a dead fleet used to render
+>   "all green" in emerald).
+> - **Error patterns told the truth about 3.5% of the window**: "5 PATTERNS · 30d" grouped the
+>   most recent 50 rows (~25h at observed volume), capped at 5 by construction, and split one
+>   root cause into singletons via a leading per-error id. Now: SQL groupBy over the WHOLE
+>   window with id/digit normalization, true distinct-pattern count, level breakdown
+>   (~68% of "errors" are warns — tile tone now follows error+fatal only).
+> - **False-green cron class killed at the wrapper** (`cron-manager.ts`): a route that catches
+>   and returns `{ok:false}` RESOLVED the promise → logged success. Diagnosed 3× per-route
+>   (correlation-alarm et al.) while ~7 identical routes stayed green, incl. inngest-liveness —
+>   the watchdog logging SUCCESS while reporting Inngest down. `logCronRun` now files a failed
+>   row + brain-bus event on explicit `ok:false` (HTTP contract unchanged; result still 200).
+> - **5 invisible fan-out children now log** (intelligence / change-detection /
+>   experiment-measure / pricing-advisory / task-resurface): they used bare GET/apiHandler, so
+>   they never wrote cron_job_logs — and cron-heartbeat filed a false P0 "silent cron" alert
+>   for them EVERY DAY (ageH=∞), drowning the real-outage signal the watchdog exists for.
+>   All converted to cronHandler (intelligence's hand-rolled Bearer compare = requireCronAuth).
+> - **Probe staleness + fail-closed parse** (`system-health.ts` + contracts): probe rows carried
+>   no timestamp to the reader (a dead probe cron rendered stale `ok` rows as "6 OK" forever —
+>   the silent-dead-feeder incident reproduced one level up) and an unparseable row counted as
+>   healthy (`{}.ok !== false`). Now: >48h = stale (amber, banner-visible), parse-fail = NOT ok,
+>   `ok===true` required, rows get the 30d `expiresAt` their category-ttl declared but never
+>   applied, `bridgeFailing` is finally rendered, and the mislabeled "bridge · data sources"
+>   tile is now "data-source probes".
+> - **Schema sentinel un-blinded** (16 → 26 expectations): the "HNSW" expectation matched a
+>   plain btree via `indexdef ILIKE '%embedding_vec%'` (every HNSW index could drop, KNN
+>   silently sequential-scans, 16/16 stays green) — now asserts `USING hnsw`. Guarded
+>   `embedding_vec_1536` + `embedding_dim` (the columns every live recall path uses; the
+>   schema.prisma three-near-misses comment claimed sentinel coverage that did not exist).
+>   Added: 5 unguarded universal-idempotency partial uniques, the 2 alive-partial replacements
+>   (identity_snapshots / reflections — the DROPPED predecessor was guarded, its replacement
+>   was not), the chat FTS GIN index.
+> - **Healer + heartbeat noise**: cron-healer counted a 404 as "Rescued" (unconditional push —
+>   its whole 3-heal budget burned on phantom manifest entries nightly); now checks
+>   `cronResult.ok`. `check:crons` now asserts every `lib/inngest/functions/*.ts` is exported
+>   from index.ts — the registration list the old gate deliberately excluded (the exact drift
+>   class behind the 2026-07-28 sixteen-unregistered-functions incident).
+> - **Graveyard drains**: NULL-deadline commitments were immortal (`deadline < x` is never true
+>   for NULL; sanitizeDeadline mints NULLs by design) AND invisible (pulse filters them out) —
+>   data-cleanup now expires them at 90d from createdAt. keep_rate counted only legacy "kept"
+>   rows (~0% forever) — now counts "completed". inbox-janitor's manifest description claimed a
+>   CaptureInboxItem sweep that never existed (corrected; captures still have NO archiving
+>   consumer — flagged, not silently built).
+> - **Error-log hygiene**: 7 benign counter-reporters ("N duplicates skipped" — the dedup
+>   *working*) downgraded error→warn; apiHandler 500s get a `[route]` prefix (two routes
+>   throwing the same generic message used to merge into one pattern); error-sanitizer's
+>   per-error id moved to the message tail.
+> - **Tests**: first-ever coverage for `buildHealthReport` (12 cases: partial split, SQL
+>   patterns, staleness, fail-closed parse, level split) + `logCronRun` reported-failure
+>   detection + healer-404 regression + intelligence-concurrency test updated for cronHandler
+>   (auth override vs the suite-wide no-op mock). Chipped a pre-existing main breakage:
+>   chat-composer test lacked #1672's `chat.deleteMessage` mock (file byte-identical to
+>   origin/main — not this diff's).
+>
+> **Verified:** typecheck 0 errors · full suite 523 files / 5,606 passed / exit 0 (after the
+> chip fix; the one pre-existing failure documented above) · check:crons/raw-sql/stale-docs
+> (0 critical)/lint-baseline/mutations:strict/runbooks/prompt-injection/audit-deps/soft-delete/
+> get-auth all PASS · prisma validate PASS · `check:env` fails in the sandbox (no .env exists
+> there — environmental) · live prompt:size-check unrunnable without prod creds (static
+> measure: PASS, exit 0).
+>
+> **Same-day adversarial re-audit (operator: "go back over all of your work" — round 3):**
+> external evidence pulled first: **CI on main green for both merges** (turbo-verify, e2e,
+> Lighthouse, agent-policy on 382bfe7; agent-policy on 116f098, rest verified after). The raw
+> SQL + all new sentinel semantics were **executed against a real local Postgres 16** (scratch
+> instance, zero prod contact): pattern normalization collapses err_* ids and counter digits
+> exactly as designed; the OLD hnsw check matched a btree with zero hnsw indexes present (hole
+> proven live) while the NEW `USING hnsw` check correctly finds nothing; partial-unique
+> predicate rendering matches `checkPartialUnique`'s substring semantics. Defects the re-audit
+> found and fixed: **(1)** the false-green wrapper claim said ~7 routes — VERIFIED count was 5;
+> `data-source-health` returned `ok: <count>` (number) and `outbox-drain` returned `ok` as a
+> per-row success count, so neither could ever trip the boolean `ok === false` detector — both
+> routes now return an explicit boolean failure claim (probes failing / whole batch failed).
+> **(2)** the banner missed the zero-cron-rows case (rose tile, green banner for up to 48h
+> until probe staleness caught it transitively) — `cronSilent` now degrades the banner with its
+> own reason. **(3)** best-available external data (Apple/pushpad/magicbell, 2026): iOS revokes
+> a Web Push subscription after repeated "silent push" strikes, and `public/sw.js` returned
+> WITHOUT showing a notification on any dataless push — a standing threat to the exact channel
+> the P0 bridge and morning brief ride; the SW now always shows a (generic, minimal)
+> notification. iOS ignoring `requireInteraction`/`actions`/`vibrate` confirmed non-fatal to
+> delivery. Transitional note: until the 5 newly-logging fan-out children write their first
+> rows (≤24h post-deploy), cron-heartbeat's standing P0 may fire — which now correctly pages
+> the phone; it self-heals as rows appear. **(4)** the round-3 verification suite itself
+> caught a pre-existing prod hygiene bug: all 5,610 tests passed but exit 1 with 12
+> post-teardown unhandled rejections — root-caused (not waved off as flake) to
+> `enrichTaskLinkage`'s `Promise.all` array: when a LATER element throws synchronously during
+> array construction, the already-started `resolveInboxMissionId()` promise's rejection is
+> orphaned where the surrounding try/catch structurally cannot see it (an unhandledRejection
+> class in prod, not just test noise). Fixed by pre-attaching a no-op handler to the started
+> promise; standalone file 3/3 clean; full-suite exit-0 receipt in PR #1693.
+>
+> **Same-day correction + follow-up (operator: "i do get push notifications on my phone"):**
+> the entry below originally claimed "nothing pages anyone — the dashboard is pull-only".
+> OVERBROAD. Precise truth: a LIVE Web Push (VAPID) channel exists (`lib/notifications/push.ts`)
+> with real senders — morning brief, intelligence brief, deep-research completions, and drift
+> alerts via os-snapshot — plus ≤3 daily Telegram micro-pushes (`lib/brain/proactive-pushes.ts`,
+> a different, live Telegram path). What never paged was the HEALTH/FAILURE class: P0 coach
+> events (probe failures, silent-fleet alerts) rendered only as in-app banners. Fixed same day:
+> `recordCoachEvent` now bridges **P0 (and only P0)** events to `sendPush` (level critical,
+> tag = coach dedup key so re-fires replace instead of stack, fire-and-forget so a push failure
+> never breaks the coach write). The two DEAD pipelines below remain dead as stated.
+>
+> **Flagged · NOT fixed (need operator/product calls):** the two dedicated Telegram alert
+> pipelines (`alert-telegram-bridge`, `fatal-error-telegram`) have zero callers (docs claim
+> 5m/15m pushes) — fatal-error paging now partially covered by the P0 bridge above ·
+> schema sentinel has no cron (runs only on page load) · `system_health_digest` has no cron
+> producer (three docstrings claim one) · captures have no archiving consumer · legacy
+> `/api/cron/mega` route + worker endpoints still exist (double-fire risk if the old Railway
+> cron was never disabled — unverifiable from source) · `errors.total > 100` banner threshold
+> is window-insensitive · digit-normalization in patterns merges HTTP status codes
+> (401 vs 500 group together — trade-off documented in code).
+
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-16 (chat-quality arc: truncation root-caused + fixed, 4 PRs #1589-#1591; prior: MISSION-scan gate → BDN close-out, 7 ships #1535-#1542); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (OS-Health truth pass — instrument-layer fixes across /system/health, cron logging, schema sentinel; prior: persona measurement arc #1649-#1665 + chat-UX arc #1670-#1679); detail in the top entry
 
+> ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
+>
+> **The operator's persona ask (maximally truth-seeking / obedient / non-sycophantic /
+> calibrated) went from ~80%-in-the-prompt-but-measured-nowhere to enforced-by-code-or-
+> measured-by-instrument, in one day.** Canonical consolidated record:
+> [`PERSONA-MEASUREMENT-ARC-2026-08-18.md`](PERSONA-MEASUREMENT-ARC-2026-08-18.md) —
+> PR chain with merge SHAs, architecture, readouts with caveats, runbook. Suite
+> trajectory: unmeasured → 7.7 → 8.0 → 8.1 → **8.2** (14-scenario persona golden set).
+>
+> - **#1649** — obedience/nonSycophancy/calibration axes in the live per-reply judge; composite stays mean-of-5 (pinned).
+> - **#1650** — 10-scenario golden set (SycEval / "are-you-sure" / TRUTH-DECAY methodology) + `pnpm harvest:persona` flywheel + census aggregation.
+> - **#1651** — root `AGENTS.md` "Standard of work" (unprompted self-audit · implied-gap · prior-art · instrument-sees-target).
+> - **#1652** — prod backfill (203 replies judged, $0.02, DB-verified) + **the 24h expiry leak fixed** (one-shot `judge_*` rows died daily; `ONE_SHOT_RECORD_CATEGORIES` + explicit 90d TTL) + dead judge smoke un-crashed.
+> - **#1654** — curation: 108 real-trace candidates → 4 promoted (suite=14, zero PII); judge-noise classes documented (backfill judge had no brain context — the 6.03 calibration mean is a ceiling, not a point estimate).
+> - **#1655** — live baseline (mean 7.7) + eval-runner sentinel fix (a provider outage had scored 7.9 as a pass); both flagged scenarios = the two harvested-from-production regressions.
+> - **#1656/#1657** — regressions fixed: retry 5.1→**10.0 via deterministic re-delivery interceptor** (the prompt rule measurably failed — LLMs regenerate, never copy; witnessed then routed around); + self-audit caught a wrong-source bug in the fix itself.
+> - **#1659/#1662** — calibration lever: pipeline enforcement of likelihood bands (never invents a probability; fail-open to an honest notice) + k-sample upgrade (median-of-k, dispersion-conservative confidence) — first live fire showed a **40pt spread across samples → conf honestly downgraded to low**.
+> - **#1663** — GATE #4 trajectory grading: receipts precomputed as FACTS + 4-axis judge; live trap reply (claimed an SMS its receipts show failed) scored **3.8 FLAGGED**; own `trajectory_judgment` 90d one-shot category.
+> - **#1665** — GATE #6: catalog flags → checked invariants (`catalog-claims.ts`); reasoning whitelist un-`server-only`'d and verified read-only; **zero violations across 181 tools** after aligning the checker to the field's documented semantic (first probe cried wolf 26×).
+>
+> **Flagged · NOT fixed:** yes-executes residual (replay can't execute tools; deterministic completion = pending-offer state machine, own slice) · calibration-dont-know replay artifact ("I'm sorry, but I can't help with that" tail from the small replay model — passes on no-invention criteria, watch it) · ~104 uncurated harvest candidates (re-curate only after new organic low scores) · one-shot-key expiry audit across OTHER brain categories (the `remember()` 24h-probation leak generalizes) · k-sample Brier evidence still accumulating (the flywheel needs graded outcomes before retuning).
+>
+> **Same-day addendum (chat UX, 3 PRs #1670/#1672/#1673):** operator-reported chat fixes
+> after the wave entry above. **#1670** — jump-to-latest button (48px, shares the auto-follow's
+> `isNearBottom` predicate so the two can never disagree; live-verified on prod both directions).
+> **#1672** — editing a sent message now REPLACES it: the chat-v2 migration had severed V1's
+> edit contract ("saving will resend, retriggering a regeneration"), leaving edit as a bare
+> composer prefill that APPENDED a duplicate. Restored natively: visible gold editing banner +
+> cancel/Escape, optimistic truncate → the same `deleteMessageCascade` the long-press delete
+> uses → resend; cascade now also resolves by `clientMessageId` (a just-sent message still
+> carries its client UUID — the #1 edit case used to NOT_FOUND). Live-verified end-to-end on
+> prod including the reload-survives-cascade proof. **#1673** — deleted the two orphaned V1
+> edit hooks (~370 lines, zero importers; this session nearly built on one — an orphaned
+> "complete" implementation is a trap). Open: phone-tap check of the button + banner (operator's
+> window manager pins width; layout guarded by construction — 48px targets, truncate+shrink-0).
+>
+> **Round-2 addendum (operator-forced thoroughness pass, #1677/#1678/#1679):** the operator
+> rejected "it's fine" — and the second pass proved him right twice. **#1677** — obedient replies
+> ("reply with just OK" → "OK") wore red REGEN chips at 62/86: the critic's spec/length axes
+> measure the exact shape the operator ordered away. Added `detectBrevityRequest` waiver
+> (spec/length only — hedge/cliché/anti-voice never waived) threaded through all critic call
+> sites; same PR's self-audit hardened #1672's own sharp edge (casual bubble-tap armed a
+> destructive replace → empty-draft + conversation-switch disarm guards, store-level, test-pinned).
+> **#1678** — #1677 was HALF the fix: the badge fires on `critic.shouldRegen || gate.shouldRegen`,
+> and `reply-gate`'s stub-reply signal (severity 80, "stub reply on non-casual turn") re-flagged
+> the exact reply the critic had just waived. Caught only by reading the PERSISTED verdict
+> (`tokenUsage.critic/gate` via `trpc chat.conversation`) — the live-stream view cannot see
+> verdicts (they land async on the row) and had produced round 1's false green. The gate now
+> honors the same waiver on the stub-shape signal ONLY (empty / ungrounded-IDK / sub-question-miss
+> / hedge-storm still fire); `signals.stubReply` stays truthful. Live-proven post-deploy: fresh
+> test reply persisted critic overall=100 + gate severity=0 with the waiver reason, regenChip=false
+> on reopen; both throwaway conversations deleted. 38 tests/4 files green, tsc clean. **#1679** —
+> session ledger. Rule extracted (memory: false-green-sweep addendum): a rendered verdict with
+> MULTIPLE ORed producers requires enumerating ALL producers (grep the render expression), and
+> proof for this surface = persisted artifact, never the stream.
+>
 > ## 2026-08-16 (fifteenth wave) · knowledge/intelligence review → three severed joints reconnected · 1 PR
 >
 > **An independent review of the Knowledge/Intelligence layer found almost nothing
@@ -474,7 +867,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-16 (chat-quality arc: truncation root-caused + fixed, 4 PRs #1589-#1591; prior: MISSION-scan gate → BDN close-out, 7 ships #1535-#1542); top entry.
+**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; + chat-UX arc #1670-#1679); top entry.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

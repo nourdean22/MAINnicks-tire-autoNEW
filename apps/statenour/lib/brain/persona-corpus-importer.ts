@@ -374,7 +374,7 @@ export async function importPersonaCorpus(
     }
   }
   if (parseFailCount > 0) {
-    logError("brain.persona-corpus-importer", new Error(`${parseFailCount} vectors failed to parse`), { fn: "importPersonaCorpus.parseEmbeddings" });
+    logError("brain.persona-corpus-importer", new Error(`${parseFailCount} vectors failed to parse`), { fn: "importPersonaCorpus.parseEmbeddings" }, "warn");
   }
   // No-vectors path · skip centroid persist · BUT fall through so
   // the text-only analyzer below still runs. Pre-fix this returned

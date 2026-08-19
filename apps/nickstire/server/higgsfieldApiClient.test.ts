@@ -12,12 +12,18 @@
  * change to the request shape or the auth header is caught the same way a real
  * server's rejection would be caught — not by grepping for a string.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+// DoP is image-to-video and `image_url` is REQUIRED - the live API returns 422
+// without it (measured 2026-08-18). Every request in this file therefore carries a
+// start image, exactly as production does via brief.visualWorld.heroFrameUrl.
+const HERO = "https://nickstire.org/generated/hero/hero-frame.jpg";
 import {
   generateReelClipVideoViaApi,
   higgsfieldApiCredentialsFromEnv,
+  REEL_CLIP_DEFAULTS,
   HiggsfieldApiSubmittedError,
   probeHiggsfieldApiCredentials,
 } from "./services/higgsfieldApiClient";
@@ -118,7 +124,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    await generateReelClipVideoViaApi({ prompt: "a brake pad wearing thin" }, { pollIntervalMs: 1 });
+    await generateReelClipVideoViaApi({ prompt: "a brake pad wearing thin", startImageUrl: HERO }, { pollIntervalMs: 1 });
 
     const submitHeaders = calls[0].headers as Record<string, string>;
     expect(submitHeaders.Authorization).toBe(`Key ${CREDS.keyId}:${CREDS.keySecret}`);
@@ -127,7 +133,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     expect(submitHeaders.Authorization).not.toMatch(/^Bearer /);
   });
 
-  it("posts to the DoP endpoint with model + prompt, and input_images only when a start image is given", async () => {
+  it("posts to the DoP endpoint with model + prompt + the required top-level image_url", async () => {
     const bodies: unknown[] = [];
     global.fetch = vi.fn(async (url, init: RequestInit) => {
       if (init.method === "POST") bodies.push(JSON.parse(init.body as string));
@@ -147,10 +153,13 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     const submitCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(submitCall[0]).toContain("/higgsfield-ai/dop/standard");
     expect(bodies[0]).toMatchObject({
-      model: "dop-standard",
       prompt: "battery in cold weather",
-      input_images: [{ type: "image_url", image_url: "https://example.com/frame.jpg" }],
+      // TOP-LEVEL STRING. This assertion previously encoded the Soul
+      // `input_images` array and passed against the mock while the live API
+      // answered 422 "body.image_url Field required".
+      image_url: "https://example.com/frame.jpg",
     });
+    expect((bodies[0] as Record<string, unknown>).input_images).toBeUndefined();
   });
 
   it("polls until a TERMINAL status, ignoring in-progress states", async () => {
@@ -168,7 +177,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
+    const url = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
     expect(url).toBe("https://cdn.example/done.mp4");
     expect(pollCount).toBe(3);
   });
@@ -183,7 +192,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }))
       .rejects.toThrow(/req_4/);
   });
 
@@ -200,7 +209,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
 
-    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
+    const url = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
     expect(url).toBe("https://cdn.example/ok.mp4");
   });
 
@@ -222,7 +231,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     vi.useFakeTimers();
     try {
       const p = expect(
-        generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 }),
+        generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 }),
       ).rejects.toThrow(/timed out.*req_6.*NOT cancelled/s);
       await vi.advanceTimersByTimeAsync(65_000);
       await p;
@@ -236,7 +245,7 @@ describe("generateReelClipVideoViaApi — the request shape and the auth header"
     delete process.env.HIGGSFIELD_API_KEY_SECRET;
     const spy = vi.fn();
     global.fetch = spy;
-    await expect(generateReelClipVideoViaApi({ prompt: "x" })).rejects.toThrow(/not configured/);
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO })).rejects.toThrow(/not configured/);
     expect(spy).not.toHaveBeenCalled();
   });
 });
@@ -266,7 +275,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     creds();
     vi.useFakeTimers();
     try {
-      const p = generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const p = generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 });
       const assertion = expect(p).rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
       await vi.advanceTimersByTimeAsync(65_000);
       await assertion;
@@ -287,7 +296,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
       return { status: 200, text: async () => JSON.stringify({ status: "failed", request_id: "req_spend_2", error: "policy" }) } as Response;
     });
     creds();
-    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }))
       .rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
   });
 
@@ -299,7 +308,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
       return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_spend_3" }) } as Response;
     });
     creds();
-    await expect(generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }))
+    await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }))
       .rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
   });
 
@@ -307,7 +316,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     // A non-2xx submit means nothing was queued and nothing can bill.
     global.fetch = vi.fn(async () => ({ status: 500, text: async () => JSON.stringify({ error: "upstream" }) }) as Response);
     creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
   });
@@ -315,7 +324,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
   it("a submit that returns no request_id is PRE-SUBMIT — there is no id that could bill", async () => {
     global.fetch = vi.fn(async () => ({ status: 200, text: async () => JSON.stringify({ status: "queued" }) }) as Response);
     creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
     expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
     expect((err as Error).message).toMatch(/no request_id/);
   });
@@ -330,7 +339,7 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     creds();
     vi.useFakeTimers();
     try {
-      const p = generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const p = generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 });
       const assertion = expect(p).rejects.toThrow(/paid for twice/);
       await vi.advanceTimersByTimeAsync(65_000);
       await assertion;
@@ -349,20 +358,44 @@ describe("the free probe is REACHABLE — an unrunnable safety check is not one"
   // become unreachable again.
   const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
-  it("a CLI probe script exists and calls the real function", () => {
+  it("a CLI probe script exists and reads the SAME source generation reads", () => {
+    // This asserted the env-only reader until 2026-08-18. That was the bug: the
+    // probe reported "configured: NO" for a key correctly stored in app_secret_kv,
+    // telling the operator their save had failed when it had succeeded. A
+    // verification tool reading a different source than the code it verifies is
+    // not a verification tool.
     const src = read("scripts/probe-higgsfield-api-key.mts");
     expect(src).toContain("probeHiggsfieldApiCredentials");
-    expect(src).toContain("higgsfieldApiCredentialsFromEnv");
+    expect(src).toContain("resolveHiggsfieldApiCredentials");
+    // And it must load .env, or db() is null and "could not look" prints as
+    // "not configured" — unknown rendered as absent.
+    expect(src).toContain("loadEnvFromDotenv");
+    // It must distinguish those two states rather than collapsing them — and it
+    // must do so from the LOOKUP, not from a separate reachability guess. The
+    // `dbReachable` check this replaces called db() and read a truthy handle as
+    // "reachable", but mysql.createPool opens no socket, so a set-but-unreachable
+    // DATABASE_URL printed "configured: NO" for a key never looked for (P2 review,
+    // Codex, PR #1653). The old name must not come back.
+    // Anchored on the DECLARATION, not the bare name: this file's own comment
+    // explains the `dbReachable` bug by name, and a bare not.toContain matched
+    // that prose - the sixth time in this arc a scan assertion hit its own
+    // explanatory text. A variable cannot exist without being declared, so the
+    // declaration is the thing worth forbidding.
+    expect(src).not.toContain("const dbReachable");
+    expect(src).toContain("resolution.dbError");
+    expect(src).toMatch(/configured: UNKNOWN/);
   });
 
-  it("that script does NOT force-exit — it would kill the in-flight socket", () => {
-    // First run crashed with libuv's UV_HANDLE_CLOSING assertion because
-    // process.exit() raced undici's socket teardown. Exit code was still 0, so it
-    // was pure noise printed directly under a verdict line — which reads as a
-    // crash to an operator.
+  it("that script DOES force-exit, because it now holds a mysql pool", () => {
+    // REVERSED 2026-08-18, and the reversal is the lesson. This asserted the
+    // opposite while the probe opened no DB: then it only had undici's closing
+    // socket, and forcing the exit produced a libuv UV_HANDLE_CLOSING assertion —
+    // cosmetic noise under a verdict line. Once the key moved to app_secret_kv the
+    // probe opens a POOL, which never drains on its own, and setting exitCode alone
+    // made the script HANG with zero output. A hang is strictly worse than one line
+    // of stderr noise, and every sibling probe force-exits for this exact reason.
     const src = read("scripts/probe-higgsfield-api-key.mts");
-    expect(src).not.toMatch(/process\.exit\(/);
-    expect(src).toContain("process.exitCode = 0");
+    expect(src).toMatch(/process\.exit\(0\)/);
   });
 
   it("the admin health procedure reports BOTH lanes and names the one that wins", () => {
@@ -382,8 +415,15 @@ describe("the free probe is REACHABLE — an unrunnable safety check is not one"
     // one, which was correct until the key became settable from the admin UI. A
     // caller left on the env resolver would be blind to a pasted key.
     const src = read("server/routers/instagramAdmin.ts");
-    expect(src).toContain("await getHiggsfieldApiCredentials()");
+    expect(src).toContain("await resolveHiggsfieldApiCredentials()");
     expect(src).toMatch(/configured: false/);
+    // THREE STATES on the operator's phone. A null credential used to render as
+    // "not set", so an unreachable key store told the operator to paste a key they
+    // had already pasted. "unknown" must exist as its own state, and the preferred
+    // lane must be chosen with === true so the truthy string cannot select a lane
+    // that has no credentials.
+    expect(src).toMatch(/configured: "unknown"/);
+    expect(src).toContain("api.configured === true");
   });
 });
 
@@ -397,7 +437,7 @@ describe("the API key is settable from the PHONE, not just a Railway env var", (
 
   it("the resolver prefers the DB and falls back to env", () => {
     const src = read("server/services/higgsfieldApiClient.ts");
-    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    const fn = src.slice(src.indexOf("export async function resolveHiggsfieldApiCredentials"));
     expect(fn).toContain("higgsfield_api_key_id");
     expect(fn).toContain("higgsfield_api_key_secret");
     // env is the FALLBACK, reached via the env-only resolver
@@ -406,7 +446,7 @@ describe("the API key is settable from the PHONE, not just a Railway env var", (
 
   it("it requires BOTH rows — a half-configured key would 401 and read as 'wrong key'", () => {
     const src = read("server/services/higgsfieldApiClient.ts");
-    const fn = src.slice(src.indexOf("export async function getHiggsfieldApiCredentials"));
+    const fn = src.slice(src.indexOf("export async function resolveHiggsfieldApiCredentials"));
     expect(fn).toContain("if (id && secret)");
   });
 
@@ -442,87 +482,50 @@ describe("the API key is settable from the PHONE, not just a Railway env var", (
   });
 });
 
-describe("the submit path is a KNOWN unknown, and self-corrects", () => {
-  // MEASURED 2026-08-17: the server checks auth BEFORE routing. A POST to
-  // /higgsfield-ai/definitely-not-real with a bogus key returns
-  // 401 {"detail":"Invalid credentials"} — identical to a real path. So no free
-  // probe can establish whether a path exists, and the docs
-  // (/higgsfield-ai/dop/standard, by analogy with the documented soul/standard)
-  // disagree with the official Node SDK (/v1/image2video/dop). Rather than ship a
-  // coin flip, submit tries both. A 404 costs nothing: auth already succeeded, so
-  // nothing was queued and nothing was billed.
-  afterEach(() => vi.restoreAllMocks());
-  const creds = () => {
+describe("the submit path is SETTLED by the vendor spec, and a miss still fails loudly", () => {
+  // Was "a KNOWN unknown that self-corrects": docs implied
+  // /higgsfield-ai/dop/standard, the official Node SDK called /v1/image2video/dop,
+  // so submit tried both. The vendor's OpenAPI spec enumerates all 50 paths and
+  // contains the first and NOT the second (no path contains "image2video"), and the
+  // live 422/403 both came from the first. The coin flip is over; the phantom path
+  // is gone. What must NOT regress is the loud, specific failure if the real path
+  // ever moves.
+  it("submits to the one path the spec defines", async () => {
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (url, init: RequestInit) => {
+      if (init.method === "POST") calls.push(String(url));
+      if (calls.length === 1 && init.method === "POST") {
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_p" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_p", video: { url: "https://cdn.example/c.mp4" } }) } as Response;
+    });
     process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
     process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
-  };
-
-  it("a 404 on the documented path FALLS THROUGH to the SDK path", async () => {
-    const tried: string[] = [];
-    global.fetch = vi.fn(async (url, init: RequestInit) => {
-      const u = String(url);
-      if (init.method === "POST") {
-        tried.push(u);
-        if (u.includes("/higgsfield-ai/dop/standard")) {
-          return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
-        }
-        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_fb" }) } as Response;
-      }
-      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fb", video: { url: "https://cdn/x.mp4" } }) } as Response;
-    });
-    creds();
-    const url = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 });
-    expect(url).toBe("https://cdn/x.mp4");
-    expect(tried[0]).toContain("/higgsfield-ai/dop/standard");
-    expect(tried[1]).toContain("/v1/image2video/dop");
+    await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("/higgsfield-ai/dop/standard");
+    // The phantom must not come back.
+    expect(calls[0]).not.toContain("image2video");
   });
 
-  it("a 404 fallback does NOT count as a submitted spend — nothing was queued", async () => {
-    // The critical safety interaction: falling through on a 404 must not be
-    // confused with retrying after a real submit, which would double-bill.
-    global.fetch = vi.fn(async (_url, init: RequestInit) => {
-      if (init.method === "POST") {
-        return { status: 404, text: async () => JSON.stringify({ detail: "Not Found" }) } as Response;
-      }
-      return { status: 200, text: async () => "{}" } as Response;
-    });
-    creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
-    // Every candidate 404'd -> a PATH error, and explicitly NOT submitted-typed.
-    expect(err).not.toBeInstanceOf(HiggsfieldApiSubmittedError);
-    expect((err as Error).message).toMatch(/no candidate DoP path exists/);
-    expect((err as Error).message).toMatch(/PATH problem/);
-  });
-
-  it("a NON-404 rejection stops immediately instead of shopping the other path", async () => {
-    // A 400 means the right endpoint rejected a bad body. Trying the other path
-    // would hide the real error and could submit the same job twice.
-    let posts = 0;
-    global.fetch = vi.fn(async (_url, init: RequestInit) => {
-      if (init.method === "POST") {
-        posts++;
-        return { status: 400, text: async () => JSON.stringify({ detail: "bad prompt" }) } as Response;
-      }
-      return { status: 200, text: async () => "{}" } as Response;
-    });
-    creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
-    expect(posts, "a 400 must not trigger a second submit").toBe(1);
-    expect((err as Error).message).toMatch(/HTTP 400/);
-  });
-
-  it("the error names the paths it tried, so the fix is one log line away", async () => {
-    global.fetch = vi.fn(async (_url, init: RequestInit) =>
-      init.method === "POST"
-        ? ({ status: 404, text: async () => "{}" } as Response)
-        : ({ status: 200, text: async () => "{}" } as Response));
-    creds();
-    const err = await generateReelClipVideoViaApi({ prompt: "x" }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
-    expect((err as Error).message).toContain("/higgsfield-ai/dop/standard -> 404");
-    expect((err as Error).message).toContain("/v1/image2video/dop -> 404");
+  it("a 404 is reported as a PATH problem, not as a credential or generation failure", async () => {
+    // 404 can only mean the path moved: auth is checked BEFORE routing on this API
+    // (a wrong key returns 401 even for a nonexistent path - measured), so a 404
+    // proves the key was accepted. Conflating that with a bad key would send the
+    // operator to rotate a working credential.
+    global.fetch = vi.fn(async () => ({ status: 404, text: async () => "not found" }) as Response);
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
+    const err = await generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    const msg = (err as Error).message;
+    expect(msg).toContain("/higgsfield-ai/dop/standard");
+    expect(msg).toMatch(/PATH problem/i);
+    // And it must NOT be a submitted-error: a 404 never routed, so nothing was
+    // queued and nothing was billed - the caller may safely fall back.
+    expect((err as Error).name).not.toBe("HiggsfieldApiSubmittedError");
   });
 });
-
 describe("the GENERATOR itself resolves credentials from the DB", () => {
   // P1 REVIEW, 2026-08-17, and the worst defect in this arc: generateReelClipVideoViaApi
   // resolved credentials with the ENV-ONLY reader. With the env vars unset — the
@@ -559,8 +562,8 @@ describe("the GENERATOR itself resolves credentials from the DB", () => {
     // forever. A transient fault must not become a permanent blind spot.
     const src = read("server/services/higgsfieldApiClient.ts");
     const fn = src.slice(
+      src.indexOf("export async function resolveHiggsfieldApiCredentials"),
       src.indexOf("export async function getHiggsfieldApiCredentials"),
-      src.indexOf("export interface DopVideoRequest"),
     );
     const latchAt = fn.indexOf("apiCredsLoadAttempted = true;");
     const catchAt = fn.indexOf("} catch (err) {");
@@ -574,5 +577,274 @@ describe("the GENERATOR itself resolves credentials from the DB", () => {
   it("generation reports the DB-or-Settings path in its not-configured error", () => {
     const src = read("server/services/higgsfieldApiClient.ts");
     expect(src).toMatch(/Settings.*app_secret_kv|app_secret_kv.*Settings/s);
+  });
+});
+
+describe("the clip FORMAT matches the lane that has actually shipped reels", () => {
+  // The API lane shipped passing no aspect ratio, no duration and no resolution,
+  // while buildSeedanceArgs — which produced every reel this shop has published —
+  // passes `--aspect_ratio 9:16 --duration 4 --resolution 1080p`. reelAssembly
+  // THROWS unless a clip is 1080x1920, so DoP defaults would have produced clips
+  // that failed the render gate AFTER being paid for. Clip length also feeds the
+  // 15-22s total-duration target, so a default duration silently changes reel
+  // length depending on which lane ran.
+  afterEach(() => vi.restoreAllMocks());
+
+  async function submitAndCaptureBody(req: Parameters<typeof generateReelClipVideoViaApi>[0]) {
+    let body: Record<string, unknown> = {};
+    global.fetch = vi.fn(async (_url, init: RequestInit) => {
+      if (init.method === "POST") {
+        body = JSON.parse(init.body as string);
+        return { status: 200, text: async () => JSON.stringify({ status: "submitted", request_id: "req_fmt" }) } as Response;
+      }
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_fmt", video: { url: "https://cdn/f.mp4" } }) } as Response;
+    });
+    process.env.HIGGSFIELD_API_KEY_ID = CREDS.keyId;
+    process.env.HIGGSFIELD_API_KEY_SECRET = CREDS.keySecret;
+    await generateReelClipVideoViaApi(req, { pollIntervalMs: 1 });
+    return body;
+  }
+
+  it("sends ONLY the fields DoP's spec defines - no aspect_ratio, duration, resolution or model", async () => {
+    // CORRECTION of #1653. That PR added all four and its message claimed they
+    // stopped the lane paying for landscape clips. The vendor's OpenAPI spec
+    // (docs.higgsfield.ai/docs/openapi.json) defines DoP's ENTIRE body as
+    // prompt, image_url, motions, end_image_url, seed, enhance_prompt - so those
+    // four were ignored and never controlled anything. Sending them encoded a
+    // false belief in the wire format, which is why this asserts their ABSENCE.
+    const body = await submitAndCaptureBody({ prompt: "x", startImageUrl: HERO });
+    expect(body.aspect_ratio).toBeUndefined();
+    expect(body.duration).toBeUndefined();
+    expect(body.resolution).toBeUndefined();
+    expect(body.model).toBeUndefined();
+    // What the spec DOES define, and we do send:
+    expect(body.prompt).toBe("x");
+    expect(body.image_url).toBe(HERO);
+  });
+
+  it("portrait therefore rests on the INPUT STILL, which the log records", async () => {
+    // DoP is image-to-video with no aspect_ratio parameter, so a 9:16 clip needs a
+    // 9:16 hero frame. reelAssembly's 1080x1920 gate cannot be satisfied by a
+    // request field - the constraint lives on brief.visualWorld.heroFrameUrl. This
+    // pins the explanation in the source so the next reader does not re-add
+    // aspect_ratio and assume it works.
+    const src = readFileSync(resolve(process.cwd(), "server/services/higgsfieldApiClient.ts"), "utf8");
+    expect(src).toMatch(/ASPECT RATIO OF THE INPUT STILL|aspect ratio of `image_url`/i);
+    expect(src).not.toContain('body.aspect_ratio');
+  });
+
+  it("those defaults equal the CLI's proven arg values, not a second opinion", () => {
+    // Pinned against the arg builder itself, so the two lanes cannot drift into
+    // producing different-shaped clips for the same reel.
+    const cli = readFileSync(resolve(process.cwd(), "server/services/higgsfieldStudio.ts"), "utf8");
+    const args = cli.slice(cli.indexOf("export function buildSeedanceArgs"));
+    const block = args.slice(0, args.indexOf("];"));
+    expect(block).toContain(`"${REEL_CLIP_DEFAULTS.aspectRatio}"`);
+    expect(block).toContain(`"${String(REEL_CLIP_DEFAULTS.durationSeconds)}"`);
+    expect(block).toContain(`"${REEL_CLIP_DEFAULTS.resolution}"`);
+  });
+
+  it("enhance_prompt is FALSE — the vendor must not rewrite copy after our claim gate", async () => {
+    // This shop cannot make unsupported claims. The prompt has already passed
+    // reviewReplyQa / the M10 preflight; a server-side rewrite would put
+    // unreviewed copy into a published reel.
+    const body = await submitAndCaptureBody({ prompt: "x", startImageUrl: HERO });
+    expect(body.enhance_prompt).toBe(false);
+  });
+
+  it("NO start image throws BEFORE submit and never calls fetch - measured against the live API", async () => {
+    // The live API refuted the previous shape of this file:
+    //   HTTP 422 {"detail":[{"type":"missing","loc":["body","image_url"],...}]}
+    // DoP is image-to-video and the image is REQUIRED, so a beat with no hero
+    // frame cannot use this lane. Throwing pre-submit is FREE and lets
+    // generateReelClipVideo fall back having spent nothing; paying a round-trip
+    // for a request the vendor is guaranteed to reject is the alternative.
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    await expect(generateReelClipVideoViaApi({ prompt: "x" })).rejects.toThrow(/requires a start image/i);
+    // The assertion that matters: no HTTP call at all.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("the start image is a TOP-LEVEL image_url string, not the Soul input_images array", async () => {
+    // `input_images: [{ type, image_url }]` is the SOUL (text-to-image) shape,
+    // carried across to a different endpoint by analogy. 53 mocked tests could
+    // not see the difference because the mock accepted whatever we sent.
+    const body = await submitAndCaptureBody({ prompt: "x", startImageUrl: HERO });
+    expect(body.image_url).toBe(HERO);
+    expect(body.input_images).toBeUndefined();
+  });
+});
+
+describe("UNKNOWN vs ABSENT: the store either answered, or it did not", () => {
+  // P2 REVIEW BY CODEX ON PR #1653 - caught by a reviewer, not by me and not by
+  // any test above. Every test in this file that touched credential resolution
+  // was a SOURCE SCAN, and a source scan cannot see this bug at all: the text was
+  // fine, the behaviour was not.
+  //
+  // `getDb()` builds a LAZY mysql pool. `mysql.createPool` is synchronous and
+  // opens no socket, so a truthy Drizzle handle proves only that DATABASE_URL is
+  // SET. Against a set-but-unreachable TiDB the handle was truthy, the credential
+  // query threw inside the resolver, and callers saw a bare `null` - which the
+  // probe and the phone both reported as "no key configured". The operator would
+  // be told to paste a key already sitting in the row, and told nothing about the
+  // connectivity fault that was the actual problem.
+  //
+  // These drive the resolver with a mocked db-helper and assert the STATE, which
+  // is the only way this class of defect is visible.
+  const ENV_KEYS = ["HIGGSFIELD_API_KEY_ID", "HIGGSFIELD_API_KEY_SECRET"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    vi.resetModules();
+    for (const k of ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    vi.doUnmock("./lib/db-helper");
+    vi.resetModules();
+    // Restore-or-delete: the suite shares ONE process under singleFork, so a
+    // leaked env var reorders results in a later file.
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k]!;
+    }
+  });
+
+  /** A drizzle-shaped stub whose terminal `where` decides what the query does. */
+  const mockDb = (where: () => Promise<unknown>) =>
+    vi.doMock("./lib/db-helper", () => ({
+      db: async () => ({ select: () => ({ from: () => ({ where }) }) }),
+    }));
+
+  const resolveFresh = async () => {
+    const mod = await import("./services/higgsfieldApiClient");
+    return mod.resolveHiggsfieldApiCredentials();
+  };
+
+  it("a QUERY that throws is UNKNOWN - not 'no key'", async () => {
+    mockDb(async () => {
+      throw new Error("ECONNREFUSED gateway01.us-east-1.prod.aws.tidbcloud.com");
+    });
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.store).toBe("none");
+    // The whole point: absence is NOT established, and the reason is carried out
+    // so the caller can say so instead of inventing a verdict.
+    expect(r.dbError).toMatch(/ECONNREFUSED/);
+  });
+
+  it("a COMPLETED query with no rows is genuine ABSENCE - dbError is null", async () => {
+    mockDb(async () => []);
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.store).toBe("none");
+    // "Queried and found nothing" is a real answer. This is the only state that
+    // may legitimately print "configured: NO".
+    expect(r.dbError).toBeNull();
+  });
+
+  it("no database handle at all is UNKNOWN, because nothing was asked", async () => {
+    vi.doMock("./lib/db-helper", () => ({ db: async () => null }));
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.dbError).toMatch(/no database handle/);
+  });
+
+  it("both rows present resolve from app_secret_kv, and report that store", async () => {
+    mockDb(async () => [
+      { k: "higgsfield_api_key_id", v: "id-from-the-phone" },
+      { k: "higgsfield_api_key_secret", v: "secret-from-the-phone" },
+    ]);
+    const r = await resolveFresh();
+    expect(r.credentials).toEqual({ keyId: "id-from-the-phone", keySecret: "secret-from-the-phone" });
+    expect(r.store).toBe("app_secret_kv");
+    expect(r.dbError).toBeNull();
+  });
+
+  it("a HALF-configured DB key is absence, not a broken key", async () => {
+    // Only the id. Returning it would 401 on every call and read as "the key is
+    // wrong" rather than "the key is incomplete".
+    mockDb(async () => [{ k: "higgsfield_api_key_id", v: "only-the-id" }]);
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+    expect(r.dbError).toBeNull();
+  });
+
+  it("a whitespace-only row counts as unset", async () => {
+    mockDb(async () => [
+      { k: "higgsfield_api_key_id", v: "   " },
+      { k: "higgsfield_api_key_secret", v: String.fromCharCode(9) + String.fromCharCode(10) },
+    ]);
+    const r = await resolveFresh();
+    expect(r.credentials).toBeNull();
+  });
+
+  it("env vars are the FALLBACK when the DB has nothing, and are labelled as such", async () => {
+    mockDb(async () => []);
+    process.env.HIGGSFIELD_API_KEY_ID = "env-id";
+    process.env.HIGGSFIELD_API_KEY_SECRET = "env-secret";
+    const r = await resolveFresh();
+    expect(r.credentials).toEqual({ keyId: "env-id", keySecret: "env-secret" });
+    expect(r.store).toBe("env");
+  });
+
+  it("an env key does NOT mask a DB fault - store is env but the fault is reported", async () => {
+    // Prod has no env copy, so this is the reverse-direction guard: if someone
+    // adds one later, a dead key store must stay visible rather than be papered
+    // over by a fallback that happens to succeed.
+    mockDb(async () => {
+      throw new Error("read ETIMEDOUT");
+    });
+    process.env.HIGGSFIELD_API_KEY_ID = "env-id";
+    process.env.HIGGSFIELD_API_KEY_SECRET = "env-secret";
+    const r = await resolveFresh();
+    expect(r.credentials).not.toBeNull();
+    expect(r.store).toBe("env");
+    expect(r.dbError).toMatch(/ETIMEDOUT/);
+  });
+
+  it("getHiggsfieldApiCredentials still returns a bare credential for lane selection", async () => {
+    // The thin wrapper must keep working: most callers only ask "can I use this
+    // lane?", and a null there correctly means "do not".
+    mockDb(async () => [
+      { k: "higgsfield_api_key_id", v: "i" },
+      { k: "higgsfield_api_key_secret", v: "s" },
+    ]);
+    const mod = await import("./services/higgsfieldApiClient");
+    await expect(mod.getHiggsfieldApiCredentials()).resolves.toEqual({ keyId: "i", keySecret: "s" });
+  });
+
+  it("a transient failure is RETRIED - the latch is not set on a failed lookup", async () => {
+    let calls = 0;
+    vi.doMock("./lib/db-helper", () => ({
+      db: async () => ({
+        select: () => ({
+          from: () => ({
+            where: async () => {
+              calls += 1;
+              if (calls === 1) throw new Error("transient");
+              return [
+                { k: "higgsfield_api_key_id", v: "later-id" },
+                { k: "higgsfield_api_key_secret", v: "later-secret" },
+              ];
+            },
+          }),
+        }),
+      }),
+    }));
+    const mod = await import("./services/higgsfieldApiClient");
+    const first = await mod.resolveHiggsfieldApiCredentials();
+    expect(first.credentials).toBeNull();
+    expect(first.dbError).toMatch(/transient/);
+    // The second call must actually hit the database again. A latch set before the
+    // query would make this null forever.
+    const second = await mod.resolveHiggsfieldApiCredentials();
+    expect(second.credentials).toEqual({ keyId: "later-id", keySecret: "later-secret" });
+    expect(second.dbError).toBeNull();
+    expect(calls).toBe(2);
   });
 });

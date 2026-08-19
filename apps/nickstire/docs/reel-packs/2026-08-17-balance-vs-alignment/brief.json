@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-balance-vs-alignment",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #4 \"Alignment vs balance\"",
+  "campaignKeyword": "BALANCE-VS-ALIGN",
+  "hookText": "Shaking at highway speed? You might be fixing the wrong thing.",
+  "ctaText": "Not sure which? Send this to them — or bring it by.",
+  "durationSeconds": 29,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Shaking at highway speed? You might be fixing the wrong thing.",
+      "onScreenText": "",
+      "providerScene": "Driver's-POV-adjacent shot of a steering wheel from the dash, subtle vertical blur/shake vibration effect on the wheel rim, highway lane lines streaking past through the windshield, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 9,
+      "narration": "Balance and alignment get mixed up constantly. They are different repairs.",
+      "onScreenText": "",
+      "providerScene": "Close-up of a wheel-balancing machine spinning a mounted tire, small clip-on weights visible on the rim edge, soft shop-bay lighting, slow push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 9,
+      "endSecond": 15,
+      "narration": "Shaking in the wheel at speed usually points to a balance issue.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a small wheel weight being clipped onto a rim edge by a bare tool (no hands/fingers in frame), shallow depth of field, even key light, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 15,
+      "endSecond": 22,
+      "narration": "Pulling to one side, or wear on just one edge, usually points to alignment.",
+      "onScreenText": "",
+      "providerScene": "Overhead/top-down shot of an alignment rack with laser-line sensors clamped to a wheel, vehicle raised on a lift, clean garage bay, slow lateral pan, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 22,
+      "endSecond": 29,
+      "narration": "Not sure which? Send this to them — or bring it by. Nick's Tire and Auto, link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient garage room-tone only, royalty-free, no music track asserted as cleared",
+    "sfxNotes": "optional single soft mechanical 'click' under beat 3 (weight clip-on) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 8 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 8 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (63/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "63/75 (self-estimate) — below the 70/75 auto-pass floor; the loop weakness and lack of a formal EvidenceRecord for the 'shaking = balance' claim are the two dimensions holding it back"
+  }
+}

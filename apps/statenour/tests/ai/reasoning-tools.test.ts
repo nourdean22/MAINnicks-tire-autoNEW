@@ -33,11 +33,15 @@ const FORBIDDEN_WRITE_TOOLS = [
 ];
 
 describe("reasoning-tools", () => {
-  it("returns a non-empty tool set", () => {
+  it("delivers EXACTLY the whitelist — a silent drop is a red test, not a shrunken toolbox", () => {
+    // 2026-08-19: this was `toBeLessThanOrEqual`, which passed on any
+    // silent drop — and draftOpportunitySms had been silently dropped
+    // (whitelisted, but its source module wasn't spread) with the count
+    // constant overreporting by one the whole time.
     const tools = getReasoningTools();
     const keys = Object.keys(tools);
-    expect(keys.length).toBeGreaterThan(0);
-    expect(keys.length).toBeLessThanOrEqual(REASONING_TOOL_COUNT);
+    expect(keys.length).toBe(REASONING_TOOL_COUNT);
+    expect([...keys].sort()).toEqual([...WHITELIST_KEYS].sort());
   });
 
   it("returns only whitelisted tools", () => {

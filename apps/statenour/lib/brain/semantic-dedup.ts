@@ -109,7 +109,7 @@ async function loadEmbeddings(memoryIds: string[]): Promise<Map<string, number[]
   }
   
   if (malformedCount > 0) {
-    logError("brain.semantic-dedup", new Error(`${malformedCount} malformed embeddings skipped`), { fn: "loadEmbeddings", errors: malformedErrors.map(String) });
+    logError("brain.semantic-dedup", new Error(`${malformedCount} malformed embeddings skipped`), { fn: "loadEmbeddings", errors: malformedErrors.map(String) }, "warn");
   }
   return map;
 }

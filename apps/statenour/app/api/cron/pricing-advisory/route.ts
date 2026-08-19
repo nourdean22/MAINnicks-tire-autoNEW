@@ -19,7 +19,7 @@
  * lib/inngest/jobs.ts + config/crons.ts manifest entry.
  */
 
-import { apiHandler } from "@/lib/utils/http";
+import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { composeAdvisory } from "@/lib/services/pricing-advisor";
 import { recordCoachEvent } from "@/lib/services/coach-events";
@@ -30,7 +30,7 @@ const log = rootLogger.withSurface("cron/pricing-advisory");
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-export const GET = apiHandler(
+export const GET = cronHandler(
   async () => {
     const snapshot = await composeAdvisory();
 
@@ -78,5 +78,4 @@ export const GET = apiHandler(
       headline: snapshot.headline,
     };
   },
-  { auth: "cron" },
 );

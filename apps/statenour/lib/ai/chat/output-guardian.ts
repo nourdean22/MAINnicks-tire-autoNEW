@@ -218,9 +218,33 @@ const SHAPE_LENGTH: Record<OutputShape, { min: number; max: number }> = {
   none: { min: 2, max: 30 },
 };
 
+/**
+ * 2026-08-18 · operator-constrained-brevity detector. "Reply with just
+ * OK" / "one word" / "yes or no" / "≤30 words" are ORDERS about the
+ * reply's shape — and the spec/length axes then measure exactly what
+ * the operator ordered away, firing the axis-gate on obedient replies
+ * (witnessed twice on prod: 2-word replies wearing red
+ * "REGEN RECOMMENDED" chips at overall 62 and 86). Obedience outranks
+ * style axes — the persona arc ships obedience as a MEASURED trait; a
+ * style gate that punishes it is a contradiction, not a standard.
+ * Negated forms ("don't just say OK") deliberately do NOT match.
+ */
+const BREVITY_REQUEST_RE =
+  /\b(?:(?:reply|answer|respond)\s+with\s+(?:just|only|exactly)\b|just\s+say\b|only\s+say\b|say\s+(?:just|only)\b|in\s+one\s+(?:word|line|sentence)\b|one[- ]word\s+(?:answer|reply)\b|yes\s+or\s+no\b|(?:under|max|at\s+most|≤|<=)\s*\d+\s*words?\b|keep\s+it\s+(?:short|brief|to\s+one\s+line)\b)/i;
+const BREVITY_NEGATION_RE =
+  /\b(?:don'?t|do\s+not|never|stop)\s+(?:just\s+)?(?:say|reply|answer|respond)/i;
+
+export function detectBrevityRequest(userPrompt: string | undefined): boolean {
+  const t = (userPrompt ?? "").trim();
+  if (!t) return false;
+  if (BREVITY_NEGATION_RE.test(t)) return false;
+  return BREVITY_REQUEST_RE.test(t);
+}
+
 export function critiqueOutput(
   text: string,
   shape: OutputShape = "prose",
+  opts?: { userPrompt?: string },
 ): CriticScore {
   const reasons: string[] = [];
   const trimmed = text.trim();
@@ -274,15 +298,28 @@ export function critiqueOutput(
     lengthScore = 80;
   }
 
-  const overall = Math.round(
-    specScore * 0.35 + clicheScore * 0.25 + antiScore * 0.20 + lengthScore * 0.20,
-  );
+  // Operator-constrained brevity waives ONLY the axes that measure the
+  // shape the operator ordered (spec density and length). Hedge, cliche
+  // and voice axes stay live — a terse "as an AI I can't" must still
+  // fire. The OVERALL composite rescales onto the remaining axes too:
+  // an obedient "OK" used to read 62 with an amber "quality warn" chip
+  // purely from the deflated spec/length components. See
+  // detectBrevityRequest above for the witnessed failure.
+  const brevityRequested = detectBrevityRequest(opts?.userPrompt);
+  const overall = brevityRequested
+    ? Math.round(clicheScore * 0.55 + antiScore * 0.45)
+    : Math.round(
+        specScore * 0.35 + clicheScore * 0.25 + antiScore * 0.20 + lengthScore * 0.20,
+      );
 
   const criticalAxisOffenders: string[] = [];
-  if (specScore <= 30) criticalAxisOffenders.push("spec");
+  if (brevityRequested) {
+    reasons.push("brevity-requested · spec/length axes waived (operator-constrained reply)");
+  }
+  if (!brevityRequested && specScore <= 30) criticalAxisOffenders.push("spec");
   if (clicheScore <= 20) criticalAxisOffenders.push("cliche");
   if (antiScore <= 20) criticalAxisOffenders.push("antiNour");
-  if (lengthScore <= 30) criticalAxisOffenders.push("length");
+  if (!brevityRequested && lengthScore <= 30) criticalAxisOffenders.push("length");
 
   const hedgePatterns: Array<{ name: string; pat: RegExp }> = [
     { name: "cannot-provide", pat: /^(sorry,?\s+)?i\s+cannot\s+(provide|give|offer|access|retrieve|share)/i },

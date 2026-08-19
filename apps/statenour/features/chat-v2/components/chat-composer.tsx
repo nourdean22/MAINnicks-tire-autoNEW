@@ -31,6 +31,11 @@ function messageText(message: { parts?: Array<{ type?: string; text?: string }> 
 export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const draft = useChatUiStore((s) => s.draft);
   const setDraft = useChatUiStore((s) => s.setDraft);
+  const editingMessageId = useChatUiStore((s) => s.editingMessageId);
+  const setEditingMessageId = useChatUiStore((s) => s.setEditingMessageId);
+  // Edit-resend truncation — the same cascade the long-press delete
+  // uses (deleteMessageCascade: target + everything after).
+  const deleteMessageMutation = trpc.chat.deleteMessage.useMutation();
   const clearConversationDraft = useChatUiStore((s) => s.clearConversationDraft);
   const enqueuePending = useChatUiStore((s) => s.enqueuePending);
   const updatePending = useChatUiStore((s) => s.updatePending);
@@ -86,6 +91,40 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
 
   const sendOrQueue = async (textToSend: string) => {
     if (!textToSend.trim() && !imgAttached) return;
+
+    // 2026-08-18 · edit-resend. When the draft came from tapping an
+    // existing user message, sending REPLACES that turn: truncate the
+    // client thread at the edited message, cascade-delete it server-side
+    // (deleteMessageCascade — the id resolves by row id OR the
+    // client-minted UUID a just-sent message still carries), then fall
+    // through to a normal send, which regenerates from that point. On
+    // cascade failure everything reverts — the original stays, the
+    // draft stays, and the failure is loud. This restores the V1
+    // contract ("saving will resend the message, retriggering a
+    // regeneration") that the chat-v2 migration dropped.
+    if (editingMessageId) {
+      const editId = editingMessageId;
+      setEditingMessageId(null);
+      const idx = chat.messages.findIndex((m) => m.id === editId);
+      // idx < 0 = the message isn't in this thread anymore (stale arm)
+      // — self-heal by falling through to a plain send.
+      if (idx >= 0) {
+        const prevMessages = chat.messages;
+        chat.setMessages(prevMessages.slice(0, idx));
+        try {
+          await deleteMessageMutation.mutateAsync({ messageId: editId });
+        } catch (error) {
+          chat.setMessages(prevMessages);
+          setEditingMessageId(editId);
+          setDraft(textToSend);
+          toast.error(
+            `Couldn't replace the message — original kept. ${error instanceof Error ? error.message : "Retry."}`,
+            { duration: 4000 },
+          );
+          return;
+        }
+      }
+    }
 
     const tempId = crypto.randomUUID();
     const isImageAttached = Boolean(imgAttached);
@@ -342,6 +381,26 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
         attachImgFromDrop(e);
       }}
     >
+      {/* 2026-08-18 · edit-resend banner. Editing is armed by tapping a
+          sent message; it must be VISIBLE and cancellable — an invisible
+          armed cascade-delete would be a destructive surprise. */}
+      {editingMessageId && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-gold/35 bg-gold/10 px-3 py-1.5 text-[11px] text-gold">
+          <span className="min-w-0 truncate">
+            Editing a sent message — sending replaces it and everything after
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingMessageId(null);
+              setDraft("");
+            }}
+            className="shrink-0 rounded-md border border-gold/35 px-2 py-0.5 font-semibold uppercase tracking-wider hover:bg-gold/15"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {privateMode && (
         <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-gold" data-testid="private-lab-banner">
           Private Lab · no history · no memory · no learning · provider retention applies
@@ -541,6 +600,12 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 if (!chat.isStreaming && (draft.trim() || imgAttached)) void sendOrQueue(draft.trim());
+              }
+              // Escape disarms edit-resend (keeps the draft text — the
+              // operator may want it as a NEW message instead).
+              if (event.key === "Escape" && editingMessageId) {
+                event.preventDefault();
+                setEditingMessageId(null);
               }
             }}
             placeholder="Ask, analyze, create, or tell Nick to act…"

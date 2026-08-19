@@ -127,7 +127,7 @@ async function handleQuery(
         prisma.task.count({ where: { status: "INBOX", deletedAt: null } }),
         prisma.task.findMany({
           where: { status: "INBOX", deletedAt: null },
-          orderBy: [{ autoPriority: "asc" }, { lastTouchedAt: "desc" }],
+          orderBy: [{ autoPriority: "desc" }, { lastTouchedAt: "desc" }],
           take: 5,
           select: {
             id: true,

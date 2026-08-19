@@ -233,6 +233,10 @@ export async function runHealthProbes(): Promise<{
           }),
           confidence: 1.0,
           source: "cron:data-source-health",
+          // category-ttl.ts declares 30d for this category, but the GC
+          // only honors expiresAt — rows written without it accumulated
+          // forever (6/day, date-keyed, never re-hit by the upsert).
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
         update: {
           content: JSON.stringify({

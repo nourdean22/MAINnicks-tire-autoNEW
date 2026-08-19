@@ -23,11 +23,11 @@
  *
  *   +200  PROMISE overdue
  *   +150  DAILY not done today
- *   +100  ONCE critical (stale > 7d OR autoPriority <= 15)
+ *   +100  ONCE critical (stale > 7d OR autoPriority >= 80)
  *   +80   DOING
  *   +70   PROMISE due today
  *   +60   PROMISE due within 3 days
- *   +50   ONCE high (autoPriority <= 30)
+ *   +50   ONCE high (autoPriority >= 60)
  *   +30   PROMISE due within 7 days
  *   +20   ONCE normal
  *   +10   ONCE low

@@ -20,8 +20,8 @@
  *
  *   Auth:   Authorization: Key <KEY_ID>:<KEY_SECRET>
  *   Base:   https://platform.higgsfield.ai
- *   Submit: POST /higgsfield-ai/dop/standard, falling back to /v1/image2video/dop
- *           (the docs and the official SDK disagree; see DOP_SUBMIT_PATHS)
+ *   Submit: POST /higgsfield-ai/dop/standard   (settled by the vendor's OpenAPI
+ *           spec 2026-08-18; body = prompt + image_url, both REQUIRED)
  *   Status: GET  /requests/{request_id}/status
  *   Cancel: POST /requests/{request_id}/cancel
  *
@@ -42,13 +42,21 @@
  * scheme and routing the request. So the transport, host and auth SHAPE are
  * confirmed against the real service, not just the docs.
  *
- * STILL UNVERIFIED: generation itself — the submit body, the DoP endpoint path
- * (which is why submit tries TWO candidates; see DOP_SUBMIT_PATHS), the status
- * polling shape, and the result URL field. Those are built from
- * docs.higgsfield.ai and the official Node SDK and tested against a mocked
- * `fetch`; exercising them for real spends credits, which is an operator
- * decision. Run the probe first, then one real clip, before trusting this lane
- * for a scheduled reel.
+ * STILL UNVERIFIED: GENERATION — and measured 2026-08-18, so this is now precise
+ * rather than merely cautious. The request SHAPE and the PATH are SETTLED by the
+ * vendor's OpenAPI spec: body is `prompt` + `image_url`, both required, POSTed to
+ * `/higgsfield-ai/dop/standard`. The blocker is CREDIT: the API answers
+ * `403 {"detail":"not_enough_credits"}`, down to the cheapest configuration tried
+ * (480p/3s). API credit is funded at cloud.higgsfield.ai/credits and is SEPARATE
+ * from the consumer app subscription. No clip has ever been produced on this lane,
+ * so the polling shape and the result-URL field remain exercised only against a
+ * mocked `fetch`.
+ *
+ * A SECOND blocker sits upstream: DoP requires an input still, and recent briefs
+ * carry no `visualWorld.heroFrameUrl` (newest is autopost-2026-08-02, because
+ * template_stock needs no hero). Both must clear before REEL_VIDEO_PROVIDER goes
+ * back to `higgsfield`. Run the probe first, then one real clip, before trusting
+ * this lane for a scheduled reel.
  *
  * `probeHiggsfieldApiCredentials()` is the SAFE first call and costs nothing: it
  * looks up a request id that cannot exist, so 404 means the key works, 401/403
@@ -62,31 +70,45 @@ const log = createLogger("services:higgsfield-api");
 
 const BASE_URL = "https://platform.higgsfield.ai";
 /**
- * TWO CANDIDATE SUBMIT PATHS, tried in order, because the two authoritative
- * sources disagree and NEITHER can be verified without a working key.
+ * THE SUBMIT PATH, SETTLED 2026-08-18 by the vendor's own OpenAPI spec.
  *
- * docs.higgsfield.ai documents image generation at
- * `/higgsfield-ai/soul/standard`, so the DoP analogue is
- * `/higgsfield-ai/dop/standard`. The OFFICIAL Node SDK's README instead calls
- * `higgsfield.subscribe('/v1/image2video/dop', …)`.
+ * `/higgsfield-ai/dop/standard` EXISTS. `/v1/image2video/dop` does NOT — the spec
+ * enumerates all 50 paths and none contains "image2video", so the official Node
+ * SDK's README is simply wrong. The live 422 and 403 both came from the standard
+ * path, which is therefore demonstrably the routed one. There is ONE candidate now;
+ * a 404 means the path MOVED and the loop throws immediately, naming it.
  *
- * WHY A PROBE CANNOT SETTLE IT (measured 2026-08-17). The server checks auth
- * BEFORE routing: a request to `/higgsfield-ai/definitely-not-real` with a bogus
- * key returns `401 {"detail":"Invalid credentials"}`, identical to a real path.
- * So 401 proves the host and auth SCHEME are right and says NOTHING about
- * whether a path exists — a free path-existence probe is impossible, and any
- * future attempt to build one will hit the same wall. Do not re-derive this.
+ * WHY IT WAS EVER TWO — kept because the wrong answer was reached by ANALOGY and
+ * held for a day. docs.higgsfield.ai documents image generation at
+ * `/higgsfield-ai/soul/standard`, so the DoP analogue *looked* like
+ * `/higgsfield-ai/dop/standard`, while the SDK called `/v1/image2video/dop`. Rather
+ * than pick, the submit tried both.
  *
- * Rather than ship a coin flip, the submit tries the documented path and falls
- * through to the SDK path on a 404/405. A 404 costs nothing — auth already
- * succeeded, no generation was queued, no credit was spent — so the first real
- * call self-corrects instead of failing. The path that works is LOGGED so the
- * loser can be deleted once reality is known.
+ * The same analogy caused the real bug: `input_images: [{type, image_url}]` is the
+ * SOUL body shape, and DoP wants a top-level `image_url` string. Reading the spec
+ * would have cost one fetch; reasoning by analogy cost a day and 19 green tests
+ * asserting a request the vendor rejects. FETCH THE SPEC FIRST.
+ *
+ * WHY A PROBE CANNOT SETTLE A PATH (measured 2026-08-17, still true and still worth
+ * not re-deriving). The server checks auth BEFORE routing: a request to
+ * `/higgsfield-ai/definitely-not-real` with a bogus key returns
+ * `401 {"detail":"Invalid credentials"}`, identical to a real path. So a 401 proves
+ * the host and auth SCHEME and says NOTHING about whether a path exists. GET is
+ * likewise `405` on every path including nonexistent ones. A free path-existence
+ * probe is impossible on this API — which is exactly why the SPEC, not a probe, is
+ * what settled this.
  */
-const DOP_SUBMIT_PATHS = [
-  "/higgsfield-ai/dop/standard",
-  "/v1/image2video/dop",
-] as const;
+// SETTLED 2026-08-18 by the vendor's own OpenAPI spec, which enumerates all 50
+// paths: `/higgsfield-ai/dop/standard` exists, `/v1/image2video/dop` does NOT (no
+// path in the spec contains "image2video"). The live 422 and 403 both came from
+// the first path, so it is demonstrably the routed one. The comment above said the
+// loser should be deleted once reality was known - it is, so it is.
+//
+// The array stays because the loop that reads it is the thing keeping a future
+// path change from being a silent outage. The spec also offers cheaper DoP tiers
+// - `/higgsfield-ai/dop/lite` and `/dop/turbo`, identical request schema - which
+// is the lever to pull if credit cost per clip becomes the constraint.
+const DOP_SUBMIT_PATHS = ["/higgsfield-ai/dop/standard"] as const;
 
 /** Statuses meaning "wrong path", as distinct from "bad request to the right path". */
 const PATH_MISS_STATUSES = new Set([404, 405]);
@@ -131,8 +153,45 @@ export function clearRuntimeHiggsfieldApiKeyCache(): void {
  * Unlike the CLI credential blob, this one is NEVER rewritten by a rotation —
  * an API key is static, which is the entire reason this lane exists.
  */
-export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
-  if (apiCredsLoadAttempted) return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+export type HiggsfieldApiCredentialsResolution = {
+  credentials: HiggsfieldApiCredentials | null;
+  /** Where the returned credentials came from. "none" when there are none. */
+  store: "app_secret_kv" | "env" | "none";
+  /**
+   * `null` means a lookup COMPLETED, so a null `credentials` is genuine absence.
+   * A string means the store could not be read, so absence is UNKNOWN.
+   */
+  dbError: string | null;
+};
+
+/**
+ * WHY THIS RETURNS A RESOLUTION AND NOT JUST A NULLABLE CREDENTIAL (P2 review by
+ * Codex on PR #1653, and the sharpest catch of this arc from outside it).
+ *
+ * `getDb()` builds a LAZY mysql pool: `mysql.createPool` is synchronous and never
+ * opens a socket, so a truthy Drizzle handle proves only that DATABASE_URL is
+ * SET. If TiDB is unreachable or rejects the credentials, the handle is still
+ * truthy and the FAILURE surfaces later, inside the query. A consumer that reads
+ * a null credential as "no key configured" therefore announces absence when the
+ * truth is "I could not look" — and those need opposite responses: one says paste
+ * a key, the other says fix connectivity and do NOT rotate anything.
+ *
+ * My own probe had exactly that bug while carrying a `dbReachable` check that
+ * looked like it prevented it. A presence check wearing a liveness check's name
+ * is worse than no check, so the distinction now lives HERE, where every consumer
+ * gets it, rather than being re-derived correctly-or-not at four call sites.
+ */
+export async function resolveHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentialsResolution> {
+  const settle = (dbError: string | null): HiggsfieldApiCredentialsResolution => {
+    if (cachedApiCreds) return { credentials: cachedApiCreds, store: "app_secret_kv", dbError };
+    const env = higgsfieldApiCredentialsFromEnv();
+    if (env) return { credentials: env, store: "env", dbError };
+    return { credentials: null, store: "none", dbError };
+  };
+
+  // A completed earlier lookup is a real answer: nothing left to be unknown.
+  if (apiCredsLoadAttempted) return settle(null);
+
   // The latch is set only after a load that actually COMPLETED (P2 review,
   // 2026-08-17). Setting it up-front meant a single DB outage or a thrown query
   // pinned `apiCredsLoadAttempted = true` with a null cache forever, so every
@@ -142,34 +201,48 @@ export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCreden
   try {
     const { db } = await import("../lib/db-helper");
     const d = await db();
-    if (d) {
-      const { appSecretKv } = await import("../../drizzle/schema");
-      const { inArray } = await import("drizzle-orm");
-      const rows = await d
-        .select()
-        .from(appSecretKv)
-        .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
-      let id: string | null = null;
-      let secret: string | null = null;
-      for (const r of rows as { k: string; v: string | null }[]) {
-        if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
-        if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
-      }
-      // BOTH or neither — a half-configured key would fail every call with a 401
-      // and read as "the key is wrong" rather than "the key is incomplete".
-      if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
+    if (!d) {
+      // Not "no key" — no way to ask. DATABASE_URL unset, or the pool could not
+      // even be constructed.
+      return settle("no database handle (DATABASE_URL unset or pool unavailable)");
     }
+    const { appSecretKv } = await import("../../drizzle/schema");
+    const { inArray } = await import("drizzle-orm");
+    const rows = await d
+      .select()
+      .from(appSecretKv)
+      .where(inArray(appSecretKv.k, ["higgsfield_api_key_id", "higgsfield_api_key_secret"]));
+    let id: string | null = null;
+    let secret: string | null = null;
+    for (const r of rows as { k: string; v: string | null }[]) {
+      if (r.k === "higgsfield_api_key_id" && r.v?.trim()) id = r.v.trim();
+      if (r.k === "higgsfield_api_key_secret" && r.v?.trim()) secret = r.v.trim();
+    }
+    // BOTH or neither — a half-configured key would fail every call with a 401
+    // and read as "the key is wrong" rather than "the key is incomplete".
+    if (id && secret) cachedApiCreds = { keyId: id, keySecret: secret };
     // Reached only on a completed query — with or without rows. "Queried and
     // found nothing" is a real answer worth caching; "could not query" is not.
     apiCredsLoadAttempted = true;
+    return settle(null);
   } catch (err) {
-    // Never log the values, and never let a DB blip look like "no key" —
-    // the env fallback below still applies.
-    log.error("failed to load Higgsfield API credentials from database", {
-      err: err instanceof Error ? err.message : String(err),
-    });
+    // Never log the values, and never let a DB blip look like "no key" — the env
+    // fallback still applies, and the error is REPORTED rather than swallowed so
+    // the caller can say UNKNOWN instead of NO.
+    const message = err instanceof Error ? err.message : String(err);
+    log.error("failed to load Higgsfield API credentials from database", { err: message });
+    return settle(message);
   }
-  return cachedApiCreds ?? higgsfieldApiCredentialsFromEnv();
+}
+
+/**
+ * DB-FIRST resolver, thin wrapper over {@link resolveHiggsfieldApiCredentials}.
+ * Kept because most callers only need "can I use this lane?" — but any caller
+ * that REPORTS on configuration must use the resolution instead, or it will state
+ * absence it has not established.
+ */
+export async function getHiggsfieldApiCredentials(): Promise<HiggsfieldApiCredentials | null> {
+  return (await resolveHiggsfieldApiCredentials()).credentials;
 }
 
 function authHeader(creds: HiggsfieldApiCredentials): string {
@@ -260,10 +333,54 @@ export async function probeHiggsfieldApiCredentials(
 
 export interface DopVideoRequest {
   prompt: string;
-  /** A publicly fetchable image URL — the API fetches it server-side. */
+  /**
+   * REQUIRED by the vendor spec despite being optional here, because the caller
+   * may not have one and the error must name why. A publicly fetchable image URL
+   * - the API fetches it server-side.
+   *
+   * THIS IMAGE DETERMINES THE CLIP'S ASPECT RATIO. DoP has no aspect_ratio
+   * parameter (see the body construction), so a 9:16 clip requires a 9:16 still.
+   */
   startImageUrl?: string;
-  aspectRatio?: string;
 }
+
+/**
+ * The CLI lane's proven clip arguments - what `buildSeedanceArgs` passes, and
+ * therefore what produced every reel this shop has actually published.
+ *
+ * NOT sent to the API lane. DoP's spec has no duration/resolution/aspect_ratio
+ * field at all, so passing these there did nothing; they are kept here because
+ * the CLI lane does use them and a test pins that lane's args to these values.
+ */
+
+/**
+ * MIRRORED FROM THE PROVEN CLI ARG SET, not invented and not from a doc page.
+ * `buildSeedanceArgs` in higgsfieldStudio.ts has produced every real reel this
+ * shop has published, and it passes exactly:
+ *
+ *     --aspect_ratio 9:16   --duration 4   --resolution 1080p
+ *
+ * CORRECTION, 2026-08-18. #1653 added these to the API request body and its commit
+ * message claimed the API lane would otherwise have "paid for landscape clips the
+ * assembler rejects". THAT WAS WRONG. The vendor's OpenAPI spec defines DoP's whole
+ * body as `prompt, image_url, motions, end_image_url, seed, enhance_prompt` - there
+ * is no duration, resolution or aspect_ratio field, so those three were ignored and
+ * never controlled anything on that lane.
+ *
+ * What actually sets a DoP clip's shape is the ASPECT RATIO OF THE INPUT STILL,
+ * because DoP is image-to-video. So satisfying reelAssembly's 1080x1920 gate is a
+ * constraint on `brief.visualWorld.heroFrameUrl`, not something a request parameter
+ * can buy. The genuine format risk is real, it just lives one step upstream.
+ *
+ * These therefore describe the CLI LANE ONLY. They stay exported because a test
+ * pins `buildSeedanceArgs` to them, which keeps the lane that does honour them from
+ * drifting.
+ */
+export const REEL_CLIP_DEFAULTS = {
+  aspectRatio: "9:16",
+  durationSeconds: 4,
+  resolution: "1080p",
+} as const;
 
 /**
  * Thrown once a generation has been SUBMITTED, i.e. once Higgsfield may bill for
@@ -333,11 +450,64 @@ export async function generateReelClipVideoViaApi(
   const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000));
   const deadline = Date.now() + timeoutMs;
 
-  const body: Record<string, unknown> = { model: "dop-standard", prompt: req.prompt };
-  if (req.startImageUrl) body.input_images = [{ type: "image_url", image_url: req.startImageUrl }];
-  if (req.aspectRatio) body.aspect_ratio = req.aspectRatio;
+  // THE VENDOR'S OWN OpenAPI SPEC (docs.higgsfield.ai/docs/openapi.json, read
+  // 2026-08-18) DEFINES DoP's ENTIRE REQUEST BODY AS:
+  //
+  //     required: prompt, image_url
+  //     properties: seed, prompt, motions, image_url, end_image_url, enhance_prompt
+  //
+  // There is NO duration, NO resolution, NO aspect_ratio and NO model field.
+  // This file used to send all four, and #1653's commit message claimed they were
+  // what kept a clip portrait and priced. That was WRONG and worth stating
+  // plainly: unknown fields are simply ignored, so those four never controlled
+  // anything. The 422 we measured was about image_url alone.
+  //
+  // WHAT ACTUALLY DETERMINES PORTRAIT: the ASPECT RATIO OF `image_url`. DoP is
+  // image-to-video and inherits its frame from the still. So a 9:16 clip requires
+  // a 9:16 hero frame - reelAssembly's 1080x1920 gate cannot be satisfied by a
+  // request parameter, only by the input image. That is a real constraint on
+  // brief.visualWorld.heroFrameUrl, not a knob here.
+  //
+  // KEPT, because the spec confirms it is real AND defaults to TRUE:
+  // `enhance_prompt`. Letting the vendor rewrite copy server-side would put
+  // UNREVIEWED text into a published reel for a business that must not make
+  // unsupported claims - a compliance hole, not a quality feature. This is the
+  // one format field that was doing work all along.
+  const body: Record<string, unknown> = {
+    prompt: req.prompt,
+    enhance_prompt: false,
+  };
 
-  log.info("submitting Higgsfield API DoP video generation", { promptLen: req.prompt.length, hasStartImage: !!req.startImageUrl });
+  // MEASURED AGAINST THE LIVE API 2026-08-18, then confirmed by the spec:
+  //
+  //   HTTP 422 {"detail":[{"type":"missing","loc":["body","image_url"],
+  //                        "msg":"Field required"}]}
+  //
+  // `image_url` is a REQUIRED TOP-LEVEL STRING. The old
+  // `input_images: [{ type, image_url }]` is the SOUL (text-to-image) shape,
+  // carried to a different endpoint by analogy; 53 mocked tests could not see the
+  // difference because the mock accepted whatever we sent.
+  //
+  // A beat with no hero frame therefore cannot use this lane at all, and throwing
+  // here is FREE: this is not a HiggsfieldApiSubmittedError, so
+  // generateReelClipVideo treats it as PRE-submit and falls back having spent
+  // nothing, rather than paying a round-trip for a guaranteed rejection.
+  if (!req.startImageUrl) {
+    throw new Error(
+      "Higgsfield API DoP requires a start image (body.image_url) - it is image-to-video only. " +
+        "This beat has no hero frame, so the API lane cannot run it. In production the anchor is " +
+        "brief.visualWorld.heroFrameUrl, shared by every beat for identity lock (reelPipeline.ts). " +
+        "Nothing was submitted and nothing was spent.",
+    );
+  }
+  body.image_url = req.startImageUrl;
+
+  log.info("submitting Higgsfield API DoP video generation", {
+    promptLen: req.prompt.length,
+    // Portrait is inherited from this image, not requested - so the URL is the
+    // thing worth logging when a clip comes back the wrong shape.
+    startImage: req.startImageUrl,
+  });
 
   // Try each candidate path. A 404/405 means "wrong path", and crucially it means
   // NOTHING was queued and NOTHING was billed — so advancing to the next candidate

@@ -432,6 +432,179 @@ export async function materializeStartImage(url: string): Promise<string | null>
   }
 }
 
+/** How the keepalive's last verdict reads. `live === null` means UNKNOWN. */
+export type HiggsfieldSessionLiveness = {
+  /** true = proven live, false = proven dead, null = could not tell. */
+  live: boolean | null;
+  /** Whether a credentials blob exists at all - PRESENCE, not liveness. */
+  credsPresent: boolean;
+  /** Account credit balance from the last successful keepalive, if it logged one. */
+  balanceCredits: number | null;
+  /** When the verdict was produced. */
+  checkedAt: Date | null;
+  reason: string;
+};
+
+/**
+ * Older than this and the last keepalive verdict is not evidence any more. DERIVED
+ * from KEEPALIVE_FRESH_WINDOW_MS above so the two operator surfaces that read the
+ * same cron_log evidence cannot contradict each other (P2 review, #1668: this was
+ * an independent 45 while higgsfieldSessionHealth used 60, so a 46-59 min old row
+ * read "unknown" on one card and "healthy" on the other). In MINUTES because the
+ * comparison is done by the DATABASE (TIMESTAMPDIFF), not from a driver-parsed
+ * Date - see the query below for why that distinction is load-bearing.
+ */
+const KEEPALIVE_STALE_MINUTES = KEEPALIVE_FRESH_WINDOW_MS / 60_000;
+
+/**
+ * SESSION LIVENESS FOR HEALTH SURFACES, read from the keepalive's own record.
+ *
+ * WHY THIS EXISTS. Health cards used to report `!!getHiggsfieldCredentialsJson()` -
+ * a PRESENCE check - as though it were liveness. A revoked refresh token leaves the
+ * blob perfectly intact, which is exactly how a dead session read as "configured"
+ * for four days (#1628). The same shape then reappeared as `dbReachable` on the API
+ * key lane (P2, PR #1653): a truthy handle proving only that a value was SET.
+ *
+ * WHY cron_log AND NOT A LIVE CLI CALL. `higgsfieldSessionHealth()` spawns the
+ * Higgsfield binary, which costs seconds - unacceptable on a page-load query, and
+ * the reason the existing button is behind an explicit refresh. The keepalive
+ * already performs a credit-free `hf account status` every 15 minutes and records
+ * the verdict, so the evidence exists; reading it costs one indexed lookup
+ * (idx_cron_job) and no vendor round-trip. It also carries the credit balance,
+ * which nothing else in the app can see - the API lane has no readable balance
+ * endpoint (every GET returns 405).
+ *
+ * THREE STATES, DELIBERATELY. A missing or STALE row is `null`, never `false`:
+ * "the keepalive has not run" and "the session is dead" need opposite responses
+ * from the operator, and collapsing them is the defect this whole helper exists to
+ * stop repeating.
+ */
+export async function higgsfieldSessionLiveness(): Promise<HiggsfieldSessionLiveness> {
+  const credsPresent = !!(await getHiggsfieldCredentialsJson());
+  const base = { credsPresent, balanceCredits: null as number | null, checkedAt: null as Date | null };
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) {
+      return { ...base, live: null, reason: "no database handle - cannot read the keepalive verdict" };
+    }
+    const { cronLog } = await import("../../drizzle/schema");
+    const { eq, desc, sql } = await import("drizzle-orm");
+    // AGE IS COMPUTED BY THE DATABASE, deliberately. mysql2 parses DATETIME columns
+    // in the connection's LOCAL zone, and this DB returns UTC - so a parsed
+    // `startedAt` lands 4 hours in the FUTURE on an ET machine (measured
+    // 2026-08-18: DB NOW() read 20:10 while true UTC was 16:10). Deriving age from
+    // `Date.now() - startedAt` therefore yields a NEGATIVE number, and every stale
+    // verdict up to the offset would have read as fresh - the exact opposite of what
+    // this staleness guard exists to do. TIMESTAMPDIFF against UTC_TIMESTAMP() is
+    // evaluated server-side and cannot be skewed by the driver.
+    const rows = await d
+      .select({
+        status: cronLog.status,
+        details: cronLog.details,
+        errorMessage: cronLog.errorMessage,
+        startedAt: cronLog.startedAt,
+        ageMinutes: sql<number>`TIMESTAMPDIFF(MINUTE, ${cronLog.startedAt}, UTC_TIMESTAMP())`,
+      })
+      .from(cronLog)
+      .where(eq(cronLog.jobName, "higgsfield-session-keepalive"))
+      .orderBy(desc(cronLog.startedAt))
+      .limit(1);
+    const row = (rows as {
+      status: string;
+      details: string | null;
+      errorMessage: string | null;
+      startedAt: Date;
+      ageMinutes: number | string | null;
+    }[])[0];
+    if (!row) {
+      return { ...base, live: null, reason: "the keepalive has never recorded a run" };
+    }
+    const checkedAt = row.startedAt instanceof Date ? row.startedAt : new Date(row.startedAt);
+    // MySQL may return the computed column as a string; Number() covers both. A null
+    // or unparseable age is UNKNOWN rather than assumed-fresh, because assuming
+    // fresh is how a stale verdict becomes a confident one.
+    // Number(null) === 0, NOT NaN - so a null age would read as "0 minutes old",
+    // i.e. maximally fresh and confident. Caught by the test for this exact case.
+    const rawAge = row.ageMinutes;
+    const ageMinutes = rawAge === null || rawAge === undefined || rawAge === "" ? Number.NaN : Number(rawAge);
+    const ageKnown = Number.isFinite(ageMinutes);
+    // The keepalive logs ", N credits" on success - the only balance this app can see.
+    const credits = /(\d+)\s*credits/.exec(row.details ?? "");
+    const balanceCredits = credits ? Number(credits[1]) : null;
+    if (!ageKnown || ageMinutes > KEEPALIVE_STALE_MINUTES) {
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: ageKnown
+          ? `last keepalive verdict is ${ageMinutes} min old (stale past ${KEEPALIVE_STALE_MINUTES} min) - UNKNOWN, not dead`
+          : "could not compute the age of the last keepalive verdict - UNKNOWN, not dead",
+      };
+    }
+    // A NON-FAILED ROW IS NOT PROOF OF LIFE (P1 review, #1668). The keepalive
+    // handler returns NORMALLY when no credentials are stored ("no higgsfield
+    // creds - skip"), and the scheduler records that as completed - so "any
+    // non-failed row is live" declared a credential-LESS lane alive. live: true
+    // therefore requires all three: a non-failed row, evidence the keepalive
+    // actually REFRESHED a session (its success detail always starts
+    // "session refreshed"), and credentials still present NOW - a blob deleted
+    // after the last successful tick must not inherit that tick's verdict.
+    const detail = row.details ?? "";
+    if (row.status === "failed") {
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: false,
+        reason: (row.details ?? row.errorMessage ?? "keepalive failed").slice(0, 200),
+      };
+    }
+    if (/no higgsfield creds/i.test(detail)) {
+      // The keepalive TESTED NOTHING - it skipped. Unknown, not alive.
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: "keepalive skipped - no credentials were stored, so nothing was tested",
+      };
+    }
+    if (!/session refreshed/i.test(detail)) {
+      // Completed, but not a refresh receipt this helper recognises. Unknown
+      // beats a confident guess about an unrecognised row shape.
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: `keepalive ${row.status} without a refresh receipt: ${detail.slice(0, 140) || "(no detail)"}`,
+      };
+    }
+    if (!credsPresent) {
+      return {
+        credsPresent,
+        balanceCredits,
+        checkedAt,
+        live: null,
+        reason: "last keepalive refreshed a session, but the credentials blob is GONE now - the verdict predates the removal",
+      };
+    }
+    return {
+      credsPresent,
+      balanceCredits,
+      checkedAt,
+      live: true,
+      reason: `keepalive ${row.status}${balanceCredits != null ? `, ${balanceCredits} credits` : ""}`,
+    };
+  } catch (err) {
+    // A read failure is UNKNOWN. Reporting it as dead would send the operator to
+    // re-login over a database blip.
+    return { ...base, live: null, reason: `could not read the keepalive verdict: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
 export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string; startImageUrl?: string }): Promise<string> {
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;

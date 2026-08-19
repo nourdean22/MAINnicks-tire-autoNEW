@@ -69,6 +69,7 @@ import { buildFastStream, ensureConvAndPersistUser } from "./handlers/shared";
 import { handleImage } from "./handlers/image";
 import { handleDecision } from "./handlers/decision";
 import { handleBrainDump, handleSlashSave } from "./handlers/brain-dump";
+import { isRedeliveryRequest } from "./redelivery";
 // F5 operator command shortcuts (/today, /rescue, /what-changed, /import-session,
 // /receipts, /stale). resolveCommand/runCommand are the SAME registry the
 // /api/system/command endpoint uses — no duplicated command logic.
@@ -152,6 +153,10 @@ export interface InterceptKind {
   slashSave: boolean;
   strict: boolean;
   chill: boolean;
+  /** 2026-08-18 · "resend that" / "app bugged, retry" — re-serve the
+   *  stored last assistant text deterministically (see redelivery.ts:
+   *  the prompt rule measurably failed; the model regenerates). */
+  redelivery: boolean;
   any: boolean;
 }
 
@@ -206,6 +211,11 @@ export function classifyIntercept(
   const slashSave = EARLY_SLASH_SAVE.test(userContent.trim());
   const strict = EARLY_STRICT.test(userContent.trim());
   const chill = EARLY_CHILL.test(userContent.trim());
+  // 2026-08-18 · re-delivery is suppressed when the prior turn was an
+  // image: "send it again" there belongs to the image follow-up path
+  // (which regenerates), not to text re-serving.
+  const redelivery =
+    !previousAssistantWasImage && !nlImage && !slashImage && isRedeliveryRequest(userContent);
   return {
     slashImage,
     nlImage,
@@ -214,7 +224,16 @@ export function classifyIntercept(
     slashSave,
     strict,
     chill,
-    any: slashImage || nlImage || decision || brainDump || slashSave || strict || chill,
+    redelivery,
+    any:
+      slashImage ||
+      nlImage ||
+      decision ||
+      brainDump ||
+      slashSave ||
+      strict ||
+      chill ||
+      redelivery,
   };
 }
 
@@ -388,6 +407,14 @@ export async function runInterceptors(
   let previousAssistantWasImage = false;
   let priorAssistantContent: string | null = null;
   let priorUserContent: string | null = null;
+  // 2026-08-18 self-audit fix · re-delivery must re-serve the MOST
+  // RECENT non-image assistant turn regardless of length.
+  // priorAssistantContent is the wrong source for it: that variable
+  // feeds the image-prompt synthesizer and deliberately prefers the
+  // last >50-char SUBSTANTIVE turn — so when the reply just lost was
+  // short ("Done — sent."), a "resend" would deterministically
+  // re-serve an OLDER, wrong message. Tracked separately.
+  let redeliveryContent: string | null = null;
   if (args.convId && args.convId !== "temp") {
     try {
       // Pull last 5 assistant turns + last user turn. We need to look back
@@ -443,6 +470,12 @@ export async function runInterceptors(
           (m.content?.length ?? 0) > 50, // skip stub replies
       );
       priorAssistantContent = lastText?.content || mostRecent?.content || null;
+      // Re-delivery source: the most recent assistant turn itself, when
+      // it's a text turn (image/clarification turns already suppress the
+      // redelivery intent via previousAssistantWasImage).
+      if (mostRecent && !previousAssistantWasImage) {
+        redeliveryContent = mostRecent.content || null;
+      }
       if (priorUser) {
         priorUserContent = priorUser.content || null;
       }
@@ -454,11 +487,39 @@ export async function runInterceptors(
   const intent = classifyIntercept(args.userContent, previousAssistantWasImage);
   if (!intent.any) return { kind: "pass" };
 
+  // 2026-08-18 · re-delivery with nothing to re-deliver (first turn, or
+  // no stored assistant text) must fall through to the model BEFORE any
+  // persistence side effects — the model pipeline persists the user
+  // message itself.
+  if (
+    intent.redelivery &&
+    !redeliveryContent &&
+    !(intent.slashImage || intent.nlImage || intent.decision || intent.brainDump || intent.slashSave || intent.strict || intent.chill)
+  ) {
+    return { kind: "pass" };
+  }
+
   const convId = await ensureConvAndPersistUser(
     args.convId,
     args.userContent,
     args.lastUserMsg,
   );
+
+  if (intent.redelivery && redeliveryContent) {
+    // Deterministic re-serve of the stored last assistant text — no
+    // model call, no drift. See lib/ai/chat/redelivery.ts for why the
+    // prompt-rule approach measurably failed here.
+    return {
+      kind: "handled",
+      response: await buildFastStream(
+        convId,
+        redeliveryContent,
+        "redelivery",
+        "retry-redelivery",
+      ),
+      convId,
+    };
+  }
 
   if (intent.slashImage || intent.nlImage) {
     // v7 · Apr 28 · Missing-image attachment guard. When the user says

@@ -3822,12 +3822,12 @@
   },
   {
     "name": "setTaskPriority",
-    "description": "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where lower = more urgent (0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday). Example: {\"taskId\":142,\"priority\":15}",
+    "description": "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where HIGHER = more urgent (100=drop-everything, 90=critical, 70=high, 50=normal, 30=someday). Example: {\"taskId\":142,\"priority\":90}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "priority": {
-          "description": "0-100. 0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday.",
+          "description": "0-100, higher = more urgent. 100=drop-everything, 90=critical, 70=high, 50=normal, 30=someday.",
           "maximum": 100,
           "minimum": 0,
           "type": "integer"

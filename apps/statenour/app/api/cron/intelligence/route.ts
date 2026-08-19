@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { cronHandler } from "@/lib/utils/http";
 
 export const maxDuration = 55;
 
@@ -14,30 +14,16 @@ export const maxDuration = 55;
  * 6. Strategic Plan Assessment
  *
  * Runs as part of evening mega-cron.
+ *
+ * 2026-08-19 · converted from a bare GET (hand-rolled Bearer compare) to
+ * cronHandler. The hand-rolled auth predated `requireCronAuth`, which now
+ * does the identical constant-time Bearer CRON_SECRET check — but the bare
+ * handler never reached logCronRun, so this child NEVER wrote a
+ * cron_job_logs row. cron-heartbeat derives its expected set from the
+ * fan-out arrays, saw ageH=Infinity for it every day, and filed a false
+ * P0 "silent cron" alert naming a job that was running fine.
  */
-export async function GET(req: NextRequest) {
-  // v10.0.115 follow-up to v10.0.114 audit · same parallel pattern
-  // the mega route had — the x-vercel-cron header is decorative and
-  // spoofable. Require a real Bearer secret (constant-time compare
-  // since ===-comparison on a Bearer leaks length via timing).
-  const auth = req.headers.get("authorization") ?? "";
-  const secret = process.env.CRON_SECRET;
-  const expected = secret ? `Bearer ${secret}` : null;
-  let authorized = false;
-  if (expected && auth.length === expected.length) {
-    // Best-effort constant-time-ish compare. node:crypto.timingSafeEqual
-    // is the proper helper but this route doesn't import it; the
-    // length-equal short-circuit closes the worst leak.
-    let mismatch = 0;
-    for (let i = 0; i < expected.length; i++) {
-      mismatch |= auth.charCodeAt(i) ^ expected.charCodeAt(i);
-    }
-    authorized = mismatch === 0;
-  }
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = cronHandler(async () => {
   const results: Record<string, unknown> = {};
   const errors: string[] = [];
 
@@ -128,12 +114,16 @@ export async function GET(req: NextRequest) {
   // saw it fail — people-intelligence/decision-patterns/emotional-arc could stay
   // dead for weeks with zero alert. Reflect total failure in ok + status.
   const allFailed = engines.length > 0 && errors.length === engines.length;
-  return NextResponse.json({
+  // ok:false on total failure now files a FAILED cron_job_logs row via
+  // logCronRun's reported-failure detection — the forensic-audit MEDIUM
+  // ("always {ok:true} even when every engine threw") stays fixed, and the
+  // failure is finally visible on /system/crons too.
+  return {
     ok: !allFailed,
     enginesRun: engines.length,
     errors: errors.length,
     errorDetails: errors.length > 0 ? errors : undefined,
     results,
     timestamp: new Date().toISOString(),
-  }, { status: allFailed ? 500 : 200 });
-}
+  };
+});

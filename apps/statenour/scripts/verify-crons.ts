@@ -52,6 +52,29 @@ const functionsDir = path.join(cwd, "lib/inngest/functions");
 const files = fs.existsSync(functionsDir)
   ? fs.readdirSync(functionsDir).filter((f) => f.endsWith(".ts") && f !== "index.ts")
   : [];
+
+// Registration with Inngest Cloud flows through index.ts — the route does
+// `Object.values(functions)` over its exports and NOTHING else. This gate
+// used to validate the directory listing while excluding index.ts, so a
+// new function file nobody exported passed check:crons and was silently
+// never registered — the exact drift class behind the 2026-07-28 incident
+// (~16 unregistered functions, briefing_log never filled). Assert every
+// function file is actually re-exported.
+{
+  const indexPath = path.join(functionsDir, "index.ts");
+  const indexSrc = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf-8") : "";
+  for (const file of files) {
+    const mod = file.replace(/\.ts$/, "");
+    const reExported =
+      indexSrc.includes(`"./${mod}"`) || indexSrc.includes(`'./${mod}'`);
+    if (!reExported) {
+      fail(
+        `lib/inngest/functions/${file} is not exported from index.ts — it will NEVER register with Inngest Cloud`,
+      );
+    }
+  }
+}
+
 const inngestCrons = new Map<string, string>();
 
 for (const file of files) {

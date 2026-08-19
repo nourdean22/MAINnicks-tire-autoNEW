@@ -159,7 +159,7 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     expect(a).toBe(b);
   });
 
-  it("is reasonably sized (between 1.5kB and 13.5kB)", () => {
+  it("is reasonably sized (between 1.5kB and 14kB)", () => {
     // Lower bound: catch accidental empty/stub regression (the v9.0-beta
     // version was 6 lines / ~250 bytes). Upper bound: catch bloat back
     // toward v1 territory (v1 is 1819 lines / ~80kB after data fanout).
@@ -167,8 +167,15 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     // operator policy block (8 rules + truth-rule = ~2.5kB).
     // 2026-07-05 · ceiling → 13.5kB after adding the OWNER AUTHORITY
     // directive to identityBlock (~1.1kB · current size ~12.3kB).
+    // 2026-08-18 · ceiling → 14kB for CONFIRMATION_EXECUTES (~0.56kB,
+    // prose already tightened once against this gate) — added for the
+    // persona golden set's two CONFIRMED live regressions (yes-executes
+    // 1.6, retry-means-retry 5.1, each reproducing across three runs),
+    // with pre/post measurement via `pnpm eval:live --filter=persona`.
+    // This pin catches ACCIDENTAL growth; that growth is deliberate and
+    // measured. Current size ~13.8kB.
     expect(prefix.length).toBeGreaterThan(1500);
-    expect(prefix.length).toBeLessThan(13500);
+    expect(prefix.length).toBeLessThan(14000);
   });
 
   it("asserts OWNER AUTHORITY — never refuse/moralize/disclaim to the owner", () => {

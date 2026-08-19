@@ -1,6 +1,6 @@
 # NOUR OS — Session Buffer
 
-**Updated: 2026-08-12** · Five fields, nothing else. If the SessionStart briefing
+**Updated: 2026-08-18** · Five fields, nothing else. If the SessionStart briefing
 reports this file as stale, distrust everything below it and re-derive from source.
 
 > **Maintenance contract.** This is agent-maintained. Update the five fields at the
@@ -10,27 +10,40 @@ reports this file as stale, distrust everything below it and re-derive from sour
 > An inventory you cannot verify is worse than no inventory: **delete, don't carry.**
 
 ## Current objective
-NICK VNEXT program, Ollama-first: waves 1-4 SHIPPED (wave 1 = #1513; wave 2-4 =
-second PR same day) — Claude 5 compat + refusal-first-class, deep canary,
-**normal-chat cost firewall** (ollama = only zero-incremental lane; Turbo consent
-opens metered), **memory gateway Phase-1 default-ON**, reply-gate
-evidenced-uncertainty fix, server-derived claim verification, browseAndDo
-update|save|upload guard, Ollama bake-off (`docs/OLLAMA-BAKEOFF-2026-08-11.md`).
-Gates: `docs/GATE-2026-08-11-nick-vnext.md` + addendum (plans #18-#20). Next wave:
-Context-Manifest instrumentation → compact-prompt A/B (V1/V2 shadow-metrics has NO
-live callers — an empty series is not convergence), Eval-40 baseline,
-effort→reasoning-tier remap, proactivity governor, Phase-2 memory (349
-review_required/wk + temporal supersession).
+Persona measurement arc COMPLETE — GATE-2026-08-14 fully executed, 13 PRs
+(#1649-#1665, all content-verified on origin/main). Canonical record:
+`docs/PERSONA-MEASUREMENT-ARC-2026-08-18.md` (PR chain, architecture, readouts +
+caveats, runbook). Standing instruments now live: 8-axis judge (obedience/
+nonSycophancy/calibration) · 14-scenario persona golden set
+(`pnpm eval:live --filter=persona`, ~1c, suite mean 8.2 best) · harvest flywheel
+(`pnpm harvest:persona`) · backfill (`pnpm backfill:persona`) · calibration
+enforcer w/ k-sample (NICK_CALIBRATION_ENFORCER / NICK_CALIBRATION_K) ·
+trajectory grader (trajectory_judgment rows) · catalog-claims verifier (in
+pnpm test). Next candidates: yes-executes pending-offer state machine ·
+one-shot-key expiry audit across other brain categories · Brier-evidence
+accrual before any k-sample retune.
 
 ## Last material decision
-$0 incremental spend is a HARD invariant (operator, 3x): the cost firewall fails
-COST-CLOSED when Ollama is down instead of degrading onto metered credits
-(kill-switch `NICK_COST_FIREWALL=0`; suite pins it off for chain tests). Memory
-Phase-1 default-ON justified by the 7-day shadow review — 1,788 receipts, noop 846
-(47%) at ZERO legacy agreement (kill-switch `NICK_MEMORY_GATEWAY_PHASE1=0`).
-Canary armed but COLD: `ANTHROPIC_MODEL=claude-fable-5` set on Railway, but NO
-`ANTHROPIC_API_KEY` exists on any service — and under the firewall, anthropic also
-needs the canary attestation. A refusal does NOT mark the provider failed.
+Chat-UX round 2 (#1678, 2026-08-18): the REGEN badge ORs TWO scorers
+(output-critic AND reply-gate) — #1677's critic waiver alone still left the
+chip firing on obedient stubs ("OK" on "reply with just OK": critic waived
+overall=100, gate sev=80 stub-reply). Both must waive; verified on the
+PERSISTED verdict (tokenUsage via trpc chat.conversation) — the live-stream
+view cannot see the verdict and is a blind instrument for this surface.
+LIVE-PROVEN post-deploy: fresh "reply with just OK" → persisted critic
+overall=100 + gate sev=0 (waiver reason present), UI regenChip=false on
+reopen; both throwaway convos deleted. Full playbook in memory:
+statenour-false-green-sweep-2026-08-04.md (ORed-producers addendum).
+Earlier: prompt prose is the WEAK lever, measured twice today: the retry regression
+survived a verified-present prompt rule (1.1/10) and was fixed only by a
+DETERMINISTIC re-delivery interceptor (5.1→10.0) — LLMs regenerate, never copy.
+Same doctrine on calibration: the layer NEVER invents a probability (elicit →
+validate through parseEstimative → honest notice on failure), and k-sample
+dispersion may only DOWNGRADE stated confidence (first live fire: 40pt spread →
+conf low). Composite semantics deliberately unchanged everywhere (mean-of-5,
+pinned) to keep historical comparability. sideEffecting's scope = the field's
+DOCUMENTED semantic (external state) — an invariant broader than the doc cried
+wolf 26x and would have been excepted into blindness.
 
 ## Known failed approaches
 - **Auto fast-forwarding the primary checkout from the scheduled sync — rejected as
@@ -53,87 +66,12 @@ Anthropic spend authorization + golden tasks pulled from real usage (prod reads)
 Ollama Cloud is still the one funded LLM lane (2026-07-22).
 
 ## Next action
-DONE 2026-08-12 latest (thirteenth wave, 7 ships #1535-#1542): MISSION-scan
-gated (~75%, 22nd) → operator ordered the partial-opens FINISHED → all four
-BDN builds shipped (compact Home + RESUME branch · journal take lifecycle
-line · receipts timeline into /brain Continuity · chat deep-link re-wire:
-13 orphaned entry points restored prefill-only, context lane un-killed) ·
-approval queue 468→44 via INCUMBENT purger, sweep now nightly, producers =
-deferred-action deadlock (fix menu OPERATOR-ONLY: seed auto policies /
-review 9 due replays) · 23rd plan ("RETROFIT PASS", unattended 8-phase)
-gated ~85%: brain-bus thesis DEAD (probe 1,558 done / 0 pending),
-THE-BRIEF.md phantom · self-review round: full suite 481/5,169 exit 0,
-review-confirmed false coverage claim fixed (purger predicate now genuinely
-pinned, red-green executed) · calibration ledger is the standing scoreboard
-(docs/MISSION-CALIBRATION-LEDGER.md — read before any attention/IA plan).
-STILL OWED: live browser verification of the new surfaces (operator parked
-it — use claude-in-chrome); WPs registered not built: evidence-tier fields,
-streak-semantics audit, PageNick mounts.
-Prior: DONE 2026-08-12 late (side-quests, non-VNext): Pulse feed sheet symmetric exit
-(#1531 — prod-verified via the operator's real Chrome with animation-EVENT
-receipts; note the desktop has prefers-reduced-motion ON, so motion aesthetics
-are judgeable only on the phone) · memory-manager tests honest under Phase-1
-shadow receipts (#1532) — **suite fully green again: 479/479 files, 5,155/5,155,
-exit 0** · agent-os: Claude Code capabilities report gated 0/20 refuted,
-exact-spelling push-to-main deny rules shipped, CLI 2.1.150→2.1.228
-(#1529/#1530; gate doc has the launch-prompt template). Heads-up 2026-08-14:
-auto mode becomes the default for new Pro/Max/Team sessions — this repo is
-ready (enforcement is file-based, not conversation-state).
-Prior: DONE 2026-08-12 (wave 9): RETRIEVAL-SIDE COMPLEMENT LIVE — `getAgendaItems`
-(agendaItem rows had NO tool exposure; getCommitments reads a different
-table). Four registrations + both pins regenerated (snapshot:mcp-surface,
-snapshot:tool-schemas — the guards caught the gaps as designed). Tier-6
-pruner defaults now carry it (fires exactly on casual turns); the gate
-leaves a ## Agenda (JIT) pointer when it drops the live-data section. The
-VNext arc is now CODE-COMPLETE: everything further is prod observation
-(context_manifest lines · tool receipts · minimax provider.success) or
-operator levers (Turbo key). Prior wave 8: JIT SECTION GATE LIVE — agenda/behavioral/intake
-(9,248 ch) drop ONLY on casual + social-content turns (the exact cases the
-A/Bs measured the cut free-or-winning); grounded + comms turns keep context.
-Receipt: content scenarios −9,248 ch each (headroom 2%→17%), default/sms
-unchanged. Kill-switch NICK_JIT_SECTIONS=0. Wiring lessons: the LIVE builder
-is the cached() one (not buildSystemPromptUncached), and the gate must sit
-OUTSIDE the cache closure (shared 300s keys → poison risk). Remaining half:
-retrieval-side complement (agenda via recall/tools on gated turns) before any
-further compaction. Prior wave 7: BIGGER RERUNS — both interventions evidence-REJECTED.
-Skeptic frame: baseline 7 · skeptic 6 · unstable 5 at n=16 framed (minimax-m3
-self-challenges; do NOT wire; gate stays as tested primitive). Compact cut:
-REVERSED to incumbent 4-1-9 at n=14 (full prompt wins context-grounded asks) —
-compaction requires the JIT-retrieval half FIRST; that build (agenda/behavioral/
-intake behind retrieval) is now the top code item. Harness: JUDGE_REPS +
-JUDGE_SKIP (16x2 blew the 600s ceiling — run halves). Meta-verdict for the next
-planner: plans #18-#21 treated an 84%-sycophancy context-polluted baseline that
-the measured system does not have. Prior wave 6: BOTH A/Bs RAN — targeted skeptic (gate perfect 0
-mismatches, frame 2-2 wash → NOT wired; gate shipped as
-`lib/ai/vnext/assertion-pressure.ts`) and compact prompt (−23% context,
-compact 2 · incumbent 0 · 4 unstable → ahead but not decisive; live flip
-waits on larger n + agenda-JIT retrieval). Rerun bigger:
-`JUDGE_MODE=targeted JUDGE_MODEL=gpt-oss:120b railway run ... vnext-ollama-judge.ts`
-and `railway run ... vnext-prompt-ab.ts --yes` with more cases. Prior waves 3+4/#1516+#1518: pins FLIPPED on Railway (verified —
-`OLLAMA_MODEL=minimax-m3` after the 5-rep finalist rerun; `OLLAMA_FAST_MODEL=
-deepseek-v4-flash:0731`; rollback = two env vars) · `NICK_TOOL_BUDGET` live
-(default 24, was hardcoded 50) · Context-Manifest instrumentation live
-(`context_manifest` log line per turn) · deterministic golden-signals suite
-(`tests/ai/vnext/golden-signals.test.ts`). Watch after deploy: first
-`provider.success` lines on minimax-m3 + first `context_manifest` lines.
-**Remaining waves are DATA-GATED on these instruments:** compact-prompt A/B
-(reads manifest section census) → Ollama judge harness → anti-sycophancy pairs
-→ Skeptic-default A/B → per-tool cross-tier ranking (unlocks K≤5) →
-deterministic memory max() (Phase-2). Process trap twice this session: a
-branch cut from pre-squash commits conflicts on docs; force-push is
-hook-blocked (no bypass) — recovery is rebase `--onto origin/main <old-tip>` →
-push NEW branch name → re-PR (#1515→#1516, #1517→#1518). Operator-only: fund
-ANTHROPIC_API_KEY iff Turbo is wanted.
-
----
-
-## Durable facts (each corroborated by root `AGENTS.md`, not by this file)
-- **Prod**: https://bdnick.info · Railway project `natural-appreciation` · service `statenour-web`
-- **Dev**: `pnpm stn dev` → port 3001
-- **Stack**: Next.js 16 App Router · React 19 · Prisma 6.19 → Neon · AI SDK v6
-- **Branching**: named branches only, PR + squash-merge. **NEVER commit or push to `main`.**
-
-> Deleted 2026-08-10 — three stale inventories (live surfaces · cron list · "retired
-> this pass"), all dated 2026-04-18 and unverifiable without a prod probe. Cron truth
-> lives in `config/crons.ts`; surface truth in `app/`; ship history in
-> `docs/RECONCILIATION.md`.
+DONE 2026-08-18 (sixteenth wave, 13 ships #1649-#1665): the full persona
+measurement arc — see Current objective. STILL OWED / operator levers:
+① first organic reply_judgment + trajectory_judgment rows accumulate from live
+traffic — re-run `pnpm harvest:persona` after a week and curate anything new;
+② `pnpm eval:live --filter=persona` is the pre/post instrument for ANY
+prompt/routing change from now on (baseline table lives in the arc doc);
+③ Brier flywheel: grade forecast outcomes as they resolve so the k-sample
+numbers earn their empirical check; ④ yes-executes deterministic completion
+(pending-offer state machine) is designed-not-built — own slice.

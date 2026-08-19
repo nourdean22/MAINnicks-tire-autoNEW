@@ -52,11 +52,12 @@ export function useExecutionFocus(
         if (timeA !== timeB) return timeA - timeB;
       }
 
-      // 2. AI autoPriority wins (lower number = higher priority)
-      const priA = a.autoPriority ?? Infinity;
-      const priB = b.autoPriority ?? Infinity;
+      // 2. AI autoPriority wins (canonical polarity: higher = more
+      // urgent; unscored rows sink below every scored one)
+      const priA = a.autoPriority ?? -Infinity;
+      const priB = b.autoPriority ?? -Infinity;
       if (priA !== priB) {
-        return priA - priB;
+        return priB - priA;
       }
 
       // 3. Due Date wins (future)

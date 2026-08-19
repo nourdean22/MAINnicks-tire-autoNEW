@@ -359,7 +359,7 @@ export const GET = syncHandler(async () => {
     prisma.task
       .findMany({
         where: { status: { in: ["INBOX", "READY", "DOING"] } },
-        orderBy: [{ autoPriority: "asc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
         take: 15,
         select: {
           id: true,
@@ -374,9 +374,9 @@ export const GET = syncHandler(async () => {
           id: t.id,
           title: t.title,
           priority:
-            (t.autoPriority ?? 50) < 20 ? "critical"
-            : (t.autoPriority ?? 50) < 40 ? "high"
-            : (t.autoPriority ?? 50) < 60 ? "medium"
+            (t.autoPriority ?? 50) >= 80 ? "critical"
+            : (t.autoPriority ?? 50) >= 60 ? "high"
+            : (t.autoPriority ?? 50) >= 40 ? "medium"
             : "low",
           domain: t.mission?.domain ?? "general",
           source: t.autoPriorityExplanation ?? "unknown",

@@ -79,6 +79,24 @@ export default function SystemHealthPage() {
   const cronFailureRate = data.cron.totalLogs
     ? Math.round((data.cron.failureCount / data.cron.totalLogs) * 100)
     : 0;
+  // error_logs stores error | warn | fatal in one table and the tile
+  // counted all three as "errors". Split them so a wall of warnings
+  // stops reading as a wall of failures.
+  const realErrorCount = data.errors.byLevel
+    .filter((l) => l.level === "error" || l.level === "fatal")
+    .reduce((s, l) => s + l.count, 0);
+  const warnCount = data.errors.byLevel
+    .filter((l) => l.level === "warn")
+    .reduce((s, l) => s + l.count, 0);
+  const errorLevelSplit =
+    warnCount > 0 ? `${realErrorCount} err / ${warnCount} warn` : "";
+  // Only the components that actually reported. A null drift read is
+  // surfaced in the label as "?" rather than silently summed as 0.
+  const knownBacklog =
+    data.backlog.inboxTasks +
+    data.backlog.activeCommitments +
+    data.backlog.activeCaptures +
+    (data.backlog.unackedDriftAlerts ?? 0);
 
   return (
     <main className="max-w-4xl mx-auto px-3 py-4 space-y-4">
@@ -128,7 +146,7 @@ export default function SystemHealthPage() {
           pass-rate + nickstire bridge / data-source probes). The two
           dimensions that broke in prod (revenue $0 · evals 0/75 · bridge
           down) but weren't surfaced here. Loud (red) only when wrong. */}
-      <OperationalStatus op={data.operational} />
+      <OperationalStatus report={data} />
 
       {/* v8.2 BATCH 12 — schema-drift sentinel surface. Loud only when
           something's off; silent (✓ all expectations met) otherwise. */}
@@ -146,43 +164,69 @@ export default function SystemHealthPage() {
           baseline={data.previous?.cronTotal ?? null}
           baselineLabel={`vs prior ${data.range}`}
           label={
-            data.cron.failureCount > 0
-              ? `cron ops · ${cronFailureRate}% fail`
-              : "cron ops · all green"
+            data.cron.totalLogs === 0
+              ? "cron ops · NO RUNS LOGGED"
+              : data.cron.failureCount > 0 || data.cron.partialCount > 0
+                ? `cron ops · ${cronFailureRate}% fail${
+                    data.cron.partialCount > 0 ? ` · ${data.cron.partialCount} partial` : ""
+                  }`
+                : "cron ops · all green"
           }
           goodWhen="neutral"
-          tone={data.cron.failureCount > 0 ? "amber" : "emerald"}
+          // Zero rows is the most common cron failure mode (a dead fleet
+          // logs nothing) and used to render "all green" in emerald.
+          // A single failure and five hundred also painted identically —
+          // there was no rose tier here, unlike the errors tile.
+          tone={
+            data.cron.totalLogs === 0 ? "rose"
+            : cronFailureRate >= 10 ? "rose"
+            : data.cron.failureCount > 0 || data.cron.partialCount > 0 ? "amber"
+            : "emerald"
+          }
         />
         <TrendCounter
           value={data.errors.total}
           baseline={data.previous?.errorTotal ?? null}
           baselineLabel={`vs prior ${data.range}`}
+          // `topPatterns.length` is slice(0,5)-capped, so this label read
+          // "5 patterns" for any window with ≥5 distinct messages — it
+          // could never print 6, and reported the cap as a measurement.
           label={
-            data.errors.topPatterns.length > 0
-              ? `errors · ${data.errors.topPatterns.length} patterns`
+            data.errors.distinctPatterns > 0
+              ? `errors · ${data.errors.distinctPatterns} patterns${
+                  errorLevelSplit ? ` · ${errorLevelSplit}` : ""
+                }`
               : "errors · quiet"
           }
           goodWhen="low"
+          // Tone follows error+fatal, not the raw total: warns have run
+          // ~68% of this table, which pinned the tile permanently rose.
           tone={
-            data.errors.total > 10 ? "rose"
-            : data.errors.total > 0 ? "amber"
+            realErrorCount > 100 ? "rose"
+            : realErrorCount > 0 ? "amber"
             : "emerald"
           }
         />
         <TrendCounter
-          value={
-            data.backlog.inboxTasks +
-            data.backlog.activeCommitments +
-            data.backlog.activeCaptures +
-            (data.backlog.unackedDriftAlerts ?? 0)
-          }
-          label={`backlog · ${data.backlog.inboxTasks}t · ${data.backlog.activeCommitments}c`}
+          value={knownBacklog}
+          // `unackedDriftAlerts ?? 0` folded a FAILED READ into the sum as
+          // zero — re-committing in the headline the exact fabricated
+          // all-clear that system-health.ts:161-163 refuses to produce and
+          // that the detail row below renders honestly as "?".
+          label={`backlog · ${data.backlog.inboxTasks}t · ${data.backlog.activeCommitments}c · ${data.backlog.activeCaptures}cap${
+            data.backlog.unackedDriftAlerts === null
+              ? " · drift ?"
+              : ` · ${data.backlog.unackedDriftAlerts}d`
+          }`}
           goodWhen="low"
-          tone="tertiary"
+          tone={data.backlog.unackedDriftAlerts === null ? "amber" : "tertiary"}
         />
         <TrendCounter
           value={totalVectors}
-          label={`vectors · ${data.vectorIndex.length} sources`}
+          // Lifetime total (groupBy has no `where`), sitting in a row where
+          // every neighbour is {range}-scoped. Say so, so a number that
+          // only ever climbs isn't read as in-window activity.
+          label={`vectors · ${data.vectorIndex.length} sources · all-time`}
           goodWhen="high"
           tone="tertiary"
         />
@@ -344,6 +388,17 @@ export default function SystemHealthPage() {
           Surfaces the top-fired lenses + fallback rate alongside the
           rest of system health. Click-through to /system/lens-stats
           for window selector + full per-surface breakdown. */}
+      {/* `lens === null` means the READ THREW — system-health.ts:220-224
+          returns null precisely so a failed query stops rendering
+          byte-identically to a healthy-but-quiet lens. Hiding the section
+          on null threw that distinction away again at the consumer. */}
+      {data.lens === null && (
+        <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+          <span className="text-[10px] font-mono text-amber-300">
+            strategic lens · read failed — unknown, not zero
+          </span>
+        </section>
+      )}
       {data.lens && data.lens.totalFires > 0 && (
         <section className="rounded-lg border border-emerald-500/30 bg-emerald-500/5">
           <header className="flex items-center gap-2 px-3 py-2">
@@ -398,39 +453,112 @@ export default function SystemHealthPage() {
   );
 }
 
-function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
+/**
+ * The banner used to compute `allGood` from the eval pass-rate and the
+ * data-source probes ALONE. Cron failures and error volume — the two
+ * loudest numbers on the page — could not turn it red, so it rendered
+ * "ALL CLEAR" above 1,423 errors and a 2% cron failure rate.
+ *
+ * Two further holes made the remaining inputs unable to fire:
+ *   · `evalBad` required `ev !== null && ev.total > 0`. eval_result has
+ *     had NO PRODUCER since the nightly harness was deleted, so `ev` is
+ *     permanently null and the eval input was inert by construction.
+ *   · `ds.total === 0` (zero probe rows) rendered "no probes yet" while
+ *     `failing > 0` stayed false — no probes read as all-clear.
+ *
+ * Green now requires a live instrument that actually reported. Anything
+ * unproven degrades to amber rather than passing as healthy.
+ */
+function OperationalStatus({ report }: { report: HealthReport }) {
+  const op = report.operational;
   const ev = op.eval;
   const evalBad = ev !== null && ev.total > 0 && ev.passRate < 70;
+  // No FRESH eval run is not evidence of health — it is absence of
+  // evidence. It degrades, it does not clear.
+  const evalUnknown = ev === null || ev.total === 0;
   const ds = op.dataSources;
   // ds === null means the probe READ failed — unknown never counts as
   // all-clear (fleet-truth pattern, 2026-07-30 sweep).
-  const dsUnknown = ds === null;
+  const dsUnknown = ds === null || ds.total === 0;
   const dsBad = ds !== null && ds.failing > 0;
-  const allGood = !evalBad && !dsBad && !dsUnknown;
+  // A canary nobody has fed in 48h is not a green canary.
+  const dsStale = ds !== null && ds.stale > 0;
+
+  const hardCronFailures = report.cron.failureCount;
+  const cronFailRate = report.cron.totalLogs
+    ? (hardCronFailures / report.cron.totalLogs) * 100
+    : 0;
+  // Zero rows in the window = the fleet is silent, the most common cron
+  // failure mode. The tile already goes rose for it; without this the
+  // banner stayed green for up to 48h (until probe staleness caught it
+  // transitively) while the tile below screamed.
+  const cronSilent = report.cron.totalLogs === 0;
+  // Errors counted at level error/fatal only — `total` includes warns,
+  // which historically ran ~68% of the table and pinned the tile red.
+  const realErrors = report.errors.byLevel
+    .filter((l) => l.level === "error" || l.level === "fatal")
+    .reduce((s, l) => s + l.count, 0);
+
+  const down = evalBad || dsBad || cronFailRate >= 10;
+  const degraded =
+    !down &&
+    (dsUnknown ||
+      dsStale ||
+      evalUnknown ||
+      cronSilent ||
+      hardCronFailures > 0 ||
+      realErrors > 100);
+  const allGood = !down && !degraded;
+
+  const headline = down
+    ? "operational · needs attention"
+    : degraded
+      ? "operational · degraded"
+      : "operational · all clear";
+  // Why it is not green — the operator should never have to guess.
+  const reasons: string[] = [];
+  if (dsBad) reasons.push(`${ds!.failing} data source${ds!.failing > 1 ? "s" : ""} failing`);
+  if (evalBad) reasons.push(`eval pass-rate ${ev!.passRate}%`);
+  if (cronFailRate >= 10) reasons.push(`cron failing ${Math.round(cronFailRate)}%`);
+  if (ds === null) reasons.push("probe read failed");
+  else if (ds.total === 0) reasons.push("no probes have run");
+  if (dsStale) reasons.push(`${ds!.stale} probe${ds!.stale > 1 ? "s" : ""} stale >48h`);
+  if (evalUnknown) reasons.push("no eval run in 7d");
+  if (cronSilent) reasons.push(`no cron runs logged in ${report.range}`);
+  if (!down && hardCronFailures > 0) reasons.push(`${hardCronFailures} cron failures`);
+  if (realErrors > 100) reasons.push(`${realErrors} errors`);
+
   return (
     <section
       className={cn(
         "rounded-lg border px-3 py-2.5",
         allGood
           ? "border-emerald-500/30 bg-emerald-500/5"
-          : "border-red-500/40 bg-red-500/[0.07]",
+          : down
+            ? "border-red-500/40 bg-red-500/[0.07]"
+            : "border-amber-500/40 bg-amber-500/[0.07]",
       )}
     >
       <div className="flex items-center gap-2 mb-2">
         {allGood ? (
           <CheckCircle2 size={12} className="text-emerald-400" />
         ) : (
-          <AlertTriangle size={12} className="text-red-400" />
+          <AlertTriangle size={12} className={down ? "text-red-400" : "text-amber-400"} />
         )}
         <h2
           className={cn(
             "text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em]",
-            allGood ? "text-emerald-300" : "text-red-400",
+            allGood ? "text-emerald-300" : down ? "text-red-400" : "text-amber-300",
           )}
         >
-          {allGood ? "operational · all clear" : dsUnknown && !evalBad && !dsBad ? "operational · probe read failed" : "operational · needs attention"}
+          {headline}
         </h2>
       </div>
+      {reasons.length > 0 && (
+        <p className="mb-2 text-[10px] font-mono text-[var(--text-secondary)]">
+          {reasons.join(" · ")}
+        </p>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Link
           href="/system/calibration"
@@ -461,33 +589,49 @@ function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
           )}
         </Link>
         <div className="block rounded-md border border-[var(--border-default)] px-3 py-2">
+          {/* Label said "bridge · data sources" but the number counts ALL
+              probes regardless of kind — only 2 of the 6 are the nickstire
+              bridge, and `bridgeFailing` was computed and never rendered. */}
           <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
-            bridge · data sources
+            data-source probes
           </div>
           <div
             className={cn(
               "text-sm font-bold tabular-nums",
-              dsBad ? "text-red-400" : dsUnknown ? "text-amber-400" : "text-emerald-400",
+              dsBad ? "text-red-400" : dsUnknown || dsStale ? "text-amber-400" : "text-emerald-400",
             )}
           >
             {ds === null
               ? "probe read failed — unknown"
               : ds.total === 0
-                ? "no probes yet"
+                ? "no probes have run"
                 : dsBad
-                  ? `${ds.failing} failing`
-                  : `${ds.total} OK`}
+                  ? `${ds.failing} of ${ds.total} failing`
+                  : dsStale
+                    ? `${ds.stale} of ${ds.total} stale`
+                    : `${ds.total} OK`}
           </div>
+          {ds !== null && ds.bridgeFailing > 0 && (
+            <div className="text-[9px] font-mono text-red-300/90 mt-0.5">
+              {ds.bridgeFailing} nickstire bridge
+            </div>
+          )}
         </div>
       </div>
-      {dsBad && ds !== null && (
+      {ds !== null && (dsBad || dsStale) && (
         <ul className="mt-2 space-y-0.5">
           {ds.probes
-            .filter((p) => !p.ok)
-            .slice(0, 4)
+            .filter((p) => !p.ok || p.stale)
+            .slice(0, 6)
             .map((p) => (
-              <li key={p.name} className="text-[10px] font-mono text-red-300/90 truncate">
-                {p.name}: {p.reason ?? "failing"}
+              <li
+                key={p.name}
+                className={cn(
+                  "text-[10px] font-mono truncate",
+                  p.ok ? "text-amber-300/90" : "text-red-300/90",
+                )}
+              >
+                {p.name}: {p.reason ?? (p.ok ? "stale" : "failing")}
               </li>
             ))}
         </ul>

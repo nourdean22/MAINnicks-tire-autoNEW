@@ -273,10 +273,21 @@ export async function deleteMessageCascade({
 }: {
   messageId: string;
 }): Promise<DeleteMessageResult> {
-  const target = await prisma.chatMessage.findUnique({
-    where: { id: messageId },
-    select: { id: true, conversationId: true, createdAt: true, content: true },
-  });
+  // 2026-08-18 · resolve by row id OR clientMessageId. A message the
+  // operator JUST sent still carries the client-minted UUID in the live
+  // useChat state (the DB row id is a cuid; the UUID lands in
+  // clientMessageId via the idempotency upsert) — and "fix the message
+  // I just sent" is the #1 edit case, which used to NOT_FOUND here.
+  // Row id wins when both match something (findFirst tries it first).
+  const target =
+    (await prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { id: true, conversationId: true, createdAt: true, content: true },
+    })) ??
+    (await prisma.chatMessage.findFirst({
+      where: { clientMessageId: messageId },
+      select: { id: true, conversationId: true, createdAt: true, content: true },
+    }));
   if (!target) {
     throw new MessageNotFoundError(messageId);
   }

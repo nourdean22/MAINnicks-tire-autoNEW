@@ -852,8 +852,8 @@
     },
     {
       "owner": "system",
-      "lastVerifiedAt": "2026-07-17",
-      "verificationExpiresAt": "2026-08-07",
+      "lastVerifiedAt": "2026-08-18",
+      "verificationExpiresAt": "2026-09-08",
       "deferredScope": [],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
@@ -867,7 +867,8 @@
         ],
         "deploymentId": "railway 7c86cad0 (2026-07-17 15:50 EDT)",
         "liveRuns": [
-          "fresh creds pushed + deploy live; render 690001 generating on the refreshed session"
+          "fresh creds pushed + deploy live; render 690001 generating on the refreshed session",
+          "END-TO-END LIVE PROOF 2026-08-18: operator restored the session (higgsfield auth login + push-higgsfield-creds --apply at 15:41 ET; keepalive flipped to 'session refreshed, 2733.62 credits' nine minutes later after 5 days of refresh-token-revoked failures). The restored session then generated reel job 1650001's clips (seedance1_5, Higgsfield CloudFront URLs), the reel passed rendered-QA after an operator-authorized paid repair loop (needs_paid_repair -> requestBeatRepair cycles), and PUBLISHED to Instagram: igPostId 18105354986172908, briefId autopost-2026-08-18. First reject -> autonomous repair -> pass -> post cycle ever completed without a human touching a button beyond authorization."
         ]
       },
       "blockers": [
@@ -1392,13 +1393,15 @@
       "name": "Reel topic selection ranked by distribution, Pattern Lab rotation, cross-lane topic awareness",
       "owner": "system",
       "evidence": {
-        "codeCommit": "#1613 — three joints that existed on both sides and were never connected",
+        "codeCommit": "#1613 (merged) establishes cross-lane awareness; #1699 (candidate) consolidates 32 explicitly operator-approved packs and gives their topics a durable first-in rotation through dailyReelPost",
         "tests": [
           "shared/reelPerformancePrior.test.ts (9): null-not-zero for unreported metrics, re-weighting over present metrics, inverted skipRate, outlier ceiling, MIN_POSTS_PER_THEME drop-not-demote, basis provenance",
           "shared/reelStructureRotation.test.ts (6): least-used first, never-used before repeat, deterministic tie-break, hook-type exclusion with full-set fallback",
           "server/reelPackRegistry.test.ts (7): directory resolution, brief.json optional, unparseable brief survives, campaign keyword in avoid-list, age bound, no-throw on missing dir",
           "server/reelBriefStructureTrajectory.test.ts: structurePatternId survives brief -> persisted payload",
-          "server/reelReviewFixes.test.ts (4): duplicate-snapshot consequence, avoid-list merge-not-substitute"
+          "server/reelReviewFixes.test.ts (4): duplicate-snapshot consequence, avoid-list merge-not-substitute",
+          "server/approvedReelPackRotation.test.ts (3): exactly 32 approved packs in chronological order; completed, negative, NaN, and malformed cursors never restart the sequence",
+          "server/cron/jobs/dailyReelPost.test.ts (6) + full local pnpm test:only (480 files / 5,851 tests): normal fail-closed daily-Reel behavior remains intact"
         ],
         "productionMeasurement": "Ranking effect measured on the live account 2026-08-16 against a DEDUPLICATED sample of 32 distinct reels. OLD (engagementRate = likes+comments) ranked educational #1, seasonal #2, community #3. NEW (saves/shares/retention) ranks promo #1 (0.0059, 12 posts), seasonal #2, educational #3 (0.0032, 31 posts), community #4 (0.0017). CORRECTION: an earlier measurement in this PR claimed local-appeal #1 and community at 0.000 — both were artifacts of counting one post many times. ig_metric_snapshots is append-only and the first query returned the newest 60 ROWS, which was only 19 distinct posts at 3.2 snapshots each. Review caught it; the query now takes the newest snapshot PER POST via a window function. Deployed image confirmed to contain /app/apps/nickstire/docs/reel-packs with all five packs."
       },
@@ -1417,17 +1420,67 @@
           "severity": "P2",
           "description": "TiDB rejects subqueries in an ON clause (ER 1105 'ON condition doesn't support subqueries yet'), so the per-post dedupe uses ROW_NUMBER() over a derived table. Any future simplification back to a correlated subquery will throw at runtime and be SWALLOWED by the catch, silently reverting theme ranking to the engagementRate ordering this capability replaces.",
           "source": "live prod probe 2026-08-16: the subquery form threw ER 1105 before this was shipped"
+        },
+        {
+          "severity": "P2",
+          "description": "The approved-pack cursor has not yet selected a pack in a production cron run. #1699 does not generate, queue, spend on, or publish a Reel during merge; observe the first selected pack and its existing gates before promoting this branch of the capability beyond unit_verified.",
+          "source": "#1699 local verification only"
         }
       ],
       "deferredScope": [
         "ranking patterns by measured outcome (needs the cohort join above to accumulate)",
-        "feeding pack CONTENT into generation — deliberately out of scope: a pack is pending human review by construction, and treating it as approved inventory would turn a review queue into an autopost queue"
+        "The approved packs supply their reviewed topic and ordered rotation only. Their heterogeneous storyboard/caption JSON is deliberately regenerated through the canonical brief, claim, spend, rendered-QA, and publish pipeline instead of being replayed as an unvalidated direct publish artifact."
       ],
-      "lastVerifiedAt": "2026-08-16",
+      "lastVerifiedAt": "2026-08-19",
       "verificationExpiresAt": "2026-09-15",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "higgsfield-api-lane",
+      "name": "Higgsfield REST API reel-clip lane (static key auth, no CLI session)",
+      "owner": "nickstire",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "lastVerifiedAt": "2026-08-18",
+      "evidence": {
+        "codeCommit": "server/services/higgsfieldApiClient.ts - key-based REST lane (Authorization: Key <id>:<secret>) preferred by generateReelClipVideo over the expiring CLI session. Credentials resolve DB-first from app_secret_kv (set from the phone via Instagram Settings), env vars as fallback only; prod carries NO env copy, so the DB path is the only one.",
+        "tests": [
+          "server/higgsfieldApiClient.test.ts (43): auth header shape is 'Key id:secret' and NOT Bearer; submit sends aspect_ratio 9:16 / duration 4 / resolution 1080p / enhance_prompt false; post-submit failures raise HiggsfieldApiSubmittedError instead of falling back; the credential latch sits inside the try so a transient DB fault is not cached as absence",
+          "25 files / 335 tests green across the full higgsfield + socialDeliveryIssues blast radius",
+          "410 files / 4658 tests green, full nickstire server suite, serial"
+        ],
+        "liveRuns": [
+          "AUTH: a deliberately bogus key returns a real HTTP 401 from platform.higgsfield.ai; a control probe against a nonexistent path returned the SAME 401, so auth is checked BEFORE routing.",
+          "REQUEST SHAPE, measured 2026-08-18: the shipped body was rejected with HTTP 422 'body.image_url Field required' - image_url is a REQUIRED TOP-LEVEL STRING, and the previous input_images array was the Soul text-to-image shape. Fixed in #1654.",
+          "CREDITS, measured 2026-08-18: the corrected body returns HTTP 403 'not_enough_credits'. Generation has therefore never produced a clip. Nothing was spent - both failures are pre-submit.",
+          "REQUEST CONTRACT, from the vendor's OpenAPI spec 2026-08-18 (not by analogy): DoP's whole body is required[prompt, image_url] + optional[seed, motions, end_image_url, enhance_prompt]. There is NO duration, resolution, aspect_ratio or model field, so #1653's four format fields were ignored and its 'paid for landscape clips' reasoning was WRONG. A DoP clip inherits its aspect from the INPUT STILL, making 1080x1920 a constraint on brief.visualWorld.heroFrameUrl rather than a request parameter. enhance_prompt is real and defaults TRUE, so sending false is load-bearing. The spec also settles the submit path: /higgsfield-ai/dop/standard exists, /v1/image2video/dop does not.",
+          "HERO-FRAME P2 CONFIRMED LIVE 2026-08-18: on reel job 1650001 every beat was skipped by the pre-submit guard ('DoP requires a start image... this beat has no hero frame - nothing was submitted, nothing was spent') and generation fell back to the CLI session lane, free. The brief carried no visualWorld.heroFrameUrl, continuity ran on prompt text alone, and rendered-QA flagged SUBJECT_CONTINUITY on 4 of 5 beats - the P2 is not just a blocker for this lane, it is a QUALITY cost on the lane that does run. Next lever: generate a hero frame per autonomous brief."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "GENERATION IS BLOCKED ON VENDOR CREDITS, measured live 2026-08-18 (not merely unproven, which is what this said before running it). With the corrected request shape the API answers HTTP 403 {\"detail\":\"not_enough_credits\"} - so the request clears validation AND auth and reaches the credit check, which is as far as it can get. OPERATOR ACTION: DoP credits must be available to the API key's account at platform.higgsfield.ai; a web-app subscription is not evidence of API credit. Failure is PRE-submit, so nothing is spent on each attempt.",
+          "source": "PR #1654"
+        },
+        {
+          "severity": "P2",
+          "description": "Recent briefs carry NO visualWorld.heroFrameUrl - the newest job with one is autopost-2026-08-02, because template_stock needs no hero. DoP requires image_url, so even with credits the lane cannot run a beat until a hero frame is generated for the brief. Both blockers must clear before flipping REEL_VIDEO_PROVIDER to higgsfield.",
+          "source": "PR #1654"
+        },
+        {
+          "severity": "P2",
+          "description": "A 9:16 clip requires a 9:16 HERO FRAME. DoP has no aspect_ratio parameter, so nothing in the request can make a landscape still produce a portrait clip - reelAssembly's 1080x1920 gate must be satisfied upstream, when the visual-world hero is generated. Unverified end to end because generation has never run (403 not_enough_credits).",
+          "source": "PR #1659"
+        }
+      ],
+      "deferredScope": [
+        "No npm dependency added - the official SDK exists but installs are policy-blocked in harness worktrees, so this speaks plain HTTP/JSON. Swapping the SDK in later replaces one file and no callers.",
+        "REEL_VIDEO_PROVIDER is still template_stock in prod, so this lane is not the active generator. Flipping it is a separate, operator-authorized step that must follow this deploy."
+      ]
     }
   ],
   "axes": {

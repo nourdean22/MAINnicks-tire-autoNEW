@@ -31,6 +31,8 @@ import type { EpisodeContract } from "./episodeContract";
 
 export interface ReelJobPayloadView {
   topic?: string;
+  /** A human-reviewed pack selected by the daily rotation. */
+  approvedPackSlug?: string;
   archetype?: string;
   objectCharacter?: string;
   mechanicTruth?: string;

@@ -6,7 +6,7 @@
  * action. Fired daily via MORNING_JOBS (lib/inngest/jobs.ts) + registered in
  * the config/crons.ts manifest.
  */
-import { apiHandler, jsonOk } from "@/lib/utils/http";
+import { cronHandler, jsonOk } from "@/lib/utils/http";
 import { runChangeDetection } from "@/lib/intelligence/change-detection";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -15,7 +15,7 @@ const log = rootLogger.withSurface("cron/change-detection");
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-export const GET = apiHandler(
+export const GET = cronHandler(
   async () => {
     const result = await runChangeDetection();
     if (result.changes.length > 0) {
@@ -26,5 +26,4 @@ export const GET = apiHandler(
     }
     return jsonOk(result);
   },
-  { auth: "cron" },
 );

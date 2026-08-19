@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-sidewall-bulge",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "off-slate (not in REEL-SLATE-2026-07-31.md — same precedent as the 2026-08-15 tread-fingerprint pack)",
+  "campaignKeyword": "SIDEWALL-BULGE",
+  "hookText": "That bump on your tire's sidewall isn't a warranty problem. It's a blowout waiting to happen.",
+  "ctaText": "See a bulge on your sidewall? Send this to them today.",
+  "durationSeconds": 28,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text for exactly that reason)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "That bump on your tire's sidewall isn't a warranty problem. It's a blowout waiting to happen.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro, slow push-in on a tire sidewall showing a visible bulge/deformation in the rubber, studio-lit garage bay, shallow depth of field, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "A bulge means the inner layers tore loose — usually from hitting a curb or a hard pothole.",
+      "onScreenText": "",
+      "providerScene": "Wide-to-medium shot of a wheel resting near a curb edge or shallow pothole (static prop, no motion vehicle impact depicted), soft overcast daylight, slow lateral dolly, documentary tone, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 15,
+      "narration": "There is no patch or plug for this. A bulge like that means the tire needs replacing.",
+      "onScreenText": "",
+      "providerScene": "Tire mounted on a shop rack, slow rotating turntable reveal of the sidewall bulge from multiple angles, even overhead shop light, shallow DOF, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 15,
+      "endSecond": 21,
+      "narration": "It can hold air for weeks, then let go without warning — especially at highway speed.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of highway traffic exterior, dusk lighting, slow tracking shot along the roadway shoulder, tension-building tone, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 21,
+      "endSecond": 28,
+      "narration": "See a bulge on your sidewall? Send this to them today. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); optional quiet garage/road ambience SFX only, royalty-free",
+    "sfxNotes": "no cleared SFX source verified this run — omit rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 9 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 5 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (61/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "61/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}

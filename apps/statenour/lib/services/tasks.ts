@@ -508,8 +508,19 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
 
     const { resolveInboxMissionId, resolveGeneralAnchorId } = await import("@/lib/services/missions");
     const { isGeneralAnchor } = await import("@/lib/services/mission-helpers");
+    // Start the inbox resolution with a handler pre-attached. If any LATER
+    // element of the Promise.all array throws SYNCHRONOUSLY while the
+    // array is being built (seen in tests when a torn-down mock makes
+    // prisma.mission.findMany throw), Promise.all never runs and never
+    // attaches handlers — this already-started promise's rejection would
+    // be orphaned as an unhandledRejection that the surrounding try/catch
+    // structurally cannot see (source of the suite's 12 post-teardown
+    // errors, 2026-08-19). The extra no-op catch does not consume the
+    // rejection for the real await below.
+    const inboxIdP = resolveInboxMissionId();
+    inboxIdP.catch(() => {});
     const [inboxId, missions, goals, recentCorrections] = await Promise.all([
-      resolveInboxMissionId(),
+      inboxIdP,
       prisma.mission.findMany({
         where: activeOnly(),
         // successMetric = the mission's "what done looks like" (its description);

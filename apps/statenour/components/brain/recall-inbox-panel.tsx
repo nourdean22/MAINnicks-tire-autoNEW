@@ -154,13 +154,20 @@ export function RecallInboxPanel() {
           </span>
         </div>
       </div>
+      {/* 2026-08-19 · all three drill-links below were dead. `/brain#pinned`
+          had no such anchor anywhere and bare /brain opens the Map tab;
+          `/brain/link-review` is not a route (only app/(mastery)/brain/page.tsx
+          exists); `/brain#contradictions` anchored into the Memory tab's
+          panel but omitted ?tab=memory, so it also landed on Map. Now:
+          pins → the real /pins page, link-review → the ruling queue,
+          contradictions → the Memory tab where the resolution panel lives. */}
       <SourceGroup
         label="pins"
         icon={Pin}
         items={data.pins.items}
         total={data.pins.total}
         error={data.pins.error}
-        href="/brain#pinned"
+        href="/pins"
         tint="text-[var(--gold)]/80"
       />
       <SourceGroup
@@ -169,7 +176,7 @@ export function RecallInboxPanel() {
         items={data.linkReview.items}
         total={data.linkReview.total}
         error={data.linkReview.error}
-        href="/brain/link-review"
+        href="/brain?tab=review"
         tint="text-sky-300/80"
       />
       <SourceGroup
@@ -178,7 +185,7 @@ export function RecallInboxPanel() {
         items={data.contradictions.items}
         total={data.contradictions.total}
         error={data.contradictions.error}
-        href="/brain#contradictions"
+        href="/brain?tab=memory#contradictions"
         tint="text-amber-300/80"
       />
       <SourceGroup

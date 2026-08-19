@@ -172,9 +172,12 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
       activeTasks.find((t) => t.status === "DOING") ??
       [...activeTasks]
         .sort((a, b) => {
-          const ap = a.manualPriorityOverride ?? a.autoPriority ?? 100;
-          const bp = b.manualPriorityOverride ?? b.autoPriority ?? 100;
-          if (ap !== bp) return ap - bp;
+          // Canonical priority polarity is higher = more urgent. Unscored
+          // tasks sink so a goal never promotes an unknown row over measured
+          // work merely because it lacks a score.
+          const ap = a.manualPriorityOverride ?? a.autoPriority ?? -1;
+          const bp = b.manualPriorityOverride ?? b.autoPriority ?? -1;
+          if (ap !== bp) return bp - ap;
           const ad = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
           const bd = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
           return ad - bd;

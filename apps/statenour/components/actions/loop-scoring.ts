@@ -127,12 +127,12 @@ export function scoreUrgency(
     if (doneToday) urgency += 5; // keep visible but at the bottom
     else urgency += 150;
   } else {
-    // ONCE
+    // ONCE — canonical polarity: higher autoPriority = more urgent.
     const autoP = task.autoPriority ?? 50;
     if (task.stale || ds(task.createdAt) > 7) urgency += 100;
-    else if (autoP <= 15) urgency += 100;
-    else if (autoP <= 30) urgency += 50;
-    else if (autoP <= 60) urgency += 20;
+    else if (autoP >= 80) urgency += 100;
+    else if (autoP >= 60) urgency += 50;
+    else if (autoP >= 40) urgency += 20;
     else urgency += 10;
   }
 

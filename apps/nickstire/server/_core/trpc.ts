@@ -186,7 +186,7 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
     if (!security?.mfaEnabled) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Admin two-factor authentication setup is required." });
     }
-    if (!isMfaVerificationFresh(security.mfaVerifiedAt)) {
+    if (!isMfaVerificationFresh(security.mfaAgeMinutes)) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin two-factor verification is required." });
     }
   }

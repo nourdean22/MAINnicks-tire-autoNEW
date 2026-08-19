@@ -13,14 +13,14 @@
  * is the lock — second pass on the same row is a no-op.
  */
 
-import { apiHandler } from "@/lib/utils/http";
+import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-export const GET = apiHandler(
+export const GET = cronHandler(
   async () => {
     const now = new Date();
 
@@ -90,5 +90,4 @@ export const GET = apiHandler(
       sample: due.slice(0, 5).map((t) => t.title),
     };
   },
-  { auth: "cron" },
 );

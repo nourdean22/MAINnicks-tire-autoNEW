@@ -40,6 +40,7 @@ import {
   updateGoalSchema,
 } from "@/lib/services/goals";
 import { buildActionsBrain } from "@/lib/services/actions-brain";
+import { priorityFromLabel } from "@/lib/scoring/task-priority";
 import { OutcomeRating } from "@prisma/client";
 import {
   checkTask,
@@ -1282,9 +1283,15 @@ export const taskRouter = router({
   /**
    * 2026-05-28 · Wave AJ · operator-grade swap-by-direction for TASKS
    * WITHIN A MISSION. Task model has no manualRankOverride column ·
-   * we overload `autoPriority` (lower = top). The autopriority cron is
-   * aware via `autoPriorityExplanation = "manual reorder ..."` · honors
-   * operator's manual signal for 7 days before re-running its AI sort.
+   * we overload `autoPriority` (canonical polarity: HIGHER = top —
+   * see lib/scoring/task-priority).
+   *
+   * 2026-08-19 truth note: this comment used to claim the autopriority
+   * sweep "honors" the `manual reorder` marker for 7 days — it never
+   * did. syncTaskPriorities rewrites any row whose score differs from
+   * the engine's output, so a manual swap survives only until the next
+   * task mutation triggers a sweep. Durable ordering belongs in
+   * manualPriorityOverride (which scoreTaskPriority returns verbatim).
    *
    * Client sends `(taskId, direction)` and the SERVER finds the task's
    * mission + the next task in the SAME mission's current sort order ·
@@ -1310,7 +1317,7 @@ export const taskRouter = router({
           status: { notIn: ["DONE", "ARCHIVED"] },
         },
         orderBy: [
-          { autoPriority: { sort: "asc", nulls: "last" } },
+          { autoPriority: { sort: "desc", nulls: "last" } },
           { createdAt: "asc" },
         ],
         select: { id: true, autoPriority: true },
@@ -1323,8 +1330,10 @@ export const taskRouter = router({
       }
       const a = all[idx];
       const b = all[targetIdx];
-      const aRank = a.autoPriority ?? idx * 1000;
-      const bRank = b.autoPriority ?? targetIdx * 1000;
+      // Null fallback mirrors the desc/nulls-last ordering: unscored
+      // rows rank below every scored row, in list order.
+      const aRank = a.autoPriority ?? -(idx + 1);
+      const bRank = b.autoPriority ?? -(targetIdx + 1);
       const today = new Date().toISOString().slice(0, 10);
       const marker = `manual reorder by operator · ${today} · honor 7d`;
       await Promise.all([
@@ -1452,7 +1461,10 @@ export const taskRouter = router({
           status: "WAITING",
           dueDate: null,
           snoozedUntil: null,
-          manualPriorityOverride: 70,
+          // Someday is deliberately low under the canonical higher-is-hotter
+          // scale. Keep the override explicit so reactivation cannot promote
+          // a task the operator intentionally deferred.
+          manualPriorityOverride: priorityFromLabel("low"),
           lastTouchedAt: new Date(),
         };
       } else if (input.decision === "snooze") {

@@ -13,10 +13,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FLAG_REGISTRY, getFlag } from "@/lib/feature-flags";
 
 const KEY = "NICK_MUTATION_LOCK";
+const GATEWAY_KEYS = ["NICK_MEMORY_GATEWAY_PHASE1", "NICK_MEMORY_GATEWAY_PHASE2"] as const;
 
 describe("FLAG_REGISTRY contract", () => {
   afterEach(() => {
     delete process.env[KEY];
+    for (const key of GATEWAY_KEYS) delete process.env[key];
   });
 
   it("registers NICK_MUTATION_LOCK (the kill-switch consumers depend on)", () => {
@@ -46,4 +48,22 @@ describe("FLAG_REGISTRY contract", () => {
     const keys = FLAG_REGISTRY.map((f) => f.key);
     expect(new Set(keys).size).toBe(keys.length);
   });
+
+  it.each(GATEWAY_KEYS)(
+    "%s is visibly read-only because its runtime still reads the raw env var",
+    (key) => {
+      expect(FLAG_REGISTRY.find((flag) => flag.key === key)?.readOnly).toBe(true);
+    },
+  );
+
+  it.each(GATEWAY_KEYS)(
+    "%s mirrors its raw !== 0 runtime kill-switch exactly",
+    (key) => {
+      for (const [value, expected] of [[undefined, true], ["0", false], ["1", true], ["true", true], ["false", true], [" 0 ", true]] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+        expect(getFlag(key)?.isOn).toBe(expected);
+      }
+    },
+  );
 });

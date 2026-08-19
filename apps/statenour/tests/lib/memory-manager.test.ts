@@ -36,7 +36,10 @@ const mocks = vi.hoisted(() => ({
   // parkForReview() dynamically imports BRAIN_CATEGORIES for the staging
   // category — the mock must expose it or Phase-2 parking throws into its
   // own catch and the test silently passes on the wrong path.
-  BRAIN_CATEGORIES: { RESEARCH_PACK: "research_pack" } as Record<string, string>,
+  BRAIN_CATEGORIES: {
+    RESEARCH_PACK: "research_pack",
+    SUPERSEDED_SNAPSHOT: "superseded_snapshot",
+  } as Record<string, string>,
   DEPRECATED_CATEGORY_MAP: { skills: "skill" } as Record<string, string>,
   gateWisdom: vi.fn(() => ({ pass: true })),
 }));
@@ -126,6 +129,20 @@ describe("BrainMemoryManager.remember", () => {
     expect(exp.getTime()).toBeLessThanOrEqual(after + ninetyDays + 50);
   });
 
+  it("trajectory_judgment (GATE #4) gets the same one-shot 90d treatment", async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
+    mocks.brainMemory.create.mockResolvedValueOnce({ id: "m-traj" });
+
+    const before = Date.now();
+    await mm.remember("trajectory_judgment", "traj_msg1", "Trajectory 8/10", "trajectory-grader");
+    const after = Date.now();
+
+    const exp = realCreateCalls()[0][0].data.expiresAt as Date;
+    const ninetyDays = 90 * 24 * 3600_000;
+    expect(exp.getTime()).toBeGreaterThanOrEqual(before + ninetyDays - 50);
+    expect(exp.getTime()).toBeLessThanOrEqual(after + ninetyDays + 50);
+  });
+
   it("rewrites a deprecated category to its canonical form before write", async () => {
     mocks.brainMemory.findUnique.mockResolvedValueOnce(null);
     mocks.brainMemory.create.mockResolvedValueOnce({ id: "m2" });
@@ -198,6 +215,7 @@ describe("BrainMemoryManager.remember", () => {
 describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
   let mm: BrainMemoryManager;
   const prevFlag = process.env.NICK_MEMORY_GATEWAY_PHASE2;
+  const prevSupersessionFlag = process.env.NICK_MEMORY_SUPERSESSION;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -210,6 +228,8 @@ describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
   afterEach(() => {
     if (prevFlag === undefined) delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
     else process.env.NICK_MEMORY_GATEWAY_PHASE2 = prevFlag;
+    if (prevSupersessionFlag === undefined) delete process.env.NICK_MEMORY_SUPERSESSION;
+    else process.env.NICK_MEMORY_SUPERSESSION = prevSupersessionFlag;
   });
 
   /** Equal-strength source changed the claim → verdict "update". */
@@ -281,6 +301,86 @@ describe("BrainMemoryManager · gateway Phase-2 enforcement", () => {
     expect(parked.create.metadata.kind).toBe("observation");
     expect(parked.create.metadata.targetCategory).toBe("pattern");
     expect(parked.create.metadata.targetKey).toBe("k");
+  });
+
+  it("OPT-IN: snapshots the outgoing claim before a stronger source supersedes it", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    process.env.NICK_MEMORY_SUPERSESSION = "1";
+    const existing = {
+      id: "existing-id",
+      category: "pattern",
+      key: "k",
+      content: "scraped claim",
+      source: "scraper", // lower evidence than an operator statement
+      confidence: 0.7,
+      seenCount: 2,
+      createdAt: new Date("2026-08-01T00:00:00.000Z"),
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.findUniqueOrThrow.mockResolvedValueOnce(existing);
+    mocks.brainMemory.create.mockResolvedValue({ id: "snapshot-id" });
+    mocks.brainMemory.update.mockResolvedValue({
+      id: existing.id,
+      category: existing.category,
+      key: existing.key,
+    });
+
+    await mm.remember("pattern", "k", "operator corrected claim", "manual");
+
+    const snapshot = mocks.brainMemory.create.mock.calls.find(
+      ([args]) => args?.data?.category === "superseded_snapshot",
+    )?.[0];
+    expect(snapshot?.data).toMatchObject({
+      category: "superseded_snapshot",
+      content: "scraped claim",
+      validFrom: existing.createdAt,
+      supersededById: existing.id,
+      metadata: {
+        supersededCategory: "pattern",
+        supersededKey: "k",
+        replacedBySource: "manual",
+        replacedByContent: "operator corrected claim",
+        reason: expect.stringContaining("stronger evidence"),
+      },
+    });
+    expect(snapshot?.data.validUntil).toBeInstanceOf(Date);
+    expect(snapshot?.data.expiresAt).toBeInstanceOf(Date);
+    expect(mocks.brainMemory.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: existing.id },
+        data: expect.objectContaining({ validFrom: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it("DEFAULT: preserves legacy overwrite behavior without creating history", async () => {
+    delete process.env.NICK_MEMORY_GATEWAY_PHASE2;
+    delete process.env.NICK_MEMORY_SUPERSESSION;
+    const existing = {
+      id: "existing-id",
+      category: "pattern",
+      key: "k",
+      content: "scraped claim",
+      source: "scraper",
+      confidence: 0.7,
+      seenCount: 2,
+      createdAt: new Date("2026-08-01T00:00:00.000Z"),
+    };
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(existing);
+    mocks.brainMemory.findUniqueOrThrow.mockResolvedValueOnce(existing);
+    mocks.brainMemory.update.mockResolvedValue({
+      id: existing.id,
+      category: existing.category,
+      key: existing.key,
+    });
+
+    await mm.remember("pattern", "k", "operator corrected claim", "manual");
+
+    expect(
+      mocks.brainMemory.create.mock.calls.some(
+        ([args]) => args?.data?.category === "superseded_snapshot",
+      ),
+    ).toBe(false);
   });
 
   it("rewrites FULL review metadata when re-parking, so a previously rejected candidate is visible again", async () => {

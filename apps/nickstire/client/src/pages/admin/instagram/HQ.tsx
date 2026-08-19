@@ -177,13 +177,41 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
                     Check CLI
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${health.generator.configured ? "bg-green-500" : "bg-red-500"}`} />
-                  <span>
-                    {health.generator.provider ? `${health.generator.provider.toUpperCase()}: ` : ""}
-                    {health.generator.configured ? "Configured" : "Missing API Key"}
-                  </span>
-                </div>
+                {/* THREE STATES, NEVER TWO (P2 review, #1668). This dot collapsed the
+                    server's session verdict to a boolean, so a revoked session and an
+                    unknown/stale verdict both rendered as red "Missing API Key" - telling
+                    the operator to paste credentials they may already have. The yellow
+                    state exists precisely for "could not tell": its fix is connectivity
+                    or patience, never a re-paste. `=== null` tests, not truthiness. */}
+                {(() => {
+                  const sess = health.generator.higgsfieldSession;
+                  const isHf = health.generator.provider === "higgsfield";
+                  const unknown = isHf && !health.generator.configured && sess?.live === null;
+                  const dot = health.generator.configured ? "bg-green-500" : unknown ? "bg-yellow-500" : "bg-red-500";
+                  const label = health.generator.configured
+                    ? `Configured${health.generator.higgsfieldLane ? ` (${health.generator.higgsfieldLane})` : ""}${
+                        isHf && sess?.balanceCredits != null ? ` · ${sess.balanceCredits} cr` : ""
+                      }`
+                    : unknown
+                      ? "Session UNKNOWN — not missing, could not verify"
+                      : isHf && sess?.credsPresent
+                        ? "Session DEAD — re-login required"
+                        : "Missing credentials";
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${dot}`} />
+                        <span>
+                          {health.generator.provider ? `${health.generator.provider.toUpperCase()}: ` : ""}
+                          {label}
+                        </span>
+                      </div>
+                      {isHf && !health.generator.configured && sess?.reason && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{sess.reason}</div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="text-xs text-muted-foreground mt-1">
                   {health.generator.enabled ? "Generation Enabled" : "Generation Paused"}
                 </div>
@@ -199,6 +227,49 @@ function PipelineHealthCard({ onNavigate }: { onNavigate?: (tab: string) => void
                       ⚠ CLI STALE. Run `hf auth login`
                     </div>
                   )}
+                  {/*
+                    THE API LANE, AND WHICH LANE ACTUALLY RUNS. `api` and
+                    `preferredLane` were returned by getHiggsfieldHealth from #1632
+                    onward and rendered NOWHERE — the endpoint computed both and this
+                    card showed only the CLI, so the surface the operator opens to ask
+                    "is Higgsfield working?" could not report the lane the pipeline
+                    PREFERS. Same defect as the shadow-judge readout and the probe
+                    that shipped with no callers.
+
+                    THREE STATES, NEVER TWO, matching the Meta card below: `configured`
+                    is true | false | "unknown", and "unknown" means the key store
+                    could not be READ. Rendering it as either of the other two is how a
+                    connectivity fault becomes "paste a key" — so it is tested with
+                    `=== true` / `=== "unknown"`, never for truthiness, because the
+                    string "unknown" is truthy.
+                  */}
+                  <div className="mt-1.5 pt-1.5 border-t border-dashed">
+                    {higgsfieldHealth.data.api.configured === true ? (
+                      higgsfieldHealth.data.api.healthy === true ? (
+                        <div className="text-green-500 font-medium">✓ API key valid ({higgsfieldHealth.data.api.store})</div>
+                      ) : higgsfieldHealth.data.api.healthy === false ? (
+                        <div className="text-destructive font-medium text-[10px] leading-tight">
+                          ⚠ API key REJECTED — {higgsfieldHealth.data.api.reason}
+                        </div>
+                      ) : (
+                        <div className="text-yellow-500 font-medium text-[10px] leading-tight">
+                          ? API key set, liveness unverified — {higgsfieldHealth.data.api.reason}
+                        </div>
+                      )
+                    ) : higgsfieldHealth.data.api.configured === "unknown" ? (
+                      <div className="text-yellow-500 font-medium text-[10px] leading-tight">
+                        ? API key UNKNOWN — could not read the key store. Not "unset": fix
+                        connectivity, do NOT rotate the key.
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-[10px] leading-tight">
+                        ○ No API key — set one in Settings to stop depending on the CLI session
+                      </div>
+                    )}
+                    <div className="text-muted-foreground text-[10px] mt-0.5">
+                      lane that will run: <span className="font-medium">{higgsfieldHealth.data.preferredLane}</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

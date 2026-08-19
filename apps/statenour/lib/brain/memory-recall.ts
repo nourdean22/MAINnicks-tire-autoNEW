@@ -225,6 +225,11 @@ export async function recallMemoriesForQuery(
        WHERE ve."sourceType" = 'brain_memory'
          AND ve.embedding_vec_1536 IS NOT NULL
          AND bm.confidence >= 0.3
+         -- BDN-310 supersession honored (2026-08-19): a superseded or
+         -- expired-validity belief must not be recalled as current.
+         -- The columns were applied to prod 2026-08-14 with no reader.
+         AND bm.superseded_by_id IS NULL
+         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
        LIMIT ${KNN_TOP}`,
       vecLit,

@@ -18,6 +18,7 @@ interface ResolvedFlag {
   rawValue: string;
   isOn: boolean;
   overrideValue?: string | null;
+  readOnly?: boolean;
 }
 
 const HIGH_RISK_FLAGS = new Set(["NICK_AUTONOMY", "NICK_CONFIDENCE_TIER"]);
@@ -134,6 +135,7 @@ export function IntelligenceFlagsPanel() {
         {filteredFlags.length > 0 ? (
           filteredFlags.map((flag) => {
             const isHighRisk = HIGH_RISK_FLAGS.has(flag.key);
+            const isReadOnly = flag.readOnly === true;
             const overrideState = flag.overrideValue === "true" ? "ON" : flag.overrideValue === "false" ? "OFF" : "ENV";
             
             return (
@@ -183,10 +185,21 @@ export function IntelligenceFlagsPanel() {
                     <Info size={9} className="mt-0.5 shrink-0" />
                     <span><strong>Default behaviour:</strong> {flag.defaultBehavior}</span>
                   </div>
+                  {isReadOnly && (
+                    <p className="text-[9px] font-mono uppercase tracking-wider text-amber-300/80">
+                      Environment-controlled · read-only here
+                    </p>
+                  )}
                 </div>
 
                 {/* Right Side: Override Controls */}
                 <div className="shrink-0 flex items-center gap-2 self-end md:self-center">
+                  {isReadOnly ? (
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                      ENV ONLY
+                    </span>
+                  ) : (
+                  <>
                   {/* If override is ENV, value is null. If ON, value is true. If OFF, value is false */}
                   <div className="flex items-center gap-0.5 rounded-md border border-[var(--border-default)] p-0.5 bg-[var(--bg-elevated)]">
                     {/* DEFAULT button */}
@@ -251,6 +264,8 @@ export function IntelligenceFlagsPanel() {
                         />
                       )}
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               </div>

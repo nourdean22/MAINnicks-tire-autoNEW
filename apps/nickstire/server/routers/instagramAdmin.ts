@@ -170,7 +170,21 @@ export const instagramAdminRouter = router({
         const { selectReelVideoProvider } = await import("../services/reelPipeline");
         const provider = await selectReelVideoProvider();
         const { veoCredentialsPresent } = await import("../services/veoStudio");
-        const higgsfieldConfigured = !!(await (await import("../services/higgsfieldStudio")).getHiggsfieldCredentialsJson());
+        // LIVENESS, NOT PRESENCE. `!!getHiggsfieldCredentialsJson()` used to decide
+        // this, and a revoked refresh token leaves that blob perfectly intact -
+        // which is precisely how a dead session read as "configured" for four days
+        // (#1628). It mattered little while provider stayed template_stock and
+        // would have become a live lie the moment it flipped to higgsfield.
+        // `higgsfieldSessionLiveness` reads the keepalive's own recorded verdict:
+        // one indexed lookup, no vendor round-trip, three states.
+        const { higgsfieldSessionLiveness } = await import("../services/higgsfieldStudio");
+        const hfSession = await higgsfieldSessionLiveness();
+        const higgsfieldConfigured = hfSession.credsPresent;
+        // The lane the video generator will ACTUALLY use, resolved exactly as
+        // generateReelClipVideo resolves it: API key first (DB-then-env), CLI
+        // session only as the fallback.
+        const { getHiggsfieldApiCredentials } = await import("../services/higgsfieldApiClient");
+        const higgsfieldApiCreds = provider === "higgsfield" ? await getHiggsfieldApiCredentials() : null;
         // template_stock renders locally with ffmpeg — it has NO credentials to
         // check, so it is always configured. Reporting Veo's key state for it
         // would paint the card red while the lane runs perfectly.
@@ -178,7 +192,14 @@ export const instagramAdminRouter = router({
           provider === "template_stock"
             ? true
             : provider === "higgsfield"
-              ? higgsfieldConfigured
+              // MIRROR generateReelClipVideo's OWN lane selection (P2 review,
+              // #1668): when API-key credentials exist the generator uses the
+              // key-based REST lane and never touches the CLI session, so judging
+              // readiness by the session verdict would paint a working generator
+              // red. Only when the CLI session is the lane that will run does its
+              // liveness decide - and `=== true` so UNKNOWN (null) does not read
+              // as configured.
+              ? higgsfieldApiCreds !== null || hfSession.live === true
               : veoCredentialsPresent();
         return {
           provider,
@@ -186,8 +207,27 @@ export const instagramAdminRouter = router({
           enabled: process.env.REEL_GENERATION_ENABLED === "true",
           // Kept so the Settings UI can still surface Higgsfield status separately
           // (it's the carousel/image path), without conflating it with the reel
-          // video generator's health.
+          // video generator's health. This is PRESENCE of the credentials blob -
+          // deliberately named as such now that liveness is reported beside it.
           higgsfieldConfigured,
+          /**
+           * The honest three-state session verdict, plus the ONLY account credit
+           * balance this app can read (the API lane has no balance endpoint - every
+           * GET on it returns 405). `live: null` means the keepalive verdict is
+           * missing or stale, which is UNKNOWN and not dead.
+           */
+          higgsfieldSession: {
+            live: hfSession.live,
+            credsPresent: hfSession.credsPresent,
+            balanceCredits: hfSession.balanceCredits,
+            checkedAt: hfSession.checkedAt,
+            reason: hfSession.reason,
+          },
+          /** Which Higgsfield lane the generator would run: the API key needs no
+           *  session, so the session verdict is IRRELEVANT while this is
+           *  "api_key". Null when the provider is not higgsfield. */
+          higgsfieldLane:
+            provider === "higgsfield" ? (higgsfieldApiCreds ? ("api_key" as const) : ("cli_session" as const)) : null,
         };
       })(),
       /**
@@ -1159,19 +1199,51 @@ Keep it under 200 characters.`;
     // where it becomes reachable. It costs one ~10s HTTP call and NO credits, and
     // it is skipped entirely when the key is unset, so the existing CLI-only
     // behaviour is unchanged for anyone who has not opted in.
-    const { getHiggsfieldApiCredentials, probeHiggsfieldApiCredentials } = await import(
+    const { resolveHiggsfieldApiCredentials, probeHiggsfieldApiCredentials } = await import(
       "../services/higgsfieldApiClient",
     );
-    const apiCreds = await getHiggsfieldApiCredentials();
-    const api = apiCreds
-      ? { configured: true as const, ...(await probeHiggsfieldApiCredentials(apiCreds)) }
-      : { configured: false as const, healthy: null, reason: "HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET not set" };
+    // `configured` is THREE-STATE here, not boolean-with-a-null (P2 review, Codex,
+    // PR #1653). The version this replaces read a null credential as "not set" —
+    // but the key lives in app_secret_kv and `getDb()` opens no socket, so an
+    // unreachable database produced a confident "not set" for a key that may well
+    // be sitting in the row. On the operator's phone that is the worst possible
+    // wrong answer: it says "paste a key" when the truth is "fix connectivity",
+    // and it is the same shape as the dead session that read as fine for four days.
+    const resolution = await resolveHiggsfieldApiCredentials();
+    const api = resolution.credentials
+      ? {
+          configured: true as const,
+          store: resolution.store,
+          ...(await probeHiggsfieldApiCredentials(resolution.credentials)),
+        }
+      : resolution.dbError
+        ? {
+            configured: "unknown" as const,
+            store: resolution.store,
+            healthy: null,
+            reason: `the key store could not be read, so this is UNKNOWN and not "unset": ${resolution.dbError}`,
+          }
+        : {
+            configured: false as const,
+            store: resolution.store,
+            healthy: null,
+            reason:
+              "the lookup COMPLETED and found nothing: no app_secret_kv rows (set them in Instagram -> Settings) and no HIGGSFIELD_API_KEY_ID / _SECRET env vars",
+          };
 
     // `preferredLane` is the honest answer to "which one will actually run?" —
     // a surface that showed both healths without saying which is authoritative
     // would leave the operator to infer it, and inferring it wrong is how a dead
     // session got read as fine for four days.
-    return { ...cli, api, preferredLane: api.configured ? ("api_key" as const) : ("cli_session" as const) };
+    // An UNKNOWN api lane must not be reported as the preferred one — the pipeline
+    // only prefers a lane it can actually get credentials for, so `=== true` is the
+    // honest test. Reading `api.configured` as truthy would make the string
+    // "unknown" select api_key and describe a lane that cannot run.
+    return {
+      ...cli,
+      api,
+      preferredLane: api.configured === true ? ("api_key" as const) : ("cli_session" as const),
+    };
   }),
   getProviderHealth: adminProcedure.query(async () => {
     // Text LLM (server/_core/llm.ts) prefers GEMINI_API_KEY, else OPENAI_API_KEY.
@@ -1230,9 +1302,14 @@ Keep it under 200 characters.`;
     // poster) needs NO AI key at all but fell through to the openai branch and
     // reported unconfigured; anything unrecognized now reports false instead
     // of borrowing openai's status.
+    // Same presence-vs-liveness correction as getPipelineHealth. `higgsfieldCreds`
+    // proves a blob exists; it does NOT prove the session works, and IG autopost
+    // image generation runs through that same session.
+    const { higgsfieldSessionLiveness } = await import("../services/higgsfieldStudio");
+    const hfSession = await higgsfieldSessionLiveness();
     const imageHealthy =
       imageProvider === "adrender" ? true
-      : imageProvider === "higgsfield" ? higgsfieldCreds
+      : imageProvider === "higgsfield" ? hfSession.live === true
       : imageProvider.includes("gemini") ? geminiKey
       : imageProvider === "openai" || imageProvider === "openrouter" ? openaiKey
       : false;
@@ -1246,7 +1323,14 @@ Keep it under 200 characters.`;
       image: {
         provider: imageProvider,
         configured: imageHealthy,
+        /** PRESENCE of the credentials blob - not liveness. See higgsfieldSession. */
         higgsfieldCreds,
+        higgsfieldSession: {
+          live: hfSession.live,
+          balanceCredits: hfSession.balanceCredits,
+          checkedAt: hfSession.checkedAt,
+          reason: hfSession.reason,
+        },
       },
       autopost: { recentRuns, recentFailures, lastError, lastErrorAt },
     };

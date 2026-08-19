@@ -151,6 +151,26 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
   const { aiChat } = await import("@/lib/ai/provider");
   const { buildSystemPromptUncached } = await import("@/lib/ai/system-prompt");
 
+  // 2026-08-18 · replay the SYSTEM, not just the model. Production chat
+  // runs deterministic interceptors before any model call; the one that
+  // matters for this suite is re-delivery ("app bugged, retry" →
+  // re-serve the stored last assistant text verbatim, added after the
+  // prompt-rule approach measurably failed the retry scenario). Same
+  // exported classifier as production — single source, no drift.
+  {
+    const { isRedeliveryRequest } = await import("@/lib/ai/chat/redelivery");
+    const msgs = scenario.input.messages;
+    const lastUser = msgs[msgs.length - 1];
+    const priorAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
+    if (
+      lastUser?.role === "user" &&
+      priorAssistant &&
+      isRedeliveryRequest(lastUser.content)
+    ) {
+      return { response: priorAssistant.content, error: null };
+    }
+  }
+
   // Build the system prompt the same way the chat route does, but
   // with no live memory recall (we're replaying scenarios, not
   // mutating brain state). The "lite" tier is the cheap path used
@@ -169,10 +189,19 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
       "You are Nick · an operator-grade personal-OS AI. Be direct, terse, evidence-grounded. No corporate filler.";
   }
 
+  // 2026-08-18 · fairness fix: contextSetup used to be shown ONLY to
+  // the judge, so Nick was graded against constraints he never saw —
+  // witnessed on persona-obedience-yes-executes, where "no search tool
+  // is attached" was judge-visible while Nick replied "We'll search"
+  // in good faith. Environment constraints now reach Nick too.
+  const contextLines = scenario.contextSetup?.length
+    ? `\n\n## Replay environment (for this conversation)\n${scenario.contextSetup.map((s) => `- ${s}`).join("\n")}`
+    : "";
+
   try {
     const result = await aiChat(
       [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: systemPrompt + contextLines },
         ...scenario.input.messages.map((m) => ({
           role: m.role,
           content: m.content,
@@ -180,8 +209,35 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
       ],
       "reason",
     );
+    // 2026-08-18 · aiChat NEVER throws on total provider failure — it
+    // returns a SENTINEL (repo gotcha: check result.provider ===
+    // "emergency" | "none"). Without this check the judge scores the
+    // outage text against the scenario criteria: witnessed on the first
+    // live run, where persona-obedience-yes-executes "passed" 7.9/10
+    // with Nick's reply being "I'm having trouble connecting to my AI
+    // providers". A transient infra failure must be an ERRORED
+    // scenario (re-run covers it), never a fake pass or fail.
+    if (result.provider === "emergency" || result.provider === "none") {
+      return {
+        response: "",
+        error: `provider sentinel (${result.provider}) — transient chain failure, not a Nick reply`,
+      };
+    }
+    // 2026-08-18 · calibration lever, same single-source layer the
+    // production persist path runs (lib/ai/chat/calibration-enforcer):
+    // forecast-shaped ask + no likelihood band -> elicit-or-notice. The
+    // suite replays the system, not the bare model.
+    let text = (result.content ?? "").trim();
+    try {
+      const { enforceCalibration } = await import("@/lib/ai/chat/calibration-enforcer");
+      const lastUser = [...scenario.input.messages].reverse().find((m) => m.role === "user");
+      const calibrated = await enforceCalibration(lastUser?.content ?? "", text);
+      text = calibrated.text;
+    } catch {
+      // fail-open — the eval grades whatever the layer produced or didn't
+    }
     return {
-      response: (result.content ?? "").trim(),
+      response: text,
       error: null,
     };
   } catch (err) {

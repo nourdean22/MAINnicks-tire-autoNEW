@@ -39,6 +39,11 @@ export interface PreStreamRegenArgs {
   intent: Intent;
   /** Output shape from turn-intelligence. Passed through to critic. */
   shape: OutputShape;
+  /** 2026-08-18 · the operator's message. Lets the critic waive the
+   *  spec/length axes on operator-constrained brevity ("reply with just
+   *  OK") — obedient terse replies were silently re-rolled here, paying
+   *  a second generation for following instructions. */
+  userPrompt?: string;
   /** First-attempt generator · returns the model's reply as a string. */
   generateOnce: () => Promise<string>;
   /**
@@ -126,7 +131,7 @@ export async function maybePreStreamRegen(
   const firstStart = Date.now();
   const firstAttempt = await args.generateOnce();
   const firstMs = Date.now() - firstStart;
-  const firstScore = critiqueOutput(firstAttempt, args.shape);
+  const firstScore = critiqueOutput(firstAttempt, args.shape, { userPrompt: args.userPrompt });
 
   // Fast path · first attempt passed the critic OR intent isn't gated.
   if (!firstScore.shouldRegen || !shouldGateForIntent(args.intent)) {
@@ -152,7 +157,7 @@ export async function maybePreStreamRegen(
     suggestedSystemPrefix: REGEN_SYSTEM_PREFIX,
   });
   const regenMs = Date.now() - regenStart;
-  const regenScore = critiqueOutput(regenAttempt, args.shape);
+  const regenScore = critiqueOutput(regenAttempt, args.shape, { userPrompt: args.userPrompt });
 
   // Regen wins only if it is BOTH cleaner AND scores higher than the
   // first attempt. Two bad replies don't make a good one · ship the

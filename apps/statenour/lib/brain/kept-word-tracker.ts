@@ -159,7 +159,7 @@ export async function scanKeptWords(): Promise<{
   }
 
   if (classifierFailures > 0) {
-    logError("brain.kept-word-tracker", new Error(`${classifierFailures} classifier failures skipped`), { fn: "scanKeptWords", errors: classifierErrors.map(String) });
+    logError("brain.kept-word-tracker", new Error(`${classifierFailures} classifier failures skipped`), { fn: "scanKeptWords", errors: classifierErrors.map(String) }, "warn");
   }
 
   return { scanned: messages.length, newPromises, resolved };
@@ -200,7 +200,7 @@ export async function deriveTrustFromKeptWord(
   }
   
   if (malformedCount > 0) {
-    logError("brain.kept-word-tracker", new Error(`${malformedCount} malformed rows skipped`), { fn: "deriveTrustFromKeptWord", personId, errors: malformedErrors.map(String) });
+    logError("brain.kept-word-tracker", new Error(`${malformedCount} malformed rows skipped`), { fn: "deriveTrustFromKeptWord", personId, errors: malformedErrors.map(String) }, "warn");
   }
   const total = kept + broken;
   if (total < 3) return null; // need ≥3 data points

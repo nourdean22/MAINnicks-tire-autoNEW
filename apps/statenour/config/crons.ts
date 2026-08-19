@@ -378,6 +378,17 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "semantic-link",
+    schedule: null,
+    mode: "folded",
+    category: "hygiene",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening · Brain truth pass · embedding-based cross-memory linker (runSemanticLinker, batch 25 · top-3 pgvector KNN neighbors → SemanticEdge upserts). Shipped 2026-05-02 and never had a caller — semantic_edges froze at 114 rows on 2026-05-28; this re-grows the brain graph's memory-to-memory tissue nightly.",
+    addedAt: "2026-08-19",
+    maxDuration: 120,
+  },
+  {
     name: "mastery-xp",
     schedule: null,
     mode: "folded",
@@ -508,7 +519,12 @@ export const CRONS: CronDef[] = [
     schedule: "0 3 * * 1",
     mode: "active",
     category: "hygiene",
-    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · sweeps CaptureInboxItem rows · auto-categorizes the cleanest ones · proposes mission for the rest.",
+    // 2026-08-19 · description corrected: the route archives empty INBOX
+    // Mission rows (isInboxMission) — it never touches CaptureInboxItem.
+    // The old text claimed a capture sweep that has never existed;
+    // captures currently have NO consumer that archives them (only writer:
+    // runner-state.ts, status always "active").
+    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · archives empty INBOX missions (isInboxMission) · does NOT sweep CaptureInboxItem.",
     memory: 512,
     maxDuration: 60,
   },

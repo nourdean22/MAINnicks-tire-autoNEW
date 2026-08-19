@@ -23,6 +23,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { priorityFromLabel } from "@/lib/scoring/task-priority";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { recordError } from "@/lib/errors/record-error";
 import { logError } from "@/lib/utils/error-log";
@@ -125,8 +126,10 @@ async function applyExtraction(
   });
 
   // Apr 18: OpenLoop retired → Task INBOX on m-inbox mission.
-  const priorityFor = (p?: string): number =>
-    p === "critical" ? 5 : p === "high" ? 15 : p === "low" ? 60 : 30;
+  // 2026-08-19: canonical polarity (higher = more urgent) — the old
+  // inline 5/15/30/60 map was one of the two writers that made
+  // autoPriority bipolar. See lib/scoring/task-priority.
+  const priorityFor = (p?: string): number => priorityFromLabel(p);
   const mInboxExists = await prisma.mission
     .findUnique({ where: { id: "m-inbox" }, select: { id: true } })
     .catch((err) => {
@@ -405,7 +408,7 @@ async function ingestNickWisdom(): Promise<KnowledgeSyncResult["wisdom"]> {
   }
   
   if (dupCount > 0) {
-    logError("brain.knowledge-sync", new Error(`${dupCount} duplicate wisdom syncs skipped`), { fn: "ingestNickWisdom" });
+    logError("brain.knowledge-sync", new Error(`${dupCount} duplicate wisdom syncs skipped`), { fn: "ingestNickWisdom" }, "warn");
   }
 
   return { messagesScanned: msgs.length, memoriesStored: stored };

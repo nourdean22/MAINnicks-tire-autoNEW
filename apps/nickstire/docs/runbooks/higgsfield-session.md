@@ -8,29 +8,55 @@ exists so that step takes 60 seconds instead of a day.
 
 ## 1 · Recovery (do this when reels stop)
 
-### ⚠️ FIRST: `hf` on your machine is the WRONG CLI
+### ⚠️ FIRST: there is NO `hf` command. Two traps, both measured.
 
-`which hf` here resolves to `Python314/Scripts/hf` — **huggingface_hub**, which
-also has an `auth login` subcommand and will cheerfully succeed while doing
-nothing for Higgsfield. This exact trap burned 2026-07-31: the login was run,
-believed done, and the canary failed identically. The `Hint: Run: hf auth login`
-text in the error comes from the **Higgsfield** CLI on Railway, where `hf` is a
-different binary.
+**TRAP 1 — `hf` is huggingface_hub, and the npm package never provides `hf`.**
+`which hf` resolves to `Python314/Scripts/hf` — **huggingface_hub** — which has its
+own `auth login` that succeeds while doing nothing for Higgsfield. This burned
+2026-07-31 (login run, believed done, canary failed identically) and again
+2026-08-18.
 
-Invoke Higgsfield's binary by PATH, never by name. `higgsfieldBinary.ts` resolves
-it from `node_modules/@higgsfield/cli/vendor/hf[.exe]`, and downloads it to the OS
-temp dir if absent — so the same lookup works locally:
+It keeps happening because this runbook used to say `hf auth login`, copying the
+`Hint: Run: hf auth login` text out of Higgsfield's own error output. That hint
+names the *native binary*. **The npm package exposes different commands:**
 
-```bash
-node -e "import('./server/services/higgsfieldBinary.ts')" # or use the vendor path directly
-ls node_modules/@higgsfield/cli/vendor/          # hf / hf.exe lives here
+```json
+"bin": { "higgsfield": "bin/higgsfield.js", "higgs": "bin/higgs.js" }
 ```
 
-Then run **that** binary's `auth login` — a device flow.
+So the command is **`higgsfield auth login`** (or `higgs`), never `hf`.
+
+**TRAP 2 — pnpm does not run the package's postinstall, so the native binary is
+absent.** `@higgsfield/cli` ships an `install.js` postinstall that fetches
+`hf[.exe]` into its own `vendor/`. pnpm blocks build scripts by default, so
+`vendor/` never exists and `bin/run.js` exits with:
+
+```
+@higgsfield/cli: binary not found at <...>/vendor/hf.exe
+```
+
+Verified 2026-08-18: no `vendor/` directory under
+`node_modules/.pnpm/@higgsfield+cli@0.2.3/node_modules/@higgsfield/cli`. Get the
+binary by running that postinstall directly:
+
+```
+node node_modules/.pnpm/@higgsfield+cli@0.2.3/node_modules/@higgsfield/cli/install.js
+```
+
+(A global install of the package also runs its own postinstall. Do NOT run a
+workspace install from a worktree — policy blocks it, and it would wipe the shared
+junctioned `node_modules`.)
+
+`higgsfieldBinary.ts` is the server-side path and fetches the same release into the
+OS temp dir. Two bugs there were fixed 2026-08-18, both of which made it fail
+**only on Windows** — i.e. only on the machine where the login has to happen:
+extraction passed absolute paths to `tar` (GNU tar reads `C:\...` as a remote
+`host:path`), and the version was hardcoded to `0.2.2` against a `0.2.3` pin.
 
 ### The steps
 
-1. Run `<vendor>/hf auth login` and complete the device flow in the browser.
+1. Run `higgsfield auth login` (the npm bin — NOT `hf`) and complete the device
+   flow in the browser.
    **The post-login redirect DROPS the device code**, so go back to
    `/device?code=…` and click Connect — it took two clicks on 2026-07-31.
    It writes `~/.config/higgsfield/credentials.json`
@@ -38,10 +64,26 @@ Then run **that** binary's `auth login` — a device flow.
 2. Get it into `app_secret_kv`, either way:
    - **From your phone:** paste the file's contents into
      **Instagram → Settings → "Replace Higgsfield credentials JSON"**.
-   - **From this machine:** `pnpm exec node scripts/push-higgsfield-creds.mjs`
-     (dry run), then `--apply`. It refuses unless the file parses with BOTH
-     `access_token` and `refresh_token`, refuses if it is not NEWER than the
-     stored row, and prints only lengths/hashes — never token material.
+   - **From this machine — the shell matters.** The CLI here is PowerShell, so a
+     bash-style path (`/c/Users/...`) fails with `Cannot find path`, and `&&` is a
+     parser error. This form needs no `cd` at all, because node resolves `mysql2`
+     from the script's own directory upward:
+
+     ```
+     railway run --service MAINnicks-tire-auto -- node C:\Users\nourd\NOURCITY\apps\nickstire\scripts\push-higgsfield-creds.mjs --apply
+     ```
+
+     Drop `--apply` for a dry run first. It refuses unless the file parses with
+     BOTH `access_token` and `refresh_token`, refuses if it is not NEWER than the
+     stored row, and prints only lengths/hashes — never token material. Confirm it
+     landed by re-running the dry run: the `existing row` hash must then equal the
+     `local creds` hash.
+
+     **Do it promptly after logging in.** Higgsfield rotates tokens, and a static
+     pair has died ~90 min after login (measured 2026-07-16). A refresh token that
+     has already rotated pushes cleanly and still fails the keepalive — measured
+     2026-08-18, when a 4-hour-old pair wrote successfully and the session stayed
+     revoked.
 3. Confirm, do not infer: `pnpm exec tsx scripts/probe-higgsfield-session-health.mts`
    (or the Higgsfield refresh button on Today → HQ). The Delivery card's
    `generator_session_expired` blocker clears on its own once keepalive succeeds.

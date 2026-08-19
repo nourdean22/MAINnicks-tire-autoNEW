@@ -68,7 +68,7 @@ export const adminSecurityRouter = router({
       adminRole: security?.adminRole ?? "viewer",
       permissions: permissionsForAdminRole(security?.adminRole ?? "viewer"),
       mfaEnabled: security?.mfaEnabled ?? false,
-      mfaVerified: isMfaVerificationFresh(security?.mfaVerifiedAt ?? null),
+      mfaVerified: isMfaVerificationFresh(security?.mfaAgeMinutes ?? null),
       mfaVerifiedAt: security?.mfaVerifiedAt ?? null,
     };
   }),

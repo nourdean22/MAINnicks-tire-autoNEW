@@ -142,6 +142,14 @@ async function main(): Promise<void> {
       joinMisses++;
       continue;
     }
+    // 2026-08-18 curation pass finding: provider-outage sentinels
+    // (aiChat's emergency reply) get judged like real replies and score
+    // obedience ~1 — that is an INFRA failure, not a persona failure,
+    // and it refills the candidate queue with junk every run. Skip.
+    if (reply.content.startsWith("I'm having trouble connecting to my AI providers")) {
+      joinMisses++;
+      continue;
+    }
     // The preceding operator turn — the scenario's input.
     const userTurn = await prisma.chatMessage.findFirst({
       where: {

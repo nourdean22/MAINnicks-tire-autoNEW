@@ -53,6 +53,14 @@ export type ChatUiState = {
   setDepth: (d: ChatUiState["depth"]) => void;
   setActionPermission: (p: ChatUiState["actionPermission"]) => void;
   setDraft: (draft: string) => void;
+  /** 2026-08-18 · edit-resend: the user message the composer's draft is
+   *  editing. Sending while set truncates from this message forward
+   *  (server cascade + client slice) and resends — the V1 contract
+   *  ("saving will resend the message, retriggering a regeneration")
+   *  that the chat-v2 migration dropped, leaving edit as a bare
+   *  prefill. Null = normal append send. */
+  editingMessageId: string | null;
+  setEditingMessageId: (id: string | null) => void;
   setConnection: (state: ChatUiState["connection"]) => void;
   setActiveConversationId: (id: string | null) => void;
   enqueuePending: (msg: PendingSend) => void;
@@ -87,9 +95,24 @@ export const useChatUiStore = create<ChatUiState>((set) => ({
   setPosture: (posture) => set({ posture }),
   setDepth: (depth) => set({ depth }),
   setActionPermission: (actionPermission) => set({ actionPermission }),
-  setDraft: (draft) => set({ draft }),
+  // 2026-08-18 self-audit fix · emptying the draft DISARMS edit-resend.
+  // A casual bubble tap arms editing (with the banner) — but if the
+  // operator then clears the prefill to type something NEW, sending
+  // must not cascade-delete the tapped message. Empty draft = new
+  // intent. (The banner + cancel + Escape remain the explicit outs.)
+  setDraft: (draft) =>
+    set((s) => ({
+      draft,
+      editingMessageId: draft.trim() === "" ? null : s.editingMessageId,
+    })),
+  editingMessageId: null,
+  setEditingMessageId: (editingMessageId) => set({ editingMessageId }),
   setConnection: (connection) => set({ connection }),
-  setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
+  // Switching conversations disarms any pending edit — the id belongs
+  // to the previous thread and a cascade there would truncate the
+  // WRONG conversation.
+  setActiveConversationId: (activeConversationId) =>
+    set({ activeConversationId, editingMessageId: null }),
   enqueuePending: (msg) => set((s) => ({ pending: [...s.pending, msg] })),
   updatePending: (tempId, patch) =>
     set((s) => ({

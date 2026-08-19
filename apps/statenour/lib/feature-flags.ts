@@ -47,8 +47,8 @@ export interface FeatureFlag {
   defaultBehavior: string;
   /**
    * 2026-08-16 · true = the feature is LIVE when the env var is unset, and the
-   * var acts as a kill-switch (set it to anything that is not `onValue` — by
-   * convention "0" — to disable).
+   * var acts as a kill-switch. Most default-on flags use the normal `onValue`
+   * semantics; raw-env runtimes can instead declare their exact `offValue`.
    *
    * Added because the registry previously had no way to express a graduated
    * flag: computeIsOn returned false for an empty value unconditionally, so a
@@ -57,10 +57,17 @@ export interface FeatureFlag {
    * the code runs it — a status surface that lies. Model it here instead.
    */
   defaultOn?: boolean;
+  /** Exact raw value that disables a default-on flag. This mirrors runtimes
+   * such as `process.env.FLAG !== "0"`; it is deliberately not trimmed or
+   * normalized before comparison. */
+  offValue?: string;
   /** Optional · linked migration in docs/migrations/. */
   relatedMigration?: string;
   /** Optional · ADR or doc path that captures the trade-off. */
   ownerDoc?: string;
+  /** Runtime reads a raw env var directly; the settings board must not offer
+   * controls that imply a database override can change behavior. */
+  readOnly?: boolean;
 }
 
 export const FLAG_REGISTRY: FeatureFlag[] = [
@@ -157,6 +164,40 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior:
       "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win — `pnpm eval:recall` has never been run against a real (non-synthetic) corpus, so this is an accepted-risk default, not a measured one.",
     ownerDoc: "lib/brain/contextual-recall.ts",
+  },
+  // ── Memory-write gateway kill-switches (registered 2026-08-19) ────
+  // Both were LIVE-by-default via raw `process.env.X !== "0"` reads in
+  // memory-manager.ts and appeared NOWHERE on the flag board — the two
+  // most consequential memory switches were invisible, the exact
+  // failure mode this registry exists to prevent. Registration here is
+  // OBSERVATIONAL: the runtime check stays the raw env read in
+  // lib/brain/memory-manager.ts (do not "unify" it through getFlag
+  // without re-verifying the fail-open catch semantics there).
+  {
+    key: "NICK_MEMORY_GATEWAY_PHASE1",
+    description:
+      "Memory commit gateway Phase-1: same-source + same-content repetition no longer reinforces confidence (noop verdict). Graduated after a 7-day shadow review (1,788 receipts, 0% legacy disagreement on noop). LIVE unless explicitly killed with =0. Runtime check is `process.env.NICK_MEMORY_GATEWAY_PHASE1 !== \"0\"` in lib/brain/memory-manager.ts — this entry is for board visibility.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: true,
+    offValue: "0",
+    defaultBehavior:
+      "LIVE: repetition-noop enforced at remember(). Kill-switch =0 restores legacy always-reinforce. Probe: scripts/probe-gateway-agrees.ts.",
+    ownerDoc: "lib/brain/memory-commit-gateway.ts",
+    readOnly: true,
+  },
+  {
+    key: "NICK_MEMORY_GATEWAY_PHASE2",
+    description:
+      "Memory commit gateway Phase-2: honors `update` (content refresh, no confidence bump) and `review_required` for weaker_evidence (parks to the Review queue). unknown_category deliberately falls through and writes. Flipped LIVE by explicit operator instruction 2026-08-16 WITHOUT the shadow review that graduated Phase-1 — accepted risk, not measured safety. LIVE unless killed with =0; runtime check is the raw env read in lib/brain/memory-manager.ts.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: true,
+    offValue: "0",
+    defaultBehavior:
+      "LIVE: update + weaker_evidence-review enforced at remember(). Kill-switch =0 FIRST if writes look wrong, then run scripts/probe-gateway-agrees.ts.",
+    ownerDoc: "lib/brain/memory-commit-gateway.ts",
+    readOnly: true,
   },
   {
     key: "NICK_VERIFIED_REGEN",
@@ -464,7 +505,11 @@ export function getFlag(key: string): ResolvedFlag | null {
 
   // Resolve override or environment variable
   const dbOverride = overridesCache[key];
-  const rawValue = (dbOverride !== undefined ? dbOverride : (process.env[key] ?? "")).trim();
+  // Read-only entries are observational mirrors of raw runtime env checks.
+  // An old database override must not make the board contradict runtime.
+  const rawValue = spec.readOnly
+    ? (process.env[key] ?? "")
+    : (dbOverride !== undefined ? dbOverride : (process.env[key] ?? "")).trim();
   const isOn = computeIsOn(spec, rawValue);
 
   return { ...spec, rawValue, isOn, overrideValue: dbOverride ?? null };
@@ -479,7 +524,9 @@ export function getAllFlags(): ResolvedFlag[] {
   triggerBackgroundRefresh();
   return FLAG_REGISTRY.map((spec) => {
     const dbOverride = overridesCache[spec.key];
-    const rawValue = (dbOverride !== undefined ? dbOverride : (process.env[spec.key] ?? "")).trim();
+    const rawValue = spec.readOnly
+      ? (process.env[spec.key] ?? "")
+      : (dbOverride !== undefined ? dbOverride : (process.env[spec.key] ?? "")).trim();
     return { ...spec, rawValue, isOn: computeIsOn(spec, rawValue), overrideValue: dbOverride ?? null };
   });
 }
@@ -488,7 +535,9 @@ export function getAllFlags(): ResolvedFlag[] {
  * Computes the on-state for a spec given a raw env value.
  *
  * Handles three patterns:
- *   1. Pipe-delimited enum (e.g. `venice|openai|anthropic|gemini`)
+ *   1. Exact default-on kill-switch (`offValue`)
+ *      · on iff the raw value is anything except the declared off value
+ *   2. Pipe-delimited enum (e.g. `venice|openai|anthropic|gemini`)
  *      · on iff rawValue matches one of the options
  *   2. Present-implies-on placeholder (`<any-non-empty-string>`)
  *      · on iff rawValue is non-empty
@@ -498,6 +547,9 @@ export function getAllFlags(): ResolvedFlag[] {
 function computeIsOn(spec: FeatureFlag, rawValue: string): boolean {
   // Unset → the flag's declared default. Only graduated flags set defaultOn.
   if (!rawValue) return spec.defaultOn === true;
+
+  if (spec.offValue !== undefined) return rawValue !== spec.offValue;
+
   const lower = rawValue.toLowerCase();
 
   if (spec.onValue === "<any-non-empty-string>") return true;

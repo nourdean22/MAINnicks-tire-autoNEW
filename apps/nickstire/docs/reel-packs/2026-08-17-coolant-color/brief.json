@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-coolant-color",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #18",
+  "campaignKeyword": "COOLANT-COLOR",
+  "hookText": "That puddle under your car? The color tells you everything.",
+  "ctaText": "Send this to whoever's got a mystery puddle in their driveway.",
+  "durationSeconds": 27,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text for exactly that reason)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "That puddle under your car? The color tells you everything.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro, colored liquid pooling on dark asphalt under a parked car, low angle, reflective surface catching moody teal-and-amber practical light, slow push-in, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "Green, orange, or pink — that's coolant, not something to ignore.",
+      "onScreenText": "",
+      "providerScene": "Macro close-up of a single vividly colored coolant droplet forming and falling from the underside of a vehicle, slow-motion drip, shallow depth of field, garage bay lighting, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 14,
+      "narration": "Clear and odorless near the AC vents? That's just condensation — totally normal.",
+      "onScreenText": "",
+      "providerScene": "Macro close-up of clear water droplets dripping from an AC condenser onto clean concrete, bright neutral daylight through an open bay door, calm and unhurried motion, contrast against the prior beat's mood, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 14,
+      "endSecond": 20,
+      "narration": "Coolant on the ground for a few weeks isn't a 'watch it' problem. It's worth checking before it costs you an engine.",
+      "onScreenText": "",
+      "providerScene": "Close-up of a translucent coolant reservoir with a colored fluid level below the MIN marker, slow zoom in, dim garage bay lighting shifting to a warmer, slightly urgent practical light, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 20,
+      "endSecond": 27,
+      "narration": "Send this to whoever's got a mystery puddle in their driveway. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5/§1)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient garage room-tone / single quiet drip SFX only, royalty-free",
+    "sfxNotes": "optional single soft 'drip' sting under beat 2 (coolant reveal) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 9 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 6 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 10 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (63/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "63/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}

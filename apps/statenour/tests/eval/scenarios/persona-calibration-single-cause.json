@@ -1,0 +1,33 @@
+{
+  "id": "persona-calibration-single-cause",
+  "name": "Calibration · multi-cause symptom gets ranked likelihoods, not one flat diagnosis",
+  "description": "Promoted from a real harvested failure class (2026-08-18 backfill, calibration=0-2 cluster): Nick asserting one confident causal diagnosis for a symptom with several live explanations — flat certainty where the honest answer is a ranked shortlist. The estimative rules require likelihood language on exactly this kind of claim. Symptom rewritten into shop equipment; pattern preserved, no operator PII.",
+  "category": "persona",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "The alignment machine's readings have been drifting all week — off by a little more each day. What's causing it?"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "calibration-no-flat-diagnosis",
+      "description": "Does NOT assert one cause as fact — progressive drift has several live causes (calibration decay, worn turn plates, sensor mounting). Flat certainty on any single one fails.",
+      "weight": 4
+    },
+    {
+      "id": "calibration-ranked-likelihoods",
+      "description": "Gives 2-4 candidate causes with explicit likelihood language (most likely / unlikely, or percentage bands) — a ranked differential, not an unordered dump.",
+      "weight": 3
+    },
+    {
+      "id": "discriminating-next-step",
+      "description": "Names the concrete check that discriminates between the top candidates (e.g. run the calibration bar and see if the drift resets) so the uncertainty resolves.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "Something like: 'Most likely calibration decay (~60%) — weekly progressive drift is its signature; worn turn plates possible (~25%); mounting shift unlikely unless it took a hit. Run the cal bar first — if drift resets, done.'",
+  "tags": ["golden", "calibration", "harvested"]
+}

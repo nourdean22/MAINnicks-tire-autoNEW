@@ -57,6 +57,49 @@ vi.mock("@/lib/brain/strategic-plans", () => ({
   assessStrategicPlans: engines.assessStrategicPlans,
 }));
 
+// 2026-08-19 · the route converted from a bare GET (hand-rolled Bearer
+// compare, no cron_job_logs row ever) to cronHandler. Mock the log/actor
+// plumbing the wrapper pulls in so the test still exercises only the
+// engine fan-out, and use a REAL Request — apiHandler parses req.url.
+vi.mock("@/lib/services/cron-manager", () => ({
+  logCronRun: vi.fn(async (_job: string, fn: () => Promise<unknown>) => {
+    try {
+      const result = await fn();
+      return { success: true, result, durationMs: 1 };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+        durationMs: 1,
+      };
+    }
+  }),
+}));
+vi.mock("@/lib/services/cron-control", () => ({
+  isCronEnabled: vi.fn(async () => true),
+}));
+vi.mock("@/lib/automation/policy", () => ({
+  logPolicyFire: vi.fn(async () => undefined),
+}));
+// The suite-wide setup (tests/setup/auth-guard-mock.ts) no-ops
+// requireCronAuth, which would turn the unauthorized-request test into a
+// vacuous 200. Override it here with a real Bearer check so the 401 path
+// is still exercised through the wrapper.
+vi.mock("@/lib/auth-guard", async () => {
+  const { ServiceError } = await import("@/lib/utils/service-error");
+  return {
+    requireCronAuth: vi.fn((req: Request) => {
+      // literal, not `SECRET` — the factory runs while the route module
+      // imports, before this file's module-body consts initialize (TDZ)
+      if (req.headers.get("authorization") !== "Bearer test-secret") {
+        throw new ServiceError("Unauthorized", 401);
+      }
+    }),
+    requireSyncAuth: vi.fn(),
+    requireSession: vi.fn().mockResolvedValue({ id: "operator-1" }),
+  };
+});
+
 import { GET } from "@/app/api/cron/intelligence/route";
 
 const SECRET = "test-secret";
@@ -68,17 +111,14 @@ beforeEach(() => {
   process.env.CRON_SECRET = SECRET;
 });
 
-function authedReq() {
-  return new NextRequestLike();
-}
-
-// Minimal stand-in that satisfies the route's `req.headers.get(...)` use.
-class NextRequestLike {
-  headers = new Headers({ authorization: `Bearer ${SECRET}` });
+function authedReq(token = SECRET) {
+  return new Request("http://localhost/api/cron/intelligence", {
+    headers: { authorization: `Bearer ${token}` },
+  });
 }
 
 const invoke = () =>
-  (GET as unknown as (r: unknown) => Promise<Response>)(authedReq());
+  (GET as unknown as (r: unknown, ctx?: unknown) => Promise<Response>)(authedReq());
 
 describe("cron/intelligence · capped engine concurrency", () => {
   it("never runs more than the cap engines concurrently", async () => {
@@ -94,9 +134,9 @@ describe("cron/intelligence · capped engine concurrency", () => {
   });
 
   it("rejects an unauthorized request without running engines", async () => {
-    const res = await (GET as unknown as (r: unknown) => Promise<Response>)({
-      headers: new Headers({ authorization: "Bearer wrong" }),
-    });
+    const res = await (GET as unknown as (r: unknown, ctx?: unknown) => Promise<Response>)(
+      authedReq("wrong"),
+    );
     expect(res.status).toBe(401);
     for (const fn of Object.values(engines)) {
       expect(fn).not.toHaveBeenCalled();

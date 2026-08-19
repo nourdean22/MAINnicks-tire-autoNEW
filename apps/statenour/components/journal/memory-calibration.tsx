@@ -24,6 +24,10 @@ import { trpc } from "@/lib/trpc/client";
 import {
   RotateCcw, Check, Edit3, Trash2, X as XIcon, Loader2, ArrowRight,
 } from "lucide-react";
+// 2026-08-19 · this row printed `seen {seenCount}×` and `c{confidence*100}`
+// side by side — the same fact twice, since confidence IS the sighting
+// counter. The count is the fact; the number dressed as a score was noise.
+import { describeSeenCount } from "@/lib/brain/attention-label";
 
 interface MemorySample {
   id: string;
@@ -197,7 +201,7 @@ export function MemoryCalibrationRitual({ onClose, autoLoad = true }: Calibratio
                   {m.category}
                 </span>
                 <span className="text-[8px] font-mono text-[var(--text-tertiary)]">
-                  · {m.ageDays}d old · seen {m.seenCount}× · c{Math.round(m.confidence * 100)}
+                  · {m.ageDays}d old · {describeSeenCount(m.seenCount)}
                 </span>
               </div>
 

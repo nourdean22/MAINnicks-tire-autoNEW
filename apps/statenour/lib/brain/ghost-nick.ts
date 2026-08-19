@@ -20,7 +20,7 @@
  *   2. Today-of-week + hour-bucket bias: which signatures tend to
  *      close NOW vs. other times?
  *   3. READY/NEXT tasks matching dominant signature are ranked by:
- *      - autoPriority (lower = hotter)
+ *      - autoPriority (higher = hotter — canonical polarity)
  *      - whether an active skill matches them
  *      - freshness of lastTouchedAt
  *   4. Top 3 come back with a confidence score 0-1.
@@ -97,7 +97,7 @@ async function dominantSignature(): Promise<{ signature: string; evidence: strin
   const counts = new Map<string, number>();
   for (const t of pool) {
     const p = t.autoPriority ?? 50;
-    const band = p < 20 ? "crit" : p < 40 ? "high" : p < 60 ? "med" : "low";
+    const band = p >= 80 ? "crit" : p >= 60 ? "high" : p >= 40 ? "med" : "low";
     const dom = t.mission?.domain ?? "general";
     const sig = `ctx:${t.context}|eff:${t.effort}|p:${band}|dom:${dom}`;
     counts.set(sig, (counts.get(sig) ?? 0) + 1);
@@ -180,7 +180,7 @@ export async function computeGhostPredictions(): Promise<GhostPredictionBundle |
       mission: { select: { domain: true } },
     },
     take: 40,
-    orderBy: [{ autoPriority: "asc" }, { lastTouchedAt: "desc" }],
+    orderBy: [{ autoPriority: "desc" }, { lastTouchedAt: "desc" }],
   });
 
   if (candidates.length === 0) {
@@ -205,10 +205,10 @@ export async function computeGhostPredictions(): Promise<GhostPredictionBundle |
   const scored: Array<GhostPrediction & { raw: number }> = [];
   for (const c of candidates as Array<typeof candidates[number] & { mission?: { domain: string } | null }>) {
     const p = c.autoPriority ?? 50;
-    const cBand = p < 20 ? "crit" : p < 40 ? "high" : p < 60 ? "med" : "low";
+    const cBand = p >= 80 ? "crit" : p >= 60 ? "high" : p >= 40 ? "med" : "low";
     const cDom = c.mission?.domain ?? "general";
 
-    // Scoring: matching signature wins; doing > ready; priority lower = hotter
+    // Scoring: matching signature wins; doing > ready; priority higher = hotter
     let score = 0;
     const signals: string[] = [];
     if (c.effort === effort) { score += 2; signals.push(`effort:${effort}`); }
@@ -216,7 +216,7 @@ export async function computeGhostPredictions(): Promise<GhostPredictionBundle |
     if (cDom === domain) { score += 1.5; signals.push(`domain:${domain}`); }
     if (c.status === "DOING") { score += 3; signals.push("already DOING"); }
     if (c.status === "READY") { score += 1.5; signals.push("queued READY"); }
-    score += Math.max(0, (100 - p) / 25); // hotter priority = higher
+    score += Math.max(0, p / 25); // hotter priority = higher score
 
     // Skill match = extra signal. In-memory match against the hoisted
     // active-skill list (was a per-candidate matchSkillsForTask DB call).

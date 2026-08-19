@@ -10,12 +10,15 @@ import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
+import { priorityFromLabel } from "@/lib/scoring/task-priority";
 import type { ActionParams, ActionResult } from "./types";
 
 // Apr 18: OpenLoop retired → task + loop cases all write Task
 // INBOX rows against the m-inbox mission.
-const priorityFor = (p: unknown): number =>
-  p === "critical" ? 5 : p === "high" ? 15 : p === "low" ? 60 : 30;
+// 2026-08-19: the local 5/15/30/60 (lower = hotter) map was the writer
+// that split autoPriority into two opposite scales — canonical mapping
+// (higher = more urgent) now lives in lib/scoring/task-priority.
+const priorityFor = priorityFromLabel;
 
 export async function handleTaskCreate(params: ActionParams, type: string): Promise<ActionResult> {
   const task = await createTaskAndEnrich({
