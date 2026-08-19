@@ -31,6 +31,20 @@ describe("chat-recall quarantine", () => {
     expect(CANDIDATE_CONFIDENCE).toBe(0.3);
   });
 
+  it("excludes superseded snapshots — history is not belief", () => {
+    // A superseded claim is one the system explicitly STOPPED holding.
+    // Recalling it would feed the model the exact text we replaced on
+    // purpose, which is worse than not remembering at all.
+    //
+    // 2026-08-19 · this pin lived in tests/brain/memory-supersession.test.ts
+    // until that file was consolidated into tests/lib/memory-manager.test.ts
+    // (b0ace67 — a strict improvement: it exercises the real writer instead
+    // of mirroring its row shape). The writer coverage moved; this exclusion
+    // assertion did not move with it, leaving the quarantine unpinned. Its
+    // home was always here.
+    expect(RECALL_EXCLUDE_CATEGORIES).toContain(BRAIN_CATEGORIES.SUPERSEDED_SNAPSHOT);
+  });
+
   it("keeps the pre-existing exclusions intact", () => {
     expect(RECALL_EXCLUDE_CATEGORIES).toContain(BRAIN_CATEGORIES.MORNING_BRIEF_AUDIO);
     expect(RECALL_EXCLUDE_CATEGORIES).toContain(BRAIN_CATEGORIES.SUGGESTION_HYPOTHESIS);
