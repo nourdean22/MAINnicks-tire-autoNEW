@@ -7,6 +7,7 @@ import type { Task, Project } from "@/components/actions/shared";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
 import { useMissionUIStore } from "../state/use-mission-ui-store";
+import { useOutcomeDialog } from "@/components/ui/outcome-dialog";
 
 const log = rootLogger.withSurface("missions/actions");
 
@@ -38,6 +39,13 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [decomposing, setDecomposing] = useState(false);
+
+  // 2026-08-19 · outcome-loop wave · the completion moment's one question.
+  // /missions is the LIVE completion surface (board + Execution Mode both
+  // funnel through handleCompleteTask) — this is what makes
+  // Task.outcomeRating/outcomeLesson real. The page must render
+  // `outcomeDialog` (returned below) for the prompt to exist.
+  const { collectOutcome, dialog: outcomeDialog } = useOutcomeDialog();
 
   const refetchAll = useCallback(async () => {
     await Promise.all([
@@ -80,6 +88,14 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       const isWeekly = loopKind === "WEEKLY";
       const isRecurring = isDaily || isWeekly;
       let xpAdded = 0;
+      // One tap on a rating chip (or "just done") proceeds; escape/outside
+      // cancels the completion entirely — the task stays where it was.
+      const outcome = await collectOutcome({ title: "how did it go?" });
+      if (outcome === null) return;
+      const outcomeFields = {
+        ...(outcome.rating ? { outcomeRating: outcome.rating } : {}),
+        ...(outcome.lesson ? { outcomeLesson: outcome.lesson } : {}),
+      };
       try {
         telemetry.event("completeTask", { taskId: id, isDaily });
         if (isRecurring) {
@@ -88,7 +104,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           // the client: the polled cache can be 15s stale, so a client-side
           // `streak + 1` clobbers concurrent writers (chat/Telegram/voice)
           // and double-bumps across day boundaries.
-          const res = await checkTaskMut.mutateAsync({ id, action: "complete" });
+          const res = await checkTaskMut.mutateAsync({ id, action: "complete", ...outcomeFields });
           if (isDaily) {
             // Presentation only: checkTask leaves DAILY status READY; the
             // board hides a checked daily until tomorrow via WAITING +
@@ -109,7 +125,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           if (res.reward?.levelUp) setLevelUpState(res.reward.levelUp);
           if (res.reward?.xpCredited) xpAdded = res.reward.xpCredited;
         } else {
-          const res = await updateTask.mutateAsync({ id, fields: { status: "DONE" } });
+          const res = await updateTask.mutateAsync({ id, fields: { status: "DONE", ...outcomeFields } });
           const reward = (res as unknown as { reward?: TaskReward }).reward;
           const msg = formatReward(reward);
           if (msg) {
@@ -133,7 +149,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         toast.error("Could not complete task.");
       }
     },
-    [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setLevelUpState, triggerXpParticle, setRetroState],
+    [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setLevelUpState, triggerXpParticle, setRetroState, collectOutcome],
   );
 
   const handleStartTask = useCallback(
@@ -378,5 +394,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     handleQuickAdd,
     handleEditMission,
     submitting,
+    /** Mount once at page level — the completion prompt lives here. */
+    outcomeDialog,
   };
 }

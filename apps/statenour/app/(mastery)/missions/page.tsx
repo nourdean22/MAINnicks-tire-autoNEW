@@ -156,6 +156,11 @@ function MissionsPageInner() {
           onQueueNext={handleQueueNext}
         />
 
+        {/* Completion outcome prompt (2026-08-19) — mounted OUTSIDE the
+            executionModeActive branch so handleCompleteTask can open it
+            from the board AND from Execution Mode. Renders null when idle. */}
+        {actions.outcomeDialog}
+
         {executionModeActive ? (
           focusedTask ? (
             <ExecutionPanel
