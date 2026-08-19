@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   recordShown: vi.fn(),
   recordDecision: vi.fn(),
   recordOutcome: vi.fn(),
+  createTask: vi.fn(),
+  resolveInboxMissionId: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: { brainMemory: mocks.brainMemory } }));
@@ -28,6 +30,10 @@ vi.mock("@/lib/services/outcome-ledger", () => ({
   recordShown: mocks.recordShown,
   recordDecision: mocks.recordDecision,
   recordOutcome: mocks.recordOutcome,
+}));
+vi.mock("@/lib/services/tasks", () => ({ createTask: mocks.createTask }));
+vi.mock("@/lib/services/missions", () => ({
+  resolveInboxMissionId: mocks.resolveInboxMissionId,
 }));
 
 import {
@@ -156,6 +162,8 @@ describe("rateDiscovery", () => {
     mocks.recordShown.mockResolvedValue("ledger-1");
     mocks.recordDecision.mockResolvedValue(true);
     mocks.recordOutcome.mockResolvedValue(true);
+    mocks.createTask.mockResolvedValue({ id: "t-spawned" });
+    mocks.resolveInboxMissionId.mockResolvedValue("m-inbox");
   });
 
   // ── 2026-08-19 · outcome-loop wave · the usefulness half ──────────
@@ -211,6 +219,53 @@ describe("rateDiscovery", () => {
     mocks.brainMemory.update.mockResolvedValueOnce({});
     await rateDiscovery("d1", "investigate");
     expect(mocks.recordDecision.mock.calls[0][0].decision).toBe("accepted");
+  });
+
+  // ── 2026-08-19 · round-3 · "investigate" spawns the follow-up task ──
+  // The end-to-end audit proved the checkTask→recordOutcomeByContent
+  // title-hash bridge had ZERO matching producers: no surface created a
+  // task from a recordShown-ledgered string. This is that producer — the
+  // VERBATIM title is the join key, so any truncation breaks the loop.
+
+  it('"investigate" spawns a follow-up task titled VERBATIM with the ledgered content', async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    await rateDiscovery("d1", "investigate");
+    expect(mocks.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "A moves with B",
+        missionId: "m-inbox",
+        status: "READY",
+        originSource: "discovery:investigate",
+      }),
+    );
+  });
+
+  it("re-rating investigate does NOT duplicate the task (first flip only)", async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(
+      row({ metadata: { discoveryVerdict: "investigate" } }),
+    );
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    await rateDiscovery("d1", "investigate");
+    expect(mocks.createTask).not.toHaveBeenCalled();
+  });
+
+  it('"noise" and "known" spawn nothing', async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    await rateDiscovery("d1", "noise");
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    await rateDiscovery("d1", "known");
+    expect(mocks.createTask).not.toHaveBeenCalled();
+  });
+
+  it("a task-spawn failure never breaks the operator's verdict", async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    mocks.createTask.mockRejectedValueOnce(new Error("db down"));
+    const res = await rateDiscovery("d1", "investigate");
+    expect(res.ok).toBe(true);
   });
 
   it("refuses to rate a row outside the discovery categories", async () => {

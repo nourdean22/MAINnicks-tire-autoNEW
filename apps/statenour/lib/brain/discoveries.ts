@@ -233,6 +233,8 @@ export async function rateDiscovery(
   if (!row || row.deletedAt) return { ok: false };
   if (!DISCOVERY_CATEGORIES.includes(row.category)) return { ok: false };
 
+  const previousVerdict = asRecord(row.metadata).discoveryVerdict;
+
   await prisma.brainMemory.update({
     where: { id },
     data: {
@@ -279,6 +281,34 @@ export async function rateDiscovery(
     }
   } catch (err) {
     logError("brain.discoveries", err, { stage: "ledger", id, verdict }, "warn");
+  }
+
+  // 2026-08-19 · outcome-loop wave round-3 · "investigate" SPAWNS the
+  // follow-up task, titled VERBATIM with the ledgered content. This is what
+  // makes checkTask's recordOutcomeByContent title-hash bridge matchable at
+  // all: the end-to-end audit proved no other surface creates a task from a
+  // recordShown-ledgered string, so without this the bridge returned false
+  // on 100% of invocations. Completing this task with a rating lands the
+  // real-world outcome on THIS discovery's ledger row (outcomeContentHash
+  // normalizes case/whitespace, so the verbatim title survives the join).
+  // First-flip only — re-rating "investigate" doesn't duplicate the task —
+  // and best-effort: a spawn failure never breaks the verdict.
+  if (verdict === "investigate" && previousVerdict !== "investigate") {
+    try {
+      const [{ createTask }, { resolveInboxMissionId }] = await Promise.all([
+        import("@/lib/services/tasks"),
+        import("@/lib/services/missions"),
+      ]);
+      const missionId = await resolveInboxMissionId();
+      await createTask({
+        title: row.content,
+        missionId,
+        status: "READY",
+        originSource: "discovery:investigate",
+      });
+    } catch (err) {
+      logError("brain.discoveries", err, { stage: "investigate-task", id }, "warn");
+    }
   }
 
   return { ok: true };
