@@ -1393,15 +1393,15 @@
       "name": "Reel topic selection ranked by distribution, Pattern Lab rotation, cross-lane topic awareness",
       "owner": "system",
       "evidence": {
-        "codeCommit": "#1613 (merged) establishes cross-lane awareness; #1699 (candidate) consolidates 32 explicitly operator-approved packs and gives their topics a durable first-in rotation through dailyReelPost",
+        "codeCommit": "#1613 (merged) establishes cross-lane awareness; #1699 (merged, ffb8c582) consolidates 32 explicitly operator-approved packs and gives their topics a durable first-in rotation through dailyReelPost. Its P1 first-run cursor review finding was fixed before merge: an absent cursor is index 0 during both selection and successful-post completion, so the first approved pack advances rather than repeating.",
         "tests": [
           "shared/reelPerformancePrior.test.ts (9): null-not-zero for unreported metrics, re-weighting over present metrics, inverted skipRate, outlier ceiling, MIN_POSTS_PER_THEME drop-not-demote, basis provenance",
           "shared/reelStructureRotation.test.ts (6): least-used first, never-used before repeat, deterministic tie-break, hook-type exclusion with full-set fallback",
           "server/reelPackRegistry.test.ts (7): directory resolution, brief.json optional, unparseable brief survives, campaign keyword in avoid-list, age bound, no-throw on missing dir",
           "server/reelBriefStructureTrajectory.test.ts: structurePatternId survives brief -> persisted payload",
           "server/reelReviewFixes.test.ts (4): duplicate-snapshot consequence, avoid-list merge-not-substitute",
-          "server/approvedReelPackRotation.test.ts (3): exactly 32 approved packs in chronological order; completed, negative, NaN, and malformed cursors never restart the sequence",
-          "server/cron/jobs/dailyReelPost.test.ts (6) + full local pnpm test:only (480 files / 5,851 tests): normal fail-closed daily-Reel behavior remains intact"
+          "server/approvedReelPackRotation.test.ts (4): exactly 32 approved packs in chronological order; completed, negative, NaN, and malformed cursors never restart the sequence; an absent cursor resolves to first-pack index 0 in both selection and completion",
+          "server/cron/jobs/dailyReelPost.test.ts (6) + full local pnpm test:only (480 files / 5,852 tests) + fresh #1699 Node CI: normal fail-closed daily-Reel behavior remains intact"
         ],
         "productionMeasurement": "Ranking effect measured on the live account 2026-08-16 against a DEDUPLICATED sample of 32 distinct reels. OLD (engagementRate = likes+comments) ranked educational #1, seasonal #2, community #3. NEW (saves/shares/retention) ranks promo #1 (0.0059, 12 posts), seasonal #2, educational #3 (0.0032, 31 posts), community #4 (0.0017). CORRECTION: an earlier measurement in this PR claimed local-appeal #1 and community at 0.000 — both were artifacts of counting one post many times. ig_metric_snapshots is append-only and the first query returned the newest 60 ROWS, which was only 19 distinct posts at 3.2 snapshots each. Review caught it; the query now takes the newest snapshot PER POST via a window function. Deployed image confirmed to contain /app/apps/nickstire/docs/reel-packs with all five packs."
       },
@@ -1424,7 +1424,7 @@
         {
           "severity": "P2",
           "description": "The approved-pack cursor has not yet selected a pack in a production cron run. #1699 does not generate, queue, spend on, or publish a Reel during merge; observe the first selected pack and its existing gates before promoting this branch of the capability beyond unit_verified.",
-          "source": "#1699 local verification only"
+          "source": "#1699 merged 2026-08-19; local and fresh PR CI verification only"
         }
       ],
       "deferredScope": [
