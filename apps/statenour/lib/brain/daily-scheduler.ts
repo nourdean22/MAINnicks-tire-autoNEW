@@ -52,12 +52,13 @@ export async function generateDailySchedule(): Promise<{
   // Gather data
   const [topTasks, overdueCommitments, todayScore] = await Promise.all([
     // Apr 18: OpenLoop retired → Task. 2026-08-19: canonical polarity —
-    // higher = more urgent (critical/high = autoPriority > 60).
+    // higher = more urgent (critical/high = autoPriority >= 60,
+    // inclusive to match PRIORITY_HIGH_MIN).
     prisma.task
       .findMany({
         where: {
           status: { in: ["INBOX", "READY"] },
-          autoPriority: { gt: 60 },
+          autoPriority: { gte: 60 },
         },
         orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
         take: 3,

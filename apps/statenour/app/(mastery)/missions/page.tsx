@@ -332,7 +332,7 @@ function MissionsPageInner() {
               {/* Unknown-is-not-empty (2026-08-19): a failed task/mission
                   read used to fall through to <EmptyMissions /> — a dead
                   fetch rendered as a cleared board. */}
-              {(tasksQuery.isError || missionsQuery.isError) && missions.length === 0 ? (
+              {(tasksQuery.isError || missionsQuery.isError) ? (
                 <div className="p-6 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] text-center">
                   <p className="text-[11px] font-mono uppercase tracking-widest text-rose-300/80">
                     Board unreadable — reads failed. State unknown, not empty.

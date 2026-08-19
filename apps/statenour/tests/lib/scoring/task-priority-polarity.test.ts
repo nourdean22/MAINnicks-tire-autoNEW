@@ -86,6 +86,7 @@ const FORBIDDEN: Array<{ re: RegExp; why: string }> = [
   { re: /autoPriority:\s*"asc"/, why: 'ascending sort (`autoPriority: "asc"`) reads least-urgent-first' },
   { re: /autoPriority:\s*\{\s*sort:\s*"asc"/, why: "ascending nulls-ordered sort on autoPriority" },
   { re: /autoPriority:\s*\{\s*lte?:/, why: "lower-than filter treats the bottom of the scale as hot" },
+  { re: /manualPriorityOverride:\s*(?:5|15|60|70)\b/, why: "legacy lower-is-hotter manual override literal" },
 ];
 
 /** Relative paths (forward slashes) allowed to violate — none today. */
@@ -111,6 +112,7 @@ describe("task-priority polarity · source scan", () => {
     // A check that reports zero must first prove it can report one.
     const planted = 'orderBy: { autoPriority: "asc" }';
     expect(FORBIDDEN.some(({ re }) => re.test(planted))).toBe(true);
+    expect(FORBIDDEN.some(({ re }) => re.test("manualPriorityOverride: 70"))).toBe(true);
   });
 
   it("no file sorts or filters autoPriority as lower-is-hotter", () => {

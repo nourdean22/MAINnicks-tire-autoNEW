@@ -266,8 +266,9 @@ async function computeRiskAppetite(): Promise<Omit<IdentityAxis, "direction" | "
   }
   // Canonical polarity: higher = more urgent, so "critical/high" is the
   // top of the scale. The old `< 40` test measured completion of LOW-
-  // leverage work and reported it as risk appetite.
-  const hot = tasks.filter((t) => (t.autoPriority ?? 0) > 60).length;
+  // leverage work and reported it as risk appetite. Inclusive >= 60 to
+  // match PRIORITY_HIGH_MIN exactly.
+  const hot = tasks.filter((t) => (t.autoPriority ?? 0) >= 60).length;
   return {
     value: clamp((hot / tasks.length) * 100),
     evidence: [`${hot}/${tasks.length} were critical/high`],

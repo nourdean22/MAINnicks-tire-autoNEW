@@ -29,9 +29,17 @@ import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { priorityBandLabel } from "@/lib/scoring/task-priority";
 
 export type SkillTier = "tiny" | "tactical" | "strategic";
 export type SkillPolarity = "do" | "avoid";
+
+/** Stored signal vocabulary is compact; its thresholds come from the
+ * canonical higher-is-hotter priority scale. */
+function prioritySignal(score: number | null | undefined): "crit" | "high" | "med" | "low" {
+  const band = priorityBandLabel(score);
+  return band === "critical" ? "crit" : band === "medium" ? "med" : band;
+}
 
 /**
  * Canonical skill shape. Stored as JSON string in BrainMemory.content.
@@ -111,9 +119,7 @@ async function clusterRecentTasks(days = 30): Promise<
 
   const groups = new Map<string, typeof tasks[number][]>();
   for (const t of tasks) {
-    // Priority band: critical (<20) / high (20-39) / med (40-59) / low (≥60)
-    const p = t.autoPriority ?? 50;
-    const band = p < 20 ? "crit" : p < 40 ? "high" : p < 60 ? "med" : "low";
+    const band = prioritySignal(t.autoPriority);
     const domain = t.mission?.domain ?? "general";
     const signature = `ctx:${t.context}|eff:${t.effort}|p:${band}|dom:${domain}`;
     if (!groups.has(signature)) groups.set(signature, []);
@@ -307,7 +313,7 @@ async function clusterBrokenPromises(days = 30): Promise<
   const groups = new Map<string, any[]>();
   for (const c of broken) {
     const domain = c.domain ?? "general";
-    const signature = `ctx:PERSONAL|eff:H1|p:high|dom:${domain}`;
+    const signature = `ctx:PERSONAL|eff:H1|p:${prioritySignal(30)}|dom:${domain}`;
     if (!groups.has(signature)) groups.set(signature, []);
     groups.get(signature)!.push({
       id: String(c.id),
@@ -368,7 +374,7 @@ async function clusterActionableReflections(days = 60): Promise<
     // from confidence — high-confidence reflections count as skill-
     // worthy insights, low-confidence ones stay noise.
     if (r.confidence < 0.6) continue;
-    const signature = `ctx:DESK|eff:H1|p:high|dom:${r.category}`;
+    const signature = `ctx:DESK|eff:H1|p:${prioritySignal(30)}|dom:${r.category}`;
     if (!groups.has(signature)) groups.set(signature, []);
     groups.get(signature)!.push({
       id: r.id,
@@ -889,8 +895,7 @@ export async function matchSkillsForTask(task: {
   const active = await loadActiveSkills();
   if (active.length === 0) return [];
 
-  const p = task.autoPriority ?? 50;
-  const band = p < 20 ? "crit" : p < 40 ? "high" : p < 60 ? "med" : "low";
+  const band = prioritySignal(task.autoPriority);
   const taskSignals = new Set([
     `context:${task.context.toLowerCase()}`,
     `effort:${task.effort}`,

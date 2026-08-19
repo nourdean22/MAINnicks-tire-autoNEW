@@ -46,4 +46,11 @@ describe("FLAG_REGISTRY contract", () => {
     const keys = FLAG_REGISTRY.map((f) => f.key);
     expect(new Set(keys).size).toBe(keys.length);
   });
+
+  it.each(["NICK_MEMORY_GATEWAY_PHASE1", "NICK_MEMORY_GATEWAY_PHASE2"])(
+    "%s is visibly read-only because its runtime still reads the raw env var",
+    (key) => {
+      expect(FLAG_REGISTRY.find((flag) => flag.key === key)?.readOnly).toBe(true);
+    },
+  );
 });

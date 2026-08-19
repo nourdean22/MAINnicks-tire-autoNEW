@@ -40,6 +40,7 @@ import {
   updateGoalSchema,
 } from "@/lib/services/goals";
 import { buildActionsBrain } from "@/lib/services/actions-brain";
+import { priorityFromLabel } from "@/lib/scoring/task-priority";
 import { OutcomeRating } from "@prisma/client";
 import {
   checkTask,
@@ -1460,7 +1461,10 @@ export const taskRouter = router({
           status: "WAITING",
           dueDate: null,
           snoozedUntil: null,
-          manualPriorityOverride: 70,
+          // Someday is deliberately low under the canonical higher-is-hotter
+          // scale. Keep the override explicit so reactivation cannot promote
+          // a task the operator intentionally deferred.
+          manualPriorityOverride: priorityFromLabel("low"),
           lastTouchedAt: new Date(),
         };
       } else if (input.decision === "snooze") {

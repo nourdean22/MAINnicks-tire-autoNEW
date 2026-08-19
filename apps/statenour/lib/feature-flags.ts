@@ -61,6 +61,9 @@ export interface FeatureFlag {
   relatedMigration?: string;
   /** Optional · ADR or doc path that captures the trade-off. */
   ownerDoc?: string;
+  /** Runtime reads a raw env var directly; the settings board must not offer
+   * controls that imply a database override can change behavior. */
+  readOnly?: boolean;
 }
 
 export const FLAG_REGISTRY: FeatureFlag[] = [
@@ -176,6 +179,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior:
       "LIVE: repetition-noop enforced at remember(). Kill-switch =0 restores legacy always-reinforce. Probe: scripts/probe-gateway-agrees.ts.",
     ownerDoc: "lib/brain/memory-commit-gateway.ts",
+    readOnly: true,
   },
   {
     key: "NICK_MEMORY_GATEWAY_PHASE2",
@@ -187,6 +191,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior:
       "LIVE: update + weaker_evidence-review enforced at remember(). Kill-switch =0 FIRST if writes look wrong, then run scripts/probe-gateway-agrees.ts.",
     ownerDoc: "lib/brain/memory-commit-gateway.ts",
+    readOnly: true,
   },
   {
     key: "NICK_VERIFIED_REGEN",
