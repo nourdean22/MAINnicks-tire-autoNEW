@@ -1393,13 +1393,15 @@
       "name": "Reel topic selection ranked by distribution, Pattern Lab rotation, cross-lane topic awareness",
       "owner": "system",
       "evidence": {
-        "codeCommit": "#1613 — three joints that existed on both sides and were never connected",
+        "codeCommit": "#1613 (merged) establishes cross-lane awareness; #1699 (candidate) consolidates 32 explicitly operator-approved packs and gives their topics a durable first-in rotation through dailyReelPost",
         "tests": [
           "shared/reelPerformancePrior.test.ts (9): null-not-zero for unreported metrics, re-weighting over present metrics, inverted skipRate, outlier ceiling, MIN_POSTS_PER_THEME drop-not-demote, basis provenance",
           "shared/reelStructureRotation.test.ts (6): least-used first, never-used before repeat, deterministic tie-break, hook-type exclusion with full-set fallback",
           "server/reelPackRegistry.test.ts (7): directory resolution, brief.json optional, unparseable brief survives, campaign keyword in avoid-list, age bound, no-throw on missing dir",
           "server/reelBriefStructureTrajectory.test.ts: structurePatternId survives brief -> persisted payload",
-          "server/reelReviewFixes.test.ts (4): duplicate-snapshot consequence, avoid-list merge-not-substitute"
+          "server/reelReviewFixes.test.ts (4): duplicate-snapshot consequence, avoid-list merge-not-substitute",
+          "server/approvedReelPackRotation.test.ts (3): exactly 32 approved packs in chronological order; completed, negative, NaN, and malformed cursors never restart the sequence",
+          "server/cron/jobs/dailyReelPost.test.ts (6) + full local pnpm test:only (480 files / 5,851 tests): normal fail-closed daily-Reel behavior remains intact"
         ],
         "productionMeasurement": "Ranking effect measured on the live account 2026-08-16 against a DEDUPLICATED sample of 32 distinct reels. OLD (engagementRate = likes+comments) ranked educational #1, seasonal #2, community #3. NEW (saves/shares/retention) ranks promo #1 (0.0059, 12 posts), seasonal #2, educational #3 (0.0032, 31 posts), community #4 (0.0017). CORRECTION: an earlier measurement in this PR claimed local-appeal #1 and community at 0.000 — both were artifacts of counting one post many times. ig_metric_snapshots is append-only and the first query returned the newest 60 ROWS, which was only 19 distinct posts at 3.2 snapshots each. Review caught it; the query now takes the newest snapshot PER POST via a window function. Deployed image confirmed to contain /app/apps/nickstire/docs/reel-packs with all five packs."
       },
@@ -1418,13 +1420,18 @@
           "severity": "P2",
           "description": "TiDB rejects subqueries in an ON clause (ER 1105 'ON condition doesn't support subqueries yet'), so the per-post dedupe uses ROW_NUMBER() over a derived table. Any future simplification back to a correlated subquery will throw at runtime and be SWALLOWED by the catch, silently reverting theme ranking to the engagementRate ordering this capability replaces.",
           "source": "live prod probe 2026-08-16: the subquery form threw ER 1105 before this was shipped"
+        },
+        {
+          "severity": "P2",
+          "description": "The approved-pack cursor has not yet selected a pack in a production cron run. #1699 does not generate, queue, spend on, or publish a Reel during merge; observe the first selected pack and its existing gates before promoting this branch of the capability beyond unit_verified.",
+          "source": "#1699 local verification only"
         }
       ],
       "deferredScope": [
         "ranking patterns by measured outcome (needs the cohort join above to accumulate)",
-        "feeding pack CONTENT into generation — deliberately out of scope: a pack is pending human review by construction, and treating it as approved inventory would turn a review queue into an autopost queue"
+        "The approved packs supply their reviewed topic and ordered rotation only. Their heterogeneous storyboard/caption JSON is deliberately regenerated through the canonical brief, claim, spend, rendered-QA, and publish pipeline instead of being replayed as an unvalidated direct publish artifact."
       ],
-      "lastVerifiedAt": "2026-08-16",
+      "lastVerifiedAt": "2026-08-19",
       "verificationExpiresAt": "2026-09-15",
       "codeState": "merged",
       "operationalState": "unit_verified",
