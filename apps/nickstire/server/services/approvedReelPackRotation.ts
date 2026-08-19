@@ -64,3 +64,8 @@ export function parseApprovedPackRotationIndex(value: string | null): number | n
   const index = Number(value);
   return Number.isSafeInteger(index) ? index : null;
 }
+
+/** A missing cursor is the first pack; a malformed cursor is never guessed. */
+export function resolveApprovedPackRotationIndex(value: string | null): number | null {
+  return value === null ? 0 : parseApprovedPackRotationIndex(value);
+}

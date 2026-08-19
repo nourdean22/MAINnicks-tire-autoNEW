@@ -26,7 +26,7 @@ import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/r
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
-import { approvedReelPackAt, parseApprovedPackRotationIndex } from "../../services/approvedReelPackRotation";
+import { approvedReelPackAt, resolveApprovedPackRotationIndex } from "../../services/approvedReelPackRotation";
 
 const log = createLogger("cron:daily-reel-post");
 
@@ -232,7 +232,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     const approvedPackCursor = await getKv("reel_approved_pack_rotation_index");
-    const approvedPackIndex = approvedPackCursor === null ? 0 : parseApprovedPackRotationIndex(approvedPackCursor);
+    const approvedPackIndex = resolveApprovedPackRotationIndex(approvedPackCursor);
     const approvedPack = approvedPackIndex === null ? null : approvedReelPackAt(approvedPackIndex);
     if (approvedPackIndex === null) {
       log.error("approved-pack rotation index is malformed — leaving its cursor untouched", {});
@@ -678,7 +678,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const postedPayload = parseReelJobPayload(job.payload);
     let progressDetail: string;
     if (postedPayload.approvedPackSlug) {
-      const approvedPackIndex = parseApprovedPackRotationIndex(await getKv("reel_approved_pack_rotation_index"));
+      const approvedPackIndex = resolveApprovedPackRotationIndex(await getKv("reel_approved_pack_rotation_index"));
       const expected = approvedPackIndex === null ? null : approvedReelPackAt(approvedPackIndex);
       if (approvedPackIndex !== null && expected?.slug === postedPayload.approvedPackSlug) {
         await setApprovedPackProgress(approvedPackIndex + 1, date);

@@ -4,6 +4,7 @@ import {
   APPROVED_REEL_PACK_SLUGS,
   approvedReelPackAt,
   parseApprovedPackRotationIndex,
+  resolveApprovedPackRotationIndex,
 } from "./services/approvedReelPackRotation";
 
 describe("approved Reel-pack rotation", () => {
@@ -33,5 +34,11 @@ describe("approved Reel-pack rotation", () => {
     expect(parseApprovedPackRotationIndex(null)).toBeNull();
     expect(parseApprovedPackRotationIndex("nope")).toBeNull();
     expect(parseApprovedPackRotationIndex("-1")).toBeNull();
+  });
+
+  it("uses the first pack for an absent cursor in both selection and completion", () => {
+    expect(resolveApprovedPackRotationIndex(null)).toBe(0);
+    expect(resolveApprovedPackRotationIndex("0")).toBe(0);
+    expect(resolveApprovedPackRotationIndex("nope")).toBeNull();
   });
 });
