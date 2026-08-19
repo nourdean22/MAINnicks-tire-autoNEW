@@ -594,6 +594,21 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    // 2026-08-19 · outcome-loop wave follow-up (operator-ordered). The
+    // automated reader of outcomeUseful — the corpus odometer as a cron.
+    // Counts correction-shaped labels (never machine judgments), upserts
+    // one rolling eval_run row, reports the 200-correction UPSTREAMS
+    // trigger loudly. Harvest FILES + eval replay stay operator-run by
+    // design (local no-send).
+    name: "outcome-harvest",
+    schedule: "0 3 * * 1",
+    mode: "active",
+    category: "review",
+    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · corpus odometer — counts intelligence_outcomes corrections + supplementary operator labels, upserts the rolling eval_run odometer row, flags the 200-correction fine-tune trigger.",
+    memory: 256,
+    maxDuration: 60,
+  },
+  {
     name: "pricing-advisory",
     schedule: "0 3 * * 1",
     // 2026-07-09 · AG-19 · fires via the WEEKLY_JOBS Sunday-ET evening
