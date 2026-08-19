@@ -145,7 +145,54 @@ export async function recordDecisionByContent(
   }
 }
 
-/** The real-world outcome landed (or the operator judged usefulness). */
+/**
+ * Record an outcome when the caller has the surfaced TEXT but not the
+ * ledger id (2026-08-19 · outcome-loop wave) — the recordDecisionByContent
+ * pattern applied to the usefulness half, which had ZERO callers for the
+ * same reason decisions once did: no producer persists the ledger id
+ * anywhere a later outcome moment can reach.
+ *
+ * Same contract as its sibling: contentHash join over the normalized
+ * summary, 30-day window, newest-first. Only fills rows whose outcome is
+ * still unset — a later automatic signal must never overwrite an earlier
+ * judgment. Returns false (never throws) when nothing matches, so a
+ * surface can call this unconditionally without knowing whether the text
+ * was ever ledgered — that property is what lets task completion close
+ * the loop for ANY suggestion that became a task, with zero id plumbing.
+ */
+export async function recordOutcomeByContent(
+  summary: string,
+  useful: boolean,
+  resultRef?: string | null,
+): Promise<boolean> {
+  try {
+    const trimmed = summary.trim();
+    if (!trimmed) return false;
+    const contentHash = outcomeContentHash(trimmed);
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const row = await prisma.intelligenceOutcome.findFirst({
+      where: { contentHash, outcomeAt: null, shownAt: { gte: since } },
+      orderBy: { shownAt: "desc" },
+      select: { id: true },
+    });
+    if (!row) return false;
+    return await recordOutcome({ id: row.id, useful, resultRef });
+  } catch (err) {
+    logError("intel.outcome-ledger", err, { stage: "record-outcome-by-content" }, "warn");
+    return false;
+  }
+}
+
+/**
+ * The real-world outcome landed (or the operator judged usefulness).
+ *
+ * First-write-wins, enforced ATOMICALLY: the `outcomeAt: null` scope on the
+ * update itself (recordDecision's CAS pattern) — not just on a caller's
+ * earlier SELECT, which would leave a TOCTOU window. Concrete poisoning this
+ * prevents: two stale tabs rate the same discovery "known" then "noise" —
+ * without the guard the second call lands outcomeUseful:false on a claim the
+ * operator confirmed TRUE, and the recall-eval harvest trains against it.
+ */
 export async function recordOutcome(params: {
   id: string;
   useful: boolean;
@@ -153,7 +200,7 @@ export async function recordOutcome(params: {
 }): Promise<boolean> {
   try {
     const res = await prisma.intelligenceOutcome.updateMany({
-      where: { id: params.id },
+      where: { id: params.id, outcomeAt: null },
       data: {
         outcomeUseful: params.useful,
         outcomeAt: new Date(),

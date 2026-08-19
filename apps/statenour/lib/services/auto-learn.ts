@@ -56,8 +56,10 @@ import {
   MAX_BUMP,
   EFFORT_MULTIPLIER,
   GOAL_LINKED_MULTIPLIER,
+  RATING_MULTIPLIER,
   streakMultiplier,
 } from "@/lib/mastery/scoring-config";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = logger.withSurface("auto-learn");
 
@@ -101,6 +103,10 @@ export interface AutoLearnReport {
   mastery: { domain: string; score: number; delta: number; date: string } | null;
   knowledge: { key: string; content: string } | null;
   learn: { slug: string; missionTitle: string | null } | null;
+  /** 2026-08-19 · outcome-loop wave · the operator's typed lesson,
+   *  captured as a recallable BrainMemory(task_lesson) row. Null when
+   *  no lesson was supplied with the completion. */
+  lesson: { key: string; content: string } | null;
   /** v22 · wisdom principle that matched this task best · null if no
    *  citation cleared the sim floor. */
   wisdom: WisdomCitation | null;
@@ -123,6 +129,12 @@ interface AutoLearnTaskShape {
   hasGoalId?: boolean | null;
   outcomeScore?: number | null;
   completionNote?: string | null;
+  /** 2026-08-19 · outcome-loop wave · the operator's quality judgment
+   *  (OutcomeRating enum value as a string) and typed lesson. Before
+   *  this, both columns were WRITE-ONLY — a FAILED completion taught
+   *  the system exactly as much as an OUTSTANDING one (nothing). */
+  outcomeRating?: string | null;
+  outcomeLesson?: string | null;
 }
 
 interface AutoLearnArgs {
@@ -134,6 +146,7 @@ const EMPTY: AutoLearnReport = {
   mastery: null,
   knowledge: null,
   learn: null,
+  lesson: null,
   wisdom: null,
   ghost: null,
 };
@@ -170,9 +183,23 @@ export async function runAutoLearn(args: AutoLearnArgs): Promise<AutoLearnReport
     });
   }
 
-  // v22 · only run wisdom citation when ANY of the 3 engines fired ·
-  // wisdom on a "nothing happened" task is noise.
-  if (report.mastery || report.knowledge || report.learn) {
+  // 2026-08-19 · outcome-loop wave · ENGINE 4: the operator's typed
+  // lesson. Unlike the other engines this needs no heuristic — the
+  // operator explicitly writing "what I learned" is the strongest
+  // learning signal in the whole system, and it was being discarded
+  // unless the task title happened to contain a learning verb.
+  try {
+    report.lesson = await tryLessonCapture(args);
+  } catch (err) {
+    log.warn("lesson_capture_failed", {
+      taskId: args.taskId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // v22 · only run wisdom citation when ANY engine fired · wisdom on a
+  // "nothing happened" task is noise. A typed lesson counts — it IS growth.
+  if (report.mastery || report.knowledge || report.learn || report.lesson) {
     try {
       report.wisdom = await tryWisdomCitation(args);
     } catch (err) {
@@ -224,7 +251,11 @@ function computeAdaptiveBump(task: AutoLearnTaskShape): number {
   const effortMult = EFFORT_MULTIPLIER[task.effort ?? "M30"] ?? 1.0;
   const goalMult = task.hasGoalId ? GOAL_LINKED_MULTIPLIER : 1.0;
   const streakMult = streakMultiplier(task.streakCount ?? 0, task.loopKind ?? "ONCE");
-  const raw = BASE_BUMP * roiWeight * effortMult * goalMult * streakMult;
+  // 2026-08-19 · the operator's quality judgment finally reaches the
+  // score: OUTSTANDING earns more than FAILED. Absent rating = 1.0
+  // (byte-identical to pre-wave behavior for quick check-offs).
+  const ratingMult = RATING_MULTIPLIER[task.outcomeRating ?? ""] ?? 1.0;
+  const raw = BASE_BUMP * roiWeight * effortMult * goalMult * streakMult * ratingMult;
   const bounded = Math.max(MIN_BUMP, Math.min(MAX_BUMP, raw));
   return Math.round(bounded * 10) / 10;
 }
@@ -385,6 +416,71 @@ async function tryLearnComplete({
   });
 
   return { slug, missionTitle: task.mission?.title ?? null };
+}
+
+// ─── ENGINE 4 · LESSON (2026-08-19 · outcome-loop wave) ────────────
+
+/**
+ * Capture the operator's typed completion lesson as a recallable memory.
+ *
+ * Task.outcomeLesson had been WRITE-ONLY since it shipped: validated,
+ * persisted, read by nothing. This engine writes it to
+ * BrainMemory(task_lesson) keyed per task — deterministic key so a
+ * re-completion with an edited lesson UPDATES rather than duplicates —
+ * and embeds it (same Wave-25 pattern as task_insight), which is what
+ * makes it reachable by chat recall (task_lesson is whitelisted in
+ * memory-recall's CONTEXT_CATEGORIES). Confidence 0.85: operator-
+ * authored, but a single-sighting judgment, not a pinned fact.
+ *
+ * No heuristic gate on purpose: the operator explicitly wrote "what I
+ * learned" — that IS the signal; requiring a learning verb in the title
+ * (the knowledge engine's gate) was exactly how these got discarded.
+ */
+async function tryLessonCapture({
+  taskId,
+  task,
+}: AutoLearnArgs): Promise<AutoLearnReport["lesson"]> {
+  const lesson = task.outcomeLesson?.trim();
+  if (!lesson) return null;
+
+  const key = `task_lesson:${taskId}`;
+  const row = await prisma.brainMemory.upsert({
+    where: { category_key: { category: BRAIN_CATEGORIES.TASK_LESSON, key } },
+    create: {
+      category: BRAIN_CATEGORIES.TASK_LESSON,
+      key,
+      content: lesson,
+      confidence: 0.85,
+      source: "operator:task-complete",
+      createdBy: "operator",
+      metadata: {
+        taskId,
+        taskTitle: task.title.slice(0, 200),
+        outcomeRating: task.outcomeRating ?? null,
+        missionDomain: task.mission?.domain ?? null,
+      },
+    },
+    update: {
+      content: lesson,
+      lastSeen: new Date(),
+      seenCount: { increment: 1 },
+      metadata: {
+        taskId,
+        taskTitle: task.title.slice(0, 200),
+        outcomeRating: task.outcomeRating ?? null,
+        missionDomain: task.mission?.domain ?? null,
+      },
+    },
+    select: { id: true },
+  });
+
+  // Embed now so recall can match it immediately — the row is useless
+  // to the recall lanes without a vector (the reasoning_trace lesson).
+  void storeMemoryEmbedding(row.id, lesson).catch(() => {
+    /* embedding failure non-fatal · nightly embed-backfill repairs it */
+  });
+
+  return { key, content: lesson };
 }
 
 // ─── C · WISDOM CITATION ──────────────────────────────────────

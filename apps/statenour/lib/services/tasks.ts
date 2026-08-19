@@ -889,14 +889,17 @@ export async function updateTask(id: string, input: unknown) {
     (payload.status === "ARCHIVED" && existing.loopKind === "PROMISE" && existing.status !== "ARCHIVED");
 
   if (isCompletionTransition) {
-    // checkTask only understands the completion trio (status/completionNote/
-    // outcomeScore). Any other field in the same PATCH (title, dueDate,
-    // effort, missionId…) must be persisted here first — the edit sheet
-    // sends combined "edit + complete" payloads in one mutation.
+    // checkTask only understands the completion fields (status/completionNote/
+    // outcomeScore/outcomeRating/outcomeLesson). Any other field in the same
+    // PATCH (title, dueDate, effort, missionId…) must be persisted here
+    // first — the edit sheet sends combined "edit + complete" payloads in
+    // one mutation.
     const rest = { ...payload };
     delete rest.status;
     delete rest.completionNote;
     delete rest.outcomeScore;
+    delete rest.outcomeRating;
+    delete rest.outcomeLesson;
     // Explicit-undefined keys (superjson can carry them) mean "don't
     // change" — Prisma would ignore them, but they must not trigger a
     // spurious write either.
@@ -918,6 +921,10 @@ export async function updateTask(id: string, input: unknown) {
       action: payload.status === "ARCHIVED" ? "break" : "complete",
       completionNote: payload.completionNote ?? null,
       outcomeScore: payload.outcomeScore ?? null,
+      // The operator's judgment rides the same PATCH that completes the
+      // task, so auto-learn sees it at the one moment it runs.
+      outcomeRating: payload.outcomeRating ?? null,
+      outcomeLesson: payload.outcomeLesson ?? null,
     });
     const updated = await prisma.task.findUnique({
       where: { id },
@@ -1021,6 +1028,13 @@ export async function updateTask(id: string, input: unknown) {
         streak: payload.streakCount ?? null,
       };
     } else if (after === "DONE") {
+      // ★ UNREACHABLE since the isCompletionTransition short-circuit above
+      // (2026-07-16): every real TODO→DONE PATCH returns early through
+      // checkTask, and `after` can only be DONE here when `before` already
+      // was (excluded by `before !== after`). Kept because deleting a
+      // 130-line branch is its own risk, but DO NOT "fix" logic here
+      // believing it runs — adversarial review 2026-08-19 caught exactly
+      // that mistake. checkTask owns completion side effects.
       emitTaskEventAsync({ taskId: id, kind: "completed", source: "service:updateTask" });
       // v10.0.529.106 · Wave 52 · CRITICAL · pre-Wave-52 this path never
       // emitted task.completed to the brain-bus, only TaskEvent. The
@@ -1114,6 +1128,8 @@ export async function updateTask(id: string, input: unknown) {
             goalId: true,
             outcomeScore: true,
             completionNote: true,
+            outcomeRating: true,
+            outcomeLesson: true,
             mission: { select: { title: true, domain: true } },
             goal: { select: { domain: true } },
           },
@@ -1135,6 +1151,8 @@ export async function updateTask(id: string, input: unknown) {
               hasGoalId: !!enriched.goalId,
               outcomeScore: enriched.outcomeScore,
               completionNote: enriched.completionNote,
+              outcomeRating: enriched.outcomeRating,
+              outcomeLesson: enriched.outcomeLesson,
             },
           });
         }

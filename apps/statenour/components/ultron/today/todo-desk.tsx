@@ -54,6 +54,7 @@ import {
 import { ActiveTaskCompanion } from "./active-task-companion";
 import { Badge } from "@/components/ui/badge";
 import { usePromptDialog } from "@/components/ui/confirm-dialog";
+import { useOutcomeDialog } from "@/components/ui/outcome-dialog";
 
 import { trpc } from "@/lib/trpc/client";
 // ── Types mirroring /api/ultron/todo-desk response ──────────
@@ -135,6 +136,10 @@ export function TodoDesk() {
   // iOS-PWA-safe prompt · window.prompt() is silently suppressed in
   // standalone mode (returns undefined) so the skip flow died silently.
   const { prompt, dialog: promptDialog } = usePromptDialog();
+  // 2026-08-19 · outcome-loop wave · the completion moment's one question.
+  // This hook is what makes Task.outcomeRating/outcomeLesson REAL — before
+  // it, auto-learn's rating multiplier + lesson capture had zero producers.
+  const { collectOutcome, dialog: outcomeDialog } = useOutcomeDialog();
   const [busyId, setBusyId] = useState<string | null>(null);
   // showWhy state dropped Apr 19 — the why-this-now expander lived
   // on the active-task row which no longer renders expanders on HQ.
@@ -208,7 +213,21 @@ export function TodoDesk() {
   );
 
   const start = (id: string) => patchTask(id, { status: "DOING" }, "started");
-  const finish = (id: string) => patchTask(id, { status: "DONE" }, "done · whisperer next");
+  const finish = async (id: string) => {
+    // One tap on a rating chip (or "just done") completes; escape/outside
+    // cancels the completion entirely — the task stays where it was.
+    const outcome = await collectOutcome({ title: "how did it go?" });
+    if (outcome === null) return;
+    await patchTask(
+      id,
+      {
+        status: "DONE",
+        ...(outcome.rating ? { outcomeRating: outcome.rating } : {}),
+        ...(outcome.lesson ? { outcomeLesson: outcome.lesson } : {}),
+      },
+      "done · whisperer next",
+    );
+  };
   const pause = (id: string) => patchTask(id, { status: "READY" }, "paused · on deck");
   const archive = (id: string) =>
     patchTask(id, { status: "ARCHIVED", autoPriorityExplanation: "parked via desk" }, "parked");
@@ -409,6 +428,7 @@ export function TodoDesk() {
        *  "what to do right now". */}
       {/* iOS-PWA-safe prompt mount · renders null when idle. */}
       {promptDialog}
+      {outcomeDialog}
     </section>
   );
 }

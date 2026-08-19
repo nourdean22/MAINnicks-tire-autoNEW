@@ -81,6 +81,15 @@ vi.mock("@/lib/runtime", () => ({
   isDemoMode: false,
 }));
 
+// The outcomeRating tests below trip checkTask's fire-and-forget ledger
+// bridge (2026-08-19); without this mock the REAL outcome-ledger module
+// dynamic-imports and dereferences the absent intelligenceOutcome mock —
+// swallowed internally, but an uncontrolled side effect firing from a
+// validation test. Bridge wiring is pinned in task-actions-outcome-bridge.test.ts.
+vi.mock("@/lib/services/outcome-ledger", () => ({
+  recordOutcomeByContent: vi.fn(async () => true),
+}));
+
 import { checkTask } from "@/lib/services/task-actions";
 import { OutcomeRating } from "@prisma/client";
 

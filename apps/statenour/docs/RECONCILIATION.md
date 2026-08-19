@@ -1,5 +1,53 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-19 · Outcome-loop wave — the OS finally learns from what happened (1 PR)
+>
+> **Trigger:** the reimagine verdict's next-wave spine — recordOutcome had ZERO callers
+> since 2026-07-28, Task.outcomeRating/outcomeLesson were consumed by nothing, and
+> reasoning conclusions never re-entered recall. Implemented, then a 3-lens adversarial
+> review (ledger / task-teaching / reasoning-loop) whose P0 reshaped the wave: the first
+> cut was itself BUILT-TESTED-UNWIRED — both new engines consumed columns **no surface
+> ever wrote**. The review round added the producer, not just polish.
+>
+> - **The ledger's usefulness half is live** — `recordOutcomeByContent` (contentHash
+>   join, 30d window, first-write-wins **CAS at the update itself** — review upgraded
+>   the SELECT-only guard, which left a two-stale-tabs TOCTOU that could stamp
+>   outcomeUseful:false on an operator-confirmed-TRUE claim). rateDiscovery "noise" is
+>   the first writer; "known"/"investigate" deliberately write NO outcome (known is a
+>   novelty defect on a true claim — an outcome:false would poison the accuracy harvest).
+> - **Task completion teaches** — completion moment asks ONE question: the todo-desk
+>   finish action opens an outcome dialog (confirm-dialog idiom, iOS-PWA-safe, 1-tap
+>   chips OUTSTANDING→FAILED + optional lesson, "just done" skips). Transport runs the
+>   whole PATCH path: taskUpdateSchema → updateTask completion delegation → checkTask →
+>   `RATING_MULTIPLIER` (1.25/1.0/0.6/0.3) scales the domain bump, `outcomeLesson`
+>   upserts a `task_lesson` BrainMemory (direct prisma — remember()'s 24h probation
+>   erases one-shot keys) + embedding, and an OUTSTANDING/SATISFACTORY vs
+>   SUBSTANDARD/FAILED rating lands the ledger outcome by title hash. DAILY rows keep
+>   the LATEST completion's judgment (review: the pair was silently dropped).
+> - **Reasoning conclusions re-enter recall** — persistTrace fire-and-forgets a
+>   distilled `reasoning_conclusion` companion ("Reasoned (tier): Q → concluded: A",
+>   embedded, 90d TTL via data-cleanup). Companion CATEGORY keeps budget.ts honest
+>   (it sums spend from `reasoning_trace` rows only — verified exact-match, not prefix).
+> - **Consolidation exclusions** — review found nightly mergeMemories could LLM-rewrite
+>   and soft-delete the new categories AND pre-existing `reasoning_trace` (budget sums
+>   `deletedAt: null` rows → merged traces = undercounted spend = engine overspends the
+>   $1/day cap). All three provenance categories excluded; mechanism pinned at the
+>   groupBy query.
+> - Wiring pinned end-to-end: checkTask→ledger bridge args, rating/lesson through
+>   runAutoLearn on BOTH loops, PATCH forwarding, CAS-loses-race, chips' 1-tap contract.
+>   `tasks.ts` dead `after === "DONE"` branch labeled UNREACHABLE (review caught this
+>   wave "fixing" a call site that cannot run — checkTask short-circuit owns completion).
+>
+> **Flagged · NOT fixed:** consolidation merge rewrites keeper content WITHOUT
+> re-embedding (pre-existing, every embedded category — stale-vector mismatch after any
+> merge) · missions one-tap / project bulk-complete / execution-coach sandbox still
+> complete unrated (null is honest; the sandbox reflection flow is the natural next
+> producer) · character-sheet stat XP (`taskStatMultiplier`) deliberately not
+> rating-scaled — scope boundary, revisit if ratings prove reliable ·
+> rateDiscovery has no server-side re-rate guard (client-gated only; the CAS now bounds
+> the blast to decision-column drift) · outcome dialog not browser-verified pre-merge
+> (OAuth wall; idiom is a verbatim copy of the shipped confirm-dialog — verify on prod).
+
 > ## 2026-08-19 · Architecture-reimagine wave — one priority scale, unknown ≠ zero, supersession lane-complete (1 PR, 10 commits)
 >
 > **Trigger:** the operator's full-product reimagination mission. Six parallel read-only
@@ -112,7 +160,7 @@
 > **Separately, main's post-merge run on `e17eee3` was a different red** — GitHub runner loss
 > ("the runner has received a shutdown signal", 5/8 tasks, force-killed at 4m28s), the same
 > infra class as `9977368`. `2cac7a0` (wave 1) and current head `cf5e78f` are both green.
->
+
 > ## 2026-08-19 · Neon compute + cron-truth pass — the DB went read-only and the fan-out was lying (2 PRs)
 >
 > Started from "64 hard cron failures = ingest-reviews on unset GOOGLE_PLACE_ID /
@@ -512,7 +560,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (architecture-reimagine wave — one priority scale, unknown-≠-zero operator surfaces, supersession lane-complete; same-day: Brain waves 1-2, OS-Health truth pass, mega-evening dispatch; Neon compute + cron-truth pass — ⚠ DB quota-locked READ-ONLY, every write no-ops with PG 25006); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (outcome-loop wave — ledger usefulness live with a real producer, task completion teaches, reasoning conclusions recallable; same-day: architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — ⚠ DB quota-locked READ-ONLY, every write no-ops with PG 25006); detail in the top entry
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1040,7 +1088,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-19 (architecture-reimagine wave: one priority scale + unknown-≠-zero + supersession lane-complete; prior same-day: Brain waves 1-2, OS-Health truth pass; Neon compute + cron-truth pass — ⚠ DB quota-locked READ-ONLY, every write no-ops with PG 25006); top entry.
+**Last verified:** 2026-08-19 (outcome-loop wave: ledger usefulness + task teaching + reasoning conclusions, producer included; prior same-day: architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass; Neon compute + cron-truth pass — ⚠ DB quota-locked READ-ONLY, every write no-ops with PG 25006); top entry.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

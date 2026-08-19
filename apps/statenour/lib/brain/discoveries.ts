@@ -245,7 +245,7 @@ export async function rateDiscovery(
   });
 
   try {
-    const { recordShown, recordDecision } = await import("@/lib/services/outcome-ledger");
+    const { recordShown, recordDecision, recordOutcome } = await import("@/lib/services/outcome-ledger");
     // recordShown is idempotent within 24h on the content hash, so this is
     // safe whether or not the list view already ledgered it — and it
     // guarantees a row exists to decide on even if the operator rated from a
@@ -262,6 +262,20 @@ export async function rateDiscovery(
         decision: VERDICT_TO_DECISION[verdict],
         resultRef: `discovery_verdict:${verdict}`,
       });
+      // 2026-08-19 · outcome-loop wave · `noise` is an operator usefulness
+      // verdict, not just a dismissal — it is the first real writer of the
+      // outcomeUseful column (0 callers since the ledger shipped). ONLY
+      // noise: `known` is a NOVELTY defect and must stay out of the
+      // accuracy-correction harvest (see VERDICT_TO_DECISION's rationale),
+      // and `investigate` leaves usefulness honestly OPEN until the
+      // investigation lands somewhere measurable.
+      if (verdict === "noise") {
+        await recordOutcome({
+          id: ledgerId,
+          useful: false,
+          resultRef: `discovery_verdict:${verdict}`,
+        });
+      }
     }
   } catch (err) {
     logError("brain.discoveries", err, { stage: "ledger", id, verdict }, "warn");
