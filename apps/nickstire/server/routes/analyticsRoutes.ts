@@ -32,19 +32,13 @@ export function registerAnalyticsRoutes(app: Express): void {
       if (!body || typeof body !== "object" || typeof body.type !== "string") {
         return res.sendStatus(204);
       }
-      const { recordConversionEvent } = await import("../services/conversionEvents");
-      recordConversionEvent({
-        type: String(body.type).slice(0, 80),
-        page: typeof body.page === "string" ? body.page.slice(0, 200) : undefined,
-        element: typeof body.element === "string" ? body.element.slice(0, 200) : undefined,
-        value: typeof body.value === "number" ? body.value : undefined,
-        props: typeof body.props === "object" && body.props !== null ? body.props as Record<string, unknown> : undefined,
-        ip: req.ip,
-        ua: req.get("user-agent")?.slice(0, 300),
-      });
-
+      // 2026-08-19 · the in-memory ring buffer (services/conversionEvents)
+      // that used to mirror this write was deleted: it duplicated the
+      // customer_events insert below, lost its 500 events on every deploy,
+      // and its only reader (conversion.recentEvents) now queries the
+      // durable table instead.
       // Persist. Best-effort: a dead DB must never turn an analytics
-      // beacon into a 500 (the ring buffer above still has the event).
+      // beacon into a 500.
       try {
         const { db } = await import("../lib/db-helper");
         const d = await db();

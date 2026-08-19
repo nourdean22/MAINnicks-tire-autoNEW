@@ -396,21 +396,25 @@ async function main() {
 
           // Inject correct SEO tags from route registry if React's useEffect didn't update them
           const routeInfo = routeMap.get(routePath);
+          // Escape HTML attribute chars in injected values (titles/descriptions
+          // may contain &, ", <, > that would break the rendered tag).
+          const esc = (s) => String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+          // Escape literal $ in the replacement VALUE — String.replace treats $n
+          // as a capture-group backreference, so titles/descs containing `$149`
+          // (common for pricing) would get mangled into garbage without this.
+          // 2026-08-19 · HOISTED out of the if(routeInfo) block: the H1-insert
+          // block below runs OUTSIDE that block and calls escReplace, so any
+          // route that rendered without an <h1> (the soft-404 recovery path
+          // produces exactly that) crashed with "escReplace is not defined" —
+          // 10 blog routes failed and lost their files in the 2026-08-19 regen.
+          const escReplace = (s) => esc(s).replace(/\$/g, "$$$$");
           if (routeInfo) {
             const BASE_URL = "https://nickstire.org";
             const canonicalUrl = `${BASE_URL}${routePath === "/" ? "" : routePath}`;
-
-            // Escape HTML attribute chars in injected values (titles/descriptions
-            // may contain &, ", <, > that would break the rendered tag).
-            const esc = (s) => String(s)
-              .replace(/&/g, "&amp;")
-              .replace(/"/g, "&quot;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;");
-            // Escape literal $ in the replacement VALUE — String.replace treats $n
-            // as a capture-group backreference, so titles/descs containing `$149`
-            // (common for pricing) would get mangled into garbage without this.
-            const escReplace = (s) => esc(s).replace(/\$/g, "$$$$");
 
             const safeTitle = escReplace(routeInfo.title);
             const safeDesc = routeInfo.description ? escReplace(routeInfo.description) : "";
@@ -506,11 +510,11 @@ async function main() {
             const bodyWithoutNav = html
               .replace(/<nav[\s\S]*?<\/nav>/gi, "")
               .replace(/<header[\s\S]*?<\/header>/gi, "");
-            const internalLinkCount = (bodyWithoutNav.match(/<a\s[^>]*href="\/(tires|brakes|services|contact|reviews|diagnostics|oil-change|emissions|financing|blog|diagnose|estimate|about|appointments)/gi) || []).length;
+            const internalLinkCount = (bodyWithoutNav.match(/<a\s[^>]*href="\/(tires|brakes|services|contact|reviews|diagnostics|oil-change|emissions|financing|blog|diagnose|pricing|about|booking)/gi) || []).length;
 
             if (internalLinkCount < 3) {
               const linkStyle = 'style="color:#999;text-decoration:none;font-size:13px;margin:0 4px"';
-              const linksBlock = `<nav aria-label="Related pages" style="padding:2rem 1rem;border-top:1px solid #222">\n  <p style="font-size:12px;color:#666;margin-bottom:8px">Explore More</p>\n  <a href="/tires" ${linkStyle}>Tires</a> &middot; <a href="/brakes" ${linkStyle}>Brakes</a> &middot; <a href="/diagnostics" ${linkStyle}>Diagnostics</a> &middot; <a href="/oil-change" ${linkStyle}>Oil Change</a> &middot; <a href="/emissions" ${linkStyle}>Emissions</a> &middot; <a href="/services" ${linkStyle}>All Services</a> &middot; <a href="/reviews" ${linkStyle}>Reviews</a> &middot; <a href="/contact" ${linkStyle}>Contact</a> &middot; <a href="/financing" ${linkStyle}>Financing</a> &middot; <a href="/blog" ${linkStyle}>Blog</a> &middot; <a href="/diagnose" ${linkStyle}>Diagnose My Car</a> &middot; <a href="/estimate" ${linkStyle}>Cost Estimator</a>\n</nav>`;
+              const linksBlock = `<nav aria-label="Related pages" style="padding:2rem 1rem;border-top:1px solid #222">\n  <p style="font-size:12px;color:#666;margin-bottom:8px">Explore More</p>\n  <a href="/tires" ${linkStyle}>Tires</a> &middot; <a href="/brakes" ${linkStyle}>Brakes</a> &middot; <a href="/diagnostics" ${linkStyle}>Diagnostics</a> &middot; <a href="/oil-change" ${linkStyle}>Oil Change</a> &middot; <a href="/emissions" ${linkStyle}>Emissions</a> &middot; <a href="/services" ${linkStyle}>All Services</a> &middot; <a href="/reviews" ${linkStyle}>Reviews</a> &middot; <a href="/contact" ${linkStyle}>Contact</a> &middot; <a href="/financing" ${linkStyle}>Financing</a> &middot; <a href="/blog" ${linkStyle}>Blog</a> &middot; <a href="/diagnose" ${linkStyle}>Diagnose My Car</a> &middot; <a href="/pricing" ${linkStyle}>Pricing</a>\n</nav>`;
 
               if (html.includes("</main>")) {
                 html = html.replace("</main>", `${linksBlock}\n</main>`);

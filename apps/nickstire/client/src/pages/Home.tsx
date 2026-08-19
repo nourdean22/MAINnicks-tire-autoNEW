@@ -745,7 +745,7 @@ export default function Home() {
           the site's real approval-gate wording. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid"
-        description="Nick's Tire & Auto on Euclid Ave. Used tires from $25, most sizes $40-80 installed. Brakes & repairs, walk in 7 days, written quote first. (216) 862-0005"
+        description="Used tires from $25 installed (most sizes $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
