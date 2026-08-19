@@ -378,6 +378,17 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "semantic-link",
+    schedule: null,
+    mode: "folded",
+    category: "hygiene",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening · Brain truth pass · embedding-based cross-memory linker (runSemanticLinker, batch 25 · top-3 pgvector KNN neighbors → SemanticEdge upserts). Shipped 2026-05-02 and never had a caller — semantic_edges froze at 114 rows on 2026-05-28; this re-grows the brain graph's memory-to-memory tissue nightly.",
+    addedAt: "2026-08-19",
+    maxDuration: 120,
+  },
+  {
     name: "mastery-xp",
     schedule: null,
     mode: "folded",
