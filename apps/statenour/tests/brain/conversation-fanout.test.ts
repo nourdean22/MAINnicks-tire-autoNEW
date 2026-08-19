@@ -18,22 +18,25 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   chatFindMany: vi.fn(),
+  convFindUnique: vi.fn(),
   auditFindFirst: vi.fn(),
   auditFindMany: vi.fn(),
   auditCreate: vi.fn(),
   memUpsert: vi.fn(),
+  memFindUnique: vi.fn(),
   aiChat: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     chatMessage: { findMany: h.chatFindMany },
+    chatConversation: { findUnique: h.convFindUnique },
     auditEvent: {
       findFirst: h.auditFindFirst,
       findMany: h.auditFindMany,
       create: h.auditCreate,
     },
-    brainMemory: { upsert: h.memUpsert },
+    brainMemory: { upsert: h.memUpsert, findUnique: h.memFindUnique },
   },
 }));
 
@@ -76,7 +79,9 @@ beforeEach(() => {
       createdAt: new Date("2026-08-19T12:00:00Z"),
     })),
   );
-  h.auditFindFirst.mockResolvedValue(null); // not yet digested
+  h.convFindUnique.mockResolvedValue({ updatedAt: new Date("2026-08-19T13:00:00Z") });
+  h.memFindUnique.mockResolvedValue(null); // no summary row yet → compile
+  h.auditFindFirst.mockResolvedValue(null);
   h.auditFindMany.mockResolvedValue([]);
   h.auditCreate.mockResolvedValue({ id: 1 });
   h.memUpsert.mockImplementation(async (args: { create: { key: string } }) => ({
@@ -141,9 +146,59 @@ describe("summarizeAndStoreConversation fan-out", () => {
     expect(contents).not.toContain("ask Mo about referrals");
   });
 
-  it("writes nothing when the conversation was already digested", async () => {
-    h.auditFindFirst.mockResolvedValue({ id: 99 });
+  // ── 2026-08-19 · memory-loop wave · the freshness guard replaces the
+  // one-shot-forever AuditEvent guard (which pinned every conversation to
+  // a single digest at message 4-6, and combined with audit-before-memory
+  // write order could lose a conversation permanently).
+
+  it("skips when the summary row is NEWER than the conversation's last activity", async () => {
+    h.memFindUnique.mockResolvedValue({
+      updatedAt: new Date("2026-08-19T14:00:00Z"), // after conv 13:00
+      deletedAt: null,
+    });
     await summarizeAndStoreConversation(CONV);
+    expect(h.aiChat).not.toHaveBeenCalled();
+    expect(h.memUpsert).not.toHaveBeenCalled();
+  });
+
+  it("debounces per-turn recompiles: stale but written <30min ago → skip", async () => {
+    h.memFindUnique.mockResolvedValue({
+      updatedAt: new Date(Date.now() - 5 * 60_000), // 5 min ago
+      deletedAt: null,
+    });
+    h.convFindUnique.mockResolvedValue({ updatedAt: new Date() }); // moved since
+    await summarizeAndStoreConversation(CONV);
+    expect(h.aiChat).not.toHaveBeenCalled();
+  });
+
+  it("RECOMPILES when the conversation moved after a >30min-old summary", async () => {
+    h.memFindUnique.mockResolvedValue({
+      updatedAt: new Date(Date.now() - 2 * 3600_000), // 2h ago
+      deletedAt: null,
+    });
+    h.convFindUnique.mockResolvedValue({ updatedAt: new Date() });
+    await summarizeAndStoreConversation(CONV);
+    expect(h.memUpsert).toHaveBeenCalled();
+  });
+
+  it("a merge-ground (soft-deleted) summary row does NOT count as fresh — recompiling revives it", async () => {
+    // The grinder finding: 158 of 173 summaries were soft-deleted by the
+    // nightly merge, and the old guard made them unrecoverable forever.
+    h.memFindUnique.mockResolvedValue({
+      updatedAt: new Date("2026-08-19T14:00:00Z"), // "fresh" — but deleted
+      deletedAt: new Date("2026-08-19T15:00:00Z"),
+    });
+    await summarizeAndStoreConversation(CONV);
+    expect(h.memUpsert).toHaveBeenCalled();
+    const summaryCall = h.memUpsert.mock.calls
+      .map((c) => c[0] as { create: { category: string }; update: { deletedAt?: null } })
+      .find((a) => a.create.category === "conversation_summary");
+    expect(summaryCall?.update.deletedAt).toBeNull();
+  });
+
+  it("a digest-lane failure (budget exhausted) is swallowed loudly, not propagated", async () => {
+    h.aiChat.mockRejectedValue(new Error("BudgetExceededError: daily cap"));
+    await expect(summarizeAndStoreConversation(CONV)).resolves.toBeUndefined();
     expect(h.memUpsert).not.toHaveBeenCalled();
   });
 });

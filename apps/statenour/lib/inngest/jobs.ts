@@ -153,6 +153,9 @@ export const EVENING_JOBS: readonly string[] = [
   // Was every-30-min via vercel.json; nightly is ample at this conversation
   // volume since every eligibility rule is "since last distill".
   "/api/cron/distill-sessions",
+  // 2026-08-19 · memory-loop wave · the conversation compiler's
+  // tail-catcher (staleness-based recompile + merge-ground revival).
+  "/api/cron/conversation-compile",
   // 2026-05-30 · mastery leveling engine · attributes the day's
   // unstructured signals (chat/captures/decisions) → stat XP. Idempotent;
   // first run backfills history, then only new signals each night.

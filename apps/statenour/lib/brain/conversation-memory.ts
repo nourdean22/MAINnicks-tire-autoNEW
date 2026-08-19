@@ -165,16 +165,52 @@ export async function summarizeAndStoreConversation(
 
   if (messages.length < 4) return;
 
-  // Check if already digested
-  const existing = await prisma.auditEvent.findFirst({
-    where: {
-      eventType: "conversation_digest",
-      detail: { contains: conversationId },
-    },
+  // Freshness guard (2026-08-19 · memory-loop wave). The old guard was
+  // "any conversation_digest AuditEvent EVER names this id" — one-shot
+  // forever: a 15-message conversation was compiled at message 4-6 and
+  // never again, and because the audit row was written BEFORE the memory
+  // row (whose failure was swallowed), one bad upsert lost a conversation
+  // permanently. The guard is now the summary row itself: recompile when
+  // the conversation moved after the row was written, debounced 30min so
+  // the per-turn caller doesn't burn a digest per message. A soft-deleted
+  // row does NOT count as fresh — recompiling revives it (pre-fix the
+  // nightly merge grinder had soft-deleted 158 of 173 summaries, and
+  // nothing could ever write them back).
+  const conversation = await prisma.chatConversation.findUnique({
+    where: { id: conversationId },
+    select: { updatedAt: true },
   });
-  if (existing) return;
+  const summaryRow = await prisma.brainMemory.findUnique({
+    where: {
+      category_key: {
+        category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
+        key: `conv_${conversationId}`,
+      },
+    },
+    select: { updatedAt: true, deletedAt: true },
+  });
+  if (summaryRow && !summaryRow.deletedAt) {
+    const fresh =
+      conversation != null &&
+      summaryRow.updatedAt.getTime() >= conversation.updatedAt.getTime();
+    const withinDebounce =
+      Date.now() - summaryRow.updatedAt.getTime() < 30 * 60_000;
+    if (fresh || withinDebounce) return;
+  }
 
-  const digest = await digestConversation(conversationId, messages);
+  let digest: Awaited<ReturnType<typeof digestConversation>> = null;
+  try {
+    digest = await digestConversation(conversationId, messages);
+  } catch (err) {
+    // BudgetExceededError / provider throws — pre-fix these propagated
+    // out and were swallowed silently upstream, so a budget-exhausted
+    // evening produced zero digests with no visible signal.
+    log.warn("digest_failed", {
+      conversationId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
   if (!digest) return;
 
   // Store digest in audit log (legacy consumers read from here)
@@ -244,6 +280,10 @@ export async function summarizeAndStoreConversation(
         content: summaryContent,
         confidence: 0.75,
         metadata: { conversationId },
+        lastSeen: new Date(),
+        seenCount: { increment: 1 },
+        // Revive a merge-ground row — recompiling IS the undelete.
+        deletedAt: null,
       },
     });
 
@@ -289,12 +329,10 @@ export async function summarizeAndStoreConversation(
   }
   if (digest.keyInsight && digest.keyInsight.length > 12) {
     fanOut.push({
-      // Literal on purpose: "insight" is a live prod category (1,108
-      // rows in the 08-19 audit window, recall-whitelisted in
-      // memory-recall.ts) that predates the registry and has no
-      // BRAIN_CATEGORIES constant — a registry gap, flagged in the wave
-      // report, not silently "fixed" here by minting a new taxonomy.
-      category: "insight",
+      // Registry gap closed 2026-08-19 (memory-loop wave): the flagged
+      // "insight has no constant" gap from the wave report — same live
+      // prod category (1,108 rows, recall-whitelisted), now registered.
+      category: BRAIN_CATEGORIES.INSIGHT,
       key: `conv_${conversationId}_insight`,
       content: digest.keyInsight,
     });
@@ -660,4 +698,101 @@ Rules:
   }
 
   return null;
+}
+
+// ─── Sweep + backfill (2026-08-19 · memory-loop wave) ─────────────────
+//
+// The per-turn caller compiles a conversation WHILE it is active; these
+// two functions are the tail-catcher and the operator's backfill engine.
+// Same eligibility everywhere: not archived (unless the operator says
+// otherwise), ≥4 messages, and the summary row missing, soft-deleted
+// (merge-ground — see the grinder finding), or older than the
+// conversation's last activity.
+
+export interface CompileEligibleOptions {
+  limit?: number;
+  /** Look-back window in days (sweep default 30; backfill can widen). */
+  windowDays?: number;
+  /** Backfill only — the sweep never touches archived conversations. */
+  includeArchived?: boolean;
+}
+
+export async function findCompileEligibleConversations(
+  opts: CompileEligibleOptions = {},
+): Promise<string[]> {
+  const limit = Math.max(1, Math.min(opts.limit ?? 10, 50));
+  const windowDays = Math.max(1, Math.min(opts.windowDays ?? 30, 365));
+  const idleCutoff = new Date(Date.now() - 30 * 60_000);
+
+  const candidates = await prisma.chatConversation.findMany({
+    where: {
+      ...(opts.includeArchived ? {} : { archivedAt: null }),
+      updatedAt: {
+        lt: idleCutoff,
+        gt: new Date(Date.now() - windowDays * 86_400_000),
+      },
+    },
+    orderBy: { updatedAt: "asc" },
+    take: limit * 3, // oversample so the freshness filter can drop some
+    select: { id: true, updatedAt: true, _count: { select: { messages: true } } },
+  });
+
+  const withEnough = candidates
+    .filter((c) => c._count.messages >= 4)
+    .slice(0, limit * 2);
+  if (withEnough.length === 0) return [];
+
+  const existing = await prisma.brainMemory.findMany({
+    where: {
+      category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
+      key: { in: withEnough.map((c) => `conv_${c.id}`) },
+      deletedAt: null, // soft-deleted (merge-ground) summary = recompile
+    },
+    select: { key: true, updatedAt: true },
+  });
+  const summarized = new Map(existing.map((e) => [e.key, e.updatedAt]));
+
+  return withEnough
+    .filter((c) => {
+      const at = summarized.get(`conv_${c.id}`);
+      if (!at) return true;
+      return c.updatedAt.getTime() > at.getTime();
+    })
+    .slice(0, limit)
+    .map((c) => c.id);
+}
+
+export interface CompileSweepResult {
+  eligible: number;
+  compiled: number;
+  failed: number;
+  conversationIds: string[];
+}
+
+/**
+ * Compile up to `limit` eligible conversations, 200ms apart (the
+ * session-distiller's pacing — one digest is a full "reason"-lane LLM
+ * call; the batch cap keeps a nightly run inside the daily AI budget,
+ * so a full backfill drains over nights, never in one shot).
+ */
+export async function summarizeIdleConversations(
+  opts: CompileEligibleOptions = {},
+): Promise<CompileSweepResult> {
+  const ids = await findCompileEligibleConversations(opts);
+  let compiled = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      await summarizeAndStoreConversation(id);
+      compiled += 1;
+    } catch (err) {
+      failed += 1;
+      log.warn("sweep_compile_failed", {
+        conversationId: id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return { eligible: ids.length, compiled, failed, conversationIds: ids };
 }
