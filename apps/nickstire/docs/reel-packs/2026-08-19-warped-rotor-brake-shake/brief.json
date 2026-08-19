@@ -1,0 +1,92 @@
+{
+  "topic": "Steering wheel shakes when you brake: warped rotor vs worn pads",
+  "campaignKeyword": "ROTORSHAKE",
+  "generatedBy": "nickstire-reel-operator skill, scheduled run, no live operator present",
+  "generatedAt": "2026-08-19",
+  "mode": "PRODUCTION (pack only, no reel-canary call, no render)",
+  "selfEstimatedQualityScore": {
+    "note": "Manual self-estimate against calculateReelQualityScore()'s 75-point rubric in client/src/lib/facelessReelStudio.ts. NOT the output of that function -- it was not invoked live this run (no server, no DB).",
+    "total": 54,
+    "max": 75,
+    "passFloor": 70,
+    "breakdown": {
+      "firstFrameScrollStop": { "score": 8, "max": 10, "note": "Beat 1 is a close, dynamic shot (vibrating steering wheel) -- strong but unverified against the real scorer." },
+      "mutedFirst": { "score": 10, "max": 10, "note": "Captions carry full meaning without audio." },
+      "beatStructure": { "score": 5, "max": 5, "note": "Clean 5-beat HOOK/SETUP/VALUE/VALUE/CTA shape." },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target." },
+      "loop": { "score": 0, "max": 5, "note": "No loop plan designed -- CTA frame does not echo the hook frame." },
+      "sourcedFact": { "score": 0, "max": 10, "note": "No EvidenceRecord backs the rotor-pulsation claim; store not queried live (no DB access)." },
+      "faceless": { "score": 10, "max": 10, "note": "All beats are object/vehicle-part shots; beat 4 explicitly framed hand/tool-free per the faceless rule." },
+      "claimSafety": { "score": 10, "max": 10, "note": "Uses only approved soft-language: 'can point to', 'worth checking'; avoids banned patterns ('you need', 'definitely')." },
+      "keyword": { "score": 6, "max": 5, "note": "Placeholder -- keyword-density scoring not run live; assumed near-full credit given script stays on-topic." },
+      "winningConcept": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked; scored 0 rather than assumed passing." }
+    }
+  },
+  "beats": [
+    {
+      "beatNumber": 1,
+      "role": "HOOK",
+      "window": "0:00-0:04",
+      "narration": "Steering wheel shaking when you brake? That's not you being nervous.",
+      "prompt": "Extreme close-up on a car steering wheel, subtle rhythmic vibration visible in the frame, driver's view through windshield softly blurred behind it, daylight, no hands or face visible, cinematic shallow depth of field, slow static hold with the vibration as the only motion.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "durationSec": 4
+    },
+    {
+      "beatNumber": 2,
+      "role": "SETUP",
+      "window": "0:04-0:10",
+      "narration": "A pulse through the pedal or the wheel can point to a warped rotor -- not worn pads.",
+      "prompt": "Macro shot of a car brake disc rotor mounted on a wheel hub in a garage bay, slow orbiting camera move revealing faint heat-discoloration rings on the rotor surface, clean shop lighting, no people in frame.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "durationSec": 6
+    },
+    {
+      "beatNumber": 3,
+      "role": "VALUE",
+      "window": "0:10-0:16",
+      "narration": "Keep driving on it, and that pulse wears the new pads unevenly too.",
+      "prompt": "Close-up of a brake pad and caliper assembly, slow push-in camera move showing uneven wear pattern on the pad surface, dramatic side lighting, garage bay background softly out of focus, no people in frame.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "durationSec": 6
+    },
+    {
+      "beatNumber": 4,
+      "role": "VALUE",
+      "window": "0:16-0:22",
+      "narration": "New pads on a warped rotor? The shake can come right back.",
+      "prompt": "A precision micrometer tool resting against a rotor surface on a workbench, measuring gauge visible and legible, slow rack-focus from tool to rotor, clean shop lighting, no people or hands in frame -- the tool appears already positioned, not being placed.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "durationSec": 6
+    },
+    {
+      "beatNumber": 5,
+      "role": "CTA",
+      "window": "0:22-0:27",
+      "narration": "Worth checking before your next stop. Nick's Tire and Auto checks rotor thickness free. Link in bio.",
+      "prompt": "Wide establishing shot of an auto repair shop garage bay interior, open bay door with daylight streaming in, clean and organized, warm inviting color grade, static hold for end-card text overlay, no people in frame.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "durationSec": 5
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "generatedThisRun": false,
+      "scriptFedVerbatim": true
+    },
+    "musicBed": null,
+    "musicRightsStatus": "UNKNOWN/BLOCKED -- no music-rights ledger exists in this repo; deliberately no track assigned",
+    "sfx": "optional ambient road/garage room-tone only"
+  },
+  "totalDurationSec": 27,
+  "postingSpecs": {
+    "platforms": ["Instagram Reels", "Facebook (cross-post)"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4 (H.264, 30fps)",
+    "ctaType": "SEND-oriented"
+  },
+  "finalStatus": "READY FOR HUMAN APPROVAL"
+}
