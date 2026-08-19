@@ -1,0 +1,89 @@
+{
+  "topic": "What 'you need struts' actually means (the bounce test)",
+  "campaignKeyword": "STRUT-BOUNCE",
+  "slateSource": "docs/REEL-SLATE-2026-07-31.md#15",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled task run, 2026-08-17, no live operator present",
+  "durationSeconds": 27,
+  "aspectRatio": "9:16",
+  "resolution": "1080x1920",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "window": "0:00-0:03",
+      "narration": "\"Time for struts.\" You hear it a lot. It's explained almost never.",
+      "visualPrompt": "Slow macro push-in on a mechanic's paper estimate/clipboard on a workbench, the word STRUT-related line item visible but out of sharp focus, garage bay softly lit in the background. Static camera, shallow depth of field.",
+      "stockSearchTerms": ["mechanic garage clipboard estimate closeup", "auto shop invoice pen closeup"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "window": "0:03-0:09",
+      "narration": "Struts control how your car settles after a bump. Worn ones keep bouncing.",
+      "visualPrompt": "Macro shot of a strut/shock absorber assembly and coil spring on a vehicle lift, slow orbit or slight push-in, garage bay lighting, metallic surfaces catching light.",
+      "stockSearchTerms": ["car strut shock absorber closeup", "suspension coil spring garage"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "window": "0:09-0:15",
+      "narration": "That bounce can point to longer stopping distance and chewed-up tread — even when the ride feels normal.",
+      "visualPrompt": "Macro shot of a tire tread showing cupped/scalloped uneven wear pattern, slow pan across the tread surface, natural daylight in a shop bay.",
+      "stockSearchTerms": ["tire tread cupping wear macro", "worn tire uneven wear closeup"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE_DEMO",
+      "window": "0:15-0:21",
+      "narration": "The test: push down hard on one corner. It should rebound once, then settle. More bounce than that is worth checking.",
+      "visualPrompt": "Static low-angle shot of a car's front corner from outside the vehicle as it rolls over a speed bump in a parking lot, suspension compressing then rebounding once and settling. No hands, no driver visible in frame — exterior body-and-wheel-well view only.",
+      "stockSearchTerms": ["car suspension bounce speed bump slow motion", "car driving over bump suspension travel"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "window": "0:21-0:27",
+      "narration": "Try it in your driveway. Not sure what you felt? Nick's Tire and Auto — link in bio.",
+      "visualPrompt": "Wide establishing shot of the shop's garage bay exterior/signage area, warm late-afternoon light, static or very slow push-in.",
+      "stockSearchTerms": ["auto repair garage bay exterior"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "generated": false,
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "note": "Not generated this run — no TTS tool connected to this session; script above is the exact input for render-time generation."
+    },
+    "musicBed": null,
+    "musicRightsStatus": "UNKNOWN — no rights ledger for music exists in this repo; no track assigned",
+    "sfx": "optional single garage room-tone + soft suspension-creak layer on beat 4, not required for muted-first comprehension"
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only — NOT the output of calculateReelQualityScore() in facelessReelStudio.ts, which was not called live this run. Real auto-pass floor is 70/75, and the server re-scores at enqueue independent of this estimate.",
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 7, "max": 10 },
+      "mutedFirst": { "score": 9, "max": 10 },
+      "beatStructure": { "score": 5, "max": 5 },
+      "length": { "score": 5, "max": 5 },
+      "loop": { "score": 1, "max": 5, "note": "CTA end frame (garage exterior) does not loop cleanly back into the hook frame (clipboard closeup)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "No EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live this run (prod DB read)" },
+      "faceless": { "score": 10, "max": 10 },
+      "claimSafety": { "score": 9, "max": 10, "note": "Uses approved soft-language pattern 'can point to' / 'worth checking'; no price/warranty/guarantee claims" },
+      "keyword": { "score": 4, "max": 5 },
+      "winningConcept": { "score": 3, "max": 5 }
+    },
+    "total": 53,
+    "totalMax": 75
+  },
+  "claimEvidence": {
+    "evidenceResolverQueried": false,
+    "businessFactsQueried": "code read only (SEED_FACTS), not live DB",
+    "claimsUsingApprovedSoftLanguage": [
+      "can point to",
+      "worth checking"
+    ]
+  },
+  "finalStatus": "READY FOR HUMAN APPROVAL"
+}

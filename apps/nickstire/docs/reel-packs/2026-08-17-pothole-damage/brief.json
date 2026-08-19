@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-pothole-damage",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #10",
+  "campaignKeyword": "POTHOLE-CHECK",
+  "hookText": "The pothole that did not flatten your tire may still have cost you.",
+  "ctaText": "Hit a bad one lately? Send this to someone who did.",
+  "durationSeconds": 29,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "The pothole that did not flatten your tire may still have cost you.",
+      "onScreenText": "",
+      "providerScene": "Extreme slow-motion macro, a car tire compressing into a pothole edge, asphalt texture, dust and small debris kicked up, harsh midday sun, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 10,
+      "narration": "Impact can bend a wheel, knock out alignment, or bruise the sidewall from the inside — where nothing shows.",
+      "onScreenText": "",
+      "providerScene": "Macro close-up of a bent wheel rim resting on a shop stand beside an alignment rack laser line, cool shop lighting, slow push-in, texture-forward metal detail, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 10,
+      "endSecond": 17,
+      "narration": "The tell is new pulling, new shaking, or a slow leak that starts days later.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro of a tire sidewall bulge, rubber texture stretched and distorted, raking side light to emphasize the deformity, slow rotate, moody garage lighting, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 17,
+      "endSecond": 23,
+      "narration": "None of that shows on a walk-around. It shows up on the road.",
+      "onScreenText": "",
+      "providerScene": "Interior POV from the driver's seat, road ahead through the windshield, subtle handheld camera vibration, daylight, no visible driver hands or face, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 23,
+      "endSecond": 29,
+      "narration": "Hit a bad one lately? Send this to someone who did. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); low road-noise ambient bed and one soft impact 'thud' sting under beat 1 only, royalty-free",
+    "sfxNotes": "optional single soft 'thud' sting under beat 1 (pothole impact) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 8 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 2 },
+      "sourcedFact": { "max": 10, "score": 6 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (60/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "60/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}

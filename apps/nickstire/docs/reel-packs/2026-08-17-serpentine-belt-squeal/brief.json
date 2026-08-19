@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-serpentine-belt-squeal",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "not on REEL-SLATE-2026-07-31.md — slate effectively exhausted, see README §0",
+  "campaignKeyword": "BELT-SQUEAL",
+  "hookText": "That high-pitched squeal when you start your car? That is not your brakes.",
+  "ctaText": "Hear it every cold start? Get the belt checked before it strands you.",
+  "durationSeconds": 27,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "That high-pitched squeal when you start your car? That is not your brakes.",
+      "onScreenText": "",
+      "providerScene": "Cold morning engine bay, hood open, frost visible on surrounding metal, breath-fog implied by cool blue morning light, slow push-in toward the front of the engine, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "It is usually the serpentine belt — one belt running your AC, power steering, and alternator.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a serpentine belt threaded through multiple pulleys on a running engine, slow lateral pan following the belt's path across pulleys, soft key light, shallow DOF, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 15,
+      "narration": "Cold mornings make it worse. The rubber stiffens, slips on the pulley, and squeals until it warms up.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro on a single pulley and belt contact point, slow rotation visible, cool blue-white morning light gradually warming, slight motion blur suggesting slip, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 15,
+      "endSecond": 21,
+      "narration": "But a belt that slips today can crack and snap later — and take your alternator's charging with it.",
+      "onScreenText": "",
+      "providerScene": "Close-up of a worn belt off the vehicle, visible surface cracking along the ribs, hand-free rotating turntable reveal against a clean shop backdrop, even studio light, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 21,
+      "endSecond": 27,
+      "narration": "Hear it every cold start? Get the belt checked before it strands you. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm morning light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §1)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient engine-bay room tone / single belt-squeal SFX under beat 1 only, royalty-free",
+    "sfxNotes": "optional single belt-squeal sting under beat 1 for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 8 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 6 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (61/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "61/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}

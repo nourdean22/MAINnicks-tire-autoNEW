@@ -1,0 +1,98 @@
+{
+  "topic": "wiper-blade-check",
+  "date": "2026-08-17",
+  "mode": "INTELLIGENCE/PRODUCTION",
+  "renderRoute": "NONE_THIS_SESSION",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "durationSeconds": 30,
+  "aspectRatio": "9:16",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "startSec": 0,
+      "endSec": 4,
+      "vo": "If your wipers are smearing instead of clearing, that's not just rain.",
+      "stockSearchTerms": ["windshield wiper streaking rain glass close up", "wiper blade smear windshield"],
+      "generationPrompt": "Rain streaking down a car windshield at dusk, wiper blade dragging a visible smear across the glass instead of clearing it, close-to-medium shot, moody blue-grey lighting, no people, no text",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 2,
+      "role": "support",
+      "startSec": 4,
+      "endSec": 9,
+      "vo": "Cracked, hardened rubber can't hold an edge — it drags instead of wiping clean.",
+      "stockSearchTerms": ["cracked wiper blade rubber macro", "worn wiper blade close up"],
+      "generationPrompt": "Extreme macro shot of a cracked, hardened rubber wiper blade edge, side-lit to reveal the crack line and glazed texture, shallow depth of field, no people, no text",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 3,
+      "role": "support",
+      "startSec": 9,
+      "endSec": 14,
+      "vo": "Chattering or skipping across dry glass is often that same worn edge.",
+      "stockSearchTerms": ["wiper blade skipping juddering windshield POV"],
+      "generationPrompt": "POV from inside a car looking through the windshield, a wiper blade juddering and skipping across dry glass, daylight, no driver or hands visible, no text",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 4,
+      "role": "support",
+      "startSec": 14,
+      "endSec": 19,
+      "vo": "Most shops say six months to a year, but heat and UV wear rubber faster.",
+      "stockSearchTerms": ["sun glare parked car windshield timelapse", "hot sun car exterior daytime"],
+      "generationPrompt": "Timelapse-style shot of harsh sun moving across a parked car's windshield, heat shimmer visible, no people, no text",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 5,
+      "role": "cta_lead_in",
+      "startSec": 19,
+      "endSec": 27,
+      "vo": "One clue: a hairline crack, or a rough, glazed edge instead of a clean line — worth checking before the next storm.",
+      "stockSearchTerms": ["rain streaking windshield wiper night traffic blur"],
+      "generationPrompt": "Wide shot through a rain-streaked windshield at night, oncoming headlights softly blurred, wipers mid-stroke, no people, no text",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 6,
+      "role": "save_freeze",
+      "startSec": 27,
+      "endSec": 30,
+      "vo": "Stop by and we'll take a look.",
+      "visual": "static end-card graphic, text + CTA overlay in post, no logo asset provided",
+      "isFreezeFrame": true
+    }
+  ],
+  "claimEvidence": {
+    "businessFactsUsed": [],
+    "evidenceRecordsRead": [],
+    "unknowns": [
+      "exact wiper-replacement interval not sourced from this repo's evidence store",
+      "whether Nick's Tire stocks/installs wiper blades as a discrete line item"
+    ],
+    "note": "FactChannel has no 'reel' scope yet (businessFacts.ts) — no business_facts row used; script uses only the approved soft-language bank in facelessReelStudio.ts"
+  },
+  "audioMusicRights": {
+    "status": "BLOCKED",
+    "reason": "No music-rights ledger exists in this repo; no VO audio generated (no TTS tool connected this session)"
+  },
+  "qaMatrix": {
+    "motionQualityScore": "UNKNOWN",
+    "renderIntegrityGate": "UNKNOWN",
+    "renderedQaVisionCritic": "BLOCKED",
+    "consolidatedPublishGate": "BLOCKED",
+    "claimSafetyWording": "PASS_MANUAL",
+    "repetitionCheckVsExistingPacks": "PASS_MANUAL"
+  },
+  "posting": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "igAccount": "nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "hashtags": ["#NicksTireAndAuto", "#EuclidOhio", "#CarMaintenance101", "#WiperBlades", "#WinterReady", "#DriveSafe"],
+    "published": false
+  }
+}

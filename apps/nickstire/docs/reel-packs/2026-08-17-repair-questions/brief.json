@@ -1,0 +1,108 @@
+{
+  "id": "pack-2026-08-17-repair-questions",
+  "createdAt": "2026-08-17T00:00:00.000Z",
+  "updatedAt": "2026-08-17T00:00:00.000Z",
+  "status": "hand_authored_pack",
+  "mode": "pack_only",
+  "isSample": false,
+  "handAuthored": true,
+  "note": "Authored by a scheduled-task session with no live operator instruction and no path to reelBriefGen.ts, calculateReelQualityScore(), or the reel-canary pipeline. Not a live compiled brief. Do not treat status/scores below as pipeline-verified.",
+  "topic": "Questions to ask before authorizing any repair — REEL-SLATE-2026-07-31 topic #20",
+  "mechanicTruth": "The shop's actual written policy is: never quote a repair beyond the fixed prices blind — free check, written quote, customer approves before any work begins.",
+  "driverConfusion": "Drivers often don't know they're allowed to ask to see the failed part, ask what happens if they wait, ask whether a repair is safety-critical vs. routine, or ask to keep the old part — so they either overpay or under-question a real safety issue.",
+  "clevelandAngle": "None specific — evergreen consumer-trust content, tied to the shop's Euclid Ave location only via the CTA card, not the core claim.",
+  "sourceNotes": [
+    { "label": "businessFacts.ts SEED_FACTS — repair.pricing_policy", "kind": "proof", "supports": "Free check, written quote, customer approves before work begins" },
+    { "label": "businessFacts.ts SEED_FACTS — legal.entity", "kind": "proof", "supports": "Shop name/address/phone for the CTA card" },
+    { "label": "REEL-SLATE-2026-07-31.md topic #20 (already brand-voice-lint-approved caption)", "kind": "proof", "supports": "The four questions and the closing line, reused verbatim" }
+  ],
+  "factBucket": "trust_playbook",
+  "campaignKeyword": "TRUSTCHECK",
+  "archetype": "consumer_playbook",
+  "motionLens": "invoice_reveal",
+  "objectCharacter": "the_written_quote",
+  "usefulAbsurdity": "A shop counter treated like a checklist being worked through in real time — no forensic/HUD conceit, deliberately distinct from the account's two most recent forensic-motif packs.",
+  "concepts": [
+    {
+      "id": "c-trustcheck-1",
+      "hook": "You're allowed to ask these first",
+      "coreFact": "Free check, written quote, you don't pay until you say yes",
+      "factBucket": "trust_playbook",
+      "driverEmotion": "empowered, not intimidated",
+      "campaignKeyword": "TRUSTCHECK",
+      "archetype": "consumer_playbook",
+      "motionLens": "invoice_reveal",
+      "objectCharacter": "the_written_quote",
+      "usefulAbsurdity": "Checklist-as-evidence on a shop counter, no forensic conceit",
+      "localAngle": "CTA card ties to the Euclid Ave shop only",
+      "beatOutline": [
+        "Macro on the old removed part",
+        "Pull back to the counter + clipboard",
+        "Q1 checkbox lights: show me the part",
+        "Q2 checkbox lights: what happens if I wait",
+        "Q3 checkbox lights: safety or maintenance (split-frame)",
+        "Q4 checkbox lights: keep the old part (part goes in a bag)",
+        "Written quote slides in, all 4 boxes lit",
+        "Branded CTA end-card, 3s hold"
+      ],
+      "loopIdea": "Not designed to loop — ends on a static branded CTA card per the REFERENCE/checklist format.",
+      "captionAngle": "You are allowed to ask these. A good shop will not flinch.",
+      "saveShareReason": "Literal checklist meant to be reopened at a different shop later — this account's saves have measured 0.00 across 8 reels, so a save-native format is a deliberate test.",
+      "nickFitReason": "Directly reflects the shop's real, sourced pricing policy — not generic mechanic advice.",
+      "nonGenericReason": "Consumer-rights checklist framing is not stock tire-shop content, and avoids the forensic/HUD motif already used twice recently (tread-fingerprint pack, POTHOLE sample).",
+      "rejectionRisk": "Lower hook/absurdity score than myth-reveal or diagnostic-noise topics — utility-first, not surprise-first.",
+      "scores": { "hook": 8, "truth": 9, "save": 10, "local": 6, "absurdity": 5, "fit": 10 }
+    },
+    {
+      "id": "c-tirerotation-parked",
+      "hook": "Rotation is the cheapest way to make tires last longer",
+      "coreFact": "Front/rear tires wear differently; rotating evens it out, extending set life",
+      "factBucket": "maintenance_myth",
+      "driverEmotion": "mild surprise",
+      "campaignKeyword": "ROTATION",
+      "archetype": "myth_vs_reality",
+      "motionLens": "tbd",
+      "objectCharacter": "tbd",
+      "usefulAbsurdity": "Not developed — parked concept, scored for comparison only, not pursued this run.",
+      "localAngle": "None",
+      "beatOutline": [],
+      "loopIdea": "",
+      "captionAngle": "Rotation is the cheapest way to make tires last longer.",
+      "saveShareReason": "Moderate — a fact worth remembering, not a return-to-later checklist.",
+      "nickFitReason": "Generic tire-maintenance fact, not specific to this shop's policy.",
+      "nonGenericReason": "Slate topic #17, not otherwise differentiated this run.",
+      "rejectionRisk": "Lower on every scored dimension than the selected concept.",
+      "scores": { "hook": 6, "truth": 8, "save": 7, "local": 5, "absurdity": 4, "fit": 8 }
+    }
+  ],
+  "storyboardBeats": [
+    { "beatNumber": 1, "startSecond": 0, "endSecond": 3, "visual": "Extreme macro: a worn, removed auto part (e.g. a brake pad down to the backing plate) resting on a wooden shop counter next to a blank work-order clipboard; soft directional shop light", "motion": "Slow push-in on the part", "onScreenText": "You're allowed to ask these first", "purpose": "Hook — scroll-stop with an unresolved object", "audioCue": "Low ambient shop hum, single soft tone", "safeZoneNotes": "Part centered; keep top 12% and bottom 20% clear", "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles" },
+    { "beatNumber": 2, "startSecond": 3, "endSecond": 6, "visual": "Pull back to reveal the full counter: clipboard, pen resting (not held), the old part, a coffee ring", "motion": "Slow dolly-back reveal", "onScreenText": "Before you say yes - any shop", "purpose": "Setup — establishes the shared counter world for every later beat", "audioCue": "Ambient hum continues", "safeZoneNotes": "Clipboard in middle band", "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles" },
+    { "beatNumber": 3, "startSecond": 6, "endSecond": 10, "visual": "Macro on the clipboard; a checkbox glows/highlights as a motion-graphic overlay next to printed body text (overlay, not model-rendered)", "motion": "Reticle/highlight sweeps onto checkbox 1", "onScreenText": "1. Can you show me the part?", "purpose": "Value — question 1, visually tied to the part from beat 1", "audioCue": "Soft confirmation tick", "safeZoneNotes": "Checkbox in middle-left third", "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles" },
+    { "beatNumber": 4, "startSecond": 10, "endSecond": 14, "visual": "Same counter; a small desk calendar prop in frame, a page visibly turning forward", "motion": "Page-flip motion, checkbox 2 highlights", "onScreenText": "2. What happens if I wait?", "purpose": "Value — question 2, urgency via calendar motif, no fear-mongering imagery", "audioCue": "Page-flip foley, tick", "safeZoneNotes": "Calendar in middle band", "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles" },
+    { "beatNumber": 5, "startSecond": 14, "endSecond": 18, "visual": "Split-frame: left half a caution-tape-yellow swatch, right half a plain grey maintenance-tag swatch, both resting on the counter", "motion": "Left/right highlight alternates, checkbox 3 highlights", "onScreenText": "3. Safety or maintenance?", "purpose": "Value — question 3, visual binary, no specific defect asserted (claim-safety)", "audioCue": "Alternating soft tones L/R", "safeZoneNotes": "Split down center, both halves inside middle 70%", "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles" },
+    { "beatNumber": 6, "startSecond": 18, "endSecond": 22, "visual": "Macro: the old part (from beat 1) being set into a small clear zip bag on the counter, prop-only motion (no hand)", "motion": "Slow deliberate placement motion", "onScreenText": "4. Can I have the old part back?", "purpose": "Value — question 4, closes the loop on the beat-1 hero prop", "audioCue": "Soft plastic-bag foley", "safeZoneNotes": "Bag centered", "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles" },
+    { "beatNumber": 7, "startSecond": 22, "endSecond": 26, "visual": "Wide shot of the counter: clipboard now shows all 4 checkboxes lit, a written quote sheet slides fully into frame (no dollar figure rendered)", "motion": "Quote sheet slide-in, gentle glow on the total-line area", "onScreenText": "Free check - written quote - you decide", "purpose": "Consequence/proof — the shop's actual sourced policy", "audioCue": "Paper-slide foley, resolving tone", "safeZoneNotes": "Quote sheet in middle band, no numerals rendered in-frame", "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles, numerals, prices" },
+    { "beatNumber": 8, "startSecond": 26, "endSecond": 30, "visual": "Branded CTA end-card: shop name, Euclid Ave address, phone — composited in post, not model-generated", "motion": "Static hold (the 3s SAVE freeze)", "onScreenText": "Save this. Bring it to your next appointment.", "purpose": "CTA — save-oriented per REFERENCE-format guidance", "audioCue": "Music bed resolves to silence", "safeZoneNotes": "CTA card centered, clear of platform UI overlays", "negativePrompt": "faces, hands, human figures, logos, watermarks" }
+  ],
+  "voiceoverScript": [
+    { "start": 0, "end": 2, "line": "You're allowed to ask these - before you say yes to any repair." },
+    { "start": 2, "end": 5, "line": "Any shop, not just this one." },
+    { "start": 5, "end": 10, "line": "One. Can you show me the part?" },
+    { "start": 10, "end": 14, "line": "Two. What happens if I wait?" },
+    { "start": 14, "end": 18, "line": "Three. Is this safety, or is it maintenance?" },
+    { "start": 18, "end": 22, "line": "Four. Can I have the old part back?" },
+    { "start": 22, "end": 26, "line": "A good shop won't flinch. Free check, written quote - you don't pay until you say yes." },
+    { "start": 26, "end": 30, "line": "Save this. Bring it to your next appointment - anywhere." }
+  ],
+  "audioMusicRights": {
+    "status": "UNKNOWN_BLOCKED",
+    "note": "No music-rights ledger exists in this repo (documented gap in the nickstire-reel-operator skill). No specific track is named in this pack; an operator must source and clear one before publish."
+  },
+  "costEstimate": {
+    "providerPin": "template_stock (best-known from docs/operations/REEL-PIPELINE.md, not re-read live)",
+    "perClipUsd": 0,
+    "totalEstimateUsd": 0,
+    "source": "generationLedger.ts COST_ESTIMATES_USD.template_stock_clip, an operator-tunable constant, not a live metered read"
+  }
+}

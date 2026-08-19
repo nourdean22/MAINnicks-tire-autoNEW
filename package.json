@@ -42,8 +42,8 @@
     "@types/node": "25.9.4",
     "lefthook": "2.1.10",
     "sherif": "1.13.0",
-    "syncpack": "15.3.2",
-    "turbo": "^2.10.8",
+    "syncpack": "15.3.3",
+    "turbo": "^2.10.10",
     "typescript": "catalog:"
   },
   "engines": {
