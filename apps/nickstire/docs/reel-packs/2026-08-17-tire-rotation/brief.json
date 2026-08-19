@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-tire-rotation",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #17",
+  "campaignKeyword": "ROTATION",
+  "hookText": "Rotation is the cheapest way to make tires last longer.",
+  "ctaText": "Check when yours were last rotated.",
+  "durationSeconds": 24,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Rotation is the cheapest way to make tires last longer.",
+      "onScreenText": "",
+      "providerScene": "Wide low-angle shot of a car on a hydraulic lift in a clean garage bay, wheel removed and resting nearby, bright even shop lighting, slow push-in, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "Front and rear tires wear at different rates and in different patterns.",
+      "onScreenText": "",
+      "providerScene": "Macro side-by-side comparison of two tire tread faces with visibly different wear patterns, turntable reveal, soft key light, shallow depth of field, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 15,
+      "narration": "Moving them evens it out — often adding thousands of miles to the set.",
+      "onScreenText": "",
+      "providerScene": "Gloved hands (no face) moving a tire across a shop floor toward a tire rack, motion blur on the tire, warm practical shop lighting, slow tracking shot, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 15,
+      "endSecond": 20,
+      "narration": "Every 5,000 to 7,500 miles is the usual window.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro of a tire tread depth gauge inserted into a tread groove, needle reading, shallow DOF, soft top light, static hold with subtle focus pull, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 20,
+      "endSecond": 24,
+      "narration": "Check when yours were last rotated. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient garage room-tone only, royalty-free",
+    "sfxNotes": "no SFX assigned for this topic (no dramatic beat like a grind/squeal reveal); silence between narration lines is acceptable"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 5, "detail": "informational hook, not visceral — weaker scroll-stop than sound/damage-based topics" },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 5, "detail": "mileage interval and wear-pattern claims are UNKNOWN against evidenceResolver.ts — not queried live this run" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 10 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (58/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "58/75 (self-estimate) — below the 70/75 auto-pass floor; needs a stronger hook treatment and an evidence citation for sourcedFact before this would likely clear the real gate"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "id": "content-pack-2026-08-17-cabin-air-filter",
+  "campaignKeyword": "AIRFLOW",
+  "archetype": "confused_pair_clarified",
+  "motionLenses": ["cabin_interior_heat_haze", "product_teardown_macro"],
+  "selectedCaption": "Vents on full blast and it's still not cold? Your car has two air filters, and only one ever gets blamed. The engine filter protects the engine — that's not your problem. The cabin filter cleans the air coming through your vents, and it's usually caked. A clogged filter chokes the airflow, so even good AC feels weak. Often a ten-minute swap. Worth checking before you blame the AC system.",
+  "hashtags": ["#cartips", "#carmaintenance", "#clevelandohio", "#euclidohio"],
+  "voiceoverScript": "Vents on full blast and it's still not cold? Your car has two air filters, and only one ever gets blamed. The engine filter protects the engine. That one's not your problem. The cabin filter cleans the air coming through your vents — and this one's usually caked. A clogged filter chokes the airflow, so even good AC feels weak. It's often a ten-minute swap, commonly right behind the glovebox. Worth checking before you blame the AC system. Save this if your vents lost their punch. Stop by and we'll take a look, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 2,
+      "onScreenText": null,
+      "visual": "Car interior world, dashboard AC vents blasting visible heat-haze shimmer instead of cool air, sunlight glare through the windshield, no faces, no legible text baked into the shot"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 2,
+      "endSecond": 5,
+      "onScreenText": "TWO FILTERS. ONE JOB EACH.",
+      "visual": "Split-screen forms: engine bay silhouette on one side, cabin/vent silhouette on the other, a filter icon glowing in each"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 5,
+      "endSecond": 10,
+      "onScreenText": "ENGINE FILTER — PROTECTS THE ENGINE",
+      "visual": "Macro teardown: a clean engine air filter held up, then set aside — pleated paper, dry, dust-free"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 10,
+      "endSecond": 15,
+      "onScreenText": "CABIN FILTER — CLEANS YOUR AIR",
+      "visual": "Macro teardown: a visibly caked, dust-and-debris-packed cabin filter pulled out, side by side with a clean replacement"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 15,
+      "endSecond": 20,
+      "onScreenText": "CLOGGED = LESS AIRFLOW",
+      "visual": "Cutaway-style diagram: air trying to push through the clogged filter, visibly restricted, then the same air flowing freely through the clean one"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 20,
+      "endSecond": 25,
+      "onScreenText": "OFTEN A 10-MINUTE SWAP",
+      "visual": "Product-ad macro: hands-free framing on a filter slot behind a glovebox-style panel, clean filter sliding into place (shop-shot route may use a gloved hand instead — see §4)"
+    },
+    {
+      "beatNumber": 7,
+      "startSecond": 25,
+      "endSecond": 30,
+      "onScreenText": "WORTH CHECKING.",
+      "visual": "Back to the car-interior world from beat 1, vents now blowing clean cool air (heat-haze gone) — mirrors beat 1's framing for a loop seam"
+    },
+    {
+      "beatNumber": 8,
+      "startSecond": 30,
+      "endSecond": 33,
+      "onScreenText": "Save this if your vents lost their punch. Stop by and we'll take a look, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "visual": "Static hold on the CTA card, silent ambient tone only"
+    }
+  ],
+  "qualityEstimate": {
+    "method": "manual, not calculateReelQualityScore()",
+    "estimatedTotal": 65,
+    "floor": 70,
+    "passesFloor": false
+  },
+  "liveVerification": {
+    "repetitionLedgerQueried": false,
+    "evidenceResolverQueried": false,
+    "reelCanaryCalled": false,
+    "rendered": false,
+    "published": false
+  }
+}

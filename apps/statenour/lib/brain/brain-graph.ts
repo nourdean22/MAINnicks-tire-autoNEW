@@ -1,4 +1,42 @@
+/**
+ * lib/brain/brain-graph.ts · rebuilt 2026-08-19 (Brain truth pass).
+ *
+ * The graph payload for /brain and the Home brain card. Three contracts,
+ * each earned by a documented failure of the previous version:
+ *
+ * 1. DEGRADED, NEVER HUNG. The old builder was one 8-query Promise.all —
+ *    the widest DB fan-out in the app — against a 10-connection pool with
+ *    an untimed checkout queue, so any contention turned into a request
+ *    that never settled (prod's #1 error pattern, 730/1,427 rows in 30d,
+ *    is the same starvation class). Domains now load via allSettled with
+ *    a per-domain deadline: a slow domain arrives MISSING AND NAMED in
+ *    `degraded`, and the rest of the brain still renders.
+ *
+ * 2. HONEST RELATIONSHIPS ONLY. The old graph invented edges: keyword
+ *    matching (`title.includes("tire")`), and a blanket "connect every
+ *    orphan to an anchor" pass. Every edge now has a real source: a
+ *    foreign key, a MemoryEdge row, a SemanticEdge row, a contradiction
+ *    pair, a goal's own domain field, or category membership (a memory
+ *    IS in its category — structural, not inferred). Unlinked nodes stay
+ *    visibly unlinked; that isolation is signal, not a rendering bug.
+ *
+ * 3. EPISTEMIC CHROME. Memory nodes carry the commit gateway's evidence
+ *    ladder (operator_stated → weak_inference), seenCount, age, TTL
+ *    distance, and contradiction involvement — so the client can render
+ *    trust instead of pretending a re-sighting count is a probability.
+ *    (Confidence here IS `0.5 + 0.1×(sightings−1)`; weight therefore
+ *    derives from seenCount and is labeled as attention, never as truth.)
+ *
+ * The 6 fossil "AI" anchor nodes (OLLAMA GLM-5.2, GEMINI BACKUP, …) are
+ * deleted — they contradicted CURRENT-TRUTH's "never assert a model name
+ * in prose" and rendered a 2026-05 snapshot as if it were the present.
+ */
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import {
+  evidenceClassForSource,
+  type MemoryEvidenceClass,
+} from "@/lib/brain/memory-commit-gateway";
 
 export type BrainGraphNode = {
   id: string;
@@ -17,6 +55,18 @@ export type BrainGraphNode = {
   weight: number;
   status?: "active" | "stale" | "done" | "risk" | "opportunity";
   href?: string;
+  /** Commit-gateway evidence class — memory nodes only. */
+  evidence?: MemoryEvidenceClass;
+  /** Re-sighting count (attention, not truth) — memory nodes only. */
+  seenCount?: number;
+  /** Days since creation. */
+  ageDays?: number;
+  /** Created within the last 7 days. */
+  isNew?: boolean;
+  /** Days until TTL expiry (null = no TTL). Negative = past due. */
+  expiresInDays?: number | null;
+  /** This node is one side of an UNRESOLVED contradiction pair. */
+  contradicted?: boolean;
   metadata?: Record<string, unknown>;
 };
 
@@ -32,6 +82,8 @@ export type BrainGraphEdge = {
     | "depends_on"
     | "contradicts";
   weight: number;
+  /** Where this edge came from — every edge must name its evidence. */
+  origin: "fk" | "memory_edge" | "semantic" | "contradiction" | "category" | "domain";
 };
 
 export type BrainGraphPayload = {
@@ -39,30 +91,71 @@ export type BrainGraphPayload = {
   edges: BrainGraphEdge[];
   generatedAt: string;
   scope: "home" | "full" | "focus";
+  /** Domains that failed or timed out during this build — the client
+   *  must render these as DEGRADED, never as silently-absent data. */
+  degraded: string[];
+  /** Unresolved contradiction pairs present in this payload. */
+  contradictionCount: number;
 };
 
+/** Life-domain anchors. Real, operator-defined structure — kept. The six
+ *  fossil AI/UI nodes that used to live here are gone. */
 const SYSTEM_ANCHORS: BrainGraphNode[] = [
-  // High-level life nodes
-  { id: "nour-os", type: "system", label: "NOUR OS", weight: 9, status: "active", href: "/system", metadata: { source: "system_seed", why: "Core operations portal", nextMove: "Expose bottlenecks" } },
-  { id: "business", type: "business", label: "BUSINESS", weight: 8, status: "active", href: "/business", metadata: { source: "system_seed", why: "Empire lane for wealth and enterprise scaling", nextMove: "Optimize conversions" } },
-  { id: "discipline", type: "system", label: "DISCIPLINE", weight: 8, status: "active", href: "/brain", metadata: { source: "system_seed", why: "Habits and self-governance foundation", nextMove: "Protect daily routines" } },
-  { id: "fitness", type: "system", label: "FITNESS", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed", why: "Health and energy optimization", nextMove: "Track daily workout check-in" } },
-  { id: "player-stat", type: "system", label: "PLAYER STAT", weight: 7, status: "active", href: "/scoreboard", metadata: { source: "system_seed", why: "Character stats and XP monitoring", nextMove: "Review weekly delta logs" } },
-  { id: "family-vision", type: "system", label: "FAMILY VISION", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed", why: "Social and relationship legacy", nextMove: "Check family check-in cadence" } },
-  { id: "fertility", type: "system", label: "FERTILITY", weight: 6, status: "active", href: "/goals", metadata: { source: "system_seed", why: "Health domain and legacy focus", nextMove: "Track bio-markers" } },
-  { id: "content", type: "system", label: "CONTENT", weight: 6, status: "active", href: "/content", metadata: { source: "system_seed", why: "Audience growth and marketing asset generation", nextMove: "Schedule post creation" } },
-
-  // Nick's business anchors
-  { id: "nicks-tire", type: "business", label: "NICK'S TIRE", weight: 8, status: "active", href: "/business", metadata: { source: "system_seed", why: "Primary business operations", nextMove: "Sync CRM leads" } },
-
-  // AI nodes
-  { id: "ollama-glm", type: "system", label: "OLLAMA GLM-5.2", weight: 6, status: "active", href: "/system", metadata: { source: "system_seed", why: "Primary local reasoning engine", nextMove: "Validate health ping" } },
-  { id: "gemini-backup", type: "system", label: "GEMINI BACKUP", weight: 5, status: "active", href: "/system", metadata: { source: "system_seed", why: "Fallback large-context reasoning", nextMove: "Check rate limit status" } },
-  { id: "provider-hud", type: "system", label: "PROVIDER HUD", weight: 5, status: "active", href: "/system", metadata: { source: "system_seed", why: "Observability for model status and costs", nextMove: "Review latencies" } },
-  { id: "chat-ui", type: "system", label: "CHAT UI", weight: 6, status: "active", href: "/chat", metadata: { source: "system_seed", why: "Active conversation operator mode", nextMove: "Open chat conversation" } },
-  { id: "brain-graph", type: "system", label: "BRAIN GRAPH", weight: 6, status: "active", href: "/brain", metadata: { source: "system_seed", why: "Self-model visualization map", nextMove: "Check context coverage" } },
-  { id: "homepage-cc", type: "system", label: "HOMEPAGE CC", weight: 7, status: "active", href: "/", metadata: { source: "system_seed", why: "Nour Command Center entry portal", nextMove: "Audit daily checklist" } }
+  { id: "nour-os", type: "system", label: "NOUR OS", weight: 9, status: "active", href: "/system", metadata: { source: "system_seed" } },
+  { id: "business", type: "business", label: "BUSINESS", weight: 8, status: "active", href: "/business", metadata: { source: "system_seed" } },
+  { id: "nicks-tire", type: "business", label: "NICK'S TIRE", weight: 8, status: "active", href: "/business", metadata: { source: "system_seed" } },
+  { id: "discipline", type: "system", label: "DISCIPLINE", weight: 8, status: "active", href: "/brain", metadata: { source: "system_seed" } },
+  { id: "fitness", type: "system", label: "FITNESS", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed" } },
+  { id: "family-vision", type: "system", label: "FAMILY VISION", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed" } },
+  { id: "fertility", type: "system", label: "FERTILITY", weight: 6, status: "active", href: "/goals", metadata: { source: "system_seed" } },
+  { id: "content", type: "system", label: "CONTENT", weight: 6, status: "active", href: "/content", metadata: { source: "system_seed" } },
 ];
+
+/** goal.domain / mission-domain → anchor id. Only REAL domain fields feed
+ *  this — the old `title.includes("tire")` keyword matching is gone. */
+const DOMAIN_ANCHOR: Record<string, string> = {
+  business: "business",
+  finance: "business",
+  fitness: "fitness",
+  health: "fitness",
+  family: "family-vision",
+  relationships: "family-vision",
+  fertility: "fertility",
+  content: "content",
+  personal: "discipline",
+  career: "discipline",
+  discipline: "discipline",
+};
+
+const DAY_MS = 86_400_000;
+
+/** A machine key like `blindspot_domain_1712...` is chrome for a database,
+ *  not a label for a human. Prefer the content when the key isn't prose. */
+function humanizeMemoryLabel(key: string, content: string): string {
+  const keyIsProse = /\s/.test(key) && !/^[a-z0-9_:\-.]+$/i.test(key);
+  const base = keyIsProse ? key : (content.trim() || key);
+  const flat = base.replace(/\s+/g, " ").trim();
+  return flat.length > 72 ? flat.slice(0, 72) + "…" : flat;
+}
+
+/** Per-domain deadline: a domain that can't answer in time becomes a
+ *  NAMED degraded entry instead of holding the whole brain hostage. */
+function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
+const DOMAIN_DEADLINE_MS = 8_000;
+
+interface StoredContradictionContent {
+  new_memory_id?: string;
+  old_memory_id?: string;
+  status?: string;
+}
 
 export async function getBrainGraph(params: {
   scope?: "home" | "full";
@@ -73,36 +166,24 @@ export async function getBrainGraph(params: {
   categories?: string[];
 }): Promise<BrainGraphPayload> {
   const scope = params.scope ?? "full";
-  const limit = params.limit ?? (scope === "home" ? 60 : 150);
   const minConfidence = params.minConfidence ?? 0.5;
   const depth = params.depth ?? 2;
-
-  // 1. Fetch DB elements based on scope
   const isHome = scope === "home";
 
-  // Active/recent counts
   const counts = isHome
     ? { missions: 10, tasks: 12, goals: 8, dumps: 5, reflections: 5, decisions: 5, people: 5, memories: 8 }
     : { missions: 25, tasks: 40, goals: 15, dumps: 15, reflections: 15, decisions: 15, people: 15, memories: 30 };
 
-  const [
-    dbMissions,
-    dbTasks,
-    dbGoals,
-    dbDumps,
-    dbReflections,
-    dbDecisions,
-    dbPeople,
-    dbMemories,
-  ] = await Promise.all([
-    // Missions
-    prisma.mission.findMany({
+  const degraded: string[] = [];
+
+  // ── 1. Node domains · allSettled + per-domain deadline ──────────────
+  const domainQueries = {
+    missions: prisma.mission.findMany({
       where: { deletedAt: null, ...(isHome && { status: "ACTIVE" }) },
       orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
       take: counts.missions,
     }),
-    // Tasks
-    prisma.task.findMany({
+    tasks: prisma.task.findMany({
       where: {
         deletedAt: null,
         ...(isHome ? { status: { in: ["READY", "DOING"] } } : { status: { not: "ARCHIVED" } }),
@@ -110,55 +191,94 @@ export async function getBrainGraph(params: {
       orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
       take: counts.tasks,
     }),
-    // Life Goals
-    prisma.lifeGoal.findMany({
+    goals: prisma.lifeGoal.findMany({
       where: { deletedAt: null, ...(isHome && { status: "active" }) },
       orderBy: [{ progress: "asc" }, { createdAt: "desc" }],
       take: counts.goals,
     }),
-    // Journal Brain Dumps
-    prisma.brainDump.findMany({
+    journals: prisma.brainDump.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: counts.dumps,
     }),
-    // Reflections
-    prisma.reflection.findMany({
+    reflections: prisma.reflection.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: counts.reflections,
     }),
-    // Decisions (DecisionReplay has mission/goal fields)
-    prisma.decisionReplay.findMany({
+    decisions: prisma.decisionReplay.findMany({
       orderBy: { createdAt: "desc" },
       take: counts.decisions,
     }),
-    // Person Profiles
-    prisma.personProfile.findMany({
+    people: prisma.personProfile.findMany({
       where: { deletedAt: null, ...(isHome && { status: "active" }) },
       orderBy: { lastInteraction: "desc" },
       take: counts.people,
     }),
-    // Brain memories (filter by categories if present)
-    prisma.brainMemory.findMany({
+    memories: prisma.brainMemory.findMany({
       where: {
         deletedAt: null,
         confidence: { gte: minConfidence },
         category: {
           in: params.categories && params.categories.length > 0
             ? params.categories
+            // Verified against prod 2026-08-19 — every category here has
+            // rows above the confidence floor (insight 1,062 · wisdom 282
+            // · blind_spot 252 · pattern 46 · strategic_plan 1 ·
+            // decision_pattern 1). Two speculative additions ("belief",
+            // "contradiction_flag") were removed after measuring: both
+            // are ZERO rows, i.e. dead filters that only cost query width.
             : ["wisdom", "insight", "pattern", "blind_spot", "strategic_plan", "decision_pattern"],
         },
       },
-      orderBy: [{ confidence: "desc" }, { lastSeen: "desc" }],
+      orderBy: [{ lastSeen: "desc" }, { confidence: "desc" }],
       take: counts.memories,
+      select: {
+        id: true,
+        category: true,
+        key: true,
+        content: true,
+        source: true,
+        confidence: true,
+        seenCount: true,
+        lastSeen: true,
+        createdAt: true,
+        expiresAt: true,
+      },
     }),
-  ]);
+  } as const;
+
+  type DomainKey = keyof typeof domainQueries;
+  const domainKeys = Object.keys(domainQueries) as DomainKey[];
+  const settled = await Promise.allSettled(
+    // Each entry is a PrismaPromise of a DIFFERENT row type; widen to
+    // unknown[] at the race boundary and narrow per-domain below.
+    domainKeys.map((k) =>
+      withDeadline(domainQueries[k] as unknown as Promise<unknown[]>, DOMAIN_DEADLINE_MS, k),
+    ),
+  );
+  const domainResult = <T>(key: DomainKey): T[] => {
+    const idx = domainKeys.indexOf(key);
+    const r = settled[idx];
+    if (r.status === "fulfilled") return r.value as T[];
+    degraded.push(key);
+    return [];
+  };
+
+  // Row shapes differ per domain; each mapper below reads only the
+  // fields its own query selected.
+  type Row = Record<string, any>;
+  const dbMissions = domainResult<Row>("missions");
+  const dbTasks = domainResult<Row>("tasks");
+  const dbGoals = domainResult<Row>("goals");
+  const dbDumps = domainResult<Row>("journals");
+  const dbReflections = domainResult<Row>("reflections");
+  const dbDecisions = domainResult<Row>("decisions");
+  const dbPeople = domainResult<Row>("people");
+  const dbMemories = domainResult<Row>("memories");
 
   const nodes: BrainGraphNode[] = [];
   const edges: BrainGraphEdge[] = [];
-
-  // Helper to add nodes with duplicate prevention
   const nodeIds = new Set<string>();
   const addNode = (n: BrainGraphNode) => {
     if (!nodeIds.has(n.id)) {
@@ -166,8 +286,6 @@ export async function getBrainGraph(params: {
       nodes.push(n);
     }
   };
-
-  // Helper to add edges with duplicate prevention (undirected key)
   const edgeKeys = new Set<string>();
   const addEdge = (e: BrainGraphEdge) => {
     const key1 = `${e.source}_${e.target}_${e.type}`;
@@ -178,15 +296,16 @@ export async function getBrainGraph(params: {
     }
   };
 
-  // 2. Map Database Nodes to Graph Nodes
-  // Missions -> Project / Project-Mission
+  const now = Date.now();
+  const ageDaysOf = (d: Date) => Math.floor((now - d.getTime()) / DAY_MS);
+
+  // ── 2. Map database rows → nodes ────────────────────────────────────
   dbMissions.forEach((m) => {
     let status: BrainGraphNode["status"] = "active";
     if (m.status === "COMPLETE") status = "done";
     else if (m.status === "PAUSED") status = "stale";
     else if (m.neglectCost && m.neglectCost > 70) status = "risk";
     else if (m.roiScore && m.roiScore > 75) status = "opportunity";
-
     addNode({
       id: m.id,
       type: "mission",
@@ -194,49 +313,48 @@ export async function getBrainGraph(params: {
       weight: Math.min(10, Math.max(3, m.priority || 5)),
       status,
       href: `/missions`,
+      ageDays: ageDaysOf(m.createdAt),
+      isNew: ageDaysOf(m.createdAt) < 7,
       metadata: {
         source: "database",
         neglectCost: m.neglectCost,
         roiScore: m.roiScore,
         priority: m.priority,
-        why: m.successMetric || "Missions drive structural progress",
-        nextMove: "Review active tasks on this mission",
+        successMetric: m.successMetric ?? null,
       },
     });
   });
 
-  // Tasks
   dbTasks.forEach((t) => {
     let status: BrainGraphNode["status"] = "active";
     if (t.status === "DONE") status = "done";
     else if (t.status === "INBOX") status = "stale";
     else if (t.driftRisk && t.driftRisk > 70) status = "risk";
-
     addNode({
       id: t.id,
       type: "task",
       label: t.title,
       weight: Math.min(10, Math.max(2, t.autoPriority ?? 5)),
       status,
-      href: `/`,
+      // Tasks live on the /missions surface — the old href was Home.
+      href: `/missions`,
+      ageDays: ageDaysOf(t.createdAt),
+      isNew: ageDaysOf(t.createdAt) < 7,
       metadata: {
         source: "database",
         taskStatus: t.status,
         dueDate: t.dueDate?.toISOString(),
         driftRisk: t.driftRisk,
-        why: t.nextPhysicalAction || "Action item",
-        nextMove: t.finishCondition || "Complete task",
+        nextPhysicalAction: t.nextPhysicalAction ?? null,
       },
     });
   });
 
-  // Life Goals
   dbGoals.forEach((g) => {
     let status: BrainGraphNode["status"] = "active";
     if (g.status === "achieved") status = "done";
     else if (g.status === "missed") status = "risk";
     else if (g.status === "paused") status = "stale";
-
     addNode({
       id: g.id,
       type: "goal",
@@ -244,57 +362,47 @@ export async function getBrainGraph(params: {
       weight: Math.min(10, Math.max(4, Math.floor(g.progress / 10))),
       status,
       href: `/goals`,
+      ageDays: ageDaysOf(g.createdAt),
+      isNew: ageDaysOf(g.createdAt) < 7,
       metadata: {
         source: "database",
         progress: g.progress,
         domain: g.domain,
         horizon: g.horizon,
-        why: g.why || "Goal establishes standard",
-        nextMove: "Analyze milestones and track progress",
+        goalWhy: g.why ?? null,
       },
     });
   });
 
-  // Journal Dumps
   dbDumps.forEach((d) => {
     addNode({
       id: d.id,
       type: "journal",
-      label: d.summary || `${d.date} Journal Dump`,
+      label: d.summary || `${d.date} journal`,
       weight: 4,
       status: "active",
       href: `/journal`,
-      metadata: {
-        source: "database",
-        date: d.date,
-        moodBefore: d.moodBefore,
-        moodAfter: d.moodAfter,
-        why: "Operator brain dump",
-        nextMove: "Check extracted task items",
-      },
+      ageDays: ageDaysOf(d.createdAt),
+      isNew: ageDaysOf(d.createdAt) < 7,
+      metadata: { source: "database", date: d.date, moodBefore: d.moodBefore, moodAfter: d.moodAfter },
     });
   });
 
-  // Reflections
   dbReflections.forEach((r) => {
     addNode({
       id: r.id,
       type: "memory",
-      label: r.insight.length > 80 ? r.insight.slice(0, 80) + "..." : r.insight,
-      weight: Math.min(10, Math.max(3, Math.floor(r.confidence * 10))),
+      label: humanizeMemoryLabel(r.insight, r.insight),
+      weight: Math.min(8, Math.max(3, Math.floor(r.confidence * 8))),
       status: r.actionable && !r.acknowledged ? "opportunity" : "active",
       href: `/brain?tab=wisdom`,
-      metadata: {
-        source: "database",
-        category: r.category,
-        confidence: r.confidence,
-        why: r.insight,
-        nextMove: r.actionable ? "Review reflection and act" : "Maintain observation",
-      },
+      evidence: "supported_inference",
+      ageDays: ageDaysOf(r.createdAt),
+      isNew: ageDaysOf(r.createdAt) < 7,
+      metadata: { source: "database", category: r.category, reflection: true },
     });
   });
 
-  // Decisions
   dbDecisions.forEach((dec) => {
     addNode({
       id: dec.id,
@@ -302,23 +410,25 @@ export async function getBrainGraph(params: {
       label: dec.title,
       weight: 5,
       status: dec.reviewed ? "done" : "active",
-      href: `/decisions`,
+      // The old href pointed at /decisions, which has no page — only
+      // /decisions/[id] exists. That was a 404 on every decision node.
+      href: `/decisions/${dec.id}`,
+      ageDays: ageDaysOf(dec.createdAt),
+      isNew: ageDaysOf(dec.createdAt) < 7,
       metadata: {
         source: "database",
         choiceMade: dec.choiceMade,
         outcome: dec.outcome,
-        why: dec.context || "Decision context",
-        nextMove: dec.lesson ? `Lesson: ${dec.lesson}` : "Track decision outcome",
+        context: dec.context ?? null,
+        lesson: dec.lesson ?? null,
       },
     });
   });
 
-  // Person Profiles
   dbPeople.forEach((p) => {
     let status: BrainGraphNode["status"] = "active";
     if (p.trustScore < 0.4) status = "risk";
     else if (p.trustScore > 0.8) status = "opportunity";
-
     addNode({
       id: p.id,
       type: "person",
@@ -330,206 +440,207 @@ export async function getBrainGraph(params: {
         source: "database",
         role: p.role,
         trustScore: p.trustScore,
-        why: p.relationship || "Key relationship",
-        nextMove: p.leverageNotes ? `Leverage: ${p.leverageNotes}` : "Maintain communication cadence",
+        relationship: p.relationship ?? null,
+        lastInteraction: p.lastInteraction?.toISOString?.() ?? null,
       },
     });
   });
 
-  // Brain Memories
+  const memoryCategories = new Set<string>();
   dbMemories.forEach((m) => {
-    let status: BrainGraphNode["status"] = "active";
-    if (m.category === "blind_spot") status = "risk";
-    else if (m.category === "wisdom" || m.category === "insight") status = "opportunity";
-
+    memoryCategories.add(m.category);
+    const expiresInDays =
+      m.expiresAt != null ? Math.ceil((m.expiresAt.getTime() - now) / DAY_MS) : null;
     addNode({
       id: m.id,
       type: "memory",
-      label: m.key.length > 80 ? m.key.slice(0, 80) + "..." : m.key,
-      weight: Math.min(10, Math.max(3, Math.floor(m.confidence * 10))),
-      status,
-      href: `/brain`,
+      label: humanizeMemoryLabel(m.key, m.content),
+      // Weight = attention (re-sightings), NOT truth. Confidence here is
+      // a frequency count, so sizing by it inflated re-observed
+      // banalities. LOG scale, not linear: prod seenCount spans 1 →
+      // 6,516 with a mean of 3.69 (measured 2026-08-19), so a linear map
+      // saturated the cap at 8 sightings and rendered a 6,516-sighting
+      // memory identically to an 8-sighting one. Log keeps the common
+      // 1-10 range legible while still ranking the true hubs above it.
+      weight: Math.min(10, 2 + Math.log2(1 + (m.seenCount ?? 1)) * 1.6),
+      status: m.category === "blind_spot" ? "risk" : "active",
+      // No href: a memory's destination IS the detail panel + its
+      // neighborhood — the old `/brain` href was a self-referential no-op.
+      evidence: evidenceClassForSource(m.source ?? ""),
+      seenCount: m.seenCount ?? 1,
+      ageDays: ageDaysOf(m.createdAt),
+      isNew: ageDaysOf(m.createdAt) < 7,
+      expiresInDays,
       metadata: {
         source: "database",
         category: m.category,
-        confidence: m.confidence,
-        why: m.content.slice(0, 200),
-        nextMove: "Check context matches",
+        content: m.content.slice(0, 280),
+        lastSeen: m.lastSeen.toISOString(),
       },
     });
   });
 
-  // Add system anchors
-  SYSTEM_ANCHORS.forEach((anchor) => {
-    addNode(anchor);
-  });
+  SYSTEM_ANCHORS.forEach(addNode);
 
-  // 3. Construct Implicit Edges from DB Foreign Keys
-  // Tasks -> Missions, Goals, People
-  dbTasks.forEach((t) => {
-    if (t.missionId && nodeIds.has(t.missionId)) {
-      addEdge({ source: t.id, target: t.missionId, type: "belongs_to", weight: 0.8 });
-    }
-    if (t.goalId && nodeIds.has(t.goalId)) {
-      addEdge({ source: t.id, target: t.goalId, type: "belongs_to", weight: 0.8 });
-    }
-    if (t.personId && nodeIds.has(t.personId)) {
-      addEdge({ source: t.id, target: t.personId, type: "related", weight: 0.7 });
-    }
-    if (t.parentTaskId && nodeIds.has(t.parentTaskId)) {
-      addEdge({ source: t.id, target: t.parentTaskId, type: "depends_on", weight: 0.9 });
-    }
-  });
-
-  // Missions -> Goals
-  dbMissions.forEach((m) => {
-    if (m.lifeGoalId && nodeIds.has(m.lifeGoalId)) {
-      addEdge({ source: m.id, target: m.lifeGoalId, type: "belongs_to", weight: 0.9 });
-    }
-  });
-
-  // Journal Dumps -> Missions, Goals
-  dbDumps.forEach((d) => {
-    if (d.missionId && nodeIds.has(d.missionId)) {
-      addEdge({ source: d.id, target: d.missionId, type: "mentions", weight: 0.6 });
-    }
-    if (d.goalId && nodeIds.has(d.goalId)) {
-      addEdge({ source: d.id, target: d.goalId, type: "mentions", weight: 0.6 });
-    }
-  });
-
-  // Reflections -> Missions, Goals
-  dbReflections.forEach((r) => {
-    if (r.missionId && nodeIds.has(r.missionId)) {
-      addEdge({ source: r.id, target: r.missionId, type: "related", weight: 0.7 });
-    }
-    if (r.goalId && nodeIds.has(r.goalId)) {
-      addEdge({ source: r.id, target: r.goalId, type: "related", weight: 0.7 });
-    }
-  });
-
-  // Decisions -> Missions, Goals
-  dbDecisions.forEach((dec) => {
-    if (dec.missionId && nodeIds.has(dec.missionId)) {
-      addEdge({ source: dec.id, target: dec.missionId, type: "related", weight: 0.7 });
-    }
-    if (dec.goalId && nodeIds.has(dec.goalId)) {
-      addEdge({ source: dec.id, target: dec.goalId, type: "related", weight: 0.7 });
-    }
-  });
-
-  // 4. Fetch DB Explicit Edges (MemoryEdge + SemanticEdge)
-  const currentIds = Array.from(nodeIds);
-  if (currentIds.length > 0) {
-    const [dbEdges, dbSemanticEdges] = await Promise.all([
-      // MemoryEdge
-      prisma.memoryEdge.findMany({
-        where: {
-          OR: [
-            { sourceId: { in: currentIds } },
-            { targetId: { in: currentIds } },
-          ],
-        },
-      }),
-      // SemanticEdge
-      prisma.semanticEdge.findMany({
-        where: {
-          OR: [
-            { fromMemoryId: { in: currentIds } },
-            { toMemoryId: { in: currentIds } },
-          ],
-          score: { gte: 0.6 },
-        },
-      }),
-    ]);
-
-    // Map MemoryEdge
-    dbEdges.forEach((e) => {
-      if (nodeIds.has(e.sourceId) && nodeIds.has(e.targetId)) {
-        let type: BrainGraphEdge["type"] = "related";
-        if (e.relationship === "blocks") type = "blocks";
-        else if (e.relationship === "supports" || e.relationship === "causes" || e.relationship === "leads_to") type = "supports";
-        else if (e.relationship === "contradicts") type = "contradicts";
-        else if (e.relationship === "depends_on") type = "depends_on";
-
-        addEdge({
-          source: e.sourceId,
-          target: e.targetId,
-          type,
-          weight: e.strength,
-        });
-      }
-    });
-
-    // Map SemanticEdge
-    dbSemanticEdges.forEach((se) => {
-      if (nodeIds.has(se.fromMemoryId) && nodeIds.has(se.toMemoryId)) {
-        addEdge({
-          source: se.fromMemoryId,
-          target: se.toMemoryId,
-          type: "related",
-          weight: se.score,
-        });
-      }
+  // Category hubs: membership is structural fact ("this memory IS a
+  // belief"), which gives memory nodes honest grouping without a single
+  // invented relationship.
+  for (const cat of memoryCategories) {
+    const hubId = `cat:${cat}`;
+    addNode({
+      id: hubId,
+      type: "system",
+      label: cat.replace(/_/g, " ").toUpperCase(),
+      weight: 6,
+      status: "active",
+      metadata: { source: "category_hub", category: cat },
     });
   }
+  dbMemories.forEach((m) => {
+    addEdge({ source: m.id, target: `cat:${m.category}`, type: "belongs_to", weight: 0.5, origin: "category" });
+  });
 
-  // 5. Connect Static System Anchor Seeds
-  // Connect AI nodes to NOUR OS
-  addEdge({ source: "ollama-glm", target: "nour-os", type: "belongs_to", weight: 0.8 });
-  addEdge({ source: "gemini-backup", target: "nour-os", type: "belongs_to", weight: 0.7 });
-  addEdge({ source: "provider-hud", target: "nour-os", type: "belongs_to", weight: 0.7 });
-  addEdge({ source: "chat-ui", target: "nour-os", type: "belongs_to", weight: 0.8 });
-  addEdge({ source: "brain-graph", target: "nour-os", type: "belongs_to", weight: 0.8 });
-  addEdge({ source: "homepage-cc", target: "nour-os", type: "belongs_to", weight: 0.9 });
+  // ── 3. FK edges (real references only) ──────────────────────────────
+  dbTasks.forEach((t) => {
+    if (t.missionId && nodeIds.has(t.missionId)) addEdge({ source: t.id, target: t.missionId, type: "belongs_to", weight: 0.8, origin: "fk" });
+    if (t.goalId && nodeIds.has(t.goalId)) addEdge({ source: t.id, target: t.goalId, type: "belongs_to", weight: 0.8, origin: "fk" });
+    if (t.personId && nodeIds.has(t.personId)) addEdge({ source: t.id, target: t.personId, type: "related", weight: 0.7, origin: "fk" });
+    if (t.parentTaskId && nodeIds.has(t.parentTaskId)) addEdge({ source: t.id, target: t.parentTaskId, type: "depends_on", weight: 0.9, origin: "fk" });
+  });
+  dbMissions.forEach((m) => {
+    if (m.lifeGoalId && nodeIds.has(m.lifeGoalId)) addEdge({ source: m.id, target: m.lifeGoalId, type: "belongs_to", weight: 0.9, origin: "fk" });
+  });
+  dbDumps.forEach((d) => {
+    if (d.missionId && nodeIds.has(d.missionId)) addEdge({ source: d.id, target: d.missionId, type: "mentions", weight: 0.6, origin: "fk" });
+    if (d.goalId && nodeIds.has(d.goalId)) addEdge({ source: d.id, target: d.goalId, type: "mentions", weight: 0.6, origin: "fk" });
+  });
+  dbReflections.forEach((r) => {
+    if (r.missionId && nodeIds.has(r.missionId)) addEdge({ source: r.id, target: r.missionId, type: "related", weight: 0.7, origin: "fk" });
+    if (r.goalId && nodeIds.has(r.goalId)) addEdge({ source: r.id, target: r.goalId, type: "related", weight: 0.7, origin: "fk" });
+  });
+  dbDecisions.forEach((dec) => {
+    if (dec.missionId && nodeIds.has(dec.missionId)) addEdge({ source: dec.id, target: dec.missionId, type: "related", weight: 0.7, origin: "fk" });
+    if (dec.goalId && nodeIds.has(dec.goalId)) addEdge({ source: dec.id, target: dec.goalId, type: "related", weight: 0.7, origin: "fk" });
+  });
 
-  // Connect NOUR OS to Discipline
-  addEdge({ source: "nour-os", target: "discipline", type: "supports", weight: 0.9 });
-
-  // Connect Business to Nick's Tire
-  addEdge({ source: "nicks-tire", target: "business", type: "related", weight: 0.8 });
-
-  // Connect live DB elements to anchors based on their domain/tags
-  nodes.forEach((node) => {
-    if (node.metadata?.source === "system_seed") return;
-
-    if (node.type === "goal" && node.metadata?.domain) {
-      const dom = String(node.metadata.domain).toLowerCase();
-      if (dom === "fitness" || dom === "health") {
-        addEdge({ source: node.id, target: "fitness", type: "supports", weight: 0.8 });
-      } else if (dom === "business" || dom === "finance") {
-        addEdge({ source: node.id, target: "business", type: "supports", weight: 0.8 });
-      } else if (dom === "personal" || dom === "career") {
-        addEdge({ source: node.id, target: "discipline", type: "supports", weight: 0.7 });
-      }
-    }
-
-    if (node.type === "mission" && node.metadata?.priority) {
-      // Missions match anchors based on seed classification
-      const title = node.label.toLowerCase();
-      if (title.includes("tire") || title.includes("shop") || title.includes("auto")) {
-        addEdge({ source: node.id, target: "nicks-tire", type: "belongs_to", weight: 0.8 });
-      } else if (title.includes("diet") || title.includes("gym") || title.includes("workout") || title.includes("run")) {
-        addEdge({ source: node.id, target: "fitness", type: "supports", weight: 0.8 });
-      } else if (title.includes("post") || title.includes("video") || title.includes("write") || title.includes("grow")) {
-        addEdge({ source: node.id, target: "content", type: "supports", weight: 0.8 });
-      } else {
-        addEdge({ source: node.id, target: "discipline", type: "supports", weight: 0.6 });
-      }
+  // Domain edges from the goal's OWN domain field (real data — the old
+  // keyword-matching of mission titles is gone).
+  dbGoals.forEach((g) => {
+    const anchor = g.domain ? DOMAIN_ANCHOR[String(g.domain).toLowerCase()] : undefined;
+    if (anchor && nodeIds.has(anchor)) {
+      addEdge({ source: g.id, target: anchor, type: "supports", weight: 0.7, origin: "domain" });
     }
   });
 
-  // 6. BFS Neighborhood Extraction (Focus Mode)
+  // ── 4. Stored edges + contradictions (bounded, degraded-aware) ──────
+  const currentIds = Array.from(nodeIds);
+  let contradictionCount = 0;
+  if (currentIds.length > 0) {
+    const edgeSettled = await Promise.allSettled([
+      withDeadline(
+        prisma.memoryEdge.findMany({
+          where: { OR: [{ sourceId: { in: currentIds } }, { targetId: { in: currentIds } }] },
+          take: 2000,
+        }),
+        DOMAIN_DEADLINE_MS,
+        "memory_edges",
+      ),
+      withDeadline(
+        prisma.semanticEdge.findMany({
+          where: {
+            OR: [{ fromMemoryId: { in: currentIds } }, { toMemoryId: { in: currentIds } }],
+            score: { gte: 0.6 },
+          },
+          take: 2000,
+        }),
+        DOMAIN_DEADLINE_MS,
+        "semantic_edges",
+      ),
+      withDeadline(
+        prisma.brainMemory.findMany({
+          // BRAIN_CATEGORIES.CONTRADICTION, not a string literal — the
+          // surfacer writes through the same constant, so a rename can
+          // never silently blind this reader. Measured 2026-08-19: this
+          // store is currently EMPTY in prod (0 rows), so contradiction
+          // edges render zero today. That is a correct reader over an
+          // empty store, not a broken one — it lights up the moment
+          // surfaceContradictions() flags a pair.
+          where: { category: BRAIN_CATEGORIES.CONTRADICTION, deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+          select: { content: true },
+        }),
+        DOMAIN_DEADLINE_MS,
+        "contradictions",
+      ),
+    ]);
+
+    if (edgeSettled[0].status === "fulfilled") {
+      edgeSettled[0].value.forEach((e) => {
+        if (nodeIds.has(e.sourceId) && nodeIds.has(e.targetId)) {
+          let type: BrainGraphEdge["type"] = "related";
+          if (e.relationship === "blocks") type = "blocks";
+          else if (e.relationship === "supports" || e.relationship === "causes" || e.relationship === "leads_to") type = "supports";
+          else if (e.relationship === "contradicts") type = "contradicts";
+          else if (e.relationship === "depends_on") type = "depends_on";
+          addEdge({ source: e.sourceId, target: e.targetId, type, weight: e.strength, origin: "memory_edge" });
+        }
+      });
+    } else degraded.push("memory_edges");
+
+    if (edgeSettled[1].status === "fulfilled") {
+      edgeSettled[1].value.forEach((se) => {
+        if (nodeIds.has(se.fromMemoryId) && nodeIds.has(se.toMemoryId)) {
+          addEdge({ source: se.fromMemoryId, target: se.toMemoryId, type: "related", weight: se.score, origin: "semantic" });
+        }
+      });
+    } else degraded.push("semantic_edges");
+
+    if (edgeSettled[2].status === "fulfilled") {
+      const contradictedIds = new Set<string>();
+      edgeSettled[2].value.forEach((row) => {
+        let parsed: StoredContradictionContent = {};
+        try {
+          parsed = JSON.parse(row.content) as StoredContradictionContent;
+        } catch {
+          return; // non-JSON contradiction rows carry no pair — skip
+        }
+        const unresolved = !parsed.status || parsed.status === "unresolved";
+        if (!unresolved || !parsed.new_memory_id || !parsed.old_memory_id) return;
+        contradictionCount += 1;
+        if (nodeIds.has(parsed.new_memory_id) && nodeIds.has(parsed.old_memory_id)) {
+          addEdge({
+            source: parsed.new_memory_id,
+            target: parsed.old_memory_id,
+            type: "contradicts",
+            weight: 0.9,
+            origin: "contradiction",
+          });
+          contradictedIds.add(parsed.new_memory_id);
+          contradictedIds.add(parsed.old_memory_id);
+        }
+      });
+      if (contradictedIds.size > 0) {
+        nodes.forEach((n) => {
+          if (contradictedIds.has(n.id)) n.contradicted = true;
+        });
+      }
+    } else degraded.push("contradictions");
+  }
+
+  // Anchor spine — the OS relates its own domains; explicit, minimal.
+  addEdge({ source: "nicks-tire", target: "business", type: "belongs_to", weight: 0.8, origin: "domain" });
+  addEdge({ source: "nour-os", target: "discipline", type: "supports", weight: 0.7, origin: "domain" });
+
+  // ── 5. Focus BFS (unchanged contract: ?focus=&depth=) ───────────────
   if (params.focus) {
     const focusNode = nodes.find((n) => n.id === params.focus);
     if (focusNode) {
       const focusNodesMap = new Map<string, BrainGraphNode>();
       const focusEdges: BrainGraphEdge[] = [];
       focusNodesMap.set(focusNode.id, focusNode);
-
       let currentQueue = [focusNode.id];
       const visited = new Set<string>([focusNode.id]);
-
       const visitedEdges = new Set<string>();
       const addFocusEdge = (e: BrainGraphEdge) => {
         const key1 = `${e.source}_${e.target}_${e.type}`;
@@ -539,17 +650,13 @@ export async function getBrainGraph(params: {
           focusEdges.push(e);
         }
       };
-
       for (let d = 0; d < depth; d++) {
         const nextQueue: string[] = [];
+        const frontier = new Set(currentQueue);
         edges.forEach((edge) => {
           let neighborId: string | null = null;
-          if (edge.source === currentQueue[0] || currentQueue.includes(edge.source)) {
-            neighborId = edge.target;
-          } else if (edge.target === currentQueue[0] || currentQueue.includes(edge.target)) {
-            neighborId = edge.source;
-          }
-
+          if (frontier.has(edge.source)) neighborId = edge.target;
+          else if (frontier.has(edge.target)) neighborId = edge.source;
           if (neighborId) {
             const neighborNode = nodes.find((n) => n.id === neighborId);
             if (neighborNode) {
@@ -565,48 +672,19 @@ export async function getBrainGraph(params: {
         currentQueue = nextQueue;
         if (currentQueue.length === 0) break;
       }
-
       return {
         nodes: Array.from(focusNodesMap.values()),
         edges: focusEdges,
         generatedAt: new Date().toISOString(),
         scope: "focus",
+        degraded,
+        contradictionCount,
       };
     }
   }
 
-  // 7. Connectivity pass: ensure no nodes are floating
-  // Calculate which nodes actually have edges in the final set
-  const resolveConnectivity = (finalNodes: BrainGraphNode[], finalEdges: BrainGraphEdge[]) => {
-    const connected = new Set<string>();
-    finalEdges.forEach(e => {
-      connected.add(e.source);
-      connected.add(e.target);
-    });
-
-    finalNodes.forEach(node => {
-      if (node.metadata?.source !== "system_seed" && !connected.has(node.id)) {
-        let targetAnchor = "nour-os";
-        if (node.type === "memory" || node.type === "journal" || node.type === "decision") targetAnchor = "brain-graph";
-        else if (node.type === "task") targetAnchor = "discipline";
-        else if (node.type === "person") targetAnchor = "family-vision";
-        else if (node.type === "goal" || node.type === "mission") {
-          targetAnchor = String(node.metadata?.domain).toLowerCase() === "business" ? "business" : "discipline";
-        }
-        
-        finalEdges.push({
-          source: node.id,
-          target: targetAnchor,
-          type: "belongs_to",
-          weight: 0.3
-        });
-      }
-    });
-  };
-
-  // If home scope, clamp nodes list to top 60-80 max
+  // ── 6. Home clamp ───────────────────────────────────────────────────
   if (isHome) {
-    // Sort nodes to keep: seeds + highest-weight tasks/goals/missions
     const filteredNodes = nodes
       .sort((a, b) => {
         if (a.metadata?.source === "system_seed" && b.metadata?.source !== "system_seed") return -1;
@@ -614,28 +692,26 @@ export async function getBrainGraph(params: {
         return b.weight - a.weight;
       })
       .slice(0, 70);
-
     const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
     const filteredEdges = edges.filter(
-      (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target)
+      (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target),
     );
-
-    resolveConnectivity(filteredNodes, filteredEdges);
-
     return {
       nodes: filteredNodes,
       edges: filteredEdges,
       generatedAt: new Date().toISOString(),
       scope: "home",
+      degraded,
+      contradictionCount,
     };
   }
-
-  resolveConnectivity(nodes, edges);
 
   return {
     nodes,
     edges,
     generatedAt: new Date().toISOString(),
     scope: "full",
+    degraded,
+    contradictionCount,
   };
 }

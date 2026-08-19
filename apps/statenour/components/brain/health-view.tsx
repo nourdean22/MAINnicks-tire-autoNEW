@@ -22,6 +22,11 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
 import {
+  attentionTone,
+  describeConfidenceAsAttention,
+  sightingsFromConfidence,
+} from "@/lib/brain/attention-label";
+import {
   Activity,
   AlertCircle,
   Loader2,
@@ -273,15 +278,18 @@ function VectorizationBar({
 }
 
 function CategoryRow({ c }: { c: CategoryHealth }) {
-  const confPct = Math.round(c.avgConfidence * 100);
+  // 2026-08-19 · was `Math.round(avgConfidence * 100) + "%"`, which read as
+  // a probability. confidence is a re-sighting counter (0.5 + 0.1×(n−1)),
+  // so the mean inverts exactly to a mean sighting count — report that.
+  const avgSightings = sightingsFromConfidence(c.avgConfidence);
+  const attention = describeConfidenceAsAttention(c.avgConfidence);
+  const tone = attentionTone(avgSightings);
   const confColor =
-    confPct >= 80
+    tone === "hot"
       ? "text-emerald-300"
-      : confPct >= 50
+      : tone === "warm"
         ? "text-[var(--gold)]"
-        : confPct >= 25
-          ? "text-amber-300"
-          : "text-rose-300";
+        : "text-[var(--text-tertiary)]";
 
   const stale = c.ageNewestHours !== null && c.ageNewestHours > 24 * 7;
   const dormant = c.ageNewestHours !== null && c.ageNewestHours > 24 * 30;
@@ -344,8 +352,8 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
           </span>
         </span>
         <span className="text-[var(--text-tertiary)]">
-          conf{" "}
-          <span className={cn("tabular-nums", confColor)}>{confPct}%</span>
+          <span className={cn("tabular-nums", confColor)}>{attention}</span>{" "}
+          avg
         </span>
         <span
           className={cn(

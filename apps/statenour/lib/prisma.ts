@@ -87,7 +87,27 @@ function createPrismaClient(): PrismaClient {
   const adapter =
     process.env.E2E_PLAIN_PG === "1"
       ? null // Prisma: null (not undefined) conditionally disables adapters
-      : new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+      : new PrismaNeon({
+          connectionString: process.env.DATABASE_URL,
+          // 2026-08-19 · /brain infinite-spinner root cause. The Neon
+          // driver's pool defaults to max:10 with NO checkout timer — a
+          // checkout against a saturated pool queues FOREVER (vendored
+          // @neondatabase/serverless index.js:1110, connectionTimeoutMillis
+          // unset → no timer), and connect_timeout defaults to 0. With
+          // Railway ignoring maxDuration and no client fetch timeout,
+          // any sustained pool contention (the graph route alone demands
+          // 8 of the 10 slots at once; the evening cron fan-out shares
+          // the same pool) turned directly into requests that never
+          // settle. Measured in prod: the #1 error_logs pattern (730 of
+          // 1,427 rows / 30d) is the "Database hiccup · engine couldn't
+          // reach state" class this produces. Bound both waits so a
+          // starved request FAILS in seconds — an error the UI can show
+          // — instead of hanging forever.
+          connectionTimeoutMillis: 10_000,
+          // Client-side per-query timer (driver-level, works through the
+          // -pooler endpoint regardless of server session settings).
+          query_timeout: 30_000,
+        });
 
   // v10.0.18 — emit "query" events in BOTH dev + prod so the slow-query
   // tracker can populate /system/slow-queries. Dev keeps the verbose

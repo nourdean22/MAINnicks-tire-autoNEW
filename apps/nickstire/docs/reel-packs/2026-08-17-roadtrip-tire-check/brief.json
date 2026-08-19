@@ -1,0 +1,112 @@
+{
+  "packId": "2026-08-17-roadtrip-tire-check",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "not on REEL-SLATE-2026-07-31.md — sourced from server/services/shadowPlanner.ts SHADOW_CAMPAIGNS entry \"roadtrip_check\" (audienceMoment: \"Road-trip season on tires that have not been looked at since winter\", campaignKeyword TIRES, months [5,6,7,8], urgency 10, objective booking, marginClass high)",
+  "campaignKeyword": "TIRES",
+  "archetype": "fast_countdown_list",
+  "motionLenses": ["forensic_evidence_scan", "product_ad_macro"],
+  "hookText": "Most road-trip breakdowns start as a ten-minute check somebody skipped.",
+  "ctaText": "All four, one visit, before you go. Nick's Tire and Auto — link in bio.",
+  "durationSeconds": 28,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions and countdown numerals via ffmpeg overlay only — never generated in-frame (Seedance/Higgsfield cannot spell reliably; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Most road-trip breakdowns start as a ten-minute check somebody skipped.",
+      "onScreenText": "",
+      "providerScene": "Forensic-scan style close-up of a car's front tire and wheel well under bright inspection-bay light, faint scan-line HUD glow sweeping across the surface, clean dark background, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "VALUE #4",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "Four: tread depth. Worn tread on hot highway miles is a blowout waiting on a schedule.",
+      "onScreenText": "4 · TREAD",
+      "providerScene": "Extreme macro of a tire tread depth gauge probe pressing into worn tread grooves, forensic scan-line glow highlighting the shallow depth, clean dark field, slow controlled push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE #3",
+      "startSecond": 8,
+      "endSecond": 13,
+      "narration": "Three: pressure — all five tires, including the spare nobody's looked at since it came off the truck.",
+      "onScreenText": "3 · PRESSURE + SPARE",
+      "providerScene": "Macro shot of a tire pressure gauge on a valve stem, then a slow reveal pan to a spare tire in a trunk well under a forensic scan-line glow, clean dark field, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE #2",
+      "startSecond": 13,
+      "endSecond": 18,
+      "narration": "Two: belts and hoses. A hairline crack you can't feel is exactly what quits at mile two hundred.",
+      "onScreenText": "2 · BELTS + HOSES",
+      "providerScene": "Engine-bay macro of a serpentine belt and radiator hose under inspection-bay light, forensic scan-line glow sweeping to highlight a fine surface crack, clean dark field, slow push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "VALUE #1",
+      "startSecond": 18,
+      "endSecond": 23,
+      "narration": "One: fluid levels. Low is cheap to catch in the driveway. Empty is expensive on the shoulder.",
+      "onScreenText": "1 · FLUIDS",
+      "providerScene": "Macro shot of an engine oil dipstick being checked and a coolant reservoir level line, forensic scan-line glow marking the fill level, clean dark field, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 6,
+      "intent": "CTA",
+      "startSecond": 23,
+      "endSecond": 28,
+      "narration": "All four, one visit, before you go. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "ONE VISIT. BEFORE YOU GO.",
+      "providerScene": "Premium product-ad-macro wide shot of a clean garage bay counter with tools racked in soft studio light, no readable signage or branding in frame, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted, unresolved music-rights gap (README §6); optional single royalty-free ambient garage/tool-clink SFX only",
+    "sfxNotes": "optional soft mechanical click under each countdown-numeral entrance (beats 2-5); skip rather than substitute an uncleared source if none is available"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 7 },
+      "mutedFirst": { "max": 10, "score": 9 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 4 },
+      "sourcedFact": { "max": 10, "score": 6 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (60/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "60/75 (self-estimate) — below the 70/75 auto-pass floor; needs EvidenceRecord citations for the general engineering claims (tread/blowout risk, belt-crack failure) and a tighter loop before this would likely clear the real gate"
+  },
+  "liveVerification": {
+    "repetitionLedgerQueried": false,
+    "evidenceResolverQueried": false,
+    "reelCanaryCalled": false,
+    "rendered": false,
+    "published": false
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-summer-heat-tire-pressure",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "not on REEL-SLATE-2026-07-31.md — sourced instead from server/services/shadowPlanner.ts SHADOW_CAMPAIGNS entry \"summer_pressure\" (audienceMoment: \"Heat swings blowing tire pressure past the door-sticker number\", campaignKeyword PRESSURE, months [6,7,8], urgency 9)",
+  "campaignKeyword": "PRESSURE",
+  "hookText": "That tire light in August might be heat, not a warning.",
+  "ctaText": "Check pressure cold, before you drive. Or stop by and we'll take a look.",
+  "durationSeconds": 28,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "That tire light in August might be heat, not a warning.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro, dashboard TPMS warning icon glowing amber, shallow depth of field, slight handheld-style micro-shake, hot afternoon sunlight glare through a windshield, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 9,
+      "narration": "Air expands with heat — about 1 PSI for every 10 degrees. Drive on hot asphalt and your reading climbs.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a tire pressure gauge needle rising, mounted on a tire valve stem in bright midday sun, heat-shimmer visible off dark asphalt in the background, slow push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 9,
+      "endSecond": 16,
+      "narration": "Check it hot midday and it looks fine. Check it again cold the next morning, and it can read several PSI low.",
+      "onScreenText": "",
+      "providerScene": "Split-feel single shot: same tire valve stem and gauge, warm golden midday light dissolving into cooler blue early-morning light via a slow lighting transition, static camera, time-of-day contrast, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Underinflated on a hot highway is exactly when a tire is most likely to overheat.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a tire sidewall flexing under load on hot pavement, slow lateral tracking shot alongside a moving wheel well, heat-haze practical effect, motion blur on the road surface, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Check pressure cold, before you drive. Or stop by and we'll take a look. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door open to bright summer daylight, tools racked in the background, no readable signage or branding in frame, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient light traffic / garage room-tone only, royalty-free",
+    "sfxNotes": "optional single soft 'hiss' sting under beat 3 (pressure-drop reveal); skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 8 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 7 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (62/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "62/75 (self-estimate) — below the 70/75 auto-pass floor; needs an EvidenceRecord citation for sourcedFact (currently backed only by the same 1-PSI-per-10-degrees ratio already used in the brand-voice-approved slate item #3, reversed in direction) and a tighter loop before this would likely clear the real gate"
+  }
+}

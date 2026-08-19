@@ -74,6 +74,15 @@ export const ENV_SPEC: Spec[] = [
   { key: "VAPID_PUBLIC_KEY",    tier: "runtime", description: "Web push — PWA" },
   { key: "VAPID_PRIVATE_KEY",   tier: "runtime", description: "Web push — PWA" },
   { key: "GOOGLE_PLACES_API_KEY", tier: "runtime", description: "GBP reviews feed" },
+  // Paired with the key above — fetchAndStoreReviews() throws unless BOTH are
+  // set (lib/integrations/google-reviews.ts). This entry was missing, so
+  // `pnpm check:env:prod` reported a healthy environment while the
+  // ingest-reviews cron hard-failed 64 consecutive times on prod (2026-08-19)
+  // for want of exactly this variable. A manifest that omits a hard
+  // requirement is worse than no manifest: it launders a broken config as
+  // verified. Runtime tier (not required) to match the key — a missing review
+  // feed must not block boot.
+  { key: "GOOGLE_PLACE_ID", tier: "runtime", description: "GBP place id for the reviews feed — required alongside GOOGLE_PLACES_API_KEY" },
   { key: "OPENWEATHER_API_KEY", tier: "runtime", description: "Weather brain engine" },
   { key: "APOLLO_API_KEY",      tier: "runtime", description: "Contact enrichment" },
   { key: "STRIPE_SECRET_KEY",   tier: "runtime", description: "Payments" },

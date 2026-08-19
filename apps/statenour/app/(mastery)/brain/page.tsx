@@ -22,10 +22,16 @@ import { KnowledgeActionOutcomes } from "@/components/brain/knowledge-action-out
 import { KnowledgeReviewTab } from "@/components/brain/knowledge-review-tab";
 import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 import { DiscoverTab } from "@/components/brain/discover-tab";
+import { ResearchPipelineStatus } from "@/components/brain/research-pipeline-status";
 
 function GovernedKnowledgeReview() {
   return (
     <div className="space-y-8">
+      {/* 2026-08-19 · an empty queue and a STRUCTURALLY DEAD queue used to
+          render identically here. Measured in prod: 893 claims ingested,
+          best verification score 0.58 against a 0.75 promotion gate, zero
+          candidates ever produced. This panel says so. */}
+      <ResearchPipelineStatus />
       <KnowledgeActionOutcomes />
       <KnowledgeReviewTab />
     </div>
@@ -42,21 +48,31 @@ export default function BrainPage() {
         width="3xl"
         rhythm="loose"
       >
+        {/* 2026-08-19 · Brain truth pass · ordered by the mental model
+            instead of accretion order, so nine tabs read as ONE product:
+              MAP      — where everything is and how it connects
+              RULE     — what needs the operator's judgment (Discover =
+                         what the engines noticed, Review = governed
+                         external claims)
+              LIBRARY  — what we believe and what it taught us
+              THINK    — operator-initiated cognition
+              PULSE    — what changed, and is the substrate healthy
+            Tab KEYS are deliberately unchanged: ?tab=memory&resolve=,
+            ?tab=reason&q=, ?tab=wisdom&focus=, ?tab=board, ?tab=health
+            and ?tab=continuity are live deep-link contracts from Home,
+            the ticker, the command palette and chat tool results. */}
         <PageTabs
           defaultKey="graph"
           tabs={[
-            { key: "graph", label: "Graph", render: () => <HomeBrainGraph variant="full" /> },
-            { key: "memory", label: "Memory", render: () => <MemoryTab /> },
-            // 2026-08-16 · Discover sits next to Memory on purpose: Memory is
-            // what we believe, Discover is what the engines noticed and the
-            // operator has not ruled on yet.
+            { key: "graph", label: "Map", render: () => <HomeBrainGraph variant="full" /> },
             { key: "discover", label: "Discover", render: () => <DiscoverTab /> },
             { key: "review", label: "Review", render: () => <GovernedKnowledgeReview /> },
-            { key: "board", label: "Board", render: () => <BoardTab /> },
+            { key: "memory", label: "Memory", render: () => <MemoryTab /> },
             { key: "wisdom", label: "Wisdom", render: () => <WisdomTab /> },
+            { key: "board", label: "Board", render: () => <BoardTab /> },
             { key: "reason", label: "Reason", render: () => <ReasonTab /> },
+            { key: "continuity", label: "Changed", render: () => <BrainContinuityView /> },
             { key: "health", label: "Health", render: () => <BrainHealthView /> },
-            { key: "continuity", label: "Continuity", render: () => <BrainContinuityView /> },
           ]}
         />
       </StandardPage>

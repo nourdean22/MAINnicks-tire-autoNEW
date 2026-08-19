@@ -151,7 +151,7 @@
     "zustand": "5.0.14"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "^16.3.0",
+    "@next/bundle-analyzer": "^16.3.1",
     "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/js-yaml": "4.0.9",
@@ -165,13 +165,13 @@
     "autoprefixer": "^10.5.4",
     "cross-env": "^10.1.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.0",
+    "eslint-config-next": "^16.3.1",
     "glob": "^13.0.6",
     "inngest-cli": "1.41.1",
     "postcss": "^8.5.26",
     "prisma": "catalog:",
     "tailwindcss": "catalog:",
-    "tsx": "^4.23.11",
+    "tsx": "^4.23.12",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

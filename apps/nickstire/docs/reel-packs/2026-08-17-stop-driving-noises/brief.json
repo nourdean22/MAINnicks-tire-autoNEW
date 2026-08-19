@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-17-stop-driving-noises",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #19",
+  "campaignKeyword": "STOP-NOISE",
+  "hookText": "Most car noises can wait. These three cannot.",
+  "ctaText": "Send this to someone who just said their car's making a weird noise.",
+  "durationSeconds": 28,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Most car noises can wait. These three cannot.",
+      "onScreenText": "",
+      "providerScene": "Interior POV from the driver's seat, hands resting on the steering wheel, dashboard instrument cluster softly glowing, dusk light through the windshield, faint tension in the framing, slow subtle handheld sway, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "Grinding when you brake. Knocking that speeds up with the engine.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro of a brake caliper gripping a rotor mid-rotation, dim garage bay lighting, slow push-in, shallow depth of field, texture-forward metal surfaces, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 14,
+      "narration": "A rhythmic clunk that tracks with your wheel speed — not your engine speed.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a front suspension strut and control-arm assembly on a shop lift, slow lateral dolly tracking along the assembly toward the wheel hub, even workshop practical lighting, mechanical texture-forward, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 14,
+      "endSecond": 21,
+      "narration": "Every one of these gets dramatically more expensive with every mile you keep driving.",
+      "onScreenText": "",
+      "providerScene": "Close-up push-in on a damaged metal part resting on a shop workbench under harsh inspection light, slow pull-back revealing two more visibly worn parts scattered nearby to imply cascading damage, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 21,
+      "endSecond": 28,
+      "narration": "Send this to someone who just said their car's making a weird noise. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient garage/road room-tone plus one metallic 'clunk' SFX under beat 3, royalty-free only",
+    "sfxNotes": "optional single metallic 'clunk' sting under beat 3 (suspension reveal) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 9 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 2 },
+      "sourcedFact": { "max": 10, "score": 5 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (60/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "60/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for at least one of the three sourcedFact claims and a tighter loop before this would likely clear the real gate"
+  }
+}

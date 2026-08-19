@@ -1,0 +1,122 @@
+{
+  "campaignKeyword": "COMPOUND45",
+  "topic": "All-season tires stop gripping around 45°F — rubber compound hardness, not tread pattern",
+  "sourceSlateItem": "REEL-SLATE-2026-07-31.md#11-all-season-vs-winter-tires",
+  "generatedAt": "2026-08-18",
+  "mode": "INTELLIGENCE/PRODUCTION",
+  "liveGenerationAttempted": false,
+  "liveDbRead": false,
+  "livePublishAttempted": false,
+  "archetype": "myth_vs_reality",
+  "durationSeconds": 33,
+  "beats": [
+    {
+      "index": 1,
+      "label": "Hook",
+      "startSec": 0,
+      "endSec": 2,
+      "visual": "Extreme macro shot of a tire tread block on dry asphalt, soft natural daylight, shallow depth of field, no snow or ice visible anywhere",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "overlayText": null,
+      "voiceover": "This has nothing to do with snow."
+    },
+    {
+      "index": 2,
+      "label": "Setup",
+      "startSec": 2,
+      "endSec": 5,
+      "visual": "A minimalist analog temperature gauge world, needle resting near a marked threshold line, clean studio lighting, cool-toned background",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "overlayText": "45°F",
+      "voiceover": "All-season tires stop working around 45 degrees."
+    },
+    {
+      "index": 3,
+      "label": "Value 1",
+      "startSec": 5,
+      "endSec": 10,
+      "visual": "Technical x-ray cutaway visualization of a tire tread block, internal rubber structure visibly stiffening, a cold blue tint creeping through the material, precise engineering aesthetic",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "overlayText": "COMPOUND HARDENS",
+      "voiceover": "Below that, the rubber compound stiffens up."
+    },
+    {
+      "index": 4,
+      "label": "Value 2",
+      "startSec": 10,
+      "endSec": 15,
+      "visual": "Split-frame macro comparison of two tire tread blocks pressed against dry asphalt texture, one warm-toned and supple, one cold-blue-toned and rigid, studio product lighting",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "overlayText": "GRIP DROPS — EVEN ON DRY ROADS",
+      "voiceover": "And grip drops — on dry pavement too, not just snow."
+    },
+    {
+      "index": 5,
+      "label": "Value 3",
+      "startSec": 15,
+      "endSec": 20,
+      "visual": "Premium product macro of a winter tire tread block, warm amber lighting, staying visibly flexible and supple, shallow depth of field, dark seamless background",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "overlayText": "WINTER COMPOUND STAYS SOFT",
+      "voiceover": "Winter tires use a softer compound that stays flexible."
+    },
+    {
+      "index": 6,
+      "label": "Value 4",
+      "startSec": 20,
+      "endSec": 25,
+      "visual": "The same analog temperature gauge world, the needle drifting slowly past the marked threshold line as the ambient light cools",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "overlayText": "THAT'S THE WHOLE DIFFERENCE",
+      "voiceover": "That's the whole difference — not the tread pattern, the rubber itself."
+    },
+    {
+      "index": 7,
+      "label": "CTA",
+      "startSec": 25,
+      "endSec": 30,
+      "visual": "Extreme macro shot of a tire tread block on dry asphalt, mirroring the beat-1 opening framing for a loop seam, light warming back to neutral",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "overlayText": "SAVE THIS.",
+      "voiceover": "Save this for when the forecast turns."
+    },
+    {
+      "index": 8,
+      "label": "SAVE freeze",
+      "startSec": 30,
+      "endSec": 33,
+      "visual": "Static hold on the CTA card",
+      "negativePrompt": null,
+      "overlayText": "Send this to whoever still runs all-seasons through January.\nStop by when it's time — we'll help you decide.\nNick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "voiceover": null
+    }
+  ],
+  "claimEvidence": [
+    {
+      "claim": "All-season tire rubber compounds begin to stiffen below roughly 45°F (7°C), reducing grip",
+      "kind": "proof",
+      "entailment": "not_evaluated",
+      "source": "docs/REEL-SLATE-2026-07-31.md item #11 (pre-approved); consistent with published tire-industry consumer guidance"
+    },
+    {
+      "claim": "Grip loss below that threshold happens on dry pavement too, not only snow/ice",
+      "kind": "proof",
+      "entailment": "not_evaluated",
+      "source": "docs/REEL-SLATE-2026-07-31.md item #11 (pre-approved)"
+    },
+    {
+      "claim": "Winter-tire compounds use a softer, silica-heavy formulation that stays flexible at low temperatures",
+      "kind": "proof",
+      "entailment": "not_evaluated",
+      "source": "general tire-industry engineering knowledge, not shop-specific"
+    }
+  ],
+  "estimatedQualityScore": {
+    "total": 63,
+    "floor": 70,
+    "pass": false,
+    "note": "Manual estimate only, not a live calculateReelQualityScore() run"
+  },
+  "audioMusicRights": "no music-rights ledger exists in this repo; VO + short SFX only, no licensed music bed selected",
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}

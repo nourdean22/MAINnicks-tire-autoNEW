@@ -1,0 +1,77 @@
+{
+  "campaignKeyword": "PSWHINE",
+  "createdDate": "2026-08-18",
+  "mode": "INTELLIGENCE+PRODUCTION",
+  "renderedThisRun": false,
+  "publishedThisRun": false,
+  "concept": {
+    "hook": "That whine when you turn the wheel?",
+    "coreFact": "Air in low power-steering fluid causes the turning whine and accelerates pump seal wear",
+    "factBucket": "wallet_protectors",
+    "driverEmotion": "oh, that's what that sound is",
+    "archetype": "pov_you_are_the_part",
+    "motionLens": ["pov_driver_wheel", "xray_cutaway", "product_ad_macro"],
+    "objectCharacter": "power_steering_pump",
+    "usefulAbsurdity": "x-ray diagnostic reveal of the exact mechanism behind a familiar sound",
+    "localAngle": "Cleveland stop-and-go and rough roads add steering-system load over time",
+    "beatOutline": [
+      "POV hands on wheel, whine rises",
+      "Whine climbs, named as not-normal",
+      "X-ray: air bubbles in pump fluid",
+      "X-ray: seal wear from aerated fluid",
+      "Macro: reservoir fluid-level check",
+      "POV hands on wheel, whine gone",
+      "POV mirrors opener, CTA card"
+    ],
+    "loopIdea": "Closing POV shot mirrors the opening POV framing, whine faded to silence",
+    "captionAngle": "The whine is your power-steering pump asking for help",
+    "saveShareReason": "Actionable 5-minute self-check drivers can do before spending money",
+    "nickFitReason": "Steering/fluid checks are a core service; teaches the check, not a hard sell",
+    "nonGenericReason": "X-ray mechanism reveal beats a generic 'signs your power steering is failing' listicle",
+    "rejectionRisk": "POV hands-on-wheel framing may need to be tighter to clear the standing negative-prompt term 'hands' — flagged for preflight, not resolved here",
+    "scores": { "hook": 8, "truth": 9, "save": 9, "local": 6, "absurdity": 4, "fit": 10, "total60": 46 },
+    "estimatedQualityScore75": 62,
+    "estimatedQualityScoreNote": "Manual estimate, not a live calculateReelQualityScore() run. Below the 70/75 floor; weakest dimension is muted-first (audio-led hook)."
+  },
+  "parkedConcept": {
+    "hook": "Your car is a rumor mill",
+    "archetype": "part_as_character_drama",
+    "scores": { "hook": 7, "truth": 8, "save": 7, "local": 5, "absurdity": 8, "fit": 8, "total60": 43 },
+    "parkedReason": "Personified-pump bit risks landing as cute rather than useful; the mechanic fact is strong enough to carry a straight explainer"
+  },
+  "storyboard": [
+    { "beat": 1, "label": "Hook", "start": 0, "end": 2, "visual": "POV hands on wheel turning, whine begins", "overlay": null, "vo": "That whine when you turn the wheel?" },
+    { "beat": 2, "label": "Setup", "start": 2, "end": 5, "visual": "Same POV, whine climbs", "overlay": "NOT NORMAL", "vo": "That's not normal — and it's not going to fix itself." },
+    { "beat": 3, "label": "Value1", "start": 5, "end": 10, "visual": "X-ray cutaway: pump fluid with air bubbles", "overlay": "AIR IN THE FLUID", "vo": "Low fluid lets air into the pump — that air is the whine you're hearing." },
+    { "beat": 4, "label": "Value2", "start": 10, "end": 15, "visual": "X-ray cutaway: seal drying/cracking", "overlay": null, "vo": "Keep driving on it, and that air wears the pump's seals down." },
+    { "beat": 5, "label": "Value3", "start": 15, "end": 20, "visual": "Macro: reservoir cap lifted, low fluid line", "overlay": "5-MINUTE CHECK", "vo": "Five-minute check: pop the hood, look at the reservoir line." },
+    { "beat": 6, "label": "Value4", "start": 20, "end": 25, "visual": "POV hands on wheel, smooth turn, whine gone", "overlay": "CAUGHT EARLY = A TOP-OFF", "vo": "Catch it early, it's a top-off. Wait, and it's a pump." },
+    { "beat": 7, "label": "CTA", "start": 25, "end": 30, "visual": "POV mirrors beat 1 framing, silent", "overlay": "WORTH CHECKING.", "vo": "Worth checking before the whine turns into a bigger bill." },
+    { "beat": 8, "label": "SAVE freeze", "start": 30, "end": 33, "visual": "Static CTA card", "overlay": "Send this to whoever's car has been whining on turns. / Stop by — we'll check the fluid, no charge. / Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005", "vo": null }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "negativePromptFlag": "POV beats show hands-on-wheel; literal term 'hands' is in the negative prompt list — confirm against live M10 preflight before generating",
+  "visualSourcingRoutes": [
+    { "route": "shop_shot_footage", "coversBeats": [1, 2, 5, 6, 7, 8], "estCostUsd": 0 },
+    { "route": "template_stock", "coversBeats": [], "estCostUsd": 0, "note": "abstract backdrops unsuitable for x-ray beats" },
+    { "route": "higgsfield_seedance", "coversBeats": [3, 4], "estCostUsd": 0.50, "note": "REEL_VIDEO_PROVIDER currently pinned to template_stock in prod per docs/operations/REEL-PIPELINE.md; not live-verified this run" },
+    { "route": "licensed_stock", "coversBeats": [3, 4], "estCostUsd": null, "note": "no specific asset sourced or verified" }
+  ],
+  "musicRights": {
+    "ledgerExists": false,
+    "defaultRoute": "VO + short rising-whine SFX, no licensed music bed",
+    "fallbackOption": "Meta built-in royalty-free audio library inside IG/FB Reels composer, unverified track"
+  },
+  "qaMatrix": {
+    "claimSafetyWording": "PASS",
+    "brandVoiceKillList": "PASS_MANUAL_NOT_LIVE_LINTED",
+    "facelessCompliance": "PASS_MANUAL_WITH_FLAGGED_EDGE_CASE",
+    "repetitionLedgerLiveDb": "UNKNOWN_NOT_QUERIED",
+    "renderIntegrityGate": "UNKNOWN_NOT_RENDERED",
+    "renderedQaVisionCritic": "UNKNOWN_NOT_RUN",
+    "consolidatedPublishGate": "BLOCKED_NEVER_CALLED",
+    "qualityScoreVsFloor": "FAIL_ESTIMATED_62_OF_75"
+  },
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL",
+  "backlogNote": "34 open draft reel-pack PRs found via live GitHub search this run, none overlapping this topic; recommend operator batch-review/merge or pause the scheduled trigger until reviewed"
+}

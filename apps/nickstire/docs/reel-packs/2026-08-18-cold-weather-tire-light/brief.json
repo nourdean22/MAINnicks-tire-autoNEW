@@ -1,0 +1,85 @@
+{
+  "id": "content-pack-2026-08-18-cold-weather-tire-light",
+  "campaignKeyword": "COLDSNAP",
+  "archetype": "caught_on_camera_documentary",
+  "motionLenses": ["forensic_evidence_scan", "product_ad_macro"],
+  "selectedCaption": "You didn't run over anything. That warning light isn't damage — it's the weather. Every ten degrees the temperature drops pulls about one PSI out of every tire. That's why the light shows up on the first cold Cleveland morning, out of nowhere. Warm tires read high and hide the real number. Check the pressure cold, before you drive. Worth checking before that first frost.",
+  "hashtags": ["#tirepressure", "#ohioweather", "#cartips", "#clevelandohio"],
+  "voiceoverScript": "You didn't run over anything. That warning light isn't damage — it's the weather. Every ten degrees the temperature drops pulls about one PSI out of every tire. That's why the light shows up on the first cold Cleveland morning — out of nowhere. Warm tires read high and hide the real number. Check the pressure cold, before you drive — that's the number that counts. Worth checking before that first frost. Send this before the first cold snap. Stop by — we'll check it, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 2,
+      "onScreenText": null,
+      "visual": "Extreme macro inside a dark car dashboard, an amber tire-pressure warning icon glowing to life, a thin diagnostic scan-line sweeps across the icon, deep blacks with amber bokeh glow, no faces, no legible text baked into the shot"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 2,
+      "endSecond": 5,
+      "onScreenText": "NOT DAMAGE.",
+      "visual": "Same dark dashboard macro, the amber warning icon holds steady as the diagnostic scan-line locks in place, deep blacks with amber bokeh glow"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 5,
+      "endSecond": 10,
+      "onScreenText": "EVIDENCE 1: -10F ~ -1 PSI",
+      "visual": "Forensic evidence-scan aesthetic: extreme macro on a tire sidewall, a horizontal scan-line sweeps across it, cool investigative lighting, clean dark field"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 10,
+      "endSecond": 15,
+      "onScreenText": "EVIDENCE 2: THE FIRST COLD MORNING",
+      "visual": "Forensic evidence-scan aesthetic continues: macro on frost forming on a car window at dawn, cool blue morning light, investigative lighting style"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 15,
+      "endSecond": 20,
+      "onScreenText": "WARM TIRES READ HIGH",
+      "visual": "Premium product commercial macro of a hand-held tire-pressure gauge pressed to a tire valve stem, the needle settling, shallow depth of field, cool morning light"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 20,
+      "endSecond": 25,
+      "onScreenText": "CHECK IT COLD, BEFORE YOU DRIVE",
+      "visual": "Same premium product macro style, the gauge needle settling to a lower cold-tire reading, shallow depth of field, cool morning light"
+    },
+    {
+      "beatNumber": 7,
+      "startSecond": 25,
+      "endSecond": 30,
+      "onScreenText": "WORTH CHECKING.",
+      "visual": "Extreme macro inside the dark car dashboard again, the amber warning icon fades back to black, mirroring the beat-1 opening for a loop seam"
+    },
+    {
+      "beatNumber": 8,
+      "startSecond": 30,
+      "endSecond": 33,
+      "onScreenText": "Send this before the first cold snap. Stop by — we'll check it, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "visual": "Static hold on the CTA card, silent ambient tone only"
+    }
+  ],
+  "qualityEstimate": {
+    "method": "manual, not calculateReelQualityScore()",
+    "estimatedTotal": 65,
+    "floor": 70,
+    "passesFloor": false
+  },
+  "seasonalFit": {
+    "topicTrigger": "first cold morning / frost",
+    "productionDate": "2026-08-18",
+    "recommendation": "hold for a fall posting date, off-season for an August publish"
+  },
+  "liveVerification": {
+    "repetitionLedgerQueried": false,
+    "evidenceResolverQueried": false,
+    "reelCanaryCalled": false,
+    "rendered": false,
+    "published": false
+  }
+}
