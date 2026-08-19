@@ -63,6 +63,14 @@ const taskBaseSchema = z.object({
   recurringDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
   // ── Lineage + time tracking (Apr 15 pt 2) ──
   goalId: nullableString.optional(),
+  // 2026-08-19 · promise accountability. Task.personId has existed in
+  // the schema (with an index) since the Power Atlas work, and the
+  // addTasksToProject chat tool has been passing it — but this schema
+  // silently STRIPPED it in taskCreateSchema.parse(), so the /people
+  // "open promises to X" query and the brain-graph person edge read a
+  // permanently-null column. createTask spreads the parsed payload into
+  // prisma.task.create, so listing it here is the whole write path.
+  personId: nullableString.optional(),
   phaseName: nullableString.optional(),
   actualMinutes: integerRange(0, 9999).default(0),
   startedAt: nullableDate.optional(),
@@ -113,6 +121,7 @@ export const taskUpdateSchema = z
     snoozedUntil: nullableDate,
     recurringDays: z.array(z.number().int().min(0).max(6)).max(7),
     goalId: nullableString,
+    personId: nullableString,
     phaseName: nullableString,
     actualMinutes: integerRange(0, 9999),
     startedAt: nullableDate,
