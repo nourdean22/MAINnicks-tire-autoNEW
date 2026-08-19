@@ -110,11 +110,22 @@ function envelope<T>(
  *      TypeError from the logging code rather than the real failure.
  *   2. Because the trigger is a 1% coin flip, it surfaced as an
  *      unreproducible CI flake (tests/api/today-compound.test.ts on
- *      PR #1697) rather than as a bug anyone could bisect. Any test that
- *      mocks `@/lib/prisma` without `apiRequestLog` made every apiHandler
- *      call it issued a 1-in-100 red — nine files did at the time of
- *      writing; completing those mocks one by one was never the fix,
- *      because the next incomplete mock re-arms it.
+ *      PR #1697) rather than as a bug anyone could bisect.
+ *
+ * BLAST RADIUS, MEASURED (an earlier revision of this comment claimed
+ * nine test files were exposed; that was a grep heuristic, never a
+ * measurement, and it was wrong). Nine files mock `@/lib/prisma` without
+ * `apiRequestLog`, but exactly ONE ever reached this code:
+ * today-compound. Of the other eight — three mock `@/lib/utils/http`
+ * itself, so apiHandler never runs; three call route handlers that are
+ * not apiHandler-wrapped; two import no route handler at all. Verified
+ * by forcing the sampler on against an instrument first proven to
+ * reproduce the failure on a known-vulnerable specimen.
+ *
+ * So this wrapper is NOT here to unbreak eight ticking test files. It is
+ * here because (a) the prod double-throw above is real and independent of
+ * any mock, and (b) the next incomplete mock on an apiHandler route would
+ * re-arm the flake, and completing mocks one at a time never closes that.
  *
  * Telemetry is best-effort by contract, so a broken writer is logged and
  * dropped — never propagated. `httpLog` is console-only (lib/logger.ts

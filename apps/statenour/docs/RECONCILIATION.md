@@ -13,13 +13,12 @@
 >
 > Two consequences, both real, both invisible until root-caused:
 >
-> - **In CI:** nine test files mocked `@/lib/prisma` without `apiRequestLog` (a sibling session
->   has since completed one of them on `main`, leaving **eight** — measured, not assumed), so
->   every `apiHandler` call they made was a 1-in-100 red — plus a second, non-random trigger
->   (`duration_ms > 1000`) that a loaded GitHub runner hits on its own. That is why the failure
->   moved between files, passed in isolation, and passed a full local sweep. It presented as
->   `TypeError: Cannot read properties of undefined (reading 'create')` at `http.ts:255` —
->   **the catch-path frame, not the trigger**, which is what made it look unrelated to logging.
+> - **In CI:** a 1-in-100 red on every `apiHandler` call from a test whose prisma mock lacks
+>   `apiRequestLog` — plus a second, non-random trigger (`duration_ms > 1000`) that a loaded
+>   GitHub runner hits on its own. That is why the failure moved, passed in isolation, and
+>   passed a full local sweep. It presented as `TypeError: Cannot read properties of undefined
+>   (reading 'create')` at `http.ts:255` — **the catch-path frame, not the trigger**, which is
+>   what made it look unrelated to logging.
 > - **In prod:** any throw from the *error*-path telemetry escapes as an unhandled rejection
 >   instead of the 500 envelope, so the caller sees the logging failure and never the real one.
 >
@@ -31,7 +30,24 @@
 > `tests/api/http-telemetry-never-throws.test.ts` fails 4/4 on the pre-fix file and passes 4/4
 > after, covering both triggers, the 500 path, and `ServiceError` status preservation.
 >
-> Not fixed by patching the nine mocks: that would paper over a defect one layer below them.
+> **★ THE BLAST RADIUS I FIRST CLAIMED WAS WRONG, and finding that out is the point.** The
+> first draft of this entry, the code comment, and the PR body all said "nine test files are
+> exposed" — nine files do mock `@/lib/prisma` without `apiRequestLog`, and I treated that grep
+> as a measurement. Measuring it killed the claim: **exactly ONE file ever reached this code**
+> (today-compound, the one that actually went red). Of the other eight, three mock
+> `@/lib/utils/http` itself so apiHandler never runs, three call route handlers that are not
+> apiHandler-wrapped, and two import no route handler at all. The instrument was proven before
+> the verdict was trusted — a forced-sampler config that first had to fail 2/2 on a
+> known-vulnerable specimen (`today-compound.test.ts` as of `2cac7a0`) before its green on the
+> eight meant anything. A first attempt at this same check WAS blind and I nearly shipped its
+> result: `git stash push -- <file>` on an already-committed file stashes nothing, so the "no
+> fix" run silently used the fixed file. Same lesson as the fail-open probes this wave started
+> with: **a green from an unproven instrument is the most expensive kind of red.**
+>
+> That does not weaken the fix, it re-bases it. The reasons that survive measurement: the prod
+> double-throw is real and independent of any mock, and the next incomplete mock on an
+> apiHandler route re-arms the flake — which is why completing mocks one at a time was never
+> the fix, whether the count was nine or one.
 >
 > **Separately, main's post-merge run on `e17eee3` was a different red** — GitHub runner loss
 > ("the runner has received a shutdown signal", 5/8 tasks, force-killed at 4m28s), the same
