@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Car won't start: battery vs. starter vs. alternator",
+  "campaignKeyword": "NOSTART",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Car won't start? The way it fails is one clue to why.",
+      "onScreenText": "Car won't start? Here's how to tell why.",
+      "visual": "Close-up static shot of a car's dashboard instrument cluster at dusk in a driveway, engine off, warning lights subtly glowing, slow creeping camera push-in, moody blue-hour lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Lights dim, and nothing else happens? That may indicate the battery.",
+      "onScreenText": "Lights dim, nothing else happens?",
+      "visual": "Extreme close-up of dashboard warning lights dimming and flickering, shallow focus, slight camera drift, battery icon visible glowing amber, cinematic garage ambience",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "One fast click, and nothing turns over? That can point to the starter.",
+      "onScreenText": "One fast click, nothing turns over?",
+      "visual": "Close-up of a car engine bay near the starter motor area, static camera with subtle vibration to imply a mechanical click, dim garage lighting, macro lens look, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Starts fine, then a battery light hits while you're driving? Worth checking the alternator.",
+      "onScreenText": "Battery light while driving?",
+      "visual": "Dashboard shot with blurred road-light reflections moving across the windshield glass implying motion, battery warning icon illuminated on the instrument cluster, slow dolly-in, dusk exterior light bleeding through windshield",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Don't guess — three parts, three different bills. Nick's Tire and Auto tests all three free. Link in bio.",
+      "onScreenText": "We test all three free. Link in bio.",
+      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "nostart-triage-v1",
+      "loopIdea": "NOT DESIGNED — final frame (shop garage bay, daylight) does not feed back into the opening frame (home driveway dashboard, dusk). Flagged in README §9 as a real gap, not omitted.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "nostart-triage-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autorepair"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional single mechanical click SFX layered under beat 3 only"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts:863), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 0, "detail": "No loop plan designed — see concepts[0].loopIdea" },
+      { "label": "Verified mechanic fact (sourced)", "max": 10, "points": 0, "detail": "No EvidenceRecord cited; evidenceResolver.ts not queried live (no DB access this run)" },
+      { "label": "Faceless & wordless contract", "max": 10, "points": 10, "detail": "No face/hand/human-figure subjects in any prompt; standing negative prompt applied to every beat" },
+      { "label": "Claim safety (no blocked claims)", "max": 10, "points": 10, "detail": "Uses approved soft-language only: 'one clue', 'may indicate', 'can point to', 'worth checking', 'don't guess'" },
+      { "label": "Campaign keyword valid", "max": 5, "points": 5, "detail": "NOSTART — single ALL-CAPS word" },
+      { "label": "Winning concept >= 57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() not invoked this run — scored 0 rather than assumed passing" }
+    ],
+    "overall": 55,
+    "minPassing": 70,
+    "passing": false
+  }
+}
