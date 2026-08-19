@@ -508,7 +508,12 @@ export const CRONS: CronDef[] = [
     schedule: "0 3 * * 1",
     mode: "active",
     category: "hygiene",
-    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · sweeps CaptureInboxItem rows · auto-categorizes the cleanest ones · proposes mission for the rest.",
+    // 2026-08-19 · description corrected: the route archives empty INBOX
+    // Mission rows (isInboxMission) — it never touches CaptureInboxItem.
+    // The old text claimed a capture sweep that has never existed;
+    // captures currently have NO consumer that archives them (only writer:
+    // runner-state.ts, status always "active").
+    description: "Weekly (Sunday-ET) via mega-evening weekly fan-out · archives empty INBOX missions (isInboxMission) · does NOT sweep CaptureInboxItem.",
     memory: 512,
     maxDuration: 60,
   },

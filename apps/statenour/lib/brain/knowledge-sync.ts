@@ -405,7 +405,7 @@ async function ingestNickWisdom(): Promise<KnowledgeSyncResult["wisdom"]> {
   }
   
   if (dupCount > 0) {
-    logError("brain.knowledge-sync", new Error(`${dupCount} duplicate wisdom syncs skipped`), { fn: "ingestNickWisdom" });
+    logError("brain.knowledge-sync", new Error(`${dupCount} duplicate wisdom syncs skipped`), { fn: "ingestNickWisdom" }, "warn");
   }
 
   return { messagesScanned: msgs.length, memoriesStored: stored };

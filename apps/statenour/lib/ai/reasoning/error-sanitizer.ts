@@ -84,7 +84,12 @@ async function persistToErrorLog(entry: {
     await prisma.errorLog.create({
       data: {
         level: "error",
-        message: `[${entry.errorId}] ${entry.classified} · ${entry.route}`,
+        // Stable text FIRST, per-error id LAST. Leading with the unique
+        // `err_*` id made every sanitized error its own singleton group in
+        // the health page's message-prefix patterning — 5 of these in the
+        // sample window filled the entire top-5 with count-1 "patterns".
+        // The id stays greppable here and in context.errorId.
+        message: `${entry.classified} · ${entry.route} [${entry.errorId}]`,
         stack: entry.stack?.slice(0, 4000),
         context: {
           kind: "sanitized_error",

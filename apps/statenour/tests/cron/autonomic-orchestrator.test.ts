@@ -153,7 +153,10 @@ describe("services/autonomic-orchestrator", () => {
       ],
     });
 
-    mocks.runManifestCron.mockResolvedValue({ status: 200, durationMs: 150 });
+    // 2026-08-19 · fixture matches the real CronTriggerResult contract,
+    // which always carries `ok` — the healer now checks it (a 404 from
+    // triggerCronByPath resolves as ok:false and must not count as a heal).
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
 
     const res = await runAutonomicOrchestrator();
 
@@ -174,6 +177,27 @@ describe("services/autonomic-orchestrator", () => {
         priority: "P1",
         title: "Cron Healer: Rescued never-run-cron",
       })
+    );
+  });
+
+  it("Phase 1: a heal attempt that resolves ok:false (e.g. 404) is NOT a rescue", async () => {
+    // Regression (2026-08-19): triggerCronByPath never throws — a manifest
+    // entry with no route resolves { ok:false, status:404 }. The healer
+    // used to push it into healedCrons unconditionally and file a
+    // "Cron Healer: Rescued X" coach event, burning the whole
+    // MAX_HEAL_PER_RUN budget on phantom heals before reaching a real cron.
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        { name: "phantom-cron", enabled: true, mode: "active", lastStatus: null, success14d: 0, fail14d: 0, lastRunAt: null },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: false, status: 404, durationMs: 20 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.healedCrons).not.toContain("phantom-cron");
+    expect(mocks.recordCoachEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Cron Healer: Rescued phantom-cron" })
     );
   });
 

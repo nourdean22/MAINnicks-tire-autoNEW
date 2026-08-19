@@ -203,18 +203,92 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     nullable: true,
     reason: "v8.5 pgvector native column — native KNN search",
   },
+  // The schema.prisma pgvector warning (three near-misses in 10 days)
+  // says the sentinel watches these columns for existence. It watched
+  // exactly one of the three. `embedding_vec_1536` is the column the HNSW
+  // index sits on and the one every live recall path queries
+  // (brain/search-hybrid, people/search); `embedding_vec` is only the
+  // fallback knnSearch. A `db push --accept-data-loss` that dropped the
+  // 1536 column was an unguarded repeat of the incident being memorialized.
+  {
+    kind: "column_exists",
+    table: "vector_embeddings",
+    column: "embedding_vec_1536",
+    nullable: true,
+    reason: "pgvector fixed-dim column — the HNSW index and every live recall path use it",
+  },
+  {
+    kind: "column_exists",
+    table: "vector_embeddings",
+    column: "embedding_dim",
+    nullable: true,
+    reason: "pgvector dim tracking — backfill + padding correctness depend on it",
+  },
   {
     kind: "index_exists",
     table: "vector_embeddings",
-    indexName: "embedding_vec",
+    // Was `embedding_vec` + matchByDefinition, i.e. indexdef ILIKE
+    // '%embedding_vec%'. The SAME migration that creates the HNSW index
+    // also creates a plain btree —
+    // `vector_embeddings_source_type_vec_present_idx ... WHERE
+    // "embedding_vec" IS NOT NULL` — whose definition contains that
+    // substring. Every HNSW index could be dropped and this expectation
+    // still passed, while KNN silently degraded to a sequential scan.
+    // Matching "USING hnsw" asserts the index KIND, which a btree cannot
+    // satisfy.
+    indexName: "USING hnsw",
     matchByDefinition: true,
-    reason: "v8.5 HNSW index — without it, KNN queries scan",
+    reason: "HNSW vector index (vector_embeddings_hnsw_1536) — without it, KNN queries sequential-scan",
   },
   {
     kind: "column_exists",
     table: "prompt_versions",
     column: "version",
     reason: "Cockpit Observability — prompt system prompt versioning",
+  },
+  // ── 2026-08-19 coverage audit ─────────────────────────────────
+  // The universal-idempotency migration created SEVEN partial uniques;
+  // only autonomous_actions (and entity_audits, separately) had
+  // expectations. The other five shared the identical `db push`
+  // resurrection failure mode and were unguarded.
+  ...(["scheduled_actions", "task_events", "goal_events", "reflections", "decision_replays"] as const).map(
+    (table) => ({
+      kind: "partial_unique" as const,
+      table,
+      indexName: `${table}_idempotency_key_uniq`,
+      predicate: "idempotency_key IS NOT NULL",
+      reason: "v7.7 universal idempotency — without partial, legacy NULLs collide",
+    }),
+  ),
+  // The 2026-05-27 audit dropped two regular uniques and replaced them
+  // with alive-rows-only partials. Expectation #10 guards that the OLD
+  // identity_snapshots unique stays dead — but nothing guarded that its
+  // REPLACEMENT still exists. Drop the replacement and soft-delete dedup
+  // is silently gone while the sentinel stays green.
+  {
+    kind: "partial_unique",
+    table: "identity_snapshots",
+    indexName: "identity_snapshots_date_alive_idx",
+    predicate: "deleted_at IS NULL",
+    reason: "soft-delete-aware date dedup — the replacement for the dropped regular unique",
+  },
+  {
+    kind: "partial_unique",
+    table: "reflections",
+    indexName: "reflections_date_scope_category_alive_idx",
+    predicate: "deleted_at IS NULL",
+    reason: "soft-delete-aware (date,scope,category) dedup — replacement for the dropped regular unique",
+  },
+  // The searchable_tsv COLUMN was guarded (expectation #3) but the GIN
+  // index serving it was not — schema.prisma's own recovery note says
+  // both must exist, and a tsv column without its GIN degrades chat
+  // search to a sequential scan.
+  {
+    kind: "index_exists",
+    table: "chat_messages",
+    indexName: "USING gin",
+    matchByDefinition: true,
+    reason: "GIN index over searchable_tsv — without it, chat FTS sequential-scans",
   },
 ];
 

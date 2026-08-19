@@ -83,6 +83,26 @@ export const GET = cronHandler(async () => {
   });
   deletedByTable.commitments_expired = expiredCommitments.count;
 
+  // NULL-deadline commitments were IMMORTAL: `deadline < '...'` is never
+  // true for NULL, so the expiry above could not touch them — and
+  // sanitizeDeadline NULLs every malformed/past LLM-extracted date, which
+  // routes a steady stream of rows into exactly that state. They also never
+  // surface (personal-pulse filters `deadline < today`), so nothing human
+  // closes them either: an unbounded, invisible graveyard that pinned the
+  // health-page backlog at 71 "active" commitments. Age from createdAt
+  // instead — same 90d policy, same terminal status, same shape as the
+  // manual scripts/commit-sweep.ts nobody scheduled.
+  const expiredUndated = await prisma.commitment.updateMany({
+    where: {
+      status: { in: ["active", "in_progress"] },
+      deletedAt: null,
+      deadline: null,
+      createdAt: { lt: daysAgo(90) },
+    },
+    data: { status: "expired", updatedBy: "cron:data-cleanup" },
+  });
+  deletedByTable.commitments_expired_undated = expiredUndated.count;
+
   // ── AutonomousAction pending-approval sweep (2026-08-12) ──
   // Same story as the commitment auto-expiry above: the ONLY sweep for
   // autonomous_action approval="pending" was the operator-tap "purge all"

@@ -264,10 +264,16 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
       // Error log — for 500-class failures only (skip 4xx client errors
       // and validation errors which are ApiRequestLog territory).
       if (errorStatus >= 500 && !isQuotaExhausted()) {
+        // Prefix the route (every logError row carries `[source] ` — these
+        // were the only rows without one). Two different routes throwing
+        // the same generic message used to collapse into ONE health-page
+        // pattern with the route buried in `context`, which the pattern
+        // grouping never reads.
+        const bareMsg = error instanceof Error ? error.message : "Unknown error";
         prisma.errorLog.create({
           data: {
             level: "error",
-            message: error instanceof Error ? error.message.slice(0, 500) : "Unknown error",
+            message: `[${route}] ${bareMsg}`.slice(0, 500),
             stack: error instanceof Error ? error.stack?.slice(0, 4000) ?? null : null,
             context: { method, path: route, requestId, duration_ms } as any,
           },
@@ -357,7 +363,12 @@ export function cronHandler(handler: RouteHandler) {
       // cron.mega-evening) so the lookup hits.
       {
         const { logPolicyFire } = await import("@/lib/automation/policy");
-        void logPolicyFire(`cron.${jobName}`, run.success ? "success" : "failure");
+        // A handler that resolved while reporting ok:false is a failure for
+        // policy-fire purposes too — otherwise fireCount records it green.
+        void logPolicyFire(
+          `cron.${jobName}`,
+          run.success && !run.reportedFailure ? "success" : "failure",
+        );
       }
       if (!run.success) {
         // Re-throw so apiHandler can surface the error in the HTTP

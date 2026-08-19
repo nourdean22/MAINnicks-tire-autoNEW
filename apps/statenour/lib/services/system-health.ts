@@ -11,6 +11,7 @@
  * renders. Range = 24h | 7d | 30d. All inputs validated by the caller.
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
@@ -21,10 +22,18 @@ export interface HealthReport {
   generatedAt: string;
   cron: {
     totalLogs: number;
+    /** HARD failures only. `partial` is counted separately — see below. */
     failureCount: number;
+    /** 2026-08-19 · runs that completed with some children failing
+     *  (mega fan-out heartbeats write status="partial"). Previously these
+     *  were folded into `failureCount` by a bare `status !== "success"`,
+     *  so a slow-but-successful child inflated the headline fail rate and
+     *  a real failure was indistinguishable from fan-out timeout noise. */
+    partialCount: number;
     jobs: Array<{
       jobName: string;
       success: number;
+      partial: number;
       failed: number;
       avgMs: number;
       healthy: boolean;
@@ -32,6 +41,12 @@ export interface HealthReport {
   };
   errors: {
     total: number;
+    /** Distinct 80-char message prefixes across the WHOLE window. The
+     *  tile used to render `topPatterns.length` (always ≤5) as "N
+     *  patterns", which read as "there are 5 patterns" when it meant
+     *  "here are the top 5". */
+    distinctPatterns: number;
+    byLevel: Array<{ level: string; count: number }>;
     topPatterns: Array<{ msg: string; count: number }>;
   };
   backlog: {
@@ -75,10 +90,30 @@ export interface HealthReport {
       total: number;
       failing: number;
       bridgeFailing: number;
-      probes: Array<{ name: string; kind: string; ok: boolean; reason: string | null }>;
+      /** 2026-08-19 · probes whose newest row is older than
+       *  PROBE_STALE_MS. A stale canary is not a healthy canary: if the
+       *  data-source-health cron stops running, the last-written rows keep
+       *  reporting `ok` forever and the banner stays green. That is the
+       *  exact silent-dead-feeder failure these probes were built to catch,
+       *  reproduced one level up. */
+      stale: number;
+      probes: ProbeView[];
     } | null;
   };
 }
+
+export interface ProbeView {
+  name: string;
+  kind: string;
+  ok: boolean;
+  stale: boolean;
+  ageHours: number | null;
+  reason: string | null;
+}
+
+/** Probes are written once per ET-day by /api/cron/data-source-health.
+ *  Two missed days = the canary itself is down. */
+const PROBE_STALE_MS = 48 * 60 * 60 * 1000;
 
 function parseRange(range: HealthRange): { ms: number; label: HealthRange } {
   switch (range) {
@@ -126,11 +161,48 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   const priorErrCountP = prisma.errorLog.count({
     where: { createdAt: { gte: priorSince, lt: priorEnd } },
   });
-  const topErrorsP = prisma.errorLog.findMany({
+  // 2026-08-19 · was `findMany({ take: 50 })` grouped in JS: with 1,423
+  // errors in a 30d window that sampled the most recent 3.5% and reported
+  // it as "the" top patterns, so one recent burst could hide a signature
+  // that dominated the window. Grouping now happens in Postgres over every
+  // row. Columns are snake_case here (`created_at`) — `check:raw-sql`
+  // audits camelCase column refs in raw SQL, and error_logs maps
+  // createdAt → created_at (cron_job_logs, confusingly, does NOT).
+  // Grouping on the raw prefix is not enough: two writers embed a value
+  // that changes every run INSIDE the first 80 chars, so one root cause
+  // shattered into singleton "patterns".
+  //   · lib/ai/reasoning/error-sanitizer.ts:87 leads with a per-error id
+  //     (`err_<base36>_<rand>`), so every sanitized error was its own group.
+  //   · counter-style reporters (knowledge-sync.ts:408 and ~12 siblings)
+  //     lead with a changing count — "12 duplicate wisdom syncs skipped".
+  // Normalizing ids and digit runs first collapses both back into the one
+  // signature they actually represent.
+  const NORMALIZED_MSG = Prisma.sql`
+    LEFT(
+      regexp_replace(
+        regexp_replace(message, 'err_[a-z0-9]+_[a-z0-9]+', 'err_*', 'g'),
+        '[0-9]+', 'N', 'g'
+      ), 80)
+  `;
+  const topErrorsP = prisma.$queryRaw<Array<{ msg: string; count: bigint }>>`
+    SELECT ${NORMALIZED_MSG} AS msg, COUNT(*) AS count
+    FROM error_logs
+    WHERE created_at >= ${since}
+    GROUP BY ${NORMALIZED_MSG}
+    ORDER BY count DESC
+    LIMIT 5
+  `;
+  const distinctPatternsP = prisma.$queryRaw<Array<{ count: bigint }>>`
+    SELECT COUNT(DISTINCT ${NORMALIZED_MSG}) AS count
+    FROM error_logs
+    WHERE created_at >= ${since}
+  `;
+  // The tile counts every row as an "error" — but level can be warn.
+  // Surfacing the split stops a wall of warns reading as 1,423 failures.
+  const errByLevelP = prisma.errorLog.groupBy({
+    by: ["level"],
     where: { createdAt: { gte: since } },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    select: { message: true },
+    _count: { _all: true },
   });
 
   // ── Backlog pressure ──
@@ -286,9 +358,15 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     prisma.brainMemory
       .findMany({
         where: { category: "data_source_probe", deletedAt: null },
-        orderBy: { createdAt: "desc" },
+        // 2026-08-19 · order by updatedAt, not createdAt. Rows are UPSERTED
+        // per (probe, ET-date), so createdAt is when the row was first
+        // written and updatedAt is when the probe last actually ran.
+        orderBy: { updatedAt: "desc" },
         take: 40,
-        select: { key: true, content: true },
+        // updatedAt was NOT selected before, so the reader had no way to
+        // know how old a verdict was — the whole staleness class below was
+        // unrepresentable. Indexed via @@index([category, updatedAt]).
+        select: { key: true, content: true, updatedAt: true },
       })
       // null = read failed — an empty probe list rendered byte-identical
       // to "every data source healthy" (the apiRequestLog defect shape).
@@ -306,6 +384,8 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     errCount,
     priorErrCount,
     topErrors,
+    distinctPatternRows,
+    errByLevel,
     [activeCap, pendingCommit, inboxTasks, unackDrift],
     [lastBrainDump, lastReflection, lastCapture, lastIdentityRefresh],
     [lawLogs, triggerLogs],
@@ -319,6 +399,8 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     errCountP,
     priorErrCountP,
     topErrorsP,
+    distinctPatternsP,
+    errByLevelP,
     backlogP,
     freshnessP,
     lawFeedbackP,
@@ -329,11 +411,21 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   ]);
 
   // ── Cron health · post-processing ──
-  const priorCronFailureCount = priorCronLogs.filter((l) => l.status !== "success").length;
-  const cronByJob = new Map<string, { success: number; failed: number; totalMs: number }>();
+  // "partial" is a DEGRADED completion (mega fan-out: some children
+  // failed), not a hard failure. Counting it as failure — which a bare
+  // `status !== "success"` did on both windows — meant a fan-out child
+  // that merely ran slow was reported identically to a route that threw.
+  const isHardFailure = (status: string) =>
+    status !== "success" && status !== "partial";
+  const priorCronFailureCount = priorCronLogs.filter((l) => isHardFailure(l.status)).length;
+  const cronByJob = new Map<
+    string,
+    { success: number; partial: number; failed: number; totalMs: number }
+  >();
   for (const l of cronLogs) {
-    const e = cronByJob.get(l.jobName) ?? { success: 0, failed: 0, totalMs: 0 };
+    const e = cronByJob.get(l.jobName) ?? { success: 0, partial: 0, failed: 0, totalMs: 0 };
     if (l.status === "success") e.success++;
+    else if (l.status === "partial") e.partial++;
     else e.failed++;
     e.totalMs += l.duration ?? 0;
     cronByJob.set(l.jobName, e);
@@ -341,21 +433,23 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   const cronSummary = [...cronByJob.entries()].map(([jobName, s]) => ({
     jobName,
     success: s.success,
+    partial: s.partial,
     failed: s.failed,
-    avgMs: Math.round(s.totalMs / Math.max(s.success + s.failed, 1)),
+    avgMs: Math.round(s.totalMs / Math.max(s.success + s.partial + s.failed, 1)),
     healthy: s.failed === 0,
   }));
 
   // ── Error patterns · post-processing ──
-  const errByMsg = new Map<string, number>();
-  for (const e of topErrors) {
-    const key = e.message.slice(0, 80);
-    errByMsg.set(key, (errByMsg.get(key) ?? 0) + 1);
-  }
-  const topErrorPatterns = [...errByMsg.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([msg, count]) => ({ msg, count }));
+  // Grouping happened in Postgres over the full window; COUNT() comes back
+  // as bigint, which JSON.stringify throws on — coerce at the boundary.
+  const topErrorPatterns = topErrors.map((r) => ({
+    msg: r.msg,
+    count: Number(r.count),
+  }));
+  const distinctPatterns = Number(distinctPatternRows[0]?.count ?? 0);
+  const errorsByLevel = errByLevel
+    .map((r) => ({ level: r.level, count: r._count._all }))
+    .sort((a, b) => b.count - a.count);
 
   // ── Freshness "hours ago" helper ──
   const now = Date.now();
@@ -379,22 +473,36 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     : null;
 
   const seenProbe = new Set<string>();
-  const probes: Array<{ name: string; kind: string; ok: boolean; reason: string | null }> = [];
+  const probes: ProbeView[] = [];
   for (const row of probeRows ?? []) {
     let parsed: { probe?: string; kind?: string; ok?: boolean; reason?: string } = {};
+    let parseFailed = false;
     try {
       parsed = JSON.parse(row.content) as typeof parsed;
     } catch {
-      // unparseable probe row · skip
+      parseFailed = true;
     }
     const name = parsed.probe ?? row.key.replace(/_\d{4}-\d{2}-\d{2}$/, "");
     if (seenProbe.has(name)) continue; // rows are date-keyed · keep the freshest
     seenProbe.add(name);
+    const ageMs = now - row.updatedAt.getTime();
+    const stale = ageMs > PROBE_STALE_MS;
+    // FAIL CLOSED. This was `parsed.ok !== false`, so an unparseable row
+    // left `parsed` as `{}` and `undefined !== false` reported the probe
+    // HEALTHY. A corrupt row was indistinguishable from a passing one, on
+    // the one signal that can turn the operational banner red.
+    const verdictOk = !parseFailed && parsed.ok === true;
     probes.push({
       name,
       kind: parsed.kind ?? "bridge",
-      ok: parsed.ok !== false,
-      reason: parsed.reason ?? null,
+      ok: verdictOk,
+      stale,
+      ageHours: Math.round(ageMs / 3_600_000),
+      reason: parseFailed
+        ? "probe row unparseable — verdict unreadable"
+        : stale
+          ? `last ran ${Math.round(ageMs / 3_600_000)}h ago`
+          : (parsed.reason ?? null),
     });
   }
   const dataSources = probeRows === null
@@ -403,6 +511,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
         total: probes.length,
         failing: probes.filter((p) => !p.ok).length,
         bridgeFailing: probes.filter((p) => p.kind === "bridge" && !p.ok).length,
+        stale: probes.filter((p) => p.stale).length,
         probes,
       };
 
@@ -413,9 +522,12 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
       totalLogs: cronLogs.length,
       jobs: cronSummary,
       failureCount: cronSummary.reduce((s, j) => s + j.failed, 0),
+      partialCount: cronSummary.reduce((s, j) => s + j.partial, 0),
     },
     errors: {
       total: errCount,
+      distinctPatterns,
+      byLevel: errorsByLevel,
       topPatterns: topErrorPatterns,
     },
     backlog: {

@@ -42,7 +42,13 @@ export const GET = apiHandler(async () => {
   const stats = statsRaw.map((s) => ({ status: s.status, count: s._count._all }));
 
   const total = stats.reduce((sum, s) => sum + s.count, 0);
-  const kept = stats.find((s) => s.status === "kept")?.count ?? 0;
+  // Every dominant completion writer (completeCommitment tool,
+  // completeActiveCommitment, REST bulk complete) writes status
+  // "completed" — only legacy rows say "kept". Counting "kept" alone made
+  // keep_rate read ~0% regardless of actual behavior.
+  const kept = stats
+    .filter((s) => s.status === "kept" || s.status === "completed")
+    .reduce((sum, s) => sum + s.count, 0);
   const keepRate = total > 0 ? Math.round((kept / total) * 100) : 0;
 
   return { active, overdue, stats, keep_rate: keepRate };
