@@ -74,7 +74,24 @@ self.addEventListener('fetch', (event) => {
 
 // ── PUSH NOTIFICATIONS ──
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  // 2026-08-19 · NEVER return without showing a notification. iOS Safari
+  // counts a push event that displays nothing as a "silent push" strike
+  // and REVOKES the push subscription after repeated strikes — the
+  // channel the P0 health-alert bridge (and the morning brief) rides
+  // would silently die. A dataless push shows a minimal generic
+  // notification instead of returning.
+  if (!event.data) {
+    event.waitUntil(
+      self.registration.showNotification('NOUR OS', {
+        body: 'New activity — open the app.',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: 'nour-os',
+        data: { url: '/' },
+      })
+    );
+    return;
+  }
 
   let data;
   try {
