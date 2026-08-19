@@ -635,5 +635,13 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     };
   }
 
-  return { recordsProcessed: 0, details: `Unknown job status: ${job.status}` };
+  return {
+    recordsProcessed: 0,
+    details:
+      job.status === "repair_queued" || job.status === "repair_rendering"
+        ? `Repair in flight (status: ${job.status}) - re-verdict after re-render`
+        : job.status === "repair_failed"
+          ? "Repair FAILED - waiting for a re-queue (requestBeatRepair) or an operator discard"
+          : `Unknown job status: ${job.status}`,
+  };
 }

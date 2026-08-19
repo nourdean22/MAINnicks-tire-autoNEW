@@ -1014,6 +1014,11 @@ STRUCTURE REFERENCE — "${h.label}" (Pattern Lab, id ${h.patternId}). ` +
     maxTokens: 24576,
     // Full-brief generation routinely exceeds the default 30s LLM timeout.
     timeoutMs: 120000,
+    // Live daily lane, not background: without this the call defaulted to
+    // priority 2 and queued behind benchmarks on the three-slot Ollama
+    // scheduler at busy ticks - the strongest suspect for the in-service-only
+    // "Aborted:"-as-content failures (the identical call succeeds standalone).
+    priority: 1,
     outputSchema: REEL_BRIEF_SCHEMA,
   });
 
