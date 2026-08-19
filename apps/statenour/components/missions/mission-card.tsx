@@ -99,7 +99,8 @@ export function MissionCard({
   const { openTasks, doneTasks, progress, deadlineLabel, deadlineTone } =
     useMemo(() => derivedMetrics(mission, tasks), [mission, tasks]);
 
-  // Sort: Nick's pick first, then DOING, then autoPriority, then by due date (urgent first),
+  // Sort: Nick's pick first, then DOING, then autoPriority (higher =
+  // more urgent — canonical polarity), then by due date (urgent first),
   // then by createdAt. Done tasks sink to the bottom (visible but dimmed).
   const sortedOpen = useMemo(() => {
     return [...openTasks].sort((a, b) => {
@@ -108,10 +109,10 @@ export function MissionCard({
       if (a.status === "DOING" && b.status !== "DOING") return -1;
       if (b.status === "DOING" && a.status !== "DOING") return 1;
 
-      const aPri = a.autoPriority ?? Infinity;
-      const bPri = b.autoPriority ?? Infinity;
+      const aPri = a.autoPriority ?? -Infinity;
+      const bPri = b.autoPriority ?? -Infinity;
       if (aPri !== bPri) {
-        return aPri - bPri;
+        return bPri - aPri;
       }
 
       const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;

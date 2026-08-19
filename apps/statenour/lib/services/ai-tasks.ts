@@ -88,7 +88,7 @@ export async function generateAiTasks(args: {
     }),
     prisma.task.findMany({
       where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
-      orderBy: [{ autoPriority: "asc" }, { createdAt: "desc" }],
+      orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
       take: 30,
       select: { title: true, autoPriority: true, autoPriorityExplanation: true },
     }),
@@ -133,11 +133,11 @@ export async function generateAiTasks(args: {
 
   const loops = loopRows.map((t) => ({
     priority:
-      (t.autoPriority ?? 50) < 20
+      (t.autoPriority ?? 50) >= 80
         ? "critical"
-        : (t.autoPriority ?? 50) < 40
+        : (t.autoPriority ?? 50) >= 60
           ? "high"
-          : (t.autoPriority ?? 50) < 60
+          : (t.autoPriority ?? 50) >= 40
             ? "medium"
             : "low",
     title: t.title,

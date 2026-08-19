@@ -67,6 +67,7 @@ import { runDriveIngest } from "@/lib/brain/drive-ingest";
 import { getColdMemoryStats } from "@/lib/brain/cold-memory";
 import { ServiceError } from "@/lib/utils/service-error";
 import {
+  FLAG_REGISTRY,
   getAllFlags,
   getFlag,
   loadFeatureFlagOverrides,
@@ -506,6 +507,19 @@ export const operatorRouter = router({
     )
     .mutation(async ({ input }) => {
       const { key, value } = input;
+      const spec = FLAG_REGISTRY.find((flag) => flag.key === key);
+      if (!spec) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Flag ${key} is not registered in the flag registry.`,
+        });
+      }
+      if (spec.readOnly) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${key} is environment-controlled and cannot be overridden from the settings board.`,
+        });
+      }
       const prismaModule = await import("@/lib/prisma");
       const p = prismaModule.prisma;
 

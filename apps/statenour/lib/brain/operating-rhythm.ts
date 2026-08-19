@@ -238,17 +238,17 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   switch (activeSlot) {
     case "peak_start":
       // 8 AM — Peak block starts
-      // v10.0.46 — fixed inverted MIT picker. Pre-fix
-      // `orderBy: { autoPriority: "desc" }` returned the task with
-      // the HIGHEST autoPriority value, but autoPriority is 0-100
-      // where 0 = MOST urgent. So every morning's 8am Telegram has
-      // been telling Nour to focus on the LEAST urgent task as his
-      // "MIT". Catastrophic bug that made the rhythm engine actively
-      // anti-helpful. Switched to `asc` + added `deletedAt: null`
-      // (soft-deleted tasks should not surface as MIT).
+      // 2026-08-19 — polarity canonicalized: autoPriority is 0-100
+      // where HIGHER = more urgent (the scoring engine that rewrites
+      // every open task has always produced that scale). v10.0.46 had
+      // flipped this picker to `asc` on the OPPOSITE belief (0 = most
+      // urgent — true only for rows the retired 5/15/30/60 writers
+      // touched), which re-inverted the MIT: the 8am Telegram was
+      // again surfacing the LEAST urgent engine-scored task. `desc`
+      // is now pinned repo-wide by the polarity source-scan test.
       const mit = await prisma.task.findFirst({
         where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
-        orderBy: { autoPriority: "asc" },
+        orderBy: { autoPriority: "desc" },
         select: { title: true },
       }).catch((err): null => {
         logError("brain.operating-rhythm", err, { fn: "executeRhythm.findMIT" });

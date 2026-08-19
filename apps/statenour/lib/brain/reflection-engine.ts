@@ -107,9 +107,9 @@ async function gatherDailyContext(daysBack: number = 7) {
           rows.map((t) => ({
             title: t.title,
             priority:
-              (t.autoPriority ?? 50) < 20 ? "critical"
-              : (t.autoPriority ?? 50) < 40 ? "high"
-              : (t.autoPriority ?? 50) < 60 ? "medium"
+              (t.autoPriority ?? 50) >= 80 ? "critical"
+              : (t.autoPriority ?? 50) >= 60 ? "high"
+              : (t.autoPriority ?? 50) >= 40 ? "medium"
               : "low",
             domain: t.mission?.domain ?? "general",
             createdAt: t.createdAt,

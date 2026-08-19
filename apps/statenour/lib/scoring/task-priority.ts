@@ -1,5 +1,42 @@
 import { daysUntil } from "@/lib/utils/datetime";
 
+// ── CANONICAL PRIORITY POLARITY ─────────────────────────────────────
+// autoPriority / manualPriorityOverride are 0-100 where HIGHER = MORE
+// URGENT. scoreTaskPriority below — the engine syncTaskPriorities uses
+// to rewrite every open task — has always produced this scale, but a
+// second convention (5/15/30/60, lower = hotter) leaked in through the
+// nick-agent create path and split readers down the middle for months:
+// the 8am MIT picker, the daily scheduler and Nick's own task ordering
+// were all surfacing the LEAST urgent work. 2026-08-19: one scale,
+// pinned by tests/lib/scoring/task-priority-polarity.test.ts. Import
+// bands/labels from here — never hand-roll thresholds.
+export const PRIORITY_CRITICAL_MIN = 80;
+export const PRIORITY_HIGH_MIN = 60;
+export const PRIORITY_MEDIUM_MIN = 40;
+
+export type PriorityBand = "critical" | "high" | "medium" | "low";
+
+export function priorityBandLabel(score: number | null | undefined): PriorityBand {
+  const s = typeof score === "number" ? score : 50;
+  if (s >= PRIORITY_CRITICAL_MIN) return "critical";
+  if (s >= PRIORITY_HIGH_MIN) return "high";
+  if (s >= PRIORITY_MEDIUM_MIN) return "medium";
+  return "low";
+}
+
+/** Label → canonical score, for writers that only know a label. */
+export function priorityFromLabel(p: unknown): number {
+  return p === "critical" ? 90 : p === "high" ? 70 : p === "low" ? 30 : 50;
+}
+
+/** Sort comparator — most urgent first; unscored rows sink to the bottom. */
+export function byPriorityDesc(
+  a: { autoPriority?: number | null },
+  b: { autoPriority?: number | null },
+): number {
+  return (b.autoPriority ?? -1) - (a.autoPriority ?? -1);
+}
+
 export type TaskPriorityCandidate = {
   id?: string;
   title: string;

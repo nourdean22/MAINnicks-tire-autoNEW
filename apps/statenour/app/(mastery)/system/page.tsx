@@ -145,10 +145,15 @@ export default function SystemPage() {
   // initial HTML matches on both, then fill it in client-side.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const lastRefresh =
-    diagnosticsQuery.dataUpdatedAt > 0
-      ? new Date(diagnosticsQuery.dataUpdatedAt)
-      : new Date();
+  // 2026-08-19 · unknown-is-not-fresh: this used to fall back to
+  // `new Date()` when no fetch had ever succeeded, so a FAILED
+  // diagnostics read stamped the freshness chip "fresh as of now".
+  // No successful fetch → null → the chip renders its "no data" state.
+  const lastFetchedAt =
+    diagnostics?.timestamp ??
+    (diagnosticsQuery.dataUpdatedAt > 0
+      ? new Date(diagnosticsQuery.dataUpdatedAt).toISOString()
+      : null);
 
   const refresh = useCallback(async () => {
     await Promise.all([
@@ -189,7 +194,7 @@ export default function SystemPage() {
         actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
-              lastFetchedAt={diagnostics?.timestamp ?? lastRefresh.toISOString()}
+              lastFetchedAt={lastFetchedAt}
               source="diagnostics + brain + health"
               onReload={refresh}
             />
@@ -236,8 +241,19 @@ export default function SystemPage() {
         />
         <MetricCard
           label="Errors (24h)"
-          value={d?.kpis.errors_24h ?? "..."}
-          hint={d && d.kpis.errors_24h > 0 ? "Check /system/logs" : "Clean"}
+          // Unknown-is-not-clean (2026-08-19): with diagnostics null the
+          // hint used to read "Clean" — a failed read rendered as a
+          // clean system. Unknown states now say so.
+          value={diagnosticsQuery.isError ? "—" : d?.kpis.errors_24h ?? "..."}
+          hint={
+            diagnosticsQuery.isError
+              ? "read failed — unknown, not clean"
+              : d
+                ? d.kpis.errors_24h > 0
+                  ? "Check /system/logs"
+                  : "Clean"
+                : "measuring..."
+          }
         />
       </div>
 

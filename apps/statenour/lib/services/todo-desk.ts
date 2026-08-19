@@ -185,7 +185,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
           status: { in: ["INBOX", "READY", "DOING"] },
           deletedAt: null,
         },
-        orderBy: { autoPriority: "asc" },
+        orderBy: { autoPriority: "desc" },
         take: 50,
         select: {
           id: true,
@@ -283,7 +283,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
             lt: new Date(`${tomorrowStr}T23:59:59`),
           },
         },
-        orderBy: { autoPriority: "asc" },
+        orderBy: { autoPriority: "desc" },
         take: 4,
         select: { id: true, title: true, effort: true },
       }),
@@ -367,22 +367,23 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
       };
     });
 
-    // Composite ranking score — lower is better (like autoPriority).
+    // Composite ranking score — higher is better (canonical autoPriority
+    // polarity: higher = more urgent).
     function rank(t: (typeof taskDetails)[number]): number {
       const base = t.autoPriority ?? 50;
       let score = base;
-      if (t.windowFit) score -= 10;
-      if (t.energyMatch) score -= 8;
-      if (t.isCommitment) score -= 12;
-      if (t.agedDays >= 10) score += 5;
-      if (t.agedDays >= 30) score += 10;
+      if (t.windowFit) score += 10;
+      if (t.energyMatch) score += 8;
+      if (t.isCommitment) score += 12;
+      if (t.agedDays >= 10) score -= 5;
+      if (t.agedDays >= 30) score -= 10;
       return score;
     }
 
     const preActiveTask = taskDetails.find((t) => t.status === "DOING") ?? null;
     const preQueueable = taskDetails
       .filter((t) => t.id !== preActiveTask?.id && t.status !== "DOING")
-      .sort((a, b) => rank(a) - rank(b));
+      .sort((a, b) => rank(b) - rank(a));
 
     // Queue = top 4 that are NOT aged > 10d (aged stuff goes to backlog)
     const preFreshQueue = preQueueable.filter((t) => t.agedDays < 10).slice(0, 4);

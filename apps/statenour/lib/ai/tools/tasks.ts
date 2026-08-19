@@ -311,12 +311,12 @@ const tasksCoreTools = {
   // Apr 20 · Natural-language priority retag. Nour can say "bump
   // priority on the battery contract" or "this is critical" and Nick
   // calls this tool. Updates manualPriorityOverride so the auto
-  // rebalancer respects the user intent (0-100, lower = more urgent).
-  // Lookup via taskId (preferred) or fuzzy title match when id is
-  // unknown.
+  // rebalancer respects the user intent (0-100, HIGHER = more urgent —
+  // canonical polarity, see lib/scoring/task-priority). Lookup via
+  // taskId (preferred) or fuzzy title match when id is unknown.
   setTaskPriority: tool({
     description:
-      "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where lower = more urgent (0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday). Example: {\"taskId\":142,\"priority\":15}",
+      "Override the priority of a task to a specific level. Use when Nour explicitly says 'this is critical' / 'low priority' / 'bump priority'. Priority is 0-100 where HIGHER = more urgent (100=drop-everything, 90=critical, 70=high, 50=normal, 30=someday). Example: {\"taskId\":142,\"priority\":90}",
     inputSchema: z.object({
       taskId: z.string().optional().describe("Preferred — the task's id"),
       titleQuery: z
@@ -330,7 +330,7 @@ const tasksCoreTools = {
         .int()
         .min(0)
         .max(100)
-        .describe("0-100. 0=drop-everything, 15=critical, 30=high, 50=normal, 70=someday."),
+        .describe("0-100, higher = more urgent. 100=drop-everything, 90=critical, 70=high, 50=normal, 30=someday."),
       reason: z
         .string()
         .optional()
@@ -382,11 +382,11 @@ const tasksCoreTools = {
       });
 
       const bandLabel =
-        priority <= 15
+        priority >= 80
           ? "critical"
-          : priority <= 30
+          : priority >= 60
             ? "high"
-            : priority <= 60
+            : priority >= 40
               ? "normal"
               : "someday";
 

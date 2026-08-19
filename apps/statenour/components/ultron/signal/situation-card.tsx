@@ -174,6 +174,37 @@ export function SituationCard({ initial = null }: SituationCardProps) {
     );
   }
 
+  // Unknown-is-not-clear (2026-08-19): a failed fetch used to fall
+  // through to the emerald "clear" branch below — a dead feed rendered
+  // as a healthy operator. The old error line lived inside the
+  // hasStory && payload branch and was unreachable on exactly the
+  // failures it existed for.
+  if (error && !payload) {
+    return (
+      <section className="rounded-lg border border-rose-500/30 bg-rose-500/[0.04] p-3">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+          <span className="text-[9px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-rose-400">
+            situation
+          </span>
+          <span className="ml-auto text-[9px] font-mono text-[var(--text-tertiary)]">
+            unreadable
+          </span>
+        </div>
+        <p className="text-[12px] text-[var(--text-secondary)]">
+          The signal feed could not be read — state is UNKNOWN, not clear.
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          className="mt-2 text-[10px] font-mono uppercase tracking-wider text-rose-300/80 hover:text-rose-200 min-h-[44px] min-w-[44px] text-left"
+        >
+          retry
+        </button>
+      </section>
+    );
+  }
+
   if (!hasStory || !payload) {
     // Clean-state fallback — still show monitors so the surface
     // carries signal even when there's nothing critical.
