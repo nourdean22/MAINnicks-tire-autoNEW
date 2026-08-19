@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     prisma.task
       .findMany({
         where: { status: { in: ["INBOX", "READY", "DOING", "WAITING"] } },
-        orderBy: [{ autoPriority: "desc" }, { createdAt: "asc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }],
         take: 30,
         select: { id: true, title: true, autoPriority: true, status: true, dueDate: true },
       })

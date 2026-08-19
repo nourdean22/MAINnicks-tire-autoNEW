@@ -133,7 +133,7 @@ export async function buildTaskContextBlock(): Promise<string> {
       },
       orderBy: [
         { status: "asc" }, // DOING first alphabetically
-        { autoPriority: "desc" },
+        { autoPriority: { sort: "desc", nulls: "last" } },
         { updatedAt: "desc" },
       ],
       take: 80, // generous — the bucketizer picks the best 10

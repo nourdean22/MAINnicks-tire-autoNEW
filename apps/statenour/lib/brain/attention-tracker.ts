@@ -57,7 +57,28 @@ export async function analyzeAttentionPatterns(): Promise<AttentionProfile> {
     select: { content: true, createdAt: true },
     orderBy: { createdAt: "desc" },
     take: 100,
-  }).catch((): MsgRow[] => []);
+  }).catch((err): null => {
+    logError("brain.attention-tracker", err, { fn: "analyzeAttentionPatterns.messages" });
+    return null;
+  });
+
+  // Unknown is not neglect (2026-08-19): a FAILED chat read used to fall
+  // through as "zero mentions anywhere", which fabricated
+  // daysSinceEngagement=14 for EVERY domain and flagged the operator's
+  // whole life as neglected. A blind analyzer reports nothing, not
+  // everything — same doctrine as fleet-truth's unknown-never-healthy.
+  if (recentMessages === null) {
+    return {
+      topTopics: [],
+      neglectedDomains: [],
+      attentionShifts: [],
+      focusScore: 50, // documented no-signal midpoint (attention-helpers convention)
+      depthAnalysis: { avgMessageLength: 0, deepDives: 0, quickQuestions: 0, actionRatio: 0.5 },
+      timeOfDayPatterns: { morning: [], afternoon: [], evening: [] },
+      toolUsage: [],
+      attentionVelocity: 0,
+    };
+  }
 
   // Get active goals/missions for priority comparison
   const [activeMissions, activeCommitments] = await Promise.all([

@@ -1229,7 +1229,15 @@ async function appendGraphContext(
       .sort((a, b) => b[1].strength - a[1].strength)
       .slice(0, 3);
     const rows = await prisma.brainMemory.findMany({
-      where: { id: { in: top.map(([id]) => id) }, deletedAt: null },
+      // BDN-310 supersession honored (2026-08-19 round-2): this lane
+      // injects CONTENT into the same recall block the filtered pool
+      // feeds — a superseded belief must not re-enter via graph links.
+      where: {
+        id: { in: top.map(([id]) => id) },
+        deletedAt: null,
+        supersededById: null,
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      },
       select: { id: true, category: true, content: true },
     });
     const rowById = new Map<string, { id: string; category: string; content: string }>();

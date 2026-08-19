@@ -76,7 +76,7 @@ export async function buildGoalNextActions(
           deletedAt: null,
           status: { in: ["INBOX", "READY", "DOING"] },
         },
-        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
         take: 1,
         select: {
           id: true,

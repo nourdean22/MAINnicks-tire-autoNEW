@@ -479,6 +479,12 @@ export class BrainMemoryManager {
         ...(category && { category }),
         confidence: { gte: options.minConfidence ?? 0 },
         deletedAt: null, // v10.0.66 · public recall API
+        // BDN-310 supersession honored (2026-08-19 round-2) — this serves
+        // the memory-browser REST route + brain.memories tRPC procedure.
+        // The validity window rides an AND entry so it cannot clobber the
+        // optional query OR below.
+        supersededById: null,
+        AND: [{ OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] }],
         ...(options.query && {
           OR: [
             { content: { contains: options.query, mode: "insensitive" } },

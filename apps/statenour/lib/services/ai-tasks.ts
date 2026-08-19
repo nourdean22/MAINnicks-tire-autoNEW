@@ -33,6 +33,7 @@ import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { priorityBandLabel } from "@/lib/scoring/task-priority";
 
 const log = rootLogger.withSurface("services/ai-tasks");
 
@@ -88,7 +89,7 @@ export async function generateAiTasks(args: {
     }),
     prisma.task.findMany({
       where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
-      orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       take: 30,
       select: { title: true, autoPriority: true, autoPriorityExplanation: true },
     }),
@@ -132,14 +133,7 @@ export async function generateAiTasks(args: {
   ]);
 
   const loops = loopRows.map((t) => ({
-    priority:
-      (t.autoPriority ?? 50) >= 80
-        ? "critical"
-        : (t.autoPriority ?? 50) >= 60
-          ? "high"
-          : (t.autoPriority ?? 50) >= 40
-            ? "medium"
-            : "low",
+    priority: priorityBandLabel(t.autoPriority),
     title: t.title,
     description: t.autoPriorityExplanation,
   }));

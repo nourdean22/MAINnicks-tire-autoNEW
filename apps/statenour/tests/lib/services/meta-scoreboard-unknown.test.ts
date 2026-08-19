@@ -50,6 +50,7 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
+import { startOfDayET } from "@/lib/utils/datetime";
 
 function healthyMocks() {
   mocks.queryNickBatch.mockResolvedValue({
@@ -138,7 +139,10 @@ describe("meta-scoreboard · unknown is not zero", () => {
     expect(pinnedCall, "SCOREBOARD_PINNED read not found").toBeDefined();
     const gte = pinnedCall?.[0]?.where?.updatedAt?.gte;
     expect(gte).toBeInstanceOf(Date);
-    // The bound is the start of TODAY — within the last 24h.
-    expect(Date.now() - (gte as Date).getTime()).toBeLessThan(24 * 3_600_000 + 1);
+    // The bound is exactly the start of TODAY (ET). Comparing to the
+    // function itself instead of a 24h wall-clock distance — the ET
+    // fall-back day is 25 real hours long, which made the old distance
+    // assertion a once-a-year one-hour flake (repo DST-test rule).
+    expect((gte as Date).getTime()).toBe(startOfDayET().getTime());
   });
 });

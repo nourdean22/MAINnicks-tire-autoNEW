@@ -12,7 +12,11 @@
  * reversible way to pull the loser out of the pool without destroying it.
  *
  * Conservatism (matches lib/brain/memory-consolidation.ts soft-delete):
- *   - Flag-gated: NICK_CONTRADICTION_CLEANUP must be ON, else no-op.
+ *   - 2026-08-19: the BDN-310 supersession stamp (supersededById +
+ *     validUntil on the loser, lastVerifiedAt on the winner) runs
+ *     UNCONDITIONALLY on an explicit-loser status — an operator verdict
+ *     already authorized that metadata. ONLY the soft-delete below is
+ *     flag-gated: NICK_CONTRADICTION_CLEANUP must be ON, else no delete.
  *   - ONLY the explicitly-losing side. current_wins -> old loses;
  *     old_wins -> new loses. both_valid / dismissed have NO loser -> no-op.
  *     We never guess a winner.
@@ -83,10 +87,40 @@ export async function cleanupResolvedContradiction(
   // soft-delete below stays behind NICK_CONTRADICTION_CLEANUP.
   let superseded = false;
   try {
+    // Bi-temporal semantics per prior art (Zep/Graphiti, SQL:2011): the
+    // loser's validity ends when the WINNER's begins — not at whatever
+    // moment the operator happened to tap resolve. validFrom has no
+    // writer yet, so this degrades to NOW() until one exists.
+    const winner = await prisma.brainMemory.findUnique({
+      where: { id: winningMemoryId },
+      select: { validFrom: true, supersededById: true },
+    });
+    const invalidatedAt = winner?.validFrom ?? new Date();
+
+    if (winner?.supersededById === losingMemoryId) {
+      // Verdict flip: the row the operator just ruled CORRECT is itself
+      // superseded BY the row it now beats (an earlier resolution the
+      // other way). Without this, both rows end up superseded and the
+      // operator's ruled-correct belief stays buried forever. Clear the
+      // stamp narrowly — only when it points at this exact pair.
+      await prisma.brainMemory.update({
+        where: { id: winningMemoryId },
+        data: { supersededById: null, validUntil: null, lastVerifiedAt: new Date() },
+      });
+      log.info("contradiction_winner_unstranded", { status, winningMemoryId, losingMemoryId });
+    } else {
+      // An operator adjudication is the strongest verification event the
+      // system ever sees — BDN-310 lastVerifiedAt's first writer.
+      await prisma.brainMemory.updateMany({
+        where: { id: winningMemoryId, deletedAt: null },
+        data: { lastVerifiedAt: new Date() },
+      });
+    }
+
     const stamped = await prisma.brainMemory.updateMany({
       // Idempotent: never re-stamp an already-superseded row.
       where: { id: losingMemoryId, supersededById: null, deletedAt: null },
-      data: { supersededById: winningMemoryId, validUntil: new Date() },
+      data: { supersededById: winningMemoryId, validUntil: invalidatedAt },
     });
     superseded = stamped.count > 0;
     if (superseded) {

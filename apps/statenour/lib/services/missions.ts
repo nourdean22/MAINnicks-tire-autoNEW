@@ -168,7 +168,7 @@ export async function getMissionById(id: string) {
         },
         orderBy: [
           {
-            autoPriority: "desc",
+            autoPriority: { sort: "desc", nulls: "last" },
           },
           {
             dueDate: "asc",

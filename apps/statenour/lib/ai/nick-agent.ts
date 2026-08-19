@@ -443,16 +443,16 @@ export const ACTION_CATALOG = `
 When you want to take action, embed action blocks in your response:
 
 \`\`\`action
-{ "type": "task.create", "params": { "title": "Follow up on 3 oldest leads", "priority": 1, "domain": "business", "dueDate": "2026-04-02" } }
+{ "type": "task.create", "params": { "title": "Follow up on 3 oldest leads", "priority": "critical", "domain": "business", "dueDate": "2026-04-02" } }
 \`\`\`
 
 Available actions:
 | Action | Params | What It Does |
 |--------|--------|-------------|
-| task.create | title, description?, priority(1-10)?, domain?, dueDate? | Create a task |
+| task.create | title, description?, priority("critical"\|"high"\|"low", omit for normal)?, domain?, dueDate? | Create a task |
 | task.complete | id | Mark task done |
 | task.status | title | CHECK a task/habit's real status — done today? streak? last completed? Use this WHENEVER Nour asks "did I do X?", "is X done?", or "can you check?". NEVER answer that from memory — call this and report what it returns. If it returns found:false, say you don't see the task; do not assume it's done or not done. |
-| loop.create | title, domain?, priority(1-5)? | Open a mental loop |
+| loop.create | title, domain?, priority("critical"\|"high"\|"low", omit for normal)? | Open a mental loop |
 | loop.close | id | Close a loop |
 | commitment.create | description, toWhom?, domain?, deadline? | Make a commitment |
 | commitment.update | id, status?, notes? | Update commitment |

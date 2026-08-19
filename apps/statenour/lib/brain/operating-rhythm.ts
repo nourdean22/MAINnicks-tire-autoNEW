@@ -248,7 +248,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       // is now pinned repo-wide by the polarity source-scan test.
       const mit = await prisma.task.findFirst({
         where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
-        orderBy: { autoPriority: "desc" },
+        orderBy: { autoPriority: { sort: "desc", nulls: "last" } },
         select: { title: true },
       }).catch((err): null => {
         logError("brain.operating-rhythm", err, { fn: "executeRhythm.findMIT" });

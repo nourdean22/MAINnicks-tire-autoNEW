@@ -60,7 +60,7 @@ export async function generateDailySchedule(): Promise<{
           status: { in: ["INBOX", "READY"] },
           autoPriority: { gte: 60 },
         },
-        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
         take: 3,
         select: { title: true, autoPriority: true },
       })

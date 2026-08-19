@@ -1,4 +1,13 @@
 /**
+ * @deprecated DO NOT IMPORT — pre-2026-08-19 INVERTED polarity.
+ * This module has ZERO importers and still emits the retired
+ * lower-is-hotter scale (its output contradicts the canonical
+ * higher-is-hotter contract in lib/scoring/task-priority.ts). Wiring it
+ * anywhere reintroduces the bipolar column the 2026-08-19 wave
+ * exterminated. It is on the operator-sign-off delete list
+ * (docs/REIMAGINE-VERDICT-2026-08-19.md); if it is ever revived instead,
+ * invert the scale and route bands through lib/scoring/task-priority.
+ *
  * Task Priority Inferrer — heuristic auto-priority for tasks created
  * on-the-fly from chat or brain dumps. Apr 19.
  *

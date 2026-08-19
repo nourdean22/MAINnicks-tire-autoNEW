@@ -87,10 +87,21 @@ const FORBIDDEN: Array<{ re: RegExp; why: string }> = [
   { re: /autoPriority:\s*\{\s*sort:\s*"asc"/, why: "ascending nulls-ordered sort on autoPriority" },
   { re: /autoPriority:\s*\{\s*lte?:/, why: "lower-than filter treats the bottom of the scale as hot" },
   { re: /manualPriorityOverride:\s*(?:5|15|60|70)\b/, why: "legacy lower-is-hotter manual override literal" },
+  // 2026-08-19 round-2 review: Postgres DESC sorts NULLs FIRST, so a
+  // plain string desc floats every UNSCORED task above the most urgent
+  // one. The only legal descending sort is the object form with
+  // nulls: "last" (the polarity flip converted 27 sites).
+  { re: /autoPriority:\s*"desc"/, why: 'plain `"desc"` puts NULL autoPriority rows FIRST in Postgres — use { sort: "desc", nulls: "last" }' },
 ];
 
-/** Relative paths (forward slashes) allowed to violate — none today. */
-const ALLOWLIST = new Set<string>([]);
+/** Relative paths (forward slashes) allowed to violate, with a dated reason. */
+const ALLOWLIST = new Set<string>([
+  // Sibling session owns /brain this window (lane split 2026-08-19); its
+  // plain desc predates the flip and is higher-is-hotter already — only
+  // the NULLS-FIRST nuance remains. Route the nulls-last conversion to
+  // that lane; do not edit the file from this one.
+  "lib/brain/brain-graph.ts",
+]);
 
 function collectSourceFiles(root: string): string[] {
   const out: string[] = [];

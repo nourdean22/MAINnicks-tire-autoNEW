@@ -180,7 +180,7 @@ export async function computeGhostPredictions(): Promise<GhostPredictionBundle |
       mission: { select: { domain: true } },
     },
     take: 40,
-    orderBy: [{ autoPriority: "desc" }, { lastTouchedAt: "desc" }],
+    orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { lastTouchedAt: "desc" }],
   });
 
   if (candidates.length === 0) {

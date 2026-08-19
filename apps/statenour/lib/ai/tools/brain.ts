@@ -308,6 +308,11 @@ export const brainTools = {
           const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
             `SELECT id::text AS id FROM brain_memories
              WHERE deleted_at IS NULL AND confidence >= $1
+               -- BDN-310 supersession honored (2026-08-19 round-2): the
+               -- ask-Nick-directly lane must not resurface a belief the
+               -- operator explicitly superseded.
+               AND superseded_by_id IS NULL
+               AND (valid_until IS NULL OR valid_until > NOW())
                AND to_tsvector('english', content) @@ websearch_to_tsquery('english', $2)
              ORDER BY ts_rank(to_tsvector('english', content), websearch_to_tsquery('english', $2)) DESC
              LIMIT $3`,
@@ -324,8 +329,11 @@ export const brainTools = {
       const where: any = {
         // v7.9 — searchMemories never returns soft-deleted rows
         deletedAt: null,
+        // BDN-310 supersession honored (2026-08-19 round-2)
+        supersededById: null,
         AND: [
           { confidence: { gte: minConfidence } },
+          { OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] },
           { OR: [
             ...(ftsIds.length ? [{ id: { in: ftsIds } }] : []),
             { content: { contains: query, mode: "insensitive" } },

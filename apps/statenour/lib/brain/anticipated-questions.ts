@@ -169,7 +169,7 @@ export async function gatherSignals(
           status: { in: ["INBOX", "READY", "DOING"] },
           deletedAt: null,
         },
-        orderBy: [{ autoPriority: "desc" }, { createdAt: "asc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }],
         take: MAX_OPEN_LOOP_SIGNALS,
         select: { title: true, nextPhysicalAction: true, createdAt: true },
       })

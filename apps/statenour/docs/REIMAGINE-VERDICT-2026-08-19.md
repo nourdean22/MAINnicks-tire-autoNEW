@@ -172,3 +172,77 @@ semantics, 31 findings · perf, 5 ranked problems · design scorecard) live in t
 session transcript; their flagship claims were hand-verified against source
 before implementation, and the shipped diff was re-reviewed by an adversarial
 multi-agent pass (finders + refuters + external prior-art research) before merge.
+
+---
+
+## Round-2: the adversarial review's findings, and what closed them
+
+The pre-merge review (6 hostile finders + 12 independent refuters + 2 web-research
+agents, 20 agents / 618 tool calls) produced **55 deduped findings — 12 verified
+CONFIRMED, 0 refuted** — against this wave's own diff. The repo's 100% base rate
+of self-audits finding real defects held. Everything below is now fixed; fixes
+landed in three passes (Codex `849cd5173`, GPT-5 `3a9f8386a`, this session's
+round-2 commit):
+
+- **P0 · goals.ts nextMove sorted ascending** — every goal card surfaced its
+  LEAST urgent task; the in-memory `a - b` comparator was invisible to the
+  polarity source scan (Prisma-shape regexes only). Fixed + unit-pinned.
+- **P0 · triage "someday" wrote manualPriorityOverride 70** — old-scale someday
+  = new-scale HIGH, minted fresh inverted rows post-flip. Now
+  `priorityFromLabel("low")`; legacy override literals (5/15/60/70) banned by the
+  scan.
+- **P0 · no remap for legacy overrides** — pre-flip operator "critical" (15) rows
+  read as LOW forever (the sweep re-stamps overrides verbatim). Read-only census
+  probe shipped (`scripts/probe-task-priority-overrides.ts`); the remap itself is
+  an operator-authorized prod write (see Next move).
+- **P1 · Postgres `DESC` = NULLS FIRST** — the asc→desc flips floated UNSCORED
+  tasks above the most urgent at 27 sites. All converted to
+  `{ sort: "desc", nulls: "last" }`; plain-string `"desc"` now banned by the scan
+  (brain-graph.ts allowlisted — sibling lane, routed there).
+- **P1 · "both recall lanes honor supersession" was FALSE** — searchMemories
+  (the ask-Nick-directly tool), cold-memory hydration, memory-manager recall()
+  (memory-browser REST+tRPC), the graph-context injector, and the shared
+  knnSearch vector boundary all served superseded beliefs. All filtered +
+  source-pinned (9 reader pins now).
+- **P1 · verdict-flip stranded BOTH memories** — re-resolving a contradiction
+  the other way left the ruled-CORRECT row superseded forever. The writer now
+  un-strands the winner when its stamp points at the loser.
+- **P1 · flag board rendered a working-looking OFF for env-only gateway flags**
+  — readOnly entries now resolve from env only, render "ENV ONLY", and the
+  override mutation rejects them server-side; `offValue` models the `!== "0"`
+  kill-switch exactly.
+- **P1 · skill-extractor banded on the old scale while ghost-nick flipped** —
+  the shared `priority:<band>` signal vocabulary was cross-polarity; both sites
+  now use `priorityBandLabel`, synthetic clusters pinned semantically high.
+- **P1 · missions false-empty on partial failure** — refined to a three-state
+  board (ready / stale-with-banner / unreadable) keyed on `isError && !data`.
+- Confirmed P2s, all closed: exclusive `> 60` boundaries vs the inclusive `>= 60`
+  contract; six hand-rolled band ternaries replaced with `priorityBandLabel`;
+  validator range 1-999 → 0-100; the "commitment(-12)" header lie; the
+  contradiction-cleanup "flag-gated, else no-op" header lie; nick-agent's prompt
+  teaching numeric `priority(1-10)` that `priorityFromLabel` discarded;
+  attention-tracker turning a FAILED chat read into "every domain neglected"
+  with a fabricated 14d age; the revenue mirror treating "today" as a 24h age
+  instead of an ET calendar day; a once-a-year DST flake in the new scoreboard
+  test; the personId commit's overclaimed mechanism (createTaskAndEnrich never
+  parsed with zod — story corrected in the test header) + a hallucinated-personId
+  FK guard mirroring the goalId pattern; a `@deprecated DO NOT IMPORT` banner on
+  the dead inverted-polarity inferrer; the tool-catalog doc's stale scale.
+
+**External prior-art verdicts (web research, primary sources):** the
+unknown-is-not-zero shape matches Nagios UNKNOWN / Grafana no-data / SRE
+fail-safe-aggregation doctrine (per-metric tri-state confirmed canonical); the
+`isError && !data` refinement is the documented TanStack Query v5 pattern for
+partial degradation; the supersession design matches Zep/Graphiti's bi-temporal
+model and SQL:2011 closed-open boundaries — their recommendations (loser's
+`validUntil` = winner's `validFrom` when present; `lastVerifiedAt` stamped on the
+winner at operator adjudication — its first writer) are implemented.
+
+## Operator action (one item)
+
+Legacy `manualPriorityOverride` rows written under the old scale are sticky and
+misranked until remapped. Run the read-only census, then authorize the remap:
+
+```
+railway run --service statenour-web -- pnpm exec tsx scripts/probe-task-priority-overrides.ts
+```

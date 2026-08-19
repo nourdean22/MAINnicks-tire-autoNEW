@@ -129,7 +129,15 @@ export async function searchColdMemory(
   const ids = candidates.map((c) => c.sourceId);
   const memories = (await prisma.brainMemory
     .findMany({
-      where: { id: { in: ids } },
+      // 2026-08-19 round-2: the id-hydration fetch had NO liveness filter
+      // at all — deleted and superseded rows re-entered through cold
+      // recall. Same contract as every other recall lane now.
+      where: {
+        id: { in: ids },
+        deletedAt: null,
+        supersededById: null,
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      },
       select: {
         id: true,
         category: true,

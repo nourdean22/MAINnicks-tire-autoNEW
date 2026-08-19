@@ -696,6 +696,19 @@ export async function createTaskAndEnrich(
         .catch(() => false)
     : true; // no goalId supplied → nothing to validate
 
+  // personId carries the same optional-FK hazard (Task_personId_fkey is
+  // enforced on INSERT despite onDelete: SetNull), and the model supplies
+  // it via addTasksToProject — a hallucinated id would P2003 mid-batch:
+  // earlier tasks created, later ones lost, red TOOL FAILED card in chat.
+  // Null it out when it doesn't resolve; SetNull is the declared semantics.
+  const chosenPersonId = data.personId;
+  const personOk = chosenPersonId
+    ? await prisma.personProfile
+        .findUnique({ where: { id: chosenPersonId }, select: { id: true } })
+        .then((p) => Boolean(p))
+        .catch(() => false)
+    : true; // no personId supplied → nothing to validate
+
   let safeData = data;
   if (!missionOk) {
     // Dynamic import · avoids the static tasks↔missions cycle (same pattern
@@ -705,6 +718,9 @@ export async function createTaskAndEnrich(
   }
   if (!goalOk) {
     safeData = { ...safeData, goalId: null };
+  }
+  if (!personOk) {
+    safeData = { ...safeData, personId: null };
   }
 
   // 2026-07-12 · IDEMPOTENCY GUARD. Model-facing batch creates ("add these 8

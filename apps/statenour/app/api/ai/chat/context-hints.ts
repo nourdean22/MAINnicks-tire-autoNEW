@@ -205,7 +205,7 @@ export async function buildContextHints(
             where: { status: { in: ["DOING", "READY"] }, deletedAt: null },
             orderBy: [
               { status: "asc" }, // DOING ranks before READY alphabetically · semantically correct
-              { autoPriority: "desc" },
+              { autoPriority: { sort: "desc", nulls: "last" } },
               { lastTouchedAt: "desc" },
             ],
             select: { id: true },

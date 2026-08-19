@@ -120,7 +120,7 @@ const tasksCoreTools = {
           streakCount: true,
           mission: { select: { title: true, domain: true } },
         },
-        orderBy: { autoPriority: "desc" },
+        orderBy: { autoPriority: { sort: "desc", nulls: "last" } },
       }).catch((err): never[] => {
         void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.tasks", err, { fn: "getTasks" }, "error"));
         return [];
@@ -1353,7 +1353,7 @@ const tasksCoreTools = {
             }
           })
           .catch((): null => null),
-        prisma.task.findMany({ where: { status: { in: ["READY", "DOING"] }, deletedAt: null }, orderBy: { autoPriority: "desc" }, take: 5 }).catch((): never[] => []),
+        prisma.task.findMany({ where: { status: { in: ["READY", "DOING"] }, deletedAt: null }, orderBy: { autoPriority: { sort: "desc", nulls: "last" } }, take: 5 }).catch((): never[] => []),
         (async () => {
           const { getUnresolvedAlerts } = await import("@/lib/mastery/drift-engine");
           return getUnresolvedAlerts().catch(() => []);

@@ -1,16 +1,18 @@
 /**
- * Task.personId passthrough (2026-08-19).
+ * Task.personId passthrough (2026-08-19; mechanism CORRECTED by the
+ * round-2 adversarial review).
  *
- * The column + index have existed since the Power Atlas work, and
- * lib/ai/tools/missions.ts addTasksToProject has been passing personId
- * into createTaskAndEnrich — but taskCreateSchema didn't list the key,
- * so zod parse() silently STRIPPED it and the column stayed null
- * forever. The /people "open promises to X" query and the brain-graph
- * person edge were reading a field nothing could write.
- *
- * createTask spreads the parsed payload into prisma.task.create
- * (lib/services/tasks.ts runCore), so schema membership IS the write
- * path — these tests pin the schema half of that contract.
+ * Precise history: TWO create paths exist. createTaskAndEnrich takes
+ * Prisma.TaskUncheckedCreateInput and creates directly with NO zod
+ * parse — so addTasksToProject's personId was never stripped on that
+ * path (the original commit message overclaimed "every create"). The
+ * createTask() service path (tRPC/REST) DOES parse with
+ * taskCreateSchema, which did not list the key — zod silently stripped
+ * personId there. This suite pins the schema half: schema membership is
+ * the whole write path for createTask because runCore spreads the
+ * parsed payload into prisma.task.create. The FK-existence guard for
+ * hallucinated personIds lives in createTaskAndEnrich beside the
+ * goalId guard (round-2 fix).
  */
 import { describe, it, expect } from "vitest";
 
