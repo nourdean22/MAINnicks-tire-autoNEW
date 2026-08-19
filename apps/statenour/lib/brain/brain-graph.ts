@@ -267,7 +267,7 @@ export async function getBrainGraph(params: {
 
   // Row shapes differ per domain; each mapper below reads only the
   // fields its own query selected.
-  type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  type Row = Record<string, any>;
   const dbMissions = domainResult<Row>("missions");
   const dbTasks = domainResult<Row>("tasks");
   const dbGoals = domainResult<Row>("goals");
