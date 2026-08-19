@@ -172,6 +172,39 @@ export async function recordCoachEvent(input: CoachEventInput): Promise<CoachEve
       select: { id: true, content: true, metadata: true, createdAt: true, updatedAt: true },
     });
 
+    // 2026-08-19 · P0 coach events also page the operator's phone via the
+    // LIVE Web Push channel (lib/notifications/push.ts — the one that
+    // already delivers the morning brief and drift alerts). Before this,
+    // a P0 like "Data feeder down" or the cron-heartbeat's silent-fleet
+    // alert only landed in an in-app banner the operator had to open the
+    // app to see — the data-source canary's "the canary now SCREAMS"
+    // comment screamed into a dashboard. P0 ONLY: pushing P1/P2 advisory
+    // events would train the operator to swipe pushes away, which is the
+    // same rot as a permanently-red gate. Fire-and-forget: a push failure
+    // must never fail the coach write. `tag: key` makes re-fires of the
+    // same (kind, subjectId) REPLACE the standing notification instead of
+    // stacking, so a still-down feeder re-pages once per cron run, not
+    // once per minute.
+    if (input.priority === "P0") {
+      void import("@/lib/notifications/push")
+        .then(({ sendPush }) =>
+          sendPush({
+            title: input.title,
+            body: input.body ?? input.title,
+            level: "critical",
+            url: input.deepLink ?? "/system/health",
+            tag: key,
+          }),
+        )
+        .catch((err) => {
+          log.warn("coach_event_push_failed", {
+            kind: input.kind,
+            subjectId: input.subjectId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
+
     return rowToCoachEvent({ ...row, key }, key);
   } catch (err) {
     log.warn("coach_event_record_failed", {

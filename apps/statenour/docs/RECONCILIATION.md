@@ -78,8 +78,20 @@
 > there — environmental) · live prompt:size-check unrunnable without prod creds (static
 > measure: PASS, exit 0).
 >
-> **Flagged · NOT fixed (need operator/product calls):** both Telegram alert pipelines have
-> zero callers (docs claim 5m/15m pushes; nothing pages anyone — the dashboard is pull-only) ·
+> **Same-day correction + follow-up (operator: "i do get push notifications on my phone"):**
+> the entry below originally claimed "nothing pages anyone — the dashboard is pull-only".
+> OVERBROAD. Precise truth: a LIVE Web Push (VAPID) channel exists (`lib/notifications/push.ts`)
+> with real senders — morning brief, intelligence brief, deep-research completions, and drift
+> alerts via os-snapshot — plus ≤3 daily Telegram micro-pushes (`lib/brain/proactive-pushes.ts`,
+> a different, live Telegram path). What never paged was the HEALTH/FAILURE class: P0 coach
+> events (probe failures, silent-fleet alerts) rendered only as in-app banners. Fixed same day:
+> `recordCoachEvent` now bridges **P0 (and only P0)** events to `sendPush` (level critical,
+> tag = coach dedup key so re-fires replace instead of stack, fire-and-forget so a push failure
+> never breaks the coach write). The two DEAD pipelines below remain dead as stated.
+>
+> **Flagged · NOT fixed (need operator/product calls):** the two dedicated Telegram alert
+> pipelines (`alert-telegram-bridge`, `fatal-error-telegram`) have zero callers (docs claim
+> 5m/15m pushes) — fatal-error paging now partially covered by the P0 bridge above ·
 > schema sentinel has no cron (runs only on page load) · `system_health_digest` has no cron
 > producer (three docstrings claim one) · captures have no archiving consumer · legacy
 > `/api/cron/mega` route + worker endpoints still exist (double-fire risk if the old Railway
