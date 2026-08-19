@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   },
   recordShown: vi.fn(),
   recordDecision: vi.fn(),
+  recordOutcome: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: { brainMemory: mocks.brainMemory } }));
@@ -26,6 +27,7 @@ vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 vi.mock("@/lib/services/outcome-ledger", () => ({
   recordShown: mocks.recordShown,
   recordDecision: mocks.recordDecision,
+  recordOutcome: mocks.recordOutcome,
 }));
 
 import {
@@ -153,6 +155,37 @@ describe("rateDiscovery", () => {
     vi.clearAllMocks();
     mocks.recordShown.mockResolvedValue("ledger-1");
     mocks.recordDecision.mockResolvedValue(true);
+    mocks.recordOutcome.mockResolvedValue(true);
+  });
+
+  // ── 2026-08-19 · outcome-loop wave · the usefulness half ──────────
+  // `noise` is the operator saying "not useful" — the first real writer
+  // of outcomeUseful. `known` and `investigate` must NOT write it:
+  // known is a novelty defect (outcomeUseful:false would poison the
+  // accuracy-correction harvest with a claim the operator confirmed
+  // TRUE), and investigate leaves usefulness honestly open.
+
+  it('"noise" also records outcomeUseful:false — the first real usefulness writer', async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    await rateDiscovery("d1", "noise");
+    expect(mocks.recordOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ledger-1", useful: false }),
+    );
+  });
+
+  it('"known" records NO outcome — novelty defects stay out of the accuracy harvest', async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    await rateDiscovery("d1", "known");
+    expect(mocks.recordOutcome).not.toHaveBeenCalled();
+  });
+
+  it('"investigate" records NO outcome — usefulness stays honestly open', async () => {
+    mocks.brainMemory.findUnique.mockResolvedValueOnce(row());
+    mocks.brainMemory.update.mockResolvedValueOnce({});
+    await rateDiscovery("d1", "investigate");
+    expect(mocks.recordOutcome).not.toHaveBeenCalled();
   });
 
   it('maps "known" to IGNORED, never dismissed — it is a novelty signal, not an error', async () => {
