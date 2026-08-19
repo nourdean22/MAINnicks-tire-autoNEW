@@ -47,8 +47,8 @@ export interface FeatureFlag {
   defaultBehavior: string;
   /**
    * 2026-08-16 · true = the feature is LIVE when the env var is unset, and the
-   * var acts as a kill-switch (set it to anything that is not `onValue` — by
-   * convention "0" — to disable).
+   * var acts as a kill-switch. Most default-on flags use the normal `onValue`
+   * semantics; raw-env runtimes can instead declare their exact `offValue`.
    *
    * Added because the registry previously had no way to express a graduated
    * flag: computeIsOn returned false for an empty value unconditionally, so a
@@ -57,6 +57,10 @@ export interface FeatureFlag {
    * the code runs it — a status surface that lies. Model it here instead.
    */
   defaultOn?: boolean;
+  /** Exact raw value that disables a default-on flag. This mirrors runtimes
+   * such as `process.env.FLAG !== "0"`; it is deliberately not trimmed or
+   * normalized before comparison. */
+  offValue?: string;
   /** Optional · linked migration in docs/migrations/. */
   relatedMigration?: string;
   /** Optional · ADR or doc path that captures the trade-off. */
@@ -176,6 +180,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     status: "experimental",
     onValue: "1",
     defaultOn: true,
+    offValue: "0",
     defaultBehavior:
       "LIVE: repetition-noop enforced at remember(). Kill-switch =0 restores legacy always-reinforce. Probe: scripts/probe-gateway-agrees.ts.",
     ownerDoc: "lib/brain/memory-commit-gateway.ts",
@@ -188,6 +193,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     status: "experimental",
     onValue: "1",
     defaultOn: true,
+    offValue: "0",
     defaultBehavior:
       "LIVE: update + weaker_evidence-review enforced at remember(). Kill-switch =0 FIRST if writes look wrong, then run scripts/probe-gateway-agrees.ts.",
     ownerDoc: "lib/brain/memory-commit-gateway.ts",
@@ -499,7 +505,11 @@ export function getFlag(key: string): ResolvedFlag | null {
 
   // Resolve override or environment variable
   const dbOverride = overridesCache[key];
-  const rawValue = (dbOverride !== undefined ? dbOverride : (process.env[key] ?? "")).trim();
+  // Read-only entries are observational mirrors of raw runtime env checks.
+  // An old database override must not make the board contradict runtime.
+  const rawValue = spec.readOnly
+    ? (process.env[key] ?? "")
+    : (dbOverride !== undefined ? dbOverride : (process.env[key] ?? "")).trim();
   const isOn = computeIsOn(spec, rawValue);
 
   return { ...spec, rawValue, isOn, overrideValue: dbOverride ?? null };
@@ -514,7 +524,9 @@ export function getAllFlags(): ResolvedFlag[] {
   triggerBackgroundRefresh();
   return FLAG_REGISTRY.map((spec) => {
     const dbOverride = overridesCache[spec.key];
-    const rawValue = (dbOverride !== undefined ? dbOverride : (process.env[spec.key] ?? "")).trim();
+    const rawValue = spec.readOnly
+      ? (process.env[spec.key] ?? "")
+      : (dbOverride !== undefined ? dbOverride : (process.env[spec.key] ?? "")).trim();
     return { ...spec, rawValue, isOn: computeIsOn(spec, rawValue), overrideValue: dbOverride ?? null };
   });
 }
@@ -523,7 +535,9 @@ export function getAllFlags(): ResolvedFlag[] {
  * Computes the on-state for a spec given a raw env value.
  *
  * Handles three patterns:
- *   1. Pipe-delimited enum (e.g. `venice|openai|anthropic|gemini`)
+ *   1. Exact default-on kill-switch (`offValue`)
+ *      · on iff the raw value is anything except the declared off value
+ *   2. Pipe-delimited enum (e.g. `venice|openai|anthropic|gemini`)
  *      · on iff rawValue matches one of the options
  *   2. Present-implies-on placeholder (`<any-non-empty-string>`)
  *      · on iff rawValue is non-empty
@@ -533,6 +547,9 @@ export function getAllFlags(): ResolvedFlag[] {
 function computeIsOn(spec: FeatureFlag, rawValue: string): boolean {
   // Unset → the flag's declared default. Only graduated flags set defaultOn.
   if (!rawValue) return spec.defaultOn === true;
+
+  if (spec.offValue !== undefined) return rawValue !== spec.offValue;
+
   const lower = rawValue.toLowerCase();
 
   if (spec.onValue === "<any-non-empty-string>") return true;

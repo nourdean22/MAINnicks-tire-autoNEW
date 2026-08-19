@@ -41,7 +41,9 @@ const taskBaseSchema = z.object({
   dueDate: nullableDate.optional(),
   lastTouchedAt: nullableDate.optional(),
   driftRisk: integerRange(0, 100).default(0),
-  manualPriorityOverride: nullableInteger(1, 999).optional(),
+  // Task priority has one canonical 0-100 scale. Keep create/update at the
+  // same boundary as setTaskPriority so new overrides cannot escape the bands.
+  manualPriorityOverride: nullableInteger(0, 100).optional(),
   finishCondition: z.string().trim().default(""),
   autoPriorityExplanation: optionalString,
   // ── Loops unification (Apr 15) ──
@@ -111,7 +113,7 @@ export const taskUpdateSchema = z
     dueDate: nullableDate,
     lastTouchedAt: nullableDate,
     driftRisk: integerRange(0, 100),
-    manualPriorityOverride: nullableInteger(1, 999),
+    manualPriorityOverride: nullableInteger(0, 100),
     finishCondition: z.string().trim(),
     autoPriorityExplanation: optionalString,
     loopKind: z.enum(loopKindValues),

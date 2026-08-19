@@ -138,4 +138,19 @@ describe("task-priority polarity · source scan", () => {
     }
     expect(violations, violations.join("\n")).toEqual([]);
   });
+
+  it("keeps synthetic skill candidates semantically high after the numeric polarity flip", () => {
+    const extractor = readFileSync(join(process.cwd(), "lib", "brain", "skill-extractor.ts"), "utf8");
+    expect(extractor).toContain('const SYNTHETIC_HIGH_PRIORITY = priorityFromLabel("high")');
+    expect(extractor).not.toContain("prioritySignal(30)");
+  });
+
+  it("keeps the active tool catalog on the canonical higher-is-hotter wording", () => {
+    const catalog = readFileSync(
+      join(process.cwd(), "docs", "architecture", "tool-catalog-reference.md"),
+      "utf8",
+    );
+    expect(catalog).toContain("Override task priority (0-100, higher = more urgent)");
+    expect(catalog).not.toContain("Override task priority (0-100, lower = more urgent)");
+  });
 });
