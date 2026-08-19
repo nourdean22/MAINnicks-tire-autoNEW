@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-18-uneven-tire-wear-patterns",
+  "generatedAt": "2026-08-18",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "not on apps/nickstire/docs/REEL-SLATE-2026-07-31.md — new concept, adjacent to but distinct from the slate's existing tread-depth (penny test) and alignment-pull items; see README §2",
+  "campaignKeyword": "WEARSHAPE",
+  "hookText": "Your tire wear has a shape — and that shape can point to what's wrong.",
+  "ctaText": "Send this to someone whose tires look uneven.",
+  "durationSeconds": 27,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Your tire wear has a shape — and that shape can point to what's wrong.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro low-angle shot of a tire tread, camera slowly rotating around the circumference revealing an uneven wear pattern silhouette against dramatic raking side light, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "Wear straight down the center often means overinflated. Wear on both edges often means underinflated.",
+      "onScreenText": "",
+      "providerScene": "Split macro comparison of two tire treads mounted on a rotation stand, no hands, even studio lighting, slow lateral pan from a center-worn tread to an edge-worn tread, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 14,
+      "narration": "One edge wearing more, or a feathered saw-tooth texture — that usually means alignment, not air.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro of a feathered, saw-tooth tread wear pattern, raking side light exaggerating the texture, slow push-in, shallow depth of field, moody garage-bay backdrop, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 14,
+      "endSecond": 20,
+      "narration": "Cupping — little scalloped dips around the tire — that's one clue a shock or strut is wearing out.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a tire tread showing cupping (scalloped dip wear), camera slowly orbiting the tire surface, dramatic rim light catching the shadow inside each scallop, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 20,
+      "endSecond": 27,
+      "narration": "Send this to someone whose tires look uneven. Stop by and we'll take a look — Nick's Tire and Auto.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, alignment rack visible in the background, bay door partially open to daylight, no readable signage or branding in frame, warm late-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient garage room-tone only, royalty-free",
+    "sfxNotes": "optional single soft rubber-scuff/tread-texture SFX under beats 3-4 (feathering/cupping reveal) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 8 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 6 },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (61/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "61/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "id": "content-pack-2026-08-17-why-car-pulls",
+  "campaignKeyword": "PULLING",
+  "slateItem": 13,
+  "archetype": "diagnostic_hud_reveal",
+  "motionLenses": ["blueprint_technical", "xray_cutaway", "product_ad_macro"],
+  "selectedCaption": "The wheel is straight. The car isn't. A pull has more than one cause, and they're not equally urgent. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment — or just uneven tire pressure. Check pressure first. It's free, and it's often the answer. Worth checking before it becomes a bigger fix.",
+  "hashtags": ["#wheelalignment", "#cartips", "#autorepair", "#clevelandohio"],
+  "voiceoverScript": "The wheel is straight. The car isn't. A pull like this has more than one cause. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment — or just tire pressure. Check pressure first. It's free, and it's often the answer. Changing pull, worth checking soon. Steady and mild can wait — but do not guess. Worth checking before it becomes a bigger fix. Send this before you book anything. Stop by — we'll check pressure and take a look, free. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 2,
+      "onScreenText": null,
+      "visual": "Top-down technical blueprint schematic: a car icon on a straight dashed-centerline road, a thin glowing motion-vector line trailing behind it bends visibly off-center, dark blueprint-blue background, no faces, no legible text baked into the shot"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 2,
+      "endSecond": 5,
+      "onScreenText": null,
+      "visual": "Same blueprint schematic, camera pushes in on the bending glowing vector line as it pulses"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 5,
+      "endSecond": 10,
+      "onScreenText": "BRAKING-ONLY PULL",
+      "visual": "X-ray cutaway into a front brake caliper and rotor, one side glowing hot/uneven against the other, cool schematic lighting"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 10,
+      "endSecond": 15,
+      "onScreenText": "CONSTANT PULL",
+      "visual": "X-ray cutaway into a wheel's alignment geometry (toe angle skewing) dissolving into a tire cross-section with uneven pressure on one side"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 15,
+      "endSecond": 20,
+      "onScreenText": "CHECK PRESSURE FIRST",
+      "visual": "Product-ad macro on a tire valve stem, an abstract analog needle/dial sweeping, no legible digits (numbers never asked of the generator)"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 20,
+      "endSecond": 25,
+      "onScreenText": "CHANGING = SOONER · STEADY = SOON, NOT BLIND",
+      "visual": "Back to the blueprint schematic, the vector line flickers between a bent state and a straight state"
+    },
+    {
+      "beatNumber": 7,
+      "startSecond": 25,
+      "endSecond": 30,
+      "onScreenText": "WORTH CHECKING.",
+      "visual": "Blueprint schematic vector line straightens fully, mirroring the beat-1 opening for a loop seam"
+    },
+    {
+      "beatNumber": 8,
+      "startSecond": 30,
+      "endSecond": 33,
+      "onScreenText": "Send this before you book anything. Stop by — we'll check pressure and take a look, free. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "visual": "Static hold on the CTA card, silent ambient tone only"
+    }
+  ],
+  "qualityEstimate": {
+    "method": "manual, not calculateReelQualityScore()",
+    "estimatedTotal": 61,
+    "floor": 70,
+    "passesFloor": false
+  },
+  "liveVerification": {
+    "repetitionLedgerQueried": false,
+    "evidenceResolverQueried": false,
+    "reelCanaryCalled": false,
+    "rendered": false,
+    "published": false
+  }
+}

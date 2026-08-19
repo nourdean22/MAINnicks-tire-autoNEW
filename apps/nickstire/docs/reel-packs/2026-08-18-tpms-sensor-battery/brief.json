@@ -1,0 +1,83 @@
+{
+  "id": "content-pack-2026-08-18-tpms-sensor-battery",
+  "campaignKeyword": "TPMS",
+  "archetype": "myth_vs_reality",
+  "motionLenses": ["warning_light_world", "xray_cutaway", "product_ad_macro"],
+  "selectedCaption": "Your TPMS light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn it off. Worth checking before you keep adding air for nothing.",
+  "hashtags": ["#tpmswarning", "#tirecare", "#clevelandohio", "#euclidohio"],
+  "voiceoverScript": "Your tire light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn that light off — the sensor is the problem, not the pressure. Worth checking before you keep adding air for nothing. Send this to whoever keeps topping off air and the light won't go away. Stop by — we'll scan it, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 2,
+      "onScreenText": null,
+      "visual": "Inside a dark car dashboard interior world, an amber tire-pressure warning indicator (tire outline with exclamation point) flickers awake out of black, deep blacks with amber bokeh glow, macro perspective, no faces, no legible text baked into the shot"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 2,
+      "endSecond": 5,
+      "onScreenText": "MYTH: LOW AIR",
+      "visual": "Same dark dashboard interior world, the amber tire-pressure warning light holds steady and glows brighter, deep blacks with amber bokeh glow"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 5,
+      "endSecond": 10,
+      "onScreenText": "SENSOR INSIDE THE WHEEL",
+      "visual": "Technical x-ray cutaway visualization of a car wheel and tire assembly, translucent layered materials revealing a small sensor module mounted inside the rim, cool schematic lighting, clean dark field"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 10,
+      "endSecond": 15,
+      "onScreenText": "5-10 YEARS · THEN IT DIES",
+      "visual": "Technical x-ray cutaway visualization continues, a small internal battery indicator inside the sensor module visibly dimming and fading, precise engineering aesthetic"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 15,
+      "endSecond": 20,
+      "onScreenText": "TIRES: FINE · SENSOR: NOT",
+      "visual": "Macro product shot of a tire-pressure gauge resting against a valve stem, needle reading a correct healthy pressure, no hand in frame, shallow depth of field"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 20,
+      "endSecond": 25,
+      "onScreenText": "ADDING AIR WON'T FIX IT",
+      "visual": "Premium product commercial shot of a small tire-pressure sensor unit, 85mm macro lens, shallow depth of field, studio-grade key lighting on a dark seamless background, slow turntable rotation, blank label area on the housing (label added as ffmpeg overlay, not AI-rendered text)"
+    },
+    {
+      "beatNumber": 7,
+      "startSecond": 25,
+      "endSecond": 30,
+      "onScreenText": "WORTH CHECKING.",
+      "visual": "Inside the dark dashboard interior world, the amber tire-pressure warning light flickers and fades back to black, mirroring the beat-1 opening for a loop seam"
+    },
+    {
+      "beatNumber": 8,
+      "startSecond": 30,
+      "endSecond": 33,
+      "onScreenText": "Send this to whoever keeps topping off air and the light won't go away. Stop by — we'll scan it, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "visual": "Static hold on the CTA card, silent ambient tone only"
+    }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "estimatedQualityScore": {
+    "total": 62,
+    "outOf": 75,
+    "floor": 70,
+    "passesFloor": false,
+    "note": "Manual estimate only — no live calculateReelQualityScore() run this session (no DB/server access). See README.md #5 for the per-dimension breakdown."
+  },
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runContext": {
+    "mode": "SCHEDULED/INTELLIGENCE+PRODUCTION",
+    "liveOperatorAuthorization": false,
+    "generationAttempted": false,
+    "publishAttempted": false,
+    "date": "2026-08-18"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "id": "content-pack-2026-08-17-tread-depth-rain-vs-snow",
+  "campaignKeyword": "TWONUMBERS",
+  "archetype": "myth_vs_reality",
+  "motionLenses": ["rain_world", "xray_cutaway", "product_ad_macro"],
+  "selectedCaption": "2/32\" is the legal minimum. It is not the safe one. Below 3/32\", hydroplaning risk climbs sharply in rain. Below 4/32\", you lose meaningful grip in snow. Legal and safe are two different numbers — and they matter at different times of year. Worth checking before the next storm, not after.",
+  "hashtags": ["#tiresafety", "#cartips", "#clevelandohio", "#euclidohio"],
+  "voiceoverScript": "Two-thirty-seconds is legal. Legal isn't the same as safe. Below three-thirty-seconds, rain grip drops fast — hydroplaning risk climbs sharply. Below four-thirty-seconds, snow grip goes next. Two different numbers. Two different seasons. One check tells you both. Worth checking before the next storm, not after. Save both numbers — they matter at different times of year. Stop by and we'll check yours, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 2,
+      "onScreenText": null,
+      "visual": "Macro shot of a tread-depth gauge dipping into a wet tire groove, rain falling, dark wet asphalt catching distant streetlight reflections, shallow depth of field, no faces, no legible text baked into the shot"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 2,
+      "endSecond": 5,
+      "onScreenText": "LEGAL ≠ SAFE",
+      "visual": "Same rain macro world, the gauge holds steady in the groove as rain intensifies, water beading on the rubber surface"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 5,
+      "endSecond": 10,
+      "onScreenText": "BELOW 3/32\" · RAIN GRIP DROPS",
+      "visual": "Technical x-ray cutaway visualization of a tire tread groove channeling water away from the contact patch, translucent layered materials, the water layer visibly thickening, cool schematic lighting, clean dark field"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 10,
+      "endSecond": 15,
+      "onScreenText": "BELOW 4/32\" · SNOW GRIP GOES NEXT",
+      "visual": "Technical x-ray cutaway visualization continues, the same groove now shown packed with snow, less open channel space visible, precise engineering aesthetic"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 15,
+      "endSecond": 20,
+      "onScreenText": "TWO NUMBERS · TWO SEASONS",
+      "visual": "Premium product commercial shot of a tire, 85mm macro lens, shallow depth of field, studio-grade key lighting on a dark seamless background, slow turntable rotation, blank overlay areas on opposite sides of the tread (icons added as ffmpeg overlay, not AI-rendered)"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 20,
+      "endSecond": 25,
+      "onScreenText": "ONE CHECK · BOTH ANSWERS",
+      "visual": "Macro shot of a tread-depth gauge dipping into the same groove in daylight, calm, no rain, steady and confident framing"
+    },
+    {
+      "beatNumber": 7,
+      "startSecond": 25,
+      "endSecond": 30,
+      "onScreenText": "WORTH CHECKING NOW",
+      "visual": "Macro rain-world pulls back to the beat-1 framing, gauge and wet groove under streetlight, rain returning, mirroring the opener for a loop seam"
+    },
+    {
+      "beatNumber": 8,
+      "startSecond": 30,
+      "endSecond": 33,
+      "onScreenText": "Save both numbers — they matter at different times of year. Stop by and we'll check yours, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "visual": "Static hold on the CTA card, silent ambient tone only"
+    }
+  ],
+  "qualityEstimate": {
+    "method": "manual, not calculateReelQualityScore()",
+    "estimatedTotal": 65,
+    "floor": 70,
+    "passesFloor": false
+  },
+  "liveVerification": {
+    "repetitionLedgerQueried": false,
+    "evidenceResolverQueried": false,
+    "reelCanaryCalled": false,
+    "rendered": false,
+    "published": false
+  }
+}

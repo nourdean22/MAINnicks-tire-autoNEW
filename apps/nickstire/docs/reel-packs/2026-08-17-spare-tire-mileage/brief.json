@@ -1,0 +1,93 @@
+{
+  "packId": "2026-08-17-spare-tire-mileage",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #5",
+  "campaignKeyword": "SPARE",
+  "hookText": "A compact spare is not a tire. It's a ride to the shop.",
+  "ctaText": "Send this to someone riding on a spare right now.",
+  "durationSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "A compact spare is not a tire. It's a ride to the shop.",
+      "onScreenText": "THIS IS NOT A TIRE",
+      "providerScene": "Compact space-saver spare tire alone in a trunk well, centered composition, fast push-in from a slightly elevated angle, cool overhead trunk-light practical lighting, shallow depth of field, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 7,
+      "narration": "Most are rated around 50 miles and under 50 mph.",
+      "onScreenText": "50 MPH · 50 MILES",
+      "providerScene": "Close-up orbit around the compact spare's sidewall, hand-free rotating turntable reveal of the narrow tread band, soft key light, shallow DOF, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 7,
+      "endSecond": 12,
+      "narration": "Less tread, less grip, and no wear indicator to warn you.",
+      "onScreenText": "LESS TREAD. LESS GRIP.",
+      "providerScene": "Macro shot of the spare's shallow tread grooves, slow lateral dolly across the surface, texture-forward, neutral documentary lighting, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 12,
+      "endSecond": 16,
+      "narration": "Driving on one all week is how a flat becomes a tow.",
+      "onScreenText": "A WEEK ON IT = A TOW",
+      "providerScene": "Wide low-angle shot of a car's rear wheel well on a spare, tracking alongside on a highway shoulder, motion blur on the background, cutting to a distant tow truck flatbed hook in soft focus, overcast daylight, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 16,
+      "endSecond": 20,
+      "narration": "Send this to someone riding on a spare right now. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "SEND TO SOMEONE ON A SPARE",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, centered static framing echoing beat 1's composition, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "loopPlan": "Beat 5 closes on a centered, static framing of the shop bay door, deliberately composed to echo beat 1's centered framing of the spare tire in the trunk well, so a replay reads as a soft continuation rather than a hard restart. Untested — no render exists to confirm the loop reads cleanly.",
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §1)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); light road/trunk ambience SFX only, royalty-free",
+    "sfxNotes": "optional single soft 'trunk latch' sting under beat 1's opening push-in for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 10, "detail": "Beat 1 opens at 0s with visual + on-screen text" },
+      "mutedFirst": { "max": 10, "score": 10, "detail": "Every beat carries on-screen text" },
+      "beatStructure": { "max": 5, "score": 5, "detail": "5 contiguous beats, within the 4-6 range" },
+      "length": { "max": 5, "score": 5, "detail": "20s, within the 15-22s REEL_OUTPUT_RULES band" },
+      "loop": { "max": 5, "score": 5, "detail": "Non-empty loop plan present (validateLoopPlan only requires non-empty text — this is a self-scored pass, not a rendered confirmation)" },
+      "sourcedFact": { "max": 10, "score": 0, "detail": "No EvidenceRecord attached — evidenceResolver.ts not queried live this run" },
+      "faceless": { "max": 10, "score": 10, "detail": "No face/hand/limb subjects in any beat design; text is caption overlay, not generated in-frame" },
+      "claimSafety": { "max": 10, "score": 10, "detail": "No blocked-claim patterns (no 'you need', 'definitely', price, or warranty language)" },
+      "keyword": { "max": 5, "score": 5, "detail": "SPARE is in the approved CAMPAIGN_KEYWORDS bank" },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "Not awarded — no scoreReelConcept() tournament was run against alternative concepts this session; withheld rather than assumed" }
+    },
+    "estimatedTotal": "60/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and an actual concept-tournament score before this would likely clear the real gate"
+  }
+}

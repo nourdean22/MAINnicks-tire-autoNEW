@@ -1,0 +1,108 @@
+{
+  "topic": "road-salt-brake-lines",
+  "keyword": "SALT",
+  "archetype": "cleveland_survival",
+  "generatedAt": "2026-08-17",
+  "mode": "INTELLIGENCE+PRODUCTION",
+  "rendered": false,
+  "published": false,
+  "totalDurationSec": 31,
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "startSec": 0,
+      "endSec": 3,
+      "vo": "This is what road salt is doing to your brake lines right now.",
+      "caption": "THIS IS WHAT ROAD SALT IS DOING TO YOUR BRAKE LINES RIGHT NOW",
+      "stockSearchTerms": ["car driving through slush spray slow motion", "winter road salt spray wheel well"],
+      "genPrompt": "Slow-motion close-up of a car's rear wheel well as it drives through slushy, salted winter street water, spray arcing up, daylight, photorealistic, cinematic, 9:16",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "startSec": 3,
+      "endSec": 7,
+      "vo": "Bare steel brake lines rust from the outside in — and you can't see it happen.",
+      "caption": "BARE STEEL BRAKE LINES RUST FROM THE OUTSIDE IN. YOU CAN'T SEE IT HAPPEN.",
+      "stockSearchTerms": ["rusted corroded steel brake line macro close up", "rust flaking metal automotive close up"],
+      "genPrompt": "Macro close-up of a corroded, rust-pitted steel automotive brake line along a wheel well, flecks of rust flaking off, shallow depth of field, photorealistic, 9:16",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 3,
+      "role": "explanation",
+      "startSec": 7,
+      "endSec": 13,
+      "vo": "By the time a line rusts through, the fix isn't a warning light. It's a soft pedal, or no pedal at all.",
+      "caption": "BY THE TIME IT RUSTS THROUGH, THERE'S NO WARNING LIGHT — JUST A SOFT PEDAL, OR NONE",
+      "stockSearchTerms": ["car rising on hydraulic lift undercarriage view", "auto shop lift raising vehicle"],
+      "genPrompt": "A car rising on an automotive shop hydraulic lift, camera tracking upward along the dark undercarriage revealing brake lines running along the frame rail, photorealistic, 9:16",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 4,
+      "role": "consequence",
+      "startSec": 13,
+      "endSec": 18,
+      "vo": "That's not something that gives you advance notice. It fails, then you find out.",
+      "caption": "NO ADVANCE NOTICE. IT FAILS, THEN YOU FIND OUT.",
+      "stockSearchTerms": ["brake fluid drip concrete floor slow motion", "hydraulic pressure gauge needle drop macro"],
+      "genPrompt": "Extreme close-up, a single drop of brake fluid falling and pooling on a concrete garage floor, slow motion, photorealistic, 9:16",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "startSec": 18,
+      "endSec": 23,
+      "vo": "A yearly undercarriage rinse and a visual brake-line check can point to trouble early. Worth checking before winter, not after.",
+      "caption": "A YEARLY RINSE + VISUAL CHECK CAN CATCH IT EARLY. WORTH CHECKING BEFORE WINTER.",
+      "stockSearchTerms": ["pressure washer rinsing car undercarriage wheel well", "spray rinse wheel well close up"],
+      "genPrompt": "A pressure-washer spray rinsing road grime and salt residue from a car's wheel well, close-up, water droplets, photorealistic, 9:16",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "startSec": 23,
+      "endSec": 28,
+      "vo": "Stop by and we'll take a look — no guessing, just a look underneath.",
+      "caption": "STOP BY AND WE'LL TAKE A LOOK",
+      "stockSearchTerms": ["car pulling out of auto shop bay exterior wide", "garage bay door open exterior daylight"],
+      "genPrompt": "Wide exterior shot of a car pulling out of an open auto-shop garage bay into daylight, photorealistic, cinematic, 9:16",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "saveFreeze": { "startSec": 28, "endSec": 31, "content": "NICK'S TIRE & AUTO wordmark + CTA, composited in post" },
+  "qualityScoreSelfEstimate": {
+    "codeGateMinimum": 70,
+    "codeGateMax": 75,
+    "selfEstimateTotal": 60,
+    "note": "Manual walkthrough of calculateReelQualityScore's rubric — this session did not execute the real function or conceptTournament.ts. See README.md section 7.",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "estimate": 9 },
+      "mutedFirst": { "max": 10, "estimate": 9 },
+      "beatStructure": { "max": 5, "estimate": 5 },
+      "length": { "max": 5, "estimate": 5 },
+      "loop": { "max": 5, "estimate": 4 },
+      "sourcedFact": { "max": 10, "estimate": 3, "note": "no EvidenceRecord backs the core claim" },
+      "faceless": { "max": 10, "estimate": 10 },
+      "claimSafety": { "max": 10, "estimate": 10 },
+      "keyword": { "max": 5, "estimate": 5 },
+      "winningConceptTournament": { "max": 5, "estimate": 0, "note": "conceptTournament.ts not executed this session" }
+    }
+  },
+  "evidence": {
+    "coreClaimHasEvidenceRecord": false,
+    "businessFactsUsed": [],
+    "entailment": "not_evaluated"
+  },
+  "costEstimateUsd": {
+    "freeLane_templateStock": 0.06,
+    "paidLane_seedanceHiggsfield": 1.56
+  },
+  "musicRights": "UNKNOWN — no rights ledger exists in this repo",
+  "finalStatus": "READY FOR HUMAN APPROVAL"
+}
