@@ -93,6 +93,57 @@ function envelope<T>(
   return { ok, ...(data !== undefined ? { data } : {}), ...(error ? { error } : {}), ...(details ? { details } : {}), meta };
 }
 
+/**
+ * Fire-and-forget a telemetry write so it can NEVER take down the request
+ * it is describing.
+ *
+ * 2026-08-19 · every telemetry site below dereferences `prisma.<model>`
+ * SYNCHRONOUSLY. A trailing `.catch()` covers only the promise that call
+ * returns — it cannot cover a call that never produced one. That gap had
+ * teeth in two places at once:
+ *
+ *   1. The success-path write is SAMPLED (`duration_ms > 1000 ||
+ *      Math.random() < 0.01`). When the deref throws, the throw lands in
+ *      apiHandler's own catch — which repeats the IDENTICAL deref and
+ *      throws again, now with nothing left to catch it. The route rejects
+ *      instead of returning its 500 envelope, and the caller sees a raw
+ *      TypeError from the logging code rather than the real failure.
+ *   2. Because the trigger is a 1% coin flip, it surfaced as an
+ *      unreproducible CI flake (tests/api/today-compound.test.ts on
+ *      PR #1697) rather than as a bug anyone could bisect.
+ *
+ * BLAST RADIUS, MEASURED (an earlier revision of this comment claimed
+ * nine test files were exposed; that was a grep heuristic, never a
+ * measurement, and it was wrong). Nine files mock `@/lib/prisma` without
+ * `apiRequestLog`, but exactly ONE ever reached this code:
+ * today-compound. Of the other eight — three mock `@/lib/utils/http`
+ * itself, so apiHandler never runs; three call route handlers that are
+ * not apiHandler-wrapped; two import no route handler at all. Verified
+ * by forcing the sampler on against an instrument first proven to
+ * reproduce the failure on a known-vulnerable specimen.
+ *
+ * So this wrapper is NOT here to unbreak eight ticking test files. It is
+ * here because (a) the prod double-throw above is real and independent of
+ * any mock, and (b) the next incomplete mock on an apiHandler route would
+ * re-arm the flake, and completing mocks one at a time never closes that.
+ *
+ * Telemetry is best-effort by contract, so a broken writer is logged and
+ * dropped — never propagated. `httpLog` is console-only (lib/logger.ts
+ * imports no prisma), so the catch below cannot re-enter this failure.
+ */
+function fireAndForgetTelemetry(write: () => Promise<unknown>, site: string): void {
+  try {
+    void write().catch((e) => {
+      if (isQuotaError(e)) markQuotaExhausted();
+    });
+  } catch (e) {
+    httpLog.warn("telemetry_write_unavailable", {
+      site,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
 // ── API Handler Wrapper ────────────────────────────────────────────────
 
 type RouteHandler = (
@@ -189,9 +240,9 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
       const sampleRate = process.env.NODE_ENV === "production" ? 0.1 : 0.01;
       const shouldLog = duration_ms > 1000 || Math.random() < sampleRate;
       if (shouldLog && !isQuotaExhausted()) {
-        prisma.apiRequestLog.create({
+        fireAndForgetTelemetry(() => prisma.apiRequestLog.create({
           data: { method, path: route, statusCode: 200, durationMs: duration_ms, requestId, userAgent: req.headers.get("user-agent")?.slice(0, 200) ?? null },
-        }).catch((e) => { if (isQuotaError(e)) markQuotaExhausted(); });
+        }), "apiRequestLog:success");
       }
 
       // Cron observability — write to CronJobLog so the system-audit
@@ -252,9 +303,9 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
       // telemetry writes don't re-trigger the same quota error.
       const errorStatus = error instanceof ServiceError ? error.status : error instanceof ZodError ? 400 : 500;
       if (!isQuotaExhausted()) {
-        prisma.apiRequestLog.create({
+        fireAndForgetTelemetry(() => prisma.apiRequestLog.create({
           data: { method, path: route, statusCode: errorStatus, durationMs: duration_ms, requestId, error: error instanceof Error ? error.message.slice(0, 500) : "Unknown error" },
-        }).catch((e) => { if (isQuotaError(e)) markQuotaExhausted(); });
+        }), "apiRequestLog:failure");
       }
 
       // v9.1.16 · removed apiHandler's failure-path cronJobLog write
@@ -270,14 +321,14 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
         // pattern with the route buried in `context`, which the pattern
         // grouping never reads.
         const bareMsg = error instanceof Error ? error.message : "Unknown error";
-        prisma.errorLog.create({
+        fireAndForgetTelemetry(() => prisma.errorLog.create({
           data: {
             level: "error",
             message: `[${route}] ${bareMsg}`.slice(0, 500),
             stack: error instanceof Error ? error.stack?.slice(0, 4000) ?? null : null,
             context: { method, path: route, requestId, duration_ms } as any,
           },
-        }).catch((e) => { if (isQuotaError(e)) markQuotaExhausted(); });
+        }), "errorLog:failure");
       }
 
       if (error instanceof ServiceError) {

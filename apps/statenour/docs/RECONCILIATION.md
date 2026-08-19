@@ -60,6 +60,59 @@
 > (recordOutcome writers exist unwired · Task.outcomeRating/outcomeLesson → auto-learn ·
 > reasoning traces re-enter memory via remember()).
 
+> ## 2026-08-19 · apiHandler telemetry was load-bearing — a 1% coin flip that reddened CI and buried real 500s
+>
+> **The red on PR #1697 was not the wave's diff.** It was a landmine shipped 2026-08-16 in
+> #1598 and armed on every request since. `apiHandler` samples its success-path request log
+> (`duration_ms > 1000 || Math.random() < 0.01`, `lib/utils/http.ts:190`) and writes it with
+> `prisma.apiRequestLog.create(...).catch(...)`. **The `.catch()` covers the promise that call
+> returns — it cannot cover the call that never produced one.** When the synchronous
+> `prisma.apiRequestLog` dereference threw, the throw landed in apiHandler's own `catch`, which
+> **repeats the identical dereference** and throws again with nothing left to catch it, so the
+> route *rejects* instead of returning its envelope.
+>
+> Two consequences, both real, both invisible until root-caused:
+>
+> - **In CI:** a 1-in-100 red on every `apiHandler` call from a test whose prisma mock lacks
+>   `apiRequestLog` — plus a second, non-random trigger (`duration_ms > 1000`) that a loaded
+>   GitHub runner hits on its own. That is why the failure moved, passed in isolation, and
+>   passed a full local sweep. It presented as `TypeError: Cannot read properties of undefined
+>   (reading 'create')` at `http.ts:255` — **the catch-path frame, not the trigger**, which is
+>   what made it look unrelated to logging.
+> - **In prod:** any throw from the *error*-path telemetry escapes as an unhandled rejection
+>   instead of the 500 envelope, so the caller sees the logging failure and never the real one.
+>
+> Fix: `fireAndForgetTelemetry()` wraps all three writes (success `apiRequestLog`, failure
+> `apiRequestLog`, failure `errorLog`) so a broken writer is logged to the surface logger and
+> dropped. Telemetry is best-effort by contract; it must never be able to take down the request
+> it describes. Reproduced deterministically before fixing (`Math.random → 0` against the real
+> route: same error, same line, same stack), then red-greened —
+> `tests/api/http-telemetry-never-throws.test.ts` fails 4/4 on the pre-fix file and passes 4/4
+> after, covering both triggers, the 500 path, and `ServiceError` status preservation.
+>
+> **★ THE BLAST RADIUS I FIRST CLAIMED WAS WRONG, and finding that out is the point.** The
+> first draft of this entry, the code comment, and the PR body all said "nine test files are
+> exposed" — nine files do mock `@/lib/prisma` without `apiRequestLog`, and I treated that grep
+> as a measurement. Measuring it killed the claim: **exactly ONE file ever reached this code**
+> (today-compound, the one that actually went red). Of the other eight, three mock
+> `@/lib/utils/http` itself so apiHandler never runs, three call route handlers that are not
+> apiHandler-wrapped, and two import no route handler at all. The instrument was proven before
+> the verdict was trusted — a forced-sampler config that first had to fail 2/2 on a
+> known-vulnerable specimen (`today-compound.test.ts` as of `2cac7a0`) before its green on the
+> eight meant anything. A first attempt at this same check WAS blind and I nearly shipped its
+> result: `git stash push -- <file>` on an already-committed file stashes nothing, so the "no
+> fix" run silently used the fixed file. Same lesson as the fail-open probes this wave started
+> with: **a green from an unproven instrument is the most expensive kind of red.**
+>
+> That does not weaken the fix, it re-bases it. The reasons that survive measurement: the prod
+> double-throw is real and independent of any mock, and the next incomplete mock on an
+> apiHandler route re-arms the flake — which is why completing mocks one at a time was never
+> the fix, whether the count was nine or one.
+>
+> **Separately, main's post-merge run on `e17eee3` was a different red** — GitHub runner loss
+> ("the runner has received a shutdown signal", 5/8 tasks, force-killed at 4m28s), the same
+> infra class as `9977368`. `2cac7a0` (wave 1) and current head `cf5e78f` are both green.
+>
 > ## 2026-08-19 · Brain wave 2 — the honesty pass: dead ends made visible, dead code removed (1 PR)
 >
 > Everything the wave-1 entry below flagged as "NOT built", built — plus a finding that
