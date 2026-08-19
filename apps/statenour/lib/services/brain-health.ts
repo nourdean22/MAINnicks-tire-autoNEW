@@ -15,6 +15,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { TELEMETRY_CATEGORIES } from "@/lib/brain/embedding-policy";
+
+/** O(1) membership for the telemetry split below. */
+const TELEMETRY_SET: ReadonlySet<string> = new Set(TELEMETRY_CATEGORIES);
 
 /** Per-category memory-health row. */
 export interface CategoryHealth {
@@ -27,6 +31,14 @@ export interface CategoryHealth {
   vectorized: number;
   vectorizedPct: number;
   avgConfidence: number;
+  /** Mean seen_count — the REAL sighting counter. avgConfidence cannot be
+   *  inverted into sightings: 73% of recent seen_count=1 rows carry a
+   *  writer-stamped confidence that violates the 0.5+0.1(n-1) formula
+   *  (measured on prod 2026-08-19). */
+  avgSeen: number;
+  /** True when the category is event telemetry (embedding-policy denylist)
+   *  — observability riding in the brain table, not knowledge about Nour. */
+  telemetry: boolean;
   newest: string | null;
   oldest: string | null;
   /** Hours since the most-recent row was lastSeen — high values = stale */
@@ -43,6 +55,10 @@ export interface MemoryHealthReport {
     vectorized: number;
     vectorizedPct: number;
     categoryCount: number;
+    /** Rows in embedding-policy TELEMETRY_CATEGORIES — logs, scores, probes. */
+    telemetry: number;
+    /** live − telemetry: what "the brain knows" can honestly claim. */
+    knowledge: number;
   };
   categories: CategoryHealth[];
   flags: Array<{ category: string; flag: string }>;
@@ -63,6 +79,7 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
     decayed: number;
     vectorized: number;
     avg_conf: number;
+    avg_seen: number;
     newest: Date | null;
     oldest: Date | null;
   };
@@ -78,6 +95,7 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
           END)::int AS decayed,
       COUNT(ve.id)::int AS vectorized,
       ROUND(AVG(bm.confidence)::numeric, 3)::float AS avg_conf,
+      ROUND(AVG(bm.seen_count)::numeric, 1)::float AS avg_seen,
       MAX(bm.last_seen) AS newest,
       MIN(bm.created_at) AS oldest
     FROM brain_memories bm
@@ -105,6 +123,8 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
       vectorizedPct:
         r.count === 0 ? 0 : Math.round((r.vectorized / r.count) * 1000) / 10,
       avgConfidence: r.avg_conf ?? 0,
+      avgSeen: r.avg_seen ?? 0,
+      telemetry: TELEMETRY_SET.has(r.category),
       newest: r.newest?.toISOString() ?? null,
       oldest: r.oldest?.toISOString() ?? null,
       ageNewestHours,
@@ -115,6 +135,14 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
   const totalVec = categories.reduce((s, c) => s + c.vectorized, 0);
   const totalDecayed = categories.reduce((s, c) => s + c.decayed, 0);
   const totalPermanent = categories.reduce((s, c) => s + c.permanent, 0);
+  // The headline "N memories" number was a lie of aggregation: on prod
+  // 2026-08-19, telemetry categories (gateway shadows, XP events, critic
+  // scores, probes) were ~30% of the window's writes. Split them out so
+  // the UI can state what is knowledge and what is logging.
+  const totalTelemetry = categories.reduce(
+    (s, c) => s + (c.telemetry ? c.count : 0),
+    0,
+  );
 
   // Find categories that look unhealthy:
   //   · >0 rows but 0% vectorized AND not in the always-skip list
@@ -144,6 +172,8 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
       vectorizedPct:
         totalLive === 0 ? 0 : Math.round((totalVec / totalLive) * 1000) / 10,
       categoryCount: categories.length,
+      telemetry: totalTelemetry,
+      knowledge: totalLive - totalTelemetry,
     },
     categories,
     flags,
