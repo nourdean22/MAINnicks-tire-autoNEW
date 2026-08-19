@@ -1,5 +1,109 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-19 · Brain truth pass — /brain stops hanging, and the graph stops lying (1 PR)
+>
+> **Root cause of the infinite spinner, proven, not guessed:** every layer of the
+> `/brain` request path was allowed to wait forever. `lib/prisma.ts` constructed
+> `PrismaNeon` with no `connectionTimeoutMillis` and no `query_timeout`, and the vendored
+> Neon driver defaults to `max:10` with an **untimed checkout queue** (`@neondatabase/serverless`
+> index.js:1110) plus `connect_timeout=0`. The graph route was the widest DB fan-out in the
+> app — one `Promise.all` of 8 concurrent queries needing 8 of those 10 slots — and the client
+> used a bare `fetch()` with no AbortController/timeout whose `setLoading(false)` lived only in
+> `finally`. Railway ignores `maxDuration`. So any sustained pool contention became a request
+> that never settles and a spinner that is mathematically permanent. Two self-inflicted
+> amplifiers kept the pool contended: `fetchGraphData`'s dependency chain included
+> `selectedNode` + `searchQuery` (via `drawGraph` → `triggerAnimationLoop`), so **every
+> keystroke and every node click re-fired the whole graph fetch un-aborted** — interacting with
+> the graph is what made it hang harder — and the 51-route in-process cron fleet shares the same
+> 10 connections, with the evening fan-out landing at 10-11pm Cleveland.
+> **Independent prod corroboration (read-only, operator-supplied credential):** the #1 pattern
+> in `error_logs` is `[err_*] Database hiccup · the engine couldn't reach state` at **730 of
+> 1,427 rows / 30d** — the same starvation class, visible in a second instrument. Falsified
+> along the way: the builder is NOT slow at scale (all graph queries measured 33-75ms; it reads
+> at most 170 rows, never 25k) and there is no per-node KNN or O(n²) similarity in the path.
+>
+> **Fixes so an infinite spinner is structurally impossible:** driver-level
+> `connectionTimeoutMillis: 10s` + `query_timeout: 30s` (the one line that also bounds the 730
+> "Database hiccup" hangs app-wide) · the builder is now `allSettled` with an 8s **per-domain**
+> deadline, so a slow domain arrives MISSING AND NAMED in a new `degraded[]` field instead of
+> holding the brain hostage · the client carries AbortController + 12s timeout + a sequence
+> guard that drops stale responses, fetches **only** on `[variant, focusId, localOnly]`, and
+> resolves to exactly one of USEFUL / DEGRADED / EMPTY / ACTIONABLE-ERROR (with retry); a failed
+> *refresh* keeps the working graph on screen instead of destroying it.
+>
+> **The graph stopped lying.** It rendered on frequency and invented structure: node weight was
+> `confidence * 10` where confidence IS a re-sighting count (`0.5 + 0.1×(sightings−1)`), so it
+> visually enlarged re-observed banalities; edges were invented by keyword-matching titles
+> (`title.includes("tire")`) and a blanket "attach every orphan to an anchor" pass; six fossil
+> anchor nodes asserted a 2026-05 model lineup ("OLLAMA GLM-5.2", "GEMINI BACKUP") against
+> CURRENT-TRUTH's never-assert-a-model rule; decision nodes deep-linked to `/decisions`, which
+> **has no page** (404 on every decision node); memory labels were raw machine keys
+> (`blindspot_domain_1712…`); and the detail panel was ~80 lines of per-type canned prose
+> ("why this matters", "next best move") that read no field of the actual record. All removed.
+> Now: every edge declares an `origin` (fk · memory_edge · semantic · contradiction · category ·
+> domain) and nothing else may create one — **unlinked nodes stay visibly unlinked, because
+> isolation is signal**; goal→domain edges use the goal's own `domain` field; weight is
+> attention on a **log** scale (prod `seenCount` spans 1 → 6,516, mean 3.69 — a linear map
+> saturated at 8 sightings and flattened the real hubs); memory nodes carry the commit gateway's
+> evidence ladder, `seen N×`, age, TTL distance and contradiction involvement; the renderer maps
+> evidence class → ring opacity (an inference can never render as solid as something the
+> operator stated), contradiction → dashed rose halo, `<7d` → gold notch, and the only glow on
+> the canvas is the focused node.
+>
+> **Severed joints reconnected:** `runSemanticLinker` shipped 2026-05-02 and **never acquired a
+> caller** — `semantic_edges` froze at **114 rows, newest 2026-05-28** (measured), so every
+> memory-to-memory "related" edge in the graph was a three-month-old fossil; it now runs nightly
+> in the evening fan-out (`/api/cron/semantic-link`, batch 25 · top-3 pgvector KNN, and it
+> reports `ok:false` when pgvector is unavailable so the new logCronRun detector files a real
+> failure). `buildGraphNeighborhood` — a working service with **zero consumers** — is now the
+> detail panel's "stored relationships" section. Real contradiction pairs
+> (`BRAIN_CATEGORIES.CONTRADICTION`, via the constant so a rename can't blind the reader) become
+> the `contradicts` edges the renderer always supported but never received. **Honest status:
+> that store is currently EMPTY in prod (0 rows), so contradiction edges render zero today** —
+> a correct reader over an empty store, lighting up the moment the surfacer flags a pair.
+>
+> **Product:** lenses (ALL / BUSINESS / PEOPLE / GOALS / DECISIONS / MIND / LAST 30D) filter the
+> loaded payload client-side and keep one hop of context — a lens can only hide, never invent,
+> and costs zero network. Tabs reordered to the mental model (Map → Discover/Review → Memory/
+> Wisdom → Board/Reason → Changed/Health) with **every tab key unchanged**, because
+> `?tab=memory&resolve=`, `?tab=reason&q=`, `?tab=wisdom&focus=`, `?tab=board`, `?tab=health`
+> and `?tab=continuity` are live deep-link contracts from Home, the ticker, the command palette
+> and chat tool results. **Mobile:** the full graph previously had mouse handlers ONLY — on the
+> operator's iPhone it was frozen scenery; it now supports pan, tap-to-select and pinch-zoom,
+> with the inspector as a bottom sheet and 48px targets.
+>
+> **Prior art (principles, not pixels):** search-first entry and expand-on-demand over
+> whole-graph overview (van Ham & Perer's "Search, Show Context, Expand on Demand"; Neo4j Bloom
+> Perspectives/Scenes); active-thought centering (TheBrain); focus + expand-by-degree (Kumu);
+> the documented Obsidian global-graph-hairball failure as the thing to avoid; one visual channel
+> = one variable, motion only on state change (Kumu data-driven decorations, dark-dashboard
+> practice). **Deliberately NOT adopted:** a renderer swap — peer-reviewed benchmarks put
+> canvas at ~5,000 interactive nodes vs this product's 100-2,000 visible, so sigma/cytoscape
+> would trade renderer control for algorithms implementable in a day; continuous timeline
+> animation (theater); freeform LLM-to-query search (unreliable); multi-analyst case ceremony.
+>
+> **Verified:** typecheck 0 errors · full suite **525 files / 5,624 passed / exit 0** · 15 new
+> brain-graph tests (first-ever coverage for this builder — including a domain that NEVER
+> settles, proving degradation replaces the hang) · eslint 0 errors on the diff ·
+> check:crons/raw-sql/get-auth/soft-delete/mutations:strict all PASS · all Brain claims
+> falsified against prod read-only before shipping (which is how the empty-contradiction-store,
+> the two dead category filters and the saturating weight formula were caught **in my own
+> diff**).
+>
+> **Flagged · NOT built (evidence-backed, for the next wave):** Discover + Review + the
+> orphaned `research_claim_candidate` queue should merge into ONE ruling surface — candidates
+> mint at confidence 0.3 with `requiresHumanPromotion` and **no UI reads that category**, while
+> the Review tab reviews a different queue whose only producers are manual scripts (a roach
+> motel) · supersession columns (`valid_from`/`valid_until`/`superseded_by_id`) are applied to
+> prod with **zero readers or writers**; wiring the gateway's existing `supersede` verdict would
+> give the graph a walkable history chain and make "what changed" honest instead of theater ·
+> 4 dead components + 6 orphaned tRPC procedures + 4 REST fossils under /brain · 3 broken
+> hrefs in RecallInboxPanel (`/brain#pinned`, `/brain/link-review`, `/brain#contradictions`) ·
+> `memory_edges` is queried with a bare `sourceId IN (...)` that cannot use its composite index
+> (harmless today at 1,046 rows — measured 0.3ms — but it is a seq scan by construction) ·
+> confidence still renders as a percentage on Continuity/Health/Wisdom/Board/Review · memory
+> `decay()` has no caller, so any "weakening" arrow would be fabricated.
+
 > ## 2026-08-19 · OS-Health truth pass — the dashboard stops lying by construction (1 PR)
 >
 > **Trigger:** operator asked "what are all these failures" on /system/health (5,486 cron ops ·

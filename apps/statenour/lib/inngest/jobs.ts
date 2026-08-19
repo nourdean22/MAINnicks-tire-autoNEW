@@ -161,6 +161,13 @@ export const EVENING_JOBS: readonly string[] = [
   // telemetry (≤3 tools/run, fast lane, idempotent per description
   // fingerprint). Drafts only — a human applies them in code.
   "/api/cron/tool-description-rewrite",
+  // 2026-08-19 · Brain truth pass · resurrected, same severed-joint story
+  // as refresh-identity and distill-sessions above: runSemanticLinker
+  // shipped 2026-05-02 and never got a caller — semantic_edges froze at
+  // 114 rows on 2026-05-28 (measured in prod), so the brain graph's
+  // memory-to-memory "related" edges have been fossils ever since.
+  // Idempotent, bounded (batch 25 · top-3 neighbors · pgvector KNN).
+  "/api/cron/semantic-link",
   // 2026-06-02 · v-truth · Nick autonomy resurrection (NICK_AUTONOMY-gated).
   // Re-plugs runAutonomousActions (~22 proactive rules) which lost its cron
   // route in the Wave-AE prune. The route HARD-SKIPS when NICK_AUTONOMY is
