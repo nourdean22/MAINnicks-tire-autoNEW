@@ -37,7 +37,7 @@
  *   • Commitment lineage: titles matching active Commitment words
  *     get ⚖ chip and priority boost
  *   • Post-complete: toast + NextActionWhisperer fires
- *   • Ranking: autoPriority + windowFit(-10) + energyMatch(-8) +
+ *   • Ranking: autoPriority (higher = hotter) + windowFit(+10) + energyMatch(+8) +
  *     commitment(-12) + aged penalty
  */
 
@@ -477,15 +477,15 @@ function TaskRow({
           commit
         </span>
       )}
-      {!isActive && typeof task.autoPriority === "number" && task.autoPriority <= 40 && (
+      {!isActive && typeof task.autoPriority === "number" && task.autoPriority >= 60 && (
         <span
           className={cn(
             "shrink-0 text-[8px] font-mono font-bold tabular-nums px-1 py-0 rounded",
-            task.autoPriority <= 20
+            task.autoPriority >= 80
               ? "text-red-400 bg-red-500/10"
               : "text-amber-400 bg-amber-500/10",
           )}
-          title="auto-priority (lower = sharper)"
+          title="auto-priority (higher = sharper)"
         >
           p{task.autoPriority}
         </span>

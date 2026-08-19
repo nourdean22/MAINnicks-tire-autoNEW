@@ -344,6 +344,10 @@ model Task {
   dueDate                 DateTime?
   lastTouchedAt           DateTime?
   driftRisk               Int            @default(0)
+  /// 0-100, HIGHER = MORE URGENT (canonical polarity, 2026-08-19 —
+  /// lib/scoring/task-priority.ts is the one scorer; a second
+  /// lower-is-hotter convention previously split readers). Applies to
+  /// manualPriorityOverride below too.
   autoPriority            Int?
   manualPriorityOverride  Int?
   autoPriorityExplanation String?        @db.Text

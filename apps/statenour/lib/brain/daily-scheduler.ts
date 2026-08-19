@@ -51,21 +51,22 @@ export async function generateDailySchedule(): Promise<{
 
   // Gather data
   const [topTasks, overdueCommitments, todayScore] = await Promise.all([
-    // Apr 18: OpenLoop retired → Task (critical/high = autoPriority<40).
+    // Apr 18: OpenLoop retired → Task. 2026-08-19: canonical polarity —
+    // higher = more urgent (critical/high = autoPriority > 60).
     prisma.task
       .findMany({
         where: {
           status: { in: ["INBOX", "READY"] },
-          autoPriority: { lt: 40 },
+          autoPriority: { gt: 60 },
         },
-        orderBy: [{ autoPriority: "asc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
         take: 3,
         select: { title: true, autoPriority: true },
       })
       .then((rows) =>
         rows.map((t) => ({
           title: t.title,
-          priority: (t.autoPriority ?? 50) < 20 ? "critical" : "high",
+          priority: (t.autoPriority ?? 50) >= 80 ? "critical" : "high",
         })),
       ),
     prisma.commitment.findMany({
