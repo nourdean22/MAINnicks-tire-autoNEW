@@ -187,6 +187,10 @@ export const WEEKLY_JOBS: readonly string[] = [
   "/api/cron/weekly-digest",
   "/api/cron/weekly-review",
   "/api/cron/inbox-janitor",
+  // 2026-08-19 · outcome-loop follow-up · the corpus odometer — the
+  // automated reader of outcomeUseful (counts correction-shaped labels,
+  // upserts the rolling eval_run row, flags the 200-correction trigger).
+  "/api/cron/outcome-harvest",
   // 2026-06-02 · operator-authorized activation of a parked Sunday-night
   // relationship synthesis cron (impl + route.ts existed, but it was
   // never wired → manifest mode:"dormant"). Its intended schedule is
