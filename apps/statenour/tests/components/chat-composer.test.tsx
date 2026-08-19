@@ -31,6 +31,12 @@ vi.mock("@/lib/trpc/client", () => ({
     brain: {
       createPin: { useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }) },
     },
+    // 2026-08-19 · #1672 added edit-resend truncation, which calls
+    // trpc.chat.deleteMessage.useMutation() at render — the mock lagged
+    // the component and this file failed on main since that merge.
+    chat: {
+      deleteMessage: { useMutation: () => ({ mutateAsync: async () => ({}), isPending: false }) },
+    },
   },
 }));
 

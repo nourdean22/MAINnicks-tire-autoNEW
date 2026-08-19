@@ -556,7 +556,7 @@ async function loadCategory(category: "skill" | "skill_pending"): Promise<Stored
     }
   }
   if (malformedCount > 0) {
-    logError("brain.skill-extractor", new Error(`${malformedCount} malformed rows skipped`), { fn: "loadCategory", category, errors: malformedErrors.map(String) });
+    logError("brain.skill-extractor", new Error(`${malformedCount} malformed rows skipped`), { fn: "loadCategory", category, errors: malformedErrors.map(String) }, "warn");
   }
   return out;
 }

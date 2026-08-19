@@ -64,6 +64,18 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
 
         try {
           const cronResult = await runManifestCron(row.name);
+          // triggerCronByPath never throws — a 404 (manifest entry with no
+          // route, e.g. the Inngest-native jobs) resolves as {ok:false}.
+          // Unconditionally pushing here filed "Cron Healer: Rescued X"
+          // coach events for phantom heals, burning the whole
+          // MAX_HEAL_PER_RUN budget on 404s before reaching a real cron.
+          if (!cronResult.ok) {
+            log.warn("heal_attempt_failed", {
+              jobName: row.name,
+              status: cronResult.status,
+            });
+            continue;
+          }
           result.healedCrons.push(row.name);
 
           await recordCoachEvent({

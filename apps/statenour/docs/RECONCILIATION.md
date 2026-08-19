@@ -1,8 +1,95 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-19 · OS-Health truth pass — the dashboard stops lying by construction (1 PR)
+>
+> **Trigger:** operator asked "what are all these failures" on /system/health (5,486 cron ops ·
+> 2% fail · 1,423 errors · green ALL CLEAR banner above both). Four parallel read-only audits
+> traced every number to source; the findings were measurement defects and fail-open
+> instruments, not an outage. One PR fixes the instrument layer:
+>
+> - **Banner rewired** (`page.tsx OperationalStatus`): was computed from eval + probes ONLY —
+>   cron failures and error volume could never turn it red, `ev===null` (the eval store has NO
+>   producer) made `evalBad` a compile-time false, and 0 probe rows read as all-clear. Now
+>   three-state (all clear / degraded / needs attention) fed by cron fail-rate, error+fatal
+>   count, probe staleness, and unknown-instrument states, with a reasons line. **Deliberate
+>   consequence: the banner shows DEGRADED (amber, "no eval run in 7d") until the eval store
+>   has a producer again or the tile is removed — unknown never counts as healthy
+>   (fleet-truth rule).**
+> - **`partial` ≠ `failed`** (`system-health.ts`): the 2% headline folded mega fan-out
+>   "partial" heartbeats (a slow-but-successful child) into hard failures. Split everywhere,
+>   rose tier at ≥10% fail / zero-rows ("NO RUNS LOGGED" — a dead fleet used to render
+>   "all green" in emerald).
+> - **Error patterns told the truth about 3.5% of the window**: "5 PATTERNS · 30d" grouped the
+>   most recent 50 rows (~25h at observed volume), capped at 5 by construction, and split one
+>   root cause into singletons via a leading per-error id. Now: SQL groupBy over the WHOLE
+>   window with id/digit normalization, true distinct-pattern count, level breakdown
+>   (~68% of "errors" are warns — tile tone now follows error+fatal only).
+> - **False-green cron class killed at the wrapper** (`cron-manager.ts`): a route that catches
+>   and returns `{ok:false}` RESOLVED the promise → logged success. Diagnosed 3× per-route
+>   (correlation-alarm et al.) while ~7 identical routes stayed green, incl. inngest-liveness —
+>   the watchdog logging SUCCESS while reporting Inngest down. `logCronRun` now files a failed
+>   row + brain-bus event on explicit `ok:false` (HTTP contract unchanged; result still 200).
+> - **5 invisible fan-out children now log** (intelligence / change-detection /
+>   experiment-measure / pricing-advisory / task-resurface): they used bare GET/apiHandler, so
+>   they never wrote cron_job_logs — and cron-heartbeat filed a false P0 "silent cron" alert
+>   for them EVERY DAY (ageH=∞), drowning the real-outage signal the watchdog exists for.
+>   All converted to cronHandler (intelligence's hand-rolled Bearer compare = requireCronAuth).
+> - **Probe staleness + fail-closed parse** (`system-health.ts` + contracts): probe rows carried
+>   no timestamp to the reader (a dead probe cron rendered stale `ok` rows as "6 OK" forever —
+>   the silent-dead-feeder incident reproduced one level up) and an unparseable row counted as
+>   healthy (`{}.ok !== false`). Now: >48h = stale (amber, banner-visible), parse-fail = NOT ok,
+>   `ok===true` required, rows get the 30d `expiresAt` their category-ttl declared but never
+>   applied, `bridgeFailing` is finally rendered, and the mislabeled "bridge · data sources"
+>   tile is now "data-source probes".
+> - **Schema sentinel un-blinded** (16 → 26 expectations): the "HNSW" expectation matched a
+>   plain btree via `indexdef ILIKE '%embedding_vec%'` (every HNSW index could drop, KNN
+>   silently sequential-scans, 16/16 stays green) — now asserts `USING hnsw`. Guarded
+>   `embedding_vec_1536` + `embedding_dim` (the columns every live recall path uses; the
+>   schema.prisma three-near-misses comment claimed sentinel coverage that did not exist).
+>   Added: 5 unguarded universal-idempotency partial uniques, the 2 alive-partial replacements
+>   (identity_snapshots / reflections — the DROPPED predecessor was guarded, its replacement
+>   was not), the chat FTS GIN index.
+> - **Healer + heartbeat noise**: cron-healer counted a 404 as "Rescued" (unconditional push —
+>   its whole 3-heal budget burned on phantom manifest entries nightly); now checks
+>   `cronResult.ok`. `check:crons` now asserts every `lib/inngest/functions/*.ts` is exported
+>   from index.ts — the registration list the old gate deliberately excluded (the exact drift
+>   class behind the 2026-07-28 sixteen-unregistered-functions incident).
+> - **Graveyard drains**: NULL-deadline commitments were immortal (`deadline < x` is never true
+>   for NULL; sanitizeDeadline mints NULLs by design) AND invisible (pulse filters them out) —
+>   data-cleanup now expires them at 90d from createdAt. keep_rate counted only legacy "kept"
+>   rows (~0% forever) — now counts "completed". inbox-janitor's manifest description claimed a
+>   CaptureInboxItem sweep that never existed (corrected; captures still have NO archiving
+>   consumer — flagged, not silently built).
+> - **Error-log hygiene**: 7 benign counter-reporters ("N duplicates skipped" — the dedup
+>   *working*) downgraded error→warn; apiHandler 500s get a `[route]` prefix (two routes
+>   throwing the same generic message used to merge into one pattern); error-sanitizer's
+>   per-error id moved to the message tail.
+> - **Tests**: first-ever coverage for `buildHealthReport` (12 cases: partial split, SQL
+>   patterns, staleness, fail-closed parse, level split) + `logCronRun` reported-failure
+>   detection + healer-404 regression + intelligence-concurrency test updated for cronHandler
+>   (auth override vs the suite-wide no-op mock). Chipped a pre-existing main breakage:
+>   chat-composer test lacked #1672's `chat.deleteMessage` mock (file byte-identical to
+>   origin/main — not this diff's).
+>
+> **Verified:** typecheck 0 errors · full suite 523 files / 5,606 passed / exit 0 (after the
+> chip fix; the one pre-existing failure documented above) · check:crons/raw-sql/stale-docs
+> (0 critical)/lint-baseline/mutations:strict/runbooks/prompt-injection/audit-deps/soft-delete/
+> get-auth all PASS · prisma validate PASS · `check:env` fails in the sandbox (no .env exists
+> there — environmental) · live prompt:size-check unrunnable without prod creds (static
+> measure: PASS, exit 0).
+>
+> **Flagged · NOT fixed (need operator/product calls):** both Telegram alert pipelines have
+> zero callers (docs claim 5m/15m pushes; nothing pages anyone — the dashboard is pull-only) ·
+> schema sentinel has no cron (runs only on page load) · `system_health_digest` has no cron
+> producer (three docstrings claim one) · captures have no archiving consumer · legacy
+> `/api/cron/mega` route + worker endpoints still exist (double-fire risk if the old Railway
+> cron was never disabled — unverifiable from source) · `errors.total > 100` banner threshold
+> is window-insensitive · digit-normalization in patterns merges HTTP status codes
+> (401 vs 500 group together — trade-off documented in code).
+
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; + chat-UX arc #1670-#1679 incl. the two-scorer REGEN-badge fix); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (OS-Health truth pass — instrument-layer fixes across /system/health, cron logging, schema sentinel; prior: persona measurement arc #1649-#1665 + chat-UX arc #1670-#1679); detail in the top entry
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
