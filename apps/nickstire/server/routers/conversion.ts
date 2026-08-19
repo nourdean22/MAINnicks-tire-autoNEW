@@ -173,21 +173,48 @@ export const conversionRouter = router({
     }),
 
   /**
-   * Admin-only — recent conversion events from the in-memory ring buffer
-   * (`server/services/conversionEvents.ts`). Used by the Conversion Preview
+   * Admin-only — recent conversion events. Used by the Conversion Preview
    * tab to show a live feed of what bias elements visitors are interacting
    * with right now.
+   *
+   * 2026-08-19 · reads customer_events (the durable store this same beacon
+   * already writes, tagged eventData.source="conversion_hook") instead of
+   * the in-memory ring buffer, which lost all 500 entries on every Railway
+   * restart and duplicated the durable write. Ring buffer deleted.
    */
   recentEvents: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
     .query(async ({ input }) => {
-      const { getRecentConversionEvents, getConversionEventsByType } = await import(
-        "../services/conversionEvents"
-      );
-      return {
-        events: getRecentConversionEvents(input?.limit ?? 50),
-        byType: getConversionEventsByType(),
-      };
+      const limit = input?.limit ?? 50;
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) return { events: [], byType: {} as Record<string, number> };
+      const { customerEvents } = await import("../../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      const rows = await d
+        .select({
+          eventName: customerEvents.eventName,
+          eventData: customerEvents.eventData,
+          sourcePage: customerEvents.sourcePage,
+          createdAt: customerEvents.createdAt,
+        })
+        .from(customerEvents)
+        .where(sql`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.source')) = 'conversion_hook'`)
+        .orderBy(desc(customerEvents.createdAt))
+        .limit(limit);
+      const events = rows.map((r: typeof rows[number]) => {
+        const data = (r.eventData ?? {}) as Record<string, unknown>;
+        return {
+          type: r.eventName,
+          page: r.sourcePage ?? undefined,
+          element: typeof data.element === "string" ? data.element : undefined,
+          value: typeof data.value === "number" ? data.value : undefined,
+          at: r.createdAt,
+        };
+      });
+      const byType: Record<string, number> = {};
+      for (const e of events) byType[e.type] = (byType[e.type] ?? 0) + 1;
+      return { events, byType };
     }),
 
   /**

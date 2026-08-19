@@ -37,7 +37,13 @@ const CORE_PAGES: RouteEntry[] = [
     priority: 1.0,
     changefreq: "weekly",
     title: "Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid",
-    description: "Nick's Tire & Auto on Euclid Ave. Tires from $25, brake repair, auto service. Walk in 7 days. Free check, written quote, pay only when satisfied. (216) 862-0005",
+    // 2026-08-19 · unified with Home.tsx SEOHead (the two strings had drifted —
+    // prerender overwrites meta description from HERE while og:description came
+    // from the component, so the SERP snippet and social card disagreed).
+    // Adds the Sunday differentiator (market check 2026-08-19: Conrad's
+    // Downtown, Best Buy/Confident and AutoCheck are all CLOSED Sunday).
+    // Title deliberately untouched: 2x-GSC-tuned and it matches SEOHead.
+    description: "Used tires from $25 installed (most sizes $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -180,7 +186,11 @@ const SERVICE_PAGES: RouteEntry[] = [
     // (both pages led with "Used tires from $25"). /tires now leads
     // with the general tire-shop intent; /used-tires-cleveland keeps
     // its used-tire-specific framing.
-    description: "Tire shop on Euclid Ave. New & used tires from $60 installed. Walk in 7 days, payment programs available. Call (216) 862-0005.",
+    // 2026-08-19 · "$60 installed" matched NEITHER canon price (used $25 /
+    // new $89, shared/business.ts) and was the stale figure AI snippets kept
+    // quoting. Keeps the wave-181.7 de-cannibalization intent: the used-$25
+    // hook stays on /used-tires-cleveland; /tires leads with new-from-$89.
+    description: "Tire shop on Euclid Ave. New tires from $89 installed, inspected used tires in most sizes. Walk in 7 days, payment programs available. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -280,13 +290,15 @@ const SERVICE_PAGES: RouteEntry[] = [
     // High-volume tire-intent silos. Distinct buyer journeys:
     //   /tires                  — broad finder + brand grid
     //   /tire-shop-near-me      — proximity intent
-    //   /used-tires-cleveland   — value-conscious, "$60 from" framing
+    //   /used-tires-cleveland   — value-conscious, "from $25 installed" framing
     //   /new-tires-cleveland    — premium buyer, "free $266 install" framing
     path: "/used-tires-cleveland",
     priority: 0.85,
     changefreq: "monthly",
     title: "Used Tires Cleveland | From $25 Installed | Nick's Tire & Auto",
-    description: "Used tires in Cleveland from $40, fully installed. Every tire passes a 4-point inspection — tread, sidewall, DOT date, plug history. (216) 862-0005",
+    // 2026-08-19 · desc said "from $40" while the title says "$25" — a
+    // self-contradicting SERP snippet. Canon: $25 floor, most sizes $40-80.
+    description: "Used tires in Cleveland from $25 installed (most sizes $40-80). Every tire passes a 4-point inspection — tread, sidewall, DOT date, plug history. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,

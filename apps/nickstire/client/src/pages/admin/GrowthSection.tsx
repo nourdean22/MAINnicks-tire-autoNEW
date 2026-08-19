@@ -362,6 +362,22 @@ function ReviewRepliesTab() {
         </span>
       </div>
 
+      {/* 2026-08-19 · drafts stall silently: prod had 7 drafts untouched
+          since 2026-08-11 and nothing surfaced them. Same copy-only safety
+          model — this banner only points at the queue below. */}
+      {stats && stats.draft > 0 && (
+        <div className="border border-sky-500/40 bg-sky-500/10 rounded p-3 text-xs text-sky-200 flex items-start gap-2">
+          <RefreshCw className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
+          <span>
+            <strong>
+              {stats.draft} {stats.draft === 1 ? "draft reply is" : "draft replies are"} waiting for review
+            </strong>
+            . Worst ratings first — read, edit if needed, Approve, then copy into
+            the Google Business app.
+          </span>
+        </div>
+      )}
+
       {stats && stats.approved > 0 && (
         <div className="border border-amber-500/40 bg-amber-500/10 rounded p-3 text-xs text-amber-200 flex items-start gap-2">
           <RefreshCw className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
