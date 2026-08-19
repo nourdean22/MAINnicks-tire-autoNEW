@@ -870,3 +870,21 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** high (same blind-instrument class as the leverage-layer gate lesson;
   witnessed false green + witnessed second producer, both receipted this session)
 - **Status:** proposed
+
+
+## 2026-08-19 · regen exit 0 is not proof the tree is whole (war-room session)
+
+- **What happened:** `pnpm run regen` exited 0 and reported "Broken: 0" while 10 blog routes had
+  FAILED ("escReplace is not defined" — a latent scoping bug in the soft-404 recovery path) and the
+  swap silently DROPPED their files (340 → 327). The 10% partial-success tolerance (#1588 lineage)
+  commits whatever rendered; nothing in the exit status or the final summary says files were lost.
+  Two more routes (michelin-tires-cleveland, site-map) timed out on the 50s budget the second run and
+  also needed git-restore before committing.
+- **Cost:** without a log grep, 10 indexed blog URLs would have shipped without prerendered HTML and
+  nobody would have noticed until the weekly refresh — or a rankings drop.
+- **Proposed edit (nickstire-verify skill):** add to the prerender-regen rule — "After every regen:
+  (1) grep the regen log for `✗` and for `skipped`; exit 0 + 'Broken: 0' tolerates up to 10% failed
+  routes and the swap DELETES their previous files. (2) Run `node scripts/check-prerender.mjs` and
+  git-restore any missing route dirs (`git checkout -- prerendered/<route>`) before committing."
+- **Confidence:** high (witnessed both failure classes in one session, receipts in #1709 body)
+- **Status:** proposed
