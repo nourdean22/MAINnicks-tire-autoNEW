@@ -56,7 +56,10 @@ const MAX_CONTENT_LEN = 220;
 // in chat. With this, chat can surface "the board advised X on a similar
 // call before". NOTE: `reasoning_trace` is deliberately NOT added — those
 // rows are written via a raw prisma.create (no inline embedding), so the
-// whitelist alone would be a no-op; revisit only with an embedding step.
+// whitelist alone would be a no-op. 2026-08-19 · outcome-loop wave: the
+// embedding step that note asked for now exists as a COMPANION category —
+// `reasoning_conclusion` (persist-conclusion.ts writes one distilled,
+// embedded row per run) is whitelisted below; the raw trace stays out.
 const CONTEXT_CATEGORIES = new Set([
   "wisdom",
   "insight",
@@ -106,6 +109,16 @@ const CONTEXT_CATEGORIES = new Set([
   //   noise — add later only if recall stays clean.)
   "relationships_weekly_synthesis",
   "gmail_outgoing",
+  // 2026-08-19 · outcome-loop wave · two lanes that close "what did I
+  // learn" loops, both written WITH inline embeddings:
+  // · task_lesson — the operator's typed completion lesson (was a
+  //   write-only column; operator-authored, low volume, high signal).
+  // · reasoning_conclusion — the distilled companion to reasoning_trace,
+  //   so Nick can recall what he previously concluded instead of
+  //   re-reasoning from scratch ("Nick reasons hard, then forgets" was
+  //   the audited defect).
+  "task_lesson",
+  "reasoning_conclusion",
 ]);
 
 export interface RecallHit {
