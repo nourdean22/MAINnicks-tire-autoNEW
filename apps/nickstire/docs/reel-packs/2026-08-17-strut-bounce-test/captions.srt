@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:01,400
+"Time for struts."
+
+2
+00:00:01,400 --> 00:00:03,000
+You hear it a lot. It's explained almost never.
+
+3
+00:00:03,000 --> 00:00:06,000
+Struts control how your car settles after a bump.
+
+4
+00:00:06,000 --> 00:00:09,000
+Worn ones keep bouncing.
+
+5
+00:00:09,000 --> 00:00:12,000
+That bounce can point to longer stopping distance
+
+6
+00:00:12,000 --> 00:00:15,000
+and chewed-up tread — even when the ride feels normal.
+
+7
+00:00:15,000 --> 00:00:18,500
+The test: push down hard on one corner. It should rebound once, then settle.
+
+8
+00:00:18,500 --> 00:00:21,000
+More bounce than that is worth checking.
+
+9
+00:00:21,000 --> 00:00:24,000
+Try it in your driveway. Not sure what you felt?
+
+10
+00:00:24,000 --> 00:00:27,000
+Nick's Tire and Auto — link in bio.

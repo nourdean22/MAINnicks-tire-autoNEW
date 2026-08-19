@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:02,000
+Car won't start?
+
+2
+00:00:02,000 --> 00:00:04,000
+The way it fails is one clue.
+
+3
+00:00:04,000 --> 00:00:07,000
+Lights dim, nothing else happens?
+
+4
+00:00:07,000 --> 00:00:10,000
+That may indicate the battery.
+
+5
+00:00:10,000 --> 00:00:13,000
+One fast click, nothing turns over?
+
+6
+00:00:13,000 --> 00:00:16,000
+That can point to the starter.
+
+7
+00:00:16,000 --> 00:00:19,000
+Starts fine, then a battery light while driving?
+
+8
+00:00:19,000 --> 00:00:22,000
+Worth checking the alternator.
+
+9
+00:00:22,000 --> 00:00:25,000
+Don't guess — three parts, three different bills.
+
+10
+00:00:25,000 --> 00:00:28,000
+Nick's Tire & Auto — we test all three free. Link in bio.

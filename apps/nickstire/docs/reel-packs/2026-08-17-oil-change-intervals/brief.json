@@ -1,0 +1,93 @@
+{
+  "packId": "2026-08-17-oil-change-intervals",
+  "generatedAt": "2026-08-17",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #9",
+  "campaignKeyword": "OIL-INTERVAL",
+  "campaignKeywordNote": "descriptive label only — no exact entry in facelessReelStudio.ts CAMPAIGN_KEYWORDS maps to oil/maintenance-interval content; would fail validateCampaignKeyword() if run for real",
+  "hookText": "The 3,000-mile oil sticker is a sales tool. It is not an engineering spec.",
+  "ctaText": "Check your manual before the next sticker. Not sure what it says? Nick's Tire and Auto — link in bio.",
+  "durationSeconds": 29,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text for exactly that reason)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "The 3,000-mile oil sticker is a sales tool. It is not an engineering spec.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro of an oil dipstick being pulled from an engine, dark engine bay lit by a single work light, oil sheen catching the light along the dipstick blade, slow pull-out motion, shallow depth of field, moody amber-and-black garage lighting, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 9,
+      "narration": "Your owner's manual has the real interval — for your exact engine and oil type.",
+      "onScreenText": "",
+      "providerScene": "Close-up of an owner's manual lying open to a maintenance-schedule page on a car seat, soft interior daylight through the windshield, slow push-in on the printed interval table, shallow depth of field, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 9,
+      "endSecond": 16,
+      "narration": "For most modern cars, that number is a lot longer than 3,000 miles.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of fresh amber motor oil pouring in a slow steady stream through a funnel into an engine bay, backlit to show the stream, warm garage lighting, slow tilt following the pour downward, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Short trips and cold winters shorten it. Highway miles stretch it out.",
+      "onScreenText": "",
+      "providerScene": "Wide interior shot through a frosted windshield of a car warming up in a driveway at dawn, visible exhaust vapor drifting past the glass, cold blue morning light, static hold with subtle vapor motion, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 22,
+      "endSecond": 29,
+      "narration": "Check your manual before the next sticker. Not sure what it says? Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); quiet engine-bay room tone / soft oil-pour trickle SFX only, royalty-free",
+    "sfxNotes": "optional single soft oil-pour trickle sound under beat 3 for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 8 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 3 },
+      "sourcedFact": { "max": 10, "score": 8, "detail": "grounded in shop-curated REEL-SLATE-2026-07-31.md item #9, not a fresh unverified claim, but still no formal EvidenceRecord in evidenceResolver.ts" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 10 },
+      "keyword": { "max": 5, "score": 3, "detail": "no exact CAMPAIGN_KEYWORDS entry maps to oil-change content; descriptive label used instead" },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (62/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "62/75 (self-estimate) — below the 70/75 auto-pass floor; needs a formal evidence citation for sourcedFact, a tighter loop, and an approved campaign keyword before this would likely clear the real gate"
+  }
+}

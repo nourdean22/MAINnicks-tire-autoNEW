@@ -1,0 +1,81 @@
+{
+  "id": "content-pack-2026-08-17-plug-vs-patch",
+  "campaignKeyword": "TIRES",
+  "archetype": "diagnostic_hud_reveal",
+  "motionLenses": ["extreme_macro_push_in", "xray_cutaway", "product_ad_macro"],
+  "selectedCaption": "A plug from a gas-station kit is not a finished repair. It seals the hole. It doesn't seal the inside. Underneath, the inner liner stays open — that's where a slow leak starts. A real repair goes in from the inside — tire off the rim, patch sealed to the liner. A puncture near the sidewall isn't repairable — that tire gets replaced, not patched. Worth checking before you trust it at highway speed.",
+  "hashtags": ["#TireRepair", "#TireTips", "#FlatTire", "#ClevelandOhio", "#NicksTireAndAuto", "#CarMaintenance"],
+  "voiceoverScript": "A plug from a gas-station kit is not a finished repair. It seals the hole. It doesn't seal the inside. Underneath, the inner liner stays open — that's where a slow leak starts. A real repair goes in from the inside — tire off the rim, patch sealed to the liner. A puncture near the sidewall isn't repairable — that tire gets replaced, not patched. Worth checking before you trust it at highway speed. Send this to whoever just picked up a nail. We inspect from the inside before we repair or replace. Stop by — 17625 Euclid Avenue, Cleveland.",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 2,
+      "onScreenText": null,
+      "visual": "Extreme macro push-in on a tire tread groove, a single nail lodged in the rubber, red diagnostic scan reticle locking onto the nail head, studio-grade macro lighting, shallow depth of field, photorealistic, no faces, no legible text baked into the shot"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 2,
+      "endSecond": 5,
+      "onScreenText": "PLUG SEALS THE HOLE. NOT THE LINER.",
+      "visual": "Diagnostic scan-line sweeping downward through a tire tread cross section into the tire body, amber HUD tag highlighting a rope-style plug path, cool schematic glow, clean dark field"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 5,
+      "endSecond": 11,
+      "onScreenText": "INNER LINER: STILL OPEN",
+      "visual": "Technical x-ray cutaway of a tire cross section, translucent layered rubber and liner materials, a rope-style plug visible from the outer surface, the inner liner behind it shown open and glowing red, cool schematic glow, engineering aesthetic"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 11,
+      "endSecond": 17,
+      "onScreenText": "PATCH-PLUG: SEALED FROM INSIDE",
+      "visual": "Technical x-ray cutaway continuing, camera moves to the interior surface of a tire, a flat repair patch being pressed flush against the inner liner sealing it, cool schematic glow, clean dark field, no hands or human operator visible"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 17,
+      "endSecond": 22,
+      "onScreenText": "SIDEWALL PUNCTURE = NO REPAIR",
+      "visual": "Diagnostic HUD scan-line sweeping across a full tire, green pass-zone highlight over the tread area, red no-repair zone highlight near the sidewall edge, cool schematic glow, engineering aesthetic"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 22,
+      "endSecond": 25,
+      "onScreenText": null,
+      "visual": "Premium product commercial shot of a fully mounted tire slowly rotating on a studio turntable, clean rim, soft directional studio lighting, photorealistic, shallow depth of field"
+    },
+    {
+      "beatNumber": 7,
+      "startSecond": 25,
+      "endSecond": 30,
+      "onScreenText": "SEND THIS TO WHOEVER JUST GOT A NAIL IN THEIR TIRE.",
+      "visual": "Extreme macro pull-back from a tire tread groove with a nail, mirroring the beat-1 opening push-in for a loop seam, scan-line fading to black"
+    },
+    {
+      "beatNumber": 8,
+      "startSecond": 30,
+      "endSecond": 33,
+      "onScreenText": "We inspect from the inside before we repair or replace. Stop by — 17625 Euclid Ave, Cleveland · (216) 862-0005 · nickstire.org",
+      "visual": "Static hold on the CTA card, silent ambient tone only"
+    }
+  ],
+  "qualityEstimate": {
+    "method": "manual, not calculateReelQualityScore()",
+    "rubric": "hook/truth/save/local/absurdity/fit, 0-10 each, /60 total",
+    "estimatedTotal": 42,
+    "winningConceptFloor": 57,
+    "clearsWinningConceptFloor": false
+  },
+  "liveVerification": {
+    "repetitionLedgerQueried": false,
+    "evidenceResolverQueried": false,
+    "reelCanaryCalled": false,
+    "rendered": false,
+    "published": false
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "packId": "2026-08-16-wheel-bearing-hum",
+  "generatedAt": "2026-08-16",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #8",
+  "campaignKeyword": "BEARING-HUM",
+  "hookText": "A humming that changes when you steer is not your tires.",
+  "ctaText": "Send this to someone whose car hums on the highway.",
+  "durationSeconds": 26,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "A humming that changes when you steer is not your tires.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro, front wheel hub and bearing assembly exposed on a shop stand, slow rotation, studio-lit garage bay, shallow depth of field, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 9,
+      "narration": "Wheel bearing noise gets louder turning one way, quieter the other. You are loading the bad side.",
+      "onScreenText": "",
+      "providerScene": "Overhead top-down shot of a car's front wheels turning left then right on a shop alignment rack, slow arc pan following the steering motion, even overhead light, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 9,
+      "endSecond": 15,
+      "narration": "Tire noise does not do that. It stays the same through the turn.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a tire tread rolling slowly across pavement texture, steady lateral dolly, neutral daylight, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 15,
+      "endSecond": 21,
+      "narration": "Ignore it, and a bearing does not get better. It can seize, and the wheel can lock up.",
+      "onScreenText": "",
+      "providerScene": "Close-up of a worn wheel bearing assembly on a workbench next to a new sealed replacement unit, side-by-side comparison, top-down even light, slow pull-back, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 21,
+      "endSecond": 26,
+      "narration": "Send this to someone whose car hums on the highway. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide interior shot of a clean auto repair garage bay, single car on a lift, warm inviting practical light, slow push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "selfEstimatedQualityScore": {
+    "note": "NOT calculateReelQualityScore() output — that function was not called live this run. Self-estimate only, per-dimension, out of the real 75-point rubric.",
+    "scrollStopFirstFrame": 8,
+    "mutedFirstComprehension": 9,
+    "beatStructure": 5,
+    "lengthWithinRange": 5,
+    "loopability": 2,
+    "sourcedFact": 3,
+    "faceless": 10,
+    "claimSafety": 10,
+    "keywordRelevance": 5,
+    "winningConceptTournament": 0,
+    "totalSelfEstimate": 57,
+    "totalOutOf": 75,
+    "realPassFloor": 70,
+    "belowFloorBecause": "loopability (CTA frame does not return to hook frame) and sourcedFact (no EvidenceRecord backs the bearing-vs-tire noise claim in this repo's store) both score low; winningConceptTournament (5pts, requires an actual conceptTournament.ts run scoring >=57/60) was not run this session so it is scored 0, not estimated"
+  }
+}
