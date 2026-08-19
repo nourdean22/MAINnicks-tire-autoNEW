@@ -99,6 +99,20 @@ export function ExecutiveActionMatrix() {
       return { status: "loading", title: "ANALYZING...", message: "Calculating asymmetric leverage...", actionType: "loading", color: "text-[var(--text-tertiary)]" };
     }
 
+    // Unknown-is-not-zero (2026-08-19): a failed read used to fall
+    // through to the calm/suggestions branches and render as a clear
+    // board — indistinguishable from genuinely having nothing to do.
+    // An instrument fault must say so.
+    if (tasksQuery.isError || ccStateQuery.isError || nextMoveQuery.isError) {
+      return {
+        status: "error",
+        title: "BOARD UNREADABLE",
+        message: "One or more reads failed — this is an instrument fault, not a clear board. The numbers below may be incomplete.",
+        actionType: "error",
+        color: "text-rose-400",
+      };
+    }
+
     const activeTaskId = ccStateQuery.data?.commands?.active?.id;
     const doingTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : undefined;
     const criticalFew = nextMoveQuery.data?.criticalFew || [];
@@ -170,7 +184,7 @@ export function ExecutiveActionMatrix() {
       actionType: "suggestions",
       color: "text-emerald-400"
     };
-  }, [tasks, findingsCount, inboxCount, resumeTask, ccStateQuery.data, nextMoveQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading]);
+  }, [tasks, findingsCount, inboxCount, resumeTask, ccStateQuery.data, nextMoveQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading, tasksQuery.isError, ccStateQuery.isError, nextMoveQuery.isError]);
 
   // 3. Execution Engine UI
   const completedToday = tasks.filter(
@@ -209,7 +223,12 @@ export function ExecutiveActionMatrix() {
           </h3>
           
           <div className="flex-1 space-y-2">
-            {criticalFew.length > 0 ? (
+            {nextMoveQuery.isError ? (
+              <div className="p-6 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] text-center flex flex-col items-center gap-3 shadow-inner">
+                <Target size={18} className="text-rose-400/50" />
+                <span className="text-[11px] font-medium text-rose-300/80 uppercase tracking-widest font-mono">Targets unreadable — state unknown, not empty</span>
+              </div>
+            ) : criticalFew.length > 0 ? (
               criticalFew.slice(0, 3).map((task) => (
                 <Link
                   key={task.id}

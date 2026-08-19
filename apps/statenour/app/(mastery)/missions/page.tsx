@@ -57,7 +57,7 @@ function MissionsPageInner() {
   const openMissionEdit = useMissionUIStore((s) => s.openMissionEdit);
 
   // Data
-  const { tasks, missions, statsQuery, healthQuery, ccStateQuery } = useMissionsData(taskIdParam);
+  const { tasks, missions, statsQuery, healthQuery, ccStateQuery, tasksQuery, missionsQuery } = useMissionsData(taskIdParam);
   const { customDomains, setCustomDomains } = useCustomDomains();
 
   // Extracted logic
@@ -329,11 +329,22 @@ function MissionsPageInner() {
                   {filters.filteredTasks.length} visible tasks
                 </span>
               </div>
-              <MissionFeed
-                missions={filters.filteredMissions}
-                tasks={filters.filteredTasks}
-                autonomicHealth={healthQuery.data?.autonomic}
-              />
+              {/* Unknown-is-not-empty (2026-08-19): a failed task/mission
+                  read used to fall through to <EmptyMissions /> — a dead
+                  fetch rendered as a cleared board. */}
+              {(tasksQuery.isError || missionsQuery.isError) && missions.length === 0 ? (
+                <div className="p-6 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] text-center">
+                  <p className="text-[11px] font-mono uppercase tracking-widest text-rose-300/80">
+                    Board unreadable — reads failed. State unknown, not empty.
+                  </p>
+                </div>
+              ) : (
+                <MissionFeed
+                  missions={filters.filteredMissions}
+                  tasks={filters.filteredTasks}
+                  autonomicHealth={healthQuery.data?.autonomic}
+                />
+              )}
             </section>
           </>
         )}

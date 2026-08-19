@@ -11,6 +11,7 @@
 import { z } from "zod";
 import { operatorProcedure, publicProcedure } from "../../trpc";
 import { buildSystemHub } from "@/lib/services/system-hub";
+import { cached } from "@/lib/utils/cache";
 import {
   issueToken,
   listTokens,
@@ -80,7 +81,14 @@ export const notificationsProcedures = {
    * wrapped the payload in `{ data }`; the procedure returns it
    * unwrapped and the call-site reads it directly.
    */
-  hub: operatorProcedure.query(async () => buildSystemHub()),
+  // 2026-08-19 · cached 30s: buildSystemHub fans out into ~20 DB reads
+  // (incl. the stale-data scanner) and is polled at 60s by BOTH the
+  // Home health chip and the hub grid — it was the slowest member of
+  // Home's single blocking tRPC batch, uncached. 30s TTL halves the
+  // worst-case staleness relative to the 60s poll.
+  hub: operatorProcedure.query(async () =>
+    cached("trpc:system-hub", 30, () => buildSystemHub()),
+  ),
 
   // ════════════ Phase B.6c · ultron system-domain sub-slice ════════════
   //
