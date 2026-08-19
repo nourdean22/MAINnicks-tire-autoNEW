@@ -417,7 +417,15 @@ async function pgvectorSemanticSearch(
   const memories = memoryIds.length
     ? await prisma.brainMemory
         .findMany({
-          where: { id: { in: memoryIds }, deletedAt: null },
+          // BDN-310: superseded/expired beliefs drop here too (belt to the
+          // knnSearch EXISTS braces — this hydration is what actually gates
+          // which brain_memory hits survive into results).
+          where: {
+            id: { in: memoryIds },
+            deletedAt: null,
+            supersededById: null,
+            OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+          },
           select: { id: true, confidence: true, createdAt: true, category: true, seenCount: true },
         })
         .catch((): never[] => [])

@@ -130,6 +130,7 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
   // The mirror is now honest about its age, and no-data renders as "—",
   // never as $0.
   let mirrorAgeHours: number | null = null;
+  let mirrorCreatedAt: Date | null = null;
   if (dollars === null) {
     const ev = await prisma.auditEvent
       .findFirst({
@@ -142,6 +143,7 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
       const ctx = (ev.payload ?? {}) as Record<string, unknown>;
       dollars = readNickRevenue(ctx.revenue ?? ctx.revenueToday).todayDollars;
       mirrorAgeHours = Math.floor((Date.now() - ev.createdAt.getTime()) / 3_600_000);
+      mirrorCreatedAt = ev.createdAt;
     }
   }
   if (dollars === null) {
@@ -152,7 +154,11 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
       "/business?tab=money",
     );
   }
-  const mirrorIsStale = mirrorAgeHours !== null && mirrorAgeHours >= 24;
+  // Round-2 review: "today" is an ET calendar-day claim, not a 24h-age
+  // claim — a mirror pushed at 11pm yesterday must not render at 8am as
+  // "Revenue today". Same-ET-day test, matching the pinned-baseline
+  // bound in the composer below.
+  const mirrorIsStale = mirrorCreatedAt !== null && mirrorCreatedAt < startOfDayET();
   return {
     key: "revenue_today",
     label: "Revenue today",
@@ -163,7 +169,9 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
     trend: "flat",
     anomalous: mirrorIsStale,
     why: mirrorIsStale
-      ? `bridge unreachable — this figure is a mirror from ${Math.floor((mirrorAgeHours ?? 0) / 24)}d ago, not today`
+      ? (mirrorAgeHours ?? 0) >= 24
+        ? `bridge unreachable — this figure is a mirror from ${Math.floor((mirrorAgeHours ?? 0) / 24)}d ago, not today`
+        : `bridge unreachable — this figure is a mirror from a prior ET day (${mirrorAgeHours}h old), not today`
       : null,
     link: "/business?tab=money",
     ...(mirrorIsStale ? { measured: false } : {}),

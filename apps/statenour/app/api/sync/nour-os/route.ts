@@ -7,6 +7,7 @@ import { processGmailItems } from "@/lib/integrations/gmail-sync";
 import { createTask } from "@/lib/services/tasks";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { priorityBandLabel } from "@/lib/scoring/task-priority";
 
 export const dynamic = "force-dynamic";
 
@@ -359,7 +360,7 @@ export const GET = syncHandler(async () => {
     prisma.task
       .findMany({
         where: { status: { in: ["INBOX", "READY", "DOING"] } },
-        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
         take: 15,
         select: {
           id: true,
@@ -373,11 +374,7 @@ export const GET = syncHandler(async () => {
         rows.map((t) => ({
           id: t.id,
           title: t.title,
-          priority:
-            (t.autoPriority ?? 50) >= 80 ? "critical"
-            : (t.autoPriority ?? 50) >= 60 ? "high"
-            : (t.autoPriority ?? 50) >= 40 ? "medium"
-            : "low",
+          priority: priorityBandLabel(t.autoPriority),
           domain: t.mission?.domain ?? "general",
           source: t.autoPriorityExplanation ?? "unknown",
         })),

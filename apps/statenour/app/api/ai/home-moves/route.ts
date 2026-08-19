@@ -92,7 +92,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         orderBy: [
           { status: "desc" }, // DOING first (alphabetical desc puts D before R)
           { dueDate: "asc" },
-          { autoPriority: "desc" },
+          { autoPriority: { sort: "desc", nulls: "last" } },
         ],
         select: { id: true, title: true, dueDate: true, status: true },
       });

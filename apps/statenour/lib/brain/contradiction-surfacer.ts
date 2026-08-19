@@ -444,10 +444,12 @@ export async function resolveContradiction(
       .catch(() => {});
   }
 
-  // v-truth · NICK_CONTRADICTION_CLEANUP (default-OFF) · soft-delete the
-  // SUPERSEDED memory so the stale belief leaves the recall pool. Layers
-  // on top of the confidence-floor above; self-gates + graceful, no-ops
-  // for both_valid/dismissed (no loser). Flag off = byte-identical to today.
+  // Two layers ride this call (2026-08-19): the BDN-310 supersession stamp
+  // (supersededById + validUntil on the loser, lastVerifiedAt on the winner,
+  // verdict-flip un-strand) runs UNCONDITIONALLY on an explicit-loser status;
+  // the soft-delete stays behind NICK_CONTRADICTION_CLEANUP (default-OFF).
+  // Both layer on the confidence-floor above; graceful, no-ops for
+  // both_valid/dismissed (no loser).
   const { cleanupResolvedContradiction } = await import(
     "@/lib/brain/contradiction-cleanup"
   );

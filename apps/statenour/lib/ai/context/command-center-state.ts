@@ -24,6 +24,7 @@ import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { cached } from "@/lib/utils/cache";
+import { priorityBandLabel } from "@/lib/scoring/task-priority";
 
 // ── Summaries (every shape stays small + JSON-friendly) ─────────────
 
@@ -305,12 +306,9 @@ const ALERT_CATEGORIES = [
 ];
 
 function priorityFromScore(score: number | null | undefined): string {
-  // Canonical polarity: higher = more urgent (lib/scoring/task-priority).
-  const s = score ?? 50;
-  if (s >= 80) return "critical";
-  if (s >= 60) return "high";
-  if (s >= 40) return "medium";
-  return "low";
+  // Canonical bands — never hand-rolled (round-2 review consolidated the
+  // six duplicated ternaries this diff had introduced).
+  return priorityBandLabel(score);
 }
 
 function timeOfDay(): CommandCenterState["operator"]["timeOfDay"] {
@@ -393,14 +391,14 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     prisma.task
       .findFirst({
         where: { status: "DOING", deletedAt: null },
-        orderBy: [{ autoPriority: "desc" }, { lastTouchedAt: "desc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { lastTouchedAt: "desc" }],
         select: TASK_SELECT,
       })
       .catch(() => null),
     prisma.task
       .findMany({
         where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
-        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
         take: 10,
         select: TASK_SELECT,
       })

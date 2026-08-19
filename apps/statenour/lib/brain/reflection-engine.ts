@@ -19,6 +19,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { priorityBandLabel } from "@/lib/scoring/task-priority";
 // v10.0.64 · AgentTrace coverage · see thinking-engine.ts comment.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("reflection-engine");
@@ -106,11 +107,7 @@ async function gatherDailyContext(daysBack: number = 7) {
         .then((rows) =>
           rows.map((t) => ({
             title: t.title,
-            priority:
-              (t.autoPriority ?? 50) >= 80 ? "critical"
-              : (t.autoPriority ?? 50) >= 60 ? "high"
-              : (t.autoPriority ?? 50) >= 40 ? "medium"
-              : "low",
+            priority: priorityBandLabel(t.autoPriority),
             domain: t.mission?.domain ?? "general",
             createdAt: t.createdAt,
           })),

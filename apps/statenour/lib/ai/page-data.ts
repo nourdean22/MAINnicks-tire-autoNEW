@@ -245,7 +245,7 @@ export async function buildPageData(page: string): Promise<string> {
       // the unified Task INBOX/READY/DOING surface.
       const rows = await prisma.task.findMany({
         where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
-        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
         take: 20,
         select: { title: true, status: true, autoPriority: true },
       });
