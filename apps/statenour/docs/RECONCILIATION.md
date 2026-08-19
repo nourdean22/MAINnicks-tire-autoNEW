@@ -78,6 +78,36 @@
 > there — environmental) · live prompt:size-check unrunnable without prod creds (static
 > measure: PASS, exit 0).
 >
+> **Same-day adversarial re-audit (operator: "go back over all of your work" — round 3):**
+> external evidence pulled first: **CI on main green for both merges** (turbo-verify, e2e,
+> Lighthouse, agent-policy on 382bfe7; agent-policy on 116f098, rest verified after). The raw
+> SQL + all new sentinel semantics were **executed against a real local Postgres 16** (scratch
+> instance, zero prod contact): pattern normalization collapses err_* ids and counter digits
+> exactly as designed; the OLD hnsw check matched a btree with zero hnsw indexes present (hole
+> proven live) while the NEW `USING hnsw` check correctly finds nothing; partial-unique
+> predicate rendering matches `checkPartialUnique`'s substring semantics. Defects the re-audit
+> found and fixed: **(1)** the false-green wrapper claim said ~7 routes — VERIFIED count was 5;
+> `data-source-health` returned `ok: <count>` (number) and `outbox-drain` returned `ok` as a
+> per-row success count, so neither could ever trip the boolean `ok === false` detector — both
+> routes now return an explicit boolean failure claim (probes failing / whole batch failed).
+> **(2)** the banner missed the zero-cron-rows case (rose tile, green banner for up to 48h
+> until probe staleness caught it transitively) — `cronSilent` now degrades the banner with its
+> own reason. **(3)** best-available external data (Apple/pushpad/magicbell, 2026): iOS revokes
+> a Web Push subscription after repeated "silent push" strikes, and `public/sw.js` returned
+> WITHOUT showing a notification on any dataless push — a standing threat to the exact channel
+> the P0 bridge and morning brief ride; the SW now always shows a (generic, minimal)
+> notification. iOS ignoring `requireInteraction`/`actions`/`vibrate` confirmed non-fatal to
+> delivery. Transitional note: until the 5 newly-logging fan-out children write their first
+> rows (≤24h post-deploy), cron-heartbeat's standing P0 may fire — which now correctly pages
+> the phone; it self-heals as rows appear. **(4)** the round-3 verification suite itself
+> caught a pre-existing prod hygiene bug: all 5,610 tests passed but exit 1 with 12
+> post-teardown unhandled rejections — root-caused (not waved off as flake) to
+> `enrichTaskLinkage`'s `Promise.all` array: when a LATER element throws synchronously during
+> array construction, the already-started `resolveInboxMissionId()` promise's rejection is
+> orphaned where the surrounding try/catch structurally cannot see it (an unhandledRejection
+> class in prod, not just test noise). Fixed by pre-attaching a no-op handler to the started
+> promise; standalone file 3/3 clean; full-suite exit-0 receipt in PR #1693.
+>
 > **Same-day correction + follow-up (operator: "i do get push notifications on my phone"):**
 > the entry below originally claimed "nothing pages anyone — the dashboard is pull-only".
 > OVERBROAD. Precise truth: a LIVE Web Push (VAPID) channel exists (`lib/notifications/push.ts`)

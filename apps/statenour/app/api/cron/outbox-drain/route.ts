@@ -55,5 +55,20 @@ export const GET = cronHandler(async () => {
     );
   }
   log.info("outbox_drain_done", { claimed: claimed.length, ok, failed, newDead });
-  return { claimed: claimed.length, ok, failed, newDead };
+  // 2026-08-19 · `ok` was the per-row SUCCESS COUNT, so logCronRun's
+  // reported-failure detection (which requires a literal boolean
+  // ok === false) could never see this route fail — a drain where every
+  // claimed row failed still filed a green cron row. Whole-batch failure
+  // means the drain mechanism itself is broken (one bad row can't do
+  // that — per-row failures dead-letter and alert separately), so claim
+  // it explicitly; counts move to their own fields.
+  const allFailed = claimed.length > 0 && ok === 0;
+  return {
+    ok: !allFailed,
+    ...(allFailed ? { reason: `all ${claimed.length} claimed rows failed` } : {}),
+    claimed: claimed.length,
+    drained: ok,
+    failed,
+    newDead,
+  };
 });

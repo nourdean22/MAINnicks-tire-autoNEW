@@ -488,6 +488,11 @@ function OperationalStatus({ report }: { report: HealthReport }) {
   const cronFailRate = report.cron.totalLogs
     ? (hardCronFailures / report.cron.totalLogs) * 100
     : 0;
+  // Zero rows in the window = the fleet is silent, the most common cron
+  // failure mode. The tile already goes rose for it; without this the
+  // banner stayed green for up to 48h (until probe staleness caught it
+  // transitively) while the tile below screamed.
+  const cronSilent = report.cron.totalLogs === 0;
   // Errors counted at level error/fatal only — `total` includes warns,
   // which historically ran ~68% of the table and pinned the tile red.
   const realErrors = report.errors.byLevel
@@ -497,7 +502,12 @@ function OperationalStatus({ report }: { report: HealthReport }) {
   const down = evalBad || dsBad || cronFailRate >= 10;
   const degraded =
     !down &&
-    (dsUnknown || dsStale || evalUnknown || hardCronFailures > 0 || realErrors > 100);
+    (dsUnknown ||
+      dsStale ||
+      evalUnknown ||
+      cronSilent ||
+      hardCronFailures > 0 ||
+      realErrors > 100);
   const allGood = !down && !degraded;
 
   const headline = down
@@ -514,6 +524,7 @@ function OperationalStatus({ report }: { report: HealthReport }) {
   else if (ds.total === 0) reasons.push("no probes have run");
   if (dsStale) reasons.push(`${ds!.stale} probe${ds!.stale > 1 ? "s" : ""} stale >48h`);
   if (evalUnknown) reasons.push("no eval run in 7d");
+  if (cronSilent) reasons.push(`no cron runs logged in ${report.range}`);
   if (!down && hardCronFailures > 0) reasons.push(`${hardCronFailures} cron failures`);
   if (realErrors > 100) reasons.push(`${realErrors} errors`);
 

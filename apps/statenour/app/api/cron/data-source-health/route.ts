@@ -55,10 +55,17 @@ export const GET = cronHandler(async () => {
     });
   }
 
+  // 2026-08-19 · `ok` was the COUNT of passing probes (a number), so
+  // logCronRun's reported-failure detection (literal boolean ok === false
+  // only) could never see this route degrade — 0-of-6 probes passing
+  // still filed a green cron row. The count moves to okCount; `ok` is now
+  // the route's actual failure claim.
   return {
+    ok: result.failed === 0,
+    ...(result.failed > 0 ? { reason: `${result.failed} of ${result.total} probes failing` } : {}),
     status: result.failed > 0 ? "degraded" : "ok",
     total: result.total,
-    ok: result.ok,
+    okCount: result.ok,
     failed: result.failed,
     empty: result.empty,
     alerted: failures.length > 0,
