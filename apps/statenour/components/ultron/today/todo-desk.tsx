@@ -38,7 +38,7 @@
  *     get ⚖ chip and priority boost
  *   • Post-complete: toast + NextActionWhisperer fires
  *   • Ranking: autoPriority (higher = hotter) + windowFit(+10) + energyMatch(+8) +
- *     commitment(-12) + aged penalty
+ *     commitment(+12) − aged penalty (−5 at 10d, −10 at 30d)
  */
 
 import { useCallback, useEffect, useState } from "react";

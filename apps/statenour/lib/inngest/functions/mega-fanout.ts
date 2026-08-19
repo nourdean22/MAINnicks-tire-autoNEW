@@ -110,20 +110,115 @@ function isSundayET(): boolean {
  * chosen from measured completion (~14 and ~20 min past slot start,
  * minus queue-order slack) with headroom, capped at the 240s route
  * maxDuration these children already honor.
+ *
+ * SUPERSEDED 2026-08-19. That ceiling was read off the wrong number: "~14 and
+ * ~20 min past slot start" is when each child FINISHES, not how long the call
+ * takes, so a 240s abort was set for jobs that run 14-36 minutes. Measured over
+ * 7 days of prod api_request_logs: consolidate avg 19.6 min (max 36),
+ * mastery-xp avg 5.1 min (max 9.9) -- and BOTH return 200 every time. Neither
+ * was ever "slow but bounded"; both moved to DETACHED_CHILDREN below.
+ *
+ * What remains here is the genuine slow-but-bounded case: predict averages
+ * 82.5s against the 90s default with a 173s max, so it flapped on and off the
+ * boundary. 240s gives it headroom while keeping a real ceiling.
  */
 const CHILD_TIMEOUT_MS: Record<string, number> = {
-  "/api/cron/consolidate": 240_000,
-  "/api/cron/mastery-xp": 240_000,
+  "/api/cron/predict": 240_000,
 };
 const DEFAULT_CHILD_TIMEOUT_MS = 90_000;
 
-async function dispatchChild(path: string, cronSecret: string): Promise<{
+/**
+ * Children dispatched FIRE-AND-FORGET: the parent confirms the request was
+ * accepted, then stops waiting for it.
+ *
+ * These are batch jobs whose runtime is a function of how much brain data
+ * exists, not of anything the parent can predict -- and it trends upward as the
+ * brain grows. No ceiling survives that; this map had already been raised
+ * 50s -> 90s -> 240s and still failed 29 nights running.
+ *
+ * The cost was not cosmetic. Each abort threw, which failed the Inngest step,
+ * which `retries: 3` turned into a full re-run of the evening slot -- so
+ * consolidate executed FOUR times a night (~2.3h of LLM churn), loading the DB
+ * and making the next run slower still.
+ *
+ * Detaching is safe because aborting the CLIENT never killed the SERVER
+ * handler: the parent has been aborting at 240s for weeks while
+ * api_request_logs recorded those very runs completing 200 at 34 minutes. And
+ * these children already write their own CronJobLog rows -- that is where their
+ * real outcome has always lived. The parent's only job is to start them.
+ *
+ * DELIBERATE TRADE-OFF: the parent can no longer retry these two. A child that
+ * starts and then fails server-side is reported as dispatched here, so Inngest
+ * will not re-run it. That is the point -- re-running a 34-minute LLM batch on
+ * a whim is the pathology being removed -- and the failure is NOT lost:
+ * cronHandler still writes that child's own FAILED CronJobLog row, which is
+ * exactly what getCronStatus() (lib/services/cron-manager.ts) and the
+ * /system/crons panel read. Parent-level retry was never the safety net here;
+ * it just multiplied the work.
+ */
+export const DETACHED_CHILDREN: ReadonlySet<string> = new Set([
+  "/api/cron/consolidate",
+  "/api/cron/mastery-xp",
+]);
+
+/**
+ * How long the parent waits for a detached child to prove it STARTED. Long
+ * enough to surface an immediate 4xx/5xx or a refused connection, far shorter
+ * than any real run. Reaching it means "still working" -- which is success.
+ */
+const DETACH_ACK_MS = 10_000;
+
+export async function dispatchChild(path: string, cronSecret: string): Promise<{
   path: string;
   status: number;
   durationMs: number;
 }> {
   const start = Date.now();
   const baseUrl = getBaseUrl();
+
+  if (DETACHED_CHILDREN.has(path)) {
+    // Deliberately NO abort signal -- letting the child outlive this call is
+    // the entire point. Rejections are folded into the value so losing the
+    // race below can never surface as an unhandled rejection.
+    const inFlight = fetch(`${baseUrl}${path}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${cronSecret}` },
+    }).then(
+      (r) => ({ kind: "responded" as const, status: r.status, ok: r.ok }),
+      (err: unknown) => ({ kind: "failed" as const, err }),
+    );
+
+    let ackTimer: ReturnType<typeof setTimeout> | undefined;
+    const ack = await Promise.race([
+      inFlight,
+      new Promise<{ kind: "running" }>((resolve) => {
+        ackTimer = setTimeout(() => resolve({ kind: "running" }), DETACH_ACK_MS);
+      }),
+    ]);
+    if (ackTimer) clearTimeout(ackTimer);
+
+    // A child that never started is still a real failure worth retrying.
+    if (ack.kind === "failed") {
+      const msg = ack.err instanceof Error ? ack.err.message : String(ack.err);
+      throw new Error(
+        `child cron ${path} failed to dispatch after ${Date.now() - start}ms: ${msg}`,
+      );
+    }
+    if (ack.kind === "responded" && !ack.ok) {
+      throw new Error(
+        `child cron ${path} returned ${ack.status} after ${Date.now() - start}ms`,
+      );
+    }
+
+    // "running" == accepted and still working server-side. 202 reads as
+    // ACCEPTED, not COMPLETED, so the slot heartbeat never claims otherwise.
+    return {
+      path,
+      status: ack.kind === "responded" ? ack.status : 202,
+      durationMs: Date.now() - start,
+    };
+  }
+
   const res = await fetch(`${baseUrl}${path}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${cronSecret}` },

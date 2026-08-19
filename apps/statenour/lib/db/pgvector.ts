@@ -238,13 +238,19 @@ export async function knnSearch(
   const catClause = excluded.length
     ? ` AND bm.category <> ALL(ARRAY[${excluded.map((c) => `'${String(c).replace(/'/g, "''")}'`).join(",")}]::text[])`
     : "";
+  // BDN-310 supersession rides the same EXISTS as deletion (2026-08-19
+  // round-2): the vector boundary is where ALL semanticSearch callers
+  // inherit the liveness contract, so a superseded belief must die here
+  // or it re-enters through every caller that never hand-writes filters.
   const liveOnly =
     opts.includeDeletedSources === true && excluded.length === 0
       ? ""
       : ` AND ("sourceType" <> 'brain_memory' OR EXISTS (
              SELECT 1 FROM brain_memories bm
              WHERE bm.id = vector_embeddings."sourceId"${
-               opts.includeDeletedSources === true ? "" : " AND bm.deleted_at IS NULL"
+               opts.includeDeletedSources === true
+                 ? ""
+                 : " AND bm.deleted_at IS NULL AND bm.superseded_by_id IS NULL AND (bm.valid_until IS NULL OR bm.valid_until > NOW())"
              }${catClause}))`;
   const sourceType = opts.sourceType;
   const op = opts.metric === "l2" ? "<->" : "<=>";

@@ -185,7 +185,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
           status: { in: ["INBOX", "READY", "DOING"] },
           deletedAt: null,
         },
-        orderBy: { autoPriority: "desc" },
+        orderBy: { autoPriority: { sort: "desc", nulls: "last" } },
         take: 50,
         select: {
           id: true,
@@ -283,7 +283,7 @@ export async function buildTodoDesk(): Promise<DeskPayload> {
             lt: new Date(`${tomorrowStr}T23:59:59`),
           },
         },
-        orderBy: { autoPriority: "desc" },
+        orderBy: { autoPriority: { sort: "desc", nulls: "last" } },
         take: 4,
         select: { id: true, title: true, effort: true },
       }),

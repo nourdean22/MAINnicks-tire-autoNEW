@@ -243,15 +243,18 @@ export default function SystemPage() {
           label="Errors (24h)"
           // Unknown-is-not-clean (2026-08-19): with diagnostics null the
           // hint used to read "Clean" — a failed read rendered as a
-          // clean system. Unknown states now say so.
-          value={diagnosticsQuery.isError ? "—" : d?.kpis.errors_24h ?? "..."}
+          // clean system. Round-2: a failed REFRESH with cached data keeps
+          // the last read and says so; only a first-load failure is "—".
+          value={d ? d.kpis.errors_24h : diagnosticsQuery.isError ? "—" : "..."}
           hint={
-            diagnosticsQuery.isError
-              ? "read failed — unknown, not clean"
-              : d
-                ? d.kpis.errors_24h > 0
+            d
+              ? diagnosticsQuery.isError
+                ? "refresh failed — showing last read"
+                : d.kpis.errors_24h > 0
                   ? "Check /system/logs"
                   : "Clean"
+              : diagnosticsQuery.isError
+                ? "read failed — unknown, not clean"
                 : "measuring..."
           }
         />

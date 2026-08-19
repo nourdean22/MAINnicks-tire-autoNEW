@@ -173,7 +173,7 @@ export async function predictBestHoursForOpenTasks(limit: number = 10) {
         status: { in: ["READY", "INBOX", "DOING"] },
         deletedAt: null,
       },
-      orderBy: [{ autoPriority: "desc" }, { createdAt: "asc" }],
+      orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }],
       take: limit,
       select: {
         id: true,

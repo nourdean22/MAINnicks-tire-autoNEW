@@ -253,7 +253,7 @@ export async function buildPersonalSlice(
           where: activeOnly({
             status: { in: ["INBOX", "READY", "DOING"] },
           }),
-          orderBy: [{ autoPriority: "desc" }, { roiScore: "desc" }],
+          orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { roiScore: "desc" }],
           take: 1,
           select: { title: true, nextPhysicalAction: true },
         })

@@ -19,6 +19,7 @@ const aiChat = makeTracedAiChat("predictive-engine");
 import { extractJsonArray, extractJsonObject } from "@/lib/ai/extract-structured";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { priorityBandLabel } from "@/lib/scoring/task-priority";
 import { logError } from "@/lib/utils/error-log";
 import {
   recentScoreSnapshots,
@@ -73,11 +74,7 @@ async function gatherPredictiveData() {
       .then((rows) =>
         rows.map((t) => ({
           title: t.title,
-          priority:
-            (t.autoPriority ?? 50) >= 80 ? "critical"
-            : (t.autoPriority ?? 50) >= 60 ? "high"
-            : (t.autoPriority ?? 50) >= 40 ? "medium"
-            : "low",
+          priority: priorityBandLabel(t.autoPriority),
           createdAt: t.createdAt,
         })),
       ),

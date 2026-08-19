@@ -77,7 +77,7 @@ export async function buildActionsBrain(): Promise<ActionsBrainView> {
     prisma.task.findMany({
       where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
       include: { mission: { select: { title: true, domain: true } } },
-      orderBy: { autoPriority: "desc" },
+      orderBy: { autoPriority: { sort: "desc", nulls: "last" } },
     }),
     prisma.brainMemory.findMany({
       where: { category: { in: ["lesson", "pattern", "insight"] }, deletedAt: null },

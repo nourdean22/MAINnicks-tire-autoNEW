@@ -102,8 +102,15 @@ export function ExecutiveActionMatrix() {
     // Unknown-is-not-zero (2026-08-19): a failed read used to fall
     // through to the calm/suggestions branches and render as a clear
     // board — indistinguishable from genuinely having nothing to do.
-    // An instrument fault must say so.
-    if (tasksQuery.isError || ccStateQuery.isError || nextMoveQuery.isError) {
+    // An instrument fault must say so. Round-2 (TanStack v5 doctrine):
+    // hard-unreadable only on FIRST-LOAD failure (`isError && !data`);
+    // a failed background refetch keeps the cached board and gets the
+    // compact "refresh failed" badge below instead of nuking the UI.
+    if (
+      (tasksQuery.isError && !tasksQuery.data) ||
+      (ccStateQuery.isError && !ccStateQuery.data) ||
+      (nextMoveQuery.isError && !nextMoveQuery.data)
+    ) {
       return {
         status: "error",
         title: "BOARD UNREADABLE",
@@ -184,7 +191,14 @@ export function ExecutiveActionMatrix() {
       actionType: "suggestions",
       color: "text-emerald-400"
     };
-  }, [tasks, findingsCount, inboxCount, resumeTask, ccStateQuery.data, nextMoveQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading, tasksQuery.isError, ccStateQuery.isError, nextMoveQuery.isError]);
+  }, [tasks, findingsCount, inboxCount, resumeTask, ccStateQuery.data, nextMoveQuery.data, tasksQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading, tasksQuery.isError, ccStateQuery.isError, nextMoveQuery.isError]);
+
+  // Failed refetch with a cached board: keep rendering the data, say the
+  // refresh failed — never silently show stale numbers as fresh.
+  const refreshFailed =
+    (tasksQuery.isError && !!tasksQuery.data) ||
+    (ccStateQuery.isError && !!ccStateQuery.data) ||
+    (nextMoveQuery.isError && !!nextMoveQuery.data);
 
   // 3. Execution Engine UI
   const completedToday = tasks.filter(
@@ -212,6 +226,11 @@ export function ExecutiveActionMatrix() {
         <p className="text-[13px] leading-relaxed text-white/80 font-medium max-w-2xl">
           {aiBriefing.message}
         </p>
+        {refreshFailed && (
+          <p className="text-[9px] font-mono uppercase tracking-wider text-rose-300/80">
+            refresh failed · showing last confirmed board
+          </p>
+        )}
       </div>
 
       <div className="relative flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-[var(--gold)]/10">
@@ -223,7 +242,7 @@ export function ExecutiveActionMatrix() {
           </h3>
           
           <div className="flex-1 space-y-2">
-            {nextMoveQuery.isError ? (
+            {nextMoveQuery.isError && !nextMoveQuery.data ? (
               <div className="p-6 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] text-center flex flex-col items-center gap-3 shadow-inner">
                 <Target size={18} className="text-rose-400/50" />
                 <span className="text-[11px] font-medium text-rose-300/80 uppercase tracking-widest font-mono">Targets unreadable — state unknown, not empty</span>

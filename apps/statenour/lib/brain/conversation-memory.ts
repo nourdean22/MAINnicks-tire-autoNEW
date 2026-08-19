@@ -428,7 +428,7 @@ export async function detectCrossSessionThread(
       prisma.task
         .findMany({
           where: { status: { in: ["INBOX", "READY", "DOING"] } },
-          orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+          orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
           take: 10,
           select: {
             title: true,

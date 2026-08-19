@@ -13,6 +13,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { sendTelegram } from "@/lib/services/telegram";
 import { today, toDateString, daysAgo, startOfDayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { priorityBandLabel } from "@/lib/scoring/task-priority";
 
 export const maxDuration = 30;
 
@@ -25,7 +26,7 @@ export const GET = cronHandler(async (req) => {
   const [openLoopsRaw, todayDumps, todayDone, identitySnap, unresolvedAlerts] = await Promise.all([
     prisma.task.findMany({
       where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
-      orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       take: 5,
       select: { title: true, autoPriority: true },
     }),
@@ -60,11 +61,7 @@ export const GET = cronHandler(async (req) => {
   ]);
   const openLoops = openLoopsRaw.map((t) => ({
     title: t.title,
-    priority:
-      (t.autoPriority ?? 50) >= 80 ? "critical"
-      : (t.autoPriority ?? 50) >= 60 ? "high"
-      : (t.autoPriority ?? 50) >= 40 ? "medium"
-      : "low",
+    priority: priorityBandLabel(t.autoPriority),
   }));
 
   let prompt: string;
