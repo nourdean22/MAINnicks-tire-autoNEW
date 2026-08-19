@@ -74,6 +74,11 @@ const CONTEXT_CATEGORIES = new Set([
   "industry_intel",
   "chat_summary",
   "conversation_summary",
+  // 2026-08-19 · the conversation digest now fans decisions out as
+  // decision_log rows (conversation-memory.ts). decision_pattern was
+  // already recallable while the underlying decisions were not — the
+  // pattern could recall, the evidence couldn't.
+  "decision_log",
   "brain_dump",
   "reflection",
   "domain_knowledge",
@@ -109,6 +114,11 @@ export interface RecallHit {
   key: string;
   content: string;
   confidence: number;
+  /** The REAL sighting counter (brain_memories.seen_count). confidence
+   *  cannot stand in for it: writers stamp confidence directly (0.9s and
+   *  1.0s on first sight — 73% of recent seen_count=1 rows violate the
+   *  0.5+0.1(n−1) formula, measured on prod 2026-08-19). */
+  seenCount: number;
   /**
    * Days since last_seen — which the recall path itself BUMPS on every hit,
    * so this measures recency-of-recall, not age of the underlying fact. A
@@ -204,6 +214,7 @@ export async function recallMemoriesForQuery(
         key: string;
         content: string;
         confidence: number;
+        seen_count: number;
         last_seen: Date;
         created_at: Date;
         distance: number;
@@ -215,6 +226,7 @@ export async function recallMemoriesForQuery(
          bm.key::text AS key,
          substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
          bm.confidence::float AS confidence,
+         bm.seen_count::int AS seen_count,
          bm.last_seen,
          bm.created_at,
          (ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
@@ -244,6 +256,7 @@ export async function recallMemoriesForQuery(
       key: string;
       content: string;
       confidence: number;
+      seen_count: number;
       last_seen: Date;
       created_at: Date;
       distance: number;
@@ -275,6 +288,7 @@ export async function recallMemoriesForQuery(
         key: r.key,
         content: r.content.replace(/\s+/g, " ").trim(),
         confidence: r.confidence,
+        seenCount: r.seen_count,
         ageDays,
         factAgeDays,
         knnDistance: r.distance,
