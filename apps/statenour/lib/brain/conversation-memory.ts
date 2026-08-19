@@ -232,10 +232,18 @@ export async function summarizeAndStoreConversation(
         confidence: 0.75,
         source: `conversation_${conversationId}`,
         seenCount: 1,
+        // 2026-08-19 · queryable provenance. The source string above
+        // encodes the id, but the audit's provenance probe (and any
+        // future "why do you remember this?" surface) filters on
+        // metadata->>'conversationId' — measured that day, only 9.8% of
+        // a month's memories could answer which conversation taught
+        // them. Every write in this file now can.
+        metadata: { conversationId },
       },
       update: {
         content: summaryContent,
         confidence: 0.75,
+        metadata: { conversationId },
       },
     });
 
@@ -251,6 +259,84 @@ export async function summarizeAndStoreConversation(
     })();
   } catch (err) {
     log.warn("upsert_failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // 2026-08-19 · fan the digest's DURABLE ITEMS out as individual,
+  // provenance-carrying memories. Measured on prod that day: 282
+  // conversations had produced 14 conversation_summary rows and the
+  // itemized knowledge (decisions, key insights) was never persisted at
+  // all — the digest extracted it and dropped it on the floor, which is
+  // exactly how "she returned. how come u forgot" happens. Items become
+  // recallable individually; the episode blob above stays the evidence.
+  //
+  // Deliberately NOT fanned out: commitments and actionItems. Those are
+  // operational state, and auto-minting operational rows from AI
+  // extraction is the phantom-task failure mode journal-ingest already
+  // had to gate (v10.0.231). They stay in the summary + audit payload
+  // until a review lane exists.
+  const fanOut: Array<{ category: string; key: string; content: string }> = [];
+  // Filter BEFORE capping — otherwise three low-stakes entries could
+  // evict a fourth high-stakes one from the cap window.
+  const durableDecisions = digest.decisions
+    .filter((d) => Boolean(d.decision) && d.stakes !== "low")
+    .slice(0, 3);
+  for (const [i, d] of durableDecisions.entries()) {
+    fanOut.push({
+      category: BRAIN_CATEGORIES.DECISION_LOG,
+      key: `conv_${conversationId}_decision_${i}`,
+      content: `Decision (${d.stakes} stakes${d.resolved ? "" : ", unresolved"}): ${d.decision}`,
+    });
+  }
+  if (digest.keyInsight && digest.keyInsight.length > 12) {
+    fanOut.push({
+      // Literal on purpose: "insight" is a live prod category (1,108
+      // rows in the 08-19 audit window, recall-whitelisted in
+      // memory-recall.ts) that predates the registry and has no
+      // BRAIN_CATEGORIES constant — a registry gap, flagged in the wave
+      // report, not silently "fixed" here by minting a new taxonomy.
+      category: "insight",
+      key: `conv_${conversationId}_insight`,
+      content: digest.keyInsight,
+    });
+  }
+  for (const item of fanOut) {
+    try {
+      // Direct upsert, not remember(): the auditEvent guard above makes
+      // this a once-per-conversation write, remember()'s (category,key)
+      // upsert semantics add nothing here, and its 24h new-row probation
+      // would silently expire these before anything could recall them.
+      // confidence 0.5 = the formula's honest "seen once" — this wave is
+      // about writers NOT stamping fictional confidence.
+      const row = await prisma.brainMemory.upsert({
+        where: { category_key: { category: item.category, key: item.key } },
+        create: {
+          category: item.category,
+          key: item.key,
+          content: item.content,
+          confidence: 0.5,
+          source: `conversation_${conversationId}`,
+          seenCount: 1,
+          metadata: { conversationId },
+        },
+        update: { content: item.content, metadata: { conversationId } },
+      });
+      void (async () => {
+        try {
+          const { storeMemoryEmbedding } = await import("./embedding-utils");
+          await storeMemoryEmbedding(row.id, `[${item.category}] ${item.content}`);
+        } catch (err) {
+          log.warn("fanout_embedding_failed", {
+            key: item.key,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })();
+    } catch (err) {
+      log.warn("fanout_upsert_failed", {
+        key: item.key,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   // Feed People Intelligence — fuzzy-resolve any mentioned people.
