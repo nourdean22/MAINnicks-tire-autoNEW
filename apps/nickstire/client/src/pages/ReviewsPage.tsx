@@ -278,10 +278,17 @@ export default function ReviewsPage() {
     },
     telephone: `+1-${BUSINESS.phone.dashed}`,
     url: "https://nickstire.org",
+    // 2026-08-19 · structured data uses the stable marketing floor
+    // (BUSINESS.reviews), NOT the live count. Prerender bakes this JSON-LD
+    // into committed HTML, so a live number is stale the moment it is
+    // written — and this page was emitting reviewCount 1706 while
+    // LocalBusinessSchema emitted 1700 for the SAME @id entity. One value
+    // everywhere; the floor understates slightly, which is the safe
+    // direction. Live counts stay in the visible UI above.
     aggregateRating: {
       "@type": "AggregateRating",
-      ratingValue: avgRating,
-      reviewCount: totalCount,
+      ratingValue: BUSINESS.reviews.rating,
+      reviewCount: BUSINESS.reviews.count,
       bestRating: 5,
       worstRating: 1,
     },

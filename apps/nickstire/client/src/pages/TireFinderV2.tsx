@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import { Search, Phone, Check, Loader2, ShieldCheck, Star, AlertTriangle } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
@@ -276,6 +277,21 @@ export default function TireFinderV2() {
             </a>
           </div>
         </section>
+
+        {/* 2026-08-19 · hub->silo links. /tires linked NONE of the three money
+            tire pages (verified in prerendered HTML), leaving the silo fed only
+            from inside itself — a candidate cause for its zero GSC impressions.
+            Cheap test before any consolidation decision: give the hub real
+            downlinks and re-measure. */}
+        <nav aria-label="Tire resources" className="container max-w-4xl mx-auto py-8 text-center">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">More tire help</p>
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+            <Link href="/used-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Used Tires from $25</Link>
+            <Link href="/new-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">New Tires from $89</Link>
+            <Link href="/tire-prices-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Live Tire Prices</Link>
+            <Link href="/no-credit-check-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">No Credit Check Tires</Link>
+          </div>
+        </nav>
       </main>
       {selected && <OrderModal tire={selected} quantity={qty} packageValue={packageValue} onClose={() => setSelected(null)} />}
     </PageLayout>

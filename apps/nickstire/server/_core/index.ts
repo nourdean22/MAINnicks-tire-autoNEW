@@ -546,6 +546,11 @@ async function startServer() {
   });
 
   // Robots.txt — controls crawler access
+  // 2026-08-19 · removed `Disallow: /loyalty` and `Disallow: /referral`.
+  // Neither path exists. The live routes are /rewards and /refer
+  // (shared/routes.ts), both sitemap:true + prerender:true — i.e. the
+  // registry says they are MEANT to be crawled, so "correcting" the
+  // disallow to the real paths would have been a new bug. Deleted instead.
   app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.setHeader("Cache-Control", "public, max-age=86400");
@@ -560,8 +565,6 @@ Disallow: /portal
 Disallow: /api/
 Disallow: /status/
 Disallow: /inspection/
-Disallow: /loyalty
-Disallow: /referral
 
 # Block tracking parameters only
 Disallow: /*?utm_*
@@ -594,6 +597,12 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
   // shop in Euclid" / "brake repair cost Cleveland" have a clean, machine-
   // extractable source. Plain text at the domain root; not prerender-gated,
   // so it works regardless of the prerendered-money-page coverage state.
+  // 2026-08-19 · this handler is the ONLY /llms.txt that serves — it is
+  // registered before serveStatic(), so the old client/public/llms.txt could
+  // never be reached and was deleted. Values below were verified against
+  // shared/business.ts canon on 2026-08-19 (prices, hours, warranty,
+  // financing, rating floor). If canon changes, change BOTH places — or
+  // better, derive this template from BUSINESS (follow-up).
   app.get("/llms.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=86400");

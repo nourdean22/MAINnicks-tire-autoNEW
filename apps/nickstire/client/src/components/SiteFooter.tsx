@@ -158,7 +158,8 @@ export default function SiteFooter() {
                   { href: "/emissions", label: "Emissions / E-Check" },
                   { href: "/oil-change", label: "Oil Change" },
                   { href: "/wheel-alignment-cleveland", label: "Wheel Alignment · $89" },
-                  { href: "/general-repair", label: "General Repair" },
+                  // 2026-08-19 · was /general-repair, a sitewide link to a 301.
+                  { href: "/auto-repair-near-me", label: "General Repair" },
                   { href: "/ac-repair", label: "AC & Heating" },
                   { href: "/transmission", label: "Transmission" },
                   { href: "/electrical", label: "Electrical" },
@@ -195,9 +196,17 @@ export default function SiteFooter() {
                   // user-discoverable nav route.
                   { href: "/best-tire-shops-cleveland", label: "Compare Cleveland Tire Shops" },
                   { href: "/careers", label: "Careers" },
-                  { href: "/estimate", label: "Cost Estimator" },
+                  // 2026-08-19 · /estimate and /appointment are 301s
+                  // (redirects.ts) — every page shipped links to redirects.
+                  { href: "/pricing", label: "Pricing" },
                   { href: "/fleet", label: "Fleet" },
-                  { href: "/appointment", label: "Drop-Off Online" },
+                  { href: "/booking", label: "Drop-Off Online" },
+                  // 2026-08-19 · orphan adoption — these registry pages had
+                  // ZERO static internal links anywhere on the site.
+                  { href: "/warranties", label: "Warranties" },
+                  { href: "/check-engine-light-diagnostic", label: "Check Engine Light" },
+                  { href: "/tire-storage", label: "Tire Storage" },
+                  { href: "/hybrid-ev-repair", label: "Hybrid & EV Repair" },
                 ].map((l) => (
                   <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
                 ))}
@@ -259,7 +268,7 @@ export default function SiteFooter() {
                   </div>
                 ))}
                 <Link href="/areas-served" className="block text-[11px] text-[#FDB913]/60 hover:text-[#FDB913] transition-colors mt-2">
-                  View all 150+ locations →
+                  View all service areas →
                 </Link>
               </div>
             </div>

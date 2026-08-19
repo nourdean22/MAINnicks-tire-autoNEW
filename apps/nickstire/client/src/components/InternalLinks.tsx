@@ -70,7 +70,11 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/no-credit-check-tires-cleveland", label: "No-Credit-Check Tires", desc: "$10 down · 4 lenders · drive home today" },
   { href: "/tire-shop-open-sunday-cleveland", label: "Tire Shop Open Sunday", desc: "9am-4pm every Sunday · walk-in · Chains closed" },
   // Hub pages
-  { href: "/areas-served", label: "All Areas Served", desc: "150+ locations across Northeast Ohio" },
+  // 2026-08-19 · was "150+ locations" — a ONE-location shop describing its
+  // service areas as "locations" reads as a doorway-page footprint to a
+  // hostile reviewer (and to Google's scaled-content lens). Same class of
+  // copy fixed in SiteFooter.
+  { href: "/areas-served", label: "All Areas Served", desc: "Serving Cleveland's East Side & Northeast Ohio" },
 ];
 
 interface Props {
