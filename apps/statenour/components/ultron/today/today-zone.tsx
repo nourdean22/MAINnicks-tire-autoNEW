@@ -3,6 +3,13 @@
 /**
  * THE TODAY ZONE — the "stay on track" surface.
  *
+ * ★ UNMOUNTED (verified 2026-08-19): no route or component imports
+ * TodayZone, so TodoDesk and everything below renders NOWHERE in the
+ * live app. Wiring a feature "into the desk" ships dead code — the
+ * outcome-loop wave did exactly that and had to re-wire into /missions
+ * (use-mission-actions.handleCompleteTask, the real completion path).
+ * Before building here, mount this surface first — or build on /missions.
+ *
  * v4 (Apr 18) — Nour's "simpler on the front, super intelligent
  * underneath" directive shipped:
  *   - TodoDesk       (replaces WorkWidget · absorbs BacklogTop3 inline
