@@ -89,7 +89,18 @@ export function useOutcomeDialog(): {
   const collectOutcome = React.useCallback(
     (options: OutcomeOptions): Promise<OutcomeCapture | null> => {
       return new Promise<OutcomeCapture | null>((resolve) => {
-        setState({ ...options, open: true, resolve, lesson: "" });
+        setState((prev) => {
+          // Reentrancy guard (2026-08-19 review): this hook is a page-level
+          // singleton shared by every board row. Without this, a second
+          // completion while a prompt is open OVERWRITES the first caller's
+          // resolver — its await never settles and that row's checkbox
+          // stays disabled until reload. Settle the superseded caller as
+          // "dismissed" (null → callers complete unrated), same outcome as
+          // the operator tapping away. Resolving an already-settled promise
+          // is a no-op, so a StrictMode double-run of this updater is safe.
+          prev.resolve?.(null);
+          return { ...options, open: true, resolve, lesson: "" };
+        });
       });
     },
     [],

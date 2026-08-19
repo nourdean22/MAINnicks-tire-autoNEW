@@ -476,13 +476,16 @@ export async function checkTask(args: {
   }
 
   // 2026-08-19 · outcome-loop wave · close the recommendation→execution→
-  // outcome loop. When a suggestion became a task verbatim (task title ===
-  // the ledgered summary — the shape every accept path that titles a task
-  // from suggestion text produces), the operator's completion rating IS
-  // that recommendation's real-world outcome. contentHash join over a 30d
-  // window; recordOutcomeByContent is a documented no-op (returns false)
-  // when the task never came from a ledgered suggestion, so this is safe
-  // to fire unconditionally whenever a rating was supplied.
+  // outcome loop. When a suggestion became a task VERBATIM (task title ===
+  // the ledgered summary), the operator's completion rating IS that
+  // recommendation's real-world outcome. ★ Producer census (end-to-end
+  // audit, same day): exactly ONE path creates such tasks — rateDiscovery
+  // "investigate" spawns a follow-up task titled with the discovery's
+  // ledgered content (lib/brain/discoveries.ts). Every other task-creation
+  // path titles from operator-typed or LLM-generated text that was never
+  // ledgered, so for those this call is a documented no-op (returns false).
+  // contentHash join over a 30d window; safe to fire unconditionally
+  // whenever a rating was supplied.
   if (outcomeRating != null) {
     const ratingUseful =
       outcomeRating === OutcomeRating.OUTSTANDING ||

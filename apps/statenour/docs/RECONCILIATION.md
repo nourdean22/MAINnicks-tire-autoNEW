@@ -44,15 +44,32 @@
 >   `tasks.ts` dead `after === "DONE"` branch labeled UNREACHABLE (review caught this
 >   wave "fixing" a call site that cannot run — checkTask short-circuit owns completion).
 >
+> **Round-3 audit (operator-ordered full re-audit, same day):** the end-to-end
+> link-trace found the title-hash bridge had ZERO matching producers — every
+> recordShown surface lacked a task-creation affordance and every task-creation path
+> titled from unledgered text, so recordOutcomeByContent returned false on 100% of
+> invocations (BUILT-TESTED-UNWIRED, third strike this wave). Fixed: rateDiscovery
+> "investigate" now SPAWNS the follow-up task titled verbatim with the ledgered
+> content (first-flip only, best-effort) — completing it with a rating lands the
+> outcome on that discovery's ledger row. Also fixed: the shared outcome dialog got a
+> reentrancy guard (two quick board-row completions previously stranded the first
+> row's promise forever, checkbox stuck until reload). Chains 2 (task→learning) and
+> 3 (reasoning→recall) audited link-by-link: CLOSED, all readers live via the main
+> chat route's recallMemoriesForQuery. CI reds on the #1714/#1715 squashes were
+> runner-shutdown infra kills (identical signature, zero code errors; #1711 ran CI
+> green; failed run re-dispatched).
+>
 > **Flagged · NOT fixed:** consolidation merge rewrites keeper content WITHOUT
 > re-embedding (pre-existing, every embedded category — stale-vector mismatch after any
-> merge) · missions one-tap / project bulk-complete / execution-coach sandbox still
-> complete unrated (null is honest; the sandbox reflection flow is the natural next
-> producer) · character-sheet stat XP (`taskStatMultiplier`) deliberately not
-> rating-scaled — scope boundary, revisit if ratings prove reliable ·
-> rateDiscovery has no server-side re-rate guard (client-gated only; the CAS now bounds
-> the blast to decision-column drift) · outcome dialog not browser-verified pre-merge
-> (OAuth wall; idiom is a verbatim copy of the shipped confirm-dialog — verify on prod).
+> merge) · `outcomesNeedingReview()` export has ZERO callers — its two consumers
+> re-implement the OR-query inline (three copies can drift) · nothing automated reads
+> `outcomeUseful`: harvest/eval-export/odometer are manual scripts, no cron — the loop
+> currently terminates in the operator (cadence = operator decision) ·
+> execution-coach sandbox + project bulk-complete still complete unrated (sandbox
+> reflection flow is the natural next producer) · character-sheet stat XP
+> (`taskStatMultiplier`) deliberately not rating-scaled ·
+> rateDiscovery has no server-side re-rate guard (client-gated only; the CAS bounds
+> the blast to decision-column drift).
 
 > ## 2026-08-19 · Architecture-reimagine wave — one priority scale, unknown ≠ zero, supersession lane-complete (1 PR, 10 commits)
 >
