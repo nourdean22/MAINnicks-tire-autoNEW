@@ -13,8 +13,9 @@
 >
 > Two consequences, both real, both invisible until root-caused:
 >
-> - **In CI:** nine test files mock `@/lib/prisma` without `apiRequestLog`, so every
->   `apiHandler` call they made was a 1-in-100 red — plus a second, non-random trigger
+> - **In CI:** nine test files mocked `@/lib/prisma` without `apiRequestLog` (a sibling session
+>   has since completed one of them on `main`, leaving **eight** — measured, not assumed), so
+>   every `apiHandler` call they made was a 1-in-100 red — plus a second, non-random trigger
 >   (`duration_ms > 1000`) that a loaded GitHub runner hits on its own. That is why the failure
 >   moved between files, passed in isolation, and passed a full local sweep. It presented as
 >   `TypeError: Cannot read properties of undefined (reading 'create')` at `http.ts:255` —

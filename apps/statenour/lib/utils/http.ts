@@ -110,12 +110,15 @@ function envelope<T>(
  *      TypeError from the logging code rather than the real failure.
  *   2. Because the trigger is a 1% coin flip, it surfaced as an
  *      unreproducible CI flake (tests/api/today-compound.test.ts on
- *      PR #1697) rather than as a bug anyone could bisect. Nine test
- *      files mock `@/lib/prisma` without `apiRequestLog`, so each of
- *      their apiHandler calls was a 1-in-100 red.
+ *      PR #1697) rather than as a bug anyone could bisect. Any test that
+ *      mocks `@/lib/prisma` without `apiRequestLog` made every apiHandler
+ *      call it issued a 1-in-100 red — nine files did at the time of
+ *      writing; completing those mocks one by one was never the fix,
+ *      because the next incomplete mock re-arms it.
  *
  * Telemetry is best-effort by contract, so a broken writer is logged and
- * dropped — never propagated.
+ * dropped — never propagated. `httpLog` is console-only (lib/logger.ts
+ * imports no prisma), so the catch below cannot re-enter this failure.
  */
 function fireAndForgetTelemetry(write: () => Promise<unknown>, site: string): void {
   try {
