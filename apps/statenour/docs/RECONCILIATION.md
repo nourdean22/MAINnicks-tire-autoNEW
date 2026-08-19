@@ -99,7 +99,14 @@
 > notification. iOS ignoring `requireInteraction`/`actions`/`vibrate` confirmed non-fatal to
 > delivery. Transitional note: until the 5 newly-logging fan-out children write their first
 > rows (≤24h post-deploy), cron-heartbeat's standing P0 may fire — which now correctly pages
-> the phone; it self-heals as rows appear.
+> the phone; it self-heals as rows appear. **(4)** the round-3 verification suite itself
+> caught a pre-existing prod hygiene bug: all 5,610 tests passed but exit 1 with 12
+> post-teardown unhandled rejections — root-caused (not waved off as flake) to
+> `enrichTaskLinkage`'s `Promise.all` array: when a LATER element throws synchronously during
+> array construction, the already-started `resolveInboxMissionId()` promise's rejection is
+> orphaned where the surrounding try/catch structurally cannot see it (an unhandledRejection
+> class in prod, not just test noise). Fixed by pre-attaching a no-op handler to the started
+> promise; standalone file 3/3 clean; full-suite exit-0 receipt in PR #1693.
 >
 > **Same-day correction + follow-up (operator: "i do get push notifications on my phone"):**
 > the entry below originally claimed "nothing pages anyone — the dashboard is pull-only".
