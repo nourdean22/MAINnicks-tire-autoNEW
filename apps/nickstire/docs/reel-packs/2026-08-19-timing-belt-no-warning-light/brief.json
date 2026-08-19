@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Timing belt: the maintenance item with no warning light",
+  "campaignKeyword": "NOLIGHT",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Your timing belt can fail with zero warning light.",
+      "onScreenText": "Zero warning light for THIS one.",
+      "visual": "Extreme close-up of a car's odometer/mileage readout on the instrument cluster, dashboard otherwise clean with no warning lights lit, slow creeping camera push-in, neutral daylight cabin lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "No check-engine light. No dash symbol. It's mileage-based, not warning-based.",
+      "onScreenText": "No check-engine light. No dash symbol.",
+      "visual": "Wide shot of full dashboard instrument cluster, dark and unlit, static camera with subtle handheld drift, no icons illuminated, cool neutral tone",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 17,
+      "narration": "Most belts are due somewhere between sixty and a hundred thousand miles — check your owner's manual for the exact number.",
+      "onScreenText": "60,000-100,000 miles (check your manual)",
+      "visual": "Close-up of a car engine bay, timing cover / front pulley area, static camera with subtle mechanical vibration, dim garage lighting, macro lens look, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 17,
+      "endSecond": 23,
+      "narration": "On some engines, a snapped belt can lead to serious, expensive engine damage — not just a stall.",
+      "onScreenText": "On some engines: serious damage, not just a stall.",
+      "visual": "Wide shot of an open engine bay showing the serpentine/timing belt area, slow dolly-in, dim workshop lighting bleeding in from one side, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 23,
+      "endSecond": 28,
+      "narration": "Don't wait for a light that isn't coming. Nick's Tire and Auto checks your belt interval free. Link in bio.",
+      "onScreenText": "We check it free. Link in bio.",
+      "visual": "Close-up on the same dashboard odometer framing as beat 1, camera pulls back and reveals an auto repair shop garage bay in soft daylight behind/through the windshield, warm inviting light take-over as the pull-back completes, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "nolight-timingbelt-v1",
+      "loopIdea": "Beat 1 opens tight on the dashboard odometer with a clean, unlit cluster. Beat 5 closes on the same odometer framing before pulling back to reveal the shop bay — the shared close-up framing lets a replay cut from beat 5's opening frame back into beat 1 without a visual jump, unlike the prior 'won't start' pack where the CTA frame (shop bay) did not rhyme with the HOOK frame (home driveway dashboard). Not verified by a real loop-scoring function — self-assessed only.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "nolight-timingbelt-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autorepair"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional single subtle mechanical whir/click SFX layered under beat 3 only"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts:863), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 5, "detail": "Beat 5 closing frame rhymes with beat 1 opening frame (same odometer close-up framing) per concepts[0].loopIdea — self-assessed, not verified by a real loop function" },
+      { "label": "Verified mechanic fact (sourced)", "max": 10, "points": 0, "detail": "No EvidenceRecord cited; evidenceResolver.ts not queried live (no DB access this run)" },
+      { "label": "Faceless & wordless contract", "max": 10, "points": 10, "detail": "No face/hand/human-figure subjects in any prompt; standing negative prompt applied to every beat" },
+      { "label": "Claim safety (no blocked claims)", "max": 10, "points": 10, "detail": "Uses approved soft-language only: 'can lead to', 'check your owner's manual', no price/warranty/guarantee claims" },
+      { "label": "Campaign keyword valid", "max": 5, "points": 5, "detail": "NOLIGHT — single ALL-CAPS word" },
+      { "label": "Winning concept >= 57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() not invoked this run — scored 0 rather than assumed passing" }
+    ],
+    "overall": 60,
+    "minPassing": 70,
+    "passing": false
+  }
+}
