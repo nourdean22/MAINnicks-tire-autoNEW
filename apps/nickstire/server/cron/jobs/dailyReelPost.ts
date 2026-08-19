@@ -26,6 +26,7 @@ import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/r
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
+import { approvedReelPackAt, parseApprovedPackRotationIndex } from "../../services/approvedReelPackRotation";
 
 const log = createLogger("cron:daily-reel-post");
 
@@ -147,6 +148,44 @@ async function setAutopostProgress(idx: number, date: string): Promise<void> {
   });
 }
 
+/** The approved-pack lane shares the one-post-per-day date, but not the legacy
+ * manifest index. Advancing the latter while an approved pack posts would
+ * silently skip an untouched manifest item. */
+async function setApprovedPackProgress(idx: number, date: string): Promise<void> {
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return;
+  await d.transaction(async (tx: any) => {
+    await tx.insert(shopSettings).values({
+      key: "reel_approved_pack_rotation_index",
+      value: String(idx),
+      label: "Approved Reel-pack rotation — next pack index",
+      category: "general",
+      updatedBy: "system",
+    }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
+    await tx.insert(shopSettings).values({
+      key: "reel_autopost_last_date",
+      value: date,
+      label: "Daily reel autopost — last post date (ET)",
+      category: "general",
+      updatedBy: "system",
+    }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+  });
+}
+
+async function setAutopostDate(date: string): Promise<void> {
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return;
+  await d.insert(shopSettings).values({
+    key: "reel_autopost_last_date",
+    value: date,
+    label: "Daily reel autopost — last post date (ET)",
+    category: "general",
+    updatedBy: "system",
+  }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+}
+
 function etNow(): { date: string; hour: number } {
   const now = new Date();
   const date = now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }); // YYYY-MM-DD
@@ -192,7 +231,13 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${targetHour}:00) — waiting to enqueue` };
     }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
-    if (idx >= MANIFEST.length) {
+    const approvedPackCursor = await getKv("reel_approved_pack_rotation_index");
+    const approvedPackIndex = approvedPackCursor === null ? 0 : parseApprovedPackRotationIndex(approvedPackCursor);
+    const approvedPack = approvedPackIndex === null ? null : approvedReelPackAt(approvedPackIndex);
+    if (approvedPackIndex === null) {
+      log.error("approved-pack rotation index is malformed — leaving its cursor untouched", {});
+    }
+    if (!approvedPack && idx >= MANIFEST.length) {
       return { recordsProcessed: 0, details: `campaign complete (${MANIFEST.length}/${MANIFEST.length} posted)` };
     }
 
@@ -201,27 +246,31 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // performed, what reviews said, what season it is, or what has already been
     // covered. It stays ONLY as a last resort so a signal outage cannot stall
     // the daily reel — and when it is used, the result says so.
-    let topic = "";
-    let topicOrigin = "miner";
-    try {
-      const { gatherTopicSignals } = await import("../../services/contentTopicSignals");
-      const { mineTopicCandidates, autoRenderable } = await import("../../../shared/contentTopicMiner");
-      const { signals, failed } = await gatherTopicSignals();
-      const renderable = autoRenderable(mineTopicCandidates(signals));
-      if (renderable.length) {
-        topic = renderable[0].topic;
-        log.info("daily reel topic from live miner", {
-          topic,
-          franchise: renderable[0].franchiseId,
-          score: renderable[0].score,
-          candidates: renderable.length,
-          degradedSources: failed,
-        });
-      } else {
-        log.warn("miner produced no auto-renderable candidate — falling back to manifest", { degradedSources: failed });
+    let topic = approvedPack?.topic ?? "";
+    let topicOrigin = approvedPack ? `approved_pack:${approvedPack.slug}` : "miner";
+    if (approvedPack) {
+      log.info("daily reel topic from approved pack rotation", { slug: approvedPack.slug, index: approvedPackIndex, topic });
+    } else {
+      try {
+        const { gatherTopicSignals } = await import("../../services/contentTopicSignals");
+        const { mineTopicCandidates, autoRenderable } = await import("../../../shared/contentTopicMiner");
+        const { signals, failed } = await gatherTopicSignals();
+        const renderable = autoRenderable(mineTopicCandidates(signals));
+        if (renderable.length) {
+          topic = renderable[0].topic;
+          log.info("daily reel topic from live miner", {
+            topic,
+            franchise: renderable[0].franchiseId,
+            score: renderable[0].score,
+            candidates: renderable.length,
+            degradedSources: failed,
+          });
+        } else {
+          log.warn("miner produced no auto-renderable candidate — falling back to manifest", { degradedSources: failed });
+        }
+      } catch (err) {
+        log.warn("topic miner unavailable — falling back to manifest", { err: err instanceof Error ? err.message : String(err) });
       }
-    } catch (err) {
-      log.warn("topic miner unavailable — falling back to manifest", { err: err instanceof Error ? err.message : String(err) });
     }
     if (!topic) {
       const { caption: manifestCaption } = MANIFEST[idx];
@@ -266,8 +315,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // whole bridge — packs stay a review queue, they just stop colliding.
       let packTopics: string[] = [];
       try {
-        const { packCoveredTopics } = await import("../../services/reelPackRegistry");
+        const { packCoveredTopics, listCommittedPacks } = await import("../../services/reelPackRegistry");
         packTopics = packCoveredTopics(30);
+        if (approvedPack) {
+          const selected = listCommittedPacks().find((pack) => pack.slug === approvedPack.slug);
+          const allowed = new Set([approvedPack.topic, selected?.topic, selected?.campaignKeyword]
+            .filter((value): value is string => Boolean(value))
+            .map((value) => value.toLowerCase().trim()));
+          packTopics = packTopics.filter((candidate) => !allowed.has(candidate.toLowerCase().trim()));
+        }
         if (packTopics.length) log.info("avoiding topics already covered by committed packs", { count: packTopics.length });
       } catch (err) {
         log.warn("pack registry unavailable — proceeding without pack awareness", {
@@ -292,6 +348,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     }
     const { brief } = prepared;
     brief.id = briefId;
+    if (approvedPack) (brief as { approvedPackSlug?: string }).approvedPackSlug = approvedPack.slug;
 
     // The brief's factual spine, joined to real evidence records. mechanicTruth
     // becomes the claim; proof-kind sourceNotes become handles the resolver
@@ -618,10 +675,32 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         err: attachErr instanceof Error ? attachErr.message : String(attachErr),
       });
     }
-    const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
-    await setAutopostProgress(idx + 1, date);
+    const postedPayload = parseReelJobPayload(job.payload);
+    let progressDetail: string;
+    if (postedPayload.approvedPackSlug) {
+      const approvedPackIndex = parseApprovedPackRotationIndex(await getKv("reel_approved_pack_rotation_index"));
+      const expected = approvedPackIndex === null ? null : approvedReelPackAt(approvedPackIndex);
+      if (approvedPackIndex !== null && expected?.slug === postedPayload.approvedPackSlug) {
+        await setApprovedPackProgress(approvedPackIndex + 1, date);
+        progressDetail = `approved-pack index: ${approvedPackIndex + 1}`;
+      } else {
+        // The post is already live. Record its date without guessing which pack
+        // to skip if an operator altered the rotation while it rendered.
+        await setAutopostDate(date);
+        log.warn("approved-pack rotation changed while a reel rendered; date recorded but index held", {
+          jobId: job.id,
+          expected: expected?.slug ?? null,
+          posted: postedPayload.approvedPackSlug,
+        });
+        progressDetail = "approved-pack index held after concurrent rotation change";
+      }
+    } else {
+      const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
+      await setAutopostProgress(idx + 1, date);
+      progressDetail = `manifest index: ${idx + 1}`;
+    }
     log.info(`Successfully posted dynamic reel for job ${job.id}`, { postId: ig.postId });
-    return { recordsProcessed: 1, details: `posted dynamic reel for job ${job.id} (index: ${idx + 1})` };
+    return { recordsProcessed: 1, details: `posted dynamic reel for job ${job.id} (${progressDetail})` };
   }
 
   if (["queued", "generating", "assets_ready", "assembling", "uploading", "publishing", "repair_queued"].includes(job.status)) {
