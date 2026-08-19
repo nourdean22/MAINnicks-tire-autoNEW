@@ -1,5 +1,65 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-19 · Neon compute + cron-truth pass — the DB went read-only and the fan-out was lying (2 PRs)
+>
+> Started from "64 hard cron failures = ingest-reviews on unset GOOGLE_PLACE_ID /
+> GOOGLE_PLACES_API_KEY". Right variables, wrong service: nickstire already had both set
+> and working — `ingest-reviews` is a **statenour** cron
+> (`app/api/cron/ingest-reviews/route.ts` → `fetchAndStoreReviews()`). Setting them on
+> `statenour-web` fixed it, verified live: `HTTP 200 · {"fetched":5,"newCount":0}`. Prod
+> `cron_job_logs` confirms 64 runs / 64 failures exactly, and the fix also cleared 16 of
+> `mega`'s failures, which were the child returning 500.
+>
+> **★★★ THE DATABASE IS QUOTA-LOCKED READ-ONLY, SO EVERY WRITE SILENTLY NO-OPS.**
+> `default_transaction_read_only = on` with `pg_is_in_recovery = false` — Neon quota
+> enforcement, not a replica. Every INSERT/UPDATE fails with PG `25006`. The now-"passing"
+> ingest-reviews therefore stores NOTHING: `newCount:0` is a silent zero, because the store
+> loop swallows create failures and still returns 0. Not fixed by either PR below.
+>
+> The burn was measurable and had one dominant cause: the worker polled
+> `/api/sync/queue/render` every 2 minutes, and Neon suspends an idle compute after 5
+> minutes — so it could never scale to zero. `active_time` 443.7h of the ~456h elapsed in
+> the billing period (97% awake), 222.6 CU-h by day 19 against a 300 CU-h Launch allowance.
+> Storage was never the issue (1.79 GB / 10 GiB).
+>
+> **#1696 · render poll `*/2` → `*/15`, and ENV_SPEC gains `GOOGLE_PLACE_ID`.** The queue
+> receives ~1 reel/day, so 719 of every 720 daily polls found it empty. 15 min matches the
+> sibling forward loops (`scheduler.ts:73,82`) and stays inside `RENDER_LEASE_MINUTES = 30`,
+> so a lease still gets two claim attempts and the reclaim path is untouched; worst case a
+> reel waits ~13 min longer. Separately, `GOOGLE_PLACE_ID` was missing from the manifest
+> that calls itself "single source of truth for what statenour-os needs" even though
+> `fetchAndStoreReviews()` hard-requires it — so `check:env:prod` reported a healthy
+> environment while the cron died 64 times for want of exactly that variable.
+>
+> **#1703 · mega-evening dispatches long-running children instead of aborting them.** 29
+> consecutive nightly failures for work that had already finished. `consolidate` and
+> `mastery-xp` return 200 on EVERY run (19.6 min / 5.1 min avg, 36 min max); the parent
+> aborted at 240s, the Inngest step threw, and `retries: 3` re-ran the whole slot — **4
+> consolidate runs a night, ~2.3h of serial Ollama `minimax-m3` churn (~39s/call)** — which
+> loaded the DB and made the next run slower still. A self-feeding loop: the daily average
+> climbed 14 → 34 min. The ceiling had already gone 50s → 90s → 240s, and the 240s was read
+> off the wrong number ("~14 and ~20 min past slot start" is when a child FINISHES). Fix =
+> `DETACHED_CHILDREN`: dispatch, don't await — safe because aborting the CLIENT never killed
+> the SERVER handler, and these children already write their own CronJobLog rows. Also gave
+> `/api/cron/predict` a real 240s ceiling (avg 82.5s against the 90s default, 173s max — it
+> flapped across the boundary). DB was never the bottleneck: slowest tracked query 1.3s.
+>
+> **Flagged · NOT fixed**
+> - **Neon read-only (PG 25006)** — every write no-ops until the quota resets 2026-09-01 or
+>   the operator raises the cap in the Neon console. Operator-side billing action; no code
+>   change fixes it. Until then ingest-reviews reports success while storing nothing.
+> - **`consolidate` still runs 19-36 min nightly** — detaching ends the false failure and
+>   the 4× retry, but the job itself is LLM-bound and serial. Whether that nightly spend is
+>   worth it is a product call, not a bug.
+> - **Legacy `/api/cron/mega` route keeps a flat 90s abort** — dormant while
+>   `INNGEST_MEGA_V2=true`; if that flag is flipped back for rollback, the timeout bug
+>   returns there.
+> - **Per-stage attribution inside `consolidate` is unproven** — `ai_generations` recorded
+>   only 4 calls in the 34-min window (and as `feature:"chat"`, not `memory-consolidation`),
+>   so "which of the 9 stages is slow" remains unmeasured.
+> - **`tests/` is excluded from BOTH tsconfigs** — the new #1703 test runs under vitest but
+>   is not type-checked by tsc. Repo-wide, pre-existing.
+
 > ## 2026-08-19 · Brain wave 2 — the honesty pass: dead ends made visible, dead code removed (1 PR)
 >
 > Everything the wave-1 entry below flagged as "NOT built", built — plus a finding that
@@ -339,7 +399,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (OS-Health truth pass — instrument-layer fixes across /system/health, cron logging, schema sentinel; prior: persona measurement arc #1649-#1665 + chat-UX arc #1670-#1679); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (Neon compute + cron-truth pass — #1696 render poll 2min→15min + ENV_SPEC GOOGLE_PLACE_ID, #1703 mega-evening detached children; prior: Brain wave 2 + OS-Health truth pass); detail in the top entry
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -867,7 +927,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; + chat-UX arc #1670-#1679); top entry.
+**Last verified:** 2026-08-19 (Neon compute + cron-truth pass — #1696, #1703; prior: Brain wave 2, OS-Health truth pass, persona measurement arc #1649-#1665 + chat-UX arc #1670-#1679); top entry.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
