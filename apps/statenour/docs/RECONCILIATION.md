@@ -348,6 +348,66 @@
 > probabilities, not sighting counts, and blanket-replacing them would have been the same
 > category error in reverse.
 
+> ## 2026-08-19 · Memory truth wave — the audit's own claims re-measured, then built (PR #1716)
+>
+> Follow-through on the 50-conversation forensic audit (282 conversations · 4,190 messages ·
+> 19,088 live memories, all read-only) AND a plan-gate over the operator's pasted "epistemic
+> OS" architecture plan. Two of my own audit claims died under re-measurement before any code
+> was written — recorded here first because finding them was the point:
+>
+> - **"Nothing sweeps expired memories" — FALSE.** Two sweeps exist (memory-consolidation
+>   soft-delete on the evening cron; data-cleanup hard GC), and the "167 expired-but-live rows"
+>   all expired the SAME DAY they were measured (`older_than_2d: 0`, re-probed read-only).
+>   That number is one day's churn, mostly short-TTL gateway shadows. No sweep was built.
+> - **"confidence is a re-sighting counter" — only for one write path.** 99% of the 900 most
+>   recent rows have `seen_count = 1`, and **73% of those carry a writer-stamped confidence**
+>   (output_critic 0.9 · brain-bus events 1.0 · gateway shadow 0.1) that violates
+>   `0.5 + 0.1×(n−1)`. So the attention-label inversion I shipped in Brain wave 2 FABRICATES
+>   history on those rows — "seen 6×+" on rows seen once. The helper's contract now states
+>   this measured limit and `describeSeenCount` (the real column) is the default everywhere.
+>
+> **Built (all no-schema-change):**
+>
+> - **Honest attention labels end-to-end.** `recallMemoriesForQuery` now SELECTs
+>   `seen_count` and `RecallHit`/`ProvenanceHit` carry it; the reasoning-trace modal renders
+>   `describeSeenCount(hit.seenCount)`; `buildMemoryHealth` ships `AVG(seen_count)` per
+>   category and health-view renders `seen ~N× avg` from the real column instead of inverting
+>   a mean confidence the writers stamped.
+> - **Telemetry quarantined from the Prisma recall lane.** The 08-16 embedding policy kept
+>   `TELEMETRY_CATEGORIES` out of the vector index, but contextual-recall's top-300 confidence
+>   pool had no category gate — and telemetry sails over its 0.3 floor (nick_quality 0.9,
+>   task_completion 1.0, measured). The policy list now spreads into
+>   `RECALL_EXCLUDE_CATEGORIES`: one list, both lanes. Intersection-checked first: zero recall
+>   allowlists/scores reference any telemetry category.
+> - **The headline count stops lying.** `buildMemoryHealth` totals split `knowledge` vs
+>   `telemetry` (the flat "N memories" counted 1,575 gateway-shadow JSON blobs and 363
+>   byte-identical critic score lines as things the brain "knows"); health-view leads with
+>   knowledge and shows telemetry labeled as what it is.
+> - **Chat capture finally carries provenance and keeps its items.** Measured: 282
+>   conversations → 14 `conversation_summary` rows, 9.8% of a month's memories able to name
+>   their conversation, and the digest's extracted decisions/insights were dropped on the
+>   floor after extraction. `summarizeAndStoreConversation` now stamps
+>   `metadata.conversationId` on every write and fans out medium/high-stakes decisions →
+>   `decision_log` (now recall-whitelisted) and the key insight → `insight`, at the formula-
+>   honest confidence 0.5, embedded fire-and-forget. Commitments/actionItems deliberately
+>   stay episode-only — auto-minting operational rows from AI extraction is the phantom-task
+>   failure mode journal-ingest already gates (v10.0.231).
+>
+> **Plan-gate verdict on the pasted "epistemic OS" plan** (full table in the wave report):
+> roughly **half already existed** — TELEMETRY_CATEGORIES (08-16), temporal supersession
+> writer + both recall lanes honoring it (#1706), a conversation→knowledge compiler
+> (conversation-memory.ts, live but starved), raw-evidence retrieval (chat-recall.ts hydrating
+> turn pairs), memory evals (`pnpm eval:memory`), user memory review (calibration ritual +
+> knowledge review queue). Genuinely new and NOT built this PR (operator decisions, larger
+> lanes): dream-cycle batch consolidator, backfill studio over the 50-conversation corpus,
+> memory receipts in chat UI, kind-classification of the whole taxonomy. Registry gap
+> surfaced: `insight` — 1,108 rows, recall-whitelisted — has NO `BRAIN_CATEGORIES` constant.
+>
+> Verify: tsc 0 · eslint 0 on all changed files · new `tests/brain/conversation-fanout.test.ts`
+> (4) + `tests/brain/telemetry-quarantine.test.ts` (3) · adjacent regressions green
+> (recall-quarantine, attention-label, supersession-recall). Full-suite receipt in the PR.
+> 
+
 > ## 2026-08-19 · Brain truth pass — /brain stops hanging, and the graph stops lying (1 PR)
 >
 > **Root cause of the infinite spinner, proven, not guessed:** every layer of the
@@ -583,7 +643,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (outcome-loop wave — ledger usefulness live with a real producer, task completion teaches, reasoning conclusions recallable; same-day: architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — ⚠ DB quota-locked READ-ONLY, every write no-ops with PG 25006); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (memory-truth wave #1716 — honest attention labels, telemetry quarantined from both recall lanes, chat capture keeps its items; same-day: outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1111,7 +1171,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-19 (outcome-loop wave: ledger usefulness + task teaching + reasoning conclusions, producer included; prior same-day: architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass; Neon compute + cron-truth pass — ⚠ DB quota-locked READ-ONLY, every write no-ops with PG 25006); top entry.
+**Last verified:** 2026-08-19 (memory-truth wave #1716: honest attention labels + telemetry quarantine + chat-capture provenance; prior same-day: outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — DB measured writable again ~16:30 ET); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

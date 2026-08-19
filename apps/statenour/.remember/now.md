@@ -10,8 +10,13 @@ reports this file as stale, distrust everything below it and re-derive from sour
 > An inventory you cannot verify is worse than no inventory: **delete, don't carry.**
 
 ## Current objective
-Outcome-loop wave (twentieth) SHIPPED 2026-08-19, same session as the
-architecture-reimagine wave (nineteenth; canonical record
+Memory-truth wave SHIPPED as #1716 (2026-08-19, remote session; delivered via
+GitHub API after the container lost push creds — honest attention labels off
+the real seen_count column, telemetry quarantined from BOTH recall lanes via
+one policy list, chat capture stamps conversationId + fans decisions/insights
+into recall; two of the audit's own claims died under re-measurement first).
+Same day: outcome-loop wave (twentieth) SHIPPED across #1711/#1714/#1715/#1718,
+same session as the architecture-reimagine wave (nineteenth; canonical record
 `docs/REIMAGINE-VERDICT-2026-08-19.md`). What landed: the intelligence ledger's
 usefulness half is LIVE (recordOutcomeByContent contentHash bridge; rateDiscovery
 "noise" = first writer; first-write-wins CAS at the update itself) · task
