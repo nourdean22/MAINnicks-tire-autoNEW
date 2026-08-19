@@ -42,12 +42,12 @@ describe("scoreTaskPriority", () => {
         roiScore: 25,
         frictionScore: 82,
         energyRequired: "HIGH",
-        manualPriorityOverride: 222
+        manualPriorityOverride: 100
       },
       new Map()
     );
 
-    expect(result.score).toBe(222);
+    expect(result.score).toBe(100);
     expect(result.manual).toBe(true);
   });
 });

@@ -23,7 +23,7 @@
  *   - DAILY card hides when today's habit is already checked
  *     (lastCompletedAt within today's local-noon window). Reduces
  *     visual noise after the habit is logged.
- *   - Sort: `autoPriority` desc · NULLs last. The existing engine
+ *   - Sort: `autoPriority` desc (higher = more urgent) · NULLs last. The scoring engine
  *     (lib/tasks/auto-priority) is the source of truth. We don't
  *     re-derive urgency here.
  *

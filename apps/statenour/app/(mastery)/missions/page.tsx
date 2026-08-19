@@ -35,6 +35,7 @@ import { useMissionActions } from "./hooks/use-mission-actions";
 import { MissionDispatchProvider } from "./context/mission-dispatch-context";
 import { useMissionUIStore } from "./state/use-mission-ui-store";
 import { MissionModalsManager } from "./components/mission-modals-manager";
+import { missionBoardReadState } from "./mission-board-read-state";
 
 export default function MissionsPage() {
   return (
@@ -57,7 +58,7 @@ function MissionsPageInner() {
   const openMissionEdit = useMissionUIStore((s) => s.openMissionEdit);
 
   // Data
-  const { tasks, missions, statsQuery, healthQuery, ccStateQuery } = useMissionsData(taskIdParam);
+  const { tasks, missions, statsQuery, healthQuery, ccStateQuery, tasksQuery, missionsQuery } = useMissionsData(taskIdParam);
   const { customDomains, setCustomDomains } = useCustomDomains();
 
   // Extracted logic
@@ -108,6 +109,12 @@ function MissionsPageInner() {
   const totalXp = Math.round(stats.reduce((s: number, x: any) => s + (x.xp || 0), 0));
   const dailyTasks = tasks.filter((t) => t.loopKind === "DAILY" && t.status !== "DONE" && t.status !== "ARCHIVED");
   const maxStreak = dailyTasks.length > 0 ? Math.max(...dailyTasks.map((t) => (t as any).streakCount ?? 0)) : 0;
+  const boardReadState = missionBoardReadState({
+    tasksData: tasksQuery.data,
+    missionsData: missionsQuery.data,
+    tasksErrored: tasksQuery.isError,
+    missionsErrored: missionsQuery.isError,
+  });
 
   return (
     <MissionDispatchProvider actions={actions}>
@@ -329,11 +336,29 @@ function MissionsPageInner() {
                   {filters.filteredTasks.length} visible tasks
                 </span>
               </div>
-              <MissionFeed
-                missions={filters.filteredMissions}
-                tasks={filters.filteredTasks}
-                autonomicHealth={healthQuery.data?.autonomic}
-              />
+              {/* Unknown-is-not-empty (2026-08-19): a failed task/mission
+                  read used to fall through to <EmptyMissions /> — a dead
+                  fetch rendered as a cleared board. */}
+              {boardReadState === "unreadable" ? (
+                <div className="p-6 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] text-center">
+                  <p className="text-[11px] font-mono uppercase tracking-widest text-rose-300/80">
+                    Board unreadable — reads failed. State unknown, not empty.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {boardReadState === "stale" && (
+                    <p className="rounded-lg border border-amber-400/30 bg-amber-400/[0.05] px-3 py-2 text-[10px] font-mono uppercase tracking-wide text-amber-200/90">
+                      Showing the last confirmed board — the latest refresh failed.
+                    </p>
+                  )}
+                  <MissionFeed
+                    missions={filters.filteredMissions}
+                    tasks={filters.filteredTasks}
+                    autonomicHealth={healthQuery.data?.autonomic}
+                  />
+                </>
+              )}
             </section>
           </>
         )}

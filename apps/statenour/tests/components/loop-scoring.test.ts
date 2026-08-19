@@ -115,16 +115,18 @@ describe("scoreUrgency · ranking invariants", () => {
   });
 
   it("a stale ONCE outranks a fresh low-priority ONCE", () => {
+    // Canonical polarity (2026-08-19): higher autoPriority = more urgent,
+    // so "low priority" is a LOW number now.
     expect(scoreUrgency(task({ stale: true })).urgency).toBeGreaterThan(
-      scoreUrgency(task({ autoPriority: 90 })).urgency,
+      scoreUrgency(task({ autoPriority: 20 })).urgency,
     );
   });
 
-  it("ONCE urgency rises as autoPriority gets more urgent (lower number)", () => {
+  it("ONCE urgency rises as autoPriority gets more urgent (higher number)", () => {
     const at = (p: number) => scoreUrgency(task({ autoPriority: p })).urgency;
-    expect(at(10)).toBeGreaterThan(at(25));
-    expect(at(25)).toBeGreaterThan(at(50));
-    expect(at(50)).toBeGreaterThan(at(90));
+    expect(at(90)).toBeGreaterThan(at(70));
+    expect(at(70)).toBeGreaterThan(at(50));
+    expect(at(50)).toBeGreaterThan(at(20));
   });
 
   it("goal-pace bumps stay ordered missed > behind > needs > on-track", () => {

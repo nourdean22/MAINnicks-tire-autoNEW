@@ -30,6 +30,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { queryNickBatch } from "@/lib/nickstire/query";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
+import { startOfDayET } from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("services/meta-scoreboard");
 
@@ -51,6 +52,36 @@ export interface ScoreboardNumber {
   why: string | null;
   /** Optional drill-down URL */
   link: string | null;
+  /**
+   * 2026-08-19 · unknown-is-not-zero: `false` means the read FAILED and
+   * `value`/`display` are placeholders, not measurements. Absent =
+   * measured (back-compat with pinned snapshots). A failed instrument
+   * renders as "—" and surfaces as an anomaly — it never renders as a
+   * calm zero (the fleet-truth rule: unknown never counts as healthy).
+   */
+  measured?: boolean;
+}
+
+/** Instrument-failure card — a read that threw, surfaced loudly. */
+function unmeasured(
+  key: string,
+  label: string,
+  why: string,
+  link: string | null,
+): ScoreboardNumber {
+  return {
+    key,
+    label,
+    value: 0,
+    unit: "",
+    display: "—",
+    delta7d: null,
+    trend: "flat",
+    anomalous: true,
+    why,
+    link,
+    measured: false,
+  };
 }
 
 export interface MetaScoreboardSnapshot {
@@ -93,17 +124,35 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
   } catch {
     // bridge unreachable · fall through to the pushed-event mirror below
   }
+  // 2026-08-19 · unknown-is-not-zero: the mirror fallback used to read
+  // the latest ceo_business_context row with NO recency bound — a
+  // week-old payload rendered as "Revenue today" with a flat trend.
+  // The mirror is now honest about its age, and no-data renders as "—",
+  // never as $0.
+  let mirrorAgeHours: number | null = null;
   if (dollars === null) {
     const ev = await prisma.auditEvent
       .findFirst({
         where: { eventType: "ceo_business_context" },
         orderBy: { createdAt: "desc" },
-        select: { payload: true },
+        select: { payload: true, createdAt: true },
       })
       .catch(() => null);
-    const ctx = (ev?.payload ?? {}) as Record<string, unknown>;
-    dollars = readNickRevenue(ctx.revenue ?? ctx.revenueToday).todayDollars;
+    if (ev) {
+      const ctx = (ev.payload ?? {}) as Record<string, unknown>;
+      dollars = readNickRevenue(ctx.revenue ?? ctx.revenueToday).todayDollars;
+      mirrorAgeHours = Math.floor((Date.now() - ev.createdAt.getTime()) / 3_600_000);
+    }
   }
+  if (dollars === null) {
+    return unmeasured(
+      "revenue_today",
+      "Revenue today",
+      "bridge unreachable and no mirrored payload — revenue is UNKNOWN, not $0",
+      "/business?tab=money",
+    );
+  }
+  const mirrorIsStale = mirrorAgeHours !== null && mirrorAgeHours >= 24;
   return {
     key: "revenue_today",
     label: "Revenue today",
@@ -112,9 +161,12 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
     display: `$${dollars.toLocaleString()}`,
     delta7d: null,
     trend: "flat",
-    anomalous: false,
-    why: null,
+    anomalous: mirrorIsStale,
+    why: mirrorIsStale
+      ? `bridge unreachable — this figure is a mirror from ${Math.floor((mirrorAgeHours ?? 0) / 24)}d ago, not today`
+      : null,
     link: "/business?tab=money",
+    ...(mirrorIsStale ? { measured: false } : {}),
   };
 }
 
@@ -126,7 +178,15 @@ async function pickOpenTasks(): Promise<ScoreboardNumber> {
         deletedAt: null,
       },
     })
-    .catch(() => 0);
+    .catch(() => null);
+  if (n === null) {
+    return unmeasured(
+      "open_tasks",
+      "Open tasks",
+      "task count unreadable — instrument failure, not an empty board",
+      "/missions",
+    );
+  }
   return {
     key: "open_tasks",
     label: "Open tasks",
@@ -144,7 +204,15 @@ async function pickOpenTasks(): Promise<ScoreboardNumber> {
 async function pickActiveCommitments(): Promise<ScoreboardNumber> {
   const n = await prisma.commitment
     .count({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } })
-    .catch(() => 0);
+    .catch(() => null);
+  if (n === null) {
+    return unmeasured(
+      "active_commitments",
+      "Active commitments",
+      "commitment count unreadable — instrument failure, not zero promises",
+      "/missions?filter=commitments",
+    );
+  }
   return {
     key: "active_commitments",
     label: "Active commitments",
@@ -168,7 +236,15 @@ async function pickActiveCommitments(): Promise<ScoreboardNumber> {
 async function pickMasteryTopMover(): Promise<ScoreboardNumber | null> {
   const recent = await prisma.masteryScore
     .findMany({ orderBy: { date: "desc" }, take: 100 })
-    .catch(() => []);
+    .catch(() => null);
+  if (recent === null) {
+    return unmeasured(
+      "mastery_top_mover",
+      "Mastery · top mover",
+      "mastery scores unreadable — the mover is unknown, not absent",
+      "/stats",
+    );
+  }
   if (recent.length === 0) return null;
   const latestByDomain = new Map<string, { score: number; date: string }>();
   for (const r of recent) {
@@ -220,9 +296,19 @@ async function pickMasteryTopMover(): Promise<ScoreboardNumber | null> {
 // /system/crons, not the "what matters now" board.
 
 async function detectStaleGoalSurge(): Promise<ScoreboardNumber | null> {
+  // 2026-08-19 · a failed read used to floor to 0 and silently suppress
+  // this anomaly forever. A detector that cannot see must say so.
   const stale = await prisma.brainMemory
     .count({ where: { category: BRAIN_CATEGORIES.GOAL_PRUNE_CANDIDATE, deletedAt: null } })
-    .catch(() => 0);
+    .catch(() => null);
+  if (stale === null) {
+    return unmeasured(
+      "stale_goals",
+      "Stale goals · review",
+      "stale-goal check unreadable — the detector is blind, not clear",
+      "/stats",
+    );
+  }
   if (stale < 3) return null;
   return {
     key: "stale_goals",
@@ -239,13 +325,24 @@ async function detectStaleGoalSurge(): Promise<ScoreboardNumber | null> {
 }
 
 async function detectCallbacksWaiting(): Promise<ScoreboardNumber | null> {
+  // 2026-08-19 · read FAILURE now surfaces (a blind detector must say
+  // so); a genuinely absent mirror row (sync never pushed) stays quiet
+  // as before — absence of the lane is not an instrument fault here.
   const ev = await prisma.auditEvent
     .findFirst({
       where: { eventType: "ceo_business_context" },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     })
-    .catch(() => null);
+    .catch(() => "read_failed" as const);
+  if (ev === "read_failed") {
+    return unmeasured(
+      "callbacks_pending",
+      "Customer callbacks waiting",
+      "callback mirror unreadable — waiting customers are unknown, not zero",
+      "/customer-360",
+    );
+  }
   const ctx = (ev?.payload ?? {}) as Record<string, unknown>;
   const cb = (ctx.callbacks ?? {}) as Record<string, unknown>;
   // The pushed ceo_business_context payload (nickstire statenourSync.ts)
@@ -299,10 +396,17 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
         select: { updatedAt: true },
       })
       .catch(() => null),
-    // Phase A.3 · latest brief-time pinned scoreboard snapshot
+    // Phase A.3 · latest brief-time pinned scoreboard snapshot.
+    // 2026-08-19 · bounded to TODAY (ET): without the bound, a missed
+    // morning-brief run silently served an older day's pin as the
+    // "Δ since brief" baseline — stale data dressed as current.
     prisma.brainMemory
       .findFirst({
-        where: { category: BRAIN_CATEGORIES.SCOREBOARD_PINNED, deletedAt: null },
+        where: {
+          category: BRAIN_CATEGORIES.SCOREBOARD_PINNED,
+          deletedAt: null,
+          updatedAt: { gte: startOfDayET() },
+        },
         orderBy: { updatedAt: "desc" },
         select: { updatedAt: true, metadata: true },
       })
@@ -334,7 +438,9 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
     numbers,
     composedAt: new Date().toISOString(),
     lastBriefAt: lastBrief?.updatedAt?.toISOString() ?? null,
-    state: anomalies.length > 0 ? "alive" : "calm",
+    // Any anomalous card counts — including a failed-instrument anchor
+    // (measured:false). A board that cannot read itself is not "calm".
+    state: numbers.some((n) => n.anomalous) ? "alive" : "calm",
     pinnedAt: pinnedRow?.updatedAt?.toISOString() ?? null,
     pinnedNumbers,
   };

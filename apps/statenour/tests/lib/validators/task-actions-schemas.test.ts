@@ -93,6 +93,13 @@ describe("taskUpdateSchema · task.update call-site payloads", () => {
     expect(() => taskUpdateSchema.parse({ title: "" })).toThrow();
   });
 
+  it("keeps manual priority overrides inside the canonical 0-100 scale", () => {
+    expect(taskUpdateSchema.parse({ manualPriorityOverride: 0 }).manualPriorityOverride).toBe(0);
+    expect(taskUpdateSchema.parse({ manualPriorityOverride: 100 }).manualPriorityOverride).toBe(100);
+    expect(() => taskUpdateSchema.parse({ manualPriorityOverride: -1 })).toThrow();
+    expect(() => taskUpdateSchema.parse({ manualPriorityOverride: 101 })).toThrow();
+  });
+
   it("rejects an unknown status — the enum is the guard", () => {
     expect(() =>
       taskUpdateSchema.parse({ status: "SNOOZED" as unknown as "WAITING" }),

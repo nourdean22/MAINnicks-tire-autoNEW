@@ -313,9 +313,25 @@ export function startScheduler(): void {
     registered++;
   }
 
-  // Register local video rendering job - runs every 2 minutes
+  // Register local video rendering job - runs every 15 minutes.
+  //
+  // WAS `*/2`. That 2-minute poll was the single largest line item on the Neon
+  // bill and it bought nothing: the render queue receives roughly one reel a
+  // day, so 719 of every 720 daily polls found an empty queue. Because every
+  // poll hits /api/sync/queue/render — which touches Postgres — and Neon
+  // suspends an idle compute after 5 minutes, a 2-minute tick meant the
+  // database could NEVER scale to zero. Measured 2026-08-19: active_time 443.7h
+  // out of the ~456h elapsed in the billing period (97% awake), 222.6 CU-h by
+  // day 19 against the 300 CU-h Launch allowance — which tipped the project
+  // into read-only and silently broke every write in the app.
+  //
+  // 15 minutes matches the sibling forward loops above and stays comfortably
+  // inside RENDER_LEASE_MINUTES = 30 (app/api/sync/queue/render/route.ts), so a
+  // lease still gets two claim attempts before it expires and the abandoned-work
+  // reclaim path is unaffected. Cost of the change is bounded: a queued reel
+  // waits at most ~13 minutes longer to start rendering.
   const renderTask = cron.schedule(
-    "*/2 * * * *",
+    "*/15 * * * *",
     () => {
       lastTickAt = Date.now();
       void processVideoRenders();

@@ -80,6 +80,22 @@ describe("Goals Service", () => {
       expect(result[0].linkedActiveCount).toBe(1);
       expect(result[0].nextMove?.id).toBe("t2");
     });
+
+    it("surfaces the highest-priority active task when no task is doing", async () => {
+      mocks.lifeGoal.findMany.mockResolvedValue([
+        { id: "g1", title: "Priority Goal", progress: 0, status: "active" },
+      ]);
+      mocks.task.findMany.mockResolvedValue([
+        { id: "low", title: "Low", goalId: "g1", status: "READY", actualMinutes: 0, autoPriority: 30, manualPriorityOverride: null, dueDate: null },
+        { id: "critical", title: "Critical", goalId: "g1", status: "READY", actualMinutes: 0, autoPriority: 90, manualPriorityOverride: null, dueDate: null },
+        { id: "unscored", title: "Unscored", goalId: "g1", status: "READY", actualMinutes: 0, autoPriority: null, manualPriorityOverride: null, dueDate: null },
+      ]);
+      mocks.taskEvent.findMany.mockResolvedValue([]);
+
+      const result = await getGoals();
+
+      expect(result[0].nextMove?.id).toBe("critical");
+    });
   });
 
   describe("createGoal", () => {

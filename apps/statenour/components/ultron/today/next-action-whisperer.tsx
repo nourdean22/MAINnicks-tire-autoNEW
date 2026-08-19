@@ -75,12 +75,12 @@ export function NextActionWhisperer() {
         (t) => ["INBOX", "READY"].includes(t.status),
       );
       // Prefer tasks with effort=M15 (the "quick slot" sweet spot), then
-      // lowest autoPriority (closest to 1 = highest priority).
+      // highest autoPriority (canonical polarity: higher = more urgent).
       open.sort((a, b) => {
         const aIsSlot = a.effort === "M15" ? 0 : 1;
         const bIsSlot = b.effort === "M15" ? 0 : 1;
         if (aIsSlot !== bIsSlot) return aIsSlot - bIsSlot;
-        return (a.autoPriority ?? 99) - (b.autoPriority ?? 99);
+        return (b.autoPriority ?? -1) - (a.autoPriority ?? -1);
       });
       return open[0] ?? null;
     } catch {

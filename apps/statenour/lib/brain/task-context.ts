@@ -40,7 +40,7 @@ interface TaskRow {
 
 interface TaskBucket {
   doing: TaskRow[];
-  criticalReady: TaskRow[];      // autoPriority < 20, not DOING
+  criticalReady: TaskRow[];      // autoPriority >= 80 (higher = hotter), not DOING
   overduePromises: TaskRow[];    // PROMISE with dueDate in past
   stalled: TaskRow[];            // READY, no touch 7d+
   dailyWarmStreaks: TaskRow[];   // DAILY with streakCount >= 3 and touched < 36h ago
@@ -79,7 +79,7 @@ function bucketize(tasks: TaskRow[]): TaskBucket {
       continue;
     }
 
-    if (t.status === "READY" && (t.autoPriority ?? 100) < 20) {
+    if (t.status === "READY" && (t.autoPriority ?? 0) >= 80) {
       criticalReady.push(t);
       continue;
     }
@@ -133,7 +133,7 @@ export async function buildTaskContextBlock(): Promise<string> {
       },
       orderBy: [
         { status: "asc" }, // DOING first alphabetically
-        { autoPriority: "asc" },
+        { autoPriority: "desc" },
         { updatedAt: "desc" },
       ],
       take: 80, // generous — the bucketizer picks the best 10

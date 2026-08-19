@@ -28,6 +28,13 @@ import { REASONING_TOOL_WHITELIST_ENTRIES } from "./whitelist";
 import { businessTools } from "@/lib/ai/tools/business";
 import { systemTools } from "@/lib/ai/tools/system";
 import { brainTools } from "@/lib/ai/tools/brain";
+// 2026-08-19 · social added to the sources: `draftOpportunitySms` (a
+// genuine read — deterministic draft via the bridge, never sends) had
+// been whitelisted since Wave 3 but lives in socialTools, which was not
+// spread below — so it silently never resolved and REASONING_TOOL_COUNT
+// overreported the delivered set by one. Only whitelisted keys are
+// picked from any source, so this exposes exactly that one tool.
+import { socialTools } from "@/lib/ai/tools/social";
 
 /**
  * Whitelist of tool keys that are safe for the reasoning engine.
@@ -47,15 +54,18 @@ const REASONING_TOOL_WHITELIST = new Set<string>(REASONING_TOOL_WHITELIST_ENTRIE
 /**
  * Returns the curated read-only tool subset for the reasoning engine.
  *
- * Only tools in the whitelist are included. Unknown keys are silently
- * skipped (defensive: if a tool is removed from businessTools but
- * still in the whitelist, nothing breaks).
+ * Only tools in the whitelist are included. Unknown keys are skipped at
+ * runtime (nothing breaks in prod) — but tests/ai/reasoning-tools.test.ts
+ * asserts delivered === whitelist, so a silent drop goes red in CI
+ * instead of quietly shrinking the engine's toolbox (which is exactly
+ * what happened to draftOpportunitySms between GATE #6 and 2026-08-19).
  */
 export function getReasoningTools(): Record<string, unknown> {
   const allSources: Record<string, unknown> = {
     ...businessTools,
     ...systemTools,
     ...brainTools,
+    ...socialTools,
   };
 
   const result: Record<string, unknown> = {};

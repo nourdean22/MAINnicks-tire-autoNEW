@@ -378,6 +378,9 @@ export async function getLexicalMatches(topics: string[], limit = 50): Promise<L
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
+         -- BDN-310 supersession honored (2026-08-19) — see memory-recall.ts
+         AND bm.superseded_by_id IS NULL
+         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
          AND to_tsvector('english', bm.content)
              @@ websearch_to_tsquery('english', $1)
        ORDER BY rank DESC
@@ -505,6 +508,10 @@ export async function getContextualMemories(
       deletedAt: null,
       // 2026-05-17 follow-up · exclude binary-payload categories
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+      // BDN-310 supersession honored (2026-08-19): superseded or
+      // expired-validity beliefs leave the recall pool.
+      supersededById: null,
+      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
     },
     orderBy: { confidence: "desc" },
     take: 300,
@@ -1326,6 +1333,10 @@ async function getFallbackMemories(max: number): Promise<string> {
       deletedAt: null,
       // 2026-05-17 follow-up · exclude binary-payload categories
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+      // BDN-310 supersession honored (2026-08-19) — same guard as the
+      // primary path; the fallback must not resurrect a superseded belief.
+      supersededById: null,
+      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
     },
     orderBy: { confidence: "desc" },
     take: max,

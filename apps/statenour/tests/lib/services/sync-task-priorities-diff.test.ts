@@ -37,7 +37,8 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/scoring/task-priority", () => ({
+vi.mock("@/lib/scoring/task-priority", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/scoring/task-priority")>()),
   scoreTaskPriority: vi.fn(() => ({ score: 42, explanation: "fixed-explanation" })),
 }));
 

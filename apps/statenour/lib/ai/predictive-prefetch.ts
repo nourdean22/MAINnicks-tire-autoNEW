@@ -132,7 +132,7 @@ export async function prefetchIntents(
                   autoPriority: true,
                   effort: true,
                 },
-                orderBy: [{ autoPriority: "asc" }, { createdAt: "desc" }],
+                orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
                 take: 10,
               })
               .catch((): never[] => []),

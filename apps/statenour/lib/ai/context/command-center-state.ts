@@ -305,10 +305,11 @@ const ALERT_CATEGORIES = [
 ];
 
 function priorityFromScore(score: number | null | undefined): string {
+  // Canonical polarity: higher = more urgent (lib/scoring/task-priority).
   const s = score ?? 50;
-  if (s < 20) return "critical";
-  if (s < 40) return "high";
-  if (s < 60) return "medium";
+  if (s >= 80) return "critical";
+  if (s >= 60) return "high";
+  if (s >= 40) return "medium";
   return "low";
 }
 
@@ -392,14 +393,14 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     prisma.task
       .findFirst({
         where: { status: "DOING", deletedAt: null },
-        orderBy: [{ autoPriority: "asc" }, { lastTouchedAt: "desc" }],
+        orderBy: [{ autoPriority: "desc" }, { lastTouchedAt: "desc" }],
         select: TASK_SELECT,
       })
       .catch(() => null),
     prisma.task
       .findMany({
         where: { status: { in: ["INBOX", "READY"] }, deletedAt: null },
-        orderBy: [{ autoPriority: "asc" }, { createdAt: "desc" }],
+        orderBy: [{ autoPriority: "desc" }, { createdAt: "desc" }],
         take: 10,
         select: TASK_SELECT,
       })

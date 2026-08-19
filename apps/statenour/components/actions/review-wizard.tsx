@@ -248,13 +248,14 @@ export function ReviewWizard({
       tasks
         .filter((t) => ["INBOX", "READY"].includes(t.status))
         .sort((a, b) => {
+          // Canonical polarity: higher = more urgent; unscored rows sink.
           const ap =
             (a as Task & { manualPriorityOverride?: number | null }).manualPriorityOverride ??
-            (a as Task & { autoPriority?: number | null }).autoPriority ?? 100;
+            (a as Task & { autoPriority?: number | null }).autoPriority ?? -1;
           const bp =
             (b as Task & { manualPriorityOverride?: number | null }).manualPriorityOverride ??
-            (b as Task & { autoPriority?: number | null }).autoPriority ?? 100;
-          return ap - bp;
+            (b as Task & { autoPriority?: number | null }).autoPriority ?? -1;
+          return bp - ap;
         })
         .slice(0, 20),
     [tasks],

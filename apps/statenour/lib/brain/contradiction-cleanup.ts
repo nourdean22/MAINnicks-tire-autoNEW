@@ -36,6 +36,8 @@ type WinningStatus = "current_wins" | "old_wins";
 export interface ContradictionCleanupResult {
   /** True iff the flag was on AND a losing row was soft-deleted this call. */
   cleaned: boolean;
+  /** True iff BDN-310 supersession fields were stamped on the loser this call. */
+  superseded: boolean;
   /** The BrainMemory.id that was soft-deleted, when cleaned. */
   losingMemoryId?: string;
   /** Why nothing happened (flag_off · no_loser · already_deleted · error). */
@@ -55,11 +57,6 @@ export async function cleanupResolvedContradiction(
   newMemoryId: string,
   oldMemoryId: string,
 ): Promise<ContradictionCleanupResult> {
-  // Self-gate — off by default; return early when disabled.
-  if (!getFlag("NICK_CONTRADICTION_CLEANUP")?.isOn) {
-    return { cleaned: false, skippedReason: "flag_off" };
-  }
-
   // Only the two statuses that name an EXPLICIT loser. both_valid /
   // dismissed / unresolved -> no determinable loser -> do nothing.
   const losingMemoryId =
@@ -69,7 +66,46 @@ export async function cleanupResolvedContradiction(
         ? newMemoryId
         : null;
   if (!losingMemoryId) {
-    return { cleaned: false, skippedReason: "no_loser" };
+    return { cleaned: false, superseded: false, skippedReason: "no_loser" };
+  }
+  const winningMemoryId =
+    losingMemoryId === oldMemoryId ? newMemoryId : oldMemoryId;
+
+  // BDN-310 · bi-temporal supersession — the columns were applied to prod
+  // 2026-08-14 and had NO writer until this. An operator-resolved
+  // contradiction with an explicit winner IS a supersession event, so the
+  // loser gets `supersededById` (provenance: what replaced it) and
+  // `validUntil = now` (when it stopped being believed). Both recall lanes
+  // filter on these (memory-recall.ts + contextual-recall.ts), so this
+  // alone removes the stale belief from the pool — reversibly, with the
+  // row and its history intact. NOT flag-gated: this is metadata the
+  // operator's explicit verdict already authorized; only the harsher
+  // soft-delete below stays behind NICK_CONTRADICTION_CLEANUP.
+  let superseded = false;
+  try {
+    const stamped = await prisma.brainMemory.updateMany({
+      // Idempotent: never re-stamp an already-superseded row.
+      where: { id: losingMemoryId, supersededById: null, deletedAt: null },
+      data: { supersededById: winningMemoryId, validUntil: new Date() },
+    });
+    superseded = stamped.count > 0;
+    if (superseded) {
+      log.info("contradiction_loser_superseded", {
+        status,
+        losingMemoryId,
+        winningMemoryId,
+      });
+    }
+  } catch (err) {
+    log.warn("contradiction_supersede_failed", {
+      losingMemoryId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Self-gate — off by default; the soft-delete below stays flag-gated.
+  if (!getFlag("NICK_CONTRADICTION_CLEANUP")?.isOn) {
+    return { cleaned: false, superseded, losingMemoryId, skippedReason: "flag_off" };
   }
 
   try {
@@ -79,7 +115,7 @@ export async function cleanupResolvedContradiction(
       select: { id: true, deletedAt: true },
     });
     if (!existing || existing.deletedAt) {
-      return { cleaned: false, losingMemoryId, skippedReason: "already_deleted" };
+      return { cleaned: false, superseded, losingMemoryId, skippedReason: "already_deleted" };
     }
 
     await prisma.brainMemory.update({
@@ -88,13 +124,13 @@ export async function cleanupResolvedContradiction(
     });
 
     log.info("contradiction_loser_soft_deleted", { status, losingMemoryId });
-    return { cleaned: true, losingMemoryId };
+    return { cleaned: true, superseded, losingMemoryId };
   } catch (err) {
     // Never throw into the resolve path / a cron — log and move on.
     log.warn("contradiction_cleanup_failed", {
       losingMemoryId,
       err: err instanceof Error ? err.message : String(err),
     });
-    return { cleaned: false, losingMemoryId, skippedReason: "error" };
+    return { cleaned: false, superseded, losingMemoryId, skippedReason: "error" };
   }
 }
