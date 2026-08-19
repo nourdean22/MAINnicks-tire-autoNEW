@@ -750,6 +750,16 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.CHAT_IMPORTANCE,
   BRAIN_CATEGORIES.CONTENT_DRAFT,
   BRAIN_CATEGORIES.MORNING_BRIEF_AUDIO,
+  // 2026-08-19 · provenance categories — a second class the same writer
+  // corrupts. These are one-row-per-source records, not free-text beliefs:
+  // an LLM merge rewrites the keeper into prose (orphaning its embedding)
+  // and soft-deletes the rest. For reasoning_trace that erases rows the
+  // $1/day budget sums (`deletedAt: null`) — spend undercounts and the
+  // engine overspends. task_lesson is the operator's verbatim words keyed
+  // per task; reasoning_conclusion is per-run and already TTL'd 90d.
+  BRAIN_CATEGORIES.REASONING_TRACE,
+  BRAIN_CATEGORIES.REASONING_CONCLUSION,
+  BRAIN_CATEGORIES.TASK_LESSON,
 ];
 
 /**

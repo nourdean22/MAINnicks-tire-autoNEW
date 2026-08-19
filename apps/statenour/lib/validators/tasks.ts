@@ -17,6 +17,10 @@ import {
 // runtimes). Keep this in sync with prisma/schema.prisma's LoopKind.
 export const loopKindValues = ["ONCE", "DAILY", "PROMISE", "WEEKLY"] as const;
 
+// Outcome rating values — same tuple-not-Prisma-import rationale as
+// loopKindValues. Keep in sync with prisma/schema.prisma's OutcomeRating.
+export const outcomeRatingValues = ["OUTSTANDING", "SATISFACTORY", "SUBSTANDARD", "FAILED"] as const;
+
 const taskBaseSchema = z.object({
   title: requiredString("Task title"),
   missionId: requiredString("Mission"),
@@ -130,5 +134,12 @@ export const taskUpdateSchema = z
     parentTaskId: nullableString,
     completionNote: nullableString,
     outcomeScore: nullableInteger(1, 100),
+    // Update-only pair, deliberately absent from taskBaseSchema (a task
+    // cannot be born completed). Lets any surface that completes via PATCH
+    // carry the operator's judgment; updateTask forwards both to checkTask
+    // on a real DONE transition, where auto-learn consumes them. Caps
+    // mirror checkTask's own runtime validation.
+    outcomeRating: z.enum(outcomeRatingValues).nullable(),
+    outcomeLesson: z.string().trim().max(5000).nullable(),
   })
   .partial();

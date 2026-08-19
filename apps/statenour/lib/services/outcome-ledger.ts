@@ -183,7 +183,16 @@ export async function recordOutcomeByContent(
   }
 }
 
-/** The real-world outcome landed (or the operator judged usefulness). */
+/**
+ * The real-world outcome landed (or the operator judged usefulness).
+ *
+ * First-write-wins, enforced ATOMICALLY: the `outcomeAt: null` scope on the
+ * update itself (recordDecision's CAS pattern) — not just on a caller's
+ * earlier SELECT, which would leave a TOCTOU window. Concrete poisoning this
+ * prevents: two stale tabs rate the same discovery "known" then "noise" —
+ * without the guard the second call lands outcomeUseful:false on a claim the
+ * operator confirmed TRUE, and the recall-eval harvest trains against it.
+ */
 export async function recordOutcome(params: {
   id: string;
   useful: boolean;
@@ -191,7 +200,7 @@ export async function recordOutcome(params: {
 }): Promise<boolean> {
   try {
     const res = await prisma.intelligenceOutcome.updateMany({
-      where: { id: params.id },
+      where: { id: params.id, outcomeAt: null },
       data: {
         outcomeUseful: params.useful,
         outcomeAt: new Date(),

@@ -73,6 +73,13 @@ vi.mock("@/lib/services/auto-learn", () => ({
   runAutoLearn: vi.fn(async () => null),
 }));
 
+// checkTask runs REAL in this file; with a rating supplied it fire-and-forgets
+// the outcome-ledger bridge, which must not reach the (absent) intelligence-
+// outcome mock. Wiring itself is pinned in task-actions-outcome-bridge.test.ts.
+vi.mock("@/lib/services/outcome-ledger", () => ({
+  recordOutcomeByContent: vi.fn(async () => true),
+}));
+
 vi.mock("@/lib/mastery/goal-stats", () => ({
   creditTaskStats: vi.fn(async () => ({ statsCredited: 0, xpCredited: 0 })),
 }));
@@ -84,6 +91,7 @@ vi.mock("@/lib/runtime", () => ({
 import { updateTask } from "@/lib/services/tasks";
 import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
+import { runAutoLearn } from "@/lib/services/auto-learn";
 
 const NOW_ISO = "2026-07-16T15:00:00Z";
 
@@ -177,6 +185,43 @@ describe("updateTask · DONE transition with co-sent fields", () => {
     // Only checkTask's own DONE write — no extra field-update round-trip.
     expect(mocks.task.update).toHaveBeenCalledTimes(1);
     expect(mocks.task.update.mock.calls[0][0].data.status).toBe("DONE");
+  });
+
+  // 2026-08-19 · outcome-loop wave. The PATCH path is how the todo-desk
+  // completes — if the delegation dropped these two, the desk's rating
+  // dialog would be a producer whose signal dies at this boundary.
+  it("forwards outcomeRating/outcomeLesson to checkTask instead of dropping them", async () => {
+    mocks.task.findUnique
+      .mockResolvedValueOnce(taskRow())
+      .mockResolvedValueOnce(taskRow())
+      .mockResolvedValue(null);
+    mocks.task.update.mockResolvedValue({
+      id: "t1",
+      status: "DONE",
+      loopKind: "ONCE",
+      actualMinutes: 0,
+      effort: "M30",
+    });
+
+    await updateTask("t1", {
+      status: "DONE",
+      outcomeRating: "FAILED",
+      outcomeLesson: "Scope was 3x the estimate.",
+    });
+
+    // Not in the rest-persist (they are completion fields, not edits)…
+    expect(mocks.task.update).toHaveBeenCalledTimes(1);
+    // …but landed on the row via checkTask's own DONE write…
+    const doneWrite = mocks.task.update.mock.calls[0][0];
+    expect(doneWrite.data.status).toBe("DONE");
+    expect(doneWrite.data.outcomeRating).toBe("FAILED");
+    expect(doneWrite.data.outcomeLesson).toBe("Scope was 3x the estimate.");
+    // …and reached auto-learn at the one moment it runs.
+    const learnArgs = vi.mocked(runAutoLearn).mock.calls[0][0] as {
+      task: { outcomeRating: string | null; outcomeLesson: string | null };
+    };
+    expect(learnArgs.task.outcomeRating).toBe("FAILED");
+    expect(learnArgs.task.outcomeLesson).toBe("Scope was 3x the estimate.");
   });
 });
 

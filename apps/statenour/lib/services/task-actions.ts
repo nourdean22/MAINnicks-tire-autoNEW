@@ -254,6 +254,10 @@ export async function checkTask(args: {
         ...(isWeekly ? { snoozedUntil: nextSnoozedUntil } : {}),
         completionNote,
         outcomeScore,
+        // Recurring rows keep the LATEST completion's judgment — same
+        // last-write semantics as completionNote/outcomeScore above.
+        outcomeRating,
+        outcomeLesson,
       },
       select: { id: true, streakCount: true, lastCompletedAt: true, loopKind: true, title: true },
     });
