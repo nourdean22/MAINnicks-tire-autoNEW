@@ -14,62 +14,21 @@ import { createLogger } from "../../lib/logger";
 
 const log = createLogger("routers:admin");
 
-// ─── CALL REVIEW REQUEST (auto-SMS after call CTA) ────
-/**
- * Schedule a review request SMS 2 hours after someone clicks a Call CTA.
- * Uses the existing review request infrastructure (createReviewRequest + processQueue cron).
- * Gated behind the `sms_review_requests` feature flag.
- */
-async function scheduleCallReviewRequest(phoneNumber: string): Promise<void> {
-  const { isEnabled } = await import("../../services/featureFlags");
-  if (!(await isEnabled("sms_review_requests"))) return;
-
-  const { isPhoneOnReviewCooldown, createReviewRequest, getReviewSettings } = await import("../../db");
-  const crypto = await import("crypto");
-
-  const digits = phoneNumber.replace(/\D/g, "");
-  const normalizedPhone = digits.slice(-10);
-  if (normalizedPhone.length !== 10) return;
-
-  const settings = await getReviewSettings();
-  if (!settings.enabled) return;
-
-  // Check cooldown — don't spam people who already got a review request
-  const onCooldown = await isPhoneOnReviewCooldown(normalizedPhone, settings.cooldownDays);
-  if (onCooldown) return;
-
-  // Schedule 2 hours from now
-  const scheduledAt = new Date();
-  scheduledAt.setMinutes(scheduledAt.getMinutes() + 120);
-
-  const trackingToken = crypto.randomBytes(24).toString("hex");
-
-  await createReviewRequest({
-    bookingId: 0, // no booking — triggered by call CTA
-    customerName: "Caller",
-    phone: normalizedPhone,
-    service: "Phone Inquiry",
-    status: "pending",
-    scheduledAt,
-    trackingToken,
-  });
-
-  // wave-165: redact phone PII in Railway stdout. console.info bypasses
-  // the createLogger redaction layer, so full customer phones were
-  // landing in retained dyno logs visible to anyone with project access.
-  const phoneTail = normalizedPhone.slice(-4);
-  console.info(`[calltracking:review] Scheduled for phone ending ***${phoneTail} at ${scheduledAt.toISOString()}`);
-}
-
 // ─── CALL TRACKING ─────────────────────────────────────
 
 // wave-141b — IP rate limit on logCall (15 events/min/IP). The procedure
 // is publicProcedure because legit phone-click tracking fires from the
-// public site, but the SMS-scheduling side-effect (scheduleCallReviewRequest)
-// made it an SMS-spam vector — any actor could POST arbitrary phone
-// numbers + trigger review-request SMS to them. Combined with the
-// per-phone cooldown already inside scheduleCallReviewRequest, this
-// prevents both burst-spray attacks and same-target floods.
+// public site, so the limit keeps an open endpoint from being used to
+// flood call_events with junk rows.
+//
+// 2026-08-19: the SMS side-effect this limit was originally written to
+// contain (scheduleCallReviewRequest) is gone. It could never reach a
+// customer — the client sends the SHOP's own hardcoded number as
+// `phoneNumber` (a tel: click never exposes the visitor's number), so the
+// only request it could ever schedule was the shop texting itself. Worse,
+// the field was caller-controlled on a public procedure, so an actor could
+// POST any number and trigger a review-request SMS to it. Deleted rather
+// than repaired: there is no argument value that makes it correct.
 const logCallIpLimit = new BoundedTtlMap<number>({ ttlMs: 60_000, maxEntries: 10_000 });
 const LOG_CALL_MAX_PER_MIN = 15;
 
@@ -96,7 +55,7 @@ export const callTrackingRouter = router({
       eventId: z.string().max(64).nullish(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // wave-141b — per-IP rate limit guards the SMS side-effect.
+      // wave-141b — per-IP rate limit on this public endpoint.
       const ip = ctx.req?.ip || ctx.req?.socket?.remoteAddress || "unknown";
       const count = (logCallIpLimit.get(ip) ?? 0) + 1;
       logCallIpLimit.set(ip, count);
@@ -119,12 +78,6 @@ export const callTrackingRouter = router({
           userAgent: input.userAgent || null,
           sessionId: input.sessionId || null,
           eventId: input.eventId || null,
-        });
-
-        // Schedule review request SMS 2 hours after call CTA click
-        // Gated behind sms_review_requests feature flag
-        scheduleCallReviewRequest(input.phoneNumber).catch((err) => {
-          log.error("[CallTracking] Review request scheduling failed:", err);
         });
 
         return { success: true };

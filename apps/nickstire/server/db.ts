@@ -1138,7 +1138,7 @@ export async function getReviewSettings() {
   const db = await getDb();
   // ROS-084 · this used to invent `enabled: 1` on an unreadable database. That
   // is not a neutral default — it is the operator's OFF SWITCH, and every gate
-  // on the send path reads it (scheduleReviewRequest:69, scheduleCallReviewRequest,
+  // on the send path reads it (scheduleReviewRequest:69,
   // processReviewRequestQueue:144). A shop that had deliberately turned review
   // texts off had them turned back on for the duration of any outage, by a
   // literal in this file.
