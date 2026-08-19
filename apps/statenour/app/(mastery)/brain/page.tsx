@@ -22,10 +22,16 @@ import { KnowledgeActionOutcomes } from "@/components/brain/knowledge-action-out
 import { KnowledgeReviewTab } from "@/components/brain/knowledge-review-tab";
 import { HomeBrainGraph } from "@/components/home/home-brain-graph";
 import { DiscoverTab } from "@/components/brain/discover-tab";
+import { ResearchPipelineStatus } from "@/components/brain/research-pipeline-status";
 
 function GovernedKnowledgeReview() {
   return (
     <div className="space-y-8">
+      {/* 2026-08-19 · an empty queue and a STRUCTURALLY DEAD queue used to
+          render identically here. Measured in prod: 893 claims ingested,
+          best verification score 0.58 against a 0.75 promotion gate, zero
+          candidates ever produced. This panel says so. */}
+      <ResearchPipelineStatus />
       <KnowledgeActionOutcomes />
       <KnowledgeReviewTab />
     </div>

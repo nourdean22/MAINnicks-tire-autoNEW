@@ -627,8 +627,10 @@ export function WisdomTab() {
                             <span className={tone(entry.hotness)}>
                               {entry.seenCount === 0 ? "cold · seed only" : `fired ${entry.seenCount.toLocaleString()}×`}
                             </span>
-                            <span>·</span>
-                            <span>{(entry.confidence * 100).toFixed(0)}% conf</span>
+                            {/* 2026-08-19 · dropped `NN% conf`. It sat directly
+                                beside "fired N×" and was the SAME number
+                                restated — confidence is 0.5 + 0.1×(sightings−1),
+                                not a probability. The count above is the fact. */}
                             <span>·</span>
                             <span>via {entry.source}</span>
                             <span>·</span>

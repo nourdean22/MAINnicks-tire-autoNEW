@@ -559,6 +559,17 @@ export const BRAIN_CATEGORIES = {
   /** Wave-200 Phase 6 · per-customer inferred preferences. Indexed
    *  per customerId in `key`. Metadata is the structured payload. */
   CUSTOMER_PREFERENCE: "customer_preference",
+  /** 2026-08-19 · a frozen copy of a memory's PRIOR version, written the
+   *  moment the commit gateway rules `supersede`. `remember()` upserts on
+   *  (category, key), so a supersede overwrote the row in place and the
+   *  previous claim was lost forever — which is why valid_from /
+   *  valid_until / superseded_by_id (applied to prod 2026-08-14) had
+   *  ZERO populated rows out of 18,527 when measured 2026-08-19.
+   *  The snapshot carries validUntil = the moment it stopped being true
+   *  and supersededById = the canonical row that replaced it, giving a
+   *  walkable history chain without violating the (category, key) unique.
+   *  EXCLUDED from recall — see RECALL_EXCLUDE_CATEGORIES. */
+  SUPERSEDED_SNAPSHOT: "superseded_snapshot",
   /** Phase A.1 (Goals page) · Nick-flagged stale goal candidates.
    *  Key = LifeGoal.id · content = human-readable summary ·
    *  metadata = { goalId, goalTitle, horizon, daysSinceActivity }.
@@ -695,6 +706,11 @@ export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
   // Promotion to the trusted `research_claim` category is what makes a claim
   // recallable; until then it belongs to /brain, not to the model.
   BRAIN_CATEGORIES.RESEARCH_CLAIM_CANDIDATE,
+  // 2026-08-19 · frozen prior versions of superseded memories. These are
+  // history, not belief — the whole point is that the system STOPPED
+  // holding them. Recalling one would feed the model a claim we have
+  // explicitly replaced, which is worse than not remembering it at all.
+  BRAIN_CATEGORIES.SUPERSEDED_SNAPSHOT,
 ];
 
 /**
