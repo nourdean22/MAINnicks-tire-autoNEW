@@ -43,6 +43,23 @@ export const EFFORT_MULTIPLIER: Record<string, number> = {
 /** Goal-linkage bonus · intentional work (tied to a goal) earns 1.5×. */
 export const GOAL_LINKED_MULTIPLIER = 1.5;
 
+/**
+ * Outcome-rating multiplier (2026-08-19 · outcome-loop wave). Before
+ * this, a FAILED completion bumped mastery exactly as much as an
+ * OUTSTANDING one — the operator's own quality judgment (the strongest
+ * signal in the completion) was write-only. Applied inside auto-learn's
+ * adaptive bump; absent/null rating = 1.0 so older paths and quick
+ * check-offs are byte-identical. FAILED still earns a sliver (the work
+ * happened and MIN_BUMP floors it) — this scales growth, it does not
+ * punish honesty about outcomes.
+ */
+export const RATING_MULTIPLIER: Record<string, number> = {
+  OUTSTANDING: 1.25,
+  SATISFACTORY: 1.0,
+  SUBSTANDARD: 0.6,
+  FAILED: 0.3,
+};
+
 /** Streak bonus · 7-day+ DAILY streak earns 2×, 3-day earns 1.3×. */
 export function streakMultiplier(streakCount: number, loopKind: string): number {
   if (loopKind !== "DAILY") return 1.0;

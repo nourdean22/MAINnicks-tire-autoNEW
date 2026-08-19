@@ -69,6 +69,160 @@ describe("runAutoLearn · mastery engine adaptive scoring", () => {
     mocks.masteryScore.findUnique.mockResolvedValue(null);
     mocks.masteryScore.findFirst.mockResolvedValue({ score: 50 });
     mocks.masteryScore.upsert.mockResolvedValue({});
+    mocks.brainMemory.upsert.mockResolvedValue({ id: "bm-1" });
+  });
+
+  // ── 2026-08-19 · outcome-loop wave · the rating multiplier ────────
+  // Before this a FAILED completion bumped mastery exactly as much as
+  // an OUTSTANDING one — the operator's own quality judgment never
+  // reached the score.
+
+  it("a FAILED rating scales the bump down (0.3×, floored at MIN_BUMP)", async () => {
+    // 0.5 × 0.5 × 1.0 × 1.0 × 1.0 × 0.3 = 0.075 → floored → 0.1.
+    const report = await runAutoLearn({
+      taskId: "t-failed",
+      task: {
+        title: "ship X",
+        finishCondition: null,
+        mission: { title: "Business", domain: "BUSINESS" },
+        goal: null,
+        roiScore: 50,
+        effort: "M30",
+        loopKind: "ONCE",
+        streakCount: 0,
+        hasGoalId: false,
+        outcomeRating: "FAILED",
+      },
+    });
+    expect(report.mastery?.delta).toBe(0.1);
+  });
+
+  it("an OUTSTANDING rating scales the bump up (1.25×)", async () => {
+    // 0.5 × 1.0 × 1.0 × 1.0 × 1.0 × 1.25 = 0.625 → 0.6 (1dp).
+    const report = await runAutoLearn({
+      taskId: "t-outstanding",
+      task: {
+        title: "ship X",
+        finishCondition: null,
+        mission: { title: "Business", domain: "BUSINESS" },
+        goal: null,
+        roiScore: 100,
+        effort: "M30",
+        loopKind: "ONCE",
+        streakCount: 0,
+        hasGoalId: false,
+        outcomeRating: "OUTSTANDING",
+      },
+    });
+    expect(report.mastery?.delta).toBe(0.6);
+  });
+
+  it("an absent rating is byte-identical to pre-wave behavior (1.0×)", async () => {
+    // Same inputs as the baseline test above: 0.25 → 0.3.
+    const report = await runAutoLearn({
+      taskId: "t-none",
+      task: {
+        title: "ship X",
+        finishCondition: null,
+        mission: { title: "Business", domain: "BUSINESS" },
+        goal: null,
+        roiScore: 50,
+        effort: "M30",
+        loopKind: "ONCE",
+        streakCount: 0,
+        hasGoalId: false,
+      },
+    });
+    expect(report.mastery?.delta).toBe(0.3);
+  });
+});
+
+describe("runAutoLearn · lesson engine (2026-08-19 outcome-loop wave)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.masteryScore.findUnique.mockResolvedValue(null);
+    mocks.masteryScore.findFirst.mockResolvedValue({ score: 50 });
+    mocks.masteryScore.upsert.mockResolvedValue({});
+    mocks.brainMemory.upsert.mockResolvedValue({ id: "bm-lesson" });
+  });
+
+  const baseTask = {
+    title: "Call the supplier about brake pads",
+    finishCondition: null,
+    mission: { title: "Shop", domain: "BUSINESS" },
+    goal: null,
+    roiScore: 50,
+    effort: "M30",
+    loopKind: "ONCE",
+    streakCount: 0,
+    hasGoalId: false,
+  };
+
+  it("captures a typed lesson as a task_lesson memory keyed per task, and embeds it", async () => {
+    const report = await runAutoLearn({
+      taskId: "t-lesson",
+      task: { ...baseTask, outcomeLesson: "Always confirm the part number before ordering." },
+    });
+
+    expect(report.lesson).toEqual({
+      key: "task_lesson:t-lesson",
+      content: "Always confirm the part number before ordering.",
+    });
+    const lessonUpsert = mocks.brainMemory.upsert.mock.calls.find(
+      (c: any[]) => c[0]?.create?.category === "task_lesson",
+    );
+    expect(lessonUpsert, "task_lesson upsert missing").toBeDefined();
+    expect(lessonUpsert![0].where.category_key.key).toBe("task_lesson:t-lesson");
+    expect(lessonUpsert![0].create.createdBy).toBe("operator");
+    // Without a vector the row is invisible to recall — the embed must fire.
+    expect(mocks.storeMemoryEmbedding).toHaveBeenCalledWith(
+      "bm-lesson",
+      "Always confirm the part number before ordering.",
+    );
+  });
+
+  it("no lesson → no task_lesson write, report.lesson null", async () => {
+    const report = await runAutoLearn({ taskId: "t-nolesson", task: { ...baseTask } });
+    expect(report.lesson).toBeNull();
+    const lessonUpsert = mocks.brainMemory.upsert.mock.calls.find(
+      (c: any[]) => c[0]?.create?.category === "task_lesson",
+    );
+    expect(lessonUpsert).toBeUndefined();
+  });
+
+  it("a whitespace-only lesson is not a lesson", async () => {
+    const report = await runAutoLearn({
+      taskId: "t-blank",
+      task: { ...baseTask, outcomeLesson: "   " },
+    });
+    expect(report.lesson).toBeNull();
+  });
+
+  it("a lesson alone counts as growth — the wisdom citation pass runs for it", async () => {
+    // No mastery (no domain), no knowledge verb, no tutorial prefix — only
+    // the lesson fires. Pre-wave, wisdom would have been skipped entirely.
+    const report = await runAutoLearn({
+      taskId: "t-lesson-only",
+      task: {
+        title: "plates",
+        finishCondition: null,
+        mission: null,
+        goal: null,
+        outcomeLesson: "DMV needs the lien release up front.",
+      },
+    });
+    expect(report.lesson).not.toBeNull();
+    // semanticSearch is the wisdom pass's first move (mocked to []).
+    expect(mocks.semanticSearch).toHaveBeenCalled();
+  });
+});
+
+describe("runAutoLearn · legacy adaptive-scoring pins", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.masteryScore.findUnique.mockResolvedValue(null);
+    mocks.masteryScore.findFirst.mockResolvedValue({ score: 50 });
+    mocks.masteryScore.upsert.mockResolvedValue({});
   });
 
   it("lifts the domain score using BASE × roi × effort × goal × streak", async () => {

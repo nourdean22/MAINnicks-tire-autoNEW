@@ -294,6 +294,8 @@ export async function checkTask(args: {
           hasGoalId: !!task.goalId,
           outcomeScore: outcomeScore ?? null,
           completionNote: completionNote ?? null,
+          outcomeRating: outcomeRating ?? null,
+          outcomeLesson: outcomeLesson ?? null,
         },
       });
     } catch (e) {
@@ -456,12 +458,34 @@ export async function checkTask(args: {
         hasGoalId: !!task.goalId,
         outcomeScore: outcomeScore ?? null,
         completionNote: completionNote ?? null,
+        outcomeRating: outcomeRating ?? null,
+        outcomeLesson: outcomeLesson ?? null,
       },
     });
   } catch (e) {
     log.warn("auto_learn_failed", {
       taskId: id,
       err: e instanceof Error ? e.message.slice(0, 200) : String(e),
+    });
+  }
+
+  // 2026-08-19 · outcome-loop wave · close the recommendation→execution→
+  // outcome loop. When a suggestion became a task verbatim (task title ===
+  // the ledgered summary — the shape every accept path that titles a task
+  // from suggestion text produces), the operator's completion rating IS
+  // that recommendation's real-world outcome. contentHash join over a 30d
+  // window; recordOutcomeByContent is a documented no-op (returns false)
+  // when the task never came from a ledgered suggestion, so this is safe
+  // to fire unconditionally whenever a rating was supplied.
+  if (outcomeRating != null) {
+    const ratingUseful =
+      outcomeRating === OutcomeRating.OUTSTANDING ||
+      outcomeRating === OutcomeRating.SATISFACTORY;
+    void (async () => {
+      const { recordOutcomeByContent } = await import("@/lib/services/outcome-ledger");
+      await recordOutcomeByContent(task.title ?? "", ratingUseful, `task:${id}`);
+    })().catch(() => {
+      /* the completion already succeeded — never fail it on the ledger */
     });
   }
 

@@ -1114,6 +1114,8 @@ export async function updateTask(id: string, input: unknown) {
             goalId: true,
             outcomeScore: true,
             completionNote: true,
+            outcomeRating: true,
+            outcomeLesson: true,
             mission: { select: { title: true, domain: true } },
             goal: { select: { domain: true } },
           },
@@ -1135,6 +1137,8 @@ export async function updateTask(id: string, input: unknown) {
               hasGoalId: !!enriched.goalId,
               outcomeScore: enriched.outcomeScore,
               completionNote: enriched.completionNote,
+              outcomeRating: enriched.outcomeRating,
+              outcomeLesson: enriched.outcomeLesson,
             },
           });
         }

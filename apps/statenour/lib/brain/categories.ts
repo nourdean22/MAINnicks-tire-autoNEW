@@ -286,6 +286,13 @@ export const BRAIN_CATEGORIES = {
    *  files for months — registering closes the typo-protection gap. */
   TASK_INSIGHT: "task_insight",
   TASK_COMPLETION: "task_completion",
+  /** 2026-08-19 · outcome-loop wave · the operator's TYPED completion lesson
+   *  (Task.outcomeLesson), one row per task (key `task_lesson:<taskId>`),
+   *  written by auto-learn's lesson engine with an inline embedding.
+   *  Operator-authored → confidence 0.85, whitelisted for chat recall.
+   *  Before this the column was write-only: the strongest learning signal
+   *  in the system was validated, persisted, and read by nothing. */
+  TASK_LESSON: "task_lesson",
   /** 2026-05-23 · task #17 · synthesized pattern lane · written by
    *  pattern-clusterer + nick-suggestions. Read by next-move +
    *  NickSuggestions UI. Cross-pattern meta-themes (e.g. "your
@@ -493,6 +500,14 @@ export const BRAIN_CATEGORIES = {
   // ── H-series · reasoning engine (2026-05-18 PM) ──
   /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */
   REASONING_TRACE: "reasoning_trace",
+  /** 2026-08-19 · outcome-loop wave · the DISTILLED, EMBEDDED companion to
+   *  reasoning_trace: one row per completed reasoning run (question →
+   *  conclusion), written by lib/ai/reasoning/persist-conclusion.ts with an
+   *  inline embedding and a 90d expiresAt. This is what makes Nick REMEMBER
+   *  what he concluded — reasoning_trace itself stays deliberately
+   *  recall-excluded (raw bookkeeping rows, no embeddings, budget reads
+   *  them for daily spend). Whitelisted in memory-recall CONTEXT_CATEGORIES. */
+  REASONING_CONCLUSION: "reasoning_conclusion",
   /** Phase H.6.1 · mega-tier timed-out source completed late · wasted spend. */
   REASONING_ORPHAN: "reasoning_orphan",
   /** Phase H.6.2 · in-flight budget reservation · closes TOCTOU on cap. */
@@ -829,7 +844,7 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
   ],
   "Tasks + strategy": [
     "planning", "project_management", "strategic_plan", "strategy",
-    "task_insight", "task_pattern", "orphan_tasks_nudge",
+    "task_insight", "task_lesson", "task_pattern", "orphan_tasks_nudge",
     "board_consultation", "task_completion",
   ],
   "Legacy / deprecated": [
