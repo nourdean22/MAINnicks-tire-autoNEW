@@ -42,6 +42,42 @@ import { db } from "../lib/db-helper";
 import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } from "../../drizzle/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+
+/**
+ * The IG lane's LLM calls, made survivable. 10/10 runs failed across
+ * 2026-08-16..18 with exactly two shapes: "The operation was aborted due to
+ * timeout" (the calls passed NO timeoutMs, so a slow in-service completion hit
+ * the 30s default) and "LLM returned no caption content" (a 200 whose content
+ * was empty under load). Meanwhile every call here defaulted to priority 2 -
+ * BACKGROUND class on the three-slot Ollama scheduler - so live posting queued
+ * behind benchmarks at busy ticks. Identical calls succeed standalone, which is
+ * the in-service-contention signature, not a prompt problem.
+ *
+ * timeoutMs 120s matches the reel-brief call's measured need (long completions
+ * run 30-90s). priority 1 matches the precedent dailyReelPost's judge already
+ * set for live content lanes. ONE retry, only on a thrown transport error or an
+ * empty completion - both strictly pre-submit, so the worst case is one extra
+ * text call, never a duplicate post.
+ */
+/** Exported for tests - the retry contract below is behavioral, not a scan. */
+export async function invokeLLMForPosting(params: Parameters<typeof invokeLLM>[0]): ReturnType<typeof invokeLLM> {
+  const withGuards = { timeoutMs: 120_000, priority: 1 as const, ...params };
+  const attempt = async () => {
+    const res = await invokeLLM(withGuards);
+    const content = res.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("LLM returned no caption content");
+    }
+    return res;
+  };
+  try {
+    return await attempt();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn("IG posting LLM call failed once - retrying", { err: msg.slice(0, 120) });
+    return attempt();
+  }
+}
 import { isEnabled } from "./featureFlags";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
 import { shadowJudgeGate } from "./igJudgeGate";
@@ -750,7 +786,7 @@ Return ONLY JSON: {"hookYellow": string, "hookWhite": string, "hookSub": string}
 - hookYellow + hookWhite together form a 2-part headline; each 1-3 words, punchy, ALL CAPS (e.g. "BALD TIRES" / "CAN'T STOP."). hookYellow grabs attention, hookWhite finishes the thought.
 - hookSub: ONE sentence (<=120 chars) that pays it off and invites a visit.
 - HARD RULES: no prices, no "%", no guarantees, no "best/cheapest/#1", no "free" except the exact phrase "free check". No medical/legal claims. Sell the visit, never quote a price.`;
-  const result = await invokeLLM({ messages: [{ role: "user", content: prompt }], maxTokens: 2048 });
+  const result = await invokeLLMForPosting({ messages: [{ role: "user", content: prompt }], maxTokens: 2048 });
   const content = result.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new Error("derivePosterCopy: no LLM content");
   const p = parseJsonObject<{ hookYellow?: unknown; hookWhite?: unknown; hookSub?: unknown }>(content);
@@ -777,7 +813,7 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
     cta: pick(DIALS.cta),
   };
 
-  const res = await invokeLLM({
+  const res = await invokeLLMForPosting({
     messages: [
       { role: "system", content: buildGenSystemPrompt() },
       { role: "user", content: buildGenUserPrompt(brief, dials, customConcept) },
@@ -1357,7 +1393,7 @@ async function evalCaption(post: GeneratedPost, brief: SignalBrief): Promise<Cap
   const reviewList = brief.reviews.length
     ? brief.reviews.map((r) => `"${r.text}"`).join(" | ")
     : "(none supplied)";
-  const res = await invokeLLM({
+  const res = await invokeLLMForPosting({
     messages: [
       { role: "system", content: buildEvalSystemPrompt() },
       {
