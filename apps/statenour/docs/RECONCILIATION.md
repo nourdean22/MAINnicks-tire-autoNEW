@@ -1,5 +1,41 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-19 · apiHandler telemetry was load-bearing — a 1% coin flip that reddened CI and buried real 500s
+>
+> **The red on PR #1697 was not the wave's diff.** It was a landmine shipped 2026-08-16 in
+> #1598 and armed on every request since. `apiHandler` samples its success-path request log
+> (`duration_ms > 1000 || Math.random() < 0.01`, `lib/utils/http.ts:190`) and writes it with
+> `prisma.apiRequestLog.create(...).catch(...)`. **The `.catch()` covers the promise that call
+> returns — it cannot cover the call that never produced one.** When the synchronous
+> `prisma.apiRequestLog` dereference threw, the throw landed in apiHandler's own `catch`, which
+> **repeats the identical dereference** and throws again with nothing left to catch it, so the
+> route *rejects* instead of returning its envelope.
+>
+> Two consequences, both real, both invisible until root-caused:
+>
+> - **In CI:** nine test files mock `@/lib/prisma` without `apiRequestLog`, so every
+>   `apiHandler` call they made was a 1-in-100 red — plus a second, non-random trigger
+>   (`duration_ms > 1000`) that a loaded GitHub runner hits on its own. That is why the failure
+>   moved between files, passed in isolation, and passed a full local sweep. It presented as
+>   `TypeError: Cannot read properties of undefined (reading 'create')` at `http.ts:255` —
+>   **the catch-path frame, not the trigger**, which is what made it look unrelated to logging.
+> - **In prod:** any throw from the *error*-path telemetry escapes as an unhandled rejection
+>   instead of the 500 envelope, so the caller sees the logging failure and never the real one.
+>
+> Fix: `fireAndForgetTelemetry()` wraps all three writes (success `apiRequestLog`, failure
+> `apiRequestLog`, failure `errorLog`) so a broken writer is logged to the surface logger and
+> dropped. Telemetry is best-effort by contract; it must never be able to take down the request
+> it describes. Reproduced deterministically before fixing (`Math.random → 0` against the real
+> route: same error, same line, same stack), then red-greened —
+> `tests/api/http-telemetry-never-throws.test.ts` fails 4/4 on the pre-fix file and passes 4/4
+> after, covering both triggers, the 500 path, and `ServiceError` status preservation.
+>
+> Not fixed by patching the nine mocks: that would paper over a defect one layer below them.
+>
+> **Separately, main's post-merge run on `e17eee3` was a different red** — GitHub runner loss
+> ("the runner has received a shutdown signal", 5/8 tasks, force-killed at 4m28s), the same
+> infra class as `9977368`. `2cac7a0` (wave 1) and current head `cf5e78f` are both green.
+>
 > ## 2026-08-19 · Brain wave 2 — the honesty pass: dead ends made visible, dead code removed (1 PR)
 >
 > Everything the wave-1 entry below flagged as "NOT built", built — plus a finding that
