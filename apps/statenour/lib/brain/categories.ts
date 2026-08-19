@@ -37,6 +37,8 @@
  *   • Tasks / projects
  */
 
+import { TELEMETRY_CATEGORIES } from "./embedding-policy";
+
 export const BRAIN_CATEGORIES = {
   // ── AI / Nick ──
   AI: "ai",
@@ -726,6 +728,17 @@ export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
   // holding them. Recalling one would feed the model a claim we have
   // explicitly replaced, which is worse than not remembering it at all.
   BRAIN_CATEGORIES.SUPERSEDED_SNAPSHOT,
+  // 2026-08-19 · event telemetry joins the quarantine. The 08-16
+  // embedding policy (lib/brain/embedding-policy.ts) already keeps these
+  // categories OUT of the vector index, but the Prisma recall lane
+  // (contextual-recall's top-300 confidence pool) had no such gate — and
+  // telemetry writers stamp confidence freely (nick_quality at 0.9,
+  // task_completion at 1.0, measured on prod 2026-08-19), sailing over
+  // the pool's 0.3 floor. A critic score line like
+  // "100/100 · spec=100 cliche=100 antiNour=100 length=100" is
+  // observability, not a belief about Nour; it must never spend a recall
+  // slot. One list, one meaning, both lanes.
+  ...TELEMETRY_CATEGORIES,
 ];
 
 /**

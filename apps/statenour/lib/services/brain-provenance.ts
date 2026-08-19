@@ -31,6 +31,10 @@ export interface ProvenanceHit {
   key: string;
   content: string;
   confidence: number;
+  /** brain_memories.seen_count — the real sighting counter, carried via
+   *  the `...h` spread so the trace modal can render honest attention
+   *  ("seen N×") instead of inverting writer-stamped confidence. */
+  seenCount: number;
   ageDays: number;
   /**
    * KNN cosine distance (0 = identical). Carried through verbatim
