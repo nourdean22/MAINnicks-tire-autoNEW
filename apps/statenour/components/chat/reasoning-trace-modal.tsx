@@ -17,10 +17,13 @@
 import { X } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { bdiLabel, bdiTone, type BdiType } from "@/lib/brain/bdi";
-// 2026-08-19 · recall hits carry brain_memories.confidence, a re-sighting
-// counter — it rendered here as "NN% conf" beside a real cosine match %,
-// which made two unlike numbers look like the same kind of evidence.
-import { describeConfidenceAsAttention } from "@/lib/brain/attention-label";
+// 2026-08-19 · recall hits rendered confidence as "NN% conf" beside a real
+// cosine match % — two unlike numbers dressed as the same kind of evidence.
+// Second pass the same day: the first fix inverted confidence back into a
+// sighting count, but 73% of recent seen_count=1 rows carry writer-stamped
+// confidence (measured on prod), so the inversion fabricated history.
+// The hit now carries brain_memories.seen_count itself — render that.
+import { describeSeenCount } from "@/lib/brain/attention-label";
 
 // Phase B.5 (2026-05-22) · migrated from `authedFetch` +
 // useEffect/cancelled-flag to `trpc.chat.messageProvenance.useQuery`
@@ -276,7 +279,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                           <p className="text-[10px] font-mono text-[var(--text-tertiary)] mt-2 uppercase tracking-wider flex flex-wrap items-center gap-x-3">
                             <span>{hit.category}</span>
                             <span>·</span>
-                            <span>{describeConfidenceAsAttention(hit.confidence)}</span>
+                            <span>{describeSeenCount(hit.seenCount)}</span>
                             <span>·</span>
                             <span>match {Math.round((1 - hit.knnDistance) * 100)}%</span>
                             {hit.ageDays >= 0 && (
