@@ -158,6 +158,36 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
       "LIVE: the novelty multiplier is applied. Kill-switch NICK_NOVELTY_RECALL=0 restores byte-for-byte pre-2026-08-16 ranking. NOTE: enabled on operator instruction WITHOUT a prior eval win — `pnpm eval:recall` has never been run against a real (non-synthetic) corpus, so this is an accepted-risk default, not a measured one.",
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
+  // ── Memory-write gateway kill-switches (registered 2026-08-19) ────
+  // Both were LIVE-by-default via raw `process.env.X !== "0"` reads in
+  // memory-manager.ts and appeared NOWHERE on the flag board — the two
+  // most consequential memory switches were invisible, the exact
+  // failure mode this registry exists to prevent. Registration here is
+  // OBSERVATIONAL: the runtime check stays the raw env read in
+  // lib/brain/memory-manager.ts (do not "unify" it through getFlag
+  // without re-verifying the fail-open catch semantics there).
+  {
+    key: "NICK_MEMORY_GATEWAY_PHASE1",
+    description:
+      "Memory commit gateway Phase-1: same-source + same-content repetition no longer reinforces confidence (noop verdict). Graduated after a 7-day shadow review (1,788 receipts, 0% legacy disagreement on noop). LIVE unless explicitly killed with =0. Runtime check is `process.env.NICK_MEMORY_GATEWAY_PHASE1 !== \"0\"` in lib/brain/memory-manager.ts — this entry is for board visibility.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: repetition-noop enforced at remember(). Kill-switch =0 restores legacy always-reinforce. Probe: scripts/probe-gateway-agrees.ts.",
+    ownerDoc: "lib/brain/memory-commit-gateway.ts",
+  },
+  {
+    key: "NICK_MEMORY_GATEWAY_PHASE2",
+    description:
+      "Memory commit gateway Phase-2: honors `update` (content refresh, no confidence bump) and `review_required` for weaker_evidence (parks to the Review queue). unknown_category deliberately falls through and writes. Flipped LIVE by explicit operator instruction 2026-08-16 WITHOUT the shadow review that graduated Phase-1 — accepted risk, not measured safety. LIVE unless killed with =0; runtime check is the raw env read in lib/brain/memory-manager.ts.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: update + weaker_evidence-review enforced at remember(). Kill-switch =0 FIRST if writes look wrong, then run scripts/probe-gateway-agrees.ts.",
+    ownerDoc: "lib/brain/memory-commit-gateway.ts",
+  },
   {
     key: "NICK_VERIFIED_REGEN",
     description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass (today's behavior). Adds latency on the regen path only.",
