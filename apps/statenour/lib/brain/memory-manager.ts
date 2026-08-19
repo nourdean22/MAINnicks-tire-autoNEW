@@ -108,6 +108,79 @@ function validateAndCanonicalizeCategory(
  * Never throws into the write path: a failed park falls through to the
  * caller's normal return, which is the pre-Phase-2 behavior.
  */
+/**
+ * Freeze the outgoing version of a memory the gateway just ruled superseded.
+ *
+ * WHY THIS EXISTS: `remember()` upserts on the (category, key) unique, so a
+ * `supersede` verdict fell through to `reinforce(existing.id, content)` —
+ * the row was overwritten in place and the prior claim vanished. The
+ * valid_from / valid_until / last_verified_at / superseded_by_id columns
+ * were applied to prod on 2026-08-14 and, measured 2026-08-19, had ZERO
+ * populated rows out of 18,527: schema ahead of the app, with no writer.
+ *
+ * The snapshot lands in its own category (excluded from recall — history is
+ * not belief) under a timestamped key, so it cannot collide with the
+ * canonical row's unique. `supersededById` points AT the canonical row, so
+ * the chain is walkable forward from any old version.
+ *
+ * OPT-IN. Default OFF behind NICK_MEMORY_SUPERSESSION=1, matching how
+ * Phase-1 and Phase-2 of the commit gateway each shipped: a new write path
+ * on a 28k-row table earns default-on with measured evidence, not with an
+ * argument. Until it is flipped, the columns stay empty — which is the
+ * honest state, not theater.
+ */
+async function snapshotSupersededVersion(args: {
+  existing: { id: string; category: string; key: string; content: string; source: string; confidence: number; createdAt: Date };
+  newContent: string;
+  newSource: string;
+  reason: string;
+}): Promise<void> {
+  try {
+    const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
+    const now = new Date();
+    const snapshotKey = `${args.existing.category}:${args.existing.key}@${now.toISOString()}`;
+
+    await prisma.brainMemory.create({
+      data: {
+        category: BRAIN_CATEGORIES.SUPERSEDED_SNAPSHOT,
+        key: snapshotKey.slice(0, 500),
+        content: args.existing.content,
+        source: args.existing.source,
+        createdBy: "memory-supersession",
+        confidence: args.existing.confidence,
+        // The window this claim was actually held.
+        validFrom: args.existing.createdAt,
+        validUntil: now,
+        // Forward pointer to the row that replaced it.
+        supersededById: args.existing.id,
+        // Bounded growth: history decays on the standard long TTL rather
+        // than accumulating forever on a hot write path.
+        expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
+        metadata: {
+          supersededCategory: args.existing.category,
+          supersededKey: args.existing.key,
+          replacedBySource: args.newSource,
+          replacedByContent: args.newContent.slice(0, 500),
+          reason: args.reason,
+        } as object,
+      },
+    });
+
+    // The canonical row's CURRENT version starts now.
+    await prisma.brainMemory.update({
+      where: { id: args.existing.id },
+      data: { validFrom: now, lastVerifiedAt: now },
+    });
+  } catch (err) {
+    // History is a nice-to-have; it must never break the write path.
+    log.warn("memory_supersession_snapshot_failed", {
+      category: args.existing.category,
+      key: args.existing.key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 async function parkForReview(args: {
   category: string;
   key: string;
@@ -376,6 +449,31 @@ export class BrainMemoryManager {
                 reason: verdict.reason,
               });
               return existing;
+            }
+
+            // "supersede" = stronger evidence replaced the claim. Legacy
+            // overwrites in place and the prior version is lost, which is
+            // why the supersession columns have never had a writer.
+            // Freeze the outgoing version first so the change becomes
+            // walkable history. Opt-in — see snapshotSupersededVersion.
+            if (
+              verdict.decision === "supersede" &&
+              process.env.NICK_MEMORY_SUPERSESSION === "1"
+            ) {
+              await snapshotSupersededVersion({
+                existing: {
+                  id: existing.id,
+                  category: effectiveCategory,
+                  key,
+                  content: existing.content,
+                  source: existing.source,
+                  confidence: existing.confidence,
+                  createdAt: existing.createdAt,
+                },
+                newContent: content,
+                newSource: source,
+                reason: verdict.reason,
+              });
             }
           }
         } catch (err) {

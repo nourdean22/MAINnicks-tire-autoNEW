@@ -36,6 +36,12 @@ import {
 import { useCallback, useState } from "react";
 import { ReceiptsTimeline } from "@/components/brain/receipts-timeline";
 import { JudgmentQualityPanel } from "@/components/brain/judgment-quality-panel";
+import {
+  attentionTone,
+  describeConfidenceAsAttention,
+  describeSeenCount,
+  sightingsFromConfidence,
+} from "@/lib/brain/attention-label";
 
 interface Memory {
   id: string;
@@ -305,8 +311,14 @@ function RecentColumn({
 }
 
 function MemoryRow({ m, now }: { m: Memory; now: number }) {
-  const confPct = Math.round(m.confidence * 100);
-  const confColor = confPct >= 80 ? "text-emerald-400" : confPct >= 50 ? "text-[var(--gold)]" : confPct >= 25 ? "text-amber-400" : "text-rose-400";
+  // 2026-08-19 · was `${Math.round(m.confidence * 100)}%` rendered right
+  // beside `×{seenCount}` — the SAME number twice, since confidence is
+  // 0.5 + 0.1×(sightings−1). The percentage was the lie; the count is the
+  // fact. Show the count, drop the percentage.
+  const sightings = m.seenCount > 0 ? m.seenCount : sightingsFromConfidence(m.confidence);
+  const tone = attentionTone(sightings);
+  const confColor =
+    tone === "hot" ? "text-emerald-400" : tone === "warm" ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]";
   const ageMs = now - new Date(m.lastSeen).getTime();
   const ageLabel = ageMs < 60_000 ? "just now" : ageMs < 3_600_000 ? `${Math.floor(ageMs / 60_000)}m` : ageMs < 86_400_000 ? `${Math.floor(ageMs / 3_600_000)}h` : `${Math.floor(ageMs / 86_400_000)}d`;
   return (
@@ -315,8 +327,9 @@ function MemoryRow({ m, now }: { m: Memory; now: number }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">{m.category}</span>
-            <span className={cn("text-[9px] font-mono tabular-nums", confColor)}>{confPct}%</span>
-            {m.seenCount > 1 && <span className="text-[9px] font-mono tabular-nums text-[var(--text-tertiary)]">×{m.seenCount}</span>}
+            <span className={cn("text-[9px] font-mono tabular-nums", confColor)}>
+              {m.seenCount > 0 ? describeSeenCount(m.seenCount) : describeConfidenceAsAttention(m.confidence)}
+            </span>
             <span className="text-[9px] font-mono tabular-nums text-[var(--text-tertiary)] ml-auto">{ageLabel}</span>
           </div>
           <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] leading-snug line-clamp-2">{m.content}</p>

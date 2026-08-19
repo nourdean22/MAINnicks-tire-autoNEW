@@ -16,6 +16,10 @@ const mocks = vi.hoisted(() => ({
   brainMemory: { count: vi.fn(), findMany: vi.fn() },
   goalEvent: { groupBy: vi.fn() },
   task: { findMany: vi.fn(), count: vi.fn() },
+  // `withLogging` records unexpected handler errors through this delegate.
+  // Keep the route mock complete so unrelated suite ordering cannot turn the
+  // logger itself into the thrown error under test.
+  apiRequestLog: { create: vi.fn() },
   resetQueryCount: vi.fn(),
   getQueryCount: vi.fn(() => 0),
 }));
@@ -26,6 +30,7 @@ vi.mock("@/lib/prisma", () => ({
     brainMemory: mocks.brainMemory,
     goalEvent: mocks.goalEvent,
     task: mocks.task,
+    apiRequestLog: mocks.apiRequestLog,
   },
   resetQueryCount: mocks.resetQueryCount,
   getQueryCount: mocks.getQueryCount,
@@ -50,6 +55,7 @@ beforeEach(() => {
     { actualMinutes: 15 },
   ]);
   mocks.task.count.mockResolvedValue(4);
+  mocks.apiRequestLog.create.mockResolvedValue({});
 });
 
 describe("GET /api/tasks/today-compound · done-today filter", () => {
