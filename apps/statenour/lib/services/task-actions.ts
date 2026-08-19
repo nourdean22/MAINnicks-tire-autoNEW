@@ -254,8 +254,10 @@ export async function checkTask(args: {
         ...(isWeekly ? { snoozedUntil: nextSnoozedUntil } : {}),
         completionNote,
         outcomeScore,
-        // Recurring rows keep the LATEST completion's judgment — same
-        // last-write semantics as completionNote/outcomeScore above.
+        // Recurring rows keep the last RATED completion's judgment — an
+        // unrated completion arrives with these keys absent (undefined),
+        // which Prisma skips, so it does NOT clear a prior rating. (The
+        // /missions surface doesn't prompt recurring loops at all.)
         outcomeRating,
         outcomeLesson,
       },

@@ -7,7 +7,7 @@ import type { Task, Project } from "@/components/actions/shared";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
 import { useMissionUIStore } from "../state/use-mission-ui-store";
-import { useOutcomeDialog } from "@/components/ui/outcome-dialog";
+import { useOutcomeDialog, type OutcomeRatingValue } from "@/components/ui/outcome-dialog";
 
 const log = rootLogger.withSurface("missions/actions");
 
@@ -88,14 +88,26 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       const isWeekly = loopKind === "WEEKLY";
       const isRecurring = isDaily || isWeekly;
       let xpAdded = 0;
-      // One tap on a rating chip (or "just done") proceeds; escape/outside
-      // cancels the completion entirely — the task stays where it was.
-      const outcome = await collectOutcome({ title: "how did it go?" });
-      if (outcome === null) return;
-      const outcomeFields = {
-        ...(outcome.rating ? { outcomeRating: outcome.rating } : {}),
-        ...(outcome.lesson ? { outcomeLesson: outcome.lesson } : {}),
-      };
+      // Outcome capture, calibrated against the prompt-fatigue literature
+      // (2026-08-19: Apple caps its own review prompt at 3/365d; ESM
+      // compliance decays with prompts/day; Complice/Intend batch reflection
+      // rather than interrupt):
+      //   - recurring loops never prompt — completing the loop IS the datum,
+      //     and a "drink water" daily asked daily breeds habituated garbage
+      //     ratings that would poison the mastery multiplier;
+      //   - dismissal (escape/outside-tap) COMPLETES the task unrated. Never
+      //     gate the primary action on the prompt: undoing the completion
+      //     punishes dismissal and inflates reflexive "solid" taps.
+      let outcomeFields: { outcomeRating?: OutcomeRatingValue; outcomeLesson?: string } = {};
+      if (!isRecurring) {
+        const outcome = await collectOutcome({ title: "how did it go?" });
+        if (outcome) {
+          outcomeFields = {
+            ...(outcome.rating ? { outcomeRating: outcome.rating } : {}),
+            ...(outcome.lesson ? { outcomeLesson: outcome.lesson } : {}),
+          };
+        }
+      }
       try {
         telemetry.event("completeTask", { taskId: id, isDaily });
         if (isRecurring) {
