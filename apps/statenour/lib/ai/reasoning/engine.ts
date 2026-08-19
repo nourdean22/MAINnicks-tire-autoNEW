@@ -1426,6 +1426,21 @@ async function persistTrace(
       },
     });
 
+    // 2026-08-19 · outcome-loop wave · the recallable companion row.
+    // The raw trace above is bookkeeping (budget/telemetry read it,
+    // recall deliberately can't) — this writes the distilled, EMBEDDED
+    // reasoning_conclusion so Nick can recall what he concluded instead
+    // of re-reasoning from scratch. Fire-and-forget; never blocks.
+    void import("@/lib/ai/reasoning/persist-conclusion").then(({ persistReasoningConclusion }) =>
+      persistReasoningConclusion({
+        question,
+        answer: result.trace.answer,
+        confidence: result.trace.confidence,
+        tier: result.tier,
+        traceKey: key,
+      }),
+    ).catch(() => { /* bookkeeping only */ });
+
     // H.4.2 + H.7.4 · DETERMINISTIC rotation · every 10th write since
     // module load triggers a prune. Pre-H.7 was Math.random() < 0.1
     // which under burst writes could either over-prune (3 rotates in
