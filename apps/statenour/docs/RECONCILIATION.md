@@ -1,5 +1,65 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-19 · Architecture-reimagine wave — one priority scale, unknown ≠ zero, supersession lane-complete (1 PR, 10 commits)
+>
+> **Trigger:** the operator's full-product reimagination mission. Six parallel read-only
+> audits (surface/IA · intelligence seams · execution loops · truth semantics · perf ·
+> design/mobile) gated against the 07-28 blueprint; implementation; then a pre-merge
+> adversarial fleet (6 hostile finders + 12 refuters + 2 web researchers → **55 deduped
+> findings, 12 CONFIRMED, 0 refuted**) whose findings were closed across a Codex pass, a
+> GPT-5 pass, and this session's round-2. Canonical record + full audit maps:
+> [`REIMAGINE-VERDICT-2026-08-19.md`](REIMAGINE-VERDICT-2026-08-19.md).
+>
+> - **autoPriority polarity canonicalized** — ONE scale (0-100, higher = more urgent;
+>   bands ≥80/≥60/≥40 in `lib/scoring/task-priority.ts`). The column had carried two
+>   opposite conventions with ~27 readers split down the middle: the 8am MIT picker,
+>   daily scheduler, todo desk, mission cards, execution focus, goals nextMove and
+>   Nick's own task list were structurally surfacing least-urgent-first. 5 writers +
+>   ~26 readers aligned; triage-someday's `70` (old someday = new HIGH) fixed; the
+>   repo-wide source scan bans asc sorts, lt-filters, legacy override literals AND
+>   plain `"desc"` (Postgres DESC = NULLS FIRST — 27 sorts converted to
+>   `{ sort: "desc", nulls: "last" }`).
+> - **Unknown ≠ zero on operator surfaces** — situation card's emerald-on-error killed;
+>   meta-scoreboard failed reads become `measured:false` "—" anomalies (never a calm 0);
+>   revenue mirror honest by ET calendar day; pinned Δ-baseline bounded to today; Home
+>   action matrix + /missions render explicit unreadable/stale states (TanStack v5
+>   `isError && !data` doctrine — cached board + "refresh failed" note on refetch
+>   failure); /system errors card stops saying "Clean" on a null read; `system.hub`
+>   (~20-query rollup, Home's slowest batch member) now `cached()` 30s.
+> - **BDN-310 supersession lane-COMPLETE** — first writer (contradiction loser gets
+>   `supersededById` + `validUntil` = winner's `validFrom`∥now; winner gets
+>   `lastVerifiedAt` — that column's first writer; verdict-flips un-strand the winner)
+>   and EVERY read lane filters: both recall lanes + fallback + graph-context injector +
+>   searchMemories (FTS SQL + prisma) + cold-memory hydration + memory-manager recall()
+>   + the shared knnSearch liveness EXISTS every semanticSearch caller inherits.
+>   9 reader source-pins in `tests/brain/supersession-recall.test.ts`.
+> - **Task.personId reaches the DB** — taskCreateSchema had silently stripped it on the
+>   createTask path (createTaskAndEnrich never parsed with zod — mechanism corrected in
+>   round-2); FK-existence guard added beside the goalId guard.
+> - **Truth hygiene** — gateway kill-switches registered `readOnly`+`offValue` (board
+>   renders ENV ONLY, override mutation rejects them — a working-looking OFF that did
+>   nothing at runtime was worse than invisibility); reasoning toolbox count stopped
+>   lying (socialTools source + strict-equality test); skill-extractor bands
+>   re-unified with ghost-nick via `priorityBandLabel`; six hand-rolled band ternaries
+>   consolidated; nick-agent prompt vocabulary fixed (numeric 1-10 was silently
+>   discarded to 50); attention-tracker no longer turns a failed chat read into
+>   "every domain neglected"; both tool-contract snapshots ratified via sanctioned
+>   regeneration after the full suite correctly flagged the intended description change.
+> - **Cross-session note:** main's #1698 was this branch's own pre-round-2 state pushed
+>   independently by the operator's ChatGPT/Codex session — the merge took this branch
+>   on all 27 conflicted files (each main hunk was the older version of the same fix).
+>
+> **Flagged · NOT fixed:** legacy `manualPriorityOverride` rows written under the old
+> scale are sticky-inverted until the operator runs the read-only census
+> (`scripts/probe-task-priority-overrides.ts` via `railway run`) and authorizes a remap ·
+> `lib/brain/brain-graph.ts` still plain-desc (NULLS FIRST nuance; sibling's lane —
+> allowlisted in the polarity scan, routed there) · knnSearch supersession applies only
+> to `brain_memory` rows by design (other silos have no supersession columns) ·
+> WP-5 (warroom/research/simulator reachability) + WP-9 (Money tabs) remain operator
+> decisions · next-wave spine per the verdict doc: close the outcome loop end-to-end
+> (recordOutcome writers exist unwired · Task.outcomeRating/outcomeLesson → auto-learn ·
+> reasoning traces re-enter memory via remember()).
+
 > ## 2026-08-19 · Brain wave 2 — the honesty pass: dead ends made visible, dead code removed (1 PR)
 >
 > Everything the wave-1 entry below flagged as "NOT built", built — plus a finding that
@@ -339,7 +399,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (OS-Health truth pass — instrument-layer fixes across /system/health, cron logging, schema sentinel; prior: persona measurement arc #1649-#1665 + chat-UX arc #1670-#1679); detail in the top entry
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (architecture-reimagine wave — one priority scale, unknown-≠-zero operator surfaces, supersession lane-complete; same-day: Brain waves 1-2, OS-Health truth pass, mega-evening dispatch); detail in the top entry
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -867,7 +927,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-18 (persona measurement arc: GATE-2026-08-14 fully executed, 13 PRs #1649-#1665, suite 8.2; + chat-UX arc #1670-#1679); top entry.
+**Last verified:** 2026-08-19 (architecture-reimagine wave: one priority scale + unknown-≠-zero + supersession lane-complete; prior same-day: Brain waves 1-2, OS-Health truth pass); top entry.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
