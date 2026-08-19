@@ -546,6 +546,11 @@ async function startServer() {
   });
 
   // Robots.txt — controls crawler access
+  // 2026-08-19 · removed `Disallow: /loyalty` and `Disallow: /referral`.
+  // Neither path exists. The live routes are /rewards and /refer
+  // (shared/routes.ts), both sitemap:true + prerender:true — i.e. the
+  // registry says they are MEANT to be crawled, so "correcting" the
+  // disallow to the real paths would have been a new bug. Deleted instead.
   app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.setHeader("Cache-Control", "public, max-age=86400");
@@ -560,8 +565,6 @@ Disallow: /portal
 Disallow: /api/
 Disallow: /status/
 Disallow: /inspection/
-Disallow: /loyalty
-Disallow: /referral
 
 # Block tracking parameters only
 Disallow: /*?utm_*

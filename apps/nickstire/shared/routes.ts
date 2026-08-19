@@ -387,7 +387,11 @@ const SERVICE_PAGES: RouteEntry[] = [
     // 301s to /auto-repair-near-me (server/_core/redirects.ts) — a
     // redirecting URL must not be in the sitemap (GSC audit 2026-07-04).
     sitemap: false,
-    prerender: true,
+    // 2026-08-19 · prerender:false — this path 301s to /auto-repair-near-me in
+    // server/_core/redirects.ts, so the captured HTML can never be served.
+    // Prerendering it also produced a permanent false MISSING alarm in
+    // check-prerender.mjs, masking real misses. Same treatment as /estimate.
+    prerender: false,
   },
   {
     path: "/alignment",
@@ -713,7 +717,11 @@ const CITY_PAGES: RouteEntry[] = [
     group: "landing",
     // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
     sitemap: false,
-    prerender: true,
+    // 2026-08-19 · prerender:false — this path 301s to /moes-tire-euclid in
+    // server/_core/redirects.ts, so the captured HTML can never be served.
+    // Prerendering it also produced a permanent false MISSING alarm in
+    // check-prerender.mjs, masking real misses. Same treatment as /estimate.
+    prerender: false,
   },
   {
     path: "/moes-tire",
@@ -724,7 +732,11 @@ const CITY_PAGES: RouteEntry[] = [
     group: "landing",
     // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
     sitemap: false,
-    prerender: true,
+    // 2026-08-19 · prerender:false — this path 301s to /moes-tire-euclid in
+    // server/_core/redirects.ts, so the captured HTML can never be served.
+    // Prerendering it also produced a permanent false MISSING alarm in
+    // check-prerender.mjs, masking real misses. Same treatment as /estimate.
+    prerender: false,
   },
   {
     path: "/moes-tires",
@@ -735,7 +747,11 @@ const CITY_PAGES: RouteEntry[] = [
     group: "landing",
     // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
     sitemap: false,
-    prerender: true,
+    // 2026-08-19 · prerender:false — this path 301s to /moes-tire-euclid in
+    // server/_core/redirects.ts, so the captured HTML can never be served.
+    // Prerendering it also produced a permanent false MISSING alarm in
+    // check-prerender.mjs, masking real misses. Same treatment as /estimate.
+    prerender: false,
   },
   {
     path: "/moes-tire-euclid",
@@ -770,7 +786,11 @@ const CITY_PAGES: RouteEntry[] = [
     group: "seo-service",
     // 301s to /muffler-shop-open-sunday-cleveland (redirects.ts).
     sitemap: false,
-    prerender: true,
+    // 2026-08-19 · prerender:false — this path 301s to /muffler-shop-open-sunday-cleveland in
+    // server/_core/redirects.ts, so the captured HTML can never be served.
+    // Prerendering it also produced a permanent false MISSING alarm in
+    // check-prerender.mjs, masking real misses. Same treatment as /estimate.
+    prerender: false,
   },
   {
     path: "/sunday-mechanic-cleveland",
@@ -781,7 +801,11 @@ const CITY_PAGES: RouteEntry[] = [
     group: "seo-service",
     // 301s to /muffler-shop-open-sunday-cleveland (redirects.ts).
     sitemap: false,
-    prerender: true,
+    // 2026-08-19 · prerender:false — this path 301s to /muffler-shop-open-sunday-cleveland in
+    // server/_core/redirects.ts, so the captured HTML can never be served.
+    // Prerendering it also produced a permanent false MISSING alarm in
+    // check-prerender.mjs, masking real misses. Same treatment as /estimate.
+    prerender: false,
   },
   {
     path: "/willoughby-auto-repair",
@@ -1179,7 +1203,11 @@ const UTILITY_PAGES: RouteEntry[] = [
     group: "utility",
     // 301s to /booking (redirects.ts) — keep out of sitemap.
     sitemap: false,
-    prerender: true,
+    // 2026-08-19 · prerender:false — this path 301s to /booking in
+    // server/_core/redirects.ts, so the captured HTML can never be served.
+    // Prerendering it also produced a permanent false MISSING alarm in
+    // check-prerender.mjs, masking real misses. Same treatment as /estimate.
+    prerender: false,
   },
   {
     // 2026-04-26 GSC audit: was sitemap:false (treated as auth-gated /
