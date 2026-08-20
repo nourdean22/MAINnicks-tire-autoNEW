@@ -17,17 +17,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   create: vi.fn().mockResolvedValue({ id: "row" }),
+  findMany: vi.fn().mockResolvedValue([]),
   publishDurable: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { cronJobLog: { create: h.create } },
+  prisma: { cronJobLog: { create: h.create, findMany: h.findMany } },
 }));
 vi.mock("@/lib/db/brain-bus-durable", () => ({
   publishDurable: h.publishDurable,
 }));
 
-import { logCronRun } from "@/lib/services/cron-manager";
+import { logCronRun, getCronStatus } from "@/lib/services/cron-manager";
 
 beforeEach(() => {
   h.create.mockClear();
@@ -102,5 +103,28 @@ describe("logCronRun", () => {
         data: expect.objectContaining({ status: "failed", error: "boom" }),
       }),
     );
+  });
+});
+
+describe("getCronStatus success rate", () => {
+  it("does not score a degraded (partial) run as a success", () => {
+    // 2026-08-20 · `partial` sat in `total` but in neither bucket, so
+    // `(total - failures) / total` counted every degraded fan-out run as a
+    // full success. mega-evening reported 100% across 1,248 partial runs
+    // while never once finishing clean.
+    h.findMany.mockResolvedValueOnce([
+      { jobName: "mega-evening", status: "partial", createdAt: new Date("2026-08-20T03:04:37Z"), duration: 1 },
+      { jobName: "mega-evening", status: "partial", createdAt: new Date("2026-08-20T04:04:37Z"), duration: 1 },
+      { jobName: "mega-evening", status: "partial", createdAt: new Date("2026-08-20T05:04:37Z"), duration: 1 },
+      { jobName: "mega-evening", status: "success", createdAt: new Date("2026-08-20T09:03:08Z"), duration: 1 },
+    ]);
+
+    return getCronStatus(10).then((res) => {
+      const row = res.summary.find((r) => r.jobName === "mega-evening");
+      expect(row).toBeDefined();
+      expect(row!.total).toBe(4);
+      expect(row!.partials).toBe(3);
+      expect(row!.successRate).toBe(25);
+    });
   });
 });

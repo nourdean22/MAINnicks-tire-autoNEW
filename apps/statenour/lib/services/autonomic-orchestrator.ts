@@ -55,8 +55,35 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
         continue;
       }
 
-      const isFailing = row.lastStatus === "failed" || row.fail14d > 0;
-      const isNeverRun = row.lastRunAt === null || (row.success14d === 0 && row.fail14d === 0);
+      // 2026-08-20 · NEVER re-trigger a fan-out parent. `cron-healer` runs
+      // INSIDE the mega fan-out — lib/inngest/jobs.ts EVENING_JOBS contains
+      // "/api/cron/cron-healer" — so "healing" mega / mega-evening re-enters
+      // this very orchestrator. Mutual recursion with no base case: it ran
+      // mega-evening 1,237 times between 03:04Z and 08:38Z (zero green) and
+      // dragged every other cron to ~450 runs/hour with it. Re-running a
+      // whole fan-out was never a targeted heal anyway — the unit worth
+      // rescuing is the individual child, which the fan-out already retries.
+      const targetPath = row.path ?? `/api/cron/${row.name}`;
+      if (targetPath.startsWith("/api/cron/mega")) {
+        continue;
+      }
+
+      // Failing means the LAST run failed — not "failed once this fortnight".
+      // `fail14d > 0` kept re-rescuing already-green jobs, which is why the
+      // operator woke to a wall of "Rescued ingest-reviews ... Status: 200"
+      // alerts; a 200 is proof it was never broken. `partial` is excluded on
+      // purpose: a degraded fan-out is not a dead cron, and re-running it is
+      // exactly the recursion guarded against above.
+      const isFailing = row.lastStatus === "failed";
+
+      // "Nothing recorded in the 14d window" is the intended meaning, and the
+      // counters ARE that window — the bug was that `partial` fell into no
+      // bucket at all. mega-evening ran 1,248 times in 14 days, every one
+      // partial, so success14d and fail14d were both 0 and it classified as
+      // NEVER RUN — healed on every single pass, forever.
+      const runsInWindow =
+        row.success14d + (row.partial14d ?? 0) + row.fail14d;
+      const isNeverRun = row.lastRunAt === null || runsInWindow === 0;
 
       if (isFailing || isNeverRun) {
         const reason = isFailing ? "failing" : "never_run";

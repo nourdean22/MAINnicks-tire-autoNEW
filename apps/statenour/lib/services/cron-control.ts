@@ -239,7 +239,7 @@ export async function listScheduledCrons(): Promise<ScheduledCron[]> {
 
 /** Last success + failure count (14d window) per job. For Settings UI. */
 export async function getCronStats(): Promise<
-  Record<string, { lastSuccessAt: string | null; lastFailAt: string | null; success14d: number; fail14d: number }>
+  Record<string, CronJobStats>
 > {
   const since = new Date(Date.now() - 14 * 86400_000);
   const rows = await prisma.cronJobLog.groupBy({
@@ -247,12 +247,16 @@ export async function getCronStats(): Promise<
     where: { createdAt: { gte: since } },
     _count: { id: true },
   });
-  const stats: Record<string, { lastSuccessAt: string | null; lastFailAt: string | null; success14d: number; fail14d: number }> = {};
+  const stats: Record<string, CronJobStats> = {};
   for (const r of rows) {
     if (!stats[r.jobName]) {
-      stats[r.jobName] = { lastSuccessAt: null, lastFailAt: null, success14d: 0, fail14d: 0 };
+      stats[r.jobName] = { lastSuccessAt: null, lastFailAt: null, success14d: 0, partial14d: 0, fail14d: 0 };
     }
     if (r.status === "success") stats[r.jobName].success14d = r._count.id;
+    // `partial` is its own bucket. Folding it into either neighbour is the
+    // 2026-08-20 defect: dropped from BOTH counters, mega-evening looked
+    // like it had never run at all, and its success rate read 100%.
+    if (r.status === "partial") stats[r.jobName].partial14d = r._count.id;
     if (r.status === "failed") stats[r.jobName].fail14d = r._count.id;
   }
 
@@ -291,6 +295,47 @@ export async function getCronStats(): Promise<
  * Throws ServiceError(404) for an unknown job, ServiceError(410) for a
  * retired one — both transports reject identically.
  */
+/**
+ * The tri-state a finished cron run can be in.
+ *
+ * 2026-08-20 · `partial` used to be invisible here: both cron-tree and
+ * system-pages collapsed every non-"success" row into "failed". That lie
+ * cost a night. `mega-evening` only ever writes `partial` (a fan-out where
+ * SOME children failed), so it read as a hard failure in the UI *and* the
+ * autonomic healer treated it as broken and re-ran it — while the
+ * success/fail counters, which count neither, simultaneously reported it
+ * had "never run". A partial run is degraded, not dead, and not absent.
+ */
+export type CronLastStatus = "success" | "partial" | "failed";
+
+/** 14-day per-job tallies. `partial` is tracked separately, never folded. */
+export type CronJobStats = {
+  lastSuccessAt: string | null;
+  lastFailAt: string | null;
+  success14d: number;
+  partial14d: number;
+  fail14d: number;
+};
+
+/**
+ * A HARD failure — the run threw or the route died. A `partial` fan-out is
+ * degraded, not dead, so it is deliberately excluded.
+ *
+ * Single source of truth: system-health.ts already carried a private copy of
+ * this rule, and the copies drifted — the healer and the health page could
+ * disagree about whether the same run had failed.
+ */
+export function isHardFailure(status: string): boolean {
+  return status !== "success" && status !== "partial";
+}
+
+/** Map a raw CronJobLog.status onto that tri-state. Never collapse. */
+export function normalizeCronStatus(status: string): CronLastStatus {
+  if (status === "success") return "success";
+  if (status === "partial") return "partial";
+  return "failed";
+}
+
 export async function runManifestCron(
   jobName: string,
 ): Promise<CronTriggerResult & { jobName: string }> {

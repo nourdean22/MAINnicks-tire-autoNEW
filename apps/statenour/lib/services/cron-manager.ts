@@ -119,13 +119,17 @@ export async function getCronStatus(limit = 50) {
   });
 
   // Group by jobName — get last run + success rate
-  const byJob: Record<string, { lastRun: Date; lastStatus: string; total: number; failures: number }> = {};
+  const byJob: Record<string, { lastRun: Date; lastStatus: string; total: number; failures: number; partials: number }> = {};
   for (const log of logs) {
     if (!byJob[log.jobName]) {
-      byJob[log.jobName] = { lastRun: log.createdAt, lastStatus: log.status, total: 0, failures: 0 };
+      byJob[log.jobName] = { lastRun: log.createdAt, lastStatus: log.status, total: 0, failures: 0, partials: 0 };
     }
     byJob[log.jobName].total++;
     if (log.status === "failed") byJob[log.jobName].failures++;
+    // 2026-08-20 · `partial` is in `total` but was in neither bucket, so the
+    // old `(total - failures) / total` scored every degraded fan-out run as a
+    // full success: mega-evening read 100% across 1,248 partial runs.
+    if (log.status === "partial") byJob[log.jobName].partials++;
   }
 
   return {
@@ -133,7 +137,10 @@ export async function getCronStatus(limit = 50) {
     summary: Object.entries(byJob).map(([jobName, data]) => ({
       jobName,
       ...data,
-      successRate: data.total > 0 ? Math.round(((data.total - data.failures) / data.total) * 100) : 100,
+      successRate:
+        data.total > 0
+          ? Math.round(((data.total - data.failures - data.partials) / data.total) * 100)
+          : 100,
     })),
   };
 }

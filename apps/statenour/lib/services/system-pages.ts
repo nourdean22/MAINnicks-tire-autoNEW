@@ -64,7 +64,13 @@ import { isInngestFullyConfigured } from "@/lib/inngest/client";
 import { MEGA_JOB_COUNTS } from "@/lib/inngest/jobs";
 import { braintrustWrapStatus } from "@/lib/ai/braintrust-wrap";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
-import { listCronControls, getCronStats } from "@/lib/services/cron-control";
+import {
+  listCronControls,
+  getCronStats,
+  normalizeCronStatus,
+  isHardFailure,
+  type CronLastStatus,
+} from "@/lib/services/cron-control";
 import {
   measure,
   deriveHealthHeadline,
@@ -1215,7 +1221,8 @@ export async function buildCronRunHistory(opts: {
   });
 
   const succ = rows.filter((r) => r.status === "success");
-  const fail = rows.filter((r) => r.status !== "success");
+  // `partial` is degraded, not failed — see isHardFailure.
+  const fail = rows.filter((r) => isHardFailure(r.status));
   const successRate =
     rows.length === 0
       ? null
@@ -1280,12 +1287,13 @@ export interface CronDeckRow {
   lastSuccessAt: string | null;
   lastFailAt: string | null;
   success14d: number;
+  partial14d: number;
   fail14d: number;
   successRate: number;
   recentDurations: number[];
   lastRunAt: string | null;
   lastRunMs: number | null;
-  lastStatus: "success" | "failed" | null;
+  lastStatus: CronLastStatus | null;
   nextRunAt: string | null;
   drift: number | null;
 }
@@ -1381,21 +1389,25 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
       lastSuccessAt: null,
       lastFailAt: null,
       success14d: 0,
+      partial14d: 0,
       fail14d: 0,
     };
     const logs = (logsByName.get(c.name) ?? []).slice(0, 20).reverse();
-    const total = st.success14d + st.fail14d;
+    // Denominator must include `partial`, or a job whose every run is
+    // partial divides by zero and reports a triumphant 100%. mega-evening
+    // did exactly that for 1,248 consecutive runs.
+    const total = st.success14d + st.partial14d + st.fail14d;
     const successRate =
       total > 0 ? Math.round((st.success14d / total) * 100) : 100;
 
     let lastRunAt: string | null = null;
     let lastRunMs: number | null = null;
-    let lastStatus: "success" | "failed" | null = null;
+    let lastStatus: CronLastStatus | null = null;
     const newest = logs[logs.length - 1];
     if (newest) {
       lastRunAt = newest.createdAt.toISOString();
       lastRunMs = newest.duration;
-      lastStatus = newest.status === "success" ? "success" : "failed";
+      lastStatus = normalizeCronStatus(newest.status);
     }
 
     let nextRunAt: string | null = null;
@@ -1421,6 +1433,7 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
       lastSuccessAt: st.lastSuccessAt,
       lastFailAt: st.lastFailAt,
       success14d: st.success14d,
+      partial14d: st.partial14d,
       fail14d: st.fail14d,
       successRate,
       recentDurations: logs.map((l) => l.duration ?? 0),
@@ -1596,7 +1609,11 @@ export async function buildDeploymentTruth(): Promise<DeploymentTruthView> {
         cronStats.find((s) => s.status === "success")?._count._all ?? 0;
       const cronFailed =
         cronStats.find((s) => s.status === "failed")?._count._all ?? 0;
-      const cronTotal = cronSuccess + cronFailed;
+      // Excluding `partial` hid the mega fan-out from the health rate
+      // entirely: 2,536 partial runs counted toward neither side.
+      const cronPartial =
+        cronStats.find((s) => s.status === "partial")?._count._all ?? 0;
+      const cronTotal = cronSuccess + cronPartial + cronFailed;
       const cronRate =
         cronTotal === 0
           ? 100

@@ -105,6 +105,7 @@ export const cronProcedures = {
         lastSuccessAt: null,
         lastFailAt: null,
         success14d: 0,
+        partial14d: 0,
         fail14d: 0,
       };
       return {
