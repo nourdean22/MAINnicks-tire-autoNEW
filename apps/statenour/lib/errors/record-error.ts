@@ -55,6 +55,7 @@ export type ErrorDomain =
   | "ai:agent-feedback" // v10.0.529.106 wave-74 · nick-agent feedbackLoop
   | "integrations:make" // v10.0.529.106 wave-74 · notifyMake webhook posts
   | "notifications:audit" // v10.0.529.106 wave-74 · push notification audit-log writes
+  | "notifications:cooldown" // 2026-08-20 · per-tag push flood-control check (fails open to sending)
   | "brain:memory-embedding" // v10.0.529.106 wave-77 · memory-manager storeMemoryEmbedding
   | "brain:memory-recall" // v10.0.529.106 wave-77 · memory-recall lastSeen bump
   | "brain:memory-consolidation" // v10.0.529.106 wave-77 · memory-consolidation graph link writes
