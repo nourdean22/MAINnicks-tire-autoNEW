@@ -66,6 +66,42 @@ describe("summarizeFailingChildren", () => {
     expect(out).toEqual([{ path: "/api/cron/predict", count: 1 }]);
   });
 
+  it("parses the PROSE format the live Inngest v2 path writes — found empty-handed 2026-08-20", () => {
+    // Real rows, verbatim from prod cron_job_logs. The first parser version
+    // was JSON-only; a probe of 14 pre-storm partial nights returned ZERO
+    // children because mega-fanout.ts writes `failures.join(" ; ")` prose.
+    const out = summarizeFailingChildren([
+      "/api/cron/consolidate: The operation was aborted due to timeout ; /api/cron/mastery-xp: The operation was aborted due to timeout",
+      "/api/cron/consolidate: The operation was aborted due to timeout",
+    ]);
+    expect(out[0]).toEqual({ path: "/api/cron/consolidate", count: 2 });
+    expect(out).toContainEqual({ path: "/api/cron/mastery-xp", count: 1 });
+  });
+
+  it("does not double-count a path mentioned inside a failure message", () => {
+    // Real row: the path appears TWICE — once as the segment head, once
+    // inside the message. Only the anchored head counts.
+    const out = summarizeFailingChildren([
+      "/api/cron/ingest-reviews: child cron /api/cron/ingest-reviews returned 500 after 388ms",
+    ]);
+    expect(out).toEqual([{ path: "/api/cron/ingest-reviews", count: 1 }]);
+  });
+
+  it("aggregates query-string children under the base path", () => {
+    const out = summarizeFailingChildren([
+      "/api/cron/journal-checkin?slot=evening: timeout ; /api/cron/journal-checkin?slot=morning: timeout",
+    ]);
+    expect(out).toEqual([{ path: "/api/cron/journal-checkin", count: 2 }]);
+  });
+
+  it("mixes both formats across rows — history is JSON, the future is prose", () => {
+    const out = summarizeFailingChildren([
+      JSON.stringify([{ path: "/api/cron/consolidate", status: 502 }]),
+      "/api/cron/consolidate: The operation was aborted due to timeout",
+    ]);
+    expect(out).toEqual([{ path: "/api/cron/consolidate", count: 2 }]);
+  });
+
   it("returns empty for no errors", () => {
     expect(summarizeFailingChildren([])).toEqual([]);
   });

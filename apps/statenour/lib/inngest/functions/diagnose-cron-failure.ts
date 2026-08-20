@@ -44,30 +44,57 @@ export function isChronicPartial(counts: {
 }
 
 /**
- * Tally failing-child paths out of `summarizeSettled` error payloads
- * (`[{"path":"/api/cron/x","status":...},...]`). Prod rows are not all valid
- * JSON — legacy rows hold prose — so anything unparseable is skipped, never
- * thrown: this runs inside the diagnosis cron and a poison row must not kill
- * the diagnosis.
+ * Tally failing-child paths out of fan-out error payloads. TWO formats exist
+ * in prod, and missing either makes the diagnosis name nobody:
+ *
+ *  · PROSE — what the LIVE Inngest v2 path writes (mega-fanout.ts
+ *    `sum.failures.join(" ; ")`): `/api/cron/x: <message> ; /api/cron/y: ...`.
+ *    This is the format of essentially every partial going forward — found
+ *    2026-08-20 when a probe of pre-storm rows returned zero children from
+ *    the JSON-only first version of this parser.
+ *  · JSON array — what the legacy `/api/cron/mega` route wrote
+ *    (`[{"path":"/api/cron/x","status":...},...]`), the storm-day format.
+ *    Kept for historical rows; the healer no longer drives that route (#1735).
+ *
+ * Rows that are neither (bare prose like "handler returned ok:false") are
+ * skipped, never thrown: this runs inside the diagnosis cron and a poison
+ * row must not kill the diagnosis.
  */
+const PROSE_CHILD_RE = /(^|; )\s*(\/api\/cron\/[a-z0-9-]+)(\?[^:\s]*)?:/g;
+
 export function summarizeFailingChildren(
   errors: ReadonlyArray<string | null>,
 ): { path: string; count: number }[] {
   const tally = new Map<string, number>();
+  const bump = (path: string) => tally.set(path, (tally.get(path) ?? 0) + 1);
+
   for (const raw of errors) {
     if (!raw) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
+    const trimmed = raw.trim();
+
+    if (trimmed.startsWith("[")) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(parsed)) continue;
+      for (const child of parsed) {
+        if (child && typeof child === "object" && typeof (child as { path?: unknown }).path === "string") {
+          bump((child as { path: string }).path);
+        }
+      }
       continue;
     }
-    if (!Array.isArray(parsed)) continue;
-    for (const child of parsed) {
-      if (child && typeof child === "object" && typeof (child as { path?: unknown }).path === "string") {
-        const path = (child as { path: string }).path;
-        tally.set(path, (tally.get(path) ?? 0) + 1);
-      }
+
+    // Prose: count each `/api/cron/<name>:` that starts a failure segment.
+    // Anchored to start-of-string or a `; ` separator so a path merely
+    // MENTIONED inside a message ("child cron /api/cron/x returned 500")
+    // is not double-counted. Query-string suffixes (?slot=evening) are
+    // stripped so the same child aggregates under one path.
+    for (const m of trimmed.matchAll(PROSE_CHILD_RE)) {
+      bump(m[2]);
     }
   }
   return [...tally.entries()]
