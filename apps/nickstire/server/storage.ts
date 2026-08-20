@@ -147,14 +147,21 @@ export async function storagePut(
     // Primary: write to local data/generated/ (Express serves at /generated/)
     try {
       const genDir = path.join(process.cwd(), "data", "generated");
-      if (!fs.existsSync(genDir)) {
-        fs.mkdirSync(genDir, { recursive: true });
-      }
-      const localPath = path.join(genDir, filename);
+      // 2026-08-20 · Higgsfield stock-fallback remediation self-audit: this
+      // used to write to `path.join(genDir, filename)` — BASENAME ONLY,
+      // silently dropping the rest of `key`. Any two callers whose keys
+      // differ only by directory (e.g. `remediation-archive/<id>/original.mp4`
+      // for 11 different ids) collapsed onto the SAME local file and
+      // clobbered each other with no error, no warning, and a log line that
+      // looked like success for every one of them. `key` is already
+      // normalized (see normalizeKey below) so it is safe to use as a
+      // relative path directly.
+      const localPath = path.join(genDir, key);
+      fs.mkdirSync(path.dirname(localPath), { recursive: true });
       fs.writeFileSync(localPath, body);
       const siteUrl = process.env.SITE_URL || "https://nickstire.org";
-      const url = `${siteUrl}/generated/${filename}`;
-      log.info("storagePut: saved locally", { filename, bytes: body.length });
+      const url = `${siteUrl}/generated/${key}`;
+      log.info("storagePut: saved locally", { key, bytes: body.length });
       return { key, url };
     } catch (localErr) {
       const detail = localErr instanceof Error ? localErr.message : String(localErr);
