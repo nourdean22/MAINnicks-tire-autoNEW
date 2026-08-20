@@ -20,19 +20,25 @@
 
 import { prisma } from "@/lib/prisma";
 import { CRONS, type CronDef } from "@/config/crons";
-import { listCronControls, getCronStats } from "@/lib/services/cron-control";
+import {
+  listCronControls,
+  getCronStats,
+  normalizeCronStatus,
+  type CronLastStatus,
+} from "@/lib/services/cron-control";
 
 export type CronRow = CronDef & {
   enabled: boolean;
   lastSuccessAt: string | null;
   lastFailAt: string | null;
   success14d: number;
+  partial14d: number;
   fail14d: number;
   successRate: number; // 0-100; 100 when no runs
   recentDurations: number[]; // oldest → newest (for sparkline), last 20
   lastRunAt: string | null;
   lastRunMs: number | null;
-  lastStatus: "success" | "failed" | null;
+  lastStatus: CronLastStatus | null;
   nextRunAt: string | null; // ISO — null for folded/retired
   drift: number | null; // minutes elapsed since predicted next-run
 };
@@ -122,18 +128,21 @@ export async function buildCronTree() {
       fail14d: 0,
     };
     const logs = (logsByName.get(c.name) ?? []).slice(0, 20).reverse(); // oldest → newest
-    const total = st.success14d + st.fail14d;
+    // Denominator must include `partial`, or a job whose every run is
+    // partial divides by zero and reports a triumphant 100%. mega-evening
+    // did exactly that for 1,248 consecutive runs.
+    const total = st.success14d + st.partial14d + st.fail14d;
     const successRate =
       total > 0 ? Math.round((st.success14d / total) * 100) : 100;
 
     let lastRunAt: string | null = null;
     let lastRunMs: number | null = null;
-    let lastStatus: "success" | "failed" | null = null;
+    let lastStatus: CronLastStatus | null = null;
     const newest = logs[logs.length - 1];
     if (newest) {
       lastRunAt = newest.createdAt.toISOString();
       lastRunMs = newest.duration;
-      lastStatus = newest.status === "success" ? "success" : "failed";
+      lastStatus = normalizeCronStatus(newest.status);
     }
 
     let nextRunAt: string | null = null;
@@ -160,6 +169,7 @@ export async function buildCronTree() {
       lastSuccessAt: st.lastSuccessAt,
       lastFailAt: st.lastFailAt,
       success14d: st.success14d,
+      partial14d: st.partial14d,
       fail14d: st.fail14d,
       successRate,
       recentDurations: logs.map((l) => l.duration ?? 0),

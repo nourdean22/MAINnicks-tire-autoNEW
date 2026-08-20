@@ -201,6 +201,104 @@ describe("services/autonomic-orchestrator", () => {
     );
   });
 
+  it("Phase 1: NEVER heals a mega fan-out parent (2026-08-20 recursion)", async () => {
+    // The storm. `cron-healer` runs INSIDE the mega fan-out (jobs.ts
+    // EVENING_JOBS contains "/api/cron/cron-healer"), so healing mega /
+    // mega-evening re-enters this orchestrator — mutual recursion, no base
+    // case. Between 03:04Z and 08:38Z on 2026-08-20 it ran mega-evening
+    // 1,237 times, zero green, and dragged every other cron to ~450/hour.
+    //
+    // mega-evening writes ONLY "partial" (mega-fanout.ts: jobsFailed === 0
+    // ? success : partial), so it also tripped the never-run predicate:
+    // 1,248 runs in 14 days that landed in neither counter.
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        {
+          name: "mega-evening",
+          path: "/api/cron/mega?slot=evening",
+          enabled: true,
+          mode: "active",
+          lastStatus: "partial",
+          success14d: 0,
+          partial14d: 1248,
+          fail14d: 0,
+          lastRunAt: "2026-08-20T08:38:28Z",
+        },
+        {
+          name: "mega",
+          path: "/api/cron/mega?slot=morning",
+          enabled: true,
+          mode: "active",
+          lastStatus: "partial",
+          success14d: 0,
+          partial14d: 1269,
+          fail14d: 0,
+          lastRunAt: "2026-08-20T09:03:08Z",
+        },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(mocks.runManifestCron).not.toHaveBeenCalled();
+    expect(res.healedCrons).toEqual([]);
+  });
+
+  it("Phase 1: a partial-only cron is not mistaken for never-run", async () => {
+    // Same defect, non-mega job so the fan-out guard cannot be what saves it:
+    // `partial` counted toward neither success14d nor fail14d, so a job that
+    // ran constantly looked like it had never run once.
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        {
+          name: "degraded-cron",
+          enabled: true,
+          mode: "active",
+          lastStatus: "partial",
+          success14d: 0,
+          partial14d: 40,
+          fail14d: 0,
+          lastRunAt: "2026-08-20T08:00:00Z",
+        },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.healedCrons).not.toContain("degraded-cron");
+    expect(mocks.runManifestCron).not.toHaveBeenCalled();
+  });
+
+  it("Phase 1: a currently-green cron is not re-rescued for an old failure", async () => {
+    // `fail14d > 0` meant one stumble marked a job broken for a fortnight.
+    // The operator woke to a wall of "Rescued ingest-reviews ... Status: 200"
+    // alerts — a 200 being proof it was never broken in the first place.
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        {
+          name: "ingest-reviews",
+          enabled: true,
+          mode: "active",
+          lastStatus: "success",
+          success14d: 468,
+          partial14d: 0,
+          fail14d: 3,
+          lastRunAt: "2026-08-20T09:01:23Z",
+        },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.healedCrons).not.toContain("ingest-reviews");
+    expect(mocks.recordCoachEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Cron Healer: Rescued ingest-reviews" })
+    );
+  });
+
   it("Phase 2: vacuums bloated tables and reindexes HNSW on high latency, and vacuums over-50MB tables", async () => {
     // Mock pg stats query returning one bloated table, one large table
     mocks.clientQuery.mockResolvedValueOnce({

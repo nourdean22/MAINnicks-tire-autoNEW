@@ -13,6 +13,7 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isHardFailure } from "@/lib/services/cron-control";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export type HealthRange = "24h" | "7d" | "30d";
@@ -415,8 +416,6 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   // failed), not a hard failure. Counting it as failure — which a bare
   // `status !== "success"` did on both windows — meant a fan-out child
   // that merely ran slow was reported identically to a route that threw.
-  const isHardFailure = (status: string) =>
-    status !== "success" && status !== "partial";
   const priorCronFailureCount = priorCronLogs.filter((l) => isHardFailure(l.status)).length;
   const cronByJob = new Map<
     string,

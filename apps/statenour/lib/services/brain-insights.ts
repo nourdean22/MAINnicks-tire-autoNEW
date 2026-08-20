@@ -329,12 +329,18 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
 
   // ── 7. Cron failure trend ───────────────────────────────────
   // Total cron failures last 7d vs prior 7d.
+  // 2026-08-20 · `not: "success"` swept `partial` in with real failures. A
+  // partial is a DEGRADED fan-out (some children failed), not a dead cron —
+  // the same rule as isHardFailure() in cron-control. With 2,536 partial rows
+  // in prod this trend line reported a failure spike that was nothing of the
+  // sort, and during the 08-20 storm it was inflated beyond reading.
+  const HARD_FAILURE_ONLY = { notIn: ["success", "partial"] };
   const recentCronFails = await prisma.cronJobLog.count({
-    where: { status: { not: "success" }, createdAt: { gte: recentSince } },
+    where: { status: HARD_FAILURE_ONLY, createdAt: { gte: recentSince } },
   });
   const priorCronFails = await prisma.cronJobLog.count({
     where: {
-      status: { not: "success" },
+      status: HARD_FAILURE_ONLY,
       createdAt: { gte: priorSince, lt: recentSince },
     },
   });

@@ -69,7 +69,7 @@ interface CronRow {
   recentDurations: number[];
   lastRunAt: string | null;
   lastRunMs: number | null;
-  lastStatus: "success" | "failed" | null;
+  lastStatus: "success" | "partial" | "failed" | null;
   nextRunAt: string | null;
   drift: number | null;
 }
@@ -135,7 +135,7 @@ function describeSchedule(expr: string | null): string {
   return m[expr] ?? expr;
 }
 
-function Sparkline({ values, status }: { values: number[]; status: "success" | "failed" | null }) {
+function Sparkline({ values, status }: { values: number[]; status: "success" | "partial" | "failed" | null }) {
   if (values.length === 0) {
     return <div className="h-6 w-20 rounded bg-zinc-800/50" aria-label="no data" />;
   }
@@ -149,7 +149,9 @@ function Sparkline({ values, status }: { values: number[]; status: "success" | "
         const color = isLast
           ? status === "failed"
             ? "bg-rose-400"
-            : "bg-emerald-400"
+            : status === "partial"
+              ? "bg-amber-400"
+              : "bg-emerald-400"
           : "bg-zinc-600";
         return <span key={i} className={`w-[2px] rounded-sm ${color}`} style={{ height: `${h}px` }} />;
       })}
@@ -169,6 +171,11 @@ function StatusDot({ row }: { row: CronRow }) {
   }
   if (row.lastStatus === "failed") {
     return <span className="inline-block h-2 w-2 rounded-full bg-rose-400 animate-pulse" />;
+  }
+  // A fan-out where SOME children failed. Distinct from a dead cron: it ran,
+  // it did work, and re-running the whole slate is not the remedy.
+  if (row.lastStatus === "partial") {
+    return <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />;
   }
   if (row.drift !== null && row.drift > 0) {
     return <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />;
@@ -538,7 +545,11 @@ function CronRowView({
         <div
           className={cn(
             "font-mono text-[11px]",
-            row.lastStatus === "failed" ? "text-rose-300" : "text-zinc-300",
+            row.lastStatus === "failed"
+              ? "text-rose-300"
+              : row.lastStatus === "partial"
+                ? "text-amber-300"
+                : "text-zinc-300",
           )}
         >
           {timeAgo(row.lastRunAt)} <span className="text-zinc-500">· {durationStr}</span>
