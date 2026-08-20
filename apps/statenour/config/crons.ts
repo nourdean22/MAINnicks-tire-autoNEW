@@ -682,6 +682,17 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
   },
   {
+    name: "conversation-compile",
+    schedule: null,
+    mode: "folded",
+    category: "review",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening · 2026-08-19 memory-loop wave: the conversation compiler's tail-catcher. Prod measurement: 283 conversations → 15 live conversation_summary rows vs 158 soft-deleted — the nightly merge grinder ate prose summaries (category now consolidation-excluded) and the per-turn guard was one-shot-forever (now staleness-based, 30min debounce). Sweeps ≤10 idle conversations/run whose summary is missing, merge-ground, or older than the conversation's last activity; recompiling revives soft-deleted rows. One 'reason'-lane LLM call per conversation — the whole-corpus backfill drains across nights by design.",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     name: "anticipate",
     schedule: null,
     mode: "folded",

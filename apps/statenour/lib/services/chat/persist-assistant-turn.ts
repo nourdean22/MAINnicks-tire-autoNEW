@@ -63,6 +63,20 @@ export interface FirstTokenRef {
   value: number | null;
 }
 
+/**
+ * 2026-08-19 · memory-loop wave · one recall hit as a persisted RECEIPT.
+ * A snippet, not full content — tokenUsage is a metadata bag, and the
+ * live row is one findMany away via `id` when a reader wants the rest.
+ */
+export interface RecallReceipt {
+  id: string;
+  category: string;
+  key?: string;
+  similarity: number;
+  seenCount?: number;
+  snippet: string;
+}
+
 export interface BuildOnFinishInput {
   log: ChatLogger;
   // ─── authority kernel (2026-07-22) ────────────────────────────
@@ -98,6 +112,12 @@ export interface BuildOnFinishInput {
   contextBlocksFired: ContextBlocksFired;
   deeperContextCount: number;
   deeperContextTypes: string[];
+  // 2026-08-19 · memory-loop wave · MEMORY RECEIPTS. The recall hits that
+  // actually fired on THIS turn, persisted into tokenUsage so "why did
+  // Nick say this?" reads the receipt instead of re-running recall at
+  // read time (brain-provenance's reconstruction). Optional: alternate
+  // paths that skip recall pass nothing and persist nothing.
+  recallReceipts?: RecallReceipt[];
   // ─── timing refs ──────────────────────────────────────────────
   startedAt: number;
   firstTokenRef: FirstTokenRef;
@@ -146,6 +166,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
     recordTrace,
     messages,
     topicTier,
+    recallReceipts,
   } = deps;
   // modeOverride is part of the deps interface for completeness/future
   // header use; the lifted onFinish body doesn't reference it directly.
@@ -423,6 +444,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         contextBlocksFired,
         deeperContextCount,
         deeperContextTypes,
+        recallReceipts,
         personality,
         userContent,
         posture: deps.posture,

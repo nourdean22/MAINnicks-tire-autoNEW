@@ -85,6 +85,23 @@ export function BrainHealthView() {
     void refetch();
   }, [refetch]);
 
+  // 2026-08-19 · memory-loop wave · Backfill Studio (lite). The corpus
+  // is the live DB (chat retention = forever); the compiler's sweep
+  // engine doubles as the backfill. Batch cap 10/tap — one LLM call per
+  // conversation, so the corpus drains over taps/nights, never one shot.
+  const compileStatusQ = trpc.brain.conversationCompileStatus.useQuery(
+    { windowDays: 365, includeArchived: true },
+    { staleTime: 60_000 },
+  );
+  const compileMut = trpc.brain.compileConversations.useMutation({
+    onSettled: () => {
+      void compileStatusQ.refetch();
+    },
+  });
+  const runBackfill = useCallback(() => {
+    compileMut.mutate({ limit: 10, windowDays: 365, includeArchived: true });
+  }, [compileMut]);
+
   return (
     <div className="space-y-4">
       {loading && !data && (
@@ -142,6 +159,47 @@ export function BrainHealthView() {
                 vectorized={data.totals.vectorized}
                 total={data.totals.live}
               />
+            </div>
+          </GlassCard>
+
+          {/* ── Conversation compiler · Backfill Studio (lite) ── */}
+          <GlassCard>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <span className="section-label">Conversation compiler</span>
+                <p className="text-[10px] text-[var(--text-tertiary)] mt-1 font-mono">
+                  {compileStatusQ.data
+                    ? `${compileStatusQ.data.liveSummaries} conversations compiled · ${
+                        compileStatusQ.data.saturated
+                          ? "50+"
+                          : compileStatusQ.data.eligible
+                      } eligible for (re)compile`
+                    : compileStatusQ.isError
+                      ? "status unreadable"
+                      : "counting…"}
+                </p>
+                {compileMut.data && (
+                  <p
+                    className={`text-[10px] mt-1 font-mono ${
+                      compileMut.data.failed > 0 ? "text-amber-400" : "text-emerald-400"
+                    }`}
+                  >
+                    batch done · {compileMut.data.compiled} compiled · {compileMut.data.skipped} skipped · {compileMut.data.failed} failed
+                  </p>
+                )}
+                {compileMut.isError && (
+                  <p className="text-[10px] text-rose-400 mt-1 font-mono break-words">
+                    batch failed · {compileMut.error.message.slice(0, 120)}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={runBackfill}
+                disabled={compileMut.isPending || compileStatusQ.data?.eligible === 0}
+                className="shrink-0 min-h-11 text-[10px] font-mono uppercase tracking-wider px-3 py-2 rounded border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {compileMut.isPending ? "compiling…" : "compile next 10"}
+              </button>
             </div>
           </GlassCard>
 

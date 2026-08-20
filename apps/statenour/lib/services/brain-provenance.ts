@@ -79,6 +79,15 @@ export interface ProvenanceResult {
     selfMatchExcluded: number;
     hits: ProvenanceHit[];
     bdiChain: string;
+    /**
+     * 2026-08-19 · memory-loop wave · provenance honesty. "receipt" =
+     * these hits are what ACTUALLY fired on the turn (persisted in the
+     * message's tokenUsage.recall at stream time). "reconstruction" =
+     * the message predates receipts, so recall was RE-RUN against the
+     * reply text at read time — an approximation that can differ from
+     * what the model really saw. The modal labels the two differently.
+     */
+    origin: "receipt" | "reconstruction";
   };
   feedback: ProvenanceFeedback;
 }
@@ -97,18 +106,98 @@ export async function readMessageProvenance(args: {
       content: true,
       createdAt: true,
       conversationId: true,
+      tokenUsage: true,
     },
   });
   if (!msg) throw new ServiceError(`Message not found: ${messageId}`, 404);
 
-  // v10.0.95 audit fix · self-match exclusion · every Nick reply is
-  // auto-archived as a nick_advice memory keyed by msgId · pre-fix
-  // the top hit was always the message's own archive. Pull wider +
-  // filter self-match by key-containment so any future msgId-keyed
-  // category gets caught too.
-  const recall = await recallMemoriesForQuery(msg.content, { limit: 15 });
-  const filteredHits = recall.hits.filter((h) => !h.key.includes(messageId));
-  const trimmed = filteredHits.slice(0, 10);
+  // 2026-08-19 · memory-loop wave · RECEIPT-FIRST. If the turn persisted
+  // its recall receipts (tokenUsage.recall), answer from what ACTUALLY
+  // fired — hydrating fresh row state by id. The re-recall below becomes
+  // the labeled fallback for pre-receipt messages, not the default: it
+  // re-runs recall against the REPLY text at read time, which is a
+  // reconstruction that can differ from what the model saw (and bumps
+  // lastSeen as a side effect).
+  const receipts = (
+    (msg.tokenUsage as { recall?: unknown } | null)?.recall ?? []
+  ) as Array<{
+    id?: string;
+    category?: string;
+    key?: string;
+    similarity?: number;
+    seenCount?: number;
+    snippet?: string;
+  }>;
+  const hasReceipts = Array.isArray(receipts) && receipts.length > 0;
+
+  let trimmed: Array<{
+    memoryId: string;
+    category: string;
+    key: string;
+    content: string;
+    confidence: number;
+    seenCount: number;
+    ageDays: number;
+    knnDistance: number;
+    finalScore: number;
+  }>;
+  let scanned: number;
+  let selfMatchExcluded: number;
+  let durationMs: number;
+  const origin: "receipt" | "reconstruction" = hasReceipts ? "receipt" : "reconstruction";
+
+  if (hasReceipts) {
+    const t0 = Date.now();
+    const ids = receipts.map((r) => String(r.id ?? "")).filter(Boolean);
+    const rows = await prisma.brainMemory.findMany({
+      // deletedAt filter (review 2026-08-20): without it a since-
+      // forgotten/merged memory rendered as LIVE in the receipt. A
+      // soft-deleted row now takes the honest snippet fallback below,
+      // same as a hard-deleted one — the receipt outlives the row.
+      where: { id: { in: ids }, deletedAt: null },
+      select: {
+        id: true, category: true, key: true, content: true,
+        confidence: true, seenCount: true, createdAt: true,
+      },
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    trimmed = receipts
+      .filter((r) => r.id)
+      .map((r) => {
+        const live = byId.get(String(r.id));
+        const similarity = typeof r.similarity === "number" ? r.similarity : 0;
+        return {
+          memoryId: String(r.id),
+          category: live?.category ?? String(r.category ?? "unknown"),
+          key: live?.key ?? String(r.key ?? ""),
+          // Live content when the row still exists; the receipt snippet
+          // when it was since deleted/merged — the receipt outlives the row.
+          content: live?.content ?? `${String(r.snippet ?? "")} (row no longer live)`,
+          confidence: live?.confidence ?? 0,
+          seenCount: r.seenCount ?? live?.seenCount ?? 1,
+          ageDays: live
+            ? Math.floor((Date.now() - live.createdAt.getTime()) / 86_400_000)
+            : 0,
+          knnDistance: Math.max(0, Math.min(1, 1 - similarity)),
+          finalScore: similarity,
+        };
+      });
+    scanned = receipts.length;
+    selfMatchExcluded = 0;
+    durationMs = Date.now() - t0;
+  } else {
+    // v10.0.95 audit fix · self-match exclusion · every Nick reply is
+    // auto-archived as a nick_advice memory keyed by msgId · pre-fix
+    // the top hit was always the message's own archive. Pull wider +
+    // filter self-match by key-containment so any future msgId-keyed
+    // category gets caught too.
+    const recall = await recallMemoriesForQuery(msg.content, { limit: 15 });
+    const filteredHits = recall.hits.filter((h) => !h.key.includes(messageId));
+    trimmed = filteredHits.slice(0, 10);
+    scanned = recall.scanned;
+    selfMatchExcluded = recall.hits.length - filteredHits.length;
+    durationMs = recall.durationMs;
+  }
 
   // Optionally pull the preceding user turn for assistant messages ·
   // Nick's reply was a function of the user message that preceded it.
@@ -182,11 +271,12 @@ export async function readMessageProvenance(args: {
     },
     userContext,
     recall: {
-      scanned: recall.scanned,
-      durationMs: recall.durationMs,
-      selfMatchExcluded: recall.hits.length - filteredHits.length,
+      scanned,
+      durationMs,
+      selfMatchExcluded,
       hits: annotatedHits,
       bdiChain: bdiChainSummary(trimmed),
+      origin,
     },
     feedback: {
       judgment: judgment

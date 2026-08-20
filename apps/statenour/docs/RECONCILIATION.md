@@ -1,5 +1,55 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-20 · Memory-loop wave — the compiler was never starved, its output was eaten; receipts, studio, temporal evals (1 PR)
+>
+> The memory-truth wave's four next moves, executed with measurement-first discipline.
+> Prod probes ran before AND after every claim (all read-only except one operator-approved
+> corrective backfill).
+>
+> - **① Compiler resurrection.** The audit asked "why did 282 conversations produce only 14
+>   summaries?" — the probe answered: **283 conversations → 15 LIVE rows vs 158 SOFT-DELETED**,
+>   125 digest audits. The compiler ran all along; the nightly mergeMemories grinder ate its
+>   prose output (JSON `chat_summary` sailed through the parse guard) and the confidence
+>   ratchet pinned the category at equilibrium (conf-1.0 blobs, seen=105/48/20). Fixed:
+>   `conversation_summary`/`decision_log`/`insight` (+ `eval_run`, self-audit) joined
+>   `CONSOLIDATION_EXCLUDE_CATEGORIES`; the one-shot-forever AuditEvent guard became a
+>   freshness guard on the summary row itself (30min debounce; soft-deleted row → recompile
+>   REVIVES it, fan-out rows too — review caught that half missing); budget throws surface
+>   loudly; `conversation_summary` TTL declared-but-never-applied corrected to permanent;
+>   nightly `conversation-compile` cron (mega-evening) sweeps ≤10 idle conversations.
+> - **② Memory receipts.** Recall hits were flattened, fired once over an ephemeral SSE event,
+>   and dropped — "why did Nick say this?" RE-RAN recall at read time and presented the
+>   reconstruction as the answer. Now the turn persists lite receipts into
+>   `tokenUsage.recall` (rides the existing hydration, zero new columns); provenance is
+>   receipt-first (turn-time similarity + seenCount, `deletedAt`-filtered hydration, a receipt
+>   OUTLIVES its row via snippet fallback); the trace modal labels origin honestly
+>   (`receipt · what fired on this turn` vs `reconstruction · re-run at read time`).
+> - **③ Backfill Studio (lite).** The "preserved 50-conversation corpus" is NOT a file — it is
+>   the live DB (chat retention = forever, enforced-by: none, verified). The sweep engine
+>   doubles as the backfill: `brain.compileConversations` (cap 25) + status query + a
+>   health-view card ("compile next 10"). Eligibility moved into SQL on `messageCount` after
+>   MEASURING the counter (5 rows lied low, worst counter=1 vs real=15) and backfilling it on
+>   prod (**45 drifted rows corrected**, re-probe 0 liars) — the JS post-filter version could
+>   pin eligible=0 forever behind abandoned 2-message conversations.
+> - **④ Temporal evals.** `temporal` was a DECLARED RecallEvalCase kind with ZERO cases since
+>   Wave-4. Three cases now pin that past-tense phrasing ("what did X used to be") cannot
+>   resurrect a superseded row; two time-anchored false-premise abstention cases added; drift
+>   pins keep both kinds populated. Registry gap closed: `BRAIN_CATEGORIES.INSIGHT` (1,108
+>   live rows, recall-whitelisted, no constant) — writers converted, domain-grouped.
+> - **Review round:** self-audit found the sweep counting a budget-exhausted night's zero
+>   writes as "10 compiled" (all-clear-on-failure, in code written hours earlier — statuses
+>   are now truthful end-to-end) + the eval_run grind risk; two hostile reviewers added the
+>   fan-out revival P0 and the eligibility-starvation + receipt-soft-delete P1s. All fixed.
+>
+> **Flagged · NOT fixed:** fan-out rows (`decision_log`/`insight`) get no `expiresAt` — the
+> declared TTLs never apply to direct upserts (bounded ≤4 rows/conversation; same class as the
+> conversation_summary fiction this wave corrected — a writer-side `computeExpiresAt` sweep is
+> the real fix) · fan-out decision keys are index-based (`conv_<id>_decision_<i>`) — a
+> recompile with reordered decisions drifts row content (content-quality only, no data loss) ·
+> `messageCount` can still drift low from failed fire-and-forget bumps (residual risk accepted;
+> the backfill script is idempotent and re-runnable) · consolidation merge still never
+> re-embeds the keeper (pre-existing, all embedded categories).
+
 > ## 2026-08-19 · Outcome-loop wave — the OS finally learns from what happened (1 PR)
 >
 > **Trigger:** the reimagine verdict's next-wave spine — recordOutcome had ZERO callers
@@ -643,7 +693,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-19 (memory-truth wave #1716 — honest attention labels, telemetry quarantined from both recall lanes, chat capture keeps its items; same-day: outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-20 (memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1171,7 +1221,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-19 (memory-truth wave #1716: honest attention labels + telemetry quarantine + chat-capture provenance; prior same-day: outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — DB measured writable again ~16:30 ET); top entries.
+**Last verified:** 2026-08-20 (memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

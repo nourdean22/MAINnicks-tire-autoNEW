@@ -1,6 +1,6 @@
 # NOUR OS — Session Buffer
 
-**Updated: 2026-08-19** · Five fields, nothing else. If the SessionStart briefing
+**Updated: 2026-08-20** · Five fields, nothing else. If the SessionStart briefing
 reports this file as stale, distrust everything below it and re-derive from source.
 
 > **Maintenance contract.** This is agent-maintained. Update the five fields at the
@@ -10,38 +10,30 @@ reports this file as stale, distrust everything below it and re-derive from sour
 > An inventory you cannot verify is worse than no inventory: **delete, don't carry.**
 
 ## Current objective
-Memory-truth wave SHIPPED as #1716 (2026-08-19, remote session; delivered via
-GitHub API after the container lost push creds — honest attention labels off
-the real seen_count column, telemetry quarantined from BOTH recall lanes via
-one policy list, chat capture stamps conversationId + fans decisions/insights
-into recall; two of the audit's own claims died under re-measurement first).
-Same day: outcome-loop wave (twentieth) SHIPPED across #1711/#1714/#1715/#1718,
-same session as the architecture-reimagine wave (nineteenth; canonical record
-`docs/REIMAGINE-VERDICT-2026-08-19.md`). What landed: the intelligence ledger's
-usefulness half is LIVE (recordOutcomeByContent contentHash bridge; rateDiscovery
-"noise" = first writer; first-write-wins CAS at the update itself) · task
-completion TEACHES — /missions completion opens the outcome dialog (#1714;
-verified live on prod; the todo-desk first cut was UNMOUNTED dead code;
-recurring loops never prompt, dismissal completes UNRATED per fatigue
-literature), transported taskUpdateSchema → updateTask delegation →
-checkTask, RATING_MULTIPLIER scales the auto-learn bump,
-outcomeLesson becomes an embedded `task_lesson` BrainMemory, rating lands the
-ledger outcome by title hash · reasoning conclusions re-enter recall (embedded
-`reasoning_conclusion`, 90d TTL; budget stays honest — exact-category match
-verified) · provenance categories excluded from nightly consolidation
-(`reasoning_trace` merges were silently uncounting the $1/day budget).
-Full entry: RECONCILIATION top.
+Memory-loop wave SHIPPED 2026-08-20 (one PR): ① the conversation compiler was
+never starved — its output was EATEN (prod-measured: 283 conversations → 15
+live summaries vs 158 soft-deleted by the nightly merge grinder; category now
+consolidation-excluded, freshness guard replaces one-shot-forever, recompiles
+REVIVE ground rows, nightly conversation-compile cron) · ② memory receipts
+(turns persist recall into tokenUsage.recall; provenance answers receipt-first,
+labeled receipt vs reconstruction) · ③ Backfill Studio lite on /brain health
+(corpus = live DB; messageCount backfilled on prod — 45 drifted rows) · ④ first
+temporal recall-eval cases + INSIGHT registry gap closed. Prior: memory-truth
+wave #1716 (+#1719 reconcile), outcome-loop wave #1711/#1714/#1715/#1718,
+architecture-reimagine wave (`docs/REIMAGINE-VERDICT-2026-08-19.md`).
+Full entries: RECONCILIATION top.
 
 ## Last material decision
-The 3-lens adversarial review caught the wave's own P0: the first cut was
-BUILT-TESTED-UNWIRED — both new engines consumed Task.outcomeRating/outcomeLesson,
-which had ZERO producers anywhere (no UI ever sent them; the "captured by the
-completion UI" premise was false). The review round ADDED the producer (outcome
-dialog + full PATCH transport), not just polish. Standing rule confirmed again:
-grep for PRODUCERS of a column before building its consumer, and treat "the
-columns exist" as evidence of nothing. Also: recordOutcome now carries the same
-CAS guard as recordDecision — a SELECT-scoped filter alone leaves a two-stale-tabs
-TOCTOU that can poison the recall-eval harvest.
+Measurement-first, again vindicated twice in one wave: ① the "compiler
+starvation" theory died under a prod probe — the compiler RAN (125 digest
+audits); the nightly merge grinder ATE its output (158 soft-deleted vs 15
+live). ② The reviewer's SQL-eligibility fix would have silently excluded 5
+conversations because the denormalized messageCount LIED (worst: counter=1,
+real=15) — probed first, backfilled 45 drifted rows, re-probed to 0 liars,
+THEN shipped the filter. Standing rule: when a counter/column is about to
+become a WHERE clause, measure its truthfulness first. Also: self-audit
+caught the sweep counting zero-write nights as "10 compiled" (void-return
+all-clear-on-failure) hours after writing it — statuses now truthful.
 
 ## Known failed approaches
 - **Consuming columns without a producer census (this wave, caught pre-merge).**
@@ -61,12 +53,12 @@ NEEDED (skews only computeRiskAppetite's 21d window; self-expires 2026-09-08).
 authorization for the model bake-off (Ollama Cloud still the one funded lane).
 
 ## Next action
-Remaining spine from REIMAGINE-VERDICT "Highest-leverage next moves" (① outcome
-loop = DONE this wave): ② Commitment.status canonical vocabulary +
-promise_integrity expired/in_progress fixes; ③ shared "open task" + "done today"
-predicates (same treatment as the polarity fix); ④ Home progressive loading
+Remaining spine from REIMAGINE-VERDICT (outcome loop + memory loop both DONE):
+② Commitment.status canonical vocabulary + promise_integrity fixes; ③ shared
+"open task" + "done today" predicates; ④ Home progressive loading
 (httpBatchStreamLink, bound task.list, visibility-gate the raw pollers); ⑤ one
-status-tone module + 15 phantom-token repair + `--font-mono` bridge line.
-Natural next producers for the outcome loop: execution-coach sandbox reflection
-flow, missions one-tap. Flagged rot: consolidation merge never re-embeds the
-keeper (stale-vector mismatch, every embedded category).
+status-tone module + phantom-token repair. Memory-loop follow-ups: tap the
+studio's "compile next 10" a few times (or let the nightly cron drain ~10/night)
+to backfill the 283-conversation corpus; writer-side computeExpiresAt for
+fan-out rows; consolidation merge still never re-embeds the keeper. Outcome-loop
+follow-ups: sandbox reflection + missions one-tap as next rating producers.

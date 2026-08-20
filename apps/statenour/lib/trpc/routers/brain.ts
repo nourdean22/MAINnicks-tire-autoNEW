@@ -60,6 +60,7 @@ import {
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { getMemoryOfTheDay } from "@/lib/services/memory-of-the-day";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 // 2026-05-24 · Wave V · feature-mining wire-up · calibrationSummary
 // procedure surfaces the existing summarizeCalibration helper to /brain.
 // Pre-Wave-V the math has been built + tested + the brierScore column
@@ -1512,6 +1513,55 @@ export const brainRouter = router({
   forgetMemoryByKey: operatorProcedure
     .input(z.object({ key: z.string().min(1).max(200) }))
     .mutation(async ({ input }) => forgetMemoryByKey(input.key)),
+
+  /**
+   * 2026-08-19 · memory-loop wave · Backfill Studio (lite). The corpus
+   * is the live DB (chat retention = forever); the compiler's sweep
+   * engine doubles as the backfill. Status = how much is uncompiled;
+   * the mutation compiles a bounded batch on operator demand. Batch cap
+   * 25: one "reason"-lane LLM call per conversation — the full corpus
+   * drains over repeated taps/nights, never one shot, so a backfill
+   * can't blow the daily AI budget.
+   */
+  conversationCompileStatus: operatorProcedure
+    .input(
+      z
+        .object({
+          windowDays: z.number().int().min(1).max(365).optional(),
+          includeArchived: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const { findCompileEligibleConversations } = await import(
+        "@/lib/brain/conversation-memory"
+      );
+      const ids = await findCompileEligibleConversations({
+        limit: 50,
+        windowDays: input?.windowDays ?? 365,
+        includeArchived: input?.includeArchived ?? true,
+      });
+      const liveSummaries = await prisma.brainMemory.count({
+        where: { category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY, deletedAt: null },
+      });
+      // The finder caps at 50 — saturated means "50+", not an exact count.
+      return { eligible: ids.length, saturated: ids.length >= 50, liveSummaries };
+    }),
+
+  compileConversations: operatorProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(25),
+        windowDays: z.number().int().min(1).max(365),
+        includeArchived: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { summarizeIdleConversations } = await import(
+        "@/lib/brain/conversation-memory"
+      );
+      return summarizeIdleConversations(input);
+    }),
 
   // ═══════════ scattered-components REST→tRPC slice · brain/* views ═══════════
   //

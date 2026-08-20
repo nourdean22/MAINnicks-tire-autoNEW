@@ -103,6 +103,16 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
             {data && (
               <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2 uppercase tracking-wider">
                 {data.recall.bdiChain || "no memories matched"} · scanned {data.recall.scanned} · {data.recall.durationMs}ms
+                {/* 2026-08-19 · memory-loop wave · provenance honesty:
+                    receipt = what ACTUALLY fired on the turn (persisted at
+                    stream time); reconstruction = pre-receipt message, recall
+                    re-run at read time — an approximation. */}
+                {" · "}
+                {data.recall.origin === "receipt" ? (
+                  <span className="text-emerald-500">receipt · what fired on this turn</span>
+                ) : (
+                  <span className="text-amber-500">reconstruction · re-run at read time</span>
+                )}
               </p>
             )}
           </div>

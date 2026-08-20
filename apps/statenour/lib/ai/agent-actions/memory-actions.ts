@@ -6,12 +6,13 @@
  */
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runSimulation } from "@/lib/brain/thinking-engine";
 import type { ActionParams, ActionResult } from "./types";
 
 export async function handleMemoryRemember(params: ActionParams, type: string): Promise<ActionResult> {
   const mem = await brainMemory.remember(
-    String(params.category || "insight"),
+    String(params.category || BRAIN_CATEGORIES.INSIGHT),
     String(params.key || `nick_${Date.now()}`),
     String(params.content || ""),
     "nick_agent",

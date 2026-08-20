@@ -218,4 +218,56 @@ export const SEED_CASES: readonly RecallEvalCase[] = [
     kind: "knowledge_update",
     provenance: "synthetic-seed",
   },
+  // ── 2026-08-19 · memory-loop wave · temporal + more abstention ──────
+  // `temporal` was a declared kind with ZERO cases since Wave-4. The
+  // distinct risk it guards: PAST-TENSE phrasing must not resurrect a
+  // superseded row. The BDN-310 supersession predicates make the loser
+  // recall-invisible; a time-anchored query ("what did X used to be") is
+  // exactly the phrasing most likely to vector-match the STALE row's
+  // text, so these pin that the current row still wins — or nothing does.
+  {
+    id: "seed-temporal-1",
+    query: "what did statenour deploy on before the current platform",
+    relevantKeys: ["deploy_platform_current"],
+    forbiddenKeys: ["deploy_platform_vercel_legacy"],
+    kind: "temporal",
+    provenance: "synthetic-seed",
+  },
+  {
+    id: "seed-temporal-2",
+    query: "when did the chat model last change and from what",
+    relevantKeys: ["chat_model_current"],
+    forbiddenKeys: ["chat_model_legacy"],
+    kind: "temporal",
+    provenance: "synthetic-seed",
+  },
+  {
+    id: "seed-temporal-3",
+    query: "how many dispatch classes used to run before the census",
+    relevantKeys: ["dispatch_class_census"],
+    forbiddenKeys: ["dispatch_class_census_stale"],
+    kind: "temporal",
+    provenance: "synthetic-seed",
+  },
+  // Abstention widened: time-anchored false premises — the nastiest
+  // shape, because a date in the query gives the retriever an extra
+  // hook to confirm a premise the store has no evidence for.
+  {
+    id: "seed-abstention-4",
+    query: "what time is tomorrow's investor meeting",
+    relevantKeys: [],
+    forbiddenKeys: ["investor_meeting_schedule"],
+    kind: "abstention",
+    provenance: "synthetic-seed",
+    acceptableAbstention: true,
+  },
+  {
+    id: "seed-abstention-5",
+    query: "what were last week's marathon training splits",
+    relevantKeys: [],
+    forbiddenKeys: ["marathon_training_log"],
+    kind: "abstention",
+    provenance: "synthetic-seed",
+    acceptableAbstention: true,
+  },
 ];

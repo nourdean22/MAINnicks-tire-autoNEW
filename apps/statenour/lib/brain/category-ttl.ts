@@ -44,6 +44,12 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
   // session. One row · upserted by session-distiller · permanent
   // because losing it would break Nick's cross-session continuity.
   nick_current_concerns: { days: null, notes: "Wave 60 · rolling open-threads aggregate · session-distiller writes" },
+  // 2026-08-19 · memory-loop wave · moved from SHORT(30d) — a TTL the
+  // writer NEVER applied (direct prisma.upsert left expiresAt NULL), so
+  // the declaration was fiction. Deliberately permanent now: one row per
+  // conversation (bounded by conversation count), consolidation-excluded,
+  // the durable "which conversation taught me this" index.
+  conversation_summary: { days: null, notes: "per-conversation durable index · one row per conversation" },
   qualitative_identity: { days: null, notes: "8-axis self-model" },
   strategic_plan: { days: null, notes: "long-horizon plans" },
   decision_pattern: { days: null, notes: "graded outcomes inform Ghost Nour" },
@@ -84,7 +90,6 @@ const POLICIES: Record<string, CategoryTtlPolicy> = {
 
   // ── SHORT (30d) ──────────────────────────────────────────────
   chat_summary: { days: 30, notes: "session distillation" },
-  conversation_summary: { days: 30, notes: "rolling chat compression" },
   emotional_state: { days: 30, notes: "rolls over" },
   emotional_arc: { days: 30, notes: "per-week mood arc" },
   daily_synthesis: { days: 30, notes: "daily roll-up" },

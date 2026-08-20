@@ -68,6 +68,12 @@ export const BRAIN_CATEGORIES = {
   CORRELATION_ALERT: "correlation_alert",
   COUNTER_INTUITIVE: "counter_intuitive",
   HIDDEN_CORRELATION: "hidden_correlation",
+  /** 2026-08-19 · memory-loop wave · registry gap closed: 1,108 live rows,
+   *  recall-whitelisted (memory-recall CONTEXT_CATEGORIES), written by the
+   *  conversation-digest fanout + the agent memory action — and it had NO
+   *  constant, so every writer hand-typed the string the registry exists
+   *  to prevent. */
+  INSIGHT: "insight",
   PATTERN: "pattern",
   TEACHING_MOMENT: "teaching_moment",
   WISDOM: "wisdom",
@@ -773,6 +779,25 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.REASONING_TRACE,
   BRAIN_CATEGORIES.REASONING_CONCLUSION,
   BRAIN_CATEGORIES.TASK_LESSON,
+  // 2026-08-19 · memory-loop wave · the "compiler starvation" root cause,
+  // MEASURED on prod: 283 conversations → 15 live conversation_summary
+  // rows vs 158 SOFT-DELETED — the nightly merge ground prose summaries
+  // into a few conf-1.0 blobs (seen=105/48/20) while JSON chat_summary
+  // rows sailed through the parse guard. These are one-row-per-
+  // conversation provenance records (metadata.conversationId); merging
+  // rewrites several conversations into one blob whose provenance then
+  // names one. decision_log + insight carry the same conversationId
+  // stamps post-#1716; insight also has 842 conv_* rows from older
+  // writers. Revisit insight only with a provenance-aware merger.
+  BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
+  BRAIN_CATEGORIES.DECISION_LOG,
+  BRAIN_CATEGORIES.INSIGHT,
+  // 2026-08-20 · self-audit: eval_run is the same provenance class —
+  // daily benchmark rows + the rolling corpus-odometer row (#1720),
+  // prose content, one row per run/rolling key. The same grinder that
+  // ate 158 conversation summaries could merge the odometer into a
+  // benchmark blob.
+  BRAIN_CATEGORIES.EVAL_RUN,
 ];
 
 /**
@@ -800,7 +825,7 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
   "Brain · insights + patterns": [
     "anomaly", "anti_pattern", "blind_spot", "causation", "contradiction",
     "correlation_alert", "counter_intuitive", "hidden_correlation",
-    "pattern", "teaching_moment", "wisdom", "wisdom_contradiction",
+    "insight", "pattern", "teaching_moment", "wisdom", "wisdom_contradiction",
     "nudge_ack", "nudge_pin_hygiene", "semantic_edge", "rule", "win",
     "score_event", "token_age_pushed",
   ],

@@ -42,6 +42,12 @@ describe("mergeMemories · category exclusions", () => {
     expect(notIn).toContain("reasoning_trace");
     expect(notIn).toContain("reasoning_conclusion");
     expect(notIn).toContain("task_lesson");
+    // Memory-loop wave: the grinder finding (158 soft-deleted summaries)
+    // + self-audit (the odometer row is the same class).
+    expect(notIn).toContain("conversation_summary");
+    expect(notIn).toContain("decision_log");
+    expect(notIn).toContain("insight");
+    expect(notIn).toContain("eval_run");
     // Structured-payload class (2026-07-12 incident): spot-check survivors.
     expect(notIn).toContain("ai_config");
     expect(notIn).toContain("morning_brief_audio");
