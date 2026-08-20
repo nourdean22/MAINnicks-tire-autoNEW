@@ -1,5 +1,39 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-20 · Cron-healer recursion — the healer healed its own parent, and `partial` was invisible to every counter (1 PR)
+>
+> **Trigger:** overnight verification of #1703 found the opposite of recovery: `mega-evening`
+> ran **1,237 times between 03:04:37Z and 08:38:28Z with zero successes**, dragging every
+> cron to ~450 runs/hour. Both prime suspects were cleared with receipts — #1703 WAS
+> deployed (Railway `d9606b65`, 21:03Z), and Ollama Cloud was healthy the whole time (its
+> liveness probe failed only DURING the storm and went green at 09:00Z the moment it
+> stopped; all three prod lanes probe 200).
+>
+> **Root cause:** `mega-fanout` writes `status: "partial"` when some children fail (2,536
+> rows in prod), but the 14d tallies bucket only success/failed — so mega-evening's 1,248
+> partial runs left BOTH counters at 0, the healer classified a job running every few
+> minutes as NEVER RUN, and "healed" it via the manifest path `/api/cron/mega?slot=evening`
+> — the legacy fan-out, whose EVENING_JOBS contains `/api/cron/cron-healer`. Parent heals
+> child, child re-triggers parent. The legacy route's flat 90s aborts are also what made
+> #1703 look undeployed.
+>
+> **Shipped (#1735, `7a6ac5aef`):** fan-out parents are never healed; `isFailing` = last
+> run failed (not `fail14d > 0`, which re-rescued green jobs for a fortnight — the
+> operator's "Rescued ingest-reviews … Status: 200" alert wall); never-run counts partial.
+> Same blindness swept repo-wide in BOTH directions: cron-manager scored partial as
+> SUCCESS, brain-insights counted it as FAILURE, both successRate denominators dropped it
+> (an all-partial job reported 100%), and system-health's correct `isHardFailure` had
+> drifted as a private copy — now shared from cron-control. /system/crons renders partial
+> amber, not red. Follow-up in flight: `diagnose-cron-failure` gains chronic-partial
+> detection (it only ever read `status:"failed"`, so 29 partial nights filed zero
+> diagnoses).
+>
+> Receipts: full suite 5,755 passed / 541 files / exit 0 · 10 new tests incl. a storm
+> replay (a fan-out parent must never be healed) and a rate test asserting 25% where the
+> old math said 100%. ⚠ Merged before `node`/`e2e` reported — `--auto` falls through to
+> immediate merge on an unprotected repo; 6/8 checks were green at merge, e2e re-ran on
+> the merge commit.
+>
 > ## 2026-08-20 · Memory-loop wave — the compiler was never starved, its output was eaten; receipts, studio, temporal evals (1 PR)
 >
 > The memory-truth wave's four next moves, executed with measurement-first discipline.
@@ -250,6 +284,11 @@
 > ingest-reviews therefore stores NOTHING: `newCount:0` is a silent zero, because the store
 > loop swallows create failures and still returns 0. Not fixed by either PR below.
 >
+> ⚠ **SUPERSEDED 2026-08-20:** the lock LIFTED early — measured `default_transaction_read_only = off`,
+> `pg_is_in_recovery = false` (probed 11:55Z, re-confirming the ~16:30 ET 08-19 probe).
+> Writes land again; the 2026-09-01 reset expectation is obsolete. The paragraph above is
+> kept as history of what the 08-19 session measured.
+>
 > The burn was measurable and had one dominant cause: the worker polled
 > `/api/sync/queue/render` every 2 minutes, and Neon suspends an idle compute after 5
 > minutes — so it could never scale to zero. `active_time` 443.7h of the ~456h elapsed in
@@ -279,7 +318,7 @@
 > flapped across the boundary). DB was never the bottleneck: slowest tracked query 1.3s.
 >
 > **Flagged · NOT fixed**
-> - **Neon read-only (PG 25006)** — every write no-ops until the quota resets 2026-09-01 or
+> - ~~**Neon read-only (PG 25006)**~~ — RESOLVED 2026-08-20, lock lifted early (see supersession note above); was: every write no-ops until the quota resets 2026-09-01 or
 >   the operator raises the cap in the Neon console. Operator-side billing action; no code
 >   change fixes it. Until then ingest-reviews reports success while storing nothing.
 > - **`consolidate` still runs 19-36 min nightly** — detaching ends the false failure and
@@ -693,7 +732,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-20 (memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-20 (cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1221,7 +1260,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-20 (memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-20 (cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
