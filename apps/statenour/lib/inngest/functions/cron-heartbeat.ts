@@ -34,6 +34,7 @@ import { recordCoachEvent } from "@/lib/services/coach-events";
 import { sendTelegram, formatTelegramNotification } from "@/lib/services/telegram";
 import { logger as rootLogger } from "@/lib/logger";
 import { logError } from "@/lib/utils/error-log";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("inngest/cron-heartbeat");
 
@@ -57,6 +58,59 @@ function expectedJobs(): { name: string; maxAgeH: number }[] {
     if (!daily.has(name)) out.push({ name, maxAgeH: WEEKLY_MAX_AGE_H });
   }
   return out;
+}
+
+export interface SilentJob {
+  name: string;
+  ageH: number;
+  maxAgeH: number;
+}
+
+export interface SilenceVerdict {
+  silent: SilentJob[];
+  /** Never-run jobs still inside their first expected window. Not an alarm. */
+  newborn: string[];
+}
+
+/**
+ * 2026-08-20 · never-run needed a birth certificate. A cron with no log row
+ * ever got `ageH = Infinity`, which always exceeds the window — so a job whose
+ * CODE deployed 32 minutes earlier paged the operator P0 ("conversation-compile
+ * (never). The mega fan-out may be broken") 15 hours before its first slot
+ * could possibly fire. Every new fan-out cron would false-page on its first
+ * 12:00Z heartbeat.
+ *
+ * There is no deploy timestamp to lean on (BUILD_TIME is unset on Railway), so
+ * the watchdog keeps its own registry: the first time it SEES a job in the
+ * expected list it records first-seen, and a never-run job only pages once its
+ * first-seen is older than that job's own silence window. A genuinely dead new
+ * cron still pages — one heartbeat later than before, which is the price of
+ * not crying wolf. A job that HAS run is judged purely on its last run, as
+ * before; the grace can only ever apply to the never-ran.
+ */
+export function classifySilence(
+  expected: ReadonlyArray<{ name: string; maxAgeH: number }>,
+  lastMsByName: ReadonlyMap<string, number | null>,
+  firstSeenMsByName: ReadonlyMap<string, number>,
+  nowMs: number,
+): SilenceVerdict {
+  const silent: SilentJob[] = [];
+  const newborn: string[] = [];
+  for (const e of expected) {
+    const last = lastMsByName.get(e.name) ?? null;
+    if (last != null) {
+      const ageH = (nowMs - last) / HOUR_MS;
+      if (ageH > e.maxAgeH) silent.push({ name: e.name, ageH, maxAgeH: e.maxAgeH });
+      continue;
+    }
+    const firstSeen = firstSeenMsByName.get(e.name);
+    if (firstSeen === undefined || (nowMs - firstSeen) / HOUR_MS <= e.maxAgeH) {
+      newborn.push(e.name);
+      continue;
+    }
+    silent.push({ name: e.name, ageH: Infinity, maxAgeH: e.maxAgeH });
+  }
+  return { silent, newborn };
 }
 
 const inngest = getInngest();
@@ -107,18 +161,55 @@ export const cronHeartbeat = inngest.createFunction(
     });
     const lastByName = new Map(lastRuns.map((r) => [r.name, r.lastMs]));
 
+    // Birth registry for the never-ran (see classifySilence). Reads existing
+    // first-seen rows, then registers any expected job not yet on record.
+    // Failure here degrades to the old behavior (no grace, page) — the
+    // watchdog must fail toward alerting, never toward silence.
+    const firstSeen = await step.run("first-seen-registry", async () => {
+      const out: Record<string, number> = {};
+      try {
+        const rows = await prisma.brainMemory.findMany({
+          where: {
+            category: BRAIN_CATEGORIES.CRONS,
+            key: { in: names.map((n) => `first-seen:${n}`) },
+          },
+          select: { key: true, content: true },
+        });
+        for (const r of rows) {
+          const ms = Date.parse(r.content);
+          if (!Number.isNaN(ms)) out[r.key.replace(/^first-seen:/, "")] = ms;
+        }
+        const nowIso = new Date().toISOString();
+        for (const n of names) {
+          if (out[n] !== undefined) continue;
+          await prisma.brainMemory.create({
+            data: {
+              category: BRAIN_CATEGORIES.CRONS,
+              key: `first-seen:${n}`,
+              content: nowIso,
+              source: "cron-heartbeat",
+              createdBy: "system",
+            },
+          });
+          out[n] = Date.parse(nowIso);
+        }
+      } catch (e) {
+        logError("inngest.cron-heartbeat", e, { stage: "first-seen-registry", risk: "newborn grace unavailable; may false-page a new cron" }, "warn");
+      }
+      return out;
+    });
+
     const now = Date.now();
-    const silent = expected
-      .map((e) => {
-        const last = lastByName.get(e.name) ?? null;
-        const ageH = last == null ? Infinity : (now - last) / HOUR_MS;
-        return { name: e.name, ageH, maxAgeH: e.maxAgeH };
-      })
-      .filter((j) => j.ageH > j.maxAgeH);
+    const { silent, newborn } = classifySilence(
+      expected,
+      lastByName,
+      new Map(Object.entries(firstSeen)),
+      now,
+    );
 
     if (silent.length === 0) {
-      log.info("heartbeat_ok", { checked: expected.length });
-      return { checked: expected.length, silent: 0 };
+      log.info("heartbeat_ok", { checked: expected.length, newborn });
+      return { checked: expected.length, silent: 0, newborn: newborn.length };
     }
 
     const detail = silent
@@ -126,9 +217,12 @@ export const cronHeartbeat = inngest.createFunction(
       .map((j) => `${j.name} (${j.ageH === Infinity ? "never" : Math.round(j.ageH) + "h"})`)
       .join(", ");
     const title = `${silent.length} cron${silent.length > 1 ? "s" : ""} not firing`;
+    // 2026-08-20 · "The mega fan-out may be broken" fired on a morning the
+    // fan-out had run CLEAN three hours earlier. One silent job usually means
+    // that job; only a cluster implicates the fan-out itself.
     const body = `Expected crons with no recent run: ${detail}${
       silent.length > 8 ? " …" : ""
-    }. The mega fan-out may be broken — check /system/health.`;
+    }. ${silent.length > 1 ? "Several silent together — the mega fan-out itself may be down. " : ""}Check /system/health.`;
 
     // Out-of-band alert on BOTH surfaces. recordCoachEvent never throws;
     // sendTelegram no-ops if BOT_TOKEN is unset. Wrapped in a step so a
@@ -150,7 +244,7 @@ export const cronHeartbeat = inngest.createFunction(
       return true;
     });
 
-    log.warn("heartbeat_silent", { silent: silent.length, detail });
-    return { checked: expected.length, silent: silent.length };
+    log.warn("heartbeat_silent", { silent: silent.length, detail, newborn });
+    return { checked: expected.length, silent: silent.length, newborn: newborn.length };
   },
 );
