@@ -1,0 +1,73 @@
+{
+  "topic": "Metallic rattle under the car on acceleration — loose/rusted heat shield",
+  "campaignKeyword": "RATTLE",
+  "durationSeconds": 30,
+  "mode": "PRODUCTION",
+  "generatedBy": "nickstire-reel-operator skill, scheduled/unattended run, pack-only (no live render)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "window": "0:00-0:05",
+      "narration": "That metal rattle when you hit the gas? Here's the one clue that tells you why.",
+      "visualPrompt": "Low-angle static shot under a parked car at dusk, exhaust pipe and undercarriage visible, subtle heat haze shimmer, cinematic garage lighting, shallow depth of field, no people",
+      "audioNote": "silence under narration, no SFX yet"
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "window": "0:05-0:11",
+      "narration": "Gets louder as you speed up, quiets down at idle? That can point to loose exhaust.",
+      "visualPrompt": "Car driving away from camera on a residential street, rear undercarriage glimpsed low angle, motion blur on wheels, subtle camera vibration implying rattle, daytime overcast Cleveland-style street",
+      "audioNote": "faint metallic rattle SFX under narration, low volume"
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "window": "0:11-0:18",
+      "narration": "Most of the time, it's the heat shield — a thin metal cover that rusts loose and rattles against the pipe.",
+      "visualPrompt": "Macro close-up of a rusted metal heat shield clamped to an exhaust pipe, visible rust flaking and a thin gap where the shield has come loose, slow dolly-in, workshop lighting",
+      "audioNote": "faint metallic rattle SFX continues, slightly louder on 'rattles against the pipe'"
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "window": "0:18-0:24",
+      "narration": "Leave it long enough and the shield wears through — worth checking before it does.",
+      "visualPrompt": "Close-up of a heat shield with visible rust spreading and a small flake lifting at the edge, dramatic side lighting, slow subtle vibration",
+      "audioNote": "rattle SFX fades out into silence by end of beat"
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "window": "0:24-0:30",
+      "narration": "Do not guess. Nick's Tire and Auto takes a look underneath, free. Link in bio.",
+      "visualPrompt": "Interior of an auto repair shop garage bay, empty lift with clean tools, open bay door, warm inviting light, shop signage blurred/out of focus (no legible text), no people",
+      "audioNote": "no rattle SFX, warm ambient garage room-tone only",
+      "endFreezeSeconds": 3,
+      "endFreezeNote": "hold this frame + CTA text card for 3s after narration ends (SAVE-prompt convention, matches render-integrity gate's beats+3s duration contract)"
+    }
+  ],
+  "selfEstimatedScore": {
+    "totalOutOf75": 49,
+    "note": "Self-estimate only — NOT the output of calculateReelQualityScore(). That function was not invoked this run (no live server/DB reachable from this unattended scheduled session). Falls below the real 70/75 auto-pass floor.",
+    "breakdown": {
+      "firstFrameScrollStop_10": 7,
+      "mutedFirst_10": 10,
+      "beatStructure_5": 5,
+      "length_5": 5,
+      "loop_5": 0,
+      "sourcedFact_10": 0,
+      "faceless_10": 10,
+      "claimSafety_10": 8,
+      "keyword_5": 4,
+      "winningConcept_5": 0
+    },
+    "belowFloorReasons": [
+      "loop=0: CTA frame (garage bay) does not loop back to HOOK frame (under-car dusk shot) — no loop plan designed",
+      "sourcedFact=0: no EvidenceRecord in evidenceResolver.ts backs the heat-shield claim; store not queried live (no DATABASE_URL/server this run)",
+      "winningConcept=0: scoreReelConcept() not invoked live, scored 0 rather than assumed passing"
+    ]
+  }
+}
