@@ -1,0 +1,80 @@
+{
+  "topic": "Cloudy / yellowed headlights — visibility, not just cosmetics",
+  "campaignKeyword": "HEADLIGHTGLOW",
+  "createdBy": "scheduled-task-run-2026-08-20",
+  "mode": "PRODUCTION_PACK_ONLY",
+  "liveGenerationCall": false,
+  "durationSeconds": 29,
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "window": "0:00-0:04",
+      "narration": "Your headlights look cloudy? That's not just looks.",
+      "visualPrompt": "Extreme close-up of a yellowed, hazy plastic headlight lens on a parked car at dusk, slow push-in, no people, no visible license plate or logo",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "fallbackStockSearch": ["cloudy yellow headlight lens closeup", "car headlight dusk parked driveway"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "window": "0:04-0:10",
+      "narration": "That yellow haze can cut headlight output by more than half at night.",
+      "visualPrompt": "Side-by-side or split comparison shot of a clear headlight beam versus a dim, scattered beam through fog/haze texture, night setting, no people",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "fallbackStockSearch": ["car headlight beam night road", "dim headlight beam comparison"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "window": "0:10-0:17",
+      "narration": "It's UV damage to the lens coating, not the bulb, and a wipe won't fix it.",
+      "visualPrompt": "Macro shot of oxidized plastic headlight surface texture, slow pan across pitted/hazy clearcoat, no people",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "fallbackStockSearch": ["oxidized plastic headlight texture macro", "headlight restoration before"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "window": "0:17-0:23",
+      "narration": "It changes how fast you spot the road, and how fast other drivers spot you.",
+      "visualPrompt": "Night driving POV through a windshield, dark rural road ahead, headlight glow visible at frame edges, no people, no hands on wheel",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "fallbackStockSearch": ["night driving windshield POV road", "dark road headlights ahead"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "window": "0:23-0:29",
+      "narration": "Don't drive half-blind. Nick's Tire and Auto can take a look. Send this to someone whose headlights look foggy.",
+      "visualPrompt": "Wide shot of an open auto repair shop garage bay entrance, warm interior lighting against dusk exterior, no people, no readable signage close enough to assert as a verified logo shot",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "fallbackStockSearch": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceoverRoute": "reelVoice.ts (Google Neural2 or ElevenLabs) — not generated this run, no live route in this session",
+    "musicBed": null,
+    "musicRightsStatus": "UNKNOWN — no music rights ledger exists in this repo; deliberately no track assigned rather than asserting one is cleared",
+    "sfx": "optional single soft 'whoosh' on beat 2's beam comparison cut; not required"
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts — that function was not invoked live this run (no server, no DB).",
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 7, "max": 10 },
+      "mutedFirst": { "score": 10, "max": 10 },
+      "beatStructure": { "score": 5, "max": 5 },
+      "length": { "score": 5, "max": 5 },
+      "loop": { "score": 0, "max": 5, "note": "CTA frame (shop bay) does not loop back to HOOK frame (headlight closeup) — no loop plan designed" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "No EvidenceRecord queried live — no DB access this session" },
+      "faceless": { "score": 10, "max": 10 },
+      "claimSafety": { "score": 10, "max": 10, "note": "No price, warranty, or absolute claim; soft-language phrasing used throughout" },
+      "keyword": { "score": 4, "max": 5 },
+      "winningConceptGate": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked — scored 0 rather than assumed passing" }
+    },
+    "total": 51,
+    "maxTotal": 75,
+    "realFloorToPass": 70
+  }
+}
