@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Heater blows cold, not hot: low coolant vs. stuck thermostat vs. blend door",
+  "campaignKeyword": "NOHEAT",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Heat blowing cold? The clue is in when it happens.",
+      "onScreenText": "Heat blowing cold? Here's the clue.",
+      "visual": "Close-up static shot of a car's heater dial and dashboard vents on a cold morning, faint breath-fog visible on the windshield glass beyond, dial glowing amber in dim early light, slow creeping camera push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Cold at idle, better on the highway? That can point to low coolant.",
+      "onScreenText": "Cold at idle, better on the highway?",
+      "visual": "Macro close-up of a translucent coolant reservoir under the hood, fluid level sitting visibly below the fill line, dim garage lighting, subtle camera drift, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Never gets warm, no matter what? That may indicate a stuck thermostat.",
+      "onScreenText": "Never gets warm at all?",
+      "visual": "Close-up of a dashboard temperature gauge needle sitting low and staying there, shallow focus, slight camera drift, cool blue-toned cabin light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Warm air, then it clicks and goes cold? Worth checking the blend door.",
+      "onScreenText": "Warm, then a click, then cold?",
+      "visual": "Extreme close-up of dashboard vent louvers, static camera with a single subtle vibration pulse to imply a mechanical click, dim cabin interior light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Don't guess before winter hits. Nick's Tire and Auto checks all three free. Link in bio.",
+      "onScreenText": "We check all three free. Link in bio.",
+      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a vehicle's dashboard faintly visible glowing through its windshield as it is pulled into the bay, echoing beat 1's dashboard motif, warm inviting lighting, slow push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "noheat-triage-v1",
+      "loopIdea": "Attempted, not guaranteed: beat 5's garage-bay shot frames a dashboard glowing through a windshield as the car pulls in, deliberately echoing beat 1's dashboard-close-up opening so the CTA frame visually rhymes with the hook frame instead of just cutting away from it. This is a real attempt at the loop dimension the prior pack (won't-start, 2026-08-19) flagged as skipped entirely — but it was designed by hand this run, not verified against the real scorer, so treat the self-estimated 5/5 below as directional only.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "noheat-triage-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autorepair", "#wintercarcare"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional single soft mechanical click SFX layered under beat 4 only"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts:863), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 5, "detail": "Beat 5 visually echoes beat 1's dashboard motif (see concepts[0].loopIdea) — self-scored, not scorer-verified" },
+      { "label": "Sourced fact", "max": 10, "points": 0, "detail": "No EvidenceRecord in evidenceResolver.ts backs the coolant/thermostat/blend-door triage claims, and that store was not and could not be queried live this run (no DB access) — see README.md §3" },
+      { "label": "Faceless", "max": 10, "points": 10, "detail": "No faces/hands/human figures in any prompt; standing negative prompt enforced on every beat" },
+      { "label": "Claim safety", "max": 10, "points": 10, "detail": "No price/warranty claims; uses only approved soft-language phrasing (can point to / may indicate / worth checking)" },
+      { "label": "Keyword", "max": 5, "points": 5, "detail": "Campaign keyword NOHEAT assigned" },
+      { "label": "Winning concept ≥57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() was not invoked this run; scored 0 rather than assumed passing" }
+    ],
+    "total": 60,
+    "maxPossible": 75,
+    "note": "Below the pipeline's real 70/75 auto-pass floor, driven entirely by the two dimensions that require a live DB/scorer call this session cannot make (sourced fact, winning concept score) — not by anything fixable by hand."
+  }
+}
