@@ -1855,7 +1855,14 @@ export const contentAdminRouter = router({
       } catch (e) {}
 
       let mappedStatus: "queued" | "generating" | "assembling" | "completed" | "failed" = "queued";
-      if (row.status === "failed") {
+      if (row.status === "failed" || row.status === "needs_regen") {
+        // 2026-08-20 · Higgsfield stock-fallback remediation self-audit
+        // (workflow-confirmed P1): needs_regen is a new terminal status this
+        // job can land in — without this branch it fell through to the
+        // "queued" default, so the Studio wizard's polling never terminated
+        // and the operator never saw the provider-down error. It maps onto
+        // the client's existing "failed" bucket (row.error is populated the
+        // same way for both) rather than growing a new client-facing state.
         mappedStatus = "failed";
       } else if (row.status === "assembled" || row.mp4Url) {
         mappedStatus = "completed";
@@ -2839,7 +2846,14 @@ export const contentAdminRouter = router({
       // neither may be closed here. Ambiguity is resolved by reconciling, not by
       // discarding the evidence.
       const { recordOperatorAction, ACTION_OUTCOME } = await import("../services/operatorActionLog");
-      const CLOSEABLE = ["assembled", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "failed"];
+      // 2026-08-20 · Higgsfield stock-fallback remediation self-audit
+      // (workflow-confirmed P0): needs_regen never published and is never
+      // live — it belongs here for the same reason "failed" does. Without
+      // it, the Action Center's Discard/Archive buttons (legitimately
+      // offered by classifyRecoverability for a needs_regen job) matched
+      // zero rows and threw the misleading "already published, or it may be
+      // live" error for a job that was neither.
+      const CLOSEABLE = ["assembled", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "failed", "needs_regen"];
       const res = await d
         .update(reelJobs)
         .set({ status: "failed", error: `${input.mode === "archive" ? "archived" : "discarded"} by operator: ${input.reason}`.slice(0, 500) })
@@ -3041,6 +3055,23 @@ export const contentAdminRouter = router({
        */
       for (const stale of ["renderedQa", "audioQa", "repairQueue", "mp4History", "contentReservationId"]) {
         delete (brief as Record<string, unknown>)[stale];
+      }
+      // 2026-08-20 · Higgsfield stock-fallback remediation self-audit
+      // (workflow-confirmed P0): a stale per-beat veoOperationName is
+      // execution state too, and this path was never guarded against it —
+      // this codebase already found and fixed the identical defect for the
+      // (now-removed) forced free-lane rescue (docs/NICKSTIRE-SCAN-LEDGER.md
+      // lines 210-219): the new job's clipUrlsJson starts empty, so EVERY
+      // beat is reprocessed, including the one carrying the old handle,
+      // which takes the "resuming" branch instead of submitting fresh. If
+      // that stale/expired handle then local-times-out, the outer catch
+      // sees hasRemoteOperationId=true and classifies it as
+      // LOCAL_TIMEOUT_REMOTE_RUNNING -> RESUME_OPERATION, which never
+      // consumes an attempt — the job can cycle queued<->generating forever,
+      // never reach a terminal status, and its generation-ledger reservation
+      // never settles.
+      for (const beat of beats) {
+        if (beat && typeof beat === "object") delete (beat as Record<string, unknown>).veoOperationName;
       }
 
       const { enqueueReelJob } = await import("../services/reelPipeline");

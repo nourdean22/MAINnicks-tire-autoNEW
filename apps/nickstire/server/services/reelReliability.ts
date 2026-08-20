@@ -87,7 +87,19 @@ export async function getReelReliability(): Promise<ReelReliability> {
     const succeeded = (byStatus.posted ?? 0) + (byStatus.published ?? 0);
     // Unresolved failures only. `closedFailures` is surfaced beside it so the
     // difference stays visible rather than being quietly netted out.
-    const failed = Math.max(0, (byStatus.failed ?? 0) - closedFailures);
+    //
+    // 2026-08-20 · Higgsfield stock-fallback remediation self-audit
+    // (workflow-confirmed, escalated to P0 by reachability into this exact
+    // dashboard card + the Telegram /ig digest): a terminal paid-provider
+    // failure now lands on needs_regen instead of failed — it was still
+    // counted in `total` (the denominator) via the unconditional groupBy
+    // above, but invisible to `failed`, understating the true rate by
+    // exactly the outage population this remediation creates. needs_regen
+    // rows never carry a closed marker while still needs_regen (discardReelJob
+    // flips status to "failed" atomically on close, so a closed one is
+    // already counted correctly above as a closed failure) — every needs_regen
+    // row seen here is by construction still open and unresolved.
+    const failed = Math.max(0, (byStatus.failed ?? 0) - closedFailures) + (byStatus.needs_regen ?? 0);
     const ambiguous = byStatus.publish_ambiguous ?? 0;
     // Denominator drops the closed ones too: leaving them in would make the
     // rate look better simply because more jobs were closed, which is the

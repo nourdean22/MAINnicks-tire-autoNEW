@@ -50,7 +50,16 @@ const ENV_GATES = [
   // panel, never credentials. Annotate the line as below rather than renaming
   // the flag or weakening the gate.
   { key: "MP4_INGEST_ENABLED", description: "Ingest a FINISHED mp4 (MoneyPrinter, hand-edited cut) into content inventory as a review_ready draft. Creates the reel_jobs row the publish gate needs; still subject to every approval/publish gate.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
-  { key: "REEL_FALLBACK_TO_TEMPLATE_STOCK", description: "When the paid video provider is unusable (plan-tier wall, dead session), render the REST of that reel on the free local ffmpeg lane instead of failing the job. Changes what the shop publishes — template renders, not generated video — so it is off until the operator chooses degraded over dark. Still needs S3_BUCKET or REEL_ALLOW_EPHEMERAL_STORAGE, because the free lane re-hosts.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
+  // 2026-08-20 · Higgsfield stock-fallback remediation. This flag USED TO gate
+  // rendering the rest of a reel on the free ffmpeg lane instead of failing
+  // the job when the paid provider was unusable. That silent-substitution
+  // branch is deleted from reelPipeline.ts (a terminal paid-provider failure
+  // now routes to needs_regen, never to stock footage) — this env var is
+  // read nowhere in the codebase and is now INERT regardless of its value.
+  // Left registered, not removed: a live-looking entry describing dead
+  // behavior is exactly the panel-accuracy failure this file's own header
+  // (2026-07-20 note above) already documents happening once before.
+  { key: "REEL_FALLBACK_TO_TEMPLATE_STOCK", description: "DEFUNCT as of 2026-08-20 — read nowhere in the codebase, changing it does nothing. Formerly gated rendering the rest of a reel on the free local ffmpeg lane instead of failing when the paid provider was unusable; that silent stock-substitution path was deleted (a terminal paid-provider failure now routes to needs_regen, never to stock footage). Kept here, not removed, so a stale value in prod env doesn't read as a live gate.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
 ] as const;
 
 /** DB feature flags relevant to the social/content pipeline. */

@@ -14,7 +14,7 @@
  * verdict, unreadable DB) must never block a working provider on a blind
  * spot — this is the same rule the pre-remediation code enforced.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const dbState = vi.hoisted(() => ({ claimCalls: 0 }));
 
@@ -41,11 +41,28 @@ vi.mock("./services/veoStudio", () => ({ veoCredentialsPresent: () => false }));
 
 import { processNextReelJob } from "./services/reelPipeline";
 
+// 2026-08-20 · self-audit (workflow-confirmed P2): this file previously wrote
+// process.env directly with no restore, leaking REEL_GENERATION_ENABLED and
+// REEL_VIDEO_PROVIDER into every test that runs after it in the same
+// singleFork process — the documented house rule (apps/nickstire/AGENTS.md
+// §3: "restore-or-delete in afterEach/afterAll") that reelProviderFallbackChain.test.ts
+// (the sibling this file was modeled on) already follows correctly.
+const ENV_KEYS = ["REEL_GENERATION_ENABLED", "REEL_VIDEO_PROVIDER"];
+const saved: Record<string, string | undefined> = {};
+
 beforeEach(() => {
   dbState.claimCalls = 0;
   higgsfieldSessionHealth.mockReset();
+  for (const k of ENV_KEYS) saved[k] = process.env[k];
   process.env.REEL_GENERATION_ENABLED = "true";
   process.env.REEL_VIDEO_PROVIDER = "higgsfield";
+});
+
+afterEach(() => {
+  for (const k of ENV_KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
 });
 
 describe("reel generation preflight", () => {

@@ -213,12 +213,18 @@ export async function evaluateReelPublishGate(
   // budget on a call that will fail too — pause for an operator instead.
   let providerHealthy = true;
   try {
-    const { sql } = await import("drizzle-orm");
+    const { sql, inArray } = await import("drizzle-orm");
     const since = new Date(Date.now() - 60 * 60 * 1000);
     const [row] = await d
       .select({ n: sql<number>`count(*)` })
       .from(reelJobs)
-      .where(and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, since)));
+      // 2026-08-20 · Higgsfield stock-fallback remediation self-audit
+      // (workflow-confirmed P1): a terminal paid-provider failure now lands
+      // on needs_regen instead of failed (this session's own remediation) —
+      // counting only "failed" left this exact circuit breaker blind to the
+      // outage it exists to catch, so it kept reading providerHealthy=true
+      // and kept authorizing paid repair spend against a dead provider.
+      .where(and(inArray(reelJobs.status, ["failed", "needs_regen"]), gte(reelJobs.updatedAt, since)));
     // Three failed jobs inside an hour is a provider problem, not bad luck — the
     // pipeline posts at most twice a day, so this is never normal volume.
     providerHealthy = Number(row?.n ?? 0) < 3;

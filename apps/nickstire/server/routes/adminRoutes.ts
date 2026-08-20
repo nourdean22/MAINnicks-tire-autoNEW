@@ -338,7 +338,12 @@ export function registerAdminRoutes(app: Express): void {
       const { reelJobs } = await import("../../drizzle/schema");
       const { inArray, desc } = await import("drizzle-orm");
       // Non-terminal states only. "posted" is done; "failed" is already legible.
-      const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering"];
+      // needs_regen is the one exception: unlike "failed" it carries no 14-day
+      // decay window in the canonical ATTENTION_STATUSES (reelRecoverability.ts)
+      // — the operator's only close path is Discard/Archive, so a needs_regen
+      // row must stay visible here until resolved, on the same principle as
+      // the still-in-progress statuses this list already includes.
+      const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "needs_regen"];
       const rows = await d.select().from(reelJobs).where(inArray(reelJobs.status, ATTENTION)).orderBy(desc(reelJobs.id)).limit(50);
 
       const { assessReelJob } = await import("../services/reelRecoverability");
