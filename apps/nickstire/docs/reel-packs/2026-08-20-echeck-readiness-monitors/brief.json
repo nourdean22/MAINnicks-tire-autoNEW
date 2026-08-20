@@ -1,0 +1,172 @@
+{
+  "id": "manual-2026-08-20-echeck-readiness-monitors",
+  "createdAt": "2026-08-20",
+  "status": "needs_review",
+  "mode": "draft",
+  "isSample": false,
+  "topic": "Ohio E-Check can fail you on readiness monitors even with the check-engine light off",
+  "mechanicTruth": "Ohio's E-Check emissions test (required in Cuyahoga County and six neighboring NE Ohio counties) can reject a vehicle for too many incomplete OBD-II readiness monitors, independent of whether the check-engine light (MIL) is illuminated. Readiness monitors reset to 'Not Ready' after a battery disconnect, a cleared trouble code, or an ECU replacement, and require completed drive cycles to re-set before the vehicle can pass.",
+  "driverConfusion": "Drivers assume 'the light's off, I'm fine' and are surprised by an E-Check rejection that has nothing to do with a broken part — it's an incomplete self-check, not a fault.",
+  "clevelandAngle": "E-Check is a Cuyahoga County (plus six neighboring NE Ohio counties) requirement tied directly to vehicle registration — failing it blocks your plates, not just your dashboard.",
+  "sourceNotes": [
+    {
+      "label": "Ohio EPA E-Check program public FAQ",
+      "kind": "proof",
+      "supports": "incomplete OBD-II readiness monitors cause an E-Check rejection independent of MIL/check-engine-light status"
+    },
+    {
+      "label": "OBD-II / SAE J1979 readiness-monitor reset behavior after battery disconnect or code clear (general automotive standard, non-shop-specific)",
+      "kind": "proof",
+      "supports": "monitors reset to 'Not Ready' after a disconnect or code clear and require completed drive cycles to re-set"
+    }
+  ],
+  "factBucket": "myth_buster",
+  "campaignKeyword": "ECHECK",
+  "archetype": "diagnostic_hud_reveal",
+  "motionLens": "warning_light_world",
+  "usefulAbsurdity": "The dashboard reimagined as a tiny lit interior world where each indicator light is a small inhabitant that has to individually 'wake up and check in' before the car can graduate the test.",
+  "concepts": [
+    {
+      "id": "concept-1",
+      "hook": "Calm, all-dark dashboard interior — 'no light, no worries... right?'",
+      "coreFact": "Incomplete readiness monitors fail Ohio E-Check regardless of MIL status",
+      "factBucket": "myth_buster",
+      "driverEmotion": "quiet surprise / mild betrayal",
+      "campaignKeyword": "ECHECK",
+      "archetype": "diagnostic_hud_reveal",
+      "motionLens": "warning_light_world",
+      "objectCharacter": "readiness_monitor_inhabitants",
+      "usefulAbsurdity": "Indicator lights as small glowing inhabitants inside the dashboard, each needing to individually complete its own check-in",
+      "localAngle": "Cuyahoga County E-Check requirement tied to vehicle registration",
+      "beatOutline": [
+        "Calm all-dark dashboard, no lights lit",
+        "Push in — dim indicator-light inhabitants become visible",
+        "Scan sweep lights most of them up, one stays dark",
+        "Split-screen myth (light off) vs reality (incomplete monitor)",
+        "Last light completes; pull back to a fully-lit mirror of the opening frame"
+      ],
+      "loopIdea": "Beat 5's fully-lit wide shot is framed to match beat 1's opening frame almost exactly, so a replay reads as continuous — unlit became lit",
+      "captionAngle": "myth vs mechanism",
+      "saveShareReason": "Answers a real, googleable 'why did I fail E-Check with no light on' confusion",
+      "nickFitReason": "Directly serviceable as a pre-E-Check scan at the shop, no overreach into unrelated repairs",
+      "nonGenericReason": "Specific to the OBD-II readiness-monitor mechanism, not a generic 'get your car checked' message",
+      "rejectionRisk": "Absurdity is modest (6/10) — concept leans informational over playful; may read as dry without strong visual treatment",
+      "scores": { "hook": 8, "truth": 9, "save": 8, "local": 9, "absurdity": 6, "fit": 8 }
+    }
+  ],
+  "winningConceptId": "concept-1",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 3,
+      "visual": "Dark car dashboard interior at night, all indicator lights unlit, calm and still",
+      "motion": "Slow static hold, no camera movement",
+      "onScreenText": "NO LIGHT. NO WORRIES... RIGHT?",
+      "purpose": "Hook — the familiar false-safe moment",
+      "audioCue": "Low ambient engine idle hum",
+      "safeZoneNotes": "Text centered, clear of top ~250px and bottom ~200px IG UI zones"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 3,
+      "endSecond": 6,
+      "visual": "Push into the dark dashboard interior; small dim indicator lights become visible, mostly unlit",
+      "motion": "Slow macro push-in",
+      "onScreenText": "OHIO E-CHECK CHECKS SOMETHING YOU CAN'T SEE",
+      "purpose": "Reveal the hidden mechanism visually, not verbally",
+      "audioCue": "Soft rising synth tone",
+      "safeZoneNotes": "Same margins as beat 1"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 6,
+      "endSecond": 10,
+      "visual": "A sweeping scan-line of light passes across the small indicator lights; most flip from dim to lit amber, one stays dark",
+      "motion": "Horizontal scan-line sweep, camera locked off",
+      "onScreenText": "\"READINESS MONITORS.\" RESET = \"NOT READY.\"",
+      "purpose": "Teach the mechanism — monitors reset and need to re-complete",
+      "audioCue": "Soft mechanical scan/sweep sfx",
+      "safeZoneNotes": "Same margins"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 10,
+      "endSecond": 14,
+      "visual": "Split composition: calm all-dark dashboard on the left, one still-dark indicator light glowing dim amber on the right",
+      "motion": "Static split hold, slow pulse on the unlit light only",
+      "onScreenText": "LIGHT OFF DOESN'T MEAN READY FOR THE TEST",
+      "purpose": "Myth vs reality turn",
+      "audioCue": "Single low tension note",
+      "safeZoneNotes": "Text kept in the vertical center gutter between the split halves"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 14,
+      "endSecond": 17,
+      "visual": "The last dark indicator light lights up amber; pull back to a wide, fully-lit dashboard matching beat 1's opening composition",
+      "motion": "Slow pull-back, mirroring beat 2's push-in in reverse",
+      "onScreenText": "DRIVE IT. LET THE MONITORS FINISH. THEN TEST.",
+      "purpose": "Resolution and the loop seam",
+      "audioCue": "Ambient hum returns, matching beat 1",
+      "safeZoneNotes": "Same margins as beat 1"
+    }
+  ],
+  "promptPack": [
+    {
+      "beatNumber": 1,
+      "prompt": "Dark car dashboard interior at night, deep black field, all indicator lights unlit, calm and still, macro perspective, cinematic ambient glow, no camera movement",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles, daylight exterior, flat even lighting",
+      "styleKit": "warning_light_world",
+      "safeZoneGuidance": "Text centered, clear of top ~250px and bottom ~200px IG UI zones",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 2,
+      "prompt": "Slow macro push-in through a dark dashboard interior, small dim indicator lights scattered like distant embers, deep blacks with amber bokeh glow, macro perspective",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles, daylight exterior, flat even lighting, legible gauge numerals",
+      "styleKit": "warning_light_world",
+      "safeZoneGuidance": "Same margins as beat 1",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 3,
+      "prompt": "Inside a dark dashboard world, a horizontal sweep of soft light passing across a field of small round indicator lights, most flipping from dim grey to glowing amber, one remaining unlit, deep black background, macro perspective",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles, daylight exterior, flat even lighting, legible readout text, screen displaying characters",
+      "styleKit": "warning_light_world",
+      "safeZoneGuidance": "Same margins",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 4,
+      "prompt": "Split-frame composition, left half a calm all-dark dashboard interior, right half a single dim indicator light pulsing a low amber glow against deep black, symmetrical macro perspective",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles, daylight exterior, flat even lighting, legible text or numerals on either half",
+      "styleKit": "warning_light_world",
+      "safeZoneGuidance": "Text kept in the vertical center gutter",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 5,
+      "prompt": "Slow pull-back through a dark dashboard interior as the last indicator light turns amber, revealing a wide, fully-lit, warm-glowing field of small indicator lights against deep black, macro perspective, mirrors an opening establishing shot",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles, daylight exterior, flat even lighting",
+      "styleKit": "warning_light_world",
+      "safeZoneGuidance": "Same margins as beat 1",
+      "sceneStatus": "clean"
+    }
+  ],
+  "ffmpegAssemblyNotes": "See README.md section 4 'Assembly instructions' for the full step-by-step (trim, concat, scale/pad to 1080x1920 yuv420p 30fps, burn in captions.srt, append 3s SAVE/CTA card, verify via ffprobe against the render-integrity contract before treating as finished).",
+  "voiceoverScript": "No light. No worries... right? Ohio E-Check checks something you can't see. Readiness monitors — reset means not ready. Light off doesn't mean ready for the test. Drive it. Let the monitors finish. Then test.",
+  "captionHooks": [
+    "Your check engine light is off. You still failed E-Check.",
+    "There's a check inside your check engine light system.",
+    "No light doesn't mean ready for the test."
+  ],
+  "selectedCaption": "Light's off on your dash. You still failed E-Check. Here's the part nobody explains: Ohio's E-Check doesn't just read your check-engine light — it reads whether your car's own readiness monitors finished re-checking themselves after a battery disconnect or a cleared code. No light doesn't mean ready. Drive it a bit, let the monitors finish, then test. Cuyahoga E-Check questions? Stop by and we'll take a look. #ECheck",
+  "hashtags": ["ECheck", "ClevelandDrivers", "CarCareTips", "NicksTireAndAuto", "OhioEmissions"],
+  "avoidedForRepetition": "Windshield chip/crack spreading, sway-bar-link/clunk-over-bumps, steering-wheel-shake-under-braking, engine overheating, metallic rattle/heat shield, timing belt, spongy brake pedal, and 'that smell while driving' were all avoided as they match currently-open draft PRs (#1701, #1721, #1708, #1712, #1717, #1702, #1723, #1722) as of this run's PR check. The 36 merged apps/nickstire/docs/reel-packs/ topics were also avoided (see README.md section 1).",
+  "qualityScore": 70,
+  "assetPlan": "5 generated/sourced clips (3s/3s/4s/4s/3s) + 3s static SAVE/CTA card, concatenated to a single 1080x1920 H.264 MP4. No cover-frame selection made yet — pending an actual rendered file.",
+  "instagramUrl": null,
+  "operatorNotes": "Produced by an automated scheduled run with no live operator present. INTELLIGENCE/SCHEDULED mode only — no generation, spend, or publish action was taken. See README.md for the full receipt, the concept-score shortfall (48/60 vs the 57/60 tournament bar), and the manual-work checklist before this can move toward render or publish.",
+  "plannedDate": null
+}
