@@ -22,6 +22,27 @@ import { acquireCronLock, releaseCronLock } from "./index";
 
 const log = createLogger("scheduler");
 
+/**
+ * Should the reel-pipeline tier job re-throw AFTER its stages have run, so
+ * this pulse's cron_log row logs status:"failed" with a real errorMessage
+ * (what runCronFailureObserver reads) instead of "completed"?
+ *
+ * 2026-08-20 · Higgsfield stock-fallback remediation, Phase 2 "fail the cron
+ * loudly" requirement. processNextReelJob's preflight (server/services/
+ * reelPipeline.ts) returns processed:false WITH an error string ONLY when it
+ * proved the Higgsfield session is dead before claiming a job — every OTHER
+ * processed:false path (flag off, DB down, empty queue, lost claim race)
+ * carries no error string and is ordinary idle, must stay silent. That
+ * combination (processed:false AND a truthy error) is therefore unambiguous.
+ *
+ * Pure and exported so this is unit-testable without mocking the DB/import
+ * chain the full handler needs — same reasoning as
+ * terminalPaidFailureIsNeedsRegen in services/reelPipeline.ts.
+ */
+export function reelPipelineCronShouldFailLoudly(gen: { processed: boolean; error?: string }): boolean {
+  return !gen.processed && Boolean(gen.error);
+}
+
 interface TieredJob {
   name: string;
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
@@ -933,10 +954,17 @@ export function startTieredScheduler(): void {
             asm.processed ? `assemble ${asm.jobId ?? "?"}: ${asm.status}` : null,
             rep.processed ? `repair ${rep.jobId ?? "?"}: ${rep.status}` : null,
           ].filter(Boolean).join("; ");
-          return {
+          const result = {
             recordsProcessed: recovered + (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0) + (rep.processed ? 1 : 0),
             details: details || "no reel jobs to process",
           };
+          // Assembly/repair have already run above — this re-throws AFTER them,
+          // not instead of them, so this pulse's other stages still complete.
+          // See reelPipelineCronShouldFailLoudly's doc comment for why.
+          if (reelPipelineCronShouldFailLoudly(gen)) {
+            throw new Error(gen.error);
+          }
+          return result;
         },
       },
       {

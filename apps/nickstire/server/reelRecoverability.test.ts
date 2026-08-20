@@ -160,9 +160,21 @@ describe("an in-flight job is never offered a second paid render", () => {
     expect(ids(a)).not.toContain("regenerate_new_job");
   });
 
-  it.each(["failed", "assembled", "archived", "rejected"])("OFFERS regenerate once the job is settled ('%s')", (status) => {
+  it.each(["failed", "assembled", "archived", "rejected", "needs_regen"])("OFFERS regenerate once the job is settled ('%s')", (status) => {
     const a = classifyRecoverability(base({ status }));
     expect(ids(a)).toContain("regenerate_new_job");
+  });
+});
+
+describe("needs_regen — the silent stock fallback's replacement (2026-08-20)", () => {
+  it("is regenerable — no worker holds the row, same safety property as failed", async () => {
+    const { isRegenerable } = await import("./services/reelRecoverability");
+    expect(isRegenerable("needs_regen")).toBe(true);
+  });
+
+  it("is in ATTENTION_STATUSES, so the badge count and Action Center list agree by construction", async () => {
+    const { ATTENTION_STATUSES } = await import("./services/reelRecoverability");
+    expect(ATTENTION_STATUSES).toContain("needs_regen");
   });
 });
 

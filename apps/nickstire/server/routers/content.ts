@@ -2318,7 +2318,7 @@ export const contentAdminRouter = router({
 
       const { generateReelBriefAI } = await import("../services/reelBriefGen");
       const { critiqueReelBrief, detectServiceCategory, getNarrativeSpineDetails, determineVisualStyle } = await import("../services/contentManufacturing");
-      const { enqueueReelJob, processNextReelJob, processNextAssemblyJob } = await import("../services/reelPipeline");
+      const { enqueueReelJob, processNextReelJob, processNextAssemblyJob, REEL_GENERATION_TERMINAL_STATUSES } = await import("../services/reelPipeline");
       const { publishToSocial } = await import("../services/socialPublish");
       const { getInstagramPermalink } = await import("../services/metaSocial");
 
@@ -2407,8 +2407,19 @@ export const contentAdminRouter = router({
           if (res.jobId === jobId) {
             if (res.status === "assets_ready") {
               genSuccess = true;
-            } else if (res.status === "failed") {
-              lastError = res.error || "failed status";
+            } else if (res.status && REEL_GENERATION_TERMINAL_STATUSES.has(res.status)) {
+              // 2026-08-20 · Higgsfield stock-fallback remediation. Before this,
+              // a terminal paid-provider failure landed here as "needs_regen" —
+              // a status this loop did not recognize as terminal. It matched
+              // neither branch above NOR `!res.processed` (a needs_regen result
+              // has processed:true), so the loop looped again with no sleep; the
+              // job is no longer "queued" so every subsequent attempt returned
+              // processed:false, silently burning the remaining attempts on 2s
+              // sleeps before falling through with lastError still "" — the
+              // REAL reason (e.g. "preflight: higgsfield session dead — ...")
+              // was lost, and the operator saw a blank
+              // "Reel clip generation failed or timed out: " error.
+              lastError = res.error || `${res.status} status`;
               break;
             }
           }

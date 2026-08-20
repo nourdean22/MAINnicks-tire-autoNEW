@@ -151,7 +151,14 @@ export function registerAdminRoutes(app: Express): void {
         const d = await getDb();
         if (!d) { res.status(503).json({ error: "DB unavailable" }); return; }
         const readJob = async () => (await d.select().from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1))[0];
-        const TERMINAL = new Set(["assembled", "posted", "failed"]);
+        // 2026-08-20 · Higgsfield stock-fallback remediation self-audit: this
+        // loop polls job.status directly (not processNextReelJob's return
+        // value), but "needs_regen" is a real terminal status the job can now
+        // land in — omitting it meant this endpoint kept polling pointlessly
+        // for the full 100s deadline instead of returning the moment a dead
+        // provider routed the job to needs_regen (final status was still
+        // reported correctly either way; this only fixes the pointless hang).
+        const TERMINAL = new Set(["assembled", "posted", "failed", "needs_regen"]);
         const deadline = Date.now() + 100_000; // stay well under the edge timeout
         let job = await readJob();
         while (job && !TERMINAL.has(job.status) && Date.now() < deadline) {
