@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Dashboard warning-light colors: red vs. amber (and why it changes what you do)",
+  "campaignKeyword": "LIGHTCOLOR",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Same light, different color? That's one clue to what you do next.",
+      "onScreenText": "Not all warning lights mean the same thing.",
+      "visual": "Extreme close-up of an illuminated amber dashboard warning icon, softly pulsing, dim car interior lighting at dusk, shallow depth of field, slow static hold, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Amber or yellow? Worth checking soon — no need to pull over yet.",
+      "onScreenText": "Amber = worth checking soon",
+      "visual": "Close-up of a dashboard instrument cluster with an amber icon glowing steady, ambient interior light, slow static hold, subtle lens breathing, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Red? That can point to something serious — pull over safely and shut it off.",
+      "onScreenText": "Red = pull over now",
+      "visual": "Extreme close-up of a red dashboard warning icon glowing intensely, brief slow camera push-in, high-contrast interior lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Flashing instead of solid? That often means don't keep driving on it.",
+      "onScreenText": "Flashing = stop driving",
+      "visual": "Close-up of a dashboard icon flickering rapidly on and off, dim cabin lighting, subtle handheld micro-movement, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Don't guess which light you're looking at — stop by and we'll take a look, free. Link in bio.",
+      "onScreenText": "We'll read it for you, free.",
+      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a diagnostic scanner screen glowing near the foreground echoing beat 1's glowing-icon close-up, warm inviting lighting, slow push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "lightcolor-triage-v1",
+      "loopIdea": "Attempted, not verified: beat 5's foreground diagnostic-scanner glow is composed to visually rhyme with beat 1's glowing dashboard-icon close-up (both a single glowing screen/icon against a dark surround), so a hard loop-back to beat 1 reads as a match-cut rather than a jump. This is a design intent for the editor to hit at cut time, not a rendered or scored loop — flagged as unverified rather than claimed as designed-and-confirmed.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "lightcolor-triage-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autorepair"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "none — captions plus voiceover carry full meaning muted-first"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts:863), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 3, "detail": "A visual rhyme between beat 5 and beat 1 is designed (see concepts[0].loopIdea) but not rendered or verified, so partial credit only" },
+      { "label": "Verified mechanic fact (sourced)", "max": 10, "points": 0, "detail": "No EvidenceRecord cited; evidenceResolver.ts not queried live (no DB access this run). Red/amber/flashing telltale-color convention is standard automotive iconography, not shop-specific, but is UNKNOWN against this repo's evidence store" },
+      { "label": "Faceless & wordless contract", "max": 10, "points": 10, "detail": "No face/hand/human-figure subjects in any prompt; standing negative prompt applied to every beat" },
+      { "label": "Claim safety (no blocked claims)", "max": 10, "points": 10, "detail": "Uses approved soft-language only: 'one clue', 'worth checking', 'can point to', 'don't guess', 'stop by and we'll take a look'" },
+      { "label": "Campaign keyword valid", "max": 5, "points": 5, "detail": "LIGHTCOLOR — single ALL-CAPS word" },
+      { "label": "Winning concept >= 57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() not invoked this run — scored 0 rather than assumed passing" }
+    ],
+    "overall": 58,
+    "minPassing": 70,
+    "passing": false
+  }
+}
