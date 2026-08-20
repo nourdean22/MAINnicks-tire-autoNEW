@@ -49,6 +49,24 @@ describe("runRecallEval — harness aggregation", () => {
   it("seed corpus is honest about being synthetic", () => {
     for (const c of SEED_CASES) expect(c.provenance).toBe("synthetic-seed");
   });
+
+  // 2026-08-19 · memory-loop wave · `temporal` was a DECLARED kind with
+  // zero cases since Wave-4 — a taxonomy slot that measured nothing.
+  // This pins that the slot stays populated, and that every temporal
+  // case actually exercises the supersession risk (a forbidden stale
+  // key a past-tense query could resurrect).
+  it("temporal kind has cases, and each forbids a stale key", () => {
+    const temporal = SEED_CASES.filter((c) => c.kind === "temporal");
+    expect(temporal.length).toBeGreaterThanOrEqual(3);
+    for (const c of temporal) {
+      expect(c.forbiddenKeys.length).toBeGreaterThan(0);
+      expect(c.relevantKeys.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("abstention corpus stays wide enough to mean something", () => {
+    expect(SEED_CASES.filter((c) => c.kind === "abstention").length).toBeGreaterThanOrEqual(5);
+  });
 });
 
 // Wave-4 (2026-07-29): abstention metrics — false-premise queries pass
