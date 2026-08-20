@@ -788,6 +788,19 @@ async function chatPostInner(req: Request) {
   // mutation, so every call site captures identical values; per-site
   // overrides are only provider/modelId/model (+ onWorkComplete on the
   // main stream path).
+  // 2026-08-19 · memory-loop wave · MEMORY RECEIPTS: snapshot the recall
+  // hits that fired on THIS turn into a persistable lite shape (snippet,
+  // not full content — the live row is one lookup away by id). Rides
+  // persistBase into every persist path; empty when recall didn't fire.
+  const recallReceipts = recalledHits.slice(0, 10).map((h) => ({
+    id: String(h.id ?? ""),
+    category: String(h.category ?? "unknown"),
+    key: typeof h.key === "string" ? h.key : undefined,
+    similarity: typeof h.similarity === "number" ? h.similarity : 0,
+    seenCount: typeof h.seenCount === "number" ? h.seenCount : undefined,
+    snippet: String(h.content ?? "").slice(0, 160),
+  }));
+
   const persistBase = {
     log,
     privateMode,
@@ -807,6 +820,7 @@ async function chatPostInner(req: Request) {
     contextBlocksFired,
     deeperContextCount,
     deeperContextTypes,
+    recallReceipts,
     startedAt,
     firstTokenRef: __firstTokenRef,
     traceId: __traceId,

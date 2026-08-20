@@ -491,6 +491,13 @@ export async function buildBrainContext(
             : typeof h.knnDistance === "number"
               ? Math.max(0, Math.min(1, 1 - h.knnDistance))
               : 0,
+        // 2026-08-19 · memory-loop wave · stop flattening the receipt
+        // fields away: key + seenCount ride to the client (Memory
+        // Inspector ignores extras) AND into the persisted per-message
+        // receipt, which is what lets "why did Nick say this?" answer
+        // from what ACTUALLY fired instead of a read-time re-recall.
+        key: typeof h.key === "string" ? h.key : undefined,
+        seenCount: typeof h.seenCount === "number" ? h.seenCount : undefined,
       }));
     }
     if (contradictionHit) detectedContradictions = [contradictionHit];

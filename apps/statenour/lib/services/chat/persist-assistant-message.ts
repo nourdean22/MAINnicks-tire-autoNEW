@@ -23,6 +23,7 @@ import type { ProviderName } from "@/lib/ai/provider";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { runReplyGate, runReplyGateWithContract } from "@/lib/ai/reply-gate";
 import type { ContextBlocksFired } from "./brain-context";
+import type { RecallReceipt } from "./persist-assistant-turn";
 import type { critiqueOutput, ContentCriticScore } from "@/lib/ai/output-critic";
 
 /**
@@ -78,6 +79,10 @@ export async function persistAssistantMessage(a: {
   contextBlocksFired: ContextBlocksFired;
   deeperContextCount: number;
   deeperContextTypes: string[];
+  /** 2026-08-19 · memory-loop wave · the recall hits that ACTUALLY fired
+   *  on this turn, persisted as receipts (see RecallReceipt). Absent on
+   *  paths that skip recall. */
+  recallReceipts?: RecallReceipt[];
   personality: string;
   userContent: string;
   posture: string | undefined;
@@ -88,7 +93,7 @@ export async function persistAssistantMessage(a: {
     traceId, provider, modelId, startedAt, firstTokenRef, capturedToolCalls,
     truthFlags, critic, citations, gate, factClaims, unverifiedCount,
     turnSignal, contextBlocksFired, deeperContextCount, deeperContextTypes,
-    personality, userContent, posture, log,
+    recallReceipts, personality, userContent, posture, log,
   } = a;
   let cleanedText = a.cleanedText;
   // (the `void userContent` keep-alive is gone — the calibration
@@ -307,6 +312,15 @@ export async function persistAssistantMessage(a: {
                 ? { count: deeperContextCount, types: deeperContextTypes }
                 : undefined,
               contextBlocks: contextBlocksFired,
+              // 2026-08-19 · memory-loop wave · MEMORY RECEIPTS: the recall
+              // hits that actually fired on THIS turn. Before this, the
+              // hits were flattened, fired once over an ephemeral SSE
+              // event, and dropped — brain-provenance then RE-RAN recall at
+              // read time and presented the reconstruction as the answer
+              // to "why did Nick say this?".
+              recall: recallReceipts && recallReceipts.length > 0
+                ? (recallReceipts.map((r) => ({ ...r })) as never)
+                : undefined,
               persona: personality,
               turnSignal: {
                 complexity: turnSignal.complexity,
