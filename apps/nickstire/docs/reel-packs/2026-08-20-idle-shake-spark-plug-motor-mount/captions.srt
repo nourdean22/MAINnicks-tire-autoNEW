@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:02,000
+Car shakes at a stoplight?
+
+2
+00:00:02,000 --> 00:00:04,000
+The pattern is the clue.
+
+3
+00:00:04,000 --> 00:00:07,000
+Only shakes at idle, fades once moving?
+
+4
+00:00:07,000 --> 00:00:10,000
+That can point to a spark plug or misfire.
+
+5
+00:00:10,000 --> 00:00:13,000
+Worse in Drive or Reverse than Park?
+
+6
+00:00:13,000 --> 00:00:16,000
+Worth checking the motor mounts.
+
+7
+00:00:16,000 --> 00:00:19,000
+A small shake now can turn into
+
+8
+00:00:19,000 --> 00:00:22,000
+a rough-running engine later.
+
+9
+00:00:22,000 --> 00:00:25,000
+Don't guess.
+
+10
+00:00:25,000 --> 00:00:28,000
+Nick's Tire & Auto checks it free. Link in bio.
