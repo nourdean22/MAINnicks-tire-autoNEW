@@ -64,6 +64,20 @@ describe("classifySilence", () => {
     expect(Math.round(v.silent[0].ageH)).toBe(40);
   });
 
+  it("epoch first-seen (registry down) pages a never-run job — degraded mode must alert", () => {
+    // Post-crash review: the caller maps a failed registry read to
+    // first-seen = 0 for every job. That must classify as silent (page),
+    // never as newborn — a DB error must not silence the watchdog.
+    const v = classifySilence(
+      [{ name: "unknown-age", maxAgeH: DAILY }],
+      new Map([["unknown-age", null]]),
+      new Map([["unknown-age", 0]]),
+      NOW,
+    );
+    expect(v.silent).toHaveLength(1);
+    expect(v.newborn).toEqual([]);
+  });
+
   it("recent runs stay quiet; weekly jobs get the weekly window", () => {
     const v = classifySilence(
       [

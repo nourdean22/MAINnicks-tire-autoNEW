@@ -163,9 +163,13 @@ export const cronHeartbeat = inngest.createFunction(
 
     // Birth registry for the never-ran (see classifySilence). Reads existing
     // first-seen rows, then registers any expected job not yet on record.
-    // Failure here degrades to the old behavior (no grace, page) — the
-    // watchdog must fail toward alerting, never toward silence.
-    const firstSeen = await step.run("first-seen-registry", async () => {
+    // Returns null when the registry itself is unreachable — the caller then
+    // treats every never-run job as ancient (epoch first-seen), i.e. the old
+    // page-always behavior. Post-crash review 2026-08-20: the first version
+    // returned {} on failure, which made every never-run job look like a
+    // FIRST SIGHTING and granted it grace — a DB error would have silenced
+    // the watchdog, the exact inversion of fail-toward-alerting.
+    const firstSeen = await step.run("first-seen-registry", async (): Promise<Record<string, number> | null> => {
       const out: Record<string, number> = {};
       try {
         const rows = await prisma.brainMemory.findMany({
@@ -194,7 +198,8 @@ export const cronHeartbeat = inngest.createFunction(
           out[n] = Date.parse(nowIso);
         }
       } catch (e) {
-        logError("inngest.cron-heartbeat", e, { stage: "first-seen-registry", risk: "newborn grace unavailable; may false-page a new cron" }, "warn");
+        logError("inngest.cron-heartbeat", e, { stage: "first-seen-registry", risk: "grace unavailable; never-run jobs will page (old behavior)" }, "warn");
+        return null;
       }
       return out;
     });
@@ -203,7 +208,9 @@ export const cronHeartbeat = inngest.createFunction(
     const { silent, newborn } = classifySilence(
       expected,
       lastByName,
-      new Map(Object.entries(firstSeen)),
+      firstSeen === null
+        ? new Map(names.map((n) => [n, 0])) // registry down → epoch → page
+        : new Map(Object.entries(firstSeen)),
       now,
     );
 
