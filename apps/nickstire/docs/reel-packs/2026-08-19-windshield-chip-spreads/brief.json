@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Windshield chip: repair before it spreads into a crack",
+  "campaignKeyword": "CHIPSPREAD",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "That small chip in your windshield? It's a clue that starts a clock.",
+      "onScreenText": "That chip? It's a clock, not a curiosity.",
+      "visual": "Extreme close-up of a small rock chip in a car windshield, morning sun glare catching the glass, static camera with a slow, subtle focus pull onto the chip, blurred dashboard reflection in the background, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Temperature swings and road vibration are what usually make it spread.",
+      "onScreenText": "Heat, cold, and road vibration spread it.",
+      "visual": "Macro shot of windshield glass around the chip, subtle heat-shimmer visual effect implying thermal stress, slow camera drift, warm sunlight shifting to cooler shade across the frame, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "A chip smaller than a quarter can often be repaired in under thirty minutes.",
+      "onScreenText": "Small chip? Often a 30-minute fix.",
+      "visual": "Close-up of a windshield-repair resin injector tool mounted and positioned over a small chip, static camera, clean workshop lighting, clear resin catching a glint of light, no hands or people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Once a crack reaches the edge of the glass, that may indicate it's a replacement instead.",
+      "onScreenText": "Crack reaches the edge? Often a replacement.",
+      "visual": "Wide-angle shot of a windshield with a crack running from the edge toward the center, dusk exterior lighting, slow dolly-in emphasizing the crack's length, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Don't guess how long it'll hold. Stop by and we'll take a look, free. Nick's Tire and Auto, link in bio.",
+      "onScreenText": "Free look, no pressure. Link in bio.",
+      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, tool cart visible; camera slowly pushes in and racks focus onto a parked car's windshield inside the bay, echoing the opening beat's chip-close-up composition, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "chipspread-triage-v1",
+      "loopIdea": "Beat 5 racks focus from the wide garage-bay shot onto a parked car's windshield, echoing beat 1's chip-close-up framing, so the final frame reads as a soft return into the opening frame on replay.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "chipspread-triage-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autoglass"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional ambient road/garage room-tone only, no discrete SFX cue needed"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts:863), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 5, "detail": "Beat 5 racks focus onto a windshield, echoing beat 1's framing" },
+      { "label": "Verified mechanic fact (sourced)", "max": 10, "points": 0, "detail": "No EvidenceRecord cited; evidenceResolver.ts not queried live (no DB access this run)" },
+      { "label": "Faceless & wordless contract", "max": 10, "points": 10, "detail": "No face/hand/human-figure subjects in any prompt; standing negative prompt applied to every beat" },
+      { "label": "Claim safety (no blocked claims)", "max": 10, "points": 10, "detail": "Uses approved soft-language only: 'may indicate', 'often', 'usually', 'don't guess', 'stop by and we'll take a look'" },
+      { "label": "Campaign keyword valid", "max": 5, "points": 5, "detail": "CHIPSPREAD — single ALL-CAPS word" },
+      { "label": "Winning concept >= 57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() not invoked this run — scored 0 rather than assumed passing" }
+    ],
+    "overall": 60,
+    "minPassing": 70,
+    "passing": false
+  }
+}
