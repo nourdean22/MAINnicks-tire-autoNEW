@@ -1,0 +1,92 @@
+{
+  "packId": "2026-08-19-engine-overheating-first-60-seconds",
+  "generatedAt": "2026-08-19",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "off-slate — not on REEL-SLATE-2026-07-31.md; selected fresh after checking apps/nickstire/docs/reel-packs/ (36 prior dirs) and the 3 currently-open reel-pack PRs (#1701 windshield chip, #1702 timing belt, #1708 steering-wheel shake/warped rotors) for topic overlap, plus today's already-merged wont-start-battery-starter-alternator pack",
+  "campaignKeyword": "OVERHEAT",
+  "hookText": "Temp gauge climbing? Steam under the hood? Do not keep driving.",
+  "ctaText": "Overheat once, it's a warning. Overheat twice, it can total the engine.",
+  "durationSeconds": 30,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Temp gauge climbing? Steam under the hood? Do not keep driving.",
+      "onScreenText": "",
+      "providerScene": "Close-up of a car dashboard temperature gauge needle climbing into the red zone, shallow depth of field, dim cabin light, slow push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 9,
+      "narration": "Pull over safely first — overheating can damage an engine in minutes, not miles.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a car pulled onto a road shoulder with hazard lights flashing, light steam or heat haze rising from the hood seam, overcast daylight, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 9,
+      "endSecond": 16,
+      "narration": "Turn the engine off and do not open the radiator cap — pressurized coolant can burn you.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a closed radiator cap under an open hood, faint heat shimmer, slow rack focus from cap to surrounding engine bay, garage-adjacent daylight, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 16,
+      "endSecond": 24,
+      "narration": "Once it's cool, a low coolant level or a puddle under the car can point to a leak — worth checking before you drive again.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a translucent coolant reservoir tank with fluid level visibly low against its fill markings, soft overhead garage light, slow push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 24,
+      "endSecond": 30,
+      "narration": "Overheat once, it's a warning. Overheat twice, it can total the engine. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient road/engine-bay room-tone only, royalty-free",
+    "sfxNotes": "optional single soft hiss/steam SFX under beat 2 synced to the visual, and a single metallic tick-tick cooling-engine SFX under beat 3; skip either if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 8 },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 2, "detail": "CTA frame (garage bay) does not loop cleanly back into the hook frame (dashboard gauge)" },
+      "sourcedFact": { "max": 10, "score": 6, "detail": "safety procedure (do not open a pressurized radiator cap, pull over on overheating) is well-established general automotive safety guidance, not shop-specific; no EvidenceRecord citation attached — evidenceResolver.ts not queried live this run" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 10, "detail": "no diagnosis asserted as certain, no price/warranty claim, uses approved soft phrasing ('can point to', 'worth checking')" },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (61/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "61/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}
