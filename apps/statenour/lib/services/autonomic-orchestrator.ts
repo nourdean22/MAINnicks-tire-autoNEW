@@ -64,7 +64,9 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       // whole fan-out was never a targeted heal anyway — the unit worth
       // rescuing is the individual child, which the fan-out already retries.
       const targetPath = row.path ?? `/api/cron/${row.name}`;
-      if (targetPath.startsWith("/api/cron/mega")) {
+      // Exact route (+ optional query) — a bare prefix would also skip a
+      // future unrelated cron that merely starts with "mega".
+      if (targetPath === "/api/cron/mega" || targetPath.startsWith("/api/cron/mega?")) {
         continue;
       }
 
