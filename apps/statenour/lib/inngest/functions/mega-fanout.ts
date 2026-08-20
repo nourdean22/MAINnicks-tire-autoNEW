@@ -325,7 +325,12 @@ export const megaFanoutMorning = inngest.createFunction(
     // Cron trigger uses TZ=UTC by default — keep schedule identical
     // to the existing Vercel/Railway 9am UTC trigger. v4 SDK takes
     // triggers inside the config object (v2/v3 used a 3-arg form).
-    triggers: [{ cron: "0 9 * * *" }],
+    // 2026-08-20 · manual-fire lane. The operator asked to run the slot NOW
+    // (post-#1735/#1743 verification) and there was no way to: cron-only
+    // triggers can't be invoked externally. `inngest.send({name})` — via the
+    // event key — now fires the slot on demand; the cron behavior is
+    // unchanged. Same pattern as research/on-demand.
+    triggers: [{ cron: "0 9 * * *" }, { event: "mega/fire.morning" }],
     // 2026-05-17 follow-up · Telegram alert on final failure after
     // all retries exhaust. Shared handler in ../on-failure.
     onFailure: onInngestFailure,
@@ -402,7 +407,7 @@ export const megaFanoutEvening = inngest.createFunction(
     // upgrading the Inngest plan.
     concurrency: { limit: 5 },
     retries: 3,
-    triggers: [{ cron: "0 3 * * *" }],
+    triggers: [{ cron: "0 3 * * *" }, { event: "mega/fire.evening" }],
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
