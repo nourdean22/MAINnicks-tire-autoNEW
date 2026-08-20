@@ -1,0 +1,88 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Reading a tire sidewall: the three markings that decide which tire fits",
+  "campaignKeyword": "SIDEWALL",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "The numbers on your tire sidewall aren't random. Three of them decide what fits.",
+      "onScreenText": "The numbers on your tire aren't random.",
+      "visual": "Extreme macro of a raised tire sidewall marking, rubber texture and molded lettering in sharp relief, slow lateral camera slide along the sidewall curve, low-angle garage light raking across the rubber, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "First group is the size. Width, sidewall ratio, wheel diameter. Something like 225 60 R17.",
+      "onScreenText": "First group: width, ratio, wheel size.",
+      "visual": "Macro push-in on the molded size block of a tire sidewall, shallow depth of field with the numerals drifting into focus, cool overhead shop light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Right after it, the load index. A lower number than the original can point to a tire that's under-rated for your car.",
+      "onScreenText": "Then the load index.",
+      "visual": "Tight macro tracking shot moving right along the sidewall past the size block toward the two- and three-digit markings, subtle parallax as the tire curves away, moody garage lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Last, the speed rating letter. Mixing different ratings across one axle is worth checking before you buy.",
+      "onScreenText": "Last: the speed-rating letter.",
+      "visual": "Slow orbit around a mounted tire on a rack, sidewall markings sweeping through frame, two tires visible side by side in soft background separation, cool shop light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Take a photo of your sidewall before you shop. Nick's Tire and Auto will read it with you. Link in bio.",
+      "onScreenText": "Photo your sidewall first. Link in bio.",
+      "visual": "Medium-wide of a tire standing in a warmly lit repair-shop bay, camera drifting in until the sidewall markings fill frame in macro at the final second, open bay door glowing behind, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "loopPlan": {
+    "designed": true,
+    "description": "Beat 5 ends on a sidewall macro that visually rhymes with beat 1's opening sidewall macro (same subject, same framing scale, warm-to-cool grade shift is the only discontinuity). Deliberate partial loop, not a frame-exact match — scored 4/5, not 5/5.",
+    "note": "Prior packs in this directory scored 0/5 here because their CTA frame (a shop garage bay) had no relationship to their HOOK frame. This pack fixes that by keeping the tire as the subject through the CTA."
+  },
+  "audioNotes": {
+    "voiceover": "Not generated this run — route through reelVoice.ts (Google Neural2 or ElevenLabs) at render time; narration above is exactly what gets fed to it.",
+    "musicBed": "None assigned — no music-rights ledger exists in this repo (repo-wide gap). Voiceover + captions + optional ambient shop room-tone only.",
+    "sfx": "Optional single low 'thunk' of a tire settling on concrete under beat 5's first half, not required."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 57,
+    "max": 75,
+    "passFloor": 70,
+    "passes": false,
+    "breakdown": {
+      "firstFrameScrollStop": { "score": 8, "max": 10, "note": "Extreme macro of molded sidewall lettering is a texturally distinct opening frame; not verified by calculateReelQualityScore()" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "Captions alone carry full meaning per beat; the subject is literally text molded into rubber, so the visual reads silent" },
+      "beatStructure": { "score": 5, "max": 5, "note": "HOOK/SETUP/VALUE/VALUE/CTA, 5 beats" },
+      "length": { "score": 5, "max": 5, "note": "28s, within 15-60s target and the account's ~28-30s convention" },
+      "loop": { "score": 4, "max": 5, "note": "Deliberate partial loop — CTA ends on a sidewall macro rhyming with the HOOK frame; not frame-exact, so 4 not 5" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "Load index and speed rating are standardized, publicly documented tire markings, but no EvidenceRecord in evidenceResolver.ts backs them and that store was not queried live this run (no DB access). Scored 0 rather than assumed." },
+      "faceless": { "score": 10, "max": 10, "note": "No people/faces/hands in any beat's visual prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "Approved soft-language only ('can point to', 'worth checking'); no price, warranty, absolute, or 'you need' phrasing. Hand-swept against all five exported pattern banks in facelessReelStudio.ts:545-585 (FORBIDDEN_CLAIM_PATTERNS, OVERDIAGNOSIS_PATTERNS, FEARMONGER_PATTERNS, GENERIC_MARKETING_PATTERNS, PRICE_CLAIM_PATTERN); linter not executed" },
+      "keyword": { "score": 5, "max": 5, "note": "tire, sidewall, load index, speed rating — core tire-shop keywords present in narration and captions" },
+      "winningConceptGate": { "score": 0, "max": 5, "note": "scoreReelConcept() (>=57/60 tournament gate) was not invoked — scored 0 rather than assumed passing" }
+    }
+  }
+}
