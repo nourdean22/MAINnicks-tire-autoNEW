@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Car shakes at a stoplight: spark plugs vs. motor mount",
+  "campaignKeyword": "IDLESHAKE",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Your car shakes at a stoplight? The pattern is the clue.",
+      "onScreenText": "Shakes at a stoplight? The pattern is the clue.",
+      "visual": "Close-up static shot of a car's dashboard and steering wheel at a red light, dusk, subtle idle vibration blur on the RPM needle, slow creeping camera push-in, moody streetlight reflections through the windshield, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Only shakes at idle, and fades once you're moving? That can point to a spark plug or a misfire.",
+      "onScreenText": "Only shakes at idle, fades once moving?",
+      "visual": "Extreme close-up of a car engine bay near the spark plug / ignition coil area, shallow focus, slight camera drift implying a subtle mechanical tremor, dim garage lighting, macro lens look, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Feel it more in Drive or Reverse than in Park? Worth checking the motor mounts.",
+      "onScreenText": "Worse in Drive or Reverse than Park?",
+      "visual": "Close-up of an engine mount area underside of the engine bay, static camera with subtle rocking motion to imply mount movement under load, dim garage lighting, macro lens, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Either way, a small shake now can turn into a rough-running engine later.",
+      "onScreenText": "Small shake now can become rough-running later.",
+      "visual": "Close-up of loose coins in a car's cup holder subtly rattling and vibrating, shallow depth of field, dashboard softly blurred in the background, warm interior light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Don't guess. Nick's Tire and Auto checks it free. Link in bio.",
+      "onScreenText": "We check it free. Link in bio.",
+      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "idleshake-triage-v1",
+      "loopIdea": "NOT DESIGNED — final frame (shop garage bay, daylight) does not feed back into the opening frame (dashboard at a red light, dusk). Flagged in README §9 as a real gap, not omitted.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "idleshake-triage-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autorepair"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional low-level idle-engine rumble / room-tone layered under beats 1-4 only"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts:863), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 0, "detail": "No loop plan designed - see concepts[0].loopIdea" },
+      { "label": "Verified mechanic fact (sourced)", "max": 10, "points": 0, "detail": "No EvidenceRecord cited; evidenceResolver.ts not queried live (no DB access this run)" },
+      { "label": "Faceless & wordless contract", "max": 10, "points": 10, "detail": "No face/hand/human-figure subjects in any prompt; standing negative prompt applied to every beat" },
+      { "label": "Claim safety (no blocked claims)", "max": 10, "points": 10, "detail": "Uses approved soft-language only: 'can point to', 'worth checking', 'don't guess'; no price/warranty claim; no fearmongering pattern matched" },
+      { "label": "Campaign keyword valid", "max": 5, "points": 5, "detail": "IDLESHAKE - single ALL-CAPS word" },
+      { "label": "Winning concept >= 57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() not invoked this run - scored 0 rather than assumed passing" }
+    ],
+    "overall": 55,
+    "minPassing": 70,
+    "passing": false
+  }
+}
