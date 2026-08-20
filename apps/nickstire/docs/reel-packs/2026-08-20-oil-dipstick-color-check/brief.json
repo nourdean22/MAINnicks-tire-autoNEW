@@ -1,0 +1,93 @@
+{
+  "topic": "Oil dipstick color check: amber vs black-gritty vs milky",
+  "campaignKeyword": "OILCHECK",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-20",
+  "durationSec": 28,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Pull your dipstick. The color is telling you something.",
+      "visualPrompt": "Macro shot of a dipstick being pulled from a car engine, oil droplet catching light, engine bay softly blurred in background, shallow depth of field, cinematic garage lighting",
+      "stockSearchTerms": ["dipstick pulled from car engine closeup", "checking engine oil hood open"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 10],
+      "narration": "Honey to dark amber? That's normal - worth checking again next month.",
+      "visualPrompt": "Macro close-up of dipstick tip, clean honey-to-amber colored oil clearly visible on the tip, shallow depth of field, neutral garage lighting",
+      "stockSearchTerms": ["engine oil dipstick amber closeup macro", "car oil dipstick tip clean"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [10, 17],
+      "narration": "Black and gritty? That can point to an overdue oil change.",
+      "visualPrompt": "Macro close-up of dipstick tip, dark black gritty oil with visible texture, dim garage lighting, slight push-in camera move",
+      "stockSearchTerms": ["dark dirty engine oil dipstick macro", "old motor oil closeup texture"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [17, 23],
+      "narration": "Milky or foamy? That may indicate coolant in the oil - stop driving and get it looked at.",
+      "visualPrompt": "Macro close-up of dipstick tip, pale milky beige foamy oil, unusual coloring clearly visible, close-up, dim engine bay light",
+      "stockSearchTerms": ["milky oil dipstick closeup", "engine bay macro dim garage light"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [23, 28],
+      "narration": "Thirty seconds under the hood can save you thousands. Nick's Tire and Auto checks it free. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "macro dipstick-pull is a decent visual but not a top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "28s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame does not visually feed back into HOOK frame" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; approved soft-language phrasing used throughout (can point to / may indicate)" },
+      "keyword": { "score": 5, "max": 5, "note": "oil, dipstick, engine keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 28,
+    "ctaType": "SEND-oriented"
+  }
+}
