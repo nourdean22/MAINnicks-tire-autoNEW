@@ -1,0 +1,83 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Battery terminal corrosion: clean it, or does it mean the battery's leaking?",
+  "campaignKeyword": "CORRODE",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Green or white powder on your battery? One clue, more than one cause.",
+      "onScreenText": "Powder on your battery terminals?",
+      "visual": "Extreme close-up of a car battery's terminal posts under the hood, subtle green/white crust visible on metal, static camera with slow creeping push-in, dim engine-bay lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Light dusting, terminal still tight? That can point to normal corrosion — clean it.",
+      "onScreenText": "Light dusting, terminal still tight?",
+      "visual": "Macro shot of a lightly corroded battery terminal clamp, shallow focus, subtle handheld drift, cool engine-bay light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Terminal loose under the powder? That may indicate a bad connection, not the battery.",
+      "onScreenText": "Terminal loose under the buildup?",
+      "visual": "Close-up of a battery terminal clamp with a slight gap/wobble implied by subtle camera vibration, dim garage lighting, macro lens look, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Heavy buildup that's back in days? Worth checking for a leaking battery cell.",
+      "onScreenText": "Heavy buildup, back within days?",
+      "visual": "Close-up of heavy white/green crust encrusting a battery terminal and case top, slow slide across the surface, moody blue-hour garage light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Don't guess with corrosion. Nick's Tire and Auto checks it free — link in bio.",
+      "onScreenText": "Free battery check. Link in bio.",
+      "visual": "Wide static shot of an auto repair shop garage bay interior, open bay door, warm inviting light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "audioNotes": {
+    "voiceover": "Not generated this run — route through reelVoice.ts (Google Neural2 or ElevenLabs) at render time; narration above is exactly what gets fed to it.",
+    "musicBed": "None assigned — no music-rights ledger exists in this repo (repo-wide gap). Voiceover + captions + optional single ambient garage room-tone only.",
+    "sfx": "Optional single soft 'crackle/brush' SFX on beat 2 (cleaning motion implied), not required."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 53,
+    "max": 75,
+    "passFloor": 70,
+    "passes": false,
+    "breakdown": {
+      "firstFrameScrollStop": { "score": 8, "max": 10, "note": "Close-up crusted battery terminal is a visually distinct scroll-stop frame, not verified by calculateReelQualityScore()" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "Captions alone carry full meaning per beat" },
+      "beatStructure": { "score": 5, "max": 5, "note": "HOOK/SETUP/VALUE/VALUE/CTA, 5 beats" },
+      "length": { "score": 5, "max": 5, "note": "28s, within 15-60s target and account's ~28-30s convention" },
+      "loop": { "score": 0, "max": 5, "note": "CTA frame (shop garage bay) does not loop back to HOOK frame (battery terminal close-up) — no loop plan designed" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "No EvidenceRecord in evidenceResolver.ts backs the corrosion/leaking-battery claims; store not queried live this run (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "No people/faces/hands in any beat's visual prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "Approved soft-language only ('can point to', 'may indicate', 'worth checking', 'don't guess'); no price, warranty, or absolute claim" },
+      "keyword": { "score": 5, "max": 5, "note": "battery, corrosion, terminal — relevant automotive keywords present in narration/captions" },
+      "winningConceptGate": { "score": 0, "max": 5, "note": "scoreReelConcept() (>=57/60 tournament gate) was not invoked — scored 0 rather than assumed passing" }
+    }
+  }
+}
