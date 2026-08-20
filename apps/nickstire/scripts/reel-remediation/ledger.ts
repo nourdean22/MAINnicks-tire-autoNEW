@@ -1,0 +1,189 @@
+/**
+ * The remediation ledger — the single source of truth every phase reads and
+ * writes. Every phase after Phase 1 is resumable ONLY because it consults
+ * this file before acting: a crash or rate-limit mid-run must not double-
+ * delete or double-post, per the mission's idempotency requirement.
+ *
+ * Lives at apps/nickstire/.remediation/ledger.json — gitignored (see
+ * .gitignore), never committed. It is working state, not a durable record;
+ * the durable record is what Phase 3 archives (via storagePut) and the
+ * pre-delete-report.csv handed to the operator directly.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REMEDIATION_DIR = path.join(__dirname, "..", "..", ".remediation");
+const LEDGER_PATH = path.join(REMEDIATION_DIR, "ledger.json");
+
+export type DetectionSignal = "storage_path_provenance" | "outage_window_temporal" | "frame_perceptual_hash";
+
+export type ConfidenceTier = "high" | "medium" | "low";
+
+export interface DetectionResult {
+  signals: DetectionSignal[];
+  confidence: ConfidenceTier;
+  /** Per-beat stock-clip URLs that triggered storage_path_provenance. */
+  stock_assets: string[];
+  /** Free-text notes from whichever signal(s) fired, for manual review. */
+  notes: string[];
+  detected_at: string;
+}
+
+export interface OriginalContent {
+  render_path: string | null;
+  script: string | null;
+  vo_path: string | null;
+  caption: string | null;
+  hook: string | null;
+}
+
+export interface PlatformPost {
+  name: "instagram" | "facebook";
+  post_id: string;
+  permalink: string | null;
+  published_at: string | null;
+}
+
+export interface InsightsSnapshot {
+  captured_at: string;
+  platform: "instagram" | "facebook";
+  post_id: string;
+  views: number | null;
+  reach: number | null;
+  avg_watch_time_ms: number | null;
+  skip_rate: number | null;
+  likes: number | null;
+  comments: number | null;
+  saves: number | null;
+  shares: number | null;
+  follows: number | null;
+}
+
+export interface ArchiveRecord {
+  video: { key: string; url: string; sha256: string; bytes: number } | null;
+  manifest: { key: string; url: string; sha256: string } | null;
+  archived_at: string | null;
+}
+
+export type RegenStatus = "not_started" | "in_progress" | "qc_passed" | "qc_failed" | "failed";
+
+export interface RegenRecord {
+  status: RegenStatus;
+  higgsfield_job_ids: string[];
+  new_render_path: string | null;
+  qc: { passed: boolean; checks: Record<string, boolean>; notes: string[] } | null;
+}
+
+export type TakedownStatus = "not_started" | "in_progress" | "done" | "failed";
+
+export interface TakedownRecord {
+  status: TakedownStatus;
+  deleted_at: Record<string, string>;
+}
+
+export type RepostStatus = "not_started" | "scheduled" | "posted" | "failed";
+
+export interface RepostRecord {
+  status: RepostStatus;
+  scheduled_for: string | null;
+  new_post_ids: Record<string, string>;
+}
+
+export interface LedgerEntry {
+  reel_id: number;
+  detection: DetectionResult;
+  original: OriginalContent;
+  platforms: PlatformPost[];
+  insights_snapshot: InsightsSnapshot[] | null;
+  archive: ArchiveRecord;
+  regen: RegenRecord;
+  takedown: TakedownRecord;
+  repost: RepostRecord;
+  updated_at: string;
+}
+
+export interface Ledger {
+  version: 1;
+  created_at: string;
+  updated_at: string;
+  entries: Record<string, LedgerEntry>;
+}
+
+function emptyLedger(): Ledger {
+  const now = new Date().toISOString();
+  return { version: 1, created_at: now, updated_at: now, entries: {} };
+}
+
+export function loadLedger(): Ledger {
+  if (!fs.existsSync(LEDGER_PATH)) return emptyLedger();
+  const raw = fs.readFileSync(LEDGER_PATH, "utf8");
+  if (!raw.trim()) return emptyLedger();
+  const parsed = JSON.parse(raw) as Ledger;
+  if (parsed.version !== 1) {
+    throw new Error(`ledger.json version ${parsed.version} is not the version 1 this script understands — resolve manually before continuing`);
+  }
+  return parsed;
+}
+
+export function saveLedger(ledger: Ledger): void {
+  fs.mkdirSync(REMEDIATION_DIR, { recursive: true });
+  ledger.updated_at = new Date().toISOString();
+  // Atomic write: a crash mid-write must never leave a truncated/corrupt
+  // ledger.json that every subsequent phase depends on being parseable.
+  const tmpPath = `${LEDGER_PATH}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(ledger, null, 2), "utf8");
+  fs.renameSync(tmpPath, LEDGER_PATH);
+}
+
+export function blankEntry(reelId: number): LedgerEntry {
+  const now = new Date().toISOString();
+  return {
+    reel_id: reelId,
+    detection: { signals: [], confidence: "low", stock_assets: [], notes: [], detected_at: now },
+    original: { render_path: null, script: null, vo_path: null, caption: null, hook: null },
+    platforms: [],
+    insights_snapshot: null,
+    archive: { video: null, manifest: null, archived_at: null },
+    regen: { status: "not_started", higgsfield_job_ids: [], new_render_path: null, qc: null },
+    takedown: { status: "not_started", deleted_at: {} },
+    repost: { status: "not_started", scheduled_for: null, new_post_ids: {} },
+    updated_at: now,
+  };
+}
+
+export function getOrCreateEntry(ledger: Ledger, reelId: number): LedgerEntry {
+  const key = String(reelId);
+  if (!ledger.entries[key]) ledger.entries[key] = blankEntry(reelId);
+  return ledger.entries[key];
+}
+
+export function upsertEntry(ledger: Ledger, entry: LedgerEntry): void {
+  entry.updated_at = new Date().toISOString();
+  ledger.entries[String(entry.reel_id)] = entry;
+}
+
+/**
+ * "Never perform an action whose ledger state is already terminal" (mission,
+ * Phase 1). One predicate per phase's terminal state, so every phase's
+ * resume check reads the same true/false from the same place its sibling
+ * phases do — the exact hand-copied-list drift this remediation spent
+ * Phase 2 finding and fixing in the pipeline itself must not repeat here.
+ */
+export const LEDGER_TERMINAL = {
+  archived: (e: LedgerEntry): boolean => e.archive.video !== null && e.archive.manifest !== null && e.insights_snapshot !== null,
+  regenerated: (e: LedgerEntry): boolean => e.regen.status === "qc_passed" || e.regen.status === "failed",
+  takenDown: (e: LedgerEntry): boolean => e.takedown.status === "done",
+  reposted: (e: LedgerEntry): boolean => e.repost.status === "posted" || e.repost.status === "failed",
+};
+
+export function printConfidenceCounts(ledger: Ledger): void {
+  const tiers: Record<ConfidenceTier, number> = { high: 0, medium: 0, low: 0 };
+  for (const entry of Object.values(ledger.entries)) tiers[entry.detection.confidence] += 1;
+  const total = Object.values(ledger.entries).length;
+  console.log(`\n─── detection summary (${total} candidate reel${total === 1 ? "" : "s"}) ───`);
+  console.log(`  high confidence:   ${tiers.high}  (all 3 signals, or 2 including provenance)`);
+  console.log(`  medium confidence: ${tiers.medium}  (provenance alone, or 2 weaker signals)`);
+  console.log(`  low confidence:    ${tiers.low}  (single weak signal — manual-review, NEVER auto-delete)`);
+}

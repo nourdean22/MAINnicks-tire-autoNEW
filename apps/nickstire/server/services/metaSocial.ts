@@ -1226,6 +1226,48 @@ export async function replyToComment(
 }
 
 
+/**
+ * Basic (non-insights) fields for one known media ID — likes, comments,
+ * caption, publish timestamp, permalink. Graph allows GET /{media-id} for
+ * any ID the token can see regardless of age, unlike the LIST endpoints
+ * (fetchInstagramMedia), which only return the account's recent window —
+ * so this is what a caller with an already-known, possibly-old post_id
+ * (e.g. the Higgsfield stock-fallback remediation's ledger) needs instead.
+ * Read-only, never throws.
+ */
+export async function getMediaBasicFields(mediaId: string): Promise<{
+  ok: boolean;
+  likes?: number;
+  comments?: number;
+  caption?: string;
+  timestamp?: string;
+  permalink?: string;
+  error?: string;
+}> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) return { ok: false, error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN)" };
+  try {
+    const fields = "like_count,comments_count,caption,timestamp,permalink";
+    const url = `${GRAPH_URL}/${encodeURIComponent(mediaId)}?fields=${fields}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.error) {
+      return { ok: false, error: data?.error?.message || `HTTP ${res.status}` };
+    }
+    return {
+      ok: true,
+      likes: typeof data.like_count === "number" ? data.like_count : undefined,
+      comments: typeof data.comments_count === "number" ? data.comments_count : undefined,
+      caption: typeof data.caption === "string" ? data.caption : undefined,
+      timestamp: typeof data.timestamp === "string" ? data.timestamp : undefined,
+      permalink: typeof data.permalink === "string" ? data.permalink : undefined,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function getInstagramPermalink(postId: string): Promise<string | null> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
