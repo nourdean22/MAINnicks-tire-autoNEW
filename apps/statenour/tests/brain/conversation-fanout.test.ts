@@ -196,9 +196,23 @@ describe("summarizeAndStoreConversation fan-out", () => {
     expect(summaryCall?.update.deletedAt).toBeNull();
   });
 
-  it("a digest-lane failure (budget exhausted) is swallowed loudly, not propagated", async () => {
+  it("a digest-lane failure (budget exhausted) is swallowed loudly AND reported as failed", async () => {
+    // Self-audit 2026-08-20: the void-return version let the sweep count
+    // this as "compiled" — a budget-exhausted night reported 10/10 green
+    // with zero rows written (the repo's all-clear-on-failure trap).
     h.aiChat.mockRejectedValue(new Error("BudgetExceededError: daily cap"));
-    await expect(summarizeAndStoreConversation(CONV)).resolves.toBeUndefined();
+    await expect(summarizeAndStoreConversation(CONV)).resolves.toBe("failed");
     expect(h.memUpsert).not.toHaveBeenCalled();
+  });
+
+  it("statuses are truthful: fresh skip → skipped, real compile → compiled", async () => {
+    h.memFindUnique.mockResolvedValue({
+      updatedAt: new Date("2026-08-19T14:00:00Z"),
+      deletedAt: null,
+    });
+    await expect(summarizeAndStoreConversation(CONV)).resolves.toBe("skipped");
+
+    h.memFindUnique.mockResolvedValue(null);
+    await expect(summarizeAndStoreConversation(CONV)).resolves.toBe("compiled");
   });
 });

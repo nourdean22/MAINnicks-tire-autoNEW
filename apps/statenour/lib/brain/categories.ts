@@ -792,6 +792,12 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
   BRAIN_CATEGORIES.DECISION_LOG,
   BRAIN_CATEGORIES.INSIGHT,
+  // 2026-08-20 · self-audit: eval_run is the same provenance class —
+  // daily benchmark rows + the rolling corpus-odometer row (#1720),
+  // prose content, one row per run/rolling key. The same grinder that
+  // ate 158 conversation summaries could merge the odometer into a
+  // benchmark blob.
+  BRAIN_CATEGORIES.EVAL_RUN,
 ];
 
 /**

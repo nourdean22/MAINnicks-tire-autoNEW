@@ -150,20 +150,27 @@ Rules:
   }
 }
 
+/** Truthful compile outcome — the sweep/studio counters depend on it.
+ *  This function NEVER throws; the status is the only failure signal
+ *  (self-audit 2026-08-20: with a void return, the sweep counted a
+ *  budget-exhausted night's zero writes as "10 compiled" — the repo's
+ *  named all-clear-on-failure trap). */
+export type CompileStatus = "compiled" | "skipped" | "failed";
+
 /**
  * Digest and store a conversation. Call after 4+ messages.
  * Also feeds People Intelligence (L11) with extracted names.
  */
 export async function summarizeAndStoreConversation(
   conversationId: string
-): Promise<void> {
+): Promise<CompileStatus> {
   const messages = await prisma.chatMessage.findMany({
     where: { conversationId },
     orderBy: { createdAt: "asc" },
     select: { role: true, content: true, createdAt: true },
   });
 
-  if (messages.length < 4) return;
+  if (messages.length < 4) return "skipped";
 
   // Freshness guard (2026-08-19 · memory-loop wave). The old guard was
   // "any conversation_digest AuditEvent EVER names this id" — one-shot
@@ -195,7 +202,7 @@ export async function summarizeAndStoreConversation(
       summaryRow.updatedAt.getTime() >= conversation.updatedAt.getTime();
     const withinDebounce =
       Date.now() - summaryRow.updatedAt.getTime() < 30 * 60_000;
-    if (fresh || withinDebounce) return;
+    if (fresh || withinDebounce) return "skipped";
   }
 
   let digest: Awaited<ReturnType<typeof digestConversation>> = null;
@@ -209,9 +216,9 @@ export async function summarizeAndStoreConversation(
       conversationId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return;
+    return "failed";
   }
-  if (!digest) return;
+  if (!digest) return "failed";
 
   // Store digest in audit log (legacy consumers read from here)
   // v10.0.35 — PII fix. The full digest payload includes
@@ -256,6 +263,7 @@ export async function summarizeAndStoreConversation(
     .filter(Boolean)
     .join(" ");
 
+  let summaryUpsertFailed = false;
   try {
     const mem = await prisma.brainMemory.upsert({
       where: {
@@ -299,6 +307,9 @@ export async function summarizeAndStoreConversation(
     })();
   } catch (err) {
     log.warn("upsert_failed", { error: err instanceof Error ? err.message : String(err) });
+    // The summary row IS the freshness guard — without it this
+    // conversation retries next turn/sweep, so report the truth.
+    summaryUpsertFailed = true;
   }
 
   // 2026-08-19 · fan the digest's DURABLE ITEMS out as individual,
@@ -356,7 +367,16 @@ export async function summarizeAndStoreConversation(
           seenCount: 1,
           metadata: { conversationId },
         },
-        update: { content: item.content, metadata: { conversationId } },
+        update: {
+          content: item.content,
+          metadata: { conversationId },
+          lastSeen: new Date(),
+          // Revive a soft-deleted row — same revival contract as the
+          // summary upsert above (review 2026-08-20 caught this half
+          // missing: merge-ground decision_log/insight rows were being
+          // content-updated while staying recall-invisible forever).
+          deletedAt: null,
+        },
       });
       void (async () => {
         try {
@@ -426,6 +446,8 @@ export async function summarizeAndStoreConversation(
   // commitments made to others during a conversation should be logged
   // explicitly via the /decide or /commit Telegram commands / omni-
   // capture — they then land in `Commitment` where they belong.
+
+  return summaryUpsertFailed ? "failed" : "compiled";
 }
 
 /**
@@ -724,22 +746,29 @@ export async function findCompileEligibleConversations(
   const windowDays = Math.max(1, Math.min(opts.windowDays ?? 30, 365));
   const idleCutoff = new Date(Date.now() - 30 * 60_000);
 
+  // Message-count filter lives in SQL (review 2026-08-20): the JS
+  // post-filter version let abandoned <4-message conversations — frozen
+  // forever at the OLD end of the ascending sort — consume the entire
+  // oversample page, starving `eligible` to 0 while a real backlog sat
+  // just past the window (and disabling the studio's backfill button).
+  // The denormalized counter was measured lying low on 5 rows first,
+  // backfilled to truth (45 drifted rows corrected), and is bumped on
+  // both turn writers going forward.
   const candidates = await prisma.chatConversation.findMany({
     where: {
       ...(opts.includeArchived ? {} : { archivedAt: null }),
+      messageCount: { gte: 4 },
       updatedAt: {
         lt: idleCutoff,
         gt: new Date(Date.now() - windowDays * 86_400_000),
       },
     },
     orderBy: { updatedAt: "asc" },
-    take: limit * 3, // oversample so the freshness filter can drop some
-    select: { id: true, updatedAt: true, _count: { select: { messages: true } } },
+    take: limit * 2, // small oversample for the freshness re-filter below
+    select: { id: true, updatedAt: true },
   });
 
-  const withEnough = candidates
-    .filter((c) => c._count.messages >= 4)
-    .slice(0, limit * 2);
+  const withEnough = candidates;
   if (withEnough.length === 0) return [];
 
   const existing = await prisma.brainMemory.findMany({
@@ -765,6 +794,7 @@ export async function findCompileEligibleConversations(
 export interface CompileSweepResult {
   eligible: number;
   compiled: number;
+  skipped: number;
   failed: number;
   conversationIds: string[];
 }
@@ -780,11 +810,18 @@ export async function summarizeIdleConversations(
 ): Promise<CompileSweepResult> {
   const ids = await findCompileEligibleConversations(opts);
   let compiled = 0;
+  let skipped = 0;
   let failed = 0;
   for (const id of ids) {
     try {
-      await summarizeAndStoreConversation(id);
-      compiled += 1;
+      // Count by the RETURNED status, not by "didn't throw" — the
+      // compiler never throws (all failures are internal + logged), so
+      // a try-only counter reported a budget-exhausted night's zero
+      // writes as "10 compiled" (self-audit 2026-08-20).
+      const status = await summarizeAndStoreConversation(id);
+      if (status === "compiled") compiled += 1;
+      else if (status === "skipped") skipped += 1;
+      else failed += 1;
     } catch (err) {
       failed += 1;
       log.warn("sweep_compile_failed", {
@@ -794,5 +831,5 @@ export async function summarizeIdleConversations(
     }
     await new Promise((r) => setTimeout(r, 200));
   }
-  return { eligible: ids.length, compiled, failed, conversationIds: ids };
+  return { eligible: ids.length, compiled, skipped, failed, conversationIds: ids };
 }

@@ -150,7 +150,11 @@ export async function readMessageProvenance(args: {
     const t0 = Date.now();
     const ids = receipts.map((r) => String(r.id ?? "")).filter(Boolean);
     const rows = await prisma.brainMemory.findMany({
-      where: { id: { in: ids } },
+      // deletedAt filter (review 2026-08-20): without it a since-
+      // forgotten/merged memory rendered as LIVE in the receipt. A
+      // soft-deleted row now takes the honest snippet fallback below,
+      // same as a hard-deleted one — the receipt outlives the row.
+      where: { id: { in: ids }, deletedAt: null },
       select: {
         id: true, category: true, key: true, content: true,
         confidence: true, seenCount: true, createdAt: true,

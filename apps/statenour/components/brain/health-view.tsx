@@ -179,8 +179,12 @@ export function BrainHealthView() {
                       : "counting…"}
                 </p>
                 {compileMut.data && (
-                  <p className="text-[10px] text-emerald-400 mt-1 font-mono">
-                    batch done · {compileMut.data.compiled} compiled · {compileMut.data.failed} failed
+                  <p
+                    className={`text-[10px] mt-1 font-mono ${
+                      compileMut.data.failed > 0 ? "text-amber-400" : "text-emerald-400"
+                    }`}
+                  >
+                    batch done · {compileMut.data.compiled} compiled · {compileMut.data.skipped} skipped · {compileMut.data.failed} failed
                   </p>
                 )}
                 {compileMut.isError && (

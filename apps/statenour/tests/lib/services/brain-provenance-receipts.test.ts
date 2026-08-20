@@ -94,6 +94,10 @@ describe("readMessageProvenance · receipt-first", () => {
     expect(res.recall.origin).toBe("receipt");
     expect(res.recall.hits[0].content).toContain("Should have confirmed stock first.");
     expect(res.recall.hits[0].content).toContain("no longer live");
+    // Review 2026-08-20: SOFT-deleted rows must take this fallback too —
+    // the hydration query filters deletedAt, so a forgotten memory never
+    // renders as live.
+    expect(mocks.brainMemory.findMany.mock.calls[0][0].where.deletedAt).toBeNull();
   });
 
   it("pre-receipt messages fall back to re-recall, labeled reconstruction", async () => {
