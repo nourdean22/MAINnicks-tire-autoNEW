@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "The 10-second wheel wobble test: tie rod end play vs. wheel bearing play",
+  "campaignKeyword": "WOBBLE",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "This 10-second wheel wobble test tells you what's loose.",
+      "onScreenText": "The 10-second wheel wobble test",
+      "visual": "Static close-up shot of a car's front tire and wheel resting on a clean garage floor, dim daylight through a bay door, slow creeping camera push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Grab the tire at 3 and 9, rock it side to side. Play there can point to a worn tie rod end.",
+      "onScreenText": "3 and 9 o'clock, side to side?",
+      "visual": "Macro close-up of a tire sidewall at the 3-and-9 o'clock horizontal axis, subtle horizontal camera vibration implying side-to-side rocking motion, dim garage lighting, no people or hands visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Now grab it at 12 and 6, rock it up and down. Play there may indicate a worn wheel bearing.",
+      "onScreenText": "12 and 6 o'clock, up and down?",
+      "visual": "Macro close-up of a wheel hub and tire tread at the 12-and-6 o'clock vertical axis, subtle vertical camera vibration implying up-and-down rocking motion, dim garage lighting, no people or hands visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Steering wheel feels loose before the tires even move? Worth checking the whole linkage.",
+      "onScreenText": "Steering feels loose before the tires move?",
+      "visual": "Close-up static shot of a steering wheel and dashboard column inside a parked car, shallow focus, slight camera drift, neutral daylight cabin light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "This is a steering safety check, not a guess. Nick's Tire and Auto checks it free. Link in bio.",
+      "onScreenText": "We check it free. Link in bio.",
+      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a wheel/tire faintly visible on a lift in the background echoing beat 1's tire close-up, warm inviting lighting, slow push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "wobble-test-triage-v1",
+      "loopIdea": "Attempted, not guaranteed: beat 5's garage-bay shot frames a wheel/tire on a lift in the background, deliberately echoing beat 1's tire-close-up opening so the CTA frame visually rhymes with the hook frame instead of just cutting away from it. Designed by hand this run, not verified against the real scorer — treat the self-estimated 5/5 below as directional only.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "wobble-test-triage-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autorepair", "#steeringsafety"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional two soft metallic 'clunk' SFX cues layered under beats 2 and 3 only"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts:863), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 5, "detail": "Beat 5 visually echoes beat 1's tire-close-up motif (see concepts[0].loopIdea) — self-scored, not scorer-verified" },
+      { "label": "Sourced fact", "max": 10, "points": 0, "detail": "No EvidenceRecord in evidenceResolver.ts backs the tie-rod/wheel-bearing triage claims, and that store was not and could not be queried live this run (no DB access) — see README.md §3" },
+      { "label": "Faceless", "max": 10, "points": 10, "detail": "No faces/hands/human figures in any prompt; standing negative prompt enforced on every beat" },
+      { "label": "Claim safety", "max": 10, "points": 10, "detail": "No price/warranty claims, no fearmongering; uses only approved soft-language phrasing (can point to / may indicate / worth checking)" },
+      { "label": "Keyword", "max": 5, "points": 5, "detail": "Campaign keyword WOBBLE assigned" },
+      { "label": "Winning concept ≥57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() was not invoked this run; scored 0 rather than assumed passing" }
+    ],
+    "total": 60,
+    "maxPossible": 75,
+    "note": "Below the pipeline's real 70/75 auto-pass floor, driven entirely by the two dimensions that require a live DB/scorer call this session cannot make (sourced fact, winning concept score) — not by anything fixable by hand."
+  }
+}
