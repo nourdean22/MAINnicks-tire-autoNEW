@@ -1,0 +1,91 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "That smell while driving: coolant vs rubber vs electrical",
+  "campaignKeyword": "SMELLCHECK",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "That smell while you're driving? It's telling you something specific.",
+      "onScreenText": "That smell while driving? It's telling you something.",
+      "visual": "First-person driving POV, dashboard and road ahead through windshield, daylight, slow steady forward motion, subtle camera handheld sway, no people visible in frame (hands/steering wheel excluded per negative prompt)",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Sweet, syrupy smell? That can point to a coolant leak.",
+      "onScreenText": "Sweet, syrupy smell?",
+      "visual": "Close-up of a car engine bay coolant reservoir with faint steam or vapor rising, shallow focus, slow camera push-in, warm engine-bay lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Burning rubber smell? That may indicate a belt or hose rubbing somewhere it shouldn't.",
+      "onScreenText": "Burning rubber smell?",
+      "visual": "Macro close-up of a serpentine belt running around a pulley in an engine bay, subtle motion blur implying rotation, dim garage lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Hot electrical or burning plastic smell? Worth checking right away — that's not one to guess on.",
+      "onScreenText": "Hot electrical or burning plastic?",
+      "visual": "Close-up of a car's engine-bay wiring harness or fuse box, static camera with subtle vibration, dim lighting with a single work-light glow, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Guessing costs you a tow. Nick's Tire and Auto will sniff it out, free. Link in bio.",
+      "onScreenText": "We'll sniff it out free. Link in bio.",
+      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "smellcheck-triage-v1",
+      "loopIdea": "NOT DESIGNED — final frame (shop garage bay, daylight) does not feed back into the opening frame (driving POV, daylight, different environment). Flagged in README §9 as a real gap, not omitted.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "smellcheck-triage-v1",
+  "hashtags": ["#cartips", "#clevelandohio", "#carmaintenance", "#autorepair"],
+  "audio": {
+    "voiceover": "not generated this run — route narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional ambient road/engine-bay room-tone under beats 2-4 only"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s with a visual and on-screen text" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries on-screen caption text" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-28s, contiguous" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "28s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 0, "detail": "No loop plan designed — see concepts[0].loopIdea" },
+      { "label": "Verified mechanic fact (sourced)", "max": 10, "points": 0, "detail": "No EvidenceRecord cited; evidenceResolver.ts not queried live (no DB access this run)" },
+      { "label": "Faceless & wordless contract", "max": 10, "points": 10, "detail": "No face/hand/human-figure subjects in any prompt; standing negative prompt applied to every beat" },
+      { "label": "Claim safety (no blocked claims)", "max": 10, "points": 10, "detail": "Uses approved soft-language only: 'can point to', 'may indicate', 'worth checking right away', 'don't guess'" },
+      { "label": "Campaign keyword valid", "max": 5, "points": 5, "detail": "SMELLCHECK — single ALL-CAPS word" },
+      { "label": "Winning concept >= 57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() not invoked this run — scored 0 rather than assumed passing" }
+    ],
+    "overall": 55,
+    "minPassing": 70,
+    "passing": false
+  }
+}
