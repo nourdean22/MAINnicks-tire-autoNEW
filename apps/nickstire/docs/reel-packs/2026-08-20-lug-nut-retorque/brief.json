@@ -1,0 +1,151 @@
+{
+  "packDate": "2026-08-20",
+  "mode": "SCHEDULED",
+  "status": "BLOCKED: NO MOTION ROUTE",
+  "title": "Got new tires? The one step most people skip.",
+  "topicSlug": "lug-nut-retorque",
+  "archetype": "maintenance-reminder",
+  "motionLens": "documentary/macro-realistic (confirm exact lens + lens.avoid in the live Studio wizard)",
+  "totalMotionSeconds": 30,
+  "saveFreezeSeconds": 3,
+  "totalContainerSeconds": 33,
+  "standingNegativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+  "capabilityPreflight": {
+    "ttsAvailable": false,
+    "ttsNote": "no TTS on any connected MCP server; Adobe media_enhance_speech separates existing speech, it does not synthesize",
+    "higgsfieldAvailable": false,
+    "metaPostingAvailable": false,
+    "editorAvailable": false,
+    "ffmpegPresent": false,
+    "adminApiKeyPresent": false,
+    "databaseUrlPresent": false,
+    "renderAttempted": false,
+    "spendIncurred": false,
+    "published": false
+  },
+  "duplicationCheck": {
+    "mergedPacksChecked": 54,
+    "mostRecentMergedPack": "2026-08-20-tailpipe-condensation-vs-coolant-leak",
+    "openReelPackPrsChecked": [1738, 1739],
+    "openPrTopics": [
+      "wheel wobble test (tie rod vs wheel bearing)",
+      "musty AC smell (evaporator drain vs cabin filter)"
+    ],
+    "repetitionLedgerLiveRead": false,
+    "note": "getRecentReelSignals() not called - no live DB path from this session; ls + list_pull_requests(state=open) used instead. Nearest neighbor is PR #1738 (diagnosing an existing wobble); this pack is a post-service maintenance step and shares no beat, claim, or CTA."
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "label": "hook",
+      "durationSec": 3,
+      "narration": "Got new tires this week? There's one step most people skip.",
+      "prompt": "Extreme close-up on a chrome lug nut on a clean alloy wheel, a six-point socket descending onto it and seating with a precise quarter-turn, driven by an unseen rig; shallow depth of field, cool shop lighting, faint metallic ring on contact.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "socket a few millimetres above the nut, about to seat - strongest first frame, unbranded, wordless",
+      "physicalAction": "socket descent and quarter-turn",
+      "actionCompleteBySec": 2.5
+    },
+    {
+      "beatNumber": 2,
+      "label": "symptom",
+      "durationSec": 5,
+      "narration": "Any time a wheel comes off your car, the lug nuts can settle over the first few drives.",
+      "prompt": "Wider shot of a freshly mounted wheel on a lift, the tire slowly rotating to a stop, all five lug nuts passing through frame in sequence, light sweeping across each one; garage bay background softly out of focus.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "continue directly from beat 1's wheel, same object state",
+      "physicalAction": "wheel rotation decelerating to rest",
+      "actionCompleteBySec": 4.5
+    },
+    {
+      "beatNumber": 3,
+      "label": "explanation",
+      "durationSec": 6,
+      "narration": "As the wheel seats fully against the hub, the clamping force holding it can drop.",
+      "prompt": "Object-only technical cutaway of a wheel hub and one lug stud in cross-section, the wheel face drawing a fraction of a millimetre closer to the hub as a seating gap closes, an animated clamping-force indicator easing back as it does; clean diagrammatic lighting, slow camera push-in; no text or labels rendered in-scene.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, on-screen text, logos, watermarks",
+      "openingFrame": "establish the cutaway clearly at a glance",
+      "physicalAction": "seating gap closing and force indicator easing",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 4,
+      "label": "consequence_proof",
+      "durationSec": 6,
+      "narration": "A nut that felt tight on day one may not read tight on day three.",
+      "prompt": "Split-depth macro: the same lug nut shown twice in one continuous camera move - the near half crisp and freshly torqued, the far half after miles of driving with faint brake dust and road film settled into its seat; slow dolly connects the two states.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "near-half nut crisp and in focus, dolly beginning",
+      "physicalAction": "continuous dolly move revealing the changed state",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 5,
+      "label": "safe_action",
+      "durationSec": 6,
+      "narration": "One clue is a click or shudder that shows up after new tires - do not guess.",
+      "prompt": "A calibrated torque wrench resting on a workbench, its scale and setting collar in sharp focus, a shop light sweeping across the graduations; the wrench head clicks once and settles - no hands present, the light sweep and the click are the only motion besides a slow rack-focus.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "wrench scale readable at a glance, light beam entering frame",
+      "physicalAction": "light sweep, wrench click, rack-focus",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 6,
+      "label": "branded_cta",
+      "durationSec": 4,
+      "narration": "Stop by and we'll take a look with a torque wrench, set to spec.",
+      "prompt": "Exterior establishing shot of Nick's Tire & Auto's shop bay, tire stack in foreground, late-afternoon light, logo signage visible and legible; camera holds steady for a clean end-card composite.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "shop bay clearly readable, settles for a seamless hold into the freeze",
+      "physicalAction": "steady hold, settling for the freeze",
+      "actionCompleteBySec": 3.5,
+      "freeze": {
+        "startSec": 30,
+        "endSec": 33,
+        "overlay": "logo + address/phone end-card (verify against SEED_FACTS legal.entity before publish - see README section 3 gap)"
+      }
+    }
+  ],
+  "claimEvidence": [
+    {
+      "claim": "Lug nuts can settle over the first few drives after a wheel comes off",
+      "status": "UNKNOWN",
+      "basis": "standard wheel-service practice; not read against evidenceRecords.ts live this session"
+    },
+    {
+      "claim": "As the wheel seats against the hub, clamping force can drop",
+      "status": "UNKNOWN",
+      "basis": "general fastener mechanics; phrased with approved soft-language pattern, not asserted as a diagnosis"
+    },
+    {
+      "claim": "A specific re-torque mileage figure (e.g. 50-100 miles)",
+      "status": "OMITTED_BY_DESIGN",
+      "basis": "industry guidance publishes a range, but no EvidenceRecord was read and the figure varies by vehicle and wheel type; script says 'over the first few drives' instead. Add the number only after an operator attaches a sourced record."
+    },
+    {
+      "claim": "Shop name / address / phone",
+      "status": "SOURCED_BUT_UNSCOPED",
+      "basis": "SEED_FACTS.legal.entity at apps/nickstire/server/services/businessFacts.ts:130, read this session; FactChannel (businessFacts.ts:31) has no 'reel'/'social' channel yet"
+    },
+    {
+      "claim": "No price, warranty, guarantee, or turnaround-time claim appears anywhere",
+      "status": "VERIFIED_BY_INSPECTION",
+      "basis": "an earlier beat-6 draft read 'free, takes five minutes' and was cut - both halves are business-policy claims with no cleared businessFacts row"
+    }
+  ],
+  "costEstimateUsd": {
+    "templateStockLane": 0.0,
+    "seedanceLaneEstimate": 1.5,
+    "source": "generationLedger.ts COST_ESTIMATES_USD, operator-tunable estimate, not metered pricing",
+    "note": "REEL_VIDEO_PROVIDER pinned to template_stock in prod per docs/operations/REEL-PIPELINE.md (verified 2026-08-11); re-verify before assuming"
+  },
+  "guardrailRisk": {
+    "repeatCta": "beat 6 uses the standard 'stop by and we'll take a look' CTA; if another pack from this library posted within 72h this will trip REPEAT_CTA - reword the opening clause or wait out the window"
+  },
+  "musicRights": {
+    "trackSelected": null,
+    "status": "BLOCKED",
+    "note": "no music-rights ledger exists in this repo; do not treat any bed as cleared without a tracked license. Beats 1 and 5 are built around mechanical sounds - this reel is stronger with a quiet bed or none."
+  }
+}
