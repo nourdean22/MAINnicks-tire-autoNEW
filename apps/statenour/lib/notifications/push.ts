@@ -58,6 +58,60 @@ export interface PushPayload {
     suggKind?: string;
     suggId?: string;
   };
+  // 2026-08-20 · per-tag flood control. Explicit 0 = never suppress (leads).
+  // Undefined = level default via resolveCooldownMs. Only applies when `tag`
+  // is explicitly set — the level-default tag is shared across unrelated
+  // callers and must never let one caller's push suppress another's.
+  cooldownMs?: number;
+}
+
+/**
+ * 2026-08-20 · the storm audit. The coach-events P0 bridge believed
+ * `tag: key` meant re-fires "REPLACE the standing notification instead of
+ * stacking" — but tag replacement is a DISPLAY behavior. Every push still
+ * delivers, buzzes, and wakes the phone. On 2026-08-20 the cron-healer
+ * recursion (#1735) sent the operator 2,279 CRITICAL pushes in ~5.5 hours
+ * (1,240× "Rescued ingest-reviews", 1,039× "Rescued ollama-model-liveness"),
+ * against a normal baseline of 2-3 pushes/day. Content dedup could not have
+ * caught it — the bodies differ per run ("duration: 54608ms" vs "54415ms").
+ *
+ * So the transport now rate-limits per tag: a tag that pushed within its
+ * cooldown is suppressed (logged as `push_suppressed`, so the silence is
+ * visible in /system/events, never invisible). A still-broken system
+ * re-pages when the cooldown lapses — the operator learns it once per
+ * cooldown, not once per cron run.
+ */
+export const PUSH_COOLDOWN_BY_LEVEL: Record<NotificationLevel, number> = {
+  critical: 30 * 60 * 1000,
+  high: 60 * 60 * 1000,
+  medium: 120 * 60 * 1000,
+  low: 120 * 60 * 1000,
+};
+
+/** Effective cooldown for a payload. Pure. 0 = no suppression. */
+export function resolveCooldownMs(payload: Pick<PushPayload, "tag" | "level" | "cooldownMs">): number {
+  if (payload.cooldownMs !== undefined) return Math.max(0, payload.cooldownMs);
+  if (!payload.tag) return 0;
+  return PUSH_COOLDOWN_BY_LEVEL[payload.level] ?? 0;
+}
+
+/**
+ * Web Push TTL + urgency per level. Pre-2026-08-20 nothing was set, so the
+ * web-push default TTL (four WEEKS) applied — a "CRITICAL" page queued while
+ * the phone was offline could deliver days after it stopped being true. A
+ * critical alert that is hours old is noise, not signal.
+ */
+export function pushTransportOptions(level: NotificationLevel): { TTL: number; urgency: "high" | "normal" | "low" } {
+  switch (level) {
+    case "critical":
+      return { TTL: 4 * 3600, urgency: "high" };
+    case "high":
+      return { TTL: 12 * 3600, urgency: "high" };
+    case "medium":
+      return { TTL: 24 * 3600, urgency: "normal" };
+    default:
+      return { TTL: 24 * 3600, urgency: "low" };
+  }
 }
 
 /**
@@ -126,6 +180,39 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
     return { sent: 0, failed: 0 };
   }
 
+  // Per-tag flood control (see PUSH_COOLDOWN_BY_LEVEL). Best-effort: the
+  // audit row lands after delivery, so two truly concurrent sends can both
+  // pass — acceptable for a backstop whose adversary is a LOOP (the storm
+  // fired ~90s apart). Failure of the check itself falls through to sending:
+  // flood control must never become a reason a real page went missing.
+  const cooldownMs = resolveCooldownMs(payload);
+  if (cooldownMs > 0) {
+    try {
+      const prior = await prisma.auditEvent.findFirst({
+        where: {
+          actor: "push-notification",
+          eventType: "push_sent",
+          createdAt: { gte: new Date(Date.now() - cooldownMs) },
+          payload: { path: ["tag"], equals: payload.tag },
+        },
+        select: { id: true },
+      });
+      if (prior) {
+        await prisma.auditEvent.create({
+          data: {
+            actor: "push-notification",
+            eventType: "push_suppressed",
+            detail: `${payload.level}: ${payload.title} — within ${Math.round(cooldownMs / 60000)}min cooldown for tag "${payload.tag}"`,
+            payload: { title: payload.title, level: payload.level, tag: payload.tag, cooldownMs } as any,
+          },
+        }).catch((err) => recordError("notifications:audit", err, { level: payload.level, suppressed: true }));
+        return { sent: 0, failed: 0 };
+      }
+    } catch (err) {
+      recordError("notifications:cooldown", err, { tag: payload.tag });
+    }
+  }
+
   const subscriptions = await getSubscriptions();
   if (subscriptions.length === 0) return { sent: 0, failed: 0 };
 
@@ -177,7 +264,7 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
 
   for (const sub of subscriptions) {
     try {
-      const response = await sendWebPush(sub, notificationPayload);
+      const response = await sendWebPush(sub, notificationPayload, payload.level);
       if (response.ok) {
         sent++;
       } else if (response.status === 410 || response.status === 404) {
@@ -201,7 +288,7 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
       // push. Derive it from the outcome like everything else.
       eventType: sent > 0 ? "push_sent" : "push_undelivered",
       detail: `${payload.level}: ${payload.title}${sent > 0 ? "" : ` — 0 delivered, ${failed} failed`}`,
-      payload: { title: payload.title, body: payload.body, level: payload.level, sent, failed } as any,
+      payload: { title: payload.title, body: payload.body, level: payload.level, tag: payload.tag ?? null, sent, failed } as any,
     },
   }).catch((err) => recordError("notifications:audit", err, { level: payload.level, sent, failed }));
 
@@ -212,7 +299,8 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
 
 async function sendWebPush(
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
-  payload: string
+  payload: string,
+  level: NotificationLevel = "high",
 ): Promise<Response> {
   // v10.0.529.106 · Wave 58 · refuse to send if the VAPID private key
   // is missing · pre-Wave-58 the module would silently fall back to a
@@ -234,7 +322,7 @@ async function sendWebPush(
     const webpush = await import("web-push") as any;
     if (webpush.setVapidDetails) {
       webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-      await webpush.sendNotification(subscription, payload);
+      await webpush.sendNotification(subscription, payload, pushTransportOptions(level));
       return new Response(null, { status: 201 });
     }
     // Module loaded but no setVapidDetails — wrong shape
@@ -271,6 +359,9 @@ export async function pushLeadAlert(leadName: string, service: string, urgency: 
     level: urgency >= 4 ? "critical" : "high",
     url: "/admin",
     tag: "lead",
+    // Revenue exception: two leads in ten minutes are two separate pages.
+    // Flood control exists for machine loops, not customers.
+    cooldownMs: 0,
   });
 }
 

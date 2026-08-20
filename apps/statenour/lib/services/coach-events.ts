@@ -181,10 +181,11 @@ export async function recordCoachEvent(input: CoachEventInput): Promise<CoachEve
     // comment screamed into a dashboard. P0 ONLY: pushing P1/P2 advisory
     // events would train the operator to swipe pushes away, which is the
     // same rot as a permanently-red gate. Fire-and-forget: a push failure
-    // must never fail the coach write. `tag: key` makes re-fires of the
-    // same (kind, subjectId) REPLACE the standing notification instead of
-    // stacking, so a still-down feeder re-pages once per cron run, not
-    // once per minute.
+    // must never fail the coach write. `tag: key` replaces the
+    // standing notification in the TRAY, but replacement is display-only —
+    // every push still delivers and buzzes (2026-08-20: 2,279 critical
+    // pushes in one storm). The real re-page limiter is the transport's
+    // per-tag cooldown in lib/notifications/push.ts.
     if (input.priority === "P0") {
       void import("@/lib/notifications/push")
         .then(({ sendPush }) =>
