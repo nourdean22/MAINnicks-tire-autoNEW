@@ -82,17 +82,84 @@ if ($LASTEXITCODE -ne 0) {
 # which is exactly the pre-existing behaviour.
 $labelBackend = if ($env:GRAPHIFY_LABEL_BACKEND) { $env:GRAPHIFY_LABEL_BACKEND } else { "ollama" }
 $labelModel   = if ($env:GRAPHIFY_LABEL_MODEL)   { $env:GRAPHIFY_LABEL_MODEL }   else { "glm-5.2:cloud" }
-Log "labeling communities via $labelBackend/$labelModel"
-$labelOut = graphify label . --backend=$labelBackend --model=$labelModel 2>&1
-$labelOut | Add-Content -Path $log
-if ($LASTEXITCODE -ne 0) {
-    Log "WARN: graphify label exited $LASTEXITCODE - continuing with hub-derived names"
-} elseif ($labelOut -match 'community labeling failed|no LLM backend configured') {
-    # `graphify label` exits 0 even when EVERY batch fails, so the exit code alone
-    # cannot tell a real relabel from a silent no-op. Measured 2026-08-11: all 26
-    # batches failed on a missing 'openai' package and it still returned 0. Match
-    # the message so a dead backend is visible in the log instead of looking green.
-    Log "WARN: labeling produced no LLM names (backend unavailable) - hub-derived names retained"
+
+# PREFLIGHT THE BACKEND (added 2026-08-21). graphify resolves --backend=ollama to
+# OLLAMA_BASE_URL -> OLLAMA_HOST -> http://localhost:11434/v1 (graphify/llm.py).
+# The ":cloud" model suffix does NOT bypass that: the local daemon is the PROXY
+# that forwards cloud models on to Ollama Cloud, so a stopped daemon breaks cloud
+# labeling exactly as it breaks a local model. With nothing listening, every batch
+# fails "Connection error" and the step still grinds through all 29 of them before
+# giving up - measured 23m24s (08-19), 24m29s (08-20), again (08-21): three
+# consecutive days of ~24 wasted minutes whose only visible trace was a single
+# trailing WARN, by which time 55% of community labels had rotted to hub-derived
+# symbols. Probe first, start the daemon when we can, and SKIP outright rather
+# than stall when it stays unreachable. Still non-fatal - see the note above.
+$ollamaRoot = "http://localhost:11434"
+if ($env:OLLAMA_BASE_URL) {
+    $ollamaRoot = ($env:OLLAMA_BASE_URL -replace '/v1/?$', '').TrimEnd('/')
+} elseif ($env:OLLAMA_HOST) {
+    $h = $env:OLLAMA_HOST.Trim().Trim('"')
+    if     ($h -match '^\d+$')     { $h = "localhost:$h" }   # bare port
+    elseif ($h -like ':*')         { $h = "localhost$h" }    # ":port"
+    if ($h -notmatch '^https?://') { $h = "http://$h" }
+    if ($h -notmatch ':\d+(/|$)')  { $h = "${h}:11434" }
+    $ollamaRoot = $h.TrimEnd('/')
+}
+
+function Test-OllamaUp {
+    param([string]$Root)
+    try {
+        Invoke-WebRequest -Uri "$Root/api/tags" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+$labelSkip = $null
+if ($labelBackend -eq "ollama" -and -not (Test-OllamaUp $ollamaRoot)) {
+    $ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
+    if ($ollamaExe) {
+        Log "ollama not responding at $ollamaRoot - starting '$ollamaExe serve'"
+        Start-Process -FilePath $ollamaExe -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+        for ($i = 0; $i -lt 10 -and -not (Test-OllamaUp $ollamaRoot); $i++) { Start-Sleep -Seconds 2 }
+    } else {
+        Log "WARN: ollama not found on PATH"
+    }
+    if (Test-OllamaUp $ollamaRoot) {
+        Log "ollama daemon is up at $ollamaRoot"
+    } else {
+        $labelSkip = "no ollama daemon reachable at $ollamaRoot"
+    }
+}
+
+if ($labelSkip) {
+    Log "WARN: SKIPPING community labeling - $labelSkip. Hub-derived names retained (skipped ~24 min of doomed retries)."
+} else {
+    Log "labeling communities via $labelBackend/$labelModel"
+    $labelStart = Get-Date
+    $labelOut = graphify label . --backend=$labelBackend --model=$labelModel 2>&1
+    $labelOut | Add-Content -Path $log
+    $labelSecs = [int]((Get-Date) - $labelStart).TotalSeconds
+    if ($LASTEXITCODE -ne 0) {
+        Log "WARN: graphify label exited $LASTEXITCODE after ${labelSecs}s - continuing with hub-derived names"
+    } elseif ($labelOut -match 'community labeling failed|no LLM backend configured') {
+        # `graphify label` exits 0 even when EVERY batch fails, so the exit code alone
+        # cannot tell a real relabel from a silent no-op. Measured 2026-08-11: all 26
+        # batches failed on a missing 'openai' package and it still returned 0. Match
+        # the message so a dead backend is visible in the log instead of looking green.
+        Log "WARN: labeling produced no LLM names (backend unavailable) after ${labelSecs}s - hub-derived names retained"
+    } else {
+        # Partial failure is the case neither check above catches: exit 0, no global
+        # error string, but N individual batches died. Count them so a half-labeled
+        # run cannot read as a clean one.
+        $failedBatches = ([regex]::Matches(($labelOut -join "`n"), 'batch \d+/\d+[^\r\n]*failed')).Count
+        if ($failedBatches -gt 0) {
+            Log "WARN: labeling finished in ${labelSecs}s but $failedBatches batch(es) failed - those communities keep hub-derived names"
+        } else {
+            Log "labeling completed in ${labelSecs}s"
+        }
+    }
 }
 
 # 2. Aggregated community-level graph.html (~2.3k nodes, ~2 MB) alongside the
