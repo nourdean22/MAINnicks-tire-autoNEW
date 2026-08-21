@@ -63,6 +63,9 @@ const ZERO_TRACTION_REACH = 20;
 /** Conservative floor: assume at least 1 credit per beat when the exact per-clip cost isn't parseable from anywhere in this codebase. */
 const ASSUMED_CREDITS_PER_BEAT = 1;
 
+/** Internal marker: an enqueue that the content governor / autonomy policy legitimately refused, not a real failure. */
+class DeferredEnqueue extends Error {}
+
 const STALE_BRIEF_FIELDS = ["renderedQa", "audioQa", "repairQueue", "mp4History", "contentReservationId"];
 
 function stripStaleBrief(brief: Record<string, unknown>): Record<string, unknown> {
@@ -188,6 +191,8 @@ async function regenerateOne(entry: LedgerEntry): Promise<void> {
 
     console.log(`  reel ${entry.reel_id}: enqueueing regeneration from the (stripped) original brief...`);
     try {
+      const { GovernorDenial } = await import("../../server/services/contentGovernor");
+      const { AutonomyDenial } = await import("../../server/services/autonomyControl");
       const { jobId: newJobId } = await withOperatorAction(
         { action: "regenerate", operatorId: null, jobId: entry.reel_id, costsMoney: true },
         () => enqueueReelJob(brief as never, "admin", {
@@ -195,12 +200,32 @@ async function regenerateOne(entry: LedgerEntry): Promise<void> {
           disclosureMode: "visibly_animated",
           ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
         }),
-      );
+        {
+          isRefusal: (err) => err instanceof GovernorDenial || err instanceof AutonomyDenial,
+        },
+      ).catch((err) => {
+        // 2026-08-20 · operator decision ("add new volume"): a regenerated
+        // reel competes for a calendar slot like new content — it does NOT
+        // bypass the content governor's repeat-CTA/topic/territory throttle.
+        // A GovernorDenial (or an autonomy-policy pause) is therefore a
+        // "try again after the window clears" signal, not a real failure —
+        // re-throwing a typed marker so the outer catch can tell them apart
+        // from a genuine enqueue error without re-importing both classes.
+        if (err instanceof GovernorDenial || err instanceof AutonomyDenial) {
+          throw new DeferredEnqueue(err.message);
+        }
+        throw err;
+      });
       jobId = newJobId;
       entry.regen.job_id = jobId;
       entry.regen.status = "in_progress";
     } catch (err) {
-      console.log(`  reel ${entry.reel_id}: enqueue refused/failed: ${err instanceof Error ? err.message : String(err)}`);
+      if (err instanceof DeferredEnqueue) {
+        console.log(`  reel ${entry.reel_id}: deferred — ${err.message} (retry on a later run, once the governor's lookback window clears)`);
+        entry.regen.status = "deferred";
+        return;
+      }
+      console.log(`  reel ${entry.reel_id}: enqueue failed: ${err instanceof Error ? err.message : String(err)}`);
       entry.regen.status = "failed";
       return;
     }
@@ -289,15 +314,23 @@ async function main() {
   const all = Object.values(ledger.entries);
   const passed = all.filter((e) => e.regen.status === "qc_passed").length;
   const failed = all.filter((e) => e.regen.status === "failed" || e.regen.status === "qc_failed").length;
-  const stillPending = all.filter((e) => !LEDGER_TERMINAL.regenerated(e)).length;
+  const deferred = all.filter((e) => e.regen.status === "deferred").length;
+  const stillPending = all.filter((e) => !LEDGER_TERMINAL.regenerated(e) && e.regen.status !== "deferred").length;
   console.log(`\n─── Phase 4 summary ───`);
   console.log(`  qc_passed: ${passed}`);
   console.log(`  failed/qc_failed: ${failed}`);
-  console.log(`  still pending: ${stillPending}`);
+  console.log(`  deferred (governor/autonomy refused — re-run later): ${deferred}`);
+  console.log(`  still pending (not yet attempted this run): ${stillPending}`);
   if (failed > 0) {
     console.log(`\n  Failed/qc_failed reels (need manual review, NOT reposted per the mission's hard rule):`);
     for (const e of all.filter((x) => x.regen.status === "failed" || x.regen.status === "qc_failed")) {
       console.log(`    reel ${e.reel_id}: ${e.regen.status} — ${e.regen.qc?.notes.join("; ") ?? "no QC notes"}`);
+    }
+  }
+  if (deferred > 0) {
+    console.log(`\n  Deferred reels (re-run regen.ts once the governor's lookback window clears — 72h CTA / 48h territory / 7d topic):`);
+    for (const e of all.filter((x) => x.regen.status === "deferred")) {
+      console.log(`    reel ${e.reel_id}`);
     }
   }
   process.exit(0);

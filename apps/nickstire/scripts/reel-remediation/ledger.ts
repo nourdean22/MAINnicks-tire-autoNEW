@@ -67,7 +67,15 @@ export interface ArchiveRecord {
   archived_at: string | null;
 }
 
-export type RegenStatus = "not_started" | "in_progress" | "qc_passed" | "qc_failed" | "failed";
+// 2026-08-20 · operator decision ("add new volume"): a regenerated reel
+// competes for a calendar slot like any other new content — it does NOT
+// bypass the content governor's repeat-CTA/topic/territory throttles. That
+// makes a GovernorDenial fundamentally different from a generation failure:
+// the SAME reel enqueued again after its lookback window clears (72h CTA,
+// 48h territory, 7d topic) should succeed. "deferred" captures that —
+// distinct from "failed", and NOT in LEDGER_TERMINAL.regenerated, so a
+// later re-run of regen.ts retries it instead of leaving it for dead.
+export type RegenStatus = "not_started" | "in_progress" | "deferred" | "qc_passed" | "qc_failed" | "failed";
 
 export interface RegenRecord {
   status: RegenStatus;
