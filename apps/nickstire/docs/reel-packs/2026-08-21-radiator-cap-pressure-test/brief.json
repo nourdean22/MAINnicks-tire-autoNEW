@@ -1,0 +1,93 @@
+{
+  "topic": "Radiator cap pressure test: coolant loss with no visible leak",
+  "campaignKeyword": "RADCAP",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-21",
+  "durationSec": 28,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Coolant keeps disappearing and there's no puddle anywhere under the car.",
+      "visualPrompt": "Macro shot of a radiator cap on top of a coolant reservoir, slow push-in, neutral garage lighting, condensation beading on nearby metal",
+      "stockSearchTerms": ["radiator cap closeup", "coolant reservoir cap macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "It might not be a hose or a gasket. Check the radiator cap first.",
+      "visualPrompt": "Extreme close-up of a radiator cap being lifted slightly to reveal the rubber pressure seal underneath, static camera, soft daylight",
+      "stockSearchTerms": ["radiator cap seal closeup", "radiator cap rubber gasket macro"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 17],
+      "narration": "The cap holds pressure in the system. A worn seal or a weak spring lets coolant boil off past the overflow before you ever see a drop on the ground.",
+      "visualPrompt": "Macro of a radiator cap's spring-loaded pressure valve mechanism, slow orbital camera move highlighting the spring and rubber seal, dim garage light",
+      "stockSearchTerms": ["radiator cap pressure valve spring macro", "cooling system pressure cap mechanism"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [17, 23],
+      "narration": "A cap that won't hold pressure can look brand new and still be the reason you keep topping off.",
+      "visualPrompt": "Rack focus from a clean, new-looking radiator cap in the foreground to an overflow reservoir with a low coolant line in the background, neutral shop lighting",
+      "stockSearchTerms": ["radiator overflow reservoir low coolant level", "coolant reservoir line closeup"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [23, 28],
+      "narration": "Nick's Tire and Auto pressure-tests your cooling system free with any inspection. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "radiator cap macro is a competent but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "28s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (radiator cap macro)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; approved soft-language phrasing used (can be, may indicate)" },
+      "keyword": { "score": 5, "max": 5, "note": "coolant, radiator, pressure keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 28,
+    "ctaType": "SEND-oriented"
+  }
+}
