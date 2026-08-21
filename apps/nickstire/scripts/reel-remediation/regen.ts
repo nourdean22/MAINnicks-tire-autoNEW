@@ -45,6 +45,24 @@ dotenv.config({ path: path.join(__dirname, "..", "..", ".env") });
 // Railway env change, and not touching REEL_VIDEO_PROVIDER anywhere else.
 process.env.REEL_VIDEO_PROVIDER = "higgsfield";
 
+// 2026-08-21 · MEASURED from the first full batch (all 3 reels that reached
+// generation died identically: "beat N timed out after 360s", burning $4.00 of
+// budget for zero usable footage — and failed reservations still count against
+// the daily cap, so the waste compounds).
+//
+// The per-beat durations that batch actually produced, in order:
+//   139s 140s 189s 196s 212s 213s 267s 329s 342s → then 3× timeout
+// Two things are visible there. The ceiling (GEN_CLIP_TIMEOUT_MS, 6 min) is
+// marginal — 342s and 329s landed within 20-30s of it. And the durations CREEP
+// as the batch runs: job 1740004's beats went 140s → 267s → 342s → timeout,
+// which is queue contention from running 3 reels concurrently against one
+// Higgsfield account, not per-clip difficulty.
+//
+// So both levers move together: give a genuinely slow clip room to finish, and
+// stop generating the contention that makes clips slow in the first place.
+// Env override only — this process, not Railway, not the prod cron.
+process.env.REEL_GEN_CLIP_TIMEOUT_MS = process.env.REEL_GEN_CLIP_TIMEOUT_MS || String(15 * 60_000);
+
 import { getDb } from "../../server/db";
 import { reelJobs } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -55,9 +73,20 @@ import { evaluateReelPublishGate } from "../../server/services/qualityGate";
 import { sampleFrameAverageColor, matchesSyntheticPalette, extractStockAssets } from "./signals";
 import { loadLedger, saveLedger, upsertEntry, LEDGER_TERMINAL, type LedgerEntry } from "./ledger";
 
-const CONCURRENCY_CAP = 3;
+/**
+ * SERIAL, deliberately — was 3 (the mission's suggested cap), lowered
+ * 2026-08-21 on the batch evidence above: 3 concurrent reels against one
+ * Higgsfield account made per-beat time climb 140s → 342s until beats fell off
+ * the timeout cliff. Wall-clock is not the binding constraint here anyway —
+ * the daily generation budget is (~$8/day vs ~$1.25-1.50 per reel, so roughly
+ * 5 reels can run per day regardless of how fast they render). Trading speed
+ * we cannot use for reliability we badly need.
+ */
+const CONCURRENCY_CAP = 1;
 const POLL_INTERVAL_MS = 3000;
-const MAX_POLLS_PER_JOB = 200; // ~10 minutes wall-clock ceiling per reel before giving up as failed
+/** Raised alongside the clip timeout — at 15 min/clip and ~6 beats, a single
+ *  reel can legitimately need well over the old ~10 min ceiling. */
+const MAX_POLLS_PER_JOB = 1400; // ~70 minutes wall-clock ceiling per reel before giving up as failed
 /** Reach below this is "near-zero traction" for the zero-traction exception's flag (not enforced, just surfaced). */
 const ZERO_TRACTION_REACH = 20;
 /** Conservative floor: assume at least 1 credit per beat when the exact per-clip cost isn't parseable from anywhere in this codebase. */
