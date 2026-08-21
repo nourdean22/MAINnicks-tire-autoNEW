@@ -220,6 +220,71 @@ async function persistRotatedCredentialsThenCleanup(tempCredsFile: string | null
   }
 }
 
+/**
+ * Run an arbitrary READ-ONLY Higgsfield CLI command with correct credential
+ * handling, and hand back its raw output.
+ *
+ * THIS EXISTS BECAUSE ROLLING YOUR OWN KILLS THE SESSION. Every CLI
+ * invocation may rotate the token — the refresh token is single-use, and the
+ * CLI writes its successor into whatever credentials file it was pointed at.
+ * A caller that writes its own temp file, runs the CLI, and deletes the temp
+ * file has just thrown away the ONLY copy of the live token, leaving
+ * app_secret_kv holding a spent one. The session then reads "Session expired"
+ * and needs a human device-login to recover.
+ *
+ * That is not hypothetical: it happened 2026-08-21 during the Higgsfield
+ * stock-fallback remediation, checking `account transactions` from a
+ * hand-rolled script, and cost the operator a manual re-login. It is the same
+ * failure the file header records from 2026-07-16. The fix both times was the
+ * same dance — getSpawnEnv() to materialise the current credential, then
+ * persistRotatedCredentialsThenCleanup() to write any rotated successor BACK
+ * before deleting. Both are module-private, so anyone outside this file
+ * previously had to reimplement them, which is precisely how it got
+ * reimplemented wrong. Use this instead.
+ *
+ * Read-only commands only (`account …`, `generate list|get`). Generation goes
+ * through generateReelClipVideo, which has its own accounting and retry rules.
+ */
+export async function runHiggsfieldCliReadOnly(
+  args: string[],
+  timeoutMs = 30_000,
+): Promise<{ ok: boolean; stdout: string; stderr: string; code: number | null }> {
+  let binPath: string;
+  try {
+    binPath = await ensureHiggsfieldBinary();
+  } catch (err) {
+    return { ok: false, stdout: "", stderr: `binary unavailable: ${err instanceof Error ? err.message : String(err)}`, code: null };
+  }
+  const { env, tempCredsFile } = await getSpawnEnv();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(binPath, args, {
+      env: { ...env, HIGGSFIELD_INSTALL_METHOD: "npm", HIGGSFIELD_PACKAGE_MANAGER: "pnpm" },
+    });
+    // AWAITED, unlike the fire-and-forget `void` calls elsewhere in this file:
+    // persisting the rotation is the entire point of this helper, so it must
+    // finish before the promise resolves and the process is free to exit.
+    const finish = async (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      await persistRotatedCredentialsThenCleanup(tempCredsFile);
+      resolve({ ok: code === 0, stdout, stderr, code });
+    };
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("close", (code) => void finish(code));
+    child.on("error", (err) => { stderr += String(err); void finish(null); });
+    setTimeout(() => {
+      if (settled) return;
+      try { child.kill(); } catch { /* already gone */ }
+      void finish(null);
+    }, timeoutMs);
+  });
+}
+
 function parseResultUrl(stdout: string): string {
   try {
     const parsed = JSON.parse(stdout);
