@@ -17,9 +17,34 @@ export default defineConfig({
   test: {
     environment: "node",
     testTimeout: 30000,
-    // singleFork serial mode (canonical on Windows) shares one process across
-    // all test files — auto-revert vi.stubEnv / vi.stubGlobal before each test
-    // so stubs can never leak across files.
+    // Serial by DEFAULT, not by remembering a CLI flag.
+    //
+    // #515 ("deterministic serial vitest") added the comment and the unstub
+    // safety nets below but never set `pool`, so `pnpm run test` — and therefore
+    // `pnpm run verify` — has always run PARALLEL while AGENTS.md instructed
+    // "always pass --pool=forks --poolOptions.forks.singleFork=true". The gate
+    // contradicted the rule for months, and only a hand-typed flag was serial.
+    //
+    // Measured 2026-08-21, same commit, back-to-back on this machine:
+    //   parallel : 5,851 passed, 1 FAILED (instagramStudio render smoke timed
+    //              out at 60s under concurrent load), exit 1, 186.87s
+    //   serial   : 5,858 passed, 0 failed,             exit 0,  81.11s
+    // Serial is both correct AND 2.3x faster here — parallelism was buying
+    // contention, not speed. Setting it here makes the rule mechanical instead
+    // of advisory; drop the CLI flags from any doc that still recites them.
+    //
+    // SCOPE OF THIS CHANGE, precisely: `forks` is ALREADY the default pool in
+    // Vitest 2+ (pinned ^3.2.6, installed 3.2.7), so naming it here is a no-op
+    // written for legibility. The only behavioural change is `singleFork` —
+    // one worker instead of many. This does NOT revisit #1090's threads->forks
+    // switch, which .github/workflows/test.yml:104 blames for CI runtime; that
+    // pool choice is untouched and remains the status quo.
+    pool: "forks",
+    poolOptions: { forks: { singleFork: true } },
+    // singleFork serial mode shares ONE process across all test files —
+    // auto-revert vi.stubEnv / vi.stubGlobal before each test so stubs can
+    // never leak across files. These are a safety net, not a licence to skip
+    // per-file cleanup (see apps/nickstire/AGENTS.md, test hygiene).
     unstubEnvs: true,
     unstubGlobals: true,
     include: [
