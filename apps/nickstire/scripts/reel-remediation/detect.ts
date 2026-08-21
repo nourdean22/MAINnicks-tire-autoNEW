@@ -54,7 +54,7 @@ import {
   type ConfidenceTier,
   type LedgerEntry,
 } from "./ledger";
-import { sampleFrameAverageColor, matchesSyntheticPalette, extractStockAssets } from "./signals";
+import { sampleFrameSignature, frameLooksSynthetic, extractStockAssets } from "./signals";
 
 async function deriveOutageWindow(db: NonNullable<Awaited<ReturnType<typeof getDb>>>): Promise<{ start: Date; end: Date } | null> {
   const rows = await db
@@ -117,11 +117,11 @@ async function main() {
     // signal 1 already flagged the reel as a candidate, since signal 3
     // exists to CORROBORATE, not to blind-scan every clean reel.
     if (signalA && stockAssets.length > 0) {
-      const sample = await sampleFrameAverageColor(stockAssets[0]);
+      const sample = await sampleFrameSignature(stockAssets[0]);
       if (sample) {
-        const matches = matchesSyntheticPalette(sample);
-        notes.push(`frame sample at t=1s averaged rgb(${sample.r},${sample.g},${sample.b}) — ${matches ? "matches" : "does NOT match"} the synthetic lane's known palette.`);
-        if (matches) signals.push("frame_perceptual_signature");
+        const synthetic = frameLooksSynthetic(sample);
+        notes.push(`frame sample at t=1s: luma std-dev ${sample.stdDevLuma} (mean ${sample.meanLuma}, range ${sample.rangeLuma}) — ${synthetic ? "FLAT, consistent with the synthetic gradient lane" : "detailed, consistent with real generated footage"}.`);
+        if (synthetic) signals.push("frame_perceptual_signature");
       } else {
         notes.push("frame sample failed (ffmpeg unavailable, unreachable URL, or timeout) — signal 3 abstained rather than guessed.");
       }

@@ -70,7 +70,7 @@ import { enqueueReelJob, processNextReelJob, processNextAssemblyJob, REEL_GENERA
 import { higgsfieldSessionLiveness } from "../../server/services/higgsfieldStudio";
 import { withOperatorAction } from "../../server/services/operatorActionLog";
 import { evaluateReelPublishGate } from "../../server/services/qualityGate";
-import { sampleFrameAverageColor, matchesSyntheticPalette, extractStockAssets } from "./signals";
+import { sampleFrameSignature, frameLooksSynthetic, extractStockAssets, SYNTHETIC_LUMA_STDDEV_MAX } from "./signals";
 import { loadLedger, saveLedger, upsertEntry, LEDGER_TERMINAL, type LedgerEntry } from "./ledger";
 
 /**
@@ -175,11 +175,12 @@ async function qcNewRender(jobId: number): Promise<{ passed: boolean; checks: Re
 
   const clips = (() => { try { const a = JSON.parse(row.clipUrlsJson ?? "[]"); return Array.isArray(a) ? a.filter((u) => typeof u === "string") : []; } catch { return []; } })();
   if (clips.length > 0) {
-    const sample = await sampleFrameAverageColor(clips[0]);
+    const sample = await sampleFrameSignature(clips[0]);
     if (sample) {
-      const synthetic = matchesSyntheticPalette(sample);
+      const synthetic = frameLooksSynthetic(sample);
       checks.no_synthetic_frame_signature = !synthetic;
-      if (synthetic) notes.push(`frame sample rgb(${sample.r},${sample.g},${sample.b}) still matches the synthetic lane's palette`);
+      notes.push(`frame sample: luma std-dev ${sample.stdDevLuma} (mean ${sample.meanLuma}, range ${sample.rangeLuma})`);
+      if (synthetic) notes.push(`frame is FLAT (std-dev ${sample.stdDevLuma} < ${SYNTHETIC_LUMA_STDDEV_MAX}) — still the synthetic gradient lane, not real footage`);
     } else {
       notes.push("frame sample failed (ffmpeg unavailable/unreachable/timeout) — no_synthetic_frame_signature left unchecked, not assumed passing");
     }
