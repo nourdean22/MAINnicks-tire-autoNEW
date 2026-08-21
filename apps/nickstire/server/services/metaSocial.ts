@@ -1268,6 +1268,58 @@ export async function getMediaBasicFields(mediaId: string): Promise<{
   }
 }
 
+/**
+ * Which permissions the stored Page token actually carries, read from Graph.
+ *
+ * A token's SCOPES are not knowable from the token itself, and this repo has
+ * repeatedly paid for assuming a capability exists because the code calls it
+ * (the ALG cost-detail lane, the declined-work picker). This asks the API.
+ *
+ * Read-only. Returns granted:false entries too, because a DECLINED permission
+ * is the actionable state — it means a re-auth with that scope is required,
+ * not that the feature is impossible.
+ */
+export async function getGrantedPermissions(): Promise<{
+  ok: boolean;
+  granted: string[];
+  declined: string[];
+  error?: string;
+}> {
+  await ensurePageTokenLoaded();
+  const token = getPageToken();
+  if (!token) return { ok: false, granted: [], declined: [], error: "Instagram not configured (need META_PAGE_ACCESS_TOKEN)" };
+  // debug_token, NOT /me/permissions. `/me` resolves to the PAGE for a page
+  // token and a Page has no `permissions` edge — that call returns
+  // "(#100) Tried accessing nonexisting field (permissions)", which reads like
+  // a missing capability but is really the wrong endpoint for this token type.
+  // debug_token reports the scopes actually attached to the token, and needs
+  // an app-token (app_id|app_secret) as the inspecting credential.
+  const appId = await getAppId();
+  const appSecret = await getAppSecret();
+  if (!appId || !appSecret) {
+    return { ok: false, granted: [], declined: [], error: "need META_APP_ID + META_APP_SECRET to inspect token scopes" };
+  }
+  try {
+    const url = `${GRAPH_URL}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body || body.error) {
+      return { ok: false, granted: [], declined: [], error: body?.error?.message || `HTTP ${res.status}` };
+    }
+    const data = body.data ?? {};
+    const scopes: string[] = Array.isArray(data.scopes) ? data.scopes : [];
+    // granular_scopes carries per-target grants; a scope present there but not
+    // in `scopes` is still granted, just scoped to specific pages/accounts.
+    const granular: string[] = Array.isArray(data.granular_scopes)
+      ? data.granular_scopes.map((g: { scope?: string }) => g?.scope).filter((s: unknown): s is string => typeof s === "string")
+      : [];
+    const all = Array.from(new Set([...scopes, ...granular])).sort();
+    return { ok: true, granted: all, declined: [] };
+  } catch (err) {
+    return { ok: false, granted: [], declined: [], error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function getInstagramPermalink(postId: string): Promise<string | null> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
