@@ -1,0 +1,92 @@
+{
+  "topic": "sticking brake caliper causes one wheel to run hot",
+  "slug": "caliper-sticking-hot-wheel",
+  "created": "2026-08-20",
+  "mode": "PRODUCTION",
+  "status": "READY FOR HUMAN APPROVAL",
+  "faceless": true,
+  "durationSeconds": 33,
+  "aspectRatio": "9:16",
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "startSec": 0,
+      "endSec": 4,
+      "narration": "One wheel hotter than the others after a short drive?",
+      "visualPrompt": "Close-up macro shot of a car's front wheel and brake rotor through the spokes, parked in bright daylight, shallow depth of field, subtle heat-shimmer distortion rising off the rotor surface, cinematic automotive photography, no people."
+    },
+    {
+      "index": 2,
+      "startSec": 4,
+      "endSec": 9,
+      "narration": "That's not always the brakes working hard. It can point to a caliper that's sticking.",
+      "visualPrompt": "Slow push-in on a brake caliper and rotor assembly seen through alloy wheel spokes, brushed metal and glinting highlights, moody garage side-lighting, no people."
+    },
+    {
+      "index": 3,
+      "startSec": 9,
+      "endSec": 14,
+      "narration": "A stuck caliper keeps squeezing the pad against the rotor, even after you let off the brake.",
+      "visualPrompt": "Macro shot of a brake caliper piston and pad area, dust and brake material texture visible, dramatic raking light, mechanical detail, no people."
+    },
+    {
+      "index": 4,
+      "startSec": 14,
+      "endSec": 19,
+      "narration": "That drag builds heat, and it's one clue behind a car that pulls to one side.",
+      "visualPrompt": "Wide tracking shot of a car driving away down a residential street, wheel and rotor in soft foreground blur, background motion blur, no readable plate, no people."
+    },
+    {
+      "index": 5,
+      "startSec": 19,
+      "endSec": 24,
+      "narration": "Don't guess by touch alone. A hot wheel is a sign, not a diagnosis.",
+      "visualPrompt": "Close dolly shot across a worn rotor surface showing heat-discoloration and light scoring, blurred shop background, industrial lighting, no people."
+    },
+    {
+      "index": 6,
+      "startSec": 24,
+      "endSec": 29,
+      "narration": "Worth checking before your next long drive.",
+      "visualPrompt": "Wide establishing shot of a tire-shop service bay interior, warm inviting lighting, tools and lift visible, no readable signage, no people."
+    },
+    {
+      "index": 7,
+      "startSec": 29,
+      "endSec": 33,
+      "narration": "Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Freeze frame held from beat 6's final frame; CTA text and logo composited in post, not generated into the clip."
+    }
+  ],
+  "evidence": {
+    "resolved": false,
+    "note": "No live DB access this run; claims not resolved against evidenceResolver.ts/businessFacts.ts. See README.md section 3."
+  },
+  "musicRights": {
+    "trackSelected": false,
+    "note": "No music-rights ledger exists in this repo. Genre guidance only, no track asserted as cleared. See README.md section 6."
+  },
+  "duplicateCheck": {
+    "mergedPacksScanned": 51,
+    "openPrsScanned": ["#1738", "#1739", "#1741", "#1742"],
+    "collision": false
+  },
+  "posting": {
+    "platforms": ["Instagram Reels", "Facebook Reels"],
+    "dimensions": "1080x1920",
+    "primaryCaption": "One wheel running hotter than the others after a short drive? It can point to a brake caliper that's sticking — worth checking before it turns into a bigger repair. Stop by and we'll take a look. 🔧 #BrakeCare #CarMaintenanceTips #AutoRepair #EuclidOhio #NicksTireAndAuto",
+    "adVariants": [
+      {
+        "hook": "Touch your wheels after a drive. One hotter than the rest?",
+        "caption": "A dragging brake caliper is one clue — not a guess, a reason to get it checked.",
+        "cta": "Stop by Nick's Tire & Auto and we'll take a look."
+      },
+      {
+        "hook": "Your car might be telling you something — one wheel at a time.",
+        "caption": "A sticking caliper can quietly wear a rotor down. Catch it early.",
+        "cta": "Worth a quick check. Stop by anytime."
+      }
+    ]
+  }
+}
