@@ -1,0 +1,151 @@
+{
+  "topic": "musty-ac-smell-evaporator-vs-filter",
+  "createdAt": "2026-08-20T13:29:50Z",
+  "mode": "PRODUCTION",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "renderExists": false,
+  "publishAttempted": false,
+  "capabilityProbe": {
+    "hfCliFound": false,
+    "higgsfieldCliFound": false,
+    "ffmpegFound": false,
+    "envVarsPresent": [],
+    "databaseUrlPresent": false,
+    "adminApiKeyPresent": false
+  },
+  "duplicateCheck": {
+    "mergedPacksScanned": 55,
+    "openPullRequests": [
+      { "number": 1738, "title": "reel pack: wheel wobble test (tie rod vs wheel bearing)", "createdAt": "2026-08-20T12:34:08Z" }
+    ],
+    "overlapFound": false
+  },
+  "concept": {
+    "hook": "That musty AC smell isn't 'just old car.'",
+    "claim": "Startup-only timing plus no drip under the car can point to a clogged evaporator drain or a dirty cabin filter, not necessarily the AC compressor.",
+    "cta": "Do not guess. Stop by and we'll take a look.",
+    "faceless": true,
+    "durationSeconds": 29,
+    "aspectRatio": "9:16"
+  },
+  "candidateScores": [
+    { "concept": "musty-ac-smell-evaporator-vs-filter", "scrollStop": 4, "mutedClarity": 5, "sourcedFact": 4, "claimSafety": 5, "novelty": 5, "total25": 23, "selected": true },
+    { "concept": "squeaky-window-regulator", "scrollStop": 3, "mutedClarity": 4, "sourcedFact": 3, "claimSafety": 5, "novelty": 3, "total25": 18, "selected": false },
+    { "concept": "gas-cap-light-nuance", "scrollStop": 3, "mutedClarity": 3, "sourcedFact": 3, "claimSafety": 5, "novelty": 2, "total25": 16, "selected": false }
+  ],
+  "qualityScoreSelfEstimate75": { "value": "68-70", "serverVerified": false, "note": "calculateReelQualityScore() not invoked; no running app in this session" },
+  "beats": [
+    {
+      "id": "hero",
+      "startSec": 0,
+      "endSec": 3,
+      "vo": "That musty AC smell? Not just an 'old car' thing.",
+      "caption": "THAT AC SMELL ISN'T \"JUST OLD CAR\"",
+      "shot": "Macro push-in on dashboard AC vent, faint mist drifting out",
+      "prompt": "Close-up macro shot, car dashboard air vent, faint white mist/condensation drifting out of the vent slats, slow push-in camera move, cool blue-white interior lighting, shallow depth of field, photorealistic, automotive interior detail",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "anchor"
+    },
+    {
+      "id": "support1",
+      "startSec": 3,
+      "endSec": 10,
+      "vo": "If it hits hardest right when you start the car - that's clue one.",
+      "caption": "HITS HARDEST AT STARTUP → CLUE #1",
+      "shot": "Side-angle of vents blowing, dust motes in a shaft of light",
+      "prompt": "Side-angle shot inside a car cabin, air vents blowing, visible dust particles floating in a shaft of sunlight through the windshield, slow horizontal pan, photorealistic, shallow depth of field",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "support2",
+      "startSec": 10,
+      "endSec": 17,
+      "vo": "No water dripping under the car after you park - that's clue two.",
+      "caption": "NO DRIP UNDER THE CAR → CLUE #2",
+      "shot": "Low exterior angle under parked car, dry pavement",
+      "prompt": "Low-angle close-up shot under the front bumper of a parked car, dry concrete pavement, static camera with subtle handheld micro-motion, overcast daylight, photorealistic",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "reference",
+      "startSec": 17,
+      "endSec": 23,
+      "vo": "Together, those can point to a clogged evaporator drain or a dirty cabin filter - not necessarily the AC compressor.",
+      "caption": "CAN POINT TO: DRAIN OR FILTER — NOT THE COMPRESSOR",
+      "shot": "Wide shot of engine bay / HVAC intake area",
+      "prompt": "Wide shot of a car engine bay from above, cowl and HVAC intake area visible, static camera with slow zoom, daylight, photorealistic, clean and neutral, no people",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "cta",
+      "startSec": 23,
+      "endSec": 26,
+      "vo": "Do not guess which one - stop by and we'll take a look.",
+      "caption": "DO NOT GUESS. STOP BY — WE'LL LOOK.",
+      "shot": "Exterior of shop service bay, slow dolly-in",
+      "prompt": "Exterior shot of an auto repair shop service bay, open garage door, daylight, slow forward dolly camera move, photorealistic, no people, no signage text",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "save_freeze",
+      "startSec": 26,
+      "endSec": 29,
+      "vo": null,
+      "caption": "SAVE THIS FOR THE NEXT MUSTY-AC DAY",
+      "shot": "Freeze on CTA beat's last frame, brand wordmark overlay added at assembly",
+      "prompt": null,
+      "negativePrompt": null,
+      "startImageRole": "freeze-reuse-cta"
+    }
+  ],
+  "claimSafety": {
+    "approvedPhrasesUsed": ["can point to", "do not guess", "stop by and we'll take a look"],
+    "bannedPatternsPresent": false,
+    "pricesOrWarrantyMentioned": false
+  },
+  "evidence": {
+    "businessFactsChannelSupport": false,
+    "reason": "FactChannel is sms|voice|web only, no 'reel' channel exists",
+    "evidenceResolverRun": false,
+    "reason2": "no DATABASE_URL in this session"
+  },
+  "musicRights": {
+    "trackSelected": false,
+    "blocked": true,
+    "reason": "no music-rights ledger exists in this repo"
+  },
+  "qaMatrix": {
+    "briefQualityScore": "UNKNOWN",
+    "serverReScore": "BLOCKED",
+    "renderIntegrityGate": "BLOCKED",
+    "renderedQaVisionCritic": "BLOCKED",
+    "repairRouting": "N/A",
+    "sevenWayAutomationDecision": "BLOCKED",
+    "consolidatedPublishGate": "BLOCKED",
+    "claimSafetyWordingCheck": "PASS",
+    "duplicateTopicCheck": "PASS"
+  },
+  "socialCopy": {
+    "primary": {
+      "caption": "That musty AC smell isn't always \"just an old car.\" Two quick clues can point to a clogged evaporator drain or a dirty cabin filter — not necessarily the compressor. Don't guess which one. Stop by and we'll take a look.",
+      "hashtags": ["#NicksTireEuclid", "#CarAC", "#AutoRepair", "#EuclidOhio", "#CarCare", "#MechanicTips"]
+    },
+    "adVariants": [
+      {
+        "hook": "Musty AC smell? It's probably not what you think.",
+        "caption": "Two clues tell you whether it's the drain, the filter, or something bigger — before you spend money guessing.",
+        "cta": "Stop by — we'll check it for free."
+      },
+      {
+        "hook": "2 clues for musty AC smell (before you replace anything)",
+        "caption": "Startup timing + no drip under the car = point to drain or filter, not the compressor. Don't guess — ask us.",
+        "cta": "Come by the shop, we'll look it over."
+      }
+    ]
+  },
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
