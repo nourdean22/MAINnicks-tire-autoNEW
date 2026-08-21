@@ -9,9 +9,42 @@ import { processClaimsIntoOpportunities } from "@/lib/intelligence/scoring";
 import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
 import { logger as rootLogger } from "@/lib/logger";
+import { pushBodyFromBrief } from "./morning-brief";
 
 const log = rootLogger.withSurface("inngest/intelligence-brief");
 const inngest = getInngest();
+
+/**
+ * 2026-08-21 · combine decision, pure. Pulled out of the dispatch-push
+ * step callback so the title/text choice is directly testable without
+ * mocking step.run/prisma/sendPush.
+ */
+export function combineBriefText(morningHighlight: string | null, execText: string): string {
+  return morningHighlight
+    ? `## 🌅 This Morning\n${morningHighlight}\n\n---\n\n${execText}`
+    : execText;
+}
+
+export function combinedBriefTitle(morningHighlight: string | null): string {
+  return morningHighlight ? "Morning + Executive Brief" : "Daily Executive Brief";
+}
+
+/**
+ * 2026-08-21 · the push BODY is a ~200-char teaser, not the full brief
+ * (that's what /intelligence/brief is for). `morningHighlight` is now
+ * the FULL morning brief text (handOffForCombine hands off raw, so the
+ * landing page can render it in full) — running the naive
+ * `pushBodyFromBrief(morning + " · " + exec)` on that would let a long
+ * morning brief eat the whole 200-char budget and the notification
+ * preview would never even mention the exec brief. Give each side a
+ * fixed slice BEFORE truncating so the teaser always hints at both.
+ */
+export function combinedPushBody(morningHighlight: string | null, execText: string): string {
+  if (!morningHighlight) return pushBodyFromBrief(execText);
+  const morningSlice = pushBodyFromBrief(morningHighlight).slice(0, 90);
+  const execSlice = pushBodyFromBrief(execText).slice(0, 100);
+  return `${morningSlice} · ${execSlice}`.slice(0, 200);
+}
 
 /**
  * Daily Ingestion & Briefing Orchestrator
@@ -22,10 +55,12 @@ export const intelligenceDailyBrief = inngest.createFunction(
     id: "intelligence-daily-brief",
     name: "Intelligence OS · Daily Briefing",
     retries: 2,
-    // Staggered +15min off operator-morning-brief (0 10) — both fired at
-    // 10:00 UTC, double-firing a high-priority Web Push at the operator
-    // and contending for the shared AI provider. This analytics brief
-    // sends no push, so it yields the exact-hour slot.
+    // Staggered +15min off operator-morning-brief (0 10) — originally to
+    // avoid double-firing a high-priority Web Push at the operator and
+    // contending for the shared AI provider. 2026-08-21 · that double-fire
+    // is now the point: this slot RECEIVES morning's hand-off (see
+    // combine-morning-highlight below) and sends the ONE combined push,
+    // 15min after morning's compose so its highlight is ready to fold in.
     triggers: [{ cron: "15 10 * * *" }],
     onFailure: onInngestFailure,
   },
@@ -109,13 +144,37 @@ export const intelligenceDailyBrief = inngest.createFunction(
       }
     });
 
+    // 3b. 2026-08-21 · combine hand-off receiver. operator-morning-brief
+    // (10:00 UTC) hands its highlight here instead of sending its own
+    // push — two separate pushes for what is conceptually ONE morning
+    // briefing was a fair complaint. Reads + deletes the pending row
+    // (lib/inngest/functions/morning-brief.ts's handOffForCombine) so
+    // the dispatch-push step below sends ONE notification covering
+    // both. Null means morning didn't run yet, already ran its own
+    // 35min backstop, or simply had nothing pending — solo delivery,
+    // same as before this change.
+    const morningHighlight = await step.run("combine-morning-highlight", async () => {
+      const { prisma } = await import("@/lib/prisma");
+      const pending = await prisma.brainMemory.findUnique({
+        where: {
+          category_key: { category: "pending_morning_highlight", key: briefContent.date },
+        },
+        select: { id: true, content: true },
+      });
+      if (!pending) return null;
+      await prisma.brainMemory.delete({ where: { id: pending.id } }).catch(() => null);
+      return pending.content;
+    });
+
+    const combinedText = combineBriefText(morningHighlight, briefContent.text);
+
     // 4. Save Brief to BriefingLog
     await step.run("save-brief-log", async () => {
       const { prisma } = await import("@/lib/prisma");
       await prisma.briefingLog.create({
         data: {
           briefType: "daily",
-          content: briefContent.text,
+          content: combinedText,
         },
       });
       // S4 · outcome ledger producer #1: the brief is a recommendation
@@ -126,27 +185,53 @@ export const intelligenceDailyBrief = inngest.createFunction(
       await recordShown({
         kind: "daily_brief",
         sourceEngine: "intelligence-brief",
-        summary: briefContent.text.split("\n").find((l: string) => l.trim().length > 0)?.slice(0, 500) ?? "daily brief",
+        summary: combinedText.split("\n").find((l: string) => l.trim().length > 0)?.slice(0, 500) ?? "daily brief",
         shownSurface: "push+briefing_log",
       });
     });
 
-    // 5. Dispatch Web Push Notification
+    // 5. Dispatch Web Push Notification — ONE push covering both briefs
+    // when morning's highlight was there to combine.
     const pushReport = await step.run("dispatch-push", async () => {
       const { sendPush } = await import("@/lib/notifications/push");
       const result = await sendPush({
-        title: "Daily Executive Brief",
-        body: briefContent.text.slice(0, 200).replace(/\n+/g, " · "),
+        title: combinedBriefTitle(morningHighlight),
+        body: combinedPushBody(morningHighlight, briefContent.text),
         level: "high",
         url: "/intelligence/brief",
-        tag: `intelligence-brief-${briefContent.date}`,
-        chatSeed: {
-          prompt: `walk me through the daily executive brief for ${briefContent.date}`,
-          suggKind: "intelligence-brief",
-          suggId: briefContent.date,
-        },
+        tag: `daily-brief-${briefContent.date}`,
+        // 2026-08-21 · NO chatSeed here on purpose. chatSeed ALWAYS wins
+        // over `url` in sendPush's click routing, and chat only PREFILLS
+        // the composer — it never auto-sends ($0-incremental doctrine,
+        // see use-chat-deep-link-prefill.ts) — so tapping this
+        // notification landed the operator in an empty chat with an
+        // unsent prompt and nowhere to actually READ the brief.
+        // /intelligence/brief already renders the persisted content
+        // (fetches BriefingLog via /api/intelligence/briefs/today) —
+        // that IS the surface where the notification's content is
+        // visible, so `url` needs to win here.
       });
       return result;
+    });
+
+    // 5b. Telegram fallback — intelligence-brief never had one; now that
+    // its push represents BOTH briefs, a zero-device push must not
+    // silently lose morning's content too. Mirrors morning-brief's
+    // existing fallback (lib/inngest/functions/morning-brief.ts).
+    const telegramFallback = await step.run("telegram-fallback", async () => {
+      if (pushReport.sent > 0) return { status: "skipped_push_ok" as const };
+      const { sendTelegram } = await import("@/lib/services/telegram");
+      const reason =
+        pushReport.failed > 0
+          ? "web push failed on every registered device"
+          : "no live web-push subscription";
+      const title = combinedBriefTitle(morningHighlight);
+      const ok = await sendTelegram(
+        `📊 ${title} (${briefContent.date}) — delivered via Telegram because ${reason}. ` +
+          `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(combinedText)}\n\n` +
+          `Full brief: https://bdnick.info/intelligence/brief`,
+      ).catch(() => false);
+      return { status: ok ? ("sent" as const) : ("failed" as const) };
     });
 
     // 6. AG-15 · persona-drift scan. The read surfaces (tRPC
@@ -173,6 +258,8 @@ export const intelligenceDailyBrief = inngest.createFunction(
       opportunities: opportunityReport,
       pushSent: pushReport.sent,
       pushFailed: pushReport.failed,
+      combinedWithMorning: morningHighlight !== null,
+      telegramFallback: telegramFallback.status,
       personaDrift: driftReport,
     };
   },
