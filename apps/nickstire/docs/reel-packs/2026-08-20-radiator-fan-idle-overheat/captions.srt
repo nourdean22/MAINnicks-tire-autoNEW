@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:01,600
+Car runs hot at red lights
+
+2
+00:00:01,600 --> 00:00:03,000
+but fine on the highway?
+Here's why.
+
+3
+00:00:03,000 --> 00:00:06,000
+Moving, air pushes through
+the radiator on its own.
+
+4
+00:00:06,000 --> 00:00:09,000
+Stopped, only the fan
+can cool it.
+
+5
+00:00:09,000 --> 00:00:12,500
+If that fan isn't spinning
+once the engine's warm,
+
+6
+00:00:12,500 --> 00:00:16,000
+that's one clue the fan motor,
+relay, or coolant sensor may need a look.
+
+7
+00:00:16,000 --> 00:00:19,500
+Low coolant or a stuck thermostat
+can cause the same symptom —
+
+8
+00:00:19,500 --> 00:00:23,000
+do not guess which one.
+
+9
+00:00:23,000 --> 00:00:27,000
+Gauge creeping up at idle?
+Stop by and we'll take a look.
+
+10
+00:00:27,000 --> 00:00:30,000
+SAVE THIS for the next time
+you're idling hot

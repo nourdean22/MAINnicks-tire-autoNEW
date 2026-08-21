@@ -1,0 +1,103 @@
+{
+  "packId": "2026-08-20-radiator-fan-idle-overheat",
+  "generatedAt": "2026-08-20",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "off-slate — not on any known slate doc; selected fresh after checking apps/nickstire/docs/reel-packs/ (51 prior dirs + 9 merged today) and 7 currently-open reel-pack PRs (#1738 wheel wobble, #1739 musty AC smell, #1741 lug-nut re-torque, #1742 new-tire-on-AWD, #1744 sticking brake caliper, #1745 tire losing air, #1746 reading a tire sidewall) for topic overlap",
+  "campaignKeyword": "FANIDLE",
+  "hookText": "Car runs hot at red lights but fine on the highway? Here's why.",
+  "ctaText": "Gauge creeping up at idle? Stop by and we'll take a look.",
+  "durationSeconds": 30,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Car runs hot at red lights but fine on the highway? Here's why.",
+      "onScreenText": "",
+      "providerScene": "Close-up of a car dashboard temperature gauge, needle sitting mid-scale then ticking slightly upward, shallow depth of field, daylight cabin, slow push-in, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 9,
+      "narration": "Moving, air pushes through the radiator on its own. Stopped, only the fan can cool it.",
+      "onScreenText": "",
+      "providerScene": "Split framing: first half a car radiator grille shot from a low angle with visible airflow/heat-shimmer while in motion on a highway, second half the same grille stationary at a red light with no airflow, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 9,
+      "endSecond": 16,
+      "narration": "If that fan isn't spinning once the engine's warm, that's one clue the fan motor, relay, or coolant sensor may need a look.",
+      "onScreenText": "",
+      "providerScene": "Macro shot inside an open engine bay focused on an electric radiator fan assembly behind the grille, blades motionless, slow rack focus emphasizing stillness, garage-adjacent daylight, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 16,
+      "endSecond": 23,
+      "narration": "Low coolant or a stuck thermostat can cause the same symptom — do not guess which one.",
+      "onScreenText": "",
+      "providerScene": "Macro shot of a translucent coolant reservoir tank with fluid level visible against its fill markings, soft overhead garage light, slow push-in, then a quick rack to a thermostat housing on the engine block, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 23,
+      "endSecond": 27,
+      "narration": "Gauge creeping up at idle? Stop by and we'll take a look.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm late-afternoon light, static hold, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 6,
+      "intent": "SAVE_FREEZE",
+      "startSecond": 27,
+      "endSecond": 30,
+      "narration": "",
+      "onScreenText": "SAVE THIS for the next time you're idling hot",
+      "providerScene": "Static end-card hold of the beat 5 garage bay frame with overlaid SAVE text; no new generation required — freeze-frame of the prior beat's last rendered frame",
+      "sceneStatus": "static-by-design",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient engine-bay room-tone only, royalty-free",
+    "sfxNotes": "optional single soft fan-whir SFX under beat 3 to reinforce stillness, and a light coolant-swirl SFX under beat 4; skip either if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 7, "detail": "gauge close-up is a solid but not maximally dramatic hook frame compared to a red-zone gauge or visible steam" },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 4, "detail": "SAVE end-card is a neutral garage frame that reads reasonably well looping back into the gauge hook, though not a perfect visual match" },
+      "sourcedFact": { "max": 10, "score": 6, "detail": "fan-at-idle cooling mechanism is well-established general automotive engineering fact, not shop-specific; no EvidenceRecord citation attached — evidenceResolver.ts not queried live this run" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 10, "detail": "no diagnosis asserted as certain, no price/warranty claim, uses approved soft phrasing ('one clue', 'may need a look', 'do not guess')" },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 1, "detail": "not fully awarded — running subtotal (63/70) sits close to but under the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "63/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a stronger hook frame before this would likely clear the real gate"
+  }
+}
