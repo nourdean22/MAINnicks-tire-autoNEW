@@ -1,0 +1,106 @@
+{
+  "packDate": "2026-08-21",
+  "mode": "SCHEDULED",
+  "status": "BLOCKED: NO MOTION ROUTE",
+  "title": "Check engine light on? Check this before you panic.",
+  "archetype": "myth-correction",
+  "motionLens": "documentary/macro-realistic (confirm exact lens + lens.avoid in the live Studio wizard)",
+  "totalMotionSeconds": 30,
+  "saveFreezeSeconds": 3,
+  "totalContainerSeconds": 33,
+  "standingNegativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+  "duplicationCheck": {
+    "mergedPacksChecked": 65,
+    "mostRecentMergedPacks": [
+      "2026-08-21-ac-recharge-myth-sealed-system",
+      "2026-08-21-brake-pedal-sinks-overnight",
+      "2026-08-21-catalytic-converter-theft-prevention",
+      "2026-08-21-differential-whine-on-turns"
+    ],
+    "openReelPackPrsChecked": [],
+    "repetitionLedgerLiveRead": false,
+    "note": "getRecentReelSignals() not called — no live DB path from this session; filesystem + PR search used instead. Closest neighbors (check-engine-light severity pack, echeck-readiness-monitors pack) cover different angles, no overlap."
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "label": "hook",
+      "durationSec": 3,
+      "narration": "Check engine light on? It might just be your gas cap.",
+      "prompt": "Close-up on a car's dashboard cluster at dusk, engine off, the check engine light glowing amber against the dark instrument panel, shallow depth of field, no other dashboard motion.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "the check-engine icon already lit and sharp-focused, strongest possible first frame, unbranded, wordless",
+      "actionCompleteBySec": 2.5
+    },
+    {
+      "beatNumber": 2,
+      "label": "setup",
+      "durationSec": 4,
+      "narration": "A gas cap that isn't clicked all the way can trip it.",
+      "prompt": "Close-up on an open fuel filler door, a gas cap resting loosely in its threads — visibly not seated flush, a faint gap along the seal — parked in daylight, no hands present, a light breeze causes the cap to shift slightly in place.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "continue directly from beat 1's dashboard, now outside at the fuel door",
+      "actionCompleteBySec": 3.5
+    },
+    {
+      "beatNumber": 3,
+      "label": "explanation",
+      "durationSec": 6,
+      "narration": "Modern engines watch for fuel vapor leaks, and a loose seal can mimic a real problem.",
+      "prompt": "Object-only technical cutaway of a fuel tank and vapor line system, animated vapor particles escaping through a visible gap around a loosely seated gas cap seal instead of being captured by the vapor-recovery system; clean diagrammatic lighting, slow camera push-in; no text or labels rendered in-scene.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, on-screen text, logos, watermarks",
+      "openingFrame": "establish the cutaway clearly at a glance",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 4,
+      "label": "consequence_proof",
+      "durationSec": 6,
+      "narration": "That can mask a code that actually matters, or contribute to a failed emissions check.",
+      "prompt": "A dash-mounted diagnostic scan tool screen, self-illuminated, cycling through a list of diagnostic trouble codes, a highlight box sliding down to rest on an EVAP-system code among several others in the list; no hands present, tool sits in a fixed mount.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "list of codes already visible, highlight box mid-slide",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 5,
+      "label": "safe_action",
+      "durationSec": 6,
+      "narration": "One clue isn't a diagnosis — worth checking before you assume the worst.",
+      "prompt": "The same gas cap from beat 2, now rotating in place as if self-tightening on a mounted torque-check rig, an audible-click indicator ring rotating with each click until it stops fully seated flush against the fuel door; no hands present.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "cap mid-rotation, indicator ring visible",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 6,
+      "label": "branded_cta",
+      "durationSec": 5,
+      "narration": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue.",
+      "prompt": "Exterior establishing shot of Nick's Tire & Auto's shop bay, a diagnostic scan tool resting on a service cart in the foreground, late-afternoon light, logo signage visible and legible; camera holds steady for a clean end-card composite.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "shop bay and signage clearly legible",
+      "actionCompleteBySec": 4,
+      "postFreezeSec": 3,
+      "endCardNote": "logo + address/phone composited on the frozen final 3s only; human-verify against current legal.entity fact before publish"
+    }
+  ],
+  "approvedPhrasingUsed": ["worth checking", "one clue isn't a diagnosis", "stop by and we'll take a look"],
+  "bannedPatternsAvoided": ["you need", "this means your X is bad/shot/gone", "you definitely need"],
+  "audioMusicRights": "no rights ledger exists in this repo; no music bed selected; treat as BLOCKED until a human clears one",
+  "costEstimateUsd": {
+    "templateStockLane": 0.0,
+    "seedanceLane": 1.5,
+    "basis": "generationLedger.ts COST_ESTIMATES_USD, carried forward estimate, not re-read live this session"
+  },
+  "qaMatrix": {
+    "briefQualityScore": "UNKNOWN",
+    "serverRescoreAtEnqueue": "UNKNOWN",
+    "renderIntegrityGate": "BLOCKED",
+    "renderedQaVisionCritic": "BLOCKED",
+    "consolidatedPublishGate": "BLOCKED",
+    "humanApprovalDoor": "BLOCKED",
+    "evidenceEntailment": "UNKNOWN"
+  },
+  "finalStatus": "BLOCKED: NO MOTION ROUTE (pack is PRODUCTION-READY; nothing rendered, spent, or published)"
+}
