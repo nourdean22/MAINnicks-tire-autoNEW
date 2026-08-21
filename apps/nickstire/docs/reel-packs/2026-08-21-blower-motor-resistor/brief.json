@@ -1,0 +1,93 @@
+{
+  "topic": "Blower motor resistor failure: heat or A/C fan stuck on one speed",
+  "campaignKeyword": "FANSPEED",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-21",
+  "durationSec": 27,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Your heat or A/C only blows on one speed, usually the highest.",
+      "visualPrompt": "Macro shot of a car dashboard fan-speed dial being turned through low, medium, and high positions, shallow depth of field, neutral cabin lighting, 9:16 vertical framing",
+      "stockSearchTerms": ["car dashboard fan speed dial closeup", "hvac fan control knob macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "That's not a broken fan. It's usually the blower motor resistor.",
+      "visualPrompt": "Extreme close-up of a small electronic resistor module mounted under a dashboard near the blower housing, static camera, soft work-light illumination, 9:16 vertical framing",
+      "stockSearchTerms": ["blower motor resistor closeup", "hvac resistor module under dash macro"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 17],
+      "narration": "The resistor steps the fan down to low and medium. High speed often skips it entirely, so high keeps working while every other speed goes dead.",
+      "visualPrompt": "Macro of the resistor module's coiled metal contacts, slow orbital camera move revealing scorch marks on one contact strip, dim garage light, 9:16 vertical framing",
+      "stockSearchTerms": ["blower resistor burnt contact macro", "hvac resistor coil closeup automotive"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [17, 22],
+      "narration": "Ignore it and the motor keeps pulling full power every time the fan runs, which can wear it out sooner.",
+      "visualPrompt": "Rack focus from the resistor module in the foreground to the blower motor fan wheel visible in the housing behind it, neutral shop lighting, 9:16 vertical framing",
+      "stockSearchTerms": ["blower motor fan wheel housing closeup", "car hvac blower assembly macro"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [22, 27],
+      "narration": "Nick's Tire and Auto checks the blower circuit free with a heating and A/C inspection. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in, 9:16 vertical framing",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 51,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 6, "max": 10, "note": "a fan-dial macro cycling through speeds is a mildly relatable, moderately novel hook - not as visceral as a sound- or smell-based hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (fan dial macro)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs the resistor-circuit claim; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged with 'usually' and 'often', matching the approved soft-language pattern" },
+      "keyword": { "score": 5, "max": 5, "note": "fan, blower, resistor keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 27,
+    "ctaType": "SEND-oriented"
+  }
+}
