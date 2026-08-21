@@ -219,7 +219,7 @@ and pointer-only so a second policy cannot fork into existence:
 
 | Agent | File(s) | How it resolves |
 |---|---|---|
-| Claude Code | `CLAUDE.md`, `apps/*/CLAUDE.md` | `@AGENTS.md` import + Claude-only extras (skills, hooks) |
+| Claude Code | `CLAUDE.md`, `CLAUDE-OPERATING-PROFILE.md`, `apps/*/CLAUDE.md` | `@AGENTS.md` import + Claude-only extras (skills, hooks, skill-discovery + subagent briefing) |
 | Codex / ChatGPT | `AGENTS.md`, `apps/*/AGENTS.md` | native root→cwd `AGENTS.md` hierarchy |
 | GitHub Copilot | `.github/copilot-instructions.md` + native `AGENTS.md` | repo-wide custom instructions |
 | Cursor | `.cursor/rules/*.mdc` + native `AGENTS.md` | `alwaysApply` core rule + glob-scoped app rules |
