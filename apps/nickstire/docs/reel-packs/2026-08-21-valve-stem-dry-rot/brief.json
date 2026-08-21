@@ -1,0 +1,93 @@
+{
+  "topic": "Tire valve stem dry rot and cracking: the slow leak you can see",
+  "campaignKeyword": "VALVESTEM",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-21",
+  "durationSec": 27,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Your tire keeps going flat and there's no nail anywhere in it.",
+      "visualPrompt": "Macro shot of a rubber tire valve stem protruding from a wheel rim, shallow depth of field, slow camera push-in, neutral garage lighting",
+      "stockSearchTerms": ["tire valve stem closeup", "car wheel valve stem macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "Check the valve stem. Rubber ones dry out and crack after three to five years.",
+      "visualPrompt": "Extreme close-up of a rubber valve stem base against a wheel rim, static camera, soft daylight, clean shop background",
+      "stockSearchTerms": ["rubber tire valve stem base closeup", "valve stem on rim macro"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 16],
+      "narration": "Look for cracks, splits, or a stem that feels soft near the base - that's a slow leak hiding in plain sight.",
+      "visualPrompt": "Extreme macro of cracked, dry, weathered rubber valve stem texture with visible hairline splits, slow orbital camera move, dim garage light",
+      "stockSearchTerms": ["cracked rubber valve stem macro", "dry rotted rubber texture closeup"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [16, 22],
+      "narration": "A cracked stem can point to a tire that's older than you think, not just a bad valve.",
+      "visualPrompt": "Wide-to-macro rack focus shot starting on a full tire sidewall and pulling focus to the valve stem in the foreground, neutral shop lighting",
+      "stockSearchTerms": ["tire sidewall to valve stem focus pull", "car tire closeup garage"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [22, 27],
+      "narration": "Nick's Tire and Auto checks every valve stem free with a tire inspection. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "macro valve-stem shot is a decent but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (valve stem macro)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; approved soft-language phrasing used (can point to)" },
+      "keyword": { "score": 5, "max": 5, "note": "tire, valve stem, leak keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 27,
+    "ctaType": "SEND-oriented"
+  }
+}
