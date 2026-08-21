@@ -149,10 +149,24 @@ if (requireFile("apps/nickstire/docs/OPERATOR-DIRECTIVE.md", "relocated operator
   requireMatch("apps/nickstire/docs/OPERATOR-DIRECTIVE.md", /MASTER OPERATING DIRECTIVE/, "the moved block must actually be here");
 }
 
+// Same zero-loss-move shape, 2026-08-21 (PR #1765): the operator's skill-discovery and subagent
+// policies moved OUT of the machine-local ~/.claude/CLAUDE.md and INTO the repo. A machine-local
+// file cannot be reviewed, versioned, or read by a sibling agent, so the move is the point — but a
+// move is only zero-loss while BOTH ends hold. Assert the blocks landed AND that the capped adapter
+// still points at them; otherwise the profile silently becomes an orphan doc and the adapter a
+// dangling reference, which is exactly how the Antigravity fork started.
+if (requireFile("CLAUDE-OPERATING-PROFILE.md", "relocated Claude operating profile (zero-loss move)")) {
+  requireMatch("CLAUDE-OPERATING-PROFILE.md", /^SKILL DISCOVERY$/m, "the moved skill-discovery SECTION must be here (anchored: a bare substring match passes on a gutted section)");
+  requireMatch("CLAUDE-OPERATING-PROFILE.md", /^SUBAGENT POLICY$/m, "the moved subagent SECTION must be here (anchored, same reason)");
+  requireMatch("CLAUDE-OPERATING-PROFILE.md", /INHERIT THE STANCE/, "subagent rule 1 is the load-bearing one -- assert content, not just the heading");
+  requireMatch("CLAUDE.md", /CLAUDE-OPERATING-PROFILE\.md/, "the capped adapter must point at the profile it delegates to");
+}
+
 // `.husky/pre-*` = a claim about where the hook lives (always wrong — lefthook).
 // push-main.sh = a retired direct-main-push helper; mention is fine, prescription is not.
 for (const f of [
   "AGENT-OPERATING-PROFILE.md",
+  "CLAUDE-OPERATING-PROFILE.md",
   "AGENTS.md",
   "CLAUDE.md",
   ".agents/frameworks/ciitty/SKILL.md",
