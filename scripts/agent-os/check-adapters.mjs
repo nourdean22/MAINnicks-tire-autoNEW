@@ -159,7 +159,12 @@ if (requireFile("CLAUDE-OPERATING-PROFILE.md", "relocated Claude operating profi
   requireMatch("CLAUDE-OPERATING-PROFILE.md", /^SKILL DISCOVERY$/m, "the moved skill-discovery SECTION must be here (anchored: a bare substring match passes on a gutted section)");
   requireMatch("CLAUDE-OPERATING-PROFILE.md", /^SUBAGENT POLICY$/m, "the moved subagent SECTION must be here (anchored, same reason)");
   requireMatch("CLAUDE-OPERATING-PROFILE.md", /INHERIT THE STANCE/, "subagent rule 1 is the load-bearing one -- assert content, not just the heading");
-  requireMatch("CLAUDE.md", /CLAUDE-OPERATING-PROFILE\.md/, "the capped adapter must point at the profile it delegates to");
+  // MUST be the @-import form on its own line. A markdown link satisfies a bare substring match
+  // but loads NOTHING — that exact false green shipped on 2026-08-21 and left the profile
+  // loading in zero sessions while the parity check stayed green. Assert the mechanism.
+  requireMatch("CLAUDE.md", /^@CLAUDE-OPERATING-PROFILE\.md$/m, "the adapter must IMPORT the profile (@ line), not merely link it — a link does not load");
+  requireMatch("CLAUDE-OPERATING-PROFILE.md", /AGENTS\.md/, "the profile must defer to the canonical policy");
+  requireThin("CLAUDE-OPERATING-PROFILE.md", 160);
 }
 
 // `.husky/pre-*` = a claim about where the hook lives (always wrong — lefthook).
