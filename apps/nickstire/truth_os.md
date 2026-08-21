@@ -94,6 +94,67 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-08-21 — the silent stock fallback is dead in production, and the fix sat unmerged for a day
+
+**Production was substituting stock footage for real AI video and publishing it, and the fix
+existed but was never deployed.** During a Higgsfield outage the reel pipeline did not fail — it
+fell back to `templateStockStudio` (local ffmpeg gradients) and published anyway. 11 reels were
+produced that way, not the 7 previously believed: 4 never reached Instagram, so platform-side
+review could not see them.
+
+The Phase 2 fix (kill the fallback, add an unbypassable publish gate) was written, tested green,
+and reported "done" — while living on an unmerged branch. `REEL_FALLBACK_TO_TEMPLATE_STOCK=true`
+was still set in Railway and prod kept substituting. **It fired again on 2026-08-21 during the
+remediation itself**, poisoning two beats of job 1740002: this session re-queued a job locally,
+prod's pulse cron claimed the same row (it claims UNSCOPED), and finished it on the old code. The
+remediation's own QC gate is what caught it. Merged as #1760, verified by file content on
+`origin/main`, not by the merge command's exit code.
+
+**What is true now.** `evaluateReelPublishGate` rejects any reel carrying a `template-stock` clip,
+asserting on the storage path — unforgeable — rather than a settable flag, ahead of the
+`RENDERED_QA_ENABLED` disable check. A terminal paid-provider failure routes to `needs_regen`:
+non-publishable, surfaced, alerted. `REEL_FALLBACK_TO_TEMPLATE_STOCK` was deleted from the Railway
+service on 2026-08-21 (inert by then — zero live readers).
+
+**Five hand-copied status lists disagreed with each other.** Adding `needs_regen` to the canonical
+predicate was not enough: `getReelJob`'s mapper defaulted it to `queued` (Studio polled forever,
+never surfacing the failure), `discardReelJob`'s `CLOSEABLE` refused it with "already published"
+(false — it never published), `adminRoutes` kept a second attention list, `qualityGate`'s
+paid-repair circuit breaker counted only `status='failed'` so it went blind to the very outage it
+exists to catch, and `reelReliability` counted `needs_regen` in the denominator but not the
+numerator, deflating the displayed failure rate on both the dashboard card and the Telegram digest.
+
+**Instagram CAN delete reels — the blocker was a wrong conclusion.** `DELETE /<IG_MEDIA_ID>` is
+documented, supports Reels, and needs `instagram_basic` + `instagram_manage_contents`. Both are
+already granted on the live token (verified against prod, 35 scopes). This was called impossible
+for a day because nothing in the repo called it — the same mistake AGENTS.md already records for
+the Higgsfield REST API. Note `/me/permissions` is the WRONG probe for a page token (`/me` is the
+Page, which has no permissions edge, and returns "(#100) nonexisting field" — reads exactly like a
+missing capability); use `debug_token`. Phase 5 remains operator-gated: deletion is irreversible.
+
+**Traps this arc paid for, all found by RUNNING things rather than reading them:**
+
+- `storagePut`'s local fallback wrote `path.basename(key)`, so 11 archives sharing a filename
+  silently overwrote each other — with a success log for every one. Fixing that by keeping the full
+  key then removed the only containment `basename` had been providing by accident, opening a
+  reachable path traversal (`carouselSlideRenderer` builds its key from an unvalidated `brief.id`).
+  Containment now lives in `normalizeKey`, so every consumer inherits it.
+- Rotation persistence was fire-and-forget. A short-lived script that exits right after the promise
+  settles discards the CLI's rotated token, leaving `app_secret_kv` holding a spent one. **A health
+  check killed the session twice this way.** All four call sites now await it — bounded at 15s, so
+  a stalled DB write can never hang a paid generation that already succeeded.
+- The keepalive credit regex `(\d+)\s*credits` cannot cross a decimal: it read **62** credits
+  against a real balance of **2388.62**, matching the fragment after the point.
+- `push-higgsfield-creds`'s staleness guard compared a mysql2-skewed `updated_at` (~4h ahead of
+  real Eastern) against a file mtime, so it refused a genuinely fresher login as "NEWER".
+- Env pins set in a script's top-level body are **inert** against any module-level `const`: ESM
+  hoists imports above them. A "raised clip timeout" never once took effect; the concurrency drop
+  (3 → 1) was doing all the work. Per-beat time climbs 140s → 342s under 3-way contention on one
+  Higgsfield account.
+- A squash-merge leaves the old branch showing every commit as "ahead". Comparing **tree content**
+  (`git diff main HEAD`) rather than ancestry revealed that branch was −7,338 lines behind on
+  sibling-session work; a follow-up PR from it would have reverted all of it.
+
 ## 2026-08-16 - the reel lane's independent judge is readable, and its own gate doc was stale
 
 **The reel lane has had an independent judge since 2026-08-13 and could not consult it.** NT-001
