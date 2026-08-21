@@ -1,0 +1,115 @@
+{
+  "packDate": "2026-08-21",
+  "mode": "SCHEDULED",
+  "status": "BLOCKED: NO MOTION ROUTE",
+  "title": "Why you can't just 'add freon' to your AC",
+  "archetype": "myth-bust-then-guide",
+  "motionLens": "documentary/macro-realistic (confirm exact lens + lens.avoid in the live Studio wizard)",
+  "totalMotionSeconds": 30,
+  "saveFreezeSeconds": 3,
+  "totalContainerSeconds": 33,
+  "standingNegativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+  "duplicationCheck": {
+    "mergedPacksChecked": 52,
+    "mostRecentMergedPack": "2026-08-20-tailpipe-condensation-vs-coolant-leak",
+    "openReelPackPrsChecked": [1738, 1739, 1741, 1742, 1744, 1745, 1746, 1748, 1749, 1750, 1751],
+    "repetitionLedgerLiveRead": false,
+    "note": "getRecentReelSignals() not called — no live DB path from this session; filesystem + PR search used instead"
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "label": "hook",
+      "durationSec": 3,
+      "narration": "AC blowing warm — can you just add refrigerant and call it fixed?",
+      "prompt": "Close-up on a car dashboard AC vent, louvers open, faint heat shimmer visibly rising from the vent instead of cold mist, warm interior backlight.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "the heat shimmer clearly visible against the vent, strongest possible first frame, unbranded, wordless",
+      "actionCompleteBySec": 2.5
+    },
+    {
+      "beatNumber": 2,
+      "label": "myth",
+      "durationSec": 5,
+      "narration": "Your car's AC is a sealed system. It doesn't burn through refrigerant like gas in a tank.",
+      "prompt": "Object-only shot under a car's open hood, a sealed AC compressor and refrigerant line assembly, engine bay ambient light, camera slowly pushes in on the closed fitting caps — no hands, nothing being touched, emphasizing a self-contained sealed loop.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "continue directly from beat 1's dashboard into the engine bay, same vehicle",
+      "actionCompleteBySec": 4
+    },
+    {
+      "beatNumber": 3,
+      "label": "explanation",
+      "durationSec": 7,
+      "narration": "If the level is low, refrigerant escaped somewhere. Adding more just masks a leak instead of finding it.",
+      "prompt": "Object-only technical cutaway diagram of a closed AC refrigerant loop — compressor, condenser, evaporator connected by lines — with a small highlighted fitting where a thin vapor wisp visibly escapes; clean diagrammatic lighting, slow camera push-in; no text or labels rendered in-scene.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, on-screen text, logos, watermarks",
+      "openingFrame": "establish the sealed loop clearly at a glance before the leak point is highlighted",
+      "actionCompleteBySec": 6
+    },
+    {
+      "beatNumber": 4,
+      "label": "consequence",
+      "durationSec": 6,
+      "narration": "Topping off without fixing the leak can strain the compressor and lead to a bigger repair down the road.",
+      "prompt": "Close-up on an AC compressor clutch pulley engaging and disengaging erratically under strain, visible cycling/chatter of the clutch face, engine bay ambient, backlit to show the mechanical motion clearly.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "clutch pulley clearly readable, mid-cycle",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 5,
+      "label": "safe_action",
+      "durationSec": 5,
+      "narration": "One clue is not a diagnosis — a proper recharge starts with a leak check, not a can from the parts store.",
+      "prompt": "A UV inspection light on a stand sweeps its beam across an engine bay AC line fitting, revealing a faint fluorescent dye glow at the leak point — no hands present, the light beam itself is the only motion besides a slow rack-focus.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "fitting clearly readable, light beam entering frame",
+      "actionCompleteBySec": 4
+    },
+    {
+      "beatNumber": 6,
+      "label": "branded_cta",
+      "durationSec": 4,
+      "narration": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue.",
+      "prompt": "Exterior establishing shot of Nick's Tire & Auto's shop bay, tire stack in foreground, late-afternoon light, logo signage visible and legible; camera holds steady for a clean end-card composite.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "shop bay clearly readable, settles for a seamless hold into the freeze",
+      "actionCompleteBySec": 3.5,
+      "freeze": {
+        "startSec": 30,
+        "endSec": 33,
+        "overlay": "logo + address/phone end-card (verify against SEED_FACTS legal.entity before publish — see README §3 gap)"
+      }
+    }
+  ],
+  "claimEvidence": [
+    {
+      "claim": "A car's AC is a sealed system — it doesn't burn through refrigerant like gas in a tank",
+      "status": "UNKNOWN",
+      "basis": "general HVAC/automotive-engineering fact, not read against evidenceRecords.ts live this session"
+    },
+    {
+      "claim": "If the level is low, refrigerant escaped somewhere; topping off without fixing the leak can strain the compressor",
+      "status": "UNKNOWN",
+      "basis": "standard mechanic/HVAC knowledge, phrased with approved soft-language pattern, not asserted as diagnosis"
+    },
+    {
+      "claim": "Shop name / address / phone",
+      "status": "SOURCED_BUT_UNSCOPED",
+      "basis": "SEED_FACTS.legal.entity in apps/nickstire/server/services/businessFacts.ts:129; FactChannel has no 'reel'/'social' channel yet"
+    }
+  ],
+  "costEstimateUsd": {
+    "templateStockLane": 0.0,
+    "seedanceLaneEstimate": 1.5,
+    "adobeStockLicensingLane": "not estimated — real Adobe Stock cost, not in generationLedger.ts's table, and this route was deliberately not used (unattended session, no live spend authorization)",
+    "source": "generationLedger.ts COST_ESTIMATES_USD, operator-tunable estimate, not metered pricing",
+    "note": "REEL_VIDEO_PROVIDER pinned to template_stock in prod per docs/operations/REEL-PIPELINE.md (verified 2026-08-11); re-verify before assuming"
+  },
+  "musicRights": {
+    "trackSelected": null,
+    "status": "BLOCKED",
+    "note": "no music-rights ledger exists in this repo; do not treat any bed as cleared without a tracked license"
+  }
+}
