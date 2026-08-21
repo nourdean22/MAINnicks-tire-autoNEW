@@ -21,7 +21,30 @@ import type { PublishGate } from "./postQaOrchestrator";
 import type { RenderedFinding, RenderedQaVerdict } from "./renderedQa";
 
 /** Gate outcomes that are NOT an orchestrator decision — evidence problems. */
-export type EvidenceGate = "unavailable" | "stale" | "needs_review" | "disabled";
+export type EvidenceGate = "unavailable" | "stale" | "needs_review" | "disabled" | "stock_fallback";
+
+/**
+ * True if any rendered clip is a template-stock FALLBACK artifact.
+ *
+ * 2026-08-20 · Higgsfield stock-fallback remediation, Phase 2 keystone. The
+ * silent higgsfield→template_stock degrade published reels indistinguishable
+ * from paid renders (7 reached Instagram). The stock lane stores clips at
+ * `reels/template-stock/…` (templateStockStudio.ts:324); Higgsfield returns
+ * its own CDN URL and Veo re-hosts under `reel-clips/veo-…` — so the storage
+ * path is an UNFORGEABLE proof of the generator, unlike any settable flag.
+ * This is what the publish guard asserts on.
+ */
+export function reelClipsIncludeStock(clipUrlsJson: string | null | undefined): boolean {
+  if (!clipUrlsJson) return false;
+  let arr: unknown;
+  try {
+    arr = JSON.parse(clipUrlsJson);
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(arr)) return false;
+  return arr.some((u) => typeof u === "string" && u.includes("template-stock"));
+}
 
 export interface ReelPublishGateResult {
   gate: PublishGate | EvidenceGate;
@@ -29,7 +52,7 @@ export interface ReelPublishGateResult {
    *  explicit operator disable) may be true. */
   allowed: boolean;
   findings: RenderedFinding[];
-  source: "persisted" | "fresh" | "unavailable" | "disabled";
+  source: "persisted" | "fresh" | "unavailable" | "disabled" | "stock_guard";
   repairAttempts: number;
   reason: string;
 }
@@ -61,6 +84,36 @@ export async function evaluateReelPublishGate(
     findings: RenderedFinding[] = [],
     repairAttempts = 0,
   ): ReelPublishGateResult => ({ gate, allowed, findings, source, repairAttempts, reason });
+
+  // ── KEYSTONE: the silent stock fallback is dead ─────────────────────
+  // 2026-08-20 · Higgsfield stock-fallback remediation, Phase 2. A
+  // stock-substituted reel can NEVER publish, regardless of QA policy — so
+  // this runs BEFORE the RENDERED_QA_ENABLED disable below (otherwise
+  // turning QA off would wave a stock reel straight through). It asserts on
+  // the ARTIFACT (the template-stock storage path in the clip URLs), which
+  // the generator stamps and no flag can forge. A stock reel is held for
+  // regeneration, never posted.
+  {
+    const { getDb } = await import("../db");
+    const dGuard = await getDb();
+    if (dGuard) {
+      const { reelJobs } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [row] = await dGuard
+        .select({ clips: reelJobs.clipUrlsJson })
+        .from(reelJobs)
+        .where(eq(reelJobs.id, jobId))
+        .limit(1);
+      if (row && reelClipsIncludeStock(row.clips)) {
+        return result(
+          "stock_fallback",
+          false,
+          "stock_guard",
+          "reel contains template-stock FALLBACK clip(s) — the silent stock fallback is dead; regenerate with real footage, never publish",
+        );
+      }
+    }
+  }
 
   // An explicit operator disable is a POLICY choice, not a failed evaluation.
   if (process.env.RENDERED_QA_ENABLED !== "true") {
@@ -160,12 +213,18 @@ export async function evaluateReelPublishGate(
   // budget on a call that will fail too — pause for an operator instead.
   let providerHealthy = true;
   try {
-    const { sql } = await import("drizzle-orm");
+    const { sql, inArray } = await import("drizzle-orm");
     const since = new Date(Date.now() - 60 * 60 * 1000);
     const [row] = await d
       .select({ n: sql<number>`count(*)` })
       .from(reelJobs)
-      .where(and(eq(reelJobs.status, "failed"), gte(reelJobs.updatedAt, since)));
+      // 2026-08-20 · Higgsfield stock-fallback remediation self-audit
+      // (workflow-confirmed P1): a terminal paid-provider failure now lands
+      // on needs_regen instead of failed (this session's own remediation) —
+      // counting only "failed" left this exact circuit breaker blind to the
+      // outage it exists to catch, so it kept reading providerHealthy=true
+      // and kept authorizing paid repair spend against a dead provider.
+      .where(and(inArray(reelJobs.status, ["failed", "needs_regen"]), gte(reelJobs.updatedAt, since)));
     // Three failed jobs inside an hour is a provider problem, not bad luck — the
     // pipeline posts at most twice a day, so this is never normal volume.
     providerHealthy = Number(row?.n ?? 0) < 3;

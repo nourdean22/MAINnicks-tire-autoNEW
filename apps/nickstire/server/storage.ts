@@ -62,8 +62,35 @@ function getBucket(): string {
   return bucket;
 }
 
+/**
+ * Canonical object key: no leading slashes, forward slashes only, and NO
+ * traversal segments.
+ *
+ * The traversal rejection is load-bearing as of 2026-08-21. Until then this
+ * only stripped leading slashes, and the local-disk fallback contained writes
+ * by accident — it wrote to `path.join(genDir, path.basename(key))`, so a key
+ * could not escape because everything but the filename was thrown away. The
+ * commit that fixed basename COLLISIONS (distinct keys sharing a filename
+ * overwrote each other) replaced that with `path.join(genDir, key)` and, in
+ * doing so, removed the only containment there was — while adding a comment
+ * asserting this function had already made the key safe. It had not.
+ *
+ * `carouselSlideRenderer` builds its key as `carousel-studio/${deckId}-N.jpg`
+ * where deckId comes from an unvalidated `brief.id` on a mounted tRPC route,
+ * so that was a reachable path-traversal write, not a theoretical one.
+ *
+ * Enforced HERE rather than at the write, so every consumer inherits it —
+ * storagePut, storageGet, storageGetStream and publicObjectUrl all funnel
+ * through this. A `..` in an object key is always a bug or an attack; there is
+ * no legitimate caller, so this throws rather than silently sanitizing (a
+ * silent fix would hide the caller that needs correcting).
+ */
 function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
+  const key = relKey.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (key.split("/").some((seg) => seg === ".." || seg === ".")) {
+    throw new Error(`storage: refusing a key with path traversal segments: ${relKey}`);
+  }
+  return key;
 }
 
 /** Is durable object storage (S3) configured? Local disk on Railway is
@@ -147,14 +174,29 @@ export async function storagePut(
     // Primary: write to local data/generated/ (Express serves at /generated/)
     try {
       const genDir = path.join(process.cwd(), "data", "generated");
-      if (!fs.existsSync(genDir)) {
-        fs.mkdirSync(genDir, { recursive: true });
+      // 2026-08-20 · Higgsfield stock-fallback remediation self-audit: this
+      // used to write to `path.join(genDir, filename)` — BASENAME ONLY,
+      // silently dropping the rest of `key`. Any two callers whose keys
+      // differ only by directory (e.g. `remediation-archive/<id>/original.mp4`
+      // for 11 different ids) collapsed onto the SAME local file and
+      // clobbered each other with no error, no warning, and a log line that
+      // looked like success for every one of them.
+      //
+      // Keeping the full key means this no longer contains writes by accident
+      // the way basename did, so containment is now explicit: normalizeKey
+      // rejects traversal segments, and the resolve check below is the
+      // belt-and-braces version in case a future edit weakens that. Both were
+      // added 2026-08-21 after a pre-merge review proved a `../` key escaped
+      // data/generated and created directories outside it.
+      const localPath = path.resolve(genDir, key);
+      if (localPath !== genDir && !localPath.startsWith(genDir + path.sep)) {
+        throw new Error(`storagePut: key escapes the generated directory: ${key}`);
       }
-      const localPath = path.join(genDir, filename);
+      fs.mkdirSync(path.dirname(localPath), { recursive: true });
       fs.writeFileSync(localPath, body);
       const siteUrl = process.env.SITE_URL || "https://nickstire.org";
-      const url = `${siteUrl}/generated/${filename}`;
-      log.info("storagePut: saved locally", { filename, bytes: body.length });
+      const url = `${siteUrl}/generated/${key}`;
+      log.info("storagePut: saved locally", { key, bytes: body.length });
       return { key, url };
     } catch (localErr) {
       const detail = localErr instanceof Error ? localErr.message : String(localErr);
@@ -275,10 +317,14 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   const key = normalizeKey(relKey);
 
   if (!bucket) {
-    const path = await import("path");
-    const filename = path.basename(key);
+    // Full key, matching what storagePut's local branch actually writes and
+    // returns. These two agreed while both used basename; when storagePut
+    // moved to the full key (to stop distinct keys colliding on one filename)
+    // this was left behind, so storageGet started handing out a flat URL for a
+    // file that lives in a subdirectory — a 404 for every nested key. Caught
+    // by pre-merge review 2026-08-21.
     const siteUrl = process.env.SITE_URL || "https://nickstire.org";
-    const url = `${siteUrl}/generated/${filename}`;
+    const url = `${siteUrl}/generated/${key}`;
     return { key, url };
   }
 

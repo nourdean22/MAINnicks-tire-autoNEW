@@ -168,3 +168,10 @@ __pycache__/
 
 # VAPI assistant-config snapshots (rollback artifacts; contain the transfer number)
 apps/nickstire/vapi-snapshots/
+
+# Higgsfield stock-fallback remediation ledger — local run state (reel_id ->
+# detection/archive/regen/takedown/repost status). Never committed: it is
+# resumable working state, not a durable record (the durable record is what
+# it ARCHIVES, via storagePut, and the pre-delete-report.csv the operator is
+# handed directly).
+apps/nickstire/.remediation/

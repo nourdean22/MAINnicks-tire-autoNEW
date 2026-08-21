@@ -151,7 +151,14 @@ export function registerAdminRoutes(app: Express): void {
         const d = await getDb();
         if (!d) { res.status(503).json({ error: "DB unavailable" }); return; }
         const readJob = async () => (await d.select().from(reelJobs).where(eq(reelJobs.id, jobId)).limit(1))[0];
-        const TERMINAL = new Set(["assembled", "posted", "failed"]);
+        // 2026-08-20 · Higgsfield stock-fallback remediation self-audit: this
+        // loop polls job.status directly (not processNextReelJob's return
+        // value), but "needs_regen" is a real terminal status the job can now
+        // land in — omitting it meant this endpoint kept polling pointlessly
+        // for the full 100s deadline instead of returning the moment a dead
+        // provider routed the job to needs_regen (final status was still
+        // reported correctly either way; this only fixes the pointless hang).
+        const TERMINAL = new Set(["assembled", "posted", "failed", "needs_regen"]);
         const deadline = Date.now() + 100_000; // stay well under the edge timeout
         let job = await readJob();
         while (job && !TERMINAL.has(job.status) && Date.now() < deadline) {
@@ -331,7 +338,12 @@ export function registerAdminRoutes(app: Express): void {
       const { reelJobs } = await import("../../drizzle/schema");
       const { inArray, desc } = await import("drizzle-orm");
       // Non-terminal states only. "posted" is done; "failed" is already legible.
-      const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering"];
+      // needs_regen is the one exception: unlike "failed" it carries no 14-day
+      // decay window in the canonical ATTENTION_STATUSES (reelRecoverability.ts)
+      // — the operator's only close path is Discard/Archive, so a needs_regen
+      // row must stay visible here until resolved, on the same principle as
+      // the still-in-progress statuses this list already includes.
+      const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "needs_regen"];
       const rows = await d.select().from(reelJobs).where(inArray(reelJobs.status, ATTENTION)).orderBy(desc(reelJobs.id)).limit(50);
 
       const { assessReelJob } = await import("../services/reelRecoverability");

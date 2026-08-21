@@ -62,6 +62,19 @@ describe("higgsfieldSessionLiveness reads the keepalive verdict, not the blob", 
     expect(r.balanceCredits).toBe(2986);
   });
 
+  it("parses a DECIMAL balance, not just the digits after the decimal point", async () => {
+    // 2026-08-20 · Higgsfield stock-fallback remediation: measured live —
+    // the pre-fix regex (`/(\d+)\s*credits/`) can't cross a ".", so against
+    // "2388.62 credits" it skipped past "2388" (no match: followed by "." not
+    // whitespace/"credits") and matched "62 credits" instead — reading the
+    // account as 62 credits when the real balance was 2388.62, a ~38x
+    // understatement. Mirrors getHiggsfieldAccountHealth's own working regex.
+    mockRows([{ status: "completed", details: "session refreshed, 2388.62 credits", errorMessage: null, startedAt: new Date(), ageMinutes: 3 }]);
+    const r = await load();
+    expect(r.live).toBe(true);
+    expect(r.balanceCredits).toBe(2388.62);
+  });
+
   it("a SKIP row ('no higgsfield creds') is UNKNOWN - the keepalive tested nothing", async () => {
     // P1 REVIEW, #1668. The keepalive handler returns NORMALLY when no credentials
     // are stored, and the scheduler records that as `completed` - so "any

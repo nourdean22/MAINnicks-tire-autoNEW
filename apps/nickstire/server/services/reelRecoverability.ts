@@ -343,6 +343,12 @@ export async function probeUrl(url: string | null | undefined, timeoutMs = 10_00
 export const ATTENTION_STATUSES = [
   "assembled", "publishing", "publish_ambiguous",
   "queued", "generating", "assets_ready", "assembling", "repair_rendering",
+  // 2026-08-20 · Higgsfield stock-fallback remediation. A paid provider
+  // (veo/higgsfield) that exhausted its retries now lands here instead of
+  // being silently rescued onto the free stock lane and published — this is
+  // the ONLY reason a needs_regen row exists, so it belongs in the SAME
+  // attention window as `failed`, not a separate forgettable count.
+  "needs_regen",
 ] as const;
 
 /** Failures older than this are history, not a to-do. */
@@ -395,8 +401,12 @@ export const OPERATOR_CLOSED_MARKERS = [
  *
  * `assembled` is safe: rendering has finished, nothing is running, and the job is
  * waiting on the operator. Wanting a different reel is exactly the legitimate case.
+ *
+ * `needs_regen` is safe for the same reason as `failed` — it is a terminal
+ * write, no worker holds the row, and regenerating is the entire point of
+ * the status.
  */
-export const REGENERABLE_STATUSES = ["failed", "assembled", "archived", "rejected"] as const;
+export const REGENERABLE_STATUSES = ["failed", "assembled", "archived", "rejected", "needs_regen"] as const;
 
 export function isRegenerable(status: string | null | undefined): boolean {
   return (REGENERABLE_STATUSES as readonly string[]).includes(String(status ?? ""));

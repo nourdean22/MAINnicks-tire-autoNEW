@@ -711,10 +711,24 @@ export async function assembleReel(
       // Existence is now CHECKED rather than assumed. A genuinely local file
       // (assets written before the store existed) still short-circuits; anything
       // else goes over HTTP, which is the path that already worked.
-      const filename = url.split("/").pop();
-      const localPath = url.includes("/generated/") && filename
-        ? path.join(process.cwd(), "data", "generated", filename)
-        : null;
+      // Resolve the FULL key after /generated/, not just the basename.
+      // storagePut's local fallback used to flatten every key to its filename;
+      // since it started preserving subdirectories (to stop distinct keys
+      // colliding on one name), a basename lookup misses every nested file and
+      // silently degrades to an HTTP round-trip against SITE_URL — which does
+      // not resolve at all on a machine with no public hostname, breaking the
+      // local no-S3 lane. Caught by pre-merge review 2026-08-21.
+      const generatedRoot = path.join(process.cwd(), "data", "generated");
+      const marker = "/generated/";
+      const idx = url.indexOf(marker);
+      const relKey = idx >= 0 ? decodeURIComponent(url.slice(idx + marker.length).split("?")[0]) : null;
+      const candidate = relKey ? path.resolve(generatedRoot, relKey) : null;
+      // Containment check: `url` is data, and a crafted one must not read
+      // outside data/generated.
+      const localPath =
+        candidate && (candidate === generatedRoot || candidate.startsWith(generatedRoot + path.sep))
+          ? candidate
+          : null;
       if (localPath && fs.existsSync(localPath)) {
         await fs.promises.copyFile(localPath, p);
       } else {
