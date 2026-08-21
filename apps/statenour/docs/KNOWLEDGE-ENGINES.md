@@ -114,6 +114,27 @@ It **is** now automatically refreshed: a daily scheduled task runs `scripts/grap
 - CI artifact link;
 - freshness status.
 
+### Refresh dependencies and how to tell a real refresh from a green one
+
+The daily refresh has one non-obvious external dependency and one failure mode that looks identical to success.
+
+**Community names are LLM-generated, and that step needs a local Ollama daemon — even though the model is a `:cloud` one.** Graphify resolves its Ollama backend to `http://localhost:11434`; the `:cloud` suffix does not bypass that, because the local daemon is the *proxy* that forwards cloud models to Ollama Cloud. With no daemon listening, every labeling batch fails and the community names fall back to graphify's deterministic hub labels — raw symbols like `migrations/db-migrate.ts` or `App.tsx`. Because the Obsidian digest **filenames** derive from those labels, a stopped daemon degrades the vault's findability, not its content. This ran unnoticed for three consecutive days in August 2026, by which point 55% of labels had rotted.
+
+**A skipped labeling step exits 0.** Every other part of the run — node counts, digests, HTML views, the survival check — looks exactly like a healthy refresh. The sync log's final line therefore carries provenance:
+
+```text
+=== sync done (labels: LLM|hub-derived|skipped) ===
+```
+
+`LLM` means names were regenerated this run. `hub-derived` or `skipped` means they were not. Read that field before trusting a refresh.
+
+Two supporting behaviours worth knowing:
+
+- The sync holds `graphify-out/.sync-running` while it runs, and graphify's `post-commit` / `post-checkout` git hooks skip their detached rebuilds while that lock is fresh. Without it, a concurrent session's commit can move the graph under an in-flight labeling pass, and graphify's anti-clobber guard then discards the work. Note the hook half is not version-controlled and is reinstalled by `graphify hook install`.
+- Vault backups under `graphify-out/obsidian-backup-<date>/` rotate automatically, keeping the newest seven.
+
+A healthy run takes 15–20 minutes, most of it labeling. Timeouts below that kill good runs mid-refresh.
+
 Do not ingest the entire raw graph into BrainMemory. Instead, ingest only reviewed architecture summaries, detected drift, and actionable findings with provenance.
 
 ## Bounded self-learning contract
