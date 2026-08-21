@@ -1,5 +1,58 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-21 · Manual-fire lane + the brief pushes get combined (2 PRs)
+>
+> **#1747 · mega fan-out gains a manual-fire lane.** Post-#1735/#1743, the operator asked
+> to fire the evening slot NOW instead of waiting for 03:00 UTC — no way to: cron-only
+> Inngest triggers can't be invoked externally, and the only manual path
+> (`runManifestCron` → `/api/cron/mega?slot=evening`) hits the LEGACY fan-out, exactly the
+> dead code path #1735 killed. Both `megaFanoutMorning`/`megaFanoutEvening` now also accept
+> an event (`mega/fire.morning` · `mega/fire.evening`, same dual-trigger pattern as
+> `research/on-demand`); cron behavior and the `INNGEST_MEGA_V2` cutover guard are
+> unchanged. **Fired live 21:07Z** the same day, hours ahead of the real cron:
+> `mega-evening SUCCESS` at 21:17:36Z (302s) — first green evening slot in ~30 days.
+> `consolidate` (detached) completed once at 21:39:57Z, 28 minutes, zero aborts — the exact
+> job that used to abort at 240s and re-run 4x nightly. `conversation-compile` got its
+> first-ever run, success, 192s. Healer fired 3 one-shot `never_run` rescues (storm
+> children had no CronJobLog rows of their own yet → empty 14d windows), each 200'd and
+> self-disarmed — no storm, and the operator's phone stayed silent. The REAL 03:00Z cron
+> then ran the slot again that night, clean, unassisted — and the 09:00Z morning slot too.
+> Three consecutive green fan-out runs plus a silent 12:00Z heartbeat closed the loop on
+> the entire 2026-08-20 storm family (#1735/#1736/#1737/#1740/#1743).
+>
+> **#1755 · combine the 10:00/10:15 briefs into one push, land the tap on real content.**
+> Two operator complaints, one root cause each:
+>
+> 1. *"combine them thats stupid"* — `operator-morning-brief` (10:00 UTC) and
+>    `intelligence-daily-brief` (10:15 UTC) sent two separate CRITICAL/high pushes for one
+>    conceptual morning briefing. Morning now hands its FULL text to intelligence-brief via
+>    `brainMemory` (`pending_morning_highlight`, key=date) instead of pushing directly;
+>    intelligence-brief reads + deletes the row, combines, sends ONE "Morning + Executive
+>    Brief" push. A 35min durable `step.sleep` + `sendStandaloneIfUnconsumed` backstop fires
+>    morning's brief solo if the hand-off is never consumed — a scheduling failure on the
+>    OTHER function must never silently cost the operator their brief. intelligence-brief
+>    gained its own Telegram fallback to match (never had one; now its push represents both).
+> 2. *"when i click the notification... nowhere I can see it"* — root-caused, not a vague
+>    UX gripe: `sendPush`'s click routing ALWAYS prefers `chatSeed` over `url` when both are
+>    set, and chat only PREFILLS the composer, never auto-sends (`$0-incremental` doctrine,
+>    `use-chat-deep-link-prefill.ts` — deliberate, not a bug). So tapping either brief
+>    notification landed the operator in an EMPTY chat with an unsent prompt — the brief
+>    content was never rendered anywhere in-app, only in the transient OS banner.
+>    `/intelligence/brief` already existed and already rendered `BriefingLog` content in
+>    full; dropped `chatSeed` from the combined push so its (already-correct) `url` wins.
+>
+> Self-review before shipping caught two real gaps in the first draft: the hand-off
+> originally persisted only a 200-char teaser, which would have left morning's half
+> permanently clipped even on the page BUILT to show it (fixed: hand off raw text); and the
+> naive combined push-body truncation let a long morning brief crowd the exec brief out of
+> the notification preview entirely (fixed: `combinedPushBody` gives each side a fixed
+> slice before the 200-char cap).
+>
+> Receipts: 11 new tests (hand-off, backstop happy/failure/cleanup, combine-text, title,
+> push-body fairness) + the earlier day's storm-family tests · full suite 5,805 passed /
+> 547 files / exit 0 · tsc clean · eslint clean. Both PRs merged green on the first CI
+> attempt (`9e8247285`, `a388ff92e`).
+>
 > ## 2026-08-20 · Cron-healer recursion — the healer healed its own parent, and `partial` was invisible to every counter (1 PR)
 >
 > **Trigger:** overnight verification of #1703 found the opposite of recovery: `mega-evening`
@@ -732,7 +785,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-20 (cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-21 (manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1260,7 +1313,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-20 (cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-21 (manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
