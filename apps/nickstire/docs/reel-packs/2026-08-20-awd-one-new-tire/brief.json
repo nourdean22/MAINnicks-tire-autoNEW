@@ -1,0 +1,97 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "One new tire on an all-wheel-drive car: why tread depth has to match",
+  "campaignKeyword": "AWDTIRES",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
+  "durationSeconds": 30,
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 5,
+      "narration": "Buying one new tire for an all-wheel-drive car? Worth checking the other three first.",
+      "onScreenText": "Buying ONE new tire for an all-wheel-drive car?",
+      "visual": "Low-angle macro dolly gliding across a polished concrete shop floor toward four tires standing upright in a row: one is visibly brand new with deep sharp tread, the other three are worn smooth. Shallow depth of field, cool overhead shop lighting, slow continuous forward camera movement, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 5,
+      "endSecond": 12,
+      "narration": "All-wheel drive works by keeping all four tires turning at nearly the same rate. Deeper tread means a bigger tire.",
+      "onScreenText": "AWD needs all four tires turning at nearly the same rate",
+      "visual": "Underbody tracking shot beneath a car on a lift: a rotating driveshaft spinning toward a rear differential housing, metal catching hard rim light, camera sliding forward along the shaft, oily mechanical detail, shallow focus, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 12,
+      "endSecond": 19,
+      "narration": "One taller tire turns slower than the other three. That difference can put constant strain on the drivetrain.",
+      "onScreenText": "One taller tire turns slower than the other three",
+      "visual": "Extreme macro of two tire treads side by side rotating slowly on a turntable — the left with deep sharp-edged grooves, the right shallow and rounded off — hard directional rim light raking across the rubber, continuous rotation, dark background, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 19,
+      "endSecond": 25,
+      "narration": "Most all-wheel-drive owner's manuals list a maximum tread-depth difference. One clue: measure all four, not just the flat one.",
+      "onScreenText": "One clue: measure all four, not just the flat one",
+      "visual": "Macro of a metal tread-depth gauge probe descending into a tire groove, tool only with no hand present, slow vertical motion, then a slow orbit continuing around the wheels of a car raised on a lift, cool garage lighting, shallow focus, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 25,
+      "endSecond": 30,
+      "narration": "Don't guess. Stop by Nick's Tire and Auto and we'll check all four.",
+      "onScreenText": "Nick's Tire & Auto · Euclid Ave, Cleveland",
+      "visual": "Slow forward dolly through a clean tire shop bay toward a rack of four tires standing upright in a row, bay door open to daylight behind them, warm inviting light, camera settling on the row of four at the same low framing the reel opened on, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "awd-tread-match-v1",
+      "loopIdea": "DESIGNED. Beat 5's final frame is a low forward dolly settling on four tires standing upright in a row — deliberately the same framing and camera move as beat 1's opening. On replay the last frame reads as the first: same subject, same lens height, same push-in direction, only the light changes (warm shop daylight -> cool overhead). This is a designed plan, not a verified render.",
+      "usefulAbsurdity": "The 'small' number — a couple of thirty-seconds of an inch of rubber — is what the whole drivetrain argument is about."
+    },
+    {
+      "id": "awd-tread-match-v2-parked",
+      "loopIdea": "Alternative open on a single flat tire in a parking lot at night; parked in favor of v1's four-in-a-row framing, which sets up the loop and carries the 'all four' idea in the very first frame.",
+      "usefulAbsurdity": "n/a"
+    }
+  ],
+  "winningConceptId": "awd-tread-match-v1",
+  "hashtags": ["#cartips", "#awd", "#clevelandohio", "#tires", "#autorepair"],
+  "audio": {
+    "voiceover": "not generated this run — route the narration text above through reelVoice.ts at render time",
+    "musicBed": "none assigned — see README.md §6, no music-rights ledger exists in this repo",
+    "sfx": "optional low-level shop room-tone / distant impact-wrench ambience under beats 1-4 only, ducked well beneath the voiceover"
+  },
+  "selfEstimatedQualityScore": {
+    "_note": "Manual approximation of calculateReelQualityScore()'s rubric (client/src/lib/facelessReelStudio.ts), computed by hand — NOT that function's actual output. No live call was made.",
+    "parts": [
+      { "label": "First-frame scroll-stop", "max": 10, "points": 10, "detail": "Beat 1 opens at 0s on the contrast itself — one deep-tread tire beside three bald ones — with a caption card at 0.000s" },
+      { "label": "Muted-first clarity", "max": 10, "points": 10, "detail": "Every beat carries a burned-in caption; the argument reads end to end with sound off" },
+      { "label": "5-beat contiguous structure", "max": 5, "points": 5, "detail": "5 beats, 0-30s, contiguous, no gaps" },
+      { "label": "15-60s length target", "max": 5, "points": 5, "detail": "30s, in band" },
+      { "label": "Loop plan", "max": 5, "points": 4, "detail": "Loop designed (beat 5 returns to beat 1's four-tires-in-a-row framing); scored 4 not 5 because frame-match is a plan on paper, unverified against any render" },
+      { "label": "Verified mechanic fact (sourced)", "max": 10, "points": 0, "detail": "No EvidenceRecord cited; evidenceResolver.ts not queried live (no DATABASE_URL in this session). See README §3" },
+      { "label": "Faceless & wordless contract", "max": 10, "points": 10, "detail": "No face/hand/human-figure subject in any prompt (beat 4 specifies the gauge tool with no hand); standing negative prompt on every beat" },
+      { "label": "Claim safety (no blocked claims)", "max": 10, "points": 10, "detail": "Approved soft language only: 'worth checking', 'can', 'one clue', \"don't guess\". No price, no 'free', no warranty, no guarantee, no absolute 'never'. No dollar figure anywhere" },
+      { "label": "Campaign keyword valid", "max": 5, "points": 5, "detail": "AWDTIRES - single ALL-CAPS word" },
+      { "label": "Winning concept >= 57/60", "max": 5, "points": 0, "detail": "scoreReelConcept() not invoked this run - scored 0 rather than assumed passing" }
+    ],
+    "overall": 59,
+    "minPassing": 70,
+    "passing": false
+  }
+}
