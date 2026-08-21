@@ -1,0 +1,170 @@
+{
+  "packDate": "2026-08-20",
+  "mode": "SCHEDULED",
+  "status": "BLOCKED: NO MOTION ROUTE",
+  "id": "pack-2026-08-20-slow-leak-soap-test",
+  "title": "Why one tire keeps losing air (tread vs. valve stem vs. rim)",
+  "topic": "Slow-leak localization with the soapy-water test",
+  "archetype": "one_second_hook_payoff",
+  "motionLens": "extreme_macro_push_in",
+  "objectCharacter": "valve_stem_traffic_controller",
+  "factBucket": "wallet_protectors",
+  "campaignKeyword": "PRESSURE",
+  "totalMotionSeconds": 21,
+  "saveFreezeSeconds": 3,
+  "totalContainerSeconds": 24,
+  "qualityScoreMeasured": {
+    "overall": 75,
+    "max": 75,
+    "gate": "pass",
+    "passing": true,
+    "conceptScore": "58/60",
+    "safetyFindings": 0,
+    "preflight": "pass",
+    "measuredBy": "calculateReelQualityScore() + runReelPreflight() + runSafetyChecks() executed directly from apps/nickstire/client/src/lib/facelessReelStudio.ts via `node --experimental-strip-types` (the module has zero imports and is pure)",
+    "measuredAt": "2026-08-20"
+  },
+  "standingNegativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, busy background, wide shot, fast camera movement",
+  "negativePromptNote": "Copied from the real compiler at facelessReelStudio.ts:1284 (base list + MOTION_LENSES.extreme_macro_push_in.avoid). It deliberately does NOT name text/logos/watermarks — the source comment records that negating those tokens is what made Seedance render garbled screens and a 'Nixs' logo. Scene bans live in the POSITIVE prompt instead.",
+  "duplicationCheck": {
+    "mergedPackDirectories": 54,
+    "openReelPackPrs": [1738, 1739, 1741, 1742, 1744],
+    "openPrTopics": [
+      "wheel wobble test (tie rod vs wheel bearing)",
+      "musty AC smell (evaporator drain vs cabin filter)",
+      "lug-nut re-torque after wheel service",
+      "one new tire on an AWD car (tread-depth matching)",
+      "sticking brake caliper (one wheel hot)"
+    ],
+    "repetitionLedgerLiveRead": false,
+    "note": "getRecentReelSignals() not called — no live DB path from this session, and the repo's only DATABASE_URL points at production TiDB (prod-db-guard). Filesystem + open-PR check used instead, per the operator skill."
+  },
+  "beats": [
+    {
+      "beatNumber": 1,
+      "label": "hook",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Topping off the same tire every week? That's a leak.",
+      "onScreenText": "SAME TIRE. EVERY WEEK.",
+      "visual": "Extreme macro on a rubber tire valve stem where it meets the alloy wheel, a single soap bubble swelling outward from the base of the stem and quivering in cold morning light, shallow depth of field, dark wet pavement bokeh behind.",
+      "motion": "Slow continuous macro push-in; the bubble grows, trembles, and holds without popping.",
+      "audioCue": "Low ambient hiss of escaping air, no music sting.",
+      "safeZoneNotes": "Bubble center-frame; keep top 12% / bottom 20% clear for IG UI.",
+      "actionCompleteBySec": 3.0
+    },
+    {
+      "beatNumber": 2,
+      "label": "symptom",
+      "startSecond": 4,
+      "endSecond": 9,
+      "narration": "Losing a pound a month is normal. Weekly top-offs can point to a leak.",
+      "onScreenText": "1 LB A MONTH = NORMAL",
+      "visual": "Tight low-angle three-quarter view of a single tire's contact patch bulging visibly flatter against the pavement, the tire behind it sitting taut and round in soft background blur, faint frost on the asphalt, early flat daylight.",
+      "motion": "Slow creeping dolly that settles on the soft tire's contact patch, shallow focus throughout.",
+      "audioCue": "Quiet outdoor morning ambience.",
+      "safeZoneNotes": "Contact patch center-frame, pavement horizon low.",
+      "actionCompleteBySec": 4.0
+    },
+    {
+      "beatNumber": 3,
+      "label": "explanation",
+      "startSecond": 9,
+      "endSecond": 14,
+      "narration": "Usually it's a nail, a cracked valve stem, or corrosion at the rim.",
+      "onScreenText": "NAIL / VALVE STEM / RIM",
+      "visual": "Three objects isolated on a clean dark field: a roofing nail sunk into a block of tread rubber, a split and perished rubber valve stem, and a pale crust of corrosion along the bead seat where rubber meets alloy.",
+      "motion": "The frame glides between the three objects in turn, each rotating slowly on its own axis.",
+      "audioCue": "Soft mechanical tick as the frame settles on each object.",
+      "safeZoneNotes": "Objects held to the middle band of frame.",
+      "actionCompleteBySec": 4.0
+    },
+    {
+      "beatNumber": 4,
+      "label": "proof_demo",
+      "startSecond": 14,
+      "endSecond": 18,
+      "narration": "Soapy water finds all three — bubbles mark the spot. Do not guess.",
+      "onScreenText": "BUBBLES MARK THE SPOT",
+      "visual": "A film of soapy water clinging across a tire's bead seat and valve stem, a cluster of bubbles inflating outward from one single spot as escaping air pushes through the film.",
+      "motion": "Macro push-in on the bubble cluster as it swells and multiplies at the leak point.",
+      "audioCue": "Faint wet fizzing.",
+      "safeZoneNotes": "Bubble cluster center-frame.",
+      "actionCompleteBySec": 3.0
+    },
+    {
+      "beatNumber": 5,
+      "label": "branded_cta",
+      "startSecond": 18,
+      "endSecond": 21,
+      "narration": "Stop by and we'll take a look.",
+      "onScreenText": "NICK'S TIRE & AUTO / EUCLID AVE",
+      "visual": "The same valve stem and bead seat, soap film gone, rubber still and dry, warm late-afternoon shop light raking across it, matching the opening angle.",
+      "motion": "Camera settles into a still hold on the opening framing for a seamless loop.",
+      "audioCue": "Ambience settles to quiet.",
+      "safeZoneNotes": "End-card overlay composited in post, bottom-safe.",
+      "actionCompleteBySec": 2.0,
+      "freeze": {
+        "startSec": 21,
+        "endSec": 24,
+        "overlay": "logo + address/phone end-card, composited in POST only — never generated in-scene (see negativePromptNote and README section 3)"
+      }
+    }
+  ],
+  "loopIdea": "The final dry valve-stem framing matches the opening macro exactly, so the first bubble appears to begin forming again on replay.",
+  "voiceoverScript": "Topping off the same tire every week? That's a leak. Losing a pound a month is normal. Weekly top-offs can point to a leak. Usually it's a nail, a cracked valve stem, or corrosion at the rim. Soapy water finds all three — bubbles mark the spot. Do not guess. Stop by and we'll take a look.",
+  "selectedCaption": "Topping off the same tire every week? That's not the weather — that's a leak. A healthy tire loses about a pound a month, not a pound a week. Soapy water on the tread, the valve stem, and the rim edge will bubble right where the air is escaping. Where it bubbles decides the fix, so do not guess. Nick's Tire & Auto, 17625 Euclid Ave, Cleveland - (216) 862-0005",
+  "hashtags": ["#ClevelandMechanic", "#TireRepair", "#EuclidOhio", "#CarCareTips", "#TirePressure"],
+  "avoidedForRepetition": "Avoided tread depth / penny test (already covered), TPMS light behaviour (covered), and plug-vs-patch repair method (covered) — this pack is leak LOCALIZATION only.",
+  "claimEvidence": [
+    {
+      "claim": "A tire losing roughly a pound of pressure per month is behaving normally",
+      "status": "UNKNOWN",
+      "basis": "General tire-industry maintenance knowledge. No EvidenceRecord in evidenceRecords.ts was read this session (no live DB path). Attach a sourced record before treating as 'supported' under shared/claimEntailment.ts."
+    },
+    {
+      "claim": "Weekly top-offs can point to a leak at the tread, valve stem, or rim bead seat",
+      "status": "UNKNOWN",
+      "basis": "Standard mechanic knowledge, phrased with the approved soft-diagnostic pattern 'can point to' (verified present in SOFT_DIAGNOSTIC_ALLOWED at facelessReelStudio.ts:580)."
+    },
+    {
+      "claim": "Soapy water bubbles at the escape point localize a leak",
+      "status": "UNKNOWN",
+      "basis": "Long-standing standard shop practice; no repo evidence record read this session."
+    },
+    {
+      "claim": "Shop name / address / phone on the end card",
+      "status": "SOURCED_BUT_UNSCOPED",
+      "basis": "SEED_FACTS legal.entity in apps/nickstire/server/services/businessFacts.ts. FactChannel is 'sms' | 'voice' | 'web' only — no 'reel'/'social' channel exists, so this fact is not channel-scoped for Reels. Human-verify the card before publish."
+    },
+    {
+      "claim": "No price, warranty, or guarantee claim anywhere in this pack",
+      "status": "PASS",
+      "basis": "runSafetyChecks() executed against this brief returned 0 findings, including the price and warranty pattern banks."
+    }
+  ],
+  "costEstimateUsd": {
+    "templateStockLane": 0.0,
+    "seedanceLaneEstimate": 1.25,
+    "seedanceLaneBasis": "5 beats x COST_ESTIMATES_USD.seedance_clip (0.25, labelled ASSUMPTION in generationLedger.ts) — an operator-tunable estimate, not metered pricing",
+    "note": "REEL_VIDEO_PROVIDER is pinned to template_stock in prod per docs/operations/REEL-PIPELINE.md (verified 2026-08-11, not re-read live this session). Daily cap maxGenerationCostPerDayUsd reported elsewhere as $10, not re-verified live."
+  },
+  "musicRights": {
+    "trackSelected": null,
+    "status": "BLOCKED",
+    "note": "No music-rights ledger exists in this repo. Do not treat any bed as cleared without a tracked license (asset ID, source, scope, territory, expiry, organic-vs-ad clearance)."
+  },
+  "renderIntegrityContract": {
+    "containerDurationSec": 24.0,
+    "toleranceSec": 0.75,
+    "videoStreamDurationMustMatchSec": 24.0,
+    "fps": 30,
+    "minFrameCountRatio": 0.8,
+    "distinctFrameMd5sRequired": 3,
+    "sampledFrames": 5,
+    "resolution": "1080x1920",
+    "codec": "H.264 MP4",
+    "pixelFormat": "yuv420p",
+    "faststart": true
+  }
+}
