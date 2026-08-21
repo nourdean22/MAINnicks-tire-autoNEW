@@ -157,12 +157,32 @@ async function main() {
     process.exit(1);
   }
 
+  // --force re-archives entries already marked archived.
+  //
+  // Needed because WHERE an archive landed depends on the environment that ran
+  // this. Run locally with no S3_BUCKET, storagePut falls back to local disk
+  // and records a {SITE_URL}/generated/... URL that resolves ONLY on the
+  // machine that wrote it — so the ledger claims a durable archive it does not
+  // have. That is exactly the state the first Phase 3 run produced: 11 videos
+  // on one Windows box, and a hard gate ("no deletion for any reel whose
+  // archive is null") satisfied by a file nothing else can reach.
+  //
+  // Re-running under prod's env (railway run) puts the same bytes in Railway
+  // Buckets and rewrites the ledger URLs to match. Archiving is additive —
+  // new objects, nothing overwritten destructively — so re-running is safe.
+  const FORCE = process.argv.includes("--force");
+
   console.log(`${entries.length} ledger entries. Snapshotting insights + archiving originals...`);
+  if (FORCE) console.log("--force: re-archiving entries already marked archived (e.g. to move them to durable storage).");
+  const durable = Boolean(process.env.S3_BUCKET);
+  console.log(durable
+    ? `storage: S3_BUCKET set — archives will be DURABLE.`
+    : `storage: no S3_BUCKET — archives go to LOCAL DISK ONLY and the recorded URL will not resolve elsewhere.`);
   let archived = 0;
   let skipped = 0;
 
   for (const entry of entries) {
-    if (LEDGER_TERMINAL.archived(entry)) {
+    if (!FORCE && LEDGER_TERMINAL.archived(entry)) {
       console.log(`  reel ${entry.reel_id}: already archived (insights_snapshot + archive both present) — skipping, resumable.`);
       skipped += 1;
       continue;
