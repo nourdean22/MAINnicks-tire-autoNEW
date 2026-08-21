@@ -135,6 +135,11 @@ Subagents (Task tool — code-explorer / code-reviewer / code-simplifier / Explo
 7. SCOPE TIGHT — for audits say "read-only · do not modify files". For implementation, name exactly which files the agent may touch. Never let an agent free-roam edit.
 
 Agents are force multipliers, not autonomous workers — they inherit your standards or they don't run.
-# graphify
-- **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+## graphify
+
+`/graphify` turns any input into a knowledge graph. On `/graphify`, use that skill before anything
+else. The skill itself is **machine-local** (`~/.claude/skills/graphify/SKILL.md`) and is NOT in this
+repo -- if it is absent, say so rather than improvising. The repo-side surfaces that DO travel with a
+clone are `.graphifyignore`, `graphify-out/`, and `scripts/graphify-obsidian-sync.ps1`; the operating
+traps live in the `graphify-repo-graph` agent-memory entry. Read those before touching the graph or
+its daily sync.

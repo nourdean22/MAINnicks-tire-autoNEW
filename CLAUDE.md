@@ -5,20 +5,21 @@ branch rule (NEVER push `main`), protected operations, context routing, commands
 Windows gotchas, memory locations. Everything there applies to Claude sessions verbatim.
 
 @AGENTS.md
+@CLAUDE-OPERATING-PROFILE.md
 
 Read the nearest `apps/<app>/AGENTS.md` before editing inside an app; its `CLAUDE.md` sibling adds
 only Claude-specific routing.
 
 ## Claude-specific
 
-- **Operating stance — [`CLAUDE-OPERATING-PROFILE.md`](./CLAUDE-OPERATING-PROFILE.md). READ IT FIRST.**
-  Default-to-action operating principles, the clarity ladder, plus **skill discovery** (name the
-  task, name the skills, invoke them by exact name — a stance you did not invoke did not apply)
-  and the **subagent briefing policy** (inherit the stance, brief like a colleague, verify don't
-  trust, parallelize independent work, scope tight). Moved in from machine-local
-  `~/.claude/CLAUDE.md` on 2026-08-21. Complements — does not replace —
-  [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) (operator identity, response
-  shape, §11 multi-agent safety). Engineering policy in `AGENTS.md` wins on any conflict.
+- **Operating stance — `CLAUDE-OPERATING-PROFILE.md`, imported above so it is already in context.**
+  Default-to-action principles, the clarity ladder, **skill discovery** (name the task, name the
+  skills, invoke them by exact name — a stance you did not invoke did not apply) and the **subagent
+  briefing policy** (inherit the stance, brief like a colleague, verify don't trust, scope tight).
+  It must stay on an `@` line: a markdown link does NOT load (proven 2026-08-21 — the link form
+  left it loading in zero sessions). Complements, does not replace,
+  [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) (operator identity, response shape,
+  §11 multi-agent safety). Engineering policy in `AGENTS.md` wins on any conflict.
 
 - **Skills** (`.claude/skills/`): before commit/push → **statenour-verify** / **nickstire-verify**.
   Schema changes → **statenour-migration**. End of a statenour wave → **statenour-wave-reconcile**.
