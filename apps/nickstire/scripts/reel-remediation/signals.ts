@@ -97,7 +97,28 @@ export async function sampleFrameSignature(clipUrl: string): Promise<FrameSignat
   });
 }
 
-/** True when the frame is flat enough to be the synthetic gradient lane. */
+/**
+ * True when the frame is flat enough to be the synthetic GRADIENT lane.
+ *
+ * ASYMMETRIC — read this before trusting a false. `true` is strong evidence of
+ * synthetic; `false` is NOT evidence of real footage.
+ *
+ * templateStockStudio has three asset tiers (its own comment, best first):
+ * real footage > still + camera move > generated gradient. Only the third is
+ * flat. A stock clip built from a hero still or hero footage is genuinely
+ * detailed, scores far above this threshold, and comes back `false` here —
+ * indistinguishable from a real Higgsfield render by this measure alone.
+ *
+ * That is acceptable ONLY because this is the corroborating signal, never the
+ * deciding one. The deciding signal is the storage path: every tier, including
+ * the detailed ones, is re-hosted under `reels/template-stock/`
+ * (templateStockStudio.ts), which is unforgeable and tier-independent — and it
+ * is what the unbypassable publish guard in qualityGate.ts asserts on.
+ *
+ * So: use extractStockAssets to DECIDE, and this to corroborate. A caller that
+ * inverted that — treating a high std-dev as proof of real footage — would
+ * pass exactly the stock reels this remediation exists to catch.
+ */
 export function frameLooksSynthetic(sig: FrameSignature): boolean {
   return sig.stdDevLuma < SYNTHETIC_LUMA_STDDEV_MAX;
 }

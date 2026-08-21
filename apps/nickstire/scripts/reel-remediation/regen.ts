@@ -21,47 +21,24 @@
  * higgsfield_job_ids stays empty for Higgsfield beats (see ledger.ts's
  * RegenRecord doc comment) — not fabricated.
  */
+// MUST BE FIRST. ./env-pin is a side-effect module that sets
+// REEL_GEN_CLIP_TIMEOUT_MS and REEL_VIDEO_PROVIDER for this process, and it
+// has to be imported ABOVE ../../server/services/reelPipeline because that
+// module captures the timeout in a module-level const at import time.
+//
+// These pins used to live as top-level assignments in this file. ES module
+// imports are hoisted above top-level statements, so reelPipeline had already
+// frozen GEN_CLIP_TIMEOUT_MS at its 6-minute default before the assignment
+// ran — the timeout raise was INERT for every batch that claimed to use it
+// (proved with a probe 2026-08-21: frozen 360000 while env read 900000).
+// See env-pin.ts for the full write-up.
+import "./env-pin";
+
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, "..", "..", ".env") });
-
-// 2026-08-20 · validated via a real --limit=1 run: auto-select prefers Veo
-// whenever Veo credentials are present (reelPipeline.ts's selectReelVideoProvider),
-// and Veo requires S3_BUCKET (assertDurableStorageForGeneration,
-// reelPipeline.ts:645 — Veo re-hosts through storagePut, so without durable
-// storage the clip would land on ephemeral disk and be lost on redeploy).
-// S3_BUCKET is not configured in this environment (see the Phase 3 commit's
-// "known gap" note) — every Veo attempt failed 3x on that guard alone, no
-// paid API call ever made (the guard fires before the request), so no
-// credits were spent, but no footage was produced either.
-// Higgsfield needs none of this — it returns its own durable CDN URL
-// (reelPipeline.ts:643's own comment: "Higgsfield is the only provider that
-// returns its own durable CDN URL") — and it is the THEMATICALLY correct
-// choice regardless: Higgsfield being down is the entire reason this
-// remediation exists, and it is confirmed live right now (62 credits,
-// keepalive fresh). Pinned here, in this script's own process only — not a
-// Railway env change, and not touching REEL_VIDEO_PROVIDER anywhere else.
-process.env.REEL_VIDEO_PROVIDER = "higgsfield";
-
-// 2026-08-21 · MEASURED from the first full batch (all 3 reels that reached
-// generation died identically: "beat N timed out after 360s", burning $4.00 of
-// budget for zero usable footage — and failed reservations still count against
-// the daily cap, so the waste compounds).
-//
-// The per-beat durations that batch actually produced, in order:
-//   139s 140s 189s 196s 212s 213s 267s 329s 342s → then 3× timeout
-// Two things are visible there. The ceiling (GEN_CLIP_TIMEOUT_MS, 6 min) is
-// marginal — 342s and 329s landed within 20-30s of it. And the durations CREEP
-// as the batch runs: job 1740004's beats went 140s → 267s → 342s → timeout,
-// which is queue contention from running 3 reels concurrently against one
-// Higgsfield account, not per-clip difficulty.
-//
-// So both levers move together: give a genuinely slow clip room to finish, and
-// stop generating the contention that makes clips slow in the first place.
-// Env override only — this process, not Railway, not the prod cron.
-process.env.REEL_GEN_CLIP_TIMEOUT_MS = process.env.REEL_GEN_CLIP_TIMEOUT_MS || String(15 * 60_000);
 
 import { getDb } from "../../server/db";
 import { reelJobs } from "../../drizzle/schema";

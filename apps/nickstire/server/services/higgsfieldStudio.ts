@@ -242,13 +242,35 @@ async function persistRotatedCredentialsThenCleanup(tempCredsFile: string | null
  * previously had to reimplement them, which is precisely how it got
  * reimplemented wrong. Use this instead.
  *
- * Read-only commands only (`account …`, `generate list|get`). Generation goes
- * through generateReelClipVideo, which has its own accounting and retry rules.
+ * Read-only commands only. That is ENFORCED below, not merely documented: the
+ * name is a safety claim on an exported symbol, and a claim the code does not
+ * keep is worse than no claim — a future caller would reasonably trust it to
+ * refuse a billable subcommand. Generation goes through generateReelClipVideo,
+ * which has its own accounting, budget reservation and retry rules.
  */
+const HIGGSFIELD_READ_ONLY_COMMANDS: ReadonlyArray<readonly string[]> = [
+  ["account", "status"],
+  ["account", "transactions"],
+  ["generate", "list"],
+  ["generate", "get"],
+  ["model", "list"],
+  ["workflow", "list"],
+];
+
 export async function runHiggsfieldCliReadOnly(
   args: string[],
   timeoutMs = 30_000,
 ): Promise<{ ok: boolean; stdout: string; stderr: string; code: number | null }> {
+  const allowed = HIGGSFIELD_READ_ONLY_COMMANDS.some((cmd) => cmd.every((part, i) => args[i] === part));
+  if (!allowed) {
+    const shown = HIGGSFIELD_READ_ONLY_COMMANDS.map((c) => c.join(" ")).join(", ");
+    return {
+      ok: false,
+      stdout: "",
+      stderr: `runHiggsfieldCliReadOnly refuses "${args.join(" ")}" — allowed read-only commands are: ${shown}. Generation must go through generateReelClipVideo so it is budgeted and accounted.`,
+      code: null,
+    };
+  }
   let binPath: string;
   try {
     binPath = await ensureHiggsfieldBinary();
@@ -270,7 +292,7 @@ export async function runHiggsfieldCliReadOnly(
     const finish = async (code: number | null) => {
       if (settled) return;
       settled = true;
-      await persistRotatedCredentialsThenCleanup(tempCredsFile);
+      await persistRotationBounded(tempCredsFile);
       resolve({ ok: code === 0, stdout, stderr, code });
     };
     child.stdout.on("data", (d) => (stdout += d.toString()));
@@ -283,6 +305,49 @@ export async function runHiggsfieldCliReadOnly(
       void finish(null);
     }, timeoutMs);
   });
+}
+
+/**
+ * How long the rotation write may take before we give up and settle anyway.
+ * The write is one indexed upsert; anything beyond this means the DB is in
+ * trouble, not that the write is slow.
+ */
+const ROTATION_PERSIST_TIMEOUT_MS = 15_000;
+
+/**
+ * Persist the rotated credential, but never let it hang the caller.
+ *
+ * Awaiting the raw persist (added 2026-08-21 so short-lived scripts stop
+ * discarding the rotated token) introduced a worse failure mode, caught by
+ * pre-merge review: the CLI handlers `clearTimeout(timer)` BEFORE awaiting, so
+ * the function's own 6-minute guard is already disarmed at that point. The
+ * mysql2 pool is configured `waitForConnections: true` with no acquire or
+ * query timeout, so a saturated pool makes that await block indefinitely — and
+ * the generation it is blocking has already SUCCEEDED and already been paid
+ * for. An unbounded await there converts a healthy paid clip into a hung job.
+ *
+ * Bounded instead. If the deadline is hit we log loudly and settle: losing a
+ * rotation costs a re-login, while hanging the reel pipeline costs every reel
+ * behind it. The persist itself never throws (it has its own try/catch), so a
+ * rejection here is always the deadline.
+ */
+async function persistRotationBounded(tempCredsFile: string | null): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      persistRotatedCredentialsThenCleanup(tempCredsFile),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("rotation persist exceeded its deadline")), ROTATION_PERSIST_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (err) {
+    log.error(
+      "could not persist the rotated Higgsfield credential within the deadline — settling anyway; the session may need a re-login (see docs/runbooks/higgsfield-session.md)",
+      { err: err instanceof Error ? err.message : String(err) },
+    );
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function parseResultUrl(stdout: string): string {
@@ -368,7 +433,7 @@ export async function generateCarouselSlideImage(req: string | { prompt: string;
       // AWAITED — see getHiggsfieldAccountHealth's finish() for why. A caller
       // that exits right after this settles would otherwise discard the CLI's
       // rotated token and kill the session.
-      await persistRotatedCredentialsThenCleanup(tempCredsFile);
+      await persistRotationBounded(tempCredsFile);
       if (code !== 0) {
         reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
         return;
@@ -379,6 +444,18 @@ export async function generateCarouselSlideImage(req: string | { prompt: string;
       } catch (err) {
         reject(err);
       }
+    });
+
+    // A spawn that never starts (ENOENT on the binary, EACCES, fork failure)
+    // emits 'error', NOT 'close'. With no listener, Node throws it as an
+    // unhandled 'error' event — and lib/logger.ts's uncaughtException handler
+    // calls process.exit(1), so a failed carousel render would take the whole
+    // Express server down with it. Both sibling spawns in this file already
+    // had this listener; this one did not. Found by pre-merge review
+    // 2026-08-21 (pre-existing, but in the handler block this change touched).
+    child.on("error", async (err) => {
+      await persistRotationBounded(tempCredsFile);
+      reject(new Error(`Higgsfield CLI failed to start: ${err instanceof Error ? err.message : String(err)}`));
     });
   });
 }
@@ -786,7 +863,7 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
       cleanupStartImage();
       // AWAITED — a timed-out generation still rotated the token, and losing
       // that successor kills the session for everything after it.
-      await persistRotatedCredentialsThenCleanup(tempCredsFile);
+      await persistRotationBounded(tempCredsFile);
       reject(new Error(`Higgsfield CLI timed out after ${CLI_TIMEOUT_MS}ms — process killed to avoid an orphan paid job`));
     }, CLI_TIMEOUT_MS);
 
@@ -814,7 +891,7 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
       // AWAITED — this is the reel generation path, driven by scripts that
       // exit as soon as the last beat settles. Dropping that final rotation
       // is how a batch run ends with a dead session.
-      await persistRotatedCredentialsThenCleanup(tempCredsFile);
+      await persistRotationBounded(tempCredsFile);
       if (code !== 0) {
         reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
         return;
@@ -874,7 +951,7 @@ export async function getHiggsfieldAccountHealth(): Promise<{
     const finish = async (credsValid: boolean) => {
       if (settled) return;
       settled = true;
-      await persistRotatedCredentialsThenCleanup(tempCredsFile);
+      await persistRotationBounded(tempCredsFile);
       const raw = `${stdout}${stderr}`.trim();
       const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(?:credits?|\bcr\b)/i) || raw.match(/balance["':\s]+([\d,]+(?:\.\d+)?)/i);
       const parsed = m ? Number(m[1].replace(/,/g, "")) : NaN;

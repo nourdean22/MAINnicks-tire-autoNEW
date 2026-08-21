@@ -95,6 +95,40 @@ describe("storagePut local-disk fallback — no S3 configured", () => {
     expect(written[paths.find((p) => p.includes("1500001"))!].toString()).toBe("reel B");
   });
 
+  it("REFUSES a key with traversal segments instead of writing outside data/generated", async () => {
+    // 2026-08-21 · pre-merge review. Preserving the full key (to stop distinct
+    // keys colliding on one filename) removed the containment that
+    // path.basename had been providing by accident. A verifier proved the
+    // escape with a real write to ..\..\tmp. carouselSlideRenderer builds its
+    // key from an unvalidated brief.id on a mounted tRPC route, so this was
+    // reachable, not theoretical.
+    vi.stubEnv("S3_BUCKET", "");
+    const fs = await import("fs");
+    await expect(
+      storagePut("carousel-studio/../../../../tmp/pwn-1.jpg", Buffer.from("x"), "image/jpeg"),
+    ).rejects.toThrow(/traversal|escapes/i);
+    expect((fs.writeFileSync as Mock).mock.calls).toHaveLength(0);
+  });
+
+  it("refuses a backslash-separated traversal too (Windows paths)", async () => {
+    vi.stubEnv("S3_BUCKET", "");
+    const fs = await import("fs");
+    await expect(
+      storagePut("carousel-studio\\..\\..\\tmp\\pwn.jpg", Buffer.from("x"), "image/jpeg"),
+    ).rejects.toThrow(/traversal|escapes/i);
+    expect((fs.writeFileSync as Mock).mock.calls).toHaveLength(0);
+  });
+
+  it("still allows ordinary nested keys — the collision fix must survive", async () => {
+    vi.stubEnv("S3_BUCKET", "");
+    const fs = await import("fs");
+    const written: string[] = [];
+    (fs.writeFileSync as Mock).mockImplementation((p: unknown) => { written.push(String(p)); });
+    await storagePut("remediation-archive/1470001/original.mp4", Buffer.from("ok"), "video/mp4");
+    expect(written).toHaveLength(1);
+    expect(written[0]).toContain("1470001");
+  });
+
   it("creates the destination's parent directory before writing", async () => {
     vi.stubEnv("S3_BUCKET", "");
     const fs = await import("fs");
