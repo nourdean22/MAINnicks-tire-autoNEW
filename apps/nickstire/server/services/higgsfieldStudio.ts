@@ -530,8 +530,14 @@ export async function higgsfieldSessionLiveness(): Promise<HiggsfieldSessionLive
     const ageMinutes = rawAge === null || rawAge === undefined || rawAge === "" ? Number.NaN : Number(rawAge);
     const ageKnown = Number.isFinite(ageMinutes);
     // The keepalive logs ", N credits" on success - the only balance this app can see.
-    const credits = /(\d+)\s*credits/.exec(row.details ?? "");
-    const balanceCredits = credits ? Number(credits[1]) : null;
+    // 2026-08-20 · Higgsfield stock-fallback remediation: this was integer-only
+    // (`\d+`), so a real decimal balance like "2388.62 credits" never matched at
+    // all here and silently fell through to whatever OTHER bare integer sat
+    // nearest "credits" in the details text - measured live: this read 62 while
+    // `hf account status` read 2388.62, a ~38x discrepancy. Matches
+    // getHiggsfieldAccountHealth's own working pattern below.
+    const credits = /([\d,]+(?:\.\d+)?)\s*credits/.exec(row.details ?? "");
+    const balanceCredits = credits ? Number(credits[1].replace(/,/g, "")) : null;
     if (!ageKnown || ageMinutes > KEEPALIVE_STALE_MINUTES) {
       return {
         credsPresent,
