@@ -1,0 +1,114 @@
+{
+  "packDate": "2026-08-21",
+  "mode": "SCHEDULED",
+  "status": "BLOCKED: NO MOTION ROUTE",
+  "title": "Try this 30-second brake test before you drive tomorrow",
+  "archetype": "actionable-test-then-explanation",
+  "motionLens": "documentary/macro-realistic (confirm exact lens + lens.avoid in the live Studio wizard)",
+  "totalMotionSeconds": 30,
+  "saveFreezeSeconds": 3,
+  "totalContainerSeconds": 33,
+  "standingNegativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+  "duplicationCheck": {
+    "mergedPacksChecked": 51,
+    "mostRecentMergedPack": "2026-08-20-tailpipe-condensation-vs-coolant-leak",
+    "openReelPackPrsChecked": [1738, 1739, 1741, 1742, 1744, 1745, 1746, 1748, 1749],
+    "repetitionLedgerLiveRead": false,
+    "note": "getRecentReelSignals() not called — no live DB path from this session; filesystem + PR search used instead"
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "label": "hook",
+      "durationSec": 3,
+      "narration": "Before you start your car tomorrow morning — try this 30-second test.",
+      "prompt": "Close-up inside a parked car at dawn, dim interior light through the windshield, engine off; a spring-loaded brake pedal depressor tool — a metal rod braced between the seat and the pedal, no hands present — locks the brake pedal down firmly against the floor mat.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "the depressor tool mid-extension, pedal already held down, strongest possible first frame, unbranded, wordless",
+      "actionCompleteBySec": 2.5
+    },
+    {
+      "beatNumber": 2,
+      "label": "setup_hold",
+      "durationSec": 4,
+      "narration": "With the engine off, press the brake pedal firmly and hold it.",
+      "prompt": "Close-up on a wristwatch resting on the dashboard, second hand sweeping steadily, soft focus on the held brake pedal and depressor tool visible in the background, marking time passing while the pedal stays locked down.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "continue directly from beat 1's held pedal, same object state",
+      "actionCompleteBySec": 3.5
+    },
+    {
+      "beatNumber": 3,
+      "label": "explanation",
+      "durationSec": 6,
+      "narration": "A pedal that slowly sinks toward the floor can point to fluid bypassing worn seals inside the master cylinder.",
+      "prompt": "Object-only technical cutaway of a brake master cylinder's interior cross-section, animated hydraulic fluid particles slipping past a visibly worn piston seal and bypassing internally instead of building pressure; clean diagrammatic lighting, slow camera push-in; no text or labels rendered in-scene.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, on-screen text, logos, watermarks",
+      "openingFrame": "establish the cutaway clearly at a glance",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 4,
+      "label": "consequence_proof",
+      "durationSec": 6,
+      "narration": "That's an internal leak — no puddle on the ground, but less stopping power when you need it most.",
+      "prompt": "Return to the held brake pedal and depressor tool from beat 1, now visibly lower against the floor mat than its starting position, a faint measuring tape or ruler mounted beside the pedal shows the travel distance increasing; contrast against beat 1's higher starting position, no puddle or fluid visible anywhere on the floor.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "continue from beat 1's pedal position, now visibly lower",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 5,
+      "label": "safe_action",
+      "durationSec": 6,
+      "narration": "One clue is not a diagnosis — worth checking before you're back on the road.",
+      "prompt": "A shop inspection light on a stand sweeps its beam across a brake master cylinder reservoir cap under the hood, fluid level line clearly visible through the translucent housing against min/max markings — no hands present, the light beam itself is the only motion besides a slow rack-focus.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "reservoir clearly readable at a glance, light beam entering frame",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 6,
+      "label": "branded_cta",
+      "durationSec": 5,
+      "narration": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue.",
+      "prompt": "Exterior establishing shot of Nick's Tire & Auto's shop bay, brake rotor and caliper parts neatly arranged on a service cart in the foreground, late-afternoon light, logo signage visible and legible; camera holds steady for a clean end-card composite.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "shop bay clearly readable, settles for a seamless hold into the freeze",
+      "actionCompleteBySec": 4,
+      "freeze": {
+        "startSec": 30,
+        "endSec": 33,
+        "overlay": "logo + address/phone end-card (verify against SEED_FACTS legal.entity before publish — see README §3 gap)"
+      }
+    }
+  ],
+  "claimEvidence": [
+    {
+      "claim": "A brake pedal that slowly sinks toward the floor when held with the engine off can point to fluid bypassing worn seals inside the master cylinder",
+      "status": "UNKNOWN",
+      "basis": "standard automotive-engineering/service knowledge, not read against evidenceRecords.ts live this session"
+    },
+    {
+      "claim": "This kind of leak can happen without a visible puddle on the ground",
+      "status": "UNKNOWN",
+      "basis": "general mechanical fact describing internal vs. external leak paths, not asserted as a diagnosis"
+    },
+    {
+      "claim": "Shop name / address / phone",
+      "status": "SOURCED_BUT_UNSCOPED",
+      "basis": "SEED_FACTS.legal.entity in apps/nickstire/server/services/businessFacts.ts, carried forward from a prior pack's read; not re-read live this session (no DATABASE_URL). FactChannel has no 'reel'/'social' channel yet."
+    }
+  ],
+  "costEstimateUsd": {
+    "templateStockLane": 0.0,
+    "seedanceLaneEstimate": 1.5,
+    "source": "generationLedger.ts COST_ESTIMATES_USD, operator-tunable estimate, not metered pricing (carried forward, not re-read live)",
+    "note": "REEL_VIDEO_PROVIDER not present in this session's env; prior pack verified template_stock as the prod pin on 2026-08-11 — re-verify before assuming it still holds"
+  },
+  "musicRights": {
+    "trackSelected": null,
+    "status": "BLOCKED",
+    "note": "no music-rights ledger exists in this repo; do not treat any bed as cleared without a tracked license"
+  }
+}
