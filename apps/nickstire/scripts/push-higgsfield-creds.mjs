@@ -51,14 +51,34 @@ const url = readFileSync("C:/Users/nourd/NOURCITY/apps/nickstire/.env", "utf8")
   ?.slice("DATABASE_URL=".length).trim().replace(/^["']|["']$/g, "");
 
 const conn = await mysql.createConnection({ uri: url, ssl: { rejectUnauthorized: true } });
+// AGE IS COMPUTED SERVER-SIDE, deliberately. mysql2 parses DATETIME in the
+// connection's LOCAL zone while this column stores UTC, so a returned
+// `updated_at` reads ~4h AHEAD of real Eastern — far enough that a row written
+// minutes ago looks like it was written in the FUTURE. Comparing that directly
+// against the local file's mtime made this guard refuse a genuinely fresher
+// login ("existing row is NEWER"), blocking the exact recovery it exists to
+// enable — measured 2026-08-21. TIMESTAMPDIFF against UTC_TIMESTAMP() is
+// evaluated by the server and cannot be skewed by the driver. Same fix, same
+// reason as higgsfieldSessionLiveness (higgsfieldStudio.ts).
 const [before] = await conn.execute(
-  "SELECT LENGTH(v) AS len, v, updated_at FROM app_secret_kv WHERE k = 'higgsfield_credentials_json'",
+  `SELECT LENGTH(v) AS len, v, updated_at,
+          TIMESTAMPDIFF(SECOND, updated_at, UTC_TIMESTAMP()) AS age_seconds
+     FROM app_secret_kv WHERE k = 'higgsfield_credentials_json'`,
 );
 if (before.length) {
-  console.log(`existing row len=${before[0].len} sha256:${h(before[0].v)} updated_at=${before[0].updated_at}`);
+  const rowAgeSec = Number(before[0].age_seconds);
+  const localAgeSec = (Date.now() - mtime.getTime()) / 1000;
+  console.log(`existing row len=${before[0].len} sha256:${h(before[0].v)} age=${Math.round(rowAgeSec)}s (raw updated_at=${before[0].updated_at}, driver-skewed — do not compare directly)`);
+  console.log(`local creds age=${Math.round(localAgeSec)}s`);
   if (before[0].v === raw) { console.log("\nrow already holds these exact credentials — nothing to do.\n"); await conn.end(); process.exit(0); }
-  if (new Date(before[0].updated_at) > mtime) {
-    console.error("\nexisting row is NEWER than the local file — refusing to overwrite a fresher pair.\n");
+  // Smaller age = more recent. Unknown age is NOT treated as "row is older":
+  // refusing on an unreadable comparison is the safe direction here.
+  if (!Number.isFinite(rowAgeSec)) {
+    console.error("\ncould not compute the stored row's age — refusing rather than guessing.\n");
+    await conn.end(); process.exit(1);
+  }
+  if (rowAgeSec < localAgeSec) {
+    console.error(`\nexisting row is NEWER than the local file (${Math.round(rowAgeSec)}s vs ${Math.round(localAgeSec)}s old) — refusing to overwrite a fresher pair.\n`);
     await conn.end(); process.exit(1);
   }
 } else {
