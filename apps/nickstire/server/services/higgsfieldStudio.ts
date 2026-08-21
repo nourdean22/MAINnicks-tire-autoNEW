@@ -364,8 +364,11 @@ export async function generateCarouselSlideImage(req: string | { prompt: string;
       stderr += data.toString();
     });
 
-    child.on("close", (code) => {
-      void persistRotatedCredentialsThenCleanup(tempCredsFile);
+    child.on("close", async (code) => {
+      // AWAITED — see getHiggsfieldAccountHealth's finish() for why. A caller
+      // that exits right after this settles would otherwise discard the CLI's
+      // rotated token and kill the session.
+      await persistRotatedCredentialsThenCleanup(tempCredsFile);
       if (code !== 0) {
         reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
         return;
@@ -776,12 +779,14 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
     // doubles the spend. Killing the process means any retry is a clean fresh
     // attempt, never an overlap.
     const CLI_TIMEOUT_MS = Math.max(60_000, Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000);
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       if (settled) return;
       settled = true;
       try { child.kill("SIGKILL"); } catch { /* already exited */ }
       cleanupStartImage();
-      void persistRotatedCredentialsThenCleanup(tempCredsFile);
+      // AWAITED — a timed-out generation still rotated the token, and losing
+      // that successor kills the session for everything after it.
+      await persistRotatedCredentialsThenCleanup(tempCredsFile);
       reject(new Error(`Higgsfield CLI timed out after ${CLI_TIMEOUT_MS}ms — process killed to avoid an orphan paid job`));
     }, CLI_TIMEOUT_MS);
 
@@ -801,12 +806,15 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
       reject(err);
     });
 
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       cleanupStartImage();
-      void persistRotatedCredentialsThenCleanup(tempCredsFile);
+      // AWAITED — this is the reel generation path, driven by scripts that
+      // exit as soon as the last beat settles. Dropping that final rotation
+      // is how a batch run ends with a dead session.
+      await persistRotatedCredentialsThenCleanup(tempCredsFile);
       if (code !== 0) {
         reject(new Error(`Higgsfield CLI exited with code ${code}. Stderr: ${stderr.trim()}`));
         return;
@@ -849,10 +857,24 @@ export async function getHiggsfieldAccountHealth(): Promise<{
     const child = spawn(binPath, ["account", "status"], {
       env: { ...env, HIGGSFIELD_INSTALL_METHOD: "npm", HIGGSFIELD_PACKAGE_MANAGER: "pnpm" },
     });
-    const finish = (credsValid: boolean) => {
+    // AWAITED, not `void`. The rotation write is a DB round-trip; resolving
+    // before it lands means a SHORT-LIVED CALLER can exit first and destroy
+    // the session.
+    //
+    // Measured twice on 2026-08-21, both times while merely CHECKING health
+    // from a script: `await getHiggsfieldAccountHealth(); process.exit(0)`
+    // returns the instant resolve() fires, and process.exit does not wait for
+    // pending promises — so the CLI's rotated successor was dropped on the
+    // floor and app_secret_kv kept the spent token. The next keepalive tick
+    // then reported "Session expired" and the operator had to device-login
+    // again. The long-running server never showed this because there the
+    // fire-and-forget promise always got to finish.
+    //
+    // A health probe must not be able to kill the thing it is probing.
+    const finish = async (credsValid: boolean) => {
       if (settled) return;
       settled = true;
-      void persistRotatedCredentialsThenCleanup(tempCredsFile);
+      await persistRotatedCredentialsThenCleanup(tempCredsFile);
       const raw = `${stdout}${stderr}`.trim();
       const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(?:credits?|\bcr\b)/i) || raw.match(/balance["':\s]+([\d,]+(?:\.\d+)?)/i);
       const parsed = m ? Number(m[1].replace(/,/g, "")) : NaN;
@@ -860,10 +882,10 @@ export async function getHiggsfieldAccountHealth(): Promise<{
     };
     child.stdout.on("data", (d) => (stdout += d.toString()));
     child.stderr.on("data", (d) => (stderr += d.toString()));
-    child.on("close", (code) => finish(code === 0));
-    child.on("error", () => finish(false));
+    child.on("close", (code) => void finish(code === 0));
+    child.on("error", () => void finish(false));
     // Never hang the health panel — abort the probe after 15s.
-    setTimeout(() => { try { child.kill(); } catch (_) {} finish(false); }, 15000);
+    setTimeout(() => { try { child.kill(); } catch (_) {} void finish(false); }, 15000);
   });
 }
 
