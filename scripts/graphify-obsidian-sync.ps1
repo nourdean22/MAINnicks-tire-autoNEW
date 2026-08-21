@@ -20,6 +20,28 @@ function Log($msg) {
 Log "=== sync start (repo: $RepoRoot) ==="
 Set-Location $RepoRoot
 
+# GRAPH LOCK (added 2026-08-21). The graphify git hooks (post-commit and
+# post-checkout, installed by `graphify hook install`) rebuild graph.json in a
+# DETACHED process whenever any sibling session commits or switches branches -
+# this repo is worked by several at once. On 2026-08-21 one landed mid-run and
+# moved the node count under an in-flight `graphify label`; its anti-clobber
+# guard then refused to write ("new graph has 52053 nodes but existing graph.json
+# has 52261"), so ~12 minutes of labeling was computed and thrown away.
+#
+# Both hooks now skip while this file exists and is fresh. The staleness guard
+# lives in the HOOKS (60 min) rather than here, so a sync that dies without
+# reaching its release cannot mute rebuilds forever.
+$script:lockFile = Join-Path $RepoRoot "graphify-out\.sync-running"
+Set-Content -Path $script:lockFile -Value "pid=$PID started=$(Get-Date -Format o)" -Encoding ASCII
+Log "graph lock acquired ($script:lockFile)"
+
+function Release-GraphLock {
+    if ($script:lockFile -and (Test-Path $script:lockFile)) {
+        Remove-Item $script:lockFile -Force -ErrorAction SilentlyContinue
+        Log "graph lock released"
+    }
+}
+
 # graphify skips graph.html above 5,000 nodes by default; this repo is ~46k.
 # Headroom over current size without being unbounded - the full node-level
 # render is ~43 MB at 46k nodes and grows roughly linearly, so 100k implies a
@@ -54,6 +76,7 @@ Log "python for render/digest steps: $py"
 graphify update . 2>&1 | Add-Content -Path $log
 if ($LASTEXITCODE -ne 0) {
     Log "ERROR: graphify update exited $LASTEXITCODE - aborting before vault write"
+    Release-GraphLock
     exit 1
 }
 
@@ -116,6 +139,30 @@ function Test-OllamaUp {
     }
 }
 
+# AUTH PROBE. Test-OllamaUp only proves something is LISTENING on the port.
+# Ollama Cloud auth is a SEPARATE failure surface: the daemon can be up and
+# signed OUT, which 403s every batch - recorded down/signed-out/403ing three
+# times on 2026-08-11 alone. A reachable port is therefore NOT evidence the model
+# will answer, and the difference costs ~12 minutes of labeling to discover. So
+# exercise the real completion endpoint the labeler uses, once, before
+# committing to it. Measured 0.66s for the round trip.
+#
+# Checks the HTTP status ONLY, never the content: glm-5.2 is a thinking model, so
+# a tiny max_tokens is consumed by the reasoning phase and returns an EMPTY
+# content string with HTTP 200. Asserting on content here would fail a perfectly
+# healthy backend.
+function Test-OllamaModel {
+    param([string]$Root, [string]$Model)
+    $payload = @{ model = $Model; messages = @(@{ role = "user"; content = "ok" }); max_tokens = 1; stream = $false } | ConvertTo-Json -Depth 5 -Compress
+    try {
+        Invoke-WebRequest -Uri "$Root/v1/chat/completions" -Method Post -Body $payload -ContentType "application/json" -TimeoutSec 60 -UseBasicParsing -ErrorAction Stop | Out-Null
+        return $true
+    } catch {
+        $script:modelProbeError = $_.Exception.Message
+        return $false
+    }
+}
+
 $labelSkip = $null
 if ($labelBackend -eq "ollama" -and -not (Test-OllamaUp $ollamaRoot)) {
     $ollamaExe = (Get-Command ollama -ErrorAction SilentlyContinue).Source
@@ -133,7 +180,21 @@ if ($labelBackend -eq "ollama" -and -not (Test-OllamaUp $ollamaRoot)) {
     }
 }
 
+# Port answered - now prove the MODEL answers before spending ~12 min on it.
+if (-not $labelSkip -and $labelBackend -eq "ollama") {
+    if (-not (Test-OllamaModel $ollamaRoot $labelModel)) {
+        $labelSkip = "daemon is up at $ollamaRoot but model '$labelModel' did not answer ($script:modelProbeError) - check 'ollama signin' for cloud models"
+    }
+}
+
+# Provenance for the done line: whether today's community names came from the LLM
+# or fell back to graphify's deterministic hub labels. A skipped labeling step
+# exits 0 and looks identical to a healthy run in every other respect, so without
+# this the log cannot distinguish "named" from "silently rotting".
+$labelStatus = "hub-derived"
+
 if ($labelSkip) {
+    $labelStatus = "skipped"
     Log "WARN: SKIPPING community labeling - $labelSkip. Hub-derived names retained (skipped ~24 min of doomed retries)."
 } else {
     Log "labeling communities via $labelBackend/$labelModel"
@@ -157,6 +218,7 @@ if ($labelSkip) {
         if ($failedBatches -gt 0) {
             Log "WARN: labeling finished in ${labelSecs}s but $failedBatches batch(es) failed - those communities keep hub-derived names"
         } else {
+            $labelStatus = "LLM"
             Log "labeling completed in ${labelSecs}s"
         }
     }
@@ -174,7 +236,34 @@ if ($LASTEXITCODE -ne 0) {
 & $py (Join-Path $RepoRoot "scripts\graphify-obsidian-sync.py") 2>&1 | Add-Content -Path $log
 if ($LASTEXITCODE -ne 0) {
     Log "ERROR: obsidian sync exited $LASTEXITCODE"
+    Release-GraphLock
     exit 1
 }
 
-Log "=== sync done ==="
+# 4. ROTATE VAULT BACKUPS (added 2026-08-21). Step 3 writes one
+# obsidian-backup-<date>/ per run and never removed any, so they accumulated
+# until someone noticed and hand-deleted the oldest. They are regenerable,
+# gitignored artifacts - keep the newest 7 and drop the rest.
+#
+# Deliberately strict about WHAT it deletes: the name must match
+# obsidian-backup-YYYY-MM-DD exactly AND sit directly under graphify-out/. A
+# loose glob in a Remove-Item -Recurse -Force is how a cleanup step becomes an
+# incident. Sorted by NAME, not LastWriteTime: the date is in the name, and any
+# stray file touch would otherwise reorder the set and evict the wrong one.
+$keepBackups = 7
+$backups = @(Get-ChildItem -Path (Join-Path $RepoRoot "graphify-out") -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^obsidian-backup-\d{4}-\d{2}-\d{2}$' } |
+    Sort-Object Name)
+if ($backups.Count -gt $keepBackups) {
+    $drop = $backups[0..($backups.Count - $keepBackups - 1)]
+    foreach ($d in $drop) {
+        Remove-Item -Path $d.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        Log "rotated out old vault backup: $($d.Name)"
+    }
+    Log "vault backups: kept newest $keepBackups, removed $($drop.Count)"
+} else {
+    Log "vault backups: $($backups.Count) present (keep $keepBackups) - nothing to rotate"
+}
+
+Release-GraphLock
+Log "=== sync done (labels: $labelStatus) ==="

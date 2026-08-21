@@ -86,3 +86,25 @@ last30days-skill/.agents/plugins/marketplace.json
 last30days-skill/gemini-extension.json
 last30days-skill/greptile.json
 last30days-skill/hooks/hooks.json
+
+# --- appended 2026-08-21: the #1666 zero-node list had drifted back to 77 files.
+# Each of these is dated/generated data that graphify's JSON extractor accepts
+# but emits no symbols for, so they were re-extracted AND re-warned on every run
+# (#2543 deliberately un-stamps zero-node files so they retry forever).
+# Still tight patterns only - the snapshot fixtures under apps/statenour/tests/
+# and config/agent-os/policy.json are deliberately NOT excluded, since a
+# directory-wide glob there could silently shrink the graph.
+apps/nickstire/docs/reel-packs/*/brief.json
+apps/statenour/docs/JUDGE-RUN-*.json
+apps/statenour/docs/OLLAMA-BAKEOFF-*.json
+apps/statenour/docs/PERSONA-AB-*.json
+apps/statenour/docs/PROMPT-AB-*.json
+apps/statenour/docs/APPROVAL-QUEUE-CLEANUP-*.json
+apps/statenour/docs/COMMITMENTS-CLEANUP-*.json
+apps/nickstire/reports/drizzle-migrations-dump-*.json
+.claude/launch.json
+# NOT excluded: reports/security-audit.json. It LOOKS like a generated report but
+# actually contributes 13 nodes to the graph (verified 2026-08-21 by the
+# "pruned 13 node(s) from 1 newly-ignored file(s)" line after a first attempt to
+# exclude it). Excluding it shrinks the graph, which is exactly what the header
+# above warns against - keep it in.
