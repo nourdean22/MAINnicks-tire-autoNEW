@@ -1,0 +1,125 @@
+{
+  "packDate": "2026-08-21",
+  "mode": "SCHEDULED",
+  "status": "BLOCKED: NO MOTION ROUTE",
+  "title": "That sudden roar under your car? Someone might be after your catalytic converter.",
+  "archetype": "awareness-then-prevention",
+  "motionLens": "documentary/macro-realistic (confirm exact lens + lens.avoid in the live Studio wizard)",
+  "totalMotionSeconds": 31,
+  "saveFreezeSeconds": 3,
+  "totalContainerSeconds": 34,
+  "standingNegativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+  "duplicationCheck": {
+    "mergedPacksChecked": 66,
+    "mergedTodayCount": 4,
+    "mergedToday": [
+      "2026-08-21-ac-recharge-myth-sealed-system",
+      "2026-08-21-brake-pedal-sinks-overnight",
+      "2026-08-21-differential-whine-on-turns",
+      "2026-08-21-valve-stem-dry-rot"
+    ],
+    "openReelPackPrsChecked": [],
+    "repetitionLedgerLiveRead": false,
+    "note": "getRecentReelSignals() not called — no live DB path from this session; filesystem + PR search used instead. This pack is a prevention/security content type, distinct from every existing diagnostic-symptom pack."
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "label": "hook",
+      "durationSec": 3,
+      "narration": "That sudden loud roar when you start your car? It might not be your muffler.",
+      "prompt": "Close-up on the underside of a parked car at night, catalytic converter visibly bolted into the exhaust pipe, a security floodlight sweeping slowly across the metal casing; shallow depth of field, quiet empty parking lot in the background.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "the converter sharply lit and centered, strongest possible first frame, unbranded, wordless",
+      "actionCompleteBySec": 2.5
+    },
+    {
+      "beatNumber": 2,
+      "label": "symptom",
+      "durationSec": 5,
+      "narration": "A jarring, deep rumble the second the engine turns over — especially if it wasn't there the night before.",
+      "prompt": "Static low-angle shot of a car's exhaust tailpipe at engine start-up, dawn parking-lot light, a visible heat-shimmer and vapor pulsing from the pipe in time with the idle.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "tailpipe centered, vapor pulse establishes immediately",
+      "actionCompleteBySec": 4
+    },
+    {
+      "beatNumber": 3,
+      "label": "explanation",
+      "durationSec": 6,
+      "narration": "Catalytic converters hold small amounts of precious metal, which makes them a common target for thieves working fast, underneath the car.",
+      "prompt": "Object-only technical cutaway of a catalytic converter's internal honeycomb ceramic substrate, a faint metallic sheen along the coated surface, slow orbiting macro camera move; clean diagrammatic lighting, no text or labels rendered in-scene.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts, on-screen text, logos, watermarks",
+      "openingFrame": "honeycomb substrate clearly readable at a glance",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 4,
+      "label": "consequence",
+      "durationSec": 6,
+      "narration": "It's become one of the most common theft claims nationwide — and a stolen converter usually means a full exhaust repair, not a quick patch.",
+      "prompt": "Overhead shot of a car raised on a shop lift, the exhaust pipe hanging with an empty gap where a converter used to be, a shop inspection light on a stand sweeping across the cut pipe ends; no hands present.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "the gap in the exhaust pipe clearly readable, light sweep begins",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 5,
+      "label": "safe_action",
+      "durationSec": 6,
+      "narration": "One clue: an etched VIN or a welded shield can make your vehicle a harder target, and may help police trace it if it's ever stolen.",
+      "prompt": "Macro close-up on a catalytic converter shell showing a freshly etched VIN number and a welded anti-theft shield cage around it, an inspection light sweeping across the etched digits to make them legible, slow rack-focus.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "etched digits and shield cage clearly readable, light beam entering frame",
+      "actionCompleteBySec": 5
+    },
+    {
+      "beatNumber": 6,
+      "label": "branded_cta",
+      "durationSec": 5,
+      "narration": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue.",
+      "prompt": "Exterior establishing shot of Nick's Tire & Auto's shop bay, tire stack in foreground, late-afternoon light, logo signage visible and legible; camera holds steady for a clean end-card composite.",
+      "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
+      "openingFrame": "shop bay clearly readable, settles for a seamless hold into the freeze",
+      "actionCompleteBySec": 4,
+      "freeze": {
+        "startSec": 31,
+        "endSec": 34,
+        "overlay": "logo + address/phone end-card (verify against SEED_FACTS legal.entity before publish — see README §3 gap)"
+      }
+    }
+  ],
+  "claimEvidence": [
+    {
+      "claim": "Catalytic converters hold small amounts of precious metal, making them a common theft target",
+      "status": "UNKNOWN",
+      "basis": "broad, widely reported automotive/insurance-industry fact (e.g. NICB reporting), not read against evidenceRecords.ts live this session"
+    },
+    {
+      "claim": "It's become one of the most common theft claims nationwide",
+      "status": "UNKNOWN",
+      "basis": "kept at national level deliberately; a specific local Cleveland crime-rate figure was rejected as unverifiable from this session"
+    },
+    {
+      "claim": "An etched VIN or a welded shield can make a vehicle a harder target and may help police trace it if stolen",
+      "status": "UNKNOWN",
+      "basis": "standard, widely recommended prevention measure; phrased with approved soft language ('can... may help'), not asserted as a guarantee"
+    },
+    {
+      "claim": "Shop name / address / phone",
+      "status": "SOURCED_BUT_UNSCOPED",
+      "basis": "SEED_FACTS.legal.entity in apps/nickstire/server/services/businessFacts.ts; FactChannel has no 'reel'/'social' channel yet"
+    }
+  ],
+  "costEstimateUsd": {
+    "templateStockLane": 0.0,
+    "seedanceLaneEstimate": 1.5,
+    "source": "generationLedger.ts COST_ESTIMATES_USD, operator-tunable estimate, not metered pricing",
+    "note": "REEL_VIDEO_PROVIDER pinned to template_stock in prod per docs/operations/REEL-PIPELINE.md (verified 2026-08-11); re-verify before assuming"
+  },
+  "musicRights": {
+    "trackSelected": null,
+    "status": "BLOCKED",
+    "note": "no music-rights ledger exists in this repo; do not treat any bed as cleared without a tracked license"
+  }
+}
