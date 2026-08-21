@@ -1,76 +1,117 @@
 # AGENTS.md · statenour-os
 
-> **⚡ Current truth in one screen:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — app location, production deploy path, what's retired, source-of-truth hierarchy. Read it if you only read one thing. Guard: `pnpm check:stale-docs`. Agent runbooks: [`docs/runbooks/index.md`](docs/runbooks/index.md).
->
-> **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. Wave-by-wave ship history is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — when a wave lands, add the full entry THERE and update only the stamp below (do NOT grow this header; see the `statenour-wave-reconcile` skill).
-> **Last refreshed:** 2026-08-21 (manual-fire lane #1747 + combined brief push #1755 — the mega fan-out can now be fired on demand [verified live, first green evening slot in ~30 days], and the 10:00/10:15 briefs merge into one push landing on real content instead of an empty chat prompt; full entry: RECONCILIATION top. Prior (2026-08-20) · cron-healer recursion wave #1735 — the healer healed its own fan-out parent; full entry: RECONCILIATION top. Prior same-day: memory-loop wave) - **the conversation compiler was never starved, its output was EATEN**: prod-measured 283 conversations -> 15 live summaries vs 158 soft-deleted by the nightly merge grinder; conversation_summary/decision_log/insight/eval_run now consolidation-excluded, the one-shot-forever guard is a freshness guard (recompiles REVIVE merge-ground rows, fan-out too), nightly conversation-compile cron sweeps the tail - **memory receipts**: turns persist recall receipts into tokenUsage.recall; "why did Nick say this?" answers receipt-first (labeled receipt vs reconstruction) instead of re-running recall at read time - **Backfill Studio (lite)** on the brain health view (the corpus IS the live DB; messageCount measured lying on 5 rows, backfilled 45 drifted rows on prod, eligibility now SQL) - **temporal recall evals**: the declared-but-empty kind gets its first cases (past-tense phrasing must not resurrect superseded rows) + BRAIN_CATEGORIES.INSIGHT registry gap closed. Review round: self-audit caught the sweep counting zero-write nights as "10 compiled" (all-clear-on-failure); hostile reviewers added the fan-out revival P0 + eligibility-starvation and receipt-soft-delete P1s. 541 files / 5,756 passed exit 0. Full entry: RECONCILIATION top. Prior (twentieth wave) - **Outcome-loop wave** -- the OS learns from what happened: the intelligence ledger's usefulness half is live (recordOutcomeByContent contentHash bridge + rateDiscovery "noise" as first writer; first-write-wins CAS at the update -- a two-tab re-rate can no longer stamp outcomeUseful:false on an operator-confirmed-TRUE claim) - task completion TEACHES via the /missions completion dialog (#1714 — the first producer went into the todo-desk, which is UNMOUNTED dead code; verified live on prod; recurring loops never prompt and dismissal completes UNRATED per the prompt-fatigue literature; transport runs taskUpdateSchema -> updateTask delegation -> checkTask; RATING_MULTIPLIER 1.25/1.0/0.6/0.3 scales the domain bump; outcomeLesson becomes an embedded task_lesson BrainMemory; rating lands the ledger outcome by title hash) - reasoning conclusions re-enter recall (embedded reasoning_conclusion companion, 90d TTL; budget verified exact-category so spend stays honest) - provenance categories (reasoning_trace/reasoning_conclusion/task_lesson) excluded from nightly consolidation (an LLM merge soft-deletes rows the $1/day budget sums -- engine would overspend). Adversarial 3-lens review closed its own P0: the first cut was BUILT-TESTED-UNWIRED (zero producers) -- the review round ADDED the producer. 537 files / 5,730 passed exit 0. Full entry: RECONCILIATION top. Prior (nineteenth wave) · **Architecture-reimagine wave** — ONE priority scale: autoPriority/manualPriorityOverride canonicalized to higher=more-urgent (bands ≥80/≥60/≥40 in `lib/scoring/task-priority.ts`; ~27 split readers aligned incl. the MIT picker, todo desk, mission cards and goals nextMove; Postgres NULLS-FIRST killed via `{ sort: "desc", nulls: "last" }` at 27 sorts; source scan bans asc/lt/plain-desc/legacy-override literals) · **unknown ≠ zero on operator surfaces** (situation card error state; meta-scoreboard failed reads become measured:false "—" anomalies, never calm zeros; Home matrix + /missions explicit unreadable/stale states on `isError && !data`; revenue mirror honest by ET calendar day; `system.hub` cached 30s) · **BDN-310 supersession lane-COMPLETE** (first writer: contradiction loser stamped, winner gets lastVerifiedAt, verdict-flips un-strand; ALL read lanes filter — both recall lanes, fallback, graph-context, searchMemories, cold-memory, memory-manager recall(), the shared knnSearch EXISTS) · Task.personId reaches the DB + FK guard · gateway kill-switches on the flag board as readOnly/ENV-ONLY with `offValue` semantics · verified by an adversarial multi-agent review (55 findings / 12 CONFIRMED / 0 refuted — all closed) + full suite 532 files / 5,690 passed exit 0. Canonical: [`docs/REIMAGINE-VERDICT-2026-08-19.md`](docs/REIMAGINE-VERDICT-2026-08-19.md); full entry RECONCILIATION top (flagged-not-fixed: legacy manualPriorityOverride census/remap = OPERATOR action via `scripts/probe-task-priority-overrides.ts`). Same-day · **Neon compute + cron-truth pass** — #1696 (render poll cadence + ENV_SPEC `GOOGLE_PLACE_ID`) and #1703 (mega-evening dispatches long-running children); full entry + flagged-not-fixed: RECONCILIATION top. Prior (eighteenth wave) · Brain truth pass — /brain could spin forever because every layer was allowed to wait forever: the Neon driver pool had NO checkout timer (untimed FIFO queue, `connect_timeout=0`), the graph route was the app's widest fan-out (8 of 10 pool slots at once), and the client used a bare `fetch()` with no abort/timeout whose `setLoading(false)` lived only in `finally` — with the client ALSO re-firing the whole fetch on every keystroke/node-click. Prod corroboration: `[err_*] Database hiccup` is 730 of 1,427 error rows in 30d, the same starvation class. Fixed: driver `connectionTimeoutMillis`/`query_timeout`, per-domain `allSettled` deadlines yielding a named `degraded[]`, and a client that always resolves to USEFUL/DEGRADED/EMPTY/ACTIONABLE-ERROR. The graph also stopped lying — keyword-invented edges, orphan-to-anchor attachment, fossil model anchors, a `/decisions` 404, machine-key labels and ~80 lines of canned "insight" prose are gone; every edge now declares an `origin`, memory nodes carry the evidence ladder + `seen N×` + TTL, weight is log-scaled attention (prod seenCount spans 1→6,516), and the never-called `runSemanticLinker` (semantic_edges frozen at 114 rows since 2026-05-28) runs nightly again. Lenses + touch/pinch mobile + bottom-sheet inspector; tab keys unchanged (live deep-link contracts). Full entry + flagged-not-fixed: RECONCILIATION top. Prior (seventeenth wave) - OS-Health truth pass; full entry: RECONCILIATION. Prior (sixteenth wave) - persona measurement arc, GATE-2026-08-14 executed in 13 PRs (#1649-#1665); canonical: [`docs/PERSONA-MEASUREMENT-ARC-2026-08-18.md`](docs/PERSONA-MEASUREMENT-ARC-2026-08-18.md). Older waves: RECONCILIATION.
+> **Read first:** [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — deploy path, providers, what is
+> retired, in one screen. Guarded by `pnpm check:stale-docs`.
+> **Ship history:** [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md), newest wave on top — the only
+> place a wave entry belongs. **Runbooks:** [`docs/runbooks/index.md`](docs/runbooks/index.md).
+> **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
+> [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-## 1 · Where we are right now
+**Last refreshed:** 2026-08-21 · waves #1747 + #1755. Everything earlier: RECONCILIATION top.
+**Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
-**Project:** statenour-os (NOUR OS · personal mastery system for Nour Dean). Lives in the `nourdean22/MAINnicks-tire-autoNEW` monorepo at `apps/statenour/` — `main` auto-deploys to Railway, served at `bdnick.info` (custom domain). The old Vercel deploy and the standalone `statenour-os` repo are retired. Companion business-ring app `nickstire` lives in the same monorepo at `apps/nickstire/` (Railway → nickstire.org).
+<!--
+  HEADER DISCIPLINE (2026-08-21 audit). The stamp above replaced a single 6,650-byte line carrying
+  nine waves of ship history — 27% of this file's bytes, ~1,662 tokens, loaded into every statenour
+  session, all already canonical in RECONCILIATION.md (which held #1755, #1747 and "manual-fire"
+  three times each). The line above it said "do NOT grow this header"; the adapter said history goes
+  "never in AGENTS.md headers". The rule was violated by the line directly beneath it. If you are
+  about to append "Prior (Nth wave) · ...", you are re-growing it. One date, one PR pair, one
+  pointer. HTML comments are stripped before context, so this note costs 0 tokens.
+-->
 
-**Stack:** Next.js 16 · React 19 · Prisma 6.19 · Neon Postgres (with raw-SQL pgvector + tsvector extras) · Tailwind 4 · AI SDK v6 · Vitest.
+## 1 · Where we are
 
-**Versioning:** the `v10.0.X` scheme is retired — commits use `fix · statenour · …` / `docs · statenour · …`.
+statenour-os (NOUR OS) at `apps/statenour/`. `main` auto-deploys to Railway → **bdnick.info**. The
+old Vercel deploy and the standalone `statenour-os` repo are retired. Sibling app `nickstire`
+(Railway → nickstire.org) shares this monorepo.
 
-**Tests:** the suite is GREEN and exits 0 (measured 2026-07-28 late: 394 files, 4,441 passed | 1 skipped, exit 0). The old "EXITS 1 on ~12 pre-existing unhandled rejections" era is OVER — a non-zero exit now means a REAL failure; do not explain it away as folklore. Two standing caveats: (1) never export real API keys / prod `DATABASE_URL` into the test shell — provider-chain tests reorder with live keys present and the empty-DB smoke sees real data (phantom failures); (2) still read the vitest **summary line** and run the files YOUR change touched explicitly — `tsconfig` excludes `tests/`, so `tsc` never catches a broken test import. Build `@statenour/lenses` first (`turbo build --filter=@statenour/lenses` from the repo root) or ~5 strategic-frameworks files fail on import.
+**Stack:** Next.js 16 · React 19 · Prisma 6.19 · Neon Postgres (pgvector + tsvector via raw SQL) ·
+Tailwind 4 · AI SDK v6 · Vitest. Commits: `<type> · statenour · <summary>`; `v10.0.X` is retired.
+
+**Tests:** the suite is GREEN and exits 0. A non-zero exit is a REAL failure — the "exits 1 on
+pre-existing unhandled rejections" era is over; never explain a red away as folklore. Counts belong
+in RECONCILIATION, not here (a pinned count is a cache with no invalidation). Four standing rules:
+
+1. Build lenses first — `turbo build --filter=@statenour/lenses` — or ~5 strategic-frameworks files
+   fail on import rather than on their own merits.
+2. Never export real API keys or a prod `DATABASE_URL` into the test shell: provider-chain tests
+   reorder and the empty-DB smoke sees real data. Both produce phantom failures.
+3. Read the vitest **summary line**, not the exit status.
+4. Run the test files your change touched, explicitly. `tsconfig.json` and
+   `tsconfig.typecheck.json` **both exclude `tests/` and `scripts/`** — a green typecheck says
+   nothing about either directory.
 
 ## 2 · How we work
 
-### Branching (operator rule 2026-06-11 — supersedes any older "push main" notes)
+**Branching:** prefix `statenour/<task>`; everything else is in root `AGENTS.md` → Branching. The
+only live push hook is root `lefthook.yml` (`pre-push` → `pnpm run build:affected`). No pre-push
+script inside this app is active — do not resurrect one.
 
-- **NEVER push `main`.** Named branches (`statenour/<task>` · `docs/<task>` · `chore/<task>`) + PR; create and squash-merge the PR yourself per root `AGENTS.md` → Branching (autonomous merging allowed). Prefer a fresh `.worktrees/<name>` worktree off origin/main (concurrent sessions share this repo).
-- Stage only your files by explicit path · never `git add -A` · never `--no-verify` · scope to the assigned task only.
-- `apps/statenour/scripts/pre-push-check.sh` is a stale Vercel-era artifact — NOT the active hook; ignore it. The real hook is the repo-root `lefthook.yml` (`pre-push` -> `turbo build --affected`; Husky is not used).
+1. **Auto mode** — execute autonomously, prefer action over planning. Never destructive without
+   explicit confirmation (root `AGENTS.md` → Protected operations defines what counts).
+2. **Small ships** — 1–4 files plus a test per commit; a wave is 4–6 slices.
+3. **The push must build clean.** Full gate: `pnpm verify:hard` — **16 checks, composition at
+   `package.json:12`. Read it there;** any prose list goes stale the next time one is added.
+4. **Auth is gated, not advisory.** Operator-private GET routes need `auth: "owner"`; mutating
+   routes need an explicit auth wrapper. `pnpm check:get-auth`
+   (`scripts/check-sensitive-get-auth.ts`) scans **each handler's body, not the file** — see its
+   own header at `:18-20`; a file-level grep passes when a guarded PATCH sits beside an unauthed
+   GET in the same route file. Plus `pnpm check:mutations:strict`
+   (`scripts/audit-mutation-receipts.ts --strict`). Both run inside `verify:hard`.
+5. **Pgvector lives in Prisma as `Unsupported(...)`** so `db push` won't drop the columns. Querying
+   is raw SQL (`lib/db/pgvector.ts`); the HNSW index is raw-SQL only. `pnpm check:raw-sql` audits
+   camelCase column references inside `$queryRaw` strings — **it does not scan for destructive
+   flags, and no automated gate does.**
+6. **Inbox missions are NOT user projects** — `lib/services/mission-helpers.ts` `isInboxMission()`
+   is the single predicate. Readers include `lib/services/{missions,tasks,task-rescue}.ts`,
+   `lib/db/conversation-mission-linker.ts`, `lib/ai/chat/truth-grounding.ts`,
+   `app/api/cron/inbox-janitor/route.ts` and `config/crons.ts` — change the predicate and you
+   change all of them. Get the current list with
+   `git ls-files | xargs grep -l isInboxMission`; a number pasted here would be a cache with no
+   invalidation.
 
-### House rules
+### Frontend conventions
 
-1. **Auto mode** — execute autonomously, prefer action over planning. Never destructive without explicit confirmation.
-2. **Small ships** — 1–4 files + 1 test file per commit; a wave is 4–6 slices.
-3. **The push must build clean.** Full local gate: `pnpm verify:hard` (typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
-4. Operator-private GET routes need `auth: "owner"`; mutating routes need an explicit auth wrapper.
-5. **Pgvector lives in Prisma as `Unsupported(...)`** — Prisma sees the columns and won't drop them on `db push`; querying is raw SQL (`lib/db/pgvector.ts`); the HNSW index is raw-SQL only. (`check:raw-sql` audits camelCase column references in `$queryRaw` strings — it does NOT scan for `--accept-data-loss`; no automated gate does. The flag ban in §7 is policy, enforced by review.)
-6. **Inbox missions â‰  user projects** — `lib/services/mission-helpers.ts isInboxMission()` is the single predicate (Plan view, Track tile, mission cap all depend on it).
+- **`GlassCard`** (`components/ui/glass-card.tsx`) is the canonical card. `components/ui/card.tsx` is
+  `@deprecated`, kept only for the structured API in `components/stats/*` — never import it in new code.
+- **Style through the theme bridge** (`bg-elevated`, `bg-raised`, `text-fg-secondary`,
+  `border-glass`, `text-gold`) declared in `app/styles/tokens.css` `@theme inline`. Raw
+  `bg-[var(--…)]` is legacy read-path only. **A token that does not exist emits zero CSS and fails
+  silently** — verify the rendered value, not the class name.
+- **`app/globals.css` is an import manifest only.** Real CSS lives in
+  `app/styles/{tokens,base,effects}.css`; import order is cascade order. Append within the right
+  layer, never reorder.
+- **Bottom chrome:** clear the fixed tab-bar with `pb-[var(--bottom-chrome-h)]` (published by
+  `components/layout/bottom-tab-bar.tsx`). Never hand-tune per-page bottom padding.
+- **Folders:** domain UI in `components/<domain>/`, primitives in `components/ui/`, shared logic in
+  `lib/`. `src/` is retired; `features/` is frozen to the existing slices.
+- **iOS PWA:** `window.confirm/alert/prompt` are silently suppressed — two-tap in-DOM confirms only,
+  48×48px minimum targets. **Nothing lints this here** (nickstire has `lint:source`; statenour does
+  not), so it is on you. Skill: `nickstire-ios-pwa-primitives` — it governs this app too.
 
-When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`, `/using-superpowers`, `/antigravity-workflows`, or `/prompt-library` — treat them as MANDATORY framing for the work.
+## 3 · Canonical sources
 
-### Frontend conventions (2026-07-07 consistency wave)
+Open the row that matches your task. These are pointers, not context.
 
-- **Card primitive** — `GlassCard` (`components/ui/glass-card.tsx`) is canonical. `components/ui/card.tsx` is @deprecated legacy (kept only for the structured CardHeader/Content API in `components/stats/*`); never import it in new code.
-- **Token write-path** — new styling uses the Tailwind theme-bridge utilities (`bg-elevated`, `bg-raised`, `text-fg-secondary`, `border-glass`, `text-gold`, …) declared in `app/styles/tokens.css` `@theme inline`. Raw `bg-[var(--…)]` arbitrary values are legacy read-path only.
-- **Stylesheet layers** — `app/globals.css` is an import manifest only; real CSS lives in `app/styles/{tokens,base,effects}.css`. Import order = cascade order; append within the right layer, never reorder.
-- **Bottom chrome** — page content clears the fixed tab-bar/ticker with `pb-[var(--bottom-chrome-h)]` (owned by `bottom-tab-bar.tsx` + `tokens.css`). Never hand-tune per-page bottom padding.
-- **Folder convention** — domain UI in `components/<domain>/`, shared primitives in `components/ui/`, server/shared logic in `lib/` (inngest moved `src/inngest` → `lib/inngest`, 2026-07-07; `src/` is retired). `features/` is frozen to the existing `chat-v2` + `missions` slices — don't add new top-level conventions.
-
-### Commit format
-
-`<type> · statenour · <one-line summary>` subject + context / implementation / verify paragraphs + `Co-Authored-By: <model name> <noreply@anthropic.com>`.
-
-## 3 · Canonical sources of truth
-
-| What you need | Where it lives |
+| What you need | Where |
 |---|---|
-| **Current truth (deploy/provider/retired)** | [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) — read first; `pnpm check:stale-docs` guards it |
-| Agent operating runbooks | [`docs/runbooks/index.md`](docs/runbooks/index.md) — how to work safely here |
-| Current state · ship history | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — refresh after every wave |
+| Deploy path, providers, what's retired | [`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) |
+| Ship history, wave by wave · active backlog | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
+| How to work safely here | [`docs/runbooks/index.md`](docs/runbooks/index.md) |
 | Architecture · 7-layer map | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
-| Nick agent · C4 system context | [`docs/NICK-AGENT-CONTEXT.md`](docs/NICK-AGENT-CONTEXT.md) |
-| Repo map · cross-ring layout | [`docs/REPO-MAP.md`](docs/REPO-MAP.md) |
-| Data model · table-by-table | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) |
-| Security posture · auth gates | [`docs/SECURITY.md`](docs/SECURITY.md) |
-| AI agent contract | [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) |
-| Cron manifest (single source) | [`config/crons.ts`](config/crons.ts) — verified via `pnpm check:crons`; jobs run through the Inngest mega fan-out |
-| AutomationPolicy registry | DB · `automation_policies` · seed via `pnpm tsx scripts/seed-policies.ts` |
-| Schema-drift guard | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) (EXPECTATIONS list) |
-| Reasoning tool whitelist | [`lib/ai/reasoning/reasoning-tools.ts`](lib/ai/reasoning/reasoning-tools.ts) — 16 read-only tools gated by `NICK_DEEP_REASONING` flag |
-| Tool catalog (count = `TOOL_CATALOG.length`, never prose) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) — category, cost, risk, required env |
-| Firecrawl web scraper | [`lib/integrations/firecrawl.ts`](lib/integrations/firecrawl.ts) — `FIRECRAWL_API_KEY` env; `scrapeWebPage` tool in `system.ts`. SSRF defense via `assertPublicUrl()`, output wrapped in `fenceContent()` |
-| last30days research engine | `lib/ai/last30days` — `last30days` tool in `system.ts`; deep search across Reddit/HN/Polymarket/GitHub/YouTube. Needs `python3` (installed in the Dockerfile) + output tracing in `next.config.ts`; whitelisted in `reasoning-tools.ts` |
-| MoneyPrinterTurbo video generator | `lib/ai/moneyprinter` — `moneyprinter` tool in `system.ts` (sideEffecting, in-flight-guarded). Dockerfile installs `ffmpeg`, `imagemagick`, `py3-pip`; credentials mapped into `config.toml` at runtime |
-| Supply-chain security | `scripts/security-scan.ps1` — `pnpm audit --json` wrapper; report at `reports/security-audit.json` |
-| Codebase MCP server | `scripts/start-codebase-mcp.ps1` + `docs/codebase-memory-mcp.md` — filesystem MCP over `apps/`, `packages/`, `docs/` |
+| Data model, table by table | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) |
+| Auth gates + security posture | [`docs/SECURITY.md`](docs/SECURITY.md) |
+| Cron manifest (single source) | [`config/crons.ts`](config/crons.ts) — gated by `pnpm check:crons` |
+| Live cron catalog + kill switches | `GET /api/settings/crons` (`PATCH` toggles, `POST /api/settings/crons/trigger` fires) · operator surface `/system/crons` |
+| Schema-drift expectations | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) |
+| Tool catalog (count = `TOOL_CATALOG.length`, never prose) | [`lib/ai/tools/catalog.ts`](lib/ai/tools/catalog.ts) |
+| Reasoning whitelist (read-only, `NICK_DEEP_REASONING`) | [`lib/ai/reasoning/reasoning-tools.ts`](lib/ai/reasoning/reasoning-tools.ts) |
 
-## 4 · The fabrication-defense stack (don't break this)
+Integration detail (Firecrawl, last30days, MoneyPrinterTurbo, the codebase MCP server) lives with
+each integration under `lib/` and `docs/` — read it when you touch that integration, not before.
+
+## 4 · The fabrication-defense stack — do not break this
 
 | Layer | Where | What it does |
 |---|---|---|
@@ -78,12 +119,51 @@ When the operator invokes `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`,
 | **L2** pre-persist rewrite | [`lib/ai/chat/fabrication-rewriter.ts`](lib/ai/chat/fabrication-rewriter.ts) | Detected fabrication gets a verifier banner before persisting |
 | **L3** history neutralization | [`lib/ai/chat/sanitize-history.ts`](lib/ai/chat/sanitize-history.ts) | Verifier-marked turns replaced so the model can't compound |
 | **L4** truth grounding | [`lib/ai/chat/truth-grounding.ts`](lib/ai/chat/truth-grounding.ts) | Task counts pre-injected as system facts |
-| **L5** operator chip | [`components/chat/action-claim-warning.tsx`](components/chat/action-claim-warning.tsx) | Red inline chip shows the diagnostic |
+| **L5** operator surface | [`components/chat/message-diagnostics.tsx`](components/chat/message-diagnostics.tsx) + [`lib/services/claim-warnings.ts`](lib/services/claim-warnings.ts) | Surfaces the diagnostic in the transcript |
 
-Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-claim-detector.ts) — add new verbs as they appear; re-run its test file after changes.
+Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-claim-detector.ts) — add
+new verbs as they appear, then re-run its test file.
 
-## 5 · Active backlog (priority order · updated 2026-07-28 late — evening waves shipped 5 of the 9 items listed this morning)
+<!--
+  2026-08-21 AUDIT: the L5 row pointed at components/chat/action-claim-warning.tsx, which PR #689's
+  own dead-component sweep DELETED, while still describing it as live. Now re-pointed at the live surface.
+  NOTE: an early draft of this comment called it "the ONLY dangling reference across all 9
+  files". An adversarial review refuted that — the cron-registry row two rows up in §3 pointed
+  at `/api/cron/list` and `/system/cron-deck`, neither of which exists. Do not restate the boast.
+-->
 
+## 5 · Common gotchas — each cost a real incident
+
+- **Never pass a destructive data-loss flag to Prisma.** pgvector and tsvector extras get nuked.
+  No automated gate scans for it; the ban is policy plus the Claude-only PreToolUse hook — a Codex
+  or Cursor session has **no** block at all here.
+- **`prisma migrate status` is the source of truth**, not "I ran release:db" — verify against prod
+  before declaring schema work done.
+- **`position: relative` containing-block trap** — adding it to a parent silently re-anchors
+  `position: fixed` descendants (the state-aura 2545px regression).
+- **The Next.js dev-server module cache is sticky** — when swapping a module's behaviour, have the
+  old module internally delegate to the new one.
+- **`aiChat` / `tracedAiChat` NEVER throw on total provider failure** — they return a SENTINEL.
+  Check `result.provider === "emergency" | "none"` before trusting `content`.
+- **Deep-reasoning tool-gather uses `generateText`, NOT `aiChat`** — `aiChat` has no tool support.
+- **Image-gen routes through `generateImageWithFallback`** in `lib/ai/gemini-image.ts` (Replicate
+  FLUX → Gemini → OpenRouter), from `lib/ai/chat/handlers/image.ts`. Venice flux-2-pro is RETIRED —
+  there is no `openai-image.ts` / `venice-image.ts` in the tree.
+- **Side-effect gating is LIVE in the autonomous engine** — rules with `approval: "ask"` defer and
+  stash `payload.deferredItem`; changing the rule contract means updating `approval-queue.ts` too.
+- **Firecrawl `scrapeWebPage` has SSRF defense** — `assertPublicUrl()` blocks private URLs; scraped
+  content is wrapped by `fenceContent()` against prompt injection.
+- **`gh` returns 401 in the agent sandbox** — a dummy `GITHUB_TOKEN` overrides the local keyring.
+  Clear it (`$env:GITHUB_TOKEN=$null`) before any `gh` call.
+- **`scripts/pre-push-check.sh` is a stale Vercel-era artifact** — not active, not in the tree.
+
+## 6 · Active backlog — as of 2026-07-28, NOT auto-refreshed
+
+Shipped work is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md); this list is only
+what was still open at the stamp above. **Treat every line as a lead to re-verify, not as truth** —
+it is 24+ days old and nothing recomputes it.
+
+(priority order · updated 2026-07-28 late — evening waves shipped 5 of the 9 items listed this morning)
 1. **Scheduled-cycle proof** — first real briefing_log row (10:15 UTC) + heartbeat + worker artifact-liveness; first outcome-ledger rows from the brief + decision surfacings.
 2. **Memory write governance** — Phase-1 SHIPPED 2026-08-11 (same-source repetition no longer reinforces; default-on, kill-switch `NICK_MEMORY_GATEWAY_PHASE1=0`; evidence: 1,788 shadow receipts, noop 846 @ 0% legacy agreement via `scripts/probe-gateway-agrees.ts`). Phase-2 SHIPPED 2026-08-16 but OPT-IN (NICK_MEMORY_GATEWAY_PHASE2=1) and scoped: update + review_required-for-weaker_evidence only. unknown_category (the larger slice of the 349/wk) still falls through deliberately. Next: a shadow review before any default flip, then temporal supersession (validFrom/validUntil/supersededById are applied to prod and still have NO reader).
 3. **Triage adoption** — the incumbent one-item flow (InboxTasksTriage + task.triage) is verified complete; adoption is operator behavior, not code. (Spine-5's parallel contract was deleted 2026-07-28 — see contracts registry note.)
@@ -93,98 +173,45 @@ Detection regex: [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/action-cla
 7. **Approval/decision card runtime receipts** — first live renders post-#1176 deploy; extend the typed-card registry only on verified shapes.
 8. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
 
-## 6 · How to resume in a fresh session
+<!--
+  Kept in-file rather than moved: item 5 carries live state ("UNBLOCKED 2026-08-16, not yet
+  populated") that an agent needs before touching the recall-eval corpus, and RECONCILIATION.md is
+  wave-history with no backlog section — appending there would have been filing, not relocating.
+  If this list goes stale enough to mislead, DELETE it and say so; do not claim it moved.
+-->
 
-```powershell
-cd C:\Users\nourd\NOURCITY                       # repo root
-git fetch origin
-powershell scripts/worktree-setup.ps1 -branchName statenour/<task> -targetDir .worktrees/<name>
-# ^ copies env files + JUNCTIONS node_modules. Do NOT run `pnpm install` in a junctioned
-#   worktree: it offers to WIPE the shared node_modules (default Y) that every worktree points at.
-cd .worktrees/<name>/apps/statenour
-git log --oneline -10 ; Get-Content docs/RECONCILIATION.md -TotalCount 30   # current state
-pnpm test                                        # read the summary line, not $?
-pnpm verify:hard                                 # full local gate before any push
-```
-
-Operator standing rules: `C:\Users\nourd\.claude\CLAUDE.md` (operator on phone · default to action · direct + concise · never destructive without confirmation · Cleveland ET for everything).
-
-## 7 · Common gotchas / lessons learned
-
-- **Never `--accept-data-loss`** in scripts or CI — pgvector + tsvector extras get nuked; recovery scripts exist but don't go there.
-- **`prisma migrate status` is the source of truth**, not "I ran release:db" — verify against prod before declaring schema work done.
-- **`position: relative` containing-block trap** — adding it to a parent silently re-anchors `position: fixed` descendants (the state-aura 2545px regression).
-- **Next.js dev-server module cache is sticky** — when swapping a module's behavior, make the old module internally delegate to the new one (defense-in-depth).
-- **Side-effect gating is LIVE in the autonomous-engine** — rules with `approval: "ask"` defer + stash `payload.deferredItem`; changing the rule contract means updating `approval-queue.ts` too.
-- **aiChat/tracedAiChat NEVER throw on total provider failure** — they return a SENTINEL; check `result.provider === "emergency" | "none"` before trusting `content`.
-- **Image-gen routes through `generateImageWithFallback`** in `lib/ai/gemini-image.ts` (Replicate FLUX → direct Gemini → OpenRouter), invoked from `lib/ai/chat/handlers/image.ts`. Venice flux-2-pro is RETIRED (no `openai-image.ts`/`venice-image.ts` in tree).
-- **GitHub CLI (gh) 401 Bad Credentials inside Agent Sandbox** — The agent environment automatically injects a dummy `GITHUB_TOKEN` which overrides the local keyring config. Run `$env:GITHUB_TOKEN=$null` in the terminal session to clear it and successfully fall back to the user's correct local token configuration.
-- **Firecrawl `scrapeWebPage` has SSRF defense** — `assertPublicUrl()` blocks private/internal URLs before the request reaches Firecrawl. Content is fenced via `fenceContent()` to prevent prompt injection from scraped pages.
-- **Deep reasoning tool-gather uses `generateText`, NOT `aiChat`** — `aiChat` doesn't support tools. The reasoning engine's `runToolGather()` step uses `generateText` from the AI SDK with the read-only whitelist.
-
----
-
-## 8 · CI/CD Success Metrics
-
-These are the targets to hold. If any go red, stop and diagnose before pushing more work.
-
-| Signal | Target | How to check |
-|--------|--------|--------------|
-| Full verify gate | 0 errors | `pnpm verify:hard` |
-| TypeScript errors | 0 | `pnpm typecheck` |
-| ESLint blocking | 0 | `pnpm lint` |
-| Test pass rate | 100% (read summary, not `$?`) | `pnpm test` |
-| Pre-push build | âœ… turbo cache hit | `lefthook.yml` (pre-push) |
-| Task DB → UI visible | < 15s | `/missions` refetchInterval (PR #455) |
-| Prisma migration state | Matches prod | `pnpm prisma migrate status` |
-
----
-
-## 9 · Code Ownership Model
-
-`.github/CODEOWNERS` exists (real owner `@nourdean22` since 2026-07-21) and ROUTES review
-requests — `/apps/statenour/prisma/`, `/lib/ai/`, `/lib/automation/`, `middleware.ts`, `auth.ts`
-and the security paths are listed there. It only becomes REQUIRED once branch protection on
-`main` enables "Require review from Code Owners" (repo setting, not settable from code).
-Ownership is otherwise enforced by:
+## 7 · Governance
 
 | Layer | Mechanism |
-|-------|-----------|
-| App-level rules | This file (`apps/statenour/AGENTS.md`) — read first |
-| Review routing | [`.github/CODEOWNERS`](../../.github/CODEOWNERS) |
-| Cross-cutting rules | Root [`AGENTS.md`](../../AGENTS.md) + [`CIITTY v2.1`](../../.agents/frameworks/ciitty/SKILL.md) |
-| PR gate | Named branch + PR — agents create and squash-merge their own PRs (root `AGENTS.md` → Branching); NEVER a direct push to `main` |
-| DB constraints | `check:raw-sql` audits raw-SQL column casing; the `--accept-data-loss` ban is policy (no automated gate); pgvector via raw SQL only |
-| Schema drift | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) EXPECTATIONS list |
+|---|---|
+| App rules | This file |
+| Review routing | [`.github/CODEOWNERS`](../../.github/CODEOWNERS) — real owner since 2026-07-21; advisory until branch protection is enabled (a repo setting) |
+| Cross-cutting rules | Root [`AGENTS.md`](../../AGENTS.md) |
+| Schema drift | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) EXPECTATIONS |
+| Tool-call policy | `config/agent-os/policy.json` — **Claude Code only** |
 
-**Governance checks (automated):**
-- `pnpm check:stale-docs` — guards `docs/CURRENT-TRUTH.md` freshness
-- `pnpm check:crons` — validates cron manifest against `config/crons.ts`
-- `pnpm check:raw-sql` — audits camelCase column references in raw SQL. It does NOT scan for `--accept-data-loss`; no automated gate does, and the flag ban is policy enforced by review (see §5 and the DB-constraints row above, which already say so — this line used to contradict both)
-- `pnpm check:prompt-size` — keeps system prompt under token limit
+**PR report:** branch · SHA · changed files · checks run with receipts · intentional exclusions.
 
-**PR final report format** (required on every PR):
-```
-Branch: statenour/<task> · SHA: <short>
-Changed files: <list>
-Checks run: typecheck âœ… · lint âœ… · test âœ… · build âœ…
-Intentional exclusions: <none or explain>
-```
+**Framework:** CIITTY v2.1 — [`.agents/frameworks/ciitty/SKILL.md`](../../.agents/frameworks/ciitty/SKILL.md).
+Blind Spot Check before a change · Forgotten Factor before closing · fault-tolerant DB patterns
+(never crash the API on a missing table) · invalidate `dashboard_brief` and
+`ultron_command_center_state_v1` after mutations.
 
----
-
-## 10 · Agent Framework Reference
-
-This app is governed by **CIITTY v2.1** — the monorepo-wide agent operating framework.
-
-ðŸ“„ [`/.agents/frameworks/ciitty/SKILL.md`](../../.agents/frameworks/ciitty/SKILL.md)
-
-Key rules from CIITTY that always apply here:
-- **Blind Spot Check** before any significant change (cross-app impact? lockfile sync? Railway gate?)
-- **Forgotten Factor Protocol** before closing any task (what cron/env var/webhook depends on what I just changed?)
-- **Fault-tolerant DB patterns** — never crash the API on a missing table; wrap in try/catch with graceful fallback
-- **Cache invalidation** — after mutations, invalidate `dashboard_brief`, `ultron_command_center_state_v1` keys
-- **iOS PWA** — never `window.confirm/alert/prompt`; two-tap DOM pattern only
-
-Clarity Gate (pre-ingestion epistemic verification) is invoked as a skill — see root `AGENTS.md` → Operating frameworks.
-
+<!--
+  2026-08-21 AUDIT — what was CUT and where it went, so no fact is lost:
+  · L6 wave-history paragraph (6,650 B / ~1,662 tok) -> RECONCILIATION.md, which already held it 3x.
+  · "Active backlog": originally cut with a note claiming it moved to RECONCILIATION.md. IT DID
+    NOT — grep that file for "Scheduled-cycle proof" / "Memory write governance" /
+    "Recall-eval corpus" and every count is 0, and the count was wrong too (8 items, not 10).
+    A false "it was relocated" note is worse than bloat: the fact is gone AND nobody looks for
+    it. RESTORED below as §6, compressed, with an explicit as-of date.
+    An always-loaded policy file is the wrong home for a backlog: it goes stale silently and bills
+    tokens every session.
+  · "CI/CD Success Metrics" table -> every row was an OUTCOME of `pnpm verify:hard`, which house
+    rule 3 already names. Outcomes are not falsifiable rules; the gate is the rule.
+  · The 16-check verify:hard enumeration -> replaced by a package.json:12 file reference. A pasted
+    list of checks is a cache with no invalidation.
+  · Duplicated CODEOWNERS + CIITTY prose (near-verbatim with apps/nickstire/AGENTS.md) -> collapsed.
+  · Mojibake repaired on 4 lines (L33 "≠", L137/L170 "✅", L180 "📄") — UTF-8 written through a
+    cp1252 reader. Re-check after any scripted bulk edit; nothing in CI catches this.
+-->

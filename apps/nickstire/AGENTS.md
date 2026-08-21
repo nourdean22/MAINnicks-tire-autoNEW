@@ -1,227 +1,171 @@
-# AGENTS.md · nickstire-dev
-**Last refreshed:** 2026-07-10 · Veo 3.1 Fast / Audio-Off wave: default veo model is veo-3.1-fast-generate-001 + native dynamic audio disable support.
+# AGENTS.md · nickstire
 
-> **Read first:** [`truth_os.md`](./truth_os.md) — what is live in prod. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) — the no-touch list. [`CLAUDE.md`](./CLAUDE.md) is a thin adapter; the operator persona loads on demand from [`docs/OPERATOR-DIRECTIVE.md`](./docs/OPERATOR-DIRECTIVE.md), not for routine engineering.
+> **Read first:** [`truth_os.md`](./truth_os.md) — what is actually live in prod, updated on every
+> ship. Then [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) — the explicit no-touch file list; open it
+> before editing anything under `server/`.
 >
-> **Cross-cutting repo rules** (branching, shared main, Windows PowerShell, pnpm): root [`AGENTS.md`](../../AGENTS.md) + [`CIITTY v2.1`](../../.agents/frameworks/ciitty/SKILL.md).
+> **Cross-cutting rules** (branching, worktrees, protected operations, the enforcement map, Windows):
+> root [`AGENTS.md`](../../AGENTS.md). This file adds only what is true of *this app*.
 
----
+Cap: **180 lines**, enforced by `pnpm agent:parity`. **No prod facts here** — model names, flag values and versions go stale in a
+policy file. They belong in `truth_os.md`, which is the thing agents are told to trust.
 
-## 1 · Where We Are
+## 1 · Stack and shape
 
-**App:** Nick's Tire & Auto — `apps/nickstire/` in the NOURCITY monorepo. Deploys to **nickstire.org** via Railway from `main`.
+Nick's Tire & Auto — deploys to **nickstire.org** via Railway from `main`.
 
-**Stack:**
-- **Client:** Vite 7 + React 19 + TypeScript + Tailwind CSS 4 (PWA, iOS standalone)
-- **Server:** Express 4 + tRPC 11
-- **DB:** Drizzle ORM → MySQL (TiDB Cloud)
-- **Auth/SMS/Voice:** VAPI · Twilio · Stripe
-- **Infra:** Railway (Nixpacks) · pnpm 10 · Node 24+ · Vitest
+- **Client:** Vite 7 + React 19 + TypeScript + Tailwind 4 — an installed iOS PWA, not a browser tab
+- **Server:** Express 4 + tRPC 11 · **DB:** Drizzle ORM -> MySQL (TiDB Cloud)
+- **External:** VAPI (voice) · Twilio (SMS) · Stripe · Railway (Nixpacks) · pnpm 10 · Node 24 · Vitest
 
-**Two sibling apps share this monorepo:** `apps/statenour` (bdnick.info) and `apps/worker` (Railway
-internal). Changes to `packages/` or `pnpm-lock.yaml` affect all of them.
+Work lands in four places: `client/src/pages/admin/` (admin UI) · `server/routers|services|cron/` ·
+`shared/` (cross-boundary types + `routes.ts`) · `drizzle/schema.ts` (**DB source of truth**).
 
----
+**Adding an admin section: edit the registry, not four copies.**
+`client/src/pages/admin/registry.tsx` has been the single source of truth for sidebar shape,
+grouping, ordering and role access since 2026-08-03, and two tests enforce it
+(`adminRegistryTruth.test.ts`, `admin-registry-integrity.test.ts`). Note the two distinct `shared/`
+directories: app-level `apps/nickstire/shared/` (`types.ts`, `routes.ts`) and admin-level
+`client/src/pages/admin/shared/` (`nav.tsx`, `constants.tsx`, `types.ts`). Adding a route means
+registering it in app-level `shared/routes.ts` — `validate:routes` fails otherwise.
 
-## 2 · Repo Layout (Where Work Happens)
+> **Superseded instruction, recorded so it cannot come back.** This file used to say a new admin
+> section "requires updating all four files in `shared/`" — `types.ts`, `nav.tsx`, `constants.tsx`,
+> `Admin.tsx` — and pointed three of them at a directory they do not live in. Those are precisely the
+> four drifted copies the 2026-08-03 registry unification deleted; `adminRegistryTruth.test.ts` opens
+> by naming them. Following the old rule recreates duplication a test now forbids.
 
-```
-apps/nickstire/
-├── client/
-│   └── src/
-│       └── pages/admin/   ← Admin UI (React pages)
-├── server/
-│   ├── routers/           ← tRPC routers (API surface)
-│   ├── services/          ← Business logic
-│   └── cron/              ← Scheduled jobs
-├── shared/
-│   ├── types.ts           ← Union types (add new section here)
-│   ├── nav.tsx            ← Navigation (add new section here)
-│   ├── constants.tsx      ← SECTION_TITLES (add new section here)
-│   └── routes.ts          ← Route registry (validate:routes reads this)
-├── drizzle/
-│   └── schema.ts          ← DB source of truth
-└── AGENTS.md              ← This file
-```
+## 2 · Commands
 
-**Adding a new admin section?** Update ALL of:
-1. `shared/types.ts` (union)
-2. `shared/nav.tsx`
-3. `shared/constants.tsx` (SECTION_TITLES)
-4. `Admin.tsx` (lazy import, render branch, TAB_ALIASES, VALID_SECTIONS)
+pnpm 10 only — never npm, never yarn.
 
-**Adding a new route?** Register it in `shared/routes.ts` — `validate:routes` fails otherwise.
-
----
-
-## 3 · Package Manager & Commands
-
-Use **pnpm 10** exclusively (never npm, never yarn).
-
-| Task | Command |
-|------|---------|
-| Install deps | `pnpm install --frozen-lockfile` |
-| Dev server | `pnpm dev` |
+| Task | Command (from `apps/nickstire/`) |
+|---|---|
 | **Master verify gate** | `pnpm run verify` |
-| Typecheck (whole app) | `pnpm run check` |
-| Test one file | `pnpm exec vitest run path/to/file.test.ts --pool=forks --poolOptions.forks.singleFork=true` |
-| Full suite (serial — Windows) | `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true` |
-| Route registry check | `pnpm run validate:routes` |
-| Brand / source / hook linting | `pnpm run lint:brand-voice` · `lint:source` · `lint:hooks` |
+| Typecheck | `pnpm run check` |
+| Dev server | `pnpm dev` |
+| One test file | `pnpm exec vitest run <path>` |
+| Full suite | `pnpm exec vitest run` |
 
-> **Vitest note:** Parallel vitest rotates 5s-timeout import flakes on Windows — always pass `--pool=forks --poolOptions.forks.singleFork=true`.
+`pnpm run verify` chains, in order: `env:validate` · `typecheck:raw` · `lint` · `lint:source` ·
+`lint:sql` · `lint:hooks` · `lint:brand-voice` · `lint:pii` · `validate:routes` · `prerender:check` ·
+`prerender:semantic-check` · `migrations:check` · `test` · `build`. Name the failing link when you
+report a red, not "verify failed".
 
-> **Test hygiene (singleFork):** serial mode shares ONE process across ALL test files — one `globalThis`, one `process.env`, one `vi.mock` registry, one jsdom document. Leaks show up as order-dependent "intermittent" failures in *unrelated* files (purged repo-wide in PRs #515/#517). Rules for every test file:
-> - Needs a REAL shared module (db, drizzle schema/orm, mysql2, sms, email-notify)? Hoist `vi.unmock("<specifier>")` at the top — pattern precedent: `server/routers/voiceAgent.test.ts`.
-> - Never leave an unused/partial `vi.mock` factory in a file (a dead partial db mock in winback.test.ts was the original flake source).
-> - `vi.stubGlobal` / direct `global.fetch =` → restore in `afterEach` via `vi.unstubAllGlobals()`. `vi.doMock` → matching `vi.doUnmock` in `afterEach` (doMocks are NOT file-scoped here). The config-level `unstubGlobals`/`unstubEnvs` flags are a safety net, not a license to skip per-file cleanup.
-> - `process.env.X = ...` → restore-or-delete in afterEach/afterAll. Two known foot-guns: `if (orig) env.X = orig` leaks when orig was undefined; `env.X = undefined` stores the literal string `"undefined"`.
-> - Cleanup inside a test body must be `try/finally` — a failed assertion skips trailing cleanup lines (fake timers, env deletes).
-> - RTL renders are auto-unmounted by the `afterEach(cleanup)` in `client/src/__tests__/setup.ts` (RTL auto-cleanup can't self-register because `globals: true` is off) — don't remove it.
-> - Prove order-independence before shipping test changes: `pnpm exec vitest run --pool=forks --poolOptions.forks.singleFork=true --sequence.shuffle.files --sequence.seed=N` forces a deterministic file order; sweep a few seeds.
+> **Serial is the DEFAULT now — do not pass pool flags by hand.** `vitest.config.ts` sets
+> `pool: "forks"` + `poolOptions.forks.singleFork: true`, so `vitest run`, `pnpm run test` and
+> `pnpm run verify` are all serial. Any doc or habit that still recites
+> `--pool=forks --poolOptions.forks.singleFork=true` is stale — the flags are redundant, not wrong.
+>
+> This was a real defect until 2026-08-21: #515 ("deterministic serial vitest") added the comment
+> and the `unstubEnvs`/`unstubGlobals` safety nets but **never set `pool`**, so the gate ran
+> parallel for months while this file instructed serial. Measured back-to-back on one commit:
+> **parallel → 5,851 passed, 1 FAILED, exit 1, 186.87s** (the `instagramStudio` render smoke timed
+> out at 60s under concurrent load) · **serial → 5,858 passed, 0 failed, exit 0, 81.11s.** Serial is
+> both correct *and* 2.3× faster here; parallelism was buying contention, not speed.
 
-> **Worktree note:** Fresh worktrees created via `scripts/worktree-setup.ps1` do NOT need `pnpm install` — `node_modules` are junctioned automatically. Only run `pnpm install --frozen-lockfile` if deps changed.
+> **Typecheck blind spot.** `scripts/` sits outside the typecheck project, so a broken import in a
+> script passes every gate and fails only at runtime. Run the scripts you change.
 
----
+## 3 · Test hygiene — serial mode shares one process
 
-## 4 · Branching & CI/CD
+Serial mode shares ONE process across ALL test files: one `globalThis`, one `process.env`, one
+`vi.mock` registry, one jsdom document. Leaks surface as order-dependent "intermittent" failures in
+*unrelated* files (purged repo-wide in #515/#517). Every rule below cost a real afternoon:
 
-### Branch Model (Trunk-Based)
-```
-main ← squash-merge via PR only (NO branch protection — red CI = stop by convention)
-  └── nickstire/<task>    ← all nickstire work
-  └── chore/<task>
-  └── docs/<task>
-```
+- Needs a REAL shared module (db, drizzle schema/orm, mysql2, sms, email-notify)? Hoist
+  `vi.unmock("<specifier>")` at the top — pattern precedent: `server/routers/voiceAgent.test.ts`.
+- Never leave an unused or partial `vi.mock` factory in a file — a dead partial db mock in
+  `winback.test.ts` was the original flake source, and it failed files that never imported it.
+- `vi.stubGlobal` / direct `global.fetch =` → restore in `afterEach` via `vi.unstubAllGlobals()`.
+  `vi.doMock` → matching `vi.doUnmock` in `afterEach` (**doMocks are NOT file-scoped here**). The
+  config-level `unstubGlobals`/`unstubEnvs` flags are a safety net, not a licence to skip per-file
+  cleanup.
+- `process.env.X = ...` must be **restored or deleted** in `afterEach`/`afterAll`. Two foot-guns:
+  `if (orig) env.X = orig` leaks when `orig` was `undefined`; `env.X = undefined` stores the literal
+  string `"undefined"`.
+- Cleanup inside a test body must be `try/finally` — a failed assertion skips trailing cleanup lines
+  (fake timers, env deletes).
+- RTL renders are auto-unmounted by the `afterEach(cleanup)` in `client/src/__tests__/setup.ts`
+  (RTL auto-cleanup can't self-register because `globals: true` is off) — don't remove it.
+- Prove order-independence before shipping test changes:
+  `pnpm exec vitest run --sequence.shuffle.files --sequence.seed=N` forces a deterministic file
+  order; sweep a few seeds.
 
-**Hard rules:**
-- **NEVER push directly to `main`** — use `nickstire/<task>` branches + PR
-- Stage only explicit file paths — never `git add -A`
-- PRs are squash-merged — never stack on another open PR's commits
-- Scope every commit to the assigned task ONLY
+<!--
+  2026-08-21: these eight bullets were briefly cut from this file with a note claiming the full set
+  "lives in the nickstire-verify skill". IT DOES NOT — grep that SKILL.md for unmock / doUnmock /
+  try-finally / shuffle / unstubAllGlobals / voiceAgent and every count is 0; its description covers
+  the verify sequence, the brand-voice false positive and the prerender regen rule only. A false
+  "it was relocated" note is worse than leaving bloat: the fact is gone AND nobody goes looking.
+  Restored here. If they should live in the skill, WRITE them there first, then cut.
+-->
 
-### CI Gate (Pre-Push)
-Repo-root `lefthook.yml` (`pre-push`) runs `pnpm run build:affected`. This MUST pass before push.
-(Husky is retired — there is no `.husky/` directory.)
 
-Full verify gate (run before pushing):
-```powershell
-cd apps/nickstire; pnpm run verify
-```
+## 4 · Branching and CI
 
-### Success Metrics
-| Signal | Target |
-|--------|--------|
-| `pnpm run verify` | Exit 0 |
-| TypeScript errors | 0 |
-| Test pass rate | 100% |
-| Route registry | All routes registered |
-| Brand voice violations | 0 |
+Root [`AGENTS.md`](../../AGENTS.md) → Branching owns the rules (named branch, PR, squash-merge,
+explicit paths, never `main`). App-specific facts only:
 
----
+- Branch prefix is `nickstire/<task>`. PRs are squash-merged — never stack on another open PR.
+- Pre-push gate is repo-root `lefthook.yml` → `pnpm run build:affected`.
+- Review routing, **not** enforcement: `.github/CODEOWNERS` lists `drizzle/` and `server/` under
+  `@nourdean22`. It becomes *required* only if branch protection enables "Require review from Code
+  Owners" — an operator-side repo setting that is currently OFF.
+- PR final report: `Branch · SHA · changed files · checks run (with receipts) · intentional exclusions`.
 
-## 5 · Code Ownership & Governance
+## 5 · Standing rules — the ones no tool checks
 
-`.github/CODEOWNERS` exists (real owner `@nourdean22` since 2026-07-21) and ROUTES review requests —
-`/apps/nickstire/drizzle/` and `/apps/nickstire/server/` are listed there. It becomes REQUIRED only
-once branch protection on `main` enables "Require review from Code Owners" (a repo setting, not
-settable from code). Ownership is otherwise enforced by:
+Anything `pnpm run verify` already catches is in root `AGENTS.md` → Enforcement map, not repeated
+here. These are the unenforced ones.
 
-| Layer | Mechanism |
-|-------|-----------|
-| App-level rules | This file (`apps/nickstire/AGENTS.md`) |
-| Protected code | [`PROTECTED-CORE.md`](./PROTECTED-CORE.md) — never modify without explicit approval |
-| Cross-cutting rules | Root [`AGENTS.md`](../../AGENTS.md) + CIITTY v2.1 |
-| PR gate | Named branch + PR — agents create and squash-merge their own PRs (root `AGENTS.md` → Branching); NEVER a direct push to `main` |
-| DB schema | `drizzle/schema.ts` is source of truth — migrations are hand-applied SQL |
-| External side effects | All owner-gated (see §6) |
+### PII — the gate catches shapes, not judgement
+`lint:pii` (in `pnpm run verify`) scans for phones, emails, full names, VINs, addresses, card numbers,
+SSN and DL. What it CANNOT check, and is therefore on you:
+- **Confirm it actually scanned your staged files** — a scan that matched nothing and a scan that ran
+  on nothing print the same green.
+- Customer names, phones, emails, addresses, invoice IDs and service histories all require
+  minimization. The public shop phone/address may be allowlisted, but only deliberately.
+- Prefer anonymized test data, and **keep PII out of logs** — the linter never reads your log output.
 
-**Governance checks (automated):**
-- `pnpm run validate:routes` — every route in `shared/routes.ts`
-- `pnpm run lint:brand-voice` — claim safety enforcement
-- `pnpm run lint:source` — source dependency rules
-- `pnpm run lint:hooks` — hook conventions
-
-**PR final report format** (required):
-```
-Branch: nickstire/<task> · SHA: <short>
-Changed files: <list>
-Checks run: check ✅ · verify ✅ · validate:routes ✅
-Intentional exclusions: <none or explain>
-```
-
----
-
-## 6 · Key Conventions & Standing Rules
+### Time — Cleveland/Eastern, explicitly
+The shop runs on `America/New_York`. Every SMS sending window, daily metric and "today" calculation
+converts explicitly — never the DB or server default timezone, never a bare `CURDATE()`. Mock time
+with Vitest fake timers whenever a sending window or day boundary is under test, and handle DST in
+both the design and the test. Driver-parsed TiDB `DATETIME` values come back shifted on ET, so
+compute ages and day-buckets **in SQL**, not in JS.
 
 ### Database
-- **Migrations are hand-applied SQL** (`drizzle/*.sql`) — no auto-migrate; never run without explicit operator approval
-- `drizzle/schema.ts` is the source of truth — don't edit generated files directly
-- TiDB Cloud (MySQL) — NOT Postgres; Drizzle ORM, NOT Prisma
+- Migrations are **hand-applied SQL** in `drizzle/*.sql` — no auto-migrate, and never run one without
+  explicit operator approval. `drizzle/schema.ts` is the source of truth; don't edit generated files.
+- TiDB is MySQL-compatible, **not** Postgres: no `RETURNING`, no `ON CONFLICT DO UPDATE`. Drizzle's
+  MySQL dialect handles this; raw SQL must be MySQL-safe. Column, index and status changes have
+  TiDB-only failure modes, one of which loses the row silently — Claude skill: `nickstire-tidb-ddl`.
 
-### Content & Claim Safety
-- **No invented warranties, wait-times, or reviews** — no "guaranteed", no fabricated timelines
-- **Payment language:** "Payment Programs" not "financing"
-- **Used-tire pricing is two-tier:** WEB says "from $25 installed (select 12-inch; most $40-80)"; quoting channels say $60. Do NOT "fix" either direction — both are intentional
-- **Brand voice linting** (`lint:brand-voice`) enforces these — run it before pushing
+### Content and claim safety
+`lint:brand-voice` blocks the obvious violations but cannot see intent:
+- No invented warranties, wait-times or reviews. No "guaranteed", no fabricated timelines.
+- "Payment Programs", never "financing".
+- **Used-tire pricing is deliberately two-tier**: web says "from $25 installed (select 12-inch; most
+  $40–80)", quoting channels say $60. Do NOT "fix" either direction — both are intentional.
 
-### External Side Effects (Owner-Gated)
-Never execute live without explicit operator approval in a dedicated PR:
-- Live GBP / Instagram / Facebook posts
-- Review replies
-- SMS or email sends
-- Stripe / refund calls
-- Supplier orders
-
-**Build preview/draft/copy-only**. Kill-switches flip only in approved PRs.
-
-### iOS PWA
-- `window.confirm / alert / prompt` are silently suppressed in iOS standalone — **never use them**
-- Use in-DOM confirms (two-tap pattern) for any destructive action
-- Minimum 48×48px touch targets
+### External side effects — owner-gated
+Live GBP/Instagram/Facebook posts, review replies, SMS or email sends, Stripe/refund calls, supplier
+orders: never execute without explicit operator approval in a dedicated PR. Build
+preview/draft/copy-only; kill-switches flip only in approved PRs. The SMS trigger is `activate()`,
+not a flag.
 
 ### Prerendering
-- **Never hand-edit `prerendered/`** — run `pnpm run prerender` (currently broken on Windows; CI regenerates)
+Never hand-edit `prerendered/` — run `pnpm run prerender` (currently broken on Windows; CI
+regenerates). `prerender:check` and `prerender:semantic-check` gate it.
 
----
+## 6 · Gotchas that have actually cost time
 
-## 7 · Common Gotchas / Lessons Learned
-
-- **pnpm frozen-lockfile mode in CI:** After any `package.json` dep change (add/move/remove), regenerate `pnpm-lock.yaml` locally and commit it — Railway CI will reject stale lockfiles.
-- **Vitest parallel flakes on Windows:** Always pass `--pool=forks --poolOptions.forks.singleFork=true` — parallel runs rotate 5s-timeout import errors.
-- **singleFork = shared process:** `vi.mock`/global/env/DOM state leaks across test FILES in serial mode. Follow the Test-hygiene rules in §3 — a leaked partial mock surfaces as intermittent `No "X" export is defined on the "Y" mock` failures in unrelated files.
-- **Shared types/nav/constants are a quad:** Adding a new admin section requires updating all four files in `shared/` — missing one breaks the UI silently.
-- **Route registry is the gate:** `validate:routes` fails if a new route isn't in `shared/routes.ts` — don't skip this check.
-- **TiDB is MySQL-compatible, not Postgres:** Never use Postgres-only SQL constructs (e.g. `RETURNING`, `ON CONFLICT DO UPDATE`). Drizzle's MySQL dialect handles this, but raw SQL must be MySQL-safe.
-- **SMS/VAPI = server/** — voice and SMS logic lives in `server/`, not client. The client triggers via tRPC; never call Twilio/VAPI directly from the browser.
-- **Brand voice is a CI gate:** Claim safety violations (`lint:brand-voice`) block the verify pipeline — intentional, not a fluke.
-
----
-
-## 8 · How to Resume in a Fresh Session
-
-```powershell
-cd C:\Users\nourd\NOURCITY
-git fetch origin
-powershell scripts/worktree-setup.ps1 -branchName nickstire/<task> -targetDir .worktrees/<name>
-cd .worktrees/<name>/apps/nickstire
-git log --oneline -10
-# Read truth_os.md for current prod state
-# Read PROTECTED-CORE.md for no-touch list
-pnpm run verify   # full gate — must be green before any work
-```
-
----
-
-## 9 · Agent Framework Reference
-
-This app is governed by **CIITTY v2.1** — the monorepo-wide agent operating framework.
-
-📄 [`/.agents/frameworks/ciitty/SKILL.md`](../../.agents/frameworks/ciitty/SKILL.md)
-
-Key rules that always apply here:
-- **Blind Spot Check** before any change: does this break statenour? does pnpm-lock.yaml need updating? will Railway rebuild?
-- **Forgotten Factor Protocol**: before closing — what route/cron/webhook/env var depends on what I just changed?
-- **No direct main push** — always `nickstire/<task>` branch
-- **Lockfile sync** — any dep change = regenerate and commit `pnpm-lock.yaml`
-- **Owner-gated side effects** — never execute live external actions without approved PR
+- **Lockfile:** after any `package.json` dep change, regenerate and commit `pnpm-lock.yaml` — Railway
+  CI rejects stale lockfiles.
+- **SMS/VAPI live in `server/`.** The client triggers via tRPC; never call Twilio or VAPI from the
+  browser.
+- **`lint:brand-voice` is a hard gate, not a warning** — a claim-safety violation blocks `verify`.
+  That is intentional; do not route around it.
+- **iOS PWA:** `window.alert/confirm/prompt` in `client/src` is blocked by `lint:source`. Use in-DOM
+  two-tap confirms and 48x48px minimum touch targets.

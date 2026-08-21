@@ -96,7 +96,9 @@ if (requireFile("AGENTS.md", "canonical cross-agent policy")) {
 
 // ── 2 · Root vendor adapters ──────────────────────────────────────────────────
 if (requireFile("CLAUDE.md", "Claude Code adapter")) {
-  requireMatch("CLAUDE.md", /@AGENTS\.md/, "must import the canonical policy");
+  // Anchored: an unanchored /@AGENTS\.md/ passes on any prose mention, which is the exact
+  // false-green that let a LINKED profile ship as if it loaded (2026-08-21).
+  requireMatch("CLAUDE.md", /^@AGENTS\.md$/m, "must IMPORT the canonical policy on its own @ line");
   requireThin("CLAUDE.md", 60);
 }
 if (requireFile("GEMINI.md", "Gemini CLI adapter")) {
@@ -132,7 +134,7 @@ for (const app of ["nickstire", "statenour", "worker"]) {
   requireFile(`apps/${app}/AGENTS.md`, "per-app canonical rules");
   const c = `apps/${app}/CLAUDE.md`;
   if (requireFile(c, "per-app Claude adapter")) {
-    requireMatch(c, /AGENTS\.md/, "must route to the app AGENTS.md");
+    requireMatch(c, /^@AGENTS\.md$/m, "must IMPORT its app AGENTS.md on its own @ line — a markdown link loads nothing");
     requireThin(c, 80);
   }
 }
@@ -165,6 +167,19 @@ if (requireFile("CLAUDE-OPERATING-PROFILE.md", "relocated Claude operating profi
   requireMatch("CLAUDE.md", /^@CLAUDE-OPERATING-PROFILE\.md$/m, "the adapter must IMPORT the profile (@ line), not merely link it — a link does not load");
   requireMatch("CLAUDE-OPERATING-PROFILE.md", /AGENTS\.md/, "the profile must defer to the canonical policy");
   requireThin("CLAUDE-OPERATING-PROFILE.md", 160);
+}
+
+// ── 4b · Canonical AGENTS.md files are capped too ──────────────────────────────
+// Added 2026-08-21. Both root AGENTS.md and apps/nickstire/AGENTS.md PRINTED a line cap
+// ("Cap: 200 lines, enforced by pnpm agent:parity" / "Cap: 150 lines") that nothing checked —
+// requireThin was wired for every adapter but for none of the canonical files. Each had already
+// drifted past its own stated number. A cap nobody measures is not a cap; it is a claim, and this
+// repo's own rule is to assert the mechanism, not the mention.
+{
+  requireThin("AGENTS.md", 240);
+  requireThin("apps/nickstire/AGENTS.md", 180);
+  requireThin("apps/statenour/AGENTS.md", 240);
+  requireThin("apps/worker/AGENTS.md", 140);
 }
 
 // `.husky/pre-*` = a claim about where the hook lives (always wrong — lefthook).
