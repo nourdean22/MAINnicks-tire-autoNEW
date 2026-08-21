@@ -21,7 +21,7 @@
     {
       "id": "push-to-main",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__push\\b(?=[\\s\\S]*?[\\s:\"'=](?:refs\\/heads\\/)?main(?=[\\s\"']|$))",
+      "pattern": "__GIT__push\\b(?=[^;|&\\n]*?[\\s:\"'=](?:refs\\/heads\\/)?main(?=[\\s\"']|$))",
       "why": "AGENTS.md > Branching: NEVER push or commit directly to main. Named branch + PR, always.",
       "fix": "git push -u origin <type>/<task>, then: gh pr create --head <branch> ; gh pr merge <n> --squash --delete-branch",
       "denyExamples": [
@@ -43,7 +43,10 @@
         "git push origin chore/main.ts-refactor",
         "git commit -m \"docs: forbid git push origin main\"",
         "gh pr merge 1350 --squash --delete-branch",
-        "git log origin/main..HEAD"
+        "git log origin/main..HEAD",
+        "git push origin chore/x 2>&1 | tail -3\ngh pr create --head chore/x --base main",
+        "git push -u origin chore/x && gh pr create --head chore/x --base main",
+        "git push origin docs/y ; gh pr merge 42 --squash --delete-branch"
       ]
     },
     {
