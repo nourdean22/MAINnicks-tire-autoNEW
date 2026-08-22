@@ -71,12 +71,30 @@ function requireCronSecret(req: express.Request, res: express.Response, next: ex
 // DUMB BY DESIGN: 200 whenever the process can serve a request. It does NOT
 // gate on scheduler state, the DB, or any downstream service.
 //
-// Why, per the standard probe split (Kubernetes literature, generalises to any
-// platform with restart authority): a liveness probe that checks derived or
-// dependency state turns a blip into a restart storm — the platform kills the
-// process, the replacement inherits the same state, and it is killed again.
-// Scheduler freshness is a DIAGNOSTIC, not a liveness signal: it is reported in
-// the body below and gated at GET /health/scheduler, which nothing restarts on.
+// Why, per the standard probe split. The usual argument — "liveness must not
+// check dependencies, or a blip becomes a restart storm" — is the WEAKER half
+// here, and on its own it is over-applied: lastTickAt is an in-memory counter,
+// no I/O, and OneUptime's own "worker process" pattern wires liveness to exactly
+// this shape (a heartbeat freshness check). Two stronger reasons decide it:
+//
+//   1. RESTART IS NOT THE REPAIR. A liveness probe should fire only when killing
+//      the process is genuinely the fix. Here a fresh process resets lastTickAt
+//      to 0, so the loop resumes only if it was going to anyway — and the kill
+//      additionally bypasses the bounded drain below and can abort an in-flight
+//      render. Killing it is strictly worse than leaving it alone.
+//   2. THE GRACE AND THE GATE ARE MUTUALLY DEFEATING. msSinceLastTick === null
+//      on a fresh process must read healthy, or every restart would fail its own
+//      next probe and crashloop with zero forward progress. But a gate that is
+//      armed only after the first tick and disarmed by every restart cannot
+//      drive a restart. It could never do the job it was written to do.
+//
+// (The dependency argument is not absent either: scheduler.ts:361-363 returns
+// early WITHOUT bumping lastTickAt while a forward is still in flight, and that
+// set is populated by an HTTP call to statenour-web. So a downstream stall is one
+// of the inputs. But 1 and 2 are what settle it.)
+//
+// Scheduler freshness is therefore a DIAGNOSTIC: reported in the body below and
+// gated at GET /health/scheduler, which nothing restarts on.
 //
 // This replaced a version that returned 503 when the scheduler looked stale,
 // commented "so Railway can restart the instance". That premise was false:

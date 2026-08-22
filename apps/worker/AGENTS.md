@@ -87,8 +87,14 @@ canonical: if you change the env contract, change it here first, then `DEPLOY.md
 >
 > **Two things were wrong, not one.** The number was stale — fixed by deriving it from
 > `TICK_WRITING_SCHEDULES`. The deeper error was putting a staleness check in the endpoint Railway
-> probes at all. Liveness probes must not check derived or dependency state; `/health` is now
-> unconditionally 200 and the signal moved to `/health/scheduler`.
+> probes at all. Note the reason, because the obvious one is the weaker one: "liveness must not check
+> dependencies" is over-applied here (`lastTickAt` is an in-memory counter, and the worker-heartbeat
+> pattern in the probe literature wires liveness to exactly this shape). What actually settles it is
+> (a) **restart is not the repair** — a fresh process resets `lastTickAt` to 0, so killing fixes
+> nothing and skips the bounded drain, and (b) **the boot grace and the gate are mutually defeating**
+> — `msSinceLastTick === null` must read healthy or every restart crashloops, but a gate disarmed by
+> every restart can never drive one. `/health` is now unconditionally 200; the signal moved to
+> `/health/scheduler`.
 >
 > **The original rationale was factually false.** The old comment said 503 lets "Railway restart the
 > instance". Railway's docs say it "does not monitor the healthcheck endpoint after the deployment
