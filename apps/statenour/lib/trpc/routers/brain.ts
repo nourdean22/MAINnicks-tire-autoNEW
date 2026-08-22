@@ -96,7 +96,7 @@ import {
   harvestBeliefs,
 } from "@/lib/brain/belief-harvester";
 import { computeNudges, dismissNudge } from "@/lib/brain/cross-system-nudge";
-import { listDiscoveries, rateDiscovery } from "@/lib/brain/discoveries";
+import { listDiscoveries, rateDiscovery, rateDiscoveryCluster } from "@/lib/brain/discoveries";
 import {
   loadCurrentPatterns,
   runPatternClustering,
@@ -660,6 +660,7 @@ export const brainRouter = router({
           limit: z.number().int().min(1).max(50).optional(),
           includeRated: z.boolean().optional(),
           withinDays: z.number().int().min(1).max(365).optional(),
+          includeRestored: z.boolean().optional(),
         })
         .optional(),
     )
@@ -667,6 +668,7 @@ export const brainRouter = router({
       const result = await listDiscoveries({
         limit: input?.limit,
         includeRated: input?.includeRated,
+        includeRestored: input?.includeRestored,
         withinDays: input?.withinDays,
       });
       void (async () => {
@@ -714,6 +716,34 @@ export const brainRouter = router({
       // failure class this whole change set exists to remove.
       // `resolveContradiction` two procedures down already maps a missing row to
       // NOT_FOUND; match it rather than inventing a second contract.
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "That discovery is no longer available — it may have been consolidated or expired.",
+        });
+      }
+      return result;
+    }),
+
+  /**
+   * 2026-08-22 · judge a whole cluster in one tap. The feed now shows one card
+   * per QUESTION, so a verdict has to reach every row behind it — otherwise the
+   * siblings resurface tomorrow and the tap changed nothing, which is the
+   * defect this wave exists to close.
+   *
+   * `ok: false` means not one row took the verdict; a partial result is a
+   * success that REPORTS its shortfall rather than throwing away the rows that
+   * did land.
+   */
+  rateDiscoveryCluster: operatorProcedure
+    .input(
+      z.object({
+        ids: z.array(z.string().min(1).max(64)).min(1).max(200),
+        verdict: z.enum(["investigate", "known", "noise"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const result = await rateDiscoveryCluster(input.ids, input.verdict);
       if (!result.ok) {
         throw new TRPCError({
           code: "NOT_FOUND",
