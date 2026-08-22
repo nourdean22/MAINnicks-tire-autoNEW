@@ -17,12 +17,12 @@ export default function DecisionLedgerPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/intelligence/opportunities?status=${status}`);
-      const data = await res.json();
-      if (data.status === "success") {
-        setOpportunities(data.opportunities || []);
-      } else {
-        setOpportunities([]);
-      }
+      const body = await res.json();
+      // apiHandler wraps plain-object returns as { ok, data, meta } (lib/utils/http.ts:93, :278).
+      // Reading `body.status` made this ALWAYS false, so the queue rendered empty regardless of
+      // what the route returned. Same defect as intelligence/brief/page.tsx, fixed 2026-08-21.
+      const payload = body?.data ?? body;
+      setOpportunities(payload?.status === "success" ? (payload.opportunities ?? []) : []);
     } catch (err) {
       toast.error("Failed to load opportunities queue.");
     } finally {

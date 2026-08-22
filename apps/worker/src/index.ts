@@ -28,6 +28,7 @@ import {
   stopScheduler,
   forwardCronToWeb,
   getSchedulerHealth,
+  deriveStaleWindowMs,
   drainInFlight,
 } from "./scheduler.js";
 
@@ -65,22 +66,60 @@ function requireCronSecret(req: express.Request, res: express.Response, next: ex
   next();
 }
 
-// ── Healthcheck (Railway probes this) ──
-// Reports REAL scheduler liveness: if the newest tick is older than the
-// staleness window, the loop is wedged and we return 503 so Railway can
-// restart the instance (was a hard-coded scheduler:"running" that stayed
-// green through a stalled loop).
-const SCHEDULER_STALE_MS = 5 * 60_000; // a high-freq job ticks every ~2 min
+// ── Liveness / deploy gate · Railway probes THIS path (railway.json) ──
+//
+// DUMB BY DESIGN: 200 whenever the process can serve a request. It does NOT
+// gate on scheduler state, the DB, or any downstream service.
+//
+// Why, per the standard probe split (Kubernetes literature, generalises to any
+// platform with restart authority): a liveness probe that checks derived or
+// dependency state turns a blip into a restart storm — the platform kills the
+// process, the replacement inherits the same state, and it is killed again.
+// Scheduler freshness is a DIAGNOSTIC, not a liveness signal: it is reported in
+// the body below and gated at GET /health/scheduler, which nothing restarts on.
+//
+// This replaced a version that returned 503 when the scheduler looked stale,
+// commented "so Railway can restart the instance". That premise was false:
+// Railway's docs state it "does not monitor the healthcheck endpoint after the
+// deployment has gone live" (docs.railway.com/reference/healthchecks), so the
+// 503 could never trigger a restart — it could only fail a DEPLOY, i.e. block
+// shipping the very fix a wedged scheduler needs. Restarting also cannot repair
+// staleness on its own: a fresh process resets lastTickAt to 0.
+const SCHEDULER_STALE_MS = deriveStaleWindowMs();
+
+/** Fresh = never ticked yet (boot grace) or ticked inside the derived window. */
+function schedulerIsFresh(msSinceLastTick: number | null): boolean {
+  return msSinceLastTick === null || msSinceLastTick < SCHEDULER_STALE_MS;
+}
+
 app.get("/health", (_req, res) => {
   const h = getSchedulerHealth();
-  const schedulerHealthy =
-    h.msSinceLastTick === null || h.msSinceLastTick < SCHEDULER_STALE_MS;
-  res.status(schedulerHealthy ? 200 : 503).json({
-    ok: schedulerHealthy,
+  // Status is ALWAYS 200 here. `scheduler` is observability, not a gate.
+  res.status(200).json({
+    ok: true,
     role: SERVICE_ROLE,
     uptime: Math.round(process.uptime()),
-    scheduler: schedulerHealthy ? "running" : "stalled",
+    scheduler: schedulerIsFresh(h.msSinceLastTick) ? "running" : "stalled",
     msSinceLastTick: h.msSinceLastTick,
+    staleWindowMs: SCHEDULER_STALE_MS,
+    isRendering: h.isRendering,
+  });
+});
+
+// ── Scheduler freshness · DIAGNOSTIC ONLY ──
+//
+// 503 when the loop has gone quiet longer than the derived window. Safe to
+// alert on, safe to poll. **Never point railway.json healthcheckPath at this**
+// — that is exactly the coupling the split above exists to prevent.
+app.get("/health/scheduler", (_req, res) => {
+  const h = getSchedulerHealth();
+  const fresh = schedulerIsFresh(h.msSinceLastTick);
+  res.status(fresh ? 200 : 503).json({
+    ok: fresh,
+    scheduler: fresh ? "running" : "stalled",
+    msSinceLastTick: h.msSinceLastTick,
+    staleWindowMs: SCHEDULER_STALE_MS,
+    inFlightForwards: h.inFlightForwards,
     isRendering: h.isRendering,
   });
 });

@@ -26,12 +26,13 @@ An Express 4 + node-cron process on Railway's internal network. **Three source f
 1. **Forwards cron ticks** to statenour-web. It holds no business logic for those jobs: each tick is
    an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a `Bearer CRON_SECRET`, a 60s
    timeout (`scheduler.ts:37` `FORWARD_TIMEOUT_MS = 60_000`) and a per-job overlap guard
-   (`scheduler.ts:46` `inFlightForwards`, checked at `:301` — a slow forward skips the next tick
-   instead of stacking). Registered in `scheduler.ts`: `brain-bus-drain` (`:73` `*/15 * * * *`),
-   `outbox-drain` (`:82` `*/15 * * * *`), `inngest-liveness` (`:95` `0 13 * * *`, daily 13:00 UTC).
-   `POST /cron/mega` (`index.ts:106`) and `/cron/mega-evening` (`index.ts:112`) forward the
+   (`scheduler.ts:46` `inFlightForwards`, checked at `:361` — a slow forward skips the next tick
+   instead of stacking). Registered in `scheduler.ts`: `brain-bus-drain` (`:115` `*/15 * * * *`),
+   `outbox-drain` (`:124` `*/15 * * * *`), `inngest-liveness` (`:137` `0 13 * * *`, daily 13:00 UTC).
+   `POST /cron/mega` (`index.ts:113`) and `/cron/mega-evening` (`index.ts:119`) forward the
    morning/evening mega fan-out.
-2. **Renders approved videos in-process — every 15 minutes** (`scheduler.ts:334` `*/15 * * * *`):
+2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:149`;
+   cron registered at `:393`, tick at `:396`):
    polls `/api/sync/queue/render` for approved drafts, renders MP4 locally via `renderReelVideo`
    from `@nour/reel-engine` (Remotion), uploads through `storage.ts` (S3 + CloudFront URL or 24h
    presigned GET; local-fs fallback to `data/generated/` when `S3_BUCKET` is unset), then POSTs
@@ -56,34 +57,51 @@ canonical: if you change the env contract, change it here first, then `DEPLOY.md
 
 ## Contracts you must not weaken
 
-- **`CRON_SECRET` is fail-closed.** `requireCronSecret` (`index.ts:52`) compares with
+- **`CRON_SECRET` is fail-closed.** `requireCronSecret` (`index.ts:53`) compares with
   `timingSafeEqual` (imported at `index.ts:25`), and the process refuses to boot when the secret is
-  empty — `process.exit(1)` at `index.ts:47`, rationale at `:37-39` (an empty secret would compare
+  empty — `process.exit(1)` at `index.ts:48`, rationale at `:37-39` (an empty secret would compare
   equal and bypass auth). Never add a dev bypass, never fall back to
   string `===`.
-- **`/health` reports REAL liveness** — 503 when the newest scheduler tick is older than
-  `SCHEDULER_STALE_MS` (`index.ts:73`, currently `5 * 60_000`; compared at `:77`, served at `:78`).
-  Do not make it return a static 200; Railway and the operator's cron deck read it as truth.
+- **`/health` is a DUMB liveness / deploy gate — always 200 while the process serves.** It must never
+  gate on scheduler state, the DB, or a downstream service (`index.ts`, `res.status(200)` is a
+  literal). Railway probes this path (`railway.json` `healthcheckPath`), and a probe with restart
+  authority that checks derived state turns a blip into a restart storm. Scheduler freshness rides
+  in the BODY as diagnostics only.
+- **`GET /health/scheduler` is the freshness signal** — 503 when the newest tick is older than
+  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:88`,
+  input `TICK_WRITING_SCHEDULES` `:155`) takes the fastest schedule that writes `lastTickAt` and
+  allows two missed fires plus 5 min jitter — today `*/15` -> **35 min**. Change a cron and the
+  window follows. **Never point `healthcheckPath` at this endpoint.** Safe to alert on; nothing
+  restarts on it.
 - **Graceful drain on SIGTERM/SIGINT** — `drainInFlight(30_000)` bounded, `35_000` hard exit
-  (`index.ts:143`, `:147`, handlers at `:154-155`). Keep it, or a deploy can kill a render mid-write.
+  (`index.ts:154`, `:150`, handlers at `:161-162`). Keep it, or a deploy can kill a render mid-write.
 - `STATENOUR_SYNC_KEY` must match across statenour-web, nickstire and worker — a drift shows up as
   bridge 401s.
 
-> ### ⚠ OPEN BUG — `/health` staleness window is mistuned against the current cadence
+> ### ✅ RESOLVED 2026-08-21 — `/health` staleness window is now derived
 >
-> `SCHEDULER_STALE_MS` is **5 minutes** (`index.ts:73`) and its own comment still reads
-> *"a high-freq job ticks every ~2 min"*. Since #1696 **no job ticks faster than 15 minutes** —
-> every schedule in `scheduler.ts` is `*/15 * * * *` or daily (`:73`, `:82`, `:95`, `:334`), and
-> `lastTickAt` is written only at `:306` and `:336`.
+> It was `5 * 60_000` with the comment *"a high-freq job ticks every ~2 min"*. #1696 moved the
+> render loop from `*/2` to `*/15` and nothing retuned the window, so the tick floor (15 min)
+> exceeded the threshold (5 min) and `/health` reported **stalled for ~10 of every 15 minutes**
+> against a perfectly healthy loop.
 >
-> So `msSinceLastTick` exceeds the 5-minute window for roughly **10 of every 15 minutes**, and
-> `/health` should be returning **503 about two-thirds of the time** — which Railway reads as an
-> unhealthy instance.
+> **Two things were wrong, not one.** The number was stale — fixed by deriving it from
+> `TICK_WRITING_SCHEDULES`. The deeper error was putting a staleness check in the endpoint Railway
+> probes at all. Liveness probes must not check derived or dependency state; `/health` is now
+> unconditionally 200 and the signal moved to `/health/scheduler`.
 >
-> **Not fixed here** (this file is documentation; that is a code change). The fix is to retune
-> `SCHEDULER_STALE_MS` to the real cadence — e.g. `20 * 60_000`, giving one missed `*/15` tick of
-> slack — or to add a genuine high-frequency heartbeat tick. **Verify against the live
-> `/health` before acting**; production evidence outranks this file.
+> **The original rationale was factually false.** The old comment said 503 lets "Railway restart the
+> instance". Railway's docs say it "does not monitor the healthcheck endpoint after the deployment
+> has gone live" (docs.railway.com/reference/healthchecks) — the 503 could never cause a restart. It
+> could only fail a DEPLOY, i.e. block shipping the fix a wedged scheduler needs. Nothing in this
+> repo consumed it either (grep `msSinceLastTick` outside `apps/worker/src` -> zero), so the
+> mechanism was inert for its whole life.
+>
+> Verified 2026-08-21 by booting the service and exercising the predicate — 7 boundary cases + 4 derivation cases, all passing: `/health` returns **200 for every**
+> `msSinceLastTick`, including 6h-wedged; `/health/scheduler` returns 200 to 34.99 min and **503 at
+> 35 min** and beyond. Restart cannot perpetuate staleness — a fresh process resets `lastTickAt` to
+> 0, so `msSinceLastTick` is `null` and both read fresh. Derivation adapts: `*/2` -> 9 min,
+> `*/5`+`*/15` -> 15 min, daily-only -> 2,885 min, unparsable -> 60 min floor.
 
 ## Verify
 

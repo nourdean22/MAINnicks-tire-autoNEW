@@ -176,10 +176,20 @@ if (requireFile("CLAUDE-OPERATING-PROFILE.md", "relocated Claude operating profi
 // drifted past its own stated number. A cap nobody measures is not a cap; it is a claim, and this
 // repo's own rule is to assert the mechanism, not the mention.
 {
-  requireThin("AGENTS.md", 240);
-  requireThin("apps/nickstire/AGENTS.md", 180);
-  requireThin("apps/statenour/AGENTS.md", 240);
-  requireThin("apps/worker/AGENTS.md", 140);
+  // 200 is the context-bloat threshold from the config-smell study (dos Santos et al.,
+  // arXiv 2606.15828) and Anthropic's own <200-line guidance. Three of the four fit it.
+  requireThin("apps/nickstire/AGENTS.md", 200);
+  requireThin("apps/statenour/AGENTS.md", 200);
+  requireThin("apps/worker/AGENTS.md", 200);
+  // Root is the deliberate exception, at 215/220. It was cut 226 -> 215 on 2026-08-21 by
+  // tightening prose and moving statenour's dated backlog into docs/RECONCILIATION.md
+  // (verified landed, unlike the earlier claim that it had). Every remaining section is
+  // load-bearing cross-agent policy: the 870-row incident, the junction-wipe consequence,
+  // the ET timezone rule, the source-of-truth hierarchy, the Enforcement map's scope column.
+  // Reaching 199 required deleting rules, not prose — so the number moved, not the content.
+  // Lower this only by removing a rule you can name, or by relocating one to a destination
+  // you have grepped and confirmed.
+  requireThin("AGENTS.md", 220);
 }
 
 // `.husky/pre-*` = a claim about where the hook lives (always wrong — lefthook).

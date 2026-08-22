@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, worktrees, protected operations, the enforcement map, Windows):
 > root [`AGENTS.md`](../../AGENTS.md). This file adds only what is true of *this app*.
 
-Cap: **180 lines**, enforced by `pnpm agent:parity`. **No prod facts here** — model names, flag values and versions go stale in a
+Cap: **200 lines**, enforced by `pnpm agent:parity`. **No prod facts here** — model names, flag values and versions go stale in a
 policy file. They belong in `truth_os.md`, which is the thing agents are told to trust.
 
 ## 1 · Stack and shape

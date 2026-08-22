@@ -157,30 +157,7 @@ new verbs as they appear, then re-run its test file.
   Clear it (`$env:GITHUB_TOKEN=$null`) before any `gh` call.
 - **`scripts/pre-push-check.sh` is a stale Vercel-era artifact** — not active, not in the tree.
 
-## 6 · Active backlog — as of 2026-07-28, NOT auto-refreshed
-
-Shipped work is canonical in [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md); this list is only
-what was still open at the stamp above. **Treat every line as a lead to re-verify, not as truth** —
-it is 24+ days old and nothing recomputes it.
-
-(priority order · updated 2026-07-28 late — evening waves shipped 5 of the 9 items listed this morning)
-1. **Scheduled-cycle proof** — first real briefing_log row (10:15 UTC) + heartbeat + worker artifact-liveness; first outcome-ledger rows from the brief + decision surfacings.
-2. **Memory write governance** — Phase-1 SHIPPED 2026-08-11 (same-source repetition no longer reinforces; default-on, kill-switch `NICK_MEMORY_GATEWAY_PHASE1=0`; evidence: 1,788 shadow receipts, noop 846 @ 0% legacy agreement via `scripts/probe-gateway-agrees.ts`). Phase-2 SHIPPED 2026-08-16 but OPT-IN (NICK_MEMORY_GATEWAY_PHASE2=1) and scoped: update + review_required-for-weaker_evidence only. unknown_category (the larger slice of the 349/wk) still falls through deliberately. Next: a shadow review before any default flip, then temporal supersession (validFrom/validUntil/supersededById are applied to prod and still have NO reader).
-3. **Triage adoption** — the incumbent one-item flow (InboxTasksTriage + task.triage) is verified complete; adoption is operator behavior, not code. (Spine-5's parallel contract was deleted 2026-07-28 — see contracts registry note.)
-4. **Realtime completion-message push** — S3's receipt-backed follow-up appears on next load; pushing into an open stream is its own transport change.
-5. **Recall-eval corpus growth** — UNBLOCKED 2026-08-16, not yet populated. outcomesNeedingReview() returned empty for the table's whole life because recordDecision/recordOutcome had no callers; they now have two (nudge dismissal, Discover verdicts). The corpus grows only as the operator actually judges. Gauges: pnpm harvest:evals + scripts/corpus-odometer.ts. Only then retune RRF/persona weights, or flip NICK_NOVELTY_RECALL.
-6. **Chat-state visual regression** — Playwright screenshots of /system/chat-states in the e2e lane.
-7. **Approval/decision card runtime receipts** — first live renders post-#1176 deploy; extend the typed-card registry only on verified shapes.
-8. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.
-
-<!--
-  Kept in-file rather than moved: item 5 carries live state ("UNBLOCKED 2026-08-16, not yet
-  populated") that an agent needs before touching the recall-eval corpus, and RECONCILIATION.md is
-  wave-history with no backlog section — appending there would have been filing, not relocating.
-  If this list goes stale enough to mislead, DELETE it and say so; do not claim it moved.
--->
-
-## 7 · Governance
+## 6 · Governance
 
 | Layer | Mechanism |
 |---|---|
@@ -200,11 +177,11 @@ Blind Spot Check before a change · Forgotten Factor before closing · fault-tol
 <!--
   2026-08-21 AUDIT — what was CUT and where it went, so no fact is lost:
   · L6 wave-history paragraph (6,650 B / ~1,662 tok) -> RECONCILIATION.md, which already held it 3x.
-  · "Active backlog": originally cut with a note claiming it moved to RECONCILIATION.md. IT DID
-    NOT — grep that file for "Scheduled-cycle proof" / "Memory write governance" /
-    "Recall-eval corpus" and every count is 0, and the count was wrong too (8 items, not 10).
-    A false "it was relocated" note is worse than bloat: the fact is gone AND nobody looks for
-    it. RESTORED below as §6, compressed, with an explicit as-of date.
+  · "Active backlog" (8 items, stamped 2026-07-28) -> apps/statenour/docs/RECONCILIATION.md,
+    section "Open backlog — moved out of AGENTS.md on 2026-08-21". VERIFIED present there
+    (grep "Scheduled-cycle proof" / "Memory write governance" / "Recall-eval corpus" -> 1 each).
+    An earlier edit claimed this relocation BEFORE performing it, and a later one said "RESTORED
+    below as §6" when §6 is Governance. Both pointers were wrong; this one was checked.
     An always-loaded policy file is the wrong home for a backlog: it goes stale silently and bills
     tokens every session.
   · "CI/CD Success Metrics" table -> every row was an OUTCOME of `pnpm verify:hard`, which house

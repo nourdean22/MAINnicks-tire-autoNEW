@@ -52,6 +52,49 @@ interface JobDef {
   description: string;
 }
 
+/**
+ * Minutes between consecutive fires, for the cron shapes this service uses.
+ *
+ * Deliberately narrow: it understands `every-N-minutes` (star-slash-N) (every N minutes) and
+ * `M H * * *` (daily). Anything it does not recognise returns Infinity, so an
+ * unparsed expression can only ever make the derived health window WIDER, never
+ * falsely tighter. A parser that guessed would turn a doc bug into an outage.
+ */
+export function cronIntervalMinutes(expr: string): number {
+  const e = expr.trim();
+  const everyN = e.match(/^\*\/(\d+) \* \* \* \*$/);
+  if (everyN) {
+    const n = Number(everyN[1]);
+    return n > 0 ? n : Number.POSITIVE_INFINITY;
+  }
+  if (/^\d+ \d+ \* \* \*$/.test(e)) return 24 * 60; // daily at a fixed time
+  return Number.POSITIVE_INFINITY;
+}
+
+/**
+ * How long /health tolerates silence before calling the loop stalled.
+ *
+ * DERIVED, not hardcoded. `lastTickAt` is bumped by ANY tick, so the longest
+ * healthy gap is the interval of the FASTEST recurring writer. We allow two
+ * missed fires plus 5 min of scheduler jitter.
+ *
+ * Why derived: this was `5 * 60_000` with the comment "a high-freq job ticks
+ * every ~2 min". #1696 moved the render loop from 2-minute to 15-minute cadence and nothing
+ * retuned the window, so the floor (15 min) exceeded the threshold (5 min) and
+ * /health reported stalled for ~10 of every 15 minutes. A constant that must be
+ * hand-synced with cron config rots the next time a schedule changes; this
+ * recomputes from the schedules themselves.
+ */
+export function deriveStaleWindowMs(
+  schedules: readonly string[] = TICK_WRITING_SCHEDULES,
+): number {
+  const fastest = Math.min(...schedules.map(cronIntervalMinutes));
+  // No parsable recurring tick at all: fall back to a 1h floor rather than
+  // Infinity, so a wedged loop is still eventually reported.
+  if (!Number.isFinite(fastest)) return 60 * 60_000;
+  return (fastest * 2 + 5) * 60_000;
+}
+
 // High-frequency jobs that live in the worker. Matches rows in
 // apps/statenour/config/crons.ts where mode="active" AND schedule
 // frequency < 1h. Single source of truth STAYS in config/crons.ts ·
@@ -95,6 +138,23 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     schedule: "0 13 * * *",
     description: "Daily 13:00 UTC · out-of-band Inngest scheduler liveness (reads heartbeat self-row age)",
   },
+];
+
+/**
+ * The render loop's schedule. Named so it can join TICK_WRITING_SCHEDULES —
+ * it bumps lastTickAt exactly like a forwarded job does, so leaving it out
+ * would make the derived health window wrong the moment it becomes the
+ * fastest writer.
+ */
+const RENDER_SCHEDULE = "*/15 * * * *";
+
+/**
+ * Every schedule that writes `lastTickAt`. This is the input to the /health
+ * staleness window — keep it complete, or /health drifts from reality again.
+ */
+const TICK_WRITING_SCHEDULES: readonly string[] = [
+  ...HIGH_FREQ_JOBS.map((j) => j.schedule),
+  RENDER_SCHEDULE,
 ];
 
 let isRendering = false;
@@ -331,7 +391,7 @@ export function startScheduler(): void {
   // reclaim path is unaffected. Cost of the change is bounded: a queued reel
   // waits at most ~13 minutes longer to start rendering.
   const renderTask = cron.schedule(
-    "*/15 * * * *",
+    RENDER_SCHEDULE,
     () => {
       lastTickAt = Date.now();
       void processVideoRenders();
