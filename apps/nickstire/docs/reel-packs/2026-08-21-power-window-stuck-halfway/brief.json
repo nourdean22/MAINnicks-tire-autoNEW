@@ -1,0 +1,93 @@
+{
+  "topic": "Power window stuck halfway: regulator cable vs motor diagnosis",
+  "campaignKeyword": "PWRWINDOW",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-21",
+  "durationSec": 27,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Your window stopped halfway down and now it won't move at all.",
+      "visualPrompt": "Macro shot of a car door window glass frozen halfway in its track, shallow depth of field, slow camera push-in, neutral daylight through the glass",
+      "stockSearchTerms": ["car window stuck halfway closeup", "car door window track macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "Press the button and listen. A motor that hums but the glass doesn't move means a snapped cable.",
+      "visualPrompt": "Close-up of a finger-free view of a door panel window switch under interior ambient light, static camera, clean shop interior background",
+      "stockSearchTerms": ["car window switch closeup interior", "power window control panel macro"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 16],
+      "narration": "Total silence, no hum at all, usually points to a dead window motor or a blown fuse instead.",
+      "visualPrompt": "Extreme macro of a fuse box panel with one fuse partially pulled, slow orbital camera move, dim garage light",
+      "stockSearchTerms": ["car fuse box closeup", "blown fuse macro shop light"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [16, 22],
+      "narration": "Either way, don't force the glass by hand - that can crack the track or the door panel clips.",
+      "visualPrompt": "Wide-to-macro rack focus shot starting on a full car door panel and pulling focus to the window track edge, neutral shop lighting",
+      "stockSearchTerms": ["car door panel to window track focus pull", "car door interior closeup garage"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [22, 27],
+      "narration": "Nick's Tire and Auto can diagnose it in minutes. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient interior road-noise under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "stuck-window macro is a decent but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (stuck window macro)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; approved soft-language phrasing used (usually points to)" },
+      "keyword": { "score": 5, "max": 5, "note": "power window, motor, regulator keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 27,
+    "ctaType": "SEND-oriented"
+  }
+}
