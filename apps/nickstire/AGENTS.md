@@ -116,8 +116,8 @@ explicit paths, never `main`). App-specific facts only:
 
 ## 5 · Standing rules — the ones no tool checks
 
-Anything `pnpm run verify` already catches is in root `AGENTS.md` → Enforcement map, not repeated
-here. These are the unenforced ones.
+Anything `pnpm run verify` already catches is in the §2 chain above, not repeated here. These are the
+unenforced ones.
 
 ### PII — the gate catches shapes, not judgement
 `lint:pii` (in `pnpm run verify`) scans for phones, emails, full names, VINs, addresses, card numbers,

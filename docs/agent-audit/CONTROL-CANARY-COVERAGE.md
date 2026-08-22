@@ -1,0 +1,269 @@
+# Control canary coverage
+
+**Measured 2026-08-22.** Referenced from root [`AGENTS.md`](../../AGENTS.md) -> *Ship the canary, not
+just the control*. That file deliberately carries **no count** — counts rot faster than a policy file
+gets re-read. This one is dated, and every number below is reproducible with the commands in
+[Regenerating](#regenerating).
+
+**The rule:** no hook, gate, lint, guard, alert or probe ships without a test that breaks it and
+asserts it fails.
+
+**Why a table and not a vibe:** a control that silently stopped working and a control that is passing
+look *identical* from the outside. The only way to tell them apart is to break it on purpose and watch
+it complain.
+
+---
+
+## Counting unit
+
+**One control = one thing that can independently stop working without anyone noticing.** A `verify`
+chain of 14 links is 14 controls, because link 9 can rot while 1-8 stay green and the chain still
+reports pass. The denominator below is what is enumerated here, not a claim that the enumeration is
+complete — an unlisted control is not a covered one.
+
+> **The unit is applied asymmetrically, and the asymmetry flatters this table.** `verify:hard` is
+> counted as 16 because its links rot independently — but `check-adapters.mjs` is counted as **1**
+> despite ~56 assertions that demonstrably rot independently too: this very PR found 5 of them inert
+> because a file was missing from a fixture list, and ~21 more that a one-line change would have taken
+> dark. Only 11 have a break-test today. Assertions still uncanaried include the `CODEOWNERS`,
+> `apps/voice`, `Two apps share this repo`, `mcp_config.json` and the three MCP `requireMatch`es.
+> Applied consistently the denominator grows, so the true figure is **lower than the 6.4 % below**. That is
+> therefore an upper bound on coverage, not an estimate of it. It is left as-is rather than silently
+> recomputed, because picking a new denominator mid-table is how a number stops meaning anything.
+
+| Surface | Controls | With a canary | Notes |
+|---|---:|---:|---|
+| Claude policy **matcher** — `policy.mjs`, 13 rules / 57 denyExamples | 1 | **1** | Proven by `policy.test.mjs` |
+| Claude hook **wiring** — `pretool.mjs` exit-2, `settings.json` registration, `notebook_path`→`filePath` | 1 | 0 | **Never exercised.** See [proven ≠ connected](#proven-is-not-connected) |
+| Claude hooks — `Stop`, `SessionStart` | 2 | 0 | `stop-check.mjs` fails **open** on its own bugs |
+| agent-os parity — `check-adapters.mjs` | 1 | **1** | 135 checks, proven as of this PR |
+| lefthook `pre-commit` | 9 | 0 | 2 of the 9 invoke a proven control (`nickstire-lint-brand`, `agent-os-verify`) |
+| lefthook `pre-push` | 1 | 0 | `turbo-build-affected` |
+| statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** |
+| statenour `check:policy-coverage` | 1 | 0 | Defined, wired into **nothing** — see [the dead control](#the-dead-control) |
+| nickstire `verify` | 14 | **1** | `lint:brand-voice` proven by `lintGateFailClosed.test.ts` |
+| Product alert paths — daily brief end-to-end | 1 | 0 | See [instance ten](#the-worked-example--instance-ten) |
+| **This document** — its own derived numbers | 1 | **1** | [Instance twelve](#instance-twelve--this-document). Proven by `coverage-doc.test.mjs` |
+| **Total** | **48** | **4** | **8.3 %** |
+
+---
+
+## Proven — the three that fire
+
+| Control | Guards | Canary | Runs in |
+|---|---|---|---|
+| `config/agent-os/policy.json` (13 rules, 57 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
+| `scripts/agent-os/check-adapters.mjs` (135 checks) | adapter parity, line caps, line length, `@`-imports, stale claims | `scripts/agent-os/adapters.test.mjs` — 17 tests: 11 breaks, 3 spare-cases, a cap boundary pair, 1 invariant, 1 positive control | `pnpm agent:verify`, lefthook, CI |
+| nickstire `lint:brand-voice` | claim safety on staged content | `server/lintGateFailClosed.test.ts` — *"an UNREADABLE staged diff exits non-zero and prints NO pass line"* | `pnpm run verify`, lefthook |
+
+All three share one shape worth copying: **they break the control AND assert an unbroken run still
+passes.** Without that second half, a control that failed unconditionally would score 100 %.
+
+## Unproven — the rest
+
+| Control | Guards | Why it matters that it is unproven |
+|---|---|---|
+| `pretool.mjs` **hook wiring** | that a matched rule actually blocks the call | The matcher is proven; the wiring that runs it is not. See below |
+| `stop-check.mjs` (Stop hook) | uncommitted changes on `main` | Fails **open** on its own bugs (`pretool.mjs:9-12`) — silence is not a green |
+| `graphify-session-context.ps1` (SessionStart) | injects graph context | A silent failure degrades every later decision invisibly |
+| statenour `check:env`, `check:runbooks`, `check:prompt-injection`, `check:audit-deps`, `check:lint-baseline`, `check:raw-sql`, `check:crons`, `check:soft-delete`, `check:get-auth`, `check:mutations:strict`, `check:stale-docs`, `prompt:size-check` | 12 distinct invariants | `tsconfig.json` excludes `scripts/`, so **none of these is typechecked**; a broken import passes every gate and fails only at runtime |
+| lefthook `pre-commit` x9, `pre-push` x1 | staged lint, typecheck, secrets, build | Git-level, applies to **every** agent and human — the widest blast radius and the least proof |
+| nickstire `verify` — 13 of 14 links | PII, routes, prerender, migrations, SQL | Only `lint:brand-voice` is proven |
+| Daily-brief delivery path | that the operator actually sees a P1 | Instance ten, below |
+
+---
+
+## The worked example — instance ten
+
+The strongest entry, because every per-stage instrument reported success.
+
+**Detection ✓ · composition ✓ · persistence ✓ · push ✓ · routing ✓ · render ✗** — as it stood for 18 days.
+The render defect is now fixed (#1781); see **Status** below. What is still missing is the canary.
+
+The loose version — *"the alert never reached him"* — is **wrong**, and less useful than the truth:
+**the alert reached the operator 18 times and the destination contradicted it 18 times.**
+
+| Phase | Window | Span | What was true |
+|---|---|---:|---|
+| Latent | 2026-06-23 -> 07-29 | 37 d | Defect present in the page's **first commit** (`5999d24f2`); no briefs existed, so nothing revealed it |
+| Active | 2026-07-30 -> 08-22 | 24 d | **24 daily briefs** composed and persisted — every one unrenderable |
+| Contradicted | 2026-08-04 -> 08-22 | 18 d | **18 push deliveries**, `sent > 0`, `failed: 0` every time, into a page reading "No Briefing Generated Today" |
+
+**Cause:** the page read `data.brief` from an `apiHandler`-enveloped `{ok, data: {brief}}` body.
+`apiHandler` shipped 2026-05-17, five weeks *before* the page — so this was never drift between two
+evolving things, it was a consumer that never matched a contract that already existed. The fetch line
+was byte-identical at birth and after #1353 (2026-08-04): across those 60 days the screen rendered a
+brief exactly **zero** times.
+
+> **Status: the render defect is FIXED.** #1781 (`ec69d8347`, 2026-08-22) changed the page to
+> `const payload = body?.data ?? body;` — it is closed on the merge base this table is written against,
+> and the tenses above are historical. An earlier draft of this section said "the screen has **never
+> once** rendered a brief" in the present tense, describing as live a defect the author had already
+> fixed. In a document whose stated purpose is measurement honesty, that is the same class of error as
+> the reconstructed receipt below it, so it is recorded rather than quietly amended.
+>
+> **The entry stays in the table, and its row still reads 0.** What was fixed is the *bug*. What is
+> still missing is the *canary*: nothing asserts end-to-end that a composed brief reaches a rendered
+> page. The identical failure could recur tomorrow on any of the other panels reading this envelope,
+> and every per-stage instrument would stay green exactly as it did for 18 days.
+
+**Evidence:** `"AuditEvent"` rows where `eventType = 'push_sent'` — and `push.ts:289` writes that type
+only when `sent > 0`, so the row itself is the proof. Zero `push_undelivered` rows exist.
+
+**The lesson this instance teaches, which no single-stage test can:** every layer had a success signal
+and every layer was telling the truth about its own hop. Cron logged success, the composer logged
+success, push logged `failed: 0`. **End-to-end proof is not the sum of per-stage greens.**
+
+> **Base-rate note.** `push_sent` totals 2,322 rows, but **2,286 of the trailing 14 days landed on
+> 2026-08-20 alone** — the #1735 notification recursion (`push.ts:73`: 2,279 CRITICAL pushes in ~5.5
+> hours). Quoting the headline total as routine volume would be wrong by ~50x. The 18 figure above is
+> the brief series specifically.
+
+---
+
+## Proven is not connected
+
+A canary proves a control *fires*. It does not prove the control is *wired*, and it does not prove the
+control *measures the right thing*. Three states, not two — and the last two both produce green:
+
+| | fires when broken? | actually invoked? | measures the right thing? |
+|---|---|---|---|
+| **Proven** | yes | yes | yes |
+| **Unproven** | unknown | — | — |
+| **Proven but unwired** | yes | **no** | — |
+| **Proven but blind** | yes | yes | **no** |
+
+Two live examples, both found while writing this table:
+
+**Proven but unwired — the policy matcher.** `policy.test.mjs` is the best canary in the repo: it
+asserts every `denyExample` is blocked *by its own rule*. But it imports `policy.mjs` directly and
+**never spawns `pretool.mjs`**. So the matcher is proven and the hook that runs it is not — not its
+exit-2 behaviour, not its registration in `.claude/settings.json`, not its `notebook_path`→`filePath`
+mapping (which the test's own comment names as pretool's job). Delete the hook's registration and every
+test still passes. That is why the two are counted as separate controls above.
+
+**Proven but blind — the line cap.** `requireThin` has a canary in `adapters.test.mjs`
+(*"line caps are real — a fat adapter is rejected"*), and it genuinely fires. It counts **lines**.
+On 2026-08-22, seven wrapped passages in this repo's root policy file were reflowed into single long
+lines to make room for new content. Not one word was removed — the reflow freed lines without
+reducing anything an agent loads — and every gate stayed green throughout.
+Lines are not the context cost; bytes are. A gate that fires reliably on the wrong metric is more
+dangerous than one that never fires, because it emits positive evidence of a constraint that is not
+constraining. The repo's own audit proposed a max-line-length canary for exactly this and it was never
+built. **It is now**: `forbidLongLine` rejects any non-table line over 140 chars, with canaries in both
+directions (a 200-char prose line must fail; a wide markdown table row must be spared). The line cap
+itself was also off by one — `lineCount` counted the trailing empty string after a file's final
+newline, so `cap 200` silently meant 199 for every newline-terminated file. Fixed, and proved at the
+boundary. Root `AGENTS.md` is no longer an exception: **200 lines, the same cap as the per-app files**,
+reached by 21 verified relocations rather than by moving the number.
+
+---
+
+## The dead control
+
+The failure class in its purest form: **a control that works correctly, whose hard-mode ratchet expired
+2026-05-10, and which has never once run inside a gate.**
+
+`apps/statenour/scripts/check-policy-coverage.ts` is defined as `check:policy-coverage` in
+`package.json` and invoked by **nothing** — not `verify:hard` (16 links, checked on `origin/main`), not
+`.github/workflows`, not `lefthook.yml`. Run by hand on 2026-08-22 it exits **1** immediately. Verbatim,
+not reconstructed:
+
+```
+  ❌  3 active crons missing AutomationPolicy entry:
+     · cron.tool-description-rewrite
+     · cron.outcome-harvest
+     · cron.conversation-compile
+
+  fix: add the cron to scripts/seed-policies.ts (or run the script if
+       it's already declared) — `pnpm tsx scripts/seed-policies.ts`
+
+  emergency override: POLICY_GATE_SOFT=1 to demote to warning.
+```
+
+Three crons have been running unaudited for months behind a gate that would have named them on the
+first push. Nobody weakened it, nobody disabled it — **it was simply never connected**, which is
+indistinguishable from passing right up until someone runs it.
+
+> **An earlier draft of this section printed a receipt this script cannot emit** — it showed a second
+> `⚠️ 17/20 autonomous-action rules` line, ordered above the cron block, from a since-reverted local
+> change. Both details were wrong: the code prints the rule tier *first*, and that tier is not on this
+> branch at all. A reconstructed receipt inside a document arguing that receipts must be real is the
+> same defect the document is about, so it is recorded here rather than quietly corrected.
+
+**The same gate is also blind, separately from being unwired.** It enumerates only `cron.*`. The
+autonomous-action engine registers **20** rules (`listRuleNames()`), and `scripts/seed-policies.ts`
+carries **4** `autonomous-action.*` ids of which only **3** match a real rule name — so **17 of 20
+rules have no policy**, and the fail-closed engine parks every match as pending forever. That figure is
+derived from source, not from this script: it cannot see rules, which is the point. A fourth seeded id,
+`autonomous-action.auto_score_applicant`, matches **no** rule in `RULES` — a dangling policy row.
+
+**Why neither the widening nor the wiring is in this PR.** Connecting the gate turns `verify:hard` red
+for every session sharing this checkout, and the remedy — seeding the missing policies — is a
+**production database write**, a protected operation needing explicit operator authorisation. A widened
+script with no caller is no better: a dated warn tier inside something nothing invokes is the same
+failure with a timestamp on it. Both land with the seed, together, with a canary. Shipping a gate you
+know is red, softening its tier to make it green, or adding an uncalled one, are three wrong repairs.
+
+---
+
+## Instance twelve — this document
+
+**The rule caught its own defining document.**
+
+This file argues that no control ships without a canary. It shipped carrying roughly fifteen
+hand-written derived numbers — check counts, test counts, chain-link counts, line counts, a coverage
+ratio — and **nothing checked any of them.** By the taxonomy in [proven ≠ connected](#proven-is-not-connected)
+it was an unproven control: a claim nobody verifies is a claim that rots.
+
+It rotted immediately, and in the most ordinary way available. Every fix made while writing the PR
+invalidated a number written earlier in the same PR. The check count moved **123 → 131 → 133 → 135** as
+assertions were added, and the prose kept whichever value happened to be true when the sentence was
+typed. A third adversarial review found six such numbers by hand. A fourth would have found more,
+because the fixes for the third invalidated others — an unbounded proofreading loop, doing by hand the
+one job a gate does perfectly.
+
+**The fix is the thesis applied to itself.** `scripts/agent-os/coverage-doc.test.mjs` recomputes every
+derived number from the command or source that produces it and fails when this prose disagrees. It is
+itself canaried in three directions: corrupt one number and the audit must name it; break the table's
+arithmetic and it must fail; and **delete a claim rather than correct it** and it must still fail —
+otherwise the cheapest way to fix a wrong number would be to remove it.
+
+That last case is the one worth copying. A number-checking gate that only compares present numbers
+teaches people to delete numbers.
+
+---
+
+## The irony, recorded
+
+**This system asked for this rule about itself.** Its 2026-08-22 brief recommended *"a health-check
+heartbeat to every external feed so a zero-result cycle auto-pages"* — a canary, derived independently,
+by the same brief that ten cycles running could not be read. Fixing its self-awareness gaps and
+shipping the canary rule are the same project.
+
+---
+
+## Writing one
+
+Copy the shape from any of the three proven controls:
+
+1. **Copy the real inputs** to a throwaway location — never mutate the repo's own files.
+2. **Break exactly one thing.** One canary, one defect; a canary that breaks two things cannot tell you
+   which assertion caught it.
+3. **Assert the message, not just the exit code** — otherwise an unrelated failure masquerades as your
+   canary passing. (This bit two of the adapter canaries on first run: the denial prints the
+   regex *source*, not the human phrasing.)
+4. **Add the positive control.** Assert an unbroken copy still passes.
+5. If the control is not reachable from a test, **make it reachable** — `check-adapters.mjs` needed an
+   `AGENT_OS_ROOT` override before it could be pointed at a fixture at all. That change is part of the
+   canary, not a prerequisite for it.
+
+## Regenerating
+
+```bash
+node scripts/agent-os/check-adapters.mjs            # prints its own check count
+node --test scripts/agent-os/adapters.test.mjs      # the adapter canaries
+pnpm agent:verify                                   # both canary suites + parity
+```
+
+Per-chain link counts come from `apps/<app>/package.json` (`verify:hard`, `verify`) and `lefthook.yml`.

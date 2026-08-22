@@ -25,9 +25,16 @@ rollback, not for routine code work. Cross-cutting repo rules: root [`AGENTS.md`
 
   apps/worker/AGENTS.md WAS redrafted here. It was graded A twice — by this audit and by a drafting
   agent — each after verifying a handful of claims and stopping, and both missed the same one: the
-  doc said the render loop ran "every 2 min" while scheduler.ts:334 has been "*/15 * * * *" since
-  #1696 (2026-08-19). Its "Last verified: 2026-08-04" stamp was never recomputed, so it advertised
-  trustworthiness exactly where a fact had rotted. The rewrite fixes the cadence, replaces the date
-  stamp with file:line citations, and flags an OPEN /health staleness bug. Sampling N of M
-  falsifiable claims is not verification.
+  doc said the render loop ran "every 2 min" while RENDER_SCHEDULE (scheduler.ts:166) has been
+  "*/15 * * * *" since #1696 (2026-08-19). Its "Last verified: 2026-08-04" stamp was never
+  recomputed, so it advertised trustworthiness exactly where a fact had rotted. The rewrite fixes
+  the cadence and replaces the date stamp with file:line citations. Sampling N of M falsifiable
+  claims is not verification.
+
+  2026-08-22: this note itself cited scheduler.ts:334 for the render schedule. That was wrong on
+  origin/main too (:334 sits inside an error handler) — a paragraph about a rotted citation was
+  carrying one. Repointed to :166 and re-verified against the symbol. It also said the rewrite
+  "flags an OPEN /health staleness bug"; #1781 closed that by splitting /health (always 200,
+  restart-worthy only) from /health/scheduler (503 on staleness), so the claim is struck rather
+  than left reading as live.
 -->
