@@ -2571,7 +2571,12 @@ model JournalThreadEntry {
 model CronJobLog {
   id        String   @id @default(cuid())
   jobName   String
-  status    String // success, failed
+  /// success | failed | partial. "partial" is LIVE (measured 2026-08-22:
+  /// 2,535 rows) and the comment here said only "success, failed" — a stale
+  /// schema comment is a cache with no invalidation. Anything filtering this
+  /// column must use `not: "failed"` rather than `equals: "success"`, or it
+  /// silently reclassifies every partial run as broken.
+  status    String
   duration  Int?
   error     String?  @db.Text
   createdAt DateTime @default(now())

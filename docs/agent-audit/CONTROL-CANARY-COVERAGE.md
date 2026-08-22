@@ -77,7 +77,9 @@ complete — an unlisted control is not a covered one.
 | nickstire `verify` | 14 | **1** | `lint:brand-voice` proven by `lintGateFailClosed.test.ts` |
 | Product alert paths — daily brief end-to-end | 1 | 0 | See [instance ten](#the-worked-example--instance-ten) |
 | **This document** — its own derived numbers | 1 | **1** | [Instance twelve](#instance-twelve--this-document). Proven by `coverage-doc.test.mjs` |
-| **Total** | **48** | **5** | **10.4 %** |
+| statenour `cron-heartbeat` **outcome lane** | 1 | **1** | Detects run-but-fail, which the silence check structurally cannot. Proven by `cron-heartbeat-failing-lane.test.ts` |
+| statenour `ingest-reviews` zero-fetch assert | 1 | **1** | A 200 with an empty payload now throws. Proven in `tests/cron/ingest-reviews.test.ts` |
+| **Total** | **50** | **7** | **14.0 %** |
 
 ---
 
@@ -237,6 +239,47 @@ for every session sharing this checkout, and the remedy — seeding the missing 
 script with no caller is no better: a dated warn tier inside something nothing invokes is the same
 failure with a timestamp on it. Both land with the seed, together, with a canary. Shipping a gate you
 know is red, softening its tier to make it green, or adding an uncalled one, are three wrong repairs.
+
+---
+
+## Known landmines — armed, disclosed, not defused
+
+Things a canary now detects but that nobody has fixed. Each names its trigger condition, because a
+hazard described only as "we should clean that up" gets cleaned up by someone who does not know what
+it was guarding.
+
+### `autonomous-action.auto_score_applicant` — a live `auto` policy for an automation that does not exist
+
+There is an enabled AutomationPolicy row with `approvalClass: "auto"` whose `name` matches **no rule
+in `RULES`**, and whose declared trigger `/api/webhooks/applicant` is **not a route** — `app/api/webhooks/`
+contains only `inbound-crm`, `make`, `nickstire` and `stripe`.
+
+**Trigger condition, spelled out.** The day someone implements a rule named `auto_score_applicant`:
+
+1. The derived baseline in `lib/automation/derive-rule-policies.ts` would give it `"pending"`.
+2. The curated entry in `scripts/seed-policies.ts` is spread **last** and wins — `"auto"`.
+3. On re-seed, `upsertPolicy`'s `update` block **omits `approvalClass`**, so the existing `auto` row
+   survives untouched.
+
+The rule is born **armed**, unattended, with no operator decision anywhere in the loop — and every
+existing test stays green, because completeness runs one way (every rule has a policy) and nothing
+asserted the inverse (every curated policy names a real rule).
+
+**Status:** the inverse direction is now asserted in `derive-rule-policies.test.ts`, with this id in a
+named `KNOWN_ORPHAN_POLICY_IDS` allowlist. That stops NEW orphans; it does not defuse this one.
+Defusing it means deleting or disabling a production row — a protected operation, operator-only.
+
+### Two disclosures carried forward, still open
+
+- **The stale-window multiplier** in `apps/worker/src/scheduler.ts`. The FORM (a threshold expressed
+  as a count of intervals) is grounded in incident.io's "missed tolerance". The multiplier itself and
+  the `+ 5` minutes are judgment calls, marked as such in-code. Prometheus is explicitly named there
+  as the WRONG precedent so nobody re-adds it: its primary docs use a fixed five-minute lookback
+  delta, not a multiple of the scrape interval.
+- **The `policyBootstrap` marker** written by the autonomous engine when a lane has no policy row has
+  **no reader**. Nothing queries it, nothing surfaces it, no test covers it. The real protection is
+  the coverage gate now wired into `verify:hard`; the marker is belt-and-braces that nobody has
+  buckled. Surface it in the approvals UI or delete it.
 
 ---
 

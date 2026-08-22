@@ -70,6 +70,25 @@ export interface SilenceVerdict {
   silent: SilentJob[];
   /** Never-run jobs still inside their first expected window. Not an alarm. */
   newborn: string[];
+  /**
+   * Jobs that ARE running on schedule but have not logged a non-failed run in
+   * twice their window. This lane exists because the silence check reads
+   * MAX(createdAt) with no status filter, so a `failed` row counts as a run:
+   * a job that runs and fails every time scores HEALTHIER than one that never
+   * runs at all. `ingest-reviews` failed at 0 ms, four times a day, for sixteen
+   * consecutive days, and the only cron alert in that window named five OTHER
+   * jobs — all "(never)". It was absent from that list precisely because it was
+   * running.
+   */
+  failing: FailingJob[];
+}
+
+/** A job whose runs land, and fail. */
+export interface FailingJob {
+  name: string;
+  /** Hours since its last non-failed run; null when it has never had one. */
+  lastOkAgeH: number | null;
+  maxAgeH: number;
 }
 
 /**
@@ -88,19 +107,78 @@ export interface SilenceVerdict {
  * not crying wolf. A job that HAS run is judged purely on its last run, as
  * before; the grace can only ever apply to the never-ran.
  */
+/**
+ * Jobs whose STEADY STATE is failure, excluded from the failing lane.
+ *
+ * THIS IS NOT A CONVENIENCE CARVE-OUT. The lane detects a REGRESSION: a job that
+ * used to work and stopped. A job that has never worked cannot regress, so the
+ * lane has nothing true to say about it — and saying it anyway destroys the alert.
+ *
+ * Measured 2026-08-22 over 30 days of cron_job_logs, and the first draft of this
+ * file would have paged on both within about three days of merge:
+ *
+ *   ollama-model-liveness   23 non-failed of 2,333 runs (1.0%).
+ *                           Longest unbroken failure streak: 2,308 runs.
+ *   correlation-alarm       354 non-failed of 1,278 runs (27.7%).
+ *                           320 failure streaks, 264 of them 3-or-longer.
+ *
+ * Both had a recent success on merge day, which is exactly what made this
+ * dangerous: a "does it page today?" probe returns a clean no, and the alert
+ * starts firing on most days a week later — training the operator to mute the
+ * P0 this whole change exists to make audible.
+ *
+ * THE EXCLUSION IS ITSELF A FINDING. A liveness probe that fails 99% of the time
+ * is not healthy; it is a broken dependency nobody has fixed or retired. This set
+ * makes that visible instead of laundering it through an alert nobody reads.
+ * Removing a name here is the correct move ONCE the underlying job is fixed — and
+ * the canary in cron-heartbeat-failing-lane.test.ts asserts every name carries a
+ * measured justification, so the set cannot quietly grow into a mute button.
+ */
+export const FAILURE_IS_STEADY_STATE: ReadonlySet<string> = new Set([
+  "ollama-model-liveness",
+  "correlation-alarm",
+]);
+
 export function classifySilence(
   expected: ReadonlyArray<{ name: string; maxAgeH: number }>,
   lastMsByName: ReadonlyMap<string, number | null>,
   firstSeenMsByName: ReadonlyMap<string, number>,
   nowMs: number,
+  /**
+   * Last NON-FAILED run per job. OPTIONAL and inert when omitted: absent means
+   * `failing` is always empty and the first four parameters behave byte-for-byte
+   * as before, so every existing caller and test is unaffected. Passing an empty
+   * map would be a different thing entirely — it would read as "nothing has ever
+   * succeeded" and page on every job at once, which is why absence is modelled as
+   * undefined rather than as an empty map.
+   */
+  lastOkMsByName?: ReadonlyMap<string, number | null>,
 ): SilenceVerdict {
   const silent: SilentJob[] = [];
   const newborn: string[] = [];
+  const failing: FailingJob[] = [];
   for (const e of expected) {
     const last = lastMsByName.get(e.name) ?? null;
     if (last != null) {
       const ageH = (nowMs - last) / HOUR_MS;
-      if (ageH > e.maxAgeH) silent.push({ name: e.name, ageH, maxAgeH: e.maxAgeH });
+      if (ageH > e.maxAgeH) {
+        silent.push({ name: e.name, ageH, maxAgeH: e.maxAgeH });
+        continue;
+      }
+      // It IS running. Ask the second question the old check could not:
+      // is it running SUCCESSFULLY? The 2x grace is deliberate — nine expected
+      // jobs legitimately resolve { ok: false }, which cron-manager files as
+      // status "failed" (data-source-health, ollama-model-liveness,
+      // relationship-picks-prewarm, nick-action-proposal, correlation-alarm,
+      // creation-spike-detect, cost-slo-check, intelligence, semantic-link).
+      // One degraded night must not page. Sixteen days must.
+      if (lastOkMsByName !== undefined && !FAILURE_IS_STEADY_STATE.has(e.name)) {
+        const lastOk = lastOkMsByName.get(e.name) ?? null;
+        const lastOkAgeH = lastOk == null ? null : (nowMs - lastOk) / HOUR_MS;
+        if (lastOkAgeH === null || lastOkAgeH > e.maxAgeH * 2) {
+          failing.push({ name: e.name, lastOkAgeH, maxAgeH: e.maxAgeH });
+        }
+      }
       continue;
     }
     const firstSeen = firstSeenMsByName.get(e.name);
@@ -110,7 +188,7 @@ export function classifySilence(
     }
     silent.push({ name: e.name, ageH: Infinity, maxAgeH: e.maxAgeH });
   }
-  return { silent, newborn };
+  return { silent, newborn, failing };
 }
 
 const inngest = getInngest();
@@ -149,17 +227,38 @@ export const cronHeartbeat = inngest.createFunction(
     // Return serializable numbers (not Date objects) so the Inngest step
     // checkpoint survives JSON round-trip on retry.
     const lastRuns = await step.run("read-cronjoblog", async () => {
-      const rows = await prisma.cronJobLog.groupBy({
-        by: ["jobName"],
-        where: { jobName: { in: names } },
-        _max: { createdAt: true },
-      });
-      return rows.map((r) => ({
+      // TWO reads, not one. The first is the ORIGINAL, unfiltered — do not add a
+      // status filter to it. The absence signal it computes is correct and six
+      // tests depend on it; filtering it would render a running-but-failing job
+      // as "ingest-reviews (never)", and two of those escalate the body text to
+      // "the mega fan-out itself may be down" — a worse lie than the silence.
+      //
+      // The second answers the question the first structurally cannot: not "did
+      // it run" but "did it WORK". `not: "failed"` rather than `equals: "success"`
+      // because `partial` is a live third status (mega-fanout writes it), and an
+      // equals-filter would start false-paging the day a job legitimately reports
+      // partial. Index already exists: @@index([jobName, status, createdAt]).
+      const [anyRows, okRows] = await Promise.all([
+        prisma.cronJobLog.groupBy({
+          by: ["jobName"],
+          where: { jobName: { in: names } },
+          _max: { createdAt: true },
+        }),
+        prisma.cronJobLog.groupBy({
+          by: ["jobName"],
+          where: { jobName: { in: names }, status: { not: "failed" } },
+          _max: { createdAt: true },
+        }),
+      ]);
+      const ok = new Map(okRows.map((r) => [r.jobName, r._max.createdAt?.getTime() ?? null]));
+      return anyRows.map((r) => ({
         name: r.jobName,
         lastMs: r._max.createdAt?.getTime() ?? null,
+        lastOkMs: ok.get(r.jobName) ?? null,
       }));
     });
     const lastByName = new Map(lastRuns.map((r) => [r.name, r.lastMs]));
+    const lastOkByName = new Map(lastRuns.map((r) => [r.name, r.lastOkMs]));
 
     // Birth registry for the never-ran (see classifySilence). Reads existing
     // first-seen rows, then registers any expected job not yet on record.
@@ -205,31 +304,61 @@ export const cronHeartbeat = inngest.createFunction(
     });
 
     const now = Date.now();
-    const { silent, newborn } = classifySilence(
+    const { silent, newborn, failing } = classifySilence(
       expected,
       lastByName,
       firstSeen === null
         ? new Map(names.map((n) => [n, 0])) // registry down → epoch → page
         : new Map(Object.entries(firstSeen)),
       now,
+      lastOkByName,
     );
 
-    if (silent.length === 0) {
+    // Both lanes gate the early return. With only `silent` here, a perfect
+    // classifier ships INERT: ingest-reviews is never silent, so the function
+    // would compute `failing: ["ingest-reviews"]` and then return "heartbeat_ok"
+    // without telling anyone. That is the repo's BUILT-TESTED-UNWIRED pattern,
+    // and the wiring canary in the test file exists for exactly this line.
+    if (silent.length === 0 && failing.length === 0) {
       log.info("heartbeat_ok", { checked: expected.length, newborn });
-      return { checked: expected.length, silent: 0, newborn: newborn.length };
+      return { checked: expected.length, silent: 0, failing: 0, newborn: newborn.length };
     }
 
     const detail = silent
       .slice(0, 8)
       .map((j) => `${j.name} (${j.ageH === Infinity ? "never" : Math.round(j.ageH) + "h"})`)
       .join(", ");
-    const title = `${silent.length} cron${silent.length > 1 ? "s" : ""} not firing`;
+    // Two lanes, two runbooks, so they get two titles. "not firing" means the job
+    // is not running; "failing every run" means it runs on schedule and never
+    // works. Collapsing them into one message would reproduce the original defect
+    // in prose: the operator would read "cron not firing" about a cron that fires
+    // reliably, go look at the scheduler, find it healthy, and stop.
+    const failDetail = failing
+      .slice(0, 8)
+      .map((j) => `${j.name} (${j.lastOkAgeH === null ? "no success on record" : "last ok " + Math.round(j.lastOkAgeH) + "h ago"})`)
+      .join(", ");
+    const title =
+      silent.length > 0 && failing.length > 0
+        ? `${silent.length} cron${silent.length > 1 ? "s" : ""} not firing, ${failing.length} failing every run`
+        : silent.length > 0
+          ? `${silent.length} cron${silent.length > 1 ? "s" : ""} not firing`
+          : `${failing.length} cron${failing.length > 1 ? "s" : ""} failing every run`;
     // 2026-08-20 · "The mega fan-out may be broken" fired on a morning the
     // fan-out had run CLEAN three hours earlier. One silent job usually means
     // that job; only a cluster implicates the fan-out itself.
-    const body = `Expected crons with no recent run: ${detail}${
-      silent.length > 8 ? " …" : ""
-    }. ${silent.length > 1 ? "Several silent together — the mega fan-out itself may be down. " : ""}Check /system/health.`;
+    const silentLine =
+      silent.length === 0
+        ? ""
+        : `Expected crons with no recent run: ${detail}${silent.length > 8 ? " …" : ""}. ${
+            silent.length > 1 ? "Several silent together — the mega fan-out itself may be down. " : ""
+          }`;
+    // The line that would have named ingest-reviews on roughly day three instead
+    // of never. "Running but failing" is the whole point: these jobs are firing.
+    const failingLine =
+      failing.length === 0
+        ? ""
+        : `Running but FAILING every run: ${failDetail}${failing.length > 8 ? " …" : ""}. These fire on schedule, so the silence check cannot see them. `;
+    const body = `${silentLine}${failingLine}Check /system/health.`;
 
     // Out-of-band alert on BOTH surfaces. recordCoachEvent never throws;
     // sendTelegram no-ops if BOT_TOKEN is unset. Wrapped in a step so a
@@ -251,7 +380,18 @@ export const cronHeartbeat = inngest.createFunction(
       return true;
     });
 
-    log.warn("heartbeat_silent", { silent: silent.length, detail, newborn });
-    return { checked: expected.length, silent: silent.length, newborn: newborn.length };
+    log.warn("heartbeat_silent", {
+      silent: silent.length,
+      failing: failing.length,
+      detail,
+      failDetail,
+      newborn,
+    });
+    return {
+      checked: expected.length,
+      silent: silent.length,
+      failing: failing.length,
+      newborn: newborn.length,
+    };
   },
 );
