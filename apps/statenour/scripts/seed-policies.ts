@@ -19,6 +19,7 @@
  */
 
 import { CRONS, type CronDef } from "@/config/crons";
+import { derivedRulePolicies, mergeById } from "@/lib/automation/derive-rule-policies";
 import {
   upsertPolicy,
   type PolicyUpsertInput,
@@ -310,10 +311,12 @@ async function main() {
   console.log(`\n📋 seed-policies · ${DRY_RUN ? "DRY RUN" : "LIVE"}`);
   console.log("=".repeat(60));
 
-  const allInputs: PolicyUpsertInput[] = [
+  const allInputs: PolicyUpsertInput[] = mergeById([
     ...CRONS.filter((c) => c.mode !== "retired").map(cronToPolicy),
+    ...derivedRulePolicies(),
+    // LAST so curation wins over the derived baseline.
     ...CURATED_NON_CRON,
-  ];
+  ]);
 
   const bySurface = new Map<string, number>();
   for (const p of allInputs) {
