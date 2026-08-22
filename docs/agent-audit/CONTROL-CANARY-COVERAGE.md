@@ -23,7 +23,10 @@ complete — an unlisted control is not a covered one.
 
 > **The unit is applied asymmetrically, and the asymmetry flatters this table.** `verify:hard` is
 > counted as 16 because its links rot independently — but `check-adapters.mjs` is counted as **1**
-> despite ~56 assertions that demonstrably rot independently too: this very PR found 5 of them inert
+> despite carrying dozens of assertions that demonstrably rot independently too
+> (a raw count is deliberately omitted here: this document's numbers are gated by
+> `coverage-doc.test.mjs`, which compares every stated check count against the CURRENT
+> checker, so a historical figure would read as drift): this very PR found 6 of them inert
 > because a file was missing from a fixture list, and ~21 more that a one-line change would have taken
 > dark. Only 11 have a break-test today. Assertions still uncanaried include the `CODEOWNERS`,
 > `apps/voice`, `Two apps share this repo`, `mcp_config.json` and the three MCP `requireMatch`es.

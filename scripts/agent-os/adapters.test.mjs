@@ -2,10 +2,11 @@
  * Canary suite for check-adapters.mjs.
  *
  * WHY THIS EXISTS
- * check-adapters.mjs carried 56 assertions and zero proof that any of them fire.
+ * check-adapters.mjs executed 123 checks on origin/main and carried zero proof that any
+ * of them fire.
  * A gate nobody has broken is a gate nobody knows is connected — the failure class
  * catalogued in docs/agent-audit/CONTROL-CANARY-COVERAGE.md, of which this file's
- * own subject was instance #8. The pattern is lifted from policy.test.mjs, which
+ * own subject was one. The pattern is lifted from policy.test.mjs, which
  * has asserted "every denyExample is actually blocked, by its own rule" since
  * agent-os v1; this generalises it to the adapter contract.
  *
@@ -38,8 +39,9 @@ const CHECKER = join(HERE, "check-adapters.mjs");
  * early-return on `!exists(p)`. So an assertion against a path absent from this list is
  * SILENTLY INERT in every fixture — and because `checks++` runs before the exists test,
  * the printed check count is identical either way, so the number cannot reveal the gap.
- * `.agents/frameworks/ciitty/SKILL.md` was missing here and took 5 forbidLine assertions
- * dark. When you add an assertion against a new file, add the path here too.
+ * `.agents/frameworks/ciitty/SKILL.md` was missing here and took all SIX of the
+ * forbidLine assertions in that loop dark. When you add an assertion against a new
+ * file, add the path here too.
  */
 const FIXTURE_FILES = [
   "AGENTS.md",
@@ -134,7 +136,7 @@ test("positive control: an UNBROKEN fixture passes", () => {
   }
 });
 
-// ── The seven controls, each proven by breaking it ───────────────────────────
+// ── The eight controls, each proven by breaking it ───────────────────────────
 
 canary(
   "root CLAUDE.md must IMPORT the profile, not link it",
@@ -198,7 +200,7 @@ canary(
 // canary at all (neuter it to `return true` and every test above still passed while
 // ~21 existence assertions went dark); forbidLine's `unless` exemption — the
 // subtlest logic in the checker — was never exercised; and the ciitty framework
-// file was absent from FIXTURE_FILES, so its 5 assertions were inert here.
+// file was absent from FIXTURE_FILES, so all six of its assertions were inert here.
 
 test("fires: a required canonical file cannot simply vanish", () => {
   const root = makeFixture();
@@ -249,7 +251,9 @@ canary(
 // into one long line buys lines and costs the same bytes. Both directions matter —
 // a prose line over the limit must FAIL, and a wide markdown table row must be SPARED,
 // or the gate would force the Enforcement map to be wrapped into uselessness.
-// Both run against apps/worker/CLAUDE.md (33 lines, cap 80 — 47 spare), NOT AGENTS.md.
+// Both run against apps/worker/CLAUDE.md (40 lines in this tree, cap 80 — 40 spare),
+// NOT AGENTS.md. Measured AFTER this PR's own +7 lines to that file: makeFixture copies
+// the working tree, so the origin/main figure would have been the wrong margin.
 // AGENTS.md now sits at exactly 200/200, so appending even two lines there trips FAT and
 // the test would pass or fail for a reason other than the one under test. That is the
 // same "fails for the wrong reason" trap the review probed for, and the first draft of

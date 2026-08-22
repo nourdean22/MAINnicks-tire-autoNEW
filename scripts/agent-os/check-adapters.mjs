@@ -41,7 +41,7 @@ const exists = (p) => existsSync(abs(p));
 const read = (p) => readFileSync(abs(p), "utf8");
 // A file ending in "\n" has N lines, not N+1: split() yields a trailing empty string
 // for the final newline. The previous count charged every newline-terminated file one
-// phantom line, so every cap was really one lower — uniformly, across all 12 requireThin
+// phantom line, so every cap was really one lower — uniformly, across all 11 requireThin
 // call sites (15 files once the app loops expand), not just the four AGENTS.md ones.
 // Disclosure: correcting this is what lets root AGENTS.md sit at exactly 200 rather
 // than 199, so it is proved at the boundary in adapters.test.mjs (a file of exactly
