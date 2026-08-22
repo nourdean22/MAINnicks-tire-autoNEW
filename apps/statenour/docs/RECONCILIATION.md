@@ -3314,3 +3314,22 @@ Gates: tsc 0 · 3272 tests passed · build green · no database migrations, no p
 ---
 
 > **Older entries (before 2026-05-24) archived** to cap this file's size — see [`docs/archive/RECONCILIATION-pre-2026-05-24.md`](archive/RECONCILIATION-pre-2026-05-24.md). Split by the truth-substrate audit (2026-07-21); content preserved verbatim, most-recent-first order intact.
+
+
+---
+
+## Open backlog — moved out of `AGENTS.md` on 2026-08-21
+
+Stamped **2026-07-28** and never auto-refreshed. It lived in the always-loaded `AGENTS.md`, where
+dated content goes stale silently and bills tokens every session. Treat each line as a lead to
+re-verify, not as truth. (An earlier edit claimed this had been moved here when it had not — that
+claim was false and is the reason this section exists.)
+
+1. **Scheduled-cycle proof** — first real briefing_log row (10:15 UTC) + heartbeat + worker artifact-liveness; first outcome-ledger rows from the brief + decision surfacings.
+2. **Memory write governance** — Phase-1 SHIPPED 2026-08-11 (same-source repetition no longer reinforces; default-on, kill-switch `NICK_MEMORY_GATEWAY_PHASE1=0`; evidence: 1,788 shadow receipts, noop 846 @ 0% legacy agreement via `scripts/probe-gateway-agrees.ts`). Phase-2 SHIPPED 2026-08-16 but OPT-IN (NICK_MEMORY_GATEWAY_PHASE2=1) and scoped: update + review_required-for-weaker_evidence only. unknown_category (the larger slice of the 349/wk) still falls through deliberately. Next: a shadow review before any default flip, then temporal supersession (validFrom/validUntil/supersededById are applied to prod and still have NO reader).
+3. **Triage adoption** — the incumbent one-item flow (InboxTasksTriage + task.triage) is verified complete; adoption is operator behavior, not code. (Spine-5's parallel contract was deleted 2026-07-28 — see contracts registry note.)
+4. **Realtime completion-message push** — S3's receipt-backed follow-up appears on next load; pushing into an open stream is its own transport change.
+5. **Recall-eval corpus growth** — UNBLOCKED 2026-08-16, not yet populated. outcomesNeedingReview() returned empty for the table's whole life because recordDecision/recordOutcome had no callers; they now have two (nudge dismissal, Discover verdicts). The corpus grows only as the operator actually judges. Gauges: pnpm harvest:evals + scripts/corpus-odometer.ts. Only then retune RRF/persona weights, or flip NICK_NOVELTY_RECALL.
+6. **Chat-state visual regression** — Playwright screenshots of /system/chat-states in the e2e lane.
+7. **Approval/decision card runtime receipts** — first live renders post-#1176 deploy; extend the typed-card registry only on verified shapes.
+8. P9 confirm-cards · judge-eval calibration verdict (needs n≥30) — low priority.

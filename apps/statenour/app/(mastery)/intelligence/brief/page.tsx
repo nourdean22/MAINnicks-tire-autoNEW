@@ -14,6 +14,13 @@ interface BriefLog {
 
 export default function DailyBriefPage() {
   const [brief, setBrief] = useState<BriefLog | null>(null);
+  // Why not just null-vs-set: "no brief today" and "no brief EVER" need
+  // different operator actions — the first means the scheduled job stopped, the
+  // second means it has never once completed. The old empty state conflated them.
+  const [emptyState, setEmptyState] = useState<{ lastBriefAt: string | null; message: string } | null>(null);
+  // A failed REQUEST is not evidence about the historical record. Without this,
+  // a 500 or dropped connection rendered "No Briefing Has Ever Been Generated".
+  const [errored, setErrored] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -21,13 +28,27 @@ export default function DailyBriefPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/intelligence/briefs/today");
-      const data = await res.json();
-      if (data.status === "success") {
-        setBrief(data.brief);
+      const body = await res.json();
+      // apiHandler wraps every plain-object return as { ok, data, meta }
+      // (lib/utils/http.ts:93, :278). Reading `body.status` directly made the
+      // check ALWAYS false, so this screen rendered its empty state even when a
+      // brief existed. The `?? body` keeps it working if the route ever returns raw.
+      const payload = body?.data ?? body;
+      setErrored(false);
+      if (payload?.status === "success") {
+        setBrief(payload.brief);
+        setEmptyState(null);
       } else {
         setBrief(null);
+        setEmptyState({
+          lastBriefAt: payload?.lastBriefAt ?? null,
+          message: payload?.message ?? "No briefing available.",
+        });
       }
     } catch (err) {
+      setErrored(true);
+      setBrief(null);
+      setEmptyState(null);
       toast.error("Failed to load today's briefing.");
     } finally {
       setLoading(false);
@@ -41,12 +62,15 @@ export default function DailyBriefPage() {
       const res = await fetch("/api/intelligence/briefs/generate", {
         method: "POST",
       });
-      const data = await res.json();
-      if (data.status === "success") {
-        setBrief(data.brief);
+      const body = await res.json();
+      const payload = body?.data ?? body;   // same envelope as above
+      if (payload?.status === "success") {
+        setBrief(payload.brief);
+        setEmptyState(null);
+        setErrored(false);
         toast.success("Successfully generated today's brief!");
       } else {
-        toast.error(data.message || "Failed to generate brief.");
+        toast.error(payload?.message || "Failed to generate brief.");
       }
     } catch (err) {
       toast.error("An error occurred during briefing generation.");
@@ -175,10 +199,24 @@ export default function DailyBriefPage() {
             <FileText className="h-10 w-10 text-slate-500" />
           </div>
           <div className="space-y-2 max-w-sm">
-            <h3 className="text-sm font-semibold text-slate-200">No Briefing Generated Today</h3>
+            <h3 className="text-sm font-semibold text-slate-200">
+              {errored
+                ? "Could Not Load Today's Briefing"
+                : emptyState?.lastBriefAt
+                  ? "No Briefing Generated Today"
+                  : "No Briefing Has Ever Been Generated"}
+            </h3>
             <p className="text-xs text-slate-500">
-              Run ingestion and synthesis on your registered sources to compile today's executive brief.
+              {errored
+                ? "The request failed — this says nothing about whether a brief exists. Retry, or check /system/crons."
+                : (emptyState?.message ??
+                  "Run ingestion and synthesis on your registered sources to compile today's executive brief.")}
             </p>
+            {emptyState?.lastBriefAt ? (
+              <p className="text-xs font-mono text-amber-500/80">
+                LAST BRIEF: {new Date(emptyState.lastBriefAt).toLocaleString()}
+              </p>
+            ) : null}
           </div>
           <button
             onClick={handleGenerate}

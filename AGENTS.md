@@ -1,11 +1,10 @@
 # AGENTS.md — NOURCITY monorepo
 
-**Canonical cross-agent policy.** Claude Code, Codex, Copilot, Cursor, Gemini CLI and humans all resolve
-here; the vendor files are thin adapters (see "Agent adapters"). **Per-app detail lives in
-`apps/<app>/AGENTS.md` — read that first for the app you're touching.** Cap: **240 lines**, really enforced by
-`pnpm agent:parity` (`check-adapters.mjs` § 4b). A rule belongs here only if it is cross-app, checkable, and not already enforced by
-a tool — enforced rules get one line in the Enforcement map, not a paragraph. Wave history, test counts
-and backlogs belong in per-app docs.
+**Canonical cross-agent policy.** Claude Code, Codex, Copilot, Cursor, Gemini CLI and humans all resolve here;
+the vendor files are thin adapters (see "Agent adapters"). **Per-app detail lives in `apps/<app>/AGENTS.md` —
+read that first.** Cap: **220 lines**, enforced by `pnpm agent:parity` (`check-adapters.mjs` § 4b). A rule
+belongs here only if it is cross-app, checkable, and not already enforced by a tool — enforced rules get one
+line in the Enforcement map, not a paragraph. Wave history, test counts and backlogs go in per-app docs.
 
 ## Repo topology
 
@@ -17,20 +16,18 @@ One pnpm + Turborepo workspace · **three** Railway services · one deploy branc
 | `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router) · Prisma 6.19 -> Neon Postgres (pgvector/tsvector via raw SQL only) · AI SDK v6 · Tailwind 4. "NOUR OS" + the Nick agent. | bdnick.info |
 | `apps/worker/` | `@statenour/worker` | Express 4 + node-cron. Secret-gated tick dispatcher plus an in-process Remotion render loop. **No DB client** — every read/write goes over authenticated HTTP. | Railway internal |
 
-The two web products are independent — different frameworks, databases, domains. They share this repo,
-the tooling, `main`, a small bridge contract, and `packages/*` (`ls packages/` for the roster). **A change
-under `packages/` or to `pnpm-lock.yaml` affects both web apps — build the package before testing a
-consumer.** Vendored, non-workspace: `camera-bridge/`, `MoneyPrinterTurbo/`, `last30days-skill/`, `ad-factory/`.
+The two web products are independent — different frameworks, databases, domains. They share this repo, the
+tooling, `main`, a small bridge contract, and `packages/*` (`ls packages/` for the roster). **A change under
+`packages/` or to `pnpm-lock.yaml` affects both web apps — build the package before testing a consumer.**
+Vendored, non-workspace: `camera-bridge/`, `MoneyPrinterTurbo/`, `last30days-skill/`, `ad-factory/`.
 
 **These no longer exist — do not go looking:** `apps/voice` + its Railway service, and the `perplexica-mcp`
 sidecar (deleted 2026-08-05; `perplexica` + `searxng-perplexica` ARE live and are what the app calls).
 `.husky/` is gone too — the hook runner is `lefthook.yml`.
 
-> **`ls apps/` still shows a `voice/` directory. It is a retired husk, not a package.** It holds one
-> empty `__pycache__` and **zero tracked files** — the package no longer exists in git, on this
-> branch or on `origin/main`. Git does not track empty directories, so `git status` never mentions it
-> and it survives every checkout. Verify membership with `git ls-files`, never with `ls`; this cost
-> one audit a false alarm on 2026-08-21.
+> **`ls apps/` still shows `voice/`. It is a husk, not a package: zero tracked files, here and on
+> `origin/main`.** Git does not track empty dirs, so `git status` never mentions it and it survives
+> every checkout. Check membership with `git ls-files`, never `ls` — this cost one audit a false alarm.
 
 ## Source-of-truth hierarchy
 
@@ -61,32 +58,30 @@ gh pr merge <pr-number> --squash --delete-branch
 git fetch origin main ; git merge --ff-only     # NEVER reset --hard: a sibling's work may be in your tree
 ```
 
-- **Concurrent sessions share this checkout.** Start from a fresh worktree:
-  `powershell scripts/worktree-setup.ps1 -branchName <branch> -targetDir .worktrees/<name>` — it copies
-  env files and NTFS-junctions every `node_modules` (measured: up to 26), so no install is needed.
-  **Never run a package install inside a junctioned worktree: it offers to WIPE the shared
-  `node_modules` every other worktree points at, and the prompt defaults to yes.** That consequence
-  is the reason the hook blocks it — and the hook is Claude-only, so for every other agent this
-  sentence is the only guard. Tear down with
-  `scripts/worktree-teardown.ps1` — never a bare worktree removal or recursive delete: the junctions point
-  OUT of the tree. Harness worktrees under `.claude/worktrees/*` need junctions by hand (`harness-worktree-setup`).
+- **Concurrent sessions share this checkout.** Start fresh: `powershell scripts/worktree-setup.ps1
+  -branchName <branch> -targetDir .worktrees/<name>` — copies env files and NTFS-junctions every
+  `node_modules` (up to 26 measured), so no install is needed. **Never run a package install inside a
+  junctioned worktree: it offers to WIPE the shared `node_modules` every other worktree points at, and
+  the prompt defaults to yes.** That is why the hook blocks it — and the hook is Claude-only, so for
+  every other agent this sentence is the only guard. Tear down with `scripts/worktree-teardown.ps1`,
+  never a bare removal or recursive delete: the junctions point OUT of the tree. Harness worktrees
+  under `.claude/worktrees/*` need junctions by hand (`harness-worktree-setup`).
 - Worktrees are shared surfaces: `git log origin/<branch>..HEAD` before AND after pushing. Disclose rider
-  commits in the PR body; never rewrite them away.
-- Stage **only your files by explicit path**; scope every change to the assigned task — no unrelated docs, generated reports, or sibling-session files.
+  commits in the PR body; never rewrite them away. Stage **only your files by explicit path**; scope every
+  change to the assigned task — no unrelated docs, generated reports, or sibling-session files.
 - Final report: branch · SHA · changed files · checks run with receipts · PR link · exclusions.
 
 ## Protected operations — never on agent initiative
 
 Each needs an explicit operator instruction for the specific action, every time:
 
-- **Customer-facing side effects** — SMS/voice/email sends, social/GBP publishing, review replies, ad
-  launches, Stripe/refund calls, supplier orders. Build preview/draft/copy-only. In nickstire the SMS
-  trigger is `activate()`, not a flag.
-- **Production database writes**, including running a prod-touching script "just to verify". A
-  `--dry-run` flag is not a guard until a non-executing read proves it returns before the write — one
-  such run deleted 870 rows.
-- **Destructive schema commands** — `--accept-data-loss`, `DROP`, `TRUNCATE`, `migrate reset`. Migrations
-  are hand-applied in both apps; one wrong flag silently drops pgvector.
+- **Customer-facing side effects** — SMS/voice/email sends, social/GBP publishing, review replies, ad launches,
+  Stripe/refund calls, supplier orders. Build preview/draft/copy-only. In nickstire the SMS trigger is
+  `activate()`, not a flag.
+- **Production database writes**, including a prod-touching script run "just to verify". A `--dry-run` flag is
+  not a guard until a non-executing read proves it returns before the write — one such run deleted 870 rows.
+- **Destructive schema commands** — `--accept-data-loss`, `DROP`, `TRUNCATE`, `migrate reset`. Migrations are
+  hand-applied in both apps; one wrong flag silently drops pgvector.
 - **Credential rotation, Railway env edits, deploy-config changes.**
 - **Force-push, history rewrite, or any push to `main`.**
 - Weakening an auth or signature check to make a test pass. Ever.
@@ -140,62 +135,63 @@ Node >= 24 · pnpm 10 (pinned via `packageManager`) · shared dep versions in `p
 | Agent-policy checks (parity + canaries) | `pnpm agent:verify` |
 | Dev servers | `pnpm nick dev` · `pnpm stn dev` (:3001) · `pnpm worker dev` |
 
-Single-test invocation differs per app and lives in each `apps/<app>/AGENTS.md` — the flags are not
-interchangeable. If deps or `pnpm-lock.yaml` change: `pnpm install --frozen-lockfile --filter "<app>..."`
-— WITH the `...` suffix; a bare `--filter` skips workspace deps and yields phantom import failures.
+Single test, either app: `pnpm exec vitest run <path>` (nickstire is serial via `vitest.config.ts`, not
+via flags). Deps or `pnpm-lock.yaml` changed? `pnpm install --frozen-lockfile --filter "<app>..."` —
+WITH the `...`; a bare `--filter` skips workspace deps and yields phantom import failures.
 **Don't run full-repo sweeps "for a baseline"** — sibling sessions share this machine. Verify your
 change's blast radius and let CI be the sweep.
 
 ## Verify gates
 
-- **statenour** (from `apps/statenour/`): `pnpm verify:hard`. Piping vitest to `tail` masks the exit code — read the summary line, not `$?`.
-- **nickstire** (from `apps/nickstire/`): `pnpm run verify`.
-- **worker** (from `apps/worker/`): `pnpm check` + `pnpm build`. **No test suite exists** — say that in your receipt rather than implying tests ran.
+- **statenour** `pnpm verify:hard` · **nickstire** `pnpm run verify` · **worker** `pnpm check` + `pnpm build`
+  (**no test suite exists** — say that in your receipt rather than implying tests ran). Piping vitest to
+  `tail` masks the exit code — read the summary line, not `$?`.
 - Supply chain: `powershell scripts/security-scan.ps1` (advisory; `-FailOnCritical` to gate).
-- **Report results with receipts** — `417 files, 4,670 passed, exit 0`, never "tests pass". Say so if a check was skipped or red, and stop.
+- **Report with receipts** — `417 files, 4,670 passed, exit 0`, never "tests pass". Say so if a check was
+  skipped or red, and stop.
 
 ## Standard of work — initiative, not compliance
 
-Every adversarial self-review since 2026-08-12 has found real defects in the session's own diff. These are
-part of the task, not extras:
+Every adversarial self-review since 2026-08-12 found real defects in the session's own diff. Part of the task:
 
-- **Self-audit before "done", unprompted.** Re-read your FULL diff as a hostile reviewer would. "My diff
-  has no defects" is an extraordinary claim against a 100% observed base rate. Report what it found.
-- **Close the implied gap, not the literal ask** — the wiring, the test, the consumer, not just the artifact. Flag adjacent rot; don't silently expand scope.
-- **Search for prior art before inventing a design.** "Not in the repo" is a fact about the repo, not the
-  world — the Higgsfield REST API existed for weeks while sessions concluded "no API path".
-- **Prove the instrument sees the target before trusting a green.** Known blind ones: statenour's `tsconfig`
+- **Self-audit before "done", unprompted.** Re-read your FULL diff as a hostile reviewer would. "My diff has
+  no defects" is an extraordinary claim against a 100% observed base rate. Report what it found.
+- **Close the implied gap, not the literal ask** — the wiring, the test, the consumer, not just the artifact.
+  Flag adjacent rot; don't silently expand scope.
+- **Search for prior art first.** "Not in the repo" is a fact about the repo, not the world — the Higgsfield
+  REST API existed for weeks while sessions concluded "no API path".
+- **Prove the instrument sees the target before trusting a green.** Known blind: statenour's `tsconfig`
   excludes `scripts/` AND `tests/`; fixture-only tests; gates that fail open; a `tail -f`-locked log.
 
 ## Commit Attribution
 
-Subject `<type> · <app> · <one-line summary>`. AI commits MUST include a trailer line reading exactly
+Subject `<type> · <app> · <one-line summary>`. AI commits MUST carry a trailer reading exactly
 `Co-Authored-By: <model name> <noreply@anthropic.com>`.
 
 ## Environment (Windows)
 
 - The CLI shell is Windows PowerShell. **Do not chain with `&&`** — parser error. Use `;`.
 - The Bash tool's cwd resets to `C:\` between calls — prefix each command with `cd /c/Users/nourd/NOURCITY/... &&`.
-- `Edit` old_string containing unicode (arrows, middots, emoji) often fails to match — anchor on ASCII-only
-  text from a fresh read.
-- **Mojibake is silent, permanent and unchecked.** A cp1252 round-trip corrupts an em-dash inside the
-  *reader* and the damage gets committed — 4 such lines were live in `apps/statenour/AGENTS.md` when this was audited. Prefer ASCII in files you edit programmatically.
-- **The PreToolUse guard matches command strings even when quoted inside documentation** — writing a doc
-  containing a forbidden literal via Bash trips it. Use the Write tool, or describe the flag.
-- Pre-push "IO error: provided value is too long when setting link name" / symlink warnings are non-fatal
-  Windows-path noise; the build still passes.
+- `Edit` old_string with unicode (arrows, middots, emoji) often fails to match — anchor on ASCII from a fresh read.
+- **Mojibake is silent, permanent and unchecked.** A cp1252 round-trip corrupts an em-dash inside the *reader*
+  and the damage gets committed — 4 such lines were live in `apps/statenour/AGENTS.md` when audited. Prefer
+  ASCII in files you edit programmatically; `grep -c $'
+'` is NOT a CRLF test (it matches every line).
+- **The PreToolUse guard matches command strings quoted inside documentation** — writing a doc containing a
+  forbidden literal via Bash trips it. Use the Write tool, or describe the flag.
+- Pre-push "IO error: provided value is too long..." / symlink warnings are non-fatal Windows-path noise.
 
 ## Agent adapters
 
-Canonical policy = this file. Every vendor adapter (`CLAUDE.md`, `GEMINI.md`,
-`.github/copilot-instructions.md`, `.cursor/rules/*.mdc`, `.antigravityrules`, `apps/*/CLAUDE.md`) routes
-its agent here and carries only vendor-specific behavior, length-capped so a second policy cannot fork
-into existence. **Add policy to this file; add only vendor-specific behavior to an adapter.**
+Canonical policy = this file. Every vendor adapter (`CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`,
+`.cursor/rules/*.mdc`, `.antigravityrules`, `apps/*/CLAUDE.md`) routes its agent here and carries only
+vendor-specific behavior, length-capped so a second policy cannot fork. **Add policy here; add only
+vendor-specific behavior to an adapter.**
 
-**An adapter must IMPORT, not link.** In a `CLAUDE.md` only a bare `@path` on its own line loads the
-target; a markdown link loads nothing while still passing a substring check. That false green shipped
-2026-08-21 and left `CLAUDE-OPERATING-PROFILE.md` loading in zero sessions with parity green — assert the
-mechanism, not the mention. Registry + design notes: [`docs/agent-os/README.md`](docs/agent-os/README.md).
+**An adapter must IMPORT, not link.** Only a bare `@path` on its own line loads the target; a markdown link
+loads nothing while still passing a substring check. That false green shipped 2026-08-21 and left
+`CLAUDE-OPERATING-PROFILE.md` loading in zero sessions with parity green — assert the mechanism, not the
+mention. Registry + design notes: [`docs/agent-os/README.md`](docs/agent-os/README.md).
 
 ## Memory / handoff
 
@@ -205,22 +201,17 @@ mechanism, not the mention. Registry + design notes: [`docs/agent-os/README.md`]
 - statenour's own "brain" (BrainMemory + pgvector recall) is a PRODUCT feature — separate from agent
   memory. Do not conflate them.
 
-<!--
-  2026-08-21: this section was briefly deleted while removing a bullet about an unregistered `memory`
-  MCP server from CLAUDE.md. The MCP removal was correct (no .mcp.json; ~/.claude.json mcpServers =
-  ["chatgpt"]; no project entry; the tools are not offered to sessions). Deleting THIS section was
-  not — CLAUDE.md forwards here by name, so the pointer dangled, and the file-based index it names
-  is the store that actually works: 110 index entries and 182 topic files, versus 20 entries frozen
-  since 2026-08-14 in the MCP file. Restored.
--->
+<!-- Do NOT delete this section without checking who points at it first. It was deleted once on
+     2026-08-21 while removing an unregistered-MCP bullet from CLAUDE.md, and restored. Forensics:
+     docs/agent-audit/AUDIT-2026-08-21.md (tracked on origin/main). -->
 
 ## Operating frameworks
 
 - [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11
   multi-agent safety. Read when deciding *how* to communicate; policy here wins on conflict.
-- [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1. Two live
-  checklists: **Blind Spot Check** (breaks the sibling app? lockfile? Railway?) and **Forgotten Factor
-  Protocol** (what route/cron/webhook/env var depends on what I changed?).
+- [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: **Blind Spot
+  Check** (breaks the sibling app? lockfile? Railway?) + **Forgotten Factor Protocol** (what route/cron/
+  webhook/env var depends on what I changed?).
 - [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts. Check BEFORE proposing any new platform,
   library or MCP server; a row there is an answer, not a starting point.
 
