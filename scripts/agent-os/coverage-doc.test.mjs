@@ -95,6 +95,11 @@ export function auditDoc(text, t) {
   claim("statenour verify:hard links", /`verify:hard` \((\d+) links/g, t.verifyHardLinks);
   claim("nickstire verify links", /nickstire `verify` — \d+ of (\d+) links/g, t.nickVerifyLinks);
   claim("root AGENTS.md line count", /\*\*(\d+) lines, the same cap/g, t.agentsLines);
+  // truth() computed preCommitCmds and nothing consumed it — a value the audit gathered
+  // and then ignored, so a lefthook change left both pre-commit counts stale while this
+  // test stayed green. That is the exact "canary that cannot see its target" shape.
+  claim("lefthook pre-commit commands", /lefthook `pre-commit` \| (\d+) \|/g, t.preCommitCmds);
+  claim("lefthook pre-commit (prose)", /lefthook `pre-commit` x(\d+)/g, t.preCommitCmds);
 
   // Table arithmetic: the Controls and With-a-canary columns must sum to the Total row.
   const rows = [];
@@ -116,10 +121,15 @@ export function auditDoc(text, t) {
     if (sum[0] !== total[0]) bad.push(`coverage table Controls: rows sum to ${sum[0]}, Total says ${total[0]}`);
     if (sum[1] !== total[1]) bad.push(`coverage table Canaries: rows sum to ${sum[1]}, Total says ${total[1]}`);
     const pct = (total[1] / total[0]) * 100;
-    const stated = /\*\*([\d.]+) ?%\*\*/.exec(text);
-    if (!stated) bad.push("coverage table: the percentage is no longer stated");
-    else if (Math.abs(Number(stated[1]) - pct) > 0.05) {
-      bad.push(`coverage ratio: document says ${stated[1]}%, ${total[1]}/${total[0]} is ${pct.toFixed(1)}%`);
+    // EVERY stated percentage, not just the first. A restatement elsewhere in the prose
+    // is exactly how "6.4 %" survived after the table moved to 8.3 % — the audit checked
+    // the table and never looked at the sentence 17 lines above it.
+    const stated = [...text.matchAll(/\*\*([\d.]+) ?%\*\*/g)];
+    if (stated.length === 0) bad.push("coverage table: the percentage is no longer stated");
+    for (const m of stated) {
+      if (Math.abs(Number(m[1]) - pct) > 0.05) {
+        bad.push(`coverage ratio: document says ${m[1]}%, ${total[1]}/${total[0]} is ${pct.toFixed(1)}%`);
+      }
     }
   }
   return bad;

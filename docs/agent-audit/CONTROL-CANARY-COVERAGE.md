@@ -30,7 +30,7 @@ complete — an unlisted control is not a covered one.
 > because a file was missing from a fixture list, and ~21 more that a one-line change would have taken
 > dark. Only 11 have a break-test today. Assertions still uncanaried include the `CODEOWNERS`,
 > `apps/voice`, `Two apps share this repo`, `mcp_config.json` and the three MCP `requireMatch`es.
-> Applied consistently the denominator grows, so the true figure is **lower than the 6.4 % below**. That is
+> Applied consistently the denominator grows, so the true figure is **lower than the ratio in the table below**. That is
 > therefore an upper bound on coverage, not an estimate of it. It is left as-is rather than silently
 > recomputed, because picking a new denominator mid-table is how a number stops meaning anything.
 

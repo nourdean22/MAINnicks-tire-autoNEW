@@ -290,14 +290,33 @@ test("invariant: every capped file that is clean at 140 is length-checked", () =
   const src = readFileSync(join(HERE, "check-adapters.mjs"), "utf8");
 
   const capped = new Map();
+  const expand = (tpl, cap) => {
+    // Resolve the two loop variables the checker uses. Kept explicit so a NEW loop
+    // variable fails the size assertion below rather than silently shrinking coverage.
+    const lists = { app: ["nickstire", "statenour", "worker"], rule: ["repo-core", "nickstire", "statenour"] };
+    const v = Object.keys(lists).find((k) => tpl.includes("${" + k + "}"));
+    if (!v) return capped.set(tpl, cap);
+    for (const item of lists[v]) capped.set(tpl.replaceAll("${" + v + "}", item), cap);
+  };
+
   for (const m of src.matchAll(/requireThin\("([^"]+)",\s*(\d+)\)/g)) capped.set(m[1], +m[2]);
-  for (const m of src.matchAll(/requireThin\(`([^`]+)`,\s*(\d+)\)/g)) {
-    const t = m[1];
-    if (t.includes("${app}")) for (const a of ["nickstire", "statenour", "worker"]) capped.set(t.replace("${app}", a), +m[2]);
-    else if (t.includes("${rule}")) for (const r of ["repo-core", "nickstire", "statenour"]) capped.set(t.replace("${rule}", r), +m[2]);
-    else capped.set(t, +m[2]);
+  for (const m of src.matchAll(/requireThin\(`([^`]+)`,\s*(\d+)\)/g)) expand(m[1], +m[2]);
+
+  // requireThin(<identifier>, N) — the per-app and Cursor adapters are capped through a
+  // local binding, not a literal. A literals-only scan silently omitted all six, so
+  // dropping one of them from the forbidLongLine list would have left this "completeness"
+  // invariant green. Resolve the binding to its template, then expand the loop.
+  for (const m of src.matchAll(/requireThin\(([A-Za-z_$][\w$]*),\s*(\d+)\)/g)) {
+    // Built by concatenation, not a template literal: inside a template literal `\s`
+    // collapses to a bare "s", which silently produced a regex that matched nothing.
+    const bind = new RegExp("const\\s+" + m[1] + "\\s*=\\s*`([^`]+)`").exec(src);
+    assert.ok(bind, `requireThin(${m[1]}, ...) has no resolvable const binding — this invariant would silently skip it`);
+    expand(bind[1], +m[2]);
   }
-  assert.ok(capped.size >= 9, `expected to find the requireThin call sites, found ${capped.size}`);
+  assert.ok(
+    capped.size >= 15,
+    `expected >= 15 capped files once loops expand, found ${capped.size} — a requireThin form is escaping discovery`,
+  );
 
   const block = src.slice(src.indexOf("forbidLongLine(f, 140)") - 1200, src.indexOf("forbidLongLine(f, 140)"));
   const enforced = new Set([...block.matchAll(/^\s*"([^"]+)",$/gm)].map((m) => m[1]));
