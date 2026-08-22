@@ -23,7 +23,7 @@ import { generateLearningJournal } from "@/lib/brain/learning-journal";
 import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
 import { findCorrelations } from "@/lib/brain/correlation-finder";
 import { findTeachingMoments } from "@/lib/brain/teaching-moments";
-import { brainMemory } from "@/lib/brain/memory-manager";
+import { persistBlindSpot } from "@/lib/brain/blind-spot-identity";
 export const maxDuration = 120; // Pro plan
 
 export const GET = cronHandler(async () => {
@@ -142,17 +142,26 @@ export const GET = cronHandler(async () => {
     // cron returned `{ detected: N }` looking healthy even when
     // zero spots had landed. Now: track persisted vs failed and
     // surface both in the cron-run summary.
-    let persistedSpots = 0;
+    // 2026-08-22 — the key used to be `blindspot_${domain}_${Date.now()}`.
+    // remember() upserts on (category, key), so a clock in the key meant every
+    // run minted a NEW row and the operator's verdict had nothing to attach
+    // to: measured on prod, 3 of 3 verdicts given on 08-21 were regenerated as
+    // unjudged within 24h. persistBlindSpot() keys on the spot's identity and
+    // owns the recurrence policy — see lib/brain/blind-spot-identity.ts.
+    let createdSpots = 0;
+    let reinforcedSpots = 0;
+    let resurfacedSpots = 0;
+    let revivedSpots = 0;
+    let noopSpots = 0;
     let failedSpots = 0;
     for (const spot of spots.slice(0, 3)) {
       try {
-        await brainMemory.remember(
-          "blind_spot",
-          `blindspot_${spot.domain}_${Date.now()}`,
-          `[${spot.severity.toUpperCase()}] ${spot.description}: ${spot.evidence}. Action: ${spot.suggestedAction}`,
-          "blind-spot-detector"
-        );
-        persistedSpots++;
+        const res = await persistBlindSpot(spot);
+        if (res.action === "created") createdSpots++;
+        else reinforcedSpots++;
+        if (res.resurfaced) resurfacedSpots++;
+        if (res.revived) revivedSpots++;
+        if (res.noop) noopSpots++;
       } catch (err) {
         failedSpots++;
         log.warn("blindspot_write_failed", {
@@ -162,7 +171,20 @@ export const GET = cronHandler(async () => {
     }
     results.blindSpots = {
       detected: spots.length,
-      persisted: persistedSpots,
+      // `persisted` kept for continuity with the existing cron-run summary;
+      // created/reinforced is the pair that actually distinguishes a healthy
+      // steady state (mostly reinforced) from key churn (mostly created).
+      persisted: createdSpots + reinforcedSpots,
+      created: createdSpots,
+      reinforced: reinforcedSpots,
+      resurfaced: resurfacedSpots,
+      // A steady state is mostly `reinforced` with revived/noop at zero.
+      // `revived` above zero means the TTL sweep is reaching these rows before
+      // the next run; `noop` above zero means the commit gateway is refusing
+      // the write and the reconciling update is the only thing keeping the row
+      // current. Both are silent today, which is why they are counted.
+      revived: revivedSpots,
+      noop: noopSpots,
       failed: failedSpots,
       critical: spots.filter((s) => s.severity === "critical").length,
     };
