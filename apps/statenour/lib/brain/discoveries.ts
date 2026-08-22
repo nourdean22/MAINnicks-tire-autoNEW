@@ -82,6 +82,25 @@ export interface Discovery {
   lastSeen: Date;
   /** Set once the operator has judged it; unrated discoveries surface first. */
   verdict: DiscoveryVerdict | null;
+  /**
+   * Every row id this card stands for, itself included. One tap rates all of
+   * them — see the clustering note on listDiscoveries.
+   */
+  clusterIds: string[];
+  /**
+   * How this row got here. `engine` — a nightly creative engine wrote it.
+   * `restored` — scripts/restore-orphaned-memories.ts recreated it on
+   * 2026-08-16 from a surviving embedding, which means its createdAt/lastSeen
+   * are RESTORE time, not discovery time. The feed's headline claim ("what the
+   * nightly engines found") is false for a restored row, so the UI has to be
+   * able to say which it is showing.
+   */
+  provenance: "engine" | "restored";
+  /**
+   * Prior verdicts, present only on a card that came back after escalating.
+   * Empty for everything else. Written by lib/brain/blind-spot-identity.ts.
+   */
+  verdictHistory: Array<{ verdict: string; at: string; severityRank: number }>;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -95,6 +114,68 @@ function readVerdict(metadata: unknown): DiscoveryVerdict | null {
   return v === "investigate" || v === "known" || v === "noise" ? v : null;
 }
 
+/**
+ * Rows recreated by scripts/restore-orphaned-memories.ts carry
+ * `metadata.origin = "orphan-restore-<date>"`. Matched on the PREFIX so a
+ * future recovery run is classified without editing this predicate.
+ */
+function readProvenance(metadata: unknown): "engine" | "restored" {
+  const origin = asRecord(metadata).origin;
+  return typeof origin === "string" && origin.startsWith("orphan-restore") ? "restored" : "engine";
+}
+
+function readVerdictHistory(
+  metadata: unknown,
+): Array<{ verdict: string; at: string; severityRank: number }> {
+  const raw = asRecord(metadata).discoveryVerdictHistory;
+  return Array.isArray(raw) ? (raw as Array<{ verdict: string; at: string; severityRank: number }>) : [];
+}
+
+/**
+ * The severity tier encoded in a card's text, as an ordinal.
+ *
+ * Mirrors the ORDERING of SEVERITY_RANK in lib/brain/blind-spot-identity.ts —
+ * there is no `severityRankOf` there to import, only the rank table. Kept local
+ * so this module, which serves four engines of which only one writes a tier,
+ * takes no dependency on the blind-spot module. Returns null for the three
+ * engines that write no tier, which shouldResurface() treats as "never
+ * auto-resurface".
+ */
+export function severityRankOf(content: string): number | null {
+  const tag = content.match(/^\[([A-Z]+)\]/)?.[1];
+  const rank: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+  return tag && tag in rank ? rank[tag] : null;
+}
+
+/**
+ * What makes two cards THE SAME QUESTION for the operator.
+ *
+ * Strips the `[SEVERITY]` prefix (the same finding can be re-emitted a tier
+ * higher), then collapses a LEADING digit run ONLY.
+ *
+ * The leading-only restriction is load-bearing, not a detail. Collapsing every
+ * digit run — as the first version did — merges `Open loop untouched: "Order 4
+ * winter tires"` with `"Order 6 winter tires"`, which are different tasks. One
+ * tap here rates every row behind the card, so an over-merge is silent data
+ * loss: the operator never sees the second task and a single "Noise" suppresses
+ * both. The moving counts that motivated normalising at all
+ * (`9 decisions awaiting review`) all sit at position 0; operator prose does
+ * not. Caught in adversarial review before ship.
+ *
+ * This is the SAME normalisation as blindSpotIdentity(), and that coupling is
+ * real: a cluster that disagreed with the stable key would rate rows that then
+ * diverge. tests/brain/discoveries.test.ts pins the two functions against each
+ * other rather than leaving the agreement to a comment.
+ */
+export function clusterKey(content: string): string {
+  return content
+    .replace(/^\[[A-Z]+\]\s*/, "")
+    .toLowerCase()
+    .replace(/^\d+/, "#")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export interface ListDiscoveriesResult {
   items: Discovery[];
   /**
@@ -104,10 +185,23 @@ export interface ListDiscoveriesResult {
    * were in hand. Reported rather than silently capped.
    */
   unrated: number;
+  /**
+   * Distinct QUESTIONS behind `unrated` — the number of taps actually needed.
+   * `unrated` counts rows; one tap now rates a whole cluster, so quoting rows
+   * as the workload overstates it.
+   */
+  unratedClusters: number;
   /** Rows examined this call. */
   scanned: number;
   /** True when the scan stopped early — `unrated` is then a lower bound. */
   truncated: boolean;
+  /**
+   * Unrated rows withheld because they are restored, not engine-found. Named
+   * and counted rather than silently dropped — the operator's data stays his,
+   * and a hidden pile that nothing reports is how 237 rows became invisible in
+   * the first place.
+   */
+  restoredHidden: number;
 }
 
 /** Hard ceiling on rows scanned per call. Surfaced in the result, never silent. */
@@ -125,9 +219,33 @@ const PAGE = 60;
  * real soft-delete producer is the nightly consolidate cron's merge stage —
  * none of the four discovery categories is in CONSOLIDATION_EXCLUDE_CATEGORIES,
  * so a merged duplicate loses every non-keeper row.
+ *
+ * 2026-08-22 · CLUSTER-AND-ASK-ONCE, and why NOT uncertainty ranking.
+ *
+ * Measured on prod: 242 unrated rows in the window, 191 distinct contents, and
+ * an all-time operator label count of FIVE. That is squarely the low-budget
+ * regime, where Hacohen et al. (arXiv:2202.02794) found a phase transition —
+ * "typical examples are best queried when the budget is low… unrepresentative
+ * examples are best queried when the budget is large" (TypiClust: 93.2% on
+ * CIFAR-10 from 10 labels, +39.4% over random). Ranking by uncertainty or
+ * information gain is the LOSING strategy at this budget, so this deliberately
+ * does not do it.
+ *
+ * Instead: collapse rows that ask the same question into one card, and order
+ * the cards by cluster SIZE — the most representative question first — tie
+ * broken by recency. Rows are still FETCHED newest-first, so the invariant
+ * this module exists for (recency, never `confidence`) is untouched; typicality
+ * only decides which of the surviving cards to ask about first.
+ *
+ * `limit` counts CARDS, not rows: the operator's budget is taps, not records.
  */
 export async function listDiscoveries(
-  opts: { limit?: number; includeRated?: boolean; withinDays?: number } = {},
+  opts: {
+    limit?: number;
+    includeRated?: boolean;
+    withinDays?: number;
+    includeRestored?: boolean;
+  } = {},
 ): Promise<ListDiscoveriesResult> {
   const limit = Math.max(1, Math.min(50, opts.limit ?? 12));
   const withinDays = Math.max(1, Math.min(365, opts.withinDays ?? 30));
@@ -137,6 +255,7 @@ export async function listDiscoveries(
   const rated: Discovery[] = [];
   let scanned = 0;
   let truncated = false;
+  let restoredHidden = 0;
 
   // Page rather than taking `limit * 3` once (review fix, 2026-08-16). The
   // verdict lives in a jsonb blob, so it cannot be filtered in the query
@@ -178,6 +297,14 @@ export async function listDiscoveries(
     scanned += rows.length;
 
     for (const r of rows) {
+      const provenance = readProvenance(r.metadata);
+      const verdict = readVerdict(r.metadata);
+      if (provenance === "restored" && !opts.includeRestored) {
+        // Withheld, never deleted — it is the operator's recovered data. Only
+        // UNRATED restored rows count as hidden work; a judged one is done.
+        if (verdict === null) restoredHidden++;
+        continue;
+      }
       const d: Discovery = {
         id: r.id,
         category: r.category,
@@ -186,7 +313,10 @@ export async function listDiscoveries(
         source: r.source,
         createdAt: r.createdAt,
         lastSeen: r.lastSeen,
-        verdict: readVerdict(r.metadata),
+        verdict,
+        clusterIds: [r.id],
+        provenance,
+        verdictHistory: readVerdictHistory(r.metadata),
       };
       (d.verdict === null ? unrated : rated).push(d);
     }
@@ -195,18 +325,87 @@ export async function listDiscoveries(
     if (rows.length < PAGE) break;
 
     // Enough to show. Stop, but say so: `unrated` is now a floor.
-    if (!opts.includeRated && unrated.length >= limit) {
+    //
+    // Counts CLUSTERS, not rows. Breaking at `unrated.length >= limit` would
+    // stop after 12 rows that might collapse to a single card, handing the UI
+    // one card when it asked for twelve — the same shortfall the paging fix
+    // above exists to prevent, one level up.
+    if (!opts.includeRated && countClusters(unrated) >= limit) {
       truncated = true;
       break;
     }
-    if (skip + PAGE >= MAX_SCAN) truncated = true;
+    // MAX_SCAN reached. Only a FULL final page means rows may lie past it —
+    // a short page proved the window was exhausted and nothing was missed.
+    // Asserting truncation on a complete scan makes the badge read `12+` and
+    // the caption claim a floor when both numbers are exact.
+    if (skip + PAGE >= MAX_SCAN && rows.length === PAGE) truncated = true;
   }
 
-  const items = opts.includeRated
-    ? [...unrated, ...rated].slice(0, limit)
-    : unrated.slice(0, limit);
+  const unratedCards = clusterDiscoveries(unrated);
+  const ratedCards = clusterDiscoveries(rated);
 
-  return { items, unrated: unrated.length, scanned, truncated };
+  // "include judged" has to actually show judged cards. Concatenating and
+  // slicing to `limit` sliced the rated half away entirely whenever there were
+  // >= limit unrated clusters — which, at 191 unrated clusters on prod, is
+  // always. The toggle changed its own label and nothing else. Reserve up to
+  // half the budget for judged cards, keeping unjudged first.
+  const ratedShare = opts.includeRated
+    ? Math.min(ratedCards.length, Math.floor(limit / 2))
+    : 0;
+  const items = [
+    ...unratedCards.slice(0, limit - ratedShare),
+    ...ratedCards.slice(0, ratedShare),
+  ];
+
+  return {
+    items,
+    unrated: unrated.length,
+    unratedClusters: unratedCards.length,
+    scanned,
+    truncated,
+    restoredHidden,
+  };
+}
+
+/**
+ * Cluster identity = provenance + question.
+ *
+ * Provenance is part of the key, not decoration. Clustering on content alone
+ * lets a fresh engine row (newest lastSeen, so always the head) absorb 237
+ * restored rows behind it — the card then renders as engine-found, drops the
+ * RESTORED line entirely, and one tap writes verdicts onto the whole recovery
+ * pile. Caught in adversarial review.
+ */
+function clusterIdentity(d: Discovery): string {
+  return `${d.provenance}|${clusterKey(d.content)}`;
+}
+
+function countClusters(rows: Discovery[]): number {
+  return new Set(rows.map(clusterIdentity)).size;
+}
+
+/**
+ * Collapse rows asking the same question into one card, most representative
+ * first (Hacohen's low-budget typicality — see listDiscoveries).
+ *
+ * The surviving row is the NEWEST member, so the card shows the freshest
+ * wording and the freshest `lastSeen`; `clusterIds` carries the rest so one
+ * tap rates all of them. Input arrives newest-first, so the first row seen for
+ * a key is already the newest — no re-sort needed inside a cluster.
+ */
+function clusterDiscoveries(rows: Discovery[]): Discovery[] {
+  const byKey = new Map<string, Discovery>();
+  for (const d of rows) {
+    const key = clusterIdentity(d);
+    const head = byKey.get(key);
+    if (head) head.clusterIds.push(d.id);
+    else byKey.set(key, { ...d, clusterIds: [d.id] });
+  }
+  return [...byKey.values()].sort(
+    (a, b) =>
+      b.clusterIds.length - a.clusterIds.length ||
+      b.lastSeen.getTime() - a.lastSeen.getTime(),
+  );
 }
 
 /**
@@ -242,7 +441,22 @@ export async function rateDiscovery(
         ...asRecord(row.metadata),
         discoveryVerdict: verdict,
         discoveryRatedAt: new Date().toISOString(),
+        // 2026-08-22 · the tier this verdict was given AT. The recurrence
+        // policy in lib/brain/blind-spot-identity.ts clears a `noise` verdict
+        // only when the spot later re-emits ABOVE this rank, so without it
+        // every suppression would be permanent — which is the failure mode
+        // that policy exists to avoid. Parsed from the card text because the
+        // severity lives in the content string, not a column.
+        discoveryVerdictSeverityRank: severityRankOf(row.content),
       } as never,
+      // A JUDGED row must never be garbage collected. Engine rows are created
+      // with a 24h probationary `expiresAt` that the commit gateway can never
+      // clear (see lib/brain/blind-spot-identity.ts), and pruneNoise +
+      // data-cleanup both sweep on it with no category filter. Without this,
+      // the operator's verdict is destroyed within a day and the ledger row it
+      // decided on points at nothing — measured on prod 2026-08-22, all three
+      // engine rows carrying verdicts were already past due.
+      expiresAt: null,
     },
   });
 
@@ -312,4 +526,117 @@ export async function rateDiscovery(
   }
 
   return { ok: true };
+}
+
+/**
+ * Rate a whole cluster in one tap.
+ *
+ * Why a batch entry point rather than the client looping rateDiscovery: the
+ * loop would fire one ledger write and one "investigate" task PER ROW, so
+ * clearing a 12-row cluster would create twelve identical Inbox tasks. Here ONE
+ * row carries the ledger + task side effects — the card the operator actually
+ * read — and the rest are metadata-only suppressions.
+ *
+ * TWO REVIEW FIXES, both of which produced a clean-looking success:
+ *
+ *  1. THE HEAD CAN BE GONE. Every side effect lives inside rateDiscovery(), so
+ *     when `ids[0]` had been soft-deleted between render and tap — routine, the
+ *     consolidate cron does it nightly — the function fell through to the
+ *     sibling loop and returned `{ ok: true, rated: 11, failed: 1 }` having
+ *     written NO ledger row and spawned NO task. The operator saw "saved 11 of
+ *     12" and reasonably expected the Inbox task that never appeared. A live
+ *     head is now elected from the candidates instead of assumed.
+ *
+ *  2. THE CLIENT ONLY KNOWS THE ROWS THE SCAN REACHED. `clusterIds` is built
+ *     from rows inside the paging window, which stops early. A cluster
+ *     straddling that boundary rendered "x18 identical", rated 18, reported a
+ *     clean sweep — and the other 22 rows came back as an unjudged card on the
+ *     next fetch, which is verbatim the defect this wave exists to close. The
+ *     server now re-derives full membership from the head's cluster identity
+ *     using the SAME clusterKey() the feed used, in JS rather than SQL so there
+ *     is exactly one definition and it cannot drift.
+ *
+ * Partial success is reported, never swallowed.
+ */
+export async function rateDiscoveryCluster(
+  ids: string[],
+  verdict: DiscoveryVerdict,
+): Promise<{ ok: boolean; rated: number; failed: number }> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return { ok: false, rated: 0, failed: 0 };
+
+  const candidates = await prisma.brainMemory.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, content: true, category: true, metadata: true, deletedAt: true },
+  });
+
+  const live = candidates.filter(
+    (r) => !r.deletedAt && DISCOVERY_CATEGORIES.includes(r.category),
+  );
+  // Counted as a SET DIFFERENCE, not `unique.length - live.length`. Subtracting
+  // lengths assumes the query returned a subset of what was asked for; when
+  // that assumption slips the count goes negative and the caller renders
+  // "saved 60 of 3".
+  const liveIds = new Set(live.map((r) => r.id));
+  const failedUpFront = unique.filter((id) => !liveIds.has(id)).length;
+  if (live.length === 0) return { ok: false, rated: 0, failed: unique.length };
+
+  // Elect a live head rather than trusting ids[0].
+  const head = live[0];
+  const identity = `${readProvenance(head.metadata)}|${clusterKey(head.content)}`;
+
+  // Re-derive full membership. Bounded by MAX_SCAN for the same reason the feed
+  // is: an unbounded rate-everything would be a different, riskier operation
+  // than the one the operator tapped.
+  const windowRows = await prisma.brainMemory.findMany({
+    where: {
+      category: { in: [...DISCOVERY_CATEGORIES] },
+      deletedAt: null,
+      lastSeen: { gte: new Date(Date.now() - 30 * 86_400_000) },
+    },
+    orderBy: { lastSeen: "desc" },
+    take: MAX_SCAN,
+    select: { id: true, content: true, category: true, metadata: true },
+  });
+
+  const members = new Map<string, (typeof windowRows)[number]>();
+  for (const r of windowRows) {
+    if (`${readProvenance(r.metadata)}|${clusterKey(r.content)}` !== identity) continue;
+    if (readVerdict(r.metadata) !== null) continue; // already judged on its own
+    members.set(r.id, r);
+  }
+  for (const r of live) members.set(r.id, r);
+  members.delete(head.id);
+
+  const headResult = await rateDiscovery(head.id, verdict);
+  let rated = headResult.ok ? 1 : 0;
+  let failed = failedUpFront + (headResult.ok ? 0 : 1);
+
+  for (const row of members.values()) {
+    try {
+      await prisma.brainMemory.update({
+        where: { id: row.id },
+        data: {
+          metadata: {
+            ...asRecord(row.metadata),
+            discoveryVerdict: verdict,
+            discoveryRatedAt: new Date().toISOString(),
+            discoveryVerdictSeverityRank: severityRankOf(row.content),
+            // Marks this row as suppressed BY a sibling's verdict rather than
+            // judged on its own. Keeps the corpus honest: the operator read one
+            // card, so the ledger must claim one judgement, not twelve.
+            discoveryVerdictVia: head.id,
+          } as never,
+          // Same reason as rateDiscovery: a judged row must outlive the 24h
+          // probationary TTL, or the suppression evaporates overnight.
+          expiresAt: null,
+        },
+      });
+      rated++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return { ok: rated > 0, rated, failed };
 }
