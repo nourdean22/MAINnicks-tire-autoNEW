@@ -19,14 +19,37 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+// AGENT_OS_ROOT lets the canary suite (adapters.test.mjs) point this checker at a
+// throwaway fixture tree. Without it the control is untestable: you can only prove
+// it fires by mutating the real policy files, which nobody will do in CI. Making a
+// control testable is part of shipping it — see AGENTS.md > "Ship the canary".
+const ROOT = process.env.AGENT_OS_ROOT
+  ? resolve(process.env.AGENT_OS_ROOT)
+  : resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+// Say so, loudly, when the root is redirected. A green line reading the same whether
+// this inspected the repo or a stray tree is the failure this file exists to prevent —
+// and the checkout carries 8 worktrees, each with a complete, passing policy file set.
+if (process.env.AGENT_OS_ROOT) {
+  console.warn(`agent-os parity: ROOT OVERRIDDEN via AGENT_OS_ROOT -> ${ROOT}`);
+  console.warn("  (correct ONLY under the canary suite; unset it for a real check)");
+}
 const errors = [];
 let checks = 0;
 
 const abs = (p) => resolve(ROOT, p);
 const exists = (p) => existsSync(abs(p));
 const read = (p) => readFileSync(abs(p), "utf8");
-const lineCount = (p) => read(p).split(/\r?\n/).length;
+// A file ending in "\n" has N lines, not N+1: split() yields a trailing empty string
+// for the final newline. The previous count charged every newline-terminated file one
+// phantom line, so every cap was really one lower — uniformly, across all 11 requireThin
+// call sites (15 files once the app loops expand), not just the four AGENTS.md ones.
+// Disclosure: correcting this is what lets root AGENTS.md sit at exactly 200 rather
+// than 199, so it is proved at the boundary in adapters.test.mjs (a file of exactly
+// `cap` lines passes; `cap + 1` fails) rather than taken on trust.
+const lineCount = (p) => {
+  const text = read(p);
+  return text.split(/\r?\n/).length - (text.endsWith("\n") ? 1 : 0);
+};
 
 function requireFile(p, why) {
   checks++;
@@ -67,6 +90,42 @@ function forbidLine(p, re, why, unless = null) {
   }
 }
 
+/**
+ * A line cap counts newlines, not context cost. Reflowing wrapped bullets into one long
+ * line buys lines for free and changes nothing about what an agent loads. That is how root
+ * AGENTS.md "made room" on 2026-08-22: seven wrapped passages reflowed into single long
+ * lines, no words removed, and every gate stayed green while the file GREW.
+ *
+ * The intermediate line and byte figures are deliberately NOT quoted here. They existed only
+ * in an uncommitted working tree, so no reader could reproduce them — and an unreproducible
+ * receipt is worse than none. Same reason the ratchet comment below measures against origin/main.
+ *
+ * This is the canary the 2026-08-21 audit proposed under "Add a max-line-length canary" and
+ * never built. Without it the line cap is a control that fires reliably on the wrong metric.
+ *
+ * Markdown table rows are exempt: one fact per row is the correct form, and the widest
+ * row here (the Enforcement map, 549 chars) cannot be wrapped without losing the scope
+ * column that makes it useful.
+ */
+function forbidLongLine(p, max = 140) {
+  checks++;
+  if (!exists(p)) return;
+  const lines = read(p).split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    // A real markdown row starts AND ends with a pipe and carries at least three.
+    // Testing only the first character let any prose line evade the gate by being
+    // prefixed with "| ". Verified: the strict form still exempts all 17 legitimate
+    // long rows across the 8 enforced files, and newly fails none.
+    const t = lines[i].trim();
+    if (t.startsWith("|") && t.endsWith("|") && (t.match(/\|/g) || []).length >= 3) continue;
+    if (lines[i].length <= max) continue;
+    errors.push(
+      `LONG     ${p}:${i + 1} is ${lines[i].length} chars (max ${max}) — wrap it; never reflow to beat a line cap`,
+    );
+    return; // one report per file is enough to fail the gate
+  }
+}
+
 const RETIRED = /RETIRED|retired|no longer|does not exist|there is no|superseded|stale|forbidden/i;
 function requireThin(p, max) {
   checks++;
@@ -81,9 +140,16 @@ if (requireFile("AGENTS.md", "canonical cross-agent policy")) {
     "## Repo topology",
     "## Source-of-truth hierarchy",
     "## Branching",
+    // Never listed before, despite being the no-agent-initiative list that every
+    // non-Claude agent depends on entirely (they get no PreToolUse hook).
+    "## Protected operations",
     "## Context routing",
     "## Commands",
     "## Verify gates",
+    // Added with the section itself, 2026-08-22. Shipping a load-bearing section
+    // without adding it here is how one got silently deleted before — the canary
+    // "a required canonical section cannot vanish" exists because of that.
+    "## Ship the canary",
     "## Commit Attribution",
     "## Environment (Windows)",
     "## Agent adapters",
@@ -181,15 +247,53 @@ if (requireFile("CLAUDE-OPERATING-PROFILE.md", "relocated Claude operating profi
   requireThin("apps/nickstire/AGENTS.md", 200);
   requireThin("apps/statenour/AGENTS.md", 200);
   requireThin("apps/worker/AGENTS.md", 200);
-  // Root is the deliberate exception, at 215/220. It was cut 226 -> 215 on 2026-08-21 by
-  // tightening prose and moving statenour's dated backlog into docs/RECONCILIATION.md
-  // (verified landed, unlike the earlier claim that it had). Every remaining section is
-  // load-bearing cross-agent policy: the 870-row incident, the junction-wipe consequence,
-  // the ET timezone rule, the source-of-truth hierarchy, the Enforcement map's scope column.
-  // Reaching 199 required deleting rules, not prose — so the number moved, not the content.
+  // Root is NOT an exception any more: 200, the same cap as the per-app files, reached on
+  // 2026-08-22 via 21 adversarially-verified relocations. Measured against origin/main, the only
+  // baseline a reader can reproduce: 217 -> 200 lines, 15,036 -> 13,060 bytes. An earlier draft
+  // of this comment cited "228 -> 200 / 15,941 -> 13,060"; 228 was an uncommitted mid-session
+  // state present in no commit, so it was deleted rather than corrected — an unreproducible
+  // receipt is worse than none. It was 240, then 220 — each time set just above whatever the
+  // file happened to
+  // measure. That is a rubber stamp, not a ratchet. The comment this replaces claimed
+  // "reaching 199 required deleting rules, not prose"; true only because relocation had not
+  // been exhausted — and never surfaced anywhere but this comment.
   // Lower this only by removing a rule you can name, or by relocating one to a destination
-  // you have grepped and confirmed.
-  requireThin("AGENTS.md", 220);
+  // you have GREPPED and confirmed. Do NOT reflow to fit: forbidLongLine below exists
+  // because a previous pass bought lines that way while the file grew.
+  requireThin("AGENTS.md", 200);
+
+  // EVERY requireThin-capped file that is clean at 140 is enforced here. The point is
+  // the pairing: a line cap without a length check is evadable by reflow, so any file
+  // with a cap and no length check is an open evasion path.
+  //
+  // An earlier version of this list was wrong in BOTH directions — it silently skipped
+  // .antigravityrules and .cursor/rules/repo-core.mdc (both already clean, so free to
+  // enforce), and its exemption note named AGENT-OPERATING-PROFILE.md, which carries no
+  // requireThin cap at all and therefore was never an evasion path. Meanwhile
+  // .github/copilot-instructions.md — capped at 60 lines, worst line 309 — went
+  // unenforced AND undisclosed, which is precisely the hole this gate exists to close.
+  for (const f of [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".antigravityrules",
+    ".cursor/rules/repo-core.mdc",
+    "apps/nickstire/AGENTS.md",
+    "apps/statenour/AGENTS.md",
+    "apps/nickstire/CLAUDE.md",
+    "apps/statenour/CLAUDE.md",
+    "apps/worker/CLAUDE.md",
+  ]) {
+    forbidLongLine(f, 140);
+  }
+  // Capped but NOT length-checked, with the measured worst non-table line. Each is an
+  // open reflow path until rewrapped; listed so the gap is reviewable rather than
+  // invisible. Rewrap one and move its path into the loop above.
+  //   .github/copilot-instructions.md   60-line cap, worst 309
+  //   .cursor/rules/nickstire.mdc       60-line cap, worst 252
+  //   .cursor/rules/statenour.mdc       60-line cap, worst 220
+  //   apps/worker/AGENTS.md            200-line cap, worst 163
+  //   CLAUDE-OPERATING-PROFILE.md      160-line cap, worst 601
 }
 
 // `.husky/pre-*` = a claim about where the hook lives (always wrong — lefthook).

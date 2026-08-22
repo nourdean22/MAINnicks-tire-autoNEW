@@ -26,13 +26,13 @@ An Express 4 + node-cron process on Railway's internal network. **Three source f
 1. **Forwards cron ticks** to statenour-web. It holds no business logic for those jobs: each tick is
    an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a `Bearer CRON_SECRET`, a 60s
    timeout (`scheduler.ts:37` `FORWARD_TIMEOUT_MS = 60_000`) and a per-job overlap guard
-   (`scheduler.ts:46` `inFlightForwards`, checked at `:361` — a slow forward skips the next tick
-   instead of stacking). Registered in `scheduler.ts`: `brain-bus-drain` (`:115` `*/15 * * * *`),
-   `outbox-drain` (`:124` `*/15 * * * *`), `inngest-liveness` (`:137` `0 13 * * *`, daily 13:00 UTC).
-   `POST /cron/mega` (`index.ts:113`) and `/cron/mega-evening` (`index.ts:119`) forward the
+   (`scheduler.ts:46` `inFlightForwards`, checked at `:378` — a slow forward skips the next tick
+   instead of stacking). Registered in `scheduler.ts`: `brain-bus-drain` (`:132` `*/15 * * * *`),
+   `outbox-drain` (`:141` `*/15 * * * *`), `inngest-liveness` (`:154` `0 13 * * *`, daily 13:00 UTC).
+   `POST /cron/mega` (`index.ts:163`) and `/cron/mega-evening` (`index.ts:169`) forward the
    morning/evening mega fan-out.
-2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:149`;
-   cron registered at `:393`, tick at `:396`):
+2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:166`;
+   cron registered at `:410`, tick at `:413`):
    polls `/api/sync/queue/render` for approved drafts, renders MP4 locally via `renderReelVideo`
    from `@nour/reel-engine` (Remotion), uploads through `storage.ts` (S3 + CloudFront URL or 24h
    presigned GET; local-fs fallback to `data/generated/` when `S3_BUCKET` is unset), then POSTs
@@ -68,13 +68,13 @@ canonical: if you change the env contract, change it here first, then `DEPLOY.md
   authority that checks derived state turns a blip into a restart storm. Scheduler freshness rides
   in the BODY as diagnostics only.
 - **`GET /health/scheduler` is the freshness signal** — 503 when the newest tick is older than
-  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:88`,
-  input `TICK_WRITING_SCHEDULES` `:155`) takes the fastest schedule that writes `lastTickAt` and
+  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:105`,
+  input `TICK_WRITING_SCHEDULES` `:172`) takes the fastest schedule that writes `lastTickAt` and
   allows two missed fires plus 5 min jitter — today `*/15` -> **35 min**. Change a cron and the
   window follows. **Never point `healthcheckPath` at this endpoint.** Safe to alert on; nothing
   restarts on it.
 - **Graceful drain on SIGTERM/SIGINT** — `drainInFlight(30_000)` bounded, `35_000` hard exit
-  (`index.ts:154`, `:150`, handlers at `:161-162`). Keep it, or a deploy can kill a render mid-write.
+  (`index.ts:204`, `:200`, handlers at `:211-212`). Keep it, or a deploy can kill a render mid-write.
 - `STATENOUR_SYNC_KEY` must match across statenour-web, nickstire and worker — a drift shows up as
   bridge 401s.
 

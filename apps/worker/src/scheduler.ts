@@ -75,8 +75,25 @@ export function cronIntervalMinutes(expr: string): number {
  * How long /health tolerates silence before calling the loop stalled.
  *
  * DERIVED, not hardcoded. `lastTickAt` is bumped by ANY tick, so the longest
- * healthy gap is the interval of the FASTEST recurring writer. We allow two
- * missed fires plus 5 min of scheduler jitter.
+ * healthy gap is the interval of the FASTEST recurring writer.
+ *
+ * GROUNDING, stated honestly because an unsourced constant is how the previous
+ * 5-minute literal survived:
+ *   · Expressing the threshold as a COUNT OF MISSED INTERVALS rather than an
+ *     absolute duration is established heartbeat-monitoring practice —
+ *     incident.io's "missed tolerance: fires an alert after the configured
+ *     number of consecutive pings are missed (minimum 1)"
+ *     (docs.incident.io/alerts/heartbeat-monitoring). That is why this is a
+ *     multiple of the schedule and not another literal.
+ *   · The specific values are NOT standards. incident.io gives no recommended
+ *     count (minimum 1). Prometheus is deliberately NOT cited here: it uses a
+ *     fixed 5-minute lookback-delta, not a multiple of scrape interval, so it
+ *     would be the wrong precedent.
+ *   · So: `* 2` (tolerate one wholly missed fire before crying stalled) and
+ *     `+ 5` minutes (node-cron drift + forward latency) are JUDGMENT CALLS.
+ *     Widen them freely; the cost of being late here is a late alert, because
+ *     nothing restarts on this signal. Narrowing is the risk — but the margin is
+ *     `+ 5`, not the multiplier: at a 15-min floor it clears a healthy gap to ~`* 0.67`.
  *
  * Why derived: this was `5 * 60_000` with the comment "a high-freq job ticks
  * every ~2 min". #1696 moved the render loop from 2-minute to 15-minute cadence and nothing
