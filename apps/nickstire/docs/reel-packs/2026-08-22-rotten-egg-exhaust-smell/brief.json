@@ -1,0 +1,93 @@
+{
+  "topic": "Rotten egg smell from the exhaust: catalytic converter running rich",
+  "campaignKeyword": "ROTTENEGG",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
+  "generatedAt": "2026-08-22",
+  "durationSec": 28,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "That rotten egg smell from your exhaust isn't your imagination.",
+      "visualPrompt": "Close-up shot of a car tailpipe from behind at dusk, faint heat-haze shimmer visible, slow push-in, no people",
+      "stockSearchTerms": ["car tailpipe closeup dusk", "exhaust pipe heat haze rear view"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "It usually points to the catalytic converter running rich, burning more fuel than it should.",
+      "visualPrompt": "Macro shot of a catalytic converter and heat shield on the underside of a car on a lift, matte metal texture, warm garage light, static camera",
+      "stockSearchTerms": ["catalytic converter underside car lift macro", "exhaust heat shield garage closeup"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 17],
+      "narration": "A failing oxygen sensor or a leaking injector can push extra fuel through, and the converter can't burn off the sulfur fast enough. That smell is the clue.",
+      "visualPrompt": "Extreme macro of an oxygen sensor threaded into an exhaust pipe, sensor wire trailing off-frame, slow orbital camera move, dim garage light",
+      "stockSearchTerms": ["oxygen sensor exhaust pipe macro", "engine sensor wire closeup garage"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [17, 23],
+      "narration": "When it shows up can point to which part's involved: right after startup, only at idle, or all the time.",
+      "visualPrompt": "Static wide shot of a car idling in a driveway at dusk, faint exhaust vapor visible from the tailpipe, no people, ambient light",
+      "stockSearchTerms": ["car idling driveway dusk exhaust vapor", "parked car engine running evening"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [23, 28],
+      "narration": "Don't guess which part. Nick's Tire and Auto offers a free check on the sensors and converter to find the real cause.",
+      "visualPrompt": "Static close-up of a clean tailpipe with faint heat-haze shimmer, matching beat 1 framing to close the loop, warm shop bay light glowing behind it, no people",
+      "stockSearchTerms": ["car tailpipe closeup shop bay light", "exhaust pipe garage background warm light"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "faint idle-engine room-tone under beats 2-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 55,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "tailpipe closeup is a plausible but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "28s, within 15-60s target range" },
+      "loop": { "score": 5, "max": 5, "note": "CTA frame (tailpipe closeup, shop light behind) deliberately re-frames the HOOK shot to close the loop" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "checked narration and CTA against FORBIDDEN_CLAIM_PATTERNS/OVERDIAGNOSIS_PATTERNS/FEARMONGER_PATTERNS in facelessReelStudio.ts by hand; used approved soft phrasing (can point to) and exact 'free check' wording" },
+      "keyword": { "score": 5, "max": 5, "note": "exhaust, converter, sensor keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 28,
+    "ctaType": "SEND-oriented"
+  }
+}
