@@ -1,0 +1,93 @@
+{
+  "topic": "Clutch slipping in a manual transmission: RPM climbs but the car doesn't speed up",
+  "campaignKeyword": "CLUTCHSLIP",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
+  "generatedAt": "2026-08-22",
+  "durationSec": 27,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "You press the gas, the engine revs up, but the car barely picks up speed.",
+      "visualPrompt": "Extreme close-up of a car tachometer needle sweeping upward past 3000 RPM, dim dashboard glow, static camera, no speedometer needle movement",
+      "stockSearchTerms": ["car tachometer closeup rpm gauge dashboard", "rev counter needle rising car interior"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "That gap between engine speed and road speed is a classic sign of a slipping clutch.",
+      "visualPrompt": "Macro shot of a manual gear shifter in neutral position, soft interior light, slow push-in, no hand on the shifter",
+      "stockSearchTerms": ["manual gear shifter closeup car interior", "stick shift macro no hands"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 17],
+      "narration": "The clutch disc is supposed to lock the engine to the transmission solid. Once the friction material wears thin, or gets soaked in a small oil leak, it starts to slide instead of grip.",
+      "visualPrompt": "Macro shot of a worn clutch disc friction surface on a shop workbench, visible glazing and thinning, slow orbital camera move, workshop lighting",
+      "stockSearchTerms": ["worn clutch disc closeup workbench", "clutch friction plate macro auto shop"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [17, 23],
+      "narration": "A quick check: on a flat, empty road, hold a steady speed and press the gas firmly. If the RPM jumps but the car doesn't respond, that's slip, not a weak engine.",
+      "visualPrompt": "Wide shot from inside a car looking through the windshield down an empty flat road, daylight, static mounted camera, no hands on wheel",
+      "stockSearchTerms": ["empty road through windshield driving pov static", "flat straight road car interior view"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [23, 27],
+      "narration": "Worth checking before it gets worse. Stop by and we'll take a look.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "faint engine rev sound under beat 1 only, no music"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "tachometer-climbing macro is a plausible but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (tachometer)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged phrasing used (worth checking, stop by and we'll take a look)" },
+      "keyword": { "score": 5, "max": 5, "note": "clutch, RPM, slipping keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 27,
+    "ctaType": "SEND-oriented"
+  }
+}
