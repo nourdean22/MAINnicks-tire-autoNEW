@@ -1,3 +1,33 @@
+**Both landed 2026-08-22, together, as argued.** The widening, the wiring into `verify:hard`, the
+programmatic seed and a canary shipped as one change, because each is useless alone: a widened script
+nothing invokes is a dated warn tier with no caller, and wiring an unsatisfiable gate red-lines every
+local push. Post-seed the gate reports `✅ all 20 autonomous-action rules have policies · ✅ all 74
+active crons have policies`, exit 0, and the rule tier is HARD from the first commit — an earlier draft
+made it WARN "until the seeder is switched", but that switch shipped in the same commit, so the warn
+window would have been a 24-day hole for the exact defect the gate exists to catch.
+
+### Three near-misses, recorded because the next session hits the same fork
+
+Closing this gap had three ways to go wrong, none of which a test would have caught:
+
+1. **Derived-from-declaration is not derived-from-policy.** Every rule in the registry — all twenty — declares
+   `approval: "auto"`. Reading "derive policies from the rule list" literally — taking `approvalClass`
+   from `rule.approval` — would have armed **17 lanes** to fire unattended (18 `send_telegram`, and the
+   registry also holds 1 `send_email`, 1 `promote_memory`). The repo already encoded the answer: the
+   lead-emailing rule is curated `"pending"` **despite** its own `approval: "auto"`. A rule DECLARES
+   what it would do unattended; a policy RECORDS whether the operator has agreed to that. They are
+   different facts and only one of them is an authorisation. **Which lane is protected by what is also
+   easy to invert:** the 17 at risk are all telegram; the one customer-emailing lane is protected by
+   *curation* winning last, not by the derived baseline.
+2. **A seed script that runs on import.** `seed-policies.ts` calls `main()` at module load. A test
+   importing it to assert completeness would have executed a **production write as a side effect of a
+   unit test**. The derivation lives in `lib/automation/derive-rule-policies.ts` so it can be imported
+   without that.
+3. **A status-string rename that empties a queue.** Marking the bootstrap gap by changing
+   `result: "pending_approval"` to a new value looked cleaner. `lib/services/action-receipt-feed.ts:73`
+   classifies on that exact string — the rename would have silently dropped every affected row out of
+   the approvals queue while every test passed. The marker rides in `payload` instead.
+
 # Control canary coverage
 
 **Measured 2026-08-22.** Referenced from root [`AGENTS.md`](../../AGENTS.md) -> *Ship the canary, not
@@ -43,11 +73,11 @@ complete — an unlisted control is not a covered one.
 | lefthook `pre-commit` | 9 | 0 | 2 of the 9 invoke a proven control (`nickstire-lint-brand`, `agent-os-verify`) |
 | lefthook `pre-push` | 1 | 0 | `turbo-build-affected` |
 | statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** |
-| statenour `check:policy-coverage` | 1 | 0 | Defined, wired into **nothing** — see [the dead control](#the-dead-control) |
+| statenour `check:policy-coverage` | 1 | **1** | Was wired into **nothing** for months; wired into `verify:hard` and canaried 2026-08-22 — see [the dead control](#the-dead-control) |
 | nickstire `verify` | 14 | **1** | `lint:brand-voice` proven by `lintGateFailClosed.test.ts` |
 | Product alert paths — daily brief end-to-end | 1 | 0 | See [instance ten](#the-worked-example--instance-ten) |
 | **This document** — its own derived numbers | 1 | **1** | [Instance twelve](#instance-twelve--this-document). Proven by `coverage-doc.test.mjs` |
-| **Total** | **48** | **4** | **8.3 %** |
+| **Total** | **48** | **5** | **10.4 %** |
 
 ---
 
@@ -167,10 +197,10 @@ reached by 21 verified relocations rather than by moving the number.
 The failure class in its purest form: **a control that works correctly, whose hard-mode ratchet expired
 2026-05-10, and which has never once run inside a gate.**
 
-`apps/statenour/scripts/check-policy-coverage.ts` is defined as `check:policy-coverage` in
-`package.json` and invoked by **nothing** — not `verify:hard` (16 links, checked on `origin/main`), not
-`.github/workflows`, not `lefthook.yml`. Run by hand on 2026-08-22 it exits **1** immediately. Verbatim,
-not reconstructed:
+`apps/statenour/scripts/check-policy-coverage.ts` was defined as `check:policy-coverage` in
+`package.json` and invoked by **nothing** — not `verify:hard` (17 links today; it was 16 and none of
+them was this), not `.github/workflows`, not `lefthook.yml`. Run by hand on 2026-08-22 it exited **1**
+immediately. Verbatim, not reconstructed:
 
 ```
   ❌  3 active crons missing AutomationPolicy entry:

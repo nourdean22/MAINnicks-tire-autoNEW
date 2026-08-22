@@ -26,6 +26,7 @@
 
 import { CRONS } from "@/config/crons";
 import { findMissingPolicies } from "@/lib/automation/policy";
+import { listRuleNames } from "@/lib/brain/autonomous-engine";
 
 const HARD_MODE =
   process.env.POLICY_GATE_HARD === "1" ||
@@ -41,6 +42,53 @@ async function main() {
   const expected = CRONS.filter((c) => c.mode !== "retired").map(
     (c) => `cron.${c.name}`,
   );
+
+  // 2026-08-22 · WIDENED past cron.*. This gate exists to catch the "rule
+  // registered, no policy" deadlock and then only ever checked crons — so 17 of
+  // 20 autonomous-action rules were invisible to it. The engine is fail-closed,
+  // so each uncovered rule parks every match as pending forever.
+  //
+  // HARD from the start, same tier as crons. An earlier draft made this a WARN
+  // tier "until seed-policies.ts is switched from its hand-curated array to
+  // listRuleNames()" — but that switch lands in the SAME commit and the seed has
+  // run, so coverage is complete right now and a hard tier passes. A dated warn
+  // whose precondition is already met is just a 24-day hole for the exact defect
+  // this gate exists to catch: rule #21 added without a re-seed would emit one
+  // buried ⚠️ inside a 17-link chain, exit 0, and park every match indefinitely.
+  const ruleExpected = listRuleNames().map((r) => `autonomous-action.${r.name}`);
+  try {
+    const missingRules = await findMissingPolicies(ruleExpected);
+    if (missingRules.length > 0) {
+      // Honour the SAME overrides the cron tier does and this script advertises at
+      // its exit (`POLICY_GATE_SOFT=1 to demote to warning`). Reading only the date
+      // made that documented escape hatch a lie for this tier: SOFT=1 demoted the
+      // cron tier while this one still exited 1.
+      const ruleHard = HARD_MODE;
+      console.log(
+        `  ${ruleHard ? "❌" : "⚠️ "}  ${missingRules.length}/${ruleExpected.length} autonomous-action rules have NO AutomationPolicy`,
+      );
+      for (const id of missingRules.slice(0, 5)) console.log(`     · ${id}`);
+      if (missingRules.length > 5) console.log(`     · …and ${missingRules.length - 5} more`);
+      console.log("     each parks every match as pending forever (fail-closed engine)");
+      console.log("     fix: seed from listRuleNames(), not the curated array");
+      if (ruleHard) {
+        console.log("     emergency override: POLICY_GATE_SOFT=1 to demote to warning.");
+        process.exit(1);
+      }
+    } else {
+      console.log(`  ✅  all ${ruleExpected.length} autonomous-action rules have policies`);
+    }
+  } catch (e) {
+    // Fail OPEN like the cron tier below — a contributor without DB access must
+    // not be blocked. But SAY SO: this catch was originally silent, which made a
+    // Prisma failure indistinguishable from the block not existing.
+    // NOTE the wording. listRuleNames() is called OUTSIDE this try, so the only
+    // thing that can throw in here is findMissingPolicies — a DB call. This can
+    // never mean the RULE registry failed; that would escape to main().catch.
+    console.warn(
+      `  ⚠️  rule registry unreachable (${e instanceof Error ? e.message : e}) · skipping autonomous-action coverage`,
+    );
+  }
 
   if (expected.length === 0) {
     console.log("  ✅  no active crons declared (vacuously covered)");
@@ -89,5 +137,10 @@ async function main() {
 
 main().catch((e) => {
   console.error("policy-coverage check crashed:", e);
-  // Don't fail the push on the script's own bug — log + pass.
+  // EXIT NON-ZERO. This previously logged and returned, so `verify:hard` printed
+  // "policy-coverage check crashed: Cannot find module …" and still exited 0 —
+  // both tiers silently dead while the chain reported success. scripts/ is excluded
+  // from tsconfig.typecheck.json, so a renamed import is caught by nothing else.
+  // A gate that cannot fail is not a gate.
+  process.exit(1);
 });

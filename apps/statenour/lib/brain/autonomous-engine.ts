@@ -942,8 +942,19 @@ const RULES: ActionRule[] = [
  * BDN-101). The census's own kill shot forbids hand-lists — lanes must
  * derive from the registry that actually dispatches, which is RULES.
  */
-export function listRuleNames(): Array<{ name: string; actionType: string }> {
-  return RULES.map((r) => ({ name: r.name, actionType: r.actionType }));
+export function listRuleNames(): Array<{
+  name: string;
+  actionType: string;
+  /** The rule's OWN contract. NOT the policy — see the warning below. */
+  approval: "auto" | "ask";
+  targetType: string;
+}> {
+  return RULES.map((r) => ({
+    name: r.name,
+    actionType: r.actionType,
+    approval: r.approval,
+    targetType: r.targetType,
+  }));
 }
 
 /**
@@ -1257,6 +1268,25 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
                 payload: {
                   deferredItem: item,
                   ...(planRecord ? { plannedOutcome: planRecord } : {}),
+                  // A lane with NO policy row and a lane an operator deliberately set
+                  // to "pending" are identical here — both defer — so a bootstrap gap
+                  // looked exactly like a normal approval nobody had got to yet. That
+                  // is how 17 rules parked every match for months with no signal.
+                  // `result` stays "pending_approval" on purpose: action-receipt-feed
+                  // classifies on it, and a new value would silently drop these rows
+                  // out of the approvals queue. The marker rides in payload instead.
+                  ...(policyApproval === null
+                    ? {
+                        policyBootstrap: {
+                          missing: true,
+                          policyId,
+                          reason:
+                            "blocked-needs-bootstrap — no AutomationPolicy row exists for this rule, " +
+                            "so the fail-closed engine defers every match indefinitely. Run " +
+                            "`pnpm tsx scripts/seed-policies.ts` to create the derived baseline.",
+                        },
+                      }
+                    : {}),
                 } as Prisma.InputJsonValue,
               },
             })
