@@ -433,12 +433,54 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
  */
 export async function getBlindSpotContext(): Promise<string> {
   try {
-    const spots = await prisma.brainMemory.findMany({
+    // 2026-08-22 · verdict-aware. This read had NO verdict filter, so a spot
+    // the operator had explicitly called "Noise" was read back into the system
+    // prompt every night — the system telling itself the thing it was told to
+    // disregard. Measured on prod: the two rows rated `noise` on 08-21 were
+    // both inside this take(5) window on 08-22.
+    //
+    // `noise` is the ONLY verdict excluded. `known` means true-but-not-new: it
+    // is bad feed material and good context material, and dropping it would
+    // strip the prompt of facts the operator has personally confirmed.
+    // `investigate` is live work. Unjudged is unknown, not disqualified.
+    //
+    // OVERFETCH-then-filter, deliberately NOT a Prisma JSON-path predicate.
+    // The obvious `NOT: { metadata: { path: ["discoveryVerdict"], equals:
+    // "noise" } }` compiles to `NOT (metadata #> '{discoveryVerdict}' =
+    // '"noise"')`, and for a row with no such key that comparison is NULL, so
+    // `NOT NULL` is NULL and the row is dropped. Measured against prod
+    // 2026-08-22: that predicate keeps 1 of 241 live blind_spot rows — it
+    // would have silently cut this section of the system prompt from five
+    // spots to one while looking like a tightened filter. Same
+    // path-null hazard lib/brain/discoveries.ts:139 documents.
+    //
+    // 25 is 5x the budget: it returns a full five unless more than twenty of
+    // the twenty-five newest spots are suppressed, which is itself a finding
+    // rather than a silent shortfall.
+    // lastSeen, NOT createdAt (2026-08-22). Under the old clock-in-the-key
+    // scheme every night minted a new row, so `createdAt` was an accidental
+    // proxy for "detected last night". With a stable key it is pinned to the
+    // FIRST ever sighting and only lastSeen moves — so ordering by createdAt
+    // would fill this window with stale one-off spots and exclude the one
+    // detected hours ago. Same trap lib/brain/discoveries.ts:260 documents for
+    // the two engines that already had stable keys.
+    const candidates = await prisma.brainMemory.findMany({
       where: { deletedAt: null, category: BRAIN_CATEGORIES.BLIND_SPOT }, // v9.1.18
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { content: true },
+      orderBy: { lastSeen: "desc" },
+      take: 25,
+      select: { content: true, metadata: true },
     });
+
+    const spots = candidates
+      .filter((m) => {
+        const meta = m.metadata;
+        const verdict =
+          meta && typeof meta === "object" && !Array.isArray(meta)
+            ? (meta as Record<string, unknown>).discoveryVerdict
+            : null;
+        return verdict !== "noise";
+      })
+      .slice(0, 5);
 
     if (spots.length === 0) return "";
 
