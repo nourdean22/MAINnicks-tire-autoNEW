@@ -1,0 +1,93 @@
+{
+  "topic": "Dash lights work, push-button start does nothing: check the key fob battery first",
+  "campaignKeyword": "FOBBATTERY",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
+  "generatedAt": "2026-08-21",
+  "durationSec": 27,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Dash lights come on fine. Push the start button - nothing happens.",
+      "visualPrompt": "Close-up of a fully illuminated car instrument cluster at night, gauges lit, static camera, slight push-in",
+      "stockSearchTerms": ["car dashboard lit up at night closeup", "instrument cluster illuminated macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "That's not always a dead car battery. Check your key fob first.",
+      "visualPrompt": "Close-up of a push-button ignition start switch on a car center console, soft interior ambient light, static shot, no hand in frame",
+      "stockSearchTerms": ["push button start ignition closeup", "car center console start button macro"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 16],
+      "narration": "A weak or dead key fob battery can stop a push-button start cold, even with a fully charged car battery.",
+      "visualPrompt": "Extreme macro of a key fob with its back cover removed, small coin-cell battery visible inside, slow rotating turntable-style camera move, neutral tabletop lighting",
+      "stockSearchTerms": ["key fob battery replacement closeup", "coin cell battery inside key fob macro"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [16, 22],
+      "narration": "Most fobs hide a backup key and a spot to hold the fob against the start button - check your owner's manual.",
+      "visualPrompt": "Macro shot of a key fob resting on a car center console next to the push-button start, slow orbital camera move, warm interior lighting",
+      "stockSearchTerms": ["key fob on car console near start button", "smart key fob macro shot"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [22, 27],
+      "narration": "Nick's Tire and Auto tests key fob batteries free. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "subtle electronic chime under beat 1 (dash lighting up), ambient interior room-tone under beats 2-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 46,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 6, "max": 10, "note": "illuminated dashboard at night is a solid but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (dashboard)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged with most/can, and refers viewers to their own owner's manual rather than asserting one universal procedure" },
+      "keyword": { "score": 0, "max": 5, "note": "core keyword is key fob / push-button start, not tire or auto-repair-generic; likely still passes a real keyword check but not confirmed against the pipeline's actual keyword list" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 27,
+    "ctaType": "SEND-oriented"
+  }
+}
