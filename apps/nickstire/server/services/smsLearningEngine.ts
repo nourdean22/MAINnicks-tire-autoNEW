@@ -584,11 +584,23 @@ export async function getSmsVariantPerformance(opts: { eventType: string; days: 
 }
 
 /**
- * Nightly cron learning job.
+ * Weekly cron learning job — the ONLY producer of sms_learning_recommendations.
+ *
+ * 2026-08-23 · was `Promise<void>` with a catch that logged and returned. Wired
+ * into a tier that reads `{ recordsProcessed, details }`, that shape is
+ * all-clear-on-failure twice over: the legacy registration returned a hardcoded
+ * `{ recordsProcessed: 1 }` regardless of outcome, and a thrown error inside was
+ * swallowed so cron_log would have recorded `completed`. A no-db run, a run that
+ * crossed no threshold, a run that wrote a recommendation and a run that failed
+ * outright were indistinguishable from the outside.
+ *
+ * Now each outcome is named in `details` and counted in `recordsProcessed`, and
+ * a real failure RETHROWS so the scheduler writes status='failed' plus
+ * error_message — the same convention cron/jobs/reviewRequests.ts documents.
  */
-export async function processSmsLearningDigest() {
+export async function processSmsLearningDigest(): Promise<{ recordsProcessed: number; details: string }> {
   const db = await getDbTyped();
-  if (!db) return;
+  if (!db) return { recordsProcessed: 0, details: "database unavailable — digest not run" };
 
   log.info("Processing SMS self-learning digest...");
 
@@ -647,23 +659,40 @@ export async function processSmsLearningDigest() {
         )
         .limit(1);
 
-      if (!existing) {
-        await db.insert(smsLearningRecommendations).values({
-          recommendationType: "fine_tune_ready",
-          eventType: "system",
-          currentVariantKey: "ollama_3b_v1",
-          proposedVariantKey: "ollama_3b_v2",
-          proposedMessage: "Operator-gated: review, then run the NickGPT fine-tune/prompt update. This recommendation never auto-triggers a fine-tune.",
-          reason: `Training set reached ${datasetSize} examples (${fineTuneThreshold}).`
-            + (topEdit ? ` Top operator-edit pattern (last 30d, ${editedCount} edits): ${topEdit[0]} (${topEdit[1]}). Consider a prompt fix before/with any fine-tune.` : ""),
-          supportingStatsJson: JSON.stringify({ datasetSize, promptUpgrade, editedCount, editTally }),
-          status: "pending",
-        });
-        log.info("Learning engine recommended NickGPT fine-tune upgrade!");
+      if (existing) {
+        return {
+          recordsProcessed: 0,
+          details: `threshold "${fineTuneThreshold}" already has a pending recommendation (dataset ${datasetSize})`,
+        };
       }
+
+      await db.insert(smsLearningRecommendations).values({
+        recommendationType: "fine_tune_ready",
+        eventType: "system",
+        currentVariantKey: "ollama_3b_v1",
+        proposedVariantKey: "ollama_3b_v2",
+        proposedMessage: "Operator-gated: review, then run the NickGPT fine-tune/prompt update. This recommendation never auto-triggers a fine-tune.",
+        reason: `Training set reached ${datasetSize} examples (${fineTuneThreshold}).`
+          + (topEdit ? ` Top operator-edit pattern (last 30d, ${editedCount} edits): ${topEdit[0]} (${topEdit[1]}). Consider a prompt fix before/with any fine-tune.` : ""),
+        supportingStatsJson: JSON.stringify({ datasetSize, promptUpgrade, editedCount, editTally }),
+        status: "pending",
+      });
+      log.info("Learning engine recommended NickGPT fine-tune upgrade!");
+      return {
+        recordsProcessed: 1,
+        details: `recommendation written: ${fineTuneThreshold} (dataset ${datasetSize}, ${editedCount} edits analysed)`,
+      };
     }
+    return {
+      recordsProcessed: 0,
+      details: `no threshold crossed — dataset ${datasetSize} example(s), ${editedCount} edit(s) analysed`,
+    };
   } catch (err) {
+    // Rethrow, deliberately. Swallowing here made a failed digest look like a
+    // clean one in cron_log; the scheduler's catch records status='failed' and
+    // the error text, which is what the failure observer reads.
     log.error("Failed to run learning digest cron", err);
+    throw err;
   }
 }
 
