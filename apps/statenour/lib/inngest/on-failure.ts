@@ -56,12 +56,28 @@ async function notifyTelegram(args: FailurePayload): Promise<void> {
       `⚠️ <b>Inngest failure</b> · ${escapeHtml(functionId)}\n` +
       `<code>${escapeHtml(errLine)}</code>${runLine}`;
 
-    await sendTelegram(message, undefined, "HTML");
-    log.warn("inngest_failure_notified", {
-      fn: functionId,
-      runId,
-      err: errLine.slice(0, 80),
-    });
+    // 2026-08-23 · the boolean was DISCARDED and this logged "notified"
+    // unconditionally. sendTelegram returns false cleanly on four paths — no bot
+    // token, no chat id, a non-2xx from the Bot API, and a network error or the
+    // 5s timeout — so a revoked token or a bot removed from the chat produced:
+    // run fails, handler runs, nothing delivered, log says notified. An alerting
+    // system that reports success when it delivered nothing is the blind
+    // instrument its own alerts exist to prevent.
+    const delivered = await sendTelegram(message, undefined, "HTML");
+    if (delivered) {
+      log.warn("inngest_failure_notified", {
+        fn: functionId,
+        runId,
+        err: errLine.slice(0, 80),
+      });
+    } else {
+      log.error("inngest_failure_notify_undelivered", {
+        fn: functionId,
+        runId,
+        err: errLine.slice(0, 80),
+        note: "sendTelegram returned false — check TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID and bot membership",
+      });
+    }
   } catch (err) {
     log.error("inngest_failure_notify_threw", {
       message: err instanceof Error ? err.message.slice(0, 200) : String(err),
