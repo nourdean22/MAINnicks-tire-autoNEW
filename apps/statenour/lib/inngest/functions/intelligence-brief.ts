@@ -15,6 +15,64 @@ const log = rootLogger.withSurface("inngest/intelligence-brief");
 const inngest = getInngest();
 
 /**
+ * 2026-08-23 · zero-ingest is a FAILURE, not a quiet day. Pure and exported for
+ * the same reason `combineBriefText` below is: an Inngest step callback cannot be
+ * driven from a test without mocking step.run and prisma, so the decision lives
+ * here where it can be asserted directly.
+ *
+ * THE DEFECT. The ingestion step caught every per-source error, logged it, and
+ * returned normally. A source that returned `{ success: false }` was not even
+ * logged. So if all seven feeds failed — one expired credential is enough — the
+ * step returned `sourcesIngested: 0`, the function completed, and Inngest marked
+ * the run SUCCEEDED. The brief then went out built on nothing, and the only
+ * signal was a log line nobody reads.
+ *
+ * WHY A THROW IS THE RIGHT INSTRUMENT AND NOT A NEW ALERT. `onFailure:
+ * onInngestFailure` is already wired on this function and already routes to
+ * Telegram after retries are exhausted (retries: 2, so three attempts). Throwing
+ * reuses that path exactly; building a second alerting route would be a parallel
+ * system to keep in sync.
+ *
+ * MEASURED BEFORE ARMING, because a gate that fires every day is worse than no
+ * gate. Prod on 2026-08-23: 7 registered sources, and intelligence_claims has
+ * rows on 20 of the last 21 days (20-76/day). Zero-ingest is NOT the steady
+ * state here, so this pages rarely and means something when it does. The
+ * contrast is `ollama-model-liveness`, which carries a 2,308-run failure streak
+ * — arming an identical assert there would have paged ~97% of days and been
+ * muted within a week.
+ *
+ * THE GUARD THAT MATTERS: `sourcesAttempted > 0`. With no sources registered,
+ * ingesting nothing is CORRECT, and throwing would turn an empty configuration
+ * into a permanent daily alarm.
+ *
+ * WHY THROWING HERE IS SAFE TO RETRY, which is not obvious. A throw inside
+ * `step.run` makes Inngest re-run that step, and `runIngestion` has NO dedup —
+ * it creates a `source_documents` row per successful call, with no content hash
+ * and no existence check. Re-running it after a partial success would duplicate.
+ * That cannot happen here: this throws ONLY when `sourcesIngested === 0`, which
+ * means no document was written on that attempt, so there is nothing for a retry
+ * to duplicate. The `=== 0` condition is load-bearing for idempotency as well as
+ * for sensitivity — widening it to "fewer than N succeeded" would make the gate
+ * catch more AND start duplicating rows on every partial day. Do not widen it
+ * without adding dedup to runIngestion first.
+ */
+export function ingestionFailure(report: {
+  sourcesAttempted: number;
+  sourcesIngested: number;
+  failures?: string[];
+}): string | null {
+  if (report.sourcesAttempted === 0) return null;
+  if (report.sourcesIngested > 0) return null;
+  const why = report.failures?.length
+    ? ` Reasons: ${report.failures.join(" | ")}`
+    : " No per-source reason was captured.";
+  return (
+    `Intelligence ingestion produced NOTHING: 0 of ${report.sourcesAttempted} sources ingested. ` +
+    `The brief would have been built on no new input.${why}`
+  );
+}
+
+/**
  * 2026-08-21 · combine decision, pure. Pulled out of the dispatch-push
  * step callback so the title/text choice is directly testable without
  * mocking step.run/prisma/sendPush.
@@ -72,18 +130,49 @@ export const intelligenceDailyBrief = inngest.createFunction(
       let ingestedCount = 0;
       let totalClaims = 0;
 
+      // Reasons are COLLECTED, not just logged. IngestionResult carries a
+      // `message` on failure and it was being discarded entirely, so the
+      // operator-facing alert could say "0 sources" but never "the credential
+      // expired" — which is the only part that tells them what to do.
+      const failures: string[] = [];
+
       for (const source of activeSources) {
         try {
           const res = await runIngestion(source.id);
           if (res.success) {
             ingestedCount++;
             totalClaims += res.claimsCount;
+          } else {
+            // Previously a completely silent path: a soft failure was neither
+            // counted nor logged.
+            failures.push(`${source.name}: ${res.message ?? "reported failure"}`.slice(0, 160));
+            log.warn("ingestion_source_soft_failure", { sourceId: source.id, name: source.name, message: res.message });
           }
         } catch (err) {
-          log.error(`Inngest step runIngestion failed for source ${source.id}`, {
-            error: err instanceof Error ? err.message : String(err),
-          });
+          const msg = err instanceof Error ? err.message : String(err);
+          failures.push(`${source.name}: ${msg}`.slice(0, 160));
+          log.error(`Inngest step runIngestion failed for source ${source.id}`, { error: msg });
         }
+      }
+
+      const fatal = ingestionFailure({
+        sourcesAttempted: activeSources.length,
+        sourcesIngested: ingestedCount,
+        failures,
+      });
+      if (fatal) {
+        // Throwing marks the Inngest run FAILED, which is what routes this
+        // through the already-wired onInngestFailure -> Telegram path. Returning
+        // normally is what made a total ingestion outage look like a good day.
+        throw new Error(fatal);
+      }
+
+      if (failures.length > 0) {
+        log.warn("ingestion_partially_degraded", {
+          sourcesAttempted: activeSources.length,
+          sourcesIngested: ingestedCount,
+          failed: failures.length,
+        });
       }
 
       return { sourcesAttempted: activeSources.length, sourcesIngested: ingestedCount, totalClaims };

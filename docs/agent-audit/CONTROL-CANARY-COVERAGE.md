@@ -128,7 +128,8 @@ complete — an unlisted control is not a covered one.
 | Subtask next-action gate — `filterGeneratedSubtasks` + its call site | 1 | 1 | validator unit tests PLUS a wiring canary in `ai-tasks-decompose.test.ts`; deleting the gate block fails 6 |
 | Mission progress end-state gate — `missionHasEndState` | 1 | 1 | behavioural render; swapping the ternary branches fails 3 where source-text assertions passed 11 |
 | Witnessed-commitment resolver — opt-in guard on `emitTaskEvent` | 1 | 1 | asserts the completion emit does NOT set the flag, on both the ONCE and recurring paths |
-| **Total** | **56** | **13** | **23.2 %** |
+| statenour `intelligence-brief` zero-ingest assert | 1 | 1 | 6 mutations killed, incl. removing the empty-config guard and re-silencing the soft-failure branch |
+| **Total** | **57** | **14** | **24.6 %** |
 
 ---
 
