@@ -14,6 +14,12 @@
  * executive brief" — keep the H1 stable.
  */
 
+import {
+  deriveThreatLevel,
+  renderOperatorQueue,
+  CUSTOMER_FACING_ACTIONS,
+  type OperatorQueue,
+} from "./operator-queue";
 import { prisma } from "@/lib/prisma";
 import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
@@ -26,9 +32,13 @@ GROUNDING RULE (absolute): every number, price, name, and claim in the brief MUS
 You must format using these exact headings:
 # Daily Executive Brief V2 · [Date]
 
-## 💼 CEO Brief (Highest ROI opportunity & Threat level)
-From the input opportunities/claims only: the highest-ROI opportunity and most critical threat. Quantify impact only when the input carries numbers.
+## 💼 CEO Brief (Highest ROI opportunity)
+From the input opportunities/claims only: the highest-ROI opportunity. Quantify impact only when the input carries numbers.
 - *Recommended Action*: Action verb with clear instructions.
+
+DO NOT WRITE A THREAT LEVEL, SEVERITY, P-NUMBER OR INCIDENT DECLARATION anywhere in the brief. Never emit "Threat Level", "CRITICAL", "P1", "P0", "INCIDENT" or "Drift:". The threat level is COMPUTED from counted state and is prepended above your output before the operator sees it; a second one written here would contradict it. The grounding rule below forbids you inventing a number — this forbids you inventing a severity, which is the same failure in a word instead of a digit.
+
+Do not describe the intelligence pipeline, feeds, sources or ingestion as down, dark, broken or degraded unless a claim in the input says so verbatim. On 2026-08-22 a brief opened with "Threat Level: CRITICAL / P1 INCIDENT. Your entire intelligence stack has been dark across multiple cycles (2026-08-12, 2026-08-15, 2026-08-16)". All seven sources had fetched on all three of those dates. That sentence was invented.
 
 ## ✍️ Content Brief (Auto-generated publish queue suggestions)
 Detail the fresh content drafts created today in the SocialPublishQueue (from the Drafts in Queue input).
@@ -41,6 +51,50 @@ Summarize competitor/market/search claims that are PRESENT in the input data.
 ## 🚀 Frontier Brief (AI & performance signals)
 Summarize AI/engineering/performance claims that are PRESENT in the input data.
 - *Action*: One concrete move, or "no signal today".`;
+
+/**
+ * Count what is waiting on the operator. Ages computed IN SQL.
+ *
+ * Separated from the pure logic in operator-queue.ts so the verdict can be
+ * tested without a database, and so this file holds the only thing that needs
+ * one: the counting.
+ */
+async function loadOperatorQueue(): Promise<OperatorQueue> {
+  const [actions, drafts, expired] = await Promise.all([
+    prisma.$queryRaw<Array<{
+      pending: bigint; oldest_days: number | null;
+      cf_pending: bigint; cf_oldest_days: number | null;
+    }>>`
+      SELECT COUNT(*) AS pending,
+             MAX(EXTRACT(DAY FROM now() - "createdAt"))::int AS oldest_days,
+             COUNT(*) FILTER (WHERE "actionType" = ANY(${CUSTOMER_FACING_ACTIONS as unknown as string[]})) AS cf_pending,
+             MAX(EXTRACT(DAY FROM now() - "createdAt")) FILTER (WHERE "actionType" = ANY(${CUSTOMER_FACING_ACTIONS as unknown as string[]}))::int AS cf_oldest_days
+        FROM autonomous_actions
+       WHERE approval = 'pending'`,
+    prisma.$queryRaw<Array<{ pending: bigint; oldest_days: number | null }>>`
+      SELECT COUNT(*) AS pending,
+             MAX(EXTRACT(DAY FROM now() - created_at))::int AS oldest_days
+        FROM social_publish_queue
+       WHERE status = 'pending' AND deleted_at IS NULL`,
+    // "Actionable" excludes rows already terminal. An expired row that already
+    // failed is history; an expired row still awaiting a decision is a closed
+    // window nobody noticed, which is the condition worth paging on.
+    prisma.$queryRaw<Array<{ n: bigint }>>`
+      SELECT COUNT(*) AS n FROM approval_requests
+       WHERE expires_at < now() AND status NOT IN ('failed', 'executed', 'rejected', 'expired')`,
+  ]);
+
+  const num = (v: bigint | number | null | undefined) => Number(v ?? 0);
+  return {
+    pendingActions: num(actions[0]?.pending),
+    oldestActionDays: num(actions[0]?.oldest_days),
+    customerFacingPending: num(actions[0]?.cf_pending),
+    oldestCustomerFacingDays: num(actions[0]?.cf_oldest_days),
+    pendingDrafts: num(drafts[0]?.pending),
+    oldestDraftDays: num(drafts[0]?.oldest_days),
+    actionableExpired: num(expired[0]?.n),
+  };
+}
 
 export async function composeDailyExecutiveBrief(): Promise<{ date: string; text: string }> {
   // High-scoring pending opportunities (score >= 75)
@@ -78,14 +132,27 @@ ${drafts.map((d) => `- [DRAFT] Kind: ${d.kind} | Platforms: ${d.platforms.join("
 Claims:
 ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\n")}`;
 
+  // Counted BEFORE the model runs, and prepended VERBATIM after it. The block is
+  // never handed to the model to summarise: it cannot round 20 to "several",
+  // drop the section for space, or soften a level. The existing GROUNDING RULE
+  // stops the model inventing a number; this stops it omitting one.
+  const queue = await loadOperatorQueue();
+  const verdict = deriveThreatLevel(queue);
+  const queueBlock = renderOperatorQueue(queue, verdict);
+
   const result = await generateText({
     model: getModel("reason"),
     system: SYSTEM_PROMPT,
     prompt: `${promptText}\n\nCompose the brief now.`,
   });
 
+  const body = result.text || "No briefing content compiled for today.";
+
   return {
     date: today,
-    text: result.text || "No briefing content compiled for today.",
+    // Awaiting-You leads. It is the only section describing state the operator
+    // can act on this minute, and during the 16-day ingest-reviews outage the
+    // brief led with an invented threat level while 44 real items sat queued.
+    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n---\n\n${body}`,
   };
 }
