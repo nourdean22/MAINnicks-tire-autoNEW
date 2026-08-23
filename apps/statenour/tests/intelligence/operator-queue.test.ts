@@ -27,6 +27,8 @@ import { describe, it, expect } from "vitest";
 import {
   deriveThreatLevel,
   renderOperatorQueue,
+  totalAwaiting,
+  stripInventedSeverity,
   CUSTOMER_FACING_ACTIONS,
   THRESHOLDS,
   type OperatorQueue,
@@ -40,6 +42,8 @@ const quiet: OperatorQueue = {
   pendingDrafts: 0,
   oldestDraftDays: 0,
   actionableExpired: 0,
+  pendingApprovals: 0,
+  soonestApprovalExpiryMinutes: null,
 };
 const q = (over: Partial<OperatorQueue>): OperatorQueue => ({ ...quiet, ...over });
 
@@ -129,6 +133,79 @@ describe("deriveThreatLevel · counted, not narrated", () => {
     // that produces a false CRITICAL.
     expect(CUSTOMER_FACING_ACTIONS).not.toContain("send_telegram");
     expect(CUSTOMER_FACING_ACTIONS).toContain("send_sms_outreach");
+  });
+});
+
+describe("approvals are visible BEFORE they expire, not after", () => {
+  it("a pending approval counts even though it has not expired", () => {
+    // The original query counted only rows past expires_at, so a live request
+    // was invisible for the entire window the operator could still act on it.
+    const live = q({ pendingApprovals: 1, soonestApprovalExpiryMinutes: 600 });
+    expect(totalAwaiting(live)).toBe(1);
+    expect(renderOperatorQueue(live, deriveThreatLevel(live))).toContain("1 approval request(s)");
+  });
+
+  it("an approval about to lapse is CRITICAL — a 2h TTL cannot wait for tomorrow", () => {
+    const live = q({ pendingApprovals: 1, soonestApprovalExpiryMinutes: 45 });
+    const v = deriveThreatLevel(live);
+    expect(v.level).toBe("CRITICAL");
+    expect(v.reason).toMatch(/45m/);
+  });
+
+  it("POSITIVE CONTROL: an approval with plenty of runway is not CRITICAL", () => {
+    expect(deriveThreatLevel(q({ pendingApprovals: 1, soonestApprovalExpiryMinutes: 600 })).level)
+      .not.toBe("CRITICAL");
+  });
+
+  it("THE HEADER CANNOT CONTRADICT ITS CONTENTS", () => {
+    // Previously: "Awaiting You (0 items)" above a CRITICAL verdict and a bullet
+    // saying two approvals need attention. The total summed actions + drafts only
+    // while the body rendered approvals.
+    const live = q({ actionableExpired: 2 });
+    const out = renderOperatorQueue(live, deriveThreatLevel(live));
+    expect(totalAwaiting(live)).toBe(2);
+    expect(out).toContain("Awaiting You (2 items)");
+    expect(out, "a 0-item headline over a CRITICAL body teaches the reader to skip headlines")
+      .not.toContain("Awaiting You (0 items)");
+  });
+});
+
+describe("stripInventedSeverity · the prompt is a request, this is the contract", () => {
+  it("THE FABRICATION: the real 2026-08-22 opener is defanged", () => {
+    const r = stripInventedSeverity(
+      "**Threat Level: CRITICAL / P1 INCIDENT.** Your entire intelligence stack has been dark.",
+    );
+    expect(r.stripped).toBeGreaterThan(0);
+    expect(r.text).not.toMatch(/Threat Level:\s*CRITICAL/);
+    expect(r.text).toContain("see the computed level above");
+  });
+
+  it("the Drift field that appeared in 24 of 30 briefs is neutralised", () => {
+    const r = stripInventedSeverity("Drift: **CRITICAL** · Top: wake up routine");
+    expect(r.stripped).toBe(1);
+    expect(r.text).not.toMatch(/Drift:\s*\**CRITICAL/);
+  });
+
+  it("surrounding content SURVIVES — silently deleting model output is its own lie", () => {
+    const r = stripInventedSeverity("Drift: CRITICAL · Top: call the supplier about winter tires");
+    expect(r.text).toContain("call the supplier about winter tires");
+  });
+
+  it("POSITIVE CONTROL: an ordinary brief is untouched", () => {
+    // Without this, a sanitizer that mangled every body would pass everything
+    // above while destroying the brief.
+    const clean = ["## CEO Brief", "Highest-ROI opportunity: restore the ingest lane."].join(String.fromCharCode(10));
+    const r = stripInventedSeverity(clean);
+    expect(r.stripped).toBe(0);
+    expect(r.text).toBe(clean);
+  });
+
+  it("the word 'critical' as an ADJECTIVE is not a severity declaration", () => {
+    // One of the three roles the word plays in these briefs. Stripping it here
+    // would delete meaning, not a marker.
+    const r = stripInventedSeverity("The most critical threat is margin erosion.");
+    expect(r.stripped).toBe(0);
+    expect(r.text).toContain("most critical threat");
   });
 });
 

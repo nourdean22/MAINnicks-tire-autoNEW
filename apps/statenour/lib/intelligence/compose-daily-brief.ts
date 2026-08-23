@@ -18,11 +18,15 @@ import {
   deriveThreatLevel,
   renderOperatorQueue,
   CUSTOMER_FACING_ACTIONS,
+  stripInventedSeverity,
   type OperatorQueue,
 } from "./operator-queue";
 import { prisma } from "@/lib/prisma";
 import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("intelligence/compose-daily-brief");
 
 const SYSTEM_PROMPT = `You are Nour's Chief of Staff and chief intelligence officer. Compose the Daily Executive Brief V2.
 Your tone is ruthlessly direct, quantitative, hyper-strategic, and action-oriented. Eliminate all passive fluff or generic warnings.
@@ -79,9 +83,16 @@ async function loadOperatorQueue(): Promise<OperatorQueue> {
     // "Actionable" excludes rows already terminal. An expired row that already
     // failed is history; an expired row still awaiting a decision is a closed
     // window nobody noticed, which is the condition worth paging on.
-    prisma.$queryRaw<Array<{ n: bigint }>>`
-      SELECT COUNT(*) AS n FROM approval_requests
-       WHERE expires_at < now() AND status NOT IN ('failed', 'executed', 'rejected', 'expired')`,
+    // Counted in ONE pass, both states. Splitting these into "expired" and
+    // "pending" queries is what produced the original gap: only the expired half
+    // was ever asked for, so a live request was invisible until too late.
+    prisma.$queryRaw<Array<{ expired: bigint; pending: bigint; soonest_min: number | null }>>`
+      SELECT COUNT(*) FILTER (WHERE expires_at < now()) AS expired,
+             COUNT(*) FILTER (WHERE expires_at >= now() OR expires_at IS NULL) AS pending,
+             MIN(EXTRACT(EPOCH FROM (expires_at - now())) / 60)
+               FILTER (WHERE expires_at >= now())::int AS soonest_min
+        FROM approval_requests
+       WHERE status NOT IN ('failed', 'executed', 'rejected', 'expired')`,
   ]);
 
   const num = (v: bigint | number | null | undefined) => Number(v ?? 0);
@@ -92,7 +103,12 @@ async function loadOperatorQueue(): Promise<OperatorQueue> {
     oldestCustomerFacingDays: num(actions[0]?.cf_oldest_days),
     pendingDrafts: num(drafts[0]?.pending),
     oldestDraftDays: num(drafts[0]?.oldest_days),
-    actionableExpired: num(expired[0]?.n),
+    actionableExpired: num(expired[0]?.expired),
+    pendingApprovals: num(expired[0]?.pending),
+    soonestApprovalExpiryMinutes:
+      expired[0]?.soonest_min === null || expired[0]?.soonest_min === undefined
+        ? null
+        : Math.round(Number(expired[0].soonest_min)),
   };
 }
 
@@ -140,13 +156,41 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
   const verdict = deriveThreatLevel(queue);
   const queueBlock = renderOperatorQueue(queue, verdict);
 
-  const result = await generateText({
-    model: getModel("reason"),
-    system: SYSTEM_PROMPT,
-    prompt: `${promptText}\n\nCompose the brief now.`,
-  });
+  // P1 FROM REVIEW: the queue must survive a generation failure. This used to
+  // let generateText reject, which sent the whole call into the caller's catch
+  // in intelligence-brief.ts - and that fallback narrative has no queue counts.
+  // So a provider outage dropped the deterministic section, which is precisely
+  // the thing that was supposed to be undroppable. Counting it first is
+  // worthless if the return path can still discard it.
+  let body: string;
+  try {
+    const result = await generateText({
+      model: getModel("reason"),
+      system: SYSTEM_PROMPT,
+      prompt: `${promptText}\n\nCompose the brief now.`,
+    });
+    body = result.text || "No briefing content compiled for today.";
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("brief_generation_failed_queue_preserved", { error: msg.slice(0, 200) });
+    body = [
+      "## Narrative unavailable",
+      "",
+      `The composer failed (${msg.slice(0, 160)}). The Awaiting You section above is`,
+      "computed from the database and is unaffected - it is the part that tells you",
+      "what to do next.",
+    ].join("\n");
+  }
 
-  const body = result.text || "No briefing content compiled for today.";
+  // P1 FROM REVIEW: the prompt forbids the model writing a severity, but a prompt
+  // is a request. Without this, a model that ignores the instruction produces a
+  // brief whose computed level says NORMAL and whose body says CRITICAL - a
+  // visible self-contradiction that discredits the computed number.
+  const sanitized = stripInventedSeverity(body);
+  if (sanitized.stripped > 0) {
+    log.warn("brief_invented_severity_stripped", { count: sanitized.stripped });
+  }
+  body = sanitized.text;
 
   return {
     date: today,

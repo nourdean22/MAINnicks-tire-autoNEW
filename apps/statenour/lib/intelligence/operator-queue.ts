@@ -54,6 +54,19 @@ export interface OperatorQueue {
   oldestDraftDays: number;
   /** approval_requests past expires_at that a human could still act on. */
   actionableExpired: number;
+  /**
+   * approval_requests awaiting a decision, counted INDEPENDENTLY of expiry.
+   *
+   * The first version counted only rows already past `expires_at`, which meant a
+   * pending approval was invisible until the window to act on it had closed. For
+   * a high-risk request with a two-hour TTL the brief would have said "nothing
+   * waiting" for the entire time the operator could still do something, then
+   * reported it as expired the next morning. A queue you learn about after the
+   * deadline is not a queue.
+   */
+  pendingApprovals: number;
+  /** Minutes until the soonest approval expires. Null when none are pending. */
+  soonestApprovalExpiryMinutes: number | null;
 }
 
 export type ThreatLevel = "CRITICAL" | "ELEVATED" | "NORMAL";
@@ -91,6 +104,8 @@ export const THRESHOLDS = {
   deepQueue: 40,
   /** Anything older than this is worth naming, short of critical. */
   elevatedDays: 7,
+  /** An approval this close to lapsing is worth interrupting for. */
+  approvalExpirySoonMinutes: 120,
 } as const;
 
 /**
@@ -101,11 +116,34 @@ export const THRESHOLDS = {
  * earlier version of this marker was a sentence a model wrote; the defect was
  * not that the sentence was wrong but that nothing could check it.
  */
+/**
+ * Everything awaiting a decision. Includes approvals in BOTH states.
+ *
+ * The header previously summed actions + drafts only, while the body rendered
+ * expired approvals — so `{ actionableExpired: 2 }` printed "Awaiting You
+ * (0 items)" above a CRITICAL verdict and a bullet saying two approvals need
+ * attention. A headline that contradicts its own contents teaches the reader to
+ * skip the headline.
+ */
+export function totalAwaiting(q: OperatorQueue): number {
+  return q.pendingActions + q.pendingDrafts + q.pendingApprovals + q.actionableExpired;
+}
+
 export function deriveThreatLevel(q: OperatorQueue): ThreatVerdict {
   if (q.actionableExpired > 0) {
     return {
       level: "CRITICAL",
       reason: `${q.actionableExpired} approval request(s) past their TTL and still actionable — the window to decide has already closed`,
+    };
+  }
+  if (
+    q.pendingApprovals > 0 &&
+    q.soonestApprovalExpiryMinutes !== null &&
+    q.soonestApprovalExpiryMinutes <= THRESHOLDS.approvalExpirySoonMinutes
+  ) {
+    return {
+      level: "CRITICAL",
+      reason: `${q.pendingApprovals} approval(s) pending and the soonest expires in ${q.soonestApprovalExpiryMinutes}m — decide or it lapses`,
     };
   }
   if (q.customerFacingPending > 0 && q.oldestCustomerFacingDays >= THRESHOLDS.customerFacingDays) {
@@ -120,10 +158,10 @@ export function deriveThreatLevel(q: OperatorQueue): ThreatVerdict {
       reason: `oldest queued item is ${Math.max(q.oldestDraftDays, q.oldestActionDays)}d old — the queue has stopped moving`,
     };
   }
-  if (q.pendingActions + q.pendingDrafts >= THRESHOLDS.deepQueue) {
+  if (totalAwaiting(q) >= THRESHOLDS.deepQueue) {
     return {
       level: "ELEVATED",
-      reason: `${q.pendingActions + q.pendingDrafts} items awaiting a decision`,
+      reason: `${totalAwaiting(q)} items awaiting a decision`,
     };
   }
   if (q.oldestActionDays >= THRESHOLDS.elevatedDays || q.oldestDraftDays >= THRESHOLDS.elevatedDays) {
@@ -132,7 +170,7 @@ export function deriveThreatLevel(q: OperatorQueue): ThreatVerdict {
       reason: `oldest queued item is ${Math.max(q.oldestActionDays, q.oldestDraftDays)}d old`,
     };
   }
-  if (q.pendingActions + q.pendingDrafts === 0) {
+  if (totalAwaiting(q) === 0) {
     // "0 items" rather than "nothing": every reason carries a counted quantity,
     // including this one. A reason with no number is the prose marker again in a
     // quieter voice, and it is the one case where it would be easy to excuse.
@@ -140,8 +178,48 @@ export function deriveThreatLevel(q: OperatorQueue): ThreatVerdict {
   }
   return {
     level: "NORMAL",
-    reason: `${q.pendingActions + q.pendingDrafts} items queued, none stale`,
+    reason: `${totalAwaiting(q)} items queued, none stale`,
   };
+}
+
+/**
+ * Neutralise any severity the model emitted despite being told not to.
+ *
+ * P1 FROM REVIEW, and it is my own argument turned back on me. The system prompt
+ * forbids the model writing a threat level, and the body is then appended
+ * verbatim — so the ONLY thing preventing a second, invented severity is an
+ * instruction to a nondeterministic system. That is exactly the "a prompt is a
+ * request, a validator is a contract" line this whole PR series rests on, and I
+ * left the enforcement side unbuilt.
+ *
+ * The failure it prevents is worse than the original defect: a brief showing a
+ * computed `NORMAL` at the top and an invented `CRITICAL` three lines down does
+ * not merely mislead, it visibly contradicts itself and discredits the computed
+ * number the operator is supposed to start trusting.
+ *
+ * Neutralised rather than deleted: the surrounding sentence may carry real
+ * content, and silently removing model output is its own way of lying. The
+ * marker is defanged and the substitution is disclosed in the brief.
+ */
+export function stripInventedSeverity(body: string): { text: string; stripped: number } {
+  let stripped = 0;
+  const text = body
+    // "Threat Level: CRITICAL", "Threat level - P1 INCIDENT", etc.
+    .replace(/\b(Threat[ -]?Level\s*[:\-]\s*)([A-Z0-9 /]{2,40})/gi, (_m, lead) => {
+      stripped++;
+      return `${lead}[removed - see the computed level above]`;
+    })
+    // A bare severity token used as a declaration.
+    .replace(/\b(P[01]\s+INCIDENT|CRITICAL\s+INCIDENT)\b/g, () => {
+      stripped++;
+      return "[severity removed - see the computed level above]";
+    })
+    // The structured Drift field that appeared in 24 of 30 briefs.
+    .replace(/\bDrift:\s*\**(CRITICAL|HIGH|SEVERE)\**/gi, () => {
+      stripped++;
+      return "Drift: [removed - see the computed level above]";
+    });
+  return { text, stripped };
 }
 
 /**
@@ -155,12 +233,12 @@ export function deriveThreatLevel(q: OperatorQueue): ThreatVerdict {
  */
 export function renderOperatorQueue(q: OperatorQueue, verdict: ThreatVerdict): string {
   const lines: string[] = [];
-  lines.push(`## ⏳ Awaiting You (${q.pendingActions + q.pendingDrafts} items)`);
+  lines.push(`## ⏳ Awaiting You (${totalAwaiting(q)} items)`);
   lines.push("");
   lines.push(`**Threat level: ${verdict.level}** — ${verdict.reason}.`);
   lines.push("");
 
-  if (q.pendingActions + q.pendingDrafts === 0 && q.actionableExpired === 0) {
+  if (totalAwaiting(q) === 0) {
     lines.push("Nothing is waiting on a decision (0 actions, 0 drafts, 0 past TTL).");
     return lines.join("\n");
   }
@@ -175,6 +253,15 @@ export function renderOperatorQueue(q: OperatorQueue, verdict: ThreatVerdict): s
   }
   if (q.pendingDrafts > 0) {
     lines.push(`- **${q.pendingDrafts} content draft(s)** awaiting approve/decline, oldest ${q.oldestDraftDays}d.`);
+  }
+  if (q.pendingApprovals > 0) {
+    const exp =
+      q.soonestApprovalExpiryMinutes === null
+        ? "no expiry set"
+        : q.soonestApprovalExpiryMinutes <= 0
+          ? "the soonest has already lapsed"
+          : `soonest expires in ${q.soonestApprovalExpiryMinutes}m`;
+    lines.push(`- **${q.pendingApprovals} approval request(s)** awaiting a decision — ${exp}.`);
   }
   if (q.actionableExpired > 0) {
     lines.push(
