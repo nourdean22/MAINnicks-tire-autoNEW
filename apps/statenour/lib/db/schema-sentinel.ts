@@ -125,6 +125,20 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     indexName: "chat_messages_assistant_reply_uniq",
     reason: "duplicate-assistant race guard — DB-level backstop for the persist dedup check",
   },
+  {
+    // 2026-08-22 · 20260823000000_brain_memory_discovery_columns.
+    // Partial index (WHERE deleted_at IS NULL) backing the Discover feed's
+    // EXACT unrated/restoredHidden counts. Prisma cannot model a partial
+    // index, so it is absent from schema.prisma and a `db push` would drop it
+    // silently — same gap this file was written for. Without it the two
+    // count() calls per feed load degrade to a seq scan over ~93k live rows,
+    // which is slow rather than wrong, so this is a performance guard, not a
+    // correctness one. Stated that way on purpose.
+    kind: "index_exists",
+    table: "brain_memories",
+    indexName: "brain_memories_discovery_verdict_idx",
+    reason: "Discover exact-count index — partial, unmodellable in Prisma, silent-drop risk",
+  },
   // Note: Mission and Task have NO @@map in prisma/schema.prisma so
   // Prisma's default lowercases-the-model-name rule applies — the
   // actual Postgres table names are "Mission" and "Task" (PascalCase).

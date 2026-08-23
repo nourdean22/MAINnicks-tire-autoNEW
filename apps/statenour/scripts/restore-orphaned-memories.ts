@@ -136,6 +136,13 @@ async function main() {
           source: "manual",
           createdBy: "system",
           metadata: { origin: ORIGIN, recoveredFromEmbedding: r.embId },
+          // 2026-08-22 · the SQL-queryable mirror of metadata.origin. Without
+          // it a future restore run is invisible to the Discover feed's
+          // `restoredHidden` count, which is column-only: the badge would read
+          // "N unrated" while silently withholding hundreds of rows and
+          // reporting 0 hidden — the exact failure that field exists to
+          // prevent. See 20260823000000_brain_memory_discovery_columns.
+          discoveryProvenance: "restored",
         },
         select: { id: true },
       });
