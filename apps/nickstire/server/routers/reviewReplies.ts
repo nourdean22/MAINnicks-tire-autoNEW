@@ -15,6 +15,7 @@ import { buildReplyPromptRules, checkReviewReply } from "@shared/reviewReplyQa";
 import { db } from "../lib/db-helper";
 
 import { createLogger } from "../lib/logger";
+import { stableReviewId } from "../lib/reviewIdentity";
 
 const log = createLogger("routers:reviewReplies");
 async function fetchNewReviewsFromGoogle(): Promise<any[]> {
@@ -94,7 +95,10 @@ export const reviewRepliesRouter = router({
     let created = 0;
 
     for (const review of reviews) {
-      const reviewId = review.time?.toString() || `${review.author_name}_${Date.now()}`;
+      // Stable identity - same fix as cron/jobs/reviewMonitor.ts, sharing one
+      // implementation so the two cannot drift. The old fallback embedded
+      // Date.now(), so the existence check below could never match.
+      const reviewId = stableReviewId(review);
 
       // Check if already exists
       const existing = await database
