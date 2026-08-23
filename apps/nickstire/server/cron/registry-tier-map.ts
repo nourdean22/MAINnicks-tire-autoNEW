@@ -38,6 +38,47 @@
  * `retention-30day` the day someone added one.
  */
 
+/**
+ * Extract the SCHEDULED JOB names from cron/scheduler.ts source.
+ *
+ * Caught in review on #1808. The first version matched every `name: "..."`
+ * property, which also swept up the five TIER labels - `heartbeat`, `pulse`,
+ * `hourly`, `daily`, `briefings`. A tier is not a job, so a registry job named
+ * `daily` with no tier job of that name, or an alias whose `coveredBy` is
+ * `daily`, produced zero faults and defeated the completeness gate entirely -
+ * while the aggregate parse check stayed green. A guard whose failure mode is
+ * silent permission is the worst kind, and this one was written to catch
+ * exactly that class.
+ *
+ * Measured on the source at the time of the fix: 122 total `name:` matches,
+ * 5 tier declarations, 117 real jobs. No registry name collides with a tier
+ * label TODAY, so nothing was actually mis-scored - but the gate was one
+ * unlucky name away from passing over a stranded cron.
+ *
+ * Exclusion is POSITIONAL, not by name: a tier declaration is a `name:`
+ * immediately followed by `intervalMs:`. Subtracting by NAME would have
+ * silently dropped a legitimate job that happened to share a tier's label,
+ * trading a false negative for a different false negative.
+ *
+ * Both the vitest canary and scripts/lint-cron-wiring.ts call this, so the
+ * gate and the suite cannot disagree about what counts as a scheduled job.
+ */
+export function extractTierJobNames(schedulerSource: string): Set<string> {
+  const tierDeclarationOffsets = new Set(
+    [...schedulerSource.matchAll(/name: "[a-z0-9-]+",\s*intervalMs:/g)].map((m) => m.index),
+  );
+  const names = [...schedulerSource.matchAll(/name: "([a-z0-9-]+)"/g)]
+    .filter((m) => !tierDeclarationOffsets.has(m.index))
+    .map((m) => m[1]);
+  return new Set(names);
+}
+
+/** Extract the registered job names from cron/index.ts source. */
+export function extractRegistryJobNames(registrySource: string): string[] {
+  return [...registrySource.matchAll(/registerJob\("([a-z0-9-]+)"/g)].map((m) => m[1]);
+}
+
+
 export interface RegistryTierAlias {
   /** Name as registered in `registerAllJobs()` (cron/index.ts). */
   registryName: string;
