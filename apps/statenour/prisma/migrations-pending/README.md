@@ -53,6 +53,38 @@ them back when ready.
 
 ## Parked migrations
 
+### `20260823010000_discovery_index_narrow` + `20260823010001_discovery_index_drop_broad` — ✅ APPLIED 2026-08-23, staying parked
+
+Two steps that replace `brain_memories_discovery_verdict_idx` with
+`brain_memories_discovery_scoped_idx`. **Deliberately NOT promoted to
+`prisma/migrations/`**: both use `CREATE`/`DROP INDEX CONCURRENTLY`, which cannot
+run inside a transaction block, and `prisma migrate deploy` wraps the file in
+one. Promoting them would make a fresh `migrate deploy` fail. Apply with
+`scripts/apply-pending-migration.ts` (autocommit), same as
+`20260806120000_drop_duplicate_indexes`.
+
+**Why.** The index shipped in `prisma/migrations/20260823000000_brain_memory_discovery_columns`
+is partial on `deleted_at IS NULL` ALONE, so it indexed every live row: **5144 kB
+covering 92,228 rows to serve 246**. 99.7% dead weight, maintained on every
+INSERT/UPDATE to a table taking 222 writes from 45 writers in 13 hours.
+
+**Applied 2026-08-23**, in order, with the `indisvalid` gate between them.
+Before → after on the same query, same 239 rows: **5144 kB → 32 kB** (161×),
+**508 → 118 buffers**, 0.572 ms → 0.485 ms. The planner confirms the predicate —
+the new plan's `Index Cond` drops `category = ANY(...)` because Postgres proves
+the implication.
+
+**Rollback** is in each file's header. An index holds no data, so both are
+lossless and fully reconstructible.
+
+**FRESH DATABASE.** `migrate deploy` replays `20260823000000` and creates the
+BROAD index; these two steps are what narrow it. A fresh environment therefore
+has the broad index until they are applied, and
+`lib/db/schema-sentinel.ts` will report drift (two expectations: the index name,
+and — the one that matters — that the category list is in its predicate).
+`prisma db push` (what e2e uses) creates neither index; the degradation is a
+bitmap scan, slow rather than wrong.
+
 ### `20260822230000_cron_job_log_result_count` — ✅ APPLIED 2026-08-22, promoted to `prisma/migrations/`
 
 Adds a nullable `"resultCount" INTEGER` to `cron_job_logs`. Additive, no backfill,

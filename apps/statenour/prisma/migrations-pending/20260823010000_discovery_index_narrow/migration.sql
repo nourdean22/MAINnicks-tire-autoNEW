@@ -1,0 +1,64 @@
+-- Narrow the Discover exact-count index (2026-08-23) — STEP 1 of 2, CREATE ONLY.
+--
+-- WHY. The index shipped in 20260823000000 is partial on `deleted_at IS NULL`
+-- ALONE, so it indexes every live row in the table. Measured on prod:
+--
+--     index size        5144 kB
+--     live rows indexed 92,228
+--     rows it serves       246   (the four discovery categories)
+--
+-- 99.7% of the entries are dead weight on every INSERT and UPDATE to
+-- brain_memories -- a table taking 222 writes from 45 distinct writers in the
+-- 13 hours to 2026-08-23 13:33 UTC. (Window computed in SQL against
+-- `created_at`; that column is `timestamp without time zone`, so a driver
+-- reading it in a non-UTC zone renders it +4h -- the figure above is stated in
+-- UTC deliberately, because the same table family produced today's clock-skew
+-- incident.) Restricting the predicate to the categories the index
+-- actually serves is the fix.
+--
+-- WHY CONCURRENTLY, AND WHY ITS OWN STEP. CREATE INDEX takes an exclusive lock
+-- that blocks writes for the duration; CONCURRENTLY does not, which is the
+-- whole reason it exists for production
+-- (https://www.postgresql.org/docs/current/sql-createindex.html). It cannot run
+-- inside a transaction block, so `prisma migrate deploy` and
+-- `prisma db execute --file` -- both of which wrap the file in one -- CANNOT
+-- apply this. Use scripts/apply-pending-migration.ts, which runs statements in
+-- autocommit for exactly this case.
+--
+-- THE DROP IS DELIBERATELY NOT IN THIS FILE. A failed CONCURRENTLY build leaves
+-- an INVALID index behind rather than rolling back, and the apply script
+-- continues past per-statement errors -- so a create-then-drop in one file
+-- could drop the working index after the replacement failed. Step 2 runs only
+-- after `indisvalid` is confirmed true.
+--
+-- IF A BUILD FAILS, DO NOT JUST RE-RUN THIS FILE. A failed CONCURRENTLY build
+-- leaves an INVALID index OF THIS NAME behind rather than rolling back, and
+-- `IF NOT EXISTS` then makes a re-run a silent no-op: it prints ok, exits 0,
+-- and never rebuilds. The invalid index stays unusable. Recovery is
+--   DROP INDEX CONCURRENTLY IF EXISTS brain_memories_discovery_scoped_idx;
+-- and then re-run, or REINDEX INDEX CONCURRENTLY. The indisvalid gate before
+-- step 2 is the only thing standing between that and dropping the working
+-- index -- treat it as mandatory, not advisory.
+--
+-- PLAN-STABILITY TRADE, measured rather than assumed. The old predicate
+-- (`deleted_at IS NULL`) is provable from a literal in the query, so it worked
+-- under any plan. This one requires proving `category = ANY($1)` implies the
+-- category IN-list, which only holds in a CUSTOM plan where the bound
+-- parameter has been folded to a constant. Measured on prod:
+--     plan_cache_mode=force_custom_plan  -> scoped index   118 buffers  0.243 ms
+--     plan_cache_mode=auto (what runs)   -> scoped index   118 buffers  0.304 ms
+--     plan_cache_mode=force_generic_plan -> falls back to
+--                     brain_memories_category_deleted_at_idx (bitmap)
+--                                                        394 buffers  0.976 ms
+-- Under `auto` Postgres keeps choosing the custom plan because the generic one
+-- costs far more, and the worst case is a bitmap scan on an existing index --
+-- slower, never a seq scan, never wrong. Recorded because the narrowing did
+-- make plan stability strictly worse, and that should not be rediscovered.
+--
+-- ROLLBACK (this step): DROP INDEX CONCURRENTLY IF EXISTS brain_memories_discovery_scoped_idx;
+--   Nothing is lost -- an index holds no data and is rebuildable from the table.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "brain_memories_discovery_scoped_idx"
+  ON "brain_memories" ("category", "discovery_verdict", "last_seen" DESC)
+  WHERE "deleted_at" IS NULL
+    AND "category" IN ('counter_intuitive','hidden_correlation','blind_spot','teaching_moment');

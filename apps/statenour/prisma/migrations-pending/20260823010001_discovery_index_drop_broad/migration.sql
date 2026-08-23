@@ -1,0 +1,22 @@
+-- Narrow the Discover exact-count index — STEP 2 of 2, DROP THE BROAD ONE.
+--
+-- PRECONDITION, verified before running this file (not assumed):
+--   brain_memories_discovery_scoped_idx   indisvalid=true  indisready=true  32 kB
+--   brain_memories_discovery_verdict_idx  indisvalid=true  indisready=true  5144 kB
+--
+-- A failed CONCURRENTLY build leaves an INVALID index rather than rolling back,
+-- and apply-pending-migration.ts continues past per-statement errors -- so
+-- create-and-drop in one file could drop the working index after the
+-- replacement had failed. That is why this is a separate step gated on
+-- indisvalid.
+--
+-- CONCURRENTLY on the drop too: a plain DROP INDEX takes an ACCESS EXCLUSIVE
+-- lock on the table, which would block every read and write to brain_memories
+-- for its duration.
+--
+-- ROLLBACK — recreate the broad index, losing nothing:
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS "brain_memories_discovery_verdict_idx"
+--     ON "brain_memories" ("category", "discovery_verdict", "last_seen" DESC)
+--     WHERE "deleted_at" IS NULL;
+
+DROP INDEX CONCURRENTLY IF EXISTS "brain_memories_discovery_verdict_idx";
