@@ -62,7 +62,10 @@ describe("ingest-reviews cron · failures must propagate", () => {
     fetchAndStoreReviews.mockResolvedValueOnce({ fetched: 5, newCount: 2 });
     const { GET } = await loadRoute();
     const out = await GET(new Request("http://x/api/cron/ingest-reviews"), {} as never);
-    expect(out).toEqual({ fetched: 5, newCount: 2 });
+    // resultCount is the explicit claim cron-manager records into cron_job_logs.
+    // Asserting it here pins the PRODUCER: without it the new column is written
+    // by nothing and the schema change is decoration.
+    expect(out).toEqual({ fetched: 5, newCount: 2, resultCount: 5 });
   });
 
   it("reports a genuine zero as success, not as an error", async () => {
@@ -76,13 +79,17 @@ describe("ingest-reviews cron · failures must propagate", () => {
     // assertion has been re-keyed onto rows-written and will page nightly.
     fetchAndStoreReviews.mockResolvedValueOnce({ fetched: 5, newCount: 0 });
     const { GET } = await loadRoute();
+    // THE DISCRIMINATING CASE. newCount 0 (nothing new to store) but fetched 5
+    // (the feed answered) — a healthy run that looks identical to a broken one in
+    // the old six-column table. resultCount 5 is what now tells them apart.
     await expect(GET(new Request("http://x/api/cron/ingest-reviews"), {} as never))
-      .resolves.toEqual({ fetched: 5, newCount: 0 });
+      .resolves.toEqual({ fetched: 5, newCount: 0, resultCount: 5 });
   });
 
   it("a zero-FETCH cycle throws — the 16-day silent failure this route now refuses", async () => {
-    // 2026-08-04 → 08-19: this job failed at 0 ms, four times a day, ~64 times,
-    // each filed as status "failed". Nothing paged, because the only cron
+    // 2026-08-04 → 08-19: this job failed at 0 ms, four times a day - measured
+    // at exactly 64 runs and 64 failures, a 100% failure rate, each filed
+    // as status "failed". Nothing paged, because the only cron
     // watchdog read MAX(createdAt) with no status filter — a failed row counted
     // as a run. That half is fixed in cron-heartbeat. This half covers the OTHER
     // shape: a call that returns 200 with an empty payload, which would have been

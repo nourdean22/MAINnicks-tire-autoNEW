@@ -61,5 +61,9 @@ export const GET = cronHandler(async () => {
         "different message, so do not go looking for one.",
     );
   }
-  return result;
+  // `resultCount` is the explicit claim cron-manager's countFrom() records into
+  // cron_job_logs. It is `fetched`, not `newCount`: the count that answers "did the feed
+  // return anything", which is the question the table could not represent before
+  // 2026-08-22. Rows written is a different question and a legitimately-zero one.
+  return { ...result, resultCount: result.fetched };
 });

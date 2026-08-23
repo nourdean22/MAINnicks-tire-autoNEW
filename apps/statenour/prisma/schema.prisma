@@ -2579,6 +2579,13 @@ model CronJobLog {
   status    String
   duration  Int?
   error     String?  @db.Text
+  /// Countable result for ingest-style jobs. NULL = this run reported no count
+  /// (every row before 2026-08-22, and every job with no countable result).
+  /// 0 = the run happened and produced nothing - a different, real claim.
+  /// NO @map: this table's columns keep Prisma's camelCase verbatim despite the
+  /// @@map on the table itself, so the DB column is the double-quoted
+  /// "resultCount". A snake_case spelling creates a second, unreachable column.
+  resultCount Int?
   createdAt DateTime @default(now())
 
   @@index([jobName])
