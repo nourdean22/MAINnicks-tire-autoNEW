@@ -21,6 +21,16 @@
 
 import pg from "pg";
 
+// TZ=UTC — pin the READER. node-pg parses `timestamp without time zone` in the
+// process's local zone (+4h on ET), which is how a 13-hour-old write was read
+// as 6 minutes old during the 2026-08-23 incident. Prisma parses the same
+// columns as UTC correctly, so the APP is fine and only raw-pg tooling like
+// this needed pinning. Do NOT "fix" this by migrating the columns — that
+// proposal was measured and rejected (272 columns / 103 tables / 4,155 MB, with
+// a silent wrong-data failure mode); the full reasoning is in
+// docs/agent-audit/DEFECT-SHAPE-ORPHANED-SUBJECT.md.
+process.env.TZ = "UTC";
+
 const { Client } = pg;
 
 async function main() {
