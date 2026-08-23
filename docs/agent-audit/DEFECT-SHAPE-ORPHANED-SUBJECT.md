@@ -4,37 +4,36 @@
 > grew into the taxonomy. The name is kept because `CONTROL-CANARY-COVERAGE.md` and the
 > agent-memory index already point at it; renaming breaks both for no gain.
 
-**Status:** four shapes as of 2026-08-23.
+**Status:** five shapes as of 2026-08-23. Shape 4 has seven recorded instances; shape 5 has five doc instances plus one product instance.
 
 ---
 
 ## The argument, first
 
-Four defect shapes. Four different detection heuristics. **Each heuristic independently scores
-its own shape GREEN.**
+Five defect shapes. Five different detection heuristics. **Each heuristic independently scores
+its own shape GREEN.** Existence, readership, non-nullness, a clean log and a confident sentence
+are five ways of asking "is something there?" -- and all five are answered *yes* by a defect that
+is completely dead. That is the whole case for why a canary must **assert behaviour, never
+presence**.
 
-| Shape | The heuristic it defeats | Why the heuristic fails |
-|---|---|---|
-| **Unwired control** | *"does the code exist?"* | It exists, reads correctly, and never runs |
-| **Orphaned subject** | *"grep for readers"* | Readers exist — the row the signal attached to is gone |
-| **Populated-but-unused** | *"is the column null?"* | It is populated, and the contents are meaningless |
-| **Blind instrument** | *"check the logs"* | The instrument reports success while structurally unable to observe its subject |
+**The shape table lives in
+[`CONTROL-CANARY-COVERAGE.md` -> "Four shapes, and the heuristic each one defeats"](CONTROL-CANARY-COVERAGE.md).**
+It is canonical there and deliberately NOT repeated here. Both files carried their own copy for
+part of 2026-08-23, which is how the next drift starts -- two statements of one idea, diverging
+on the first edit. That file is linked from root `AGENTS.md` and is the one a reader reaches
+first, so it keeps the summary.
 
-That table is the whole case for why the canary rule says **assert behaviour, never presence**.
-Existence, readership, non-nullness and a clean log are four different ways of asking "is
-something there?" — and all four are answered "yes" by a defect that is completely dead.
-
-A canary asserting a control *exists* proves nothing. A canary that **breaks the control and
-asserts the break is detected** is the only construction that survives all four.
-
----
+**What THIS file adds, and why it is separate:** the summary tells you a shape exists; it does not
+tell you how to find one. Below, per shape: the probe that detects it, the worked example with
+receipts, and the traps that defeated the first attempt at each probe. Plus the stated rules and
+the recorded decisions, neither of which belongs in a per-control ledger.
 
 ## Stated rules
 
 Short enough to remember, each earned by an incident this file records.
 
 1. **Assert behaviour, never presence.** A canary that checks a control exists is defeated by
-   all four shapes above. One that breaks the control and asserts the break is detected is not.
+   every shape in this file. One that breaks the control and asserts the break is detected is not.
 2. **A ratio computed inside a filtered population is not a finding about the population.**
    State the base rate beside it, always. This was violated twice on 2026-08-23 alone — by a
    session and by its reviewer — after already having cost a misdirected investigation on
@@ -46,6 +45,25 @@ Short enough to remember, each earned by an incident this file records.
    identically until you do.
 4. **A real symptom is not a diagnosis.** See the recorded NO below — a genuine incident pointed
    confidently at the wrong root cause, and only measurement separated them.
+
+5. **A rate over time is not a finding about a contiguous window — and a rate over a population
+   containing a REPLAY is not a rate about the schedule.** Sibling to rule 2: both are aggregation
+   destroying the signal. `ingest-reviews` failed **4 of 4 runs every day for 16 consecutive days**
+   (2026-08-04 -> 08-19), a 100% in-window outage. Its lifetime rate is 2.49% (64/2,572) against an
+   estate rate of 5.4% counting `failed` only, or 9.23% counting `partial` too -- so **by rate the
+   totally-broken job looks better than average.** Worse, the lifetime denominator is dominated by a
+   single backfill: 2026-08-20 alone contributed **2,505 runs at 400-470/hour** to a job scheduled
+   4x/day. Excluding that replay, the real rate on scheduled runs is **64/67 = 95.5%**. The
+   aggregate inverted the truth by 38x. Before quoting a rate, ask what window it spans and whether
+   anything in the denominator was not a scheduled run.
+
+6. **Two states that share one rendering are one state.** The fix is never a better guess at which
+   one you are looking at — it is giving them different renderings. A scan that skipped a file
+   prints the green of a scan that found nothing; a session that stalled mid-queue prints the idle
+   of a session that finished; `lastResult` prints the `'success'` of the last event for a job that
+   is currently broken. Each is repaired the same way: emit the distinguishing fact. Hence the
+   standing rule that every turn ends with an explicit remaining-queue line, and the probe rule
+   that every scanner reports what it skipped.
 
 ## How this file relates to CONTROL-CANARY-COVERAGE.md
 
@@ -60,9 +78,11 @@ They are **complementary, not overlapping**, and the split is deliberate:
 That file is the register; this one is the field guide. A shape described here should end up
 *used* there — its "Writing one" section is where a canary for one of these shapes gets built.
 
-**The reciprocal cross-link is not yet in that file.** It is owned by a concurrent session and
-was last written by #1791; adding a line to it from here would race them. Whoever next edits it
-should add a pointer back to this file under its shape discussion.
+**The reciprocal cross-link now exists** -- that file points back here at its line 84 (landed
+in #1810). This paragraph previously said the link was still missing and asked the next editor
+to add it; it was stale from the moment it shipped, in the file about stale claims. Corrected
+rather than deleted, because "a TODO nobody retired after doing the thing" is its own small
+instance of shape 5.
 
 ---
 
@@ -249,8 +269,11 @@ Naming the class is what makes them one finding instead of two anecdotes.
 
 # Shape 4 · the blind instrument
 
-**Named 2026-08-23.** Four instances in one day, which is what forced the name. All four surfaced
-during the /task completion incident; none came from Discover.
+**Named 2026-08-23.** Seven instances in one day, which is what forced the name. The first four
+surfaced during the /task completion incident; none came from Discover. The last two — a NUL byte
+that made a source file unreadable to every text scanner, and session-idle itself — arrived after
+the name existed, which is the point of naming a shape: they were recognised on sight instead of
+being debugged from scratch.
 
 > **A measuring device that cannot observe its own subject — and reports success anyway.**
 
@@ -270,8 +293,11 @@ instrument is exactly what lets an orphaned subject survive an audit.
 | `error_logs` | server errors on the failing path | errors on routes that go through `apiHandler` | the tRPC path converts to `TRPCError`; `lib/trpc/` has no equivalent global write |
 | `api_request_logs` | HTTP traffic | a **10% production sample** of `apiHandler`-wrapped routes | `/api/tasks%` -> **0 rows, all time** |
 | The clock | UTC timestamps | local time | `timestamp without time zone` in the reader's zone: **+4 h on ET** |
+| Every text-scanning lint | the contents of a `.ts` file | the contents of files it could decode | one stray **NUL byte** made the file read as binary; `tsc` compiled it clean, every grep-based check **skipped it and reported green** |
+| Session completion | whether the work is done | whether the process is still emitting | a session that finished and a session that stalled mid-queue are **the same external signal: idle** |
+| A merge SHA | whether the operator has the fix | whether a branch moved | 18 PRs reported as delivered in one session with **zero** comparisons of `origin/main` against the deployed commit |
 
-Three corrections, all of which are themselves instances of the shape:
+Three corrections to the first four rows, all of which are themselves instances of the shape:
 
 **`task_events` is not unwired — it is alive and specifically blind to one kind.** The table
 takes writes (latest 2026-08-23 09:00) and a producer exists at `lib/services/tasks.ts:1038`
@@ -306,6 +332,205 @@ it holds that the clock "is not a control". Both are defensible and the divergen
 **Do not reconcile these to one number without re-reading both definitions.** Four by shape,
 three by control, and the sets are not the same members.
 
+## Worked example — the alerting question (four instruments, three blind)
+
+> **A second, distinct incident.** [`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md)
+> carries its own four-blind-instruments example from the **/task completion** incident
+> (`task_events`, `error_logs`, `reality_gap_writeback_failed`, `api_request_logs`, the clock).
+> This one is a different question, different instruments, same shape — which is the point: two
+> independent incidents on one day each needed four sources and each found three that could not
+> speak.
+
+One question, 2026-08-23: **"did anything alert on those 64 failures?"** Answering it needed four
+sources. Three could not speak, and each was blind in a different way.
+
+| instrument | what it should have answered | why it could not |
+|---|---|---|
+| `automation_policies.lastFiredAt` | when the alerter last ran | its write path changed the same day — unreliable by construction |
+| `cron_job_logs` | did an alert job run | **0 rows for any telegram/alert/notify job**, while other jobs log normally in the same table. Blind *specifically to the alerters* — the worst possible blind spot for an alerting question |
+| `automation_policies.lastResult` | is the job healthy | reads **`'success'`**. It tracks the most recent run, not the streak, so a job failing 4/4 daily for 16 days could never have shown the outage while it was happening |
+| `AuditEvent` | what was actually delivered | **the only one that could answer** — it records deliveries, not intentions |
+
+That is *"check the logs"* failing four different ways on one question.
+
+### And the finding underneath it
+
+Over the 16-day, 100%-broken window the system sent **32 push notifications**, in exactly three
+distinct titles:
+
+| title | count |
+|---|---|
+| `high: Morning brief` | 16 |
+| `high: Daily Executive Brief` | 15 |
+| **`critical: 5 crons not firing`** | **1** |
+
+**0 of 32 name `ingest-reviews`.**
+
+State this precisely, because the loose version is wrong in three ways and the precise version is
+worse. It is NOT true that "nothing alerted" — one alert fired. It is NOT true that "every push was
+the daily brief". And they were not stamped `Drift: CRITICAL` — the severity prefixes are `high:`
+(31) and `critical:` (1).
+
+What IS true: **31 of 32 pushes during a total outage were routine briefs, and the single alert
+fired once, never repeated across sixteen days, and never named the failing job.** That is worse
+than silence, because it looks like coverage. An alerting system that fires once and then goes
+quiet through a continuing fault has reported "handled" for a fault it never identified.
+
+> A first pass at this filtered pushes with `detail ILIKE '%fail%' OR payload::text ILIKE '%fail%'`
+> and got 32 of 32 — a filter matching everything, which cannot support a negative. The refined
+> query (`ILIKE '%ingest-reviews%'`) returned 0. **A negative finding from an unvalidated filter is
+> shape 4 on your own query.**
+
+## The purest instance — one NUL byte turns a file invisible
+
+**2026-08-23.** A NUL byte was written by accident into a `.ts` file. Nothing rejected it:
+
+- **`tsc` compiled it clean.** The TypeScript scanner treats NUL as whitespace-ish garbage in a
+  position where it does not break a token, so the file typechecked with **zero errors**.
+- **Every text-scanning check silently skipped it.** `grep` and the tools built on it classify a
+  file containing NUL as **binary** and, by default, do not search it. No error. No warning. No
+  count of skipped files. The lint output for a repo containing that file is byte-identical to
+  the output for a repo where the file is clean.
+
+So the file was simultaneously *valid to the compiler* and *unreadable to every checker* — and
+every checker reported success.
+
+> **A scan that cannot read a file prints the same green as one that found nothing.**
+
+That is the whole shape in one sentence, and this is the purest instance of it recorded here.
+Every other entry in the table is an instrument pointed at the wrong subject; this one is an
+instrument that could not see its subject **at all** and still returned the success value. It also
+defeats the shape's usual tell: there was no confident wrong *answer* to notice, only an absence
+that renders identically to a pass.
+
+**Reproduced, not merely reported.** `printf 'alpha\000beta\000gamma\000\n' > canary.txt`, then
+`grep -Ic alpha canary.txt` -> prints `0`, exits 1, **no message**. The same command against a
+clean file with no match prints `0` and exits 1. Two different worlds, one rendering.
+
+**And the first detector written for this section was itself blind.** `grep -qU $'\x00' "$F"`
+looks like a NUL test; bash cannot put a NUL in a string, so `$'\x00'` is the **empty pattern**,
+which matches every line of every file. It reported "NUL present" against a clean file and would
+have reported it against every file forever. Caught only because a second check on the same file
+(`grep -c "blind instrument"` -> 11 matches) contradicted it: grep was plainly reading the file as
+text. The working detector compares byte counts — `wc -c` against `tr -d '\000' | wc -c` — and was
+confirmed on a planted 3-NUL canary before being trusted. **The detector for a blind instrument
+was a blind instrument, and only a contradiction between two instruments exposed it.**
+
+**Why the probes below catch it.** "Plant a positive" is the direct counter — seed a known
+violation and confirm the scan reports it. Had any lint been canaried that way, the canary file
+would have gone quiet the moment a NUL landed in it. **A green from a scanner that has never been
+shown a positive is not a measurement, it is a default.**
+
+**The generalisation, which is broader than NUL bytes.** Any input a scanner *skips* rather than
+*fails on* produces this. Binary classification is one path; others already live in this repo:
+a path excluded by config (`scripts/` is not typechecked — recorded in
+[`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md)), a glob that silently matches nothing,
+an encoding the reader decodes into replacement characters, a file too large for the tool's
+buffer. In every case the exit code is 0 and the finding count is 0, for opposite reasons.
+**Make the skip loud: a checker should report how many files it skipped and why, and a count of
+skipped-but-expected files should be a failure, not a footnote.**
+
+## Merged is not deployed — the reporting instrument, with the reporter as subject
+
+**2026-08-23.** An entire session reported **merge SHAs as delivery**. A SHA on `origin/main`
+cannot observe the thing anyone actually cares about — *does the operator have the fix* — and for
+eighteen merged PRs nobody compared `origin/main` against what was running. The operator noticed
+before the reporter did, from the only instrument that does observe it: *"the UI looks unchanged."*
+
+The gap is structural, not clerical. `git log` answers "is it merged". Nothing in the reporting
+loop answered "is it live", and the two render identically in a status report — the same collapse
+Stated Rule 6 names.
+
+**Measured, and the answer was good — which is the interesting part.**
+
+| Service | Status | Commit | Meaning |
+|---|---|---|---|
+| `statenour-web` | SUCCESS | `2cddb0b10` | every statenour commit on main |
+| `MAINnicks-tire-auto` | SUCCESS | `dcc931fff` | `origin/main` HEAD exactly |
+| `statenour-worker` | SUCCESS | `2cddb0b10` | current |
+
+Railway auto-deploys from GitHub; there is **no manual deploy step and none was missed**. The
+`SKIPPED` rows are watch-path filtering working correctly — `statenour-web` skips nickstire-only
+commits and vice versa, and the pattern is symmetric across all three services. The four commits
+between `2cddb0b10` and `dcc931fff` touch **18 nickstire files, 1 CI file, 0 statenour files**.
+
+**A good answer does not retire the finding.** The instrument gap was real for the whole session
+and would have reported exactly the same way if the answer had been "nothing deployed since
+09:00". *Not checking* was the defect; *it turned out fine* is luck, and luck is not a control.
+Had the reporter kept quiet because no one complained, that silence would have been indistinguishable
+from verification — which is the shape, one level up, in the reporting itself.
+
+**The cheap fix, since a receipt already exists:**
+
+```
+railway deployment list --service <svc> --limit 5 --json     # read-only; never `railway up`
+git merge-base --is-ancestor <deployed-sha> origin/main
+git diff --name-only <deployed-sha> origin/main              # what is queued, by area
+```
+
+Report the deployed SHA beside the merged SHA, or say the gap was not measured. **A merge SHA is a
+claim about a branch; only a deployment record is a claim about the operator's screen.**
+
+**The standing rule both sessions now hold:** after each merge, verify live — or state explicitly
+*"merged, not yet verified deployed."* The second half matters as much as the first, because it is
+what makes the two states render differently (Stated Rule 6).
+
+### The corollary, found by applying that rule retroactively
+
+A concurrent session ran the new rule against its own merged PRs and found one it **cannot**
+verify that way: a **zero-ingest gate**, which by construction only fires observably during a
+total ingest outage. Waiting for the gate to prove itself means waiting for the failure it exists
+to prevent.
+
+> **A gate you can only observe by having the failure it prevents is a gate you cannot verify.**
+> It needs a proxy signal or a forced probe. There is no third option, and "it hasn't fired, so
+> it's fine" is not one — that is indistinguishable from the gate being dead.
+
+That session chose a proxy: `intelligence_claims` **continuity** — the gate is working if the
+thing it protects keeps flowing. Correct, and worth naming precisely because a proxy is a weaker
+instrument than a forced probe and should be labelled as such rather than quietly treated as
+equivalent. The forced probe (deliberately starve ingest in a scratch environment and assert the
+gate fires) remains the stronger option if it can ever be afforded.
+
+This is the same family as **plant a positive** (probe 1) and the NUL-byte canary: in all three,
+the fix is to *manufacture* the condition rather than wait for it, because waiting cannot
+distinguish "never happened" from "cannot see".
+
+## Session completion is a blind instrument
+
+**The self-referential instance — this audit found the defect in its own execution, not only in
+the code it was auditing.** It is included for that reason: a taxonomy that catches the people
+using it is stronger evidence than one that only catches the codebase.
+
+> **Session completion is a blind instrument.** A session that stops because its work is done and
+> a session that stops with six items outstanding produce the identical external signal: idle.
+> The orchestrator cannot distinguish them and has to poll. Same shape as
+> `automation_policies.lastResult` reporting `'success'` for a job that failed 4/4 daily for
+> sixteen days — the field tracks the last event, not the state. Silence and completion look
+> identical when nothing distinguishes them.
+>
+> The repo's own `stop-check.mjs` Stop hook is the control that should catch this. Per the
+> coverage table it has **no canary and fails open** — an unverified gate defaulting to permit,
+> guarding exactly this failure. The sibling is fixing it.
+
+Observed twice on 2026-08-22/23: this session and a sibling each went idle mid-queue, and the
+operator caught both only by polling. Note the compounding — the fault is a blind instrument
+(idle is unreadable), and the control that should cover it is an **unwired control that fails
+open** (shape 1). That pairing is the general case worth remembering: *a blind instrument
+survives precisely where its supervising gate also fails open.*
+
+**The remedy is to make the two states render differently**, which costs one line:
+
+> **Standing rule, 2026-08-23.** End every turn with an explicit remaining-queue line — what is
+> done with SHAs, what is next, and whether the stop is *finished* or *turn ended with work
+> outstanding*. Never end a turn silently with work outstanding.
+
+This is the same fix as the NUL byte above and as "plant a positive": the defect is that two
+different states share one rendering, so the fix is to give them different renderings. Note it is
+**not** a status field that could go stale — `lastResult` was already a status field, and it lied
+for sixteen days because it recorded the last *event* rather than the current *state*. The queue
+line has to be re-derived and re-stated every turn, which is what makes it hard to falsify.
+
 ## The probe
 
 For any instrument you are about to trust:
@@ -313,27 +538,43 @@ For any instrument you are about to trust:
 1. **Plant a positive.** Before believing a zero, produce one known-true row and confirm the
    instrument sees it. `task_events` returning zero and `task_events` being unwired are the same
    observation until you do this.
-2. **Read the instrument's own scope, not its name.** `api_request_logs` sounds total. Its
-   filter list is five path prefixes. The name is a claim; the filter is the fact.
+2. **Read the instrument's own scope, not its name.** `api_request_logs` sounds total. It is a
+   10% sample of the routes one wrapper happens to wrap. The name is a claim; the code is the
+   fact. *(An earlier draft of this very step said "five path prefixes" — a number invented to
+   sound specific, contradicting the correction thirty lines above it in this same file. Left
+   recorded rather than silently fixed: a stale claim survives inside a document whose whole
+   subject is stale claims.)*
 3. **Ask what frame the number is in.** Timezone, unit, currency, sample window, filtered
    population. A number without its frame is not yet evidence — see
    `base-rate-check` for the denominator half of the same discipline.
 4. **Check whether absence is distinguishable from silence.** If "nothing happened" and "I
    cannot see" render identically, the instrument cannot support a negative conclusion.
+5. **Ask what the instrument SKIPPED, and make it say so out loud.** A scan that cannot read a
+   file prints the same green as one that found nothing — binary-classified files, excluded
+   paths, globs matching nothing, undecodable encodings. Demand a skipped count; treat a
+   skipped-but-expected file as a failure.
 
 ## Count as of 2026-08-23
 
 Twelve-plus confirmed instances of the dominant unwired-control class
 ([`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) is authoritative — it counts by
 control, this file counts by shape, so the two numbers are **not** interchangeable), plus one
-orthaned subject, two populated-but-unused columns, and four blind instruments BY SHAPE
+orphaned subject, two populated-but-unused columns, and **seven** blind instruments BY SHAPE
 (three by control — see the divergence note in shape 4; the sets differ in membership, not just
 in count).
 
-The blind instruments all landed on **one day**, which is the finding. Four independent
-measuring devices, none broken, none reporting an error, all incapable of observing the thing
-they were consulted about. That rate suggests the class is under-counted historically rather
-than newly common — nobody was looking for it, because a blind instrument never raises its hand.
+The blind instruments all landed on **one day**, which is the finding. Seven independent measuring
+devices, none broken, none reporting an error, all incapable of observing the thing they were
+consulted about. That rate suggests the class is under-counted historically rather than newly
+common — nobody was looking for it, because a blind instrument never raises its hand.
+
+Two of the six were found in the audit's **own** instruments rather than in the code under audit:
+session-idle above, and a `grep -c "branch refs/heads/main$"` that returned `0` for "is `main`
+checked out in a worktree" while `git worktree list` printed `[main]` on the next line. The
+grep's pairing logic was wrong, and a wrong pairing returns zero exactly like a true absence —
+had it been believed, the next step would have moved a ref out from under a live worktree.
+**The base rate for this shape inside one's own tooling is not low, and nothing about running
+the audit confers immunity.**
 
 ---
 
@@ -400,3 +641,180 @@ reasoning inline so the naive columns do not re-trigger the proposal in six mont
 proposed fix was still wrong. Symptom, anti-pattern and root cause were three different things,
 and only a measurement separated them. That is shape 4 operating on the diagnosis itself — a
 confident, well-formed reading of the wrong quantity.
+
+---
+
+# Shape 5 · the lying surface
+
+**Named 2026-08-23.** Five doc instances in one sweep, plus one **product** instance — the only
+defect recorded here that reached the operator's daily use rather than his instrumentation.
+
+> **A doc claim is an unwired control — and worse, because a doc actively stops people looking.**
+
+An unwired control is merely absent. A false doc claim asserts a mechanism, nothing verifies the
+assertion, and a reader who finds the sentence stops searching. **The aggravating factor: a false
+COMPLETENESS claim does not just mislead, it closes a search.**
+
+## The product instance — the completion-frame disagreement
+
+**2026-08-23, found in live prod.** Two surfaces read the same tasks and disagree about whether
+the operator finished his morning. Measured read-only against prod, 90 minutes after the events:
+
+| current `Task.status` | `completed` event in `task_events` | task |
+|---|---|---|
+| **WAITING** | 90 min ago | **Workout** |
+| DONE | 90 min ago | Warm up on treadmill |
+| DONE | 90 min ago | Complete 10 rounds on bag with push-ups |
+| DONE | 90 min ago | Stretch and finish workout |
+| **WAITING** | 90 min ago | Drink water — 6+ bottles |
+| **WAITING** | 90 min ago | Wake up routine: gratitude, meds |
+| **WAITING** | 89 min ago | Want less, less expectations |
+
+Across every task that has ever emitted `completed`: **4 WAITING, 4 DONE.** The split is exactly
+recurring vs one-off, which is what identifies the mechanism rather than leaving it a guess.
+
+**Nobody wrote anything false, and that is the entire point.** A recurring task *does* return to
+`WAITING` after completing — that is correct behaviour, not a bug. `task_events` is an append-only
+**event** log: "this was completed at 09:14" stays true forever. `Task.status` is **current state**:
+"this is due again" is also true. A surface reading the first says done; a surface reading the
+second says waiting. Both are correct **in their own frame**, and the operator — who finished his
+workout — sees a board that says WAITING, with its own three sub-steps sitting at DONE directly
+underneath it.
+
+> **Any surface displaying completion state must declare which frame it is in.**
+> Event ("was completed at T") and state ("is currently due") are different facts. Rendering
+> either as a bare "done / not done" discards the frame, and a reader supplies the wrong one.
+
+**Why this is the cleanest illustration in the document.** Every other instance here has a wrong
+artifact somewhere — a stale count, an unwired script, a key with a clock in it. This one has
+**no incorrect data, no incorrect code, and no incorrect sentence**, and still produces a false
+impression at the only place that matters. It is the proof that *"nothing is wrong"* and
+*"everything feels broken"* are fully compatible, and that auditing the parts can return all-green
+while the composition lies.
+
+It is also the first defect of the day to reach the operator's **use** rather than his
+instrumentation — which is a comment on where the day's attention went, not only on the code.
+
+## The worked example
+
+`apps/nickstire/docs/admin-surface-audit/code-underneath-audit-logic.md:37`:
+
+> "every job in it duplicates a tiered job EXCEPT the two above."
+
+Measured against origin/main 2026-08-23: **33 registered jobs, 8 absent from every tier by name.**
+Six are name-mismatches with real coverage (`retention-all` at `scheduler.ts:1675` imports all six
+`processRetention*`; `statenour-live-sync` at `:863`). **Two are genuinely dead** —
+`campaign-resume` (`index.ts:347`, calls `resumeStuckCampaigns()`, so stuck SMS campaigns are never
+recovered after a restart) and `sms-learning-digest` (`index.ts:368`).
+
+**That one sentence converted an incomplete search into a closed question, and the class stopped
+being swept.**
+
+The same table is stale a second way: its headline row says `confirmation-calls` and
+`voice-recovery` "never fire on a timer". Both are now tiered — `scheduler.ts:992` and `:1003`,
+with a comment reading "MOVED to the hourly tier". The doc records a defect that has since been
+fixed, and the completeness clause is anchored to those two, so the sentence is wrong on both
+halves.
+
+## The other four
+
+| claim | reality |
+|---|---|
+| `apps/statenour/docs/DESIGN.md:5` — "Anti-slop **verified at push time**… (gate 13/13)" | script exists; in **no hook, workflow or composite gate** |
+| `apps/statenour/scripts/check-anti-slop.sh:76` — prints `emergency override: ANTI_SLOP_GATE_SOFT=1 git push` | advertises a push hook that does not exist |
+| `agent-os/standards/nourcity/enforced-gates.md:32` — lists `check:anti-slop` | file is titled **Enforced Gates** and opens "These scripts are codified standards… not optional" |
+| `apps/statenour/docs/SECURITY.md:234` — "`pnpm audit` runs in `pre-push-check.sh`" | that script **is not in the tree** |
+
+**Ground truth: `lefthook.yml` pre-push runs exactly one command — `pnpm run build:affected`.**
+Every "verified at push time" claim in the repo except that one is false.
+
+## The probe
+
+`scripts/check-doc-claims.mjs` resolves three claim kinds across both apps. It **caught its own
+defect four times while being written**, which is the argument for it. v1 cleared `DESIGN.md:5`
+because the script appears in `package.json` — an npm alias is not a gate. v2 still cleared it,
+because `"check:anti-slop": "bash scripts/check-anti-slop.sh"` is a script *value*; a composite
+must actually chain (`&&`). **Defining a script is not running it.**
+
+v3 fixed that and broke the mirror image. Composites name **aliases, not files**: `verify:hard`
+says `pnpm check:anti-slop`, so scanning composite values for `check-anti-slop.sh` finds nothing,
+and v3 reported the script "appears in no hook, workflow or composite gate". The *verdict* was
+right — the doc claimed push-time verification, which is false — but the *mechanism* was invented,
+and that is the identical error this file records against `api_request_logs` two sections above,
+committed a second time by the session writing the correction. A right answer with a fabricated
+reason is not a lesser defect; it is the one that survives review.
+
+v4 therefore walks the script graph and classifies by **entry point**, because the question a
+reader actually has is not "is it reachable" but "does anything run it without a human deciding
+to":
+
+| Tier | Meaning | What a doc may claim |
+|---|---|---|
+| **AUTOMATIC** | reachable from a hook or workflow | "verified at push time", "gated", "enforced" |
+| **MANUAL** | reachable only from a composite nothing invokes | "run `pnpm verify:hard` to check" — **never** "enforced" |
+| **UNWIRED** | reachable from nothing | nothing |
+
+`check-anti-slop.sh` is **MANUAL**: real coverage via `verify:hard` / `release:full`, zero
+enforcement, because no hook or workflow reaches any of them. That is a more useful and more
+honest answer than either "covered" or "unwired", and neither of the first three versions could
+express it.
+
+1. **GATE claims** — the named script must exist AND resolve to a tier. `--strict` fails on
+   **UNRESOLVED** (names a script that does not reach a gate) and deliberately does *not* fail on
+   **VAGUE** (asserts gating, names nothing checkable). That split is why it could ship: of 8 gate
+   findings, 6 were vague — an unchecked `- [ ]` TODO, a dated session log, a historical plan
+   table, an adoption-register row, a *proposed* edit quoted inside a proposal, and one claim that
+   is simply true. **A 75% false-positive rate is not a stricter gate; it is an inventory nobody
+   can act on.** The vague bucket is kept and reported, because "this is enforced" naming no
+   enforcer is a real lying surface — just one a human has to adjudicate.
+2. **COMPLETENESS clauses** — either a script keeps the question open, or the sentence is rewritten
+   as a dated measurement: *"as of \<date\>, measured N of M."*
+3. **COUNT claims** — flagged unless the reproducing command sits nearby. A number without its
+   command is a cache with no invalidation.
+
+## Turning a clause into a check — reuse, do not reinvent
+
+The nickstire half of this is already shipped in **PR #1808**
+(`apps/nickstire/scripts/lint-cron-wiring.ts` + `server/cron/registry-tier-map.ts`). Its allowlist
+design is the pattern to copy, and its two refinements are what make it a guard rather than a
+permission slip:
+
+- **each entry names the tier job that actually covers it**, and the check verifies *that* job is
+  itself wired — so an entry cannot outlive its justification;
+- **a redundant entry is rejected**, so the list cannot accumulate permanent excuses;
+- **exact names only** — a `retention-*` pattern would have silently absorbed a genuinely stranded
+  `retention-30day`.
+
+Any second implementation of this idea in this repo is where the next drift starts. Extend that
+script; do not write another.
+
+## The checker is WIRED — and that was the last thing standing
+
+A report-only checker whose entire subject is controls that claim to run and do not would have
+been the next instance of its own class. It is now gated:
+
+`scripts/agent-os/docClaims.test.mjs` → auto-discovered by `scripts/agent-os/verify.mjs` →
+`pnpm agent:verify` → `.github/workflows/agent-policy.yml`, **every PR**. No CI edit was needed;
+the runner discovers `scripts/agent-os/*.test.mjs` by design, so the test file *is* the wiring.
+
+Three arms, per this repo's ship-the-canary rule:
+
+1. `--selftest` passes, and pins the **mechanism** — `check-anti-slop.sh -> MANUAL`, naming
+   `verify:hard`. A verdict-only assertion would have passed v3's invented reason too.
+2. `--strict` is green against the repo as it stands.
+3. **BREAKS:** a false gate claim is planted into a *scratch* `GIT_INDEX_FILE` (the checker
+   discovers files via `git ls-files`, so a temp index makes the canary visible without staging
+   anything into a checkout shared with concurrent sessions), and `--strict` must exit 1 naming
+   `[MANUAL]`. Then it is removed and `--strict` must return to 0 — without that disarm, a
+   permanently-red gate would satisfy arm 3 forever.
+
+Receipts: 33 agent-os canaries, 32 pass. The one failure is unrelated and **not** on `origin/main`
+— a sibling session has locally added an 18th link to `verify:hard` (`pnpm check:anti-slop`, which
+is how `DESIGN.md` stops being a false claim), and `coverage-doc.test.mjs` correctly wants the
+count in [`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) moved 17 → 18 when that lands.
+`origin/main` reads 17 in both places and is self-consistent.
+
+**Known blind spot, stated rather than discovered later.** `git ls-files` means an **untracked**
+markdown file is invisible to the checker. As a gate that is harmless — staged files are in the
+index — but an ad-hoc run against a brand-new doc reports a clean zero it did not earn. This was
+found the way the file recommends: by planting a positive and watching the canary *fail to fire*.

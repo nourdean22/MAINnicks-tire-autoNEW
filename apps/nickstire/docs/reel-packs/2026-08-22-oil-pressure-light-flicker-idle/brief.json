@@ -1,0 +1,93 @@
+{
+  "topic": "Oil pressure light flickers at idle, then goes off: low oil vs a failing sending unit, and why not to keep driving on it",
+  "campaignKeyword": "OILPRESSURE",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
+  "generatedAt": "2026-08-22",
+  "durationSec": 27,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Your oil pressure light just flickered at a stoplight, then went off.",
+      "visualPrompt": "Macro shot of an instrument cluster with the oil-can warning icon flickering on and off, shallow depth of field, slow push-in, dim cabin lighting at dusk",
+      "stockSearchTerms": ["oil pressure warning light dashboard closeup", "car oil can icon dashboard flicker macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "That flicker matters more than you'd think. A light that stays solid usually means shut off now.",
+      "visualPrompt": "Close-up of an analog oil pressure gauge needle dropping toward the low end, static camera, dim engine-bay ambient light reflecting off the glass",
+      "stockSearchTerms": ["oil pressure gauge needle closeup", "car gauge cluster low pressure macro"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 16],
+      "narration": "Low oil level is the first thing to check, but a worn oil pressure sending unit can point to this too.",
+      "visualPrompt": "Top-down macro of an open engine bay, oil filler cap removed resting beside the opening, then rack focus to a small sensor unit threaded into the engine block with a faint oil sheen around its base, garage lighting",
+      "stockSearchTerms": ["engine bay oil filler cap open closeup", "oil pressure sending unit engine block macro"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [16, 22],
+      "narration": "Either way, don't keep driving on it. Low oil pressure can wreck bearings in minutes, not miles.",
+      "visualPrompt": "Slow orbital pull-back from a close engine valve-cover shot to a wider view of the engine bay, neutral shop lighting shifting slightly warmer to signal urgency, no motion blur cuts",
+      "stockSearchTerms": ["engine bay orbital shot garage", "car engine closeup pull back shop lighting"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [22, 27],
+      "narration": "Nick's Tire and Auto can check your level and the sensor same day. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight, slow push-in that ends on a close-up of a dashboard cluster with the oil-can icon fading to off, mirroring beat 1's opening frame",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door", "dashboard warning light fading off closeup"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 57,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 7, "max": 10, "note": "a flickering dashboard warning light is a widely recognizable, mildly alarming scroll-stop frame" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target range" },
+      "loop": { "score": 5, "max": 5, "note": "beat 5 ends on a dashboard-cluster close-up mirroring beat 1's opening frame, giving the CTA a visual return to the HOOK" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; approved soft-language phrasing used (can point to)" },
+      "keyword": { "score": 5, "max": 5, "note": "oil pressure, sending unit, bearings keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 27,
+    "ctaType": "SEND-oriented"
+  }
+}

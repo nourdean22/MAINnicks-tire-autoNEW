@@ -2,7 +2,32 @@
 
 Status: **APPROVED & LIVE** (as of 2026-06-29 under operator authorization).
 
-## Today's manual workflow (the only refund path)
+## The manual workflow this REPLACED (pre-2026-06-29 — not current)
+
+> **Frame marker added 2026-08-23.** Everything in this section describes the
+> state BEFORE the writeback shipped, and it was written in the present tense
+> under a heading reading "Today's". The header of this file has said
+> "APPROVED & LIVE" since 2026-06-29, so the document asserted both states at
+> once and the doc-claim sweep flagged the stale half — correctly.
+>
+> Specifically, *"Nothing writes back: `tire_orders.paymentStatus` stays `paid`
+> (the `refunded` enum value exists but has no writer)"* is **false on
+> `origin/main` today.** Measured; reproduce with
+> `git grep -n "processStripeRefundEvent\|paymentStatus: \"refunded\"" -- apps/nickstire`:
+>
+> - `server/_core/index.ts:977` updates **`tireOrders`** — the exact table named
+>   — with `.set({ paymentStatus: "refunded" })` from the `charge.refunded`
+>   webhook, so out-of-band Stripe refunds sync back.
+> - `:984` delegates invoice status and ShopDriver sync to
+>   `services/refundWriteback.ts` → `processStripeRefundEvent`.
+> - Three test files cover it: `refundWriteback.test.ts`,
+>   `refund.integration.test.ts`, `triggerRefund.test.ts`.
+>
+> Kept rather than deleted: the before-state is why the design exists, and a
+> spec with its motivation removed reads as arbitrary. But it needed a frame,
+> because "Today's ... the only refund path" is the exact sentence shape that
+> closes a search.
+
 
 1. The Tire Orders cockpit flags cancelled-but-PAID orders (red banner +
    top-priority chip) and warns at cancel time.

@@ -1,0 +1,93 @@
+{
+  "topic": "Worn motor mount: the clunk on acceleration that isn't your suspension",
+  "campaignKeyword": "MOUNTCLUNK",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
+  "generatedAt": "2026-08-22",
+  "durationSec": 27,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "You hit the gas, or shift into drive, and you feel a clunk from underneath.",
+      "visualPrompt": "Close-up of a car gear shifter moving from park to drive, static camera, soft interior ambient light, no hand visible on the shifter",
+      "stockSearchTerms": ["car gear shifter closeup park to drive", "automatic transmission shifter macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "That's different from a clunk over a bump. This one shows up when the engine torques.",
+      "visualPrompt": "Wide shot of an engine bay from above, slow push-in toward the engine block, neutral daylight, static mounting points visible at the edges of frame",
+      "stockSearchTerms": ["engine bay overhead wide shot", "car engine compartment daylight"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 17],
+      "narration": "A clunk like that can mean a worn motor mount, the rubber that keeps your engine from rocking under load.",
+      "visualPrompt": "Extreme macro of an engine mount with a visibly cracked and separated rubber isolator between the metal brackets, slow orbital camera move, dim garage light",
+      "stockSearchTerms": ["engine motor mount cracked rubber macro", "torn motor mount closeup"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [17, 22],
+      "narration": "A torn or collapsed mount can also let the engine shift enough to rub or strain a hose or wire nearby.",
+      "visualPrompt": "Rack focus from the damaged motor mount in the foreground to a nearby hose and wiring harness in the background, dim garage lighting, slow focus pull",
+      "stockSearchTerms": ["engine bay hose wiring harness closeup", "engine compartment focus pull macro"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [22, 27],
+      "narration": "Nick's Tire and Auto checks engine mounts free with any diagnostic visit. Link in bio.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage room-tone under beats 2-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 51,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 6, "max": 10, "note": "gear shifter moving on its own is a mildly uncanny, moderately novel hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "27s, within 15-60s target range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (gear shifter)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs the motor-mount claims; store not queried live (no DB access)" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged phrasing used (can mean, can also let)" },
+      "keyword": { "score": 5, "max": 5, "note": "motor mount, engine, clunk keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 27,
+    "ctaType": "SEND-oriented"
+  }
+}
