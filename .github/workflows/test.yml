@@ -219,6 +219,14 @@ jobs:
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto lint:pii
 
+      # 2026-08-23 - a registry cron in no scheduler tier CANNOT RUN. Two were
+      # dead for months behind a doc sentence claiming otherwise; production
+      # cron_log held zero rows for both, all-time. This is that sentence
+      # turned into a check.
+      - name: Nickstire - cron wiring lint
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter nicks-tire-auto lint:cron-wiring
+
       - name: Nickstire · route registry validation
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto validate:routes

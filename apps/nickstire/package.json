@@ -45,7 +45,8 @@
     "backfill:skills": "tsx scripts/run.ts backfill-creative-skills.ts",
     "checkout:safe": "node scripts/assert-safe-checkout.mjs",
     "migrations:reconcile": "node scripts/reconcile-migrations.mjs --report",
-    "migrations:check": "node scripts/migrations-check.mjs"
+    "migrations:check": "node scripts/migrations-check.mjs",
+    "lint:cron-wiring": "tsx scripts/lint-cron-wiring.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
