@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from "../../lib/logger";
+import { stableReviewId } from "../../lib/reviewIdentity";
 import { buildPlaceDetailsUrl } from "@shared/const";
 import { buildReplyPromptRules } from "@shared/reviewReplyQa";
 
@@ -78,7 +79,11 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
     let lowRatingCount = 0;
 
     for (const review of reviews) {
-      const reviewId = review.time?.toString() || `${review.author_name}_${Date.now()}`;
+      // Stable identity. The old expression fell back to
+      // `${author}_${Date.now()}`, which made the existence check below
+      // unable to match a prior row - a new row, a new event-bus dispatch
+      // and a new low-rating alert every 6 hours for the same review.
+      const reviewId = stableReviewId(review);
 
       // Check if already exists
       const existing = await db
