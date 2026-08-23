@@ -517,7 +517,12 @@ describe("CANARY · digit normalisation must not merge distinct operator text", 
 describe("CANARY · a stable-key first sighting inherits the legacy verdict", () => {
   const legacyRow = (over: Record<string, unknown> = {}) => ({
     id: "legacy-1",
-    key: "blindspot_personal_1787281352755",
+    // Low-entropy epoch on purpose: gitleaks' generic-api-key rule scores a
+    // realistic 13-digit timestamp as a secret and hard-fails the PR. The
+    // suffix is stripped by legacyIdentityMatches either way, so the shape is
+    // what matters, not the digits. Fixing the fixture rather than allowlisting
+    // the rule - a scanner narrowed to make a build pass stops being a scanner.
+    key: "blindspot_personal_1700000000000",
     content: `[HIGH] ${spot().description}: Last updated 51 days ago.`,
     discoveryVerdict: "noise",
     discoveryRatedAt: new Date("2026-08-21T03:37:53.470Z"),
@@ -547,7 +552,7 @@ describe("CANARY · a stable-key first sighting inherits the legacy verdict", ()
     const store = fakeStore();
     mocks.brainMemory.findMany.mockResolvedValue([
       legacyRow({
-        key: "blindspot_general_1787281352755",
+        key: "blindspot_general_1700000000000",
         content: "[MEDIUM] 9 decisions awaiting review: Decision replays matter.",
       }),
     ]);
@@ -566,7 +571,7 @@ describe("CANARY · a stable-key first sighting inherits the legacy verdict", ()
     // filtered on neither domain nor frame and would adopt the old verdict.
     const store = fakeStore();
     mocks.brainMemory.findMany.mockResolvedValue([
-      legacyRow({ key: "blindspot_revenue_1787281352755" }),
+      legacyRow({ key: "blindspot_revenue_1700000000000" }),
     ]);
 
     const res = await persistBlindSpot(spot({ domain: "general" }));
