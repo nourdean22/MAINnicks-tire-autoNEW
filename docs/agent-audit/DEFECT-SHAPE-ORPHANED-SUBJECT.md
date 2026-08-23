@@ -4,7 +4,7 @@
 > grew into the taxonomy. The name is kept because `CONTROL-CANARY-COVERAGE.md` and the
 > agent-memory index already point at it; renaming breaks both for no gain.
 
-**Status:** four shapes as of 2026-08-23.
+**Status:** five shapes as of 2026-08-23. Shape 4 has seven recorded instances.
 
 ---
 
@@ -266,7 +266,7 @@ Naming the class is what makes them one finding instead of two anecdotes.
 
 # Shape 4 · the blind instrument
 
-**Named 2026-08-23.** Six instances in one day, which is what forced the name. The first four
+**Named 2026-08-23.** Seven instances in one day, which is what forced the name. The first four
 surfaced during the /task completion incident; none came from Discover. The last two — a NUL byte
 that made a source file unreadable to every text scanner, and session-idle itself — arrived after
 the name existed, which is the point of naming a shape: they were recognised on sight instead of
@@ -292,6 +292,7 @@ instrument is exactly what lets an orphaned subject survive an audit.
 | The clock | UTC timestamps | local time | `timestamp without time zone` in the reader's zone: **+4 h on ET** |
 | Every text-scanning lint | the contents of a `.ts` file | the contents of files it could decode | one stray **NUL byte** made the file read as binary; `tsc` compiled it clean, every grep-based check **skipped it and reported green** |
 | Session completion | whether the work is done | whether the process is still emitting | a session that finished and a session that stalled mid-queue are **the same external signal: idle** |
+| A merge SHA | whether the operator has the fix | whether a branch moved | 18 PRs reported as delivered in one session with **zero** comparisons of `origin/main` against the deployed commit |
 
 Three corrections to the first four rows, all of which are themselves instances of the shape:
 
@@ -426,6 +427,47 @@ buffer. In every case the exit code is 0 and the finding count is 0, for opposit
 **Make the skip loud: a checker should report how many files it skipped and why, and a count of
 skipped-but-expected files should be a failure, not a footnote.**
 
+## Merged is not deployed — the reporting instrument, with the reporter as subject
+
+**2026-08-23.** An entire session reported **merge SHAs as delivery**. A SHA on `origin/main`
+cannot observe the thing anyone actually cares about — *does the operator have the fix* — and for
+eighteen merged PRs nobody compared `origin/main` against what was running. The operator noticed
+before the reporter did, from the only instrument that does observe it: *"the UI looks unchanged."*
+
+The gap is structural, not clerical. `git log` answers "is it merged". Nothing in the reporting
+loop answered "is it live", and the two render identically in a status report — the same collapse
+Stated Rule 6 names.
+
+**Measured, and the answer was good — which is the interesting part.**
+
+| Service | Status | Commit | Meaning |
+|---|---|---|---|
+| `statenour-web` | SUCCESS | `2cddb0b10` | every statenour commit on main |
+| `MAINnicks-tire-auto` | SUCCESS | `dcc931fff` | `origin/main` HEAD exactly |
+| `statenour-worker` | SUCCESS | `2cddb0b10` | current |
+
+Railway auto-deploys from GitHub; there is **no manual deploy step and none was missed**. The
+`SKIPPED` rows are watch-path filtering working correctly — `statenour-web` skips nickstire-only
+commits and vice versa, and the pattern is symmetric across all three services. The four commits
+between `2cddb0b10` and `dcc931fff` touch **18 nickstire files, 1 CI file, 0 statenour files**.
+
+**A good answer does not retire the finding.** The instrument gap was real for the whole session
+and would have reported exactly the same way if the answer had been "nothing deployed since
+09:00". *Not checking* was the defect; *it turned out fine* is luck, and luck is not a control.
+Had the reporter kept quiet because no one complained, that silence would have been indistinguishable
+from verification — which is the shape, one level up, in the reporting itself.
+
+**The cheap fix, since a receipt already exists:**
+
+```
+railway deployment list --service <svc> --limit 5 --json     # read-only; never `railway up`
+git merge-base --is-ancestor <deployed-sha> origin/main
+git diff --name-only <deployed-sha> origin/main              # what is queued, by area
+```
+
+Report the deployed SHA beside the merged SHA, or say the gap was not measured. **A merge SHA is a
+claim about a branch; only a deployment record is a claim about the operator's screen.**
+
 ## Session completion is a blind instrument
 
 **The self-referential instance — this audit found the defect in its own execution, not only in
@@ -489,11 +531,11 @@ For any instrument you are about to trust:
 Twelve-plus confirmed instances of the dominant unwired-control class
 ([`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) is authoritative — it counts by
 control, this file counts by shape, so the two numbers are **not** interchangeable), plus one
-orphaned subject, two populated-but-unused columns, and **six** blind instruments BY SHAPE
+orphaned subject, two populated-but-unused columns, and **seven** blind instruments BY SHAPE
 (three by control — see the divergence note in shape 4; the sets differ in membership, not just
 in count).
 
-The blind instruments all landed on **one day**, which is the finding. Six independent measuring
+The blind instruments all landed on **one day**, which is the finding. Seven independent measuring
 devices, none broken, none reporting an error, all incapable of observing the thing they were
 consulted about. That rate suggests the class is under-counted historically rather than newly
 common — nobody was looking for it, because a blind instrument never raises its hand.
