@@ -20,6 +20,8 @@ import { join } from "path";
 
 import {
   findCronWiringFaults,
+  extractRegistryJobNames,
+  extractTierJobNames,
   REGISTRY_TIER_ALIASES,
 } from "./cron/registry-tier-map";
 import { buildCronJobStatuses, type TierCadence } from "./cron/cron-status";
@@ -119,8 +121,8 @@ describe("canary · cron wiring faults", () => {
     const registrySrc = read("server/cron/index.ts");
     const schedulerSrc = read("server/cron/scheduler.ts");
 
-    const registryNames = [...registrySrc.matchAll(/registerJob\("([a-z0-9-]+)"/g)].map((m) => m[1]);
-    const tierNames = new Set([...schedulerSrc.matchAll(/name: "([a-z0-9-]+)"/g)].map((m) => m[1]));
+    const registryNames = extractRegistryJobNames(registrySrc);
+    const tierNames = extractTierJobNames(schedulerSrc);
 
     expect(registryNames.length).toBeGreaterThan(20); // instrument sees its target
     expect(tierNames.size).toBeGreaterThan(50);
@@ -133,9 +135,7 @@ describe("canary · cron wiring faults", () => {
   });
 
   it("REAL SOURCE: the two crons this PR wired are in a tier", () => {
-    const tierNames = new Set(
-      [...read("server/cron/scheduler.ts").matchAll(/name: "([a-z0-9-]+)"/g)].map((m) => m[1]),
-    );
+    const tierNames = extractTierJobNames(read("server/cron/scheduler.ts"));
     // Both had ZERO rows in production cron_log before this change.
     expect(tierNames.has("campaign-resume")).toBe(true);
     expect(tierNames.has("sms-learning-digest")).toBe(true);

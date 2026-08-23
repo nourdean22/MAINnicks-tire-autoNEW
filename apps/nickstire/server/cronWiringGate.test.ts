@@ -16,6 +16,7 @@
  * measured, and the gate that makes the doc unnecessary must stay wired.
  */
 import { describe, it, expect } from "vitest";
+import { extractTierJobNames } from "./cron/registry-tier-map";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -117,6 +118,61 @@ describe("canary - the gate that replaces the sentence is wired", () => {
     expect(gate).toContain("FAILED TO PARSE");
     expect(gate).toMatch(/registryNames\.length < 20 \|\| tierNames\.size < 50/);
     expect(gate).toContain("process.exit(2)");
+  });
+
+  it("BREAKS: a tier LABEL is never mistaken for a scheduled job", () => {
+    // Caught in review on #1808. Matching every `name:` swept up the five tier
+    // labels (heartbeat, pulse, hourly, daily, briefings). A registry job named
+    // `daily` with no tier job of that name - or an alias whose coveredBy is
+    // `daily` - then produced ZERO faults and defeated the gate entirely, while
+    // the aggregate parse check stayed green. Silent permission in a guard
+    // built to catch exactly that class.
+    const forged = [
+      'tiers.push({',
+      '  name: "daily",',
+      '  intervalMs: 24 * 60 * 60 * 1000,',
+      '  jobs: [',
+      '    { name: "a-real-job", handler: async () => ({}) },',
+      '  ],',
+      '});',
+    ].join(String.fromCharCode(10));
+
+    const names = extractTierJobNames(forged);
+    expect(names.has("a-real-job")).toBe(true);
+    expect(names.has("daily"), "the tier label leaked in as a job").toBe(false);
+  });
+
+  it("a JOB that shares a tier's label is still counted", () => {
+    // Exclusion is positional, not by name. Subtracting by name would have
+    // traded this false negative for a different one.
+    const forged = [
+      'tiers.push({',
+      '  name: "daily",',
+      '  intervalMs: 1,',
+      '  jobs: [',
+      '    { name: "daily", handler: async () => ({}) },',
+      '  ],',
+      '});',
+    ].join(String.fromCharCode(10));
+    expect(extractTierJobNames(forged).has("daily")).toBe(true);
+  });
+
+  it("REAL SOURCE: the five tier labels are excluded from the job set", () => {
+    const scheduler = readFileSync(join(APP_ROOT, "server/cron/scheduler.ts"), "utf-8");
+    const jobs = extractTierJobNames(scheduler);
+    for (const label of ["heartbeat", "pulse", "hourly", "daily", "briefings"]) {
+      expect(jobs.has(label), `tier label "${label}" is being counted as a job`).toBe(false);
+    }
+    // ...and the instrument still sees plenty of real jobs.
+    expect(jobs.size).toBeGreaterThan(100);
+  });
+
+  it("the gate and the suite share ONE extraction", () => {
+    // Two copies is how the gate and the canary would drift into disagreeing
+    // about what counts as wired.
+    expect(gate).toContain("extractTierJobNames");
+    expect(gate).toContain("extractRegistryJobNames");
+    expect(gate).not.toMatch(/matchAll\(\/name: /);
   });
 
   it("the gate holds no logic of its own - scripts/ is not typechecked", () => {

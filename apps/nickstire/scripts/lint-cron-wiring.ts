@@ -33,15 +33,22 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-import { findCronWiringFaults, REGISTRY_TIER_ALIASES } from "../server/cron/registry-tier-map";
+import {
+  findCronWiringFaults,
+  extractRegistryJobNames,
+  extractTierJobNames,
+  REGISTRY_TIER_ALIASES,
+} from "../server/cron/registry-tier-map";
 
 const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const registrySrc = readFileSync(join(APP_ROOT, "server/cron/index.ts"), "utf-8");
 const schedulerSrc = readFileSync(join(APP_ROOT, "server/cron/scheduler.ts"), "utf-8");
 
-const registryNames = [...registrySrc.matchAll(/registerJob\("([a-z0-9-]+)"/g)].map((m) => m[1]);
-const tierNames = new Set([...schedulerSrc.matchAll(/name: "([a-z0-9-]+)"/g)].map((m) => m[1]));
+// Extraction lives in the typechecked module - a tier LABEL is not a job,
+// and matching every `name:` swept up five of them (review, #1808).
+const registryNames = extractRegistryJobNames(registrySrc);
+const tierNames = extractTierJobNames(schedulerSrc);
 
 // Prove the instrument sees its target before trusting a green. A regex that
 // silently stops matching would otherwise report "0 faults" forever - the
