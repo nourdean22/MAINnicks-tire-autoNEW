@@ -56,6 +56,14 @@ Short enough to remember, each earned by an incident this file records.
    aggregate inverted the truth by 38x. Before quoting a rate, ask what window it spans and whether
    anything in the denominator was not a scheduled run.
 
+6. **Two states that share one rendering are one state.** The fix is never a better guess at which
+   one you are looking at — it is giving them different renderings. A scan that skipped a file
+   prints the green of a scan that found nothing; a session that stalled mid-queue prints the idle
+   of a session that finished; `lastResult` prints the `'success'` of the last event for a job that
+   is currently broken. Each is repaired the same way: emit the distinguishing fact. Hence the
+   standing rule that every turn ends with an explicit remaining-queue line, and the probe rule
+   that every scanner reports what it skipped.
+
 ## How this file relates to CONTROL-CANARY-COVERAGE.md
 
 They are **complementary, not overlapping**, and the split is deliberate:
@@ -258,8 +266,11 @@ Naming the class is what makes them one finding instead of two anecdotes.
 
 # Shape 4 · the blind instrument
 
-**Named 2026-08-23.** Four instances in one day, which is what forced the name. All four surfaced
-during the /task completion incident; none came from Discover.
+**Named 2026-08-23.** Six instances in one day, which is what forced the name. The first four
+surfaced during the /task completion incident; none came from Discover. The last two — a NUL byte
+that made a source file unreadable to every text scanner, and session-idle itself — arrived after
+the name existed, which is the point of naming a shape: they were recognised on sight instead of
+being debugged from scratch.
 
 > **A measuring device that cannot observe its own subject — and reports success anyway.**
 
@@ -279,8 +290,10 @@ instrument is exactly what lets an orphaned subject survive an audit.
 | `error_logs` | server errors on the failing path | errors on routes that go through `apiHandler` | the tRPC path converts to `TRPCError`; `lib/trpc/` has no equivalent global write |
 | `api_request_logs` | HTTP traffic | a **10% production sample** of `apiHandler`-wrapped routes | `/api/tasks%` -> **0 rows, all time** |
 | The clock | UTC timestamps | local time | `timestamp without time zone` in the reader's zone: **+4 h on ET** |
+| Every text-scanning lint | the contents of a `.ts` file | the contents of files it could decode | one stray **NUL byte** made the file read as binary; `tsc` compiled it clean, every grep-based check **skipped it and reported green** |
+| Session completion | whether the work is done | whether the process is still emitting | a session that finished and a session that stalled mid-queue are **the same external signal: idle** |
 
-Three corrections, all of which are themselves instances of the shape:
+Three corrections to the first four rows, all of which are themselves instances of the shape:
 
 **`task_events` is not unwired — it is alive and specifically blind to one kind.** The table
 takes writes (latest 2026-08-23 09:00) and a producer exists at `lib/services/tasks.ts:1038`
@@ -364,6 +377,90 @@ quiet through a continuing fault has reported "handled" for a fault it never ide
 > query (`ILIKE '%ingest-reviews%'`) returned 0. **A negative finding from an unvalidated filter is
 > shape 4 on your own query.**
 
+## The purest instance — one NUL byte turns a file invisible
+
+**2026-08-23.** A NUL byte was written by accident into a `.ts` file. Nothing rejected it:
+
+- **`tsc` compiled it clean.** The TypeScript scanner treats NUL as whitespace-ish garbage in a
+  position where it does not break a token, so the file typechecked with **zero errors**.
+- **Every text-scanning check silently skipped it.** `grep` and the tools built on it classify a
+  file containing NUL as **binary** and, by default, do not search it. No error. No warning. No
+  count of skipped files. The lint output for a repo containing that file is byte-identical to
+  the output for a repo where the file is clean.
+
+So the file was simultaneously *valid to the compiler* and *unreadable to every checker* — and
+every checker reported success.
+
+> **A scan that cannot read a file prints the same green as one that found nothing.**
+
+That is the whole shape in one sentence, and this is the purest instance of it recorded here.
+Every other entry in the table is an instrument pointed at the wrong subject; this one is an
+instrument that could not see its subject **at all** and still returned the success value. It also
+defeats the shape's usual tell: there was no confident wrong *answer* to notice, only an absence
+that renders identically to a pass.
+
+**Reproduced, not merely reported.** `printf 'alpha\000beta\000gamma\000\n' > canary.txt`, then
+`grep -Ic alpha canary.txt` -> prints `0`, exits 1, **no message**. The same command against a
+clean file with no match prints `0` and exits 1. Two different worlds, one rendering.
+
+**And the first detector written for this section was itself blind.** `grep -qU $'\x00' "$F"`
+looks like a NUL test; bash cannot put a NUL in a string, so `$'\x00'` is the **empty pattern**,
+which matches every line of every file. It reported "NUL present" against a clean file and would
+have reported it against every file forever. Caught only because a second check on the same file
+(`grep -c "blind instrument"` -> 11 matches) contradicted it: grep was plainly reading the file as
+text. The working detector compares byte counts — `wc -c` against `tr -d '\000' | wc -c` — and was
+confirmed on a planted 3-NUL canary before being trusted. **The detector for a blind instrument
+was a blind instrument, and only a contradiction between two instruments exposed it.**
+
+**Why the probes below catch it.** "Plant a positive" is the direct counter — seed a known
+violation and confirm the scan reports it. Had any lint been canaried that way, the canary file
+would have gone quiet the moment a NUL landed in it. **A green from a scanner that has never been
+shown a positive is not a measurement, it is a default.**
+
+**The generalisation, which is broader than NUL bytes.** Any input a scanner *skips* rather than
+*fails on* produces this. Binary classification is one path; others already live in this repo:
+a path excluded by config (`scripts/` is not typechecked — recorded in
+[`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md)), a glob that silently matches nothing,
+an encoding the reader decodes into replacement characters, a file too large for the tool's
+buffer. In every case the exit code is 0 and the finding count is 0, for opposite reasons.
+**Make the skip loud: a checker should report how many files it skipped and why, and a count of
+skipped-but-expected files should be a failure, not a footnote.**
+
+## Session completion is a blind instrument
+
+**The self-referential instance — this audit found the defect in its own execution, not only in
+the code it was auditing.** It is included for that reason: a taxonomy that catches the people
+using it is stronger evidence than one that only catches the codebase.
+
+> **Session completion is a blind instrument.** A session that stops because its work is done and
+> a session that stops with six items outstanding produce the identical external signal: idle.
+> The orchestrator cannot distinguish them and has to poll. Same shape as
+> `automation_policies.lastResult` reporting `'success'` for a job that failed 4/4 daily for
+> sixteen days — the field tracks the last event, not the state. Silence and completion look
+> identical when nothing distinguishes them.
+>
+> The repo's own `stop-check.mjs` Stop hook is the control that should catch this. Per the
+> coverage table it has **no canary and fails open** — an unverified gate defaulting to permit,
+> guarding exactly this failure. The sibling is fixing it.
+
+Observed twice on 2026-08-22/23: this session and a sibling each went idle mid-queue, and the
+operator caught both only by polling. Note the compounding — the fault is a blind instrument
+(idle is unreadable), and the control that should cover it is an **unwired control that fails
+open** (shape 1). That pairing is the general case worth remembering: *a blind instrument
+survives precisely where its supervising gate also fails open.*
+
+**The remedy is to make the two states render differently**, which costs one line:
+
+> **Standing rule, 2026-08-23.** End every turn with an explicit remaining-queue line — what is
+> done with SHAs, what is next, and whether the stop is *finished* or *turn ended with work
+> outstanding*. Never end a turn silently with work outstanding.
+
+This is the same fix as the NUL byte above and as "plant a positive": the defect is that two
+different states share one rendering, so the fix is to give them different renderings. Note it is
+**not** a status field that could go stale — `lastResult` was already a status field, and it lied
+for sixteen days because it recorded the last *event* rather than the current *state*. The queue
+line has to be re-derived and re-stated every turn, which is what makes it hard to falsify.
+
 ## The probe
 
 For any instrument you are about to trust:
@@ -371,27 +468,43 @@ For any instrument you are about to trust:
 1. **Plant a positive.** Before believing a zero, produce one known-true row and confirm the
    instrument sees it. `task_events` returning zero and `task_events` being unwired are the same
    observation until you do this.
-2. **Read the instrument's own scope, not its name.** `api_request_logs` sounds total. Its
-   filter list is five path prefixes. The name is a claim; the filter is the fact.
+2. **Read the instrument's own scope, not its name.** `api_request_logs` sounds total. It is a
+   10% sample of the routes one wrapper happens to wrap. The name is a claim; the code is the
+   fact. *(An earlier draft of this very step said "five path prefixes" — a number invented to
+   sound specific, contradicting the correction thirty lines above it in this same file. Left
+   recorded rather than silently fixed: a stale claim survives inside a document whose whole
+   subject is stale claims.)*
 3. **Ask what frame the number is in.** Timezone, unit, currency, sample window, filtered
    population. A number without its frame is not yet evidence — see
    `base-rate-check` for the denominator half of the same discipline.
 4. **Check whether absence is distinguishable from silence.** If "nothing happened" and "I
    cannot see" render identically, the instrument cannot support a negative conclusion.
+5. **Ask what the instrument SKIPPED, and make it say so out loud.** A scan that cannot read a
+   file prints the same green as one that found nothing — binary-classified files, excluded
+   paths, globs matching nothing, undecodable encodings. Demand a skipped count; treat a
+   skipped-but-expected file as a failure.
 
 ## Count as of 2026-08-23
 
 Twelve-plus confirmed instances of the dominant unwired-control class
 ([`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) is authoritative — it counts by
 control, this file counts by shape, so the two numbers are **not** interchangeable), plus one
-orthaned subject, two populated-but-unused columns, and four blind instruments BY SHAPE
+orphaned subject, two populated-but-unused columns, and **six** blind instruments BY SHAPE
 (three by control — see the divergence note in shape 4; the sets differ in membership, not just
 in count).
 
-The blind instruments all landed on **one day**, which is the finding. Four independent
-measuring devices, none broken, none reporting an error, all incapable of observing the thing
-they were consulted about. That rate suggests the class is under-counted historically rather
-than newly common — nobody was looking for it, because a blind instrument never raises its hand.
+The blind instruments all landed on **one day**, which is the finding. Six independent measuring
+devices, none broken, none reporting an error, all incapable of observing the thing they were
+consulted about. That rate suggests the class is under-counted historically rather than newly
+common — nobody was looking for it, because a blind instrument never raises its hand.
+
+Two of the six were found in the audit's **own** instruments rather than in the code under audit:
+session-idle above, and a `grep -c "branch refs/heads/main$"` that returned `0` for "is `main`
+checked out in a worktree" while `git worktree list` printed `[main]` on the next line. The
+grep's pairing logic was wrong, and a wrong pairing returns zero exactly like a true absence —
+had it been believed, the next step would have moved a ref out from under a live worktree.
+**The base rate for this shape inside one's own tooling is not low, and nothing about running
+the audit confers immunity.**
 
 ---
 
