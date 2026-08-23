@@ -1,5 +1,50 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-22/23 · The Discover verdict loop, and five defect shapes (4 PRs)
+>
+> **#1787 · the verdict had nothing to attach to.** `/brain` -> Discover asks the operator to
+> judge machine findings. The nightly cron keyed every blind spot
+> `blindspot_${domain}_${Date.now()}`, and `remember()` upserts on `(category, key)` — so a clock
+> in the key asserts that tonight's sighting is a different fact from last night's. Measured on
+> prod across all six rows the engine had ever written: **3 of 3 verdicts given 08-21 were
+> regenerated as unjudged within 24h** — 100% erasure against 100% participation. Base rate
+> confirming the mechanism: the two engines with stable keys are 5/5 and 2/2 promoted-and-permanent;
+> this one was 0/6. Also fixed: `getBlindSpotContext()` was reciting `noise`-rated spots back into
+> the system prompt nightly. Feed reworked to cluster-and-ask-once ordered by TYPICALITY, not
+> information gain — 5 operator labels all-time is the low-budget regime where uncertainty sampling
+> is the losing strategy (Hacohen, arXiv:2202.02794). **726 taps -> 15.**
+>
+> **#1793 · a stable key alone would have been WORSE than the bug.** Caught in adversarial review,
+> then confirmed on prod. `remember()` stamps a 24h probationary `expiresAt` that the commit
+> gateway can never clear (neither its noop nor its update path advances `seenCount`), `pruneNoise`
+> soft-deletes on expiry with no category filter, and `findUnique` on `(category, key)` ignores
+> `deletedAt` — so the tombstone keeps the unique key and the spot disappears **permanently**. Prod
+> already held 15 swept rows, and **4 of the operator's 5 labels were lost or about to be**. Added
+> nullable `discovery_verdict` / `discovery_rated_at` / `discovery_provenance` (additive,
+> data-neutral: 104,947/92,891 rows identical before and after), a reversible backfill with a
+> snapshot table, and a bridge that carries legacy verdicts onto the stable identity — proven
+> read-only first: each of the three unjudged rows matched exactly one verdict-carrying legacy row.
+>
+> **#1801 · index narrowed, two more shapes named.** The index shipped in #1793 was partial on
+> `deleted_at IS NULL` alone: **5144 kB indexing 92,228 rows to serve 246**. Replaced via
+> CREATE/DROP INDEX CONCURRENTLY in two gated steps -> **32 kB, 508 -> 118 buffers**. The read
+> saving is 0.087 ms and is noise; the win is 5 MB of dead index no longer maintained on every
+> write. Plan stability got strictly WORSE and the first measurement missed it: `category = ANY($1)`
+> only implies the IN-list predicate in a custom plan — `force_generic_plan` falls back to a bitmap
+> scan (394 buffers). Recorded in the migration header rather than left to be rediscovered.
+>
+> **#1802 · a measured NO.** The 2026-08-23 clock incident was TOOLING, not schema: **Prisma parses
+> `timestamp without time zone` as UTC correctly**, so the app was never affected. Migrating would
+> have been 272 columns / 103 tables / 4,155 MB, and the cheap `ALTER` form silently writes wrong
+> instants if the session TZ is not UTC. Fixed instead with `process.env.TZ = "UTC"` in the two
+> raw-`pg` scripts. Recorded in full because a measured NO stops the next session relitigating it.
+>
+> **Docs.** Five defect shapes now carry a probe each, split across two files that had briefly
+> duplicated the taxonomy: `CONTROL-CANARY-COVERAGE.md` is the ledger (counts by control),
+> `DEFECT-SHAPE-ORPHANED-SUBJECT.md` is the field guide (counts by shape). `scripts/check-doc-claims.mjs`
+> resolves doc claims against the repo and **caught its own defect twice while being written** —
+> twice it cleared a false gate claim because an npm alias looked like a gate. Defining a script is
+> not running it.
 > ## 2026-08-21 · Manual-fire lane + the brief pushes get combined (2 PRs)
 >
 > **#1747 · mega fan-out gains a manual-fire lane.** Post-#1735/#1743, the operator asked

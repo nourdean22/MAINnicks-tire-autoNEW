@@ -139,8 +139,9 @@ change's blast radius and let CI be the sweep.
 
 **Precedents:** `policy.test.mjs` and `lintGateFailClosed.test.ts` each break their gate AND assert an
 unbroken run still passes — without that pair, a permanently-broken gate scores green. Generalise it: **no
-hook, gate, lint, guard, alert or probe ships without a test that breaks it and asserts it fails.** Coverage,
-and why no count lives here: [table](docs/agent-audit/CONTROL-CANARY-COVERAGE.md).
+hook, gate, lint, guard, alert or probe ships without a test that breaks it and asserts it fails** — assert
+BEHAVIOUR, never presence. [Coverage](docs/agent-audit/CONTROL-CANARY-COVERAGE.md) (5 shapes, why no count
+lives here) · [probes](docs/agent-audit/DEFECT-SHAPE-ORPHANED-SUBJECT.md) for finding each shape.
 
 ## Standard of work — initiative, not compliance
 
@@ -197,4 +198,3 @@ loads nothing while still passing a substring check. Registry + design notes:
   Check** + **Forgotten Factor Protocol** (what route/cron/webhook/env var depends on what I changed?).
 - [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts. Check BEFORE proposing any new platform,
   library or MCP server; a row there is an answer, not a starting point.
-

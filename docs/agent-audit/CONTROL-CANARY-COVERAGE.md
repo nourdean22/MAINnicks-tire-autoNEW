@@ -80,6 +80,20 @@ The right check is not `IS NOT NULL`. It is **entropy plus a consumer**: does th
 does anything branch on it? A constant is a placeholder wearing a measurement's name, and a column
 nobody reads is a comment with storage costs.
 
+**Where the depth lives.** This table is the canonical summary and is deliberately the only copy —
+[`DEFECT-SHAPE-ORPHANED-SUBJECT.md`](DEFECT-SHAPE-ORPHANED-SUBJECT.md) carried a duplicate for part
+of 2026-08-23 and has since replaced it with a pointer here, because two statements of one idea
+diverge on the first edit. That file is the FIELD GUIDE: per shape it carries the probe that finds
+one, the worked example with receipts, and the traps that defeated the first attempt at each probe.
+It also holds the stated rules and the recorded decisions, including a measured NO on a 4 GB
+migration. **This file counts by CONTROL and is the ledger; that one counts by SHAPE and is the
+method.** The two numbers are not interchangeable.
+
+A fifth shape lives there and not here, because it has no control to count: **the lying surface** —
+a doc claim asserting a mechanism nothing verifies. Worse than an unwired control, which is merely
+absent: a false doc claim actively stops people looking, and a false COMPLETENESS clause closes a
+search outright. Worked example and probe are in that file.
+
 **A caution that belongs beside this shape.** Every figure above is a ratio inside a filtered
 population, and each is only meaningful next to its base rate — that is why both numbers appear on
 the energy line. The house precedent is the 2026-08-08 call archive, where "72 percent of failed
@@ -311,7 +325,7 @@ Not "it happened to be empty" — empty is the symptom. Each row below names the
 | `task_events` | did the completion land? | Two emitters of `kind: "completed"` existed — and neither could fire. One (`tasks.ts:1038`) is annotated in-source as UNREACHABLE, because every real TODO→DONE PATCH short-circuits into `checkTask` before it. The other is voice-only. The spine every UI route funnels through emitted nothing, so the log had **zero** completions across 294 rows. |
 | `error_logs` | did the completion fail? | The completion path had no write to it at all. `checkTask` threw `ServiceError`, the tRPC handler converted it to a `TRPCError`, and the catch recorded nothing — so a failed completion could not produce a row by any route. Querying it and finding nothing was querying a table the feature was not plumbed into. |
 | `reality_gap_writeback_failed` | did the side-write fail? | Exactly **one** reference repo-wide: its own writer. A log line nothing reads is not an instrument, it is a comment that costs disk. |
-| `api_request_logs` (Brain session) | which requests failed? | It does not instrument tRPC or the task routes. Every mutation in this incident travels one of those two paths, so the table was structurally incapable of holding a single relevant row. |
+| `api_request_logs` (Brain session) | which requests failed? | **Mechanism corrected 2026-08-23** — the first statement here ("it does not instrument the task routes") was itself an invented mechanism, and the Brain session shipped the same error before measuring. `/api/tasks/*` **is** `apiHandler`-wrapped (`route.ts:20,30`; `[id]/route.ts:7,16,22`). The real blinding is twofold: routes that bypass `apiHandler` entirely (the pattern documented at `diagnose-chat.ts:17-20`), and a **10% production sampler** (`http.ts:241`: `duration_ms > 1000 \|\| Math.random() < 0.1`). The empirical claim held — `/api/tasks%` returns **0 rows, all time** — but the stated reason was wrong. A ledger of blind instruments that misreads an instrument's blinding mechanism is the shape it names. |
 | the clock | when did this happen? | Inferred from the newest row in a query result instead of read. A write **thirteen hours old** was reported as six minutes old. |
 
 The shared mechanism is worth stating flatly: **in every row, the query returned an empty set and the
@@ -476,6 +490,27 @@ by the same brief that ten cycles running could not be read. Fixing its self-awa
 shipping the canary rule are the same project.
 
 ---
+
+## The inverse blind instrument — CI reporting red for a non-failure
+
+The usual shape is an instrument reporting green over a real fault. This is the mirror image, and it
+costs the same attention.
+
+`cancel-in-progress: true` on the `...-pr` concurrency group means that when `main` advances under an
+open PR, GitHub recomputes the merge ref, fires `synchronize`, and kills the in-flight run — so **CI
+status reads FAILURE for a non-failure**. The job prints `5 successful, 8 total` and
+`The operation was canceled`, which reads exactly like a mid-suite crash.
+
+Four sessions have each debugged it as a real red. Observed on this estate: #1792's `node` job
+cancelled at 4m21s; #1793 green at 9m22s in a quiet window; #1801 cancelled at 5m28s, then green at
+9m3s on a plain re-run with no code change.
+
+The cost is symmetric either way — a cancelled run needs a full re-run regardless — so on a repo with
+this much concurrent merging the flag buys nothing and spends attention.
+
+> **Re-run, do not debug.** A `node` job showing `N successful, M total` plus
+> `The operation was canceled` is a cancellation, not a test failure. Confirm by re-running the job;
+> investigate only if the second run fails too.
 
 ## Writing one
 

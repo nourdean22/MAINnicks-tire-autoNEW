@@ -231,7 +231,34 @@ responses to the UI.
 
 ## Dependency security
 
-- `pnpm audit --audit-level=high` runs in `pre-push-check.sh` (once).
+**Measured 2026-08-23.** Reproduce with
+`grep -n audit-advisories .github/workflows/test.yml`.
+
+The gate is **CI, not pre-push**, and it is `scripts/audit-advisories.mjs`, not `pnpm audit`.
+Two steps in the `node` job of [`.github/workflows/test.yml`](../../../.github/workflows/test.yml):
+
+| Step | Command | Blocking? |
+|---|---|---|
+| Dependency audit (high+) | `node scripts/audit-advisories.mjs --audit-level=high --advisory` | no — `continue-on-error: true` |
+| Dependency audit (critical) | `node scripts/audit-advisories.mjs --audit-level=critical` | **yes**, and exits 2 if the scanner itself cannot run |
+
+That second step's exit-2-on-broken-scanner is the important part: a scan that passes silently
+when it is broken is indistinguishable from a clean scan. It is there because this gate already
+rotted that way once (#760).
+
+`dependency-review.yml` does **not** back this up and cannot — it needs a public repo or
+GitHub Advanced Security, and is `continue-on-error`, so it reports a decorative green while
+doing nothing. The CI job above is this repo's **only** dependency gate.
+
+> **CORRECTED 2026-08-23 — the previous line was FALSE in three ways.** It read:
+> *"`pnpm audit --audit-level=high` runs in `pre-push-check.sh` (once)."* There is no
+> `pre-push-check.sh` anywhere in this repo; `pnpm audit` was removed because npm retired the
+> endpoint it POSTs to and it returned 410 on 100% of PRs; and nothing dependency-related runs
+> at push time — `lefthook.yml` `pre-push` runs exactly one command, `pnpm run build:affected`.
+> Left on the record rather than silently swapped, because the sentence's damage was that it
+> closed the question: a reader checking "are deps gated?" got a confident yes naming a file
+> that does not exist.
+
 - No automated Dependabot yet (W13 todo).
 - `patches/` contains `ai@6.0.162.patch` — upstream bug workaround.
   Re-evaluate when upgrading `ai` SDK.
