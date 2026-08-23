@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,000
+Your check engine light is on.
+
+2
+00:00:02,000 --> 00:00:04,000
+Idle feels rough.
+
+3
+00:00:04,000 --> 00:00:06,500
+Engine hesitates when you accelerate.
+
+4
+00:00:06,500 --> 00:00:09,000
+Idle dips or shakes at a stop.
+
+5
+00:00:09,000 --> 00:00:11,500
+One clue: a clogged EGR valve.
+
+6
+00:00:11,500 --> 00:00:15,000
+Carbon buildup can block it from closing right.
+
+7
+00:00:15,000 --> 00:00:18,000
+That can trip a P0401 code —
+
+8
+00:00:18,000 --> 00:00:21,000
+and it may not clear on its own.
+
+9
+00:00:21,000 --> 00:00:23,500
+Don't guess which part it is.
+
+10
+00:00:23,500 --> 00:00:26,000
+A scan tool narrows it down fast.
+
+11
+00:00:26,000 --> 00:00:28,000
+Worth checking before it fails an emissions test.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.
