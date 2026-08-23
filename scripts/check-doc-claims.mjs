@@ -48,14 +48,119 @@
  *   node scripts/check-doc-claims.mjs --kind=gate
  */
 import { readFileSync, existsSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 
 const STRICT = process.argv.includes("--strict");
 const KIND = process.argv.find((a) => a.startsWith("--kind="))?.slice(7) ?? "all";
 
-const repoFiles = execSync("git ls-files", { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
-  .split("\n")
-  .filter(Boolean);
+/**
+ * `--ref=<rev>` -- evaluate a COMMIT instead of the working tree.
+ *
+ * Added because the first CI run of this gate disagreed with every local run,
+ * and the gate was right. Local: 707 files, 0 unresolved. CI: 722 files, 1
+ * unresolved. Two independent causes, both invisible from inside the checkout:
+ *
+ *   - this checkout sits on a branch 192 commits behind origin/main, so
+ *     `git ls-files` could not see 15 markdown files that exist on main;
+ *   - a concurrent session had an UNCOMMITTED fix to the one false claim, so
+ *     the scan read a corrected file that exists in no commit anywhere.
+ *
+ * A checker that reports on "the repo" while reading one dirty, stale checkout
+ * is measuring the wrong subject and cannot support the sentence "the repo is
+ * clean". With --ref it reads a named commit through git, so a local run and a
+ * CI run of the same ref are the same measurement.
+ *
+ * Default stays the working tree: that is what a human editing docs wants.
+ */
+const REF = process.argv.find((a) => a.startsWith("--ref="))?.slice(6) ?? null;
+const git = (cmd) => execSync(cmd, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+
+const NL = String.fromCharCode(10);
+
+let repoFiles;
+/** path -> content, populated in ONE batch when --ref is used. */
+const refBlobs = new Map();
+
+if (!REF) {
+  repoFiles = git("git ls-files").split(NL).filter(Boolean);
+} else {
+  /*
+   * ONE `git cat-file --batch` for the whole tree.
+   *
+   * The first --ref implementation ran `git show <ref>:<path>` per file. That
+   * is 722+ process spawns, measured at 26s per sweep on Windows, and it pushed
+   * the canary suite past a 120s timeout -- an O(files) subprocess loop wearing
+   * the costume of a read. cat-file --batch streams every blob over a single
+   * stdin/stdout pair instead.
+   */
+  /*
+   * BLOBS ONLY. `git ls-tree -r` also lists SUBMODULE entries with type
+   * `commit`, whose SHA is not a blob in this repository. cat-file answers
+   * those with "<sha> missing" and NO size field, which desynchronises a
+   * byte-offset walk -- and the first version of this loop did exactly that:
+   * it stopped after 196 of 6,876 records and the checker went on to report
+   * confident, plausible, wrong totals (28 completeness clauses instead of 41)
+   * with no error at all. A reader that silently truncates is the same defect
+   * class this whole script exists to find, so the count is now asserted below.
+   */
+  const entries = git(`git ls-tree -r ${JSON.stringify(REF)}`)
+    .split(NL).filter(Boolean)
+    .map((l) => {
+      const [meta, path] = l.split(String.fromCharCode(9));
+      const [, type, sha] = meta.split(" ");
+      return { sha, path, type };
+    })
+    .filter((e) => e.type === "blob");
+  repoFiles = entries.map((e) => e.path);
+
+  const batch = spawnSync("git", ["cat-file", "--batch"], {
+    input: entries.map((e) => e.sha).join(NL) + NL,
+    maxBuffer: 512 * 1024 * 1024,
+  });
+  if (batch.status !== 0) {
+    console.error(`[check-doc-claims] git cat-file --batch failed for ${REF}`);
+    process.exit(2);
+  }
+  /*
+   * Each record is "<sha> blob <size>\n<payload>\n". Walk it by BYTE offset.
+   * Slicing the decoded string by character index corrupts every file
+   * containing a multi-byte character -- and this repo's docs are full of
+   * em-dashes, which is exactly the silent-mojibake class it already tracks.
+   */
+  const buf = batch.stdout;
+  let at = 0;
+  for (const e of entries) {
+    const nl = buf.indexOf(NL, at);
+    if (nl < 0) break;
+    const header = buf.toString("latin1", at, nl);
+    const size = Number(header.split(" ")[2]);
+    if (!Number.isFinite(size)) {
+      console.error(`[check-doc-claims] FAILED TO PARSE cat-file record: ${JSON.stringify(header.slice(0, 80))}`);
+      console.error(`  Stopping at ${refBlobs.size}/${entries.length} files rather than reporting a partial sweep as a clean one.`);
+      process.exit(2);
+    }
+    const start = nl + 1;
+    refBlobs.set(e.path, buf.toString("utf8", start, start + size));
+    at = start + size + 1;
+  }
+
+  // MAKE THE SKIP LOUD. Exit 2 -- "the instrument is broken" -- never 0.
+  // A short read here would otherwise surface as a smaller, entirely plausible
+  // finding count, which is indistinguishable from a cleaner repo.
+  if (refBlobs.size !== entries.length) {
+    console.error(`[check-doc-claims] read ${refBlobs.size} of ${entries.length} blobs from ${REF} -- refusing to report a partial sweep`);
+    process.exit(2);
+  }
+}
+
+/** Read a repo-relative path from the ref under test, or from disk. */
+function readRepoFile(path) {
+  if (!REF) return readFileSync(path, "utf8");
+  const blob = refBlobs.get(path);
+  if (blob === undefined) throw new Error(`${path} not present in ${REF}`);
+  return blob;
+}
+const hasRepoFile = (path) => (REF ? refBlobs.has(path) : existsSync(path));
 
 const docs = repoFiles.filter(
   (f) =>
@@ -87,8 +192,8 @@ const docs = repoFiles.filter(
 const INVOKERS = [
   "lefthook.yml",
   ...repoFiles.filter((f) => f.startsWith(".github/workflows/")),
-].filter(existsSync);
-const invokerText = INVOKERS.map((f) => readFileSync(f, "utf8")).join(String.fromCharCode(10));
+].filter(hasRepoFile);
+const invokerText = INVOKERS.map((f) => readRepoFile(f)).join(String.fromCharCode(10));
 
 const PKGS = repoFiles.filter((f) => f.endsWith("package.json") && !f.includes("node_modules"));
 
@@ -121,9 +226,9 @@ const PKGS = repoFiles.filter((f) => f.endsWith("package.json") && !f.includes("
  *   UNWIRED   - not reachable at all.
  */
 const scripts = new Map(); // alias -> value, first definition wins
-for (const f of PKGS.filter(existsSync)) {
+for (const f of PKGS.filter(hasRepoFile)) {
   try {
-    for (const [k, v] of Object.entries(JSON.parse(readFileSync(f, "utf8")).scripts ?? {})) {
+    for (const [k, v] of Object.entries(JSON.parse(readRepoFile(f)).scripts ?? {})) {
       if (typeof v === "string" && !scripts.has(k)) scripts.set(k, v);
     }
   } catch { /* unparseable package.json is not a claim about docs */ }
@@ -220,6 +325,32 @@ function namedTarget(line) {
   return null;
 }
 
+/**
+ * KNOWN_FALSE -- claims that ARE false, are already being fixed elsewhere, and
+ * must not block this gate from shipping. Modelled on PR #1808's cron-wiring
+ * allowlist, deliberately, because a second design for the same idea is where
+ * the next drift starts. Its three rules are kept:
+ *
+ *   1. every entry names WHY it is held and WHAT clears it -- an entry cannot
+ *      outlive its justification;
+ *   2. a REDUNDANT entry is an ERROR, not a shrug: once the claim resolves, the
+ *      run fails until the entry is deleted (enforced above);
+ *   3. exact locations only -- no globs, no prefixes. A pattern would silently
+ *      absorb the next false claim in the same file.
+ *
+ * This is NOT a suppression list. A held entry is still printed, still marked
+ * false, and still counted in the report. It only stops a claim that ANOTHER
+ * session is mid-fix on from blocking an unrelated PR.
+ */
+const KNOWN_FALSE = [
+  {
+    at: "apps/statenour/docs/DESIGN.md:5",
+    why: "check-anti-slop.sh is MANUAL (reachable only from verify:hard, which no hook or workflow runs), so 'verified at push time' is false. lefthook pre-push runs exactly one command: pnpm run build:affected.",
+    until:
+      "a concurrent session commits the DESIGN.md rewrite it already has in the working tree ('gate-checked by ... which runs inside pnpm verify:hard'). Not taken here because two sessions editing one line is the drift this repo keeps recording.",
+  },
+];
+
 /** Does the named thing actually appear in a gate definition? */
 function resolveGate(target) {
   if (!target) return { resolved: false, why: "claim names no script or alias to resolve" };
@@ -227,7 +358,7 @@ function resolveGate(target) {
 
   if (target.kind === "script") {
     const found =
-      (existsSync(target.value) && target.value) ||
+      (hasRepoFile(target.value) && target.value) ||
       repoFiles.find((f) => f.endsWith("/" + needle));
     if (!found) return { resolved: false, why: `script ${target.value} does not exist` };
   }
@@ -261,7 +392,7 @@ const findings = { completeness: [], gate: [], count: [] };
 for (const doc of docs) {
   let text;
   try {
-    text = readFileSync(doc, "utf8");
+    text = readRepoFile(doc);
   } catch {
     continue;
   }
@@ -310,9 +441,31 @@ if (show("gate")) {
    * that says "this is enforced" while naming no enforcer is a real lying
    * surface -- it is just one a human has to adjudicate.
    */
-  const bad = findings.gate.filter((f) => !f.resolved && f.tier);
+  const all = findings.gate.filter((f) => !f.resolved && f.tier);
+  const bad = all.filter((f) => !KNOWN_FALSE.some((k) => f.at === k.at));
+  const held = all.filter((f) => KNOWN_FALSE.some((k) => f.at === k.at));
   const vague = findings.gate.filter((f) => !f.resolved && !f.tier);
   unresolvedGates = bad.length;
+
+  /*
+   * REDUNDANT ENTRIES ARE REJECTED -- the rule copied from PR #1808's cron
+   * allowlist. An allowlist that silently tolerates entries whose problem is
+   * already fixed becomes a permanent excuse list; making redundancy an ERROR
+   * is what stops it. So an entry whose claim now RESOLVES fails the run.
+   */
+  const stale = KNOWN_FALSE.filter((k) => !all.some((f) => f.at === k.at));
+  if (stale.length) {
+    console.error(`\n  ✗ ${stale.length} KNOWN_FALSE entr(y/ies) no longer needed -- delete them:\n`);
+    for (const k of stale) console.error(`      ${k.at} now resolves. ${k.until}`);
+    unresolvedGates += stale.length;
+  }
+  if (held.length) {
+    console.log(`\n  held by KNOWN_FALSE (already true, fix in flight -- not a pass):\n`);
+    for (const f of held) {
+      const k = KNOWN_FALSE.find((e) => e.at === f.at);
+      console.log(`  ~ ${f.at}\n      ${f.line}\n      -> ${k.why}\n      -> clears when: ${k.until}\n`);
+    }
+  }
 
   console.log(
     `\n── GATE claims ── ${findings.gate.length} found · ` +
@@ -371,9 +524,15 @@ if (process.argv.includes("--selftest")) {
     {
       // MANUAL: reachable only through verify:hard, which no hook or workflow runs.
       // This is the case v3 misreported as "appears in no composite".
+      // Assert the TIER and the leaf alias only. An earlier version also
+      // required the message to name `verify:hard`, which passed locally and
+      // FAILED in CI: `verify:hard` reaches check:anti-slop only in a sibling
+      // session's UNCOMMITTED package.json (origin/main has 17 links, not 18).
+      // Pinning a canary to a state that exists in one working tree and nowhere
+      // else is a blind instrument aimed at the checkout instead of the repo.
       target: { kind: "script", value: "scripts/check-anti-slop.sh" },
       tier: "MANUAL",
-      mentions: "verify:hard",
+      mentions: "check:anti-slop",
     },
     {
       // UNWIRED vs MISSING are different answers; a named script that does not
@@ -418,7 +577,10 @@ if (process.argv.includes("--selftest")) {
   // Third version asserts a specific edge measured by hand: verify:hard names
   // check:anti-slop, so the closure of verify:hard must contain it. That dies
   // if aliasesIn stops matching, and it makes no claim about CI's topology.
-  const KNOWN_EDGE = { from: "verify:hard", to: "check:anti-slop" };
+  // Must be an edge that exists on ORIGIN/MAIN. `verify:hard -> check:anti-slop`
+  // was the first choice and it only exists in one session's uncommitted tree;
+  // `check:raw-sql` is link 9 of verify:hard's 17 on main.
+  const KNOWN_EDGE = { from: "verify:hard", to: "check:raw-sql" };
   if (!scripts.has(KNOWN_EDGE.from)) {
     failed++;
     console.error(`  SELFTEST FAIL: ${KNOWN_EDGE.from} is gone -- re-measure the known edge, do not delete this arm`);
