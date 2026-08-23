@@ -450,7 +450,17 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       log.info("triggering_auto_decomposition", { taskId: task.id, title: task.title });
       const decompResult = await decomposeTaskWithAi(task.id);
       
-      if (decompResult.ok) {
+      // subtasksCount > 0, not just ok. `{ ok: true, subtasksCount: 0 }` is
+      // returned on TWO paths — the model legitimately planning nothing
+      // (ai-tasks.ts:398, pre-existing) and the next-action gate refusing a
+      // batch of non-actions (added 2026-08-23). Treating either as a heal
+      // flips the parent to WAITING, which drops it out of THIS query's own
+      // `status: DOING` filter — so the task is parked permanently, with zero
+      // children, while a P1 on the scoreboard and home surfaces announces it
+      // was "decomposed into 0 actionable subtasks". A fabricated all-clear on
+      // an operator-facing surface. Leaving it DOING means it is retried on the
+      // next tick, which is the honest outcome.
+      if (decompResult.ok && decompResult.subtasksCount > 0) {
         // Update parent task status to WAITING
         await prisma.task.update({
           where: { id: task.id },
@@ -469,6 +479,14 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
           title: `Task Healed: Decomposed "${task.title}"`,
           body: `Parent task "${task.title}" was stuck in DOING state for over 2 hours. Autonomic Orchestrator automatically decomposed it into ${decompResult.subtasksCount} actionable subtasks.`,
           surfaces: ["scoreboard", "home"],
+        });
+      } else {
+        log.warn("task_stall_heal_produced_nothing", {
+          taskId: task.id,
+          ok: decompResult.ok,
+          subtasksCount: decompResult.subtasksCount,
+          reason: "suppressedReason" in decompResult ? decompResult.suppressedReason : "model_planned_zero",
+          note: "left in DOING so the next tick retries it; NOT counted as healed",
         });
       }
     }

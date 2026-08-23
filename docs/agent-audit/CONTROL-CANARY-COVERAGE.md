@@ -44,6 +44,49 @@ it complain.
 
 ---
 
+## Four shapes, and the heuristic each one defeats
+
+Everything found on 2026-08-23 — across this session and the Brain session working the same estate —
+collapses into four defect shapes. What makes them worth naming separately is not the symptom, which
+is always "a thing that looks fine and is not". It is that **each one is invisible to a different
+standard check**, so a reviewer running the obvious test comes away reassured.
+
+| shape | what it is | the heuristic it defeats |
+|---|---|---|
+| **unwired control** | a gate, guard or probe that exists and is never called | *"does the code exist"* — it does, and it is correct, and nothing invokes it |
+| **orphaned subject** | a reader with no writer, or a writer with no reader | *"grep for readers"* — there IS a reader; the producer is what is missing |
+| **populated-but-unused** | a column that is full of values nobody consumes, or whose values are a placeholder | *"is the column null"* — it is not null, on every row |
+| **blind instrument** | a control that is wired, running, and pointed at nothing | *"check the logs"* — the log is clean because it cannot record the thing |
+
+**On the third one, which is the newest and the easiest to miss: a column's name is a claim about its
+contents, and a populated column is not a used column.** `NOT NULL` on every row proves that
+something wrote a value. It does not prove the value means what the column is called, that anything
+reads it, or that it varies. Three live examples, all found by opening the data rather than the schema:
+
+- **`Mission.successMetric`** is populated on six of nine missions. Four of those six hold the
+  sentence *"Catch-all for business tasks with no specific project."* That is not a success metric;
+  it is a description, and specifically a description saying the mission has no success condition.
+  A gate keyed on `successMetric IS NOT NULL` would have rendered a completion bar on exactly the
+  missions that declare they cannot complete.
+- **`Task.energyRequired` on AI-generated subtasks** was 12 of 12 MEDIUM — 0.00 bits — because the
+  insert hardcoded the string. **With its denominator, which the finding is worthless without:**
+  across all tasks the column is MEDIUM 82.7 / LOW 11.8 / HIGH 5.5 percent, about 0.82 bits. The
+  column is alive and genuinely varies. Only the generator's rows were constant, and reporting the
+  0.00 without the 0.82 would have condemned a working column.
+- **The priority label** sits at 92.5 percent in its top two tiers. A scale that almost never uses
+  its lower half is not ranking anything.
+
+The right check is not `IS NOT NULL`. It is **entropy plus a consumer**: does the value vary, and
+does anything branch on it? A constant is a placeholder wearing a measurement's name, and a column
+nobody reads is a comment with storage costs.
+
+**A caution that belongs beside this shape.** Every figure above is a ratio inside a filtered
+population, and each is only meaningful next to its base rate — that is why both numbers appear on
+the energy line. The house precedent is the 2026-08-08 call archive, where "72 percent of failed
+calls are short" was quoted against an 18 percent base rate, and the ratio turned out to be nearly
+definitional: a call where nobody spoke cannot be scored a success. It aimed the operator's next
+priority at working code. Name the denominator, or do not quote the number.
+
 ## Counting unit
 
 **One control = one thing that can independently stop working without anyone noticing.** A `verify`
@@ -80,7 +123,12 @@ complete — an unlisted control is not a covered one.
 | statenour `cron-heartbeat` **outcome lane** | 1 | **1** | Detects run-but-fail, which the silence check structurally cannot. Proven by `cron-heartbeat-failing-lane.test.ts` |
 | statenour `ingest-reviews` zero-fetch assert | 1 | **1** | A 200 with an empty payload now throws. Proven in `tests/cron/ingest-reviews.test.ts` |
 | `cron_job_logs.resultCount` producer | 1 | **1** | The schema can now tell a full ingest from a zero-result one, and `cron-manager-result-count.test.ts` proves it DISCRIMINATES rather than merely exists |
-| **Total** | **51** | **8** | **15.7 %** |
+| Task-completion observability | 1 | **1** | The `completed` event, the failure log, and the queryable writeback — three blind instruments, all canaried and mutation-fired |
+| Structural vs transient error copy | 1 | **1** | A missing relation no longer reads as a retryable hiccup; ordering is pinned by a canary that reproduces the month-long bug |
+| Subtask next-action gate — `filterGeneratedSubtasks` + its call site | 1 | 1 | validator unit tests PLUS a wiring canary in `ai-tasks-decompose.test.ts`; deleting the gate block fails 6 |
+| Mission progress end-state gate — `missionHasEndState` | 1 | 1 | behavioural render; swapping the ternary branches fails 3 where source-text assertions passed 11 |
+| Witnessed-commitment resolver — opt-in guard on `emitTaskEvent` | 1 | 1 | asserts the completion emit does NOT set the flag, on both the ONCE and recurring paths |
+| **Total** | **56** | **13** | **23.2 %** |
 
 ---
 
@@ -247,6 +295,82 @@ know is red, softening its tier to make it green, or adding an uncalled one, are
 
 ---
 
+## The worked example — four blind instruments and a wrong clock
+
+2026-08-23. The operator reported that completing a task threw an error. Diagnosing it meant asking
+the system what had happened. **Every instrument reached for was structurally incapable of answering,
+and each one's silence was nearly read as evidence.**
+
+**Structurally blind means the instrument could not have answered even if the system were on fire.**
+Not "it happened to be empty" — empty is the symptom. Each row below names the mechanism.
+
+| instrument | what it was asked | why it was STRUCTURALLY unable to answer |
+|---|---|---|
+| `task_events` | did the completion land? | Two emitters of `kind: "completed"` existed — and neither could fire. One (`tasks.ts:1038`) is annotated in-source as UNREACHABLE, because every real TODO→DONE PATCH short-circuits into `checkTask` before it. The other is voice-only. The spine every UI route funnels through emitted nothing, so the log had **zero** completions across 294 rows. |
+| `error_logs` | did the completion fail? | The completion path had no write to it at all. `checkTask` threw `ServiceError`, the tRPC handler converted it to a `TRPCError`, and the catch recorded nothing — so a failed completion could not produce a row by any route. Querying it and finding nothing was querying a table the feature was not plumbed into. |
+| `reality_gap_writeback_failed` | did the side-write fail? | Exactly **one** reference repo-wide: its own writer. A log line nothing reads is not an instrument, it is a comment that costs disk. |
+| `api_request_logs` (Brain session) | which requests failed? | It does not instrument tRPC or the task routes. Every mutation in this incident travels one of those two paths, so the table was structurally incapable of holding a single relevant row. |
+| the clock | when did this happen? | Inferred from the newest row in a query result instead of read. A write **thirteen hours old** was reported as six minutes old. |
+
+The shared mechanism is worth stating flatly: **in every row, the query returned an empty set and the
+empty set was read as a finding about the world.** It was a finding about the instrument.
+
+**The clock is the one to sit with.** It is not a control, and no canary would have caught it — but it
+is the same error as the other three: taking a fact off an instrument that was not measuring it. The
+newest row in a result set is not the present. It nearly caused a healthy migration to be rolled back.
+
+> **The rule it produces:** during a live diagnosis, establish the current time **explicitly** — from
+> the database or the system — before any reasoning about recency. Never infer "now" from data.
+
+**An absence is only evidence if the instrument can record a presence.** Before reading silence as a
+finding, prove the thing can speak: plant a positive control, or check that the value has ever been
+non-empty. Three times in one hour that check would have changed the conclusion, and once it did —
+the "no completion in three days" inference was withdrawn after the operator challenged it, because
+absence of successes is not evidence of failure.
+
+**The defect these share is not "unwired".** A wired control that cannot observe its subject reports
+green forever and is indistinguishable from a healthy system. That is the fourth category, alongside
+proven, unproven, and proven-but-blind: **wired, running, and pointed at nothing.**
+
+### What was fixed
+
+- `checkTask` now emits `kind: "completed"`, so the append-only log records the most important event
+  in a task's lifecycle for the first time. **The first attempt at this fix was itself blind**, and
+  the correction is the more useful record: the emit went in near the end of the function, and the
+  DAILY/WEEKLY branch returns roughly three hundred lines before it — so every recurring completion,
+  which is the lane `/missions` routes habits through, still emitted nothing. The test that
+  "proved" it asserted the string `kind: "completed"` appeared between two function declarations,
+  which is true whether or not the line is reachable. It was green over a live blind spot. It is now
+  a behavioural test that drives `checkTask` and asserts on the emit; deleting the recurring emit
+  turns it red.
+- Wiring that emit also revealed that the voice route already emitted the same event immediately
+  after calling `checkTask`, under a comment reading "checkTask does not emit a TaskEvent itself" —
+  true when written, falsified by this change. The two payloads differ, so the 60-second idempotency
+  key would not have collided and every voice completion would have written **two** rows into a table
+  that `getDoneTodayCount()` counts. Fixing a silent instrument nearly produced a double-counting one.
+- The completion mutation logs its own failures — a 4xx at `warn`, anything else at `error`, so
+  operator typos do not train the reader to ignore the channel.
+- The swallowed reality-gap writeback still swallows (it must never break a completion, and
+  verifiably cannot — there is no transaction in that file) but now also lands somewhere queryable.
+- Each is canaried, and each canary mutation-fires: remove the emit, the logging, or the queryable
+  write, and the suite goes red naming the specific loss.
+
+### The month-old error underneath it
+
+The actual thrown error was `42P01 relation "drift_alerts" does not exist` — **first seen a month
+earlier, 814 occurrences, nobody investigating.** Two un-typechecked raw queries outlived the Prisma
+model they read; the feature itself had migrated to BrainMemory-backed storage, and the table was
+dropped without pruning its readers. `safeQuery` swallows only quota errors, so this failed the entire
+hub payload rather than degrading one sub-rollup.
+
+It went uninvestigated for a month because the operator-facing copy classified it as **"Database
+hiccup · try again in a moment"** — the transient branch matched on the word `prisma`. A missing
+relation is structural: retrying can never fix it. Structural errors are now classified before
+transient ones and say so plainly, because error copy that calls a broken schema "flaky" is an
+instrument that misreports its own reading.
+
+---
+
 ## Known landmines — armed, disclosed, not defused
 
 Things a canary now detects but that nobody has fixed. Each names its trigger condition, because a
@@ -273,6 +397,33 @@ asserted the inverse (every curated policy names a real rule).
 **Status:** the inverse direction is now asserted in `derive-rule-policies.test.ts`, with this id in a
 named `KNOWN_ORPHAN_POLICY_IDS` allowlist. That stops NEW orphans; it does not defuse this one.
 Defusing it means deleting or disabling a production row — a protected operation, operator-only.
+
+### The witnessed-commitment resolver — dormant code that an observability fix nearly executed
+
+`lib/brain/task-events.ts` is documented at the top as *"Append-only. Never updated, never deleted."*
+It is not. When `kind === "completed"`, it loads **every** ACTIVE `WITNESSED_COMMITMENT` agenda item —
+no `taskId` filter, no `take` — and sets any whose title matches the task's title, in either
+direction, to `RESOLVED`. No confirmation, no undo.
+
+**It had never run.** Measured 2026-08-23 against prod: `task_events` held zero `completed` rows ever,
+and `agenda_items` held zero rows in any RESOLVED state. Wiring the first working completion emit
+would have been the first execution of that code — in production, against 35 live commitments, several
+of them personal.
+
+This is the shape recorded in `statenour-publish-status-arc-2026-08-03`: **repairing a no-op re-arms
+every dormant path behind it.** The emit was reasoned about as a log write. It was a mutation.
+
+Simulated read-only before anything shipped, so the decision has numbers attached: 5 matches across
+110 tasks x 35 commitments, all five genuine title-identical pairs, and **zero of the five matched on
+the intended `meta.taskId` link** — the fuzzy title branch does all of the work. Nothing matched a
+recurring task, so nothing would fire daily today.
+
+**Status: gated, not fixed.** The resolver is now opt-in via `resolveWitnessedCommitments` on the
+event input, default false, and no caller sets it. That preserves the observed behaviour exactly — it
+has never fired and still will not — while making arming it a deliberate decision rather than a side
+effect of adding a log line. Whether the operator wants completions to resolve commitments, and
+whether a bidirectional title `includes()` is the right matcher for that, are product questions.
+A canary asserts the emit does not set the flag.
 
 ### Two disclosures carried forward, still open
 

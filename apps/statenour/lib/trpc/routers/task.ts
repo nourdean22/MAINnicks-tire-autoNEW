@@ -464,7 +464,25 @@ export const taskRouter = router({
           outcomeLesson: input.outcomeLesson,
         });
       } catch (err) {
-        if (err instanceof ServiceError) {
+        // 2026-08-23 · THIS PATH LOGGED NOTHING.
+        // checkTask throws ServiceError and this handler converted it to a TRPCError
+        // without recording it anywhere. During the incident, error_logs was queried
+        // for a completion failure and came back empty — which was read as evidence
+        // that no completion had been attempted. It was evidence of nothing: the
+        // completion path was structurally incapable of writing to error_logs.
+        //
+        // A 400 is the operator mistyping and is logged at warn; anything else is a
+        // real failure at error. Both now leave a trace, so the NEXT time this is
+        // silent, silence means something.
+        const isService = err instanceof ServiceError;
+        const level = isService && err.status < 500 ? "warn" : "error";
+        logError(
+          "trpc.task.check",
+          err,
+          { fn: "checkTask", taskId: input.id, action: input.action ?? "complete" },
+          level,
+        );
+        if (isService) {
           throw new TRPCError({
             code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
             message: err.message,
@@ -673,6 +691,22 @@ export const taskRouter = router({
       try {
         return await updateTask(input.id, input.fields);
       } catch (err) {
+        // 2026-08-23 · THE OTHER COMPLETION PATH, and it was equally blind.
+        // /missions routes completion two ways: recurring loops go through
+        // task.check, and NON-recurring ones come here as an update to
+        // status "DONE". Both catches converted the error and logged nothing, so a
+        // failed completion left no server-side trace at all — the client catch in
+        // use-mission-actions only does log.error + toast.error, which is the
+        // browser console. Fixing only task.check would have left half the
+        // completions still invisible.
+        const isService = err instanceof ServiceError;
+        const level = isService && err.status < 500 ? "warn" : "error";
+        logError(
+          "trpc.task.update",
+          err,
+          { fn: "updateTask", taskId: input.id, fields: Object.keys(input.fields ?? {}) },
+          level,
+        );
         if (err instanceof ServiceError) {
           throw new TRPCError({
             code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",

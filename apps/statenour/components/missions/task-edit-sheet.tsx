@@ -250,7 +250,21 @@ function TaskEditSheetBody({
         void utils.task.missions.invalidate();
         onSaved?.();
         onClose();
-        return `Successfully created ${res.subtasksCount} subtasks!`;
+        // "Successfully created 0 subtasks!" is a green tick over nothing.
+        // Zero happens on two paths — the model planned nothing, or the
+        // next-action gate refused a batch of decisions/alternatives — and
+        // the operator needs the second one to read as a deliberate refusal
+        // with a reason, not as success.
+        if (res.subtasksCount === 0) {
+          if (res.suppressedReason === "alternatives_not_steps") {
+            return "No subtasks created — the steps offered were alternatives (close it / delegate it / schedule it), not a checklist. That choice is yours to make.";
+          }
+          if (res.suppressed) {
+            return "No subtasks created — nothing came back that was a real next physical action.";
+          }
+          return "No subtasks needed — this already looks like a single step.";
+        }
+        return `Successfully created ${res.subtasksCount} subtask${res.subtasksCount === 1 ? "" : "s"}!`;
       },
       error: (err) => `Failed: ${err instanceof Error ? err.message : String(err)}`,
     });

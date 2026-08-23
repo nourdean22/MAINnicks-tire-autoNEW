@@ -64,13 +64,15 @@ afterEach(() => {
 describe("buildSystemHub measured flags", () => {
   it("every section reports measured: true when its read produced a result", async () => {
     const hub = await buildSystemHub();
+    // `pulse` is deliberately absent from this list — see the dedicated test
+    // below. It is not "a section that failed to read"; it has no source to
+    // read from any more, which is a different and permanent claim.
     for (const key of [
       "crons",
       "errors",
       "stale",
       "brain",
       "devices",
-      "pulse",
       "ai",
       "power",
       "governance",
@@ -79,6 +81,30 @@ describe("buildSystemHub measured flags", () => {
     }
     expect(hub.errors.count24h).toBe(5);
     expect(hub.devices.total).toBe(3);
+  });
+
+  it("pulse is PERMANENTLY unmeasured — its table was dropped, so 0 is filler", async () => {
+    // 2026-08-23. `drift_alerts` no longer exists; the un-typechecked raw query
+    // that still read it threw 42P01 814 times over a month and failed the whole
+    // hub payload. The query is gone, and the section now reports honestly.
+    //
+    // This is a STRONGER assertion than the loop it was removed from: it pins
+    // both halves of the contract, so a 0 can never again be rendered as an
+    // all-clear. If someone re-points pulse at the BrainMemory-backed store
+    // (getUnresolvedAlerts), this test fails and forces them to say so
+    // deliberately rather than flipping a flag by accident.
+    const hub = await buildSystemHub();
+    expect(hub.pulse.measured, "no source exists to measure").toBe(false);
+    expect(hub.pulse.priorityCount, "shape filler, never a reading").toBe(0);
+  });
+
+  it("pulse stays unmeasured even when every OTHER read succeeds", async () => {
+    // Independence control: proves the false above comes from the section having
+    // no source, not from some ambient failure in the fixture.
+    const hub = await buildSystemHub();
+    expect(hub.crons.measured).toBe(true);
+    expect(hub.errors.measured).toBe(true);
+    expect(hub.pulse.measured).toBe(false);
   });
 
   it("a section whose read fell to the fallback is measured: false — its zeros are filler", async () => {

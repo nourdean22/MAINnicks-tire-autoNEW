@@ -12,7 +12,7 @@
  *     stale: { totalRows },
  *     brain: { totalMemories, permanent, avgConfidence },
  *     devices: { online, offline, total },
- *     pulse: { priorityCount },
+ *     pulse: { priorityCount, measured },   // measured:false ⇒ priorityCount is filler, not a reading
  *     ai: { calls24h, costCents7d },
  *     power: { paused },
  *     generatedAt: ISO,
@@ -132,18 +132,24 @@ export async function GET(req: Request) {
       // Pulse-priority — counted in parallel with the rest. Was a
       // sequential await after the Promise.all, adding one round-trip
       // (~50ms) on every /system page load for no good reason.
-      safeQuery(
-        async () => {
-          const rows = await prisma.$queryRaw<Array<{ c: bigint }>>`
-            SELECT COUNT(*)::bigint AS c
-            FROM drift_alerts
-            WHERE resolved = false
-          `;
-          return Number(rows[0]?.c ?? 0);
-        },
-        0,
-        { label: "hub.pulse" },
-      ),
+      // 2026-08-23 · THE TABLE IS GONE. `model DriftAlert` was removed from
+      // schema.prisma, `prisma.driftAlert` has zero callers, and nothing writes
+      // drift_alerts any more. The raw query here outlived the model because raw
+      // SQL is not typechecked — the "a DROP must prune every re-apply path"
+      // failure the statenour-migration skill documents.
+      //
+      // It threw `42P01 relation "drift_alerts" does not exist` 814 times over a
+      // month. safeQuery swallows ONLY quota errors and rethrows everything else,
+      // so this did not degrade the pulse sub-rollup — it failed the ENTIRE
+      // system.hub payload, every time, and surfaced as "Database hiccup".
+      //
+      // No query and NO GUARD: a guarded call to a table that will never exist is
+      // dead code with a pulse. The slot stays only to hold the array position the
+      // destructure depends on. null means UNMEASURED, which is not the same claim
+      // as 0 — the feature moved to BrainMemory-backed storage (getUnresolvedAlerts
+      // reads prisma.brainMemory); re-point this at that if the chip is ever wanted
+      // back.
+      Promise.resolve<number | null>(null),
     ]);
 
     return NextResponse.json({
@@ -161,7 +167,12 @@ export async function GET(req: Request) {
         },
         brain: brainStats,
         devices: deviceStats,
-        pulse: { priorityCount: pulsePriority },
+        // Mirrors buildSystemHub exactly (system-hub.ts:200-203). hub-grid.tsx:78
+        // types priorityCount as a non-nullable number, so the null must be
+        // absorbed here — and `measured` is what carries the difference between
+        // "zero alerts" and "cannot know". Emitting the 0 without the flag is the
+        // fabricated all-clear this whole change exists to remove.
+        pulse: { priorityCount: pulsePriority ?? 0, measured: pulsePriority !== null },
         ai: aiStats,
         power: {
           paused: powerSettings?.pauseAllCrons ?? false,

@@ -38,6 +38,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
+import { missionHasEndState } from "@/lib/services/mission-helpers";
 
 export interface MissionCardProps {
   mission: Project;
@@ -96,7 +97,7 @@ export function MissionCard({
   const [draggedTaskIdx, setDraggedTaskIdx] = useState<number | null>(null);
   const [draggedOverTaskIdx, setDraggedOverTaskIdx] = useState<number | null>(null);
 
-  const { openTasks, doneTasks, progress, deadlineLabel, deadlineTone } =
+  const { openTasks, doneTasks, progress, hasEndState, deadlineLabel, deadlineTone } =
     useMemo(() => derivedMetrics(mission, tasks), [mission, tasks]);
 
   // Sort: Nick's pick first, then DOING, then autoPriority (higher =
@@ -268,12 +269,27 @@ export function MissionCard({
         </h3>
         {/* wave-AA-audit · hide "0%" when the mission has no tasks ·
          *  empty missions show a "+ add task" CTA instead, the 0% chip
-         *  was a misleading anchor on fresh missions. */}
-        {openTasks.length + doneTasks.length > 0 && (
-          <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0">
-            {progress}%
-          </span>
-        )}
+         *  was a misleading anchor on fresh missions.
+         *
+         *  2026-08-23 · same judgment, generalised. A percentage answers
+         *  "how close to finished", which only means something for a mission
+         *  that CAN finish. On a life-area bucket the figure fell whenever the
+         *  operator captured a task and sat near 79% forever. Buckets now show
+         *  the open count — the number they can act on. Percentage returns
+         *  automatically once a deadline or completionCriteria is set. */}
+        {openTasks.length + doneTasks.length > 0 &&
+          (hasEndState ? (
+            <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0">
+              {progress}%
+            </span>
+          ) : (
+            <span
+              className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0"
+              title={`${doneTasks.length} done · no completion target set for this mission`}
+            >
+              {openTasks.length} open
+            </span>
+          ))}
         {deadlineLabel && (
           <span
             className={cn(
@@ -367,8 +383,12 @@ export function MissionCard({
       </button>
 
       {/* Progress bar · hidden when mission has 0 tasks total · the
-       *  0% sliver was misleading for fresh missions. wave-AA-audit */}
-      {openTasks.length + doneTasks.length > 0 && (
+       *  0% sliver was misleading for fresh missions. wave-AA-audit
+       *
+       *  2026-08-23 · also hidden when the mission declares no end state. A
+       *  bar that fills toward a target nobody set is a picture of a claim
+       *  the data does not make. */}
+      {openTasks.length + doneTasks.length > 0 && hasEndState && (
         <div className="px-3 -mt-2 pb-2">
           <div className="h-0.5 bg-[var(--border-default)]/40 rounded-full overflow-hidden">
             <div
@@ -510,13 +530,25 @@ export function MissionCard({
   );
 }
 
-function derivedMetrics(
+/**
+ * Exported for tests/components/mission-progress-gate.test.ts. Rendering
+ * MissionCard needs the mission-dispatch context plus tRPC-backed task rows;
+ * this is the pure function that decides what the header actually shows, so
+ * the canary asserts it directly and a second check asserts the render sites
+ * consume it. Not intended for import by other components.
+ */
+export function derivedMetrics(
   mission: Project,
   tasks: Task[],
 ): {
   openTasks: Task[];
   doneTasks: Task[];
   progress: number;
+  /** True only when the mission declares a finish — a deadline or explicit
+   *  completionCriteria. A life-area bucket has no 100%, so it gets an open
+   *  count instead of a percentage. See missionHasEndState for the measured
+   *  reasoning and why successMetric deliberately does NOT count. */
+  hasEndState: boolean;
   deadlineLabel: string | null;
   deadlineTone: "urgent" | "soon" | "normal" | null;
 } {
@@ -524,6 +556,7 @@ function derivedMetrics(
   const doneTasks = tasks.filter((t) => t.status === "DONE");
   const total = openTasks.length + doneTasks.length;
   const progress = total === 0 ? 0 : Math.round((doneTasks.length / total) * 100);
+  const hasEndState = missionHasEndState(mission);
 
   let deadlineLabel: string | null = null;
   let deadlineTone: "urgent" | "soon" | "normal" | null = null;
@@ -549,5 +582,5 @@ function derivedMetrics(
     }
   }
 
-  return { openTasks, doneTasks, progress, deadlineLabel, deadlineTone };
+  return { openTasks, doneTasks, progress, hasEndState, deadlineLabel, deadlineTone };
 }
