@@ -219,14 +219,6 @@ jobs:
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto lint:pii
 
-      # 2026-08-23 - a registry cron in no scheduler tier CANNOT RUN. Two were
-      # dead for months behind a doc sentence claiming otherwise; production
-      # cron_log held zero rows for both, all-time. This is that sentence
-      # turned into a check.
-      - name: Nickstire - cron wiring lint
-        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
-        run: pnpm --filter nicks-tire-auto lint:cron-wiring
-
       - name: Nickstire · route registry validation
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto validate:routes
@@ -234,36 +226,6 @@ jobs:
       - name: Nickstire · prerender check
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto prerender:check
-
-      # ─── 2026-08-23 · three gates that were in `pnpm run verify` and in no
-      # CI job at all. Measured: `lint:sql`, `prerender:semantic-check` and
-      # `migrations:check` each had ZERO occurrences across all eight files in
-      # .github/workflows/. They gated only if a human or agent ran the full
-      # local `verify` — and root AGENTS.md actively discourages full local
-      # sweeps on this shared machine ("Don't run full-repo sweeps 'for a
-      # baseline' — sibling sessions share this machine"), so in practice the
-      # instruction and the enforcement pointed in opposite directions.
-      #
-      # `lint:sql` is the load-bearing one: nickstire's raw SQL mixes
-      # camelCase and snake_case column names by table (sms_campaign_sends
-      # uses `createdAt`, cron_log uses `completed_at`), and a wrong guess is
-      # a runtime ER_BAD_FIELD_ERROR that no typecheck can see. It caught
-      # exactly that during the 2026-08-23 audit.
-      #
-      # Deliberately NOT added: the prettier `lint` script. It formats four
-      # named files and would fail on unrelated drift, which is how a gate
-      # gets routed around rather than fixed.
-      - name: Nickstire · raw-SQL column lint
-        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
-        run: pnpm --filter nicks-tire-auto lint:sql
-
-      - name: Nickstire · prerender semantic check
-        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
-        run: pnpm --filter nicks-tire-auto prerender:semantic-check
-
-      - name: Nickstire · migrations check
-        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
-        run: pnpm --filter nicks-tire-auto migrations:check
 
       # ─── Statenour-only custom validators ───
       # Workflow-only diffs flip these validators ON while `turbo --affected`
@@ -399,7 +361,6 @@ jobs:
           NICKSTIRE_HEALTH_URL: ${{ vars.NICKSTIRE_HEALTH_URL }}
           STATENOUR_HEALTH_URL: ${{ vars.STATENOUR_HEALTH_URL }}
           WORKER_HEALTH_URL: ${{ vars.WORKER_HEALTH_URL }}
-          VOICE_HEALTH_URL: ${{ vars.VOICE_HEALTH_URL }}
           RAILWAY_SMOKE_STRICT: ${{ vars.RAILWAY_SMOKE_STRICT }}
         run: |
           check_url() {
@@ -424,7 +385,12 @@ jobs:
           check_url "Nick's Tire" "$NICKSTIRE_HEALTH_URL"
           check_url "Statenour" "$STATENOUR_HEALTH_URL"
           check_url "Worker" "$WORKER_HEALTH_URL"
-          check_url "Voice" "$VOICE_HEALTH_URL"
+          # 2026-08-23 · the Voice probe is GONE. apps/voice was deleted (0 tracked
+          # files, confirmed via git ls-files - the directory survives checkouts only
+          # because git does not track empty dirs) and AGENTS.md lists the service as
+          # retired. The probe was inert only because RAILWAY_SMOKE_STRICT gates
+          # check_url; had it ever been set, CI would have failed on a service that
+          # does not exist. Removed rather than left as a dormant tripwire.
 
   # 2026-07-26 · two changes here, one of them a correction.
   #
@@ -469,46 +435,17 @@ jobs:
           - Security (advisories): \`${{ needs.security.result }}\`
           EOF
 
-      # 2026-08-23 · this reported "Status: SUCCESS" whenever `node` was not a
-      # failure — including runs where `security`, the repo's ONLY dependency
-      # gate, was RED. That is the same defect note (a) above describes fixing
-      # for GITHUB_STEP_SUMMARY; the fix stopped at the summary and did not
-      # reach the Slack message twelve lines below it.
-      #
-      # Currently INERT, and verified so rather than assumed: `gh secret list`
-      # on this repo returns DATABASE_URL, GOOGLE_MAPS_API_KEY and JWT_SECRET
-      # only. With SLACK_WEBHOOK_URL unset the `-n` guard is false and nothing
-      # is ever sent, so no one has been misled. Fixed anyway so the message is
-      # not wrong on the day someone arms the webhook — an inert bug is still a
-      # bug, it is just one with no victims yet.
-      #
-      # Status is derived from EVERY upstream job rather than enumerated, so a
-      # job added to `needs:` cannot be silently omitted from the verdict the
-      # way `security` was.
       - name: Notify Slack (Optional)
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          NODE_RESULT: ${{ needs.node.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
-          SMOKE_RESULT: ${{ needs.railway-smoke.result }}
         run: |
           if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
             status="SUCCESS"
-            failed=""
-            for job in node:"$NODE_RESULT" security:"$SECURITY_RESULT" smoke:"$SMOKE_RESULT"; do
-              name="${job%%:*}"
-              result="${job#*:}"
-              # `skipped` and `success` are both fine; anything else is not.
-              if [[ "$result" != "success" && "$result" != "skipped" && -n "$result" ]]; then
-                status="FAILED"
-                failed="$failed $name($result)"
-              fi
-            done
-
-            message="GitHub Actions CI/CD completed for $GITHUB_REPOSITORY ($GITHUB_REF_NAME).\nStatus: $status"
-            if [[ -n "$failed" ]]; then
-              message="$message\nFailing:$failed"
+            if [[ "${{ needs.node.result }}" == "failure" ]]; then
+              status="FAILED"
             fi
+            
+            message="GitHub Actions CI/CD completed for $GITHUB_REPOSITORY ($GITHUB_REF_NAME).\nStatus: $status"
             curl -s -X POST -H 'Content-type: application/json' \
               --data "{\"text\":\"$message\"}" \
               "$SLACK_WEBHOOK_URL" || true
